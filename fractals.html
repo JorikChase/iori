@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Fractal Optimization Through Procedural Lens</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+      :root {
+          --text-color: #212529;
+          --border-color: #dee2e6;
+          --link-color: #0056b3;
+          --header-font: 'Lora', serif;
+          --body-font: 'Inter', sans-serif;
+      }
+      body {
+          font-family: var(--body-font);
+          line-height: 1.7;
+          color: var(--text-color);
+          background-color: #ffffff;
+          margin: 0;
+          padding: 3rem 2rem;
+          display: flex;
+          justify-content: center;
+      }
+      main {
+          max-width: 100ch;
+          width: 100%;
+      }
+      h1, h2, h3, p, li {
+          transition: transform 0.2s ease-in-out;
+      }
+      h1:hover, h2:hover, h3:hover, p:hover:not(.subtitle):not(.acknowledgements p):not(.abstract), li:hover {
+          transform: translateY(-2px);
+      }
+      h1, h2, h3 {
+          font-family: var(--header-font);
+          font-weight: 700;
+          line-height: 1.2;
+          margin-top: 2.5em;
+          margin-bottom: 1em;
+          padding-bottom: 0;
+          border-bottom: none;
+      }
+      h1 {
+          font-size: 2.8rem;
+          text-align: left;
+      }
+      h2 {
+          font-size: 1.75rem;
+          margin-top: 3.5em;
+      }
+      h3 {
+          font-size: 1.25rem;
+      }
+      p, li {
+          text-align: justify;
+      }
+      a {
+          color: var(--link-color);
+          text-decoration: none;
+          transition: transform 0.2s ease, text-decoration 0.2s ease;
+      }
+      a:hover {
+          text-decoration: underline;
+          transform: translateY(-1px);
+      }
+      header, footer, section {
+          margin-bottom: 2rem;
+      }
+      header p {
+          text-align: left;
+          font-style: italic;
+      }
+      .subtitle {
+          font-size: 1.2rem;
+          color: #6c757d;
+          margin-top: 0.5rem;
+      }
+      .acknowledgements {
+          font-style: italic;
+          color: #6c757d;
+          text-align: left;
+          margin-top: 2rem;
+      }
+      .abstract {
+          font-style: italic;
+          color: #495057;
+          margin: 2em 0;
+      }
+       nav {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 2em 0;
+        }
+        nav h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-family: var(--header-font);
+        }
+        nav ol {
+            list-style-position: inside;
+            padding-left: 0;
+            margin: 0;
+        }
+        nav ol li {
+            margin-bottom: 0.5rem;
+        }
+        nav ol li a {
+            font-weight: 400;
+        }
+      /* General canvas style */
+      .interactive-canvas {
+          display: block;
+          width: 100%;
+          max-width: 500px;
+          aspect-ratio: 1 / 1;
+          margin: 1.5rem auto;
+          //border: 1px solid var(--border-color);
+          cursor: grab;
+          touch-action: none;
+          border-radius: 8px; /* Added for softer corners */
+          transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+      .interactive-canvas:active {
+          cursor: grabbing;
+      }
+      /* Container for Three.js canvases to enforce aspect ratio and styling */
+       .interactive-canvas-container {
+            position: relative; /* For positioning child elements like stats.js */
+            display: block;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1 / 1;
+            margin: 1.5rem auto;
+            //border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden; /* Keeps GUI and other elements contained */
+        }
+      .interactive-canvas-container canvas {
+          width: 100% !important;
+          height: 100% !important;
+          display: block;
+      }
+      .controls {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          align-items: center;
+          gap: 1rem;
+          margin: -1rem auto 1.5rem;
+          max-width: 500px;
+      }
+      .controls label {
+          font-size: 0.9rem;
+      }
+      .controls input[type="range"] {
+          width: 120px;
+      }
+      .controls button, .controls input[type="file"]::-webkit-file-upload-button {
+          padding: 0.5em 1em;
+          border: 1px solid var(--border-color);
+          background: #ffffff;
+          border-radius: 4px;
+          cursor: pointer;
+          font-family: var(--body-font);
+          font-size: 0.9rem;
+          transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+      .controls input[type="file"] {
+          font-size: 0.9rem;
+      }
+       .controls button:hover, .controls input[type="file"]::-webkit-file-upload-button:hover {
+          background-color: #f8f9fa;
+          border-color: #ced4da;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+      }
+      .controls button:active, .controls input[type="file"]::-webkit-file-upload-button:active {
+          background-color: #e9ecef;
+          transform: translateY(0px) scale(0.98);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      }
+
+      .image-container {
+          display: flex;
+          justify-content: center;
+          gap: 1rem;
+          margin: 1.5rem auto;
+          max-width: 500px;
+      }
+      .image-container img, .image-container canvas {
+          width: 48%;
+          height: auto;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Fractal Optimization Through Procedural Lens</h1>
+        <p class="subtitle">I would like to propose not only the idea that non-euclidian geometry should be the base of mathematical understanding, but that the same logic applies to non-integer dimensionsionality.</p>
+        <p>iori</p>
+      </header>
+      <section class="acknowledgements">
+        <p>Thank you to all those who stand by me.</p>
+      </section>
+      <section>
+        <h2>Abstract</h2>
+        <p class="abstract">
+          This paper explores the principle of fractal geometry as a foundational logic for optimization and analysis across diverse domains. We introduce fractal concepts through classic examples like the Sierpinski carpet and Menger sponge, defining fractal dimension as a measure of complexity. We then present a series of applications and conceptual frameworks, demonstrating how fractal properties manifest in natural and artificial systems. These include procedural content generation, analysis of stochastic processes, emergent behavior in agent-based systems, and complex dynamics in cellular automata. Through interactive visualizations, we aim to provide an intuitive understanding of these complex, self-similar structures and their utility as a universal tool for modeling and problem-solving.
+        </p>
+      </section>
+      <nav>
+        <h3>Contents</h3>
+        <ol>
+          <li><a href="#ch1">Introduction to Fractals</a></li>
+          <li><a href="#ch2">Stochastic and Emergent Systems</a></li>
+          <li><a href="#ch3">Cellular Automata</a></li>
+          <li><a href="#ch4">Phase Transitions and Criticality</a></li>
+          <li><a href="#ch5">Fractal Analysis in Computation</a></li>
+          <li><a href="#ch6">Fractal Structures in Data Science</a></li>
+        </ol>
+      </nav>
+      <section id="ch1">
+        <h2>1. Introduction to Fractals</h2>
+        <h3>1.1 The Sierpinski Carpet</h3>
+        <p>
+          The Sierpinski carpet is constructed by starting with a square, dividing it into a 3x3 grid, and removing the central square. This process is then applied recursively to the remaining eight squares.
+        </p>
+        <div class="controls">
+          <label>Iterations:</label>
+          <button id="carpet-decr">-</button>
+          <span id="carpet-level">3</span>
+          <button id="carpet-incr">+</button>
+        </div>
+        <canvas id="sierpinski-carpet-canvas" class="interactive-canvas" width="500" height="500"></canvas>
+        <h3>1.2 The Menger Sponge</h3>
+        <p>
+          Extending this concept into three dimensions yields the Menger Sponge. One begins with a cube and recursively removes the central cube from each face and its interior. Use your mouse to rotate the camera.
+        </p>
+        <div class="controls">
+          <label>Iterations:</label>
+          <button id="sponge-decr">-</button>
+          <span id="sponge-level">2</span>
+          <button id="sponge-incr">+</button>
+        </div>
+        <div id="menger-sponge-canvas-container" class="interactive-canvas-container">
+          <canvas id="menger-sponge-canvas"></canvas>
+        </div>
+      </section>
+      <section id="ch2">
+        <h2>2. Stochastic and Emergent Systems</h2>
+        <h3>2.1 Stochastic Processes: Brownian Motion</h3>
+        <p>
+          Brownian motion, the random movement of particles, produces a statistically self-similar—fractal—path. A magnified section of the path looks just as jagged and random as the whole.
+        </p>
+        <div class="controls">
+          <button id="brownian-reset">Reset</button>
+        </div>
+        <canvas id="brownian-motion-canvas" class="interactive-canvas" width="500" height="500"></canvas>
+        <h3>2.2 Langton's Ant</h3>
+        <p>A simple automaton with a single "ant" on a grid. The ant turns left or right based on the color of the square it's on, flips the color, and moves forward. This simple rule set leads to chaotic behavior that eventually builds a periodic "highway".</p>
+        <div class="controls">
+          <button id="ant-play-pause">Play</button>
+          <button id="ant-reset">Reset</button>
+        </div>
+        <canvas id="langtons-ant-canvas" class="interactive-canvas" width="500" height="500"></canvas>
+        <h3>2.3 Voxel Fire Simulation</h3>
+        <p>
+          Fractal noise and particle systems are foundational to procedural generation in computer graphics. This simulation uses a particle system originating from a 16x16 grid to create a fire effect. Each particle (a "voxel" of fire) has a limited lifetime and follows simple rules, creating a complex, dynamic, and realistic whole. Use your mouse to rotate the camera.
+        </p>
+        <div id="fire-canvas-container" class="interactive-canvas-container">
+          <canvas id="fire-canvas"></canvas>
+        </div>
+        <h3>2.4 GPGPU Boids: Artificial Life</h3>
+        <p>
+          The "Boids" algorithm simulates flocking behavior. Each boid follows three simple rules: Separation, Alignment, and Cohesion. This advanced simulation uses the GPU (via GPGPU) to compute the positions and velocities of thousands of boids in real-time, creating complex, life-like global behavior from local rules. Move your mouse over the simulation to introduce a 'predator' and see the flock react.
+        </p>
+        <div id="gpgpu-boids-container" class="interactive-canvas-container"></div>
+      </section>
+      <section id="ch3">
+        <h2>3. Cellular Automata</h2>
+        <p>Cellular automata are discrete models consisting of a grid of cells, each in a finite number of states. The state of each cell in the next time step is determined by a set of rules based on the states of its neighboring cells. They are powerful tools for modeling complex systems.</p>
+        <h3>3.1 Conway's Game of Life</h3>
+        <p>A classic example where cells are either "alive" or "dead". The rules for survival, death, and birth based on neighbor counts lead to incredibly complex and persistent patterns from simple initial conditions.</p>
+        <div class="controls">
+          <button id="life-play-pause">Play</button>
+          <button id="life-reset">Reset</button>
+        </div>
+        <canvas id="game-of-life-canvas" class="interactive-canvas" width="500" height="500"></canvas>
+      </section>
+      <section id="ch4">
+        <h2>4. Phase Transitions and Criticality</h2>
+        <p>
+          Many complex systems, from water turning to ice to the firing of neurons in the brain, exhibit phase transitions where the system's global behavior abruptly changes. This often occurs at a "critical point." Systems operating near this point, a state known as criticality, show fractal-like behavior, with correlations and structures appearing across all scales.
+        </p>
+        <h3>4.1 The Ising Model and Brain Criticality</h3>
+        <p>
+          The Ising model, a fundamental model in statistical mechanics, simulates magnetism by modeling atomic spins on a grid. Depending on the temperature, the system exists in two phases: ordered (low temp), where spins align to form large magnetic domains, or disordered (high temp), where spins are random. The transition between these phases is a critical point. The "criticality hypothesis" of the brain suggests that neural networks operate near a similar critical point, poised between order and chaos. This state is thought to be optimal for information processing, allowing for both the stability needed to store information and the flexibility needed to adapt and compute. Adjust the temperature slider below to see the Ising model transition between order and chaos.
+        </p>
+        <div class="controls">
+          <label>Temperature:
+            <span id="ising-temp-val">2.3</span></label>
+          <input type="range" id="ising-temp" min="0.1" max="5" step="0.1" value="2.3">
+          <button id="ising-reset">Reset</button>
+        </div>
+        <canvas id="ising-model-canvas" class="interactive-canvas" width="500" height="500"></canvas>
+      </section>
+      <section id="ch5">
+        <h2>5. Fractal Analysis in Computation</h2>
+        <h3>5.1 Difference of Gaussians (DoG) Edge Detection</h3>
+        <p>
+          One common technique for edge detection is the Difference of Gaussians (DoG). The image is blurred twice, and one is subtracted from the other, highlighting details. You can upload your own image to try it out.
+        </p>
+        <div class="image-container">
+          <img id="dog-source-img" src="https://placehold.co/400x400/cccccc/000000?text=Sample" alt="Source image for DoG filter" crossorigin="anonymous">
+          <canvas id="dog-canvas"></canvas>
+        </div>
+        <div class="controls">
+          <input type="file" id="image-upload" accept="image/*">
+        </div>
+        <div class="controls">
+          <label>Sigma 1:
+            <span id="sigma1-val">1.0</span></label>
+          <input type="range" id="sigma1" min="0.1" max="5" step="0.1" value="1.0">
+          <label>Sigma 2:
+            <span id="sigma2-val">2.0</span></label>
+          <input type="range" id="sigma2" min="0.1" max="5" step="0.1" value="2.0">
+        </div>
+        <h3>5.2 Fractal Dimension of an Image</h3>
+        <p>
+          After processing an image to extract its edges, we can quantify the complexity of the resulting pattern by calculating its fractal dimension using the Box-Counting method.
+        </p>
+        <div class="controls">
+          <button id="calculate-fd-btn">Calculate Fractal Dimension</button>
+          <p>FD:
+            <b id="fd-result">N/A</b></p>
+        </div>
+      </section>
+      <section id="ch6">
+        <h2>6. Fractal Structures in Data Science</h2>
+        <p>The principles of self-similarity and fractional dimensions are not confined to geometry and natural phenomena; they also provide a powerful lens for analyzing and understanding the structure of data and algorithms, particularly in the realm of computer science.</p>
+        <h3>6.1 The Self-Similar Nature of Binary Trees</h3>
+        <p>A binary tree is a quintessential example of a fractal structure in data representation. By definition, every node in a binary tree is the root of a smaller binary tree, known as a subtree. This property of a structure containing smaller copies of itself is the hallmark of self-similarity. In a complete or balanced binary tree, this self-similarity is perfect and deterministic. For example, removing the root node of a complete binary tree leaves two identical, smaller complete binary trees. This recursive definition allows for efficient algorithms, such as binary search, that leverage this fractal nature to divide the problem space at each step.</p>
+        <h3>6.2 Fractal Dimension of Tree Structures</h3>
+        <p>The complexity and branching behavior of a tree structure can be quantified using a fractal dimension. By visualizing a tree on a 2D plane—for instance, using an H-tree layout or a standard node-link diagram—one can apply the box-counting method. A sparse, spindly tree (like a linked list) would have a fractal dimension close to 1, as it primarily occupies one dimension. In contrast, a dense, bushy tree that branches out to fill the 2D space would have a fractal dimension approaching 2. This metric can be used to characterize the "shape" of data, analyze the efficiency of tree-based search algorithms, or even detect anomalies in network traffic data, where the branching structure might deviate from its normal fractal dimension.</p>
+        <h3>Fitting to the fractal world model</h3>
+        <p>The "context" to which an organism adapts is not a simple problem, but a fitness landscape of staggering complexity.
+          <br>
+          <br>
+          An organism’s niche is a rugged boundary on this map, as intricate and detailed at the level of a biome as it is at the scale of a single leaf’s edge. Evolution is not a climb, but a diffusion of a population across this impossibly complex surface.
+          <br>
+          <br>
+          Thus, the profound similarity is revealed. Both the living organism and the simple algorithm are explorers of a rough and complex geometry. They are searchers, one blind and biological, the other blind and logical, navigating a landscape of possibility whose very roughness is the source of its richness. The butterfly’s wing and the perceptron’s learned weights are both snapshots of a successful path found through this wilderness, a testament to the startling power of iterative fitting. They are two strikingly different manifestations of the same universal act: the slow, painful, yet ultimately beautiful convergence of a model to a world.</p>
+      </section>
+      <footer>
+        <p>***cve 2047***</p>
+      </footer>
+    </main>
+    <!-- SHADER DEFINITIONS FOR GPGPU BOIDS -->
+    <script id="fragmentShaderPosition" type="x-shader/x-fragment">
+      uniform float time;
+      uniform float delta;
+      void main() {
+        vec2 uv = gl_FragCoord.xy / resolution.xy;
+        vec4 tmpPos = texture2D( texturePosition, uv );
+        vec3 position = tmpPos.xyz;
+        vec3 velocity = texture2D( textureVelocity, uv ).xyz;
+        float phase = tmpPos.w;
+        phase = mod( ( phase + delta +
+          length( velocity.xz ) * delta * 3. +
+          max( velocity.y, 0.0 ) * delta * 6. ), 62.83 );
+        gl_FragColor = vec4( position + velocity * delta * 15. , phase );
+      }
+    </script>
+    <script id="fragmentShaderVelocity" type="x-shader/x-fragment">
+      uniform float time;
+      uniform float testing;
+      uniform float delta; // about 0.016
+      uniform float separationDistance; // 20
+      uniform float alignmentDistance; // 40
+      uniform float cohesionDistance; //
+      uniform float freedomFactor;
+      uniform vec3 predator;
+      const float width = resolution.x;
+      const float height = resolution.y;
+      const float PI = 3.141592653589793;
+      const float PI_2 = PI * 2.0;
+      float zoneRadius = 40.0;
+      float zoneRadiusSquared = 1600.0;
+      float separationThresh = 0.45;
+      float alignmentThresh = 0.65;
+      const float UPPER_BOUNDS = BOUNDS;
+      const float LOWER_BOUNDS = -UPPER_BOUNDS;
+      const float SPEED_LIMIT = 9.0;
+      float rand( vec2 co ){
+        return fract( sin( dot( co.xy, vec2(12.9898,78.233) ) ) * 43758.5453 );
+      }
+      void main() {
+        zoneRadius = separationDistance + alignmentDistance + cohesionDistance;
+        separationThresh = separationDistance / zoneRadius;
+        alignmentThresh = ( separationDistance + alignmentDistance ) / zoneRadius;
+        zoneRadiusSquared = zoneRadius * zoneRadius;
+        vec2 uv = gl_FragCoord.xy / resolution.xy;
+        vec3 birdPosition, birdVelocity;
+        vec3 selfPosition = texture2D( texturePosition, uv ).xyz;
+        vec3 selfVelocity = texture2D( textureVelocity, uv ).xyz;
+        float dist;
+        vec3 dir; // direction
+        float distSquared;
+        float separationSquared = separationDistance * separationDistance;
+        float cohesionSquared = cohesionDistance * cohesionDistance;
+        float f;
+        float percent;
+        vec3 velocity = selfVelocity;
+        float limit = SPEED_LIMIT;
+        dir = predator * UPPER_BOUNDS - selfPosition;
+        dir.z = 0.;
+        dist = length( dir );
+        distSquared = dist * dist;
+        float preyRadius = 150.0;
+        float preyRadiusSq = preyRadius * preyRadius;
+        if ( dist < preyRadius ) {
+          f = ( distSquared / preyRadiusSq - 1.0 ) * delta * 100.;
+          velocity += normalize( dir ) * f;
+          limit += 5.0;
+        }
+        vec3 central = vec3( 0., 0., 0. );
+        dir = selfPosition - central;
+        dist = length( dir );
+        dir.y *= 2.5;
+        velocity -= normalize( dir ) * delta * 5.;
+        for ( float y = 0.0; y < height; y++ ) {
+          for ( float x = 0.0; x < width; x++ ) {
+            vec2 ref = vec2( x + 0.5, y + 0.5 ) / resolution.xy;
+            birdPosition = texture2D( texturePosition, ref ).xyz;
+            dir = birdPosition - selfPosition;
+            dist = length( dir );
+            if ( dist < 0.0001 ) continue;
+            distSquared = dist * dist;
+            if ( distSquared > zoneRadiusSquared ) continue;
+            percent = distSquared / zoneRadiusSquared;
+            if ( percent < separationThresh ) { // low
+              f = ( separationThresh / percent - 1.0 ) * delta;
+              velocity -= normalize( dir ) * f;
+            } else if ( percent < alignmentThresh ) { // high
+              float threshDelta = alignmentThresh - separationThresh;
+              float adjustedPercent = ( percent - separationThresh ) / threshDelta;
+              birdVelocity = texture2D( textureVelocity, ref ).xyz;
+              f = ( 0.5 - cos( adjustedPercent * PI_2 ) * 0.5 + 0.5 ) * delta;
+              velocity += normalize( birdVelocity ) * f;
+            } else {
+              float threshDelta = 1.0 - alignmentThresh;
+              float adjustedPercent;
+              if( threshDelta == 0. ) adjustedPercent = 1.;
+              else adjustedPercent = ( percent - alignmentThresh ) / threshDelta;
+              f = ( 0.5 - ( cos( adjustedPercent * PI_2 ) * -0.5 + 0.5 ) ) * delta;
+              velocity += normalize( dir ) * f;
+            }
+          }
+        }
+        if ( length( velocity ) > limit ) {
+          velocity = normalize( velocity ) * limit;
+        }
+        gl_FragColor = vec4( velocity, 1.0 );
+      }
+    </script>
+    <script type="x-shader/x-vertex" id="birdVS">
+      attribute vec2 reference;
+      attribute float birdVertex;
+      attribute vec3 birdColor;
+      uniform sampler2D texturePosition;
+      uniform sampler2D textureVelocity;
+      varying vec4 vColor;
+      varying float z;
+      uniform float time;
+      void main() {
+        vec4 tmpPos = texture2D( texturePosition, reference );
+        vec3 pos = tmpPos.xyz;
+        vec3 velocity = normalize(texture2D( textureVelocity, reference ).xyz);
+        vec3 newPosition = position;
+        if ( birdVertex == 4.0 || birdVertex == 7.0 ) {
+          newPosition.y = sin( tmpPos.w ) * 5.;
+        }
+        newPosition = mat3( modelMatrix ) * newPosition;
+        velocity.z *= -1.;
+        float xz = length( velocity.xz );
+        float xyz = 1.;
+        float x = sqrt( 1. - velocity.y * velocity.y );
+        float cosry = velocity.x / xz;
+        float sinry = velocity.z / xz;
+        float cosrz = x / xyz;
+        float sinrz = velocity.y / xyz;
+        mat3 maty =  mat3(
+          cosry, 0, -sinry,
+          0    , 1, 0     ,
+          sinry, 0, cosry
+        );
+        mat3 matz =  mat3(
+          cosrz , sinrz, 0,
+          -sinrz, cosrz, 0,
+          0     , 0    , 1
+        );
+        newPosition =  maty * matz * newPosition;
+        newPosition += pos;
+        z = newPosition.z;
+        vColor = vec4( birdColor, 1.0 );
+        gl_Position = projectionMatrix * viewMatrix  * vec4( newPosition, 1.0 );
+      }
+    </script>
+    <script type="x-shader/x-fragment" id="birdFS">
+      varying vec4 vColor;
+      varying float z;
+      uniform vec3 color;
+      void main() {
+        float z2 = 0.2 + ( 1000. - z ) / 1000. * vColor.x;
+        gl_FragColor = vec4( z2, z2, z2, 1. );
+      }
+    </script>
+    <script type="importmap">
+      {
+          "imports": {
+              "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+              "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+          }
+      }
+    </script>
+    <script type="module">
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+      import Stats from 'three/addons/libs/stats.module.js';
+      import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+
+      // --- Animation Control via IntersectionObserver ---
+      // This system manages the animations, starting them when they
+      // enter the viewport and stopping them when they leave to save resources.
+      const threeJsAnimations = {
+          'menger-sponge-canvas-container': { isAnimating: false, animateFn: animateSponge, animationId: null, initFn: initSponge, hasBeenInitialized: false },
+          'fire-canvas-container': { isAnimating: false, animateFn: animateFire, animationId: null, initFn: initFire, hasBeenInitialized: false },
+          'gpgpu-boids-container': { isAnimating: false, animateFn: animateGpgpuBoids, animationId: null, initFn: initGpgpuBoids, hasBeenInitialized: false }
+      };
+
+      const observerCallback = (entries, observer) => {
+          entries.forEach(entry => {
+              const anim = threeJsAnimations[entry.target.id];
+              if (!anim) return;
+
+              if (entry.isIntersecting) {
+                  if (!anim.hasBeenInitialized) {
+                      anim.initFn();
+                      anim.hasBeenInitialized = true;
+                  }
+                  if (!anim.isAnimating) {
+                      anim.isAnimating = true;
+                      anim.animateFn();
+                  }
+              } else if (anim.isAnimating) {
+                  cancelAnimationFrame(anim.animationId);
+                  anim.isAnimating = false;
+              }
+          });
+      };
+
+      const observer = new IntersectionObserver(observerCallback, {
+          root: null, 
+          threshold: 0.1 
+      });
+
+      Object.keys(threeJsAnimations).forEach(id => {
+          const element = document.getElementById(id);
+          if (element) observer.observe(element);
+      });
+
+      // --- Sierpinski Carpet ---
+      const carpetCanvas = document.getElementById('sierpinski-carpet-canvas');
+      const carpetCtx = carpetCanvas.getContext('2d');
+      let carpetIterations = 3;
+      function drawCarpet(level, x, y, size) {
+          if (level === 0) return;
+          const subSize = size / 3;
+          for (let i = 0; i < 3; i++) {
+              for (let j = 0; j < 3; j++) {
+                  if (i === 1 && j === 1) carpetCtx.fillRect(x + subSize, y + subSize, subSize, subSize);
+                  else drawCarpet(level - 1, x + i * subSize, y + j * subSize, subSize);
+              }
+          }
+      }
+      function renderCarpet() {
+          carpetCtx.fillStyle = '#ffffff';
+          carpetCtx.fillRect(0, 0, carpetCanvas.width, carpetCanvas.height);
+          carpetCtx.fillStyle = '#212529';
+          drawCarpet(carpetIterations, 0, 0, carpetCanvas.width);
+      }
+      document.getElementById('carpet-incr').onclick = () => { if (carpetIterations < 6) carpetIterations++; updateCarpetUI(); };
+      document.getElementById('carpet-decr').onclick = () => { if (carpetIterations > 0) carpetIterations--; updateCarpetUI(); };
+      function updateCarpetUI() {
+          document.getElementById('carpet-level').textContent = carpetIterations;
+          renderCarpet();
+      }
+      updateCarpetUI();
+
+      // --- Menger Sponge ---
+      const spongeContainer = document.getElementById('menger-sponge-canvas-container');
+      const spongeCanvas = document.getElementById('menger-sponge-canvas');
+      let spongeIterations = 2;
+      let spongeScene, spongeCamera, spongeRenderer, spongeControls, spongeGroup;
+      function getSpongeTransforms(level, size, center) {
+          if (level === 0) return [{ position: center, size: size }];
+          const transforms = [];
+          const subSize = size / 3;
+          for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+              if (Math.abs(x) + Math.abs(y) + Math.abs(z) > 1) {
+                  const newCenter = center.clone().add(new THREE.Vector3(x, y, z).multiplyScalar(subSize));
+                  transforms.push(...getSpongeTransforms(level - 1, subSize, newCenter));
+              }
+          }
+          return transforms;
+      }
+      function initSponge() {
+          spongeScene = new THREE.Scene();
+          spongeScene.background = new THREE.Color(0xffffff);
+          const size = spongeContainer.clientWidth;
+          const aspect = size / size;
+          const frustumSize = 3;
+          spongeCamera = new THREE.OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
+          spongeCamera.position.set(1.5, 1.5, 1.5);
+          spongeRenderer = new THREE.WebGLRenderer({ canvas: spongeCanvas, antialias: true, alpha: true });
+          spongeRenderer.setPixelRatio(window.devicePixelRatio);
+          spongeRenderer.setSize(size, size);
+          spongeControls = new OrbitControls(spongeCamera, spongeRenderer.domElement);
+          spongeControls.enableDamping = true;
+          
+          const ambientLight = new THREE.AmbientLight(0x404040, 3);
+          spongeScene.add(ambientLight);
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+          directionalLight.position.set(0.5, 1, 0.75).normalize();
+          spongeScene.add(directionalLight);
+          buildSponge();
+      }
+      function buildSponge() {
+          if (spongeGroup) {
+              spongeGroup.traverse(c => { if (c.isInstancedMesh) { c.geometry.dispose(); c.material.dispose(); } });
+              spongeScene.remove(spongeGroup);
+          }
+          spongeGroup = new THREE.Group();
+          const transforms = getSpongeTransforms(spongeIterations, 1.5, new THREE.Vector3(0, 0, 0));
+          if (transforms.length === 0) { return; }
+          const geometry = new THREE.BoxGeometry(1, 1, 1);
+          const material = new THREE.MeshLambertMaterial({ color: 0x212529 });
+          const mesh = new THREE.InstancedMesh(geometry, material, transforms.length);
+          const matrix = new THREE.Matrix4();
+          for (let i = 0; i < transforms.length; i++) {
+              const { position, size } = transforms[i];
+              matrix.compose(position, new THREE.Quaternion(), new THREE.Vector3(size, size, size));
+              mesh.setMatrixAt(i, matrix);
+          }
+          spongeGroup.add(mesh);
+          spongeScene.add(spongeGroup);
+      }
+      function animateSponge() { 
+        const animState = threeJsAnimations['menger-sponge-canvas-container'];
+        if (!animState.isAnimating) return;
+        animState.animationId = requestAnimationFrame(animateSponge); 
+        spongeControls.update(); 
+        spongeRenderer.render(spongeScene, spongeCamera); 
+      }
+      document.getElementById('sponge-incr').onclick = () => { if (spongeIterations < 3) spongeIterations++; updateSpongeUI(); };
+      document.getElementById('sponge-decr').onclick = () => { if (spongeIterations >= 0) spongeIterations--; updateSpongeUI(); };
+      function updateSpongeUI() { document.getElementById('sponge-level').textContent = spongeIterations; if(threeJsAnimations['menger-sponge-canvas-container'].hasBeenInitialized) buildSponge(); }
+      
+      // --- Brownian Motion ---
+      const brownianCanvas = document.getElementById('brownian-motion-canvas');
+      const brownianCtx = brownianCanvas.getContext('2d');
+      let brownianX, brownianY, brownianInterval;
+      function resetBrownian() {
+          if (brownianInterval) clearInterval(brownianInterval);
+          const { width: w, height: h } = brownianCanvas;
+          brownianCtx.fillStyle = '#ffffff';
+          brownianCtx.fillRect(0, 0, w, h);
+          [brownianX, brownianY] = [w / 2, h / 2];
+          brownianCtx.strokeStyle = '#212529';
+          brownianCtx.lineWidth = 1;
+          brownianInterval = setInterval(stepBrownian, 20);
+      }
+      function stepBrownian() {
+          brownianCtx.beginPath();
+          brownianCtx.moveTo(brownianX, brownianY);
+          brownianX += (Math.random() - 0.5) * 10;
+          brownianY += (Math.random() - 0.5) * 10;
+          brownianX = Math.max(0, Math.min(brownianCanvas.width, brownianX));
+          brownianY = Math.max(0, Math.min(brownianCanvas.height, brownianY));
+          brownianCtx.lineTo(brownianX, brownianY);
+          brownianCtx.stroke();
+      }
+      document.getElementById('brownian-reset').onclick = resetBrownian;
+      resetBrownian();
+      
+      // --- Langton's Ant ---
+      const antCanvas = document.getElementById('langtons-ant-canvas');
+      const antCtx = antCanvas.getContext('2d');
+      const antGridSize = 100;
+      const antCellSize = antCanvas.width / antGridSize;
+      let antGrid, ant, antPlaying = false, antInterval;
+      const antDirs = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // N, E, S, W
+      function setupAnt() {
+          antGrid = Array(antGridSize).fill(0).map(() => Array(antGridSize).fill(0));
+          ant = { x: antGridSize / 2, y: antGridSize / 2, dir: 0 };
+          drawAntGrid();
+      }
+      function drawAntGrid() {
+          antCtx.fillStyle = '#ffffff'; antCtx.fillRect(0, 0, antCanvas.width, antCanvas.height);
+          for (let y = 0; y < antGridSize; y++) for (let x = 0; x < antGridSize; x++) {
+              if (antGrid[y][x] === 1) { antCtx.fillStyle = '#212529'; antCtx.fillRect(x * antCellSize, y * antCellSize, antCellSize, antCellSize); }
+          }
+      }
+      function updateAnt() {
+          const { x, y } = ant;
+          if (x < 0 || x >= antGridSize || y < 0 || y >= antGridSize) { clearInterval(antInterval); return; }
+          if (antGrid[y][x] === 0) { ant.dir = (ant.dir + 1) % 4; antGrid[y][x] = 1;
+          } else { ant.dir = (ant.dir - 1 + 4) % 4; antGrid[y][x] = 0; }
+          drawAntGrid();
+          ant.x += antDirs[ant.dir][0];
+          ant.y += antDirs[ant.dir][1];
+      }
+      document.getElementById('ant-play-pause').onclick = () => {
+          antPlaying = !antPlaying;
+          if (antPlaying) { antInterval = setInterval(updateAnt, 10); document.getElementById('ant-play-pause').textContent = 'Pause'; } 
+          else { clearInterval(antInterval); document.getElementById('ant-play-pause').textContent = 'Play'; }
+      };
+      document.getElementById('ant-reset').onclick = setupAnt;
+      setupAnt();
+
+      // --- Voxel Fire ---
+      const fireContainer = document.getElementById('fire-canvas-container');
+      const fireCanvas = document.getElementById('fire-canvas');
+      let fireScene, fireCamera, fireRenderer, fireControls, fireParticles;
+      const GRID_SIZE = 16, PARTICLES_PER_CELL = 10;
+      const particleCount = GRID_SIZE * GRID_SIZE * PARTICLES_PER_CELL;
+      const particlePositions = [];
+      const particleLifetimes = new Float32Array(particleCount);
+      const particleVelocities = [];
+
+      function initFire() {
+          fireScene = new THREE.Scene();
+          fireScene.background = new THREE.Color(0xffffff); // White background
+          fireCamera = new THREE.PerspectiveCamera(75, fireContainer.clientWidth / fireContainer.clientHeight, 0.1, 1000);
+          fireCamera.position.set(0, 10, 25);
+          fireRenderer = new THREE.WebGLRenderer({ canvas: fireCanvas, antialias: true });
+          fireRenderer.setSize(fireContainer.clientWidth, fireContainer.clientHeight);
+          fireControls = new OrbitControls(fireCamera, fireRenderer.domElement);
+          fireControls.target.set(0, 8, 0);
+          fireControls.enableDamping = true;
+
+          const voxelGeometry = new THREE.BoxGeometry(2, 2, 2);
+          
+          const vertexShader = `
+              attribute float lifetime;
+              varying float vLifetime;
+              void main() {
+                  vLifetime = lifetime;
+                  // instanceMatrix is provided by three.js for InstancedMesh
+                  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+              }
+          `;
+
+          const fragmentShader = `
+              varying float vLifetime;
+              void main() {
+                  // Color interpolation: blue -> red -> gray -> transparent
+                  vec3 blue = vec3(0.1, 0.4, 1.0);
+                  vec3 red = vec3(1.0, 0.3, 0.1);
+                  vec3 gray = vec3(0.2, 0.2, 0.2);
+                  vec3 color;
+
+                  if (vLifetime > 0.5) {
+                      // Interpolate from blue to red as lifetime goes from 1.0 to 0.5
+                      float t = (vLifetime - 0.5) * 2.0;
+                      color = mix(red, blue, t);
+                  } else {
+                      // Interpolate from red to gray as lifetime goes from 0.5 to 0.0
+                      float t = vLifetime * 2.0;
+                      color = mix(gray, red, t);
+                  }
+                  
+                  // Opacity fades over lifetime.
+                  float alpha = vLifetime; 
+
+                  gl_FragColor = vec4(color, alpha);
+              }
+          `;
+
+          const material = new THREE.ShaderMaterial({
+              vertexShader,
+              fragmentShader,
+              transparent: true,
+              depthWrite: false, // Important for transparency
+              blending: THREE.NormalBlending
+          });
+
+          // Create an InstancedBufferGeometry from the base voxel geometry
+          const instancedGeometry = new THREE.InstancedBufferGeometry().copy(voxelGeometry);
+          // Add the instanced 'lifetime' attribute
+          instancedGeometry.setAttribute('lifetime', new THREE.InstancedBufferAttribute(particleLifetimes, 1));
+          
+          fireParticles = new THREE.InstancedMesh(instancedGeometry, material, particleCount);
+          fireParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // Performance hint
+
+          // Initialize particles for the first time
+          for (let i = 0; i < particleCount; i++) {
+              particlePositions[i] = new THREE.Vector3();
+              particleVelocities[i] = new THREE.Vector3();
+              resetParticle(i);
+              particleLifetimes[i] = Math.random(); // Start at random points in their life
+          }
+          
+          fireScene.add(fireParticles);
+      }
+
+      function resetParticle(i) {
+          const gridIndex = Math.floor(i / PARTICLES_PER_CELL);
+          const gridX = (gridIndex % GRID_SIZE) - (GRID_SIZE / 2) + 0.5;
+          const gridZ = Math.floor(gridIndex / GRID_SIZE) - (GRID_SIZE / 2) + 0.5;
+
+          particlePositions[i].set(
+              gridX + (Math.random() - 0.5) * 0.8,
+              0,
+              gridZ + (Math.random() - 0.5) * 0.8
+          );
+          particleLifetimes[i] = 1.0;
+          particleVelocities[i].set(
+              (Math.random() - 0.5) * 0.1,
+              Math.random() * 0.15 + 0.1,
+              (Math.random() - 0.5) * 0.1
+          );
+      }
+
+      function animateFire() {
+          const animState = threeJsAnimations['fire-canvas-container'];
+          if (!animState.isAnimating) return;
+          animState.animationId = requestAnimationFrame(animateFire);
+
+          const lifeDecay = 0.01;
+          const dummy = new THREE.Object3D();
+
+          for (let i = 0; i < particleCount; i++) {
+              particleLifetimes[i] -= lifeDecay;
+
+              if (particleLifetimes[i] <= 0) {
+                  resetParticle(i);
+              }
+
+              // Update position based on velocity
+              particlePositions[i].add(particleVelocities[i]);
+              
+              // Add some random turbulence
+              particleVelocities[i].x += (Math.random() - 0.5) * 0.005;
+              particleVelocities[i].z += (Math.random() - 0.5) * 0.005;
+
+              // Update the instance matrix
+              dummy.position.copy(particlePositions[i]);
+              const scale = Math.max(0, particleLifetimes[i] * 0.5);
+              dummy.scale.set(scale, scale, scale);
+              dummy.updateMatrix();
+              fireParticles.setMatrixAt(i, dummy.matrix);
+          }
+          
+          // Tell three.js to update the buffers
+          fireParticles.instanceMatrix.needsUpdate = true;
+          fireParticles.geometry.attributes.lifetime.needsUpdate = true;
+
+          fireControls.update();
+          fireRenderer.render(fireScene, fireCamera);
+      }
+      
+      // --- GPGPU Boids ---
+      const gpgpuBoidsSimulation = (function () {
+        const WIDTH = 32;
+        const BIRDS = WIDTH * WIDTH;
+        
+        let container, stats;
+        let camera, scene, renderer;
+        let mouseX = 0, mouseY = 0;
+        let windowHalfX = 0, windowHalfY = 0;
+        const BOUNDS = 800, BOUNDS_HALF = BOUNDS / 2;
+        let last = performance.now();
+        let gpuCompute, velocityVariable, positionVariable, positionUniforms, velocityUniforms, birdUniforms;
+        
+        class BirdGeometry extends THREE.BufferGeometry {
+          constructor() {
+            super();
+            const trianglesPerBird = 3, triangles = BIRDS * trianglesPerBird, points = triangles * 3;
+            const vertices = new THREE.BufferAttribute(new Float32Array(points * 3), 3);
+            const birdColors = new THREE.BufferAttribute(new Float32Array(points * 3), 3);
+            const references = new THREE.BufferAttribute(new Float32Array(points * 2), 2);
+            const birdVertex = new THREE.BufferAttribute(new Float32Array(points), 1);
+            this.setAttribute('position', vertices);
+            this.setAttribute('birdColor', birdColors);
+            this.setAttribute('reference', references);
+            this.setAttribute('birdVertex', birdVertex);
+            let v = 0;
+            function verts_push() { for (let i = 0; i < arguments.length; i++) vertices.array[v++] = arguments[i]; }
+            const wingsSpan = 20;
+            for (let f = 0; f < BIRDS; f++) {
+              verts_push(0, -0, -20, 0, 4, -20, 0, 0, 30); // Body
+              verts_push(0, 0, -15, -wingsSpan, 0, 0, 0, 0, 15); // Wings
+              verts_push(0, 0, 15, wingsSpan, 0, 0, 0, 0, -15);
+            }
+            for (let v = 0; v < triangles * 3; v++) {
+              const triangleIndex = ~~(v / 3), birdIndex = ~~(triangleIndex / trianglesPerBird);
+              const x = (birdIndex % WIDTH) / WIDTH, y = ~~(birdIndex / WIDTH) / WIDTH;
+              const c = new THREE.Color(0x666666 + ~~(v / 9) / BIRDS * 0x666666);
+              birdColors.array[v * 3 + 0] = c.r; birdColors.array[v * 3 + 1] = c.g; birdColors.array[v * 3 + 2] = c.b;
+              references.array[v * 2] = x; references.array[v * 2 + 1] = y;
+              birdVertex.array[v] = v % 9;
+            }
+            this.scale(0.2, 0.2, 0.2);
+          }
+        }
+
+        function init() {
+          container = document.getElementById('gpgpu-boids-container');
+          windowHalfX = container.clientWidth / 2;
+          windowHalfY = container.clientHeight / 2;
+
+          camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 1, 3000);
+          camera.position.z = 350;
+
+          scene = new THREE.Scene();
+          scene.background = new THREE.Color(0xffffff);
+          scene.fog = new THREE.Fog(0xffffff, 100, 1000);
+
+          renderer = new THREE.WebGLRenderer({antialias: true});
+          renderer.setPixelRatio(window.devicePixelRatio);
+          renderer.setSize(container.clientWidth, container.clientHeight);
+          container.appendChild(renderer.domElement);
+
+          initComputeRenderer();
+          stats = new Stats();
+          container.appendChild(stats.dom);
+          container.style.touchAction = 'none';
+          container.addEventListener('pointermove', onPointerMove);
+          window.addEventListener('resize', onWindowResize);
+          
+          const effectController = { separation: 20.0, alignment: 20.0, cohesion: 20.0, freedom: 0.75 };
+          const valuesChanger = function () {
+            velocityUniforms['separationDistance'].value = effectController.separation;
+            velocityUniforms['alignmentDistance'].value = effectController.alignment;
+            velocityUniforms['cohesionDistance'].value = effectController.cohesion;
+            velocityUniforms['freedomFactor'].value = effectController.freedom;
+          };
+          valuesChanger();
+          initBirds();
+        }
+        function initComputeRenderer() {
+          gpuCompute = new GPUComputationRenderer(WIDTH, WIDTH, renderer);
+          const dtPosition = gpuCompute.createTexture(), dtVelocity = gpuCompute.createTexture();
+          fillPositionTexture(dtPosition); fillVelocityTexture(dtVelocity);
+          velocityVariable = gpuCompute.addVariable('textureVelocity', document.getElementById('fragmentShaderVelocity').textContent, dtVelocity);
+          positionVariable = gpuCompute.addVariable('texturePosition', document.getElementById('fragmentShaderPosition').textContent, dtPosition);
+          gpuCompute.setVariableDependencies(velocityVariable, [positionVariable, velocityVariable]);
+          gpuCompute.setVariableDependencies(positionVariable, [positionVariable, velocityVariable]);
+          positionUniforms = positionVariable.material.uniforms;
+          velocityUniforms = velocityVariable.material.uniforms;
+          positionUniforms['time'] = { value: 0.0 }; positionUniforms['delta'] = { value: 0.0 };
+          velocityUniforms['time'] = { value: 1.0 }; velocityUniforms['delta'] = { value: 0.0 };
+          velocityUniforms['testing'] = { value: 1.0 }; velocityUniforms['separationDistance'] = { value: 1.0 };
+          velocityUniforms['alignmentDistance'] = { value: 1.0 }; velocityUniforms['cohesionDistance'] = { value: 1.0 };
+          velocityUniforms['freedomFactor'] = { value: 1.0 }; velocityUniforms['predator'] = { value: new THREE.Vector3() };
+          velocityVariable.material.defines.BOUNDS = BOUNDS.toFixed(2);
+          velocityVariable.wrapS = THREE.RepeatWrapping; velocityVariable.wrapT = THREE.RepeatWrapping;
+          positionVariable.wrapS = THREE.RepeatWrapping; positionVariable.wrapT = THREE.RepeatWrapping;
+          const error = gpuCompute.init();
+          if (error !== null) console.error(error);
+        }
+        function initBirds() {
+          const geometry = new BirdGeometry();
+          birdUniforms = { 'color': { value: new THREE.Color(0xff2200) }, 'texturePosition': { value: null }, 'textureVelocity': { value: null }, 'time': { value: 1.0 }, 'delta': { value: 0.0 } };
+          const material = new THREE.ShaderMaterial({ uniforms: birdUniforms, vertexShader: document.getElementById('birdVS').textContent, fragmentShader: document.getElementById('birdFS').textContent, side: THREE.DoubleSide });
+          const birdMesh = new THREE.Mesh(geometry, material);
+          birdMesh.rotation.y = Math.PI / 2;
+          birdMesh.matrixAutoUpdate = false;
+          birdMesh.updateMatrix();
+          scene.add(birdMesh);
+        }
+        function fillPositionTexture(texture) {
+          const theArray = texture.image.data;
+          for (let k = 0, kl = theArray.length; k < kl; k += 4) {
+            const x = Math.random() * BOUNDS - BOUNDS_HALF, y = Math.random() * BOUNDS - BOUNDS_HALF, z = Math.random() * BOUNDS - BOUNDS_HALF;
+            theArray[k + 0] = x; theArray[k + 1] = y; theArray[k + 2] = z; theArray[k + 3] = 1;
+          }
+        }
+        function fillVelocityTexture(texture) {
+          const theArray = texture.image.data;
+          for (let k = 0, kl = theArray.length; k < kl; k += 4) {
+            const x = Math.random() - 0.5, y = Math.random() - 0.5, z = Math.random() - 0.5;
+            theArray[k + 0] = x * 10; theArray[k + 1] = y * 10; theArray[k + 2] = z * 10; theArray[k + 3] = 1;
+          }
+        }
+        function onWindowResize() {
+          if (!container) return;
+          windowHalfX = container.clientWidth / 2; windowHalfY = container.clientHeight / 2;
+          camera.aspect = container.clientWidth / container.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        function onPointerMove(event) {
+          if (event.isPrimary === false) return;
+          mouseX = event.clientX - (container.offsetLeft - window.scrollX) - windowHalfX;
+          mouseY = event.clientY - (container.offsetTop - window.scrollY) - windowHalfY;
+        }
+        function render() {
+          const now = performance.now(); let delta = (now - last) / 1000;
+          if (delta > 1) delta = 1; last = now;
+          positionUniforms['time'].value = now; positionUniforms['delta'].value = delta;
+          velocityUniforms['time'].value = now; velocityUniforms['delta'].value = delta;
+          birdUniforms['time'].value = now; birdUniforms['delta'].value = delta;
+          velocityUniforms['predator'].value.set(0.5 * mouseX / windowHalfX, -0.5 * mouseY / windowHalfY, 0);
+          mouseX = 10000; mouseY = 10000;
+          gpuCompute.compute();
+          birdUniforms['texturePosition'].value = gpuCompute.getCurrentRenderTarget(positionVariable).texture;
+          birdUniforms['textureVelocity'].value = gpuCompute.getCurrentRenderTarget(velocityVariable).texture;
+          renderer.render(scene, camera);
+        }
+        function animate() {
+          const animState = threeJsAnimations['gpgpu-boids-container'];
+          if (!animState.isAnimating) return;
+          animState.animationId = requestAnimationFrame(animate);
+          render();
+          stats.update();
+        }
+        return { init, animate };
+      })();
+      
+      function initGpgpuBoids() { gpgpuBoidsSimulation.init(); }
+      function animateGpgpuBoids() { gpgpuBoidsSimulation.animate(); }
+
+      // --- Game of Life ---
+      const lifeCanvas = document.getElementById('game-of-life-canvas');
+      const lifeCtx = lifeCanvas.getContext('2d');
+      const lifeGridSize = 50;
+      const lifeCellSize = lifeCanvas.width / lifeGridSize;
+      let lifeGrid = [], lifeNextGrid = [], lifePlaying = false, lifeInterval;
+      function setupLife() {
+          lifeGrid = Array(lifeGridSize).fill(0).map(() => Array(lifeGridSize).fill(0).map(() => Math.random() > 0.7 ? 1 : 0));
+          lifeNextGrid = Array(lifeGridSize).fill(0).map(() => Array(lifeGridSize).fill(0));
+          drawLife();
+      }
+      function drawLife() {
+          lifeCtx.fillStyle = '#ffffff'; lifeCtx.fillRect(0, 0, lifeCanvas.width, lifeCanvas.height);
+          lifeCtx.fillStyle = '#212529';
+          for (let y = 0; y < lifeGridSize; y++) for (let x = 0; x < lifeGridSize; x++) {
+              if (lifeGrid[y][x] === 1) lifeCtx.fillRect(x * lifeCellSize, y * lifeCellSize, lifeCellSize, lifeCellSize);
+          }
+      }
+      function updateLife() {
+          for (let y = 0; y < lifeGridSize; y++) for (let x = 0; x < lifeGridSize; x++) {
+              let neighbors = 0;
+              for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+                  if (i === 0 && j === 0) continue;
+                  const ny = (y + i + lifeGridSize) % lifeGridSize, nx = (x + j + lifeGridSize) % lifeGridSize;
+                  neighbors += lifeGrid[ny][nx];
+              }
+              if (lifeGrid[y][x] === 1 && (neighbors < 2 || neighbors > 3)) lifeNextGrid[y][x] = 0;
+              else if (lifeGrid[y][x] === 0 && neighbors === 3) lifeNextGrid[y][x] = 1;
+              else lifeNextGrid[y][x] = lifeGrid[y][x];
+          }
+          [lifeGrid, lifeNextGrid] = [lifeNextGrid, lifeGrid];
+          drawLife();
+      }
+      document.getElementById('life-play-pause').onclick = () => {
+          lifePlaying = !lifePlaying;
+          if (lifePlaying) { lifeInterval = setInterval(updateLife, 100); document.getElementById('life-play-pause').textContent = 'Pause'; } 
+          else { clearInterval(lifeInterval); document.getElementById('life-play-pause').textContent = 'Play'; }
+      };
+      document.getElementById('life-reset').onclick = setupLife;
+      setupLife();
+      
+      // --- Ising Model ---
+      const isingCanvas = document.getElementById('ising-model-canvas');
+      const isingCtx = isingCanvas.getContext('2d');
+      const isingTempSlider = document.getElementById('ising-temp');
+      const isingGridSize = 100;
+      const isingCellSize = isingCanvas.width / isingGridSize;
+      let spins, temp, isingAnimationId;
+      function setupIsing() {
+          spins = Array(isingGridSize).fill(0).map(() => Array(isingGridSize).fill(0).map(() => Math.random() > 0.5 ? 1 : -1));
+          temp = parseFloat(isingTempSlider.value);
+          document.getElementById('ising-temp-val').textContent = temp.toFixed(1);
+      }
+      function updateIsing() {
+          for (let i = 0; i < isingGridSize * isingGridSize; i++) {
+              const x = Math.floor(Math.random() * isingGridSize), y = Math.floor(Math.random() * isingGridSize);
+              const spin = spins[y][x];
+              const neighbors = spins[(y-1+isingGridSize)%isingGridSize][x] + spins[(y+1)%isingGridSize][x] + spins[y][(x-1+isingGridSize)%isingGridSize] + spins[y][(x+1)%isingGridSize];
+              const deltaE = 2 * spin * neighbors;
+              if (deltaE < 0 || Math.random() < Math.exp(-deltaE / temp)) spins[y][x] *= -1;
+          }
+      }
+      function drawIsing() {
+          for (let y = 0; y < isingGridSize; y++) for (let x = 0; x < isingGridSize; x++) {
+              isingCtx.fillStyle = spins[y][x] === 1 ? '#FFFFFF' : '#000000';
+              isingCtx.fillRect(x * isingCellSize, y * isingCellSize, isingCellSize, isingCellSize);
+          }
+      }
+      function animateIsing() { updateIsing(); drawIsing(); isingAnimationId = requestAnimationFrame(animateIsing); }
+      isingTempSlider.oninput = () => { temp = parseFloat(isingTempSlider.value); document.getElementById('ising-temp-val').textContent = temp.toFixed(1); };
+      document.getElementById('ising-reset').onclick = setupIsing;
+      setupIsing();
+      animateIsing();
+      
+
+      // --- Difference of Gaussians ---
+      const dogSourceImg = document.getElementById('dog-source-img');
+      const dogCanvas = document.getElementById('dog-canvas');
+      const dogCtx = dogCanvas.getContext('2d');
+      const sigma1Slider = document.getElementById('sigma1'), sigma2Slider = document.getElementById('sigma2');
+      let sourceImageData;
+      document.getElementById('image-upload').onchange = (e) => { const reader = new FileReader(); reader.onload = (event) => { dogSourceImg.src = event.target.result; }; reader.readAsDataURL(e.target.files[0]); };
+      function applyBoxBlur(src, width, height, radius) {
+          const dataIn = new Uint8ClampedArray(src.data), dataOut = new Uint8ClampedArray(src.data.length);
+          for (let pass = 0; pass < 2; pass++) {
+              const srcData = (pass === 0) ? dataIn : dataOut, destData = (pass === 0) ? dataOut : dataIn;
+              for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+                  let r = 0, g = 0, b = 0, count = 0;
+                  for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+                      const nx = x + dx, ny = y + dy;
+                      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                          const i = (ny * width + nx) * 4;
+                          r += srcData[i]; g += srcData[i+1]; b += srcData[i+2]; count++;
+                      }
+                  }
+                  const i = (y * width + x) * 4;
+                  destData[i] = r/count; destData[i+1] = g/count; destData[i+2] = b/count; destData[i+3] = 255;
+              }
+          }
+          return new ImageData(dataIn, width, height);
+      }
+      function runDoG() {
+          if (!sourceImageData) return;
+          const s1 = parseFloat(sigma1Slider.value), s2 = parseFloat(sigma2Slider.value);
+          document.getElementById('sigma1-val').textContent = s1.toFixed(1); document.getElementById('sigma2-val').textContent = s2.toFixed(1);
+          const blur1 = applyBoxBlur(sourceImageData, dogCanvas.width, dogCanvas.height, Math.round(s1));
+          const blur2 = applyBoxBlur(sourceImageData, dogCanvas.width, dogCanvas.height, Math.round(s2));
+          const resultData = new ImageData(dogCanvas.width, dogCanvas.height);
+          for (let i = 0; i < blur1.data.length; i += 4) {
+              const gray1 = blur1.data[i] * 0.3 + blur1.data[i + 1] * 0.59 + blur1.data[i + 2] * 0.11;
+              const gray2 = blur2.data[i] * 0.3 + blur2.data[i + 1] * 0.59 + blur2.data[i + 2] * 0.11;
+              const diff = Math.abs(gray1 - gray2);
+              resultData.data[i] = resultData.data[i+1] = resultData.data[i+2] = diff; resultData.data[i+3] = 255;
+          }
+          dogCtx.putImageData(resultData, 0, 0);
+          document.getElementById('fd-result').textContent = "N/A";
+      }
+      dogSourceImg.onload = () => {
+          dogCanvas.width = dogSourceImg.naturalWidth; dogCanvas.height = dogSourceImg.naturalHeight;
+          dogCtx.drawImage(dogSourceImg, 0, 0);
+          sourceImageData = dogCtx.getImageData(0, 0, dogCanvas.width, dogCanvas.height);
+          runDoG();
+      };
+      if (dogSourceImg.complete) dogSourceImg.onload();
+      sigma1Slider.addEventListener('input', runDoG); sigma2Slider.addEventListener('input', runDoG);
+      
+      // --- Fractal Dimension ---
+      document.getElementById('calculate-fd-btn').onclick = () => {
+          const imageData = dogCtx.getImageData(0, 0, dogCanvas.width, dogCanvas.height);
+          const binaryMatrix = [];
+          for(let y = 0; y < imageData.height; y++) {
+              const row = [];
+              for(let x = 0; x < imageData.width; x++) row.push(imageData.data[(y * imageData.width + x) * 4] > 10 ? 1 : 0);
+              binaryMatrix.push(row);
+          }
+          const sizes = [2, 4, 8, 16, 32, 64], counts = [];
+          sizes.forEach(size => {
+              let count = 0;
+              for (let y = 0; y < imageData.height; y += size) for (let x = 0; x < imageData.width; x += size) {
+                  let found = false;
+                  for (let dy = 0; dy < size && y + dy < imageData.height; dy++) {
+                      for (let dx = 0; dx < size && x + dx < imageData.width; dx++) if (binaryMatrix[y + dy][x + dx] === 1) { count++; found = true; break; }
+                      if (found) break;
+                  }
+              }
+              counts.push(count);
+          });
+          let sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0, n = 0;
+          for(let i = 0; i < sizes.length; i++) {
+              if (counts[i] === 0) continue; n++;
+              const x = Math.log(1 / sizes[i]), y = Math.log(counts[i]);
+              sum_x += x; sum_y += y; sum_xy += x * y; sum_x2 += x * x;
+          }
+          const slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x);
+          document.getElementById('fd-result').textContent = Math.abs(slope).toFixed(4);
+      };
+    </script>
+  </body>
+</html>

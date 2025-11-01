@@ -116,7 +116,7 @@
       .interactive-canvas {
           display: block;
           width: 100%;
-          max-width: 500px;
+          max-width: 75vw;
           aspect-ratio: 1 / 1;
           margin: 1.5rem auto;
           //border: 1px solid var(--border-color);
@@ -132,8 +132,8 @@
        .interactive-canvas-container {
             position: relative; /* For positioning child elements like stats.js */
             display: block;
-            width: 100%;
-            max-width: 500px;
+            width: 75vw;
+            max-width: 100%;
             aspect-ratio: 1 / 1;
             margin: 1.5rem auto;
             //border: 1px solid var(--border-color);
@@ -568,8 +568,8 @@
       };
 
       const observer = new IntersectionObserver(observerCallback, {
-          root: null, 
-          threshold: 0.1 
+          root: null,
+          threshold: 0.1
       });
 
       Object.keys(threeJsAnimations).forEach(id => {
@@ -635,7 +635,7 @@
           spongeRenderer.setSize(size, size);
           spongeControls = new OrbitControls(spongeCamera, spongeRenderer.domElement);
           spongeControls.enableDamping = true;
-          
+
           const ambientLight = new THREE.AmbientLight(0x404040, 3);
           spongeScene.add(ambientLight);
           const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -663,17 +663,17 @@
           spongeGroup.add(mesh);
           spongeScene.add(spongeGroup);
       }
-      function animateSponge() { 
+      function animateSponge() {
         const animState = threeJsAnimations['menger-sponge-canvas-container'];
         if (!animState.isAnimating) return;
-        animState.animationId = requestAnimationFrame(animateSponge); 
-        spongeControls.update(); 
-        spongeRenderer.render(spongeScene, spongeCamera); 
+        animState.animationId = requestAnimationFrame(animateSponge);
+        spongeControls.update();
+        spongeRenderer.render(spongeScene, spongeCamera);
       }
       document.getElementById('sponge-incr').onclick = () => { if (spongeIterations < 3) spongeIterations++; updateSpongeUI(); };
       document.getElementById('sponge-decr').onclick = () => { if (spongeIterations >= 0) spongeIterations--; updateSpongeUI(); };
       function updateSpongeUI() { document.getElementById('sponge-level').textContent = spongeIterations; if(threeJsAnimations['menger-sponge-canvas-container'].hasBeenInitialized) buildSponge(); }
-      
+
       // --- Brownian Motion ---
       const brownianCanvas = document.getElementById('brownian-motion-canvas');
       const brownianCtx = brownianCanvas.getContext('2d');
@@ -700,7 +700,7 @@
       }
       document.getElementById('brownian-reset').onclick = resetBrownian;
       resetBrownian();
-      
+
       // --- Langton's Ant ---
       const antCanvas = document.getElementById('langtons-ant-canvas');
       const antCtx = antCanvas.getContext('2d');
@@ -730,7 +730,7 @@
       }
       document.getElementById('ant-play-pause').onclick = () => {
           antPlaying = !antPlaying;
-          if (antPlaying) { antInterval = setInterval(updateAnt, 10); document.getElementById('ant-play-pause').textContent = 'Pause'; } 
+          if (antPlaying) { antInterval = setInterval(updateAnt, 10); document.getElementById('ant-play-pause').textContent = 'Pause'; }
           else { clearInterval(antInterval); document.getElementById('ant-play-pause').textContent = 'Play'; }
       };
       document.getElementById('ant-reset').onclick = setupAnt;
@@ -758,7 +758,7 @@
           fireControls.enableDamping = true;
 
           const voxelGeometry = new THREE.BoxGeometry(2, 2, 2);
-          
+
           const vertexShader = `
               attribute float lifetime;
               varying float vLifetime;
@@ -787,9 +787,9 @@
                       float t = vLifetime * 2.0;
                       color = mix(gray, red, t);
                   }
-                  
+
                   // Opacity fades over lifetime.
-                  float alpha = vLifetime; 
+                  float alpha = vLifetime;
 
                   gl_FragColor = vec4(color, alpha);
               }
@@ -807,7 +807,7 @@
           const instancedGeometry = new THREE.InstancedBufferGeometry().copy(voxelGeometry);
           // Add the instanced 'lifetime' attribute
           instancedGeometry.setAttribute('lifetime', new THREE.InstancedBufferAttribute(particleLifetimes, 1));
-          
+
           fireParticles = new THREE.InstancedMesh(instancedGeometry, material, particleCount);
           fireParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // Performance hint
 
@@ -818,7 +818,7 @@
               resetParticle(i);
               particleLifetimes[i] = Math.random(); // Start at random points in their life
           }
-          
+
           fireScene.add(fireParticles);
       }
 
@@ -857,7 +857,7 @@
 
               // Update position based on velocity
               particlePositions[i].add(particleVelocities[i]);
-              
+
               // Add some random turbulence
               particleVelocities[i].x += (Math.random() - 0.5) * 0.005;
               particleVelocities[i].z += (Math.random() - 0.5) * 0.005;
@@ -869,7 +869,7 @@
               dummy.updateMatrix();
               fireParticles.setMatrixAt(i, dummy.matrix);
           }
-          
+
           // Tell three.js to update the buffers
           fireParticles.instanceMatrix.needsUpdate = true;
           fireParticles.geometry.attributes.lifetime.needsUpdate = true;
@@ -877,12 +877,12 @@
           fireControls.update();
           fireRenderer.render(fireScene, fireCamera);
       }
-      
+
       // --- GPGPU Boids ---
       const gpgpuBoidsSimulation = (function () {
         const WIDTH = 32;
         const BIRDS = WIDTH * WIDTH;
-        
+
         let container, stats;
         let camera, scene, renderer;
         let mouseX = 0, mouseY = 0;
@@ -890,7 +890,7 @@
         const BOUNDS = 800, BOUNDS_HALF = BOUNDS / 2;
         let last = performance.now();
         let gpuCompute, velocityVariable, positionVariable, positionUniforms, velocityUniforms, birdUniforms;
-        
+
         class BirdGeometry extends THREE.BufferGeometry {
           constructor() {
             super();
@@ -946,7 +946,7 @@
           container.style.touchAction = 'none';
           container.addEventListener('pointermove', onPointerMove);
           window.addEventListener('resize', onWindowResize);
-          
+
           const effectController = { separation: 20.0, alignment: 20.0, cohesion: 20.0, freedom: 0.75 };
           const valuesChanger = function () {
             velocityUniforms['separationDistance'].value = effectController.separation;
@@ -1036,7 +1036,7 @@
         }
         return { init, animate };
       })();
-      
+
       function initGpgpuBoids() { gpgpuBoidsSimulation.init(); }
       function animateGpgpuBoids() { gpgpuBoidsSimulation.animate(); }
 
@@ -1075,12 +1075,12 @@
       }
       document.getElementById('life-play-pause').onclick = () => {
           lifePlaying = !lifePlaying;
-          if (lifePlaying) { lifeInterval = setInterval(updateLife, 100); document.getElementById('life-play-pause').textContent = 'Pause'; } 
+          if (lifePlaying) { lifeInterval = setInterval(updateLife, 100); document.getElementById('life-play-pause').textContent = 'Pause'; }
           else { clearInterval(lifeInterval); document.getElementById('life-play-pause').textContent = 'Play'; }
       };
       document.getElementById('life-reset').onclick = setupLife;
       setupLife();
-      
+
       // --- Ising Model ---
       const isingCanvas = document.getElementById('ising-model-canvas');
       const isingCtx = isingCanvas.getContext('2d');
@@ -1113,7 +1113,7 @@
       document.getElementById('ising-reset').onclick = setupIsing;
       setupIsing();
       animateIsing();
-      
+
 
       // --- Difference of Gaussians ---
       const dogSourceImg = document.getElementById('dog-source-img');
@@ -1165,7 +1165,7 @@
       };
       if (dogSourceImg.complete) dogSourceImg.onload();
       sigma1Slider.addEventListener('input', runDoG); sigma2Slider.addEventListener('input', runDoG);
-      
+
       // --- Fractal Dimension ---
       document.getElementById('calculate-fd-btn').onclick = () => {
           const imageData = dogCtx.getImageData(0, 0, dogCanvas.width, dogCanvas.height);

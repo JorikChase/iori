@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iori 3die Web</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      /* Minimalist/Ultralight UI styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            /* Dark mode background, similar to Obsidian */
+            background-color: #1e1e1e;
+            font-family: 'Inter', sans-serif;
+            color: #ccc;
+        }
+        canvas {
+            display: block;
+        }
+        /* A very subtle info box */
+        .info {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            font-size: 12px;
+            opacity: 0.4;
+            pointer-events: none; /* Don't block mouse events */
+        }
+        /* Add a pointer cursor for the canvas to indicate interactivity */
+        canvas {
+            display: block;
+            cursor: pointer; /* Default cursor is pointer */
+        }
+    </style>
+  </head>
+  <body>
+    <!-- The canvas is the only UI element -->
+    <canvas id="node-canvas"></canvas>
+    <!-- Import D3.js library -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+      // --- 1. Setup ---
+        const canvas = document.getElementById('node-canvas');
+        const context = canvas.getContext('2d');
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // --- Store current zoom transform ---
+        let transform = d3.zoomIdentity;
+
+        // --- 2. Define Data (The "links_list") ---
+        // This is the only list you need to edit.
+        // Nodes are created automatically from these links.
+        const allNodeIds = [
+            "webgl.html", "star.html", "shop.html", "portfolio.html",
+            "maska.html", "info.html", "indent.html", "index.html",
+            "game.html", "fractals.html", "darkwood.html",
+            // Added new nodes
+            "three-body.html", "two-body.html", "sudoku.html", "class-action.html"
+        ];
+
+        const linksList = [];
+
+        // Connect "portfolio.html" and "index.html" to all other nodes
+        allNodeIds.forEach(id => {
+            // Disconnect class-action, two-body, and three-body from portfolio
+            if (id !== "portfolio.html" && id !== "class-action.html" && id !== "two-body.html" && id !== "three-body.html") {
+                linksList.push({ source: "portfolio.html", target: id });
+            }
+        });
+
+        // Manually connect "index.html" to only info, shop, and portfolio
+        linksList.push({ source: "index.html", target: "info.html" });
+        linksList.push({ source: "index.html", target: "shop.html" });
+        linksList.push({ source: "index.html", target: "portfolio.html" });
+
+        // Add specific connections
+        linksList.push({ source: "webgl.html", target: "star.html" });
+        linksList.push({ source: "star.html", target: "maska.html" });
+        linksList.push({ source: "game.html", target: "darkwood.html" });
+        linksList.push({ source: "fractals.html", target: "webgl.html" });
+        // Add new specific connections
+        linksList.push({ source: "three-body.html", target: "fractals.html" });
+        linksList.push({ source: "two-body.html", target: "fractals.html" });
+        linksList.push({ source: "two-body.html", target: "three-body.html" });
+        linksList.push({ source: "sudoku.html", target: "game.html" });
+        linksList.push({ source: "class-action.html", target: "index.html" });
+        // "info.html" is already connected to the "largest nodes" (portfolio, index)
+        // "shop.html" and "indent.html" are only connected to the hubs
+
+        // --- 3. Calculate Node Degrees & Procedurally Create Nodes ---
+
+        // Calculate the number of connections (degree) for each node
+        const nodeDegrees = new Map();
+        linksList.forEach(link => {
+            // D3 simulation resolves links by object reference, not ID.
+            // But for counting, we use IDs from the original list.
+            nodeDegrees.set(link.source, (nodeDegrees.get(link.source) || 0) + 1);
+            nodeDegrees.set(link.target, (nodeDegrees.get(link.target) || 0) + 1);
+        });
+
+        // Create a set of unique node IDs from the links list
+        const nodeIds = new Set();
+        linksList.forEach(link => {
+            nodeIds.add(link.source);
+            nodeIds.add(link.target);
+        });
+
+        // Find min/max degrees for the color scale
+        const degrees = Array.from(nodeDegrees.values());
+        const minDegree = Math.min(...degrees);
+        const maxDegree = Math.max(...degrees);
+        const degreeRange = maxDegree - minDegree;
+
+        // Create a color interpolator (Viridis is a good purple-to-yellow scale)
+        const colorInterpolator = d3.interpolateViridis;
+
+        // Map the IDs to D3-compatible node objects
+        const nodes = Array.from(nodeIds).map(id => {
+            const degree = nodeDegrees.get(id) || 0;
+
+            // Normalize degree from 0 to 1
+            let normalizedDegree = 0.5; // Default if all nodes have same degree
+            if (degreeRange > 0) {
+                normalizedDegree = (degree - minDegree) / degreeRange;
+            }
+
+            // Get the color from the interpolator
+            const baseColor = d3.color(colorInterpolator(normalizedDegree));
+            baseColor.opacity = 0.9; // Set opacity
+
+            return {
+                id: id,
+                // Make hub nodes larger
+                radius: (id === 'portfolio.html' || id === 'index.html') ? 10 : 5,
+                degree: degree,
+                color: baseColor.toString()
+            };
+        });
+
+        // D3 force simulation expects links to be objects.
+        // The original linksList is already in the correct format.
+        const links = linksList;
+
+        // --- 4. Custom Forces ---
+
+        /**
+         * REQUIREMENT: "make the particles subtly float"
+         * This custom force applies a tiny, random, persistent "jiggle"
+         * to each node on every tick of the simulation.
+         */
+        function floatForce(alpha) {
+            const floatStrength = 0.005; // How strong the "float" is
+            for (const node of nodes) {
+                // Apply a small random velocity change
+                node.vx += (Math.random() - 0.5) * floatStrength;
+                node.vy += (Math.random() - 0.5) * floatStrength;
+            }
+        }
+
+        // --- 5. Create the D3 Force Simulation ---
+        const simulation = d3.forceSimulation(nodes)
+            // REQUIREMENT: "nodes with links get pulled towards each other"
+            .force("link", d3.forceLink(links)
+                .id(d => d.id)
+                // Make links to/from hub nodes longer
+                .distance(d => (
+                    d.source.id === 'portfolio.html' || d.target.id === 'portfolio.html' ||
+                    d.source.id === 'index.html' || d.target.id === 'index.html'
+                ) ? 150 : 70)
+                .strength(0.4) // Slightly weaker pull for clarity
+            )
+            // REQUIREMENT: "maintain a minimum distance"
+            .force("charge", d3.forceManyBody()
+                .strength(-120) // Negative strength pushes nodes apart
+                .distanceMin(10)
+                .distanceMax(250)
+            )
+            // Add the custom floating force
+            .force("float", floatForce)
+            // Keep the simulation centered in the canvas
+            .force("center", d3.forceCenter(width / 2, height / 2));
+
+        // Assign the 'tick' event handler
+        simulation.on("tick", ticked);
+
+        // --- 6. Drawing Function ---
+        // This function is called on every "tick" of the physics simulation
+        function ticked() {
+            context.save(); // Save the default state
+
+            // Clear the canvas
+            context.clearRect(0, 0, width, height);
+
+            // Apply the zoom/pan transform
+            context.translate(transform.x, transform.y);
+            context.scale(transform.k, transform.k);
+
+            // --- Draw Links ---
+            // Set style for links (very subtle)
+            context.strokeStyle = "rgba(200, 200, 200, 0.15)";
+            context.lineWidth = 1;
+
+            context.beginPath();
+            links.forEach(link => {
+                // D3 simulation automatically resolves string IDs to node objects
+                context.moveTo(link.source.x, link.source.y);
+                context.lineTo(link.target.x, link.target.y);
+            });
+            context.stroke();
+
+            // --- Draw Nodes ---
+            // We must draw each node individually to give it a unique color
+            nodes.forEach(node => {
+                context.beginPath();
+                context.moveTo(node.x + node.radius, node.y);
+                context.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                // Set fill style to the node's calculated color
+                context.fillStyle = node.color;
+                context.fill();
+            });
+
+            // --- Draw Labels ---
+            context.font = "10px Inter";
+            context.fillStyle = "rgba(200, 200, 200, 0.6)";
+            nodes.forEach(node => {
+                // Make hub labels slightly bolder/bigger
+                if (node.id === 'portfolio.html' || node.id === 'index.html') {
+                    context.font = "bold 11px Inter";
+                    context.fillStyle = "rgba(255, 255, 255, 0.9)";
+                }
+
+                // Remove the .html extension for cleaner display
+                const label = node.id.replace('.html', '');
+                context.fillText(label, node.x + node.radius + 4, node.y + 3);
+
+                // Reset for next node
+                if (node.id === 'portfolio.html' || node.id === 'index.html') {
+                    context.font = "10px Inter";
+                    context.fillStyle = "rgba(200, 200, 200, 0.6)";
+                }
+            });
+
+            context.restore(); // Restore the default state (undo transform)
+        }
+
+        // --- 7. Interactivity (Drag, Click, and Zoom) ---
+
+        // Variables to detect click vs. drag
+        let dragStartTime = 0;
+        let dragStartPos = { x: 0, y: 0 };
+
+        // Define the zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.2, 5]) // Min 0.2x, Max 5x zoom
+            // We no longer need a custom filter.
+            // d3.drag().subject() handles the logic of
+            // dragging nodes vs. panning the background.
+            .on("zoom", zoomed);
+
+        // Define the drag behavior
+        const drag = d3.drag()
+            .container(canvas)
+            .subject(findNode) // findNode determines *what* is being dragged
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended);
+
+        // Attach listeners to the canvas
+        // Order matters: call drag first, then zoom.
+        // d3.drag will test the .subject() function (findNode) first.
+        // If findNode returns a node, drag starts.
+        // If findNode returns undefined (background click), the event is
+        // passed to d3.zoom, which handles it as a pan.
+        d3.select(canvas)
+            .call(drag) // Call drag FIRST
+            .call(zoom) // Call zoom SECOND
+            .on("dblclick.zoom", null); // Optional: disable double-click to zoom
+
+        // --- Zoom Handler ---
+        function zoomed(event) {
+            // event.transform contains new k, x, y
+            transform = event.transform;
+            ticked(); // Redraw the simulation with the new transform
+        }
+
+        // --- Click/Drag Handlers ---
+
+        // Find the closest node to the mouse cursor IN SIMULATION SPACE
+        function findNode(event) {
+            // --- MODIFIED ---
+            // Get pointer coordinates relative to the canvas (the 'this' context)
+            // This is the robust way to get coordinates from the initiating event.
+            const [screenX, screenY] = d3.pointer(event, this);
+
+            // Convert screen coordinates (screenX, screenY) to simulation coordinates
+            const [tx, ty] = transform.invert([screenX, screenY]);
+
+            // Find node in simulation space, scaling search radius by zoom level
+            const bestNode = simulation.find(tx, ty, 40 / transform.k);
+
+            // When a node is found, change cursor to 'grabbing'
+            d3.select(canvas).style("cursor", bestNode ? "grabbing" : "grab");
+
+            return bestNode;
+        }
+
+
+        function dragstarted(event) {
+            // --- MODIFIED ---
+            // We MUST use event.sourceEvent (the raw DOM event) and d3.pointer
+            // to get coordinates relative to the container.
+            // event.x/y are compromised by d3-drag's misinterpretation
+            // of our simulation-space subject coordinates.
+            const [screenX, screenY] = d3.pointer(event.sourceEvent, this); // 'this' is the canvas
+
+            // Store drag start time and position to check for clicks
+            dragStartTime = Date.now();
+            dragStartPos = { x: screenX, y: screenY };
+
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+
+            // Get simulation coords from *correct* screen coords
+            const [tx, ty] = transform.invert([screenX, screenY]);
+            event.subject.fx = tx; // Fix the node's position
+            event.subject.fy = ty;
+        }
+
+        function dragged(event) {
+             // --- MODIFIED ---
+            // We must use event.sourceEvent (the raw DOM event) and d3.pointer
+            const [screenX, screenY] = d3.pointer(event.sourceEvent, this); // 'this' is the canvas
+
+            const dist = Math.hypot(screenX - dragStartPos.x, screenY - dragStartPos.y);
+            // Only update position if it's *not* a click (moved > 3px)
+            if (dist > 3 || Date.now() - dragStartTime > 250) {
+                // event.x/y are the current pointer coords relative to the container
+                const [tx, ty] = transform.invert([screenX, screenY]);
+                event.subject.fx = tx;
+                event.subject.fy = ty;
+            }
+        }
+
+        function dragended(event) {
+             // --- MODIFIED ---
+            // We must use event.sourceEvent (the raw DOM event) and d3.pointer
+            const [screenX, screenY] = d3.pointer(event.sourceEvent, this); // 'this' is the canvas
+
+            // Reset cursor to 'grab'
+            d3.select(canvas).style("cursor", "grab");
+
+            if (!event.active) simulation.alphaTarget(0); // Cool the simulation
+
+            const duration = Date.now() - dragStartTime;
+            const dist = Math.hypot(screenX - dragStartPos.x, screenY - dragStartPos.y);
+
+            // Check if it was a "click" (short duration, minimal movement)
+            if (duration < 250 && dist < 5) {
+                console.log("Opening node:", event.subject.id);
+                // --- MODIFIED LINE ---
+                // Open the node's ID (which is its URL) in the *same* tab
+                window.location.href = event.subject.id;
+            }
+
+            event.subject.fx = null; // Unfix the node's position
+            event.subject.fy = null;
+        }
+
+        // --- 8. Handle Window Resize ---
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+
+            // Update the center of the simulation
+            simulation.force("center", d3.forceCenter(width / 2, height / 2));
+            simulation.alpha(0.3).restart(); // Reheat simulation to resettle
+        });
+
+        // Set initial cursor style
+        d3.select(canvas).style("cursor", "grab");
+    </script>
+  </body>
+</html>

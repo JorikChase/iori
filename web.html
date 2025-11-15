@@ -52,7 +52,7 @@
         // --- Store current zoom transform ---
         let transform = d3.zoomIdentity;
 
-        // --- 2. Define Data (The "links_list") ---
+      // --- 2. Define Data (The "links_list") ---
         // This is the only list you need to edit.
         // Nodes are created automatically from these links.
         const allNodeIds = [
@@ -60,20 +60,31 @@
             "maska.html", "info.html", "indent.html", "index.html",
             "game.html", "fractals.html", "darkwood.html",
             // Added new nodes
-            "three-body.html", "two-body.html", "sudoku.html", "class-action.html"
+            "three-body.html", "two-body.html", "sudoku.html", "class-action.html",
+            // Added web.html
+            "web.html"
         ];
 
         const linksList = [];
 
-        // Connect "portfolio.html" and "index.html" to all other nodes
+        // --- NEW: Connect "web.html" to all other nodes ---
+        allNodeIds.forEach(id => {
+            if (id !== "web.html") {
+                linksList.push({ source: "web.html", target: id });
+            }
+        });
+
+        // Connect "portfolio.html" and "index.html" to other nodes
         allNodeIds.forEach(id => {
             // Disconnect class-action, two-body, and three-body from portfolio
-            if (id !== "portfolio.html" && id !== "class-action.html" && id !== "two-body.html" && id !== "three-body.html") {
+            // Also disconnect web.html (it's already connected in the loop above)
+            if (id !== "portfolio.html" && id !== "class-action.html" && id !== "two-body.html" && id !== "three-body.html" && id !== "web.html") {
                 linksList.push({ source: "portfolio.html", target: id });
             }
         });
 
         // Manually connect "index.html" to only info, shop, and portfolio
+        // (it's already connected to web.html)
         linksList.push({ source: "index.html", target: "info.html" });
         linksList.push({ source: "index.html", target: "shop.html" });
         linksList.push({ source: "index.html", target: "portfolio.html" });
@@ -89,10 +100,10 @@
         linksList.push({ source: "two-body.html", target: "three-body.html" });
         linksList.push({ source: "sudoku.html", target: "game.html" });
         linksList.push({ source: "class-action.html", target: "index.html" });
-        // "info.html" is already connected to the "largest nodes" (portfolio, index)
+        // "info.html" is already connected to the "largest nodes"
         // "shop.html" and "indent.html" are only connected to the hubs
 
-        // --- 3. Calculate Node Degrees & Procedurally Create Nodes ---
+      // --- 3. Calculate Node Degrees & Procedurally Create Nodes ---
 
         // Calculate the number of connections (degree) for each node
         const nodeDegrees = new Map();
@@ -136,7 +147,7 @@
             return {
                 id: id,
                 // Make hub nodes larger
-                radius: (id === 'portfolio.html' || id === 'index.html') ? 10 : 5,
+                radius: (id === 'portfolio.html' || id === 'index.html' || id === 'web.html') ? 10 : 5,
                 degree: degree,
                 color: baseColor.toString()
             };
@@ -146,7 +157,7 @@
         // The original linksList is already in the correct format.
         const links = linksList;
 
-        // --- 4. Custom Forces ---
+      // --- 4. Custom Forces ---
 
         /**
          * REQUIREMENT: "make the particles subtly float"
@@ -162,7 +173,7 @@
             }
         }
 
-        // --- 5. Create the D3 Force Simulation ---
+      // --- 5. Create the D3 Force Simulation ---
         const simulation = d3.forceSimulation(nodes)
             // REQUIREMENT: "nodes with links get pulled towards each other"
             .force("link", d3.forceLink(links)
@@ -170,7 +181,8 @@
                 // Make links to/from hub nodes longer
                 .distance(d => (
                     d.source.id === 'portfolio.html' || d.target.id === 'portfolio.html' ||
-                    d.source.id === 'index.html' || d.target.id === 'index.html'
+                    d.source.id === 'index.html' || d.target.id === 'index.html' ||
+                    d.source.id === 'web.html' || d.target.id === 'web.html' // Added web.html
                 ) ? 150 : 70)
                 .strength(0.4) // Slightly weaker pull for clarity
             )
@@ -188,7 +200,7 @@
         // Assign the 'tick' event handler
         simulation.on("tick", ticked);
 
-        // --- 6. Drawing Function ---
+      // --- 6. Drawing Function ---
         // This function is called on every "tick" of the physics simulation
         function ticked() {
             context.save(); // Save the default state
@@ -229,7 +241,7 @@
             context.fillStyle = "rgba(200, 200, 200, 0.6)";
             nodes.forEach(node => {
                 // Make hub labels slightly bolder/bigger
-                if (node.id === 'portfolio.html' || node.id === 'index.html') {
+                if (node.id === 'portfolio.html' || node.id === 'index.html' || node.id === 'web.html') {
                     context.font = "bold 11px Inter";
                     context.fillStyle = "rgba(255, 255, 255, 0.9)";
                 }
@@ -239,7 +251,7 @@
                 context.fillText(label, node.x + node.radius + 4, node.y + 3);
 
                 // Reset for next node
-                if (node.id === 'portfolio.html' || node.id === 'index.html') {
+                if (node.id === 'portfolio.html' || node.id === 'index.html' || node.id === 'web.html') {
                     context.font = "10px Inter";
                     context.fillStyle = "rgba(200, 200, 200, 0.6)";
                 }
@@ -248,7 +260,7 @@
             context.restore(); // Restore the default state (undo transform)
         }
 
-        // --- 7. Interactivity (Drag, Click, and Zoom) ---
+      // --- 7. Interactivity (Drag, Click, and Zoom) ---
 
         // Variables to detect click vs. drag
         let dragStartTime = 0;
@@ -370,7 +382,7 @@
             event.subject.fy = null;
         }
 
-        // --- 8. Handle Window Resize ---
+      // --- 8. Handle Window Resize ---
         window.addEventListener('resize', () => {
             width = window.innerWidth;
             height = window.innerHeight;

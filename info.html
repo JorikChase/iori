@@ -15,12 +15,12 @@
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/assets/main.css"
+            href="/assets/main.css"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/assets/burger.css"
+            href="/assets/burger.css"
         />
         <style>
             body {
@@ -124,7 +124,7 @@
                 // hdri
 
                 new RGBELoader()
-                    .setPath("/images/assets/")
+                    .setPath("/assets/")
                     .load("3dieMainBckg.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
@@ -136,10 +136,10 @@
                 // objects
 
                 const foregroundTexture = new THREE.TextureLoader().load(
-                    "/images/assets/contact/background.jpg",
+                    "/assets/contact/background.jpg",
                 );
                 const foregroundAplha = new THREE.TextureLoader().load(
-                    "/images/assets/contact/foreground.jpg",
+                    "/assets/contact/foreground.jpg",
                 );
 
                 foregroundMaterial = new THREE.MeshStandardMaterial({
@@ -148,10 +148,10 @@
                     map: foregroundTexture,
                 });
                 const midgroundTexture = new THREE.TextureLoader().load(
-                    "/images/assets/contact/background.jpg",
+                    "/assets/contact/background.jpg",
                 );
                 const midgroundAlpha = new THREE.TextureLoader().load(
-                    "/images/assets/contact/midground.jpg",
+                    "/assets/contact/midground.jpg",
                 );
 
                 midgroundMaterial = new THREE.MeshStandardMaterial({
@@ -160,7 +160,7 @@
                     map: midgroundTexture,
                 });
                 const backgroundTexture = new THREE.TextureLoader().load(
-                    "/images/assets/contact/background.jpg",
+                    "/assets/contact/background.jpg",
                 );
 
                 backgroundMaterial = new THREE.MeshStandardMaterial({
@@ -193,7 +193,7 @@
 
                 const loader = new FontLoader();
                 loader.load(
-                    "/images/assets/contactFont.json",
+                    "/assets/contactFont.json",
                     function (font) {
                         const color = 0xfffb00;
 

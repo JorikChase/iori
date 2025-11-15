@@ -14,17 +14,17 @@
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/assets/main.css"
+            href="/assets/main.css"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/assets/burger.css"
+            href="/assets/burger.css"
         />
         <style>
             @font-face {
                 font-family: bitBoy;
-                src: url(/images/assets/dogica.ttf);
+                src: url(/assets/dogica.ttf);
             }
             body {
                 font-family: bitBoy;
@@ -136,7 +136,7 @@
                 5,
             );
             const tennisMaterial = new THREE.TextureLoader().load(
-                "/images/assets/tennis.jpg",
+                "/assets/tennis.jpg",
             );
             const sphereMaterial = new THREE.MeshLambertMaterial({
                 map: tennisMaterial,
@@ -488,7 +488,7 @@
             }
 
             const loader = new GLTFLoader().setPath(
-                "/images/assets/obj/",
+                "/assets/obj/",
             );
 
             loader.load("col-wld.glb", (gltf) => {
@@ -549,7 +549,7 @@
             }
         </script>
         <audio autoplay id="backgroundMusic">
-            <source src="/images/assets/tennis_sound.mp3" />
+            <source src="/assets/tennis_sound.mp3" />
         </audio>
 
         <script>

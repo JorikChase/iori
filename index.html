@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
-    <meta charset="utf-t" />
+    <!-- FIX 5: Corrected charset typo from utf-t to utf-8 -->
+    <meta charset="utf-8" />
     <title>3DIE.FR - Official Website & Portfolio</title>
     <meta name="description" content="Welcome to 3DIE.FR, the official website showcasing portfolio, shop, and information. Explore The Age of Data." />
     <meta name="keywords" content="3DIE, portfolio, shop, art, digital art, The Age of Data" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    <!-- FIX 5: Added closing > to the link tag -->
-    <link rel="canonical" href="https://jorikchase.github.io/iori/">
+    <link rel="canonical" href="https://jorikchase.github.io/iori/" />
     <meta property="og:title" content="3DIE.FR - Official Website & Portfolio" />
     <meta property="og:description" content="Explore the portfolio, shop, and information on 3DIE.FR." />
     <meta property="og:type" content="website" />
@@ -22,10 +22,10 @@
     <meta name="twitter:description" content="Explore the portfolio, shop, and information on 3DIE.FR." />
     <meta name="twitter:image" content="https://3die.fr/iori/assets/preview-image.jpg" />
 
-    <!-- FIX 1: Use absolute URL path for favicon -->
-    <link rel="icon" type="image/x-icon" href="https://jorikchase.github.io/iori/3die.ico" />
-    <!-- FIX 1: Use absolute URL path for CSS -->
-    <link type="text/css" rel="stylesheet" href="https://jorikchase.github.io/iori/assets/main.css" />
+    <!-- FIX 1: Use RELATIVE path for live server -->
+    <link rel="icon" type="image/x-icon" href="3die.ico" />
+    <!-- FIX 1: Use RELATIVE path for live server -->
+    <link type="text/css" rel="stylesheet" href="assets/main.css" />
 
         <style>
             body {
@@ -36,7 +36,6 @@
 
     <body>
         <!-- Import maps polyfill -->
-        <!-- Remove this when import maps will be widely supported -->
         <script
             async
             src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"
@@ -54,7 +53,7 @@
         <script type="module">
             import * as THREE from "three";
 
-            // FIX 3: Use HDRLoader instead of the deprecated RGBELoader
+            // FIX 2: Use HDRLoader instead of deprecated RGBELoader
             import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 
             import { GUI } from "three/addons/libs/lil-gui.module.min.js";
@@ -67,7 +66,6 @@
             import { AsciiEffect } from "three/addons/effects/AsciiEffect.js";
 
             // declarations
-
             let camera, scene, renderer, composer;
             let cube,
                 sphere,
@@ -81,24 +79,16 @@
                 material,
                 effect;
 
-            // FIX 4: Add flag to track if environment map has loaded
             let environmentLoaded = false;
-
             let cubeCamera, cubeRenderTarget;
-
             let mouseX = 0,
                 mouseY = 0;
-
             let windowHalfX = window.innerWidth / 2;
             let windowHalfY = window.innerHeight / 2;
 
             init();
 
-            //init
-
             function init() {
-                //scope
-
                 renderer = new THREE.WebGLRenderer({ antialias: true });
                 renderer.setPixelRatio(window.devicePixelRatio);
                 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -109,10 +99,7 @@
                 document.body.appendChild(renderer.domElement);
 
                 document.addEventListener("mousemove", onDocumentMouseMove);
-
                 window.addEventListener("resize", onWindowResized);
-
-                // camera
 
                 camera = new THREE.PerspectiveCamera(
                     90,
@@ -126,31 +113,25 @@
                 scene.rotation.y = 0.5; // avoid flying objects occluding the sun
 
                 // hdri
-
-                // FIX 3: Use HDRLoader
+                // FIX 2: Use HDRLoader
                 new HDRLoader()
-                    // FIX 1: Use absolute URL path for assets
-                    .setPath("https://jorikchase.github.io/iori/assets/")
+                    // FIX 1: Use RELATIVE path for live server
+                    .setPath("assets/")
                     .load("3dieMainBckg.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
 
                         scene.background = texture;
                         scene.environment = texture;
-
-                        // FIX 4: Set flag to true once the HDR has loaded
                         environmentLoaded = true;
                     });
 
                 // cubeRenderCamera
-
                 cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
                 cubeRenderTarget.texture.type = THREE.HalfFloatType;
-
                 cubeCamera = new THREE.CubeCamera(1, 1000, cubeRenderTarget);
 
                 // objects
-
                 material = new THREE.MeshStandardMaterial({
                     envMap: cubeRenderTarget.texture,
                     roughness: 0.05,
@@ -158,7 +139,6 @@
                 });
 
                 const radius = 7.5;
-
                 sphere = new THREE.Mesh(
                     new THREE.IcosahedronGeometry(20, 8),
                     material,
@@ -219,7 +199,6 @@
                 scene.add(sextahedron);
 
                 // postprocessing
-
                 composer = new EffectComposer(renderer);
                 composer.addPass(new RenderPass(scene, camera));
 
@@ -229,18 +208,6 @@
 
                 const effect3 = new FilmPass(0.15, 0.025, 50, false);
                 // composer.addPass(effect3);
-
-                //
-
-                // effect = new AsciiEffect( renderer, ' .:-+*=%@#^?;', { invert: true } );
-                // effect.setSize( window.innerWidth, window.innerHeight );
-                // effect.domElement.style.color = "rgba(255, 255, 255, 0.5)";
-                // effect.domElement.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-
-                // Special case: append effect.domElement, instead of renderer.domElement.
-                // AsciiEffect creates a custom domElement (a div container) where the ASCII elements are placed.
-
-                // document.body.appendChild( effect.domElement );
             }
 
             function onWindowResized() {
@@ -252,17 +219,16 @@
 
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
-
-                // effect.setSize( window.innerWidth, window.innerHeight );
             }
 
-            let audioStarted = false; // FIX 2: Flag to play audio only once
+            // FIX 3: Flag to play audio only once
+            let audioStarted = false;
 
             function onDocumentMouseMove(event) {
                 mouseX = (event.clientX - windowHalfX) / 2;
                 mouseY = (event.clientY - windowHalfY) / 2;
 
-                // FIX 2: Play audio on first user interaction
+                // FIX 3: Play audio on first user interaction to avoid autoplay error
                 if (!audioStarted) {
                     const audio = document.getElementById("backgroundMusic");
                     if (audio) {
@@ -273,94 +239,79 @@
             }
 
             function animation(msTime) {
-                // FIX 3: Add guard clause to prevent crash if objects aren't initialized
+                // FIX 4: Add guard clause to prevent crash if objects aren't initialized
                 if (!cube || !torus || !tetrahedron || !dodecahedron || !donut || !octahedron || !pentahedron || !sextahedron) {
                     return; // Wait for init() to complete
                 }
 
                 // rotating objects
-
                 const time = msTime / 1000;
 
                 cube.position.x = Math.cos(time) * 30;
                 cube.position.y = Math.sin(time) * 30;
                 cube.position.z = Math.sin(time) * 30;
-
                 cube.rotation.x += 0.02;
                 cube.rotation.y += 0.03;
 
                 torus.position.x = Math.cos(time + 30) * 30;
                 torus.position.y = Math.sin(time + 30) * 30;
                 torus.position.z = Math.sin(time + 30) * 30;
-
                 torus.rotation.x += 0.02;
                 torus.rotation.y += 0.03;
 
                 tetrahedron.position.x = Math.cos(time + 60) * 30;
                 tetrahedron.position.y = Math.sin(time + 60) * 30;
                 tetrahedron.position.z = Math.sin(time + 60) * 30;
-
                 tetrahedron.rotation.x += 0.02;
                 tetrahedron.rotation.y += 0.03;
 
                 dodecahedron.position.x = Math.cos(time + 90) * 30;
                 dodecahedron.position.y = Math.sin(time + 90) * 30;
                 dodecahedron.position.z = Math.sin(time + 90) * 30;
-
                 dodecahedron.rotation.x += 0.02;
                 dodecahedron.rotation.y += 0.03;
 
                 donut.position.x = Math.sin(time + 15) * 30;
                 donut.position.y = Math.cos(time + 15) * 30;
                 donut.position.z = Math.sin(time + 15) * 30;
-
                 donut.rotation.x += 0.02;
                 donut.rotation.y += 0.03;
 
                 octahedron.position.x = Math.cos(time + 15 + 30) * 30;
                 octahedron.position.y = Math.cos(time + 15 + 30) * 30;
                 octahedron.position.z = Math.sin(time + 15 + 30) * 30;
-
                 octahedron.rotation.x += 0.02;
                 octahedron.rotation.y += 0.03;
 
                 pentahedron.position.x = Math.sin(time + 15 + 60) * 30;
                 pentahedron.position.y = Math.cos(time + 15 + 60) * 30;
                 pentahedron.position.z = Math.sin(time + 15 + 60) * 30;
-
                 pentahedron.rotation.x += 0.02;
                 pentahedron.rotation.y += 0.03;
 
                 sextahedron.position.x = Math.cos(time + 15 + 90) * 30;
                 sextahedron.position.y = Math.cos(time + 15 + 90) * 30;
                 sextahedron.position.z = Math.sin(time + 15 + 90) * 30;
-
                 sextahedron.rotation.x += 0.02;
                 sextahedron.rotation.y += 0.03;
 
                 // fps update
-
                 camera.position.x += (mouseX / 5 - camera.position.x) * 0.01;
                 camera.position.y += (-mouseY / 5 - camera.position.y) * 0.02;
-
                 camera.lookAt(scene.position);
 
-                // FIX 4: Only update the cube camera if the environment map has loaded
                 if (environmentLoaded) {
                     cubeCamera.update(renderer, scene);
                 }
 
                 renderer.render(scene, camera);
-
-                // effect.render( scene, camera );
-
                 composer.render();
             }
         </script>
-        <!-- FIX 2: Removed 'autoplay' attribute to prevent browser error -->
+        <!-- FIX 3: Removed 'autoplay' attribute -->
         <audio id="backgroundMusic">
-            <!-- FIX 1: Use absolute URL path for audio -->
-            <source src="https://jorikchase.github.io/iori/assets/main-theme.mp3" />
+            <!-- FIX 1: Use RELATIVE path for live server -->
+            <source src="assets/main-theme.mp3" />
         </audio>
 
         <script>
@@ -383,9 +334,9 @@
                 class="socLink"
                 target="_blank"
                 href="https://docs.google.com/document/d/1A5NVXLtRMcCPL88n0FjMREgpBHqcZbRa/edit?usp=sharing&ouid=101911821031887759842&rtpof=true&sd=true"
-                ><!-- FIX 2: Corrected absolute URL path. -->
+                ><!-- FIX 1: Use RELATIVE path for live server -->
                 <!-- Make sure 'assets/textures/socLink.png' exists on your server! -->
-                <img src="https://jorikchase.github.io/iori/assets/textures/socLink.png"
+                <img src="assets/textures/socLink.png"
             /></a>
         </div>
         <!-- --

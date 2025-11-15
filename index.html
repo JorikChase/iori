@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
     <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
-    <meta charset="utf-8" />
+    <meta charset="utf-t" />
     <title>3DIE.FR - Official Website & Portfolio</title>
     <meta name="description" content="Welcome to 3DIE.FR, the official website showcasing portfolio, shop, and information. Explore The Age of Data." />
     <meta name="keywords" content="3DIE, portfolio, shop, art, digital art, The Age of Data" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    <link rel="canonical" href="https://jorikchase.github.io/iori/"
+    <!-- FIX 5: Added closing > to the link tag -->
+    <link rel="canonical" href="https://jorikchase.github.io/iori/">
     <meta property="og:title" content="3DIE.FR - Official Website & Portfolio" />
     <meta property="og:description" content="Explore the portfolio, shop, and information on 3DIE.FR." />
     <meta property="og:type" content="website" />
@@ -21,8 +22,10 @@
     <meta name="twitter:description" content="Explore the portfolio, shop, and information on 3DIE.FR." />
     <meta name="twitter:image" content="https://3die.fr/iori/assets/preview-image.jpg" />
 
-    <link rel="icon" type="image/x-icon" href="/iori/3die.ico" />
-    <link type="text/css" rel="stylesheet" href="/iori/assets/main.css" />
+    <!-- FIX 1: Corrected relative path for favicon -->
+    <link rel="icon" type="image/x-icon" href="3die.ico" />
+    <!-- FIX 1: Corrected relative path for CSS -->
+    <link type="text/css" rel="stylesheet" href="assets/main.css" />
 
         <style>
             body {
@@ -51,7 +54,8 @@
         <script type="module">
             import * as THREE from "three";
 
-            import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+            // FIX 3: Use HDRLoader instead of the deprecated RGBELoader
+            import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 
             import { GUI } from "three/addons/libs/lil-gui.module.min.js";
 
@@ -76,6 +80,9 @@
                 sextahedron,
                 material,
                 effect;
+
+            // FIX 4: Add flag to track if environment map has loaded
+            let environmentLoaded = false;
 
             let cubeCamera, cubeRenderTarget;
 
@@ -120,14 +127,19 @@
 
                 // hdri
 
-                new RGBELoader()
-                    .setPath("/iori/assets/")
+                // FIX 3: Use HDRLoader
+                new HDRLoader()
+                    // FIX 1: Corrected relative path for assets
+                    .setPath("assets/")
                     .load("3dieMainBckg.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
 
                         scene.background = texture;
                         scene.environment = texture;
+
+                        // FIX 4: Set flag to true once the HDR has loaded
+                        environmentLoaded = true;
                     });
 
                 // cubeRenderCamera
@@ -317,7 +329,10 @@
 
                 camera.lookAt(scene.position);
 
-                cubeCamera.update(renderer, scene);
+                // FIX 4: Only update the cube camera if the environment map has loaded
+                if (environmentLoaded) {
+                    cubeCamera.update(renderer, scene);
+                }
 
                 renderer.render(scene, camera);
 
@@ -327,7 +342,8 @@
             }
         </script>
         <audio autoplay id="backgroundMusic">
-            <source src="/assets/main-theme.mp3" />
+            <!-- FIX 1: Corrected relative path for audio -->
+            <source src="assets/main-theme.mp3" />
         </audio>
 
         <script>
@@ -350,7 +366,9 @@
                 class="socLink"
                 target="_blank"
                 href="https://docs.google.com/document/d/1A5NVXLtRMcCPL88n0FjMREgpBHqcZbRa/edit?usp=sharing&ouid=101911821031887759842&rtpof=true&sd=true"
-                ><img src="./iori/assets/textures/socLink.png"
+                ><!-- FIX 2: Corrected relative path. -->
+                <!-- Make sure 'assets/textures/socLink.png' exists on your server! -->
+                <img src="assets/textures/socLink.png"
             /></a>
         </div>
         <!-- --

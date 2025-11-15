@@ -22,10 +22,10 @@
     <meta name="twitter:description" content="Explore the portfolio, shop, and information on 3DIE.FR." />
     <meta name="twitter:image" content="https://3die.fr/iori/assets/preview-image.jpg" />
 
-    <!-- FIX 1: Corrected relative path for favicon -->
-    <link rel="icon" type="image/x-icon" href="3die.ico" />
-    <!-- FIX 1: Corrected relative path for CSS -->
-    <link type="text/css" rel="stylesheet" href="assets/main.css" />
+    <!-- FIX 1: Use absolute URL path for favicon -->
+    <link rel="icon" type="image/x-icon" href="https://jorikchase.github.io/iori/3die.ico" />
+    <!-- FIX 1: Use absolute URL path for CSS -->
+    <link type="text/css" rel="stylesheet" href="https://jorikchase.github.io/iori/assets/main.css" />
 
         <style>
             body {
@@ -129,8 +129,8 @@
 
                 // FIX 3: Use HDRLoader
                 new HDRLoader()
-                    // FIX 1: Corrected relative path for assets
-                    .setPath("assets/")
+                    // FIX 1: Use absolute URL path for assets
+                    .setPath("https://jorikchase.github.io/iori/assets/")
                     .load("3dieMainBckg.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
@@ -256,12 +256,28 @@
                 // effect.setSize( window.innerWidth, window.innerHeight );
             }
 
+            let audioStarted = false; // FIX 2: Flag to play audio only once
+
             function onDocumentMouseMove(event) {
                 mouseX = (event.clientX - windowHalfX) / 2;
                 mouseY = (event.clientY - windowHalfY) / 2;
+
+                // FIX 2: Play audio on first user interaction
+                if (!audioStarted) {
+                    const audio = document.getElementById("backgroundMusic");
+                    if (audio) {
+                        audio.play().catch(e => console.warn("Audio play failed:", e));
+                    }
+                    audioStarted = true;
+                }
             }
 
             function animation(msTime) {
+                // FIX 3: Add guard clause to prevent crash if objects aren't initialized
+                if (!cube || !torus || !tetrahedron || !dodecahedron || !donut || !octahedron || !pentahedron || !sextahedron) {
+                    return; // Wait for init() to complete
+                }
+
                 // rotating objects
 
                 const time = msTime / 1000;
@@ -341,9 +357,10 @@
                 composer.render();
             }
         </script>
-        <audio autoplay id="backgroundMusic">
-            <!-- FIX 1: Corrected relative path for audio -->
-            <source src="assets/main-theme.mp3" />
+        <!-- FIX 2: Removed 'autoplay' attribute to prevent browser error -->
+        <audio id="backgroundMusic">
+            <!-- FIX 1: Use absolute URL path for audio -->
+            <source src="https://jorikchase.github.io/iori/assets/main-theme.mp3" />
         </audio>
 
         <script>
@@ -366,9 +383,9 @@
                 class="socLink"
                 target="_blank"
                 href="https://docs.google.com/document/d/1A5NVXLtRMcCPL88n0FjMREgpBHqcZbRa/edit?usp=sharing&ouid=101911821031887759842&rtpof=true&sd=true"
-                ><!-- FIX 2: Corrected relative path. -->
+                ><!-- FIX 2: Corrected absolute URL path. -->
                 <!-- Make sure 'assets/textures/socLink.png' exists on your server! -->
-                <img src="assets/textures/socLink.png"
+                <img src="https://jorikchase.github.io/iori/assets/textures/socLink.png"
             /></a>
         </div>
         <!-- --

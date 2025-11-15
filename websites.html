@@ -10,17 +10,17 @@
         <link
             rel="icon"
             type="image/x-icon"
-            href="/images/sites/iori/3die.ico"
+            href="/images/3die.ico"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/sites/iori/assets/main.css"
+            href="/images/assets/main.css"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/sites/iori/assets/burger.css"
+            href="/images/assets/burger.css"
         />
         <style>
             .websites {
@@ -55,22 +55,22 @@
                 opacity: 1;
             }
             .zsprodeti:hover {
-                background-image: url(/images/sites/iori/assets/zsprodeti-bg.png);
+                background-image: url(/images/assets/zsprodeti-bg.png);
             }
             .flashtones:hover {
-                background-image: url(/images/sites/iori/assets/flashtones-bg.png);
+                background-image: url(/images/assets/flashtones-bg.png);
             }
             .livesupp:hover {
-                background-image: url(/images/sites/iori/assets/livesupp-bg.png);
+                background-image: url(/images/assets/livesupp-bg.png);
             }
             .terycomputer:hover {
-                background-image: url(/images/sites/iori/assets/terycomputer-bg.png);
+                background-image: url(/images/assets/terycomputer-bg.png);
             }
             .jarojaro:hover {
-                background-image: url(/images/sites/iori/assets/jarojaro-bg.png);
+                background-image: url(/images/assets/jarojaro-bg.png);
             }
             .kucharkybezdomova:hover {
-                background-image: url(/images/sites/iori/assets/kucharkybezdomova-bg.png);
+                background-image: url(/images/assets/kucharkybezdomova-bg.png);
             }
             .website-link {
                 height: 2em;
@@ -87,22 +87,22 @@
                     opacity: 1;
                 }
                 .websites > .zsprodeti {
-                    background-image: url(/images/sites/iori/assets/zsprodeti-bg.png);
+                    background-image: url(/images/assets/zsprodeti-bg.png);
                 }
                 .websites > .flashtones {
-                    background-image: url(/images/sites/iori/assets/flashtones-bg.png);
+                    background-image: url(/images/assets/flashtones-bg.png);
                 }
                 .websites > .livesupp {
-                    background-image: url(/images/sites/iori/assets/livesupp-bg.png);
+                    background-image: url(/images/assets/livesupp-bg.png);
                 }
                 .websites > .terycomputer {
-                    background-image: url(/images/sites/iori/assets/terycomputer-bg.png);
+                    background-image: url(/images/assets/terycomputer-bg.png);
                 }
                 .websites > .jarojaro {
-                    background-image: url(/images/sites/iori/assets/jarojaro-bg.png);
+                    background-image: url(/images/assets/jarojaro-bg.png);
                 }
                 .websites > .kucharkybezdomova {
-                    background-image: url(/images/sites/iori/assets/kucharkybezdomova-bg.png);
+                    background-image: url(/images/assets/kucharkybezdomova-bg.png);
                 }
             }
         </style>
@@ -197,7 +197,7 @@
                 // hdri
 
                 new RGBELoader()
-                    .setPath("/images/sites/iori/assets/")
+                    .setPath("/images/assets/")
                     .load("websitesBackground.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
@@ -209,7 +209,7 @@
                 // objects
 
                 const documentTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/one-page.png",
+                    "/images/assets/websites/one-page.png",
                 );
 
                 documentMaterial = new THREE.MeshStandardMaterial({
@@ -218,10 +218,10 @@
                     emissive: 0.5,
                 });
                 const foregroundTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/frontMap.jpg",
+                    "/images/assets/websites/frontMap.jpg",
                 );
                 const foregroundAplha = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/frontAlpha.jpg",
+                    "/images/assets/websites/frontAlpha.jpg",
                 );
 
                 foregroundMaterial = new THREE.MeshStandardMaterial({
@@ -232,10 +232,10 @@
                     emissive: 0.5,
                 });
                 const midgroundTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/midMap.jpg",
+                    "/images/assets/websites/midMap.jpg",
                 );
                 const midgroundAlpha = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/midAlpha.jpg",
+                    "/images/assets/websites/midAlpha.jpg",
                 );
 
                 midgroundMaterial = new THREE.MeshStandardMaterial({
@@ -246,10 +246,10 @@
                     emissive: 0.5,
                 });
                 const backgroundTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/backMap.jpg",
+                    "/images/assets/websites/backMap.jpg",
                 );
                 const backgroundAlpha = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/websites/backAlpha.jpg",
+                    "/images/assets/websites/backAlpha.jpg",
                 );
 
                 backgroundMaterial = new THREE.MeshStandardMaterial({
@@ -348,7 +348,7 @@
                     class="website-link"
                     target="_blank"
                     style="
-                        background-image: url(/images/sites/iori/assets/deti-logo.svg);
+                        background-image: url(/images/assets/deti-logo.svg);
                     "
                 >
                 </a>
@@ -359,7 +359,7 @@
                     class="website-link"
                     target="_blank"
                     style="
-                        background-image: url(/images/sites/iori/assets/Flashtones.svg);
+                        background-image: url(/images/assets/Flashtones.svg);
                     "
                 >
                 </a>
@@ -370,7 +370,7 @@
                     class="website-link"
                     target="_blank"
                     style="
-                        background-image: url(/images/sites/iori/assets/livesupp.svg);
+                        background-image: url(/images/assets/livesupp.svg);
                     "
                 >
                 </a>
@@ -381,7 +381,7 @@
                     class="website-link"
                     target="_blank"
                     style="
-                        background-image: url(/images/sites/iori/assets/terycomputer.svg);
+                        background-image: url(/images/assets/terycomputer.svg);
                     "
                 >
                 </a>
@@ -402,7 +402,7 @@
                     class="website-link"
                     target="_blank"
                     style="
-                        background-image: url(/images/sites/iori/assets/kucharkybezdomova.png);
+                        background-image: url(/images/assets/kucharkybezdomova.png);
                     "
                 >
                 </a>

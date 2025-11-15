@@ -9,22 +9,22 @@
         <link
             rel="icon"
             type="image/x-icon"
-            href="/images/sites/iori/3die.ico"
+            href="/images/3die.ico"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/sites/iori/assets/main.css"
+            href="/images/assets/main.css"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/sites/iori/assets/burger.css"
+            href="/images/assets/burger.css"
         />
         <style>
             @font-face {
                 font-family: bitBoy;
-                src: url(/images/sites/iori/assets/dogica.ttf);
+                src: url(/images/assets/dogica.ttf);
             }
             body {
                 font-family: bitBoy;
@@ -136,7 +136,7 @@
                 5,
             );
             const tennisMaterial = new THREE.TextureLoader().load(
-                "/images/sites/iori/assets/tennis.jpg",
+                "/images/assets/tennis.jpg",
             );
             const sphereMaterial = new THREE.MeshLambertMaterial({
                 map: tennisMaterial,
@@ -488,7 +488,7 @@
             }
 
             const loader = new GLTFLoader().setPath(
-                "/images/sites/iori/assets/obj/",
+                "/images/assets/obj/",
             );
 
             loader.load("col-wld.glb", (gltf) => {
@@ -549,7 +549,7 @@
             }
         </script>
         <audio autoplay id="backgroundMusic">
-            <source src="/images/sites/iori/assets/tennis_sound.mp3" />
+            <source src="/images/assets/tennis_sound.mp3" />
         </audio>
 
         <script>

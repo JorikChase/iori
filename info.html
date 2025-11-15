@@ -10,17 +10,17 @@
         <link
             rel="icon"
             type="image/x-icon"
-            href="/images/sites/iori/3die.ico"
+            href="/images/3die.ico"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/sites/iori/assets/main.css"
+            href="/images/assets/main.css"
         />
         <link
             type="text/css"
             rel="stylesheet"
-            href="/images/sites/iori/assets/burger.css"
+            href="/images/assets/burger.css"
         />
         <style>
             body {
@@ -124,7 +124,7 @@
                 // hdri
 
                 new RGBELoader()
-                    .setPath("/images/sites/iori/assets/")
+                    .setPath("/images/assets/")
                     .load("3dieMainBckg.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
@@ -136,10 +136,10 @@
                 // objects
 
                 const foregroundTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/contact/background.jpg",
+                    "/images/assets/contact/background.jpg",
                 );
                 const foregroundAplha = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/contact/foreground.jpg",
+                    "/images/assets/contact/foreground.jpg",
                 );
 
                 foregroundMaterial = new THREE.MeshStandardMaterial({
@@ -148,10 +148,10 @@
                     map: foregroundTexture,
                 });
                 const midgroundTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/contact/background.jpg",
+                    "/images/assets/contact/background.jpg",
                 );
                 const midgroundAlpha = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/contact/midground.jpg",
+                    "/images/assets/contact/midground.jpg",
                 );
 
                 midgroundMaterial = new THREE.MeshStandardMaterial({
@@ -160,7 +160,7 @@
                     map: midgroundTexture,
                 });
                 const backgroundTexture = new THREE.TextureLoader().load(
-                    "/images/sites/iori/assets/contact/background.jpg",
+                    "/images/assets/contact/background.jpg",
                 );
 
                 backgroundMaterial = new THREE.MeshStandardMaterial({
@@ -193,7 +193,7 @@
 
                 const loader = new FontLoader();
                 loader.load(
-                    "/images/sites/iori/assets/contactFont.json",
+                    "/images/assets/contactFont.json",
                     function (font) {
                         const color = 0xfffb00;
 

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2-Body Gravity Simulation</title>
+    <style>
+      /* Minimal UI: remove all margins and make canvas fill the screen */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000; /* Black background */
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+  </head>
+  <body>
+    <!-- The canvas element where the simulation will be rendered -->
+    <canvas id="simulation-canvas"></canvas>
+    <!-- Import three.js library -->
+    <script type="importmap">
+      {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+      import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        console.log("--- Module Script Loaded ---");
+
+        // --- Core Scene Setup ---
+        let scene, camera, renderer, controls, clock;
+        let sphere1, sphere2;
+
+        // --- Trail (Trace) Setup ---
+        let trail1, trail2;
+        let trail1Points = [];
+        let trail2Points = [];
+        // const MAX_TRAIL_POINTS = 2000; // Max length of the trail (REMOVED)
+
+        // --- Prediction Trace Setup ---
+        let predictionLine1, predictionLine2;
+        const PREDICTION_STEPS = 200; // Number of steps to predict
+        const predictionMaterial = new THREE.LineBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.5 });
+        // Re-usable vectors for prediction loop
+        const ghostPos1 = new THREE.Vector3();
+        const ghostPos2 = new THREE.Vector3();
+        const ghostVel1 = new THREE.Vector3();
+        const ghostVel2 = new THREE.Vector3();
+        const ghostAccel1 = new THREE.Vector3();
+        const ghostAccel2 = new THREE.Vector3();
+
+        // --- Physics Parameters ---
+        const G = 0.8; // Gravitational constant (tuned for simulation) - Increased for stronger attraction
+        const mass1 = 10;
+        const mass2 = 10;
+        const epsilon = 0.1; // Small value to prevent division by zero (singularity)
+
+        // Vectors for physics calculations (re-used to avoid re-allocation)
+        const forceVec = new THREE.Vector3();
+        const directionVec = new THREE.Vector3();
+        const acceleration1 = new THREE.Vector3();
+        const acceleration2 = new THREE.Vector3();
+
+        // Debugging state
+        let frameCount = 0;
+        const logFrequency = 200; // Log every 200 frames
+
+        /**
+         * Initializes the 3D scene, camera, renderer, and objects.
+         */
+        function init() {
+            console.log("init(): Starting initialization...");
+
+            // Scene
+            scene = new THREE.Scene();
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, 10); // Moved camera back to see more
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('simulation-canvas'),
+                antialias: true // Smooth edges
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            console.log("init(): Renderer initialized.");
+
+            // Clock (for delta time)
+            clock = new THREE.Clock();
+
+            // --- Lighting ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Soft global light
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // Main light source
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            // --- Controls ---
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // Smooth camera movement
+            controls.dampingFactor = 0.05;
+            console.log("init(): Controls initialized.");
+
+            // --- Create Physics Bodies (Spheres) ---
+
+            // Sphere 1 (Red)
+            const geometry1 = new THREE.SphereGeometry(0.2, 32, 32); // Radius 0.2
+            const material1 = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // Red
+            sphere1 = new THREE.Mesh(geometry1, material1);
+            sphere1.position.set(1, 0, 0); // Initial position x=1
+
+            // Store physics properties in userData
+            sphere1.userData.mass = mass1;
+            sphere1.userData.velocity = new THREE.Vector3(0, 1, 0); // Initial velocity y=1
+
+            // Sphere 2 (Blue)
+            const geometry2 = new THREE.SphereGeometry(0.2, 32, 32); // Radius 0.2
+            const material2 = new THREE.MeshStandardMaterial({ color: 0x0000ff }); // Blue
+            sphere2 = new THREE.Mesh(geometry2, material2);
+            sphere2.position.set(-1, 0, 0); // Initial position x=-1
+
+            // Store physics properties in userData
+            sphere2.userData.mass = mass2;
+            sphere2.userData.velocity = new THREE.Vector3(0, -1, 0); // Initial velocity y=-1
+
+            scene.add(sphere1);
+            scene.add(sphere2);
+            console.log("init(): Spheres added to scene.");
+
+            // --- Create Trails ---
+
+            // Initialize point arrays with the starting positions
+            trail1Points.push(sphere1.position.clone());
+            trail2Points.push(sphere2.position.clone());
+
+            // Create trail materials
+            const trail1Material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const trail2Material = new THREE.LineBasicMaterial({ color: 0x0000ff });
+
+            // Create trail geometries
+            const trail1Geo = new THREE.BufferGeometry().setFromPoints(trail1Points);
+            const trail2Geo = new THREE.BufferGeometry().setFromPoints(trail2Points);
+
+            // Create the line objects
+            trail1 = new THREE.Line(trail1Geo, trail1Material);
+            trail2 = new THREE.Line(trail2Geo, trail2Material);
+
+            scene.add(trail1);
+            scene.add(trail2);
+            console.log("init(): Trails added to scene.");
+
+            // --- Create Prediction Lines ---
+            const predGeo1 = new THREE.BufferGeometry();
+            const predGeo2 = new THREE.BufferGeometry();
+
+            predictionLine1 = new THREE.Line(predGeo1, predictionMaterial);
+            predictionLine2 = new THREE.Line(predGeo2, predictionMaterial);
+
+            scene.add(predictionLine1);
+            scene.add(predictionLine2);
+            console.log("init(): Prediction lines added.");
+
+            // Add helpers for orientation (optional)
+            const axesHelper = new THREE.AxesHelper(2);
+            scene.add(axesHelper);
+            console.log("init(): AxesHelper added.");
+
+            // Handle window resizing
+            window.addEventListener('resize', onWindowResize, false);
+            console.log("init(): Initialization complete.");
+        }
+
+        /**
+         * Calculates accelerations for two bodies based on their positions.
+         * Results are written to outAccel1 and outAccel2.
+         * @param {THREE.Vector3} pos1 - Position of body 1
+         * @param {THREE.Vector3} pos2 - Position of body 2
+         * @param {THREE.Vector3} outAccel1 - (Output) Acceleration vector for body 1
+         * @param {THREE.Vector3} outAccel2 - (Output) Acceleration vector for body 2
+         */
+        function computeAccelerations(pos1, pos2, outAccel1, outAccel2) {
+            // 1. Calculate direction vector
+            directionVec.subVectors(pos2, pos1); // Vector from 1 to 2
+
+            // 2. Calculate distance squared (r^2)
+            // We add epsilon to prevent force from becoming infinite at r=0
+            const distanceSq = directionVec.lengthSq() + epsilon;
+
+            // 3. Calculate force magnitude: F = G * m1 * m2 / r^2
+            const forceMagnitude = (G * mass1 * mass2) / distanceSq;
+
+            // 4. Calculate the base force vector (pointing from 1 to 2)
+            // F_vec = F * direction_unit_vector
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+
+            // 5. Calculate acceleration (a = F/m)
+            // a_1 = forceVec / m_1
+            outAccel1.copy(forceVec).divideScalar(mass1);
+
+            // a_2 = -forceVec / m_2
+            outAccel2.copy(forceVec).multiplyScalar(-1).divideScalar(mass2);
+        }
+
+        /**
+         * Updates the physics simulation by one time step.
+         * @param {number} dt - Delta time (time elapsed since last frame)
+         */
+        function updatePhysics(dt) {
+            // 1. Calculate accelerations
+            computeAccelerations(sphere1.position, sphere2.position, acceleration1, acceleration2);
+
+            // 2. Integrate velocity (v = v0 + a * dt)
+            sphere1.userData.velocity.addScaledVector(acceleration1, dt);
+            sphere2.userData.velocity.addScaledVector(acceleration2, dt);
+
+            // 3. Integrate position (p = p0 + v * dt)
+            sphere1.position.addScaledVector(sphere1.userData.velocity, dt);
+            sphere2.position.addScaledVector(sphere2.userData.velocity, dt);
+
+            // --- Debug Logging ---
+            if (frameCount % logFrequency === 1) { // Log at the start of a cycle
+                console.log(`--- Frame: ${frameCount} | dt: ${dt.toFixed(4)} ---`);
+                console.log(`  Pos1: {x: ${sphere1.position.x.toFixed(3)}, y: ${sphere1.position.y.toFixed(3)}, z: ${sphere1.position.z.toFixed(3)}}`);
+                console.log(`  Pos2: {x: ${sphere2.position.x.toFixed(3)}, y: ${sphere2.position.y.toFixed(3)}, z: ${sphere2.position.z.toFixed(3)}}`);
+                console.log(`  Vel1: {x: ${sphere1.userData.velocity.x.toFixed(3)}, y: ${sphere1.userData.velocity.y.toFixed(3)}, z: ${sphere1.userData.velocity.z.toFixed(3)}}`);
+                // The line below was causing the error and has been removed.
+                // console.log(`  Force: ${forceMagnitude.toFixed(4)}`);
+            }
+        }
+
+        /**
+         * Updates the trail geometry.
+         */
+        function updateTrails() {
+            // Add the new positions to the trail arrays
+            trail1Points.push(sphere1.position.clone());
+            trail2Points.push(sphere2.position.clone());
+
+            // If the trail is too long, remove the oldest point
+            /* (REMOVED)
+            if (trail1Points.length > MAX_TRAIL_POINTS) {
+                trail1Points.shift(); // Remove the first element
+            }
+            if (trail2Points.length > MAX_TRAIL_POINTS) {
+                trail2Points.shift(); // Remove the first element
+            }
+            */
+
+            // Update the geometry of the lines
+            trail1.geometry.setFromPoints(trail1Points);
+            trail2.geometry.setFromPoints(trail2Points);
+        }
+
+        /**
+         * Updates the predictive trace lines by running a shadow simulation.
+         * @param {number} dt - Delta time (time elapsed since last frame)
+         */
+        function updatePrediction(dt) {
+            if (dt <= 0) return; // Don't predict if time is stopped
+
+            let predictionPoints1 = [];
+            let predictionPoints2 = [];
+
+            // 1. Set initial state for the shadow simulation
+            ghostPos1.copy(sphere1.position);
+            ghostVel1.copy(sphere1.userData.velocity);
+            ghostPos2.copy(sphere2.position);
+            ghostVel2.copy(sphere2.userData.velocity);
+
+            // Add the current position as the start of the prediction
+            predictionPoints1.push(ghostPos1.clone());
+            predictionPoints2.push(ghostPos2.clone());
+
+            // 2. Run the shadow simulation loop
+            for (let i = 0; i < PREDICTION_STEPS; i++) {
+                // a. Compute accelerations based on ghost positions
+                computeAccelerations(ghostPos1, ghostPos2, ghostAccel1, ghostAccel2);
+
+                // b. Integrate ghost velocity
+                ghostVel1.addScaledVector(ghostAccel1, dt);
+                ghostVel2.addScaledVector(ghostAccel2, dt);
+
+                // c. Integrate ghost position
+                ghostPos1.addScaledVector(ghostVel1, dt);
+                ghostPos2.addScaledVector(ghostVel2, dt);
+
+                // d. Add new ghost positions to prediction arrays
+                predictionPoints1.push(ghostPos1.clone());
+                predictionPoints2.push(ghostPos2.clone());
+            }
+
+            // 3. Update the prediction line geometries
+            predictionLine1.geometry.setFromPoints(predictionPoints1);
+            predictionLine2.geometry.setFromPoints(predictionPoints2);
+        }
+
+        /**
+         * The main animation loop.
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Get time elapsed since last frame
+            const dt = clock.getDelta();
+            frameCount++; // Increment frame counter
+
+            // Update the physics simulation
+            // We clamp dt to prevent instability if the tab loses focus
+            const clampedDt = Math.min(dt, 0.05);
+
+            if (dt > 0) {
+                 updatePhysics(clampedDt);
+            }
+
+            // Update camera controls
+            controls.update();
+
+            // Update the trails
+            updateTrails();
+
+            // Update the prediction
+            if (dt > 0) {
+                updatePrediction(clampedDt);
+            }
+
+            // Render the scene
+            renderer.render(scene, camera);
+
+            if (frameCount === 1) {
+                console.log("animate(): First frame rendered successfully.");
+            }
+        }
+
+        /**
+         * Handles window resize events to keep the scene proportional.
+         */
+        function onWindowResize() {
+            console.log("onWindowResize(): Adjusting camera and renderer.");
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Start the Simulation ---
+        init();
+        animate();
+        console.log("--- Simulation Started ---");
+    </script>
+  </body>
+</html>

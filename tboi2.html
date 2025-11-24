@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TBOI: Repentance+ Synergy Prototype</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root { --bg-color: #1a1a1a; --ui-text: #dcdcdc; }
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Press Start 2P', cursive; user-select: none; }
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+        /* UI OVERLAY */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; }
+        #hud-top-left { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .hearts-row { display: flex; gap: 4px; height: 32px; align-items: center; margin-bottom: 5px; }
+        .heart-icon { width: 28px; height: 28px; }
+        .pickup-row { display: flex; align-items: center; gap: 12px; color: #eee; font-size: 16px; text-shadow: 2px 2px 0 #000; margin-top: 4px; }
+
+        /* FOUND HUD */
+        #found-hud { position: absolute; top: 180px; left: 20px; display: flex; flex-direction: column; gap: 12px; background: rgba(0, 0, 0, 0.4); padding: 12px; border-radius: 8px; }
+        .stat-row { display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 10px; text-shadow: 1px 1px 0 #000; }
+        .stat-icon { width: 18px; height: 18px; fill: #fff; }
+        .stat-val { width: 40px; text-align: right; }
+
+        /* MINIMAP & BOSS */
+        #minimap-container { position: absolute; top: 20px; right: 20px; border: 3px solid #4a4a4a; background: rgba(0,0,0,0.85); width: 140px; height: 140px; opacity: 0.9; }
+        canvas#minimap { width: 100%; height: 100%; image-rendering: pixelated; }
+        #boss-bar-container { display: none; position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 400px; height: 24px; background: #222; border: 2px solid #000; }
+        #boss-bar-fill { width: 100%; height: 100%; background: #a00; transition: width 0.2s; }
+        #boss-skull { position: absolute; left: -30px; top: -10px; width: 48px; height: 48px; background: #333; border: 2px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; color: red; }
+
+        /* NOTIFICATIONS */
+        #item-popup { position: absolute; top: 15%; width: 100%; text-align: center; opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: scale(0.5); pointer-events: none; }
+        #item-popup.active { opacity: 1; transform: scale(1); }
+        #item-popup h2 { font-size: 2rem; color: #fff; text-shadow: 3px 3px 0 #000; margin: 0 0 10px 0; }
+        #item-popup p { font-size: 1.2rem; color: #aaa; text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,0.5); display: inline-block; padding: 5px 10px; border-radius: 4px; }
+
+        /* CONTROLS & SCREENS */
+        .controls-hint { position: absolute; bottom: 10px; width: 100%; text-align: center; font-size: 10px; color: #666; }
+        .modal-screen { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); color: white; flex-direction: column; align-items: center; justify-content: center; z-index: 100; pointer-events: auto; }
+        .btn { padding: 20px 40px; font-family: inherit; font-size: 20px; background: #111; color: #fff; border: 4px solid #fff; cursor: pointer; transition: all 0.1s; margin-top: 20px; }
+        .btn:hover { background: #fff; color: #000; transform: scale(1.1); }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  </head>
+  <body>
+    <div id="ui-layer">
+      <div id="hud-top-left">
+        <div class="hearts-row" id="hearts-container"></div>
+        <div class="pickup-row"><svg width="24" height="24"><circle cx="12" cy="12" r="8" fill="#fd0" stroke="#b80" stroke-width="2"/><text x="8" y="17" font-size="14" fill="#960">$</text></svg><span id="coin-text">00</span></div>
+        <div class="pickup-row"><svg width="24" height="24"><circle cx="12" cy="14" r="8" fill="#333"/><rect x="10" y="2" width="4" height="6" fill="#ddd"/></svg><span id="bomb-text">00</span></div>
+        <div class="pickup-row"><svg width="24" height="24"><path fill="#ccc" d="M12 2a6 6 0 0 0-6 6c0 2.2 1.2 4.1 3 5.2V22h6v-3h-2v-2h2v-2.2c1.8-1.1 3-3 3-5.2a6 6 0 0 0-6-6z"/></svg><span id="key-text">00</span></div>
+      </div>
+      <div id="found-hud"></div>
+      <div id="minimap-container"><canvas id="minimap"></canvas></div>
+      <div id="boss-bar-container"><div id="boss-skull">☠</div><div id="boss-bar-fill"></div></div>
+      <div id="item-popup"><h2 id="popup-title">ITEM</h2><p id="popup-desc">Text</p></div>
+      <div class="controls-hint">WASD: Move | Arrows: Shoot | E/Shift: Bomb | Space: Active | R: Reset</div>
+    </div>
+    <div id="loading-screen" class="modal-screen" style="display:flex; background:#000;"><h1 style="color:#fff">GENERATING BASEMENT...</h1></div>
+    <div id="game-over-screen" class="modal-screen"><h1>DEAR DIARY...</h1><h2 style="margin-bottom:40px; color:#888;">You died.</h2><button class="btn" onclick="Game.restart()">RESTART RUN</button></div>
+    <div id="win-screen" class="modal-screen"><h1 style="color:gold">RUN COMPLETED!</h1><button class="btn" onclick="Game.restart()">NEXT RUN</button></div>
+    <script>
+      /**
+ * TBOI: REPENTANCE+ SYNERGY UPDATE
+ * * New Features:
+ * 1. Advanced Particle System (Blood, Rocks, Explosions)
+ * 2. Item Drops from Rocks (Small Rock, Mushroom chances)
+ * 3. Synergy System: Tears now handle 'onDeath' events (splitting, exploding)
+ * 4. New Items: Ipecac, Parasite, Polyphemus, Soy Milk, Lost Contact
+ */
+
+// --- ICONS & SVGs ---
+const ICONS = {
+    speed: `<svg viewBox="0 0 24 24"><path fill="#fff" d="M12 2L2 22h20L12 2zm0 4l5 14H7l5-14z"/></svg>`,
+    range: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="2" fill="#fff"/></svg>`,
+    tears: `<svg viewBox="0 0 24 24"><path fill="#0ff" d="M12 22c4.97 0 9-4.03 9-9 0-4.97-9-13-9-13S3 8.03 3 13c0 4.97 4.03 9 9 9z"/></svg>`,
+    shot_speed: `<svg viewBox="0 0 24 24"><path fill="#fff" d="M2 12l10-10 10 10-6 0 0 10-8 0 0-10z"/></svg>`,
+    damage: `<svg viewBox="0 0 24 24"><path fill="#f00" d="M19.57 3.5L12 11.43 4.43 3.5 2 6l8 7.5L2 21h19l-8-7.5 8-7.5z"/></svg>`,
+    luck: `<svg viewBox="0 0 24 24"><path fill="#0f0" d="M12 2L9 9H2l6 5-3 8 7-5 7 5-3-8 6-5h-7z"/></svg>`
+};
+
+const CFG = { roomW: 26, roomD: 16, pixelScale: 4, gravity: 40.0, colors: { bg: 0x121010, wall: 0x3e2723 } };
+
+// --- ASSET GENERATOR (TEXTURES) ---
+const AssetGen = {
+    cache: {},
+    get(key) {
+        if (this.cache[key]) return this.cache[key];
+        const cvs = document.createElement('canvas'); cvs.width = 64; cvs.height = 64;
+        const ctx = cvs.getContext('2d'); ctx.imageSmoothingEnabled = false;
+
+        const fill = c => { ctx.fillStyle=c; ctx.fillRect(0,0,64,64); };
+        const rect = (x,y,w,h,c) => { ctx.fillStyle=c; ctx.fillRect(x,y,w,h); };
+        const circle = (x,y,r,c) => { ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); };
+        const text = (t,c) => { ctx.fillStyle=c; ctx.font='10px monospace'; ctx.fillText(t,10,32); };
+
+        switch(key) {
+            // Entities
+            case 'isaac_head': circle(32,32,16,'#ffccaa'); rect(24,28,4,4,'#000'); rect(36,28,4,4,'#000'); break;
+            case 'isaac_body': rect(22,5,20,35,'#ffaaaa'); rect(22,40,8,20,'#42a5f5'); rect(34,40,8,20,'#42a5f5'); rect(12,5,8,25,'#ffaaaa'); rect(44,5,8,25,'#ffaaaa'); break;
+            case 'enemy_gaper': circle(32,32,26,'#d32f2f'); rect(20,20,8,8,'#000'); rect(36,20,8,8,'#000'); rect(24,40,16,10,'#000'); break;
+            case 'enemy_horf': circle(32,32,26,'#5d4037'); circle(32,32,12,'#000'); break;
+            case 'floor': fill('#2c1e1a'); for(let i=0;i<20;i++) rect(Math.random()*60, Math.random()*60, 4, 4, 'rgba(0,0,0,0.2)'); break;
+            case 'rock': rect(4,4,56,56,'#6d4c41'); rect(8,8,48,48,'#795548'); break;
+            case 'rock_tinted': rect(4,4,56,56,'#4e342e'); rect(8,8,48,48,'#5d4037'); rect(20,20,8,8,'#8d6e63'); rect(36,36,8,8,'#8d6e63'); break;
+            case 'mushroom': rect(22,30,20,30,'#fff'); circle(32,30,24,'#e53935'); circle(20,20,6,'#fff'); circle(44,24,5,'#fff'); break;
+            case 'poop': circle(32,40,20,'#4e342e'); circle(32,30,15,'#5d4037'); circle(32,20,10,'#6d4c41'); break;
+            case 'bomb': circle(32,36,20,'#333'); rect(28,10,8,10,'#ccc'); ctx.strokeStyle='#f57f17'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(32,10); ctx.lineTo(40,0); ctx.stroke(); break;
+            case 'pedestal': rect(16,32,32,32,'#757575'); rect(12,32,40,6,'#bdbdbd'); break;
+            case 'shadow': { const g=ctx.createRadialGradient(32,32,10,32,32,30); g.addColorStop(0,'rgba(0,0,0,0.6)'); g.addColorStop(1,'rgba(0,0,0,0)'); fill(g); } break;
+
+            // Items
+            case 'item_generic': rect(16,16,32,32,'#fff'); text('?', '#000'); break;
+            case 'item_spoon': rect(20,20,24,24,'#9c27b0'); rect(28,30,8,20,'#e1bee7'); break;
+            case 'item_inner_eye': circle(32,32,20,'#fff'); circle(24,24,6,'#000'); circle(40,24,6,'#000'); circle(32,44,6,'#000'); break;
+            case 'item_magic_mush': circle(32,32,20,'#d50000'); circle(24,24,6,'#ff8a80'); circle(40,24,6,'#ff8a80'); rect(26,36,12,16,'#fff'); break;
+            case 'item_ouija': rect(10,10,44,44,'#fff8e1'); text('OUIJA', '#000'); break;
+            case 'item_cricket': circle(32,32,20,'#212121'); circle(24,24,4,'#fff'); circle(40,24,4,'#fff'); break;
+            case 'item_ipecac': circle(32,34,18,'#76ff03'); rect(20,10,24,20,'#64dd17'); rect(26,4,12,10,'#33691e'); break;
+            case 'item_parasite': circle(32,32,20,'#e91e63'); circle(44,20,10,'#e91e63'); circle(46,20,3,'#fff'); break;
+            case 'item_poly': circle(32,32,26,'#fff'); circle(32,32,12,'#000'); break;
+            case 'item_soy': rect(20,20,24,30,'#fff'); rect(24,10,16,10,'#eee'); break;
+            case 'item_shield': circle(32,32,24,'#90caf9'); circle(32,32,18,'#42a5f5'); break;
+            case 'item_small_rock': circle(32,32,20,'#795548'); rect(24,24,8,8,'#3e2723'); break;
+
+            // Tears
+            case 'tear': circle(32,32,24,'#00bfff'); circle(24,24,8,'#fff'); break;
+            case 'tear_homing': circle(32,32,24,'#ab47bc'); circle(24,24,8,'#e1bee7'); break;
+            case 'tear_blood': circle(32,32,24,'#d32f2f'); circle(24,24,8,'#ff8a80'); break;
+            case 'tear_explosive': circle(32,32,24,'#76ff03'); circle(24,24,8,'#ccff90'); rect(30,10,4,8,'#33691e'); break;
+            case 'tear_poly': circle(32,32,30,'#eee'); circle(32,32,14,'#00bfff'); break;
+            case 'tear_soy': circle(32,32,24,'#fff'); circle(24,24,6,'#eee'); break;
+            case 'tear_shield': circle(32,32,24,'#42a5f5'); ctx.globalAlpha=0.5; circle(32,32,30,'#bbdefb'); break;
+        }
+        const tex = new THREE.CanvasTexture(cvs); tex.magFilter = THREE.NearestFilter; this.cache[key] = tex; return tex;
+    }
+};
+
+// --- MATH & FORMULAS ---
+const FORMULAS = {
+    damage: (flat, mult) => Math.max(0, (3.5 * Math.sqrt((flat * 1.2) + 1)) * mult),
+    tears: (flat, mult) => {
+        let t = 2.73 + flat; if(t < 0.1) t = 0.1;
+        if(t > 5.0) t = 5.0 + (t - 5.0) * 0.5; return t * mult;
+    }
+};
+
+// --- CORE CLASSES ---
+class Entity {
+    constructor(x, z, tex) {
+        this.pos = new THREE.Vector3(x, 0, z); this.radius = 1.0; this.vel = new THREE.Vector3();
+        this.mesh = new THREE.Group();
+        this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: AssetGen.get(tex) }));
+        this.sprite.scale.set(3, 3, 1); this.sprite.center.set(0.5, 0);
+        this.mesh.add(this.sprite);
+        const sMat = new THREE.MeshBasicMaterial({ map: AssetGen.get('shadow'), transparent: true, depthWrite: false });
+        this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), sMat);
+        this.shadow.rotation.x = -Math.PI/2; this.shadow.position.y = 0.05;
+        this.mesh.add(this.shadow);
+    }
+    update(dt) { this.mesh.position.copy(this.pos); this.mesh.renderOrder = this.pos.z; }
+}
+
+class GameSystem {
+    constructor() {
+        this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(CFG.colors.bg);
+        this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 1, 1000);
+        this.camera.position.set(0, 24, 20); this.camera.lookAt(0,0,2);
+        this.renderer = new THREE.WebGLRenderer({ antialias: false });
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth/CFG.pixelScale, window.innerHeight/CFG.pixelScale, false);
+        document.body.appendChild(this.renderer.domElement);
+
+        const amb = new THREE.AmbientLight(0xffffff, 0.7);
+        const dir = new THREE.DirectionalLight(0xffffff, 0.5); dir.position.set(10,20,5);
+        this.scene.add(amb, dir);
+
+        this.clock = new THREE.Clock();
+        this.entities = []; this.projectiles = []; this.particles = [];
+        this.keys = {};
+        window.addEventListener('keydown', e => this.keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
+    }
+
+    start() {
+        this.player = new Player(0, 0);
+        this.dungeon = new DungeonGen();
+        this.loadRoom(0,0);
+        UI.initStats();
+        document.getElementById('loading-screen').style.display = 'none';
+        this.loop();
+    }
+
+    loadRoom(x, y, entryDir) {
+        this.entities.forEach(e => { if(e && e!==this.player) this.scene.remove(e.mesh) });
+        this.entities = [this.player]; this.scene.add(this.player.mesh);
+        this.projectiles.forEach(p => this.scene.remove(p.mesh)); this.projectiles = [];
+        this.dungeon.enterRoom(x, y, this.scene);
+
+        if(entryDir === 'N') this.player.pos.set(0, 0, CFG.roomD/2 - 4.5);
+        if(entryDir === 'S') this.player.pos.set(0, 0, -CFG.roomD/2 + 4.5);
+        if(entryDir === 'E') this.player.pos.set(-CFG.roomW/2 + 4.5, 0, 0);
+        if(entryDir === 'W') this.player.pos.set(CFG.roomW/2 - 4.5, 0, 0);
+
+        UI.updateMinimap(this.dungeon.grid, this.dungeon.currentX, this.dungeon.currentY);
+    }
+
+    addEntity(e) { this.entities.push(e); this.scene.add(e.mesh); }
+
+    spawnExplosion(pos, radius, damage) {
+        // Debris
+        this.spawnParticles(pos, 15, '#555', 1.0);
+        this.spawnParticles(pos, 10, '#f57f17', 0.5);
+
+        // Logic
+        const hits = [];
+        const check = (list) => list.forEach(ent => {
+            if(ent && ent.pos.distanceTo(pos) < radius && ent.hit && !hits.includes(ent)) {
+                ent.hit(damage * 5); hits.push(ent);
+            }
+        });
+        check(this.dungeon.roomEntities); check(this.entities);
+        if(this.player.pos.distanceTo(pos) < radius) this.player.hit(1);
+
+        // Shake camera slightly
+        const shake = 0.5; this.camera.position.x += (Math.random()-0.5)*shake; this.camera.position.z += (Math.random()-0.5)*shake;
+    }
+
+    spawnParticles(pos, count, color, speedMod=1.0) {
+        for(let i=0; i<count; i++) {
+            const p = new Particle(pos, color, speedMod);
+            this.particles.push(p); this.scene.add(p.mesh);
+        }
+    }
+
+    getClosestEnemy(pos, range=100) {
+        let close = null; let dist = range;
+        for(let e of this.entities) {
+            if(e instanceof Enemy) {
+                const d = e.pos.distanceTo(pos);
+                if(d < dist) { dist = d; close = e; }
+            }
+        }
+        return close;
+    }
+
+    restart() { location.reload(); }
+
+    loop() {
+        requestAnimationFrame(() => this.loop());
+        const dt = Math.min(this.clock.getDelta(), 0.1);
+        if(this.inputLocked) return;
+
+        this.entities.forEach(e => e.update(dt));
+        this.dungeon.roomEntities.forEach(e => e.update(dt));
+
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const p = this.projectiles[i];
+            if (!p.update(dt)) { this.scene.remove(p.mesh); this.projectiles.splice(i, 1); }
+        }
+
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            if (!p.update(dt)) { this.scene.remove(p.mesh); this.particles.splice(i, 1); }
+        }
+
+        if(this.player) {
+            const tx = this.player.pos.x * 0.3; const tz = this.player.pos.z * 0.3 + 20;
+            this.camera.position.x += (tx - this.camera.position.x) * 5 * dt;
+            this.camera.position.z += (tz - this.camera.position.z) * 5 * dt;
+            this.camera.lookAt(this.camera.position.x, 0, this.player.pos.z * 0.1);
+        }
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+class Player extends Entity {
+    constructor(x, z) {
+        super(x, z, 'isaac_body');
+        this.sprite.scale.set(2, 4, 1);
+        const hMat = new THREE.SpriteMaterial({ map: AssetGen.get('isaac_head') });
+        this.head = new THREE.Sprite(hMat); this.head.scale.set(1.8, 1.8, 1); this.head.position.set(0, 3.8, 0.01);
+        this.mesh.add(this.head);
+
+        this.cache = { damage: 0, tears: 0, speed: 0, range: 0, shotSpeed: 0, luck: 0, multipliers: { damage: 1, tears: 1, speed: 1 } };
+        this.stats = { speed: 1.0, range: 6.5, tears: 2.73, shotSpeed: 1.0, damage: 3.5, luck: 0 };
+        this.items = [];
+        this.tags = { homing: false, spectral: false, piercing: false, tripleShot: false, explosive: false, split: false, huge: false, shield: false };
+
+        this.hp = 6; this.maxHp = 6; this.soulHearts = 0;
+        this.coins = 0; this.bombs = 1; this.keys = 0;
+        this.shootCooldown = 0; this.invincible = 0;
+    }
+
+    recalculateStats() {
+        this.cache = { damage: 0, tears: 0, speed: 0, range: 0, shotSpeed: 0, luck: 0, multipliers: { damage: 1, tears: 1, speed: 1 } };
+        // Reset tags
+        Object.keys(this.tags).forEach(k => this.tags[k] = false);
+
+        this.items.forEach(key => {
+            const item = ITEMS[key];
+            if(item) {
+                if(item.stats) Object.keys(item.stats).forEach(k => this.cache[k] += item.stats[k]);
+                if(item.mult) Object.keys(item.mult).forEach(k => this.cache.multipliers[k] *= item.mult[k]);
+                if(item.tags) item.tags.forEach(t => this.tags[t] = true);
+            }
+        });
+
+        this.stats.damage = FORMULAS.damage(this.cache.damage, this.cache.multipliers.damage);
+        this.stats.tears = FORMULAS.tears(this.cache.tears, this.cache.multipliers.tears);
+        this.stats.speed = Math.min(2.0, Math.max(0.1, 1.0 + this.cache.speed));
+        this.stats.range = Math.max(1.0, 6.5 + this.cache.range);
+        this.stats.shotSpeed = Math.max(0.6, 1.0 + this.cache.shotSpeed);
+        this.stats.luck = this.cache.luck;
+        UI.updateStats();
+    }
+
+    update(dt) {
+        let dx = 0, dz = 0;
+        if(Game.keys['w']) dz -= 1; if(Game.keys['s']) dz += 1;
+        if(Game.keys['a']) dx -= 1; if(Game.keys['d']) dx += 1;
+
+        if(dx || dz) {
+            const move = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(this.stats.speed * 12 * dt);
+            const nextPos = this.pos.clone().add(move);
+            const col = this.checkCollision(nextPos);
+            if(!col.hit) this.pos.copy(nextPos);
+            else if(col.entity && col.entity.slide) col.entity.slide(move.x, move.z, dt);
+
+            if(col.hit) { // Wall Slide
+                const cx = this.checkCollision(new THREE.Vector3(nextPos.x, 0, this.pos.z));
+                if(!cx.hit) this.pos.x = nextPos.x;
+                const cz = this.checkCollision(new THREE.Vector3(this.pos.x, 0, nextPos.z));
+                if(!cz.hit) this.pos.z = nextPos.z;
+            }
+            this.checkDoors();
+        }
+
+        this.shootCooldown -= dt;
+        let sx = 0, sz = 0;
+        if(Game.keys['arrowup']) sz = -1; else if(Game.keys['arrowdown']) sz = 1;
+        else if(Game.keys['arrowleft']) sx = -1; else if(Game.keys['arrowright']) sx = 1;
+
+        if((sx || sz) && this.shootCooldown <= 0) {
+            this.shoot(sx, sz);
+            this.head.position.x = sx * 0.2;
+        } else if (!sx && !sz) this.head.position.x = 0;
+
+        if(Game.keys['e'] && this.bombs > 0 && !this.bombLocked) {
+            this.bombs--; Game.addEntity(new Bomb(this.pos.x, this.pos.z));
+            UI.updateRes(); this.bombLocked = true; setTimeout(()=>this.bombLocked=false, 500);
+        }
+
+        if(this.invincible > 0) { this.invincible -= dt; this.sprite.material.opacity = Math.sin(Date.now()/50)*0.5 + 0.5; }
+        else this.sprite.material.opacity = 1;
+        super.update(dt);
+    }
+
+    shoot(dx, dz) {
+        this.shootCooldown = 1.0 / this.stats.tears;
+        const baseVel = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(12 * this.stats.shotSpeed);
+
+        // Player momentum transfer
+        if(Game.keys['w']||Game.keys['s']||Game.keys['a']||Game.keys['d']) baseVel.add(this.pos.clone().sub(this.mesh.position).multiplyScalar(2));
+
+        const spawnTear = (angleOffset) => {
+            const vel = baseVel.clone();
+            if(angleOffset !== 0) vel.applyAxisAngle(new THREE.Vector3(0,1,0), angleOffset);
+            // Clone tags to prevent reference issues
+            const t = new Tear(this.pos.clone(), vel, this.stats, {...this.tags});
+            Game.projectiles.push(t); Game.scene.add(t.mesh);
+        };
+
+        if(this.tags.tripleShot) { spawnTear(0); spawnTear(0.25); spawnTear(-0.25); } else { spawnTear(0); }
+    }
+
+    checkCollision(pos) {
+        if(Math.abs(pos.x) > CFG.roomW/2 - 2) return {hit:true};
+        if(Math.abs(pos.z) > CFG.roomD/2 - 2) return {hit:true};
+        for(let obs of Game.dungeon.roomEntities) {
+            if(obs.collision && pos.distanceTo(obs.pos) < (this.radius + obs.radius)) return {hit:true, entity:obs};
+        }
+        return {hit:false};
+    }
+
+    checkDoors() {
+        for(let d of Game.dungeon.doors) {
+            if(d.isOpen && Math.sqrt(Math.pow(this.pos.x - d.pos.x, 2) + Math.pow(this.pos.z - d.pos.z, 2)) < 2.5) {
+                let tx=Game.dungeon.currentX, ty=Game.dungeon.currentY;
+                if(d.dir==='N') ty--; if(d.dir==='S') ty++; if(d.dir==='E') tx++; if(d.dir==='W') tx--;
+                Game.loadRoom(tx, ty, d.dir);
+            }
+        }
+    }
+
+    hit(dmg) {
+        if(this.invincible > 0) return;
+        Game.spawnParticles(this.pos, 5, '#f00', 1.5);
+        if(this.soulHearts > 0) { this.soulHearts -= dmg*2; if(this.soulHearts < 0) { this.hp+=this.soulHearts; this.soulHearts=0; } }
+        else this.hp -= dmg;
+        this.invincible = 1.0; UI.updateHearts();
+        if(this.hp <= 0) { document.getElementById('game-over-screen').style.display = 'flex'; Game.inputLocked = true; }
+    }
+
+    addItem(key) {
+        this.items.push(key);
+        this.recalculateStats();
+        const item = ITEMS[key];
+        const pop = document.getElementById('item-popup');
+        pop.querySelector('#popup-title').innerText = item.name;
+        pop.querySelector('#popup-desc').innerText = item.desc;
+        pop.classList.add('active');
+        setTimeout(()=>pop.classList.remove('active'), 3000);
+    }
+}
+
+class Tear {
+    constructor(pos, vel, stats, tags) {
+        this.pos = pos; this.pos.y = 2.5; this.vel = vel;
+        this.hVel = 2.0; this.damage = stats.damage; this.range = stats.range;
+        this.tags = tags || {};
+
+        // --- SYNERGY TEXTURES ---
+        let tex = 'tear';
+        if(this.tags.homing) tex = 'tear_homing';
+        if(this.tags.explosive) tex = 'tear_explosive';
+        if(this.tags.huge) tex = 'tear_poly';
+        if(this.tags.shield) tex = 'tear_shield';
+        if(this.hostile) tex = 'tear_blood';
+
+        this.mesh = new THREE.Group();
+        this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: AssetGen.get(tex) }));
+
+        // Size modifiers
+        let size = 3;
+        if(this.tags.huge) { size = 6; this.damage *= 2; }
+        if(this.tags.split && !this.tags.huge) size = 1.5; // Split fragments are smaller
+
+        this.sprite.scale.set(size, size, 1);
+        this.mesh.add(this.sprite);
+        const sMat = new THREE.MeshBasicMaterial({ map: AssetGen.get('shadow'), transparent: true, opacity: 0.5 });
+        this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(size*0.3, size*0.3), sMat);
+        this.shadow.rotation.x = -Math.PI/2; this.mesh.add(this.shadow);
+
+        // Ipecac Arcing
+        if(this.tags.explosive) { this.hVel = 8.0; this.pos.y = 3.0; }
+    }
+
+    update(dt) {
+        if(this.tags.homing && !this.hostile) {
+            const target = Game.getClosestEnemy(this.pos, 20);
+            if(target) {
+                const desired = target.pos.clone().sub(this.pos).normalize().multiplyScalar(14);
+                const steer = desired.sub(this.vel).clampLength(0, 35 * dt);
+                this.vel.add(steer);
+            }
+        }
+
+        this.pos.add(this.vel.clone().multiplyScalar(dt));
+        this.hVel -= CFG.gravity * dt * 0.5;
+
+        const rangeBonus = (this.range - 6.5) * 0.1;
+        this.hVel += rangeBonus * dt; // Float with range
+        this.pos.y += this.hVel * dt;
+
+        this.mesh.position.set(this.pos.x, 0, this.pos.z);
+        this.sprite.position.y = Math.max(0.2, this.pos.y);
+        this.shadow.scale.setScalar(1.0 - (this.pos.y / 8));
+
+        if(this.pos.y <= 0) { this.pop(); return false; }
+
+        // Enemy Collision
+        const targets = this.hostile ? [Game.player] : Game.entities.filter(e => e instanceof Enemy);
+        for(let t of targets) {
+            if(t.pos.distanceTo(new THREE.Vector3(this.pos.x, 0, this.pos.z)) < t.radius + (this.tags.huge?1.5:0.5)) {
+                if(this.pos.y < 5) {
+                    if(t.hit) t.hit(this.damage);
+                    // Shielded tears destroy hostile projectiles if they collide (not implemented here due to perf, but concept exists)
+                    if(!this.tags.piercing && !this.tags.huge) { this.pop(); return false; }
+                }
+            }
+        }
+
+        // Obstacle Collision
+        for(let obs of Game.dungeon.roomEntities) {
+            if(obs.collision) {
+                if(this.tags.spectral && (obs.type.includes('rock') || obs.type==='poop')) continue;
+                if(obs.pos.distanceTo(new THREE.Vector3(this.pos.x, 0, this.pos.z)) < obs.radius) {
+                    if(obs.hit) obs.hit(this.damage);
+                    this.pop(); return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    pop() {
+        // --- ON DEATH EFFECTS ---
+        if(this.tags.explosive) {
+            Game.spawnExplosion(this.pos, 4.0, this.damage * 2);
+        } else {
+            Game.spawnParticles(this.pos, 3, this.tags.homing?'#ab47bc':'#0cf', 0.5);
+        }
+
+        // SYNERGY: PARASITE (Split on death)
+        if(this.tags.split) {
+            // Remove split tag so children don't split infinitely
+            const childTags = {...this.tags}; childTags.split = false;
+            const s1 = new Tear(this.pos.clone(), new THREE.Vector3(this.vel.z, 0, -this.vel.x), {damage:this.damage/2, range:5}, childTags);
+            const s2 = new Tear(this.pos.clone(), new THREE.Vector3(-this.vel.z, 0, this.vel.x), {damage:this.damage/2, range:5}, childTags);
+            Game.projectiles.push(s1, s2); Game.scene.add(s1.mesh, s2.mesh);
+        }
+    }
+}
+
+class Enemy extends Entity {
+    constructor(x, z, type) {
+        super(x, z, type==='gaper'?'enemy_gaper':'enemy_horf');
+        this.ai = type; this.hp = 10; this.timer = 0;
+    }
+    update(dt) {
+        if(this.ai === 'gaper') {
+            const dir = Game.player.pos.clone().sub(this.pos).normalize();
+            const next = this.pos.clone().add(dir.multiplyScalar(4 * dt));
+            let blocked = false;
+            for(let obs of Game.dungeon.roomEntities) if(obs.collision && next.distanceTo(obs.pos) < 1.5) blocked=true;
+            if(!blocked) this.pos.copy(next);
+            if(this.pos.distanceTo(Game.player.pos) < 1.2) Game.player.hit(1);
+        } else {
+            this.timer -= dt;
+            if(this.timer <= 0 && this.pos.distanceTo(Game.player.pos) < 15) {
+                const dir = Game.player.pos.clone().sub(this.pos).normalize();
+                const t = new Tear(this.pos.clone(), dir.multiplyScalar(8), {range:10, damage:1}); t.hostile=true;
+                Game.projectiles.push(t); Game.scene.add(t.mesh);
+                this.timer = 2.0;
+            }
+        }
+        super.update(dt);
+    }
+    hit(d) {
+        this.hp -= d; this.sprite.material.color.setHex(0xff0000);
+        setTimeout(()=>this.sprite.material.color.setHex(0xffffff), 100);
+        if(this.hp <= 0) {
+            Game.spawnParticles(this.pos, 10, '#d32f2f', 1.0); // Blood
+            Game.scene.remove(this.mesh);
+            const i = Game.entities.indexOf(this); if(i>-1) Game.entities.splice(i,1);
+            Game.dungeon.checkClear();
+        }
+    }
+}
+
+class Boss extends Enemy {
+    constructor(x, z) {
+        super(x, z, 'gaper'); this.sprite.scale.set(6,6,1); this.hp=100; this.maxHp=100; this.state='idle';
+    }
+    update(dt) {
+        this.timer -= dt;
+        if(this.state==='idle' && this.timer<=0) {
+            this.state='jump'; this.vel.y=20;
+            const dir = Game.player.pos.clone().sub(this.pos).normalize();
+            this.vel.x = dir.x*8; this.vel.z = dir.z*8;
+        } else if(this.state==='jump') {
+            this.pos.add(this.vel.clone().multiplyScalar(dt));
+            this.vel.y -= CFG.gravity*dt;
+            if(this.pos.y<=0) {
+                this.pos.y=0; this.state='land'; this.timer=1.0;
+                Game.spawnExplosion(this.pos, 2, 0);
+                for(let i=0;i<8;i++){
+                    const a = (i/8)*6.28;
+                    const t = new Tear(this.pos.clone(), new THREE.Vector3(Math.cos(a),0,Math.sin(a)).multiplyScalar(6), {range:10});
+                    t.hostile=true; Game.projectiles.push(t); Game.scene.add(t.mesh);
+                }
+            }
+        } else if(this.state==='land' && this.timer<=0) { this.state='idle'; this.timer=1.5; }
+
+        this.mesh.position.copy(this.pos); this.sprite.position.y = this.pos.y+3;
+        document.getElementById('boss-bar-fill').style.width = (this.hp/this.maxHp*100)+'%';
+    }
+}
+
+class Bomb extends Entity {
+    constructor(x,z) { super(x,z,'bomb'); this.timer=2.0; }
+    update(dt) {
+        this.timer-=dt; const s=3+Math.sin(Date.now()/100); this.sprite.scale.set(s,s,1);
+        this.sprite.material.color.setHex(this.timer<0.5?0xffaaaa:0xffffff);
+        if(this.timer<=0) {
+            Game.spawnExplosion(this.pos, 5.0, 100);
+            Game.scene.remove(this.mesh); Game.entities.splice(Game.entities.indexOf(this),1);
+        }
+        super.update(dt);
+    }
+}
+
+class Obstacle extends Entity {
+    constructor(x,z,type) { super(x,z,type); this.type=type; this.collision=true; this.hp=20; if(type==='poop')this.hp=5; }
+    slide(dx,dz,dt) {
+        if(this.type.includes('rock') || this.type==='poop') {
+            const n = this.pos.clone(); n.x+=dx*0.2; n.z+=dz*0.2;
+            let blocked=false;
+            for(let o of Game.dungeon.roomEntities) if(o!==this && o.collision && n.distanceTo(o.pos)<2) blocked=true;
+            if(!blocked && Math.abs(n.x)<CFG.roomW/2-2 && Math.abs(n.z)<CFG.roomD/2-2) this.pos.copy(n);
+        }
+    }
+    hit(d) {
+        if(this.type.includes('rock') && d<10) return;
+        this.hp-=d; this.sprite.position.x+=(Math.random()-0.5)*0.2;
+        if(this.hp<=0) {
+            Game.spawnParticles(this.pos, 8, '#4e342e', 0.5);
+            // --- RANDOM ITEM SPAWN LOGIC ---
+            const rng = Math.random();
+            if(this.type === 'mushroom') {
+                if(rng < 0.05) Game.addEntity(new ItemPedestal(this.pos.x, this.pos.z, 'magic_mush')); // Rare drop
+            } else {
+                // Tinted rocks always drop soul hearts
+                if(this.type === 'rock_tinted') Game.addEntity(new Pickup(this.pos.x,this.pos.z,'heart_soul'));
+
+                // Normal rocks small chance for "Small Rock" item
+                if(this.type === 'rock' && rng < 0.02) Game.addEntity(new ItemPedestal(this.pos.x, this.pos.z, 'small_rock'));
+
+                // General drops
+                if(rng > 0.8 && rng < 0.9) Game.addEntity(new Pickup(this.pos.x,this.pos.z,'coin'));
+            }
+            Game.scene.remove(this.mesh); Game.dungeon.roomEntities.splice(Game.dungeon.roomEntities.indexOf(this),1);
+        }
+    }
+}
+
+class Pickup extends Entity {
+    constructor(x,z,type) { super(x,z,'item_generic'); this.type=type; this.sprite.scale.set(2,2,1);
+        const cvs=document.createElement('canvas'); cvs.width=32; cvs.height=32; const ctx=cvs.getContext('2d');
+        if(type==='coin'){ctx.fillStyle='#fd0';ctx.beginPath();ctx.arc(16,16,10,0,6.28);ctx.fill();ctx.fillStyle='#000';ctx.fillText('$',12,20);}
+        else if(type==='heart_soul'){ctx.fillStyle='#48f';ctx.beginPath();ctx.arc(16,16,10,0,6.28);ctx.fill();}
+        else {ctx.fillStyle='#ccc';ctx.fillRect(12,6,8,20);}
+        this.sprite.material.map=new THREE.CanvasTexture(cvs); this.sprite.material.map.magFilter=THREE.NearestFilter;
+    }
+    update(dt) {
+        this.sprite.position.y=0.5+Math.sin(Date.now()/200)*0.2;
+        if(this.pos.distanceTo(Game.player.pos)<1.5) {
+            if(this.type==='coin') Game.player.coins++;
+            if(this.type==='heart_soul') Game.player.soulHearts+=2;
+            if(this.type==='key') Game.player.keys++;
+            Game.scene.remove(this.mesh); Game.entities.splice(Game.entities.indexOf(this),1); UI.updateRes(); UI.updateHearts();
+        }
+        super.update(dt);
+    }
+}
+
+class ItemPedestal extends Entity {
+    constructor(x, z, fixedKey=null) {
+        super(x, z, 'item_generic');
+        const keys = Object.keys(ITEMS);
+        this.itemKey = fixedKey || keys[Math.floor(Math.random()*keys.length)];
+        const item = ITEMS[this.itemKey];
+
+        const pMat = new THREE.SpriteMaterial({ map: AssetGen.get('pedestal') });
+        this.base = new THREE.Sprite(pMat); this.base.scale.set(3,3,1);
+        this.mesh.add(this.base);
+        this.sprite.material.map = AssetGen.get(item.icon);
+        this.sprite.position.y = 1.0; this.sprite.scale.set(2,2,1);
+    }
+    update(dt) {
+        if(this.pos.distanceTo(Game.player.pos) < 1.5) {
+            Game.player.addItem(this.itemKey);
+            Game.player.inputLocked = true; setTimeout(()=> Game.player.inputLocked=false, 1000);
+            Game.scene.remove(this.mesh); Game.dungeon.roomEntities.splice(Game.dungeon.roomEntities.indexOf(this),1);
+        }
+    }
+}
+
+class Particle extends Entity {
+    constructor(pos, col, speedMod) {
+        super(pos.x, pos.z, 'shadow'); this.pos.copy(pos); this.life=0.8; this.max=0.8;
+        this.vel=new THREE.Vector3((Math.random()-0.5)*5, Math.random()*5 + 2, (Math.random()-0.5)*5).multiplyScalar(speedMod);
+        this.sprite.material = new THREE.SpriteMaterial({color:col});
+        const s = Math.random()*0.4+0.2;
+        this.sprite.scale.set(s,s,1);
+    }
+    update(dt) {
+        this.life-=dt; this.vel.y-=CFG.gravity*dt*0.8; this.pos.add(this.vel.clone().multiplyScalar(dt));
+        this.mesh.position.copy(this.pos);
+        if(this.pos.y < 0) { this.pos.y = 0; this.vel.x*=0.5; this.vel.z*=0.5; } // Land
+        this.mesh.scale.setScalar(this.life/this.max);
+        return this.life>0;
+    }
+}
+
+// --- DUNGEON GEN ---
+class DungeonGen {
+    constructor() { this.grid={}; this.currentX=0; this.currentY=0; this.roomEntities=[]; this.doors=[]; this.generate(); }
+    generate() {
+        const q=[{x:0,y:0}]; this.grid['0,0']={type:'start',cleared:true}; let count=1;
+        while(q.length>0 && count<15) {
+            const c=q.shift(); const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; dirs.sort(()=>Math.random()-0.5);
+            for(let d of dirs) {
+                const nx=c.x+d[0], ny=c.y+d[1], k=`${nx},${ny}`;
+                if(!this.grid[k] && Math.random()>0.5) { this.grid[k]={type:'normal',cleared:false}; q.push({x:nx,y:ny}); count++; }
+            }
+        }
+        const keys=Object.keys(this.grid).filter(k=>k!=='0,0');
+        if(keys.length) this.grid[keys.pop()].type='boss';
+        if(keys.length) this.grid[keys.pop()].type='treasure';
+    }
+    enterRoom(x,y,scene) {
+        this.currentX=x; this.currentY=y; const r=this.grid[`${x},${y}`];
+        if(this.floor) scene.remove(this.floor); this.doors.forEach(d=>scene.remove(d.mesh)); this.doors=[];
+
+        const g=new THREE.PlaneGeometry(CFG.roomW,CFG.roomD);
+        const m=new THREE.MeshStandardMaterial({map:AssetGen.get('floor'), color:0x888888});
+        this.floor=new THREE.Mesh(g,m); this.floor.rotation.x=-Math.PI/2; scene.add(this.floor);
+        const w=new THREE.Mesh(new THREE.PlaneGeometry(CFG.roomW+4,8), new THREE.MeshBasicMaterial({color:CFG.colors.wall}));
+        w.position.set(0,4,-CFG.roomD/2-0.1); scene.add(w); this.floor.add(w);
+
+        [{x:0,y:-1,d:'N'},{x:0,y:1,d:'S'},{x:1,y:0,d:'E'},{x:-1,y:0,d:'W'}].forEach(n=>{
+            if(this.grid[`${x+n.x},${y+n.y}`]) {
+                const d=new Door(n.d, r.cleared || r.type==='treasure'); this.doors.push(d); scene.add(d.mesh);
+            }
+        });
+
+        this.roomEntities=[];
+        if(r.type==='start') return;
+
+        if(!r.cleared) {
+            if(r.type==='boss') { Game.addEntity(new Boss(0,0)); UI.showBossBar(true); }
+            else if(r.type==='treasure') {
+                this.roomEntities.push(new ItemPedestal(0,0));
+                r.cleared = true;
+            }
+            else {
+                UI.showBossBar(false);
+                const c=Math.floor(Math.random()*3)+2;
+                for(let i=0;i<c;i++) Game.addEntity(new Enemy((Math.random()-0.5)*20, (Math.random()-0.5)*10, Math.random()>0.5?'gaper':'horf'));
+            }
+        } else UI.showBossBar(false);
+
+        if(r.type!=='boss' && r.type!=='treasure' && !r.layout) {
+            r.layout=[];
+            for(let i=0;i<10;i++) {
+                const rx=Math.floor((Math.random()-0.5)*10)*2, rz=Math.floor((Math.random()-0.5)*6)*2;
+                let t = 'rock';
+                if(Math.random()>0.9) t = 'rock_tinted';
+                else if(Math.random()>0.85) t = 'mushroom';
+                else if(Math.random()>0.7) t = 'poop';
+                if(Math.abs(rx)>2 || Math.abs(rz)>2) r.layout.push({x:rx,z:rz,t:t});
+            }
+        }
+        if(r.layout) r.layout.forEach(o => {
+            const e=new Obstacle(o.x,o.z,o.t); this.roomEntities.push(e); scene.add(e.mesh);
+        });
+        this.roomEntities.forEach(e=>scene.add(e.mesh));
+    }
+    checkClear() {
+        if(Game.entities.filter(e=>e instanceof Enemy).length===0) {
+            const r=this.grid[`${this.currentX},${this.currentY}`];
+            if(!r.cleared) {
+                r.cleared=true; this.doors.forEach(d=>d.open());
+                if(r.type==='boss') { Game.addEntity(new ItemPedestal(0,0)); document.getElementById('win-screen').style.display='flex'; }
+                else if(r.type!=='treasure' && Math.random()>0.7) Game.addEntity(new Pickup(0,0,'coin'));
+            }
+        }
+    }
+}
+
+class Door {
+    constructor(dir, open) {
+        this.dir=dir; this.isOpen=open; this.mesh=new THREE.Group();
+        const f=new THREE.Mesh(new THREE.PlaneGeometry(4,4), new THREE.MeshBasicMaterial({color:CFG.colors.door}));
+        this.void=new THREE.Mesh(new THREE.PlaneGeometry(3,3), new THREE.MeshBasicMaterial({color:open?0x000000:CFG.colors.door}));
+        this.void.position.z=0.1; this.mesh.add(f,this.void);
+        const d=CFG.roomD/2, w=CFG.roomW/2;
+        if(dir==='N') this.mesh.position.set(0,2,-d);
+        if(dir==='S') this.mesh.position.set(0,2,d);
+        if(dir==='E') {this.mesh.position.set(w,2,0); this.mesh.rotation.y=-Math.PI/2;}
+        if(dir==='W') {this.mesh.position.set(-w,2,0); this.mesh.rotation.y=Math.PI/2;}
+        this.pos=this.mesh.position.clone();
+    }
+    open() { this.isOpen=true; this.void.material.color.setHex(0x000000); }
+}
+
+// --- DATA: ITEMS ---
+const ITEMS = {
+    'growth_hormones': { name: 'Growth Hormones', desc: 'Speed + Dmg', icon: 'item_generic', stats: { damage: 1.0, speed: 0.2 } },
+    'screw': { name: 'The Screw', desc: 'Tears Up', icon: 'item_generic', stats: { tears: 0.5, shotSpeed: 0.2 } },
+    'spoon_bender': { name: 'Spoon Bender', desc: 'Homing Shots', icon: 'item_spoon', tags: ['homing'], stats: { shotSpeed: -0.1 } },
+    'inner_eye': { name: 'The Inner Eye', desc: 'Triple Shot', icon: 'item_inner_eye', tags: ['tripleShot'], stats: { tears: -0.5 } },
+    'ouija_board': { name: 'Ouija Board', desc: 'Spectral Tears', icon: 'item_ouija', tags: ['spectral'], stats: { tears: 0 } },
+    'magic_mush': { name: 'Magic Mushroom', desc: 'All Stats Up!', icon: 'item_magic_mush', stats: { damage: 0.3, range: 1.5, speed: 0.3 }, mult: { damage: 1.5 } },
+    'crickets_head': { name: 'Cricket\'s Head', desc: 'Max Dmg!', icon: 'item_cricket', stats: { damage: 0.5 }, mult: { damage: 1.5 } },
+
+    // NEW SYNERGY ITEMS
+    'ipecac': { name: 'Ipecac', desc: 'Explosive Shots', icon: 'item_ipecac', tags: ['explosive'], stats: { damage: 4.0, tears: -0.2, shotSpeed: -0.3 } },
+    'parasite': { name: 'The Parasite', desc: 'Split Shot', icon: 'item_parasite', tags: ['split'], stats: {} },
+    'polyphemus': { name: 'Polyphemus', desc: 'Mega Tears', icon: 'item_poly', tags: ['huge'], stats: { damage: 4.0, tears: -2.0 } },
+    'soy_milk': { name: 'Soy Milk', desc: 'DMG Down, Fire Rate UP', icon: 'item_soy', stats: { tears: 5.0 }, mult: { damage: 0.2 } },
+    'lost_contact': { name: 'Lost Contact', desc: 'Shielded Tears', icon: 'item_shield', tags: ['shield'], stats: { shotSpeed: -0.2 } },
+    'small_rock': { name: 'The Small Rock', desc: 'Dmg Up', icon: 'item_small_rock', stats: { damage: 1.0, speed: -0.1, tears: 0.2 } }
+};
+
+const UI = {
+    initStats() { this.updateHearts(); this.updateRes(); this.updateStats(); },
+    updateHearts() {
+        const c = document.getElementById('hearts-container'); c.innerHTML = '';
+        let hp = Game.player.hp;
+        for(let i=0; i<Game.player.maxHp/2; i++) {
+            const d = document.createElement('div'); d.className='heart-icon';
+            if(hp >= 2) { d.innerHTML=ICONS.hearts_full; hp-=2; } // Hack, using raw SVG from list
+            else { d.innerHTML='<svg viewBox="0 0 32 32"><path fill="#f00" d="M16 28 C16 28 3 20 3 11 A7 7 0 0 1 16 7 A7 7 0 0 1 29 11 C29 20 16 28 16 28 Z"/></svg>'; } // Simple fallback
+            c.appendChild(d);
+        }
+        for(let i=0; i<Math.ceil(Game.player.soulHearts/2); i++) {
+            const d = document.createElement('div'); d.className='heart-icon'; d.innerHTML='<svg viewBox="0 0 32 32"><path fill="#48f" d="M16 28 C16 28 3 20 3 11 A7 7 0 0 1 16 7 A7 7 0 0 1 29 11 C29 20 16 28 16 28 Z"/></svg>'; c.appendChild(d);
+        }
+    },
+    updateRes() {
+        document.getElementById('coin-text').innerText = String(Game.player.coins).padStart(2,'0');
+        document.getElementById('bomb-text').innerText = String(Game.player.bombs).padStart(2,'0');
+        document.getElementById('key-text').innerText = String(Game.player.keys).padStart(2,'0');
+    },
+    updateStats() {
+        const p = Game.player.stats;
+        const list = [
+            {i: ICONS.speed, v: p.speed.toFixed(2)},
+            {i: ICONS.range, v: p.range.toFixed(2)},
+            {i: ICONS.tears, v: p.tears.toFixed(2)},
+            {i: ICONS.shot_speed, v: p.shotSpeed.toFixed(2)},
+            {i: ICONS.damage, v: p.damage.toFixed(2)},
+            {i: ICONS.luck, v: p.luck.toFixed(2)},
+        ];
+        const c = document.getElementById('found-hud'); c.innerHTML = '';
+        list.forEach(item => {
+            const r = document.createElement('div'); r.className='stat-row';
+            r.innerHTML = `<div class="stat-icon">${item.i}</div><div class="stat-val">${item.v}</div>`;
+            c.appendChild(r);
+        });
+    },
+    updateMinimap(grid, cx, cy) {
+        const cvs = document.getElementById('minimap'); const ctx = cvs.getContext('2d');
+        const w=cvs.width, h=cvs.height; ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
+        const size = 14, offX = w/2 - cx*size, offY = h/2 - cy*size;
+        for(let key in grid) {
+            const r = grid[key], [rx, ry] = key.split(',').map(Number);
+            const dx = offX + rx*size, dy = offY + ry*size;
+            ctx.fillStyle = (rx===cx && ry===cy) ? '#ccc' : (r.type==='boss'?'#900':(r.type==='treasure'?'#fd0':(r.type==='start'?'#fff':'#777')));
+            ctx.fillRect(dx+1, dy+1, size-2, size-2);
+        }
+    },
+    showBossBar(show) { document.getElementById('boss-bar-container').style.display = show ? 'block' : 'none'; }
+};
+
+const Game = new GameSystem();
+Game.start();
+    </script>
+  </body>
+</html>

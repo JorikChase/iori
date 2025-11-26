@@ -31,7 +31,7 @@
         canvas#minimap { width: 100%; height: 100%; image-rendering: pixelated; }
 
         #boss-bar-container { display: none; position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 400px; height: 24px; background: #222; border: 2px solid #000; box-shadow: 0 0 10px #000; }
-        #boss-bar-fill { width: 100%; height: 100%; background: #a00; transition: width 0.2s; }
+        #boss-bar-fill { width: 100%; height: 100%; background: #a00; transition: width 0.1s linear; }
         #boss-skull { position: absolute; left: -30px; top: -10px; width: 48px; height: 48px; background: #333; border: 2px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; color: red; box-shadow: 2px 2px 0 #000; }
 
         /* POPUPS */
@@ -45,6 +45,8 @@
         .btn { padding: 15px 30px; font-family: inherit; font-size: 16px; background: #111; color: #fff; border: 3px solid #666; cursor: pointer; transition: all 0.1s; margin-top: 20px; box-shadow: 4px 4px 0 #000; }
         .btn:hover { background: #fff; color: #000; border-color: #fff; transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #000; }
         .controls-hint { position: absolute; bottom: 10px; width: 100%; text-align: center; font-size: 10px; color: #666; text-transform: uppercase; }
+
+        #level-text { position:absolute; top:45%; width:100%; text-align:center; font-size:3rem; color:#fff; text-shadow: 4px 4px 0 #000; pointer-events:none; opacity:0; transition: opacity 1s; }
 
         /* DEBUG/VIGNETTE */
         #vignette { position: absolute; top:0; left:0; width:100%; height:100%; box-shadow: inset 0 0 150px rgba(0,0,0,0.9); pointer-events: none; }
@@ -63,28 +65,32 @@
       <div id="minimap-container"><canvas id="minimap"></canvas></div>
       <div id="boss-bar-container"><div id="boss-skull">☠</div><div id="boss-bar-fill"></div></div>
       <div id="item-popup"><h2 id="popup-title">ITEM NAME</h2><p id="popup-desc">Item Description</p></div>
+      <div id="level-text">BASEMENT I</div>
       <div id="vignette"></div>
       <div class="controls-hint">WASD: Move | Arrows: Shoot | E: Bomb | Space: Active | R: Reset</div>
     </div>
-    <div id="loading-screen" class="modal-screen" style="display:flex;"><h1 style="color:#aaa; margin-bottom: 20px;">GENERATING BASEMENT...</h1><div style="width: 200px; height: 4px; background: #333;"><div id="load-bar" style="width:0%; height:100%; background:#fff; transition:width 0.2s;"></div></div></div>
+    <div id="loading-screen" class="modal-screen" style="display:flex;"><h1 style="color:#aaa; margin-bottom: 20px;">GENERATING RUN...</h1><div style="width: 200px; height: 4px; background: #333;"><div id="load-bar" style="width:0%; height:100%; background:#fff; transition:width 0.2s;"></div></div></div>
     <div id="game-over-screen" class="modal-screen"><h1 style="font-size: 3rem; margin-bottom:10px;">DEAR DIARY</h1><h2 style="color:#888; margin-bottom:40px;">Today I died.</h2><button class="btn" onclick="Game.restart()">TRY AGAIN</button></div>
-    <div id="win-screen" class="modal-screen"><h1 style="color:gold; text-shadow: 0 0 20px gold;">RUN COMPLETED!</h1><button class="btn" onclick="Game.restart()">NEXT RUN</button></div>
+    <div id="win-screen" class="modal-screen"><h1 style="color:gold; text-shadow: 0 0 20px gold;">RUN COMPLETED!</h1><p style="color:#888; margin-top:20px;">You have conquered the darkness.</p><button class="btn" onclick="Game.restart()">NEXT RUN</button></div>
     <script>
       /**
- * TBOI: ADVANCED BALLISTICS & PARTICLE ENGINE
- * Features:
- * - Physics-based Tears (Height, Gravity, Bouncing, Squash & Stretch)
- * - Elemental Traits (Fire, Poison, Creep, Spectral)
- * - Advanced Particle System (Debris, Smoke, Splashes)
- * - Screen Shake & "Juice"
+ * TBOI: REPENTANCE+ PROTOTYPE
  */
 
 // --- CONFIG & CONSTANTS ---
 const CFG = {
     roomW: 26, roomD: 16, pixelScale: 4.5, gravity: 50.0,
-    colors: { bg: 0x110f0f, wall: 0x3e2723, floor: 0x2c1e1a },
     shakeDecay: 0.9
 };
+
+const LEVELS = [
+    { name: "BASEMENT", wall: 0x3e2723, floor: 0x2c1e1a, enemyHp: 1.0 },
+    { name: "CAVES", wall: 0x37474f, floor: 0x263238, enemyHp: 1.5 },
+    { name: "DEPTHS", wall: 0x212121, floor: 0x181818, enemyHp: 2.0 },
+    { name: "WOMB", wall: 0x880e4f, floor: 0x560027, enemyHp: 2.5 },
+    { name: "SHEOL", wall: 0x000000, floor: 0x1a1a1a, enemyHp: 3.5 },
+    { name: "THE CHEST", wall: 0xbf9e67, floor: 0xd4af37, enemyHp: 5.0 }
+];
 
 const ICONS = {
     speed: `<svg viewBox="0 0 24 24"><path fill="#fff" d="M12 2L2 22h20L12 2zm0 4l5 14H7l5-14z"/></svg>`,
@@ -124,19 +130,18 @@ const AssetGen = {
                 ctx.fill();
                 break;
             case 'ghost_face':
-                // Eyes
-                circle(22, 32, 4, '#000');
-                circle(42, 32, 4, '#000');
-                // Mouth
+                circle(22, 32, 4, '#000'); circle(42, 32, 4, '#000');
                 ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(32, 44, 3, 0, Math.PI*2); ctx.fill();
                 break;
             case 'enemy_gaper': circle(32,32,24,'#d32f2f'); rect(20,20,6,6,'#000'); rect(38,20,6,6,'#000'); rect(24,38,16,12,'#000'); break;
-            case 'enemy_horf': circle(32,32,24,'#5d4037'); circle(32,32,14,'#222'); break; // Static turret
-            case 'floor': fill('#2c1e1a'); for(let i=0;i<30;i++) rect(Math.random()*60, Math.random()*60, 2, 2, 'rgba(0,0,0,0.3)'); break;
+            case 'enemy_boss': circle(32,32,28,'#4a148c'); circle(22,24,6,'#f00'); circle(42,24,6,'#f00'); rect(24,44,16,4,'#000'); break;
+            case 'enemy_horf': circle(32,32,24,'#5d4037'); circle(32,32,14,'#222'); break;
+            case 'floor': fill('#888'); for(let i=0;i<30;i++) rect(Math.random()*60, Math.random()*60, 2, 2, 'rgba(0,0,0,0.1)'); break; // Grayscale for tinting
             case 'rock': rect(4,4,56,56,'#5d4037'); rect(8,8,48,48,'#6d4c41'); rect(12,12,32,16,'#795548'); break;
-            case 'rock_tinted': rect(4,4,56,56,'#3e2723'); rect(8,8,48,48,'#4e342e'); rect(36,36,12,12,'#5d4037'); break; // X mark implied
+            case 'rock_tinted': rect(4,4,56,56,'#3e2723'); rect(8,8,48,48,'#4e342e'); rect(36,36,12,12,'#5d4037'); break;
             case 'poop': circle(32,40,22,'#4e342e'); circle(32,28,16,'#5d4037'); circle(32,16,10,'#6d4c41'); break;
             case 'bomb': circle(32,36,22,'#333'); rect(28,6,8,10,'#ccc'); ctx.strokeStyle='#f57f17'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(32,6); ctx.lineTo(44,0); ctx.stroke(); break;
+            case 'trapdoor': fill('#111'); rect(4,4,56,56,'#222'); for(let i=8;i<56;i+=10) rect(16,i,32,4,'#444'); break;
 
             // Items
             case 'pedestal': rect(16,32,32,32,'#757575'); rect(12,32,40,6,'#bdbdbd'); break;
@@ -145,15 +150,15 @@ const AssetGen = {
             case 'item_liquid': rect(20,20,24,30,'#fff'); rect(24,40,16,10,'#4caf50'); break; // Flask
             case 'item_generic': rect(16,16,32,32,'#fff'); text('?', '#000'); break;
 
-            // Tears (Procedural-ish)
-            case 'tear_normal': circle(32,32,24,'#00bfff'); circle(22,22,8,'#fff'); break; // Shine
+            // Tears
+            case 'tear_normal': circle(32,32,24,'#00bfff'); circle(22,22,8,'#fff'); break;
             case 'tear_blood': circle(32,32,24,'#d32f2f'); circle(22,22,8,'#ff8a80'); break;
             case 'tear_fire': circle(32,32,26,'#ff6f00'); circle(32,32,18,'#ffeb3b'); break;
-            case 'tear_poison': circle(32,32,24,'#2e7d32'); circle(20,20,6,'#a5d6a7'); circle(40,24,4,'#a5d6a7'); break; // Bubbles
+            case 'tear_poison': circle(32,32,24,'#2e7d32'); circle(20,20,6,'#a5d6a7'); circle(40,24,4,'#a5d6a7'); break;
             case 'tear_spectral': circle(32,32,24,'rgba(200,220,255,0.6)'); circle(22,22,6,'rgba(255,255,255,0.8)'); break;
 
             // Particles
-            case 'part_debris': rect(0,0,64,64,'#5d4037'); break; // Scaled down in engine
+            case 'part_debris': rect(0,0,64,64,'#5d4037'); break;
             case 'part_smoke': circle(32,32,28,'rgba(100,100,100,0.5)'); break;
             case 'part_spark': rect(16,16,32,32,'#ffeb3b'); break;
             case 'creep': circle(32,32,30,'#2e7d32'); circle(16,20,10,'#1b5e20'); circle(44,36,8,'#1b5e20'); break;
@@ -175,8 +180,7 @@ const Rand = {
 // --- ENGINE CLASSES ---
 class GameSystem {
     constructor() {
-        this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(CFG.colors.bg);
-        // Ortho-ish perspective
+        this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x111111);
         this.camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 1, 1000);
         this.camera.position.set(0, 28, 24); this.camera.lookAt(0,0,2);
 
@@ -193,6 +197,7 @@ class GameSystem {
         this.clock = new THREE.Clock();
         this.entities = []; this.particles = []; this.creeps = [];
         this.keys = {}; this.shake = 0;
+        this.currentLevelIdx = 0;
 
         window.addEventListener('keydown', e => this.keys[e.key.toLowerCase()] = true);
         window.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
@@ -201,34 +206,56 @@ class GameSystem {
     start() {
         this.player = new Player(0, 0);
         this.dungeon = new DungeonGen();
-        this.loadRoom(0,0);
+        this.loadLevel(0);
         UI.init();
         document.getElementById('loading-screen').style.display = 'none';
         this.loop();
     }
 
+    loadLevel(idx) {
+        this.currentLevelIdx = idx;
+        const lvl = LEVELS[idx % LEVELS.length];
+
+        // Show Level Title
+        const txt = document.getElementById('level-text');
+        txt.innerText = lvl.name;
+        txt.style.opacity = 1;
+        setTimeout(() => txt.style.opacity = 0, 3000);
+
+        this.dungeon.generate();
+        this.loadRoom(0,0);
+    }
+
+    nextLevel() {
+        if(this.currentLevelIdx >= LEVELS.length - 1) {
+            document.getElementById('win-screen').style.display = 'flex';
+            return;
+        }
+        this.loadLevel(this.currentLevelIdx + 1);
+    }
+
+    restart() {
+        document.getElementById('game-over-screen').style.display = 'none';
+        document.getElementById('win-screen').style.display = 'none';
+        this.player = new Player(0,0);
+        this.loadLevel(0);
+        UI.init();
+        this.inputLocked = false;
+    }
+
     loadRoom(x, y, entryDir) {
-        // --- SCENE GARBAGE COLLECTION ---
-        // Forcefully remove all dynamic objects from the scene graph.
-        // This acts as a buffer refresh to ensure no tears/particles persist.
+        // Cleanup
         for(let i = this.scene.children.length - 1; i >= 0; i--) {
             const obj = this.scene.children[i];
-            if(obj.userData.isDynamic && obj !== this.player.mesh) {
-                this.scene.remove(obj);
-            }
+            if(obj.userData.isDynamic && obj !== this.player.mesh) this.scene.remove(obj);
         }
+        document.getElementById('boss-bar-container').style.display = 'none'; // Hide boss bar by default
 
-        // Reset arrays
-        this.entities = [this.player];
-        this.creeps = [];
-        this.particles = [];
+        this.entities = [this.player]; this.creeps = []; this.particles = [];
 
         this.dungeon.enterRoom(x, y, this.scene);
-
-        // Ensure player is rendered (in case it was somehow removed or order changed)
         if(!this.player.mesh.parent) this.scene.add(this.player.mesh);
 
-        // Entry positions
         if(entryDir === 'N') this.player.pos.set(0, 0, CFG.roomD/2 - 3);
         if(entryDir === 'S') this.player.pos.set(0, 0, -CFG.roomD/2 + 3);
         if(entryDir === 'E') this.player.pos.set(-CFG.roomW/2 + 3, 0, 0);
@@ -247,6 +274,13 @@ class GameSystem {
     addCreep(pos, type) {
         const c = new Creep(pos, type);
         this.creeps.push(c); this.scene.add(c.mesh);
+    }
+
+    spawnTrapdoor(pos) {
+        const t = new Trapdoor(pos.x, pos.z);
+        this.entities.push(t); this.scene.add(t.mesh);
+        Game.screenShake(1.5);
+        this.spawnParticles('debris', pos, 10, '#333');
     }
 
     screenShake(amt) { this.shake = Math.min(this.shake + amt, 2.0); }
@@ -272,34 +306,17 @@ class GameSystem {
                 this.entities.splice(i, 1);
             }
         }
-
-        // Room Entities
         this.dungeon.roomEntities.forEach(e => e.update(dt));
+        for(let i=this.particles.length-1; i>=0; i--) if(!this.particles[i].update(dt)) { this.scene.remove(this.particles[i].mesh); this.particles.splice(i,1); }
+        for(let i=this.creeps.length-1; i>=0; i--) if(!this.creeps[i].update(dt)) { this.scene.remove(this.creeps[i].mesh); this.creeps.splice(i,1); }
 
-        // Particle Updates
-        for(let i=this.particles.length-1; i>=0; i--) {
-            if(!this.particles[i].update(dt)) {
-                this.scene.remove(this.particles[i].mesh);
-                this.particles.splice(i, 1);
-            }
-        }
-
-        // Creep Updates
-        for(let i=this.creeps.length-1; i>=0; i--) {
-            if(!this.creeps[i].update(dt)) {
-                this.scene.remove(this.creeps[i].mesh);
-                this.creeps.splice(i, 1);
-            }
-        }
-
-        // Camera Follow (Soft)
+        // Camera Follow
         if(this.player) {
             const tx = this.player.pos.x * 0.2;
             const tz = this.player.pos.z * 0.2 + 24;
             this.camera.position.x += (tx - this.camera.position.x) * 5 * dt;
             this.camera.position.z += (tz - this.camera.position.z) * 5 * dt;
         }
-
         this.renderer.render(this.scene, this.camera);
     }
 }
@@ -309,141 +326,86 @@ class Entity {
         this.pos = new THREE.Vector3(x, 0, z);
         this.vel = new THREE.Vector3();
         this.radius = 0.8;
-
         this.mesh = new THREE.Group();
-        // Tag for Garbage Collector
         this.mesh.userData.isDynamic = true;
-
-        // Transparent: true is CRITICAL for sprites to not have black boxes
         this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: AssetGen.get(tex), transparent: true }));
         this.sprite.center.set(0.5, 0); this.sprite.scale.set(3,3,1);
         this.mesh.add(this.sprite);
-
         const sMat = new THREE.MeshBasicMaterial({ map: AssetGen.get('shadow'), transparent: true, depthWrite: false });
         this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), sMat);
         this.shadow.rotation.x = -Math.PI/2; this.shadow.position.y = 0.05;
         this.mesh.add(this.shadow);
     }
-    update(dt) {
-        this.mesh.position.copy(this.pos);
-        this.mesh.renderOrder = this.pos.z; // Depth sorting
-        return true;
-    }
+    update(dt) { this.mesh.position.copy(this.pos); this.mesh.renderOrder = this.pos.z; return true; }
 }
 
 class Player extends Entity {
     constructor(x, z) {
         super(x, z, 'ghost_body');
-        // 2y:1x ratio. Width 3, Height 6.
         this.sprite.scale.set(3, 6, 1);
-
         const hMat = new THREE.SpriteMaterial({ map: AssetGen.get('ghost_face'), transparent: true });
-        this.head = new THREE.Sprite(hMat);
-        this.head.scale.set(2, 2, 1);
-        // Move face up to upper 1/3 of the body
-        this.head.position.set(0, 4.2, 0.01);
+        this.head = new THREE.Sprite(hMat); this.head.scale.set(2, 2, 1); this.head.position.set(0, 4.2, 0.01);
         this.mesh.add(this.head);
-
-        // Stats
         this.hp = 6; this.maxHp = 6; this.coins = 0; this.bombs = 1; this.keys = 0;
         this.stats = { speed: 1.0, range: 6.5, tears: 2.73, shotSpeed: 1.0, damage: 3.5 };
-        this.items = [];
-        this.traits = { fire: false, poison: false, creep: false, spectral: false };
-
+        this.items = []; this.traits = { fire: false, poison: false, creep: false, spectral: false };
         this.shootCooldown = 0; this.invincible = 0;
     }
-
     recalc() {
-        // Reset base
         this.stats = { speed: 1.0, range: 6.5, tears: 2.73, shotSpeed: 1.0, damage: 3.5 };
         this.traits = { fire: false, poison: false, creep: false, spectral: false };
-
-        // Apply Items
         this.items.forEach(k => {
             const i = ITEMS[k];
             if(i.stats) Object.keys(i.stats).forEach(s => this.stats[s] += i.stats[s]);
             if(i.traits) i.traits.forEach(t => this.traits[t] = true);
         });
-
-        // Caps
         this.stats.tears = Math.max(0.1, this.stats.tears);
         UI.updateStats();
     }
-
     update(dt) {
-        // Movement
         let dx = 0, dz = 0;
         if(Game.keys['w']) dz -= 1; if(Game.keys['s']) dz += 1;
         if(Game.keys['a']) dx -= 1; if(Game.keys['d']) dx += 1;
-
         if(dx || dz) {
             const move = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(this.stats.speed * 12 * dt);
             const next = this.pos.clone().add(move);
             if(!this.collide(next)) this.pos.copy(next);
-            // Floating bob effect
             this.head.position.y = 4.2 + Math.sin(Date.now()/150)*0.15;
             this.checkDoors();
         }
-
-        // Shooting
         this.shootCooldown -= dt;
         let sx=0, sz=0;
-        if(Game.keys['arrowup']) sz=-1; else if(Game.keys['arrowdown']) sz=1;
-        else if(Game.keys['arrowleft']) sx=-1; else if(Game.keys['arrowright']) sx=1;
-
-        if((sx || sz) && this.shootCooldown <= 0) {
-            this.shoot(sx, sz);
-            this.head.position.x = sx * 0.3;
-        } else if(!sx && !sz) this.head.position.x = 0;
-
-        // Bomb
+        if(Game.keys['arrowup']) sz=-1; else if(Game.keys['arrowdown']) sz=1; else if(Game.keys['arrowleft']) sx=-1; else if(Game.keys['arrowright']) sx=1;
+        if((sx || sz) && this.shootCooldown <= 0) { this.shoot(sx, sz); this.head.position.x = sx * 0.3; } else if(!sx && !sz) this.head.position.x = 0;
         if(Game.keys['e'] && this.bombs > 0 && !this.bombLocked) {
             this.bombs--; Game.entities.push(new Bomb(this.pos.x, this.pos.z));
             UI.updateRes(); this.bombLocked=true; setTimeout(()=>this.bombLocked=false, 500);
         }
-
-        // Invincibility Flash
-        if(this.invincible > 0) { this.invincible -= dt; this.sprite.material.opacity = (Math.floor(Date.now()/50)%2)*0.5 + 0.5; }
-        else this.sprite.material.opacity = 1;
-
-        super.update(dt);
-        return true;
+        if(this.invincible > 0) { this.invincible -= dt; this.sprite.material.opacity = (Math.floor(Date.now()/50)%2)*0.5 + 0.5; } else this.sprite.material.opacity = 1;
+        super.update(dt); return true;
     }
-
     shoot(dx, dz) {
         this.shootCooldown = 1.0 / this.stats.tears;
-
-        // Momentum inheritance (Juice)
         const moveX = (Game.keys['d']?1:(Game.keys['a']?-1:0)) * 2;
         const moveZ = (Game.keys['s']?1:(Game.keys['w']?-1:0)) * 2;
-
         const dir = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(12 * this.stats.shotSpeed);
-        dir.x += moveX; dir.z += moveZ;
-
-        // Spread randomizer
-        dir.x = Rand.spread(dir.x, 0.05); dir.z = Rand.spread(dir.z, 0.05);
-
+        dir.x += moveX; dir.z += moveZ; dir.x = Rand.spread(dir.x, 0.05); dir.z = Rand.spread(dir.z, 0.05);
         const t = new Tear(this.pos.clone(), dir, this.stats.damage, this.stats.range, {...this.traits});
         Game.entities.push(t); Game.scene.add(t.mesh);
     }
-
     collide(pos) {
         if(Math.abs(pos.x) > CFG.roomW/2 - 1.5) return true;
         if(Math.abs(pos.z) > CFG.roomD/2 - 1.5) return true;
-        for(let obs of Game.dungeon.roomEntities) {
-            if(obs.collision && pos.distanceTo(obs.pos) < (this.radius + obs.radius)) return true;
-        }
+        for(let obs of Game.dungeon.roomEntities) { if(obs.collision && pos.distanceTo(obs.pos) < (this.radius + obs.radius)) return true; }
         return false;
     }
-
     hit(dmg) {
         if(this.invincible > 0) return;
         Game.screenShake(0.5);
         this.hp -= dmg; this.invincible = 1.0; UI.updateHearts();
-        Game.spawnParticles('debris', this.pos, 5, '#d32f2f'); // Blood
+        Game.spawnParticles('debris', this.pos, 5, '#d32f2f');
         if(this.hp <= 0) { document.getElementById('game-over-screen').style.display = 'flex'; Game.inputLocked = true; }
     }
-
     checkDoors() {
         Game.dungeon.doors.forEach(d => {
             if(d.isOpen && this.pos.distanceTo(d.pos) < 2) {
@@ -453,110 +415,54 @@ class Player extends Entity {
             }
         });
     }
-
     addItem(key) {
         this.items.push(key); this.recalc();
         const i = ITEMS[key];
         const el = document.getElementById('item-popup');
-        el.querySelector('h2').innerText = i.name;
-        el.querySelector('p').innerText = i.desc;
-        el.classList.add('active');
-        setTimeout(()=>el.classList.remove('active'), 2500);
+        el.querySelector('h2').innerText = i.name; el.querySelector('p').innerText = i.desc;
+        el.classList.add('active'); setTimeout(()=>el.classList.remove('active'), 2500);
     }
 }
 
-/**
- * ADVANCED BALLISTICS TEAR
- * Has physical height, elasticity, and traits
- */
 class Tear {
     constructor(pos, vel, damage, range, traits) {
-        this.pos = pos.clone();
-        this.height = 3.5; // Start at Isaac's eye level
-        this.vel = vel;
-        this.velY = 2.0 + (range/10); // Initial pop up depends on range
-
-        this.damage = damage;
-        this.range = range;
-        this.traits = traits;
-        this.life = range / 10.0; // Seconds to live
-
-        // Setup Visuals
-        this.mesh = new THREE.Group();
-        // BUGFIX: TAG FOR GARBAGE COLLECTOR
-        this.mesh.userData.isDynamic = true;
-
+        this.pos = pos.clone(); this.height = 3.5; this.vel = vel; this.velY = 2.0 + (range/10);
+        this.damage = damage; this.range = range; this.traits = traits; this.life = range / 10.0;
+        this.mesh = new THREE.Group(); this.mesh.userData.isDynamic = true;
         let tex = 'tear_normal';
-        if(traits.fire) tex = 'tear_fire';
-        if(traits.poison) tex = 'tear_poison';
-        if(traits.spectral) tex = 'tear_spectral';
-        if(traits.hostile) tex = 'tear_blood';
-
+        if(traits.fire) tex = 'tear_fire'; if(traits.poison) tex = 'tear_poison'; if(traits.spectral) tex = 'tear_spectral'; if(traits.hostile) tex = 'tear_blood';
         this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: AssetGen.get(tex), transparent: true }));
-        this.sprite.scale.set(2.5, 2.5, 1);
-        this.mesh.add(this.sprite);
-
-        // Shadow gets smaller as height increases
+        this.sprite.scale.set(2.5, 2.5, 1); this.mesh.add(this.sprite);
         const sMat = new THREE.MeshBasicMaterial({ map: AssetGen.get('shadow'), transparent: true, opacity: 0.5 });
         this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), sMat);
-        this.shadow.rotation.x = -Math.PI/2;
-        this.mesh.add(this.shadow);
-
+        this.shadow.rotation.x = -Math.PI/2; this.mesh.add(this.shadow);
         this.mesh.position.copy(this.pos);
     }
-
     update(dt) {
-        // Physics
         this.pos.add(this.vel.clone().multiplyScalar(dt));
-        this.velY -= CFG.gravity * dt;
-        this.height += this.velY * dt;
-
-        // Floor Bounce
+        this.velY -= CFG.gravity * dt; this.height += this.velY * dt;
         if(this.height <= 0.5) {
             this.height = 0.5;
             if(Math.abs(this.velY) > 5) {
-                // Bounce
-                this.velY = -this.velY * 0.4; // Lose energy
-                this.vel.multiplyScalar(0.8); // Friction
-                Game.spawnParticles('debris', this.pos, 2, '#00bfff', 0.5); // Splash
-                // Contact Effects
+                this.velY = -this.velY * 0.4; this.vel.multiplyScalar(0.8); Game.spawnParticles('debris', this.pos, 2, '#00bfff', 0.5);
                 if(this.traits.creep) Game.addCreep(this.pos, 'poison');
-            } else {
-                // Slide/Stop
-                this.velY = 0;
-                this.die(); return false;
-            }
+            } else { this.die(); return false; }
         }
-
-        // Visual Transforms (Squash & Stretch)
         const stretch = 1 + Math.abs(this.velY)*0.05;
-        this.sprite.scale.set(2.5 / stretch, 2.5 * stretch, 1);
-        this.sprite.position.y = this.height;
-        this.shadow.scale.setScalar(1.0 - (this.height/15)); // Smaller shadow when high
-        this.shadow.material.opacity = Math.max(0, 0.6 - (this.height/20));
-
+        this.sprite.scale.set(2.5 / stretch, 2.5 * stretch, 1); this.sprite.position.y = this.height;
+        this.shadow.scale.setScalar(1.0 - (this.height/15)); this.shadow.material.opacity = Math.max(0, 0.6 - (this.height/20));
         this.mesh.position.copy(this.pos);
-
-        // Trait Logic
         if(this.traits.fire && Math.random() < 0.3) Game.spawnParticles('smoke', this.pos, 1, '#666');
         if(this.traits.poison && Math.random() < 0.2) Game.spawnParticles('debris', this.pos, 1, '#4caf50');
-
-        // Collision
         if(this.checkCollisions()) return false;
-
-        this.life -= dt;
-        return this.life > 0;
+        this.life -= dt; return this.life > 0;
     }
-
     checkCollisions() {
-        // Enemies
         const targets = this.traits.hostile ? [Game.player] : Game.entities.filter(e => e instanceof Enemy);
         for(let t of targets) {
-            // Check 2D distance first, then height check for "jumping" enemies
             if(t.pos.distanceTo(this.pos) < (t.radius + 0.8)) {
-                if(this.height < 6) { // Can fly over enemies if too high
+                if(this.height < 6) {
                     if(t.hit) {
-                        // Status Effects
                         if(this.traits.poison) t.applyStatus('poison');
                         if(this.traits.fire) t.applyStatus('burn');
                         t.hit(this.damage);
@@ -565,8 +471,6 @@ class Tear {
                 }
             }
         }
-
-        // Walls/Rocks
         if(!this.traits.spectral) {
             if(Math.abs(this.pos.x) > CFG.roomW/2 - 1 || Math.abs(this.pos.z) > CFG.roomD/2 - 1) { this.die(); return true; }
             for(let o of Game.dungeon.roomEntities) {
@@ -578,16 +482,12 @@ class Tear {
         }
         return false;
     }
-
     die() {
         const col = this.traits.fire ? '#ff6f00' : (this.traits.poison ? '#4caf50' : '#00bfff');
         Game.spawnParticles('debris', this.pos, 4, col);
         if(this.traits.fire && Math.random() < 0.2) {
-             // Explosion chance
-             Game.screenShake(0.8);
-             Game.spawnParticles('spark', this.pos, 8, '#ffeb3b', 2.0);
-             const area = Game.entities.filter(e => e instanceof Enemy && e.pos.distanceTo(this.pos) < 5);
-             area.forEach(e => e.hit(this.damage * 2));
+             Game.screenShake(0.8); Game.spawnParticles('spark', this.pos, 8, '#ffeb3b', 2.0);
+             Game.entities.filter(e => e instanceof Enemy && e.pos.distanceTo(this.pos) < 5).forEach(e => e.hit(this.damage * 2));
         }
         if(this.traits.creep) Game.addCreep(this.pos, 'poison');
     }
@@ -595,91 +495,97 @@ class Tear {
 
 class Particle {
     constructor(type, pos, color, speedMod) {
-        this.type = type;
-        this.pos = pos.clone();
-        this.pos.y += Rand.float(0, 2); // Random initial height offset
-
+        this.type = type; this.pos = pos.clone(); this.pos.y += Rand.float(0, 2);
         const tex = type === 'smoke' ? 'part_smoke' : (type === 'spark' ? 'part_spark' : 'part_debris');
         this.mesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: AssetGen.get(tex), color: color, transparent: true }));
-        this.mesh.userData.isDynamic = true; // Tag for cleanup
-
-        const size = Rand.float(0.5, 1.2);
-        this.mesh.scale.set(size, size, 1);
-
+        this.mesh.userData.isDynamic = true;
+        const size = Rand.float(0.5, 1.2); this.mesh.scale.set(size, size, 1);
         this.vel = new THREE.Vector3(Rand.float(-3,3), Rand.float(2,6), Rand.float(-3,3)).multiplyScalar(speedMod);
         this.life = 1.0;
-
         if(type === 'smoke') { this.vel.y = 2; this.drag = 0.95; }
         if(type === 'debris') { this.gravity = CFG.gravity; this.floorY = 0; }
     }
-
     update(dt) {
-        this.life -= dt;
-        this.mesh.material.opacity = this.life;
-
+        this.life -= dt; this.mesh.material.opacity = this.life;
         if(this.type === 'debris') {
-            this.vel.y -= this.gravity * dt;
-            this.pos.add(this.vel.clone().multiplyScalar(dt));
-            if(this.pos.y <= 0) {
-                this.pos.y = 0; this.vel.y *= -0.5; this.vel.x *= 0.8; this.vel.z *= 0.8;
-            }
-        } else {
-            this.pos.add(this.vel.clone().multiplyScalar(dt));
-            this.vel.multiplyScalar(this.drag || 1.0);
-        }
-
-        this.mesh.position.copy(this.pos);
-        return this.life > 0;
+            this.vel.y -= this.gravity * dt; this.pos.add(this.vel.clone().multiplyScalar(dt));
+            if(this.pos.y <= 0) { this.pos.y = 0; this.vel.y *= -0.5; this.vel.x *= 0.8; this.vel.z *= 0.8; }
+        } else { this.pos.add(this.vel.clone().multiplyScalar(dt)); this.vel.multiplyScalar(this.drag || 1.0); }
+        this.mesh.position.copy(this.pos); return this.life > 0;
     }
 }
 
 class Creep {
     constructor(pos, type) {
-        this.pos = pos.clone(); this.pos.y = 0.05;
-        this.life = 5.0; // Seconds
+        this.pos = pos.clone(); this.pos.y = 0.05; this.life = 5.0;
         this.mesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: AssetGen.get('creep'), opacity: 0.8, transparent: true, depthWrite: false }));
-        this.mesh.userData.isDynamic = true; // Tag for cleanup
-        this.mesh.position.copy(this.pos);
-        this.mesh.scale.set(3,3,1);
-        this.mesh.renderOrder = -1; // Draw on floor
+        this.mesh.userData.isDynamic = true; this.mesh.position.copy(this.pos); this.mesh.scale.set(3,3,1); this.mesh.renderOrder = -1;
         this.tick = 0;
     }
     update(dt) {
-        this.life -= dt;
-        this.mesh.scale.setScalar(3 * (this.life/5.0));
-
-        this.tick -= dt;
-        if(this.tick <= 0) {
-            this.tick = 0.5;
-            Game.entities.filter(e => e instanceof Enemy).forEach(e => {
-                if(e.pos.distanceTo(this.pos) < 1.5) e.hit(1); // Do damage
-            });
-        }
+        this.life -= dt; this.mesh.scale.setScalar(3 * (this.life/5.0)); this.tick -= dt;
+        if(this.tick <= 0) { this.tick = 0.5; Game.entities.filter(e => e instanceof Enemy).forEach(e => { if(e.pos.distanceTo(this.pos) < 1.5) e.hit(1); }); }
         return this.life > 0;
+    }
+}
+
+class Trapdoor extends Entity {
+    constructor(x, z) {
+        super(x, z, 'trapdoor');
+        this.sprite.scale.set(4, 4, 1);
+        this.sprite.position.y = 0.1;
+        this.sprite.renderOrder = -0.5;
+    }
+    update(dt) {
+        if(this.pos.distanceTo(Game.player.pos) < 1.5) {
+            Game.nextLevel();
+            return false;
+        }
+        return super.update(dt);
     }
 }
 
 class Enemy extends Entity {
     constructor(x, z, type) {
-        super(x, z, type==='gaper'?'enemy_gaper':'enemy_horf');
-        this.ai = type; this.hp = 12; this.timer = 0;
-        this.status = { poison: 0, burn: 0 };
+        super(x, z, type==='boss'?'enemy_boss':(type==='gaper'?'enemy_gaper':'enemy_horf'));
+        this.ai = type;
+
+        // Scale hp based on level
+        const mult = LEVELS[Game.currentLevelIdx].enemyHp;
+        this.hp = (type === 'boss' ? 80 : 12) * mult;
+        this.maxHp = this.hp;
+
+        this.timer = 0; this.status = { poison: 0, burn: 0 };
+        if(type === 'boss') this.sprite.scale.set(5, 5, 1);
     }
     update(dt) {
         // Status Logic
         if(this.status.poison > 0) {
-            this.status.poison -= dt;
-            if(Math.floor(this.status.poison*5) !== Math.floor((this.status.poison+dt)*5)) this.hit(1, true); // Tick
+            this.status.poison -= dt; if(Math.floor(this.status.poison*5) !== Math.floor((this.status.poison+dt)*5)) this.hit(1, true);
             this.sprite.material.color.setHex(0x88ff88);
         } else if(this.status.burn > 0) {
-            this.status.burn -= dt;
-            if(Math.floor(this.status.burn*5) !== Math.floor((this.status.burn+dt)*5)) this.hit(1, true);
+            this.status.burn -= dt; if(Math.floor(this.status.burn*5) !== Math.floor((this.status.burn+dt)*5)) this.hit(1, true);
             this.sprite.material.color.setHex(0xffaa00);
-        } else {
-            this.sprite.material.color.setHex(0xffffff);
-        }
+        } else this.sprite.material.color.setHex(0xffffff);
 
-        if(this.ai === 'gaper') {
+        if(this.ai === 'boss') {
+            // Simple Boss AI: Chase slowly, shoot periodically
+            const dir = Game.player.pos.clone().sub(this.pos).normalize();
+            this.pos.add(dir.multiplyScalar(2.0 * dt));
+
+            this.timer -= dt;
+            if(this.timer <= 0) {
+                // Radial burst
+                for(let i=0; i<8; i++) {
+                    const angle = (i/8)*Math.PI*2;
+                    const v = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(7);
+                    Game.entities.push(new Tear(this.pos, v, 1, 12, {hostile:true}));
+                }
+                this.timer = 2.0;
+            }
+            if(this.pos.distanceTo(Game.player.pos) < 2.5) Game.player.hit(1);
+
+        } else if(this.ai === 'gaper') {
             const dir = Game.player.pos.clone().sub(this.pos).normalize();
             const next = this.pos.clone().add(dir.multiplyScalar(3.5 * dt));
             let blocked = false;
@@ -694,7 +600,6 @@ class Enemy extends Entity {
                 const t = new Tear(this.pos, dir, 1, 10, {hostile:true});
                 Game.entities.push(t); Game.scene.add(t.mesh);
                 this.timer = 2.0;
-                // Squash effect on shoot
                 this.sprite.scale.set(3.5, 2.5, 1); setTimeout(()=>this.sprite.scale.set(3,3,1), 100);
             }
         }
@@ -702,6 +607,14 @@ class Enemy extends Entity {
     }
     hit(d, silent) {
         this.hp -= d;
+
+        // BOSS BAR UI UPDATE
+        if(this.ai === 'boss') {
+            const bar = document.getElementById('boss-bar-fill');
+            const pct = Math.max(0, (this.hp / this.maxHp) * 100);
+            bar.style.width = pct + '%';
+        }
+
         if(!silent) {
             this.sprite.material.color.setHex(0xff0000);
             setTimeout(()=>this.sprite.material.color.setHex(0xffffff), 100);
@@ -713,6 +626,11 @@ class Enemy extends Entity {
             Game.scene.remove(this.mesh);
             const idx = Game.entities.indexOf(this);
             if(idx > -1) Game.entities.splice(idx, 1);
+
+            if(this.ai === 'boss') {
+                Game.spawnTrapdoor(this.pos);
+                document.getElementById('boss-bar-container').style.display='none';
+            }
 
             Game.dungeon.checkClear();
             return false; // Remove
@@ -732,32 +650,20 @@ class Bomb extends Entity {
         if(this.timer<=0) {
             Game.screenShake(1.0);
             Game.spawnParticles('spark', this.pos, 20, '#ffeb3b', 3.0);
-
             const radius = 6.0;
-            // Use spread copy because we might modify the array during iteration
             [...Game.entities].forEach(e => {
-                if(e === this) return; // Don't hit self (already dying)
-
+                if(e === this) return;
                 if(e.pos.distanceTo(this.pos) < radius) {
-                    if(e instanceof Enemy) {
-                        e.hit(50);
-                    } else if(e instanceof Pickup || e instanceof ItemPedestal) {
+                    if(e instanceof Enemy) e.hit(50);
+                    else if(e instanceof Pickup || e instanceof ItemPedestal) {
                         Game.spawnParticles('debris', e.pos, 5, '#fff');
                         Game.scene.remove(e.mesh);
                         const idx = Game.entities.indexOf(e);
                         if(idx > -1) Game.entities.splice(idx, 1);
-                    } else if(e instanceof Bomb) {
-                        e.timer = 0.1; // Chain reaction
-                    }
+                    } else if(e instanceof Bomb) e.timer = 0.1;
                 }
             });
-
-            Game.dungeon.roomEntities.forEach(o => {
-                if((o.type.includes('rock') || o.type === 'poop') && o.pos.distanceTo(this.pos) < radius) {
-                    o.break();
-                }
-            });
-
+            Game.dungeon.roomEntities.forEach(o => { if((o.type.includes('rock') || o.type === 'poop') && o.pos.distanceTo(this.pos) < radius) o.break(); });
             return false;
         }
         return super.update(dt);
@@ -767,19 +673,15 @@ class Bomb extends Entity {
 class Obstacle extends Entity {
     constructor(x,z,type) { super(x,z,type); this.type=type; this.collision=true; this.hp=15; if(type==='poop')this.hp=5; }
     hit(d) {
-        if(this.type.includes('rock') && d<10) return; // Need bombs for rocks usually
-        this.hp-=d;
-        this.sprite.position.x += (Math.random()-0.5)*0.2; // Shake
+        if(this.type.includes('rock') && d<10) return;
+        this.hp-=d; this.sprite.position.x += (Math.random()-0.5)*0.2;
         if(this.hp <= 0) this.break();
     }
     break() {
         Game.spawnParticles('debris', this.pos, 6, this.type==='poop'?'#4e342e':'#5d4037');
-        // Drops
         if(this.type === 'rock_tinted') Game.entities.push(new Pickup(this.pos.x, this.pos.z, 'heart_soul'));
         else if(Math.random() < 0.2) Game.entities.push(new Pickup(this.pos.x, this.pos.z, 'coin'));
-
-        Game.scene.remove(this.mesh);
-        Game.dungeon.roomEntities.splice(Game.dungeon.roomEntities.indexOf(this), 1);
+        Game.scene.remove(this.mesh); Game.dungeon.roomEntities.splice(Game.dungeon.roomEntities.indexOf(this), 1);
     }
 }
 
@@ -795,9 +697,8 @@ class Pickup extends Entity {
         this.sprite.position.y=1.0+Math.sin(Date.now()/200)*0.2;
         if(this.pos.distanceTo(Game.player.pos)<1.5) {
             if(this.type==='coin') Game.player.coins++;
-            if(this.type==='heart_soul') Game.player.hp+=2; // Simplify logic for demo
-            UI.updateRes();
-            return false;
+            if(this.type==='heart_soul') Game.player.hp+=2;
+            UI.updateRes(); return false;
         }
         return super.update(dt);
     }
@@ -808,7 +709,6 @@ class ItemPedestal extends Entity {
         super(x, z, 'pedestal');
         this.key = fixedKey || Object.keys(ITEMS)[Math.floor(Math.random()*Object.keys(ITEMS).length)];
         const item = ITEMS[this.key];
-
         const iMat = new THREE.SpriteMaterial({ map: AssetGen.get(item.icon || 'item_generic'), transparent: true });
         this.itemSprite = new THREE.Sprite(iMat);
         this.itemSprite.position.set(0, 1.5, 0.1); this.itemSprite.scale.set(0.8, 0.8, 1);
@@ -817,10 +717,7 @@ class ItemPedestal extends Entity {
     update(dt) {
         if(this.pos.distanceTo(Game.player.pos) < 1.5) {
             Game.player.addItem(this.key);
-            // Pickup Animation freeze
-            Game.player.inputLocked = true;
-            this.mesh.position.y += 2; // Float up
-            setTimeout(() => { Game.player.inputLocked=false; }, 500);
+            Game.player.inputLocked = true; this.mesh.position.y += 2; setTimeout(() => { Game.player.inputLocked=false; }, 500);
             return false;
         }
         return super.update(dt);
@@ -829,65 +726,40 @@ class ItemPedestal extends Entity {
 
 // --- DUNGEON ---
 class DungeonGen {
-    constructor() { this.grid={}; this.generate(); }
+    constructor() { this.grid={}; }
     generate() {
+        this.grid={};
         const q=[{x:0,y:0}]; this.grid['0,0']={type:'start',cleared:true}; let count=1;
-
-        // BFS Generation
-        while(q.length>0 && count<12) {
+        while(q.length>0 && count<10) {
             const c=q.shift(); const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; dirs.sort(()=>Math.random()-0.5);
             for(let d of dirs) {
                 const nx=c.x+d[0], ny=c.y+d[1], k=`${nx},${ny}`;
                 if(!this.grid[k] && Math.random()>0.5) { this.grid[k]={type:'normal',cleared:false}; q.push({x:nx,y:ny}); count++; }
             }
         }
-
         const keys=Object.keys(this.grid).filter(k=>k!=='0,0');
-
-        // FIX: Find farthest room for BOSS
-        let maxDist = -1;
-        let bossKey = null;
-
-        keys.forEach(k => {
-            const [rx, ry] = k.split(',').map(Number);
-            const dist = Math.abs(rx) + Math.abs(ry); // Manhattan distance
-            if(dist > maxDist) {
-                maxDist = dist;
-                bossKey = k;
-            }
-        });
-
+        let maxDist = -1; let bossKey = null;
+        keys.forEach(k => { const [rx, ry] = k.split(',').map(Number); const dist = Math.abs(rx) + Math.abs(ry); if(dist > maxDist) { maxDist = dist; bossKey = k; } });
         if(bossKey) {
             this.grid[bossKey].type = 'boss';
-
-            // Set Treasure room to a random room that isn't start or boss
             const remaining = keys.filter(k => k !== bossKey);
-            if(remaining.length > 0) {
-                const treasureKey = remaining[Math.floor(Math.random() * remaining.length)];
-                this.grid[treasureKey].type = 'treasure';
-            }
+            if(remaining.length > 0) this.grid[remaining[Math.floor(Math.random() * remaining.length)]].type = 'treasure';
         }
     }
     enterRoom(x,y,scene) {
         this.currentX=x; this.currentY=y; const r=this.grid[`${x},${y}`];
-        // Floor
         if(this.floor) scene.remove(this.floor);
+        if(this.doors) this.doors.forEach(d => scene.remove(d.mesh)); this.doors=[];
+        if(this.roomEntities) this.roomEntities.forEach(e => scene.remove(e.mesh)); this.roomEntities=[];
 
-        // FIX: Remove old doors and room entities from scene before clearing arrays
-        if(this.doors) this.doors.forEach(d => scene.remove(d.mesh));
-        this.doors=[];
-
-        if(this.roomEntities) this.roomEntities.forEach(e => scene.remove(e.mesh));
-        this.roomEntities=[];
-
+        // Dynamic Palette
+        const lvl = LEVELS[Game.currentLevelIdx];
         const g=new THREE.PlaneGeometry(CFG.roomW,CFG.roomD);
-        const m=new THREE.MeshStandardMaterial({map:AssetGen.get('floor'), color:CFG.colors.floor});
+        const m=new THREE.MeshStandardMaterial({map:AssetGen.get('floor'), color: lvl.floor});
         this.floor=new THREE.Mesh(g,m); this.floor.rotation.x=-Math.PI/2; scene.add(this.floor);
-        // Walls
-        const w=new THREE.Mesh(new THREE.PlaneGeometry(CFG.roomW+4,12), new THREE.MeshBasicMaterial({color:CFG.colors.wall}));
+        const w=new THREE.Mesh(new THREE.PlaneGeometry(CFG.roomW+4,12), new THREE.MeshBasicMaterial({color: lvl.wall}));
         w.position.set(0,6,-CFG.roomD/2-0.1); scene.add(w); this.floor.add(w);
 
-        // Doors
         [{x:0,y:-1,d:'N'},{x:0,y:1,d:'S'},{x:1,y:0,d:'E'},{x:-1,y:0,d:'W'}].forEach(n=>{
             if(this.grid[`${x+n.x},${y+n.y}`]) {
                 const d = new Door(n.d, r.cleared || r.type==='treasure'); this.doors.push(d); scene.add(d.mesh);
@@ -895,24 +767,20 @@ class DungeonGen {
         });
 
         if(r.type==='start') return;
-
         if(!r.cleared) {
             if(r.type==='treasure') { this.roomEntities.push(new ItemPedestal(0,0)); r.cleared=true; }
             else if(r.type==='boss') {
-                const boss = new Enemy(0,0,'gaper');
-                Game.entities.push(boss);
-                scene.add(boss.mesh);
+                const boss = new Enemy(0,0,'boss');
+                Game.entities.push(boss); scene.add(boss.mesh);
                 document.getElementById('boss-bar-container').style.display='block';
+                document.getElementById('boss-bar-fill').style.width='100%';
             } else {
                 for(let i=0; i<Rand.int(2,4); i++) {
                     const e = new Enemy(Rand.float(-10,10), Rand.float(-6,6), Rand.chance(0.5)?'gaper':'horf');
-                    Game.entities.push(e);
-                    scene.add(e.mesh);
+                    Game.entities.push(e); scene.add(e.mesh);
                 }
             }
         }
-
-        // Rocks
         if(!r.cleared || r.layout) {
              if(!r.layout) {
                  r.layout=[];
@@ -920,9 +788,7 @@ class DungeonGen {
                      if(Rand.chance(0.3)) r.layout.push({x:Rand.int(-5,5)*2, z:Rand.int(-3,3)*2, t:Rand.chance(0.1)?'rock_tinted':'rock'});
                  }
              }
-             r.layout.forEach(o => {
-                 const obs = new Obstacle(o.x, o.z, o.t); this.roomEntities.push(obs); scene.add(obs.mesh);
-             });
+             r.layout.forEach(o => { const obs = new Obstacle(o.x, o.z, o.t); this.roomEntities.push(obs); scene.add(obs.mesh); });
         }
     }
     checkClear() {
@@ -930,8 +796,7 @@ class DungeonGen {
             const r=this.grid[`${this.currentX},${this.currentY}`];
             if(!r.cleared) {
                 r.cleared=true; this.doors.forEach(d=>d.open());
-                if(r.type==='boss') document.getElementById('win-screen').style.display='flex';
-                else if(Rand.chance(0.5)) Game.entities.push(new Pickup(0,0,'coin'));
+                if(r.type !== 'boss' && Rand.chance(0.5)) Game.entities.push(new Pickup(0,0,'coin'));
             }
         }
     }
@@ -943,15 +808,12 @@ class Door {
         const f=new THREE.Mesh(new THREE.PlaneGeometry(4,5), new THREE.MeshBasicMaterial({color:'#222'}));
         this.void=new THREE.Mesh(new THREE.PlaneGeometry(3,4), new THREE.MeshBasicMaterial({color:open?'#000':'#3e2723'}));
         this.void.position.z=0.1; this.void.position.y=-0.5; this.mesh.add(f,this.void);
-
         const d=CFG.roomD/2, w=CFG.roomW/2;
         if(dir==='N') this.mesh.position.set(0,2.5,-d);
         if(dir==='S') this.mesh.position.set(0,2.5,d);
         if(dir==='E') {this.mesh.position.set(w,2.5,0); this.mesh.rotation.y=-Math.PI/2;}
         if(dir==='W') {this.mesh.position.set(-w,2.5,0); this.mesh.rotation.y=Math.PI/2;}
-
-        this.pos=this.mesh.position.clone();
-        this.pos.y = 0;
+        this.pos=this.mesh.position.clone(); this.pos.y = 0;
     }
     open() { this.isOpen=true; this.void.material.color.setHex(0x000000); }
 }

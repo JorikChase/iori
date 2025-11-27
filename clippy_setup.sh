@@ -1,12 +1,14 @@
 #!/bin/bash
 #
 # ==============================================================================
-# CLIPPY SETUP (Rust App Component)
+# CLIPPY SETUP (Rust App Component) - FIXED
 # ==============================================================================
 #
 # This script handles the scaffolding, building, and service creation
 # for the 'Clippy' Rust application.
-# It can be run independently or via server_setup.sh.
+#
+# UPDATES:
+# - src/main.rs: Added routing logic to handle '/clippy' path prefix for Nginx.
 #
 # ==============================================================================
 
@@ -74,7 +76,7 @@ chrono = "0.4"
 anyhow = "1.0"
 EOF
 
-# src/main.rs
+# src/main.rs - UPDATED ROUTER LOGIC
 cat << 'EOF' > "$CLIPPY_DIR/src/main.rs"
 use axum::{
     extract::State,
@@ -148,11 +150,17 @@ async fn main() -> anyhow::Result<()> {
     let (tx, _rx) = broadcast::channel(100);
     let state = AppState { pool, tx };
 
-    let app = Router::new()
+    // Define the core application logic (API + Static files)
+    let app_logic = Router::new()
         .route("/api/clips", get(get_clips).post(create_clip))
         .route("/api/clips/:id", delete(delete_clip))
         .route("/api/events", get(sse_handler))
-        .nest_service("/", ServeDir::new("."))
+        .nest_service("/", ServeDir::new("."));
+
+    // Create a router that works BOTH at root (local) and under /clippy (production/proxy)
+    let app = Router::new()
+        .nest("/clippy", app_logic.clone())
+        .merge(app_logic)
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
@@ -279,6 +287,8 @@ EOF
 
 # 5. Build Rust Binary (Incremental)
 cd "$CLIPPY_DIR"
+# Stop service to allow overwrite if running
+systemctl stop clippy || true
 echo "Building Clippy (Release mode)..."
 cargo build --release
 

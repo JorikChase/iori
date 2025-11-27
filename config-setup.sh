@@ -8,6 +8,7 @@
 # - Rust: Increased Body Limit to 50MB (Fixes silent upload rejections)
 # - HTML: Added Drag-and-Drop event listeners
 # - HTML: Added Error handling for API fetch requests
+# - HTML: Added "Optimistic Updates" (Manual refresh on save/delete) to fix UI lag if SSE fails
 #
 # ==============================================================================
 
@@ -277,7 +278,7 @@ async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Re
 }
 EOF
 
-    # index.html (FIXED: Added Drag Handlers & Error Checking)
+    # index.html (FIXED: Optimistic Updates + Drag Handlers)
     cat << 'EOF' > "$CLIPPY_DIR/index.html"
 <!DOCTYPE html>
 <html lang="en">
@@ -354,6 +355,27 @@ EOF
             setTimeout(() => t.classList.remove('visible'), 3000);
         };
 
+        // Render function (Main UI Update)
+        const render = async () => {
+            try {
+                const cs = await API.getAll();
+                g.innerHTML = '';
+                g.appendChild(e);
+                cs.forEach(c => g.appendChild(createCard(c)));
+                e.style.display = g.children.length > 1 ? 'none' : 'block';
+            } catch (err) {
+                console.error("Render failed", err);
+            }
+        };
+
+        // Helper to delete and immediately refresh
+        window.deleteClip = async (id) => {
+            try {
+                await API.del(id);
+                await render(); // Manual refresh
+            } catch(e) { showToast("Delete Failed", true); }
+        };
+
         const createCard = c => {
             const d = document.createElement('div');
             d.className = 'card';
@@ -363,7 +385,7 @@ EOF
             d.innerHTML = (c.type === 'image'
                 ? `<div class="preview-box"><img src="${c.content}" class="preview-img"></div>`
                 : `<div class="preview-text">${c.content.replace(/</g, "&lt;")}</div>`) +
-                `<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="API.del(${c.id});event.stopPropagation()">DEL</span></div>`;
+                `<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="deleteClip(${c.id});event.stopPropagation()">DEL</span></div>`;
 
             d.onclick = async () => {
                 if (c.type === 'text') {
@@ -387,24 +409,16 @@ EOF
             return d;
         };
 
-        const render = async () => {
-            const cs = await API.getAll();
-            g.innerHTML = '';
-            g.appendChild(e);
-            cs.forEach(c => g.appendChild(createCard(c)));
-            e.style.display = g.children.length > 1 ? 'none' : 'block';
-        };
-
         const handleFiles = async (items) => {
             for (let x = 0; x < items.length; x++) {
                 const item = items[x];
-                // Handle DataTransferItem (paste) or File (drop)
                 const f = item.kind === 'file' ? item.getAsFile() : item;
                 if (f instanceof File) {
                     showToast('Uploading...');
                     try {
                         await API.save(f.type.startsWith('image/') ? 'image' : 'file', f, { name: f.name });
                         showToast('Uploaded');
+                        await render(); // Manual refresh after upload
                     } catch (err) {
                         console.error(err);
                         showToast('Upload Failed: ' + err.message, true);
@@ -416,20 +430,19 @@ EOF
         document.onpaste = async (v) => {
             const i = v.clipboardData.items;
             let h = false;
-            // Check for files first
             for (let x = 0; x < i.length; x++) {
                 if (i[x].kind === 'file') {
                     h = true;
                     await handleFiles([i[x]]);
                 }
             }
-            // Fallback to text
             if (!h) {
                 const txt = v.clipboardData.getData('text/plain');
                 if (txt) {
                     try {
                         await API.save('text', txt);
                         showToast('Text Saved');
+                        await render(); // Manual refresh after text save
                     } catch (err) {
                         showToast('Save Failed', true);
                     }
@@ -448,10 +461,18 @@ EOF
 
         (async () => {
             await render();
-            const es = new EventSource("api/events");
-            es.onopen = () => s.classList.add('connected');
-            es.onerror = () => s.classList.remove('connected');
-            es.onmessage = () => render();
+            // Try SSE, but don't rely on it for local actions
+            try {
+                const es = new EventSource("api/events");
+                es.onopen = () => s.classList.add('connected');
+                es.onerror = (e) => {
+                    s.classList.remove('connected');
+                    console.warn("SSE disconnected", e);
+                };
+                es.onmessage = () => render();
+            } catch (e) {
+                console.warn("SSE setup failed", e);
+            }
         })();
     </script>
 </body>

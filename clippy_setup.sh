@@ -1,61 +1,63 @@
 #!/bin/bash
 #
 # ==============================================================================
-# CLIPPY SETUP (Rust App Component) - FIXED
+# CLIPPY LOCAL DEV SETUP (FIXED)
 # ==============================================================================
 #
-# This script handles the scaffolding, building, and service creation
-# for the 'Clippy' Rust application.
+# This script sets up the 'Clippy' Rust application in your CURRENT directory.
 #
 # UPDATES:
-# - src/main.rs: Added routing logic to handle '/clippy' path prefix for Nginx.
+# - FIXED: Resolved mapping conflict. removed #[sqlx(rename)] attribute and
+#   relying on explicit SQL aliasing (SELECT type as clip_type) to handle
+#   the reserved keyword 'type' safely.
 #
 # ==============================================================================
 
 set -e
 
 # --- Configuration ---
-CLIPPY_DIR="/opt/clippy"
-CLIPPY_DB_PATH="$CLIPPY_DIR/clippy.db"
+PROJECT_NAME="clippy_dev"
+BASE_DIR="$(pwd)/$PROJECT_NAME"
 
 # --- Colors ---
 BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
-RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== STARTING CLIPPY DEPLOYMENT ===${NC}"
+echo -e "${BLUE}=== STARTING CLIPPY LOCAL SETUP (FIXED) ===${NC}"
+echo -e "Target Directory: ${YELLOW}$BASE_DIR${NC}"
 
-# 1. Ensure Root
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Error: Please run as root.${NC}"
+# 1. Check Rust
+if ! command -v cargo &> /dev/null; then
+    echo -e "${YELLOW}Rust is not installed.${NC}"
+    echo "Please install via: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
     exit 1
 fi
 
-# 2. Ensure Rust (Self-check)
-if ! command -v cargo &> /dev/null; then
-    echo -e "${YELLOW}Rust not found. Attempting to load env or install...${NC}"
-    if [ -f "$HOME/.cargo/env" ]; then
-         source "$HOME/.cargo/env"
-    fi
-
-    # Double check after source
-    if ! command -v cargo &> /dev/null; then
-        echo "Installing Rustup..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source "$HOME/.cargo/env"
-    fi
+# 2. Scaffold Directory
+if [ -d "$BASE_DIR" ]; then
+    echo -e "${YELLOW}Directory $PROJECT_NAME already exists. backing up...${NC}"
+    mv "$BASE_DIR" "${BASE_DIR}_backup_$(date +%s)"
 fi
 
-# 3. Scaffold Directory
-mkdir -p "$CLIPPY_DIR/src"
+echo "Creating project structure..."
+mkdir -p "$BASE_DIR"
+cd "$BASE_DIR"
+cargo init --bin --name clippy_server
 
-# 4. Write Source Files
-echo "Writing source files to $CLIPPY_DIR..."
+# 3. Create .gitignore
+cat << 'EOF' > .gitignore
+/target
+/clippy.db
+/clippy.db-shm
+/clippy.db-wal
+**/*.rs.bk
+EOF
 
-# Cargo.toml
-cat << 'EOF' > "$CLIPPY_DIR/Cargo.toml"
+# 4. Write Cargo.toml
+echo "Configuring dependencies..."
+cat << 'EOF' > Cargo.toml
 [package]
 name = "clippy_server"
 version = "0.1.0"
@@ -67,7 +69,7 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
-tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+tower-http = { version = "0.5", features = ["fs", "cors", "trace", "limit"] }
 futures = "0.3"
 tokio-stream = "0.1"
 tracing = "0.1"
@@ -76,10 +78,11 @@ chrono = "0.4"
 anyhow = "1.0"
 EOF
 
-# src/main.rs - UPDATED ROUTER LOGIC
-cat << 'EOF' > "$CLIPPY_DIR/src/main.rs"
+# 5. Write src/main.rs (FIXED MAPPING)
+echo "Writing backend logic..."
+cat << 'EOF' > src/main.rs
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     response::{sse::{Event, Sse}, IntoResponse},
     routing::{get, delete},
     Json, Router,
@@ -89,6 +92,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, FromRow, SqlitePool};
 use std::{net::SocketAddr, time::Duration};
 use tokio::sync::broadcast;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -96,6 +100,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 struct Clip {
     id: i64,
     #[serde(rename = "type")]
+    // FIXED: Removed #[sqlx(rename = "type")] to prevent conflict with SQL alias
     clip_type: String,
     content: String,
     metadata: String,
@@ -119,12 +124,13 @@ struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,tower_http=debug,clippy_server=debug".into()))
         .with(tracing_subscriber::fmt::layer())
         .init();
 
     let db_url = "sqlite:clippy.db";
     if !std::path::Path::new("clippy.db").exists() {
+        tracing::info!("Database not found. Creating clippy.db...");
         std::fs::File::create("clippy.db")?;
     }
 
@@ -150,21 +156,24 @@ async fn main() -> anyhow::Result<()> {
     let (tx, _rx) = broadcast::channel(100);
     let state = AppState { pool, tx };
 
-    // Define the core application logic (API + Static files)
     let app_logic = Router::new()
         .route("/api/clips", get(get_clips).post(create_clip))
         .route("/api/clips/:id", delete(delete_clip))
         .route("/api/events", get(sse_handler))
-        .nest_service("/", ServeDir::new("."));
+        .nest_service("/", ServeDir::new("."))
+        .layer(TraceLayer::new_for_http())
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
+        .layer(CorsLayer::permissive());
 
-    // Create a router that works BOTH at root (local) and under /clippy (production/proxy)
     let app = Router::new()
         .nest("/clippy", app_logic.clone())
         .merge(app_logic)
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
-    tracing::info!("listening on {}", addr);
+    let port = 3001;
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    tracing::info!("Clippy is listening on http://0.0.0.0:{}", port);
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 
@@ -172,41 +181,65 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn get_clips(State(state): State<AppState>) -> Json<Vec<Clip>> {
-    let clips = sqlx::query_as::<_, Clip>("SELECT * FROM clips ORDER BY id DESC")
+    tracing::debug!("Fetching all clips");
+    // FIXED: Query explicitly aliases 'type' to 'clip_type' to match the struct field
+    let result = sqlx::query_as::<_, Clip>("SELECT id, type as clip_type, content, metadata, timestamp FROM clips ORDER BY id DESC")
         .fetch_all(&state.pool)
-        .await
-        .unwrap_or_default();
-    Json(clips)
+        .await;
+
+    match result {
+        Ok(clips) => Json(clips),
+        Err(e) => {
+            tracing::error!("CRITICAL: Failed to fetch clips from DB: {:?}", e);
+            Json(vec![])
+        }
+    }
 }
 
 async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateClip>) -> impl IntoResponse {
+    tracing::info!("Received new clip type: {}, size: {} chars", payload.clip_type, payload.content.len());
+
     let timestamp = chrono::Local::now().format("%I:%M:%S %p").to_string();
     let metadata_str = payload.metadata.to_string();
 
-    let id = sqlx::query("INSERT INTO clips (type, content, metadata, timestamp) VALUES (?, ?, ?, ?)")
+    // Note: INSERT uses raw column name 'type', which is correct for SQL
+    let result = sqlx::query("INSERT INTO clips (type, content, metadata, timestamp) VALUES (?, ?, ?, ?)")
         .bind(&payload.clip_type)
         .bind(&payload.content)
         .bind(&metadata_str)
         .bind(&timestamp)
         .execute(&state.pool)
-        .await
-        .unwrap()
-        .last_insert_rowid();
+        .await;
 
-    let new_clip = Clip {
-        id, clip_type: payload.clip_type, content: payload.content, metadata: metadata_str, timestamp,
-    };
-    let _ = state.tx.send(new_clip);
-    axum::http::StatusCode::CREATED
+    match result {
+        Ok(res) => {
+            let id = res.last_insert_rowid();
+            let new_clip = Clip {
+                id, clip_type: payload.clip_type, content: payload.content, metadata: metadata_str, timestamp,
+            };
+            tracing::info!("Broadcasting clip ID: {}", id);
+            let _ = state.tx.send(new_clip);
+            axum::http::StatusCode::CREATED
+        }
+        Err(e) => {
+            tracing::error!("Failed to insert clip: {:?}", e);
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
 
 async fn delete_clip(State(state): State<AppState>, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
-    sqlx::query("DELETE FROM clips WHERE id = ?").bind(id).execute(&state.pool).await.unwrap();
+    tracing::info!("Deleting clip ID: {}", id);
+    if let Err(e) = sqlx::query("DELETE FROM clips WHERE id = ?").bind(id).execute(&state.pool).await {
+        tracing::error!("Database delete error: {:?}", e);
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+    }
     let _ = state.tx.send(Clip { id, clip_type: "DELETE_SIGNAL".to_string(), content: "".to_string(), metadata: "{}".to_string(), timestamp: "".to_string() });
     axum::http::StatusCode::OK
 }
 
 async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> {
+    tracing::debug!("New SSE connection established");
     let rx = state.tx.subscribe();
     let stream = stream::unfold(rx, |mut rx| async move {
         match rx.recv().await {
@@ -218,9 +251,9 @@ async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Re
 }
 EOF
 
-# index.html
-echo "Writing index.html..."
-cat << 'EOF' > "$CLIPPY_DIR/index.html"
+# 6. Write index.html
+echo "Writing frontend..."
+cat << 'EOF' > index.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -255,70 +288,146 @@ cat << 'EOF' > "$CLIPPY_DIR/index.html"
         <div style="display:flex; align-items:center; font-size:11px; letter-spacing:1px;">
             <div class="status-dot" id="statusDot"></div> CLIPPY // SYNC
         </div>
+        <div style="font-size: 11px; opacity: 0.5;">DEBUG ENABLED</div>
     </div>
     <div id="grid">
         <div class="empty-state" id="emptyState"><p>Paste <kbd>CTRL+V</kbd> or Drop Files</p></div>
     </div>
     <div id="toast">Copied</div>
     <script>
-        const API={getAll:async()=>await(await fetch('api/clips')).json(),save:async(t,c,m={})=>{let b=c;if(c instanceof Blob)b=await new Promise(r=>{const q=new FileReader();q.onloadend=()=>r(q.result);q.readAsDataURL(c)});await fetch('api/clips',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:t,content:b,metadata:m})})},del:async(i)=>await fetch(`api/clips/${i}`,{method:'DELETE'})};
+        const API={
+            getAll: async() => {
+                console.log('Fetching clips...');
+                const res = await fetch('api/clips');
+                if(!res.ok) throw new Error(res.statusText);
+                return await res.json();
+            },
+            save: async(t,c,m={}) => {
+                console.log(`Saving ${t}...`);
+                let b=c;
+                if(c instanceof Blob) {
+                    b = await new Promise(r => {
+                        const q = new FileReader();
+                        q.onloadend = () => r(q.result);
+                        q.readAsDataURL(c);
+                    });
+                }
+                const res = await fetch('api/clips', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({type:t,content:b,metadata:m})
+                });
+                if(!res.ok) {
+                    const txt = await res.text();
+                    throw new Error(`Upload Failed: ${res.status} ${txt}`);
+                }
+            },
+            del: async(i) => await fetch(`api/clips/${i}`,{method:'DELETE'})
+        };
+
         const g=document.getElementById('grid'),e=document.getElementById('emptyState'),t=document.getElementById('toast'),s=document.getElementById('statusDot');
-        const showToast=m=>{t.textContent=m;t.classList.add('visible');setTimeout(()=>t.classList.remove('visible'),2000)};
-        const createCard=c=>{
-            const d=document.createElement('div');d.className='card';let m={};try{m=JSON.parse(c.metadata)}catch(x){}
-            d.innerHTML=(c.type==='image'?`<div class="preview-box"><img src="${c.content}" class="preview-img"></div>`:`<div class="preview-text">${c.content.replace(/</g,"&lt;")}</div>`)+`<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="API.del(${c.id});event.stopPropagation()">DEL</span></div>`;
-            d.onclick=async()=>{
-                if(c.type==='text'){await navigator.clipboard.writeText(c.content);showToast('Text Copied')}
-                else if(c.type==='image'){try{const res=await fetch(c.content);const blob=await res.blob();await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);showToast('Image Copied')}catch(e){showToast('Download started');const a=document.createElement('a');a.href=c.content;a.download=m.name||'img.png';a.click()}}
+
+        const showToast = m => {
+            t.textContent = m;
+            t.classList.add('visible');
+            console.log('Toast:', m);
+            setTimeout(() => t.classList.remove('visible'), 3000);
+        };
+
+        const createCard = c => {
+            const d=document.createElement('div');d.className='card';
+            let m={}; try{m=JSON.parse(c.metadata)}catch(x){}
+
+            d.innerHTML = (c.type==='image'
+                ? `<div class="preview-box"><img src="${c.content}" class="preview-img"></div>`
+                : `<div class="preview-text">${c.content.replace(/</g,"&lt;")}</div>`) +
+                `<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="API.del(${c.id});event.stopPropagation()">DEL</span></div>`;
+
+            d.onclick = async() => {
+                if(c.type==='text'){
+                    await navigator.clipboard.writeText(c.content);
+                    showToast('Text Copied');
+                } else if(c.type==='image'){
+                    try {
+                        const res=await fetch(c.content);
+                        const blob=await res.blob();
+                        await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);
+                        showToast('Image Copied');
+                    } catch(err) {
+                        console.error(err);
+                        showToast('Copy failed, downloading...');
+                        const a=document.createElement('a');
+                        a.href=c.content;
+                        a.download=m.name||'img.png';
+                        a.click();
+                    }
+                }
             };
             return d;
         };
-        const render=async()=>{try{const cs=await API.getAll();g.innerHTML='';g.appendChild(e);cs.forEach(c=>g.appendChild(createCard(c)));e.style.display=g.children.length>1?'none':'block';}catch(err){showToast('Connection Failed');console.error(err)}};
-        document.onpaste=async(v)=>{
-            const i=v.clipboardData.items; let h=false;
-            for(let x=0;x<i.length;x++){if(i[x].kind==='file'){h=true;const f=i[x].getAsFile();showToast('Uploading...');await API.save(f.type.startsWith('image/')?'image':'file',f,{name:f.name});}}
-            if(!h){const txt=v.clipboardData.getData('text/plain');if(txt)await API.save('text',txt);}
+
+        const render = async() => {
+            try {
+                const cs = await API.getAll();
+                g.innerHTML = '';
+                g.appendChild(e);
+                cs.forEach(c => g.appendChild(createCard(c)));
+                e.style.display = g.children.length > 1 ? 'none' : 'block';
+            } catch(err) {
+                showToast(`Error: ${err.message}`);
+                console.error('Render error:', err);
+            }
         };
-        (async()=>{await render();const es=new EventSource("api/events");es.onopen=()=>s.classList.add('connected');es.onerror=()=>s.classList.remove('connected');es.onmessage=()=>render();})();
+
+        document.onpaste = async(v) => {
+            console.log('Paste event triggered');
+            const i = v.clipboardData.items;
+            let h = false;
+            try {
+                for(let x=0; x<i.length; x++) {
+                    if(i[x].kind === 'file') {
+                        h = true;
+                        const f = i[x].getAsFile();
+                        showToast('Uploading File...');
+                        console.log('Uploading file:', f.name, f.size);
+                        await API.save(f.type.startsWith('image/') ? 'image' : 'file', f, {name:f.name});
+                    }
+                }
+                if(!h) {
+                    const txt = v.clipboardData.getData('text/plain');
+                    if(txt) {
+                        console.log('Uploading text:', txt.length, 'chars');
+                        await API.save('text', txt);
+                    }
+                }
+            } catch(err) {
+                showToast(`Upload Error: ${err.message}`);
+                console.error('Paste error:', err);
+            }
+        };
+
+        (async() => {
+            await render();
+            const es = new EventSource("api/events");
+            es.onopen = () => {
+                s.classList.add('connected');
+                console.log('SSE Connected');
+            };
+            es.onerror = (err) => {
+                s.classList.remove('connected');
+                console.error('SSE Error:', err);
+            };
+            es.onmessage = (msg) => {
+                console.log('SSE Message received');
+                render();
+            };
+        })();
     </script>
 </body>
 </html>
 EOF
 
-# 5. Build Rust Binary (Incremental)
-cd "$CLIPPY_DIR"
-# Stop service to allow overwrite if running
-systemctl stop clippy || true
-echo "Building Clippy (Release mode)..."
-cargo build --release
-
-# 6. Setup Systemd Service (Persistence)
-echo "Configuring Systemd Service..."
-cat << EOF > /etc/systemd/system/clippy.service
-[Unit]
-Description=Clippy Persistence Service
-After=network.target
-
-[Service]
-# Simple execution
-Type=simple
-User=root
-WorkingDirectory=$CLIPPY_DIR
-ExecStart=$CLIPPY_DIR/target/release/clippy_server
-Restart=always
-RestartSec=3
-
-# Basic hardening
-ProtectSystem=full
-# We need write access to the DB in the working dir
-ReadWritePaths=$CLIPPY_DIR
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 7. Enable & Restart Service
-systemctl daemon-reload
-systemctl enable clippy
-systemctl restart clippy
-echo -e "${GREEN}Clippy deployment complete. Service restarted.${NC}"
+echo -e "${GREEN}Setup Complete!${NC}"
+echo -e "To start the server, run:"
+echo -e "  ${YELLOW}cd $PROJECT_NAME && cargo run${NC}"
+echo -e "Then open your browser to: ${BLUE}http://localhost:3001${NC}"

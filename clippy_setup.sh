@@ -1,61 +1,52 @@
 #!/bin/bash
 #
 # ==============================================================================
-# CLIPPY LOCAL DEV SETUP (FIXED)
+# CLIPPY PRODUCTION INSTALLER
 # ==============================================================================
 #
-# This script sets up the 'Clippy' Rust application in your CURRENT directory.
+# This script builds and installs the 'Clippy' Rust application.
+# It is designed to be called by the main server_setup.sh script,
+# but can be run standalone to rebuild/update the app.
 #
-# UPDATES:
-# - FIXED: Resolved mapping conflict. removed #[sqlx(rename)] attribute and
-#   relying on explicit SQL aliasing (SELECT type as clip_type) to handle
-#   the reserved keyword 'type' safely.
+# ARTIFACT LOCATION: /var/www/clippy
 #
 # ==============================================================================
 
 set -e
 
 # --- Configuration ---
-PROJECT_NAME="clippy_dev"
-BASE_DIR="$(pwd)/$PROJECT_NAME"
+CLIPPY_ROOT="/var/www/clippy"
 
 # --- Colors ---
 BLUE='\033[0;34m'
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== STARTING CLIPPY LOCAL SETUP (FIXED) ===${NC}"
-echo -e "Target Directory: ${YELLOW}$BASE_DIR${NC}"
+echo -e "${BLUE}=== STARTING CLIPPY PRODUCTION BUILD ===${NC}"
 
-# 1. Check Rust
+# 1. Ensure Rust is available
 if ! command -v cargo &> /dev/null; then
-    echo -e "${YELLOW}Rust is not installed.${NC}"
-    echo "Please install via: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    exit 1
+    echo -e "${YELLOW}Rust/Cargo not found. Installing...${NC}"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+else
+    # Ensure env is loaded even if installed
+    if [ -f "$HOME/.cargo/env" ]; then source "$HOME/.cargo/env"; fi
 fi
 
-# 2. Scaffold Directory
-if [ -d "$BASE_DIR" ]; then
-    echo -e "${YELLOW}Directory $PROJECT_NAME already exists. backing up...${NC}"
-    mv "$BASE_DIR" "${BASE_DIR}_backup_$(date +%s)"
+# 2. Prepare Directory
+echo "Target: $CLIPPY_ROOT"
+mkdir -p "$CLIPPY_ROOT"
+cd "$CLIPPY_ROOT"
+
+# 3. Initialize Project (Idempotent)
+if [ ! -f "Cargo.toml" ]; then
+    echo "Initializing new Cargo project..."
+    cargo init --bin --name clippy_server
 fi
-
-echo "Creating project structure..."
-mkdir -p "$BASE_DIR"
-cd "$BASE_DIR"
-cargo init --bin --name clippy_server
-
-# 3. Create .gitignore
-cat << 'EOF' > .gitignore
-/target
-/clippy.db
-/clippy.db-shm
-/clippy.db-wal
-**/*.rs.bk
-EOF
 
 # 4. Write Cargo.toml
+# Always overwrite to ensure dependencies are up to date with the script
 echo "Configuring dependencies..."
 cat << 'EOF' > Cargo.toml
 [package]
@@ -78,8 +69,10 @@ chrono = "0.4"
 anyhow = "1.0"
 EOF
 
-# 5. Write src/main.rs (FIXED MAPPING)
+# 5. Write Source Code (src/main.rs)
+# Includes fixes for SQL 'type' keyword and sub-path routing
 echo "Writing backend logic..."
+mkdir -p src
 cat << 'EOF' > src/main.rs
 use axum::{
     extract::{DefaultBodyLimit, State},
@@ -100,7 +93,6 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 struct Clip {
     id: i64,
     #[serde(rename = "type")]
-    // FIXED: Removed #[sqlx(rename = "type")] to prevent conflict with SQL alias
     clip_type: String,
     content: String,
     metadata: String,
@@ -129,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let db_url = "sqlite:clippy.db";
+    // Ensure DB file creation happens in working directory
     if !std::path::Path::new("clippy.db").exists() {
         tracing::info!("Database not found. Creating clippy.db...");
         std::fs::File::create("clippy.db")?;
@@ -156,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
     let (tx, _rx) = broadcast::channel(100);
     let state = AppState { pool, tx };
 
+    // Core logic
     let app_logic = Router::new()
         .route("/api/clips", get(get_clips).post(create_clip))
         .route("/api/clips/:id", delete(delete_clip))
@@ -165,6 +159,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(CorsLayer::permissive());
 
+    // Routing: Supports sub-path '/clippy' specifically for Caddy reverse proxy
     let app = Router::new()
         .nest("/clippy", app_logic.clone())
         .merge(app_logic)
@@ -181,28 +176,23 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn get_clips(State(state): State<AppState>) -> Json<Vec<Clip>> {
-    tracing::debug!("Fetching all clips");
-    // FIXED: Query explicitly aliases 'type' to 'clip_type' to match the struct field
+    // Explicit aliasing to handle 'type' keyword
     let result = sqlx::query_as::<_, Clip>("SELECT id, type as clip_type, content, metadata, timestamp FROM clips ORDER BY id DESC")
         .fetch_all(&state.pool)
         .await;
-
     match result {
         Ok(clips) => Json(clips),
         Err(e) => {
-            tracing::error!("CRITICAL: Failed to fetch clips from DB: {:?}", e);
+            tracing::error!("DB Error: {:?}", e);
             Json(vec![])
         }
     }
 }
 
 async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateClip>) -> impl IntoResponse {
-    tracing::info!("Received new clip type: {}, size: {} chars", payload.clip_type, payload.content.len());
-
     let timestamp = chrono::Local::now().format("%I:%M:%S %p").to_string();
     let metadata_str = payload.metadata.to_string();
 
-    // Note: INSERT uses raw column name 'type', which is correct for SQL
     let result = sqlx::query("INSERT INTO clips (type, content, metadata, timestamp) VALUES (?, ?, ?, ?)")
         .bind(&payload.clip_type)
         .bind(&payload.content)
@@ -217,21 +207,15 @@ async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateCl
             let new_clip = Clip {
                 id, clip_type: payload.clip_type, content: payload.content, metadata: metadata_str, timestamp,
             };
-            tracing::info!("Broadcasting clip ID: {}", id);
             let _ = state.tx.send(new_clip);
             axum::http::StatusCode::CREATED
         }
-        Err(e) => {
-            tracing::error!("Failed to insert clip: {:?}", e);
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR
-        }
+        Err(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR
     }
 }
 
 async fn delete_clip(State(state): State<AppState>, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
-    tracing::info!("Deleting clip ID: {}", id);
-    if let Err(e) = sqlx::query("DELETE FROM clips WHERE id = ?").bind(id).execute(&state.pool).await {
-        tracing::error!("Database delete error: {:?}", e);
+    if let Err(_) = sqlx::query("DELETE FROM clips WHERE id = ?").bind(id).execute(&state.pool).await {
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
     }
     let _ = state.tx.send(Clip { id, clip_type: "DELETE_SIGNAL".to_string(), content: "".to_string(), metadata: "{}".to_string(), timestamp: "".to_string() });
@@ -239,7 +223,6 @@ async fn delete_clip(State(state): State<AppState>, axum::extract::Path(id): axu
 }
 
 async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> {
-    tracing::debug!("New SSE connection established");
     let rx = state.tx.subscribe();
     let stream = stream::unfold(rx, |mut rx| async move {
         match rx.recv().await {
@@ -251,7 +234,7 @@ async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Re
 }
 EOF
 
-# 6. Write index.html
+# 6. Write HTML Frontend
 echo "Writing frontend..."
 cat << 'EOF' > index.html
 <!DOCTYPE html>
@@ -297,13 +280,11 @@ cat << 'EOF' > index.html
     <script>
         const API={
             getAll: async() => {
-                console.log('Fetching clips...');
                 const res = await fetch('api/clips');
                 if(!res.ok) throw new Error(res.statusText);
                 return await res.json();
             },
             save: async(t,c,m={}) => {
-                console.log(`Saving ${t}...`);
                 let b=c;
                 if(c instanceof Blob) {
                     b = await new Promise(r => {
@@ -330,19 +311,16 @@ cat << 'EOF' > index.html
         const showToast = m => {
             t.textContent = m;
             t.classList.add('visible');
-            console.log('Toast:', m);
             setTimeout(() => t.classList.remove('visible'), 3000);
         };
 
         const createCard = c => {
             const d=document.createElement('div');d.className='card';
             let m={}; try{m=JSON.parse(c.metadata)}catch(x){}
-
             d.innerHTML = (c.type==='image'
                 ? `<div class="preview-box"><img src="${c.content}" class="preview-img"></div>`
                 : `<div class="preview-text">${c.content.replace(/</g,"&lt;")}</div>`) +
                 `<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="API.del(${c.id});event.stopPropagation()">DEL</span></div>`;
-
             d.onclick = async() => {
                 if(c.type==='text'){
                     await navigator.clipboard.writeText(c.content);
@@ -354,7 +332,6 @@ cat << 'EOF' > index.html
                         await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);
                         showToast('Image Copied');
                     } catch(err) {
-                        console.error(err);
                         showToast('Copy failed, downloading...');
                         const a=document.createElement('a');
                         a.href=c.content;
@@ -374,13 +351,11 @@ cat << 'EOF' > index.html
                 cs.forEach(c => g.appendChild(createCard(c)));
                 e.style.display = g.children.length > 1 ? 'none' : 'block';
             } catch(err) {
-                showToast(`Error: ${err.message}`);
                 console.error('Render error:', err);
             }
         };
 
         document.onpaste = async(v) => {
-            console.log('Paste event triggered');
             const i = v.clipboardData.items;
             let h = false;
             try {
@@ -389,45 +364,38 @@ cat << 'EOF' > index.html
                         h = true;
                         const f = i[x].getAsFile();
                         showToast('Uploading File...');
-                        console.log('Uploading file:', f.name, f.size);
                         await API.save(f.type.startsWith('image/') ? 'image' : 'file', f, {name:f.name});
                     }
                 }
                 if(!h) {
                     const txt = v.clipboardData.getData('text/plain');
-                    if(txt) {
-                        console.log('Uploading text:', txt.length, 'chars');
-                        await API.save('text', txt);
-                    }
+                    if(txt) await API.save('text', txt);
                 }
             } catch(err) {
                 showToast(`Upload Error: ${err.message}`);
-                console.error('Paste error:', err);
             }
         };
 
         (async() => {
             await render();
             const es = new EventSource("api/events");
-            es.onopen = () => {
-                s.classList.add('connected');
-                console.log('SSE Connected');
-            };
-            es.onerror = (err) => {
-                s.classList.remove('connected');
-                console.error('SSE Error:', err);
-            };
-            es.onmessage = (msg) => {
-                console.log('SSE Message received');
-                render();
-            };
+            es.onopen = () => s.classList.add('connected');
+            es.onerror = () => s.classList.remove('connected');
+            es.onmessage = () => render();
         })();
     </script>
 </body>
 </html>
 EOF
 
-echo -e "${GREEN}Setup Complete!${NC}"
-echo -e "To start the server, run:"
-echo -e "  ${YELLOW}cd $PROJECT_NAME && cargo run${NC}"
-echo -e "Then open your browser to: ${BLUE}http://localhost:3001${NC}"
+# 7. Build Release Binary
+echo "Compiling Clippy release build..."
+# Cargo is smart enough not to rebuild if files haven't changed
+cargo build --release
+
+# 8. Set Permissions for Caddy User
+# Caddy user needs to own the folder to write the sqlite db file
+echo "Setting permissions for Caddy..."
+chown -R caddy:caddy "$CLIPPY_ROOT"
+
+echo -e "${BLUE}=== CLIPPY BUILD COMPLETE ===${NC}"

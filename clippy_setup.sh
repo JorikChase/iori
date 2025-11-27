@@ -120,23 +120,20 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let db_url = "sqlite:clippy.db";
-    // Ensure DB file creation happens in working directory
-    if !std::path::Path::new("clippy.db").exists() {
-        tracing::info!("Database not found. Creating clippy.db...");
-        std::fs::File::create("clippy.db")?;
-    }
+    // FIXED: Use mode=rwc to ensure database is created correctly by sqlx
+    let db_url = "sqlite://clippy.db?mode=rwc";
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(db_url)
         .await?;
 
+    // FIXED: Quote the "type" column name to avoid keyword conflicts
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS clips (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL,
+            "type" TEXT NOT NULL,
             content TEXT NOT NULL,
             metadata TEXT NOT NULL,
             timestamp TEXT NOT NULL
@@ -176,8 +173,8 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn get_clips(State(state): State<AppState>) -> Json<Vec<Clip>> {
-    // Explicit aliasing to handle 'type' keyword
-    let result = sqlx::query_as::<_, Clip>("SELECT id, type as clip_type, content, metadata, timestamp FROM clips ORDER BY id DESC")
+    // Explicit aliasing and quoting for "type"
+    let result = sqlx::query_as::<_, Clip>(r#"SELECT id, "type" as clip_type, content, metadata, timestamp FROM clips ORDER BY id DESC"#)
         .fetch_all(&state.pool)
         .await;
     match result {
@@ -193,7 +190,8 @@ async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateCl
     let timestamp = chrono::Local::now().format("%I:%M:%S %p").to_string();
     let metadata_str = payload.metadata.to_string();
 
-    let result = sqlx::query("INSERT INTO clips (type, content, metadata, timestamp) VALUES (?, ?, ?, ?)")
+    // Quote "type" in insert
+    let result = sqlx::query(r#"INSERT INTO clips ("type", content, metadata, timestamp) VALUES (?, ?, ?, ?)"#)
         .bind(&payload.clip_type)
         .bind(&payload.content)
         .bind(&metadata_str)
@@ -210,7 +208,10 @@ async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateCl
             let _ = state.tx.send(new_clip);
             axum::http::StatusCode::CREATED
         }
-        Err(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        Err(e) => {
+            tracing::error!("Insert Error: {:?}", e);
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
 }
 
@@ -281,8 +282,17 @@ cat << 'EOF' > index.html
         const API={
             getAll: async() => {
                 const res = await fetch('api/clips');
-                if(!res.ok) throw new Error(res.statusText);
-                return await res.json();
+                if(!res.ok) {
+                    const txt = await res.text();
+                    throw new Error(`${res.status} Error: ${txt.substring(0, 50)}...`);
+                }
+                try {
+                    return await res.json();
+                } catch(e) {
+                    const txt = await res.text();
+                    console.error("Non-JSON Response:", txt);
+                    throw new Error("Server returned HTML (likely 502/500 Error)");
+                }
             },
             save: async(t,c,m={}) => {
                 let b=c;
@@ -352,6 +362,7 @@ cat << 'EOF' > index.html
                 e.style.display = g.children.length > 1 ? 'none' : 'block';
             } catch(err) {
                 console.error('Render error:', err);
+                showToast(err.message); // Show the error on screen
             }
         };
 

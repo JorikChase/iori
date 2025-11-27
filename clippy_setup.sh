@@ -70,7 +70,6 @@ anyhow = "1.0"
 EOF
 
 # 5. Write Source Code (src/main.rs)
-# Includes fixes for SQL 'type' keyword and sub-path routing
 echo "Writing backend logic..."
 mkdir -p src
 cat << 'EOF' > src/main.rs
@@ -120,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // FIXED: Use mode=rwc to ensure database is created correctly by sqlx
+    // Use mode=rwc so sqlx can create the DB file if missing
     let db_url = "sqlite://clippy.db?mode=rwc";
 
     let pool = SqlitePoolOptions::new()
@@ -128,7 +127,12 @@ async fn main() -> anyhow::Result<()> {
         .connect(db_url)
         .await?;
 
-    // FIXED: Quote the "type" column name to avoid keyword conflicts
+    // FIXED: Enable Write-Ahead Logging (WAL) for better concurrency and stability
+    sqlx::query("PRAGMA journal_mode=WAL;")
+        .execute(&pool)
+        .await?;
+
+    // FIXED: Quote the "type" column name
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS clips (
@@ -173,24 +177,25 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn get_clips(State(state): State<AppState>) -> Json<Vec<Clip>> {
-    // Explicit aliasing and quoting for "type"
     let result = sqlx::query_as::<_, Clip>(r#"SELECT id, "type" as clip_type, content, metadata, timestamp FROM clips ORDER BY id DESC"#)
         .fetch_all(&state.pool)
         .await;
     match result {
         Ok(clips) => Json(clips),
         Err(e) => {
-            tracing::error!("DB Error: {:?}", e);
+            tracing::error!("DB Fetch Error: {:?}", e);
             Json(vec![])
         }
     }
 }
 
 async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateClip>) -> impl IntoResponse {
+    // FIXED: Add explicit logging to confirm request reception
+    tracing::info!("Received POST request. Type: {}, Length: {}", payload.clip_type, payload.content.len());
+
     let timestamp = chrono::Local::now().format("%I:%M:%S %p").to_string();
     let metadata_str = payload.metadata.to_string();
 
-    // Quote "type" in insert
     let result = sqlx::query(r#"INSERT INTO clips ("type", content, metadata, timestamp) VALUES (?, ?, ?, ?)"#)
         .bind(&payload.clip_type)
         .bind(&payload.content)
@@ -205,18 +210,22 @@ async fn create_clip(State(state): State<AppState>, Json(payload): Json<CreateCl
             let new_clip = Clip {
                 id, clip_type: payload.clip_type, content: payload.content, metadata: metadata_str, timestamp,
             };
+            // Broadcast to SSE, but frontend will also manually refresh now
             let _ = state.tx.send(new_clip);
+            tracing::info!("Clip created successfully. ID: {}", id);
             axum::http::StatusCode::CREATED
         }
         Err(e) => {
-            tracing::error!("Insert Error: {:?}", e);
+            tracing::error!("DB Insert Error: {:?}", e);
             axum::http::StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
 async fn delete_clip(State(state): State<AppState>, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
-    if let Err(_) = sqlx::query("DELETE FROM clips WHERE id = ?").bind(id).execute(&state.pool).await {
+    tracing::info!("Received DELETE request for ID: {}", id);
+    if let Err(e) = sqlx::query("DELETE FROM clips WHERE id = ?").bind(id).execute(&state.pool).await {
+        tracing::error!("DB Delete Error: {:?}", e);
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
     }
     let _ = state.tx.send(Clip { id, clip_type: "DELETE_SIGNAL".to_string(), content: "".to_string(), metadata: "{}".to_string(), timestamp: "".to_string() });
@@ -224,6 +233,7 @@ async fn delete_clip(State(state): State<AppState>, axum::extract::Path(id): axu
 }
 
 async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> {
+    tracing::debug!("New SSE connection requested");
     let rx = state.tx.subscribe();
     let stream = stream::unfold(rx, |mut rx| async move {
         match rx.recv().await {
@@ -312,8 +322,15 @@ cat << 'EOF' > index.html
                     const txt = await res.text();
                     throw new Error(`Upload Failed: ${res.status} ${txt}`);
                 }
+                // FIXED: Manually refresh list on success.
+                // This ensures UI updates even if SSE is disconnected/broken.
+                await render();
             },
-            del: async(i) => await fetch(`api/clips/${i}`,{method:'DELETE'})
+            del: async(i) => {
+                await fetch(`api/clips/${i}`,{method:'DELETE'});
+                // FIXED: Refresh on delete too
+                await render();
+            }
         };
 
         const g=document.getElementById('grid'),e=document.getElementById('emptyState'),t=document.getElementById('toast'),s=document.getElementById('statusDot');
@@ -362,7 +379,7 @@ cat << 'EOF' > index.html
                 e.style.display = g.children.length > 1 ? 'none' : 'block';
             } catch(err) {
                 console.error('Render error:', err);
-                showToast(err.message); // Show the error on screen
+                showToast(err.message);
             }
         };
 
@@ -384,6 +401,7 @@ cat << 'EOF' > index.html
                 }
             } catch(err) {
                 showToast(`Upload Error: ${err.message}`);
+                console.error(err);
             }
         };
 
@@ -392,6 +410,7 @@ cat << 'EOF' > index.html
             const es = new EventSource("api/events");
             es.onopen = () => s.classList.add('connected');
             es.onerror = () => s.classList.remove('connected');
+            // We still listen to SSE for updates from OTHER users
             es.onmessage = () => render();
         })();
     </script>

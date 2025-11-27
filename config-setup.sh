@@ -137,8 +137,9 @@ sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
 futures = "0.3"
 tokio-stream = "0.1"
+# Fixed: Added "env-filter" feature to tracing-subscriber
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = "0.4"
 anyhow = "1.0"
 EOF
@@ -148,13 +149,13 @@ EOF
 use axum::{
     extract::State,
     response::{sse::{Event, Sse}, IntoResponse},
-    routing::{get, post, delete},
+    routing::{get, delete},
     Json, Router,
 };
 use futures::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, FromRow, SqlitePool};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -268,7 +269,7 @@ async fn delete_clip(State(state): State<AppState>, axum::extract::Path(id): axu
 }
 
 async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> {
-    let mut rx = state.tx.subscribe();
+    let rx = state.tx.subscribe();
     let stream = stream::unfold(rx, |mut rx| async move {
         match rx.recv().await {
             Ok(clip) => Some((Ok(Event::default().json_data(clip).unwrap()), rx)),

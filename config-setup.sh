@@ -49,12 +49,15 @@ ensure_root() {
 install_dependencies() {
     echo -e "${BLUE}--- [1/6] Ensuring System Dependencies ---${NC}"
 
-    # Basic tools
-    if ! command -v rsync &> /dev/null || ! command -v curl &> /dev/null; then
-        echo "Installing basic tools..."
-        apt-get update -q
-        apt-get install -y -q curl rsync git ufw debian-keyring debian-archive-keyring apt-transport-https
-    fi
+    echo "Updating package lists..."
+    apt-get update -q
+
+    echo "Installing build tools and dependencies..."
+    # Added build-essential (for linker 'cc'), libssl-dev/pkg-config (for Rust crypto deps)
+    apt-get install -y -q \
+        curl rsync git ufw \
+        build-essential libssl-dev pkg-config \
+        debian-keyring debian-archive-keyring apt-transport-https
 
     # Install Rust (if missing)
     if ! command -v cargo &> /dev/null; then

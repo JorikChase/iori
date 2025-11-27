@@ -281,6 +281,7 @@ async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Re
 EOF
 
     # index.html
+    # UPDATED: Uses relative paths 'api/...' instead of absolute '/api/...' to support subdirectory hosting
     cat << 'EOF' > "$CLIPPY_DIR/index.html"
 <!DOCTYPE html>
 <html lang="en">
@@ -322,7 +323,8 @@ EOF
     </div>
     <div id="toast">Copied</div>
     <script>
-        const API={getAll:async()=>await(await fetch('/api/clips')).json(),save:async(t,c,m={})=>{let b=c;if(c instanceof Blob)b=await new Promise(r=>{const q=new FileReader();q.onloadend=()=>r(q.result);q.readAsDataURL(c)});await fetch('/api/clips',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:t,content:b,metadata:m})})},del:async(i)=>await fetch(`/api/clips/${i}`,{method:'DELETE'})};
+        // UPDATED: Removed leading '/' from API paths to support subdirectory (e.g. iori.me/clippy/)
+        const API={getAll:async()=>await(await fetch('api/clips')).json(),save:async(t,c,m={})=>{let b=c;if(c instanceof Blob)b=await new Promise(r=>{const q=new FileReader();q.onloadend=()=>r(q.result);q.readAsDataURL(c)});await fetch('api/clips',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:t,content:b,metadata:m})})},del:async(i)=>await fetch(`api/clips/${i}`,{method:'DELETE'})};
         const g=document.getElementById('grid'),e=document.getElementById('emptyState'),t=document.getElementById('toast'),s=document.getElementById('statusDot');
         const showToast=m=>{t.textContent=m;t.classList.add('visible');setTimeout(()=>t.classList.remove('visible'),2000)};
         const createCard=c=>{
@@ -340,7 +342,7 @@ EOF
             for(let x=0;x<i.length;x++){if(i[x].kind==='file'){h=true;const f=i[x].getAsFile();showToast('Uploading...');await API.save(f.type.startsWith('image/')?'image':'file',f,{name:f.name});}}
             if(!h){const txt=v.clipboardData.getData('text/plain');if(txt)await API.save('text',txt);}
         };
-        (async()=>{await render();const es=new EventSource("/api/events");es.onopen=()=>s.classList.add('connected');es.onerror=()=>s.classList.remove('connected');es.onmessage=()=>render();})();
+        (async()=>{await render();const es=new EventSource("api/events");es.onopen=()=>s.classList.add('connected');es.onerror=()=>s.classList.remove('connected');es.onmessage=()=>render();})();
     </script>
 </body>
 </html>
@@ -398,7 +400,7 @@ configure_server() {
 
     echo -e "${BLUE}--- [5/6] Writing Caddyfile ---${NC}"
 
-    # Check if we should setup c.iori.me
+    # Updated Caddyfile: Uses /clippy path on iori.me to avoid DNS issues with c.iori.me
     cat << EOF > /etc/caddy/Caddyfile
 {
     log {
@@ -407,26 +409,33 @@ configure_server() {
     }
 }
 
-# 1. Main Static Site
+# 1. Main Static Site & Clippy
 iori.me {
-    root * $IORI_WEB_ROOT
-    file_server {
-        index web.html index.html
+    # A. Clippy Route (/clippy/* -> localhost:3001)
+
+    # Redirect /clippy to /clippy/ to ensure relative paths in index.html work
+    redir /clippy /clippy/
+
+    # Handle the subpath request
+    handle_path /clippy/* {
+        reverse_proxy localhost:$CLIPPY_PORT
     }
-    # SPA/Fallback routing
-    try_files {path} {path}/ /web.html
+
+    # B. Static Site (Default Handle)
+    handle {
+        root * $IORI_WEB_ROOT
+        file_server {
+            index web.html index.html
+        }
+        # SPA/Fallback routing
+        try_files {path} {path}/ /web.html
+    }
 }
 
 # 2. Secondary Static Site
 3die.fr {
     root * $IORI_WEB_ROOT
     file_server
-}
-
-# 3. Clippy App (Subdomain Strategy)
-# Ensure you set an A record for c.iori.me -> Server IP
-c.iori.me {
-    reverse_proxy localhost:$CLIPPY_PORT
 }
 EOF
 
@@ -456,7 +465,7 @@ echo "--------------------------------------------------------"
 echo "1. Iori.me   : Served from $IORI_WEB_ROOT"
 echo "2. 3die.fr   : Served from $IORI_WEB_ROOT"
 echo "3. Clippy    : Running as 'clippy.service' on Port $CLIPPY_PORT"
-echo "   -> Access : https://c.iori.me (Requires DNS A Record)"
+echo "   -> Access : https://iori.me/clippy/ (No extra DNS needed)"
 echo "   -> Backup : http://<YOUR_IP>:$CLIPPY_PORT (Direct access)"
 echo "--------------------------------------------------------"
 echo "To check logs: journalctl -u clippy -f"

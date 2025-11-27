@@ -1,14 +1,15 @@
 #!/bin/bash
 #
 # ==============================================================================
-# UNIFIED SERVER SETUP: IORI + CLIPPY (FIXED)
+# UNIFIED SERVER SETUP: IORI + CLIPPY
 # ==============================================================================
 #
-# Changelog:
-# - Rust: Increased Body Limit to 50MB (Fixes silent upload rejections)
-# - HTML: Added Drag-and-Drop event listeners
-# - HTML: Added Error handling for API fetch requests
-# - HTML: Added "Optimistic Updates" (Manual refresh on save/delete) to fix UI lag if SSE fails
+# This script manages the full deployment of the server.
+# It is idempotent (safe to run multiple times).
+#
+# MODES:
+#   bash server_setup.sh           -> Full deploy (Git Pull + Build + Config)
+#   bash server_setup.sh --local   -> Skip Git pull (only sync local files & rebuild app)
 #
 # ==============================================================================
 
@@ -52,6 +53,7 @@ install_dependencies() {
     apt-get update -q
 
     echo "Installing build tools and dependencies..."
+    # Added build-essential (for linker 'cc'), libssl-dev/pkg-config (for Rust crypto deps)
     apt-get install -y -q \
         curl rsync git ufw \
         build-essential libssl-dev pkg-config \
@@ -103,6 +105,7 @@ deploy_iori() {
     # 2. Sync Files
     echo "Syncing files to $IORI_WEB_ROOT..."
     mkdir -p "$IORI_WEB_ROOT"
+    # rsync --delete ensures deleted source files are removed from web root (saves storage)
     rsync -a --delete "$IORI_REPO_DIR/" "$IORI_WEB_ROOT/"
     chown -R caddy:caddy "$IORI_WEB_ROOT"
 }
@@ -116,7 +119,7 @@ deploy_clippy() {
 
     mkdir -p "$CLIPPY_DIR/src"
 
-    # 1. Write Source Files
+    # 1. Write Source Files (Idempotent: Overwrites code to ensure latest version)
 
     # Cargo.toml
     cat << 'EOF' > "$CLIPPY_DIR/Cargo.toml"
@@ -134,16 +137,17 @@ sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite"] }
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
 futures = "0.3"
 tokio-stream = "0.1"
+# Fixed: Added "env-filter" feature to tracing-subscriber
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = "0.4"
 anyhow = "1.0"
 EOF
 
-    # src/main.rs (FIXED: Added DefaultBodyLimit)
+    # src/main.rs
     cat << 'EOF' > "$CLIPPY_DIR/src/main.rs"
 use axum::{
-    extract::{State, DefaultBodyLimit},
+    extract::State,
     response::{sse::{Event, Sse}, IntoResponse},
     routing::{get, delete},
     Json, Router,
@@ -219,8 +223,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/clips/:id", delete(delete_clip))
         .route("/api/events", get(sse_handler))
         .nest_service("/", ServeDir::new("."))
-        // FIXED: Increased body limit to 50MB to allow large screenshots/files
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
@@ -278,7 +280,8 @@ async fn sse_handler(State(state): State<AppState>) -> Sse<impl Stream<Item = Re
 }
 EOF
 
-    # index.html (FIXED: Optimistic Updates + Drag Handlers)
+    # index.html
+    # UPDATED: Uses relative paths 'api/...' instead of absolute '/api/...' to support subdirectory hosting
     cat << 'EOF' > "$CLIPPY_DIR/index.html"
 <!DOCTYPE html>
 <html lang="en">
@@ -288,7 +291,7 @@ EOF
     <title>CLIPPY // SYNC</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #050505; --surface: rgba(255, 255, 255, 0.03); --border: rgba(255, 255, 255, 0.1); --accent: #00f0ff; --error: #ff3333; --text-main: #e0e0e0; --font: 'Space Grotesk', sans-serif; }
+        :root { --bg: #050505; --surface: rgba(255, 255, 255, 0.03); --border: rgba(255, 255, 255, 0.1); --accent: #00f0ff; --text-main: #e0e0e0; --font: 'Space Grotesk', sans-serif; }
         * { box-sizing: border-box; outline: none; }
         body { margin: 0; background: var(--bg); background-image: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 50%), linear-gradient(0deg, rgba(0,0,0,0.2) 50%, transparent 50%); background-size: 100% 100%, 4px 4px; color: var(--text-main); font-family: var(--font); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         .actions { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); backdrop-filter: blur(10px); }
@@ -305,7 +308,6 @@ EOF
         .card:hover .delete-btn { opacity: 1; }
         #toast { position: fixed; bottom: 30px; right: 30px; background: var(--bg); border: 1px solid var(--accent); color: var(--accent); padding: 12px 24px; font-size: 12px; text-transform: uppercase; opacity: 0; transition: all 0.3s; transform: translateY(100px); z-index: 50; box-shadow: 0 0 25px rgba(0, 240, 255, 0.15); }
         #toast.visible { transform: translateY(0); opacity: 1; }
-        #toast.error { border-color: var(--error); color: var(--error); box-shadow: 0 0 25px rgba(255, 51, 51, 0.15); }
         .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0.4; pointer-events: none; text-align: center; }
         kbd { border: 1px solid #666; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 11px; }
     </style>
@@ -321,159 +323,26 @@ EOF
     </div>
     <div id="toast">Copied</div>
     <script>
-        // API Interface with Error Handling
-        const API = {
-            getAll: async () => await (await fetch('api/clips')).json(),
-            save: async (t, c, m = {}) => {
-                let b = c;
-                if (c instanceof Blob) {
-                    b = await new Promise(r => {
-                        const q = new FileReader();
-                        q.onloadend = () => r(q.result);
-                        q.readAsDataURL(c);
-                    });
-                }
-                const res = await fetch('api/clips', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: t, content: b, metadata: m })
-                });
-                if (!res.ok) throw new Error(res.status + " " + res.statusText);
-            },
-            del: async (i) => await fetch(`api/clips/${i}`, { method: 'DELETE' })
-        };
-
-        const g = document.getElementById('grid'),
-              e = document.getElementById('emptyState'),
-              t = document.getElementById('toast'),
-              s = document.getElementById('statusDot');
-
-        const showToast = (m, isErr = false) => {
-            t.textContent = m;
-            t.className = isErr ? 'error' : '';
-            t.classList.add('visible');
-            setTimeout(() => t.classList.remove('visible'), 3000);
-        };
-
-        // Render function (Main UI Update)
-        const render = async () => {
-            try {
-                const cs = await API.getAll();
-                g.innerHTML = '';
-                g.appendChild(e);
-                cs.forEach(c => g.appendChild(createCard(c)));
-                e.style.display = g.children.length > 1 ? 'none' : 'block';
-            } catch (err) {
-                console.error("Render failed", err);
-            }
-        };
-
-        // Helper to delete and immediately refresh
-        window.deleteClip = async (id) => {
-            try {
-                await API.del(id);
-                await render(); // Manual refresh
-            } catch(e) { showToast("Delete Failed", true); }
-        };
-
-        const createCard = c => {
-            const d = document.createElement('div');
-            d.className = 'card';
-            let m = {};
-            try { m = JSON.parse(c.metadata) } catch (x) {}
-
-            d.innerHTML = (c.type === 'image'
-                ? `<div class="preview-box"><img src="${c.content}" class="preview-img"></div>`
-                : `<div class="preview-text">${c.content.replace(/</g, "&lt;")}</div>`) +
-                `<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="deleteClip(${c.id});event.stopPropagation()">DEL</span></div>`;
-
-            d.onclick = async () => {
-                if (c.type === 'text') {
-                    await navigator.clipboard.writeText(c.content);
-                    showToast('Text Copied');
-                } else if (c.type === 'image') {
-                    try {
-                        const res = await fetch(c.content);
-                        const blob = await res.blob();
-                        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                        showToast('Image Copied');
-                    } catch (e) {
-                        showToast('Download started');
-                        const a = document.createElement('a');
-                        a.href = c.content;
-                        a.download = m.name || 'img.png';
-                        a.click();
-                    }
-                }
+        // UPDATED: Removed leading '/' from API paths to support subdirectory (e.g. iori.me/clippy/)
+        const API={getAll:async()=>await(await fetch('api/clips')).json(),save:async(t,c,m={})=>{let b=c;if(c instanceof Blob)b=await new Promise(r=>{const q=new FileReader();q.onloadend=()=>r(q.result);q.readAsDataURL(c)});await fetch('api/clips',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:t,content:b,metadata:m})})},del:async(i)=>await fetch(`api/clips/${i}`,{method:'DELETE'})};
+        const g=document.getElementById('grid'),e=document.getElementById('emptyState'),t=document.getElementById('toast'),s=document.getElementById('statusDot');
+        const showToast=m=>{t.textContent=m;t.classList.add('visible');setTimeout(()=>t.classList.remove('visible'),2000)};
+        const createCard=c=>{
+            const d=document.createElement('div');d.className='card';let m={};try{m=JSON.parse(c.metadata)}catch(x){}
+            d.innerHTML=(c.type==='image'?`<div class="preview-box"><img src="${c.content}" class="preview-img"></div>`:`<div class="preview-text">${c.content.replace(/</g,"&lt;")}</div>`)+`<div class="meta"><span>${c.type}</span><span class="delete-btn" onclick="API.del(${c.id});event.stopPropagation()">DEL</span></div>`;
+            d.onclick=async()=>{
+                if(c.type==='text'){await navigator.clipboard.writeText(c.content);showToast('Text Copied')}
+                else if(c.type==='image'){try{const res=await fetch(c.content);const blob=await res.blob();await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);showToast('Image Copied')}catch(e){showToast('Download started');const a=document.createElement('a');a.href=c.content;a.download=m.name||'img.png';a.click()}}
             };
             return d;
         };
-
-        const handleFiles = async (items) => {
-            for (let x = 0; x < items.length; x++) {
-                const item = items[x];
-                const f = item.kind === 'file' ? item.getAsFile() : item;
-                if (f instanceof File) {
-                    showToast('Uploading...');
-                    try {
-                        await API.save(f.type.startsWith('image/') ? 'image' : 'file', f, { name: f.name });
-                        showToast('Uploaded');
-                        await render(); // Manual refresh after upload
-                    } catch (err) {
-                        console.error(err);
-                        showToast('Upload Failed: ' + err.message, true);
-                    }
-                }
-            }
+        const render=async()=>{try{const cs=await API.getAll();g.innerHTML='';g.appendChild(e);cs.forEach(c=>g.appendChild(createCard(c)));e.style.display=g.children.length>1?'none':'block';}catch(err){showToast('Connection Failed');console.error(err)}};
+        document.onpaste=async(v)=>{
+            const i=v.clipboardData.items; let h=false;
+            for(let x=0;x<i.length;x++){if(i[x].kind==='file'){h=true;const f=i[x].getAsFile();showToast('Uploading...');await API.save(f.type.startsWith('image/')?'image':'file',f,{name:f.name});}}
+            if(!h){const txt=v.clipboardData.getData('text/plain');if(txt)await API.save('text',txt);}
         };
-
-        document.onpaste = async (v) => {
-            const i = v.clipboardData.items;
-            let h = false;
-            for (let x = 0; x < i.length; x++) {
-                if (i[x].kind === 'file') {
-                    h = true;
-                    await handleFiles([i[x]]);
-                }
-            }
-            if (!h) {
-                const txt = v.clipboardData.getData('text/plain');
-                if (txt) {
-                    try {
-                        await API.save('text', txt);
-                        showToast('Text Saved');
-                        await render(); // Manual refresh after text save
-                    } catch (err) {
-                        showToast('Save Failed', true);
-                    }
-                }
-            }
-        };
-
-        // Drag and Drop Logic
-        window.ondragover = (e) => { e.preventDefault(); };
-        window.ondrop = async (e) => {
-            e.preventDefault();
-            if (e.dataTransfer.files.length > 0) {
-                await handleFiles(e.dataTransfer.files);
-            }
-        };
-
-        (async () => {
-            await render();
-            // Try SSE, but don't rely on it for local actions
-            try {
-                const es = new EventSource("api/events");
-                es.onopen = () => s.classList.add('connected');
-                es.onerror = (e) => {
-                    s.classList.remove('connected');
-                    console.warn("SSE disconnected", e);
-                };
-                es.onmessage = () => render();
-            } catch (e) {
-                console.warn("SSE setup failed", e);
-            }
-        })();
+        (async()=>{await render();const es=new EventSource("api/events");es.onopen=()=>s.classList.add('connected');es.onerror=()=>s.classList.remove('connected');es.onmessage=()=>render();})();
     </script>
 </body>
 </html>
@@ -482,6 +351,7 @@ EOF
     # 2. Build Rust Binary (Incremental)
     cd "$CLIPPY_DIR"
     echo "Building Clippy (Release mode)..."
+    # This might take a moment, but Cargo caches dependencies in target/
     cargo build --release
 
     # 3. Setup Systemd Service (Persistence)
@@ -531,6 +401,10 @@ configure_server() {
     echo -e "${BLUE}--- [5/6] Writing Caddyfile ---${NC}"
 
     # Updated Caddyfile: Uses /clippy path on iori.me to avoid DNS issues with c.iori.me
+    # FIXES:
+    # 1. Used 'handle' + 'uri strip_prefix' instead of 'handle_path' to preserve leading slash for Upstream
+    # 2. Used 127.0.0.1 instead of localhost to avoid IPv6 issues
+    # 3. Added 'flush_interval -1' to disable buffering for SSE
     cat << EOF > /etc/caddy/Caddyfile
 {
     log {
@@ -547,8 +421,11 @@ iori.me {
     redir /clippy /clippy/
 
     # Handle the subpath request
-    handle_path /clippy/* {
-        reverse_proxy localhost:$CLIPPY_PORT
+    handle /clippy/* {
+        uri strip_prefix /clippy
+        reverse_proxy 127.0.0.1:$CLIPPY_PORT {
+            flush_interval -1
+        }
     }
 
     # B. Static Site (Default Handle)
@@ -592,9 +469,9 @@ configure_server
 echo ""
 echo -e "${GREEN}=== SETUP COMPLETE ===${NC}"
 echo "--------------------------------------------------------"
-echo "1. Iori.me    : Served from $IORI_WEB_ROOT"
-echo "2. 3die.fr    : Served from $IORI_WEB_ROOT"
-echo "3. Clippy     : Running as 'clippy.service' on Port $CLIPPY_PORT"
+echo "1. Iori.me   : Served from $IORI_WEB_ROOT"
+echo "2. 3die.fr   : Served from $IORI_WEB_ROOT"
+echo "3. Clippy    : Running as 'clippy.service' on Port $CLIPPY_PORT"
 echo "   -> Access : https://iori.me/clippy/ (No extra DNS needed)"
 echo "   -> Backup : http://<YOUR_IP>:$CLIPPY_PORT (Direct access)"
 echo "--------------------------------------------------------"

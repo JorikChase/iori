@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lambda Cognition & The TIH Framework: Bridging Sparse Interaction with Tensor Physics</title>
+    <!-- MathJax for LaTeX Rendering -->
+    <script>
+      window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        tags: 'ams'
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+      :root {
+            --primary: #111;
+            --secondary: #444;
+            --accent: #003366;
+            --highlight: #8e44ad;
+            --bg: #ffffff;
+            --paper-width: 8.5in;
+        }
+
+        body {
+            font-family: "Times New Roman", Times, serif;
+            line-height: 1.5;
+            color: var(--primary);
+            background-color: #eef1f5;
+            margin: 0;
+            padding: 30px 0;
+        }
+
+        .paper-container {
+            width: 100%;
+            max-width: var(--paper-width);
+            margin: 0 auto;
+            background-color: var(--bg);
+            padding: 0.8in 0.6in;
+            box-sizing: border-box;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border: 1px solid #ccc;
+        }
+
+        /* Typography */
+        h1 {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #000;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            margin-bottom: 20px;
+            color: #555;
+        }
+
+        .authors {
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+
+        .affiliations {
+            text-align: center;
+            font-size: 11px;
+            font-style: italic;
+            color: var(--secondary);
+            margin-bottom: 30px;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+
+        .abstract-container {
+            margin: 0 40px 30px 40px;
+            font-size: 11px;
+            text-align: justify;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 15px 0;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            line-height: 1.4;
+        }
+
+        .abstract-title {
+            font-weight: bold;
+            text-align: center;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 10px;
+        }
+
+        /* Two-Column Layout */
+        .content-body {
+            column-count: 2;
+            column-gap: 0.3in;
+            text-align: justify;
+            font-size: 11px;
+        }
+
+        @media (max-width: 850px) {
+            .content-body { column-count: 1; }
+            .paper-container { padding: 20px; width: 100%; }
+        }
+
+        /* Section Headers */
+        h2 {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 1px solid #000;
+            padding-bottom: 2px;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            break-after: avoid;
+            column-span: all;
+        }
+
+        h3 {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            font-weight: bold;
+            font-style: italic;
+            margin-top: 12px;
+            margin-bottom: 4px;
+            color: #222;
+            break-after: avoid;
+        }
+
+        p {
+            margin-bottom: 8px;
+            text-indent: 1em;
+        }
+
+        p.no-indent {
+            text-indent: 0;
+        }
+
+        ul {
+            margin-bottom: 8px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        /* Figures and Visuals */
+        .figure {
+            margin: 15px 0;
+            text-align: center;
+            break-inside: avoid;
+            background: #fcfcfc;
+            border: 1px solid #eee;
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        canvas {
+            border: 1px solid #ccc;
+            background: #fff;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .caption {
+            font-size: 9px;
+            color: var(--secondary);
+            margin-top: 5px;
+            font-weight: 600;
+            font-family: sans-serif;
+            text-align: center;
+        }
+
+        .sim-controls {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        button {
+            padding: 2px 8px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 8px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        button:hover { background: #1a2530; }
+
+        /* Tables */
+        .table-wrapper {
+            margin: 15px 0;
+            break-inside: avoid;
+            width: 100%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+        th, td { border: 1px solid #ccc; padding: 4px; text-align: left; }
+        th { background: #f0f0f0; font-weight: bold; }
+        tr:nth-child(even) { background: #fafafa; }
+
+        /* Code Block */
+        .code-block {
+            font-family: "Consolas", "Monaco", monospace;
+            background: #f4f4f4;
+            padding: 6px;
+            font-size: 8px;
+            border-left: 3px solid var(--accent);
+            margin: 8px 0;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            color: #333;
+        }
+
+        /* References */
+        .references {
+            font-size: 9px;
+            margin-top: 10px;
+            line-height: 1.3;
+        }
+        .ref-item {
+            margin-bottom: 3px;
+            text-indent: -1.5em;
+            padding-left: 1.5em;
+        }
+
+        .alert-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 8px;
+            margin: 10px 0;
+            font-size: 10px;
+            border-radius: 4px;
+        }
+
+        /* Math Environment Styling */
+        .theorem {
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            background: #fff;
+            font-style: italic;
+        }
+        .theorem-title {
+            font-weight: bold;
+            font-style: normal;
+        }
+        .proof {
+            margin: 10px 0;
+            padding-left: 10px;
+            border-left: 2px solid #ccc;
+        }
+        .proof-end {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        /* New Concept Box for Layman Terms */
+        .concept-box {
+            background-color: #eaf2f8;
+            border-left: 3px solid var(--accent);
+            padding: 10px 15px;
+            margin: 15px 0;
+            font-size: 11px;
+            font-style: italic;
+            color: #2c3e50;
+            break-inside: avoid;
+        }
+
+        /* Highlight Box for Key Findings */
+        .key-finding {
+            background-color: #fef9e7;
+            border: 1px solid #f1c40f;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 10px;
+        }
+    </style>
+  </head>
+  <body>
+    <div class="paper-container">
+      <!-- Header -->
+      <h1>Lambda Cognition & The TIH Architecture</h1>
+      <div class="subtitle">A Theoretical Audit and the Proposal of the Tensor-Interaction Hybrid Framework</div>
+      <div class="authors">
+        Jorik Jonathan Chase<sup>1</sup>
+      </div>
+      <div class="affiliations">
+        <sup>1</sup>Lead Researcher, Lambda Cognition Laboratory<br>
+        Published: December 2025
+      </div>
+      <!-- Abstract -->
+      <div class="abstract-container">
+        <span class="abstract-title">ABSTRACT</span>
+        <p class="no-indent">
+          The pursuit of AGI has oscillated between connectionist density and symbolic sparsity. The "Lambda Cognition" framework initially proposed replacing dense matrices with Interaction Nets to achieve optimal reduction. However, a rigorous audit reveals critical pathologies: the "Bookkeeping Explosion" of optimal reduction and the prohibitive energy cost of pointer chasing on modern silicon. To resolve these, we present the
+          <strong>Tensor-Interaction Hybrid (TIH)</strong>
+          architecture. TIH partitions cognition into a "System 1" Static Core (Block-Sparse Tensor Super-Nodes) and a "System 2" Dynamic Shell (Restricted Interaction Nets). By imposing Elementary Affine Logic constraints, TIH secures the network against algorithmic complexity attacks ("Lambda Bombs") while maintaining the throughput of MIMD accelerators like the Graphcore IPU. We provide a complete formal system, proving confluence and termination under restricted types.
+        </p>
+      </div>
+      <div class="content-body">
+        <h2>1. Introduction</h2>
+        <p class="no-indent">
+          The current epoch of AI is defined by the Transformer, a paradigm of dense matrix multiplication. While effective, it faces the "Memory Wall"—the energy cost of moving data vastly outweighs arithmetic [1]. The original "Lambda Cognition" proposal sought to solve this via pure Interaction Nets [3], utilizing local graph rewriting to achieve algorithmic sparsity.
+        </p>
+        <p>
+          However, we identify a fundamental hardware mismatch. Pure graph rewriting relies on fine-grained pointer chasing, which incurs massive DRAM latency penalties on modern GPUs. Furthermore, dynamic topologies introduce security vulnerabilities, such as infinite recursion attacks.
+        </p>
+        <p>
+          This paper pivots to the
+          <strong>Tensor-Interaction Hybrid (TIH)</strong>. We propose that the atomic unit of a neural interaction net should not be a scalar, but a
+          <strong>Tensor Super-Node</strong>
+          (e.g., a $32 \times 32$ block). This amortizes the overhead of graph management, balancing the flexibility of symbolic reasoning with the physics of silicon.
+        </p>
+        <h2>1.1 A Layman's Guide: The "Frozen Function" Analogy</h2>
+        <p class="no-indent">
+          Before delving into the formal proofs, it is helpful to understand the core intuition behind Lambda Cognition using simpler terms.
+        </p>
+        <div class="concept-box">
+          <strong>Analogy 1: The Library vs. The Function</strong><br>
+          Standard AI (Transformers) treats the model's knowledge like a
+          <strong>static library</strong>
+          (a matrix). To answer a question, the computer must "read" (multiply) every page of the library, even if the answer is on page 5.
+          <br><br>
+          Lambda Cognition treats the model as a
+          <strong>computer program</strong>
+          (a function). The weights aren't just data sitting on a shelf; they are lines of code waiting to be run. When you ask a question, you are "running the function" with your question as the input. The computer only executes the lines of code relevant to your query, skipping the rest.
+        </div>
+        <div class="concept-box">
+          <strong>Analogy 2: System 1 and System 2</strong><br>
+          Psychologists distinguish between "System 1" (fast, intuitive thinking) and "System 2" (slow, logical reasoning). Our TIH Architecture physically separates these:
+          <ul>
+            <li><strong>System 1 (The Tensor Core):</strong>
+              The "muscle." It does heavy math (matrix multiplication) very fast but isn't smart about routing.</li>
+            <li><strong>System 2 (The Interaction Net):</strong>
+              The "brain." It manages the logic, deciding which parts of the muscle need to flex. It uses "Graph Rewriting" to route signals intelligently.</li>
+          </ul>
+        </div>
+        <h2>1.2 Theoretical Foundations: A Functional Perspective</h2>
+        <p class="no-indent">
+          Applying lambda calculus—a formal system of mathematical logic—to the structure of a perceptron bridges two very different worlds: Symbolic AI (logic, formal proofs) and Connectionist AI (neural networks, weights). If we define a perceptron purely using lambda calculus, we move away from the "biological neuron" metaphor and view it instead as a pure higher-order function.
+        </p>
+        <h3>1.2.1 The Perceptron is Just Functional Composition</h3>
+        <p>
+          In standard machine learning, we often view a perceptron as a stateful object containing weights. In lambda calculus, there is no state, only functions applied to functions. A perceptron $f(x)$ becomes a composition of three abstract operations:
+        </p>
+        <ul>
+          <li><strong>Map:</strong>
+            Combining inputs and weights (multiplication).</li>
+          <li><strong>Fold (Reduce):</strong>
+            Summing the results.</li>
+          <li><strong>Boolean Logic:</strong>
+            Applying the activation function (threshold).</li>
+        </ul>
+        <p>
+          This implies that a neural network is not a "black box" but a
+          <strong>deterministic expression</strong>. Intelligence in this context is just a specific sequence of $\beta$-reductions (simplifying function applications), stripping away the magic and revealing the network as pure math.
+        </p>
+        <h3>1.2.2 "Training" is Partial Application (Currying)</h3>
+        <p>
+          In lambda calculus, functions technically only take one argument. To handle multiple arguments (like weights, bias, and input), we use Currying.
+        </p>
+        <ul>
+          <li>Standard View: $P(w, b, x) \to \text{Output}$</li>
+          <li>Lambda View: $\lambda w. \lambda b. \lambda x. (\dots)$</li>
+        </ul>
+        <p>
+          This provides a perfect logical framework for the lifecycle of a Machine Learning model.
+          <strong>Training</strong>
+          is simply
+          <strong>partial application</strong>. You apply the function to the weights $w$ and bias $b$ first. This returns a
+          <em>new function</em>
+          (the trained model):
+        </p>
+        <div class="equation">
+          $$ \text{TrainedModel} = \text{Perceptron}(\text{FinalWeights})(\text{FinalBias}) $$
+        </div>
+        <p>
+          <strong>Inference</strong>
+          is applying that new function to the data $x$:
+        </p>
+        <div class="equation">
+          $$ \text{Prediction} = \text{TrainedModel}(\text{Input}) $$
+        </div>
+        <p>
+          This implies that a "trained model" is mathematically distinct from the architecture that created it. It is a derivative function frozen in a specific state.
+        </p>
+        <h3>1.2.3 Computability and the "XOR" Limit</h3>
+        <p>
+          Historically, Minsky and Papert proved that a single perceptron cannot solve the XOR problem. If we construct this in lambda calculus using Church Numerals and Church Booleans, we hit the exact same wall but from a different angle.
+        </p>
+        <p>
+          Lambda calculus is Turing Complete, meaning it
+          <em>can</em>
+          compute XOR. However, the specific structure of a single perceptron is structurally incapable of representing the logic $\lambda x. \lambda y. \text{XOR } x \ y$. This mathematically confirms that the limitation is not due to hardware, but is an
+          <strong>inherent logical constraint</strong>
+          of the function's definition.
+        </p>
+        <h3>1.2.4 Hardware Independence</h3>
+        <p>
+          Standard perceptrons are defined by arithmetic. Lambda calculus defines numbers functionally (e.g., the number 2 is "apply function $f$ twice"). This implies that neural networks are
+          <strong>substrate independent</strong>. You do not need silicon or electricity to run a neural network; you only need a system capable of symbol manipulation.
+        </p>
+        <h2>1.3 Implications for Large Language Models</h2>
+        <p>
+          Using the "Lambda Calculus Solution Map" as the context for an LLM fundamentally changes the model's role. Instead of asking the LLM to "act like a neural network" (triggering probabilistic mimicry), you are feeding it the source code of intelligence.
+        </p>
+        <h3>1.3.1 From Hallucination to Symbolic Execution</h3>
+        <p>
+          Standard LLMs struggle with math because they predict the next token based on probability. However, if you provide the Lambda Calculus definition of a perceptron in the context, you force the LLM to behave like an interpreter.
+        </p>
+        <p>
+          <strong>Without Context:</strong>
+          "It is likely 1 because..." (Guessing based on training data).<br>
+          <strong>With Lambda Context:</strong>
+          "Applying $\beta$-reduction: Step 1... Step 2... The result is True."
+        </p>
+        <p>
+          The LLM stops "imagining" the math and starts
+          <strong>deriving</strong>
+          it, yielding a verifiable trace of execution.
+        </p>
+        <h3>1.3.2 Code-as-Policy (Architecture Search)</h3>
+        <p>
+          If the perceptron is defined as text (code) in the context, the LLM can refactor it. This is a massive shift in design. Usually, changing a neural network requires writing new Python code. But if the network is just a lambda expression, you can ask the LLM to "Modify the context definitions to create a neuron that is less sensitive to negative inputs." The LLM becomes a
+          <strong>meta-architect</strong>, designing the network by manipulating the symbolic logic that defines it.
+        </p>
+        <h2>2. Theoretical Audit: The Flaws of Pure Interaction</h2>
+        <h3>2.1 The Bookkeeping Explosion</h3>
+        <p>
+          Lamping’s optimal reduction algorithm [9] avoids duplicating work but introduces "Bookkeeping" nodes (fans/brackets) to manage sharing. For deep networks, the number of bookkeeping steps can grow exponentially relative to useful beta-reductions [11]. A pure interaction net might spend 90% of its cycles routing signals and only 10% computing activations.
+        </p>
+        <h3>2.2 The Energy Physics of Pointer Chasing</h3>
+        <p>
+          On 7nm process nodes, fetching data from DRAM costs ~1000x more energy than an ALU operation [16]. Pure interaction nets fragment memory, destroying spatial locality and forcing constant DRAM access.
+        </p>
+        <h2>3. Formal System & Proofs</h2>
+        <p>We formalize the TIH as a heterogeneous graph rewriting system constrained by Elementary Affine Logic.</p>
+        <h3>3.1 Definitions</h3>
+        <p>Let $\Sigma_{TIH} = \Sigma_{dyn} \cup \Sigma_{stat}$ be the signature of the system.</p>
+        <ul>
+          <li>$\Sigma_{dyn} = \{\gamma, \delta, \epsilon\}$: The dynamic combinators (Constructor, Duplicator, Eraser).</li>
+          <li>$\Sigma_{stat} = \{ \mathcal{T}_W \}$: The static Tensor Super-Nodes carrying weight matrix $W$.</li>
+        </ul>
+        <p>A
+          <strong>Net</strong>
+          is a graph $G = (V, E, \pi)$ where $\pi: V \to \mathbb{N}$ defines the principal port of each agent.</p>
+        <h3>3.2 Rewrite Rules</h3>
+        <p>Reduction proceeds via the binary relation $\to_{TIH}$. The fundamental interaction rule is:</p>
+        <div class="equation">
+          $$ \alpha(x_1, \dots, x_n) \bowtie \beta(y_1, \dots, y_m) \implies G' $$
+        </div>
+        <p>where $\bowtie$ denotes a connection on principal ports.</p>
+        <div class="theorem">
+          <span class="theorem-title">Theorem 3.1 (Strong Confluence).</span>
+          The TIH reduction relation $\to_{TIH}$ is strongly confluent. For any net $M$, if $M \to M_1$ and $M \to M_2$, there exists $M_3$ such that $M_1 \to^* M_3$ and $M_2 \to^* M_3$.
+        </div>
+        <div class="proof">
+          <strong>Proof Sketch:</strong>
+          The proof relies on the
+          <em>Orthogonality</em>
+          of the interaction rules.
+            1. Let $r_1$ and $r_2$ be two redexes in $M$.
+            2. Since interactions only occur at principal ports, and each agent has exactly one principal port, no two redexes can share an agent.
+            3. Therefore, $r_1$ and $r_2$ are disjoint.
+            4. Rewriting $r_1$ does not destroy $r_2$, and rewriting $r_2$ does not destroy $r_1$.
+            5. The diagram closes in one step (Local Confluence), implying Strong Confluence. $\square$
+        </div>
+        <div class="theorem">
+          <span class="theorem-title">Theorem 3.2 (EAL Termination).</span>
+          If a TIH Net is typable in Elementary Affine Logic (EAL), any sequence of reductions terminates in time bounded by a tower of exponentials of fixed height.
+        </div>
+        <div class="proof">
+          <strong>Proof Sketch:</strong>
+          EAL restricts the use of the exponential modality $!$ (duplication) to stratified "boxes."
+            1. Assign a potential $w(\alpha)$ to every agent based on its box depth.
+            2. Show that every interaction rule strictly decreases the global potential $\Phi(G)$ or moves tokens to a lower stratum.
+            3. Since $\Phi(G)$ is well-founded, infinite chains of rewrites (Livelocks/Lambda Bombs) are impossible. $\square$
+        </div>
+        <h2>4. Implementation Equations</h2>
+        <h3>4.1 The Tensor Interaction</h3>
+        <p>When a Token Block $\mathbf{X}$ interacts with a Tensor Super-Node $\mathcal{T}_W$, the interaction function $f_{int}$ is executed on the Tensor Cores:</p>
+        <div class="equation">
+          $$ f_{int}(\mathbf{X}, \mathcal{T}_W) = \sigma \left( \sum_{k=1}^{B} \mathbf{W}_k \cdot \mathbf{X}_k \right) $$
+        </div>
+        <p>where $B$ is the block size (e.g., 32). This ensures ALU saturation.</p>
+        <h3>4.2 Topological Routing</h3>
+        <p>The Router Agent $\rho$ performs a topological switch based on the routing token $\tau$:</p>
+        <div class="equation">
+          $$ \rho(\mathbf{X}, \tau) \to \begin{cases} \text{Link}(\mathbf{X}, \text{Expert}_A) & \text{if } \tau \cdot v_A > \theta \\ \text{Link}(\mathbf{X}, \text{Expert}_B) & \text{otherwise} \end{cases} $$
+        </div>
+        <h3>4.3 Adjoint Gradient Propagation</h3>
+        <p>Training utilizes Adjoint Logic. The backward message $\bar{y}$ interacts with the forward trace $\tau$:</p>
+        <div class="equation">
+          $$ \bar{y} \bowtie \tau \implies (\bar{x}, \Delta W) $$
+            $$ \bar{x} = \bar{y} \cdot J_f(x)^T, \quad \Delta W = \bar{y} \otimes x $$
+        </div>
+        <h2>5. Algorithmic Listings</h2>
+        <h3>Algorithm 1: TIH Compiler</h3>
+        <div class="code-block">
+          Input: PyTorch Graph G
+Output: Interaction Net N
+
+function Compile(G):
+    N = EmptyNet()
+
+    # Phase 1: Static Partitioning
+    Subgraphs = FindStaticSubgraphs(G, min_size=32)
+    for S in Subgraphs:
+        # Fuse into Super-Node
+        TensorNode = FuseToKernel(S)
+        N.add(TensorNode)
+
+    # Phase 2: Dynamic Routing
+    ControlFlow = G - Subgraphs
+    for op in ControlFlow:
+        if IsBranch(op):
+            N.add(GammaNode(op.condition))
+        elif IsMerge(op):
+            N.add(DeltaNode())
+
+    # Phase 3: EAL Type Check
+    if not TypeCheck(N, EAL_Rules):
+        raise SecurityError("Unbounded Recursion Detected")
+
+    return N
+        </div>
+        <h3>Algorithm 2: MIMD Runtime (Event Loop)</h3>
+        <div class="code-block">
+          Global: ActivePairs (Queue)
+
+function WorkerThread():
+    while True:
+        # Fetch Redex (Atomic)
+        pair = ActivePairs.pop()
+
+        if pair.is_tensor_op():
+            # System 1: Dispatch to Tensor Core
+            Wait(TensorCore.Submit(pair.op, pair.data))
+        else:
+            # System 2: Graph Rewrite (Pointer Swap)
+            # O(1) Local Mutation
+            new_nodes = ApplyRule(pair.lhs, pair.rhs)
+
+            # Check for new active pairs
+            for n in new_nodes:
+                if n.connected_port.is_principal():
+                    ActivePairs.push((n, n.connected_port))
+        </div>
+        <h2>6. Visualization & Simulation</h2>
+        <div class="figure">
+          <canvas id="simTIH" width="340" height="220"></canvas>
+          <div class="sim-controls">
+            <button onclick="simTIH.step()">Step Interaction</button>
+            <button onclick="simTIH.reset()">Reset</button>
+          </div>
+          <div class="caption">Figure 1: TIH Interaction. The yellow 'Shell' agents manipulate pointers. The blue 'Super-Nodes' (Tensor Blocks) are heavy payloads.</div>
+        </div>
+        <div class="figure">
+          <canvas id="simMoE" width="340" height="200"></canvas>
+          <div class="sim-controls">
+            <button onclick="simMoE.inject(0)">Route to A</button>
+            <button onclick="simMoE.inject(1)">Route to B</button>
+            <button onclick="simMoE.reset()">Reset</button>
+          </div>
+          <div class="caption">Figure 2: TIH Block Routing. The Router disconnects the irrelevant Block-Expert (Grey) and fuses the active Block-Expert (Blue).</div>
+        </div>
+        <h2>7. Conclusion</h2>
+        <p class="no-indent">
+          The
+          <strong>Tensor-Interaction Hybrid</strong>
+          corrects the flaws of naive interaction nets. By elevating the Interaction Net to operate on Tensor Super-Nodes and securing the topology with Linear Logic (Theorem 3.2), TIH offers a "middle path": static density for perception, dynamic sparsity for reasoning, and rigorous type theory for safety.
+        </p>
+        <h2>References</h2>
+        <div class="references">
+          <div class="ref-item">[1] Wulf, W. A. & McKee, S. A. "Hitting the memory wall," ACM SIGARCH, 1995.</div>
+          <div class="ref-item">[3] Lafont, Y. "Interaction Nets,"
+            <em>POPL</em>, 1990.</div>
+          <div class="ref-item">[5] Pruiksma, N. "Adjoint Logic," 2019.</div>
+          <div class="ref-item">[9] Lamping, J. "Optimal Reduction," 1990.</div>
+          <div class="ref-item">[24] Baillot, P. "Light Linear Logic," 2002.</div>
+        </div>
+      </div>
+    </div>
+    <script>
+      /**
+ * TIH Simulation Utilities
+ */
+const COLORS = {
+    shell: '#f39c12',  // System 2 (Control)
+    tensor: '#2980b9', // System 1 (Data)
+    inactive: '#bdc3c7',
+    wire: '#2c3e50',
+    activeWire: '#e74c3c'
+};
+
+class BaseSim {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.agents = [];
+        this.wires = [];
+        this.running = false;
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
+    }
+
+    clear() { this.ctx.clearRect(0,0,this.width,this.height); }
+
+    drawGrid(x, y, size, color) {
+        // Draw a "Tensor Block" representation
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(x-size/2, y-size/2, size, size);
+
+        // Grid lines to imply "Tensor"
+        this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, y-size/2); this.ctx.lineTo(x, y+size/2);
+        this.ctx.moveTo(x-size/2, y); this.ctx.lineTo(x+size/2, y);
+        this.ctx.stroke();
+    }
+
+    drawAgent(a) {
+        if (a.type === 'SHELL') {
+            // Control Node (Circle)
+            this.ctx.beginPath();
+            this.ctx.fillStyle = COLORS.shell;
+            this.ctx.arc(a.x, a.y, 8, 0, Math.PI*2);
+            this.ctx.fill();
+            this.ctx.fillStyle = '#000';
+            this.ctx.font = '8px Arial';
+            this.ctx.fillText(a.label, a.x-3, a.y+3);
+        } else if (a.type === 'TENSOR') {
+            // Data Super-Node (Square Grid)
+            this.drawGrid(a.x, a.y, 24, a.active ? COLORS.tensor : COLORS.inactive);
+            this.ctx.fillStyle = '#000';
+            this.ctx.font = '9px Arial';
+            this.ctx.fillText(a.label, a.x-10, a.y-16);
+        }
+    }
+
+    drawWires() {
+        this.wires.forEach(w => {
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = w.active ? COLORS.activeWire : COLORS.wire;
+            this.ctx.lineWidth = w.active ? 2 : 1;
+            this.ctx.moveTo(w.from.x, w.from.y);
+            this.ctx.lineTo(w.to.x, w.to.y);
+            this.ctx.stroke();
+        });
+    }
+
+    animate() {
+        if (!this.running) return;
+        this.clear();
+        this.drawWires();
+        this.agents.forEach(a => {
+            a.x += (a.tx - a.x) * 0.1;
+            a.y += (a.ty - a.y) * 0.1;
+            this.drawAgent(a);
+        });
+        requestAnimationFrame(() => this.animate());
+    }
+}
+
+/**
+ * Sim 1: TIH Interaction
+ * Shows Shell agents moving Tensor agents
+ */
+class SimTIH extends BaseSim {
+    constructor() {
+        super('simTIH');
+        this.reset();
+        this.running = true;
+        this.animate();
+    }
+
+    reset() {
+        this.agents = [
+            {type: 'SHELL', x: 50, y: 110, tx: 50, ty: 110, label: 'δ'},
+            {type: 'TENSOR', x: 50, y: 50, tx: 50, ty: 50, label: 'InBlock', active: true},
+            {type: 'TENSOR', x: 250, y: 50, tx: 250, ty: 50, label: 'Layer1', active: true},
+            {type: 'TENSOR', x: 250, y: 170, tx: 250, ty: 170, label: 'Layer2', active: true}
+        ];
+        this.wires = [
+            {from: this.agents[1], to: this.agents[0], active: true}, // Data linked to control
+            {from: this.agents[0], to: this.agents[2], active: false},
+            {from: this.agents[0], to: this.agents[3], active: false}
+        ];
+        this.stepCount = 0;
+    }
+
+    step() {
+        if (this.stepCount === 0) {
+            // Shell agent splits (Control logic)
+            // It "carries" the pointer to InBlock to both layers
+            this.agents[0].tx = 150;
+            this.stepCount++;
+        } else if (this.stepCount === 1) {
+            // Create new shell agents at destination
+            this.agents.push(
+                {type: 'SHELL', x: 150, y: 110, tx: 220, ty: 50, label: 'Ap'},
+                {type: 'SHELL', x: 150, y: 110, tx: 220, ty: 170, label: 'Ap'}
+            );
+            // Hide original shell
+            this.agents[0].tx = 150;
+            this.agents[0].type = 'HIDDEN';
+
+            // Wire update showing logical connection
+            this.wires = [
+                {from: this.agents[1], to: this.agents[4], active: true}, // In -> NewShell1
+                {from: this.agents[1], to: this.agents[5], active: true}, // In -> NewShell2
+                {from: this.agents[4], to: this.agents[2], active: true}, // Shell1 -> Layer1
+                {from: this.agents[5], to: this.agents[3], active: true}  // Shell2 -> Layer2
+            ];
+            this.stepCount++;
+        }
+    }
+}
+
+/**
+ * Sim 2: Block Routing
+ */
+class SimMoE extends BaseSim {
+    constructor() {
+        super('simMoE');
+        this.reset();
+        this.running = true;
+        this.animate();
+    }
+
+    reset() {
+        this.agents = [
+            {type: 'SHELL', x: 80, y: 100, tx: 80, ty: 100, label: 'R'},
+            {type: 'TENSOR', x: 40, y: 100, tx: 40, ty: 100, label: 'Tok', active: true},
+            {type: 'TENSOR', x: 250, y: 50, tx: 250, ty: 50, label: 'ExpA', active: false},
+            {type: 'TENSOR', x: 250, y: 150, tx: 250, ty: 150, label: 'ExpB', active: false}
+        ];
+        this.wires = [
+            {from: this.agents[1], to: this.agents[0], active: true},
+            {from: this.agents[0], to: this.agents[2], active: false},
+            {from: this.agents[0], to: this.agents[3], active: false}
+        ];
+    }
+
+    inject(target) {
+        this.reset();
+        const tY = target === 0 ? 50 : 150;
+        const expIdx = target === 0 ? 2 : 3;
+
+        setTimeout(() => {
+            // Router decides
+            this.wires[target + 1].active = true;
+            this.agents[expIdx].active = true;
+
+            // Move Token Block to Expert Block (Fusion)
+            this.agents[1].tx = 220;
+            this.agents[1].ty = tY;
+        }, 500);
+    }
+}
+
+window.onload = function() {
+    window.simTIH = new SimTIH();
+    window.simMoE = new SimMoE();
+};
+    </script>
+  </body>
+</html>

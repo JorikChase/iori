@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Hydrogen Orbitals - Liquid Edition</title>
     <style>
       body {
@@ -10,29 +10,32 @@
             overflow: hidden;
             background-color: #000;
             cursor: none; /* Immersive */
+            touch-action: none; /* Critical for mobile UX */
         }
         canvas {
             display: block;
             width: 100vw;
             height: 100vh;
+            touch-action: none;
         }
         #instruction {
             position: absolute;
             bottom: 20px;
             width: 100%;
             text-align: center;
-            color: rgba(255, 255, 255, 0.5);
-            font-family: sans-serif;
+            color: rgba(255, 255, 255, 0.4);
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             pointer-events: none;
             text-transform: uppercase;
             letter-spacing: 2px;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             mix-blend-mode: overlay;
+            transition: opacity 0.5s ease;
         }
     </style>
   </head>
   <body>
-    <div id="instruction">Drag horizontally to morph • Drag vertically to rotate</div>
+    <div id="instruction">Touch to Interact</div>
     <!-- Three.js from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script type="x-shader/x-vertex" id="vertexShader">
@@ -172,9 +175,6 @@
             vec3 col = vec3(0.0);
             float accumulation = 0.0;
 
-            // NO DITHER: Removed to fix "grey dots/noise" complaint.
-            // Rendering is now perfectly clean.
-
             for(int i = 0; i < MAX_STEPS; i++) {
                 vec3 p = ro + rd * totalDist;
 
@@ -274,9 +274,15 @@
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
 
+        // State variables
         let targetMouseX = 0.5;
         let targetMouseY = 0.5;
         let targetTilt = 0.0;
+        let isTouching = false;
+        let hasGyro = false;
+
+        // UI Element
+        const instructionEl = document.getElementById('instruction');
 
         function onWindowResize() {
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -285,33 +291,97 @@
         }
         window.addEventListener('resize', onWindowResize);
 
+        // --- Interaction Logic ---
+
+        // 1. Mouse/Touch Logic
+        function handleInput(x, y) {
+            targetMouseX = x / window.innerWidth;
+            targetMouseY = y / window.innerHeight;
+        }
+
         window.addEventListener('mousemove', (e) => {
-            targetMouseX = e.clientX / window.innerWidth;
-            targetMouseY = e.clientY / window.innerHeight;
+            // Always allow mouse on desktop
+            if(!hasGyro) handleInput(e.clientX, e.clientY);
         });
 
-        window.addEventListener('deviceorientation', (e) => {
-            if(e.gamma && e.beta) {
-                targetMouseX = (Math.max(-45, Math.min(45, e.gamma)) + 45) / 90;
-                targetMouseY = (Math.max(-45, Math.min(45, e.beta)) + 45) / 90;
-                targetTilt = e.gamma * 0.01;
+        window.addEventListener('touchstart', (e) => {
+            isTouching = true;
+            if(e.touches.length > 0) {
+                handleInput(e.touches[0].clientX, e.touches[0].clientY);
             }
-        });
+            // Trigger Gyro setup on first touch
+            initGyro();
+        }, {passive: false});
 
         window.addEventListener('touchmove', (e) => {
             if(e.touches.length > 0) {
-                targetMouseX = e.touches[0].clientX / window.innerWidth;
-                targetMouseY = e.touches[0].clientY / window.innerHeight;
+                handleInput(e.touches[0].clientX, e.touches[0].clientY);
             }
         }, {passive: false});
+
+        window.addEventListener('touchend', () => {
+            isTouching = false;
+        });
+
+        window.addEventListener('click', initGyro);
+
+        // 2. Gyroscope Logic (The seamless part)
+        function handleOrientation(e) {
+            hasGyro = true;
+            // Only update targets if user isn't currently touching
+            if (!isTouching && e.gamma !== null && e.beta !== null) {
+                instructionEl.textContent = ""; // Hide text once gyro works
+
+                // Clamp values for better control range (-45 to 45 degrees)
+                const gamma = Math.max(-45, Math.min(45, e.gamma));
+                const beta = Math.max(-45, Math.min(45, e.beta));
+
+                // Map tilt to mouse coordinates (0 to 1)
+                targetMouseX = (gamma + 45) / 90;
+                targetMouseY = (beta + 45) / 90;
+
+                // Subtle rotation effect
+                targetTilt = e.gamma * 0.01;
+            }
+        }
+
+        // 3. Permission Request (Silent failure if denied, no alerts)
+        let gyroAttempted = false;
+
+        function initGyro() {
+            if (gyroAttempted) return;
+            gyroAttempted = true;
+
+            // Update text to reflect interaction
+            instructionEl.style.opacity = '0';
+
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+ path
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                        }
+                    })
+                    .catch(console.error); // Silent catch
+            } else {
+                // Non-iOS path
+                window.addEventListener('deviceorientation', handleOrientation);
+            }
+        }
 
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-            uniforms.uMouse.value.x += (targetMouseX - uniforms.uMouse.value.x) * 0.03;
-            uniforms.uMouse.value.y += (targetMouseY - uniforms.uMouse.value.y) * 0.03;
-            uniforms.uTilt.value += (targetTilt - uniforms.uTilt.value) * 0.03;
+
+            // Smooth interpolation
+            // We use a faster lerp (0.05) if touching for responsiveness, slower (0.02) for gyro smoothness
+            const lerpSpeed = isTouching ? 0.1 : 0.03;
+
+            uniforms.uMouse.value.x += (targetMouseX - uniforms.uMouse.value.x) * lerpSpeed;
+            uniforms.uMouse.value.y += (targetMouseY - uniforms.uMouse.value.y) * lerpSpeed;
+            uniforms.uTilt.value += (targetTilt - uniforms.uTilt.value) * lerpSpeed;
 
             uniforms.uTime.value = clock.getElapsedTime();
             renderer.render(scene, camera);

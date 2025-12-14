@@ -236,39 +236,15 @@
 
         // Helper: Find node under cursor/finger
         function findNode(event) {
-            // Use 'canvas' explicitly to avoid context confusion in filters
             const [screenX, screenY] = d3.pointer(event, canvas);
-
-            // Map screen pixels to simulation space
             const [tx, ty] = transform.invert([screenX, screenY]);
-
-            // Increase hit radius for touch (60px) to make grabbing easier
+            // Generous hit radius for touch (60px logical)
             const hitRadius = 60 / transform.k;
-
             return simulation.find(tx, ty, hitRadius);
         }
 
-        // Define Zoom Behavior with Filter
-        const zoom = d3.zoom()
-            .scaleExtent([0.2, 5])
-            .filter((event) => {
-                // IMPORTANT: Conflict Resolution
-                // If the event starts on a node, return false to disable Zoom.
-                // This allows the Drag behavior to pick up the event instead.
-
-                // Always allow wheel zooming
-                if (event.type === 'wheel') return true;
-
-                // Check if we touched a node
-                const node = findNode(event);
-
-                // If node found, return false (disable zoom).
-                // If no node, return true (enable zoom/pan).
-                return !node;
-            })
-            .on("zoom", zoomed);
-
         // Define Drag Behavior
+        // We define this BEFORE zoom in the chain below to ensure it gets priority
         const drag = d3.drag()
             .container(canvas)
             .subject(findNode)
@@ -276,7 +252,17 @@
             .on("drag", dragged)
             .on("end", dragended);
 
-        // Apply behaviors
+        // Define Zoom Behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.2, 5])
+            .on("zoom", zoomed);
+
+        // --- APPLICATION ORDER IS CRITICAL FOR MOBILE ---
+        // 1. Call drag first. It registers its 'touchstart' listener first.
+        // 2. Call zoom second. It registers its 'touchstart' listener second.
+        // 3. In 'dragstarted', we stop propagation immediately.
+        //    This prevents the zoom listener (registered 2nd) from ever firing
+        //    if drag decides to start.
         d3.select(canvas)
             .call(drag)
             .call(zoom)
@@ -293,6 +279,13 @@
 
         function dragstarted(event) {
             if (!event.subject) return;
+
+            // --- CRITICAL FIX: Stop Zoom from seeing this touch event ---
+            // Because we registered Drag first, this listener runs first.
+            // Stopping immediate propagation ensures Zoom (registered 2nd) is skipped.
+            if (event.sourceEvent) {
+                event.sourceEvent.stopImmediatePropagation();
+            }
 
             // Capture start time and position for click detection
             dragStartTime = Date.now();
@@ -317,6 +310,7 @@
             const startPos = event.subject.dragStartPos;
             const dist = Math.hypot(screenX - startPos.x, screenY - startPos.y);
 
+            // 7px tolerance for jitter
             if (dist > 7) {
                 isDragging = true;
             }
@@ -335,6 +329,7 @@
             const duration = Date.now() - dragStartTime;
 
             // Navigation Logic (Tap detection)
+            // If we didn't drag far, and it was a short press, treat as click.
             if (!isDragging && duration < 600) {
                 console.log("Navigating to:", event.subject.id);
                 window.location.href = event.subject.id;

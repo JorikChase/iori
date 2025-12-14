@@ -18,6 +18,9 @@
             background-color: #1e1e1e;
             font-family: 'Inter', sans-serif;
             color: #ccc;
+            /* Prevent text selection which can interfere with drag */
+            user-select: none;
+            -webkit-user-select: none;
         }
         canvas {
             display: block;
@@ -184,7 +187,6 @@
         // --- 6. Drawing Function ---
         function ticked() {
             context.save();
-            // Clear using logical coordinates, which context.scale maps to full buffer
             context.clearRect(0, 0, width, height);
 
             context.translate(transform.x, transform.y);
@@ -192,7 +194,7 @@
 
             // Draw Links
             context.strokeStyle = "rgba(200, 200, 200, 0.15)";
-            context.lineWidth = 1; // 1px logical width (looks sharp on retina)
+            context.lineWidth = 1;
             context.beginPath();
             links.forEach(link => {
                 context.moveTo(link.source.x, link.source.y);
@@ -210,7 +212,7 @@
             });
 
             // Draw Labels
-            context.font = "10px Inter"; // Logical px size
+            context.font = "10px Inter";
             context.fillStyle = "rgba(200, 200, 200, 0.6)";
             nodes.forEach(node => {
                 if (node.id === 'portfolio.html' || node.id === 'index.html') {
@@ -219,7 +221,6 @@
                 }
 
                 const label = node.id.replace('.html', '');
-                // Offset label slightly to right
                 context.fillText(label, node.x + node.radius + 4, node.y + 3);
 
                 if (node.id === 'portfolio.html' || node.id === 'index.html') {
@@ -233,15 +234,41 @@
 
         // --- 7. Interactivity (Drag, Click, and Zoom) ---
 
-        let dragStartTime = 0;
-        let isDragging = false;
+        // Helper: Find node under cursor/finger
+        function findNode(event) {
+            // Use 'canvas' explicitly to avoid context confusion in filters
+            const [screenX, screenY] = d3.pointer(event, canvas);
 
-        // Define the zoom behavior
+            // Map screen pixels to simulation space
+            const [tx, ty] = transform.invert([screenX, screenY]);
+
+            // Increase hit radius for touch (60px) to make grabbing easier
+            const hitRadius = 60 / transform.k;
+
+            return simulation.find(tx, ty, hitRadius);
+        }
+
+        // Define Zoom Behavior with Filter
         const zoom = d3.zoom()
             .scaleExtent([0.2, 5])
+            .filter((event) => {
+                // IMPORTANT: Conflict Resolution
+                // If the event starts on a node, return false to disable Zoom.
+                // This allows the Drag behavior to pick up the event instead.
+
+                // Always allow wheel zooming
+                if (event.type === 'wheel') return true;
+
+                // Check if we touched a node
+                const node = findNode(event);
+
+                // If node found, return false (disable zoom).
+                // If no node, return true (enable zoom/pan).
+                return !node;
+            })
             .on("zoom", zoomed);
 
-        // Define the drag behavior
+        // Define Drag Behavior
         const drag = d3.drag()
             .container(canvas)
             .subject(findNode)
@@ -249,76 +276,57 @@
             .on("drag", dragged)
             .on("end", dragended);
 
+        // Apply behaviors
         d3.select(canvas)
             .call(drag)
             .call(zoom)
-            .on("dblclick.zoom", null); // Disable double-tap to zoom
+            .on("dblclick.zoom", null);
 
-        // --- Zoom Handler ---
+        // Handlers
         function zoomed(event) {
             transform = event.transform;
             ticked();
         }
 
-        // --- Click/Drag Handlers ---
-
-        function findNode(event) {
-            // d3.pointer returns logical coordinates (CSS pixels), so no need to adjust for DPR manually
-            // if canvas is sized correctly via CSS.
-            const [screenX, screenY] = d3.pointer(event, this);
-
-            const [tx, ty] = transform.invert([screenX, screenY]);
-
-            // Simulation search radius:
-            // Increase hit area for touch (40px) vs mouse (20px) could be done,
-            // but 45 is a good safe average for usability.
-            const hitRadius = 45 / transform.k;
-
-            const bestNode = simulation.find(tx, ty, hitRadius);
-
-            // Visual feedback
-            d3.select(canvas).style("cursor", bestNode ? "grabbing" : "grab");
-
-            return bestNode;
-        }
+        let dragStartTime = 0;
+        let isDragging = false;
 
         function dragstarted(event) {
-            if (!event.subject) return; // Should likely be handled by d3, but safety check
+            if (!event.subject) return;
 
-            const [screenX, screenY] = d3.pointer(event.sourceEvent, this);
+            // Capture start time and position for click detection
             dragStartTime = Date.now();
             isDragging = false;
 
+            const [screenX, screenY] = d3.pointer(event, canvas);
             event.subject.dragStartPos = { x: screenX, y: screenY };
 
             if (!event.active) simulation.alphaTarget(0.3).restart();
 
-            const [tx, ty] = transform.invert([screenX, screenY]);
-            event.subject.fx = tx;
-            event.subject.fy = ty;
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+
+            d3.select(canvas).style("cursor", "grabbing");
         }
 
         function dragged(event) {
             if (!event.subject) return;
 
-            const [screenX, screenY] = d3.pointer(event.sourceEvent, this);
-
-            // Calculate distance from start to filter out jittery taps
+            // Check for actual movement to differentiate tap from drag
+            const [screenX, screenY] = d3.pointer(event, canvas);
             const startPos = event.subject.dragStartPos;
             const dist = Math.hypot(screenX - startPos.x, screenY - startPos.y);
 
-            // Increased tolerance to 7px for mobile jitter
             if (dist > 7) {
                 isDragging = true;
             }
 
-            const [tx, ty] = transform.invert([screenX, screenY]);
-            event.subject.fx = tx;
-            event.subject.fy = ty;
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
         }
 
         function dragended(event) {
-             d3.select(canvas).style("cursor", "grab");
+            d3.select(canvas).style("cursor", "grab");
 
             if (!event.subject) return;
 
@@ -326,12 +334,9 @@
 
             const duration = Date.now() - dragStartTime;
 
-            // Click detection logic:
-            // 1. Not a significant drag distance
-            // 2. Short duration (tap)
+            // Navigation Logic (Tap detection)
             if (!isDragging && duration < 600) {
                 console.log("Navigating to:", event.subject.id);
-                // Use window.location for actual navigation
                 window.location.href = event.subject.id;
             }
 
@@ -342,10 +347,7 @@
 
         // --- 8. Handle Window Resize ---
         window.addEventListener('resize', () => {
-            // Re-run setup to handle DPI or orientation changes
             resizeCanvas();
-
-            // Re-center force
             simulation.force("center", d3.forceCenter(width / 2, height / 2));
             simulation.alpha(0.3).restart();
             ticked();

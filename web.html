@@ -2,23 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <!-- Prevent user scaling to stop accidental zooming while tapping -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iori.me || 3die.fr - Node Web</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
-      /* Minimalist/Ultralight UI styles */
-        body, html {
+      body, html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            /* Dark mode background, similar to Obsidian */
             background-color: #1e1e1e;
             font-family: 'Inter', sans-serif;
             color: #ccc;
-            /* Prevent text selection which can interfere with drag */
             user-select: none;
             -webkit-user-select: none;
         }
@@ -26,10 +22,10 @@
             display: block;
             width: 100%;
             height: 100%;
-            /* CRITICAL FOR MOBILE: Prevents browser scrolling/zooming on touch */
+            /* Disables browser handling of gestures so we can handle them */
             touch-action: none;
             cursor: grab;
-            -webkit-tap-highlight-color: transparent; /* Remove blue tap highlight on mobile */
+            -webkit-tap-highlight-color: transparent;
         }
         canvas:active {
             cursor: grabbing;
@@ -37,44 +33,42 @@
     </style>
   </head>
   <body>
-    <!-- The canvas is the only UI element -->
     <canvas id="node-canvas"></canvas>
-    <!-- Import D3.js library -->
+    <!-- Import D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
-      // --- 1. Setup with High-DPI Support ---
+      // --- 1. CONFIGURATION & STATE ---
+        const config = {
+            tapDistanceThreshold: 15, // Max pixels moved to count as a tap
+            tapTimeThreshold: 500,    // Max ms duration to count as a tap
+            mobileHitRadius: 45,      // Generous radius for touch targets (logical px)
+            desktopHitRadius: 20      // Precise radius for mouse
+        };
+
         const canvas = document.getElementById('node-canvas');
         const context = canvas.getContext('2d');
 
-        // Device Pixel Ratio for sharp text on mobile
-        let dpr = window.devicePixelRatio || 1;
-        let width = window.innerWidth;
-        let height = window.innerHeight;
+        // Navigation State
+        let transform = d3.zoomIdentity;
+        let pointerStart = { x: 0, y: 0, time: 0 };
+        let isTouch = false;
+
+        // --- 2. HIGH-DPI CANVAS SETUP ---
+        let width, height, dpr;
 
         function resizeCanvas() {
             dpr = window.devicePixelRatio || 1;
             width = window.innerWidth;
             height = window.innerHeight;
-
-            // Set actual buffer size to device pixels
             canvas.width = width * dpr;
             canvas.height = height * dpr;
-
-            // Set CSS size to logical pixels
             canvas.style.width = width + "px";
             canvas.style.height = height + "px";
-
-            // Normalize coordinate system to use logical pixels
             context.scale(dpr, dpr);
         }
-
-        // Initial sizing
         resizeCanvas();
 
-        // --- Store current zoom transform ---
-        let transform = d3.zoomIdentity;
-
-        // --- 2. Define Data (The "links_list") ---
+        // --- 3. DATA & SIMULATION ---
         const allNodeIds = [
             "webgl.html", "star.html", "shop.html", "portfolio.html",
             "maska.html", "info.html", "indent.html", "index.html",
@@ -83,269 +77,184 @@
         ];
 
         const linksList = [];
-
-        // Connect "portfolio.html" and "index.html" to all other nodes
         allNodeIds.forEach(id => {
-            if (id !== "portfolio.html" && id !== "class-action.html" && id !== "two-body.html" && id !== "three-body.html") {
+            if (!["portfolio.html", "class-action.html", "two-body.html", "three-body.html"].includes(id)) {
                 linksList.push({ source: "portfolio.html", target: id });
             }
         });
 
-        // Manually connect "index.html" to only info, shop, and portfolio
-        linksList.push({ source: "index.html", target: "info.html" });
-        linksList.push({ source: "index.html", target: "shop.html" });
-        linksList.push({ source: "shop.html", target: "info.html" });
-        linksList.push({ source: "index.html", target: "portfolio.html" });
-        linksList.push({ source: "index.html", target: "indent.html" });
+        // Manual connections
+        const connections = [
+            ["index.html", "info.html"], ["index.html", "shop.html"],
+            ["shop.html", "info.html"], ["index.html", "portfolio.html"],
+            ["index.html", "indent.html"], ["webgl.html", "star.html"],
+            ["star.html", "maska.html"], ["game.html", "darkwood.html"],
+            ["fractals.html", "webgl.html"], ["orbitals.html", "webgl.html"],
+            ["orbitals.html", "fractals.html"], ["fractals.html", "lambda_cognition.html"],
+            ["index.html", "lambda_cognition.html"], ["three-body.html", "lambda_cognition.html"],
+            ["liquid-automata.html", "fractals.html"], ["liquid-automata.html", "orbitals.html"],
+            ["three-body.html", "fractals.html"], ["three-body.html", "orbitals.html"],
+            ["two-body.html", "fractals.html"], ["two-body.html", "three-body.html"],
+            ["sudoku.html", "game.html"], ["class-action.html", "index.html"]
+        ];
+        connections.forEach(p => linksList.push({ source: p[0], target: p[1] }));
 
-        // Add specific connections
-        linksList.push({ source: "webgl.html", target: "star.html" });
-        linksList.push({ source: "star.html", target: "maska.html" });
-        linksList.push({ source: "game.html", target: "darkwood.html" });
-        linksList.push({ source: "fractals.html", target: "webgl.html" });
-        linksList.push({ source: "orbitals.html", target: "webgl.html" });
-        linksList.push({ source: "orbitals.html", target: "fractals.html" });
-        linksList.push({ source: "fractals.html", target: "lambda_cognition.html" });
-        linksList.push({ source: "index.html", target: "lambda_cognition.html" });
-        linksList.push({ source: "three-body.html", target: "lambda_cognition.html" });
-        linksList.push({ source: "liquid-automata.html", target: "fractals.html" });
-        linksList.push({ source: "liquid-automata.html", target: "orbitals.html" });
-        linksList.push({ source: "three-body.html", target: "fractals.html" });
-        linksList.push({ source: "three-body.html", target: "orbitals.html" });
-        linksList.push({ source: "two-body.html", target: "fractals.html" });
-        linksList.push({ source: "two-body.html", target: "three-body.html" });
-        linksList.push({ source: "sudoku.html", target: "game.html" });
-        linksList.push({ source: "class-action.html", target: "index.html" });
-
-        // --- 3. Calculate Node Degrees & Procedurally Create Nodes ---
+        // Process Graph
         const nodeDegrees = new Map();
-        linksList.forEach(link => {
-            nodeDegrees.set(link.source, (nodeDegrees.get(link.source) || 0) + 1);
-            nodeDegrees.set(link.target, (nodeDegrees.get(link.target) || 0) + 1);
+        linksList.forEach(l => {
+            nodeDegrees.set(l.source, (nodeDegrees.get(l.source)||0)+1);
+            nodeDegrees.set(l.target, (nodeDegrees.get(l.target)||0)+1);
         });
 
-        const nodeIds = new Set();
-        linksList.forEach(link => {
-            nodeIds.add(link.source);
-            nodeIds.add(link.target);
-        });
-
-        const degrees = Array.from(nodeDegrees.values());
-        const minDegree = Math.min(...degrees);
-        const maxDegree = Math.max(...degrees);
-        const degreeRange = maxDegree - minDegree;
-        const colorInterpolator = d3.interpolateViridis;
-
-        const nodes = Array.from(nodeIds).map(id => {
+        const nodes = Array.from(new Set([...linksList.map(d=>d.source), ...linksList.map(d=>d.target)])).map(id => {
             const degree = nodeDegrees.get(id) || 0;
-            let normalizedDegree = 0.5;
-            if (degreeRange > 0) {
-                normalizedDegree = (degree - minDegree) / degreeRange;
-            }
-            const baseColor = d3.color(colorInterpolator(normalizedDegree));
-            baseColor.opacity = 0.9;
-
+            const t = Math.min(1, Math.max(0, (degree - 1) / 5));
+            const color = d3.interpolateViridis(t);
             return {
                 id: id,
                 radius: (id === 'portfolio.html' || id === 'index.html') ? 10 : 5,
-                degree: degree,
-                color: baseColor.toString()
+                color: d3.color(color).copy({opacity: 0.9}).toString(),
+                x: width/2 + (Math.random()-0.5)*50,
+                y: height/2 + (Math.random()-0.5)*50
             };
         });
 
-        const links = linksList;
-
-        // --- 4. Custom Forces ---
-        function floatForce(alpha) {
-            const floatStrength = 0.005;
-            for (const node of nodes) {
-                node.vx += (Math.random() - 0.5) * floatStrength;
-                node.vy += (Math.random() - 0.5) * floatStrength;
-            }
-        }
-
-        // --- 5. Create the D3 Force Simulation ---
         const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links)
-                .id(d => d.id)
-                .distance(d => (
-                    d.source.id === 'portfolio.html' || d.target.id === 'portfolio.html' ||
-                    d.source.id === 'index.html' || d.target.id === 'index.html'
-                ) ? 150 : 70)
-                .strength(0.4)
-            )
-            .force("charge", d3.forceManyBody()
-                .strength(-120)
-                .distanceMin(10)
-                .distanceMax(250)
-            )
-            .force("float", floatForce)
+            .force("link", d3.forceLink(linksList).id(d => d.id).distance(70).strength(0.4))
+            .force("charge", d3.forceManyBody().strength(-120).distanceMax(250))
             .force("center", d3.forceCenter(width / 2, height / 2));
 
-        simulation.on("tick", ticked);
+        simulation.on("tick", draw);
 
-        // --- 6. Drawing Function ---
-        function ticked() {
+        // --- 4. DRAWING ---
+        function draw() {
             context.save();
             context.clearRect(0, 0, width, height);
-
             context.translate(transform.x, transform.y);
             context.scale(transform.k, transform.k);
 
-            // Draw Links
+            // Links
             context.strokeStyle = "rgba(200, 200, 200, 0.15)";
             context.lineWidth = 1;
             context.beginPath();
-            links.forEach(link => {
-                context.moveTo(link.source.x, link.source.y);
-                context.lineTo(link.target.x, link.target.y);
+            linksList.forEach(l => {
+                context.moveTo(l.source.x, l.source.y);
+                context.lineTo(l.target.x, l.target.y);
             });
             context.stroke();
 
-            // Draw Nodes
-            nodes.forEach(node => {
+            // Nodes
+            nodes.forEach(n => {
                 context.beginPath();
-                context.moveTo(node.x + node.radius, node.y);
-                context.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
-                context.fillStyle = node.color;
+                context.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
+                context.fillStyle = n.color;
                 context.fill();
+
+                // Text
+                context.fillStyle = (n.id === 'portfolio.html' || n.id === 'index.html') ? "white" : "rgba(200,200,200,0.6)";
+                context.font = (n.id === 'portfolio.html' || n.id === 'index.html') ? "bold 11px Inter" : "10px Inter";
+                context.fillText(n.id.replace('.html', ''), n.x + n.radius + 4, n.y + 3);
             });
-
-            // Draw Labels
-            context.font = "10px Inter";
-            context.fillStyle = "rgba(200, 200, 200, 0.6)";
-            nodes.forEach(node => {
-                if (node.id === 'portfolio.html' || node.id === 'index.html') {
-                    context.font = "bold 11px Inter";
-                    context.fillStyle = "rgba(255, 255, 255, 0.9)";
-                }
-
-                const label = node.id.replace('.html', '');
-                context.fillText(label, node.x + node.radius + 4, node.y + 3);
-
-                if (node.id === 'portfolio.html' || node.id === 'index.html') {
-                    context.font = "10px Inter";
-                    context.fillStyle = "rgba(200, 200, 200, 0.6)";
-                }
-            });
-
             context.restore();
         }
 
-        // --- 7. Interactivity (Drag, Click, and Zoom) ---
+        // --- 5. ROBUST HIT TESTING ---
+        function findNodeAt(screenX, screenY) {
+            // Invert transform to get world coordinates
+            const [x, y] = transform.invert([screenX, screenY]);
 
-        // Helper: Find node under cursor/finger
-        function findNode(event) {
-            const [screenX, screenY] = d3.pointer(event, canvas);
-            const [tx, ty] = transform.invert([screenX, screenY]);
-            // Generous hit radius for touch (60px logical)
-            const hitRadius = 60 / transform.k;
-            return simulation.find(tx, ty, hitRadius);
+            // Adjust hit radius based on device type
+            // On mobile, we divide by transform.k to ensure the hit area scales with zoom
+            // and we give it a large base size (45px)
+            const radius = (isTouch ? config.mobileHitRadius : config.desktopHitRadius) / transform.k;
+
+            return simulation.find(x, y, radius);
         }
 
-        // Define Drag Behavior
-        // We define this BEFORE zoom in the chain below to ensure it gets priority
+        // --- 6. INTERACTION LOGIC ---
+
+        // A. Raw Event Listeners for "Tap" logic (Bypasses D3)
+        // We use pointer events to unify mouse and touch
+        canvas.addEventListener('pointerdown', (e) => {
+            isTouch = (e.pointerType === 'touch');
+            pointerStart.x = e.clientX;
+            pointerStart.y = e.clientY;
+            pointerStart.time = Date.now();
+        }, { passive: false });
+
+        canvas.addEventListener('pointerup', (e) => {
+            // Calculate movement distance
+            const dist = Math.hypot(e.clientX - pointerStart.x, e.clientY - pointerStart.y);
+            const duration = Date.now() - pointerStart.time;
+
+            // If it looks like a tap (short time, little movement)
+            if (dist < config.tapDistanceThreshold && duration < config.tapTimeThreshold) {
+                const node = findNodeAt(e.clientX, e.clientY);
+                if (node) {
+                    // It's a valid tap on a node!
+                    console.log("Navigating to:", node.id);
+                    // Visual feedback
+                    context.save();
+                    context.translate(transform.x, transform.y);
+                    context.scale(transform.k, transform.k);
+                    context.beginPath();
+                    context.arc(node.x, node.y, node.radius + 5, 0, 2*Math.PI);
+                    context.fillStyle = "white";
+                    context.fill();
+                    context.restore();
+
+                    // Navigate
+                    window.location.href = node.id;
+                }
+            }
+        }, { passive: false });
+
+
+        // B. D3 Zoom (Background Panning)
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (e) => {
+                transform = e.transform;
+                draw();
+            });
+
+        // C. D3 Drag (Node Moving)
         const drag = d3.drag()
             .container(canvas)
-            .subject(findNode)
-            .on("start", dragstarted)
-            .on("drag", dragged)
-            .on("end", dragended);
+            .subject((event) => {
+                // We use our robust findNodeAt
+                return findNodeAt(event.sourceEvent.clientX, event.sourceEvent.clientY);
+            })
+            .on("start", (event) => {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+                d3.select(canvas).style("cursor", "grabbing");
+            })
+            .on("drag", (event) => {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            })
+            .on("end", (event) => {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+                d3.select(canvas).style("cursor", "grab");
+            });
 
-        // Define Zoom Behavior
-        const zoom = d3.zoom()
-            .scaleExtent([0.2, 5])
-            .on("zoom", zoomed);
-
-        // --- APPLICATION ORDER IS CRITICAL FOR MOBILE ---
-        // 1. Call drag first. It registers its 'touchstart' listener first.
-        // 2. Call zoom second. It registers its 'touchstart' listener second.
-        // 3. In 'dragstarted', we stop propagation immediately.
-        //    This prevents the zoom listener (registered 2nd) from ever firing
-        //    if drag decides to start.
+        // --- 7. BINDING D3 ---
+        // We rely on standard order. The custom pointerup handler above handles clicks.
+        // D3 handles the heavy lifting of movement.
         d3.select(canvas)
             .call(drag)
             .call(zoom)
             .on("dblclick.zoom", null);
 
-        // Handlers
-        function zoomed(event) {
-            transform = event.transform;
-            ticked();
-        }
-
-        let dragStartTime = 0;
-        let isDragging = false;
-
-        function dragstarted(event) {
-            if (!event.subject) return;
-
-            // --- CRITICAL FIX: Stop Zoom from seeing this touch event ---
-            // Because we registered Drag first, this listener runs first.
-            // Stopping immediate propagation ensures Zoom (registered 2nd) is skipped.
-            if (event.sourceEvent) {
-                event.sourceEvent.stopImmediatePropagation();
-            }
-
-            // Capture start time and position for click detection
-            dragStartTime = Date.now();
-            isDragging = false;
-
-            const [screenX, screenY] = d3.pointer(event, canvas);
-            event.subject.dragStartPos = { x: screenX, y: screenY };
-
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-
-            d3.select(canvas).style("cursor", "grabbing");
-        }
-
-        function dragged(event) {
-            if (!event.subject) return;
-
-            // Check for actual movement to differentiate tap from drag
-            const [screenX, screenY] = d3.pointer(event, canvas);
-            const startPos = event.subject.dragStartPos;
-            const dist = Math.hypot(screenX - startPos.x, screenY - startPos.y);
-
-            // 7px tolerance for jitter
-            if (dist > 7) {
-                isDragging = true;
-            }
-
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-        }
-
-        function dragended(event) {
-            d3.select(canvas).style("cursor", "grab");
-
-            if (!event.subject) return;
-
-            if (!event.active) simulation.alphaTarget(0);
-
-            const duration = Date.now() - dragStartTime;
-
-            // Navigation Logic (Tap detection)
-            // If we didn't drag far, and it was a short press, treat as click.
-            if (!isDragging && duration < 600) {
-                console.log("Navigating to:", event.subject.id);
-                window.location.href = event.subject.id;
-            }
-
-            event.subject.fx = null;
-            event.subject.fy = null;
-            delete event.subject.dragStartPos;
-        }
-
-        // --- 8. Handle Window Resize ---
+        // --- 8. RESIZE HANDLER ---
         window.addEventListener('resize', () => {
             resizeCanvas();
-            simulation.force("center", d3.forceCenter(width / 2, height / 2));
             simulation.alpha(0.3).restart();
-            ticked();
+            draw();
         });
     </script>
   </body>

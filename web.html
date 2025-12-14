@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <!-- Prevent user scaling to stop accidental zooming while tapping -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iori.me || 3die.fr - Node Web</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -11,6 +11,8 @@
         body, html {
             margin: 0;
             padding: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
             /* Dark mode background, similar to Obsidian */
             background-color: #1e1e1e;
@@ -19,19 +21,15 @@
         }
         canvas {
             display: block;
+            width: 100%;
+            height: 100%;
             /* CRITICAL FOR MOBILE: Prevents browser scrolling/zooming on touch */
             touch-action: none;
-            cursor: pointer; /* Default cursor is pointer */
+            cursor: grab;
             -webkit-tap-highlight-color: transparent; /* Remove blue tap highlight on mobile */
         }
-        /* A very subtle info box */
-        .info {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            font-size: 12px;
-            opacity: 0.4;
-            pointer-events: none; /* Don't block mouse events */
+        canvas:active {
+            cursor: grabbing;
         }
     </style>
   </head>
@@ -41,13 +39,34 @@
     <!-- Import D3.js library -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
-      // --- 1. Setup ---
+      // --- 1. Setup with High-DPI Support ---
         const canvas = document.getElementById('node-canvas');
         const context = canvas.getContext('2d');
+
+        // Device Pixel Ratio for sharp text on mobile
+        let dpr = window.devicePixelRatio || 1;
         let width = window.innerWidth;
         let height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+
+        function resizeCanvas() {
+            dpr = window.devicePixelRatio || 1;
+            width = window.innerWidth;
+            height = window.innerHeight;
+
+            // Set actual buffer size to device pixels
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+
+            // Set CSS size to logical pixels
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+
+            // Normalize coordinate system to use logical pixels
+            context.scale(dpr, dpr);
+        }
+
+        // Initial sizing
+        resizeCanvas();
 
         // --- Store current zoom transform ---
         let transform = d3.zoomIdentity;
@@ -74,17 +93,21 @@
         linksList.push({ source: "index.html", target: "shop.html" });
         linksList.push({ source: "shop.html", target: "info.html" });
         linksList.push({ source: "index.html", target: "portfolio.html" });
+        linksList.push({ source: "index.html", target: "indent.html" });
 
         // Add specific connections
         linksList.push({ source: "webgl.html", target: "star.html" });
         linksList.push({ source: "star.html", target: "maska.html" });
         linksList.push({ source: "game.html", target: "darkwood.html" });
         linksList.push({ source: "fractals.html", target: "webgl.html" });
+        linksList.push({ source: "orbitals.html", target: "webgl.html" });
+        linksList.push({ source: "orbitals.html", target: "fractals.html" });
         linksList.push({ source: "fractals.html", target: "lambda_cognition.html" });
         linksList.push({ source: "index.html", target: "lambda_cognition.html" });
         linksList.push({ source: "three-body.html", target: "lambda_cognition.html" });
         linksList.push({ source: "liquid-automata.html", target: "fractals.html" });
         linksList.push({ source: "three-body.html", target: "fractals.html" });
+        linksList.push({ source: "three-body.html", target: "orbitals.html" });
         linksList.push({ source: "two-body.html", target: "fractals.html" });
         linksList.push({ source: "two-body.html", target: "three-body.html" });
         linksList.push({ source: "sudoku.html", target: "game.html" });
@@ -160,13 +183,15 @@
         // --- 6. Drawing Function ---
         function ticked() {
             context.save();
+            // Clear using logical coordinates, which context.scale maps to full buffer
             context.clearRect(0, 0, width, height);
+
             context.translate(transform.x, transform.y);
             context.scale(transform.k, transform.k);
 
             // Draw Links
             context.strokeStyle = "rgba(200, 200, 200, 0.15)";
-            context.lineWidth = 1;
+            context.lineWidth = 1; // 1px logical width (looks sharp on retina)
             context.beginPath();
             links.forEach(link => {
                 context.moveTo(link.source.x, link.source.y);
@@ -184,7 +209,7 @@
             });
 
             // Draw Labels
-            context.font = "10px Inter";
+            context.font = "10px Inter"; // Logical px size
             context.fillStyle = "rgba(200, 200, 200, 0.6)";
             nodes.forEach(node => {
                 if (node.id === 'portfolio.html' || node.id === 'index.html') {
@@ -193,6 +218,7 @@
                 }
 
                 const label = node.id.replace('.html', '');
+                // Offset label slightly to right
                 context.fillText(label, node.x + node.radius + 4, node.y + 3);
 
                 if (node.id === 'portfolio.html' || node.id === 'index.html') {
@@ -207,7 +233,7 @@
         // --- 7. Interactivity (Drag, Click, and Zoom) ---
 
         let dragStartTime = 0;
-        let isDragging = false; // Flag to track if actual movement occurred
+        let isDragging = false;
 
         // Define the zoom behavior
         const zoom = d3.zoom()
@@ -222,11 +248,10 @@
             .on("drag", dragged)
             .on("end", dragended);
 
-        // Mobile Note: 'touch-action: none' in CSS is critical for this to work
         d3.select(canvas)
             .call(drag)
             .call(zoom)
-            .on("dblclick.zoom", null);
+            .on("dblclick.zoom", null); // Disable double-tap to zoom
 
         // --- Zoom Handler ---
         function zoomed(event) {
@@ -237,30 +262,32 @@
         // --- Click/Drag Handlers ---
 
         function findNode(event) {
-            // Get pointer coordinates relative to the canvas
-            // d3.pointer works for both mouse and touch events
+            // d3.pointer returns logical coordinates (CSS pixels), so no need to adjust for DPR manually
+            // if canvas is sized correctly via CSS.
             const [screenX, screenY] = d3.pointer(event, this);
 
-            // Convert screen coordinates to simulation coordinates
             const [tx, ty] = transform.invert([screenX, screenY]);
 
-            // Find node in simulation space (40px radius allows easier tapping)
-            const bestNode = simulation.find(tx, ty, 40 / transform.k);
+            // Simulation search radius:
+            // Increase hit area for touch (40px) vs mouse (20px) could be done,
+            // but 45 is a good safe average for usability.
+            const hitRadius = 45 / transform.k;
 
-            // Update cursor based on hover (desktop only really)
+            const bestNode = simulation.find(tx, ty, hitRadius);
+
+            // Visual feedback
             d3.select(canvas).style("cursor", bestNode ? "grabbing" : "grab");
 
             return bestNode;
         }
 
         function dragstarted(event) {
+            if (!event.subject) return; // Should likely be handled by d3, but safety check
+
             const [screenX, screenY] = d3.pointer(event.sourceEvent, this);
-
             dragStartTime = Date.now();
-            isDragging = false; // Reset drag flag
+            isDragging = false;
 
-            // Store initial position to calculate distance later if needed
-            // but we primarily use 'dragged' to flip the flag
             event.subject.dragStartPos = { x: screenX, y: screenY };
 
             if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -271,15 +298,16 @@
         }
 
         function dragged(event) {
+            if (!event.subject) return;
+
             const [screenX, screenY] = d3.pointer(event.sourceEvent, this);
 
-            // Check distance from start
+            // Calculate distance from start to filter out jittery taps
             const startPos = event.subject.dragStartPos;
             const dist = Math.hypot(screenX - startPos.x, screenY - startPos.y);
 
-            // If moved more than 5px, consider it a drag, not a click
-            // (5px tolerance allows for slight finger wobble when tapping)
-            if (dist > 5) {
+            // Increased tolerance to 7px for mobile jitter
+            if (dist > 7) {
                 isDragging = true;
             }
 
@@ -289,16 +317,20 @@
         }
 
         function dragended(event) {
-            d3.select(canvas).style("cursor", "grab");
+             d3.select(canvas).style("cursor", "grab");
+
+            if (!event.subject) return;
+
             if (!event.active) simulation.alphaTarget(0);
 
             const duration = Date.now() - dragStartTime;
 
             // Click detection logic:
-            // 1. Must not have moved significantly (isDragging is false)
-            // 2. Duration must be short (less than 500ms - generous for mobile taps)
-            if (!isDragging && duration < 500) {
-                console.log("Opening node:", event.subject.id);
+            // 1. Not a significant drag distance
+            // 2. Short duration (tap)
+            if (!isDragging && duration < 600) {
+                console.log("Navigating to:", event.subject.id);
+                // Use window.location for actual navigation
                 window.location.href = event.subject.id;
             }
 
@@ -309,15 +341,14 @@
 
         // --- 8. Handle Window Resize ---
         window.addEventListener('resize', () => {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
+            // Re-run setup to handle DPI or orientation changes
+            resizeCanvas();
+
+            // Re-center force
             simulation.force("center", d3.forceCenter(width / 2, height / 2));
             simulation.alpha(0.3).restart();
+            ticked();
         });
-
-        d3.select(canvas).style("cursor", "grab");
     </script>
   </body>
 </html>

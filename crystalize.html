@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cryo-Genesis v5.3: Macro Studio</title>
+    <style>
+      body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000205;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+
+        #canvas-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+        }
+
+        /* --- HUD --- */
+        #hud-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
+        }
+
+        .hud-text {
+            position: absolute; color: rgba(220, 245, 255, 0.7); font-size: 11px; font-weight: bold;
+            text-shadow: 0 0 5px rgba(0, 150, 255, 0.5); letter-spacing: 1px; line-height: 1.6;
+            background: rgba(0, 10, 20, 0.4); padding: 10px; border-radius: 4px; border: 1px solid rgba(100,200,255,0.1);
+        }
+
+        #top-left { top: 20px; left: 20px; }
+        #top-right { top: 20px; right: 20px; text-align: right; }
+
+        #log-container {
+            position: absolute; bottom: 120px; left: 20px; width: 300px;
+            height: 100px; overflow: hidden; display: flex; flex-direction: column-reverse;
+            mask-image: linear-gradient(to bottom, transparent, black 20%); -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%);
+        }
+        .log-line { font-size: 10px; color: #4da6ff; opacity: 0.7; margin-bottom: 2px; }
+        .log-line:first-child { color: #fff; opacity: 1; text-shadow: 0 0 8px #0ff; }
+
+        /* --- CONTROLS --- */
+        #controls-layer {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: auto;
+            display: flex; gap: 10px; align-items: flex-end;
+        }
+
+        .panel {
+            background: rgba(5, 15, 25, 0.85); border: 1px solid rgba(100, 200, 255, 0.3);
+            backdrop-filter: blur(12px); padding: 12px 20px; border-radius: 8px; display: flex; gap: 20px; align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .btn-group {
+            display: flex; gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(180deg, rgba(0, 60, 110, 0.6) 0%, rgba(0, 30, 60, 0.8) 100%);
+            border: 1px solid rgba(100, 200, 255, 0.4); color: #d0eeff;
+            padding: 10px 20px; font-family: inherit; font-size: 11px; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px; border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .btn:hover { background: rgba(50, 150, 255, 0.5); color: white; box-shadow: 0 0 15px rgba(0,100,255,0.6); border-color: #fff; }
+        .btn:active { transform: translateY(1px); }
+
+        .slider-wrap { display: flex; flex-direction: column; align-items: center; width: 80px; }
+        .slider-label { font-size: 9px; color: #8ac; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;}
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 10px; width: 10px; border-radius: 50%; background: #d0eeff;
+            cursor: pointer; margin-top: -4px; box-shadow: 0 0 8px #0ff; border: 1px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 2px; background: rgba(100, 200, 255, 0.3); border-radius: 2px;
+        }
+
+        #loading {
+            position: absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+            color: #0ff; z-index: 100; font-size: 12px; animation: blink 1s infinite; pointer-events: none;
+        }
+
+        /* Flash effect for capture */
+        #flash {
+            position: absolute; top:0; left:0; width:100%; height:100%; background: white; z-index: 999;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s ease-out;
+        }
+
+        @keyframes blink { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+  </head>
+  <body>
+    <div id="flash"></div>
+    <div id="loading">INITIALIZING MACRO STUDIO...</div>
+    <div id="canvas-container"></div>
+    <div id="hud-layer">
+      <div id="top-left" class="hud-text">
+        CRYO-GENESIS v5.3<br>
+        <span style="color:#888">MACRO STUDIO EDITION</span>
+      </div>
+      <div id="top-right" class="hud-text">
+        STATUS:
+        <span id="status" style="color:#0f0">GROWING</span><br>
+        <span id="res-readout" style="color:#888">RES: 1024x1024</span>
+      </div>
+      <div id="log-container">
+        <div class="log-line">> OPTICAL ENGINE ONLINE</div>
+      </div>
+    </div>
+    <div id="controls-layer">
+      <div class="panel">
+        <div class="slider-wrap">
+          <span class="slider-label">Symmetry</span>
+          <input type="range" id="sl-sym" min="1" max="12" value="6" step="1">
+        </div>
+        <div class="slider-wrap">
+          <span class="slider-label">Spacing</span>
+          <input type="range" id="sl-spacing" min="5" max="50" value="12">
+        </div>
+        <div class="slider-wrap">
+          <span class="slider-label">Crystalline</span>
+          <input type="range" id="sl-crisp" min="0" max="100" value="90">
+        </div>
+      </div>
+      <div class="panel">
+        <div class="btn-group">
+          <button class="btn" id="btn-rerun">RERUN</button>
+          <button class="btn" id="btn-pause">PAUSE</button>
+          <button class="btn" id="btn-capture">CAPTURE</button>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      // High resolution for simulation
+        const SIM_RES = 1024;
+
+        let renderer, scene, camera, simScene, simCamera;
+        let bufferA, bufferB, simMesh, renderMesh;
+        let isEvenFrame = true, frameCount = 0;
+        let isSimulating = true;
+
+        const uniforms = {
+            u_time: { value: 0 },
+            u_frame: { value: 0 },
+            u_resolution: { value: new THREE.Vector2() },
+            u_simRes: { value: new THREE.Vector2(SIM_RES, SIM_RES) },
+            u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
+            u_mouse_click: { value: 0 },
+            u_texture: { value: null },
+            u_spacing: { value: 12.0 }, // Tighter spacing for fuller flakes
+            u_symmetry: { value: 6.0 },
+            u_crispness: { value: 0.9 }, // Sharper default
+            u_seed: { value: Math.random() * 100 }
+        };
+
+        // --- GPGPU L-SYSTEM SIMULATION SHADER (Logic Core) ---
+        const simFragmentShader = `
+            uniform sampler2D u_texture;
+            uniform vec2 u_simRes;
+            uniform float u_frame;
+            uniform vec2 u_mouse;
+            uniform float u_mouse_click;
+            uniform float u_spacing;
+            uniform float u_seed;
+
+            varying vec2 vUv;
+
+            #define PI 3.14159265
+            #define TWO_PI 6.2831853
+
+            float getRad(float normAngle) { return normAngle * TWO_PI; }
+            vec2 getOffset(float angle) { return vec2(cos(angle), sin(angle)); }
+
+            void main() {
+                vec2 pixel = 1.0 / u_simRes;
+                vec2 uv = vUv;
+                vec4 self = texture2D(u_texture, uv);
+
+                float state = self.r; // 0=Empty, 0.5=Ice, 1.0=Active Tip
+                float angle = self.g; // Growth direction
+                float timer = self.b; // Distance/Steps
+                float thick = self.a; // Thickness (Height Map)
+
+                // Mouse Reset
+                if (u_mouse_click > 0.5 && distance(uv, u_mouse) < 0.05) {
+                    gl_FragColor = vec4(0.0); return;
+                }
+
+                // Initial Seed
+                if (u_frame < 2.0 && length(uv - 0.5) < 0.002) {
+                    gl_FragColor = vec4(1.0, 0.0, 0.0, 0.8); // Start thick
+                    return;
+                }
+
+                if (state > 0.9) {
+                    // Active Tip becomes Ice
+                    state = 0.5;
+                    thick += 0.05; // Deposition
+                }
+                else if (state > 0.4) {
+                    // Existing Ice thickens slightly
+                    if (thick < 1.0) thick += 0.002;
+                }
+                else {
+                    // Empty space checks for neighbors
+                    for(float x=-1.0; x<=1.0; x++) {
+                        for(float y=-1.0; y<=1.0; y++) {
+                            if (x==0.0 && y==0.0) continue;
+                            vec2 neighborUV = uv + vec2(x,y)*pixel;
+                            vec4 n = texture2D(u_texture, neighborUV);
+
+                            if (n.r > 0.9) { // If neighbor is active tip
+                                float nAngle = getRad(n.g);
+                                float nTimer = n.b;
+                                vec2 growthDir = getOffset(nAngle);
+                                vec2 toMe = vec2(-x, -y);
+                                float align = dot(normalize(toMe), normalize(growthDir));
+
+                                // Grow forward
+                                if (align > 0.85) {
+                                    state = 1.0; angle = n.g; timer = nTimer + 1.0; thick = n.a * 0.9;
+                                }
+
+                                // Branching Logic
+                                if (mod(nTimer, u_spacing) < 1.0 && nTimer > 10.0) {
+                                    vec2 leftDir = getOffset(nAngle + PI/3.0);
+                                    if (dot(normalize(toMe), normalize(leftDir)) > 0.85) {
+                                        state = 1.0; angle = fract(n.g + (1.0/6.0)); timer = 0.0; thick = 0.4;
+                                    }
+                                    vec2 rightDir = getOffset(nAngle - PI/3.0);
+                                    if (dot(normalize(toMe), normalize(rightDir)) > 0.85) {
+                                        state = 1.0; angle = fract(n.g - (1.0/6.0)); timer = 0.0; thick = 0.4;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                gl_FragColor = vec4(state, angle, timer, thick);
+            }
+        `;
+
+        // --- PHOTOREALISTIC RENDER SHADER ---
+        // Uses derivatives to create normals, applies Fresnel, Specular, and Chromatic Aberration
+        const renderFragmentShader = `
+            uniform sampler2D u_texture;
+            uniform vec2 u_resolution;
+            uniform float u_symmetry;
+            uniform float u_crispness;
+
+            varying vec2 vUv;
+
+            #define PI 3.14159
+
+            // Symmetry Transform
+            vec2 getSymmetryUV(vec2 uv, float k) {
+                float aspect = u_resolution.x / u_resolution.y;
+                uv.x *= aspect;
+                vec2 p = uv - vec2(0.5 * aspect, 0.5);
+                if (k > 1.0) {
+                    float r = length(p);
+                    float a = atan(p.y, p.x);
+                    float sector = 2.0 * PI / k;
+                    a = abs(mod(a, sector) - sector * 0.5);
+                    p = vec2(cos(a), sin(a)) * r;
+                }
+                p += 0.5;
+                return p;
+            }
+
+            // --- GAUSSIAN BLUR SAMPLER FOR SMOOTH HEIGHTS ---
+            // This smoothes the pixelated grid into organic slopes
+            float getSmoothHeight(vec2 uv) {
+                vec2 texel = vec2(1.0/1024.0, 1.0/1024.0);
+                float h = 0.0;
+
+                // 3x3 Weighted Kernel
+                h += texture2D(u_texture, uv + vec2(-1,-1)*texel).a * 1.0;
+                h += texture2D(u_texture, uv + vec2( 0,-1)*texel).a * 2.0;
+                h += texture2D(u_texture, uv + vec2( 1,-1)*texel).a * 1.0;
+
+                h += texture2D(u_texture, uv + vec2(-1, 0)*texel).a * 2.0;
+                h += texture2D(u_texture, uv + vec2( 0, 0)*texel).a * 4.0;
+                h += texture2D(u_texture, uv + vec2( 1, 0)*texel).a * 2.0;
+
+                h += texture2D(u_texture, uv + vec2(-1, 1)*texel).a * 1.0;
+                h += texture2D(u_texture, uv + vec2( 0, 1)*texel).a * 2.0;
+                h += texture2D(u_texture, uv + vec2( 1, 1)*texel).a * 1.0;
+
+                return h / 16.0;
+            }
+
+            void main() {
+                vec2 uv = getSymmetryUV(vUv, u_symmetry);
+                uv = (uv - 0.5) * 1.3 + 0.5; // Zoom out slightly
+
+                // 1. Get Smoothed Height
+                float h = getSmoothHeight(uv);
+
+                // 2. Smooth Normal Calculation
+                // We use a wider sample radius (offset) to soften the slopes further
+                vec2 texel = vec2(1.0/1024.0, 1.0/1024.0);
+                float offset = 2.0;
+
+                float hRight = getSmoothHeight(uv + vec2(texel.x * offset, 0.0));
+                float hUp    = getSmoothHeight(uv + vec2(0.0, texel.y * offset));
+
+                // Scale height effect by "Crispness"
+                float heightScale = 12.0 * u_crispness;
+                vec3 dx = vec3(texel.x * offset, 0.0, (hRight - h) * heightScale);
+                vec3 dy = vec3(0.0, texel.y * offset, (hUp - h) * heightScale);
+                vec3 normal = normalize(cross(dx, dy));
+
+                // 3. Lighting Setup
+                vec3 lightDir = normalize(vec3(-0.5, 1.0, 1.0)); // Light from top-left
+                vec3 viewDir = vec3(0.0, 0.0, 1.0); // Looking straight down
+                vec3 halfVector = normalize(lightDir + viewDir);
+
+                // A. Diffuse (Internal Scattering)
+                float diff = max(dot(normal, lightDir), 0.0);
+
+                // B. Specular (Shiny surface reflection)
+                float NdotH = max(dot(normal, halfVector), 0.0);
+                float spec = pow(NdotH, 40.0) * 1.5; // Slightly softer highlights for "wet" look
+
+                // C. Fresnel (Rim Lighting - Glowing Edges)
+                float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
+
+                // 4. Color Compositing
+                // --- BACKGROUND GRADIENT ---
+                float bgDist = length(vUv - 0.5);
+                // Center: Rich Royal Blue, Edge: Deep Void Black
+                vec3 bgCenter = vec3(0.05, 0.12, 0.25);
+                vec3 bgEdge = vec3(0.00, 0.01, 0.03);
+                vec3 baseColor = mix(bgCenter, bgEdge, bgDist * 1.5);
+
+                // Ice Body Color
+                vec3 iceColor = mix(vec3(0.1, 0.3, 0.5), vec3(0.9, 0.95, 1.0), h);
+
+                // Interference/Rainbows (toned down for realism)
+                vec3 rainbow = 0.5 + 0.5 * cos(6.28 * (vec3(1.0) * h * 4.0 + vec3(0.0, 0.33, 0.67)));
+
+                vec3 finalColor = baseColor;
+
+                // Soft alpha blending instead of hard cutoff
+                float alpha = smoothstep(0.01, 0.15, h);
+
+                if (alpha > 0.0) {
+                    vec3 litColor = iceColor * (0.3 + diff * 0.5);
+                    litColor += rainbow * 0.1;
+                    litColor += vec3(0.9, 0.95, 1.0) * spec; // Whiter specular
+                    litColor += vec3(0.6, 0.9, 1.0) * fresnel * 1.5; // Strong edge glow
+
+                    // Mix using alpha, but allow background to bleed through thin ice (transparency)
+                    finalColor = mix(baseColor, litColor, alpha * 0.95);
+                }
+
+                // 5. Post-Processing: Vignette
+                float dist = length(vUv - 0.5);
+                float vignette = smoothstep(0.9, 0.3, dist);
+                finalColor *= vignette;
+
+                // 6. Chromatic Aberration (Simulated on Edges)
+                // Calculate variation in height to detect edges
+                float edgeFactor = length(vec2(hRight - h, hUp - h)) * 100.0;
+                finalColor.r += edgeFactor * 0.02;
+                finalColor.b += edgeFactor * 0.04;
+
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `;
+
+        function init() {
+            // Setup Renderer
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                preserveDrawingBuffer: true // REQUIRED for capture
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // High DPI
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            // Setup Simulation Buffers (Ping-Pong)
+            let type = THREE.FloatType;
+            if (renderer.capabilities.isWebGL2 === false && !renderer.extensions.get('OES_texture_float')) {
+                type = THREE.HalfFloatType;
+            }
+
+            const options = {
+                minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+                format: THREE.RGBAFormat, type: type,
+                wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping
+            };
+            bufferA = new THREE.WebGLRenderTarget(SIM_RES, SIM_RES, options);
+            bufferB = new THREE.WebGLRenderTarget(SIM_RES, SIM_RES, options);
+
+            // Simulation Scene
+            simScene = new THREE.Scene();
+            simCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            materialSim = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+                fragmentShader: simFragmentShader
+            });
+            simMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), materialSim);
+            simScene.add(simMesh);
+
+            // Render Scene
+            materialRender = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+                fragmentShader: renderFragmentShader
+            });
+            renderMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), materialRender);
+            scene.add(renderMesh);
+
+            // Events
+            window.addEventListener('resize', onResize);
+            const updateMouse = (x, y) => {
+                uniforms.u_mouse.value.set(x / window.innerWidth, 1.0 - y / window.innerHeight);
+            };
+
+            window.addEventListener('mousedown', () => uniforms.u_mouse_click.value = 1);
+            window.addEventListener('mouseup', () => uniforms.u_mouse_click.value = 0);
+            window.addEventListener('mousemove', e => updateMouse(e.clientX, e.clientY));
+
+            // Touch support
+            window.addEventListener('touchstart', e => { uniforms.u_mouse_click.value = 1; updateMouse(e.touches[0].clientX, e.touches[0].clientY); });
+            window.addEventListener('touchend', () => uniforms.u_mouse_click.value = 0);
+            window.addEventListener('touchmove', e => updateMouse(e.touches[0].clientX, e.touches[0].clientY));
+
+            onResize();
+            document.getElementById('loading').style.display = 'none';
+            animate();
+        }
+
+        function onResize() {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            let input = isEvenFrame ? bufferA : bufferB;
+            let output = isEvenFrame ? bufferB : bufferA;
+
+            // Only run simulation steps if active
+            if (isSimulating) {
+                materialSim.uniforms.u_texture.value = input.texture;
+                materialSim.uniforms.u_time.value = performance.now() / 1000;
+                materialSim.uniforms.u_frame.value = frameCount;
+
+                // Run Simulation Step
+                renderer.setRenderTarget(output);
+                renderer.render(simScene, simCamera);
+
+                // Swap for next frame
+                isEvenFrame = !isEvenFrame;
+                frameCount++;
+
+                if(frameCount > 2000) document.getElementById('status').innerText = "MATURE";
+
+                // Pass the NEW output to the renderer
+                materialRender.uniforms.u_texture.value = output.texture;
+            } else {
+                // If paused, keep rendering the LAST valid input (which contains the simulation state)
+                materialRender.uniforms.u_texture.value = input.texture;
+            }
+
+            // Render to Screen (Always render so the canvas doesn't clear)
+            renderer.setRenderTarget(null);
+            renderer.render(scene, camera);
+        }
+
+        // --- LOGGING ---
+        const logEl = document.getElementById('log-container');
+        function log(msg) {
+            let div = document.createElement('div'); div.className='log-line'; div.innerText = `> ${msg}`;
+            logEl.prepend(div); if(logEl.children.length>6) logEl.lastChild.remove();
+        }
+
+        // --- UI CONTROLS ---
+
+        // PAUSE / RESUME
+        const btnPause = document.getElementById('btn-pause');
+        const statusEl = document.getElementById('status');
+
+        btnPause.onclick = () => {
+            isSimulating = !isSimulating;
+            if (isSimulating) {
+                btnPause.innerText = "PAUSE";
+                statusEl.innerText = "GROWING";
+                statusEl.style.color = "#0f0";
+                log("SIMULATION RESUMED");
+            } else {
+                btnPause.innerText = "RESUME";
+                statusEl.innerText = "PAUSED";
+                statusEl.style.color = "#fc0";
+                log("SIMULATION PAUSED");
+            }
+        };
+
+        // RERUN
+        document.getElementById('btn-rerun').onclick = () => {
+            // Reset state
+            frameCount = 0;
+            uniforms.u_seed.value = Math.random() * 100;
+
+            // Ensure we are playing
+            if (!isSimulating) {
+                isSimulating = true;
+                btnPause.innerText = "PAUSE";
+                statusEl.style.color = "#0f0";
+            }
+
+            // Clear buffers to black (Empty)
+            renderer.setRenderTarget(bufferA); renderer.clear();
+            renderer.setRenderTarget(bufferB); renderer.clear();
+            renderer.setRenderTarget(null);
+
+            log("SIMULATION RESTARTED");
+            document.getElementById('status').innerText = "GROWING";
+        };
+
+        // CAPTURE
+        document.getElementById('btn-capture').onclick = () => {
+            try {
+                // Remember state
+                const wasSimulating = isSimulating;
+                isSimulating = false; // Pause simulation logic
+
+                // Flash effect
+                const flash = document.getElementById('flash');
+                flash.style.opacity = 1;
+                setTimeout(() => flash.style.opacity = 0, 50);
+
+                // Force a synchronous high-quality render of the current scene state
+                renderer.render(scene, camera);
+
+                // Get data URL
+                const dataURL = renderer.domElement.toDataURL('image/png');
+
+                // Create virtual link and click it
+                const link = document.createElement('a');
+                link.download = `cryo_genesis_${Date.now()}.png`;
+                link.href = dataURL;
+
+                // CRITICAL FIX: Append to body for Firefox/Security compliance
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                log("FRAME CAPTURED");
+
+                // Restore previous state
+                isSimulating = wasSimulating;
+            } catch (e) {
+                console.error(e);
+                log("CAPTURE FAILED: " + e.message);
+            }
+        };
+
+        // Sliders
+        document.getElementById('sl-sym').oninput = (e) => {
+            uniforms.u_symmetry.value = parseFloat(e.target.value);
+            log(`SYMMETRY: ${e.target.value}-FOLD`);
+        };
+        document.getElementById('sl-spacing').oninput = (e) => {
+            uniforms.u_spacing.value = parseFloat(e.target.value);
+        };
+        document.getElementById('sl-crisp').oninput = (e) => {
+            uniforms.u_crispness.value = parseFloat(e.target.value) / 100.0;
+        };
+
+        init();
+    </script>
+  </body>
+</html>

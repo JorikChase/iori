@@ -18,6 +18,7 @@
             touch-action: none; /* Disables browser scrolling gestures */
             -webkit-user-select: none; /* Safari select disable */
             user-select: none;
+            font-family: monospace;
         }
 
         canvas {
@@ -25,27 +26,47 @@
             /* Default rendering styles */
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
-        }
-
-        /* Loading state (optional, keeps screen black until ready) */
-        #stage {
             opacity: 0;
             transition: opacity 0.5s ease-in;
         }
-        #stage.loaded {
+
+        canvas.loaded {
             opacity: 1;
+        }
+
+        /* Loading / Debug Overlay */
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #444;
+            pointer-events: none;
+            z-index: 10;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        #status.error {
+            color: #ff4444;
+        }
+        #status.success {
+            color: #44ff44;
+            animation: fadeOut 2s forwards 1s;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; }
         }
     </style>
   </head>
   <body>
+    <div id="status">Initializing...</div>
     <canvas id="stage"></canvas>
-    <!-- Switching to UPNG.js via esm.sh.
-         This library is more robust for direct buffer decoding and avoids the class method issues. -->
     <script type="module">
       import UPNG from 'https://esm.sh/upng-js@2.1.0';
 
         // --- Configuration ---
-        const ASSET_PATH = 'assets/lili.png';
+        // We use the absolute URL to ensure it works regardless of where the HTML is hosted.
+        const ASSET_URL = 'https://iori.me/assets/lili.png';
         const SENSITIVITY = 0.5; // Drag sensitivity
 
         // --- State ---
@@ -56,6 +77,15 @@
         let startFrameIndex = 0;
         let canvas, ctx;
         let canvasSize = 0;
+        const statusEl = document.getElementById('status');
+
+        // --- Logging Helper ---
+        function log(msg, type = 'info') {
+            console.log(msg);
+            statusEl.textContent = msg;
+            if (type === 'error') statusEl.className = 'error';
+            if (type === 'success') statusEl.className = 'success';
+        }
 
         // --- Initialization ---
         async function init() {
@@ -66,32 +96,42 @@
                 // Ensure the library loaded correctly
                 const UpngLib = UPNG.default || UPNG;
                 if (!UpngLib || typeof UpngLib.decode !== 'function') {
-                    throw new Error("UPNG library failed to load or does not export decode function.");
+                    throw new Error("UPNG library failed to load.");
                 }
 
-                // Fetch the APNG file
-                console.log(`Fetching ${ASSET_PATH}...`);
-                const response = await fetch(ASSET_PATH);
+                log(`Fetching image...`);
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                let buffer;
+
+                // --- ROBUST FETCH STRATEGY ---
+                // 1. Try Direct Fetch (Works if Same-Origin or if Server has CORS enabled)
+                try {
+                    const response = await fetch(ASSET_URL, { mode: 'cors' });
+                    if (!response.ok) throw new Error(`Status ${response.status}`);
+                    buffer = await response.arrayBuffer();
+                } catch (directError) {
+                    console.warn("Direct fetch failed (likely CORS). Attempting proxy fallback...", directError);
+                    log("Direct load failed. Retrying via CORS proxy...");
+
+                    // 2. Fallback: Use a CORS Proxy (Necessary for local testing/previews if server lacks headers)
+                    // We use corsproxy.io as a fallback to ensure the asset loads in this preview
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ASSET_URL)}`;
+                    const proxyResponse = await fetch(proxyUrl);
+                    if (!proxyResponse.ok) throw new Error(`Proxy Status ${proxyResponse.status}`);
+                    buffer = await proxyResponse.arrayBuffer();
                 }
 
-                const buffer = await response.arrayBuffer();
-
-                // --- DEBUGGING CHECK ---
-                // Check if the file is actually an HTML page (common 404 error masked as 200 OK)
+                // --- VALIDATION ---
+                // Check for HTML response (common 404 masked as 200)
                 const header = new Uint8Array(buffer.slice(0, 8));
                 const headerString = String.fromCharCode.apply(null, header);
 
-                // PNG signature is: 89 50 4E 47 0D 0A 1A 0A
-                // HTML files usually start with "<!DOCT" or "<html"
+                // PNG signature: 89 50 4E 47 ...
                 if (headerString.includes("<!D") || headerString.includes("<ht")) {
-                    console.error("CRITICAL ERROR: The file downloaded appears to be an HTML page, not an image.");
-                    console.error("Preview of file content:", headerString);
-                    throw new Error("File loaded is HTML (likely a 404 page), not a PNG. Check your file path.");
+                    throw new Error("File loaded is HTML, not PNG. Check URL.");
                 }
 
+                log("Decoding APNG...");
                 // Parse APNG structure
                 const img = UpngLib.decode(buffer);
 
@@ -104,15 +144,16 @@
                     const frameData = new Uint8ClampedArray(rgbaFrames[i]);
                     const imageData = new ImageData(frameData, img.width, img.height);
 
+                    // Create bitmap for performance
                     const bitmap = await createImageBitmap(imageData);
                     frames.push(bitmap);
                 }
 
                 if (frames.length === 0) {
-                    throw new Error("No frames could be decoded.");
+                    throw new Error("No frames found in APNG.");
                 }
 
-                console.log(`Success! Loaded ${frames.length} frames.`);
+                log(`Ready (${frames.length} frames)`, 'success');
 
                 // Initial Resize & Draw
                 handleResize();
@@ -125,8 +166,8 @@
                 setupInteractions();
 
             } catch (err) {
-                console.error("Error loading APNG:", err);
-                alert("Error: " + err.message); // Added alert since you have no text UI, helps debugging
+                console.error(err);
+                log(`Error: ${err.message}`, 'error');
             }
         }
 
@@ -140,8 +181,6 @@
 
             // Clear and Draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // We draw the image to fill the canvas exactly
             ctx.drawImage(frames[currentFrameIndex], 0, 0, canvas.width, canvas.height);
         }
 
@@ -172,17 +211,18 @@
 
         // --- Interaction Logic ---
         function setupInteractions() {
-            // 1. Window Resize
             window.addEventListener('resize', handleResize);
 
-            // 2. Pointer Events (Touch & Mouse unified)
+            // Pointer Events (Mouse + Touch)
             document.addEventListener('pointerdown', onPointerDown);
             document.addEventListener('pointermove', onPointerMove);
             document.addEventListener('pointerup', onPointerUp);
             document.addEventListener('pointercancel', onPointerUp);
 
-            // 3. Gyroscope (Device Orientation)
-            window.addEventListener('deviceorientation', onDeviceOrientation);
+            // Gyroscope
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', onDeviceOrientation);
+            }
         }
 
         // --- Pointer Handlers ---
@@ -190,40 +230,43 @@
             isDragging = true;
             startX = e.clientX;
             startFrameIndex = currentFrameIndex;
+            canvas.style.cursor = 'grabbing';
 
-            // iOS Permission Request Hack
             requestGyroPermission();
         }
 
         function onPointerMove(e) {
             if (!isDragging) return;
-
             e.preventDefault();
             const deltaX = e.clientX - startX;
-            const frameDelta = Math.floor(deltaX * SENSITIVITY);
+            // Adjust sensitivity relative to screen width for consistency
+            const normalizedDelta = deltaX * (frames.length / window.innerWidth) * 2;
 
-            drawFrame(startFrameIndex + frameDelta);
+            drawFrame(startFrameIndex + normalizedDelta);
         }
 
         function onPointerUp() {
             isDragging = false;
+            canvas.style.cursor = 'default';
         }
 
         // --- Gyroscope Handlers ---
         let initialGamma = null;
 
         function onDeviceOrientation(e) {
-            // Gamma is left-to-right tilt in degrees (-90 to 90)
-            const gamma = e.gamma;
-
+            const gamma = e.gamma; // Left-to-right tilt (-90 to 90)
             if (gamma === null) return;
 
             if (initialGamma === null) initialGamma = gamma;
-            const deltaGamma = gamma - initialGamma;
 
+            // Only control if not dragging
             if (frames.length > 0 && !isDragging) {
-                 const framesPerDegree = frames.length / 90;
-                 const targetFrame = (gamma + 45) * framesPerDegree;
+                 // Map gamma (-45 to 45 degree tilt range) to frame range
+                 const tilt = Math.max(-45, Math.min(45, gamma));
+                 const percent = (tilt + 45) / 90;
+                 const targetFrame = percent * frames.length;
+
+                 // Smooth lerp could be added here, but direct mapping is responsive
                  drawFrame(targetFrame);
             }
         }
@@ -233,12 +276,9 @@
             if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
 
+                // Only request if we haven't already (simplified check)
                 DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            // Permission granted
-                        }
-                    })
+                    .then(state => console.log('Gyro permission:', state))
                     .catch(console.error);
             }
         }

@@ -255,7 +255,7 @@
 
                     // Aggressive Cleanup
                     rgbaFrames[i] = null;
-                    frameData.buffer = null;
+                    // REMOVED: frameData.buffer = null; (Caused TypeError on strict browsers)
 
                 } catch (e) {
                     console.warn("Frame decode error", e);

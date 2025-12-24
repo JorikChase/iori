@@ -8,26 +8,25 @@
       body {
             margin: 0;
             padding: 0;
-            background-color: #000; /* Black background for clean look */
-            overflow: hidden; /* Prevent scrolling */
+            background-color: #000;
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             width: 100vw;
-            touch-action: none; /* Disables browser scrolling gestures */
-            -webkit-user-select: none; /* Safari select disable */
+            touch-action: none;
+            -webkit-user-select: none;
             user-select: none;
             font-family: monospace;
         }
 
         canvas {
             display: block;
-            /* removed crisp-edges to allow smooth anti-aliasing */
+            /* Ensure smooth scaling for high-quality rendering */
+            image-rendering: auto;
             transition: opacity 0.5s ease-in;
         }
-
-        /* We no longer need the text status overlay */
     </style>
   </head>
   <body>
@@ -39,7 +38,8 @@
         const ASSET_URL = 'https://iori.me/assets/lili.png';
 
         // --- State ---
-        let frames = [];
+        let frames = []; // Array of ImageBitmaps
+        let totalFramesCount = 0; // Total expected frames (for interaction math)
         let currentFrameIndex = 0;
         let isDragging = false;
         let startX = 0;
@@ -47,29 +47,30 @@
         let canvas, ctx;
         let canvasSize = 0;
 
-        // Loading State
+        // State flags
         let isLoading = true;
+        let isProcessing = false;
         let loaderFrameId = null;
 
         // --- Initialization ---
         async function init() {
             canvas = document.getElementById('stage');
-            ctx = canvas.getContext('2d');
+            ctx = canvas.getContext('2d'); // We handle DPI scaling manually in resize
 
             // Set initial size
             handleResize();
 
-            // Start the flower loading animation immediately
+            // Start the flower loading animation
             startLoadingAnimation();
 
             try {
-                // Ensure the library loaded correctly
+                // Ensure library loaded
                 const UpngLib = UPNG.default || UPNG;
                 if (!UpngLib || typeof UpngLib.decode !== 'function') {
                     throw new Error("UPNG library failed to load.");
                 }
 
-                // --- Fetch Strategy ---
+                // --- Fetch ---
                 let buffer;
                 try {
                     const response = await fetch(ASSET_URL, { mode: 'cors' });
@@ -91,71 +92,175 @@
                 }
 
                 // --- Decoding ---
+                // UPNG.decode is synchronous and needs full buffer
                 const img = UpngLib.decode(buffer);
                 const rgbaFrames = UpngLib.toRGBA8(img);
 
-                // Process frames
+                totalFramesCount = rgbaFrames.length;
+                if (totalFramesCount === 0) throw new Error("No frames found.");
+
+                // --- Progressive Frame Generation ---
+                // We don't wait for ALL frames to be bitmaps. We start immediately.
+                isProcessing = true;
                 frames = [];
-                for (let i = 0; i < rgbaFrames.length; i++) {
-                    const frameData = new Uint8ClampedArray(rgbaFrames[i]);
-                    const imageData = new ImageData(frameData, img.width, img.height);
-                    const bitmap = await createImageBitmap(imageData);
-                    frames.push(bitmap);
-                }
 
-                if (frames.length === 0) throw new Error("No frames found.");
-
-                // --- Success Transition ---
-                isLoading = false;
-                if (loaderFrameId) cancelAnimationFrame(loaderFrameId); // Stop loader
-
-                // Final layout update and draw first frame
-                handleResize();
-                drawFrame(0);
-
-                // Setup Interaction
-                setupInteractions();
+                // Process frames in chunks to not freeze the UI thread
+                processFramesProgressively(rgbaFrames, img.width, img.height);
 
             } catch (err) {
-                console.error(err);
-                // If error, we keep the loader running but maybe change color or stop it
-                // For now, we just log to console to keep the UI clean as requested ("no text")
+                console.error("Init Error:", err);
+                // In a production app we might show a minimal error visual here
+                // but requested "no text", so we leave it black/loading.
             }
         }
 
-        // --- Loading Animation (Flower Theme) ---
+        async function processFramesProgressively(rgbaFrames, width, height) {
+            for (let i = 0; i < rgbaFrames.length; i++) {
+                const frameData = new Uint8ClampedArray(rgbaFrames[i]);
+                const imageData = new ImageData(frameData, width, height);
+
+                // Create bitmap (async)
+                const bitmap = await createImageBitmap(imageData);
+                frames.push(bitmap);
+
+                // --- UNLOCK UI ---
+                // As soon as we have the first frame, we can stop the loader and show content
+                if (isLoading && frames.length > 0) {
+                    isLoading = false;
+                    if (loaderFrameId) cancelAnimationFrame(loaderFrameId);
+
+                    // Setup interactions now that we have content
+                    setupInteractions();
+
+                    // Force a resize/redraw to ensure clean state
+                    handleResize();
+                }
+
+                // If we are currently "idling" (not dragging), update the view to show loading progress
+                // or just keep showing the first frame.
+                // For a seamless feel, we usually just show the first frame until interaction.
+                if (i === 0) {
+                    drawFrame(0);
+                }
+
+                // Yield to main thread every few frames to keep UI responsive
+                if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+            }
+            isProcessing = false;
+            console.log("All frames processed.");
+        }
+
+        // --- Rendering ---
+        function drawFrame(index) {
+            // Safety Check: Frames array might be empty or partially filled
+            if (!frames || frames.length === 0) return;
+
+            // We use totalFramesCount for the modulo math so the "virtual" timeline is correct
+            // even if we haven't loaded the end frames yet.
+            const maxFrames = Math.max(1, totalFramesCount);
+
+            // Normalize index to 0...totalFrames-1
+            const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
+            currentFrameIndex = Math.round(safeIndex);
+
+            // Progressive Check:
+            // If the user tries to view frame 100, but we only have 50 loaded,
+            // we show frame 49 (the latest available) to avoid flickering/empty screen.
+            let renderIndex = currentFrameIndex;
+            if (renderIndex >= frames.length) {
+                renderIndex = frames.length - 1;
+            }
+
+            // Get the bitmap
+            const frameBitmap = frames[renderIndex];
+
+            // Strict safety check to prevent "Argument 1..." error
+            if (!frameBitmap || typeof frameBitmap.width === 'undefined') return;
+
+            // Draw
+            // Use local canvas size which includes DPR scaling
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            try {
+                // Draw the image filling the canvas
+                // Note: The context has been scaled by DPR in handleResize,
+                // so we draw to the logical coordinates.
+                const dpr = window.devicePixelRatio || 1;
+                const logicalWidth = canvas.width / dpr;
+                const logicalHeight = canvas.height / dpr;
+
+                ctx.drawImage(frameBitmap, 0, 0, logicalWidth, logicalHeight);
+            } catch (e) {
+                // Suppress rendering errors during hot-loads/resizes
+            }
+        }
+
+        // --- Layout / Resizing (DPI Aware) ---
+        function handleResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const isPortrait = height > width;
+            const dpr = window.devicePixelRatio || 1;
+
+            if (isPortrait) {
+                canvasSize = width;
+            } else {
+                canvasSize = height;
+            }
+
+            // Set physical pixel resolution
+            canvas.width = canvasSize * dpr;
+            canvas.height = canvasSize * dpr;
+
+            // Set CSS display size
+            canvas.style.width = `${canvasSize}px`;
+            canvas.style.height = `${canvasSize}px`;
+
+            // Normalize coordinate system
+            ctx.scale(dpr, dpr);
+
+            // Redraw if we have content
+            if (!isLoading && frames.length > 0) {
+                drawFrame(currentFrameIndex);
+            }
+        }
+
+        // --- Loading Animation (Flower) ---
         function startLoadingAnimation() {
             let tick = 0;
+            const dpr = window.devicePixelRatio || 1;
 
             function loop() {
                 if (!isLoading) return;
 
                 tick += 0.02;
 
-                // Clear with a slight fade trail or full clear
-                // Full clear for clean look
+                // Clear
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
-                const minDim = Math.min(canvas.width, canvas.height);
-                const radius = minDim * 0.15; // Base radius
+                // Use logical coordinates for drawing instructions
+                // We must manually account for DPR if context isn't scaled yet (it might not be in init)
+                // But handleResize is called in init, so ctx is scaled.
 
-                // Breathing effect
+                // Wait, handleResize scales CTX. So we use logical coords.
+                // However, handleResize depends on window size.
+                const logicalW = canvas.width / dpr;
+                const logicalH = canvas.height / dpr;
+
+                const cx = logicalW / 2;
+                const cy = logicalH / 2;
+                const minDim = Math.min(logicalW, logicalH);
+                const radius = minDim * 0.15;
+
                 const breath = Math.sin(tick * 2) * (radius * 0.1);
 
-                // Draw Flower
                 ctx.beginPath();
                 const petals = 6;
 
                 for (let i = 0; i <= Math.PI * 2; i += 0.01) {
-                    // Polar rose equation: r = cos(k * theta)
-                    // We modify it to circle around a center
                     const theta = i;
-                    // Petal shape offset
                     const rOffset = Math.sin(theta * petals + tick) * (radius * 0.5);
                     const r = radius + breath + rOffset;
-
                     const x = cx + Math.cos(theta + tick * 0.3) * r;
                     const y = cy + Math.sin(theta + tick * 0.3) * r;
 
@@ -164,13 +269,10 @@
                 }
 
                 ctx.closePath();
-
-                // Styling
-                ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`; // Subtle white
+                ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`;
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // Inner circle
                 ctx.beginPath();
                 ctx.arc(cx, cy, radius * 0.2 + Math.abs(breath), 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(255, 255, 255, 0.6)`;
@@ -181,53 +283,11 @@
             loop();
         }
 
-        // --- Rendering ---
-        function drawFrame(index) {
-            // Safety Check 1: Do we have frames?
-            if (!frames || frames.length === 0) return;
-
-            // Normalize index
-            const safeIndex = ((index % frames.length) + frames.length) % frames.length;
-            currentFrameIndex = Math.round(safeIndex);
-
-            // Safety Check 2: Does the specific frame exist?
-            // This prevents the "Argument 1 could not be converted" error if index is NaN or out of bounds logic fails
-            const frameBitmap = frames[currentFrameIndex];
-            if (!frameBitmap) return;
-
-            // Clear and Draw
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            try {
-                ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
-            } catch (e) {
-                console.warn("Draw error skipped:", e);
-            }
-        }
-
-        // --- Layout / Resizing ---
-        function handleResize() {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            const isPortrait = height > width;
-
-            if (isPortrait) {
-                canvasSize = width;
-            } else {
-                canvasSize = height;
-            }
-
-            canvas.width = canvasSize;
-            canvas.height = canvasSize;
-            canvas.style.width = `${canvasSize}px`;
-            canvas.style.height = `${canvasSize}px`;
-
-            if (!isLoading) {
-                drawFrame(currentFrameIndex);
-            }
-        }
-
         // --- Interaction Logic ---
         function setupInteractions() {
+            // Remove previous listeners just in case
+            window.removeEventListener('resize', handleResize);
+
             window.addEventListener('resize', handleResize);
 
             document.addEventListener('pointerdown', onPointerDown);
@@ -253,8 +313,11 @@
             if (!isDragging || isLoading) return;
             e.preventDefault();
             const deltaX = e.clientX - startX;
-            // Sensitivity math
-            const normalizedDelta = deltaX * (frames.length / window.innerWidth) * 2;
+
+            // Use totalFramesCount for consistent sensitivity even while loading
+            const framesToUse = totalFramesCount > 0 ? totalFramesCount : 100;
+            const normalizedDelta = deltaX * (framesToUse / window.innerWidth) * 2;
+
             drawFrame(startFrameIndex + normalizedDelta);
         }
 
@@ -275,7 +338,9 @@
             if (frames.length > 0 && !isDragging) {
                  const tilt = Math.max(-45, Math.min(45, gamma));
                  const percent = (tilt + 45) / 90;
-                 const targetFrame = percent * frames.length;
+
+                 const maxFrames = totalFramesCount > 0 ? totalFramesCount : frames.length;
+                 const targetFrame = percent * maxFrames;
                  drawFrame(targetFrame);
             }
         }
@@ -283,7 +348,7 @@
         function requestGyroPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().catch(console.error);
+                DeviceOrientationEvent.requestPermission().catch(e => {}); // Silent catch
             }
         }
 

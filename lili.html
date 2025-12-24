@@ -27,9 +27,76 @@
             image-rendering: auto;
             transition: opacity 0.5s ease-in;
         }
+
+        /* --- Cute Flower Loader CSS --- */
+        .flower-loader {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            width: 40px;
+            height: 40px;
+            z-index: 1000;
+            animation: rotateFlower 2.5s linear infinite;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .flower-loader.hidden {
+            opacity: 0;
+        }
+
+        .petal {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #fff;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            margin-top: -5px; /* Half of width to center */
+            margin-left: -5px;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+        }
+
+        /* Distribute 6 petals in a circle */
+        .petal:nth-child(1) { transform: rotate(0deg) translate(14px); }
+        .petal:nth-child(2) { transform: rotate(60deg) translate(14px); }
+        .petal:nth-child(3) { transform: rotate(120deg) translate(14px); }
+        .petal:nth-child(4) { transform: rotate(180deg) translate(14px); }
+        .petal:nth-child(5) { transform: rotate(240deg) translate(14px); }
+        .petal:nth-child(6) { transform: rotate(300deg) translate(14px); }
+
+        /* A little center dot */
+        .center-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background-color: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            margin-top: -3px;
+            margin-left: -3px;
+        }
+
+        @keyframes rotateFlower {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
   </head>
   <body>
+    <!-- Loader Element -->
+    <div id="loader" class="flower-loader">
+      <div class="petal"></div>
+      <div class="petal"></div>
+      <div class="petal"></div>
+      <div class="petal"></div>
+      <div class="petal"></div>
+      <div class="petal"></div>
+      <div class="center-dot"></div>
+    </div>
     <canvas id="stage"></canvas>
     <script type="module">
       import UPNG from 'https://esm.sh/upng-js@2.1.0';
@@ -105,6 +172,7 @@
 
             } catch (err) {
                 console.error("Init Error:", err);
+                // Optional: Show error state in loader?
             }
         }
 
@@ -121,6 +189,12 @@
                 // As soon as we have the first frame, we stop loading state
                 if (isLoading && frames.length > 0) {
                     isLoading = false;
+
+                    // HIDE LOADER
+                    const loader = document.getElementById('loader');
+                    if (loader) {
+                        loader.classList.add('hidden');
+                    }
 
                     // Setup interactions now that we have content
                     setupInteractions();

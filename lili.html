@@ -39,9 +39,11 @@
   </head>
   <body>
     <canvas id="stage"></canvas>
-    <!-- We use type="module" to import the library directly from Skypack -->
+    <!-- We use type="module" for modern ES imports -->
     <script type="module">
-      import parseAPNG from 'https://cdn.skypack.dev/apng-js';
+      // FIX: Import the default export instead of a named export
+        // This resolves the SyntaxError with esm.sh
+        import apngjs from 'https://esm.sh/apng-js@1.1.1';
 
         // --- Configuration ---
         const ASSET_PATH = 'assets/lst.png';
@@ -62,22 +64,30 @@
             ctx = canvas.getContext('2d');
 
             try {
+                // Determine the correct parsing function from the import
+                // CommonJS/ESM interop can sometimes nest the function under .default
+                const parseAPNG = apngjs.default || apngjs;
+
+                if (typeof parseAPNG !== 'function') {
+                    throw new Error(`apng-js failed to load correctly. Import type: ${typeof apngjs}`);
+                }
+
                 // Fetch the APNG file as an ArrayBuffer
                 const response = await fetch(ASSET_PATH);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-                // Parse APNG using the imported function
+                // Parse APNG
                 const apng = parseAPNG(buffer);
 
-                // Create a player instance to handle frame decoding and blending
-                // apng-js needs a context to render the frames correctly (handling dispose/blend ops)
+                // Get the player instance to handle frame extraction logic
+                // We pass the context, though we will manually manage frames
                 const apngPlayer = await apng.getPlayer(ctx);
 
-                // Decode all frames into bitmaps for high-performance scrubbing
+                // Decode frames
                 frames = [];
+                // We access the internal frames array from the parsed object
                 for (const frame of apngPlayer._apng.frames) {
-                    // We extract the image data from the player's frame structure
                     const imageBitmap = await createImageBitmap(new Blob([frame.imageData], { type: 'image/png' }));
                     frames.push(imageBitmap);
                 }

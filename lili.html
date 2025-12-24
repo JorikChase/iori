@@ -23,51 +23,20 @@
 
         canvas {
             display: block;
-            /* Default rendering styles */
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-            opacity: 0;
+            /* removed crisp-edges to allow smooth anti-aliasing */
             transition: opacity 0.5s ease-in;
         }
 
-        canvas.loaded {
-            opacity: 1;
-        }
-
-        /* Loading / Debug Overlay */
-        #status {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #444;
-            pointer-events: none;
-            z-index: 10;
-            max-width: 80%;
-            word-wrap: break-word;
-        }
-        #status.error {
-            color: #ff4444;
-        }
-        #status.success {
-            color: #44ff44;
-            animation: fadeOut 2s forwards 1s;
-        }
-
-        @keyframes fadeOut {
-            to { opacity: 0; }
-        }
+        /* We no longer need the text status overlay */
     </style>
   </head>
   <body>
-    <div id="status">Initializing...</div>
     <canvas id="stage"></canvas>
     <script type="module">
       import UPNG from 'https://esm.sh/upng-js@2.1.0';
 
         // --- Configuration ---
-        // We use the absolute URL to ensure it works regardless of where the HTML is hosted.
         const ASSET_URL = 'https://iori.me/assets/lili.png';
-        const SENSITIVITY = 0.5; // Drag sensitivity
 
         // --- State ---
         let frames = [];
@@ -77,20 +46,21 @@
         let startFrameIndex = 0;
         let canvas, ctx;
         let canvasSize = 0;
-        const statusEl = document.getElementById('status');
 
-        // --- Logging Helper ---
-        function log(msg, type = 'info') {
-            console.log(msg);
-            statusEl.textContent = msg;
-            if (type === 'error') statusEl.className = 'error';
-            if (type === 'success') statusEl.className = 'success';
-        }
+        // Loading State
+        let isLoading = true;
+        let loaderFrameId = null;
 
         // --- Initialization ---
         async function init() {
             canvas = document.getElementById('stage');
             ctx = canvas.getContext('2d');
+
+            // Set initial size
+            handleResize();
+
+            // Start the flower loading animation immediately
+            startLoadingAnimation();
 
             try {
                 // Ensure the library loaded correctly
@@ -99,89 +69,139 @@
                     throw new Error("UPNG library failed to load.");
                 }
 
-                log(`Fetching image...`);
-
+                // --- Fetch Strategy ---
                 let buffer;
-
-                // --- ROBUST FETCH STRATEGY ---
-                // 1. Try Direct Fetch (Works if Same-Origin or if Server has CORS enabled)
                 try {
                     const response = await fetch(ASSET_URL, { mode: 'cors' });
                     if (!response.ok) throw new Error(`Status ${response.status}`);
                     buffer = await response.arrayBuffer();
                 } catch (directError) {
-                    console.warn("Direct fetch failed (likely CORS). Attempting proxy fallback...", directError);
-                    log("Direct load failed. Retrying via CORS proxy...");
-
-                    // 2. Fallback: Use a CORS Proxy (Necessary for local testing/previews if server lacks headers)
-                    // We use corsproxy.io as a fallback to ensure the asset loads in this preview
+                    console.warn("Direct fetch failed, trying proxy...");
                     const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ASSET_URL)}`;
                     const proxyResponse = await fetch(proxyUrl);
                     if (!proxyResponse.ok) throw new Error(`Proxy Status ${proxyResponse.status}`);
                     buffer = await proxyResponse.arrayBuffer();
                 }
 
-                // --- VALIDATION ---
-                // Check for HTML response (common 404 masked as 200)
+                // --- Validation ---
                 const header = new Uint8Array(buffer.slice(0, 8));
                 const headerString = String.fromCharCode.apply(null, header);
-
-                // PNG signature: 89 50 4E 47 ...
                 if (headerString.includes("<!D") || headerString.includes("<ht")) {
-                    throw new Error("File loaded is HTML, not PNG. Check URL.");
+                    throw new Error("File loaded is HTML, not PNG.");
                 }
 
-                log("Decoding APNG...");
-                // Parse APNG structure
+                // --- Decoding ---
                 const img = UpngLib.decode(buffer);
-
-                // Convert frames to RGBA 8-bit buffers
                 const rgbaFrames = UpngLib.toRGBA8(img);
 
-                // Convert raw buffers to ImageBitmaps for fast drawing
+                // Process frames
                 frames = [];
                 for (let i = 0; i < rgbaFrames.length; i++) {
                     const frameData = new Uint8ClampedArray(rgbaFrames[i]);
                     const imageData = new ImageData(frameData, img.width, img.height);
-
-                    // Create bitmap for performance
                     const bitmap = await createImageBitmap(imageData);
                     frames.push(bitmap);
                 }
 
-                if (frames.length === 0) {
-                    throw new Error("No frames found in APNG.");
-                }
+                if (frames.length === 0) throw new Error("No frames found.");
 
-                log(`Ready (${frames.length} frames)`, 'success');
+                // --- Success Transition ---
+                isLoading = false;
+                if (loaderFrameId) cancelAnimationFrame(loaderFrameId); // Stop loader
 
-                // Initial Resize & Draw
+                // Final layout update and draw first frame
                 handleResize();
                 drawFrame(0);
 
-                // Reveal Canvas
-                canvas.classList.add('loaded');
-
-                // Setup Input Listeners
+                // Setup Interaction
                 setupInteractions();
 
             } catch (err) {
                 console.error(err);
-                log(`Error: ${err.message}`, 'error');
+                // If error, we keep the loader running but maybe change color or stop it
+                // For now, we just log to console to keep the UI clean as requested ("no text")
             }
+        }
+
+        // --- Loading Animation (Flower Theme) ---
+        function startLoadingAnimation() {
+            let tick = 0;
+
+            function loop() {
+                if (!isLoading) return;
+
+                tick += 0.02;
+
+                // Clear with a slight fade trail or full clear
+                // Full clear for clean look
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const minDim = Math.min(canvas.width, canvas.height);
+                const radius = minDim * 0.15; // Base radius
+
+                // Breathing effect
+                const breath = Math.sin(tick * 2) * (radius * 0.1);
+
+                // Draw Flower
+                ctx.beginPath();
+                const petals = 6;
+
+                for (let i = 0; i <= Math.PI * 2; i += 0.01) {
+                    // Polar rose equation: r = cos(k * theta)
+                    // We modify it to circle around a center
+                    const theta = i;
+                    // Petal shape offset
+                    const rOffset = Math.sin(theta * petals + tick) * (radius * 0.5);
+                    const r = radius + breath + rOffset;
+
+                    const x = cx + Math.cos(theta + tick * 0.3) * r;
+                    const y = cy + Math.sin(theta + tick * 0.3) * r;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+
+                ctx.closePath();
+
+                // Styling
+                ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`; // Subtle white
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Inner circle
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * 0.2 + Math.abs(breath), 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, 0.6)`;
+                ctx.fill();
+
+                loaderFrameId = requestAnimationFrame(loop);
+            }
+            loop();
         }
 
         // --- Rendering ---
         function drawFrame(index) {
-            if (frames.length === 0) return;
+            // Safety Check 1: Do we have frames?
+            if (!frames || frames.length === 0) return;
 
-            // Wrap index to ensure it stays within bounds
+            // Normalize index
             const safeIndex = ((index % frames.length) + frames.length) % frames.length;
             currentFrameIndex = Math.round(safeIndex);
 
+            // Safety Check 2: Does the specific frame exist?
+            // This prevents the "Argument 1 could not be converted" error if index is NaN or out of bounds logic fails
+            const frameBitmap = frames[currentFrameIndex];
+            if (!frameBitmap) return;
+
             // Clear and Draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(frames[currentFrameIndex], 0, 0, canvas.width, canvas.height);
+            try {
+                ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
+            } catch (e) {
+                console.warn("Draw error skipped:", e);
+            }
         }
 
         // --- Layout / Resizing ---
@@ -190,58 +210,51 @@
             const height = window.innerHeight;
             const isPortrait = height > width;
 
-            // Square asset logic:
             if (isPortrait) {
                 canvasSize = width;
             } else {
                 canvasSize = height;
             }
 
-            // Update Canvas DOM dimensions (resolution)
             canvas.width = canvasSize;
             canvas.height = canvasSize;
-
-            // Update CSS dimensions
             canvas.style.width = `${canvasSize}px`;
             canvas.style.height = `${canvasSize}px`;
 
-            // Redraw current frame after resize
-            drawFrame(currentFrameIndex);
+            if (!isLoading) {
+                drawFrame(currentFrameIndex);
+            }
         }
 
         // --- Interaction Logic ---
         function setupInteractions() {
             window.addEventListener('resize', handleResize);
 
-            // Pointer Events (Mouse + Touch)
             document.addEventListener('pointerdown', onPointerDown);
             document.addEventListener('pointermove', onPointerMove);
             document.addEventListener('pointerup', onPointerUp);
             document.addEventListener('pointercancel', onPointerUp);
 
-            // Gyroscope
             if (window.DeviceOrientationEvent) {
                 window.addEventListener('deviceorientation', onDeviceOrientation);
             }
         }
 
-        // --- Pointer Handlers ---
         function onPointerDown(e) {
+            if (isLoading) return;
             isDragging = true;
             startX = e.clientX;
             startFrameIndex = currentFrameIndex;
             canvas.style.cursor = 'grabbing';
-
             requestGyroPermission();
         }
 
         function onPointerMove(e) {
-            if (!isDragging) return;
+            if (!isDragging || isLoading) return;
             e.preventDefault();
             const deltaX = e.clientX - startX;
-            // Adjust sensitivity relative to screen width for consistency
+            // Sensitivity math
             const normalizedDelta = deltaX * (frames.length / window.innerWidth) * 2;
-
             drawFrame(startFrameIndex + normalizedDelta);
         }
 
@@ -250,36 +263,27 @@
             canvas.style.cursor = 'default';
         }
 
-        // --- Gyroscope Handlers ---
+        // --- Gyroscope ---
         let initialGamma = null;
 
         function onDeviceOrientation(e) {
-            const gamma = e.gamma; // Left-to-right tilt (-90 to 90)
+            if (isLoading) return;
+            const gamma = e.gamma;
             if (gamma === null) return;
-
             if (initialGamma === null) initialGamma = gamma;
 
-            // Only control if not dragging
             if (frames.length > 0 && !isDragging) {
-                 // Map gamma (-45 to 45 degree tilt range) to frame range
                  const tilt = Math.max(-45, Math.min(45, gamma));
                  const percent = (tilt + 45) / 90;
                  const targetFrame = percent * frames.length;
-
-                 // Smooth lerp could be added here, but direct mapping is responsive
                  drawFrame(targetFrame);
             }
         }
 
-        // --- iOS Permission Request ---
         function requestGyroPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
-
-                // Only request if we haven't already (simplified check)
-                DeviceOrientationEvent.requestPermission()
-                    .then(state => console.log('Gyro permission:', state))
-                    .catch(console.error);
+                DeviceOrientationEvent.requestPermission().catch(console.error);
             }
         }
 

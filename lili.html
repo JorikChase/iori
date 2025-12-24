@@ -3,43 +3,77 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>lili</title>
+    <title>Interactive APNG</title>
     <style>
       body {
             margin: 0;
             padding: 0;
-            background-color: #000;
-            overflow: hidden;
+            background-color: #000; /* Black background for clean look */
+            overflow: hidden; /* Prevent scrolling */
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             width: 100vw;
-            touch-action: none;
-            -webkit-user-select: none;
+            touch-action: none; /* Disables browser scrolling gestures */
+            -webkit-user-select: none; /* Safari select disable */
             user-select: none;
-            font-family: monospace;
         }
 
         canvas {
             display: block;
-            /* Ensure smooth scaling for high-quality rendering */
-            image-rendering: auto;
+            /* Default rendering styles */
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        /* Loading state for canvas (keeps it invisible until ready) */
+        #stage {
+            opacity: 0;
             transition: opacity 0.5s ease-in;
         }
+        #stage.loaded {
+            opacity: 1;
+        }
+
+        /* --- Loading Spinner CSS --- */
+        #loader {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            border-top-color: #ffffff;
+            animation: spin 1s ease-in-out infinite;
+            transition: opacity 0.3s ease-out;
+            z-index: 10;
+        }
+
+        #loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
+    <!-- 1. Load Pako (Required dependency for UPNG to unzip data) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <!-- 2. Load UPNG (The PNG decoder) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/upng-js/2.1.0/UPNG.min.js"></script>
   </head>
   <body>
+    <!-- Loading Spinner -->
+    <div id="loader"></div>
     <canvas id="stage"></canvas>
-    <script type="module">
-      import UPNG from 'https://esm.sh/upng-js@2.1.0';
-
-        // --- Configuration ---
-        const ASSET_URL = 'https://iori.me/assets/lili.png';
+    <script>
+      // --- Configuration ---
+        const ASSET_PATH = 'assets/lst.png';
+        const SENSITIVITY = 0.5; // Drag sensitivity
 
         // --- State ---
-        let frames = []; // Array of ImageBitmaps
-        let totalFramesCount = 0; // Total expected frames (for interaction math)
+        let frames = [];
         let currentFrameIndex = 0;
         let isDragging = false;
         let startX = 0;
@@ -47,247 +81,196 @@
         let canvas, ctx;
         let canvasSize = 0;
 
-        // State flags
-        let isLoading = true;
-        let isProcessing = false;
-
         // --- Initialization ---
         async function init() {
             canvas = document.getElementById('stage');
-            ctx = canvas.getContext('2d'); // We handle DPI scaling manually in resize
-
-            // Set initial size
-            handleResize();
+            const loader = document.getElementById('loader');
+            ctx = canvas.getContext('2d');
 
             try {
-                // Ensure library loaded
-                const UpngLib = UPNG.default || UPNG;
-                if (!UpngLib || typeof UpngLib.decode !== 'function') {
-                    throw new Error("UPNG library failed to load.");
+                // Check if libraries loaded globally
+                if (typeof window.UPNG === 'undefined' || typeof window.pako === 'undefined') {
+                    throw new Error("Libraries failed to load from cdnjs. Check internet connection.");
                 }
 
-                // --- Fetch ---
-                let buffer;
-                try {
-                    const response = await fetch(ASSET_URL, { mode: 'cors' });
-                    if (!response.ok) throw new Error(`Status ${response.status}`);
-                    buffer = await response.arrayBuffer();
-                } catch (directError) {
-                    console.warn("Direct fetch failed, trying proxy...");
-                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ASSET_URL)}`;
-                    const proxyResponse = await fetch(proxyUrl);
-                    if (!proxyResponse.ok) throw new Error(`Proxy Status ${proxyResponse.status}`);
-                    buffer = await proxyResponse.arrayBuffer();
+                // Fetch the APNG file
+                console.log(`Fetching ${ASSET_PATH}...`);
+                const response = await fetch(ASSET_PATH);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                // --- Validation ---
-                const header = new Uint8Array(buffer.slice(0, 8));
+                const buffer = await response.arrayBuffer();
+
+                // --- DEBUGGING CHECK ---
+                // Check if the file is actually an HTML page or Proxy Error
+                const header = new Uint8Array(buffer.slice(0, 100)); // Read first 100 bytes
                 const headerString = String.fromCharCode.apply(null, header);
-                if (headerString.includes("<!D") || headerString.includes("<ht")) {
-                    throw new Error("File loaded is HTML, not PNG.");
+
+                // Check for JSON error (like the CORS Proxy one)
+                if (headerString.includes('"error":') || headerString.includes('corsproxy')) {
+                    console.error("CRITICAL: The server returned a JSON error instead of an image.");
+                    console.error("Content:", headerString);
+                    alert("Proxy Error Detected: " + headerString);
+                    return;
                 }
 
-                // --- Decoding ---
-                // UPNG.decode is synchronous and needs full buffer
-                const img = UpngLib.decode(buffer);
-                const rgbaFrames = UpngLib.toRGBA8(img);
+                // PNG signature is: 89 50 4E 47 0D 0A 1A 0A
+                if (headerString.includes("<!D") || headerString.includes("<ht")) {
+                    console.error("CRITICAL ERROR: The file downloaded appears to be an HTML page, not an image.");
+                    throw new Error("File loaded is HTML (likely a 404 page), not a PNG.");
+                }
 
-                totalFramesCount = rgbaFrames.length;
-                if (totalFramesCount === 0) throw new Error("No frames found.");
+                // Parse APNG structure using Global UPNG object
+                const img = UPNG.decode(buffer);
 
-                // --- Progressive Frame Generation ---
-                // We don't wait for ALL frames to be bitmaps. We start immediately.
-                isProcessing = true;
+                // Convert frames to RGBA 8-bit buffers
+                const rgbaFrames = UPNG.toRGBA8(img);
+
+                // Convert raw buffers to ImageBitmaps for fast drawing
                 frames = [];
+                for (let i = 0; i < rgbaFrames.length; i++) {
+                    const frameData = new Uint8ClampedArray(rgbaFrames[i]);
+                    const imageData = new ImageData(frameData, img.width, img.height);
 
-                // Process frames in chunks to not freeze the UI thread
-                processFramesProgressively(rgbaFrames, img.width, img.height);
+                    const bitmap = await createImageBitmap(imageData);
+                    frames.push(bitmap);
+                }
+
+                if (frames.length === 0) {
+                    throw new Error("No frames could be decoded.");
+                }
+
+                console.log(`Success! Loaded ${frames.length} frames.`);
+
+                // Initial Resize & Draw
+                handleResize();
+                drawFrame(0);
+
+                // Reveal Canvas & Hide Loader
+                canvas.classList.add('loaded');
+                loader.classList.add('hidden');
+
+                // Setup Input Listeners
+                setupInteractions();
 
             } catch (err) {
-                console.error("Init Error:", err);
+                console.error("Error loading APNG:", err);
+                alert("Error: " + err.message);
             }
-        }
-
-        async function processFramesProgressively(rgbaFrames, width, height) {
-            for (let i = 0; i < rgbaFrames.length; i++) {
-                const frameData = new Uint8ClampedArray(rgbaFrames[i]);
-                const imageData = new ImageData(frameData, width, height);
-
-                // Create bitmap (async)
-                const bitmap = await createImageBitmap(imageData);
-                frames.push(bitmap);
-
-                // --- UNLOCK UI ---
-                // As soon as we have the first frame, we stop loading state
-                if (isLoading && frames.length > 0) {
-                    isLoading = false;
-
-                    // Setup interactions now that we have content
-                    setupInteractions();
-
-                    // Force a resize/redraw to ensure clean state
-                    handleResize();
-                }
-
-                // Immediately draw the first frame so user sees content
-                if (i === 0) {
-                    drawFrame(0);
-                }
-
-                // Yield to main thread every few frames to keep UI responsive
-                if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
-            }
-            isProcessing = false;
-            console.log("All frames processed.");
         }
 
         // --- Rendering ---
         function drawFrame(index) {
-            // Safety Check: Frames array might be empty or partially filled
-            if (!frames || frames.length === 0) return;
+            if (frames.length === 0) return;
 
-            // We use totalFramesCount for the modulo math so the "virtual" timeline is correct
-            // even if we haven't loaded the end frames yet.
-            const maxFrames = Math.max(1, totalFramesCount);
-
-            // Normalize index to 0...totalFrames-1
-            const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
+            // Wrap index to ensure it stays within bounds
+            const safeIndex = ((index % frames.length) + frames.length) % frames.length;
             currentFrameIndex = Math.round(safeIndex);
 
-            // Progressive Check:
-            // If the user tries to view frame 100, but we only have 50 loaded,
-            // we show frame 49 (the latest available) to avoid flickering/empty screen.
-            let renderIndex = currentFrameIndex;
-            if (renderIndex >= frames.length) {
-                renderIndex = frames.length - 1;
-            }
-
-            // Get the bitmap
-            const frameBitmap = frames[renderIndex];
-
-            // Strict safety check to prevent "Argument 1..." error
-            if (!frameBitmap || typeof frameBitmap.width === 'undefined') return;
-
-            // --- ROBUST CLEAR ---
-            // We must temporarily reset the transform to identity to ensure we clear
-            // the entire physical canvas. Clearing in a scaled context can sometimes
-            // miss pixels if the math isn't perfect.
-            ctx.save();
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            // Clear and Draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.restore();
 
-            // Draw
-            try {
-                // Draw the image filling the canvas
-                // Note: The context has been scaled by DPR in handleResize,
-                // so we draw to the logical coordinates.
-                const dpr = window.devicePixelRatio || 1;
-                const logicalWidth = canvas.width / dpr;
-                const logicalHeight = canvas.height / dpr;
-
-                ctx.drawImage(frameBitmap, 0, 0, logicalWidth, logicalHeight);
-            } catch (e) {
-                // Suppress rendering errors during hot-loads/resizes
-            }
+            // We draw the image to fill the canvas exactly
+            ctx.drawImage(frames[currentFrameIndex], 0, 0, canvas.width, canvas.height);
         }
 
-        // --- Layout / Resizing (DPI Aware) ---
+        // --- Layout / Resizing ---
         function handleResize() {
             const width = window.innerWidth;
             const height = window.innerHeight;
             const isPortrait = height > width;
-            const dpr = window.devicePixelRatio || 1;
 
+            // Square asset logic:
             if (isPortrait) {
                 canvasSize = width;
             } else {
                 canvasSize = height;
             }
 
-            // Set physical pixel resolution
-            canvas.width = canvasSize * dpr;
-            canvas.height = canvasSize * dpr;
+            // Update Canvas DOM dimensions (resolution)
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
 
-            // Set CSS display size
+            // Update CSS dimensions
             canvas.style.width = `${canvasSize}px`;
             canvas.style.height = `${canvasSize}px`;
 
-            // Normalize coordinate system
-            ctx.scale(dpr, dpr);
-
-            // Redraw if we have content
-            if (!isLoading && frames.length > 0) {
-                drawFrame(currentFrameIndex);
-            }
+            // Redraw current frame after resize
+            drawFrame(currentFrameIndex);
         }
 
         // --- Interaction Logic ---
         function setupInteractions() {
-            // Remove previous listeners just in case
-            window.removeEventListener('resize', handleResize);
-
+            // 1. Window Resize
             window.addEventListener('resize', handleResize);
 
+            // 2. Pointer Events (Touch & Mouse unified)
             document.addEventListener('pointerdown', onPointerDown);
             document.addEventListener('pointermove', onPointerMove);
             document.addEventListener('pointerup', onPointerUp);
             document.addEventListener('pointercancel', onPointerUp);
 
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', onDeviceOrientation);
-            }
+            // 3. Gyroscope (Device Orientation)
+            window.addEventListener('deviceorientation', onDeviceOrientation);
         }
 
+        // --- Pointer Handlers ---
         function onPointerDown(e) {
-            if (isLoading) return;
             isDragging = true;
             startX = e.clientX;
             startFrameIndex = currentFrameIndex;
-            canvas.style.cursor = 'grabbing';
+
+            // iOS Permission Request Hack
             requestGyroPermission();
         }
 
         function onPointerMove(e) {
-            if (!isDragging || isLoading) return;
+            if (!isDragging) return;
+
             e.preventDefault();
             const deltaX = e.clientX - startX;
+            const frameDelta = Math.floor(deltaX * SENSITIVITY);
 
-            // Use totalFramesCount for consistent sensitivity even while loading
-            const framesToUse = totalFramesCount > 0 ? totalFramesCount : 100;
-            const normalizedDelta = deltaX * (framesToUse / window.innerWidth) * 2;
-
-            drawFrame(startFrameIndex + normalizedDelta);
+            drawFrame(startFrameIndex + frameDelta);
         }
 
         function onPointerUp() {
             isDragging = false;
-            canvas.style.cursor = 'default';
         }
 
-        // --- Gyroscope ---
+        // --- Gyroscope Handlers ---
         let initialGamma = null;
 
         function onDeviceOrientation(e) {
-            if (isLoading) return;
+            // Gamma is left-to-right tilt in degrees (-90 to 90)
             const gamma = e.gamma;
+
             if (gamma === null) return;
+
             if (initialGamma === null) initialGamma = gamma;
+            const deltaGamma = gamma - initialGamma;
 
             if (frames.length > 0 && !isDragging) {
-                 const tilt = Math.max(-45, Math.min(45, gamma));
-                 const percent = (tilt + 45) / 90;
-
-                 const maxFrames = totalFramesCount > 0 ? totalFramesCount : frames.length;
-                 const targetFrame = percent * maxFrames;
+                 const framesPerDegree = frames.length / 90;
+                 const targetFrame = (gamma + 45) * framesPerDegree;
                  drawFrame(targetFrame);
             }
         }
 
+        // --- iOS Permission Request ---
         function requestGyroPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().catch(e => {}); // Silent catch
+
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            // Permission granted
+                        }
+                    })
+                    .catch(console.error);
             }
         }
 

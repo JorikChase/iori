@@ -50,7 +50,6 @@
         // State flags
         let isLoading = true;
         let isProcessing = false;
-        let loaderFrameId = null;
 
         // --- Initialization ---
         async function init() {
@@ -59,9 +58,6 @@
 
             // Set initial size
             handleResize();
-
-            // Start the flower loading animation
-            startLoadingAnimation();
 
             try {
                 // Ensure library loaded
@@ -109,8 +105,6 @@
 
             } catch (err) {
                 console.error("Init Error:", err);
-                // In a production app we might show a minimal error visual here
-                // but requested "no text", so we leave it black/loading.
             }
         }
 
@@ -124,10 +118,9 @@
                 frames.push(bitmap);
 
                 // --- UNLOCK UI ---
-                // As soon as we have the first frame, we can stop the loader and show content
+                // As soon as we have the first frame, we stop loading state
                 if (isLoading && frames.length > 0) {
                     isLoading = false;
-                    if (loaderFrameId) cancelAnimationFrame(loaderFrameId);
 
                     // Setup interactions now that we have content
                     setupInteractions();
@@ -136,9 +129,7 @@
                     handleResize();
                 }
 
-                // If we are currently "idling" (not dragging), update the view to show loading progress
-                // or just keep showing the first frame.
-                // For a seamless feel, we usually just show the first frame until interaction.
+                // Immediately draw the first frame so user sees content
                 if (i === 0) {
                     drawFrame(0);
                 }
@@ -177,10 +168,16 @@
             // Strict safety check to prevent "Argument 1..." error
             if (!frameBitmap || typeof frameBitmap.width === 'undefined') return;
 
-            // Draw
-            // Use local canvas size which includes DPR scaling
+            // --- ROBUST CLEAR ---
+            // We must temporarily reset the transform to identity to ensure we clear
+            // the entire physical canvas. Clearing in a scaled context can sometimes
+            // miss pixels if the math isn't perfect.
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
 
+            // Draw
             try {
                 // Draw the image filling the canvas
                 // Note: The context has been scaled by DPR in handleResize,
@@ -223,64 +220,6 @@
             if (!isLoading && frames.length > 0) {
                 drawFrame(currentFrameIndex);
             }
-        }
-
-        // --- Loading Animation (Flower) ---
-        function startLoadingAnimation() {
-            let tick = 0;
-            const dpr = window.devicePixelRatio || 1;
-
-            function loop() {
-                if (!isLoading) return;
-
-                tick += 0.02;
-
-                // Clear
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Use logical coordinates for drawing instructions
-                // We must manually account for DPR if context isn't scaled yet (it might not be in init)
-                // But handleResize is called in init, so ctx is scaled.
-
-                // Wait, handleResize scales CTX. So we use logical coords.
-                // However, handleResize depends on window size.
-                const logicalW = canvas.width / dpr;
-                const logicalH = canvas.height / dpr;
-
-                const cx = logicalW / 2;
-                const cy = logicalH / 2;
-                const minDim = Math.min(logicalW, logicalH);
-                const radius = minDim * 0.15;
-
-                const breath = Math.sin(tick * 2) * (radius * 0.1);
-
-                ctx.beginPath();
-                const petals = 6;
-
-                for (let i = 0; i <= Math.PI * 2; i += 0.01) {
-                    const theta = i;
-                    const rOffset = Math.sin(theta * petals + tick) * (radius * 0.5);
-                    const r = radius + breath + rOffset;
-                    const x = cx + Math.cos(theta + tick * 0.3) * r;
-                    const y = cy + Math.sin(theta + tick * 0.3) * r;
-
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-
-                ctx.closePath();
-                ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.arc(cx, cy, radius * 0.2 + Math.abs(breath), 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, 0.6)`;
-                ctx.fill();
-
-                loaderFrameId = requestAnimationFrame(loop);
-            }
-            loop();
         }
 
         // --- Interaction Logic ---

@@ -36,17 +36,6 @@
             pointer-events: none; /* Let touches pass through if needed */
         }
 
-        #status-msg {
-            position: fixed;
-            bottom: 20px;
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 10px;
-            text-align: center;
-            pointer-events: none;
-            width: 100%;
-            z-index: 100;
-        }
-
         /* --- Cute Flower Loader CSS --- */
         .flower-loader {
             position: fixed;
@@ -119,7 +108,6 @@
     <canvas id="stage"></canvas>
     <!-- Native Fallback Image -->
     <img id="fallback-img" alt="Animation" />
-    <div id="status-msg"></div>
 
     <script type="module">
       import UPNG from 'https://esm.sh/upng-js@2.1.0';
@@ -136,7 +124,7 @@
         let startX = 0;
         let startFrameIndex = 0;
 
-        let canvas, ctx, fallbackImg, statusMsg;
+        let canvas, ctx, fallbackImg;
         let canvasSize = 0;
 
         let isLoading = true;
@@ -146,7 +134,6 @@
         async function init() {
             canvas = document.getElementById('stage');
             fallbackImg = document.getElementById('fallback-img');
-            statusMsg = document.getElementById('status-msg');
             ctx = canvas.getContext('2d', { alpha: false }); // Optimization: No alpha channel on canvas if possible
 
             handleResize();
@@ -186,12 +173,16 @@
                 console.log(`Asset Analysis: ${rawWidth}x${rawHeight}, ${frameCount} frames.`);
                 console.log(`Projected Uncompressed RAM: ${totalMB.toFixed(1)} MB`);
 
-                // iOS Safari conservative limit (safest to avoid crash loop)
-                // If projected RAM > 180MB, we skip interactive mode entirely.
-                const MEMORY_LIMIT_MB = 180;
+                // Detect Mobile vs Desktop
+                // Mobile devices have strict per-tab memory limits (often <300MB safe zone).
+                // Desktops can handle gigabytes easily.
+                const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+                // Safe limit: 250MB for Mobile, 8GB for Desktop (effectively unlimited)
+                const MEMORY_LIMIT_MB = isMobile ? 250 : 8192;
 
                 if (totalMB > MEMORY_LIMIT_MB) {
-                    console.warn("Asset too large for interactive decoding on mobile. Switching to Native Fallback.");
+                    console.warn(`Asset too large (${totalMB.toFixed(1)}MB) for interactive decoding on this device. Limit: ${MEMORY_LIMIT_MB}MB. Switching to Native Fallback.`);
                     enableFallbackMode(buffer);
                     return;
                 }
@@ -236,7 +227,7 @@
             canvas.style.display = 'none';
             fallbackImg.style.display = 'block';
 
-            statusMsg.textContent = "Interactive mode disabled (Memory Limit)";
+            // Text removed as requested
 
             hideLoader();
         }

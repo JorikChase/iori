@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interactive APNG</title>
+    <style>
+      body {
+            margin: 0;
+            padding: 0;
+            background-color: #000; /* Black background for clean look */
+            overflow: hidden; /* Prevent scrolling */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            touch-action: none; /* Disables browser scrolling gestures */
+            -webkit-user-select: none; /* Safari select disable */
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            /* Default rendering styles */
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        /* Loading state (optional, keeps screen black until ready) */
+        #stage {
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+        #stage.loaded {
+            opacity: 1;
+        }
+    </style>
+    <!-- Load apng-js from CDN -->
+    <script src="https://unpkg.com/apng-js@1.1.1/dist/apng-js.min.js"></script>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <script>
+      // --- Configuration ---
+        const ASSET_PATH = 'assets/lst.png';
+        const SENSITIVITY = 0.5; // Drag sensitivity
+
+        // --- State ---
+        let player = null;
+        let frames = [];
+        let currentFrameIndex = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startFrameIndex = 0;
+        let canvas, ctx;
+        let canvasSize = 0;
+
+        // --- Initialization ---
+        async function init() {
+            canvas = document.getElementById('stage');
+            ctx = canvas.getContext('2d');
+
+            try {
+                // Fetch the APNG file as an ArrayBuffer
+                const response = await fetch(ASSET_PATH);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const buffer = await response.arrayBuffer();
+
+                // Parse APNG
+                const apng = apngjs.parseAPNG(buffer);
+
+                // Create a player instance to easily decode frames
+                // We use apng-js to handle the heavy lifting of parsing chunks
+                const apngPlayer = await apng.getPlayer(ctx);
+
+                // Decode all frames into bitmaps for high-performance scrubbing
+                // This might take a moment depending on file size
+                frames = [];
+                for (const frame of apngPlayer._apng.frames) {
+                    const imageBitmap = await createImageBitmap(new Blob([frame.imageData], { type: 'image/png' }));
+                    frames.push(imageBitmap);
+                }
+
+                // Initial Resize & Draw
+                handleResize();
+                drawFrame(0);
+
+                // Reveal Canvas
+                canvas.classList.add('loaded');
+
+                // Setup Input Listeners
+                setupInteractions();
+
+            } catch (err) {
+                console.error("Error loading APNG:", err);
+                // Since "No UI" is requested, we log to console only.
+            }
+        }
+
+        // --- Rendering ---
+        function drawFrame(index) {
+            if (frames.length === 0) return;
+
+            // Wrap index to ensure it stays within bounds
+            // Using modulo logic that handles negative numbers correctly
+            const safeIndex = ((index % frames.length) + frames.length) % frames.length;
+            currentFrameIndex = Math.round(safeIndex);
+
+            // Clear and Draw
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // We draw the image to fill the canvas exactly (canvas is already resized to be square)
+            ctx.drawImage(frames[currentFrameIndex], 0, 0, canvas.width, canvas.height);
+        }
+
+        // --- Layout / Resizing ---
+        function handleResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const isPortrait = height > width;
+
+            // Square asset logic:
+            // Portrait: Width = 100vw, Height = 100vw
+            // Landscape: Height = 100vh, Width = 100vh
+
+            if (isPortrait) {
+                canvasSize = width;
+            } else {
+                canvasSize = height;
+            }
+
+            // Update Canvas DOM dimensions (resolution)
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
+
+            // Update CSS dimensions
+            canvas.style.width = `${canvasSize}px`;
+            canvas.style.height = `${canvasSize}px`;
+
+            // Redraw current frame after resize
+            drawFrame(currentFrameIndex);
+        }
+
+        // --- Interaction Logic ---
+        function setupInteractions() {
+            // 1. Window Resize
+            window.addEventListener('resize', handleResize);
+
+            // 2. Pointer Events (Touch & Mouse unified)
+            document.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+            document.addEventListener('pointercancel', onPointerUp);
+
+            // 3. Gyroscope (Device Orientation)
+            window.addEventListener('deviceorientation', onDeviceOrientation);
+        }
+
+        // --- Pointer Handlers ---
+        function onPointerDown(e) {
+            isDragging = true;
+            startX = e.clientX;
+            startFrameIndex = currentFrameIndex;
+
+            // iOS Permission Request Hack
+            // We request permission on the first user interaction
+            requestGyroPermission();
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging) return;
+
+            e.preventDefault();
+            const deltaX = e.clientX - startX;
+
+            // Map pixel distance to frames
+            // Adjust SENSITIVITY to make scrubbing faster/slower
+            const frameDelta = Math.floor(deltaX * SENSITIVITY);
+
+            drawFrame(startFrameIndex + frameDelta);
+        }
+
+        function onPointerUp() {
+            isDragging = false;
+        }
+
+        // --- Gyroscope Handlers ---
+        let initialGamma = null;
+
+        function onDeviceOrientation(e) {
+            // Gamma is left-to-right tilt in degrees (-90 to 90)
+            const gamma = e.gamma;
+
+            if (gamma === null) return;
+
+            // Set initial reference point if not set
+            if (initialGamma === null) initialGamma = gamma;
+
+            // Calculate deviation from initial position
+            const deltaGamma = gamma - initialGamma;
+
+            // Map degrees to frames (e.g., 1 degree = 1 frame)
+            // You can adjust the multiplier (2) to change sensitivity
+            if (frames.length > 0 && !isDragging) {
+                 // We add a base index (e.g., 0) + offset
+                 // Or we can treat 0 degrees as frame 0, but usually relative to start is better.
+                 // Here, we map full range -45 to +45 degrees to the full animation loop
+                 const framesPerDegree = frames.length / 90;
+                 const targetFrame = (gamma + 45) * framesPerDegree;
+
+                 drawFrame(targetFrame);
+            }
+        }
+
+        // --- iOS Permission Request ---
+        function requestGyroPermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            // Permission granted, listener already active
+                        }
+                    })
+                    .catch(console.error);
+
+                // Ensure we only ask once per session by removing this check if desired,
+                // but the API handles repeat calls gracefully usually.
+            }
+        }
+
+        // Start
+        init();
+    </script>
+  </body>
+</html>

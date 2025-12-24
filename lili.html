@@ -116,7 +116,6 @@
 
         let canvas, ctx;
         let canvasSize = 0;
-        let maxRenderDim = 1024; // Safety limit for textures
 
         // State flags
         let isLoading = true;
@@ -168,57 +167,102 @@
                 // Clear original buffer to free memory immediately
                 buffer = null;
 
-                totalFramesCount = rgbaFrames.length;
+                // --- CRITICAL MEMORY BUDGETING FOR iOS ---
+                // iOS tabs often crash if they exceed ~100MB of active image memory.
+                // We calculate a strategy to fit within a safe budget (approx 64MB-80MB target).
+
+                const rawWidth = img.width;
+                const rawHeight = img.height;
+                const frameCount = rgbaFrames.length;
+
+                // 1 pixel = 4 bytes (RGBA).
+                // Budget: 64 MB = 64 * 1024 * 1024 / 4 = ~16,777,216 pixels total capacity.
+                const PIXEL_BUDGET = 16_000_000;
+
+                const requiredPixels = rawWidth * rawHeight * frameCount;
+
+                let resizeScale = 1.0;
+                let frameStep = 1;
+
+                if (requiredPixels > PIXEL_BUDGET) {
+                    console.warn(`Memory forecast (${(requiredPixels*4/1024/1024).toFixed(1)}MB) exceeds safety budget. Optimizing...`);
+
+                    // Strategy 1: Downscale resolution first (up to 50% size / 0.5 scale)
+                    const ratio = Math.sqrt(PIXEL_BUDGET / requiredPixels);
+                    resizeScale = Math.min(1.0, ratio);
+
+                    // If we have to scale down TOO much (below 0.6), image gets blurry.
+                    // Better to drop frames instead to keep some crispness.
+                    if (resizeScale < 0.6) {
+                        resizeScale = 0.6; // Floor the scaling
+
+                        // Recalculate usage with floor scale
+                        const scaledPixels = (rawWidth * resizeScale) * (rawHeight * resizeScale) * frameCount;
+
+                        // Strategy 2: Skip frames to fit remainder
+                        if (scaledPixels > PIXEL_BUDGET) {
+                            frameStep = Math.ceil(scaledPixels / PIXEL_BUDGET);
+                            // Cap frameStep to keep animation relatively smooth (max skip 3 frames)
+                            frameStep = Math.min(frameStep, 3);
+                        }
+                    }
+                }
+
+                const targetWidth = Math.floor(rawWidth * resizeScale);
+                const targetHeight = Math.floor(rawHeight * resizeScale);
+
+                console.log(`Optimization: Scale ${resizeScale.toFixed(2)} (${targetWidth}x${targetHeight}), Skip Every ${frameStep} frames.`);
+
+                totalFramesCount = Math.ceil(frameCount / frameStep);
                 if (totalFramesCount === 0) throw new Error("No frames found.");
 
                 // --- Progressive Frame Generation ---
                 isProcessing = true;
                 frames = [];
 
-                await processFramesProgressively(rgbaFrames, img.width, img.height);
+                await processFramesProgressively(rgbaFrames, rawWidth, rawHeight, targetWidth, targetHeight, frameStep);
 
             } catch (err) {
                 console.error("Init Error:", err);
             }
         }
 
-        async function processFramesProgressively(rgbaFrames, width, height) {
-            // Determine scale factor for memory safety
-            // We scale down the internal bitmap if the source is larger than the screen
-            // This massively saves RAM on mobile devices.
-            const srcMax = Math.max(width, height);
-            let resizeOptions = undefined;
+        async function processFramesProgressively(rgbaFrames, srcW, srcH, targetW, targetH, step) {
 
-            // If source is larger than our calculated safe render dimension, scale it down.
-            if (srcMax > maxRenderDim) {
-                const scale = maxRenderDim / srcMax;
-                resizeOptions = {
-                    resizeWidth: Math.round(width * scale),
-                    resizeHeight: Math.round(height * scale),
-                    resizeQuality: 'medium'
-                };
-                console.log(`Downscaling frames: ${width}x${height} -> ${resizeOptions.resizeWidth}x${resizeOptions.resizeHeight}`);
-            }
+            const resizeOptions = {
+                resizeWidth: targetW,
+                resizeHeight: targetH,
+                resizeQuality: 'medium'
+            };
+
+            let storedCount = 0;
 
             for (let i = 0; i < rgbaFrames.length; i++) {
+
+                // --- FRAME SKIPPING ---
+                // If this frame isn't on our "step", we discard it immediately and continue.
+                if (i % step !== 0) {
+                    rgbaFrames[i] = null; // Discard data
+                    continue;
+                }
+
                 try {
                     const frameData = new Uint8ClampedArray(rgbaFrames[i]);
-                    const imageData = new ImageData(frameData, width, height);
+                    const imageData = new ImageData(frameData, srcW, srcH);
 
-                    // Create bitmap (async) with optional resizing
+                    // Create bitmap with resize options
                     const bitmap = await createImageBitmap(imageData, resizeOptions);
                     frames.push(bitmap);
+                    storedCount++;
 
                     // --- MEMORY OPTIMIZATION ---
-                    // Clear the raw buffer for this frame immediately to save RAM
+                    // Clear the raw buffer for this frame immediately
                     rgbaFrames[i] = null;
-
-                    // Explicitly dereference the TypedArray wrapper too
                     frameData.buffer = null;
 
                 } catch (memErr) {
-                    console.warn("Frame creation failed (likely OOM), stopping load.", memErr);
-                    // Stop loading more frames to prevent full crash, but keep what we have
+                    console.warn("Frame creation warning (OOM risk). Stopping early.", memErr);
+                    // If we hit memory limit mid-load, stop but keep what we have.
                     break;
                 }
 
@@ -232,14 +276,15 @@
                 }
 
                 // Yield to main thread EVERY frame to prevent UI lockup and allow GC
-                // This is crucial for Safari iOS stability
+                // Essential for iOS stability
                 await new Promise(r => setTimeout(r, 0));
             }
 
             isProcessing = false;
-            // Clear the entire array container
+            // Update total frames to what we actually managed to store
+            totalFramesCount = frames.length;
             rgbaFrames = null;
-            console.log("All frames processed.");
+            console.log(`Finished. Loaded ${totalFramesCount} frames.`);
         }
 
         // --- Rendering ---
@@ -259,7 +304,7 @@
         function drawFrame(index) {
             if (!frames || frames.length === 0) return;
 
-            const maxFrames = Math.max(1, frames.length); // Use actual loaded length
+            const maxFrames = Math.max(1, frames.length);
 
             // Normalize index to 0...totalFrames-1
             const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
@@ -296,11 +341,6 @@
 
             // CAP DPR: High DPR on large canvases causes crash on iOS Safari
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-            // Calculate a safe texture limit based on screen size
-            // We allow slightly larger than screen for crispness, but cap at 1200px
-            const screenMax = Math.max(width, height) * dpr;
-            maxRenderDim = Math.min(screenMax, 1200);
 
             if (isPortrait) {
                 canvasSize = width;

@@ -36,8 +36,8 @@
             opacity: 1;
         }
     </style>
-    <!-- Load apng-js from CDN -->
-    <script src="https://unpkg.com/apng-js@1.1.1/dist/apng-js.min.js"></script>
+    <!-- Load apng-js from JSDelivr (more reliable MIME types) -->
+    <script src="https://cdn.jsdelivr.net/npm/apng-js@1.1.1/dist/apng-js.min.js"></script>
   </head>
   <body>
     <canvas id="stage"></canvas>
@@ -66,6 +66,11 @@
                 const response = await fetch(ASSET_PATH);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
+
+                // Check if library loaded correctly
+                if (typeof apngjs === 'undefined') {
+                    throw new Error("apng-js library failed to load.");
+                }
 
                 // Parse APNG
                 const apng = apngjs.parseAPNG(buffer);

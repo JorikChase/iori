@@ -116,6 +116,7 @@
 
         let canvas, ctx;
         let canvasSize = 0;
+        let maxRenderDim = 1024; // Safety limit for textures
 
         // State flags
         let isLoading = true;
@@ -126,7 +127,7 @@
             canvas = document.getElementById('stage');
             ctx = canvas.getContext('2d');
 
-            // Set initial size
+            // Set initial size and determine safe limits
             handleResize();
 
             // Start Render Loop immediately
@@ -174,7 +175,7 @@
                 isProcessing = true;
                 frames = [];
 
-                processFramesProgressively(rgbaFrames, img.width, img.height);
+                await processFramesProgressively(rgbaFrames, img.width, img.height);
 
             } catch (err) {
                 console.error("Init Error:", err);
@@ -182,39 +183,59 @@
         }
 
         async function processFramesProgressively(rgbaFrames, width, height) {
+            // Determine scale factor for memory safety
+            // We scale down the internal bitmap if the source is larger than the screen
+            // This massively saves RAM on mobile devices.
+            const srcMax = Math.max(width, height);
+            let resizeOptions = undefined;
+
+            // If source is larger than our calculated safe render dimension, scale it down.
+            if (srcMax > maxRenderDim) {
+                const scale = maxRenderDim / srcMax;
+                resizeOptions = {
+                    resizeWidth: Math.round(width * scale),
+                    resizeHeight: Math.round(height * scale),
+                    resizeQuality: 'medium'
+                };
+                console.log(`Downscaling frames: ${width}x${height} -> ${resizeOptions.resizeWidth}x${resizeOptions.resizeHeight}`);
+            }
+
             for (let i = 0; i < rgbaFrames.length; i++) {
-                const frameData = new Uint8ClampedArray(rgbaFrames[i]);
-                const imageData = new ImageData(frameData, width, height);
+                try {
+                    const frameData = new Uint8ClampedArray(rgbaFrames[i]);
+                    const imageData = new ImageData(frameData, width, height);
 
-                // Create bitmap (async)
-                const bitmap = await createImageBitmap(imageData);
-                frames.push(bitmap);
+                    // Create bitmap (async) with optional resizing
+                    const bitmap = await createImageBitmap(imageData, resizeOptions);
+                    frames.push(bitmap);
 
-                // --- MEMORY OPTIMIZATION ---
-                // Clear the raw buffer for this frame immediately to save RAM
-                rgbaFrames[i] = null;
+                    // --- MEMORY OPTIMIZATION ---
+                    // Clear the raw buffer for this frame immediately to save RAM
+                    rgbaFrames[i] = null;
+
+                    // Explicitly dereference the TypedArray wrapper too
+                    frameData.buffer = null;
+
+                } catch (memErr) {
+                    console.warn("Frame creation failed (likely OOM), stopping load.", memErr);
+                    // Stop loading more frames to prevent full crash, but keep what we have
+                    break;
+                }
 
                 // --- UNLOCK UI ---
-                // As soon as we have the first frame, we stop loading state
                 if (isLoading && frames.length > 0) {
                     isLoading = false;
-
-                    // HIDE LOADER
                     const loader = document.getElementById('loader');
-                    if (loader) {
-                        loader.classList.add('hidden');
-                    }
-
-                    // Setup interactions now that we have content
+                    if (loader) loader.classList.add('hidden');
                     setupInteractions();
-
-                    // Force a resize/redraw to ensure clean state
                     handleResize();
                 }
 
-                // Yield to main thread every few frames to keep UI responsive
-                if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+                // Yield to main thread EVERY frame to prevent UI lockup and allow GC
+                // This is crucial for Safari iOS stability
+                await new Promise(r => setTimeout(r, 0));
             }
+
             isProcessing = false;
             // Clear the entire array container
             rgbaFrames = null;
@@ -229,10 +250,7 @@
             // Only draw if we have content
             if (frames.length === 0) return;
 
-            // Smoothly interpolate current to target if needed,
-            // but for scrub interactions, direct assignment is usually snappier.
-            // We'll stick to direct assignment for responsiveness,
-            // but ensuring it happens on RAF prevents event flooding.
+            // Direct assignment for snappier dragging
             currentFrameIndex = targetFrameIndex;
 
             drawFrame(currentFrameIndex);
@@ -241,12 +259,11 @@
         function drawFrame(index) {
             if (!frames || frames.length === 0) return;
 
-            const maxFrames = Math.max(1, totalFramesCount);
+            const maxFrames = Math.max(1, frames.length); // Use actual loaded length
 
             // Normalize index to 0...totalFrames-1
             const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
 
-            // Progressive Check:
             let renderIndex = Math.round(safeIndex);
             if (renderIndex >= frames.length) {
                 renderIndex = frames.length - 1;
@@ -262,12 +279,10 @@
             ctx.restore();
 
             try {
-                // Note: The context has been scaled by DPR in handleResize
-                const dpr = Math.min(window.devicePixelRatio || 1, 2);
-                const logicalWidth = canvas.width / dpr;
-                const logicalHeight = canvas.height / dpr;
-
-                ctx.drawImage(frameBitmap, 0, 0, logicalWidth, logicalHeight);
+                // Determine scale to fit canvas
+                // Since we might have downscaled the bitmap, we rely on drawImage scaling
+                // to fit it to the canvas.width/height (physical pixels)
+                ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
             } catch (e) {
                 // Suppress rendering errors
             }
@@ -281,6 +296,11 @@
 
             // CAP DPR: High DPR on large canvases causes crash on iOS Safari
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            // Calculate a safe texture limit based on screen size
+            // We allow slightly larger than screen for crispness, but cap at 1200px
+            const screenMax = Math.max(width, height) * dpr;
+            maxRenderDim = Math.min(screenMax, 1200);
 
             if (isPortrait) {
                 canvasSize = width;
@@ -296,8 +316,8 @@
             canvas.style.width = `${canvasSize}px`;
             canvas.style.height = `${canvasSize}px`;
 
-            // Normalize coordinate system
-            ctx.scale(dpr, dpr);
+            // Reset transform because we are drawing full rect now
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
 
         // --- Interaction Logic ---
@@ -329,7 +349,7 @@
             e.preventDefault();
             const deltaX = e.clientX - startX;
 
-            const framesToUse = totalFramesCount > 0 ? totalFramesCount : 100;
+            const framesToUse = frames.length > 0 ? frames.length : 100;
             const normalizedDelta = deltaX * (framesToUse / window.innerWidth) * 2;
 
             // Update TARGET, don't draw immediately
@@ -354,7 +374,7 @@
                  const tilt = Math.max(-45, Math.min(45, gamma));
                  const percent = (tilt + 45) / 90;
 
-                 const maxFrames = totalFramesCount > 0 ? totalFramesCount : frames.length;
+                 const maxFrames = frames.length;
 
                  // Update TARGET, don't draw immediately
                  targetFrameIndex = percent * maxFrames;

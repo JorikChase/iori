@@ -36,18 +36,18 @@
             opacity: 1;
         }
     </style>
-    <!-- Load apng-js from JSDelivr (more reliable MIME types) -->
-    <script src="https://cdn.jsdelivr.net/npm/apng-js@1.1.1/dist/apng-js.min.js"></script>
   </head>
   <body>
     <canvas id="stage"></canvas>
-    <script>
-      // --- Configuration ---
+    <!-- We use type="module" to import the library directly from Skypack -->
+    <script type="module">
+      import parseAPNG from 'https://cdn.skypack.dev/apng-js';
+
+        // --- Configuration ---
         const ASSET_PATH = 'assets/lst.png';
         const SENSITIVITY = 0.5; // Drag sensitivity
 
         // --- State ---
-        let player = null;
         let frames = [];
         let currentFrameIndex = 0;
         let isDragging = false;
@@ -67,22 +67,17 @@
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-                // Check if library loaded correctly
-                if (typeof apngjs === 'undefined') {
-                    throw new Error("apng-js library failed to load.");
-                }
+                // Parse APNG using the imported function
+                const apng = parseAPNG(buffer);
 
-                // Parse APNG
-                const apng = apngjs.parseAPNG(buffer);
-
-                // Create a player instance to easily decode frames
-                // We use apng-js to handle the heavy lifting of parsing chunks
+                // Create a player instance to handle frame decoding and blending
+                // apng-js needs a context to render the frames correctly (handling dispose/blend ops)
                 const apngPlayer = await apng.getPlayer(ctx);
 
                 // Decode all frames into bitmaps for high-performance scrubbing
-                // This might take a moment depending on file size
                 frames = [];
                 for (const frame of apngPlayer._apng.frames) {
+                    // We extract the image data from the player's frame structure
                     const imageBitmap = await createImageBitmap(new Blob([frame.imageData], { type: 'image/png' }));
                     frames.push(imageBitmap);
                 }
@@ -99,7 +94,6 @@
 
             } catch (err) {
                 console.error("Error loading APNG:", err);
-                // Since "No UI" is requested, we log to console only.
             }
         }
 
@@ -108,14 +102,13 @@
             if (frames.length === 0) return;
 
             // Wrap index to ensure it stays within bounds
-            // Using modulo logic that handles negative numbers correctly
             const safeIndex = ((index % frames.length) + frames.length) % frames.length;
             currentFrameIndex = Math.round(safeIndex);
 
             // Clear and Draw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // We draw the image to fill the canvas exactly (canvas is already resized to be square)
+            // We draw the image to fill the canvas exactly
             ctx.drawImage(frames[currentFrameIndex], 0, 0, canvas.width, canvas.height);
         }
 
@@ -126,9 +119,6 @@
             const isPortrait = height > width;
 
             // Square asset logic:
-            // Portrait: Width = 100vw, Height = 100vw
-            // Landscape: Height = 100vh, Width = 100vh
-
             if (isPortrait) {
                 canvasSize = width;
             } else {
@@ -169,7 +159,6 @@
             startFrameIndex = currentFrameIndex;
 
             // iOS Permission Request Hack
-            // We request permission on the first user interaction
             requestGyroPermission();
         }
 
@@ -178,9 +167,6 @@
 
             e.preventDefault();
             const deltaX = e.clientX - startX;
-
-            // Map pixel distance to frames
-            // Adjust SENSITIVITY to make scrubbing faster/slower
             const frameDelta = Math.floor(deltaX * SENSITIVITY);
 
             drawFrame(startFrameIndex + frameDelta);
@@ -199,21 +185,12 @@
 
             if (gamma === null) return;
 
-            // Set initial reference point if not set
             if (initialGamma === null) initialGamma = gamma;
-
-            // Calculate deviation from initial position
             const deltaGamma = gamma - initialGamma;
 
-            // Map degrees to frames (e.g., 1 degree = 1 frame)
-            // You can adjust the multiplier (2) to change sensitivity
             if (frames.length > 0 && !isDragging) {
-                 // We add a base index (e.g., 0) + offset
-                 // Or we can treat 0 degrees as frame 0, but usually relative to start is better.
-                 // Here, we map full range -45 to +45 degrees to the full animation loop
                  const framesPerDegree = frames.length / 90;
                  const targetFrame = (gamma + 45) * framesPerDegree;
-
                  drawFrame(targetFrame);
             }
         }
@@ -226,13 +203,10 @@
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
-                            // Permission granted, listener already active
+                            // Permission granted
                         }
                     })
                     .catch(console.error);
-
-                // Ensure we only ask once per session by removing this check if desired,
-                // but the API handles repeat calls gracefully usually.
             }
         }
 

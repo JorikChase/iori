@@ -39,11 +39,10 @@
   </head>
   <body>
     <canvas id="stage"></canvas>
-    <!-- We use type="module" for modern ES imports -->
+    <!-- Switching to UPNG.js via esm.sh.
+         This library is more robust for direct buffer decoding and avoids the class method issues. -->
     <script type="module">
-      // FIX: Import the default export instead of a named export
-        // This resolves the SyntaxError with esm.sh
-        import apngjs from 'https://esm.sh/apng-js@1.1.1';
+      import UPNG from 'https://esm.sh/upng-js@2.1.0';
 
         // --- Configuration ---
         const ASSET_PATH = 'assets/lst.png';
@@ -64,12 +63,10 @@
             ctx = canvas.getContext('2d');
 
             try {
-                // Determine the correct parsing function from the import
-                // CommonJS/ESM interop can sometimes nest the function under .default
-                const parseAPNG = apngjs.default || apngjs;
-
-                if (typeof parseAPNG !== 'function') {
-                    throw new Error(`apng-js failed to load correctly. Import type: ${typeof apngjs}`);
+                // Ensure the library loaded correctly
+                const UpngLib = UPNG.default || UPNG;
+                if (!UpngLib || typeof UpngLib.decode !== 'function') {
+                    throw new Error("UPNG library failed to load or does not export decode function.");
                 }
 
                 // Fetch the APNG file as an ArrayBuffer
@@ -77,19 +74,27 @@
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-                // Parse APNG
-                const apng = parseAPNG(buffer);
+                // 1. Decode the APNG structure
+                const img = UpngLib.decode(buffer);
 
-                // Get the player instance to handle frame extraction logic
-                // We pass the context, though we will manually manage frames
-                const apngPlayer = await apng.getPlayer(ctx);
+                // 2. Convert frames to RGBA 8-bit buffers
+                // UPNG.toRGBA8 returns an array of ArrayBuffers (one per frame)
+                // This handles the frame composition/blending automatically
+                const rgbaFrames = UpngLib.toRGBA8(img);
 
-                // Decode frames
+                // 3. Convert raw buffers to ImageBitmaps for fast drawing
                 frames = [];
-                // We access the internal frames array from the parsed object
-                for (const frame of apngPlayer._apng.frames) {
-                    const imageBitmap = await createImageBitmap(new Blob([frame.imageData], { type: 'image/png' }));
-                    frames.push(imageBitmap);
+                for (let i = 0; i < rgbaFrames.length; i++) {
+                    const frameData = new Uint8ClampedArray(rgbaFrames[i]);
+                    const imageData = new ImageData(frameData, img.width, img.height);
+
+                    // Create bitmap for GPU-accelerated drawing
+                    const bitmap = await createImageBitmap(imageData);
+                    frames.push(bitmap);
+                }
+
+                if (frames.length === 0) {
+                    throw new Error("No frames could be decoded.");
                 }
 
                 // Initial Resize & Draw

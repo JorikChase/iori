@@ -108,9 +108,12 @@
         let frames = []; // Array of ImageBitmaps
         let totalFramesCount = 0; // Total expected frames (for interaction math)
         let currentFrameIndex = 0;
+        let targetFrameIndex = 0; // Decoupled target for smooth loop
+
         let isDragging = false;
         let startX = 0;
         let startFrameIndex = 0;
+
         let canvas, ctx;
         let canvasSize = 0;
 
@@ -121,10 +124,13 @@
         // --- Initialization ---
         async function init() {
             canvas = document.getElementById('stage');
-            ctx = canvas.getContext('2d'); // We handle DPI scaling manually in resize
+            ctx = canvas.getContext('2d');
 
             // Set initial size
             handleResize();
+
+            // Start Render Loop immediately
+            renderLoop();
 
             try {
                 // Ensure library loaded
@@ -155,24 +161,23 @@
                 }
 
                 // --- Decoding ---
-                // UPNG.decode is synchronous and needs full buffer
                 const img = UpngLib.decode(buffer);
                 const rgbaFrames = UpngLib.toRGBA8(img);
+
+                // Clear original buffer to free memory immediately
+                buffer = null;
 
                 totalFramesCount = rgbaFrames.length;
                 if (totalFramesCount === 0) throw new Error("No frames found.");
 
                 // --- Progressive Frame Generation ---
-                // We don't wait for ALL frames to be bitmaps. We start immediately.
                 isProcessing = true;
                 frames = [];
 
-                // Process frames in chunks to not freeze the UI thread
                 processFramesProgressively(rgbaFrames, img.width, img.height);
 
             } catch (err) {
                 console.error("Init Error:", err);
-                // Optional: Show error state in loader?
             }
         }
 
@@ -184,6 +189,10 @@
                 // Create bitmap (async)
                 const bitmap = await createImageBitmap(imageData);
                 frames.push(bitmap);
+
+                // --- MEMORY OPTIMIZATION ---
+                // Clear the raw buffer for this frame immediately to save RAM
+                rgbaFrames[i] = null;
 
                 // --- UNLOCK UI ---
                 // As soon as we have the first frame, we stop loading state
@@ -203,66 +212,64 @@
                     handleResize();
                 }
 
-                // Immediately draw the first frame so user sees content
-                if (i === 0) {
-                    drawFrame(0);
-                }
-
                 // Yield to main thread every few frames to keep UI responsive
                 if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
             }
             isProcessing = false;
+            // Clear the entire array container
+            rgbaFrames = null;
             console.log("All frames processed.");
         }
 
         // --- Rendering ---
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+
+            // Only draw if we have content
+            if (frames.length === 0) return;
+
+            // Smoothly interpolate current to target if needed,
+            // but for scrub interactions, direct assignment is usually snappier.
+            // We'll stick to direct assignment for responsiveness,
+            // but ensuring it happens on RAF prevents event flooding.
+            currentFrameIndex = targetFrameIndex;
+
+            drawFrame(currentFrameIndex);
+        }
+
         function drawFrame(index) {
-            // Safety Check: Frames array might be empty or partially filled
             if (!frames || frames.length === 0) return;
 
-            // We use totalFramesCount for the modulo math so the "virtual" timeline is correct
-            // even if we haven't loaded the end frames yet.
             const maxFrames = Math.max(1, totalFramesCount);
 
             // Normalize index to 0...totalFrames-1
             const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
-            currentFrameIndex = Math.round(safeIndex);
 
             // Progressive Check:
-            // If the user tries to view frame 100, but we only have 50 loaded,
-            // we show frame 49 (the latest available) to avoid flickering/empty screen.
-            let renderIndex = currentFrameIndex;
+            let renderIndex = Math.round(safeIndex);
             if (renderIndex >= frames.length) {
                 renderIndex = frames.length - 1;
             }
 
-            // Get the bitmap
             const frameBitmap = frames[renderIndex];
-
-            // Strict safety check to prevent "Argument 1..." error
             if (!frameBitmap || typeof frameBitmap.width === 'undefined') return;
 
             // --- ROBUST CLEAR ---
-            // We must temporarily reset the transform to identity to ensure we clear
-            // the entire physical canvas. Clearing in a scaled context can sometimes
-            // miss pixels if the math isn't perfect.
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
 
-            // Draw
             try {
-                // Draw the image filling the canvas
-                // Note: The context has been scaled by DPR in handleResize,
-                // so we draw to the logical coordinates.
-                const dpr = window.devicePixelRatio || 1;
+                // Note: The context has been scaled by DPR in handleResize
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
                 const logicalWidth = canvas.width / dpr;
                 const logicalHeight = canvas.height / dpr;
 
                 ctx.drawImage(frameBitmap, 0, 0, logicalWidth, logicalHeight);
             } catch (e) {
-                // Suppress rendering errors during hot-loads/resizes
+                // Suppress rendering errors
             }
         }
 
@@ -271,7 +278,9 @@
             const width = window.innerWidth;
             const height = window.innerHeight;
             const isPortrait = height > width;
-            const dpr = window.devicePixelRatio || 1;
+
+            // CAP DPR: High DPR on large canvases causes crash on iOS Safari
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
             if (isPortrait) {
                 canvasSize = width;
@@ -289,18 +298,11 @@
 
             // Normalize coordinate system
             ctx.scale(dpr, dpr);
-
-            // Redraw if we have content
-            if (!isLoading && frames.length > 0) {
-                drawFrame(currentFrameIndex);
-            }
         }
 
         // --- Interaction Logic ---
         function setupInteractions() {
-            // Remove previous listeners just in case
             window.removeEventListener('resize', handleResize);
-
             window.addEventListener('resize', handleResize);
 
             document.addEventListener('pointerdown', onPointerDown);
@@ -317,7 +319,7 @@
             if (isLoading) return;
             isDragging = true;
             startX = e.clientX;
-            startFrameIndex = currentFrameIndex;
+            startFrameIndex = targetFrameIndex;
             canvas.style.cursor = 'grabbing';
             requestGyroPermission();
         }
@@ -327,11 +329,11 @@
             e.preventDefault();
             const deltaX = e.clientX - startX;
 
-            // Use totalFramesCount for consistent sensitivity even while loading
             const framesToUse = totalFramesCount > 0 ? totalFramesCount : 100;
             const normalizedDelta = deltaX * (framesToUse / window.innerWidth) * 2;
 
-            drawFrame(startFrameIndex + normalizedDelta);
+            // Update TARGET, don't draw immediately
+            targetFrameIndex = startFrameIndex + normalizedDelta;
         }
 
         function onPointerUp() {
@@ -353,15 +355,16 @@
                  const percent = (tilt + 45) / 90;
 
                  const maxFrames = totalFramesCount > 0 ? totalFramesCount : frames.length;
-                 const targetFrame = percent * maxFrames;
-                 drawFrame(targetFrame);
+
+                 // Update TARGET, don't draw immediately
+                 targetFrameIndex = percent * maxFrames;
             }
         }
 
         function requestGyroPermission() {
             if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().catch(e => {}); // Silent catch
+                DeviceOrientationEvent.requestPermission().catch(e => {});
             }
         }
 

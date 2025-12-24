@@ -69,26 +69,41 @@
                     throw new Error("UPNG library failed to load or does not export decode function.");
                 }
 
-                // Fetch the APNG file as an ArrayBuffer
+                // Fetch the APNG file
+                console.log(`Fetching ${ASSET_PATH}...`);
                 const response = await fetch(ASSET_PATH);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const buffer = await response.arrayBuffer();
 
-                // 1. Decode the APNG structure
+                // --- DEBUGGING CHECK ---
+                // Check if the file is actually an HTML page (common 404 error masked as 200 OK)
+                const header = new Uint8Array(buffer.slice(0, 8));
+                const headerString = String.fromCharCode.apply(null, header);
+
+                // PNG signature is: 89 50 4E 47 0D 0A 1A 0A
+                // HTML files usually start with "<!DOCT" or "<html"
+                if (headerString.includes("<!D") || headerString.includes("<ht")) {
+                    console.error("CRITICAL ERROR: The file downloaded appears to be an HTML page, not an image.");
+                    console.error("Preview of file content:", headerString);
+                    throw new Error("File loaded is HTML (likely a 404 page), not a PNG. Check your file path.");
+                }
+
+                // Parse APNG structure
                 const img = UpngLib.decode(buffer);
 
-                // 2. Convert frames to RGBA 8-bit buffers
-                // UPNG.toRGBA8 returns an array of ArrayBuffers (one per frame)
-                // This handles the frame composition/blending automatically
+                // Convert frames to RGBA 8-bit buffers
                 const rgbaFrames = UpngLib.toRGBA8(img);
 
-                // 3. Convert raw buffers to ImageBitmaps for fast drawing
+                // Convert raw buffers to ImageBitmaps for fast drawing
                 frames = [];
                 for (let i = 0; i < rgbaFrames.length; i++) {
                     const frameData = new Uint8ClampedArray(rgbaFrames[i]);
                     const imageData = new ImageData(frameData, img.width, img.height);
 
-                    // Create bitmap for GPU-accelerated drawing
                     const bitmap = await createImageBitmap(imageData);
                     frames.push(bitmap);
                 }
@@ -96,6 +111,8 @@
                 if (frames.length === 0) {
                     throw new Error("No frames could be decoded.");
                 }
+
+                console.log(`Success! Loaded ${frames.length} frames.`);
 
                 // Initial Resize & Draw
                 handleResize();
@@ -109,6 +126,7 @@
 
             } catch (err) {
                 console.error("Error loading APNG:", err);
+                alert("Error: " + err.message); // Added alert since you have no text UI, helps debugging
             }
         }
 

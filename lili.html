@@ -23,9 +23,28 @@
 
         canvas {
             display: block;
-            /* Ensure smooth scaling for high-quality rendering */
-            image-rendering: auto;
+            image-rendering: auto; /* high quality */
             transition: opacity 0.5s ease-in;
+        }
+
+        /* Fallback Image Style */
+        #fallback-img {
+            display: none;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            pointer-events: none; /* Let touches pass through if needed */
+        }
+
+        #status-msg {
+            position: fixed;
+            bottom: 20px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 10px;
+            text-align: center;
+            pointer-events: none;
+            width: 100%;
+            z-index: 100;
         }
 
         /* --- Cute Flower Loader CSS --- */
@@ -54,12 +73,11 @@
             border-radius: 50%;
             top: 50%;
             left: 50%;
-            margin-top: -5px; /* Half of width to center */
+            margin-top: -5px;
             margin-left: -5px;
             box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
         }
 
-        /* Distribute 6 petals in a circle */
         .petal:nth-child(1) { transform: rotate(0deg) translate(14px); }
         .petal:nth-child(2) { transform: rotate(60deg) translate(14px); }
         .petal:nth-child(3) { transform: rotate(120deg) translate(14px); }
@@ -67,7 +85,6 @@
         .petal:nth-child(5) { transform: rotate(240deg) translate(14px); }
         .petal:nth-child(6) { transform: rotate(300deg) translate(14px); }
 
-        /* A little center dot */
         .center-dot {
             position: absolute;
             width: 6px;
@@ -87,57 +104,57 @@
     </style>
   </head>
   <body>
+
     <!-- Loader Element -->
     <div id="loader" class="flower-loader">
-      <div class="petal"></div>
-      <div class="petal"></div>
-      <div class="petal"></div>
-      <div class="petal"></div>
-      <div class="petal"></div>
-      <div class="petal"></div>
-      <div class="center-dot"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="center-dot"></div>
     </div>
+
     <canvas id="stage"></canvas>
+    <!-- Native Fallback Image -->
+    <img id="fallback-img" alt="Animation" />
+    <div id="status-msg"></div>
+
     <script type="module">
       import UPNG from 'https://esm.sh/upng-js@2.1.0';
 
-        // --- Configuration ---
         const ASSET_URL = 'https://iori.me/assets/lili.png';
 
         // --- State ---
-        let frames = []; // Array of ImageBitmaps
-        let totalFramesCount = 0; // Total expected frames (for interaction math)
+        let frames = [];
+        let totalFramesCount = 0;
         let currentFrameIndex = 0;
-        let targetFrameIndex = 0; // Decoupled target for smooth loop
+        let targetFrameIndex = 0;
 
         let isDragging = false;
         let startX = 0;
         let startFrameIndex = 0;
 
-        let canvas, ctx;
+        let canvas, ctx, fallbackImg, statusMsg;
         let canvasSize = 0;
 
-        // State flags
         let isLoading = true;
         let isProcessing = false;
+        let isFallbackMode = false;
 
-        // --- Initialization ---
         async function init() {
             canvas = document.getElementById('stage');
-            ctx = canvas.getContext('2d');
+            fallbackImg = document.getElementById('fallback-img');
+            statusMsg = document.getElementById('status-msg');
+            ctx = canvas.getContext('2d', { alpha: false }); // Optimization: No alpha channel on canvas if possible
 
-            // Set initial size and determine safe limits
             handleResize();
-
-            // Start Render Loop immediately
             renderLoop();
 
             try {
-                // Ensure library loaded
                 const UpngLib = UPNG.default || UPNG;
-                if (!UpngLib || typeof UpngLib.decode !== 'function') {
-                    throw new Error("UPNG library failed to load.");
-                }
+                if (!UpngLib) throw new Error("UPNG lib missing");
 
                 // --- Fetch ---
                 let buffer;
@@ -146,222 +163,188 @@
                     if (!response.ok) throw new Error(`Status ${response.status}`);
                     buffer = await response.arrayBuffer();
                 } catch (directError) {
-                    console.warn("Direct fetch failed, trying proxy...");
+                    console.warn("Proxy fallback...");
                     const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ASSET_URL)}`;
-                    const proxyResponse = await fetch(proxyUrl);
-                    if (!proxyResponse.ok) throw new Error(`Proxy Status ${proxyResponse.status}`);
-                    buffer = await proxyResponse.arrayBuffer();
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`Proxy Status ${res.status}`);
+                    buffer = await res.arrayBuffer();
                 }
 
-                // --- Validation ---
-                const header = new Uint8Array(buffer.slice(0, 8));
-                const headerString = String.fromCharCode.apply(null, header);
-                if (headerString.includes("<!D") || headerString.includes("<ht")) {
-                    throw new Error("File loaded is HTML, not PNG.");
-                }
-
-                // --- Decoding ---
+                // --- Validation & Decode Structure ---
                 const img = UpngLib.decode(buffer);
-                const rgbaFrames = UpngLib.toRGBA8(img);
 
-                // Clear original buffer to free memory immediately
-                buffer = null;
-
-                // --- CRITICAL MEMORY BUDGETING FOR iOS ---
-                // iOS tabs often crash if they exceed ~100MB of active image memory.
-                // We calculate a strategy to fit within a safe budget (approx 64MB-80MB target).
-
+                // --- CRITICAL MEMORY CHECK ---
+                // Calculate Uncompressed Size: Width * Height * 4 bytes * Frames
                 const rawWidth = img.width;
                 const rawHeight = img.height;
-                const frameCount = rgbaFrames.length;
+                // UPNG.decode puts frames info in img.frames, but doesn't decode pixels yet
+                const frameCount = img.frames.length;
 
-                // 1 pixel = 4 bytes (RGBA).
-                // Budget: 64 MB = 64 * 1024 * 1024 / 4 = ~16,777,216 pixels total capacity.
-                const PIXEL_BUDGET = 16_000_000;
+                const totalBytes = rawWidth * rawHeight * 4 * frameCount;
+                const totalMB = totalBytes / (1024 * 1024);
 
-                const requiredPixels = rawWidth * rawHeight * frameCount;
+                console.log(`Asset Analysis: ${rawWidth}x${rawHeight}, ${frameCount} frames.`);
+                console.log(`Projected Uncompressed RAM: ${totalMB.toFixed(1)} MB`);
 
-                let resizeScale = 1.0;
-                let frameStep = 1;
+                // iOS Safari conservative limit (safest to avoid crash loop)
+                // If projected RAM > 180MB, we skip interactive mode entirely.
+                const MEMORY_LIMIT_MB = 180;
 
-                if (requiredPixels > PIXEL_BUDGET) {
-                    console.warn(`Memory forecast (${(requiredPixels*4/1024/1024).toFixed(1)}MB) exceeds safety budget. Optimizing...`);
-
-                    // Strategy 1: Downscale resolution first (up to 50% size / 0.5 scale)
-                    const ratio = Math.sqrt(PIXEL_BUDGET / requiredPixels);
-                    resizeScale = Math.min(1.0, ratio);
-
-                    // If we have to scale down TOO much (below 0.6), image gets blurry.
-                    // Better to drop frames instead to keep some crispness.
-                    if (resizeScale < 0.6) {
-                        resizeScale = 0.6; // Floor the scaling
-
-                        // Recalculate usage with floor scale
-                        const scaledPixels = (rawWidth * resizeScale) * (rawHeight * resizeScale) * frameCount;
-
-                        // Strategy 2: Skip frames to fit remainder
-                        if (scaledPixels > PIXEL_BUDGET) {
-                            frameStep = Math.ceil(scaledPixels / PIXEL_BUDGET);
-                            // Cap frameStep to keep animation relatively smooth (max skip 3 frames)
-                            frameStep = Math.min(frameStep, 3);
-                        }
-                    }
+                if (totalMB > MEMORY_LIMIT_MB) {
+                    console.warn("Asset too large for interactive decoding on mobile. Switching to Native Fallback.");
+                    enableFallbackMode(buffer);
+                    return;
                 }
 
-                const targetWidth = Math.floor(rawWidth * resizeScale);
-                const targetHeight = Math.floor(rawHeight * resizeScale);
+                // --- Safe to Decode ---
+                const rgbaFrames = UpngLib.toRGBA8(img);
+                buffer = null; // Release raw APNG buffer
 
-                console.log(`Optimization: Scale ${resizeScale.toFixed(2)} (${targetWidth}x${targetHeight}), Skip Every ${frameStep} frames.`);
-
-                totalFramesCount = Math.ceil(frameCount / frameStep);
-                if (totalFramesCount === 0) throw new Error("No frames found.");
+                totalFramesCount = frameCount;
 
                 // --- Progressive Frame Generation ---
                 isProcessing = true;
                 frames = [];
 
-                await processFramesProgressively(rgbaFrames, rawWidth, rawHeight, targetWidth, targetHeight, frameStep);
+                // Even if safe, we still step carefully
+                await processFramesProgressively(rgbaFrames, rawWidth, rawHeight);
 
             } catch (err) {
                 console.error("Init Error:", err);
+                // Last ditch fallback if anything fails (e.g. decoding error)
+                if (!isFallbackMode) {
+                     // We can't use the buffer here if it failed, but we can set the src
+                     fallbackImg.src = ASSET_URL;
+                     canvas.style.display = 'none';
+                     fallbackImg.style.display = 'block';
+                     hideLoader();
+                }
             }
         }
 
-        async function processFramesProgressively(rgbaFrames, srcW, srcH, targetW, targetH, step) {
+        function enableFallbackMode(buffer) {
+            isFallbackMode = true;
+            isLoading = false;
 
-            const resizeOptions = {
-                resizeWidth: targetW,
-                resizeHeight: targetH,
-                resizeQuality: 'medium'
-            };
+            // Create a Blob from the buffer to display natively
+            const blob = new Blob([buffer], { type: 'image/png' });
+            const url = URL.createObjectURL(blob);
 
-            let storedCount = 0;
+            fallbackImg.src = url;
+
+            // Swap UI
+            canvas.style.display = 'none';
+            fallbackImg.style.display = 'block';
+
+            statusMsg.textContent = "Interactive mode disabled (Memory Limit)";
+
+            hideLoader();
+        }
+
+        async function processFramesProgressively(rgbaFrames, width, height) {
+            // Check if we need to downscale for performance
+            // Limit texture size to 1024 on mobile
+            const maxDim = Math.max(width, height);
+            let resizeOpts = undefined;
+            if (maxDim > 1024) {
+                 const scale = 1024 / maxDim;
+                 resizeOpts = {
+                     resizeWidth: Math.round(width * scale),
+                     resizeHeight: Math.round(height * scale)
+                 };
+            }
 
             for (let i = 0; i < rgbaFrames.length; i++) {
-
-                // --- FRAME SKIPPING ---
-                // If this frame isn't on our "step", we discard it immediately and continue.
-                if (i % step !== 0) {
-                    rgbaFrames[i] = null; // Discard data
-                    continue;
-                }
-
                 try {
                     const frameData = new Uint8ClampedArray(rgbaFrames[i]);
-                    const imageData = new ImageData(frameData, srcW, srcH);
+                    const imageData = new ImageData(frameData, width, height);
 
-                    // Create bitmap with resize options
-                    const bitmap = await createImageBitmap(imageData, resizeOptions);
+                    const bitmap = await createImageBitmap(imageData, resizeOpts);
                     frames.push(bitmap);
-                    storedCount++;
 
-                    // --- MEMORY OPTIMIZATION ---
-                    // Clear the raw buffer for this frame immediately
+                    // Aggressive Cleanup
                     rgbaFrames[i] = null;
                     frameData.buffer = null;
 
-                } catch (memErr) {
-                    console.warn("Frame creation warning (OOM risk). Stopping early.", memErr);
-                    // If we hit memory limit mid-load, stop but keep what we have.
+                } catch (e) {
+                    console.warn("Frame decode error", e);
                     break;
                 }
 
-                // --- UNLOCK UI ---
                 if (isLoading && frames.length > 0) {
                     isLoading = false;
-                    const loader = document.getElementById('loader');
-                    if (loader) loader.classList.add('hidden');
+                    hideLoader();
                     setupInteractions();
                     handleResize();
                 }
 
-                // Yield to main thread EVERY frame to prevent UI lockup and allow GC
-                // Essential for iOS stability
-                await new Promise(r => setTimeout(r, 0));
+                // Allow GC breathing room
+                if (i % 2 === 0) await new Promise(r => setTimeout(r, 0));
             }
 
             isProcessing = false;
-            // Update total frames to what we actually managed to store
-            totalFramesCount = frames.length;
-            rgbaFrames = null;
-            console.log(`Finished. Loaded ${totalFramesCount} frames.`);
+            console.log(`Loaded ${frames.length} frames.`);
+        }
+
+        function hideLoader() {
+            const loader = document.getElementById('loader');
+            if (loader) loader.classList.add('hidden');
         }
 
         // --- Rendering ---
-
         function renderLoop() {
+            if (isFallbackMode) return; // Stop loop in fallback mode
             requestAnimationFrame(renderLoop);
 
-            // Only draw if we have content
             if (frames.length === 0) return;
-
-            // Direct assignment for snappier dragging
             currentFrameIndex = targetFrameIndex;
-
             drawFrame(currentFrameIndex);
         }
 
         function drawFrame(index) {
-            if (!frames || frames.length === 0) return;
-
+            if (!frames.length) return;
             const maxFrames = Math.max(1, frames.length);
-
-            // Normalize index to 0...totalFrames-1
             const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
 
             let renderIndex = Math.round(safeIndex);
-            if (renderIndex >= frames.length) {
-                renderIndex = frames.length - 1;
-            }
+            if (renderIndex >= frames.length) renderIndex = frames.length - 1;
 
             const frameBitmap = frames[renderIndex];
-            if (!frameBitmap || typeof frameBitmap.width === 'undefined') return;
+            if (!frameBitmap) return;
 
-            // --- ROBUST CLEAR ---
-            ctx.save();
+            // Clear
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.restore();
 
+            // Draw
             try {
-                // Determine scale to fit canvas
-                // Since we might have downscaled the bitmap, we rely on drawImage scaling
-                // to fit it to the canvas.width/height (physical pixels)
                 ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
-            } catch (e) {
-                // Suppress rendering errors
-            }
+            } catch (e) {}
         }
 
-        // --- Layout / Resizing (DPI Aware) ---
         function handleResize() {
+            if (isFallbackMode) return;
+
             const width = window.innerWidth;
             const height = window.innerHeight;
             const isPortrait = height > width;
-
-            // CAP DPR: High DPR on large canvases causes crash on iOS Safari
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-            if (isPortrait) {
-                canvasSize = width;
-            } else {
-                canvasSize = height;
-            }
+            if (isPortrait) canvasSize = width;
+            else canvasSize = height;
 
-            // Set physical pixel resolution
             canvas.width = canvasSize * dpr;
             canvas.height = canvasSize * dpr;
-
-            // Set CSS display size
             canvas.style.width = `${canvasSize}px`;
             canvas.style.height = `${canvasSize}px`;
 
-            // Reset transform because we are drawing full rect now
+            // Reset transform after resize
             ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
 
-        // --- Interaction Logic ---
         function setupInteractions() {
+            if (isFallbackMode) return;
+
             window.removeEventListener('resize', handleResize);
             window.addEventListener('resize', handleResize);
 
@@ -376,7 +359,7 @@
         }
 
         function onPointerDown(e) {
-            if (isLoading) return;
+            if (isLoading || isFallbackMode) return;
             isDragging = true;
             startX = e.clientX;
             startFrameIndex = targetFrameIndex;
@@ -385,14 +368,11 @@
         }
 
         function onPointerMove(e) {
-            if (!isDragging || isLoading) return;
+            if (!isDragging || isLoading || isFallbackMode) return;
             e.preventDefault();
             const deltaX = e.clientX - startX;
-
             const framesToUse = frames.length > 0 ? frames.length : 100;
             const normalizedDelta = deltaX * (framesToUse / window.innerWidth) * 2;
-
-            // Update TARGET, don't draw immediately
             targetFrameIndex = startFrameIndex + normalizedDelta;
         }
 
@@ -401,11 +381,10 @@
             canvas.style.cursor = 'default';
         }
 
-        // --- Gyroscope ---
+        // Gyro
         let initialGamma = null;
-
         function onDeviceOrientation(e) {
-            if (isLoading) return;
+            if (isLoading || isFallbackMode) return;
             const gamma = e.gamma;
             if (gamma === null) return;
             if (initialGamma === null) initialGamma = gamma;
@@ -413,11 +392,7 @@
             if (frames.length > 0 && !isDragging) {
                  const tilt = Math.max(-45, Math.min(45, gamma));
                  const percent = (tilt + 45) / 90;
-
-                 const maxFrames = frames.length;
-
-                 // Update TARGET, don't draw immediately
-                 targetFrameIndex = percent * maxFrames;
+                 targetFrameIndex = percent * frames.length;
             }
         }
 
@@ -428,7 +403,6 @@
             }
         }
 
-        // Start
         init();
     </script>
   </body>

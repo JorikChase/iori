@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Fluid</title>
+    <style>
+      body, html { margin: 0; padding: 0; overflow: hidden; background-color: #000; width: 100%; height: 100%; }
+        canvas { width: 100%; height: 100%; display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script>
+      (function() {
+            const canvas = document.getElementById('c');
+            const gl = canvas.getContext('webgl2');
+            if (!gl) {
+                 console.error('WebGL2 not supported');
+                 return;
+            }
+
+            // Config
+            const SIM_RES = 256; // Simulation grid resolution
+            const DYE_RES = 1024; // Dye grid resolution
+            const ITERATIONS = 20; // Jacobi iterations
+            const DISSIPATION = 0.98; // Velocity decay
+            const DYE_DISSIPATION = 0.99; // Color decay
+
+            // Extensions
+            gl.getExtension('EXT_color_buffer_float');
+            gl.getExtension('OES_texture_float_linear');
+
+            // --- Shader Sources ---
+            const vs = `#version 300 es
+            void main() {
+                vec2 p = vec2(float(gl_VertexID % 2) * 4.0 - 1.0, float(gl_VertexID / 2) * 4.0 - 1.0);
+                gl_Position = vec4(p, 0.0, 1.0);
+            }`;
+
+            const baseFs = `#version 300 es
+            precision highp float;
+            out vec4 outColor;
+            uniform vec2 texelSize;
+            uniform sampler2D uVelocity;
+            uniform sampler2D uSource;
+            uniform float dt;
+            uniform float dissipation;`;
+
+            const advectFs = `${baseFs}
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                vec2 vel = texture(uVelocity, coord).xy;
+                vec2 back = coord - vel * dt;
+                outColor = texture(uSource, back) * dissipation;
+            }`;
+
+            const divergenceFs = `${baseFs}
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float L = texture(uVelocity, coord - vec2(texelSize.x, 0)).x;
+                float R = texture(uVelocity, coord + vec2(texelSize.x, 0)).x;
+                float B = texture(uVelocity, coord - vec2(0, texelSize.y)).y;
+                float T = texture(uVelocity, coord + vec2(0, texelSize.y)).y;
+                outColor = vec4(0.5 * (R - L + T - B), 0, 0, 1);
+            }`;
+
+            const pressureFs = `${baseFs}
+            uniform sampler2D uDivergence;
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float L = texture(uSource, coord - vec2(texelSize.x, 0)).x;
+                float R = texture(uSource, coord + vec2(texelSize.x, 0)).x;
+                float B = texture(uSource, coord - vec2(0, texelSize.y)).x;
+                float T = texture(uSource, coord + vec2(0, texelSize.y)).x;
+                float div = texture(uDivergence, coord).x;
+                outColor = vec4((L + R + B + T - div) * 0.25, 0, 0, 1);
+            }`;
+
+            const gradientFs = `${baseFs}
+            uniform sampler2D uPressure;
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float L = texture(uPressure, coord - vec2(texelSize.x, 0)).x;
+                float R = texture(uPressure, coord + vec2(texelSize.x, 0)).x;
+                float B = texture(uPressure, coord - vec2(0, texelSize.y)).x;
+                float T = texture(uPressure, coord + vec2(0, texelSize.y)).x;
+                vec2 vel = texture(uVelocity, coord).xy;
+                outColor = vec4(vel - 0.5 * vec2(R - L, T - B), 0, 1);
+            }`;
+
+            const splatFs = `${baseFs}
+            uniform vec2 point;
+            uniform vec3 color;
+            uniform float radius;
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float d = distance(gl_FragCoord.xy, point);
+                vec3 c = texture(uSource, coord).xyz;
+                float intensity = exp(-d * d / radius);
+                outColor = vec4(c + color * intensity, 1);
+            }`;
+
+            const displayFs = `${baseFs}
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                vec3 c = texture(uSource, coord).xyz;
+                outColor = vec4(c, 1.0);
+            }`;
+
+            // --- Helpers ---
+            function createProgram(fs) {
+                const p = gl.createProgram();
+                const s1 = gl.createShader(gl.VERTEX_SHADER);
+                const s2 = gl.createShader(gl.FRAGMENT_SHADER);
+                gl.shaderSource(s1, vs); gl.compileShader(s1);
+                gl.shaderSource(s2, fs); gl.compileShader(s2);
+                gl.attachShader(p, s1); gl.attachShader(p, s2);
+                gl.linkProgram(p);
+                return {
+                    id: p,
+                    uni: name => gl.getUniformLocation(p, name)
+                };
+            }
+
+            function createFBO(w, h) {
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+                const fbo = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+                return { fbo, tex, w, h, attach: (id) => gl.activeTexture(gl.TEXTURE0 + id) || gl.bindTexture(gl.TEXTURE_2D, tex) };
+            }
+
+            function createDoubleFBO(w, h) {
+                let fbo1 = createFBO(w, h);
+                let fbo2 = createFBO(w, h);
+                return {
+                    get read() { return fbo1; },
+                    get write() { return fbo2; },
+                    swap() { let temp = fbo1; fbo1 = fbo2; fbo2 = temp; }
+                };
+            }
+
+            // --- Init ---
+            let width, height;
+            let velocity, density, divergence, pressure;
+
+            // Programs
+            const P = {
+                advect: createProgram(advectFs),
+                splat: createProgram(splatFs),
+                div: createProgram(divergenceFs),
+                pressure: createProgram(pressureFs),
+                grad: createProgram(gradientFs),
+                display: createProgram(displayFs)
+            };
+
+            function resize() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+
+                // Fix: Use Math.floor to ensure integer dimensions.
+                let simW = SIM_RES;
+                let simH = Math.floor(SIM_RES * height / width);
+                let dyeW = DYE_RES;
+                let dyeH = Math.floor(DYE_RES * height / width);
+
+                velocity = createDoubleFBO(simW, simH);
+                density = createDoubleFBO(dyeW, dyeH);
+                divergence = createFBO(simW, simH);
+                pressure = createDoubleFBO(simW, simH);
+            }
+            window.onresize = resize;
+            resize();
+
+            function run(prog, fbo, inputs = {}) {
+                gl.useProgram(prog.id);
+                if (fbo) {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.fbo);
+                    gl.viewport(0, 0, fbo.w, fbo.h);
+                } else {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                    gl.viewport(0, 0, width, height);
+                }
+
+                if (fbo) gl.uniform2f(prog.uni('texelSize'), 1.0/fbo.w, 1.0/fbo.h);
+                else gl.uniform2f(prog.uni('texelSize'), 1.0/width, 1.0/height);
+
+                for (let k in inputs) {
+                    const val = inputs[k];
+                    if (val instanceof WebGLTexture || val.attach) {
+                        val.attach ? val.attach(inputs[k+"_id"]) : null;
+                        gl.uniform1i(prog.uni(k), inputs[k+"_id"]);
+                    } else if (val.length === 2) gl.uniform2fv(prog.uni(k), val);
+                    else if (val.length === 3) gl.uniform3fv(prog.uni(k), val);
+                    else gl.uniform1f(prog.uni(k), val);
+                }
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+
+            // HSV to RGB helper
+            function hsvToRgb(h, s, v) {
+                let r, g, b, i, f, p, q, t;
+                i = Math.floor(h * 6);
+                f = h * 6 - i;
+                p = v * (1 - s);
+                q = v * (1 - f * s);
+                t = v * (1 - (1 - f) * s);
+                switch (i % 6) {
+                    case 0: r = v, g = t, b = p; break;
+                    case 1: r = q, g = v, b = p; break;
+                    case 2: r = p, g = v, b = t; break;
+                    case 3: r = p, g = q, b = v; break;
+                    case 4: r = t, g = p, b = v; break;
+                    case 5: r = v, g = p, b = q; break;
+                }
+                return {r, g, b};
+            }
+
+            // --- Main Loop ---
+            let pointers = [];
+
+            function update() {
+                const dt = 0.016;
+
+                pointers.forEach(p => {
+                    // Initialize prev position if new
+                    if (p.prevX === undefined) { p.prevX = p.x; p.prevY = p.y; }
+
+                    // Calculate movement delta from last frame
+                    const dx = p.x - p.prevX;
+                    const dy = p.y - p.prevY;
+                    const dist = Math.hypot(dx, dy);
+
+                    // Calculate speed based on current instant velocity (p.dx/dy from event)
+                    let speed = Math.sqrt(p.dx*p.dx + p.dy*p.dy);
+
+                    // Dynamic Radius
+                    let radiusScale = 1.0 + Math.min(speed / 60.0, 1.0);
+
+                    // Speed -> Hue
+                    let hue = (speed * 0.1) % 1.0;
+                    let rgb = hsvToRgb(hue, 1.0, 1.0);
+
+                    // Interpolation: Fill gaps if moving fast
+                    // Splat every ~5 pixels for smoothness
+                    const steps = Math.ceil(dist / 5.0) || 1;
+
+                    for (let i = 0; i < steps; i++) {
+                        const t = (i + 1) / steps;
+                        const x = p.prevX + dx * t;
+                        const y = p.prevY + dy * t;
+
+                        // Splat Velocity
+                        run(P.splat, velocity.write, {
+                            uSource: velocity.read, uSource_id: 0,
+                            point: [x * (velocity.read.w / width), y * (velocity.read.h / height)],
+                            color: [p.dx * 0.08, p.dy * 0.08, 0],
+                            radius: 20.0 * radiusScale
+                        });
+                        velocity.swap();
+
+                        // Splat Dye
+                        run(P.splat, density.write, {
+                            uSource: density.read, uSource_id: 1,
+                            point: [x * (density.read.w / width), y * (density.read.h / height)],
+                            color: [rgb.r, rgb.g, rgb.b],
+                            radius: 30.0 * radiusScale
+                        });
+                        density.swap();
+                    }
+
+                    // Update Previous Position
+                    p.prevX = p.x;
+                    p.prevY = p.y;
+
+                    p.dx *= 0.9; p.dy *= 0.9;
+                });
+                pointers = pointers.filter(p => p.down);
+
+                // Advect
+                run(P.advect, velocity.write, {
+                    uVelocity: velocity.read, uVelocity_id: 0,
+                    uSource: velocity.read, uSource_id: 0,
+                    dt: dt, dissipation: DISSIPATION
+                });
+                velocity.swap();
+
+                run(P.advect, density.write, {
+                    uVelocity: velocity.read, uVelocity_id: 0,
+                    uSource: density.read, uSource_id: 1,
+                    dt: dt, dissipation: DYE_DISSIPATION
+                });
+                density.swap();
+
+                // Divergence
+                run(P.div, divergence, { uVelocity: velocity.read, uVelocity_id: 0 });
+
+                // Pressure
+                for(let i=0; i<ITERATIONS; i++) {
+                    run(P.pressure, pressure.write, {
+                        uDivergence: divergence, uDivergence_id: 0,
+                        uSource: pressure.read, uSource_id: 1
+                    });
+                    pressure.swap();
+                }
+
+                // Gradient
+                run(P.grad, velocity.write, {
+                    uPressure: pressure.read, uPressure_id: 0,
+                    uVelocity: velocity.read, uVelocity_id: 1
+                });
+                velocity.swap();
+
+                // Display
+                run(P.display, null, { uSource: density.read, uSource_id: 0 });
+
+                requestAnimationFrame(update);
+            }
+
+            // --- Input Handling ---
+            function getPointer(id) {
+                let p = pointers.find(p => p.id === id);
+                if (!p) {
+                    p = { id, x: 0, y: 0, dx: 0, dy: 0, down: true, prevX: undefined, prevY: undefined };
+                    pointers.push(p);
+                }
+                return p;
+            }
+
+            canvas.addEventListener('mousemove', e => {
+                const p = getPointer(-1);
+                p.dx = (e.offsetX - p.x);
+                p.dy = (height - e.offsetY - p.y);
+                p.x = e.offsetX;
+                p.y = height - e.offsetY;
+                p.down = true;
+            });
+
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                Array.from(e.changedTouches).forEach(t => {
+                    const p = getPointer(t.identifier);
+                    p.dx = (t.clientX - p.x);
+                    p.dy = (height - t.clientY - p.y);
+                    p.x = t.clientX;
+                    p.y = height - t.clientY;
+                });
+            }, {passive: false});
+
+            // Handle start events to reset previous position
+            function startPointer(id, x, y) {
+                const p = getPointer(id);
+                p.x = x; p.y = y;
+                p.prevX = x; p.prevY = y;
+                p.dx = 0; p.dy = 0;
+                p.down = true;
+            }
+
+            canvas.addEventListener('mousedown', e => {
+                startPointer(-1, e.offsetX, height - e.offsetY);
+            });
+
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                Array.from(e.changedTouches).forEach(t => {
+                    startPointer(t.identifier, t.clientX, height - t.clientY);
+                });
+            }, {passive: false});
+
+            canvas.addEventListener('touchend', e => {
+                 Array.from(e.changedTouches).forEach(t => {
+                     const p = pointers.find(p => p.id === t.identifier);
+                     if(p) p.down = false;
+                 });
+            });
+
+            update();
+        })();
+    </script>
+  </body>
+</html>

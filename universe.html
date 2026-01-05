@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Cyclic Cosmos</title>
+    <title>Cyclic Universe | Spacetime Distortion</title>
     <style>
       :root {
             --bg-color: #020204;
@@ -33,6 +33,7 @@
             padding: 20px;
             box-sizing: border-box;
             z-index: 10;
+            border-radius: 8px;
         }
 
         .hud-box {
@@ -43,6 +44,7 @@
             font-family: var(--mono-font);
             font-size: 11px;
             text-transform: uppercase;
+            border-radius: 8px;
         }
 
         #controls {
@@ -67,6 +69,7 @@
             text-transform: uppercase;
             transition: all 0.2s;
             white-space: nowrap;
+            border-radius: 16px;
         }
 
         .btn:hover, .btn.active { border-color: var(--accent-color); color: var(--accent-color); }
@@ -123,14 +126,13 @@
   </head>
   <body>
     <div id="loader">
-      <div id="loader-text">INITIALIZING SPACETIME...</div>
+      <div id="loader-text">INITIALIZING TITAN STRUCTURES...</div>
       <div class="loader-bar"><div class="loader-progress" id="progress"></div></div>
     </div>
     <div id="ui-layer">
       <div style="display:flex; justify-content:space-between; align-items: flex-start;">
         <div class="hud-box">
-          MODE:
-          <span style="color:var(--accent-color)">CYCLIC COSMOLOGY</span><br>
+          <span style="color:var(--accent-color)">cyclic universe</span><br>
           EPOCH:
           <span id="time-val">0.00</span>
           GYR
@@ -159,17 +161,21 @@
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
         // --- CONFIG ---
         const CONFIG = {
-            particles: 80000,      // Total budget
-            galaxies: 120,         // Fewer galaxies, but higher quality
-            starsPerGalaxy: 400,   // Dense, rich galaxies
-            nebulaCount: 8000,     // Background mist
-            denseNebula: 3000,     // New: Heavy cloud clusters
+            particles: 200000,   // Increased from 80k to accommodate Titans
+            galaxies: 220,       // Increased from 120
+            starsPerGalaxy: 400, // Base count, multiplied for Giants/Titans
+            nebulaCount: 8000,
+            denseNebula: 3000,
+            superMist: 10000,
             filaments: 3000,
+            pulsarCount: 15,
+            blackHoleCount: 6,
             timelineLength: 1600,
-            maxRadius: 240,
+            maxRadius: 280,      // Slightly wider universe
             scrollSpeed: 1.5,
             mobileSensitivity: 2.5
         };
@@ -202,12 +208,80 @@
         controls.enableZoom = false;
         controls.enablePan = false;
 
-        // --- BLOOM OPTIMIZATION ---
-        // Reduced strength (0.6) and increased threshold (0.6) to reduce washout
+        // --- CUSTOM LENSING SHADER ---
+        // This shader distorts the background based on Black Hole screen positions
+        const GravitationalLensingShader = {
+            uniforms: {
+                "tDiffuse": { value: null },
+                "uBH": { value: new Array(18).fill(0) }, // [x,y,r, x,y,r...] Flat array max 6 BHs
+                "uCount": { value: 0 },
+                "uResolution": { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D tDiffuse;
+                uniform vec2 uResolution;
+                uniform float uBH[18]; // Flat array of vec3s (x, y, radius)
+                uniform int uCount;
+                varying vec2 vUv;
+
+                void main() {
+                    vec2 newUv = vUv;
+                    vec2 aspect = vec2(uResolution.x / uResolution.y, 1.0);
+
+                    // Accumulate distortion from all visible black holes
+                    for(int i = 0; i < 6; i++) {
+                        if(i >= uCount) break;
+
+                        // Extract data from flat array
+                        vec2 pos = vec2(uBH[i*3], uBH[i*3+1]);
+                        float radius = uBH[i*3+2];
+
+                        // Calculate vector from BH center to current pixel
+                        vec2 vec = vUv - pos;
+
+                        // Correct for aspect ratio so distortion is circular, not oval
+                        vec2 distVec = vec * aspect;
+                        float dist = length(distVec);
+
+                        // Lensing Formula
+                        // We distort more closer to the center, but clamp at the event horizon
+                        // Strength factor relative to distance
+                        float strength = radius * 0.05;
+
+                        // Prevent division by zero and create "falloff"
+                        if (dist > 0.0 && dist < 0.5) {
+                           float f = strength / dist;
+
+                           // "Pull" the texture coordinates TOWARDS the black hole center
+                           // This makes the image behind appear to wrap AROUND it
+                           newUv -= normalize(vec) * f * 0.02;
+                        }
+                    }
+
+                    gl_FragColor = texture2D(tDiffuse, newUv);
+                }
+            `
+        };
+
+        // --- COMPOSER STACK ---
         const composer = new EffectComposer(renderer);
-        composer.addPass(new RenderPass(scene, camera));
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.25, 0.85, 0.8);
+
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const lensingPass = new ShaderPass(GravitationalLensingShader);
+        composer.addPass(lensingPass);
+
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.25, 0.85, 0.85);
         composer.addPass(bloomPass);
+
 
         // --- AUDIO ---
         let audioCtx, drone, gain, lfo;
@@ -246,7 +320,6 @@
 
         function getColorAt(t, noise = 0) {
             const color = new THREE.Color();
-            // More vibrant saturation
             if (t < 0.2) {
                 color.setHSL(0.6 + noise * 0.1, 1.0, 0.8 - (t * 2.0));
             } else if (t < 0.5) {
@@ -275,142 +348,253 @@
             return new THREE.CanvasTexture(canvas);
         }
 
-        // Share the texture reference
         const softParticleTexture = createSoftTexture();
 
+        // --- GLOBAL UNIFORMS FOR EXOTIC SHADERS ---
+        const globalUniforms = {
+            uTime: { value: 0 }
+        };
+
+        // --- EXOTIC OBJECTS MATERIALS (SHADERS) ---
+
+        // 1. PULSAR JET SHADER
+        const pulsarJetMat = new THREE.ShaderMaterial({
+            uniforms: globalUniforms,
+            transparent: true,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            clipping: true,
+            vertexShader: `
+                #include <clipping_planes_pars_vertex>
+                varying vec2 vUv;
+                void main() {
+                    #include <begin_vertex>
+                    #include <project_vertex>
+                    #include <clipping_planes_vertex>
+                    vUv = uv;
+                }
+            `,
+            fragmentShader: `
+                #include <clipping_planes_pars_fragment>
+                uniform float uTime;
+                varying vec2 vUv;
+
+                void main() {
+                    #include <clipping_planes_fragment>
+                    float dist = abs(vUv.x - 0.5) * 2.0;
+                    float beam = pow(1.0 - dist, 3.0);
+                    float pulse = 0.8 + 0.2 * sin(uTime * 30.0 + vUv.y * 10.0);
+                    float fade = smoothstep(0.0, 0.2, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+                    vec3 col = vec3(0.1, 0.8, 1.0) * 2.0;
+                    gl_FragColor = vec4(col, beam * fade * pulse * 0.8);
+                }
+            `
+        });
+
+        // 2. BLACK HOLE ACCRETION DISK SHADER
+        const bhDiskMat = new THREE.ShaderMaterial({
+            uniforms: globalUniforms,
+            transparent: true,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            clipping: true,
+            vertexShader: `
+                #include <clipping_planes_pars_vertex>
+                varying vec2 vUv;
+                varying vec3 vPos;
+                void main() {
+                    #include <begin_vertex>
+                    #include <project_vertex>
+                    #include <clipping_planes_vertex>
+                    vUv = uv;
+                    vPos = position;
+                }
+            `,
+            fragmentShader: `
+                #include <clipping_planes_pars_fragment>
+                uniform float uTime;
+                varying vec2 vUv;
+
+                float rand(vec2 n) {
+                    return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+                }
+                float noise(vec2 p) {
+                    vec2 ip = floor(p);
+                    vec2 u = fract(p);
+                    u = u*u*(3.0-2.0*u);
+                    float res = mix(
+                        mix(rand(ip), rand(ip+vec2(1.0,0.0)), u.x),
+                        mix(rand(ip+vec2(0.0,1.0)), rand(ip+vec2(1.0,1.0)), u.x), u.y);
+                    return res*res;
+                }
+
+                void main() {
+                    #include <clipping_planes_fragment>
+                    vec2 p = vUv * 2.0 - 1.0;
+                    float r = length(p);
+                    if(r > 1.0 || r < 0.35) discard;
+                    float ang = atan(p.y, p.x);
+                    float swirl = ang + 10.0 / (r + 0.1) + uTime * 2.0;
+                    float n = noise(vec2(r * 5.0 - uTime, swirl));
+                    vec3 innerCol = vec3(0.8, 0.9, 1.0);
+                    vec3 midCol = vec3(1.0, 0.5, 0.1);
+                    vec3 outerCol = vec3(0.8, 0.1, 0.0);
+                    float t = (r - 0.35) / 0.65;
+                    vec3 col = mix(innerCol, midCol, smoothstep(0.0, 0.4, t));
+                    col = mix(col, outerCol, smoothstep(0.4, 1.0, t));
+                    col += n * 0.5;
+                    float doppler = 0.5 + 0.5 * sin(ang - 1.0);
+                    float alpha = smoothstep(0.35, 0.4, r) * smoothstep(1.0, 0.9, r);
+                    gl_FragColor = vec4(col * (0.8 + doppler * 0.5), alpha * 0.9);
+                }
+            `
+        });
+
+        const pulsarCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const bhCoreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+        const exoticMaterials = [pulsarCoreMat, pulsarJetMat, bhCoreMat, bhDiskMat];
+
+        // --- EXOTIC OBJECT GENERATION FUNCTIONS ---
+        const createPulsar = () => {
+            const group = new THREE.Group();
+            const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8, 2), pulsarCoreMat);
+            group.add(core);
+            const beamHeight = 40;
+            const jetGeo = new THREE.CylinderGeometry(0.6, 0.1, beamHeight, 16, 1, true);
+            jetGeo.translate(0, beamHeight / 2, 0);
+            const jet1 = new THREE.Mesh(jetGeo, pulsarJetMat);
+            const jet2 = new THREE.Mesh(jetGeo, pulsarJetMat);
+            jet2.rotation.x = Math.PI;
+            group.add(jet1);
+            group.add(jet2);
+            group.rotation.z = Math.random() * Math.PI;
+            group.rotation.x = Math.random() * Math.PI;
+            group.userData = { type: 'pulsar', rotSpeed: 0.3 + Math.random() * 0.4 };
+            return group;
+        };
+
+        const createBlackHole = () => {
+            const group = new THREE.Group();
+            const core = new THREE.Mesh(new THREE.IcosahedronGeometry(3.5, 3), bhCoreMat);
+            group.add(core);
+            const diskSize = 35;
+            const diskGeo = new THREE.PlaneGeometry(diskSize, diskSize);
+            const disk = new THREE.Mesh(diskGeo, bhDiskMat);
+            group.add(disk);
+            group.userData = { type: 'blackhole', rotSpeed: 0.002 + Math.random() * 0.005 };
+            group.rotation.x = Math.random() * Math.PI;
+            group.rotation.z = Math.random() * Math.PI;
+            return group;
+        };
+
         // --- GALAXY & PARTICLE GENERATION ---
-
         const geo = new THREE.BufferGeometry();
-        // Standard attributes
-        const pos = [], col = [], size = [], randoms = [];
-        // New attributes for rotation logic
-        const centers = []; // Center of the galaxy this star belongs to
-        const axes = [];    // Axis of rotation for this galaxy
-        const speeds = [];  // Rotation speed
-
-        const dummy = new THREE.Object3D(); // Helper for rotations
-
-        // 1. Generate Rotating Spiral Galaxies
-        let starsUsed = 0; // Track star budget usage
+        const pos = [], col = [], size = [], randoms = [], centers = [], axes = [], speeds = [];
+        const dummy = new THREE.Object3D();
+        let starsUsed = 0;
 
         for(let g = 0; g < CONFIG.galaxies; g++) {
             const t = 0.1 + Math.random() * 0.8;
             const zCenter = t * CONFIG.timelineLength;
             const rMax = getRadiusAt(t) * 0.7;
-
             const theta = Math.random() * Math.PI * 2;
             const rCenter = Math.sqrt(Math.random()) * rMax;
-
             const gx = Math.cos(theta) * rCenter;
             const gy = Math.sin(theta) * rCenter;
             const gz = zCenter;
 
-            // Define Galaxy Orientation
-            dummy.rotation.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI
-            );
+            dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
             dummy.updateMatrix();
-
-            // Extract the "Up" vector from the rotation - this becomes our rotation axis
             const q = new THREE.Quaternion().setFromEuler(dummy.rotation);
-            const galaxyAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(q); // Local Y became World Axis
-
+            const galaxyAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
             const baseCol = getColorAt(t, 0.3);
             const rotSpeed = (Math.random() > 0.5 ? 1 : -1) * (0.2 + Math.random() * 0.3);
 
-            // --- GIANT GALAXY LOGIC ---
-            const isGiant = Math.random() < 0.15; // 15% chance to be a Super Galaxy
-            const scale = isGiant ? (2.0 + Math.random() * 1.5) : 1.0; // 2x to 3.5x larger
-            const starCount = isGiant ? CONFIG.starsPerGalaxy * 3 : CONFIG.starsPerGalaxy; // More stars for density
+            // --- GALAXY TYPE LOGIC ---
+            const typeRoll = Math.random();
+            let isGiant = false;
+            let isTitan = false;
+            let scale = 1.0;
+            let starCount = CONFIG.starsPerGalaxy;
+            let coreScale = 1.0;
+
+            if (typeRoll < 0.05) { // 5% TITAN CLASS (NEW)
+                isTitan = true;
+                scale = 6.0 + Math.random() * 3.0; // Massive scale
+                starCount = CONFIG.starsPerGalaxy * 10; // Intense density
+                coreScale = 5.0;
+                baseCol.offsetHSL(0.05, 0.2, 0.1); // Brighter
+            } else if (typeRoll < 0.35) { // 30% GIANT CLASS (Increased from 15%)
+                isGiant = true;
+                scale = 2.0 + Math.random() * 2.5;
+                starCount = CONFIG.starsPerGalaxy * 3;
+                coreScale = 2.0;
+            } else {
+                scale = 0.8 + Math.random() * 0.6;
+            }
 
             starsUsed += starCount;
 
             for(let i = 0; i < starCount; i++) {
-                // Better Logarithmic Spiral Logic
-                const armCount = 3 + Math.floor(Math.random() * 3); // 3-5 Arms
+                const armCount = isTitan ? 5 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 3);
                 const armIndex = i % armCount;
-                const radiusNorm = Math.pow(Math.random(), 2); // Concentrate core
-
-                // Apply Scale Here
+                const radiusNorm = Math.pow(Math.random(), 2);
                 const spiralRadius = radiusNorm * (4 + Math.random() * 6) * scale;
-
                 const angleOffset = (Math.PI * 2 * armIndex) / armCount;
-                const spiralAngle = angleOffset + (radiusNorm * 5.0); // Winding amount
-
-                // Generate Flat Disk Position (Local Space)
+                const spiralAngle = angleOffset + (radiusNorm * (isTitan ? 8.0 : 5.0));
                 let lx = Math.cos(spiralAngle) * spiralRadius;
-                let ly = 0; // Flat on Y plane initially (we use Y as axis)
+                let ly = 0;
                 let lz = Math.sin(spiralAngle) * spiralRadius;
-
-                // Add scatter
                 const scatter = (1.0 - radiusNorm) * 0.5 + radiusNorm * 2.0;
-                lx += (Math.random()-0.5) * scatter * scale; // Scale scatter too
+                lx += (Math.random()-0.5) * scatter * scale;
                 lz += (Math.random()-0.5) * scatter * scale;
-                ly += (Math.random()-0.5) * (0.5 + radiusNorm) * scale; // Thin disk
-
-                // Rotate Local Point by Galaxy Quaternion
+                ly += (Math.random()-0.5) * (0.5 + radiusNorm) * scale;
                 const vec = new THREE.Vector3(lx, ly, lz);
                 vec.applyQuaternion(q);
-
-                // World Position
                 pos.push(gx + vec.x, gy + vec.y, gz + vec.z);
-
-                // Shader Attributes
                 centers.push(gx, gy, gz);
                 axes.push(galaxyAxis.x, galaxyAxis.y, galaxyAxis.z);
                 speeds.push(rotSpeed);
-
-                // Color Gradient: White Core -> Colored Arms
                 const c = baseCol.clone();
-                // Core brightness
-                if(radiusNorm < 0.15) {
-                    c.lerp(new THREE.Color(0xffffff), 0.9 - radiusNorm * 4);
-                    // Bigger cores for Giants
-                    const coreScale = isGiant ? 2.0 : 1.0;
-                    size.push((2.0 + Math.random() * 2.0) * coreScale);
+
+                // Core Logic
+                if(radiusNorm < (isTitan ? 0.08 : 0.15)) {
+                    // Make centers different colored (Warm Gold/Amber instead of White)
+                    c.lerp(new THREE.Color(0xffaa33), 0.85);
+                    c.offsetHSL(0, 0, 0.1);
+
+                    // Make stars in center smaller
+                    // Reduced base size from (2.0 + ...) to (0.6 + ...)
+                    const s = (0.6 + Math.random() * 0.8) * coreScale;
+                    size.push(s);
                 } else {
                     size.push(0.8 + Math.random() * 1.5);
-                    // Slight variation in arms
                     c.offsetHSL(0, 0, (Math.random()-0.5)*0.1);
                 }
-
                 col.push(c.r, c.g, c.b);
                 randoms.push(Math.random());
             }
         }
 
-        // 2. Generate Background Stars (Static, no rotation axis)
-        // Ensure we don't go negative on budget
         const remainingStars = Math.max(0, CONFIG.particles - starsUsed);
-
         for(let i=0; i < remainingStars; i++) {
             const t = Math.random();
             const z = t * CONFIG.timelineLength;
             const rMax = getRadiusAt(t);
-
             const a = Math.random() * Math.PI * 2;
             const r = Math.sqrt(Math.random()) * rMax;
             let x = Math.cos(a) * r;
             let y = Math.sin(a) * r;
-
             let c = getColorAt(t, 0.5);
             let s = 0.5 + Math.random();
-
-            // Singularity Rays
-            if (t < 0.05 || t > 0.95) {
-                x *= 0.1; y *= 0.1;
-                s = 1.5;
-                c.setHex(0xffffff);
-            }
-
+            if (t < 0.05 || t > 0.95) { x *= 0.1; y *= 0.1; s = 1.5; c.setHex(0xffffff); }
             pos.push(x, y, z);
-            // Background stars don't rotate around a galaxy center, so we set speed to 0
             centers.push(x, y, z);
             axes.push(0, 1, 0);
             speeds.push(0.0);
-
             col.push(c.r, c.g, c.b);
             size.push(s);
             randoms.push(Math.random());
@@ -420,8 +604,6 @@
         geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
         geo.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 1));
         geo.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
-
-        // Custom Attributes for Rotation
         geo.setAttribute('aCenter', new THREE.Float32BufferAttribute(centers, 3));
         geo.setAttribute('aAxis', new THREE.Float32BufferAttribute(axes, 3));
         geo.setAttribute('aSpeed', new THREE.Float32BufferAttribute(speeds, 1));
@@ -431,20 +613,13 @@
         const planeBack = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
         const pMat = new THREE.PointsMaterial({
-            size: 1.0,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            clippingPlanes: []
+            size: 1.0, vertexColors: true, transparent: true, opacity: 0.9,
+            blending: THREE.AdditiveBlending, depthWrite: false, clippingPlanes: []
         });
 
-        // INJECT ROTATION LOGIC INTO SHADER
         pMat.onBeforeCompile = (shader) => {
             shader.uniforms.uTime = { value: 0 };
             pMat.userData.shader = shader;
-
             shader.vertexShader = `
                 uniform float uTime;
                 attribute float aRandom;
@@ -452,39 +627,26 @@
                 attribute vec3 aCenter;
                 attribute vec3 aAxis;
                 attribute float aSpeed;
-
-                // Rodrigues' rotation formula
                 vec3 rotateVector(vec3 v, vec3 axis, float angle) {
                     return v * cos(angle) + cross(axis, v) * sin(angle) + axis * dot(axis, v) * (1.0 - cos(angle));
                 }
             ` + shader.vertexShader;
-
-            // Inject rotation before standard position calculation
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <begin_vertex>',
-                `
+            shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
                 vec3 transformed = vec3( position );
-
-                // Galaxy Rotation Logic
                 if (aSpeed != 0.0) {
                     vec3 offset = transformed - aCenter;
                     float angle = uTime * aSpeed;
                     vec3 rotatedOffset = rotateVector(offset, aAxis, angle);
                     transformed = aCenter + rotatedOffset;
                 }
-                `
-            );
-
-            shader.vertexShader = shader.vertexShader.replace(
-                'gl_PointSize = size;',
-                `
+            `);
+            shader.vertexShader = shader.vertexShader.replace('gl_PointSize = size;', `
                 float twinkle = 1.0 + sin(uTime * 4.0 + aRandom * 10.0) * 0.4;
                 gl_PointSize = aSize * twinkle;
-                `
-            );
+            `);
         };
 
-        // --- BACKGROUND NEBULA (MIST) ---
+        // --- BACKGROUND LAYERS ---
         const nebGeo = new THREE.BufferGeometry();
         const nebPos = [], nebCol = [], nebSize = [];
         for(let i=0; i<CONFIG.nebulaCount; i++) {
@@ -493,7 +655,6 @@
             const rMax = getRadiusAt(t);
             const a = Math.random() * Math.PI * 2;
             const r = Math.sqrt(Math.random()) * rMax * 1.2;
-
             nebPos.push(Math.cos(a)*r, Math.sin(a)*r, z);
             const c = getColorAt(t);
             c.offsetHSL(0, -0.3, -0.2);
@@ -506,7 +667,7 @@
 
         const nebMat = new THREE.PointsMaterial({
             size: 1, vertexColors: true, map: softParticleTexture,
-            transparent: true, opacity: 0.15, depthWrite: false,
+            transparent: true, opacity: 0.25, depthWrite: false,
             blending: THREE.AdditiveBlending, sizeAttenuation: true, clippingPlanes: []
         });
         nebMat.onBeforeCompile = (shader) => {
@@ -514,37 +675,27 @@
             shader.vertexShader = shader.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = aSize;');
         };
 
-        // --- DENSE NEBULA CLOUDS (NEW) ---
-        // Brighter, denser patches of clouds
+        // Dense Nebula
         const denseNebGeo = new THREE.BufferGeometry();
         const dnPos = [], dnCol = [], dnSize = [];
         for(let i=0; i<CONFIG.denseNebula; i++) {
             const t = Math.random();
             const z = t * CONFIG.timelineLength;
             const rMax = getRadiusAt(t);
-
             const a = Math.random() * Math.PI * 2;
-            // Tighter radius (0.8 instead of 1.2) to cluster near "matter"
             const r = Math.sqrt(Math.random()) * rMax * 0.8;
-
             dnPos.push(Math.cos(a)*r, Math.sin(a)*r, z);
-
             const c = getColorAt(t);
-            // Less dark offset -> brighter
             c.offsetHSL(0, 0.1, -0.05);
             dnCol.push(c.r, c.g, c.b);
-
-            // Varied sizes
             dnSize.push(20 + Math.random() * 50);
         }
         denseNebGeo.setAttribute('position', new THREE.Float32BufferAttribute(dnPos, 3));
         denseNebGeo.setAttribute('color', new THREE.Float32BufferAttribute(dnCol, 3));
         denseNebGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(dnSize, 1));
-
-        // Use higher opacity for dense look
         const denseNebMat = new THREE.PointsMaterial({
             size: 1, vertexColors: true, map: softParticleTexture,
-            transparent: true, opacity: 0.25, depthWrite: false,
+            transparent: true, opacity: 0.40, depthWrite: false,
             blending: THREE.AdditiveBlending, sizeAttenuation: true, clippingPlanes: []
         });
         denseNebMat.onBeforeCompile = (shader) => {
@@ -552,36 +703,33 @@
             shader.vertexShader = shader.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = aSize;');
         };
 
-        const particlesMain = new THREE.Points(geo, pMat);
-        const particlesNext = new THREE.Points(geo, pMat);
-        const particlesPrev = new THREE.Points(geo, pMat);
-        particlesNext.position.z = CONFIG.timelineLength;
-        particlesPrev.position.z = -CONFIG.timelineLength;
-
-        scene.add(particlesMain);
-        scene.add(particlesNext);
-        scene.add(particlesPrev);
-
-        // Background Mist
-        const nebulaMain = new THREE.Points(nebGeo, nebMat);
-        const nebulaNext = new THREE.Points(nebGeo, nebMat);
-        const nebulaPrev = new THREE.Points(nebGeo, nebMat);
-        nebulaNext.position.z = CONFIG.timelineLength;
-        nebulaPrev.position.z = -CONFIG.timelineLength;
-        scene.add(nebulaMain);
-        scene.add(nebulaNext);
-        scene.add(nebulaPrev);
-
-        // Dense Clouds (Added on top)
-        const denseNebulaMain = new THREE.Points(denseNebGeo, denseNebMat);
-        const denseNebulaNext = new THREE.Points(denseNebGeo, denseNebMat);
-        const denseNebulaPrev = new THREE.Points(denseNebGeo, denseNebMat);
-        denseNebulaNext.position.z = CONFIG.timelineLength;
-        denseNebulaPrev.position.z = -CONFIG.timelineLength;
-        scene.add(denseNebulaMain);
-        scene.add(denseNebulaNext);
-        scene.add(denseNebulaPrev);
-
+        // Super Mist
+        const superMistGeo = new THREE.BufferGeometry();
+        const smPos = [], smCol = [], smSize = [];
+        for(let i=0; i<CONFIG.superMist; i++) {
+            const t = Math.random();
+            const z = t * CONFIG.timelineLength;
+            const rMax = getRadiusAt(t);
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * rMax * 1.2;
+            smPos.push(Math.cos(a)*r, Math.sin(a)*r, z);
+            const c = getColorAt(t);
+            c.offsetHSL(0, -0.5, -0.4);
+            smCol.push(c.r, c.g, c.b);
+            smSize.push(10 + Math.random() * 40);
+        }
+        superMistGeo.setAttribute('position', new THREE.Float32BufferAttribute(smPos, 3));
+        superMistGeo.setAttribute('color', new THREE.Float32BufferAttribute(smCol, 3));
+        superMistGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(smSize, 1));
+        const superMistMat = new THREE.PointsMaterial({
+            size: 1, vertexColors: true, map: softParticleTexture,
+            transparent: true, opacity: 0.08, depthWrite: false,
+            blending: THREE.AdditiveBlending, sizeAttenuation: true, clippingPlanes: []
+        });
+        superMistMat.onBeforeCompile = (shader) => {
+            shader.vertexShader = `attribute float aSize;` + shader.vertexShader;
+            shader.vertexShader = shader.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = aSize;');
+        };
 
         // --- FILAMENTS ---
         const filPoints = [], filCols = [];
@@ -594,7 +742,6 @@
             const y = Math.sin(a) * r * Math.random();
             const z2 = z + 15 + Math.random() * 20;
             if (z2 > CONFIG.timelineLength) continue;
-
             const t2 = z2 / CONFIG.timelineLength;
             const r2 = getRadiusAt(t2);
             filPoints.push(new THREE.Vector3(x, y, z), new THREE.Vector3(x*(r2/r), y*(r2/r), z2));
@@ -604,22 +751,93 @@
         const filGeo = new THREE.BufferGeometry().setFromPoints(filPoints);
         filGeo.setAttribute('color', new THREE.Float32BufferAttribute(filCols, 3));
         const filMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.15, clippingPlanes: [] });
+
+        // --- SCENE ASSEMBLY (Main, Next, Prev) ---
+        const particlesMain = new THREE.Points(geo, pMat);
+        const particlesNext = new THREE.Points(geo, pMat); particlesNext.position.z = CONFIG.timelineLength;
+        const particlesPrev = new THREE.Points(geo, pMat); particlesPrev.position.z = -CONFIG.timelineLength;
+        scene.add(particlesMain, particlesNext, particlesPrev);
+
+        const nebulaMain = new THREE.Points(nebGeo, nebMat);
+        const nebulaNext = new THREE.Points(nebGeo, nebMat); nebulaNext.position.z = CONFIG.timelineLength;
+        const nebulaPrev = new THREE.Points(nebGeo, nebMat); nebulaPrev.position.z = -CONFIG.timelineLength;
+        scene.add(nebulaMain, nebulaNext, nebulaPrev);
+
+        const denseNebulaMain = new THREE.Points(denseNebGeo, denseNebMat);
+        const denseNebulaNext = new THREE.Points(denseNebGeo, denseNebMat); denseNebulaNext.position.z = CONFIG.timelineLength;
+        const denseNebulaPrev = new THREE.Points(denseNebGeo, denseNebMat); denseNebulaPrev.position.z = -CONFIG.timelineLength;
+        scene.add(denseNebulaMain, denseNebulaNext, denseNebulaPrev);
+
+        const superMistMain = new THREE.Points(superMistGeo, superMistMat);
+        const superMistNext = new THREE.Points(superMistGeo, superMistMat); superMistNext.position.z = CONFIG.timelineLength;
+        const superMistPrev = new THREE.Points(superMistGeo, superMistMat); superMistPrev.position.z = -CONFIG.timelineLength;
+        scene.add(superMistMain, superMistNext, superMistPrev);
+
         const linesMain = new THREE.LineSegments(filGeo, filMat);
-        const linesNext = new THREE.LineSegments(filGeo, filMat);
-        const linesPrev = new THREE.LineSegments(filGeo, filMat);
-        linesNext.position.z = CONFIG.timelineLength;
-        linesPrev.position.z = -CONFIG.timelineLength;
-        scene.add(linesMain);
-        scene.add(linesNext);
-        scene.add(linesPrev);
+        const linesNext = new THREE.LineSegments(filGeo, filMat); linesNext.position.z = CONFIG.timelineLength;
+        const linesPrev = new THREE.LineSegments(filGeo, filMat); linesPrev.position.z = -CONFIG.timelineLength;
+        scene.add(linesMain, linesNext, linesPrev);
 
-        // --- SCAN RING & UI ---
-        const scanRing = new THREE.Mesh(
-            new THREE.RingGeometry(0, CONFIG.maxRadius * 1.1, 64),
-            new THREE.MeshBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0, side: THREE.DoubleSide, wireframe: true })
-        );
-        scene.add(scanRing);
 
+        // --- INSTANTIATE EXOTICS ---
+        const exoticGroupMain = new THREE.Group();
+        const allBlackHoles = []; // Store refs for lensing shader
+
+        // ADD PULSARS (New Addition)
+        for(let i=0; i<CONFIG.pulsarCount; i++) {
+            const t = 0.1 + Math.random() * 0.8;
+            const z = t * CONFIG.timelineLength;
+            const rMax = getRadiusAt(t);
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * rMax * 0.6; // Slightly closer to center than galaxies
+            const pulsar = createPulsar();
+            pulsar.position.set(Math.cos(a)*r, Math.sin(a)*r, z);
+            pulsar.userData.title = "PULSAR";
+            pulsar.userData.desc = "Highly magnetized rotating neutron star.";
+            exoticGroupMain.add(pulsar);
+        }
+
+        // Add Black Holes
+        for(let i=0; i<CONFIG.blackHoleCount; i++) {
+            const t = 0.2 + Math.random() * 0.6;
+            const z = t * CONFIG.timelineLength;
+            const rMax = getRadiusAt(t);
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * rMax * 0.5;
+            const bh = createBlackHole();
+            bh.position.set(Math.cos(a)*r, Math.sin(a)*r, z);
+            bh.userData.title = "BLACK HOLE";
+            bh.userData.desc = "Region of infinite density.";
+            exoticGroupMain.add(bh);
+            allBlackHoles.push(bh); // Track for lensing
+        }
+
+        // --- FINAL SUPERMASSIVE BLACK HOLE ---
+        const finalBH = createBlackHole();
+        const finalBHT = 0.94; // Just before Singularity at 0.98
+        const finalBHZ = finalBHT * CONFIG.timelineLength;
+        finalBH.position.set(0, 0, finalBHZ);
+        finalBH.scale.setScalar(4.0); // 4x larger
+        finalBH.userData.title = "SUPERMASSIVE BLACK HOLE";
+        finalBH.userData.desc = "The final consumer before the crunch.";
+        finalBH.userData.rotSpeed *= 0.5; // Rotate slower because it is massive
+        exoticGroupMain.add(finalBH);
+        allBlackHoles.push(finalBH);
+
+        const exoticGroupNext = exoticGroupMain.clone();
+        exoticGroupNext.position.z = CONFIG.timelineLength;
+
+        const exoticGroupPrev = exoticGroupMain.clone();
+        exoticGroupPrev.position.z = -CONFIG.timelineLength;
+
+        scene.add(exoticGroupMain, exoticGroupNext, exoticGroupPrev);
+
+        // Track cloned black holes too for seamless lensing
+        exoticGroupNext.children.forEach(c => { if(c.userData.type === 'blackhole') allBlackHoles.push(c); });
+        exoticGroupPrev.children.forEach(c => { if(c.userData.type === 'blackhole') allBlackHoles.push(c); });
+
+
+        // Interactables
         const interactables = [];
         EPOCHS.forEach(e => {
             const m = new THREE.Mesh(new THREE.IcosahedronGeometry(6, 1), new THREE.MeshBasicMaterial({ color: e.color, wireframe: true }));
@@ -631,10 +849,29 @@
         const mNext = interactables[0].clone(); mNext.position.z += CONFIG.timelineLength; scene.add(mNext); interactables.push(mNext);
         const mPrev = interactables[4].clone(); mPrev.position.z -= CONFIG.timelineLength; scene.add(mPrev); interactables.push(mPrev);
 
+        [exoticGroupMain, exoticGroupNext, exoticGroupPrev].forEach(grp => {
+            grp.children.forEach(child => {
+                if(child.children.length > 0) {
+                   const core = child.children[0];
+                   core.userData = child.userData;
+                   interactables.push(core);
+                }
+            });
+        });
+
+
+        // --- SCAN RING & UI ---
+        const scanRing = new THREE.Mesh(
+            new THREE.RingGeometry(0, CONFIG.maxRadius * 1.1, 64),
+            new THREE.MeshBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0, side: THREE.DoubleSide, wireframe: true })
+        );
+        scene.add(scanRing);
+
         // --- LOOP ---
         let fly = false, scan = false, scrollZ = 20, targetScrollZ = 20, time = 0;
         const mouse = new THREE.Vector2();
         const raycaster = new THREE.Raycaster();
+        const vector = new THREE.Vector3(); // Temp for projection
 
         window.addEventListener('wheel', (e) => { if (!fly) targetScrollZ += e.deltaY * CONFIG.scrollSpeed * 0.1; }, { passive: true });
         let touchStartY = 0;
@@ -653,14 +890,21 @@
             e.target.classList.toggle('active', !active);
         };
         document.getElementById('flyBtn').onclick = (e) => { fly = !fly; e.target.classList.toggle('active'); if(fly) targetScrollZ = scrollZ; };
+
         document.getElementById('scanBtn').onclick = (e) => {
             scan = !scan; e.target.classList.toggle('active');
             document.getElementById('scan-status').textContent = scan ? "ACTIVE" : "OFF";
             document.getElementById('scan-status').style.color = scan ? 'var(--accent-color)' : '#666';
             const planes = scan ? [planeFront, planeBack] : [];
-            pMat.clippingPlanes = filMat.clippingPlanes = nebMat.clippingPlanes = denseNebMat.clippingPlanes = planes;
+            pMat.clippingPlanes = planes;
+            filMat.clippingPlanes = planes;
+            nebMat.clippingPlanes = planes;
+            denseNebMat.clippingPlanes = planes;
+            superMistMat.clippingPlanes = planes;
+            exoticMaterials.forEach(m => m.clippingPlanes = planes);
             scanRing.material.opacity = scan ? 0.3 : 0;
         };
+
         document.getElementById('resetBtn').onclick = () => { targetScrollZ = 20; fly = false; document.getElementById('flyBtn').classList.remove('active'); };
         window.addEventListener('pointermove', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -672,6 +916,7 @@
             time += 0.01;
 
             if(pMat.userData.shader) pMat.userData.shader.uniforms.uTime.value = time;
+            globalUniforms.uTime.value = time;
 
             if (fly) targetScrollZ += 1.5;
             scrollZ += (targetScrollZ - scrollZ) * 0.1;
@@ -684,19 +929,58 @@
             camera.position.z = scrollZ + -60;
             controls.update();
 
-            // Rotate Everything
+            // Rotation Logic
             const rotSpeed = 0.0002;
             particlesMain.rotation.z += rotSpeed;
             particlesNext.rotation.z += rotSpeed;
             particlesPrev.rotation.z += rotSpeed;
-
             nebulaMain.rotation.z += 0.0001;
             nebulaNext.rotation.z += 0.0001;
             nebulaPrev.rotation.z += 0.0001;
-
             denseNebulaMain.rotation.z += 0.00015;
             denseNebulaNext.rotation.z += 0.00015;
             denseNebulaPrev.rotation.z += 0.00015;
+            superMistMain.rotation.z += 0.0001;
+            superMistNext.rotation.z += 0.0001;
+            superMistPrev.rotation.z += 0.0001;
+
+            [exoticGroupMain, exoticGroupNext, exoticGroupPrev].forEach(grp => {
+                grp.children.forEach(obj => {
+                    if (obj.userData.type === 'pulsar') obj.rotateY(obj.userData.rotSpeed);
+                    else if (obj.userData.type === 'blackhole') obj.rotateZ(obj.userData.rotSpeed * 0.1);
+                });
+            });
+
+            // --- LENSING UPDATE ---
+            // Calculate screen positions of black holes
+            let bhCount = 0;
+            const bhArray = lensingPass.uniforms["uBH"].value;
+
+            // Loop through all potential BHs (including clones)
+            for(let bh of allBlackHoles) {
+                if(bhCount >= 6) break;
+
+                // 1. Get World Position
+                // Since they are in groups, we need world position
+                bh.getWorldPosition(vector);
+
+                // 2. Project to Screen
+                vector.project(camera); // Now in NDC (-1 to 1)
+
+                // 3. Check if in front of camera and somewhat on screen
+                if(vector.z < 1.0 && vector.x > -1.2 && vector.x < 1.2 && vector.y > -1.2 && vector.y < 1.2) {
+                    // Convert NDC to UV (0 to 1)
+                    const u = vector.x * 0.5 + 0.5;
+                    const v = vector.y * 0.5 + 0.5;
+
+                    bhArray[bhCount * 3] = u;
+                    bhArray[bhCount * 3 + 1] = v;
+                    bhArray[bhCount * 3 + 2] = 1.0; // Radius strength factor
+                    bhCount++;
+                }
+            }
+            lensingPass.uniforms["uCount"].value = bhCount;
+
 
             const tNorm = scrollZ / CONFIG.timelineLength;
             document.getElementById('time-val').textContent = (tNorm * 30).toFixed(2);
@@ -723,8 +1007,9 @@
                 tt.style.display = 'block';
                 tt.style.left = (mouse.x * 50 + 50) + '%';
                 tt.style.top = (-(mouse.y * 50) + 50) + '%';
-                document.getElementById('tt-title').textContent = hits[0].object.userData.title;
-                document.getElementById('tt-desc').textContent = hits[0].object.userData.desc;
+                const data = hits[0].object.userData;
+                document.getElementById('tt-title').textContent = data.title;
+                document.getElementById('tt-desc').textContent = data.desc;
             } else {
                 tt.style.display = 'none';
             }
@@ -737,6 +1022,7 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             composer.setSize(window.innerWidth, window.innerHeight);
+            lensingPass.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
         });
 
         // Fake loading for effect

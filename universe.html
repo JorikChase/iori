@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Cyclic Universe | The Big Bounce</title>
+    <style>
+      :root {
+            --bg-color: #020204;
+            --text-color: #e0e0e0;
+            --accent-color: #00f3ff;
+            --secondary-color: #ff0055;
+            --mono-font: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text-color);
+            user-select: none;
+            touch-action: none; /* Prevents browser scroll on mobile */
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .hud-box {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            padding: 12px;
+            backdrop-filter: blur(10px);
+            font-family: var(--mono-font);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        #controls {
+            pointer-events: auto;
+            align-self: center;
+            display: flex;
+            gap: 12px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 1px solid #333;
+        }
+
+        .btn {
+            background: none;
+            border: 1px solid #444;
+            color: #888;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: var(--mono-font);
+            font-size: 10px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover, .btn.active { border-color: var(--accent-color); color: var(--accent-color); }
+        .btn.active { background: rgba(0, 243, 255, 0.1); }
+
+        #tooltip {
+            position: absolute;
+            display: none;
+            background: rgba(0,0,0,0.9);
+            border: 1px solid var(--accent-color);
+            padding: 15px;
+            max-width: 250px;
+            z-index: 100;
+        }
+
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: var(--accent-color);
+            letter-spacing: 5px;
+            font-family: var(--mono-font);
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #mobile-hint {
+            font-size: 10px;
+            color: #666;
+            margin-top: 10px;
+            opacity: 0.7;
+        }
+    </style>
+    <script type="importmap">
+      {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+  </head>
+  <body>
+    <div id="loader">
+      <div>INITIALIZING CYCLES...</div>
+    </div>
+    <div id="ui-layer">
+      <div style="display:flex; justify-content:space-between; align-items: flex-start;">
+        <div class="hud-box">
+          MODE:
+          <span style="color:var(--accent-color)">CYCLIC COSMOLOGY</span><br>
+          EPOCH:
+          <span id="time-val">0.00</span>
+          GYR
+        </div>
+        <div class="hud-box" style="text-align: right;">
+          SCANNER:
+          <span id="scan-status" style="color:#666">OFF</span><br>
+          <span id="scroll-hint" style="color: #888; font-size: 9px; display: block; margin-top: 4px;">SCROLL / SWIPE TO TIME TRAVEL</span>
+        </div>
+      </div>
+      <div id="tooltip">
+        <h3 id="tt-title" style="margin:0; font-size:14px; color:var(--accent-color)"></h3>
+        <p id="tt-desc" style="margin:5px 0 0 0; font-size:11px; color:#aaa"></p>
+      </div>
+      <div id="controls">
+        <button class="btn" id=""><a href="https://drive.google.com/drive/folders/1x_mFCfL1YS_B65BCxzkOzYBfScH6GSb8?usp=sharing" about="_blank">touchdesigner</a></button>
+        <button class="btn" id="audioBtn">Audio</button>
+        <button class="btn" id="flyBtn">Auto-Fly</button>
+        <button class="btn" id="scanBtn">Scanner</button>
+        <button class="btn" id="resetBtn">Reset</button>
+      </div>
+    </div>
+    <script type="module">
+      import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- CONFIG ---
+        const CONFIG = {
+            particles: 60000,     // Reduced from 80k to maintain perf with 3x instances
+            filaments: 4000,      // Reduced from 5k
+            timelineLength: 1600, // Slightly longer for the cycle
+            maxRadius: 220,       // Wider expansion point
+            scrollSpeed: 1.5,
+            mobileSensitivity: 2.5
+        };
+
+        const EPOCHS = [
+            { t: 0.02, title: "The Big Bang", desc: "Singularity expansion event.", color: 0xffffff },
+            { t: 0.15, title: "Cosmic Dark Ages", desc: "Neutral hydrogen fog clears.", color: 0x4444ff },
+            { t: 0.50, title: "Peak Expansion", desc: "Maximum entropy and complexity.", color: 0x00ff00 },
+            { t: 0.85, title: "The Big Crunch", desc: "Gravity reclaims all matter.", color: 0xff0055 },
+            { t: 0.98, title: "Singularity", desc: "Resetting for next cycle.", color: 0xffffff }
+        ];
+
+        // --- SETUP ---
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.localClippingEnabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010103);
+        // Add subtle fog to mask the "seam" at loop points
+        scene.fog = new THREE.FogExp2(0x010103, 0.0012);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4500); // Increased Far clip to see neighbors
+        // Initial position near Start
+        camera.position.set(0, 60, 20);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enableZoom = false; // We handle Z movement manually
+        controls.enablePan = false;  // Keep user focused on the funnel axis
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.5, 0.9));
+
+        // --- AUDIO ---
+        let audioCtx, drone, gain, lfo;
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            drone = audioCtx.createOscillator();
+            gain = audioCtx.createGain();
+            lfo = audioCtx.createOscillator();
+
+            drone.type = 'sawtooth';
+            drone.frequency.value = 60;
+
+            // LFO for throbbing effect
+            lfo.frequency.value = 0.1;
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 500;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 200;
+
+            drone.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            gain.gain.value = 0;
+            drone.start();
+            lfo.start();
+        }
+
+        // --- CYCLIC MATH ---
+        // New Geometry: Sinusoidal Spindle
+        function getRadiusAt(t) {
+            // t is 0..1
+            // Use sin(t * PI) to create 0 -> 1 -> 0 arc
+            const sineWave = Math.sin(t * Math.PI);
+            // Add a tiny base radius so it's not absolutely zero at ends (prevents flickering)
+            return (Math.pow(sineWave, 0.8) * CONFIG.maxRadius) + 0.5;
+        }
+
+        function getColorAt(t) {
+            const color = new THREE.Color();
+            if (t < 0.2) {
+                // White Hot -> Blue (Big Bang)
+                color.setHSL(0.6, 1.0, 1.0 - (t * 2.5));
+            } else if (t < 0.5) {
+                // Blue -> Green (Expansion/Life)
+                const p = (t - 0.2) / 0.3;
+                color.lerpColors(new THREE.Color(0x0000ff), new THREE.Color(0x00ff00), p);
+            } else if (t < 0.8) {
+                // Green -> Red (Aging)
+                const p = (t - 0.5) / 0.3;
+                color.lerpColors(new THREE.Color(0x00ff00), new THREE.Color(0xff0000), p);
+            } else {
+                // Red -> White Hot (Big Crunch)
+                const p = (t - 0.8) / 0.2;
+                color.lerpColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff), p);
+            }
+            return color;
+        }
+
+        // --- GALAXY & PARTICLE GEN ---
+        const galaxies = [];
+        // Create fewer, denser galaxies for the cyclic look
+        for(let i=0; i<200; i++) {
+            // Cluster galaxies away from the very tips (0.1 to 0.9)
+            const t = 0.1 + Math.random() * 0.8;
+            const z = t * CONFIG.timelineLength;
+            const rMax = getRadiusAt(t) * 0.6; // Keep galaxies inner
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * rMax;
+
+            galaxies.push({
+                x: Math.cos(theta)*r, y: Math.sin(theta)*r, z: z,
+                size: 2 + Math.random() * 8, t: t
+            });
+        }
+
+        const geo = new THREE.BufferGeometry();
+        const pos = [], col = [], size = [];
+
+        for(let i=0; i<CONFIG.particles; i++) {
+            const t = Math.random(); // Uniform distribution 0..1
+            const z = t * CONFIG.timelineLength;
+            const rMax = getRadiusAt(t);
+
+            let x, y, s = 0.5 + Math.random();
+            let c = getColorAt(t);
+
+            // Clustering logic
+            let isGalaxy = false;
+            // Higher chance to cluster near middle (t=0.5)
+            if (t > 0.15 && t < 0.85 && Math.random() > 0.6) {
+                // Find nearby galaxy
+                // Simple hack: just pick random galaxy that matches rough T
+                const gCandidates = galaxies.filter(g => Math.abs(g.t - t) < 0.05);
+                if (gCandidates.length > 0) {
+                    const g = gCandidates[Math.floor(Math.random() * gCandidates.length)];
+                    const a = Math.random() * Math.PI * 2;
+                    const gr = Math.random() * g.size * 2; // Cluster spread
+                    x = g.x + Math.cos(a) * gr;
+                    y = g.y + Math.sin(a) * gr;
+                    isGalaxy = true;
+                    if (Math.random() > 0.9) { s = 2.0; c.offsetHSL(0,0,0.2); }
+                }
+            }
+
+            if (!isGalaxy) {
+                const a = Math.random() * Math.PI * 2;
+                // Spiral distribution for aesthetic
+                const r = Math.sqrt(Math.random()) * rMax;
+                x = Math.cos(a) * r;
+                y = Math.sin(a) * r;
+
+                // Add "Singularity Rays" at the very ends
+                if (t < 0.05 || t > 0.95) {
+                    x *= 0.2; y *= 0.2; // Tighter core
+                    s = 1.5; // Brighter
+                    c.setHex(0xffffff);
+                }
+            }
+
+            pos.push(x, y, z);
+            col.push(c.r, c.g, c.b);
+            size.push(s);
+        }
+
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        geo.setAttribute('size', new THREE.Float32BufferAttribute(size, 1));
+
+        // Scan planes
+        const planeFront = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+        const planeBack = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+
+        const pMat = new THREE.PointsMaterial({
+            size: 1.2, vertexColors: true, transparent: true, opacity: 0.8,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+            clippingPlanes: []
+        });
+
+        // --- INSTANCING FOR CYCLIC VISIBILITY ---
+        // We create 3 instances of the Universe mesh: Current, Prev (behind), Next (ahead)
+        const particlesMain = new THREE.Points(geo, pMat);
+        const particlesNext = new THREE.Points(geo, pMat);
+        const particlesPrev = new THREE.Points(geo, pMat);
+
+        particlesNext.position.z = CONFIG.timelineLength;
+        particlesPrev.position.z = -CONFIG.timelineLength;
+
+        scene.add(particlesMain);
+        scene.add(particlesNext);
+        scene.add(particlesPrev);
+
+        // --- FILAMENTS (Web-like structure) ---
+        const filPoints = [], filCols = [];
+        for(let i=0; i<CONFIG.filaments; i++) {
+            const t = Math.random();
+            const z = t * CONFIG.timelineLength;
+            const r = getRadiusAt(t);
+            const a = Math.random() * Math.PI * 2;
+            const x = Math.cos(a) * r * Math.random();
+            const y = Math.sin(a) * r * Math.random();
+
+            // Connect to point slightly further in Z
+            const z2 = z + 15 + Math.random() * 20;
+            // If z2 goes past limit, wrap it (visual only)
+            if (z2 > CONFIG.timelineLength) continue;
+
+            const t2 = z2 / CONFIG.timelineLength;
+            const r2 = getRadiusAt(t2);
+            const x2 = x * (r2/r) * 0.9; // Converge slightly
+            const y2 = y * (r2/r) * 0.9;
+
+            filPoints.push(new THREE.Vector3(x, y, z), new THREE.Vector3(x2, y2, z2));
+            const c = getColorAt(t).multiplyScalar(0.2);
+            filCols.push(c.r, c.g, c.b, c.r, c.g, c.b);
+        }
+        const filGeo = new THREE.BufferGeometry().setFromPoints(filPoints);
+        filGeo.setAttribute('color', new THREE.Float32BufferAttribute(filCols, 3));
+
+        const filMat = new THREE.LineBasicMaterial({
+            vertexColors: true, transparent: true, opacity: 0.15, clippingPlanes: []
+        });
+
+        const linesMain = new THREE.LineSegments(filGeo, filMat);
+        const linesNext = new THREE.LineSegments(filGeo, filMat);
+        const linesPrev = new THREE.LineSegments(filGeo, filMat);
+
+        linesNext.position.z = CONFIG.timelineLength;
+        linesPrev.position.z = -CONFIG.timelineLength;
+
+        scene.add(linesMain);
+        scene.add(linesNext);
+        scene.add(linesPrev);
+
+
+        // --- SCAN RING ---
+        const scanRing = new THREE.Mesh(
+            new THREE.RingGeometry(0, CONFIG.maxRadius * 1.1, 64),
+            new THREE.MeshBasicMaterial({ color: 0x00f3ff, transparent: true, opacity: 0, side: THREE.DoubleSide, wireframe: true })
+        );
+        scene.add(scanRing);
+
+        // --- INTERACTABLES ---
+        const interactables = [];
+
+        function spawnEpochMarkers(offsetZ) {
+            EPOCHS.forEach(e => {
+                const m = new THREE.Mesh(new THREE.IcosahedronGeometry(6, 1), new THREE.MeshBasicMaterial({ color: e.color, wireframe: true }));
+                m.position.set(0, 0, (e.t * CONFIG.timelineLength) + offsetZ);
+                m.userData = e;
+                scene.add(m);
+                interactables.push(m);
+            });
+        }
+
+        spawnEpochMarkers(0); // Current
+        spawnEpochMarkers(CONFIG.timelineLength); // Next
+        spawnEpochMarkers(-CONFIG.timelineLength); // Prev
+
+        // --- STATE & INPUTS ---
+        let fly = false, scan = false;
+        let scrollZ = 20; // Master time position
+        let targetScrollZ = 20;
+
+        // Input Handling
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+
+        // Mouse Wheel (Desktop)
+        window.addEventListener('wheel', (e) => {
+            if (fly) return; // Disable scroll when flying
+            targetScrollZ += e.deltaY * CONFIG.scrollSpeed * 0.1;
+        }, { passive: true });
+
+        // Touch Interaction (Mobile)
+        let touchStartY = 0;
+        window.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (fly) return;
+            const deltaY = touchStartY - e.touches[0].clientY;
+            touchStartY = e.touches[0].clientY;
+            targetScrollZ += deltaY * CONFIG.mobileSensitivity;
+        }, { passive: false });
+
+        // UI Handlers
+        document.getElementById('audioBtn').onclick = (e) => {
+            initAudio();
+            const active = gain.gain.value > 0;
+            gain.gain.setTargetAtTime(active ? 0 : 0.3, audioCtx.currentTime, 0.5);
+            e.target.classList.toggle('active', !active);
+        };
+
+        document.getElementById('flyBtn').onclick = (e) => {
+            fly = !fly;
+            e.target.classList.toggle('active');
+            // If turning on fly, sync target to current to avoid jumps
+            if(fly) targetScrollZ = scrollZ;
+        };
+
+        document.getElementById('scanBtn').onclick = (e) => {
+            scan = !scan; e.target.classList.toggle('active');
+            const mode = scan ? "ACTIVE" : "OFF";
+            document.getElementById('scan-status').textContent = mode;
+            document.getElementById('scan-status').style.color = scan ? 'var(--accent-color)' : '#666';
+
+            const planes = scan ? [planeFront, planeBack] : [];
+            pMat.clippingPlanes = planes;
+            filMat.clippingPlanes = planes; // Fixed variable name from filLines.material
+            scanRing.material.opacity = scan ? 0.3 : 0;
+        };
+        document.getElementById('resetBtn').onclick = () => {
+            targetScrollZ = 20;
+            fly = false;
+            document.getElementById('flyBtn').classList.remove('active');
+        };
+
+        window.addEventListener('pointermove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Time Logic
+            if (fly) {
+                targetScrollZ += 1.5; // Auto speed
+            }
+
+            // Smooth Camera Movement (Lerp)
+            scrollZ += (targetScrollZ - scrollZ) * 0.1;
+
+            // 2. Cyclic Wrapping Logic
+            // If we go past the end...
+            if (scrollZ > CONFIG.timelineLength) {
+                const overlap = scrollZ - CONFIG.timelineLength;
+                scrollZ = overlap;
+                targetScrollZ = overlap;
+                // Snap camera to start to avoid lerp glitching backward
+                // Visuals should be identical at T=1 and T=0 (Singularity)
+            } else if (scrollZ < 0) {
+                 const overlap = CONFIG.timelineLength + scrollZ;
+                 scrollZ = overlap;
+                 targetScrollZ = overlap;
+            }
+
+            // 3. Camera Positioning
+            // We want orbit controls to handle rotation, but WE handle Z
+            // Controls target is always slightly ahead of camera in Z
+            const lookAheadDist = 80;
+            const camOffsetZ = -60;
+
+            // We only update the Z component of the controls target and camera
+            const orbitOffset = new THREE.Vector3().copy(camera.position).sub(controls.target);
+            // Preserve the user's rotation/orbit radius (xy), but force Z
+
+            controls.target.z = scrollZ + lookAheadDist;
+            camera.position.z = scrollZ + camOffsetZ;
+
+            // Let OrbitControls handle damping and orbiting around that new target
+            controls.update();
+
+            // 4. Visual Updates
+            particlesMain.rotation.z += 0.001;
+            particlesNext.rotation.z += 0.001;
+            particlesPrev.rotation.z += 0.001;
+
+            // Calculate T based on current scroll
+            const tNorm = scrollZ / CONFIG.timelineLength;
+            document.getElementById('time-val').textContent = (tNorm * 30).toFixed(2); // 30 Billion Year Cycle
+
+            // Audio Dynamic Frequency
+            if (audioCtx && gain.gain.value > 0) {
+                // Freq high at 0 and 1, Low at 0.5
+                // sin(0) = 0, sin(PI/2) = 1.
+                // We want freq to vary from 40hz (mid) to 200hz (ends)
+                const cycleVal = Math.sin(tNorm * Math.PI); // 0 -> 1 -> 0
+                const freq = 180 - (cycleVal * 140) + 40;
+                drone.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+            }
+
+            // Scanner Logic
+            if (scan) {
+                // Scan moves back and forth relative to camera
+                const relativeScan = Math.sin(Date.now() * 0.002) * 100;
+                const absScanZ = scrollZ + lookAheadDist + relativeScan;
+                const scanT = (absScanZ % CONFIG.timelineLength) / CONFIG.timelineLength; // wrap for radius calc
+
+                // Radius at scan point
+                const sr = getRadiusAt(scanT);
+
+                scanRing.position.z = absScanZ;
+                scanRing.scale.setScalar(sr / (CONFIG.maxRadius * 1.1));
+
+                const thickness = 10;
+                planeFront.constant = absScanZ + thickness/2;
+                planeBack.constant = -(absScanZ - thickness/2);
+            }
+
+            // Tooltips
+            raycaster.setFromCamera(mouse, camera);
+            const hits = raycaster.intersectObjects(interactables);
+            const tt = document.getElementById('tooltip');
+            if (hits.length > 0) {
+                const o = hits[0].object;
+                tt.style.display = 'block';
+                tt.style.left = (mouse.x * 50 + 50) + '%';
+                tt.style.top = (-(mouse.y * 50) + 50) + '%';
+                document.getElementById('tt-title').textContent = o.userData.title;
+                document.getElementById('tt-desc').textContent = o.userData.desc;
+            } else {
+                tt.style.display = 'none';
+            }
+
+            composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.getElementById('loader').style.display = 'none';
+        animate();
+    </script>
+  </body>
+</html>

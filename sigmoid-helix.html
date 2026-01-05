@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Sigmoid Helix - Terminal Edition</title>
+    <style>
+      body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050608;
+            touch-action: none;
+            font-family: "Courier New", Courier, monospace;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ff41;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            pointer-events: none;
+            user-select: none;
+            transition: opacity 1s ease;
+            text-shadow: 0 0 5px #00ff41;
+        }
+    </style>
+  </head>
+  <body>
+    <div id="instructions">System Online: Scroll or Swipe to propel</div>
+    <canvas id="graphCanvas"></canvas>
+    <script>
+      /**
+         * KINETIC SIGMOID HELIX - 3D ASCII TERMINAL EDITION
+         */
+
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        const bufferCanvas = document.createElement('canvas');
+        const bCtx = bufferCanvas.getContext('2d', { willReadFrequently: true });
+
+        let width, height;
+        let offset = 0;
+        let velocity = 0;
+
+        const friction = 0.92;
+        const moveScale = 0.8;
+
+        const scaleX = 70;
+        const amplitude = 160;
+        const steepness = 1.8;
+        const plateauWidth = 3;
+        const transitionWidth = 7;
+        const cycleLength = (transitionWidth * 2) + (plateauWidth * 2);
+
+        const charset = " .':-+=*#%@".split("");
+        const fontSize = 10;
+        let cols = 0, rows = 0;
+
+        const particles = [];
+        const particleCount = 40;
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * (width || 800);
+                this.y = Math.random() * (height || 600);
+                this.size = Math.random() * 2;
+                this.baseSpeedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.3;
+                this.parallax = Math.random() * 0.5 + 0.2;
+            }
+            update(v) {
+                this.x += this.baseSpeedX + (v * this.parallax * 0.1);
+                this.y += this.speedY;
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+            }
+        }
+
+        function initParticles() {
+            particles.length = 0;
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            cols = Math.max(1, Math.floor(width / (fontSize * 0.6)));
+            rows = Math.max(1, Math.floor(height / fontSize));
+            bufferCanvas.width = cols;
+            bufferCanvas.height = rows;
+            initParticles();
+        }
+
+        function normalizedSigmoid(t) {
+            const center = transitionWidth / 2;
+            const raw = (x) => 1 / (1 + Math.exp(-steepness * (x - center)));
+            const minVal = raw(0);
+            const maxVal = raw(transitionWidth);
+            return (raw(t) - minVal) / (maxVal - minVal);
+        }
+
+        function pulseFunction(x) {
+            const t = ((x % cycleLength) + cycleLength) % cycleLength;
+            if (t < transitionWidth) return normalizedSigmoid(t);
+            else if (t < transitionWidth + plateauWidth) return 1;
+            else if (t < (transitionWidth * 2) + plateauWidth) return 1 - normalizedSigmoid(t - (transitionWidth + plateauWidth));
+            else return 0;
+        }
+
+        function drawHelixToBuffer() {
+            if (cols <= 0 || rows <= 0) return;
+
+            bCtx.fillStyle = '#000';
+            bCtx.fillRect(0, 0, cols, rows);
+
+            const centerY = rows / 2;
+            const bAmplitude = amplitude / (height / rows);
+
+            bCtx.lineCap = 'round';
+
+            for (let x = 0; x <= cols; x++) {
+                const tx = (x * (width / cols) + offset) / scaleX;
+
+                const yVal = pulseFunction(tx);
+                const y1 = centerY + (0.5 - yVal) * bAmplitude;
+                const y2 = centerY - (0.5 - yVal) * bAmplitude;
+
+                const zPhase = ((tx % cycleLength) / cycleLength) * Math.PI * 2;
+                const z = Math.sin(zPhase);
+
+                // STRAND DATA UPDATED: Turquoise baseWidth increased from 1.5 to 2.1
+                const turquoise = { y: y1, color: '#40E0D0', z: z, baseWidth: 2.1 };
+                const pink = { y: y2, color: '#FFB6C1', z: -z, baseWidth: 2.2 };
+
+                const strands = [turquoise, pink].sort((a, b) => a.z - b.z);
+
+                strands.forEach(s => {
+                    const depthFactor = (s.z + 1) / 2;
+                    // Higher minimum alpha (0.4 instead of 0.3) for better ASCII visibility
+                    const alpha = 0.4 + depthFactor * 0.6;
+                    bCtx.globalAlpha = alpha;
+                    bCtx.lineWidth = s.baseWidth * (0.7 + depthFactor * 0.3);
+                    bCtx.strokeStyle = s.color;
+
+                    bCtx.beginPath();
+                    bCtx.moveTo(x, s.y);
+                    bCtx.lineTo(x + 1, s.y);
+                    bCtx.stroke();
+                });
+            }
+
+            bCtx.globalAlpha = 1.0;
+            bCtx.fillStyle = '#fff';
+            particles.forEach(p => {
+                const bx = (p.x / width) * cols;
+                const by = (p.y / height) * rows;
+                bCtx.fillRect(bx, by, 1, 1);
+            });
+        }
+
+        function drawAsciiFilter() {
+            if (cols <= 0 || rows <= 0) return;
+
+            const imgDataObj = bCtx.getImageData(0, 0, cols, rows);
+            const data = imgDataObj.data;
+
+            ctx.fillStyle = '#050608';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.font = `${fontSize}px monospace`;
+            ctx.textBaseline = 'top';
+
+            const cellW = width / cols;
+            const cellH = height / rows;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const idx = (y * cols + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+
+                    const brightness = (r + g + b) / 3;
+                    if (brightness < 12) continue;
+
+                    const charIdx = Math.floor((brightness / 255) * (charset.length - 1));
+                    const char = charset[charIdx];
+
+                    // Priority check for Turquoise (G and B dominant)
+                    if (g > r && b > r) {
+                        ctx.fillStyle = `rgba(64, 224, 208, ${brightness/255})`;
+                    }
+                    // Pink (R dominant)
+                    else if (r > g && r > 80) {
+                        ctx.fillStyle = `rgba(255, 182, 193, ${brightness/255})`;
+                    }
+                    else {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${brightness/255})`;
+                    }
+
+                    ctx.fillText(char, x * cellW, y * cellH);
+                }
+            }
+        }
+
+        function update() {
+            offset += velocity;
+            velocity *= friction;
+            if (Math.abs(velocity) < 0.01) velocity = 0;
+
+            particles.forEach(p => p.update(velocity));
+
+            drawHelixToBuffer();
+            drawAsciiFilter();
+
+            requestAnimationFrame(update);
+        }
+
+        // --- Interaction Logic ---
+
+        window.addEventListener('wheel', (e) => {
+            velocity += e.deltaY * moveScale * 0.25;
+            hideInstructions();
+        }, { passive: true });
+
+        let lastTouchX = 0;
+        let isTouching = false;
+
+        window.addEventListener('touchstart', (e) => {
+            lastTouchX = e.touches[0].clientX;
+            isTouching = true;
+            velocity *= 0.5;
+            hideInstructions();
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isTouching) return;
+            const touchX = e.touches[0].clientX;
+            const deltaX = (lastTouchX - touchX);
+            velocity += deltaX * moveScale * 0.4;
+            lastTouchX = touchX;
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => { isTouching = false; });
+
+        function hideInstructions() {
+            const inst = document.getElementById('instructions');
+            if (inst) inst.style.opacity = '0';
+        }
+
+        window.addEventListener('resize', resize);
+
+        window.onload = () => {
+            resize();
+            update();
+        };
+    </script>
+  </body>
+</html>

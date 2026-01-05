@@ -48,6 +48,9 @@
         const canvas = document.getElementById('node-canvas');
         const context = canvas.getContext('2d');
 
+        // Hub nodes configuration
+        const hubNodes = ['portfolio.html', 'index.html', 'umprum.html'];
+
         // Navigation State
         let transform = d3.zoomIdentity;
         let pointerStart = { x: 0, y: 0, time: 0 };
@@ -73,12 +76,14 @@
             "webgl.html", "star.html", "shop.html", "portfolio.html",
             "maska.html", "info.html", "indent.html", "index.html",
             "game.html", "fractals.html", "darkwood.html",
-            "three-body.html", "two-body.html", "sudoku.html", "class-action.html"
+            "three-body.html", "two-body.html", "sudoku.html", "class-action.html",
+            "umprum.html"
         ];
 
         const linksList = [];
         allNodeIds.forEach(id => {
-            if (!["portfolio.html", "class-action.html", "two-body.html", "three-body.html"].includes(id)) {
+            // Avoid auto-linking hub nodes or specific satellites to portfolio
+            if (![...hubNodes, "class-action.html", "two-body.html", "three-body.html"].includes(id)) {
                 linksList.push({ source: "portfolio.html", target: id });
             }
         });
@@ -96,34 +101,39 @@
             ["three-body.html", "fractals.html"], ["three-body.html", "orbitals.html"], ["indent.html", "disphere.html"], ["disphere.html", "disphere-inverse.html"], ["disphere-ray.html", "disphere-inverse.html"], ["disphere-ray.html", "disphere-symmetry.html"],
             ["two-body.html", "fractals.html"], ["two-body.html", "three-body.html"], ["two-body.html", "orbitals.html"], ["webgl.html", "fluid.html"], ["webgl.html", "bismuth-fluid.html"], ["bismuth-fluid.html", "fluid.html"],
             ["diffusion-fluid.html", "fluid.html"], ["diffusion-fluid.html", "disphere-symmetry.html"],
-            ["sudoku.html", "game.html"], ["class-action.html", "index.html"], ["orbitals.html", "crystalize.html"], ["fractals.html", "crystalize.html"]
+            ["sudoku.html", "game.html"], ["class-action.html", "index.html"], ["orbitals.html", "crystalize.html"], ["fractals.html", "crystalize.html"],
+            // Hub connections for umprum
+            ["umprum.html", "index.html"], ["umprum.html", "portfolio.html"], ["umprum.html", "orbitals.html"], ["umprum.html", "death.html"], ["umprum.html", "universe.html"]
         ];
         connections.forEach(p => linksList.push({ source: p[0], target: p[1] }));
 
         // Process Graph
         const nodeDegrees = new Map();
         linksList.forEach(l => {
-            nodeDegrees.set(l.source, (nodeDegrees.get(l.source)||0)+1);
-            nodeDegrees.set(l.target, (nodeDegrees.get(l.target)||0)+1);
+            const sId = typeof l.source === 'string' ? l.source : l.source.id;
+            const tId = typeof l.target === 'string' ? l.target : l.target.id;
+            nodeDegrees.set(sId, (nodeDegrees.get(sId)||0)+1);
+            nodeDegrees.set(tId, (nodeDegrees.get(tId)||0)+1);
         });
 
-        const nodes = Array.from(new Set([...linksList.map(d=>d.source), ...linksList.map(d=>d.target)])).map(id => {
+        const nodes = Array.from(new Set([...linksList.map(d=> typeof d.source === 'string' ? d.source : d.source.id), ...linksList.map(d=> typeof d.target === 'string' ? d.target : d.target.id)])).map(id => {
             const degree = nodeDegrees.get(id) || 0;
             const t = Math.min(1, Math.max(0, (degree - 1) / 5));
             const color = d3.interpolateViridis(t);
             return {
                 id: id,
-                radius: (id === 'portfolio.html' || id === 'index.html' || id === 'umprum.html') ? 10 : 5,
+                radius: hubNodes.includes(id) ? 10 : 5,
                 color: d3.color(color).copy({opacity: 0.9}).toString(),
-                x: width/2 + (Math.random()-0.5)*50,
-                y: height/2 + (Math.random()-0.5)*50
+                x: width/2 + (Math.random()-0.5)*100,
+                y: height/2 + (Math.random()-0.5)*100
             };
         });
 
         const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(linksList).id(d => d.id).distance(70).strength(0.4))
-            .force("charge", d3.forceManyBody().strength(-120).distanceMax(250))
-            .force("center", d3.forceCenter(width / 2, height / 2));
+            .force("link", d3.forceLink(linksList).id(d => d.id).distance(d => hubNodes.includes(d.source.id) && hubNodes.includes(d.target.id) ? 120 : 70).strength(0.4))
+            .force("charge", d3.forceManyBody().strength(-150).distanceMax(300))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(d => d.radius + 15));
 
         simulation.on("tick", draw);
 
@@ -151,9 +161,10 @@
                 context.fillStyle = n.color;
                 context.fill();
 
-                // Text
-                context.fillStyle = (n.id === 'portfolio.html' || n.id === 'index.html') ? "white" : "rgba(200,200,200,0.6)";
-                context.font = (n.id === 'portfolio.html' || n.id === 'index.html') ? "bold 11px Inter" : "10px Inter";
+                // Text styling based on Hub status
+                const isHub = hubNodes.includes(n.id);
+                context.fillStyle = isHub ? "white" : "rgba(200,200,200,0.6)";
+                context.font = isHub ? "bold 11px Inter" : "10px Inter";
                 context.fillText(n.id.replace('.html', ''), n.x + n.radius + 4, n.y + 3);
             });
             context.restore();
@@ -161,21 +172,13 @@
 
         // --- 5. ROBUST HIT TESTING ---
         function findNodeAt(screenX, screenY) {
-            // Invert transform to get world coordinates
             const [x, y] = transform.invert([screenX, screenY]);
-
-            // Adjust hit radius based on device type
-            // On mobile, we divide by transform.k to ensure the hit area scales with zoom
-            // and we give it a large base size (45px)
             const radius = (isTouch ? config.mobileHitRadius : config.desktopHitRadius) / transform.k;
-
             return simulation.find(x, y, radius);
         }
 
         // --- 6. INTERACTION LOGIC ---
 
-        // A. Raw Event Listeners for "Tap" logic (Bypasses D3)
-        // We use pointer events to unify mouse and touch
         canvas.addEventListener('pointerdown', (e) => {
             isTouch = (e.pointerType === 'touch');
             pointerStart.x = e.clientX;
@@ -184,17 +187,12 @@
         }, { passive: false });
 
         canvas.addEventListener('pointerup', (e) => {
-            // Calculate movement distance
             const dist = Math.hypot(e.clientX - pointerStart.x, e.clientY - pointerStart.y);
             const duration = Date.now() - pointerStart.time;
 
-            // If it looks like a tap (short time, little movement)
             if (dist < config.tapDistanceThreshold && duration < config.tapTimeThreshold) {
                 const node = findNodeAt(e.clientX, e.clientY);
                 if (node) {
-                    // It's a valid tap on a node!
-                    console.log("Navigating to:", node.id);
-                    // Visual feedback
                     context.save();
                     context.translate(transform.x, transform.y);
                     context.scale(transform.k, transform.k);
@@ -204,14 +202,12 @@
                     context.fill();
                     context.restore();
 
-                    // Navigate
                     window.location.href = node.id;
                 }
             }
         }, { passive: false });
 
-
-        // B. D3 Zoom (Background Panning)
+        // D3 Zoom (Background Panning)
         const zoom = d3.zoom()
             .scaleExtent([0.1, 4])
             .on("zoom", (e) => {
@@ -219,13 +215,10 @@
                 draw();
             });
 
-        // C. D3 Drag (Node Moving)
+        // D3 Drag (Node Moving)
         const drag = d3.drag()
             .container(canvas)
-            .subject((event) => {
-                // We use our robust findNodeAt
-                return findNodeAt(event.sourceEvent.clientX, event.sourceEvent.clientY);
-            })
+            .subject((event) => findNodeAt(event.sourceEvent.clientX, event.sourceEvent.clientY))
             .on("start", (event) => {
                 if (!event.active) simulation.alphaTarget(0.3).restart();
                 event.subject.fx = event.subject.x;
@@ -244,8 +237,6 @@
             });
 
         // --- 7. BINDING D3 ---
-        // We rely on standard order. The custom pointerup handler above handles clicks.
-        // D3 handles the heavy lifting of movement.
         d3.select(canvas)
             .call(drag)
             .call(zoom)

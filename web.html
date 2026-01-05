@@ -113,7 +113,7 @@
             const color = d3.interpolateViridis(t);
             return {
                 id: id,
-                radius: (id === 'portfolio.html' || id === 'index.html') ? 10 : 5,
+                radius: (id === 'portfolio.html' || id === 'index.html' || id === 'umprum.html') ? 10 : 5,
                 color: d3.color(color).copy({opacity: 0.9}).toString(),
                 x: width/2 + (Math.random()-0.5)*50,
                 y: height/2 + (Math.random()-0.5)*50

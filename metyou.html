@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetYou.ai | Design Engineering</title>
+    <!-- External Assets -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+      /* --- GLOBAL DESIGN TOKENS (TAHOE DEFAULT) --- */
+        :root {
+            /* Colors */
+            --bg-deep: #020204;
+            --panel-glass: rgba(18, 18, 28, 0.45);
+            --logo-bg: rgba(35, 10, 60, 0.75);
+            --accent: #a888ff;
+            --accent-glow: rgba(168, 136, 255, 0.4);
+            --text-main: #ffffff;
+            --text-muted: #a1a1aa;
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --inner-glow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+
+            /* Geometry & Layout */
+            --site-gutter: clamp(1.5rem, 6vw, 6rem);
+            --radius-xl: 42px;
+            --radius-lg: 30px;
+            --radius-md: 18px;
+            --blur-strength: 60px;
+            --saturation: 210%;
+            --border-width: 1px;
+            --section-padding: 6rem;
+
+            /* Cursor Tokens */
+            --cursor-radius: 50%;
+            --cursor-size: 12px;
+            --cursor-active-size: 65px;
+
+            /* Physics */
+            --transition-speed: 0.8s;
+            --physics: cubic-bezier(0.22, 1, 0.36, 1);
+            --glass-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            --aura-opacity: 0.15;
+        }
+
+        /* --- MODE B: CORPORATE (Desaturated, Mature) --- */
+        body[data-design="1"] {
+            --bg-deep: #12121a;
+            --panel-glass: rgba(34, 34, 46, 0.9);
+            --logo-bg: #2b2b3b;
+            --accent: #9292b8;
+            --accent-glow: rgba(146, 146, 184, 0.1);
+            --radius-xl: 12px;
+            --radius-lg: 8px;
+            --radius-md: 6px;
+            --blur-strength: 20px;
+            --saturation: 110%;
+            --site-gutter: clamp(1rem, 4vw, 4rem);
+            --section-padding: 4rem;
+            --aura-opacity: 0.05;
+            --cursor-radius: 8px;
+        }
+
+        /* --- MODE C: BRUTAL (Sharp, Minimalist) --- */
+        body[data-design="2"] {
+            --bg-deep: #000000;
+            --panel-glass: #000000;
+            --logo-bg: #ffffff;
+            --accent: #ffffff;
+            --accent-glow: rgba(255, 255, 255, 0);
+            --radius-xl: 0px;
+            --radius-lg: 0px;
+            --radius-md: 0px;
+            --blur-strength: 0px;
+            --saturation: 100%;
+            --border-width: 2px;
+            --border-glass: #ffffff;
+            --site-gutter: 2rem;
+            --section-padding: 3rem;
+            --aura-opacity: 0;
+            --inner-glow: none;
+            --cursor-radius: 0px;
+        }
+
+        /* --- SEAMLESS TRANSITION ENGINE --- */
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            cursor: none !important;
+            transition:
+                background-color var(--transition-speed) var(--physics),
+                color var(--transition-speed) var(--physics),
+                border-radius var(--transition-speed) var(--physics),
+                border-color var(--transition-speed) var(--physics),
+                border-width var(--transition-speed) var(--physics),
+                padding var(--transition-speed) var(--physics),
+                margin var(--transition-speed) var(--physics),
+                backdrop-filter var(--transition-speed) var(--physics),
+                box-shadow var(--transition-speed) var(--physics),
+                gap var(--transition-speed) var(--physics),
+                opacity var(--transition-speed) var(--physics),
+                transform 0.4s var(--physics);
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* --- BACKGROUND AURA --- */
+        .aura-container { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+        .aura {
+            position: absolute; width: 60vw; height: 60vw; border-radius: 50%;
+            filter: blur(120px); opacity: var(--aura-opacity);
+            transition: opacity var(--transition-speed) var(--physics), background var(--transition-speed);
+        }
+        .aura-1 { background: var(--accent); top: -10%; left: -10%; animation: floatAura 20s infinite alternate; }
+        .aura-2 { background: #4f46e5; bottom: -10%; right: -10%; animation: floatAura 25s infinite alternate-reverse; }
+
+        @keyframes floatAura {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(10%, 10%) scale(1.1); }
+        }
+
+        /* --- REFINED CUSTOM CURSOR --- */
+        #custom-cursor {
+            position: fixed;
+            width: var(--cursor-size);
+            height: var(--cursor-size);
+            background: #fff;
+            border-radius: var(--cursor-radius);
+            pointer-events: none;
+            z-index: 9999;
+            mix-blend-mode: difference;
+            transform: translate(-50%, -50%);
+            /* Smooth viscous scaling */
+            transition:
+                width 0.5s cubic-bezier(0.19, 1, 0.22, 1),
+                height 0.5s cubic-bezier(0.19, 1, 0.22, 1),
+                border-radius 0.5s cubic-bezier(0.19, 1, 0.22, 1),
+                background 0.3s ease,
+                backdrop-filter 0.3s ease,
+                border-color 0.3s ease;
+            border: 0px solid transparent;
+        }
+
+        #custom-cursor.active {
+            width: var(--cursor-active-size);
+            height: var(--cursor-active-size);
+            background: rgba(168, 136, 255, 0.1);
+            backdrop-filter: blur(4px) saturate(150%);
+            border: 1px solid var(--accent);
+            mix-blend-mode: normal;
+        }
+
+        body[data-design="2"] #custom-cursor.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #fff;
+            backdrop-filter: none;
+        }
+
+        /* --- UI COMPONENTS --- */
+        h1, h2, h3 { font-weight: 800; letter-spacing: -0.05em; line-height: 1.0; margin-bottom: 1.5rem; }
+        .display-hero { font-size: clamp(2.5rem, 8vw, 6rem); }
+        .text-gradient {
+            background: linear-gradient(135deg, #fff 40%, var(--accent));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        body[data-design="2"] .text-gradient { -webkit-text-fill-color: #fff; background: none; }
+
+        main { padding-top: 6rem; min-height: 100vh; }
+        .container-custom { padding: 0 var(--site-gutter); max-width: 1600px; margin: 0 auto; }
+
+        .glass-panel {
+            background: var(--panel-glass);
+            backdrop-filter: blur(var(--blur-strength)) saturate(var(--saturation));
+            -webkit-backdrop-filter: blur(var(--blur-strength)) saturate(var(--saturation));
+            border: var(--border-width) solid var(--border-glass);
+            box-shadow: var(--inner-glow), 0 30px 60px rgba(0,0,0,0.3);
+            border-radius: var(--radius-lg);
+            position: relative; overflow: hidden;
+        }
+        .glass-panel::after {
+            content: ""; position: absolute; inset: 0;
+            background: var(--glass-noise); opacity: 0.04; pointer-events: none;
+        }
+        body[data-design="2"] .glass-panel { box-shadow: none; }
+
+        /* Navigation */
+        .desktop-nav {
+            position: fixed; top: 2.5rem; left: var(--site-gutter); z-index: 1000;
+            display: flex; align-items: center;
+        }
+        .nav-brand-container {
+            background: var(--logo-bg);
+            backdrop-filter: blur(var(--blur-strength));
+            border: var(--border-width) solid var(--border-glass);
+            border-radius: var(--radius-md);
+            padding: 1rem 2rem;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+        body[data-design="2"] .nav-brand { color: #000 !important; }
+
+        /* Action Group (Refresh + Burger) */
+        .action-group {
+            position: fixed; top: 2.2rem; right: var(--site-gutter); z-index: 1300;
+            display: flex; gap: 12px;
+        }
+
+        .action-btn {
+            width: 70px; height: 70px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(var(--blur-strength));
+            border: var(--border-width) solid var(--border-glass);
+            border-radius: var(--radius-md);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 1.3rem;
+        }
+        body[data-design="2"] .action-btn { background: #000; color: #fff; }
+
+        .burger-icon { width: 24px; height: 16px; position: relative; pointer-events: none; }
+        .burger-icon span {
+            position: absolute; height: 2px; width: 100%; background: white;
+            left: 0; transition: 0.4s var(--physics);
+        }
+        .burger-icon span:nth-child(1) { top: 0; }
+        .burger-icon span:nth-child(2) { bottom: 0; width: 65%; left: 35%; }
+        .active .burger-icon span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        .active .burger-icon span:nth-child(2) { transform: translateY(-7px) rotate(-45deg); width: 100%; left: 0; }
+
+        /* Floating Menu */
+        .diagonal-menu {
+            position: fixed; top: 1.5rem; right: 1.5rem;
+            width: clamp(300px, 90vw, 500px);
+            height: calc(100vh - 3rem);
+            background: var(--bg-deep);
+            backdrop-filter: blur(var(--blur-strength));
+            border: var(--border-width) solid var(--border-glass);
+            border-radius: var(--radius-xl);
+            z-index: 1200; display: flex; flex-direction: column; justify-content: center;
+            padding: var(--site-gutter);
+            transform: translate(40px, -40px) scale(0.9);
+            opacity: 0; pointer-events: none;
+        }
+        .diagonal-menu.open { transform: translate(0, 0) scale(1); opacity: 1; pointer-events: auto; }
+        .diagonal-menu a {
+            font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 800; color: white;
+            text-decoration: none; margin: 0.5rem 0;
+        }
+        .diagonal-menu a:hover { color: var(--accent); padding-left: 20px; }
+
+        /* Visual Frames */
+        .visual-frame {
+            border: var(--border-width) solid var(--border-glass); background: #000;
+            border-radius: var(--radius-lg); position: relative; overflow: hidden;
+        }
+        .visual-frame img {
+            width: 100%; height: 100%; object-fit: cover;
+            opacity: 0.6; filter: saturate(0.8);
+        }
+        .visual-frame:hover img { opacity: 0.95; transform: scale(1.05); }
+
+        /* Buttons */
+        .btn-metyou {
+            background: rgba(255, 255, 255, 0.05); color: white;
+            border: var(--border-width) solid var(--border-glass);
+            backdrop-filter: blur(20px);
+            padding: 1.4rem 3.5rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.25em; font-size: 0.75rem;
+            border-radius: var(--radius-md); text-decoration: none; display: inline-block;
+            box-shadow: var(--inner-glow);
+        }
+        .btn-metyou:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
+        body[data-design="2"] .btn-metyou { background: #fff; color: #000; font-weight: 900; }
+
+        /* Content Sections */
+        .page-section { display: none; padding: var(--section-padding) 0; }
+        .page-section.active { display: block; }
+        .reveal { opacity: 0; transform: translateY(30px); transition: 1s var(--physics); }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+
+        .impact-sub { font-size: 1rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.4em; margin-bottom: 2rem; display: block; font-weight: 800; }
+        .geo-icon {
+            width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+            border: var(--border-width) solid var(--accent);
+            background: var(--accent-glow); margin-bottom: 1.5rem;
+            border-radius: var(--radius-md); color: var(--accent);
+        }
+
+        .brutal-input {
+            background: rgba(255, 255, 255, 0.03); border: var(--border-width) solid var(--border-glass);
+            padding: 1.5rem; color: white; width: 100%; margin-bottom: 1.5rem;
+            border-radius: var(--radius-md);
+        }
+        .brutal-input:focus { border-color: var(--accent); outline: none; }
+
+        #menuOverlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 1100; opacity: 0; pointer-events: none;
+            backdrop-filter: blur(0px); transition: 0.8s;
+        }
+        #menuOverlay.visible { opacity: 1; pointer-events: auto; backdrop-filter: blur(20px); }
+
+        /* Refresh Loading State */
+        #refreshBtn.cycling i {
+            animation: spin 0.6s var(--physics);
+        }
+        @keyframes spin { 100% { transform: rotate(180deg); } }
+
+        @media (max-width: 768px) {
+            main { padding-top: 8rem; }
+            .action-btn { width: 55px; height: 55px; font-size: 1.1rem; }
+            .nav-brand-container { padding: 0.8rem 1.2rem; }
+            .action-group { top: 2.2rem; }
+        }
+    </style>
+  </head>
+  <body data-design="0">
+    <!-- UI Core -->
+    <div id="custom-cursor"></div>
+    <div class="aura-container">
+      <div class="aura aura-1"></div>
+      <div class="aura aura-2"></div>
+    </div>
+    <div id="menuOverlay" onclick="toggleMenu()"></div>
+    <!-- Navigation -->
+    <div class="desktop-nav">
+      <div class="nav-brand-container">
+        <a href="#" class="nav-brand text-decoration-none fw-bold" style="color:#fff" onclick="showPage('home')">
+          MET YOU<span style="color:var(--accent)">.AI</span>
+        </a>
+      </div>
+    </div>
+    <div class="action-group">
+      <div class="action-btn" id="refreshBtn" title="Změnit design" onclick="cycleDesign()">
+        <i class="fas fa-sync-alt"></i>
+      </div>
+      <div class="action-btn" id="burgerBtn" onclick="toggleMenu()">
+        <div class="burger-icon">
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+    <!-- Menu -->
+    <div class="diagonal-menu" id="mobileMenu">
+      <div class="small text-uppercase tracking-widest opacity-30 mb-5 fw-bold" style="letter-spacing: 0.4em;">Control</div>
+      <a href="#" onclick="showPage('home')">DOMOVSKÁ STRÁNKA</a>
+      <a href="#" onclick="showPage('about')">O NÁS</a>
+      <a href="#" onclick="showPage('services')">SLUŽBY</a>
+      <a href="#" onclick="showPage('contact')">KONTAKT</a>
+      <a href="#" onclick="showPage('login')" style="color:var(--accent)">PŘIHLÁŠENÍ</a>
+      <div class="mt-auto opacity-20 small tracking-widest">EST. 2025 // METYOU.AI</div>
+    </div>
+    <main class="container-custom">
+      <!-- HOME -->
+      <section id="home" class="page-section active">
+        <div class="row align-items-center g-5 py-5">
+          <div class="col-lg-7 reveal">
+            <span class="impact-sub">Digitální klid</span>
+            <h1 class="display-hero">Inteligence, která pracuje
+              <span class="text-gradient">pro vás</span>, ne místo vás.</h1>
+            <p class="lead mb-4 opacity-70" style="max-width: 650px;">Váš čas je příliš cenný na rutinu. Proto vytváříme chytré systémy, které pracují tiše na pozadí, zatímco vy se soustředíte na růst.</p>
+            <div class="d-flex flex-wrap gap-3 mt-5">
+              <a href="#" class="btn-metyou" onclick="showPage('services')">Objevte více</a>
+              <a href="#" class="btn-metyou" style="background:transparent;" onclick="showPage('contact')">Zahájit změnu</a>
+            </div>
+          </div>
+          <div class="col-lg-5 reveal">
+            <div class="visual-frame" style="aspect-ratio: 1/1;">
+              <img src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=1000&auto=format&fit=crop" alt="AI Visual">
+            </div>
+          </div>
+        </div>
+        <div class="row align-items-center g-5 py-5 mt-5">
+          <div class="col-lg-5 order-2 order-lg-1 reveal">
+            <div class="visual-frame" style="aspect-ratio: 4/5;">
+              <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop" alt="Mission Vision">
+            </div>
+          </div>
+          <div class="col-lg-7 order-1 order-lg-2 reveal">
+            <div class="geo-icon"><i class="fas fa-eye"></i></div>
+            <h2 class="display-4">Vracíme firmám
+              <span style="color:var(--accent)">sebevědomí.</span></h2>
+            <p class="lead opacity-60">Naší misí je vrátit firmám klid, kontrolu a sebevědomí v digitálním světě. Zbavujeme podnikatele chaosu a nejistoty v rozhodování.</p>
+            <div class="mt-4 opacity-70 border-start border-2 ps-4" style="border-color: var(--accent) !important;">
+              Vytváříme systémy, které se postarají o zbytek, abyste vy mohli tvořit to, co má smysl.
+            </div>
+            <a href="#" class="btn-metyou mt-5" onclick="showPage('about')">Číst více o nás</a>
+          </div>
+        </div>
+      </section>
+      <!-- ABOUT -->
+      <section id="about" class="page-section">
+        <div class="row align-items-center g-5">
+          <div class="col-lg-6 reveal">
+            <div class="visual-frame" style="aspect-ratio: 1/1;">
+              <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=1000&auto=format&fit=crop" alt="Mission">
+            </div>
+          </div>
+          <div class="col-lg-6 reveal">
+            <h1 class="display-3">Naše poslání</h1>
+            <p class="lead text-white fw-bold mb-4">Vracíme firmám klid, kontrolu a sebevědomí v digitálním světě.</p>
+            <p class="opacity-60 mb-5">Vytváříme chytré AI systémy, které tiše pracují na pozadí a zbavují podnikatele chaosu a nejistoty. Pomáháme lidem soustředit se na to, co dává smysl.</p>
+            <div class="row g-4">
+              <div class="col-6">
+                <div class="geo-icon"><i class="fas fa-shield-alt"></i></div>
+                <h6>Integrita</h6>
+                <p class="small opacity-40">Spolehlivé systémy.</p>
+              </div>
+              <div class="col-6">
+                <div class="geo-icon"><i class="fas fa-bolt"></i></div>
+                <h6>Výkon</h6>
+                <p class="small opacity-40">Rychlá evoluce.</p>
+              </div>
+            </div>
+            <a href="#" class="btn-metyou mt-5" style="background:transparent;" onclick="showPage('contact')">Kontaktujte nás</a>
+          </div>
+        </div>
+      </section>
+      <!-- SERVICES -->
+      <section id="services" class="page-section">
+        <div class="row g-5 align-items-center mb-5">
+          <div class="col-lg-6 reveal">
+            <h1 class="display-4">Použití AI
+              <span class="text-gradient">v Praxi</span></h1>
+            <p class="lead opacity-60">Používáme nástroje od klasických LLM, které fungují jako mozek v našich systémech. Zároveň se nebojíme vytvářet agenty Vám na míru.</p>
+          </div>
+          <div class="col-lg-6 reveal">
+            <div class="visual-frame" style="aspect-ratio: 21/9;">
+              <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1000&auto=format&fit=crop" alt="Tech">
+            </div>
+          </div>
+        </div>
+        <div class="row g-4">
+          <div class="col-lg-8 reveal">
+            <div class="glass-panel p-5 h-100">
+              <h2 class="display-5 mb-4">S čím umí naše automatizace pomoci?</h2>
+              <div class="row g-4">
+                <div class="col-md-6">
+                  <ul class="list-unstyled opacity-70">
+                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
+                      Automatizace komunikace</li>
+                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
+                      Správa leadů a CRM</li>
+                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
+                      Fakturace a administrativa</li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <ul class="list-unstyled opacity-70">
+                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
+                      Marketingové kampaně</li>
+                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
+                      Propojení e-shopů</li>
+                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
+                      A mnoho dalšího…</li>
+                  </ul>
+                </div>
+              </div>
+              <a href="#" class="btn-metyou mt-5" onclick="showPage('contact')">Poptat řešení</a>
+            </div>
+          </div>
+          <div class="col-lg-4 reveal">
+            <div class="glass-panel p-5 h-100 text-center d-flex flex-column justify-content-center">
+              <h4 class="mb-4">Náš Stack</h4>
+              <div class="d-flex flex-wrap gap-2 justify-content-center opacity-40">
+                <span class="badge border p-2">Make.com</span>
+                <span class="badge border p-2">Zapier</span>
+                <span class="badge border p-2">OpenAI</span>
+                <span class="badge border p-2">n8n</span>
+                <span class="badge border p-2">Anthropic</span>
+                <span class="badge border p-2">Mistral</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- CONTACT -->
+      <section id="contact" class="page-section">
+        <div class="glass-panel reveal">
+          <div class="row g-0">
+            <div class="col-lg-5 p-5 bg-opacity-10" style="background: rgba(255,255,255,0.02)">
+              <h3>Staňte se partnery</h3>
+              <p class="opacity-60 my-4">Spolupráce s námi vám dá výhodu, kterou ostatní nemají. Odstraníme chaos a dáme vám pocit klidu.</p>
+              <div class="visual-frame mb-4" style="aspect-ratio: 16/9;">
+                <img src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop" alt="Partners">
+              </div>
+              <div class="mt-5">
+                <div class="small opacity-30 text-uppercase tracking-widest">Email</div>
+                <div class="h5">hello@metyou.ai</div>
+              </div>
+            </div>
+            <div class="col-lg-7 p-5">
+              <form onsubmit="handleForm(event)">
+                <input type="text" class="brutal-input" placeholder="JMÉNO" required>
+                <input type="email" class="brutal-input" placeholder="EMAIL" required>
+                <textarea class="brutal-input" rows="4" placeholder="S ČÍM VÁM MŮŽEME POMOCI?"></textarea>
+                <button class="btn-metyou w-100">Odeslat signál</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- LOGIN -->
+      <section id="login" class="page-section">
+        <div class="d-flex justify-content-center reveal">
+          <div class="glass-panel p-5 text-center" style="max-width: 450px; width: 100%;">
+            <div class="geo-icon mx-auto"><i class="fas fa-lock"></i></div>
+            <h2 class="mb-5 tracking-widest text-uppercase h4">Vstup do systému</h2>
+            <form onsubmit="handleForm(event)">
+              <input type="text" class="brutal-input" placeholder="ID UŽIVATELE">
+              <input type="password" class="brutal-input" placeholder="TOKEN">
+              <button class="btn-metyou w-100">Ověřit</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="py-5 text-center mt-5 border-top border-white border-opacity-5">
+      <p class="small opacity-20 tracking-widest text-uppercase">© 2025 MetYou.ai — Engineering Digital Serenity</p>
+    </footer>
+    <script>
+      // --- DESIGN STATE ENGINE ---
+        let currentDesign = 0;
+        const cycleDesign = () => {
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('cycling');
+
+            currentDesign = (currentDesign + 1) % 3;
+            document.body.setAttribute('data-design', currentDesign);
+
+            // Refresh reveals and interactions
+            setTimeout(() => {
+                btn.classList.remove('cycling');
+                document.querySelectorAll('.reveal').forEach(r => r.classList.remove('visible'));
+                initReveals();
+            }, 600);
+        };
+
+        // --- SPATIAL MAGNETISM ---
+        const initMagnetism = () => {
+            const targets = document.querySelectorAll('.action-btn, .nav-brand-container, .btn-metyou, .geo-icon');
+            const activationRadius = 200;
+
+            window.addEventListener('mousemove', (e) => {
+                const { clientX: mx, clientY: my } = e;
+                targets.forEach(target => {
+                    const rect = target.getBoundingClientRect();
+                    const cx = rect.left + rect.width / 2;
+                    const cy = rect.top + rect.height / 2;
+                    const dx = mx - cx;
+                    const dy = my - cy;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+
+                    if (dist < activationRadius) {
+                        const force = (activationRadius - dist) / activationRadius;
+                        target.style.transform = `translate(${dx * force * 0.18}px, ${dy * force * 0.18}px)`;
+                        target.style.zIndex = "100";
+                    } else {
+                        target.style.transform = `translate(0px, 0px)`;
+                        target.style.zIndex = "1";
+                    }
+                });
+            });
+        };
+
+        // --- CUSTOM CURSOR ---
+        const initCursor = () => {
+            const cursor = document.getElementById('custom-cursor');
+            let cx = 0, cy = 0; // Current pos
+            let tx = 0, ty = 0; // Target pos
+
+            // Adjust snappiness for a more satisfying, viscous follow
+            const ease = 0.22;
+
+            window.addEventListener('mousemove', (e) => {
+                tx = e.clientX;
+                ty = e.clientY;
+            });
+
+            const render = () => {
+                cx += (tx - cx) * ease;
+                cy += (ty - cy) * ease;
+                cursor.style.left = `${cx}px`;
+                cursor.style.top = `${cy}px`;
+                requestAnimationFrame(render);
+            };
+            render();
+
+            const interactables = 'a, button, input, textarea, .action-btn, .nav-brand-container, .glass-panel, .visual-frame';
+
+            const handleEnter = () => cursor.classList.add('active');
+            const handleLeave = () => cursor.classList.remove('active');
+
+            // Initial bind
+            document.querySelectorAll(interactables).forEach(el => {
+                el.addEventListener('mouseenter', handleEnter);
+                el.addEventListener('mouseleave', handleLeave);
+            });
+
+            // Re-bind helper for dynamically changed UI
+            window.rebindCursor = () => {
+                document.querySelectorAll(interactables).forEach(el => {
+                    el.removeEventListener('mouseenter', handleEnter);
+                    el.removeEventListener('mouseleave', handleLeave);
+                    el.addEventListener('mouseenter', handleEnter);
+                    el.addEventListener('mouseleave', handleLeave);
+                });
+            }
+        };
+
+        // --- NAVIGATION ---
+        const showPage = (id) => {
+            const menu = document.getElementById('mobileMenu');
+            const btn = document.getElementById('burgerBtn');
+            const overlay = document.getElementById('menuOverlay');
+
+            menu.classList.remove('open');
+            btn.classList.remove('active');
+            overlay.classList.remove('visible');
+            document.body.style.overflow = 'auto';
+
+            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById(id);
+            target.classList.add('active');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => {
+                initReveals();
+                if(window.rebindCursor) window.rebindCursor();
+            }, 100);
+        };
+
+        const toggleMenu = () => {
+            const menu = document.getElementById('mobileMenu');
+            const btn = document.getElementById('burgerBtn');
+            const overlay = document.getElementById('menuOverlay');
+
+            menu.classList.toggle('open');
+            btn.classList.toggle('active');
+            overlay.classList.toggle('visible');
+            document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : 'auto';
+        };
+
+        // --- REVEAL ENGINE ---
+        const initReveals = () => {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) entry.target.classList.add('visible');
+                });
+            }, { threshold: 0.1 });
+            document.querySelectorAll('.reveal').forEach(r => observer.observe(r));
+        };
+
+        // --- TILT PHYSICS ---
+        const initTilt = () => {
+            document.querySelectorAll('.visual-frame').forEach(frame => {
+                frame.addEventListener('mousemove', (e) => {
+                    const rect = frame.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) / rect.width - 0.5;
+                    const y = (e.clientY - rect.top) / rect.height - 0.5;
+                    frame.style.transform = `perspective(1000px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg) scale(1.02)`;
+                });
+                frame.addEventListener('mouseleave', () => {
+                    frame.style.transform = `perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1)`;
+                });
+            });
+        };
+
+        // --- FORM HANDLING ---
+        function handleForm(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const original = btn.innerText;
+            btn.innerText = "TRANSMITTING...";
+            btn.disabled = true;
+            setTimeout(() => {
+                btn.innerText = "RECEIVED";
+                setTimeout(() => {
+                    btn.innerText = original;
+                    btn.disabled = false;
+                    e.target.reset();
+                }, 2000);
+            }, 1500);
+        }
+
+        // --- INIT ---
+        window.onload = () => {
+            initMagnetism();
+            initCursor();
+            initReveals();
+            initTilt();
+        };
+
+        // Parallax scroll effect
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            document.querySelectorAll('.visual-frame img').forEach(img => {
+                img.style.transform = `translateY(${scrolled * 0.04}px)`;
+            });
+        });
+    </script>
+  </body>
+</html>

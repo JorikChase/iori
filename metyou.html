@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="cs">
-  <head>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MetYou.ai | Design Engineering</title>
+
     <!-- External Assets -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+
     <style>
-      /* --- GLOBAL DESIGN TOKENS (TAHOE DEFAULT) --- */
+        /* --- GLOBAL DESIGN TOKENS (TAHOE DEFAULT) --- */
         :root {
             /* Colors */
             --bg-deep: #020204;
@@ -87,7 +89,7 @@
         * {
             box-sizing: border-box;
             -webkit-font-smoothing: antialiased;
-            cursor: none !important;
+            /* Cursor reset will be handled by media query below */
             transition:
                 background-color var(--transition-speed) var(--physics),
                 color var(--transition-speed) var(--physics),
@@ -101,6 +103,17 @@
                 gap var(--transition-speed) var(--physics),
                 opacity var(--transition-speed) var(--physics),
                 transform 0.4s var(--physics);
+        }
+
+        /* Desktop Custom Cursor Logic */
+        @media (hover: hover) and (pointer: fine) {
+            * { cursor: none !important; }
+        }
+
+        /* Mobile/Touch Default Cursor Restoration */
+        @media (max-width: 768px), (pointer: coarse) {
+            * { cursor: auto !important; }
+            #custom-cursor { display: none !important; }
         }
 
         body {
@@ -276,7 +289,20 @@
             box-shadow: var(--inner-glow);
         }
         .btn-metyou:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
-        body[data-design="2"] .btn-metyou { background: #fff; color: #000; font-weight: 900; }
+
+        /* Brutal Mode Button Overrides */
+        body[data-design="2"] .btn-metyou {
+            background: #fff;
+            color: #000;
+            font-weight: 900;
+            border: 2px solid #fff !important;
+        }
+        /* Ensure the transparent landing button variant is visible in Brutal mode */
+        body[data-design="2"] .btn-metyou[style*="background:transparent"],
+        body[data-design="2"] .btn-metyou[style*="background: transparent"] {
+            background: transparent !important;
+            color: #fff !important;
+        }
 
         /* Content Sections */
         .page-section { display: none; padding: var(--section-padding) 0; }
@@ -319,214 +345,218 @@
             .action-group { top: 2.2rem; }
         }
     </style>
-  </head>
-  <body data-design="0">
+</head>
+<body data-design="0">
+
     <!-- UI Core -->
     <div id="custom-cursor"></div>
     <div class="aura-container">
-      <div class="aura aura-1"></div>
-      <div class="aura aura-2"></div>
+        <div class="aura aura-1"></div>
+        <div class="aura aura-2"></div>
     </div>
     <div id="menuOverlay" onclick="toggleMenu()"></div>
+
     <!-- Navigation -->
     <div class="desktop-nav">
-      <div class="nav-brand-container">
-        <a href="#" class="nav-brand text-decoration-none fw-bold" style="color:#fff" onclick="showPage('home')">
-          MET YOU<span style="color:var(--accent)">.AI</span>
-        </a>
-      </div>
-    </div>
-    <div class="action-group">
-      <div class="action-btn" id="refreshBtn" title="Změnit design" onclick="cycleDesign()">
-        <i class="fas fa-sync-alt"></i>
-      </div>
-      <div class="action-btn" id="burgerBtn" onclick="toggleMenu()">
-        <div class="burger-icon">
-          <span></span>
-          <span></span>
+        <div class="nav-brand-container">
+            <a href="#" class="nav-brand text-decoration-none fw-bold" style="color:#fff" onclick="showPage('home')">
+                MET YOU<span style="color:var(--accent)">.AI</span>
+            </a>
         </div>
-      </div>
     </div>
+
+    <div class="action-group">
+        <div class="action-btn" id="refreshBtn" title="Změnit design" onclick="cycleDesign()">
+            <i class="fas fa-sync-alt"></i>
+        </div>
+        <div class="action-btn" id="burgerBtn" onclick="toggleMenu()">
+            <div class="burger-icon">
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+
     <!-- Menu -->
     <div class="diagonal-menu" id="mobileMenu">
-      <div class="small text-uppercase tracking-widest opacity-30 mb-5 fw-bold" style="letter-spacing: 0.4em;">Control</div>
-      <a href="#" onclick="showPage('home')">DOMOVSKÁ STRÁNKA</a>
-      <a href="#" onclick="showPage('about')">O NÁS</a>
-      <a href="#" onclick="showPage('services')">SLUŽBY</a>
-      <a href="#" onclick="showPage('contact')">KONTAKT</a>
-      <a href="#" onclick="showPage('login')" style="color:var(--accent)">PŘIHLÁŠENÍ</a>
-      <div class="mt-auto opacity-20 small tracking-widest">EST. 2025 // METYOU.AI</div>
+        <div class="small text-uppercase tracking-widest opacity-30 mb-5 fw-bold" style="letter-spacing: 0.4em;">Control</div>
+        <a href="#" onclick="showPage('home')">DOMOVSKÁ STRÁNKA</a>
+        <a href="#" onclick="showPage('about')">O NÁS</a>
+        <a href="#" onclick="showPage('services')">SLUŽBY</a>
+        <a href="#" onclick="showPage('contact')">KONTAKT</a>
+        <a href="#" onclick="showPage('login')" style="color:var(--accent)">PŘIHLÁŠENÍ</a>
+        <div class="mt-auto opacity-20 small tracking-widest">EST. 2025 // METYOU.AI</div>
     </div>
+
     <main class="container-custom">
-      <!-- HOME -->
-      <section id="home" class="page-section active">
-        <div class="row align-items-center g-5 py-5">
-          <div class="col-lg-7 reveal">
-            <span class="impact-sub">Digitální klid</span>
-            <h1 class="display-hero">Inteligence, která pracuje
-              <span class="text-gradient">pro vás</span>, ne místo vás.</h1>
-            <p class="lead mb-4 opacity-70" style="max-width: 650px;">Váš čas je příliš cenný na rutinu. Proto vytváříme chytré systémy, které pracují tiše na pozadí, zatímco vy se soustředíte na růst.</p>
-            <div class="d-flex flex-wrap gap-3 mt-5">
-              <a href="#" class="btn-metyou" onclick="showPage('services')">Objevte více</a>
-              <a href="#" class="btn-metyou" style="background:transparent;" onclick="showPage('contact')">Zahájit změnu</a>
+        <!-- HOME -->
+        <section id="home" class="page-section active">
+            <div class="row align-items-center g-5 py-5">
+                <div class="col-lg-7 reveal">
+                    <span class="impact-sub">Digitální klid</span>
+                    <h1 class="display-hero">Inteligence, která pracuje <span class="text-gradient">pro vás</span>, ne místo vás.</h1>
+                    <p class="lead mb-4 opacity-70" style="max-width: 650px;">Váš čas je příliš cenný na rutinu. Proto vytváříme chytré systémy, které pracují tiše na pozadí, zatímco vy se soustředíte na růst.</p>
+                    <div class="d-flex flex-wrap gap-3 mt-5">
+                        <a href="#" class="btn-metyou" onclick="showPage('services')">Objevte více</a>
+                        <a href="#" class="btn-metyou" style="background:transparent;" onclick="showPage('contact')">Zahájit změnu</a>
+                    </div>
+                </div>
+                <div class="col-lg-5 reveal">
+                    <div class="visual-frame" style="aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=1000&auto=format&fit=crop" alt="AI Visual">
+                    </div>
+                </div>
             </div>
-          </div>
-          <div class="col-lg-5 reveal">
-            <div class="visual-frame" style="aspect-ratio: 1/1;">
-              <img src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=1000&auto=format&fit=crop" alt="AI Visual">
+
+            <div class="row align-items-center g-5 py-5 mt-5">
+                <div class="col-lg-5 order-2 order-lg-1 reveal">
+                    <div class="visual-frame" style="aspect-ratio: 4/5;">
+                        <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop" alt="Mission Vision">
+                    </div>
+                </div>
+                <div class="col-lg-7 order-1 order-lg-2 reveal">
+                    <div class="geo-icon"><i class="fas fa-eye"></i></div>
+                    <h2 class="display-4">Vracíme firmám <span style="color:var(--accent)">sebevědomí.</span></h2>
+                    <p class="lead opacity-60">Naší misí je vrátit firmám klid, kontrolu a sebevědomí v digitálním světě. Zbavujeme podnikatele chaosu a nejistoty v rozhodování.</p>
+                    <div class="mt-4 opacity-70 border-start border-2 ps-4" style="border-color: var(--accent) !important;">
+                        Vytváříme systémy, které se postarají o zbytek, abyste vy mohli tvořit to, co má smysl.
+                    </div>
+                    <a href="#" class="btn-metyou mt-5" onclick="showPage('about')">Číst více o nás</a>
+                </div>
             </div>
-          </div>
-        </div>
-        <div class="row align-items-center g-5 py-5 mt-5">
-          <div class="col-lg-5 order-2 order-lg-1 reveal">
-            <div class="visual-frame" style="aspect-ratio: 4/5;">
-              <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop" alt="Mission Vision">
+        </section>
+
+        <!-- ABOUT -->
+        <section id="about" class="page-section">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-6 reveal">
+                    <div class="visual-frame" style="aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=1000&auto=format&fit=crop" alt="Mission">
+                    </div>
+                </div>
+                <div class="col-lg-6 reveal">
+                    <h1 class="display-3">Naše poslání</h1>
+                    <p class="lead text-white fw-bold mb-4">Vracíme firmám klid, kontrolu a sebevědomí v digitálním světě.</p>
+                    <p class="opacity-60 mb-5">Vytváříme chytré AI systémy, které tiše pracují na pozadí a zbavují podnikatele chaosu a nejistoty. Pomáháme lidem soustředit se na to, co dává smysl.</p>
+                    <div class="row g-4">
+                        <div class="col-6">
+                            <div class="geo-icon"><i class="fas fa-shield-alt"></i></div>
+                            <h6>Integrita</h6>
+                            <p class="small opacity-40">Spolehlivé systémy.</p>
+                        </div>
+                        <div class="col-6">
+                            <div class="geo-icon"><i class="fas fa-bolt"></i></div>
+                            <h6>Výkon</h6>
+                            <p class="small opacity-40">Rychlá evoluce.</p>
+                        </div>
+                    </div>
+                    <a href="#" class="btn-metyou mt-5" style="background:transparent;" onclick="showPage('contact')">Kontaktujte nás</a>
+                </div>
             </div>
-          </div>
-          <div class="col-lg-7 order-1 order-lg-2 reveal">
-            <div class="geo-icon"><i class="fas fa-eye"></i></div>
-            <h2 class="display-4">Vracíme firmám
-              <span style="color:var(--accent)">sebevědomí.</span></h2>
-            <p class="lead opacity-60">Naší misí je vrátit firmám klid, kontrolu a sebevědomí v digitálním světě. Zbavujeme podnikatele chaosu a nejistoty v rozhodování.</p>
-            <div class="mt-4 opacity-70 border-start border-2 ps-4" style="border-color: var(--accent) !important;">
-              Vytváříme systémy, které se postarají o zbytek, abyste vy mohli tvořit to, co má smysl.
+        </section>
+
+        <!-- SERVICES -->
+        <section id="services" class="page-section">
+            <div class="row g-5 align-items-center mb-5">
+                <div class="col-lg-6 reveal">
+                    <h1 class="display-4">Použití AI <span class="text-gradient">v Praxi</span></h1>
+                    <p class="lead opacity-60">Používáme nástroje od klasických LLM, které fungují jako mozek v našich systémech. Zároveň se nebojíme vytvářet agenty Vám na míru.</p>
+                </div>
+                <div class="col-lg-6 reveal">
+                    <div class="visual-frame" style="aspect-ratio: 21/9;">
+                        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1000&auto=format&fit=crop" alt="Tech">
+                    </div>
+                </div>
             </div>
-            <a href="#" class="btn-metyou mt-5" onclick="showPage('about')">Číst více o nás</a>
-          </div>
-        </div>
-      </section>
-      <!-- ABOUT -->
-      <section id="about" class="page-section">
-        <div class="row align-items-center g-5">
-          <div class="col-lg-6 reveal">
-            <div class="visual-frame" style="aspect-ratio: 1/1;">
-              <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=1000&auto=format&fit=crop" alt="Mission">
-            </div>
-          </div>
-          <div class="col-lg-6 reveal">
-            <h1 class="display-3">Naše poslání</h1>
-            <p class="lead text-white fw-bold mb-4">Vracíme firmám klid, kontrolu a sebevědomí v digitálním světě.</p>
-            <p class="opacity-60 mb-5">Vytváříme chytré AI systémy, které tiše pracují na pozadí a zbavují podnikatele chaosu a nejistoty. Pomáháme lidem soustředit se na to, co dává smysl.</p>
+
             <div class="row g-4">
-              <div class="col-6">
-                <div class="geo-icon"><i class="fas fa-shield-alt"></i></div>
-                <h6>Integrita</h6>
-                <p class="small opacity-40">Spolehlivé systémy.</p>
-              </div>
-              <div class="col-6">
-                <div class="geo-icon"><i class="fas fa-bolt"></i></div>
-                <h6>Výkon</h6>
-                <p class="small opacity-40">Rychlá evoluce.</p>
-              </div>
-            </div>
-            <a href="#" class="btn-metyou mt-5" style="background:transparent;" onclick="showPage('contact')">Kontaktujte nás</a>
-          </div>
-        </div>
-      </section>
-      <!-- SERVICES -->
-      <section id="services" class="page-section">
-        <div class="row g-5 align-items-center mb-5">
-          <div class="col-lg-6 reveal">
-            <h1 class="display-4">Použití AI
-              <span class="text-gradient">v Praxi</span></h1>
-            <p class="lead opacity-60">Používáme nástroje od klasických LLM, které fungují jako mozek v našich systémech. Zároveň se nebojíme vytvářet agenty Vám na míru.</p>
-          </div>
-          <div class="col-lg-6 reveal">
-            <div class="visual-frame" style="aspect-ratio: 21/9;">
-              <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1000&auto=format&fit=crop" alt="Tech">
-            </div>
-          </div>
-        </div>
-        <div class="row g-4">
-          <div class="col-lg-8 reveal">
-            <div class="glass-panel p-5 h-100">
-              <h2 class="display-5 mb-4">S čím umí naše automatizace pomoci?</h2>
-              <div class="row g-4">
-                <div class="col-md-6">
-                  <ul class="list-unstyled opacity-70">
-                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
-                      Automatizace komunikace</li>
-                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
-                      Správa leadů a CRM</li>
-                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
-                      Fakturace a administrativa</li>
-                  </ul>
+                <div class="col-lg-8 reveal">
+                    <div class="glass-panel p-5 h-100">
+                        <h2 class="display-5 mb-4">S čím umí naše automatizace pomoci?</h2>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <ul class="list-unstyled opacity-70">
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Automatizace komunikace</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Správa leadů a CRM</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Fakturace a administrativa</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-unstyled opacity-70">
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Marketingové kampaně</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Propojení e-shopů</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> A mnoho dalšího…</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <a href="#" class="btn-metyou mt-5" onclick="showPage('contact')">Poptat řešení</a>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                  <ul class="list-unstyled opacity-70">
-                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
-                      Marketingové kampaně</li>
-                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
-                      Propojení e-shopů</li>
-                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i>
-                      A mnoho dalšího…</li>
-                  </ul>
+                <div class="col-lg-4 reveal">
+                    <div class="glass-panel p-5 h-100 text-center d-flex flex-column justify-content-center">
+                        <h4 class="mb-4">Náš Stack</h4>
+                        <div class="d-flex flex-wrap gap-2 justify-content-center opacity-40">
+                            <span class="badge border p-2">Make.com</span>
+                            <span class="badge border p-2">Zapier</span>
+                            <span class="badge border p-2">OpenAI</span>
+                            <span class="badge border p-2">n8n</span>
+                            <span class="badge border p-2">Anthropic</span>
+                            <span class="badge border p-2">Mistral</span>
+                        </div>
+                    </div>
                 </div>
-              </div>
-              <a href="#" class="btn-metyou mt-5" onclick="showPage('contact')">Poptat řešení</a>
             </div>
-          </div>
-          <div class="col-lg-4 reveal">
-            <div class="glass-panel p-5 h-100 text-center d-flex flex-column justify-content-center">
-              <h4 class="mb-4">Náš Stack</h4>
-              <div class="d-flex flex-wrap gap-2 justify-content-center opacity-40">
-                <span class="badge border p-2">Make.com</span>
-                <span class="badge border p-2">Zapier</span>
-                <span class="badge border p-2">OpenAI</span>
-                <span class="badge border p-2">n8n</span>
-                <span class="badge border p-2">Anthropic</span>
-                <span class="badge border p-2">Mistral</span>
-              </div>
+        </section>
+
+        <!-- CONTACT -->
+        <section id="contact" class="page-section">
+            <div class="glass-panel reveal">
+                <div class="row g-0">
+                    <div class="col-lg-5 p-5 bg-opacity-10" style="background: rgba(255,255,255,0.02)">
+                        <h3>Staňte se partnery</h3>
+                        <p class="opacity-60 my-4">Spolupráce s námi vám dá výhodu, kterou ostatní nemají. Odstraníme chaos a dáme vám pocit klidu.</p>
+                        <div class="visual-frame mb-4" style="aspect-ratio: 16/9;">
+                            <img src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop" alt="Partners">
+                        </div>
+                        <div class="mt-5">
+                            <div class="small opacity-30 text-uppercase tracking-widest">Email</div>
+                            <div class="h5">hello@metyou.ai</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7 p-5">
+                        <form onsubmit="handleForm(event)">
+                            <input type="text" class="brutal-input" placeholder="JMÉNO" required>
+                            <input type="email" class="brutal-input" placeholder="EMAIL" required>
+                            <textarea class="brutal-input" rows="4" placeholder="S ČÍM VÁM MŮŽEME POMOCI?"></textarea>
+                            <button class="btn-metyou w-100">Odeslat signál</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </section>
-      <!-- CONTACT -->
-      <section id="contact" class="page-section">
-        <div class="glass-panel reveal">
-          <div class="row g-0">
-            <div class="col-lg-5 p-5 bg-opacity-10" style="background: rgba(255,255,255,0.02)">
-              <h3>Staňte se partnery</h3>
-              <p class="opacity-60 my-4">Spolupráce s námi vám dá výhodu, kterou ostatní nemají. Odstraníme chaos a dáme vám pocit klidu.</p>
-              <div class="visual-frame mb-4" style="aspect-ratio: 16/9;">
-                <img src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop" alt="Partners">
-              </div>
-              <div class="mt-5">
-                <div class="small opacity-30 text-uppercase tracking-widest">Email</div>
-                <div class="h5">hello@metyou.ai</div>
-              </div>
+        </section>
+
+        <!-- LOGIN -->
+        <section id="login" class="page-section">
+            <div class="d-flex justify-content-center reveal">
+                <div class="glass-panel p-5 text-center" style="max-width: 450px; width: 100%;">
+                    <div class="geo-icon mx-auto"><i class="fas fa-lock"></i></div>
+                    <h2 class="mb-5 tracking-widest text-uppercase h4">Vstup do systému</h2>
+                    <form onsubmit="handleForm(event)">
+                        <input type="text" class="brutal-input" placeholder="ID UŽIVATELE">
+                        <input type="password" class="brutal-input" placeholder="TOKEN">
+                        <button class="btn-metyou w-100">Ověřit</button>
+                    </form>
+                </div>
             </div>
-            <div class="col-lg-7 p-5">
-              <form onsubmit="handleForm(event)">
-                <input type="text" class="brutal-input" placeholder="JMÉNO" required>
-                <input type="email" class="brutal-input" placeholder="EMAIL" required>
-                <textarea class="brutal-input" rows="4" placeholder="S ČÍM VÁM MŮŽEME POMOCI?"></textarea>
-                <button class="btn-metyou w-100">Odeslat signál</button>
-              </form>
-            </div>
-          </div>
-        </div>
-      </section>
-      <!-- LOGIN -->
-      <section id="login" class="page-section">
-        <div class="d-flex justify-content-center reveal">
-          <div class="glass-panel p-5 text-center" style="max-width: 450px; width: 100%;">
-            <div class="geo-icon mx-auto"><i class="fas fa-lock"></i></div>
-            <h2 class="mb-5 tracking-widest text-uppercase h4">Vstup do systému</h2>
-            <form onsubmit="handleForm(event)">
-              <input type="text" class="brutal-input" placeholder="ID UŽIVATELE">
-              <input type="password" class="brutal-input" placeholder="TOKEN">
-              <button class="btn-metyou w-100">Ověřit</button>
-            </form>
-          </div>
-        </div>
-      </section>
+        </section>
     </main>
+
     <footer class="py-5 text-center mt-5 border-top border-white border-opacity-5">
-      <p class="small opacity-20 tracking-widest text-uppercase">© 2025 MetYou.ai — Engineering Digital Serenity</p>
+        <p class="small opacity-20 tracking-widest text-uppercase">© 2025 MetYou.ai — Engineering Digital Serenity</p>
     </footer>
+
     <script>
-      // --- DESIGN STATE ENGINE ---
+        // --- DESIGN STATE ENGINE ---
         let currentDesign = 0;
         const cycleDesign = () => {
             const btn = document.getElementById('refreshBtn');
@@ -706,5 +736,5 @@
             });
         });
     </script>
-  </body>
+</body>
 </html>

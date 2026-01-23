@@ -11,6 +11,20 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 
     <style>
+        /* --- DESIGN TOKEN REGISTRATION (Enables Fluid Variable Transitions) --- */
+        @property --bg-deep { syntax: '<color>'; inherits: true; initial-value: #020204; }
+        @property --panel-glass { syntax: '<color>'; inherits: true; initial-value: rgba(18, 18, 28, 0.45); }
+        @property --accent { syntax: '<color>'; inherits: true; initial-value: #a888ff; }
+        @property --accent-glow { syntax: '<color>'; inherits: true; initial-value: rgba(168, 136, 255, 0.4); }
+        @property --radius-xl { syntax: '<length>'; inherits: true; initial-value: 42px; }
+        @property --radius-lg { syntax: '<length>'; inherits: true; initial-value: 30px; }
+        @property --radius-md { syntax: '<length>'; inherits: true; initial-value: 18px; }
+        @property --blur-strength { syntax: '<length>'; inherits: true; initial-value: 60px; }
+        @property --saturation { syntax: '<percentage>'; inherits: true; initial-value: 210%; }
+        @property --aura-opacity { syntax: '<number>'; inherits: true; initial-value: 0.15; }
+        @property --border-width { syntax: '<length>'; inherits: true; initial-value: 1px; }
+        @property --site-gutter { syntax: '<length>'; inherits: true; initial-value: 6rem; }
+
         /* --- GLOBAL DESIGN TOKENS (TAHOE DEFAULT) --- */
         :root {
             --bg-deep: #020204;
@@ -56,7 +70,7 @@
             --radius-md: 6px;
             --blur-strength: 20px;
             --saturation: 110%;
-            --site-gutter: clamp(1rem, 4vw, 4rem);
+            --site-gutter: 3rem;
             --section-padding-top: 8rem;
             --section-padding-bottom: 5rem;
             --aura-opacity: 0.05;
@@ -66,7 +80,7 @@
         /* --- MODE C: BRUTAL (Sharp, Minimalist) --- */
         body[data-design="2"] {
             --bg-deep: #000000;
-            --panel-glass: #000000;
+            --panel-glass: rgba(0, 0, 0, 1);
             --logo-bg: #ffffff;
             --accent: #ffffff;
             --accent-glow: rgba(255, 255, 255, 0);
@@ -86,18 +100,23 @@
         }
 
         /* --- OPTIMIZED TRANSITION ENGINE --- */
-        body, main, section, .glass-panel, .nav-brand-container, .action-btn, .btn-metyou, .visual-frame, .aura, .diagonal-menu, h1, h2, h3, p, span, i {
+        /* Applying transition to variables themselves and critical layout properties */
+        body, main, section, .glass-panel, .nav-brand-container, .action-btn, .btn-metyou, .visual-frame, .aura, .diagonal-menu, h1, h2, h3, p, span, i, .container-custom, .page-section, .row, .col-lg-7, .col-lg-5, .col-lg-6 {
             transition:
                 background-color var(--transition-speed) var(--physics),
+                background var(--transition-speed) var(--physics),
                 color var(--transition-speed) var(--physics),
                 border-radius var(--transition-speed) var(--physics),
                 border-color var(--transition-speed) var(--physics),
                 border-width var(--transition-speed) var(--physics),
                 backdrop-filter var(--transition-speed) var(--physics),
                 box-shadow var(--transition-speed) var(--physics),
-                filter 0.6s var(--physics), /* Added filter for smooth saturation transitions */
+                filter var(--transition-speed) var(--physics),
                 opacity var(--transition-speed) var(--physics),
-                transform 0.4s var(--physics);
+                transform 0.6s var(--physics),
+                padding var(--transition-speed) var(--physics),
+                margin var(--transition-speed) var(--physics),
+                gap var(--transition-speed) var(--physics);
         }
 
         /* Prevent transitions during page load */
@@ -108,7 +127,7 @@
             outline-offset: 4px;
         }
 
-        /* CUSTOM CURSOR LOGIC: Only hide cursor if JS is active and user has a pointer */
+        /* CUSTOM CURSOR LOGIC */
         @media (hover: hover) and (pointer: fine) {
             html.js-ready * { cursor: none !important; }
         }
@@ -187,6 +206,7 @@
         .text-gradient {
             background: linear-gradient(135deg, #fff 40%, var(--accent));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            transition: background 0.8s var(--physics);
         }
         body[data-design="2"] .text-gradient { -webkit-text-fill-color: #fff; background: none; }
 
@@ -223,7 +243,7 @@
         }
         body[data-design="2"] .nav-brand { color: #000 !important; }
 
-        /* Action Group (Refresh + Burger) */
+        /* Action Group */
         .action-group {
             position: fixed; top: 2.2rem; right: var(--site-gutter); z-index: 1300;
             display: flex; gap: 12px;
@@ -287,7 +307,6 @@
         .visual-frame img {
             width: 100%; height: 100%; object-fit: cover;
             opacity: 0.6; filter: saturate(0.2);
-            /* Added base scale for parallax buffer */
             transform: scale(1.1);
             will-change: transform, filter;
             transition: filter 0.6s var(--physics), transform 0.6s var(--physics), opacity 0.6s var(--physics);
@@ -608,13 +627,18 @@
             const btn = document.getElementById('refreshBtn');
             btn.classList.add('cycling');
 
+            // Switch design
             currentDesign = (currentDesign + 1) % 3;
             document.body.setAttribute('data-design', currentDesign);
 
+            // Tweak: We DON'T remove 'visible' classes anymore during theme swap
+            // This prevents the elements from jumping/sliding again unless we change pages.
+            // It makes the theme change feel like a lighting shift rather than a page reload.
+
             setTimeout(() => {
                 btn.classList.remove('cycling');
-                document.querySelectorAll('.reveal').forEach(r => r.classList.remove('visible'));
-                initReveals();
+                // Only re-init reveals if we want them to re-animate (currently disabled for fluidity)
+                // initReveals();
             }, 600);
         };
 
@@ -768,7 +792,7 @@
             document.querySelectorAll('.visual-frame img').forEach(img => {
                 const speed = 0.04;
                 const isMobile = window.innerWidth < 768;
-                const baseScale = isMobile ? 1.2 : 1.1; // Mobile needs more buffer
+                const baseScale = isMobile ? 1.2 : 1.1;
                 img.style.transform = `scale(${baseScale}) translateY(${scrollY * speed}px)`;
             });
         }, { passive: true });

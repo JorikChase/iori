@@ -13,7 +13,6 @@
     <style>
         /* --- GLOBAL DESIGN TOKENS (TAHOE DEFAULT) --- */
         :root {
-            /* Colors */
             --bg-deep: #020204;
             --panel-glass: rgba(18, 18, 28, 0.45);
             --logo-bg: rgba(35, 10, 60, 0.75);
@@ -24,7 +23,6 @@
             --border-glass: rgba(255, 255, 255, 0.08);
             --inner-glow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 
-            /* Geometry & Layout */
             --site-gutter: clamp(1.5rem, 6vw, 6rem);
             --radius-xl: 42px;
             --radius-lg: 30px;
@@ -33,16 +31,13 @@
             --saturation: 210%;
             --border-width: 1px;
 
-            /* REFINED SPACING VARIABLES */
             --section-padding-top: clamp(9rem, 15vh, 12rem);
             --section-padding-bottom: clamp(5rem, 8vh, 8rem);
 
-            /* Cursor Tokens */
             --cursor-radius: 50%;
             --cursor-size: 12px;
             --cursor-active-size: 65px;
 
-            /* Physics */
             --transition-speed: 0.8s;
             --physics: cubic-bezier(0.22, 1, 0.36, 1);
             --glass-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -90,40 +85,46 @@
             --cursor-radius: 0px;
         }
 
-        /* --- SEAMLESS TRANSITION ENGINE --- */
-        * {
-            box-sizing: border-box;
-            -webkit-font-smoothing: antialiased;
+        /* --- OPTIMIZED TRANSITION ENGINE --- */
+        /* Applying transitions only to elements that actually change theme variables
+           avoids heavy paint cycles on static content. */
+        body, main, section, .glass-panel, .nav-brand-container, .action-btn, .btn-metyou, .visual-frame, .aura, .diagonal-menu, h1, h2, h3, p, span, i {
             transition:
                 background-color var(--transition-speed) var(--physics),
                 color var(--transition-speed) var(--physics),
                 border-radius var(--transition-speed) var(--physics),
                 border-color var(--transition-speed) var(--physics),
                 border-width var(--transition-speed) var(--physics),
-                padding var(--transition-speed) var(--physics),
-                margin var(--transition-speed) var(--physics),
                 backdrop-filter var(--transition-speed) var(--physics),
                 box-shadow var(--transition-speed) var(--physics),
+                padding var(--transition-speed) var(--physics),
+                margin var(--transition-speed) var(--physics),
                 gap var(--transition-speed) var(--physics),
                 opacity var(--transition-speed) var(--physics),
                 transform 0.4s var(--physics);
         }
 
-        /* Accessibility: Focus States */
+        /* Prevent transitions during page load */
+        .no-transition * { transition: none !important; }
+
         *:focus-visible {
             outline: 2px solid var(--accent);
             outline-offset: 4px;
         }
 
-        /* Desktop Custom Cursor Logic */
+        /* CUSTOM CURSOR LOGIC: Only hide cursor if JS is active and user has a pointer */
         @media (hover: hover) and (pointer: fine) {
-            * { cursor: none !important; }
+            html.js-ready * { cursor: none !important; }
         }
 
-        /* Mobile/Touch Default Cursor Restoration */
         @media (max-width: 768px), (pointer: coarse) {
             * { cursor: auto !important; }
             #custom-cursor { display: none !important; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; }
+            .reveal { opacity: 1 !important; transform: none !important; }
         }
 
         body {
@@ -140,7 +141,7 @@
         .aura {
             position: absolute; width: 60vw; height: 60vw; border-radius: 50%;
             filter: blur(120px); opacity: var(--aura-opacity);
-            transition: opacity var(--transition-speed) var(--physics), background var(--transition-speed);
+            will-change: transform, opacity;
         }
         .aura-1 { background: var(--accent); top: -10%; left: -10%; animation: floatAura 20s infinite alternate; }
         .aura-2 { background: #4f46e5; bottom: -10%; right: -10%; animation: floatAura 25s infinite alternate-reverse; }
@@ -150,7 +151,7 @@
             100% { transform: translate(10%, 10%) scale(1.1); }
         }
 
-        /* --- REFINED CUSTOM CURSOR --- */
+        /* --- CUSTOM CURSOR --- */
         #custom-cursor {
             position: fixed;
             width: var(--cursor-size);
@@ -161,6 +162,7 @@
             z-index: 9999;
             mix-blend-mode: difference;
             transform: translate(-50%, -50%);
+            will-change: transform, width, height;
             transition:
                 width 0.5s cubic-bezier(0.19, 1, 0.22, 1),
                 height 0.5s cubic-bezier(0.19, 1, 0.22, 1),
@@ -188,7 +190,6 @@
 
         /* --- UI COMPONENTS --- */
         h1, h2, h3 { font-weight: 800; letter-spacing: -0.05em; line-height: 1.1; margin-bottom: 1.5rem; }
-        /* Fluid Typography scaling improvement */
         .display-hero { font-size: clamp(3rem, 9vw, 6.5rem); }
         .text-gradient {
             background: linear-gradient(135deg, #fff 40%, var(--accent));
@@ -257,7 +258,7 @@
         .active .burger-icon span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
         .active .burger-icon span:nth-child(2) { transform: translateY(-7px) rotate(-45deg); width: 100%; left: 0; }
 
-        /* Floating Menu */
+        /* Menu */
         .diagonal-menu {
             position: fixed; top: 1.5rem; right: 1.5rem;
             width: clamp(300px, 90vw, 500px);
@@ -292,6 +293,7 @@
         .visual-frame img {
             width: 100%; height: 100%; object-fit: cover;
             opacity: 0.6; filter: saturate(0.8);
+            will-change: transform;
         }
         .visual-frame:hover img { opacity: 0.95; transform: scale(1.05); }
 
@@ -309,7 +311,21 @@
         }
         .btn-metyou:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
 
-        /* Button Loader */
+        /* SAFARI FIX: BRUTAL MODE BUTTONS */
+        body[data-design="2"] .btn-metyou {
+            background: #ffffff;
+            color: #000000 !important; /* Fixed: Visibility on white background */
+            font-weight: 900;
+            border: 2px solid #ffffff !important;
+        }
+
+        /* Special case for secondary button in Brutal Mode */
+        body[data-design="2"] .btn-metyou.btn-outline {
+            background: transparent !important;
+            color: #ffffff !important;
+            border: 2px solid #ffffff !important;
+        }
+
         .spinner {
             width: 16px; height: 16px;
             border: 2px solid rgba(255,255,255,0.3);
@@ -321,21 +337,9 @@
         .btn-metyou.loading .spinner { display: block; }
         .btn-metyou.loading span { opacity: 0.7; }
 
-        /* Brutal Mode Button Overrides */
-        body[data-design="2"] .btn-metyou {
-            background: #fff;
-            color: #FFF;
-            font-weight: 900;
-            border: 2px solid #fff !important;
-        }
-        body[data-design="2"] .btn-metyou[style*="background:transparent"],
-        body[data-design="2"] .btn-metyou[style*="background: transparent"] {
-            background: transparent !important;
-            color: #fff !important;
-        }
         body[data-design="2"] .spinner { border-color: rgba(0,0,0,0.3); border-top-color: #000; }
 
-        /* Content Sections - REFINED SPACING */
+        /* Sections */
         .page-section {
             display: none;
             padding-top: var(--section-padding-top);
@@ -343,8 +347,8 @@
         }
         .page-section.active { display: block; }
 
-        /* Reveal Animation Engine with Staggering */
-        .reveal { opacity: 0; transform: translateY(30px); transition: 1s var(--physics); }
+        /* Reveal Engine */
+        .reveal { opacity: 0; transform: translateY(30px); will-change: transform, opacity; }
         .reveal.visible { opacity: 1; transform: translateY(0); }
 
         .delay-1 { transition-delay: 0.1s; }
@@ -374,11 +378,9 @@
         }
         #menuOverlay.visible { opacity: 1; pointer-events: auto; backdrop-filter: blur(20px); }
 
-        /* Refresh Loading State */
-        #refreshBtn.cycling i {
-            animation: spin 0.6s var(--physics);
-        }
-        @keyframes spin { 100% { transform: rotate(180deg); } }
+        #refreshBtn.cycling i { animation: spinIcon 0.6s var(--physics); }
+        @keyframes spinIcon { 100% { transform: rotate(180deg); } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
 
         @media (max-width: 768px) {
             .action-btn { width: 55px; height: 55px; font-size: 1.1rem; }
@@ -387,7 +389,7 @@
         }
     </style>
 </head>
-<body data-design="0">
+<body data-design="0" class="no-transition">
 
     <!-- UI Core -->
     <div id="custom-cursor"></div>
@@ -438,7 +440,7 @@
                     <p class="lead mb-4 opacity-70" style="max-width: 650px;">Váš čas je příliš cenný na rutinu. Proto vytváříme chytré systémy, které pracují tiše na pozadí, zatímco vy se soustředíte na růst.</p>
                     <div class="d-flex flex-wrap gap-3 mt-5">
                         <a href="#" class="btn-metyou" onclick="showPage('services')"><span>Objevte více</span></a>
-                        <a href="#" class="btn-metyou" style="background:transparent;" onclick="showPage('contact')"><span>Zahájit změnu</span></a>
+                        <a href="#" class="btn-metyou btn-outline" style="background:transparent;" onclick="showPage('contact')"><span>Zahájit změnu</span></a>
                     </div>
                 </div>
                 <div class="col-lg-5 reveal delay-2">
@@ -490,7 +492,7 @@
                             <p class="small opacity-40">Rychlá evoluce.</p>
                         </div>
                     </div>
-                    <a href="#" class="btn-metyou mt-5" style="background:transparent;" onclick="showPage('contact')"><span>Kontaktujte nás</span></a>
+                    <a href="#" class="btn-metyou btn-outline mt-5" style="background:transparent;" onclick="showPage('contact')"><span>Kontaktujte nás</span></a>
                 </div>
             </div>
         </section>
@@ -516,16 +518,16 @@
                         <div class="row g-4">
                             <div class="col-md-6">
                                 <ul class="list-unstyled opacity-70">
-                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Automatizace komunikace</li>
-                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Správa leadů a CRM</li>
-                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Fakturace a administrativa</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2" style="color:var(--accent)"></i> Automatizace komunikace</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2" style="color:var(--accent)"></i> Správa leadů a CRM</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2" style="color:var(--accent)"></i> Fakturace a administrativa</li>
                                 </ul>
                             </div>
                             <div class="col-md-6">
                                 <ul class="list-unstyled opacity-70">
-                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Marketingové kampaně</li>
-                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> Propojení e-shopů</li>
-                                    <li class="mb-3"><i class="fas fa-angle-right me-2 text-accent" style="color:var(--accent)"></i> A mnoho dalšího…</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2" style="color:var(--accent)"></i> Marketingové kampaně</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2" style="color:var(--accent)"></i> Propojení e-shopů</li>
+                                    <li class="mb-3"><i class="fas fa-angle-right me-2" style="color:var(--accent)"></i> A mnoho dalšího…</li>
                                 </ul>
                             </div>
                         </div>
@@ -621,6 +623,9 @@
 
         // --- SPATIAL MAGNETISM ---
         const initMagnetism = () => {
+            // Prune magnetism for touch devices to save battery/CPU
+            if (window.matchMedia("(pointer: coarse)").matches) return;
+
             const targets = document.querySelectorAll('.action-btn, .nav-brand-container, .btn-metyou, .geo-icon');
             const activationRadius = 200;
 
@@ -636,7 +641,10 @@
 
                     if (dist < activationRadius) {
                         const force = (activationRadius - dist) / activationRadius;
-                        target.style.transform = `translate(${dx * force * 0.18}px, ${dy * force * 0.18}px)`;
+                        // Added a limit to the transform to keep components grounded
+                        const moveX = Math.min(Math.max(dx * force * 0.18, -25), 25);
+                        const moveY = Math.min(Math.max(dy * force * 0.18, -25), 25);
+                        target.style.transform = `translate(${moveX}px, ${moveY}px)`;
                         target.style.zIndex = "100";
                     } else {
                         target.style.transform = `translate(0px, 0px)`;
@@ -648,11 +656,13 @@
 
         // --- CUSTOM CURSOR ---
         const initCursor = () => {
-            const cursor = document.getElementById('custom-cursor');
-            let cx = 0, cy = 0; // Current pos
-            let tx = 0, ty = 0; // Target pos
+            // Signal to CSS that JS is ready to handle cursor hiding
+            document.documentElement.classList.add('js-ready');
 
-            // Adjust snappiness for a more satisfying, viscous follow
+            const cursor = document.getElementById('custom-cursor');
+            let cx = 0, cy = 0;
+            let tx = 0, ty = 0;
+
             const ease = 0.22;
 
             window.addEventListener('mousemove', (e) => {
@@ -663,32 +673,24 @@
             const render = () => {
                 cx += (tx - cx) * ease;
                 cy += (ty - cy) * ease;
-                cursor.style.left = `${cx}px`;
-                cursor.style.top = `${cy}px`;
+                cursor.style.transform = `translate3d(${cx}px, ${cy}px, 0) translate(-50%, -50%)`;
                 requestAnimationFrame(render);
             };
             render();
 
             const interactables = 'a, button, input, textarea, .action-btn, .nav-brand-container, .glass-panel, .visual-frame';
-
             const handleEnter = () => cursor.classList.add('active');
             const handleLeave = () => cursor.classList.remove('active');
 
-            // Initial bind
-            document.querySelectorAll(interactables).forEach(el => {
-                el.addEventListener('mouseenter', handleEnter);
-                el.addEventListener('mouseleave', handleLeave);
-            });
-
-            // Re-bind helper for dynamically changed UI
-            window.rebindCursor = () => {
+            const bindEvents = () => {
                 document.querySelectorAll(interactables).forEach(el => {
-                    el.removeEventListener('mouseenter', handleEnter);
-                    el.removeEventListener('mouseleave', handleLeave);
                     el.addEventListener('mouseenter', handleEnter);
                     el.addEventListener('mouseleave', handleLeave);
                 });
-            }
+            };
+
+            bindEvents();
+            window.rebindCursor = bindEvents;
         };
 
         // --- NAVIGATION ---
@@ -697,18 +699,15 @@
             const btn = document.getElementById('burgerBtn');
             const overlay = document.getElementById('menuOverlay');
 
-            // Close Menu
             menu.classList.remove('open');
             btn.classList.remove('active');
             overlay.classList.remove('visible');
             document.body.style.overflow = 'auto';
 
-            // Switch Sections
             document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
             const target = document.getElementById(id);
             if(target) target.classList.add('active');
 
-            // Highlight Menu Item
             document.querySelectorAll('.diagonal-menu a').forEach(a => {
                 a.classList.remove('active-link');
                 if(a.dataset.target === id) a.classList.add('active-link');
@@ -732,7 +731,7 @@
             document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : 'auto';
         };
 
-        // Keyboard Accessibility (ESC to close menu, Enter on interactive elements)
+        // Keyboard Accessibility
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 const menu = document.getElementById('mobileMenu');
@@ -757,6 +756,8 @@
 
         // --- TILT PHYSICS ---
         const initTilt = () => {
+            if (window.matchMedia("(pointer: coarse)").matches) return;
+
             document.querySelectorAll('.visual-frame').forEach(frame => {
                 frame.addEventListener('mousemove', (e) => {
                     const rect = frame.getBoundingClientRect();
@@ -777,12 +778,10 @@
             const span = btn.querySelector('span');
             const originalText = span.innerText;
 
-            // Loading State
             btn.classList.add('loading');
             span.innerText = "TRANSMITTING...";
             btn.disabled = true;
 
-            // Simulation
             setTimeout(() => {
                 span.innerText = "RECEIVED";
                 btn.classList.remove('loading');
@@ -797,21 +796,22 @@
 
         // --- INIT ---
         window.onload = () => {
+            document.body.classList.remove('no-transition');
             initMagnetism();
             initCursor();
             initReveals();
             initTilt();
-            // Set home active initially
             showPage('home');
         };
 
-        // Parallax scroll effect
+        // Parallax scroll effect - Optimized with requestAnimationFrame behavior
+        let scrollY = window.pageYOffset;
         window.addEventListener('scroll', () => {
-            const scrolled = window.pageYOffset;
+            scrollY = window.pageYOffset;
             document.querySelectorAll('.visual-frame img').forEach(img => {
-                img.style.transform = `translateY(${scrolled * 0.04}px)`;
+                img.style.transform = `translateY(${scrollY * 0.04}px)`;
             });
-        });
+        }, { passive: true });
     </script>
 </body>
 </html>

@@ -1,29 +1,33 @@
 <head>
-    <link type="text/css" rel="stylesheet" href="/IORI/assets/burger.css" />
-  </head>
-  <body>
+    <link
+        type="text/css"
+        rel="stylesheet"
+        href="/assets/burger.css"
+    />
+</head>
+<body>
     <nav class="menu--bottom--right" role="navigation">
-      <div class="menuToggle">
-        <input type="checkbox" />
-        <span></span>
-        <span></span>
-        <span></span>
-        <ul class="menuItem">
-          <li><a href="./index.html">home</a></li>
-          <li><a href="./portfolio.html">portfolio</a></li>
-          <li><a href="./shop.html">shop</a></li>
-          <li><a href="./info.html">info</a></li>
-        </ul>
-      </div>
+        <div class="menuToggle">
+            <input type="checkbox" />
+            <span></span>
+            <span></span>
+            <span></span>
+            <ul class="menuItem">
+                <li><a href="/">home</a></li>
+                <li><a href="./portfolio.html">portfolio</a></li>
+                <li><a href="./shop.html">shop</a></li>
+                <li><a href="./info.html">info</a></li>
+            </ul>
+        </div>
     </nav>
     <style>
-        body{
+        body {
             display: flex;
             justify-content: center;
             align-items: center;
             background-color: #232323;
         }
-        .center-nav{
+        .center-nav {
             opacity: 0;
             background-image: url(/star.svg);
             background-size: cover;
@@ -36,7 +40,7 @@
             padding: 0;
             transition: all 0.25s ease-in-out;
         }
-        .center-nav > div{
+        .center-nav > div {
             opacity: 0;
             width: 100%;
             height: 100%;
@@ -46,23 +50,23 @@
             justify-content: center;
             align-items: center;
         }
-        .center-nav:hover{
-            opacity: .9;
+        .center-nav:hover {
+            opacity: 0.9;
             transform: rotate(45deg);
         }
-        .center-nav:hover > div{
-            opacity: .8;
+        .center-nav:hover > div {
+            opacity: 0.8;
             transform: rotate(-45deg);
         }
-        .center-nav:hover > div:hover{
+        .center-nav:hover > div:hover {
             opacity: 1;
             transform: rotate(-45deg);
         }
-        .center-nav > div > a{
+        .center-nav > div > a {
             color: black;
             text-decoration: none;
         }
-        .center-nav > div > a:hover{
+        .center-nav > div > a:hover {
             transform: scale(1.1);
         }
     </style>
@@ -72,5 +76,4 @@
         <div><a href="#" class="center-nav-item">websites</a></div>
         <div><a href="#" class="center-nav-item">works</a></div>
     </div>
-  </body>
-  
+</body>

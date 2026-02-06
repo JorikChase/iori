@@ -11,13 +11,17 @@
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
             rel="stylesheet"
         />
-        <!-- <link type="text/css" rel="stylesheet" href="/IORI/assets/main.css" /> -->
-        <link type="text/css" rel="stylesheet" href="/IORI/assets/burger.css" />
-        <link type="favico" rel="icon" href="/IORI/3die.ico" />
+        <!-- <link type="text/css" rel="stylesheet" href="/assets/main.css" /> -->
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/burger.css"
+        />
+        <link type="favico" rel="icon" href="/images/3die.ico" />
         <style>
             @font-face {
                 font-family: Milksea;
-                src: url(/IORI/assets/Milksea.ttf);
+                src: url(/assets/Milksea.ttf);
             }
 
             @import url("https://fonts.googleapis.com/css2?family=Tilt+Neon&display=swap");
@@ -73,9 +77,9 @@
                 <span></span>
                 <span></span>
                 <ul class="menuItem">
-                    <li><a href="/IORI/index.html">home</a></li>
-                    <li><a href="/IORI/shop.html">shop</a></li>
-                    <li><a href="/IORI/info.html">info</a></li>
+                    <li><a href="/">home</a></li>
+                    <li><a href="/images/shop.html">shop</a></li>
+                    <li><a href="/images/info.html">info</a></li>
                 </ul>
             </div>
         </nav>
@@ -110,8 +114,11 @@
                 "./assets/shop/lily_flower.glb", // Note: This one is .gltf, not .glb, requires linked resources
                 "./assets/shop/magical.glb",
                 "./assets/shop/lili_flower.glb", // Note: This one is .gltf, not .glb, requires linked resources
+                "./assets/shop/lightning_b.glb", // Note: This one is .gltf, not .glb, requires linked resources
                 "./assets/shop/fire_flower.glb",
                 "./assets/shop/crystal.glb", // Note: This one is .gltf, not .glb, requires linked resources
+                "./assets/shop/lightning_c.glb", // Note: This one is .gltf, not .glb, requires linked resources
+                "./assets/shop/oraphim_a.glb", // Note: This one is .gltf, not .glb, requires linked resources
                 "./assets/shop/orchid.glb", // Note: This one is .gltf, not .glb, requires linked resources
                 "./assets/shop/fire_flowa.glb",
                 "./assets/shop/wild_orchid.glb", // Note: This one is .gltf, not .glb, requires linked resources
@@ -119,6 +126,8 @@
                 "./assets/shop/clouds.glb",
                 "./assets/shop/cottage.glb",
                 "./assets/shop/fire_extinguisher.glb", // Note: This one is .gltf, not .glb, requires linked resources
+                "./assets/shop/lightning_a.glb", // Note: This one is .gltf, not .glb, requires linked resources
+                "./assets/shop/oraphim_b.glb", // Note: This one is .gltf, not .glb, requires linked resources
                 // Add more valid GLB/GLTF URLs here
             ];
 
@@ -271,7 +280,7 @@
                         // Don't continue animation loop if not visible
                         return;
                     }
-                    
+
                     animationFrameId = requestAnimationFrame(animate);
                     controls.update(); // Required if enableDamping is true
                     renderer.render(scene, camera);
@@ -294,18 +303,18 @@
                 // Check if element is visible in viewport
                 function checkVisibility() {
                     const rect = container.getBoundingClientRect();
-                    const windowHeight = window.innerHeight || document.documentElement.clientHeight;
-                    
+                    const windowHeight =
+                        window.innerHeight ||
+                        document.documentElement.clientHeight;
+
                     // Check if element is in viewport
-                    const isInViewport = (
-                        rect.top <= windowHeight &&
-                        rect.bottom >= 0
-                    );
-                    
+                    const isInViewport =
+                        rect.top <= windowHeight && rect.bottom >= 0;
+
                     // Update visibility state if changed
                     if (isInViewport !== isVisible) {
                         isVisible = isInViewport;
-                        
+
                         if (isVisible && modelLoaded) {
                             // Start animation if visible
                             animate();
@@ -362,32 +371,38 @@
                     // Initialize scenes immediately if no env map
                     createGalleryItems();
                 }
-                
+
                 // Set up global visibility checking
                 setupVisibilityChecking();
             }
-            
+
             function setupVisibilityChecking() {
                 // Check visibility on scroll
-                window.addEventListener('scroll', throttle(() => {
-                    sceneRegistry.forEach(item => item.checkVisibility());
-                }, 100));
-                
+                window.addEventListener(
+                    "scroll",
+                    throttle(() => {
+                        sceneRegistry.forEach((item) => item.checkVisibility());
+                    }, 100),
+                );
+
                 // Check visibility on resize
-                window.addEventListener('resize', throttle(() => {
-                    sceneRegistry.forEach(item => item.checkVisibility());
-                }, 100));
-                
+                window.addEventListener(
+                    "resize",
+                    throttle(() => {
+                        sceneRegistry.forEach((item) => item.checkVisibility());
+                    }, 100),
+                );
+
                 // Initial visibility check
                 setTimeout(() => {
-                    sceneRegistry.forEach(item => item.checkVisibility());
+                    sceneRegistry.forEach((item) => item.checkVisibility());
                 }, 100);
             }
-            
+
             // Utility function to throttle events
             function throttle(callback, delay) {
                 let lastCall = 0;
-                return function(...args) {
+                return function (...args) {
                     const now = new Date().getTime();
                     if (now - lastCall < delay) {
                         return;

@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+    <meta charset="utf-8" />
+    <meta
+        name="viewport"
+        content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <link
+        rel="icon"
+        type="image/x-icon"
+        href="/images/3die.ico"
+    />
+    <link
+        type="text/css"
+        rel="stylesheet"
+        href="/assets/main.css"
+    />
+    <link
+        type="text/css"
+        rel="stylesheet"
+        href="/assets/burger.css"
+    />
+
+        <style>
+            body {
+                margin: 0;
+            }
+            canvas {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <script
+            async
+            src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"
+        ></script>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://threejs.org/build/three.module.js",
+                    "three/addons/": "https://threejs.org/examples/jsm/"
+                }
+            }
+        </script>
+        <script type="module">
+                import * as THREE from "three";
+                import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+                // Scene setup
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+
+                // Create environment with adjustable brightness
+                const createEnvironment = (brightness = 1.0) => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = 2048;
+                    canvas.height = 1024;
+                    const ctx = canvas.getContext("2d");
+
+                    // Base rainbow colors
+                    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                    gradient.addColorStop(0, "#FF0000");
+                    gradient.addColorStop(0.16, "#FF7F00");
+                    gradient.addColorStop(0.32, "#FFFF00");
+                    gradient.addColorStop(0.48, "#00FF00");
+                    gradient.addColorStop(0.64, "#0000FF");
+                    gradient.addColorStop(0.80, "#4B0082");
+                    gradient.addColorStop(1, "#8F00FF");
+
+                    // Draw base gradient
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    // Apply brightness adjustment
+                    ctx.globalCompositeOperation = "multiply";
+                    ctx.fillStyle = `rgba(0, 0, 0, ${1 - brightness})`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.globalCompositeOperation = "source-over";
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    return texture;
+                };
+
+                // Create separate textures for background and environment
+                const environmentTexture = createEnvironment(1.0); // Full brightness for reflections
+                const backgroundTexture = createEnvironment(0.45); // Dimmer background
+
+                scene.background = backgroundTexture;
+                scene.environment = environmentTexture;
+
+                // Ultra-shiny sphere material
+                const sphereGeometry = new THREE.SphereGeometry(5, 128, 128);
+                const sphereMaterial = new THREE.MeshPhysicalMaterial({
+                    color: 0x000000,
+                    metalness: 1.0,
+                    roughness: 0.01,
+                    envMapIntensity: 2.0,
+                    ior: 1,
+                    specularIntensity: 1.5
+                });
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                scene.add(sphere);
+
+                // Subtle ambient light
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+                scene.add(ambientLight);
+
+                // Camera setup
+                camera.position.z = 15;
+
+                // Controls
+                const controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+
+                // Resize handler
+                window.addEventListener("resize", () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                // Animation loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    controls.update();
+                    sphere.rotation.y += 0.003;
+                    renderer.render(scene, camera);
+                }
+                animate();
+            </script>
+        </body>
+    </html>

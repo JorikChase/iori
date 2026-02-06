@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>death.sh</title>
+    <style>
+      /* --- GLOBAL SETUP --- */
+        :root {
+            --bg-landing: #000000;
+            --fg-landing: #ffffff;
+            --accent-landing: #ff0000;
+
+            --bg-sim: #0a0a0a;
+            --fg-sim: #e0e0e0;
+            --accent-sim: #ffffff;
+            --dim-sim: #505050;
+            --border-sim: #e0e0e0;
+            --highlight-sim: #1a1a1a;
+
+            --font-stack: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-landing);
+            color: var(--fg-landing);
+            overflow: hidden;
+            font-family: var(--font-stack);
+        }
+
+        #viewport {
+            width: 100vw;
+            height: 200vh;
+            display: flex;
+            flex-direction: column;
+            transition: transform 1.2s cubic-bezier(0.85, 0, 0.15, 1);
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .view-section {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* --- LANDING VIEW --- */
+        #landing-view {
+            display: flex;
+            background: var(--bg-landing);
+        }
+
+        @media (orientation: landscape) {
+            #landing-view { flex-direction: row; }
+            #observer-panel { flex: 1; overflow: hidden; }
+            #anatomy-panel { flex-shrink: 0; }
+        }
+
+        @media (orientation: portrait) {
+            #landing-view { flex-direction: column; }
+            #observer-panel { height: 40vh; width: 100vw; overflow: hidden; }
+            #anatomy-panel { height: 60vh; width: 100vw; overflow-y: auto; overflow-x: hidden; }
+        }
+
+        .landing-panel {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        #anatomy-art, #observer-art {
+            color: var(--fg-landing);
+            line-height: 1;
+            white-space: pre;
+            display: block;
+        }
+
+        .death-trigger {
+            color: var(--accent-landing);
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-block;
+            position: relative;
+            animation: pulse 2s infinite ease-in-out;
+            text-shadow: 0 0 5px var(--accent-landing);
+            z-index: 10;
+        }
+
+        .death-trigger:hover {
+            text-shadow: 0 0 15px var(--accent-landing), 0 0 30px var(--accent-landing);
+            transform: scale(1.2);
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        #message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1a0000;
+            border: 2px solid var(--accent-landing);
+            padding: 2rem;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.3);
+            max-width: 80vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        #message-box h2 { color: var(--accent-landing); margin-bottom: 1rem; }
+        #message-box button {
+            background: transparent;
+            border: 1px solid var(--fg-landing);
+            color: var(--fg-landing);
+            padding: 0.7rem 1.5rem;
+            margin-top: 1rem;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.3s;
+        }
+        #message-box button:hover { background: rgba(255,255,255,0.1); }
+
+        video#v, canvas#c { display: none; }
+
+        /* --- SIMULATION VIEW --- */
+        #simulation-view {
+            background-color: var(--bg-sim);
+            color: var(--fg-sim);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            font-size: 12px;
+            position: relative;
+        }
+
+        #top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-sim);
+            padding: 8px 15px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-weight: bold;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        #main-grid {
+            display: flex;
+            flex: 1;
+            gap: 10px;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .sim-panel {
+            border: 1px solid var(--border-sim);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: var(--bg-sim);
+            overflow: hidden;
+        }
+
+        .sim-panel-header {
+            background: var(--highlight-sim);
+            border-bottom: 1px solid var(--border-sim);
+            padding: 5px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .sim-panel-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        pre.ascii-art-sim {
+            line-height: 1;
+            white-space: pre;
+            user-select: none;
+            display: block;
+            transition: opacity 0.3s, filter 0.3s;
+        }
+
+        #log-output {
+            display: block;
+            text-align: left;
+            padding: 10px !important;
+            overflow-y: auto;
+            font-size: 11px;
+            width: 100%;
+            height: 100%;
+        }
+
+        #left-col, #right-col { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+        #right-col { flex: 1.5; }
+
+        #brain-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        #brain-canvas { position: absolute; pointer-events: none; z-index: 2; }
+
+        /* --- EFFECTS --- */
+        .blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .glitch-active { animation: glitch-anim 0.15s infinite; }
+        @keyframes glitch-anim {
+            0% { transform: translate(0); filter: hue-rotate(0deg); }
+            25% { transform: translate(-3px, 1px); filter: hue-rotate(90deg) contrast(1.5); }
+            50% { transform: translate(3px, -2px); filter: hue-rotate(180deg); }
+            75% { transform: translate(-1px, -1px); filter: hue-rotate(270deg) brightness(1.5); }
+            100% { transform: translate(0); }
+        }
+
+        #adrenaline-btn {
+            background: var(--fg-sim); color: var(--bg-sim); border: none;
+            padding: 5px 15px; font-family: inherit; font-weight: bold; cursor: pointer;
+            transition: transform 0.1s;
+        }
+        #adrenaline-btn:active { transform: scale(0.95); }
+
+        .low-voltage { filter: contrast(1.5) brightness(0.6) grayscale(0.5); }
+
+        #simulation-view::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+            z-index: 100; background-size: 100% 3px, 4px 100%; pointer-events: none;
+            opacity: 0.8;
+        }
+
+        #final-thought-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            color: #fff;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            text-align: center;
+            padding: 40px;
+        }
+        #final-thought-text {
+            font-size: 24px;
+            font-weight: bold;
+            max-width: 600px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+        }
+
+        .log-entry.memory {
+            color: #fff;
+            font-style: italic;
+            border-left: 2px solid var(--accent-landing);
+            padding-left: 8px;
+            background: rgba(255,0,0,0.05);
+        }
+    </style>
+  </head>
+  <body>
+    <div id="viewport">
+      <!-- SECTION 1: LANDING -->
+      <section id="landing-view" class="view-section">
+        <div id="observer-panel" class="landing-panel">
+          <pre id="observer-art"></pre>
+        </div>
+        <div id="anatomy-panel" class="landing-panel">
+          <pre id="anatomy-art">███████████████████████████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████████████▓█████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████████████████▓█▓███████▒███▓████████████████████████████████████
+███████████████████████████████████████████████▒██ █░██████░██▒████████████████████████████████████
+███████████████████████████████████████████████████▓ ▒░█████░█▓████████████████████████████████████
+███████████████████████████████████████████████▓ ▒█████░▓████ █████████████████████████████████████
+███████████████████████████████████████████████ ███<span class="death-trigger" onclick="initiateDeath()">██</span>███▒ █████████████████████████████████████████
+██████████████████████████████████████████████▓ ░██<span class="death-trigger" onclick="initiateDeath()">██</span>███▒ ▓███░████████████████████████████████████
+██████████████████████████████████████████████░ ▒████▓███░ ███ ████████████████████████████████████
+██████████████████████████████████████████████▓▓▒█████████▓███▒█████████████▓▒░████████████████████
+█████████████████████████████████████████████▓█▓░██▓██████████████▓███████████▒████████████████████
+███████████████████████████████████████▒███████▓█▓▒██████▓███░████████████████▓█▓██████████████████
+███████████████████████████████████▓███▓█████████░▒██████▓████████████████████▓████████████████████
+██████████████████▓█████████████████████████████░▒  ▒░▓▓████▓███▓█████████▒████████████████████████
+█████████████████████████████▓▓████████▒████████░▒▓▓██▓████▓████▓██████████████████████████████████
+█████████████████████████▓██████ ██████▒█████████░    ▒██ █████████████████████████████████████████
+████████████████████████████░█████░█████████████ ░██████▒██████░███████████████████████████████████
+███████████████████████████████ █████ █▒███████      ▓ ▓█▓▒████ ███████▒████████████████████████████
+█████████████████████████████████ █████▒ █▓       ░▒▓▓▒▓░░  █ ███████ █████████████████████████████
+██████████████████████████████████████ ▓██       ▒█████▓▓░  ░░▓░░███░██████████████████████████████
+███████████████████████████████████ ███▒▓     ░░  ░▒██▓▓████▓▓░▓▒███░███████████▓████████████████████
+████████████████████████████████████ ▒      ▓░██▓▓▒█▓▓░░░▓██▓▒▓▓█▓█▒██████████▓████████████████████
+███████████████████████████████████▓ ░  ▒ ░ ▓██▓████░▓░ █████ █░▓█░▓████████████████████████████▓██
+███████████████████████████████████ ▓ ░▒▒░▓   ▒█▓▓██░▓▓██████▓█████▓███████████████████████████████
+███████████████████████████████████░  █▓▓█        ░██▓ ███████▓▓ ▓█▓ ██████████▓██████████████████▓█
+███████████████████████████████████░  █▒▓▓   ░   ▓██▓▒██████▓█ ▒██▓██████████████████████▓█████░███
+██████████████████████████████████▒  ▒▓▓▓▒      ▓▓████████████ ▒███▓███████████████████▓████▓▓█████
+██████████████████████████████████  ▓▓ ▒██    ░ ▓███████████▓█ ▓███▒ ████████████████▓█████████████
+█████████████████████████████████░░▓▒   ▓█    ░▒▓█████████████░░ █▓▓░██████████████████████▒███████
+████████████████████▓▒███████████  ▓▓  ▓██ ░ ▒▓████████████▓██░  █▓██████████████████████████████▓█
+██████▓█████████████████████████▓▓▓█░  ███▓   ░  ▓██▓██▓▒▒█▒░▒█  ▓██ ▓██████████▒█████████▓████████
+█████████████████▓████▓████████▒ ▒█▒  █████   ░░▓███████████░██▓▓░██▓░██████████▓█████████▓████████
+███████████▓████▓░████████████▒  █▓▓░█████  ▒   ████████████▓█░█░█▓█▓████████▒███████████████░█████
+██████████▓████▓█████████████░  ███░▓████▓░ ░▓ ██████████████░█░▒▓████▓█████████████████████▓██▓███
+█████████████████████████████  ██▒▓ ████▓  ▒█▓ ██████████████████▓█▓▓▓█░█████████████████▓█████████
+██████████████▒█████████████▓ ██ ▓ █████  ░█▓███████████████████▒▓▒██▓▒█▓▒██▓███████████████████▓██
+██████████▓████████████████░ █▓ █ ░████   ▓██████████████████████▓█▓█▒█░ ██░████████████▓██████████
+████████▓░█████████████████ █▓▓█ ██████ ▓ ███ █████████████████░▓▒█ █▓▒ ░▒█████████████████████████
+████████████████▓█████████ █▓██ ▓█████ ░ █████░░▓██████████████▒█▓██ ██████████████████████████████
+█████████████▓███▒████░░█░▓██▓▒██░████  ████████████████████████████▓███▓█████████████░███████████
+██████████████████ █████░██░ ▒████████  ▓█████████████████████████ ▓█████████████████▓█████████████
+███████████████████ ███ ▒█▓ █████████    ██▓▓███▓█████████████████▓█████▓▓██▓███████ █ ████████████
+████████▓▓██████████ █▒█▓█░██████████   ▓█▓▓████▓████████████████▓░██████▓ ██▓█████ ███████████████
+████████████████████ █▓ ▓▓ ██████████   ░ ███░░░▒▒██▒█▒░  ▓███████▒██▒████    ░▒▓█ ████████████████
+█████████████████████▓    ███████████░▒ ▓██▓   ░▒█▒▓▓░   ▓▓███   ░░███████░▒ ▓███░ ░ ████████████▓█
+██████████████████▓▓█████▓███████████▒▓ ███████  █▓  ▓   █▓███████ ████████░██▓▓▓ ░▓████████████▓██
+██████████████████▓▒█████████████████ ░ ▓▓▓▓▓██ ░▒░░▓   ░▓████████▓█░███████░██▓██▓████████████████
+████▓█████████████ ░░ █▓▓████████████▓█ ███████▒ ░▓▓▓▒   ▓███▓██▒█▒█████ ░██  ▓▒ ▒ ░████████████▓██
+███████████████████▓██████████████████░░ ▓██████ █▓▒▒▓   █████████████████ ███▓ ░ ▓▒███████████▓███
+██████████████████████████████████████░▓ ░▓█████ ██▓░▒░  ▓█████████████████████▓█▓█████████████████
+███████████████████████████████████████░▒ ▓▓████▓██  ▓░  █████▓██░█████████████████████████████████
+██████▓█████▓██████████████████████████ ▓  ░▓█████▓   ░  ████████████▒███████████████████████▓█████
+▓██████▓███████████████████████████████▓  ░ ██▒███▓ ▓░▒ ███▓████▓██▓█████████████████████████▓█████
+██▓███████████▓█████████████████████████ ▓ ▒██▓███░░▓░▓ █████▓▒█▓██████████████████████████████████
+████▓███████████████████████████████████░ ░▓██████▓▒█▒▒ ███████░████████████████▓██████████▓███████
+██████▓██████████████████████████████████  ▒▓██░███▓█  ██▓██▒░▓▒█████████████████████████▓█████████
+█████████████████████████████████████████ ▒  ▓█████▓█░  ░ ▒▓██▓█████████████████████████▓██████████
+██████████████████████████████████████████▒  █████▓▓▓  ▓████▓▓▒████████████████████████████████████
+██████████████████████████████████████████   ██████░░▓ ▒████▒█▓████████████████████████████████████
+██████████████████████████████████████████ ░ ▓███▒▓░▓▒ ██████████████████░ ▓▓███████▓██████████████
+██████████████████▓███████████████████████ ░  ███▓▓░█░█████▓█▓████████████████████████████████████▓
+█████████████████████████████████████████▓  ░▒██▓█░▒██▓▓▒██▒█▒████████▓████████████████████████████
+███████████████████████▓██████████████████  ▒█████████ ████▓█▓█████████████▓██▓████████████████████
+█████████████████████████▓████████████████ ░▓██▓██▓███ ████  ████████████████████████████ █████████
+██████████████████████████████████████████▒░ ▒░▓█░▒██▒ ████ ▒█████████████████████████▓████████████
+█████████████████████████████████████████░    ░▓▒░░██  ▒██▒░▓███████▒██████████████████████████████
+████████████████████████████████▒████████ ░   ▓▓░  █   ▓█▓░░▓██████████████████████████████████████
+█████████████████████████████████████████ ▓░ ▓█▓▓▒▓█   ██▓░▒ ██████████████████████████████████████
+██████████████████████████████████████▓██ ▓░▓█████▓█▒  ███░▓ █████████████▓████████████████████████
+█████████████████████████████████████████░█░██████▓ ▓ ████░▓░██████████▒███████████████████████████
+█████████████████████████████████████████▒▓▒ █████▒▓▒░████▒██████████░█████████████████████████████
+██████████████████████████████████████████▓▒██ ▓██ █ ░███▓▒▒███████████████████████████████████████
+██████████████████████████████████████████░▒███▓█▓██ ████▒██████▓▓█████████████████████████████████
+██████████████████████████████████████████ ▓███▓█▓██ ████░▓████████████████████████████████████████
+███████████████████████████████████████████░▓░██▓▓██ ███▓░█████████████████████████████████████████
+███████████████████████████████████████████░████░░██ ███░██████████████████████████████████████████
+███████████████████████████████████████████▓████▓░██▒███░██████░███████████████████████████████████
+████████████████████████████████████████████▓███▓░█▒▓█████████ ████████████████████████████████████
+█████████████████████████████████████░██████ ███▓ █ ▓▓█▓█████▒████████████████████▓████████████████
+███████████████████████████████████████████████▓▓ ▓ ███████▒███████████████████░███████████████████
+█████████████████████████████████████████████ ███░ ▓██▓  ███████████████▓░▓████████████████████████
+█████████████████████████████████████████████               ▒▓▓█▓▓▓███████████████████████████████
+█████████████████████████████████████████████ ▓███████░   ▓░▒░▓▓▓██████████████████████████████████
+█████████████████████████████████████████████ █████▓██░░███████████████████████████████████████████
+█████████████████████████████████████████████ ▒▓███████▓███████████████████████████████████████████
+█████████████████████████████████████████████  ▓██▓████████████████████████████████████████████████
+████████████████████████████████████████████░  █████▓█▓▓███████████████████████████████████████████
+████████████████████████████████████████████  ▒███▓█   ████████████████████████████████████████████
+████████████████████████████████████████████  █▓██▒░▓██████████████████████████████████████████████
+████████████████████████████████████████████  █████████████████████████████████████████████████████
+█████████████████████████████████████████████░████▓████████████████████████████████████████████████
+██████████████████████████████████████████████▓███░▓███████████████████████████████████████████████
+███████████████████████████████████████████████████▒███████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████████████████████████
+</pre>
+        </div>
+        <div id="message-box">
+          <h2>internal_fatal_error</h2>
+          <p>
+            as oxygen levels in the brain decrease; so does the percepted speed of time from the cadavers' pov.
+            <br>
+            as the voltage of the power source decreases; so does the processing speed of the computer, tick rate exponetially slows down.
+            <br>
+            <br>
+            i propose this phenomenon introduces the illusion of heaven/hell while supporting the life flashes before our eyes hypothesis.
+            <br>
+            As life goes on, our context window widens, making each memory recall much less frequent.<br>
+            of course the most memorable/traumatic experiences will still have the most frequent occurences in our thought process.<br>
+            <br>
+            our cognition runs through our experiences to determine our thought process for each sensoric input (sensation) we get.<br>
+            <br>
+            does this not lead to the conclusion that our final thought gets pieced together from the most propable memory reactions to our current environment?<br>
+            <br>
+            i propose that more/stronger happy memories proportionally lead to the chance of our final thought being happy, more traumatic/sad memories then lead to a sad final thought.<br>
+            <br>
+            as the final thought gets processed and our time perception slows down -> effectively slowing down time around us up to stasis<br>
+            <br>
+            this leads to the widening of our final thought and then just its feeling up to infinity.
+          </p>
+          <button onclick="startSimulation()">ACKNOWLEDGE</button>
+        </div>
+        <video id="v" autoplay playsinline muted></video>
+        <canvas id="c"></canvas>
+      </section>
+      <!-- SECTION 2: DEATH SIMULATION -->
+      <section id="simulation-view" class="view-section">
+        <header id="top-bar">
+          <div style="display: flex; gap: 20px;">
+            <div>DEATH.SH
+              <span class="blink">_</span></div>
+            <div>VOLTAGE:
+              <span id="voltage-display">100.0</span>%</div>
+            <div>STATUS:
+              <span id="status-display">INITIALIZING</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="energy-bar">[||||||||||||||||||||]</span>
+            <button id="adrenaline-btn" onclick="app.injectAdrenaline()">[ ADRENALINE ]</button>
+          </div>
+        </header>
+        <main id="main-grid">
+          <div id="left-col">
+            <section class="sim-panel" id="panel-eye" style="flex: 1.2;">
+              <div class="sim-panel-header"><span>👁️ OPTICAL INPUT</span></div>
+              <div class="sim-panel-content"><pre id="eye-ascii" class="ascii-art-sim"></pre></div>
+            </section>
+            <section class="sim-panel" id="panel-ear" style="flex: 1;">
+              <div class="sim-panel-header"><span>👂 AUDITORY INPUT</span></div>
+              <div class="sim-panel-content"><pre id="ear-ascii" class="ascii-art-sim"></pre></div>
+            </section>
+          </div>
+          <div id="right-col">
+            <section class="sim-panel" id="panel-brain" style="flex: 2;">
+              <div class="sim-panel-header"><span>🧠 CORTEX PROCESSOR</span></div>
+              <div class="sim-panel-content">
+                <div id="brain-container">
+                  <pre id="brain-ascii" class="ascii-art-sim"></pre>
+                  <canvas id="brain-canvas"></canvas>
+                </div>
+              </div>
+            </section>
+            <section class="sim-panel" id="panel-log" style="flex: 1.2;">
+              <div class="sim-panel-header"><span>📜 CONSCIOUSNESS STREAM</span></div>
+              <div class="sim-panel-content" id="log-output"></div>
+            </section>
+          </div>
+        </main>
+        <!-- FINAL OVERLAY -->
+        <div id="final-thought-overlay">
+          <div id="final-thought-text"></div>
+        </div>
+      </section>
+    </div>
+    <script>
+      const ASSETS = {
+            ear: `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠟⠛⠛⠛⠛⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⡟⠁⠀⢀⣴⠾⠛⠛⠛⠳⢦⡀⠀⠈⢿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⡿⠀⠀⣰⠟⠁⣀⣠⣄⡀⠀⠀⠉⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⠇⠀⢰⣿⣴⠟⠋⠉⠉⠛⠷⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⠀⠀⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⡄⠀⣿⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⡇⠀⠈⠉⢻⡆⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣧⠀⠀⢀⣼⠇⠀⠀⠀⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣷⠄⠈⠁⠀⠀⠀⢠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣇⠀⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣤⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿`,
+            eye: `+--------------------------------------------------------------------------------+------------------+
+⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⡩⡩⣉⢍⢍⢍⡩⡩⣉⢍⢍⢍⢍⢍⢍⢍⢍⠱⡩⡩⡩⡩⡩⣉⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⢍⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡩⡑|
+⠑⢆⢕⢌⢆⠣⡪⢢⠣⡪⢢⠣⡪⢢⢊⠖⡔⡱⢢⠱⡈⢖⠔⡱⡐⢕⠔⡱⡐⠥⡪⢢⢑⠜⡔⢕⠜⡔⢕⠜⡔⢕⢅⡣⡑⢕⢅⡣⡱⡊⢆⢣⠪⡢⡣⢪⠢⡣⢪⠢⡣⢪⠢⡣⢪⠢⡣⢪⠢⡣⢪⠢⡣⢢⠣⡪⢢⢊⢖⢘⠔⡕⢜⠔⡕⢜⠔⡕⢜⠔⡕⢜⠔⡕⢜⠔⢕⠜⡔⡱|
+⡙⢔⠕⡌⢎⢕⠱⡑⡕⡱⡑⡕⡱⡑⢕⢕⢌⢪⠢⡣⡑⡕⡱⢌⢪⢊⢎⢜⢌⢎⢪⠢⣃⠳⡘⡬⢪⠪⡪⡪⡪⡪⡢⢕⢍⢎⢆⠳⡸⡨⡣⡱⣑⢕⢜⢕⢕⢕⠕⡕⢕⢕⠱⡑⡕⡱⡑⡕⢕⢕⢕⡱⡑⡕⡱⡑⢕⢅⡣⡱⡑⢎⢪⢊⢎⢪⢊⢎⢪⢊⢎⢪⢊⢎⢪⢊⢎⢪⢘⠔|
+⡍⡪⡊⢎⢪⢌⡣⡱⡘⡌⢎⢜⢌⢎⢪⠢⡣⡱⠱⢌⢎⢜⡘⢆⢕⢅⢣⠪⡢⡣⢕⢕⢕⢍⢎⢎⢕⢕⢕⡪⡪⡪⡪⡪⡲⡕⣕⢝⡜⣜⢜⡜⡴⡱⡕⣕⢕⢕⢭⢪⢪⡪⡱⡩⡪⡪⡪⡪⡪⡢⡣⡪⡪⡪⣊⢎⢪⠢⡕⢜⢌⡣⡱⡑⡕⢕⡱⡡⡣⡱⡑⡕⣅⢣⠱⡡⡣⡑⢕⠌|
+⡕⢌⢎⢕⠕⡬⢢⠣⡪⡊⢎⢢⠣⡱⡑⡕⢕⢜⠱⡑⢎⠦⣙⢌⢖⢕⢕⢕⢕⢕⢕⢕⢕⢕⢕⡕⣕⢕⢕⣎⢞⡼⣕⡽⢮⣞⢮⣞⡮⣷⣝⣮⢷⣝⣞⣮⢮⣣⢗⡵⣣⢮⡪⣎⢮⢪⡪⡪⡪⡪⡪⢜⢜⢔⢕⢜⢔⢕⢪⠪⡢⢕⢜⢌⢎⢪⠢⡓⢜⢌⢎⠲⢌⢆⢣⠱⡌⡪⢢⢃|
+⡊⢆⢣⠪⡪⡊⢖⠱⡅⢝⢌⠲⡑⡕⢜⢌⢎⡪⡱⡩⡪⡪⡢⡣⡣⡕⡕⡕⡕⣕⢕⡵⣱⡣⣗⣽⢮⡯⡷⣫⢟⢞⢝⡝⡹⣪⢏⢮⠹⡌⢮⢪⢓⠽⣌⢯⡹⣙⢏⢟⢷⡻⡾⣮⣷⣣⢯⣪⡳⡱⡕⡕⡕⡕⢕⢕⢕⢕⢕⢕⢕⡱⡡⡣⡱⡑⡕⢍⢆⢣⠱⡩⡒⢕⠕⡕⣌⠪⡢⡑|
+⢑⢕⠱⡑⡥⣙⢌⢎⢪⠪⣌⢣⢱⡘⡥⢣⢕⢜⠬⡪⡪⡪⡪⡪⡪⢎⢞⢜⢮⣪⣞⣮⢷⡻⡹⡪⡳⡸⡪⡒⡧⡹⡰⢍⢎⢾⡱⣋⢎⢪⢒⢕⢕⠕⣾⢰⡑⣕⢅⡫⡪⡪⢎⢎⢎⡻⡳⣟⣾⢵⣝⢜⢎⢮⢣⡣⡣⢕⢕⢕⠬⡪⣊⢎⢪⠪⡪⡪⡢⡣⡱⡑⣍⢪⢊⠖⣌⠪⡢⡱|
+⢡⢣⡙⢬⠢⡕⢜⢢⠣⡓⡔⢕⢕⢜⢜⡢⡣⡣⢝⢜⢜⢎⢮⡪⡳⡹⣧⣻⡵⢷⠹⣼⡱⡹⣎⢎⢧⡹⡪⣊⡗⢜⡜⣕⢕⡏⣾⡱⡱⡱⡕⡕⢕⡵⣇⢳⡸⡢⢕⡽⡪⡱⡱⡱⣕⢭⡺⢕⡽⣹⢯⣯⣳⡕⡵⡱⡕⡕⡕⡕⢕⢕⠬⡪⡢⡫⡸⢌⢎⢪⢪⡘⡔⢕⡱⠱⡌⡪⠢⡪|
+⡕⡢⢕⢕⢕⢜⡱⣑⢍⢎⡪⡪⡲⡱⡱⡱⡱⡱⡕⡭⡪⡺⣢⡻⣼⣯⢟⡵⡹⣪⢳⠪⣗⣕⠹⣎⢮⡳⡳⡸⡹⣶⢍⢮⣆⡿⣼⡹⣮⡪⣎⢮⡞⡧⣪⣺⡕⣞⣟⢌⣮⢑⣇⢞⢪⡮⡱⡱⡪⡪⡳⣭⣛⢿⣮⣻⢜⢎⢎⢎⢕⢕⢕⢕⢜⢔⢕⢕⠕⡕⢕⢌⢎⠦⡱⡱⢌⢪⠱⡈|
+⢎⢪⢒⢕⠕⡬⢢⢕⢕⢕⢜⢜⢜⡜⣎⢞⢜⡪⣪⢚⣜⣵⣳⡟⡷⡱⣝⢺⣧⣏⢮⢳⢷⡸⣧⣍⢷⣭⡹⣷⣵⣻⣿⡾⣾⣿⣽⣿⡿⣿⣿⣿⣿⣿⣿⣾⢿⣽⣮⣳⣧⡟⢴⡵⡏⣦⢝⢬⢪⡪⡺⢔⣝⡵⣟⡽⣿⣧⣫⢎⢖⢕⢕⢕⢕⢕⢕⢥⢋⢎⡪⡢⡣⡓⢬⠪⡢⡑⡕⡡|
+⡣⡱⡑⡕⢕⢕⢕⢕⢕⢕⢕⠵⣩⢎⢮⡪⣣⢕⢧⣳⣵⠿⣭⣫⢺⡱⣍⣗⢳⡿⣕⢯⡾⣕⢷⣝⣿⣽⣿⣯⣿⣯⣿⣿⣿⣻⣷⣿⡿⣿⣿⣾⣿⣾⡿⣿⣿⣿⣿⣿⣿⣿⣿⣾⣗⡷⣝⣣⡳⣜⣵⠗⡭⣪⡪⡞⣮⢳⢿⣮⡳⣕⠵⡱⡱⡱⡱⡱⡱⡱⢜⠬⡪⡊⢖⢕⢕⢌⢎⠔|
+⡕⢜⠬⡪⡪⡢⡣⢕⢕⢕⢕⢝⠦⡳⡕⡵⡱⡧⣻⣞⢝⢗⢮⢺⣳⡕⢮⢜⡷⣟⣽⣷⣽⣟⣿⣯⣿⣾⣿⣾⣿⣯⣿⢷⣯⣿⡾⣾⢿⣿⣾⣷⣷⣷⣿⣿⣾⡿⣿⣿⣯⣿⣯⡿⢿⣿⣿⣽⡟⣝⡥⣫⡳⡍⢮⢪⡪⡳⣝⣝⢿⣎⢗⡝⡜⡜⡜⡜⡜⡜⡪⡪⡪⡪⡱⡱⢌⢆⢣⢊|
+⢎⡪⡪⡪⡪⡪⡪⡪⡪⡪⡪⢕⢝⢜⢜⢜⢮⡻⡵⡹⡪⣍⢷⣵⣜⢽⢳⡷⣽⣟⣷⣿⡿⣻⣿⣿⣿⣿⣿⣿⣽⣯⠿⣿⣿⣿⠠⡓⢔⠢⢜⣯⢙⠛⠿⣽⣻⣿⣿⣽⣿⣿⣿⣿⡱⡛⡿⣿⣿⣷⣾⢵⠺⡪⡪⡣⣝⢜⢎⢞⡕⡿⣯⡺⣜⢪⢪⢪⢪⢪⢪⢪⢪⢪⢪⠪⡪⡢⡱⡡|
+⢎⢜⢌⢎⢪⠪⡪⡪⡪⡪⡪⢕⢕⢕⢕⡝⣎⢟⣜⢷⣱⠣⡷⢮⣺⣿⣳⡿⣯⣿⢟⢫⡘⢾⣿⣿⣿⣟⡷⣻⢷⣻⣻⣯⡻⣿⡇⣪⣢⣑⣂⢻⣆⡙⠔⡄⢻⣯⡿⣿⣽⡿⣿⣿⡇⣏⠲⡰⢢⢎⡻⣿⣿⣝⡮⣞⠖⣏⢝⢕⢝⢮⠺⣷⡕⡧⣣⢣⢣⢣⢣⢣⢣⢕⢕⢕⢕⢜⠔⡅|
+⢕⢕⢕⢕⢕⢍⢎⡪⡪⢪⢪⠪⡪⡪⡪⣎⢧⡻⣜⣳⣝⠿⣞⡿⣶⣿⣿⠿⡫⡱⡡⡣⡙⢾⣿⡿⣞⡾⣝⣯⢻⢮⢿⣿⣷⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣮⣜⣯⢿⣝⢾⣝⢿⣾⡗⡱⡑⢕⠱⡊⣎⢪⠻⣿⣾⣲⢟⠴⡣⡓⣕⢣⠻⣬⢻⡮⣎⢧⠳⡱⡕⣕⢕⢕⢕⢕⢕⡱⡱⡨|
+⡪⡢⡣⡱⣑⢕⢕⢜⢌⡣⢕⢍⢎⡳⣙⢞⡺⣚⢞⡶⣽⣻⣾⣿⣿⠿⡱⢕⢕⠪⡪⢪⢘⢽⣿⣟⣿⣪⢷⢜⢗⡟⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣗⣿⣝⢧⣛⢾⣝⣿⣾⢇⠕⡜⢌⠪⡒⢬⢊⢗⢬⠻⣿⣯⢷⠽⣪⢎⡵⣙⢦⡫⡻⣮⡪⣫⢎⢎⢖⢕⢕⢕⢕⢕⢜⢔⡑|
+⠜⡔⢕⢜⢔⢕⢕⢕⢕⢕⢕⢕⢕⢕⢝⠮⣮⡹⣫⣻⣻⣽⣿⡾⡫⣚⢕⢕⠱⡑⡕⡡⢣⠘⣿⡿⣾⢵⡳⣝⢵⡹⣞⡽⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⡻⣞⢷⣽⣮⣾⣽⡿⡨⡊⢜⢌⢪⢘⢌⢎⢪⠪⡳⡢⣛⢿⡯⡶⡱⣊⢖⢕⢎⡫⡺⣕⢵⡱⡣⡣⡣⡣⢕⢕⢕⢕⢌⢪|
+⢎⢪⢊⢖⢕⢕⢕⢕⢕⢕⢕⢍⢎⡳⡭⡫⣚⣛⡿⢿⣻⣯⡟⣜⢎⢎⢖⢕⢍⢎⢜⠰⡡⡑⡹⣿⣿⢿⣝⢷⡕⡵⣪⢏⡿⡽⣽⡻⣟⣿⡻⣿⢯⣿⡎⡷⡹⣮⡳⣵⣳⡷⣿⠣⡪⡘⢌⢆⢕⠱⢌⢎⢕⠭⡪⢎⡵⢽⣿⣽⡳⣕⢎⡪⡪⡪⡕⡝⢶⠱⡕⡕⡕⡕⢕⢕⢕⢕⢕⢅|
+⡣⢕⢕⢕⢕⢕⢕⢕⡱⡣⡳⡱⣓⢚⣎⣝⣭⢯⢾⢿⢯⢟⡮⢳⢍⡞⡢⡣⡱⡱⢌⢆⠕⡌⢢⠙⢿⣿⣟⣿⣺⣕⢧⡫⣜⠳⡮⣹⢣⣻⡺⡹⣗⡞⣽⡪⣷⣝⣿⣵⣿⡿⣃⠳⡨⡊⢎⠆⡕⢕⡱⡱⡱⣑⢝⢮⣪⣭⡫⢷⢿⣮⣣⢳⡱⡪⡪⡪⡣⡫⡪⡪⡪⡪⡪⡒⡕⢕⢕⢆|
+⢎⢪⢒⢕⢕⢕⢕⠬⡪⡪⡪⡕⡭⡱⣌⢮⣲⢗⡯⣳⣝⣵⣫⣗⡕⣝⢮⡪⡪⡪⡢⢣⠪⡘⡄⢫⠢⡙⢿⣿⣾⣳⣟⣮⣻⢞⣵⣣⡗⡼⣎⢗⣽⡺⣜⡷⣾⣻⣿⡿⡋⢦⠱⡑⣌⠪⡊⢎⠜⡔⢕⢜⢌⢎⢮⣲⣟⣎⡻⡶⣥⣝⢾⡱⣕⢕⢕⢕⢪⢪⡪⡪⡪⡪⡪⡪⡪⡱⡱⡡|
+⡣⡣⡣⡣⢕⢕⢕⢕⢕⢕⣕⠾⣜⢞⢏⢯⡱⣣⠯⡵⡺⣲⣓⣞⣭⣳⣕⡝⢮⡪⣎⢕⢕⠕⡜⢔⢅⠝⡔⣌⠛⢯⣿⣷⣿⣯⣑⣍⡙⡛⢛⢟⡞⠻⡙⢝⡿⢟⢣⠪⡊⢦⢑⢕⢌⢪⢊⢎⠪⡪⣪⡪⣮⢾⣳⢗⡯⣛⡝⣫⢚⢎⢞⡝⡮⡪⡱⣑⢕⢕⡪⣚⢜⡜⣪⢪⢪⠪⡪⡢|
+⢜⢜⢜⢬⢣⢣⢣⢓⠭⡪⡪⡪⡪⣎⡳⡣⣫⢪⢗⣝⣝⢦⠷⣲⢞⣞⣝⣯⡾⣦⢧⡳⡱⣍⢎⡲⡑⡕⢜⢔⡙⢦⢢⡍⡳⡛⠿⠿⡿⢿⠿⠿⠿⡛⢟⢝⢪⢪⡑⢕⠱⡡⡣⡪⣢⣣⢵⣕⣽⢞⣞⢽⣫⣫⡳⡝⣜⢼⡱⡱⡕⡭⡪⡪⡪⡪⡪⡢⡣⡣⢎⢮⢪⡪⡲⢕⢕⢍⢎⡪|
+⡪⡪⡲⡱⡱⡱⡱⡱⡩⡪⡪⡪⢎⢮⢪⡳⡱⡳⢭⢮⠮⣳⢻⢍⡫⣪⠲⣕⡽⡮⡿⣝⢿⢶⢧⡽⣜⣜⢕⢕⠭⡲⢕⡜⣜⢬⢫⢪⢒⢕⣍⢪⡣⡝⡜⢦⡳⡵⡱⣍⢮⡮⡿⣵⠷⣯⣳⣷⡺⣚⣝⢳⠷⡬⣫⠺⣜⠵⡱⣝⢜⢮⢪⡪⡪⡪⡪⡎⡮⡱⣫⢪⡲⡱⡹⣌⢣⢣⢕⠕|
+⡱⡱⡱⡕⣕⢕⢕⢕⢭⢪⡪⡳⡱⡣⢧⡹⣪⢫⡳⣕⢏⡳⣕⢝⡼⣜⡫⣪⢞⢾⣩⢏⣫⣳⢟⣞⠵⡫⣜⡕⣽⢪⣲⢓⣜⢖⡕⡧⡟⣦⣳⢙⣪⠾⣺⢿⣫⢾⡱⣟⢮⡺⡪⣞⢻⢶⣕⢝⣿⢸⡪⣣⢻⡸⣪⠳⣍⢞⢕⢧⡛⡦⡣⡕⣝⢜⢎⢞⢜⢵⡱⣕⢕⢝⢜⢆⠧⡣⡣⡓|
+⢜⢜⢜⢜⢆⡳⡱⢕⢕⡕⣕⢝⢜⡕⡵⡱⡕⡵⡱⡕⡯⣪⢮⡫⣎⢮⢪⢞⢕⢧⡳⡵⣫⢯⢺⢜⢧⡵⡹⡇⣿⢝⡕⡯⣪⢏⡾⣝⡾⢡⣮⡱⣏⢯⢳⣿⡱⣗⡻⡪⣗⢝⡮⣓⢗⡵⡹⣎⢷⢱⢕⡵⡣⣫⢪⡳⣕⢝⢮⢪⢎⢞⢜⢎⢎⣎⢣⡫⡪⢖⠵⣪⢪⡣⡣⡣⡓⡕⢕⢍|
+⡱⡱⡱⣍⢎⢎⢎⡣⡳⢜⢎⢮⢪⢎⢞⢮⢺⢕⢯⡺⡪⡮⡪⡮⣪⢳⡱⣫⢪⡣⣫⢺⢕⡏⡷⣹⢽⡣⢪⡓⡯⡪⣣⢫⡺⣜⢗⡿⡴⡟⣮⢓⡯⡪⡣⣻⣷⢝⡝⡮⣮⢫⡞⣝⢮⠺⣕⢵⢳⢕⡫⣎⢮⡣⡳⡱⡪⡣⡳⡱⣣⢣⡫⣪⢣⢮⡱⣕⢝⡪⡳⡱⡕⡕⡵⡩⡪⡪⡱⡑|
+⢱⡱⡱⡪⡪⣣⢣⢝⡜⡕⢧⠳⣕⢝⡪⡳⡱⡫⡮⣪⡫⡺⡱⣕⠵⣕⢵⡱⡕⡵⡱⡣⣏⢞⣜⢕⡯⣻⢆⡝⣪⢪⠪⡲⡱⡊⡗⡧⡫⡞⢴⠱⡕⣵⢝⣯⡞⣯⢺⡕⣗⢝⢮⡳⡹⡕⡕⢧⢳⡱⡳⡜⡮⡪⣝⢜⣜⢕⡝⡎⡮⣱⢽⢌⢧⢳⢜⡮⣣⢫⡺⣘⢎⢮⢪⡪⡪⡪⡪⡪|
+⡣⡪⡪⡪⡺⢔⠧⡳⡜⣝⡪⡳⣕⢝⣜⢝⣎⢳⢕⡵⡹⡪⡳⣕⢝⢎⢖⢵⠹⡜⣕⢕⢎⡳⣌⢧⡫⡺⡝⣶⡱⡡⡋⢎⢪⡘⡌⣗⢜⢕⢕⡵⣞⢷⡻⣜⢵⢧⡫⡮⡣⣏⢮⡪⡺⡜⣭⢪⣣⡫⣚⢮⡺⡜⡮⣪⢎⢮⢺⢜⢎⡾⡱⣣⠧⣟⢪⢞⡕⡵⡱⡕⡵⡱⡣⡪⡪⡪⡪⢢|
+⢎⢮⢪⡪⣪⢓⡝⣎⢞⡜⣜⢕⢮⡣⡳⣕⢵⡹⡪⣎⢯⡪⡳⣕⢝⣎⢳⡱⡫⡪⡪⡪⡣⡳⢜⢦⡫⣚⢮⡪⡝⢷⢵⣡⣇⣜⢬⣲⣕⢗⣟⢮⡻⣕⢟⣜⡳⣣⢏⢞⢵⢪⢖⢝⢎⡞⡼⡱⡕⣝⢮⡲⣏⢞⣜⡦⣫⢮⢗⢯⡪⣛⢜⣎⢳⢕⢝⢎⢎⢞⢜⢎⢞⢜⢎⢎⢎⢎⢎⢆|
+⢚⠦⡳⡱⡕⡵⡱⢎⢮⢺⢜⢧⡳⣙⢮⢪⢮⡪⡳⡱⣣⢻⡸⡪⢖⢵⠱⡝⣜⢕⢕⢭⡪⣪⢣⡣⡵⡱⡕⡵⡹⣕⢗⢵⡣⣏⢷⡹⣎⢷⡹⣎⢷⡹⣎⢮⣪⡣⣫⢳⡱⡣⣳⡙⣎⢞⢎⢞⢜⢎⡮⣳⢝⢧⢝⡜⣕⢕⢧⢳⢕⡭⣪⢎⢧⠳⣍⢮⡣⣫⢪⡣⡫⡪⡣⡣⡣⡣⡣⡱|
+⡫⣪⢣⢝⢎⣎⢳⣙⢎⢗⢝⢮⡪⡣⡳⣕⢕⡝⣜⢕⢇⢗⢕⡝⣪⢣⡛⣜⢎⢮⡣⡳⡱⡕⡵⡱⡕⣝⢜⢎⢞⡜⡕⡧⣫⢎⢧⡫⡺⣕⢝⢮⢳⢝⡜⣕⢕⡝⡮⣣⡫⡺⡢⣏⢮⢳⡹⣕⢝⡗⡵⡹⣎⢳⢕⡵⡱⡕⡧⡳⡕⡵⡱⣣⢳⡹⡪⡖⡵⡱⡕⣕⢭⢪⡪⡪⡪⡪⡪⢢|
+⡪⡪⡣⡳⡱⢎⢵⡱⣙⢎⡳⡕⣝⢜⢎⢖⢵⢩⢎⢎⡣⣓⢕⢝⠴⡱⡱⡱⡕⡵⡱⣙⢜⢎⢮⢪⡪⡪⡪⡣⡫⣚⢜⢮⢪⢣⡓⡝⢮⢪⠳⡱⡣⡣⣝⢜⢎⢞⢜⠦⣫⢪⢳⡘⡮⡱⢕⢎⡣⡫⣚⢜⡜⡕⢧⡹⡪⡞⣜⢎⢞⡜⡵⡱⣕⢕⡝⣜⢎⢞⢜⠦⡳⡱⡪⡪⡪⡪⡪⡒|
+⡕⢭⢪⢪⡓⣕⢕⢎⢮⡱⡕⢎⠮⡪⡣⡳⡱⡱⡱⡱⡱⡱⡱⡱⣙⢜⡪⡪⡪⡪⡪⡪⡪⡒⡕⡕⡪⡪⡪⡪⡪⡪⡪⡒⡕⡥⡹⣘⢕⢕⢝⢜⢜⢜⢢⢓⢕⢕⢕⢕⢕⢕⢕⢕⢎⢎⡣⡣⡕⡭⡪⡪⡪⡪⡣⡕⡝⣜⢪⢪⢕⢍⢞⢜⢬⢪⢪⢪⢪⢣⡫⡪⡣⡝⡜⢜⢜⠬⡪⣊|
++---------------------------------------------------------------------------------------------------+
+`,
+            brain: `                 ⢀⣠⠤⠒⠒⣊⣉⣁⠒⠒⠤⣄⡀
+              ⢀⠔⠁ ⡰ ⠁⡆  ⡰ ⠁⡆  ⡰   ⠈⠢⡀
+            ⡠⠃  ⡰ ⠁ ⡆  ⡰ ⠈ ⡆   ⡰  ⠁ ⡆  ⠘⢄
+           ⡇  ⡰ C E R E B R U M ⠁ ⡆  ⡰ ⠁ ⡆ ⢸
+          ⢸  ⡰ ⠁⢝⣣⢻ont⣣⢻) ⡰  ⠁ ⡆    ⡰ ⠁ ⡆  ⡇
+         ⢸  ⡰ ⠁ ⡆  ⡰ ⠈ ⡆    ⡰  ⠁ ⡆  ⡰ ⠁ ⡆ ⡇
+         ⢸ ⡰ ⠁ ⡆  ⡰ ⠁ ⣣⢻  ⡰ ⠁ ⡆   ⢀⢝Occipital)
+          ⠇  ⡰ ⠁ ⡆   ⡰ ⠈ ⡆    ⡰  ⠁ ⣀⠤⠒⠉ ⡸
+           ⠇  ⡰ ⠁ ⡆   ⡰ ⠁ ⡆  ⡰ ⠁ ⢀⠔⠁ ⡰  ⠁ ⡸
+            ⠱⡀ ⡰  ⠁ ⡆  ⡰  ⠁ ⡆   ⡇    ⢀⠔ ⠁
+              ⠈⠢⡀ ⡰  ⠁ ⡆   ⢀⠔⠁  CEREBELLUM
+                 ⠈⠒⠒⠒⠒⣉⣉⠔⠁    ⣄⣀⣄⣀ ⢸
+                           ⢸   ⢀⠤⠒⣉⣉⡁
+                            ⠇  ⡸
+                          [BRAINSTEM]
+                             ⢸ ⢸
+                             ⠈ ⠈`
+        };
+
+        const viewport = document.getElementById('viewport');
+        const observerArt = document.getElementById('observer-art');
+        const anatomyArt = document.getElementById('anatomy-art');
+        const anatomyPanel = document.getElementById('anatomy-panel');
+        const messageBox = document.getElementById('message-box');
+        const video = document.getElementById('v');
+        const canvas = document.getElementById('c');
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        const NOISE_CHARS = "!@#$%&?*+÷×<>01";
+
+        const MEMORIES = [
+            "picnic/lightning: the tip of the tongue taking a trip of three steps down the palate to tap, at three, on the teeth.",
+            "The breaking of a wave cannot explain the whole sea.",
+            "Language is a virus from outer space.",
+            "The naked afternoon of the soul.",
+            "It was a fine cold night, and the stars were like little silver needles in the sky.",
+            "Viddy well, little brother. Viddy well.",
+            "Is it better for a man to have chosen evil than to have good imposed upon him?",
+            "What's it going to be then, eh?",
+            "lights were shining through my mozg",
+            "velocett hit better than i mem ber ber ber",
+            "The smell of wet pavement after summer rain.",
+            "Faded in a drawer nobody opens.",
+            "A distant radio playing a song you almost remember.",
+            "The static between channels at 3 AM.",
+            "Dust motes dancing in a single beam of sunlight.",
+            "Salt air and the sound of waves hitting the pier.",
+            "The sharp taste of fear.",
+            "ten den kdy se mesic zmenil na jedovate fialovou lentilku",
+            "you might not know it was unless you knew",
+            "death death death im sooo scared and warm at the same time",
+            "let me just close my eyes",
+            "no bitches?",
+            "The silence of a forest covered in deep snow."
+        ];
+
+        let finalThoughtScore = 0;
+
+        // --- NOISE UTILITY ---
+        function corruptText(original, intensity) {
+            if (intensity <= 0) return original;
+            return original.split('').map(char => {
+                if (char === '\n' || char === ' ') return char; // Preserve layout
+                return Math.random() < intensity ? NOISE_CHARS[Math.floor(Math.random() * NOISE_CHARS.length)] : char;
+            }).join('');
+        }
+
+        function setupAnatomyScaling() {
+            const isLandscape = window.innerWidth > window.innerHeight;
+            const lines = 106; const cols = 99;
+            if (isLandscape) {
+                anatomyArt.style.fontSize = (100 / lines) + 'vh';
+                anatomyPanel.style.width = 'auto';
+            } else {
+                anatomyArt.style.fontSize = (100 / cols) + 'vw';
+                anatomyPanel.style.width = '100vw';
+            }
+        }
+
+        async function initWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: 640, height: 480 }, audio: false
+                });
+                video.srcObject = stream;
+                video.play();
+                requestAnimationFrame(renderLoop);
+            } catch (err) {
+                observerArt.textContent = "ACCESS_DENIED\nWEBCAM_REQUIRED";
+            }
+        }
+
+        function renderLoop() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) renderASCII();
+            requestAnimationFrame(renderLoop);
+        }
+
+        function renderASCII() {
+            const obsPanel = document.getElementById('observer-panel');
+            const obsWidth = obsPanel.clientWidth;
+            const obsHeight = obsPanel.clientHeight;
+            const charHeight = parseFloat(getComputedStyle(observerArt).lineHeight) || 12;
+            const rows = Math.floor(obsHeight / charHeight);
+            const charAspect = 0.55;
+            const cols = Math.floor((obsWidth / obsHeight) * rows / charAspect);
+
+            if (cols <= 0 || rows <= 0) return;
+
+            let resolutionDivider = 1;
+            let noiseIntensity = 0;
+            if (app && app.isStarted) {
+                resolutionDivider = Math.max(1, Math.floor(10 - (app.voltage / 10)));
+                const threshold = 55;
+                if (app.voltage < threshold) {
+                    noiseIntensity = Math.pow((threshold - app.voltage) / threshold, 3);
+                }
+            }
+
+            canvas.width = Math.floor(cols / resolutionDivider);
+            canvas.height = Math.floor(rows / resolutionDivider);
+
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.translate(-canvas.width, 0);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const charMap = '▓░▒░▓▓'.split('');
+            let asciiStr = "";
+            for (let y = 0; y < canvas.height; y++) {
+                let rowStr = "";
+                for (let x = 0; x < canvas.width; x++) {
+                    const i = (y * canvas.width + x) * 4;
+                    const brightness = (imgData[i] + imgData[i+1] + imgData[i+2]) / 3;
+
+                    let char;
+                    if (Math.random() < noiseIntensity) {
+                        char = NOISE_CHARS[Math.floor(Math.random() * NOISE_CHARS.length)];
+                    } else {
+                        char = charMap[Math.floor((brightness / 255) * (charMap.length - 1))];
+                    }
+                    rowStr += char.repeat(resolutionDivider);
+                }
+                asciiStr += rowStr.repeat(resolutionDivider) + "\n";
+            }
+            observerArt.textContent = asciiStr;
+            observerArt.style.fontSize = anatomyArt.style.fontSize;
+        }
+
+        function initiateDeath() {
+            messageBox.style.display = 'block';
+            observerArt.style.color = 'var(--accent-landing)';
+        }
+
+        function startSimulation() {
+            messageBox.style.display = 'none';
+            viewport.style.transform = 'translateY(-50%)';
+            setTimeout(() => app.start(), 1000);
+        }
+
+        class DeathApp {
+            constructor() {
+                this.voltage = 100.0;
+                this.isDead = false;
+                this.isStarted = false;
+                this.decayRate = 0.1;
+                this.baseTick = 50;
+                this.nodes = [];
+                this.links = [];
+                this.finalPathwayIndices = new Set();
+                this.canvas = document.getElementById('brain-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.ui = {
+                    v: document.getElementById('voltage-display'),
+                    s: document.getElementById('status-display'),
+                    e: document.getElementById('energy-bar'),
+                    l: document.getElementById('log-output'),
+                    body: document.getElementById('simulation-view'),
+                    eye: document.getElementById('eye-ascii'),
+                    ear: document.getElementById('ear-ascii'),
+                    brain: document.getElementById('brain-ascii')
+                };
+            }
+
+            start() {
+                this.isStarted = true;
+                this.ui.eye.textContent = ASSETS.eye;
+                this.ui.ear.textContent = ASSETS.ear;
+                this.ui.brain.textContent = ASSETS.brain;
+
+                this.setupCanvas();
+                this.scaleSimAssets();
+
+                this.gameLoop();
+                this.animateCanvas();
+                this.inputLoop();
+                this.memoryLoop();
+                this.corruptionLoop(); // Start synaptic noise cycle
+
+                this.log("Consciousness stream connected. Sensory link active.", "process");
+
+                window.addEventListener('resize', () => {
+                    this.scaleSimAssets();
+                });
+            }
+
+            scaleSimAssets() {
+                const assetsToScale = [
+                    { id: 'eye-ascii', art: ASSETS.eye },
+                    { id: 'ear-ascii', art: ASSETS.ear },
+                    { id: 'brain-ascii', art: ASSETS.brain }
+                ];
+                assetsToScale.forEach(item => {
+                    const el = document.getElementById(item.id);
+                    const container = el.parentElement;
+                    const lines = item.art.split('\n');
+                    const artHeight = lines.length;
+                    const artWidth = lines.reduce((max, line) => Math.max(max, line.length), 0);
+
+                    let finalFontSize;
+                    if (item.id === 'eye-ascii') {
+                        // Use Math.max to ensure the image covers the background entirely (Cropped Cover mode)
+                        // char aspect is 0.6
+                        finalFontSize = Math.max((container.clientWidth / artWidth) / 0.6, (container.clientHeight / artHeight));
+                    } else {
+                        // Standard contain scaling for other panels
+                        finalFontSize = Math.min((container.clientWidth / artWidth) / 0.6, (container.clientHeight / artHeight));
+                    }
+
+                    el.style.fontSize = `${finalFontSize}px`;
+                });
+                setTimeout(() => this.setupCanvas(), 50);
+            }
+
+            setupCanvas() {
+                const ascii = document.getElementById('brain-ascii');
+                const container = document.getElementById('brain-container');
+                const rect = ascii.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                this.canvas.style.width = rect.width + 'px';
+                this.canvas.style.height = rect.height + 'px';
+                this.canvas.style.top = (rect.top - containerRect.top) + 'px';
+                this.canvas.style.left = (rect.left - containerRect.left) + 'px';
+
+                if (this.nodes.length === 0) this.generateNet();
+            }
+
+            generateNet() {
+                const positions = [
+                    { x: 0.22, y: 0.45 }, { x: 0.28, y: 0.38 }, { x: 0.32, y: 0.48 }, { x: 0.25, y: 0.55 }, { x: 0.35, y: 0.35 },
+                    { x: 0.45, y: 0.25 }, { x: 0.55, y: 0.22 }, { x: 0.50, y: 0.30 }, { x: 0.60, y: 0.28 }, { x: 0.40, y: 0.22 },
+                    { x: 0.42, y: 0.52 }, { x: 0.48, y: 0.45 }, { x: 0.55, y: 0.48 }, { x: 0.52, y: 0.58 }, { x: 0.60, y: 0.55 },
+                    { x: 0.72, y: 0.42 }, { x: 0.78, y: 0.48 }, { x: 0.82, y: 0.52 }, { x: 0.75, y: 0.55 }, { x: 0.85, y: 0.40 },
+                    { x: 0.75, y: 0.72 }, { x: 0.82, y: 0.75 }, { x: 0.85, y: 0.82 }, { x: 0.78, y: 0.85 }, { x: 0.70, y: 0.78 },
+                    { x: 0.54, y: 0.82 }, { x: 0.54, y: 0.88 }, { x: 0.54, y: 0.94 }, { x: 0.58, y: 0.85 },
+                    { x: 0.30, y: 0.28 }, { x: 0.38, y: 0.42 }, { x: 0.65, y: 0.35 }, { x: 0.68, y: 0.25 }, { x: 0.45, y: 0.65 },
+                    { x: 0.35, y: 0.62 }, { x: 0.58, y: 0.68 }, { x: 0.28, y: 0.68 }, { x: 0.48, y: 0.75 }, { x: 0.62, y: 0.82 }
+                ];
+                this.nodes = positions.map(p => ({ x: p.x, y: p.y, active: 0, scale: 1 }));
+                const pathIndices = [0, 5, 11, 15, 25, 27];
+                this.finalPathwayIndices = new Set(pathIndices);
+                this.nodes.forEach((n, i) => {
+                    const radius = 0.18;
+                    const potentialLinks = this.nodes
+                        .map((m, idx) => ({ idx, dist: Math.hypot(m.x - n.x, m.y - n.y) }))
+                        .filter(m => m.idx !== i && m.dist < radius)
+                        .sort((a, b) => a.dist - b.dist)
+                        .slice(0, 4);
+                    potentialLinks.forEach(link => {
+                        this.links.push({
+                            from: i, to: link.idx, active: 0,
+                            isCore: this.finalPathwayIndices.has(i) && this.finalPathwayIndices.has(link.idx)
+                        });
+                    });
+                });
+                for (let j = 0; j < pathIndices.length - 1; j++) {
+                    this.links.push({ from: pathIndices[j], to: pathIndices[j+1], active: 0, isCore: true });
+                }
+            }
+
+            injectAdrenaline() {
+                if (this.isDead) return;
+                this.voltage = Math.min(100, this.voltage + 25);
+                this.log("Adrenaline spike. Temporary voltage stabilization.", "process");
+                this.ui.body.style.backgroundColor = '#401010';
+                setTimeout(() => this.ui.body.style.backgroundColor = '', 100);
+            }
+
+            log(msg, type="info") {
+                const div = document.createElement('div');
+                div.className = `log-entry ${type}`;
+                let color = "#888";
+                if (type === "crit") color = "#ff0000";
+                else if (type === "warn") color = "#ffff00";
+                else if (type === "process") color = "#ffffff";
+                else if (type === "memory") color = "#fff";
+
+                div.style.color = color;
+                div.style.marginBottom = "3px";
+                div.innerText = `[${new Date().toLocaleTimeString('en-GB', {hour12: false})}] ${msg}`;
+                this.ui.l.prepend(div);
+                if (this.ui.l.children.length > 50) this.ui.l.lastChild.remove();
+            }
+
+            updateUI() {
+                this.ui.v.innerText = this.voltage.toFixed(1);
+                const st = this.voltage > 80 ? "OPTIMAL" : (this.voltage > 40 ? "DEGRADING" : (this.voltage > 0 ? "CRITICAL" : "SYSTEM HALT"));
+                this.ui.s.innerText = st;
+                this.ui.s.style.color = this.voltage < 25 ? "#ff0000" : (this.voltage < 60 ? "#ffff00" : "#ffffff");
+                const bars = Math.max(0, Math.floor(this.voltage / 5));
+                this.ui.e.innerText = "[" + "|".repeat(bars) + " ".repeat(20 - bars) + "]";
+
+                if (this.voltage < 45) {
+                    this.ui.body.classList.add('low-voltage');
+                    const glitchChance = (100 - this.voltage) / 100;
+                    if (Math.random() < (glitchChance * 0.2)) {
+                        this.ui.body.classList.add('glitch-active');
+                        setTimeout(() => this.ui.body.classList.remove('glitch-active'), 100);
+                    }
+                    const blurVal = (45 - this.voltage) / 10;
+                    document.querySelectorAll('.ascii-art-sim').forEach(a => {
+                        a.style.filter = `blur(${blurVal}px)`;
+                        a.style.opacity = Math.max(0.1, this.voltage / 100);
+                    });
+                } else {
+                    this.ui.body.classList.remove('low-voltage');
+                    document.querySelectorAll('.ascii-art-sim').forEach(a => {
+                        a.style.filter = ''; a.style.opacity = '';
+                    });
+                }
+            }
+
+            gameLoop() {
+                if (this.voltage <= 0) {
+                    this.voltage = 0; this.isDead = true; this.updateUI();
+                    this.triggerFinale();
+                    return;
+                }
+                const decayMult = 1 + (100 - this.voltage) / 40;
+                this.voltage -= this.decayRate * decayMult;
+                this.updateUI();
+
+                const tickDelay = this.baseTick + (100 - this.voltage) * 6;
+                setTimeout(() => this.gameLoop(), tickDelay);
+            }
+
+            // --- SYNAPTIC NOISE CYCLE ---
+            corruptionLoop() {
+                if (this.isDead) return;
+
+                const threshold = 75;
+                let intensity = 0;
+                if (this.voltage < threshold) {
+                    intensity = Math.pow((threshold - this.voltage) / threshold, 2.5);
+                }
+
+                this.ui.eye.textContent = corruptText(ASSETS.eye, intensity);
+                this.ui.ear.textContent = corruptText(ASSETS.ear, intensity);
+                this.ui.brain.textContent = corruptText(ASSETS.brain, intensity);
+
+                const nextFlicker = 100 + (this.voltage * 2);
+                setTimeout(() => this.corruptionLoop(), nextFlicker);
+            }
+
+            inputLoop() {
+                if (this.isDead) return;
+                const nextPulse = Math.random() * 2000 + (this.voltage * 10);
+                setTimeout(() => {
+                    if (this.isDead) return;
+                    const type = Math.random() > 0.5 ? 'eye' : 'ear';
+                    const el = document.getElementById(`${type}-ascii`);
+                    el.style.color = '#fff';
+                    setTimeout(() => el.style.color = '', 100);
+
+                    const isTraumatic = Math.random() > 0.7;
+                    finalThoughtScore += isTraumatic ? -1 : 1;
+
+                    this.log(`Sensation: ${type.toUpperCase()} impulse detected.`, isTraumatic ? "warn" : "info");
+
+                    let targetIdx;
+                    if (this.voltage < 40 && Math.random() > 0.3) {
+                        const arr = Array.from(this.finalPathwayIndices);
+                        targetIdx = arr[Math.floor(Math.random() * arr.length)];
+                    } else {
+                        targetIdx = Math.floor(Math.random() * this.nodes.length);
+                    }
+                    if(this.nodes[targetIdx]) this.nodes[targetIdx].active = 1.0;
+                    this.inputLoop();
+                }, nextPulse);
+            }
+
+            memoryLoop() {
+                if (this.isDead) return;
+                const nextMem = Math.random() * (this.voltage * 200) + 1000;
+                setTimeout(() => {
+                    if (this.isDead) return;
+                    if (this.voltage < 80) {
+                        const mem = MEMORIES[Math.floor(Math.random() * MEMORIES.length)];
+                        this.log(`MEMORY RECALL: "${mem}"`, "memory");
+                        for(let i=0; i<5; i++) {
+                            const idx = Math.floor(Math.random() * this.nodes.length);
+                            if(this.nodes[idx]) this.nodes[idx].active = 1.0;
+                        }
+                    }
+                    this.memoryLoop();
+                }, nextMem);
+            }
+
+            animateCanvas() {
+                const w = this.canvas.width, h = this.canvas.height;
+                this.ctx.clearRect(0,0,w,h);
+                const voltageFactor = this.voltage / 100;
+                this.links.forEach(l => {
+                    const n1 = this.nodes[l.from], n2 = this.nodes[l.to];
+                    if (n1.active > 0.2) {
+                        let transferChance = l.isCore ? 0.95 : (0.15 * voltageFactor);
+                        if (Math.random() < transferChance) {
+                            l.active = 1.0;
+                            n2.active = Math.min(n2.active + 0.5, 1.0);
+                        }
+                    }
+                    if (l.active > 0.01) {
+                        const opacity = l.isCore ? l.active : l.active * voltageFactor;
+                        this.ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+                        this.ctx.lineWidth = l.isCore ? 1.5 : 1;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(n1.x * w, n1.y * h);
+                        this.ctx.lineTo(n2.x * w, n2.y * h);
+                        this.ctx.stroke();
+                        l.active *= 0.85;
+                    }
+                });
+                this.nodes.forEach((n, idx) => {
+                    if (n.active > 0.01) {
+                        const isCoreNode = this.finalPathwayIndices.has(idx);
+                        const opacity = isCoreNode ? n.active : n.active * voltageFactor;
+                        let jitterX = 0, jitterY = 0;
+                        if (isCoreNode && this.voltage < 30) {
+                            jitterX = (Math.random() - 0.5) * 4;
+                            jitterY = (Math.random() - 0.5) * 4;
+                        }
+                        this.ctx.fillStyle = `rgba(255,255,255,${opacity})`;
+                        this.ctx.beginPath();
+                        this.ctx.arc(n.x * w + jitterX, n.y * h + jitterY, (isCoreNode ? 3 : 2) + (n.active * 3), 0, Math.PI * 2);
+                        this.ctx.fill();
+                        n.active *= 0.92;
+                    }
+                });
+                if (!this.isDead) requestAnimationFrame(() => this.animateCanvas());
+            }
+
+            triggerFinale() {
+                this.log("FATAL: Power source exhausted. Biological clock halted.", "crit");
+                this.log("Processing final thought construction...", "process");
+                setTimeout(() => {
+                    const overlay = document.getElementById('final-thought-overlay');
+                    const text = document.getElementById('final-thought-text');
+                    overlay.style.display = 'flex';
+                    const outcome = finalThoughtScore >= 0
+                        ? "Everything was beautiful and nothing hurt. You are home now."
+                        : "The cold reaches you. The weight of regret is the only thing that remains.";
+                    let i = 0;
+                    const typeWriter = () => {
+                        if (i < outcome.length) {
+                            text.innerHTML += outcome.charAt(i);
+                            i++;
+                            setTimeout(typeWriter, 100);
+                        }
+                    };
+                    typeWriter();
+                }, 2000);
+            }
+        }
+
+        const app = new DeathApp();
+        window.addEventListener('resize', setupAnatomyScaling);
+        setupAnatomyScaling();
+        initWebcam();
+    </script>
+  </body>
+</html>

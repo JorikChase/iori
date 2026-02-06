@@ -1,0 +1,424 @@
+<!doctype html>
+<html>
+    <meta charset="utf-8" />
+    <meta
+        name="viewport"
+        content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+    <link
+        rel="icon"
+        type="image/x-icon"
+        href="/images/3die.ico"
+    />
+    <link
+        type="text/css"
+        rel="stylesheet"
+        href="/assets/main.css"
+    />
+    <link
+        type="text/css"
+        rel="stylesheet"
+        href="/assets/burger.css"
+    />
+
+        <style>
+            body {
+                margin: 0;
+            }
+            canvas {
+                display: block;
+            }
+        </style>
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/burger.css"
+        />
+    </head>
+    <body>
+        <nav class="menu--bottom--right" role="navigation">
+            <div class="menuToggle">
+                <input type="checkbox" />
+                <span></span>
+                <span></span>
+                <span></span>
+                <ul class="menuItem">
+                    <li><a href="/">home</a></li>
+                    <li><a href="./shop.html">shop</a></li>
+                    <li><a href="./info.html">info</a></li>
+                </ul>
+            </div>
+        </nav>
+        <script
+            async
+            src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"
+        ></script>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://threejs.org/build/three.module.js",
+                    "three/addons/": "https://threejs.org/examples/jsm/"
+                }
+            }
+        </script>
+        <script type="module">
+              import * as THREE from "three";
+              import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+              // Scene setup
+              const scene = new THREE.Scene();
+              const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+              const renderer = new THREE.WebGLRenderer({ antialias: true });
+              renderer.setSize(window.innerWidth, window.innerHeight);
+              document.body.appendChild(renderer.domElement);
+
+              // Create environment
+              const createEnvironment = () => {
+                  const canvas = document.createElement("canvas");
+                  canvas.width = 2048;
+                  canvas.height = 1024;
+                  const ctx = canvas.getContext("2d");
+
+                  const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                  gradient.addColorStop(0, "#FF0000");
+                  gradient.addColorStop(0.16, "#FF7F00");
+                  gradient.addColorStop(0.32, "#FFFF00");
+                  gradient.addColorStop(0.48, "#00FF00");
+                  gradient.addColorStop(0.64, "#0000FF");
+                  gradient.addColorStop(0.80, "#4B0082");
+                  gradient.addColorStop(1, "#8F00FF");
+
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                  ctx.globalAlpha = 0.1;
+                  ctx.fillStyle = "#000000";
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                  const texture = new THREE.CanvasTexture(canvas);
+                  texture.mapping = THREE.EquirectangularReflectionMapping;
+                  return texture;
+              };
+
+              const environmentTexture = createEnvironment();
+              scene.background = environmentTexture;
+              scene.environment = environmentTexture;
+
+              // Sphere setup
+              const sphereGeometry = new THREE.SphereGeometry(5, 128, 128);
+              const sphereMaterial = new THREE.MeshPhysicalMaterial({
+                  color: 0xFFFFFF,
+                  metalness: 1.0,
+                  roughness: 0.01,
+                  envMapIntensity: 2.0
+              });
+              const littleSphereMaterial = new THREE.MeshPhysicalMaterial({
+                  color: 0xFFFFFF,
+                  metalness: 0.8,
+                  transparent: true,
+                  opacity: 0.23,
+                  roughness: 0.01,
+                  envMapIntensity: 2.0
+              });
+              const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+              scene.add(sphere);
+
+              // Game of Life setup
+              const gridWidth = 256;
+              const gridHeight = 256;
+              const gridSize = gridWidth * gridHeight;
+
+              // Health parameters
+              let currentHealth = new Float32Array(gridSize);
+              const fadeInSpeed = 0.1;
+              const fadeOutSpeed = 0.6;
+              const minHealth = 0.1;
+              const maxHealth = 0.6;
+
+              // Initialize random health
+              for (let i = 0; i < gridSize; i++) {
+                  currentHealth[i] = Math.random() > 0.85 ? maxHealth : 0;
+              }
+
+              // Create positions arrays
+              const positions = new Float32Array(gridSize * 3);
+              const currentPositions = new Float32Array(gridSize * 3);
+              for (let j = 0; j < gridHeight; j++) {
+                  for (let i = 0; i < gridWidth; i++) {
+                      const index = i + j * gridWidth;
+                      const u = i / gridWidth;
+                      const v = j / gridHeight;
+
+                      const phi = u * 2 * Math.PI;
+                      const theta = (1 - v) * Math.PI;
+
+                      const x = 5 * Math.sin(theta) * Math.cos(phi);
+                      const y = 5 * Math.cos(theta);
+                      const z = 5 * Math.sin(theta) * Math.sin(phi);
+
+                      positions[index * 3] = x;
+                      positions[index * 3 + 1] = y;
+                      positions[index * 3 + 2] = z;
+
+                      currentPositions[index * 3] = x;
+                      currentPositions[index * 3 + 1] = y;
+                      currentPositions[index * 3 + 2] = z;
+                  }
+              }
+
+              // Create voxel cubes
+              const cubeSize = 0.15;
+              const geometry = new THREE.SphereGeometry(cubeSize, 5, 5);
+              const cubeMaterial = new THREE.MeshPhongMaterial({
+                  color: 0xFFFFFF,
+                  transparent: true,
+                  opacity: 0.2,
+                  shininess: 100,
+                  emissive: 0xFFFFFF,
+                  emissiveIntensity: 0.2
+              });
+
+              const cubes = new THREE.InstancedMesh(geometry, littleSphereMaterial, gridSize);
+              const dummy = new THREE.Object3D();
+              const scales = new Float32Array(gridSize);
+
+              // Initialize cubes
+              for (let i = 0; i < gridSize; i++) {
+                  dummy.position.set(
+                      currentPositions[i * 3],
+                      currentPositions[i * 3 + 1],
+                      currentPositions[i * 3 + 2]
+                  );
+                  const scale = currentHealth[i] > minHealth ? 1 : 0;
+                  scales[i] = scale;
+                  dummy.scale.set(scale, scale, scale);
+                  dummy.updateMatrix();
+                  cubes.setMatrixAt(i, dummy.matrix);
+              }
+              cubes.instanceMatrix.needsUpdate = true;
+              sphere.add(cubes);
+
+              // Gravitational pull variables
+              let gravitationalPoint = null;
+              let gravitationalStrength = 0;
+              const influenceRadius = 2;
+              const pullSpeed = 0.1;
+              const returnSpeed = 0.0001;
+
+              // Pointer interaction
+              const raycaster = new THREE.Raycaster();
+              const mouse = new THREE.Vector2();
+
+              // Pointer event handlers
+              const handlePointer = (event) => {
+                  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                  raycaster.setFromCamera(mouse, camera);
+                  const intersects = raycaster.intersectObject(sphere);
+
+                  if (intersects.length > 0) {
+                      const point = intersects[0].point.clone();
+                      sphere.worldToLocal(point);
+                      gravitationalPoint = point;
+                  }
+              };
+
+              renderer.domElement.addEventListener('pointerdown', (event) => {
+                  gravitationalStrength = 1.0;
+                  handlePointer(event);
+                  renderer.domElement.addEventListener('pointermove', handlePointer);
+              });
+
+              renderer.domElement.addEventListener('pointerup', () => {
+                  gravitationalStrength = 0;
+                  gravitationalPoint = null;
+                  renderer.domElement.removeEventListener('pointermove', handlePointer);
+              });
+
+              // Position update function
+              function updatePositions() {
+                  if (gravitationalPoint && gravitationalStrength > 0) {
+                      for (let i = 0; i < gridSize; i++) {
+                          const x = currentPositions[i * 3];
+                          const y = currentPositions[i * 3 + 1];
+                          const z = currentPositions[i * 3 + 2];
+                          const cubePos = new THREE.Vector3(x, y, z);
+                          const direction = gravitationalPoint.clone().sub(cubePos);
+                          const distance = direction.length();
+
+                          if (distance < influenceRadius) {
+                              const influence = gravitationalStrength * (1 - distance / influenceRadius);
+                              direction.normalize().multiplyScalar(influence * pullSpeed);
+                              cubePos.add(direction);
+
+                              currentPositions[i * 3] = cubePos.x;
+                              currentPositions[i * 3 + 1] = cubePos.y;
+                              currentPositions[i * 3 + 2] = cubePos.z;
+                          }
+                      }
+                  } else {
+                      // Return to original positions
+                      for (let i = 0; i < gridSize; i++) {
+                          currentPositions[i * 3] = THREE.MathUtils.lerp(
+                              currentPositions[i * 3],
+                              positions[i * 3],
+                              returnSpeed
+                          );
+                          currentPositions[i * 3 + 1] = THREE.MathUtils.lerp(
+                              currentPositions[i * 3 + 1],
+                              positions[i * 3 + 1],
+                              returnSpeed
+                          );
+                          currentPositions[i * 3 + 2] = THREE.MathUtils.lerp(
+                              currentPositions[i * 3 + 2],
+                              positions[i * 3 + 2],
+                              returnSpeed
+                          );
+                      }
+                  }
+              }
+
+              // Game of Life update function
+              function computeNextState() {
+                  const targetStates = new Float32Array(gridSize);
+
+                  for (let j = 0; j < gridHeight; j++) {
+                      for (let i = 0; i < gridWidth; i++) {
+                          const index = i + j * gridWidth;
+                          let liveNeighbors = 0;
+
+                          for (let dj = -1; dj <= 1; dj++) {
+                              for (let di = -1; di <= 1; di++) {
+                                  if (di === 0 && dj === 0) continue;
+
+                                  let ni = (i + di + gridWidth) % gridWidth;
+                                  let nj = (j + dj + gridHeight) % gridHeight;
+
+                                  const neighborIndex = ni + nj * gridWidth;
+                                  liveNeighbors += currentHealth[neighborIndex] > minHealth ? 1 : 0;
+                              }
+                          }
+
+                          const current = currentHealth[index] > minHealth ? 1 : 0;
+                          targetStates[index] = current ?
+                              (liveNeighbors === 2 || liveNeighbors === 3 ? maxHealth : 0) :
+                              (liveNeighbors === 3 ? maxHealth : 0);
+                      }
+                  }
+
+                  for (let i = 0; i < gridSize; i++) {
+                      const target = targetStates[i];
+                      const current = currentHealth[i];
+
+                      if (target > current) {
+                          currentHealth[i] = Math.min(current + fadeInSpeed, target);
+                      } else {
+                          currentHealth[i] = Math.max(current - fadeOutSpeed, target);
+                      }
+                  }
+              }
+
+              // Update cubes visualization
+              function updateCubes() {
+                  for (let i = 0; i < gridSize; i++) {
+                      const health = currentHealth[i];
+                      const scale = THREE.MathUtils.lerp(scales[i], health > minHealth ? 1 : 0, 0.1);
+                      scales[i] = scale;
+
+                      dummy.position.set(
+                          currentPositions[i * 3],
+                          currentPositions[i * 3 + 1],
+                          currentPositions[i * 3 + 2]
+                      );
+                      dummy.scale.set(scale, scale, scale);
+                      dummy.updateMatrix();
+                      cubes.setMatrixAt(i, dummy.matrix);
+                  }
+                  cubes.instanceMatrix.needsUpdate = true;
+              }
+
+              // Device orientation
+              let deviceOrientationActive = false;
+              const orientationQuaternion = new THREE.Quaternion();
+
+              function handleOrientation(event) {
+                  if (!event.alpha || !event.beta || !event.gamma) return;
+
+                  if (!deviceOrientationActive) {
+                      deviceOrientationActive = true;
+                      controls.enabled = false;
+                  }
+
+                  const alpha = THREE.MathUtils.degToRad(event.alpha);
+                  const beta = THREE.MathUtils.degToRad(event.beta);
+                  const gamma = THREE.MathUtils.degToRad(event.gamma);
+
+                  const euler = new THREE.Euler(
+                      beta - Math.PI/2,
+                      alpha,
+                      -gamma,
+                      'YXZ'
+                  );
+                  orientationQuaternion.setFromEuler(euler);
+              }
+
+              function initOrientationControls() {
+                  if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+                      DeviceOrientationEvent.requestPermission()
+                          .then(response => {
+                              if (response === 'granted') {
+                                  window.addEventListener('deviceorientation', handleOrientation);
+                              }
+                          })
+                          .catch(console.error);
+                  } else {
+                      window.addEventListener('deviceorientation', handleOrientation);
+                  }
+              }
+
+              document.body.addEventListener('click', initOrientationControls);
+              document.body.addEventListener('touchend', initOrientationControls);
+
+              // Camera and controls
+              camera.position.y = 15;
+              const controls = new OrbitControls(camera, renderer.domElement);
+              controls.enableDamping = true;
+              controls.dampingFactor = 0.05;
+
+              // Animation loop
+              let lastUpdate = 0;
+              const updateInterval = 50;
+              function animate(timestamp) {
+                  requestAnimationFrame(animate);
+
+                  updatePositions();
+
+                  if (timestamp - lastUpdate > updateInterval) {
+                      computeNextState();
+                      lastUpdate = timestamp;
+                  }
+
+                  updateCubes();
+
+                  // Orientation controls
+                  if (deviceOrientationActive) {
+                      sphere.quaternion.slerp(orientationQuaternion, 0.1);
+                  }
+
+                  controls.update();
+                  renderer.render(scene, camera);
+              }
+
+              // Resize handler
+              window.addEventListener("resize", () => {
+                  camera.aspect = window.innerWidth / window.innerHeight;
+                  camera.updateProjectionMatrix();
+                  renderer.setSize(window.innerWidth, window.innerHeight);
+              });
+
+              animate();
+          </script>
+      </body>
+      </html>

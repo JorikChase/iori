@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-Body Gravity Simulation (Enhanced)</title>
+    <style>
+      body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+  </head>
+  <body>
+    <canvas id="simulation-canvas"></canvas>
+    <!-- Importmap for Three.js -->
+    <script type="importmap">
+      {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+    <!-- Main simulation script -->
+    <script type="module">
+      import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        console.log("--- Module Script Loaded (3-Body Enhanced) ---");
+
+        let scene, camera, renderer, controls, clock;
+        let sphere1, sphere2, sphere3;
+
+        // --- Visual extras ---
+        let centroidOrb; // The pink orb at the centroid
+        let vertexEdges; // The lines connecting the 3 main orbs
+        let medianLine1, medianLine2, medianLine3; // [NEW] The 3 median lines
+
+        // --- Trails (Past) ---
+        let trail1, trail2, trail3;
+        let centroidTrail; // Cyan line for the centroid's actual path
+        let trail1Points = [];
+        let trail2Points = [];
+        let trail3Points = [];
+        let centroidTrailPoints = []; // Points for the centroid's actual path
+
+        // --- Predictions (Future) ---
+        let predictionLine1, predictionLine2, predictionLine3;
+        let centroidPredictionLine; // Yellow line for centroid's future path
+        let centroidPredictionPoints = [];
+
+        const PREDICTION_STEPS = 200;
+        const predictionMaterial = new THREE.LineBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.5 });
+        const centroidPredictionMaterial = new THREE.LineBasicMaterial({ color: 0xFFFF00, transparent: true, opacity: 0.8 }); // Yellow
+
+        // --- Physics Simulation Variables ---
+        const G = 0.8;
+        const mass1 = 10;
+        const mass2 = 10;
+        const mass3 = 10;
+        const epsilon = 0.1; // Softening factor to prevent division by zero
+
+        // Re-usable vectors for physics
+        const forceVec = new THREE.Vector3();
+        const directionVec = new THREE.Vector3();
+        const acceleration1 = new THREE.Vector3();
+        const acceleration2 = new THREE.Vector3();
+        const acceleration3 = new THREE.Vector3();
+
+        // Re-usable vectors for prediction simulation
+        const ghostPos1 = new THREE.Vector3();
+        const ghostPos2 = new THREE.Vector3();
+        const ghostPos3 = new THREE.Vector3();
+        const ghostVel1 = new THREE.Vector3();
+        const ghostVel2 = new THREE.Vector3();
+        const ghostVel3 = new THREE.Vector3();
+        const ghostAccel1 = new THREE.Vector3();
+        const ghostAccel2 = new THREE.Vector3();
+        const ghostAccel3 = new THREE.Vector3();
+
+        // Re-usable vectors for visuals
+        const ghostCentroid = new THREE.Vector3(); // For prediction
+        const currentCentroid = new THREE.Vector3(); // For current frame
+        const midPoint12 = new THREE.Vector3(); // [NEW] Midpoint between sphere 1 and 2
+        const midPoint23 = new THREE.Vector3(); // [NEW] Midpoint between sphere 2 and 3
+        const midPoint31 = new THREE.Vector3(); // [NEW] Midpoint between sphere 3 and 1
+
+
+        // --- Logging ---
+        let frameCount = 0;
+        const logFrequency = 200;
+
+        /**
+         * Calculates the geometric centroid (center point) of the three spheres.
+         * @param {THREE.Vector3} pos1 - Position of sphere 1
+         * @param {THREE.Vector3} pos2 - Position of sphere 2
+         * @param {THREE.Vector3} pos3 - Position of sphere 3
+         * @param {THREE.Vector3} outCentroid - (Output) The centroid vector.
+         */
+        function calculateCentroid(pos1, pos2, pos3, outCentroid) {
+            outCentroid.copy(pos1).add(pos2).add(pos3).divideScalar(3);
+        }
+
+        /**
+         * Initializes the THREE.js scene, camera, renderer, controls, and objects.
+         */
+        function init() {
+            console.log("init(): Starting initialization...");
+
+            // --- Basic Scene Setup ---
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 10); // Initial camera position
+
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('simulation-canvas'),
+                antialias: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            console.log("init(): Renderer initialized.");
+
+            clock = new THREE.Clock();
+
+            // --- Lighting ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            // --- Controls ---
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            console.log("init(): Controls initialized.");
+
+            // --- Initial Conditions for a stable 3-body orbit ---
+            const R = 2.0;
+            const S = 1.52;
+            const sqrt3_2 = Math.sqrt(3) / 2.0;
+
+            // --- Create the 3 Main Orbs ---
+            const geometry1 = new THREE.SphereGeometry(0.2, 32, 32);
+            const material1 = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // Red
+            sphere1 = new THREE.Mesh(geometry1, material1);
+            sphere1.position.set(R, 0, 0);
+            sphere1.userData.mass = mass1;
+            sphere1.userData.velocity = new THREE.Vector3(0, S, 0);
+
+            const geometry2 = new THREE.SphereGeometry(0.2, 32, 32);
+            const material2 = new THREE.MeshStandardMaterial({ color: 0x0000ff }); // Blue
+            sphere2 = new THREE.Mesh(geometry2, material2);
+            sphere2.position.set(-R / 2, R * sqrt3_2, 0);
+            sphere2.userData.mass = mass2;
+            sphere2.userData.velocity = new THREE.Vector3(-S * sqrt3_2, -S / 2, 0);
+
+            const geometry3 = new THREE.SphereGeometry(0.2, 32, 32);
+            const material3 = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Green
+            sphere3 = new THREE.Mesh(geometry3, material3);
+            sphere3.position.set(-R / 2, -R * sqrt3_2, 0);
+            sphere3.userData.mass = mass3;
+            sphere3.userData.velocity = new THREE.Vector3(S * sqrt3_2, -S / 2, 0);
+
+            scene.add(sphere1);
+            scene.add(sphere2);
+            scene.add(sphere3);
+            console.log("init(): 3 Spheres added to scene.");
+
+            // --- Add Centroid Orb ---
+            const centroidGeometry = new THREE.SphereGeometry(0.1, 16, 16); // Smaller
+            const centroidMaterial = new THREE.MeshStandardMaterial({ color: 0xFFC0CB, emissive: 0xFFC0CB, emissiveIntensity: 0.5 }); // Pink
+            centroidOrb = new THREE.Mesh(centroidGeometry, centroidMaterial);
+            // Calculate initial centroid and set orb position
+            calculateCentroid(sphere1.position, sphere2.position, sphere3.position, currentCentroid);
+            centroidOrb.position.copy(currentCentroid);
+            scene.add(centroidOrb);
+            console.log("init(): Centroid orb added.");
+
+            // --- Setup Trails (Past) ---
+            trail1Points.push(sphere1.position.clone());
+            trail2Points.push(sphere2.position.clone());
+            trail3Points.push(sphere3.position.clone());
+            centroidTrailPoints.push(currentCentroid.clone()); // Add initial centroid
+
+            const trail1Material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const trail2Material = new THREE.LineBasicMaterial({ color: 0x0000ff });
+            const trail3Material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+            const centroidTrailMaterial = new THREE.LineBasicMaterial({ color: 0x00FFFF }); // Cyan
+
+            trail1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(trail1Points), trail1Material);
+            trail2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(trail2Points), trail2Material);
+            trail3 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(trail3Points), trail3Material);
+            centroidTrail = new THREE.Line(new THREE.BufferGeometry().setFromPoints(centroidTrailPoints), centroidTrailMaterial);
+
+            scene.add(trail1);
+            scene.add(trail2);
+            scene.add(trail3);
+            scene.add(centroidTrail); // Add centroid trail to scene
+            console.log("init(): Trails added to scene.");
+
+            // --- Add Vertex Edges ---
+            const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+            const edgeGeometry = new THREE.BufferGeometry();
+            // We need 4 points to close the triangle: 1->2, 2->3, 3->1
+            const edgePoints = [
+                sphere1.position.clone(),
+                sphere2.position.clone(),
+                sphere3.position.clone(),
+                sphere1.position.clone() // Close the loop
+            ];
+            edgeGeometry.setFromPoints(edgePoints);
+            vertexEdges = new THREE.Line(edgeGeometry, edgeMaterial);
+            scene.add(vertexEdges);
+            console.log("init(): Vertex edges added.");
+
+            // --- [NEW] Add Median Lines ---
+            const medianMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }); // Faint white
+
+            // Calculate initial midpoints
+            midPoint12.copy(sphere1.position).add(sphere2.position).divideScalar(2);
+            midPoint23.copy(sphere2.position).add(sphere3.position).divideScalar(2);
+            midPoint31.copy(sphere3.position).add(sphere1.position).divideScalar(2);
+
+            // Create geometries. Each median connects a vertex to the opposite midpoint.
+            // Median 1: Vertex 3 to Midpoint(1,2)
+            const medianGeo1 = new THREE.BufferGeometry().setFromPoints([sphere3.position.clone(), midPoint12.clone()]);
+            // Median 2: Vertex 1 to Midpoint(2,3)
+            const medianGeo2 = new THREE.BufferGeometry().setFromPoints([sphere1.position.clone(), midPoint23.clone()]);
+            // Median 3: Vertex 2 to Midpoint(3,1)
+            const medianGeo3 = new THREE.BufferGeometry().setFromPoints([sphere2.position.clone(), midPoint31.clone()]);
+
+            medianLine1 = new THREE.Line(medianGeo1, medianMaterial);
+            medianLine2 = new THREE.Line(medianGeo2, medianMaterial);
+            medianLine3 = new THREE.Line(medianGeo3, medianMaterial);
+
+            scene.add(medianLine1);
+            scene.add(medianLine2);
+            scene.add(medianLine3);
+            console.log("init(): Median lines added.");
+            // --- [END NEW] ---
+
+            // --- Setup Prediction Lines (Future) ---
+            predictionLine1 = new THREE.Line(new THREE.BufferGeometry(), predictionMaterial);
+            predictionLine2 = new THREE.Line(new THREE.BufferGeometry(), predictionMaterial);
+            predictionLine3 = new THREE.Line(new THREE.BufferGeometry(), predictionMaterial);
+            centroidPredictionLine = new THREE.Line(new THREE.BufferGeometry(), centroidPredictionMaterial);
+
+            scene.add(predictionLine1);
+            scene.add(predictionLine2);
+            scene.add(predictionLine3);
+            scene.add(centroidPredictionLine); // Add centroid prediction line
+            console.log("init(): Prediction lines added.");
+
+            // --- Helpers and Listeners ---
+            const axesHelper = new THREE.AxesHelper(2);
+            scene.add(axesHelper);
+            console.log("init(): AxesHelper added.");
+
+            window.addEventListener('resize', onWindowResize, false);
+            console.log("init(): Initialization complete.");
+        }
+
+        /**
+         * Computes the gravitational accelerations for the three bodies.
+         * @param {THREE.Vector3} pos1 - Position of sphere 1
+         * @param {THREE.Vector3} pos2 - Position of sphere 2
+         * @param {THREE.Vector3} pos3 - Position of sphere 3
+         * @param {THREE.Vector3} outAccel1 - (Output) Acceleration vector for sphere 1
+         * @param {THREE.Vector3} outAccel2 - (Output) Acceleration vector for sphere 2
+         * @param {THREE.Vector3} outAccel3 - (Output) Acceleration vector for sphere 3
+         */
+        function computeAccelerations(pos1, pos2, pos3, outAccel1, outAccel2, outAccel3) {
+            outAccel1.set(0, 0, 0);
+            outAccel2.set(0, 0, 0);
+            outAccel3.set(0, 0, 0);
+
+            let distanceSq, forceMagnitude;
+
+            // --- 1 vs 2 ---
+            directionVec.subVectors(pos2, pos1);
+            distanceSq = directionVec.lengthSq() + epsilon;
+            forceMagnitude = (G * mass1 * mass2) / distanceSq;
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+            outAccel1.addScaledVector(forceVec, 1 / mass1);
+            outAccel2.addScaledVector(forceVec, -1 / mass2);
+
+            // --- 1 vs 3 ---
+            directionVec.subVectors(pos3, pos1);
+            distanceSq = directionVec.lengthSq() + epsilon;
+            forceMagnitude = (G * mass1 * mass3) / distanceSq;
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+            outAccel1.addScaledVector(forceVec, 1 / mass1);
+            outAccel3.addScaledVector(forceVec, -1 / mass3);
+
+            // --- 2 vs 3 ---
+            directionVec.subVectors(pos3, pos2);
+            distanceSq = directionVec.lengthSq() + epsilon;
+            forceMagnitude = (G * mass2 * mass3) / distanceSq;
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+            outAccel2.addScaledVector(forceVec, 1 / mass2);
+            outAccel3.addScaledVector(forceVec, -1 / mass3);
+        }
+
+        /**
+         * Updates the physics simulation by one time step (dt).
+         * @param {number} dt - Delta time
+         */
+        function updatePhysics(dt) {
+            // 1. Compute current accelerations
+            computeAccelerations(
+                sphere1.position, sphere2.position, sphere3.position,
+                acceleration1, acceleration2, acceleration3
+            );
+
+            // 2. Update velocities (Leapfrog integration style)
+            sphere1.userData.velocity.addScaledVector(acceleration1, dt);
+            sphere2.userData.velocity.addScaledVector(acceleration2, dt);
+            sphere3.userData.velocity.addScaledVector(acceleration3, dt);
+
+            // 3. Update positions
+            sphere1.position.addScaledVector(sphere1.userData.velocity, dt);
+            sphere2.position.addScaledVector(sphere2.userData.velocity, dt);
+            sphere3.position.addScaledVector(sphere3.userData.velocity, dt);
+
+            if (frameCount % logFrequency === 1) {
+                console.log(`--- Frame: ${frameCount} | dt: ${dt.toFixed(4)} ---`);
+                console.log(`  Pos1: {x: ${sphere1.position.x.toFixed(3)}, y: ${sphere1.position.y.toFixed(3)}, z: ${sphere1.position.z.toFixed(3)}}`);
+            }
+        }
+
+        /**
+         * Updates the trail lines (past paths) for all bodies and the centroid.
+         */
+        function updateTrails() {
+            trail1Points.push(sphere1.position.clone());
+            trail2Points.push(sphere2.position.clone());
+            trail3Points.push(sphere3.position.clone());
+
+            // Note: currentCentroid is calculated in animate()
+            centroidTrailPoints.push(currentCentroid.clone());
+
+            trail1.geometry.setFromPoints(trail1Points);
+            trail2.geometry.setFromPoints(trail2Points);
+            trail3.geometry.setFromPoints(trail3Points);
+            centroidTrail.geometry.setFromPoints(centroidTrailPoints);
+        }
+
+        /**
+         * Updates non-physics visual elements like the centroid orb and vertex edges.
+         */
+        function updateVisualExtras() {
+            // 1. Update the pink centroid orb position
+            // Note: currentCentroid is calculated in animate() before this is called
+            centroidOrb.position.copy(currentCentroid);
+
+            // 2. Update the vertex edge positions
+            const positions = vertexEdges.geometry.attributes.position;
+            positions.setXYZ(0, sphere1.position.x, sphere1.position.y, sphere1.position.z);
+            positions.setXYZ(1, sphere2.position.x, sphere2.position.y, sphere2.position.z);
+            positions.setXYZ(2, sphere3.position.x, sphere3.position.y, sphere3.position.z);
+            positions.setXYZ(3, sphere1.position.x, sphere1.position.y, sphere1.position.z); // Close loop
+
+            // Mark the attribute as needing an update
+            positions.needsUpdate = true;
+
+            // --- [NEW] 3. Update the median line positions ---
+
+            // a. Recalculate midpoints
+            midPoint12.copy(sphere1.position).add(sphere2.position).divideScalar(2);
+            midPoint23.copy(sphere2.position).add(sphere3.position).divideScalar(2);
+            midPoint31.copy(sphere3.position).add(sphere1.position).divideScalar(2);
+
+            // b. Update Median 1 (Vertex 3 to Midpoint 1-2)
+            const med1Pos = medianLine1.geometry.attributes.position;
+            med1Pos.setXYZ(0, sphere3.position.x, sphere3.position.y, sphere3.position.z);
+            med1Pos.setXYZ(1, midPoint12.x, midPoint12.y, midPoint12.z);
+            med1Pos.needsUpdate = true;
+
+            // c. Update Median 2 (Vertex 1 to Midpoint 2-3)
+            const med2Pos = medianLine2.geometry.attributes.position;
+            med2Pos.setXYZ(0, sphere1.position.x, sphere1.position.y, sphere1.position.z);
+            med2Pos.setXYZ(1, midPoint23.x, midPoint23.y, midPoint23.z);
+            med2Pos.needsUpdate = true;
+
+            // d. Update Median 3 (Vertex 2 to Midpoint 3-1)
+            const med3Pos = medianLine3.geometry.attributes.position;
+            med3Pos.setXYZ(0, sphere2.position.x, sphere2.position.y, sphere2.position.z);
+            med3Pos.setXYZ(1, midPoint31.x, midPoint31.y, midPoint31.z);
+            med3Pos.needsUpdate = true;
+            // --- [END NEW] ---
+        }
+
+        /**
+         * Updates the predictive trace lines (future paths) for all bodies and the centroid.
+         * @param {number} dt - Delta time (time elapsed since last frame)
+         */
+        function updatePrediction(dt) {
+            if (dt <= 0) return;
+
+            let predictionPoints1 = [];
+            let predictionPoints2 = [];
+            let predictionPoints3 = [];
+            centroidPredictionPoints = []; // Reset centroid prediction points
+
+            // 1. Set initial state for the shadow simulation
+            ghostPos1.copy(sphere1.position);
+            ghostVel1.copy(sphere1.userData.velocity);
+            ghostPos2.copy(sphere2.position);
+            ghostVel2.copy(sphere2.userData.velocity);
+            ghostPos3.copy(sphere3.position);
+            ghostVel3.copy(sphere3.userData.velocity);
+
+            // Add the current position as the start of the prediction
+            predictionPoints1.push(ghostPos1.clone());
+            predictionPoints2.push(ghostPos2.clone());
+            predictionPoints3.push(ghostPos3.clone());
+
+            calculateCentroid(ghostPos1, ghostPos2, ghostPos3, ghostCentroid);
+            centroidPredictionPoints.push(ghostCentroid.clone());
+
+            // 2. Run the shadow simulation loop
+            for (let i = 0; i < PREDICTION_STEPS; i++) {
+                // a. Compute accelerations based on ghost positions
+                computeAccelerations(
+                    ghostPos1, ghostPos2, ghostPos3,
+                    ghostAccel1, ghostAccel2, ghostAccel3
+                );
+
+                // b. Integrate ghost velocity
+                ghostVel1.addScaledVector(ghostAccel1, dt);
+                ghostVel2.addScaledVector(ghostAccel2, dt);
+                ghostVel3.addScaledVector(ghostAccel3, dt);
+
+                // c. Integrate ghost position
+                ghostPos1.addScaledVector(ghostVel1, dt);
+                ghostPos2.addScaledVector(ghostVel2, dt);
+                ghostPos3.addScaledVector(ghostVel3, dt);
+
+                // d. Add new ghost positions to prediction arrays
+                predictionPoints1.push(ghostPos1.clone());
+                predictionPoints2.push(ghostPos2.clone());
+                predictionPoints3.push(ghostPos3.clone());
+
+                // e. Add ghost centroid to centroid prediction array
+                calculateCentroid(ghostPos1, ghostPos2, ghostPos3, ghostCentroid);
+                centroidPredictionPoints.push(ghostCentroid.clone());
+            }
+
+            // 3. Update the prediction line geometries
+            predictionLine1.geometry.setFromPoints(predictionPoints1);
+            predictionLine2.geometry.setFromPoints(predictionPoints2);
+            predictionLine3.geometry.setFromPoints(predictionPoints3);
+            centroidPredictionLine.geometry.setFromPoints(centroidPredictionPoints);
+        }
+
+        /**
+         * The main animation loop.
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = clock.getDelta();
+            frameCount++;
+
+            // Clamp delta time to prevent physics explosions on lag spikes
+            const clampedDt = Math.min(dt, 0.05);
+
+            // --- Physics Update ---
+            if (dt > 0) {
+                 updatePhysics(clampedDt);
+            }
+
+            // --- Centroid Calculation (used by visuals, controls, and trails) ---
+            calculateCentroid(sphere1.position, sphere2.position, sphere3.position, currentCentroid);
+
+            // --- Visual Updates ---
+            updateVisualExtras(); // Update pink orb, edges, and medians
+            updateTrails();       // Update past trails
+            if (dt > 0) {
+                updatePrediction(clampedDt); // Update future predictions
+            }
+
+            // --- Camera and Controls Update ---
+            // Make the OrbitControls target the moving centroid
+            controls.target.copy(currentCentroid);
+            controls.update(); // Update controls AFTER target is set
+
+            // --- Render ---
+            renderer.render(scene, camera);
+
+            if (frameCount === 1) {
+                console.log("animate(): First frame rendered successfully.");
+            }
+        }
+
+        /**
+         * Handles window resize events to keep the viewport correct.
+         */
+        function onWindowResize() {
+            console.log("onWindowResize(): Adjusting camera and renderer.");
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Start the simulation ---
+        init();
+        animate();
+        console.log("--- 3-Body Simulation (Enhanced) Started ---");
+    </script>
+  </body>
+</html>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>lili</title>
+    <style>
+      body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: monospace;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: auto; /* high quality */
+            transition: opacity 0.5s ease-in;
+        }
+
+        /* Fallback Image Style */
+        #fallback-img {
+            display: none;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            pointer-events: none; /* Let touches pass through if needed */
+        }
+
+        /* --- Cute Flower Loader CSS --- */
+        .flower-loader {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            width: 40px;
+            height: 40px;
+            z-index: 1000;
+            animation: rotateFlower 2.5s linear infinite;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .flower-loader.hidden {
+            opacity: 0;
+        }
+
+        .petal {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #fff;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            margin-top: -5px;
+            margin-left: -5px;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+        }
+
+        .petal:nth-child(1) { transform: rotate(0deg) translate(14px); }
+        .petal:nth-child(2) { transform: rotate(60deg) translate(14px); }
+        .petal:nth-child(3) { transform: rotate(120deg) translate(14px); }
+        .petal:nth-child(4) { transform: rotate(180deg) translate(14px); }
+        .petal:nth-child(5) { transform: rotate(240deg) translate(14px); }
+        .petal:nth-child(6) { transform: rotate(300deg) translate(14px); }
+
+        .center-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background-color: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            margin-top: -3px;
+            margin-left: -3px;
+        }
+
+        @keyframes rotateFlower {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+  </head>
+  <body>
+
+    <!-- Loader Element -->
+    <div id="loader" class="flower-loader">
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="petal"></div>
+        <div class="center-dot"></div>
+    </div>
+
+    <canvas id="stage"></canvas>
+    <!-- Native Fallback Image -->
+    <img id="fallback-img" alt="Animation" />
+
+    <script type="module">
+      import UPNG from 'https://esm.sh/upng-js@2.1.0';
+
+        const ASSET_URL = 'https://iori.me/assets/lili.png';
+
+        // --- State ---
+        let frames = [];
+        let totalFramesCount = 0;
+        let currentFrameIndex = 0;
+        let targetFrameIndex = 0;
+
+        let isDragging = false;
+        let startX = 0;
+        let startFrameIndex = 0;
+
+        let canvas, ctx, fallbackImg;
+        let canvasSize = 0;
+
+        let isLoading = true;
+        let isProcessing = false;
+        let isFallbackMode = false;
+
+        async function init() {
+            canvas = document.getElementById('stage');
+            fallbackImg = document.getElementById('fallback-img');
+            ctx = canvas.getContext('2d', { alpha: false }); // Optimization: No alpha channel on canvas if possible
+
+            handleResize();
+            renderLoop();
+
+            try {
+                const UpngLib = UPNG.default || UPNG;
+                if (!UpngLib) throw new Error("UPNG lib missing");
+
+                // --- Fetch ---
+                let buffer;
+                try {
+                    const response = await fetch(ASSET_URL, { mode: 'cors' });
+                    if (!response.ok) throw new Error(`Status ${response.status}`);
+                    buffer = await response.arrayBuffer();
+                } catch (directError) {
+                    console.warn("Proxy fallback...");
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ASSET_URL)}`;
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`Proxy Status ${res.status}`);
+                    buffer = await res.arrayBuffer();
+                }
+
+                // --- Validation & Decode Structure ---
+                const img = UpngLib.decode(buffer);
+
+                // --- CRITICAL MEMORY CHECK ---
+                // Calculate Uncompressed Size: Width * Height * 4 bytes * Frames
+                const rawWidth = img.width;
+                const rawHeight = img.height;
+                // UPNG.decode puts frames info in img.frames, but doesn't decode pixels yet
+                const frameCount = img.frames.length;
+
+                const totalBytes = rawWidth * rawHeight * 4 * frameCount;
+                const totalMB = totalBytes / (1024 * 1024);
+
+                console.log(`Asset Analysis: ${rawWidth}x${rawHeight}, ${frameCount} frames.`);
+                console.log(`Projected Uncompressed RAM: ${totalMB.toFixed(1)} MB`);
+
+                // Detect Mobile vs Desktop
+                // Mobile devices have strict per-tab memory limits (often <300MB safe zone).
+                // Desktops can handle gigabytes easily.
+                const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+                // Safe limit: 250MB for Mobile, 8GB for Desktop (effectively unlimited)
+                const MEMORY_LIMIT_MB = isMobile ? 250 : 8192;
+
+                if (totalMB > MEMORY_LIMIT_MB) {
+                    console.warn(`Asset too large (${totalMB.toFixed(1)}MB) for interactive decoding on this device. Limit: ${MEMORY_LIMIT_MB}MB. Switching to Native Fallback.`);
+                    enableFallbackMode(buffer);
+                    return;
+                }
+
+                // --- Safe to Decode ---
+                const rgbaFrames = UpngLib.toRGBA8(img);
+                buffer = null; // Release raw APNG buffer
+
+                totalFramesCount = frameCount;
+
+                // --- Progressive Frame Generation ---
+                isProcessing = true;
+                frames = [];
+
+                // Even if safe, we still step carefully
+                await processFramesProgressively(rgbaFrames, rawWidth, rawHeight);
+
+            } catch (err) {
+                console.error("Init Error:", err);
+                // Last ditch fallback if anything fails (e.g. decoding error)
+                if (!isFallbackMode) {
+                     // We can't use the buffer here if it failed, but we can set the src
+                     fallbackImg.src = ASSET_URL;
+                     canvas.style.display = 'none';
+                     fallbackImg.style.display = 'block';
+                     hideLoader();
+                }
+            }
+        }
+
+        function enableFallbackMode(buffer) {
+            isFallbackMode = true;
+            isLoading = false;
+
+            // Create a Blob from the buffer to display natively
+            const blob = new Blob([buffer], { type: 'image/png' });
+            const url = URL.createObjectURL(blob);
+
+            fallbackImg.src = url;
+
+            // Swap UI
+            canvas.style.display = 'none';
+            fallbackImg.style.display = 'block';
+
+            // Text removed as requested
+
+            hideLoader();
+        }
+
+        async function processFramesProgressively(rgbaFrames, width, height) {
+            // Check if we need to downscale for performance
+            // Limit texture size to 1024 on mobile
+            const maxDim = Math.max(width, height);
+            let resizeOpts = undefined;
+            if (maxDim > 1024) {
+                 const scale = 1024 / maxDim;
+                 resizeOpts = {
+                     resizeWidth: Math.round(width * scale),
+                     resizeHeight: Math.round(height * scale)
+                 };
+            }
+
+            for (let i = 0; i < rgbaFrames.length; i++) {
+                try {
+                    const frameData = new Uint8ClampedArray(rgbaFrames[i]);
+                    const imageData = new ImageData(frameData, width, height);
+
+                    const bitmap = await createImageBitmap(imageData, resizeOpts);
+                    frames.push(bitmap);
+
+                    // Aggressive Cleanup
+                    rgbaFrames[i] = null;
+                    // REMOVED: frameData.buffer = null; (Caused TypeError on strict browsers)
+
+                } catch (e) {
+                    console.warn("Frame decode error", e);
+                    break;
+                }
+
+                if (isLoading && frames.length > 0) {
+                    isLoading = false;
+                    hideLoader();
+                    setupInteractions();
+                    handleResize();
+                }
+
+                // Allow GC breathing room
+                if (i % 2 === 0) await new Promise(r => setTimeout(r, 0));
+            }
+
+            isProcessing = false;
+            console.log(`Loaded ${frames.length} frames.`);
+        }
+
+        function hideLoader() {
+            const loader = document.getElementById('loader');
+            if (loader) loader.classList.add('hidden');
+        }
+
+        // --- Rendering ---
+        function renderLoop() {
+            if (isFallbackMode) return; // Stop loop in fallback mode
+            requestAnimationFrame(renderLoop);
+
+            if (frames.length === 0) return;
+            currentFrameIndex = targetFrameIndex;
+            drawFrame(currentFrameIndex);
+        }
+
+        function drawFrame(index) {
+            if (!frames.length) return;
+            const maxFrames = Math.max(1, frames.length);
+            const safeIndex = ((index % maxFrames) + maxFrames) % maxFrames;
+
+            let renderIndex = Math.round(safeIndex);
+            if (renderIndex >= frames.length) renderIndex = frames.length - 1;
+
+            const frameBitmap = frames[renderIndex];
+            if (!frameBitmap) return;
+
+            // Clear
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw
+            try {
+                ctx.drawImage(frameBitmap, 0, 0, canvas.width, canvas.height);
+            } catch (e) {}
+        }
+
+        function handleResize() {
+            if (isFallbackMode) return;
+
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const isPortrait = height > width;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            if (isPortrait) canvasSize = width;
+            else canvasSize = height;
+
+            canvas.width = canvasSize * dpr;
+            canvas.height = canvasSize * dpr;
+            canvas.style.width = `${canvasSize}px`;
+            canvas.style.height = `${canvasSize}px`;
+
+            // Reset transform after resize
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+
+        function setupInteractions() {
+            if (isFallbackMode) return;
+
+            window.removeEventListener('resize', handleResize);
+            window.addEventListener('resize', handleResize);
+
+            document.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+            document.addEventListener('pointercancel', onPointerUp);
+
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', onDeviceOrientation);
+            }
+        }
+
+        function onPointerDown(e) {
+            if (isLoading || isFallbackMode) return;
+            isDragging = true;
+            startX = e.clientX;
+            startFrameIndex = targetFrameIndex;
+            canvas.style.cursor = 'grabbing';
+            requestGyroPermission();
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging || isLoading || isFallbackMode) return;
+            e.preventDefault();
+            const deltaX = e.clientX - startX;
+            const framesToUse = frames.length > 0 ? frames.length : 100;
+            const normalizedDelta = deltaX * (framesToUse / window.innerWidth) * 2;
+            targetFrameIndex = startFrameIndex + normalizedDelta;
+        }
+
+        function onPointerUp() {
+            isDragging = false;
+            canvas.style.cursor = 'default';
+        }
+
+        // Gyro
+        let initialGamma = null;
+        function onDeviceOrientation(e) {
+            if (isLoading || isFallbackMode) return;
+            const gamma = e.gamma;
+            if (gamma === null) return;
+            if (initialGamma === null) initialGamma = gamma;
+
+            if (frames.length > 0 && !isDragging) {
+                 const tilt = Math.max(-45, Math.min(45, gamma));
+                 const percent = (tilt + 45) / 90;
+                 targetFrameIndex = percent * frames.length;
+            }
+        }
+
+        function requestGyroPermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().catch(e => {});
+            }
+        }
+
+        init();
+    </script>
+  </body>
+</html>

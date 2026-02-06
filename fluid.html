@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Toroidal Fluid Simulation</title>
+    <style>
+      body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* Prevent scroll on mobile */
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: monospace;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script>
+      (function() {
+            const canvas = document.getElementById('c');
+            const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+            if (!gl) {
+                 console.error('WebGL2 not supported');
+                 return;
+            }
+
+            // --- Configuration ---
+            const CONFIG = {
+                SIM_RES: 256,       // Physics resolution (lower = faster, larger blobs)
+                DYE_RES: 1024,      // Visual resolution (higher = crisper image)
+                DENSITY_DISSIPATION: 0.985, // How fast color fades
+                VELOCITY_DISSIPATION: 0.99, // How fast movement stops
+                PRESSURE_ITERATIONS: 20,    // Solver accuracy
+                CURL: 35,                   // How much "swirl" to add (Vorticity)
+                SPLAT_RADIUS: 0.0025,
+                SPLAT_FORCE: 20,            // Interaction force
+                DYE_INJECTION_INTENSITY: 0.2 // Reduced to prevent white-washing
+            };
+
+            // Extensions
+            gl.getExtension('EXT_color_buffer_float');
+            gl.getExtension('OES_texture_float_linear');
+
+            // --- Shader Sources ---
+
+            // Common Vertex Shader
+            const baseVs = `#version 300 es
+            in vec2 aPosition;
+            out vec2 vUv;
+            void main() {
+                vUv = aPosition * 0.5 + 0.5;
+                gl_Position = vec4(aPosition, 0.0, 1.0);
+            }`;
+
+            // Common Fragment Shader Header
+            // Added 'in vec2 vUv;' here so it is available to all shaders
+            const commonFs = `#version 300 es
+            precision highp float;
+            precision highp sampler2D;
+            in vec2 vUv;
+            out vec4 outColor;
+            uniform vec2 uTexelSize;
+            uniform float uDt;
+            `;
+
+            // 1. Curl Shader: Calculates how much the fluid is spinning
+            const curlFs = `${commonFs}
+            uniform sampler2D uVelocity;
+            void main() {
+                float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).y;
+                float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).y;
+                float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).x;
+                float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).x;
+                float vorticity = R - L - T + B;
+                outColor = vec4(0.5 * vorticity, 0.0, 0.0, 1.0);
+            }`;
+
+            // 2. Vorticity Shader: Injects force to maintain the spin
+            const vorticityFs = `${commonFs}
+            uniform sampler2D uVelocity;
+            uniform sampler2D uCurl;
+            uniform float uCurlScale;
+            void main() {
+                float L = texture(uCurl, vUv - vec2(uTexelSize.x, 0.0)).x;
+                float R = texture(uCurl, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uCurl, vUv + vec2(0.0, uTexelSize.y)).x;
+                float B = texture(uCurl, vUv - vec2(0.0, uTexelSize.y)).x;
+                float C = texture(uCurl, vUv).x;
+
+                vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+                force /= length(force) + 0.0001;
+                force *= uCurlScale * C;
+                force.y *= -1.0;
+
+                vec2 velocity = texture(uVelocity, vUv).xy;
+                outColor = vec4(velocity + force * uDt, 0.0, 1.0);
+            }`;
+
+            // 3. Advection: Moves stuff (Toroidal wrapping happens here via texture sampling)
+            // Removed redundant 'in vec2 vUv;'
+            const advectFs = `${commonFs}
+            uniform sampler2D uVelocity;
+            uniform sampler2D uSource;
+            uniform float uDissipation;
+            void main() {
+                vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexelSize;
+                outColor = texture(uSource, coord) * uDissipation;
+            }`;
+
+            // 4. Divergence: Calculates pressure input
+            // Removed redundant 'in vec2 vUv;'
+            const divergenceFs = `${commonFs}
+            uniform sampler2D uVelocity;
+            void main() {
+                float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).x;
+                float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).y;
+                float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).y;
+
+                float div = 0.5 * (R - L + T - B);
+                outColor = vec4(div, 0.0, 0.0, 1.0);
+            }`;
+
+            // 5. Pressure: Jacobi Iteration
+            // Removed redundant 'in vec2 vUv;'
+            const pressureFs = `${commonFs}
+            uniform sampler2D uPressure;
+            uniform sampler2D uDivergence;
+            void main() {
+                float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+                float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+                float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+                float C = texture(uPressure, vUv).x;
+                float div = texture(uDivergence, vUv).x;
+
+                outColor = vec4((L + R + T + B - div) * 0.25, 0.0, 0.0, 1.0);
+            }`;
+
+            // 6. Gradient Subtract: Applies pressure to velocity
+            // Removed redundant 'in vec2 vUv;'
+            const gradientFs = `${commonFs}
+            uniform sampler2D uPressure;
+            uniform sampler2D uVelocity;
+            void main() {
+                float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+                float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+                float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+
+                vec2 velocity = texture(uVelocity, vUv).xy;
+                velocity.xy -= vec2(R - L, T - B) * 0.5;
+                outColor = vec4(velocity, 0.0, 1.0);
+            }`;
+
+            // 7. Splat: Adds input
+            // Removed redundant 'in vec2 vUv;'
+            const splatFs = `${commonFs}
+            uniform sampler2D uTarget;
+            uniform float uAspectRatio;
+            uniform vec2 uPoint;
+            uniform vec3 uColor;
+            uniform float uRadius;
+            void main() {
+                vec2 p = vUv - uPoint.xy;
+                p.x *= uAspectRatio;
+                vec3 splat = exp(-dot(p, p) / uRadius) * uColor;
+                vec3 base = texture(uTarget, vUv).xyz;
+                outColor = vec4(base + splat, 1.0);
+            }`;
+
+            // 8. Display: Renders the beautiful colors
+            // Removed redundant 'in vec2 vUv;'
+            const displayFs = `${commonFs}
+            uniform sampler2D uTexture;
+
+            vec3 firePalette(float x) {
+                // Black -> Deep Purple -> Cyan -> White
+                vec3 c1 = vec3(0.0, 0.0, 0.0); // Pure black background
+                vec3 c2 = vec3(0.1, 0.0, 0.4);
+                vec3 c3 = vec3(0.0, 0.5, 0.9);
+                vec3 c4 = vec3(0.8, 0.9, 1.0);
+
+                if (x < 0.25) return mix(c1, c2, x * 4.0);
+                if (x < 0.5) return mix(c2, c3, (x - 0.25) * 4.0);
+                return mix(c3, c4, clamp((x - 0.5) * 2.0, 0.0, 1.0));
+            }
+
+            void main() {
+                vec4 c = texture(uTexture, vUv);
+                float density = length(c.rgb);
+
+                // Add fake refraction/shading based on density gradient
+                float L = length(texture(uTexture, vUv - vec2(uTexelSize.x, 0.0)).rgb);
+                float R = length(texture(uTexture, vUv + vec2(uTexelSize.x, 0.0)).rgb);
+                float T = length(texture(uTexture, vUv + vec2(0.0, uTexelSize.y)).rgb);
+                float B = length(texture(uTexture, vUv - vec2(0.0, uTexelSize.y)).rgb);
+
+                vec3 normal = normalize(vec3(L-R, B-T, 0.2));
+                vec3 light = normalize(vec3(0.5, 0.7, 1.0));
+                float lighting = max(0.0, dot(normal, light));
+                float specular = pow(lighting, 4.0);
+
+                // Apply palette + lighting (Removed + 0.1 bias)
+                vec3 finalColor = firePalette(density * 0.8);
+
+                // Mix in the raw color to keep hue variance
+                finalColor = mix(finalColor, c.rgb * 1.5, 0.4);
+
+                // Add light bloom
+                finalColor += specular * 0.3;
+
+                outColor = vec4(finalColor, 1.0);
+            }`;
+
+            // --- WebGL Boilerplate ---
+
+            function createProgram(fs) {
+                const program = gl.createProgram();
+                const vsShader = gl.createShader(gl.VERTEX_SHADER);
+                const fsShader = gl.createShader(gl.FRAGMENT_SHADER);
+
+                gl.shaderSource(vsShader, baseVs);
+                gl.shaderSource(fsShader, fs);
+                gl.compileShader(vsShader);
+                gl.compileShader(fsShader);
+
+                if (!gl.getShaderParameter(fsShader, gl.COMPILE_STATUS)) {
+                    console.error("Fragment Shader Error:", gl.getShaderInfoLog(fsShader));
+                }
+
+                if (!gl.getShaderParameter(vsShader, gl.COMPILE_STATUS)) {
+                    console.error("Vertex Shader Error:", gl.getShaderInfoLog(vsShader));
+                }
+
+                gl.attachShader(program, vsShader);
+                gl.attachShader(program, fsShader);
+                gl.linkProgram(program);
+
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                    console.error("Program Link Error:", gl.getProgramInfoLog(program));
+                }
+
+
+                return {
+                    id: program,
+                    uni: Object.fromEntries(
+                        ['uTexelSize', 'uDt', 'uVelocity', 'uSource', 'uPressure',
+                         'uDivergence', 'uCurl', 'uCurlScale', 'uDissipation',
+                         'uTarget', 'uAspectRatio', 'uPoint', 'uColor', 'uRadius', 'uTexture']
+                        .map(name => [name, gl.getUniformLocation(program, name)])
+                    )
+                };
+            }
+
+            function createFBO(w, h, type = gl.HALF_FLOAT) {
+                gl.activeTexture(gl.TEXTURE0);
+                const texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                // TOROIDAL TOPOLOGY: Set wrap to REPEAT
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, type, null);
+
+                const fbo = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+                gl.viewport(0, 0, w, h);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                return {
+                    fbo, texture, width: w, height: h,
+                    attach: (id) => {
+                        gl.activeTexture(gl.TEXTURE0 + id);
+                        gl.bindTexture(gl.TEXTURE_2D, texture);
+                        return id;
+                    }
+                };
+            }
+
+            function createDoubleFBO(w, h, type) {
+                let fbo1 = createFBO(w, h, type);
+                let fbo2 = createFBO(w, h, type);
+                return {
+                    read: () => fbo1,
+                    write: () => fbo2,
+                    swap: () => { let temp = fbo1; fbo1 = fbo2; fbo2 = temp; }
+                };
+            }
+
+            // --- Init State ---
+
+            const programs = {
+                curl: createProgram(curlFs),
+                vorticity: createProgram(vorticityFs),
+                advect: createProgram(advectFs),
+                divergence: createProgram(divergenceFs),
+                pressure: createProgram(pressureFs),
+                gradient: createProgram(gradientFs),
+                splat: createProgram(splatFs),
+                display: createProgram(displayFs)
+            };
+
+            const blit = (() => {
+                gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, -1,1, 1,1, 1,-1]), gl.STATIC_DRAW);
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
+                gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(0);
+                return (destFBO) => {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, destFBO ? destFBO.fbo : null);
+                    gl.viewport(0, 0, destFBO ? destFBO.width : canvas.width, destFBO ? destFBO.height : canvas.height);
+                    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+                };
+            })();
+
+            let velocity, density, pressure, divergence, curl;
+
+            function initFBOs() {
+                const w = canvas.width;
+                const h = canvas.height;
+                const simW = CONFIG.SIM_RES;
+                const simH = Math.floor(simW * h / w);
+                const dyeW = CONFIG.DYE_RES;
+                const dyeH = Math.floor(dyeW * h / w);
+
+                velocity = createDoubleFBO(simW, simH);
+                density = createDoubleFBO(dyeW, dyeH);
+                pressure = createDoubleFBO(simW, simH);
+                divergence = createFBO(simW, simH);
+                curl = createFBO(simW, simH);
+            }
+
+            // --- Simulation Step ---
+
+            function runProgram(p, uniforms, outputFBO) {
+                gl.useProgram(p.id);
+                for (let k in uniforms) {
+                    if (p.uni[k]) {
+                        if (uniforms[k].attach) gl.uniform1i(p.uni[k], uniforms[k].attach(uniforms[k].unit));
+                        else if (uniforms[k].length === 2) gl.uniform2fv(p.uni[k], uniforms[k]);
+                        else if (uniforms[k].length === 3) gl.uniform3fv(p.uni[k], uniforms[k]);
+                        else gl.uniform1f(p.uni[k], uniforms[k]);
+                    }
+                }
+                blit(outputFBO);
+            }
+
+            let lastTime = Date.now();
+            let colorTick = 0;
+
+            function update() {
+                const now = Date.now();
+                let dt = Math.min((now - lastTime) / 1000, 0.016);
+                lastTime = now;
+
+                // Color cycling
+                colorTick += dt * 0.5;
+                const r = Math.sin(colorTick) * 0.5 + 0.5;
+                const g = Math.sin(colorTick + 2) * 0.5 + 0.5;
+                const b = Math.sin(colorTick + 4) * 0.5 + 0.5;
+
+                // 1. Splats (Interaction)
+                if (pointers.length > 0) {
+                    pointers.forEach(p => {
+                        // Velocity Splat
+                        runProgram(programs.splat, {
+                            uTarget: { ...velocity.read(), unit: 0 },
+                            uAspectRatio: velocity.read().width / velocity.read().height,
+                            uPoint: [p.x / canvas.width, 1.0 - p.y / canvas.height],
+                            uColor: [p.dx * CONFIG.SPLAT_FORCE, -p.dy * CONFIG.SPLAT_FORCE, 0.0],
+                            uRadius: CONFIG.SPLAT_RADIUS
+                        }, velocity.write());
+                        velocity.swap();
+
+                        // Density Splat
+                        runProgram(programs.splat, {
+                            uTarget: { ...density.read(), unit: 0 },
+                            uAspectRatio: density.read().width / density.read().height,
+                            uPoint: [p.x / canvas.width, 1.0 - p.y / canvas.height],
+                            // Reduce intensity of injected color to preserve detail
+                            uColor: [r * CONFIG.DYE_INJECTION_INTENSITY, g * CONFIG.DYE_INJECTION_INTENSITY, b * CONFIG.DYE_INJECTION_INTENSITY],
+                            uRadius: CONFIG.SPLAT_RADIUS
+                        }, density.write());
+                        density.swap();
+                    });
+                }
+
+                // 2. Curl (Vorticity Step 1)
+                runProgram(programs.curl, {
+                    uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                    uVelocity: { ...velocity.read(), unit: 0 }
+                }, curl);
+
+                // 3. Vorticity (Vorticity Step 2)
+                runProgram(programs.vorticity, {
+                    uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                    uVelocity: { ...velocity.read(), unit: 0 },
+                    uCurl: { ...curl, unit: 1 },
+                    uCurlScale: CONFIG.CURL,
+                    uDt: dt
+                }, velocity.write());
+                velocity.swap();
+
+                // 4. Divergence
+                runProgram(programs.divergence, {
+                    uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                    uVelocity: { ...velocity.read(), unit: 0 }
+                }, divergence);
+
+                // 5. Pressure (Solver)
+                for (let i = 0; i < CONFIG.PRESSURE_ITERATIONS; i++) {
+                    runProgram(programs.pressure, {
+                        uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                        uPressure: { ...pressure.read(), unit: 0 },
+                        uDivergence: { ...divergence, unit: 1 }
+                    }, pressure.write());
+                    pressure.swap();
+                }
+
+                // 6. Gradient Subtract
+                runProgram(programs.gradient, {
+                    uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                    uPressure: { ...pressure.read(), unit: 0 },
+                    uVelocity: { ...velocity.read(), unit: 1 }
+                }, velocity.write());
+                velocity.swap();
+
+                // 7. Advect Velocity
+                runProgram(programs.advect, {
+                    uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                    uVelocity: { ...velocity.read(), unit: 0 },
+                    uSource: { ...velocity.read(), unit: 0 },
+                    uDt: dt,
+                    uDissipation: CONFIG.VELOCITY_DISSIPATION
+                }, velocity.write());
+                velocity.swap();
+
+                // 8. Advect Density
+                runProgram(programs.advect, {
+                    uTexelSize: [1.0/velocity.read().width, 1.0/velocity.read().height],
+                    uVelocity: { ...velocity.read(), unit: 0 },
+                    uSource: { ...density.read(), unit: 1 },
+                    uDt: dt,
+                    uDissipation: CONFIG.DENSITY_DISSIPATION
+                }, density.write());
+                density.swap();
+
+                // 9. Display
+                runProgram(programs.display, {
+                    uTexelSize: [1.0/density.read().width, 1.0/density.read().height],
+                    uTexture: { ...density.read(), unit: 0 }
+                }, null);
+
+                requestAnimationFrame(update);
+            }
+
+            // --- Input ---
+            let pointers = [];
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                initFBOs();
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            canvas.addEventListener('mousemove', e => {
+                pointers = [{
+                    x: e.offsetX, y: e.offsetY,
+                    dx: (e.movementX || 0), dy: (e.movementY || 0)
+                }];
+            });
+            canvas.addEventListener('mousedown', () => { /* Just ensures focus */ });
+
+            // Touch support
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                const touches = Array.from(e.targetTouches);
+                pointers = touches.map(t => {
+                    // Crude delta calc for touch
+                    const last = pointers.find(p => p.id === t.identifier);
+                    const dx = last ? t.clientX - last.x : 0;
+                    const dy = last ? t.clientY - last.y : 0;
+                    return { x: t.clientX, y: t.clientY, dx: dx, dy: dy, id: t.identifier };
+                });
+            }, { passive: false });
+
+            canvas.addEventListener('touchstart', e => {
+                 e.preventDefault();
+                 const touches = Array.from(e.targetTouches);
+                 pointers = touches.map(t => ({ x: t.clientX, y: t.clientY, dx: 0, dy: 0, id: t.identifier }));
+            }, { passive: false });
+
+            // Stop splatting when not moving/touching
+            window.addEventListener('mouseup', () => { pointers = []; });
+            canvas.addEventListener('touchend', () => { pointers = []; });
+
+            // Start loop
+            update();
+        })();
+    </script>
+  </body>
+</html>

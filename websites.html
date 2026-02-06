@@ -7,9 +7,21 @@
             name="viewport"
             content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
         />
-        <link rel="icon" type="image/x-icon" href="/IORI/3die.ico" />
-        <link type="text/css" rel="stylesheet" href="/IORI/assets/main.css" />
-        <link type="text/css" rel="stylesheet" href="/IORI/assets/burger.css" />
+        <link
+            rel="icon"
+            type="image/x-icon"
+            href="/images/3die.ico"
+        />
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/main.css"
+        />
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/burger.css"
+        />
         <style>
             .websites {
                 display: grid;
@@ -43,22 +55,22 @@
                 opacity: 1;
             }
             .zsprodeti:hover {
-                background-image: url(/IORI/assets/zsprodeti-bg.png);
+                background-image: url(/assets/zsprodeti-bg.png);
             }
             .flashtones:hover {
-                background-image: url(/IORI/assets/flashtones-bg.png);
+                background-image: url(/assets/flashtones-bg.png);
             }
             .livesupp:hover {
-                background-image: url(/IORI/assets/livesupp-bg.png);
+                background-image: url(/assets/livesupp-bg.png);
             }
             .terycomputer:hover {
-                background-image: url(/IORI/assets/terycomputer-bg.png);
+                background-image: url(/assets/terycomputer-bg.png);
             }
             .jarojaro:hover {
-                background-image: url(/IORI/assets/jarojaro-bg.png);
+                background-image: url(/assets/jarojaro-bg.png);
             }
             .kucharkybezdomova:hover {
-                background-image: url(/IORI/assets/kucharkybezdomova-bg.png);
+                background-image: url(/assets/kucharkybezdomova-bg.png);
             }
             .website-link {
                 height: 2em;
@@ -75,22 +87,22 @@
                     opacity: 1;
                 }
                 .websites > .zsprodeti {
-                    background-image: url(/IORI/assets/zsprodeti-bg.png);
+                    background-image: url(/assets/zsprodeti-bg.png);
                 }
                 .websites > .flashtones {
-                    background-image: url(/IORI/assets/flashtones-bg.png);
+                    background-image: url(/assets/flashtones-bg.png);
                 }
                 .websites > .livesupp {
-                    background-image: url(/IORI/assets/livesupp-bg.png);
+                    background-image: url(/assets/livesupp-bg.png);
                 }
                 .websites > .terycomputer {
-                    background-image: url(/IORI/assets/terycomputer-bg.png);
+                    background-image: url(/assets/terycomputer-bg.png);
                 }
                 .websites > .jarojaro {
-                    background-image: url(/IORI/assets/jarojaro-bg.png);
+                    background-image: url(/assets/jarojaro-bg.png);
                 }
                 .websites > .kucharkybezdomova {
-                    background-image: url(/IORI/assets/kucharkybezdomova-bg.png);
+                    background-image: url(/assets/kucharkybezdomova-bg.png);
                 }
             }
         </style>
@@ -185,7 +197,7 @@
                 // hdri
 
                 new RGBELoader()
-                    .setPath("/IORI/assets/")
+                    .setPath("/assets/")
                     .load("websitesBackground.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
@@ -197,7 +209,7 @@
                 // objects
 
                 const documentTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/one-page.png",
+                    "/assets/websites/one-page.png",
                 );
 
                 documentMaterial = new THREE.MeshStandardMaterial({
@@ -206,10 +218,10 @@
                     emissive: 0.5,
                 });
                 const foregroundTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/frontMap.jpg",
+                    "/assets/websites/frontMap.jpg",
                 );
                 const foregroundAplha = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/frontAlpha.jpg",
+                    "/assets/websites/frontAlpha.jpg",
                 );
 
                 foregroundMaterial = new THREE.MeshStandardMaterial({
@@ -220,10 +232,10 @@
                     emissive: 0.5,
                 });
                 const midgroundTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/midMap.jpg",
+                    "/assets/websites/midMap.jpg",
                 );
                 const midgroundAlpha = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/midAlpha.jpg",
+                    "/assets/websites/midAlpha.jpg",
                 );
 
                 midgroundMaterial = new THREE.MeshStandardMaterial({
@@ -234,10 +246,10 @@
                     emissive: 0.5,
                 });
                 const backgroundTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/backMap.jpg",
+                    "/assets/websites/backMap.jpg",
                 );
                 const backgroundAlpha = new THREE.TextureLoader().load(
-                    "/IORI/assets/websites/backAlpha.jpg",
+                    "/assets/websites/backAlpha.jpg",
                 );
 
                 backgroundMaterial = new THREE.MeshStandardMaterial({
@@ -322,7 +334,7 @@
                 <span></span>
                 <span></span>
                 <ul class="menuItem">
-                    <li><a href="./index.html">home</a></li>
+                    <li><a href="/">home</a></li>
                     <li><a href="./portfolio.html">portfolio</a></li>
                     <li><a href="./shop.html">shop</a></li>
                     <li><a href="./info.html">info</a></li>
@@ -335,7 +347,9 @@
                     href="https://zsprodeti.cz/"
                     class="website-link"
                     target="_blank"
-                    style="background-image: url(/IORI/assets/deti-logo.svg)"
+                    style="
+                        background-image: url(/assets/deti-logo.svg);
+                    "
                 >
                 </a>
             </div>
@@ -344,7 +358,9 @@
                     href="https://flashtones.cz/"
                     class="website-link"
                     target="_blank"
-                    style="background-image: url(/IORI/assets/Flashtones.svg)"
+                    style="
+                        background-image: url(/assets/Flashtones.svg);
+                    "
                 >
                 </a>
             </div>
@@ -353,7 +369,9 @@
                     href="https://livesupp.com/"
                     class="website-link"
                     target="_blank"
-                    style="background-image: url(/IORI/assets/livesupp.svg)"
+                    style="
+                        background-image: url(/assets/livesupp.svg);
+                    "
                 >
                 </a>
             </div>
@@ -362,7 +380,9 @@
                     href="https://tin-imported-dungeon.glitch.me/"
                     class="website-link"
                     target="_blank"
-                    style="background-image: url(/IORI/assets/terycomputer.svg)"
+                    style="
+                        background-image: url(/assets/terycomputer.svg);
+                    "
                 >
                 </a>
             </div>
@@ -382,7 +402,7 @@
                     class="website-link"
                     target="_blank"
                     style="
-                        background-image: url(/IORI/assets/kucharkybezdomova.png);
+                        background-image: url(/assets/kucharkybezdomova.png);
                     "
                 >
                 </a>

@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frost | Generative Crystal Engine</title>
+    <style>
+      :root {
+            --bg: #0f172a;
+            --panel: rgba(15, 23, 42, 0.85);
+            --accent: #38bdf8;
+            --warn: #f43f5e;
+            --success: #10b981; /* New green for snapshot */
+            --inverse: #fbbf24;
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', monospace;
+            color: var(--text);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* --- UI Architecture --- */
+
+        /* Container for the bottom row of buttons */
+        .ui-row {
+            position: absolute;
+            bottom: 32px;
+            left: 32px;
+            display: flex;
+            gap: 32px; /* Requested Gap */
+            z-index: 100;
+        }
+
+        .ui-trigger {
+            width: 48px;
+            height: 48px;
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px; /* Rounded Square */
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(12px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .ui-trigger:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
+        }
+
+        .ui-trigger svg {
+            fill: var(--text);
+            width: 24px;
+            height: 24px;
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Distinct Colors */
+        #uiToggle {
+            border-color: rgba(255,255,255,0.1);
+        }
+        #uiToggle:hover { border-color: var(--accent); }
+        #uiToggle.active { background: var(--accent); border-color: var(--accent); }
+        #uiToggle.active svg { fill: var(--bg); transform: rotate(45deg); }
+
+        #uiBurn {
+            border-color: rgba(244, 63, 94, 0.3);
+        }
+        #uiBurn:hover { background: var(--warn); border-color: var(--warn); }
+        #uiBurn svg { fill: var(--warn); }
+        #uiBurn:hover svg { fill: white; }
+
+        #uiSnap {
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+        #uiSnap:hover { background: var(--success); border-color: var(--success); }
+        #uiSnap svg { fill: var(--success); }
+        #uiSnap:hover svg { fill: white; }
+
+        /* Tool Mode Indicator (Mobile) */
+        .mode-indicator {
+            position: absolute;
+            top: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            background: var(--panel);
+            border-radius: 20px;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: 1px solid rgba(255,255,255,0.1);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .mode-indicator.show { opacity: 1; }
+        .mode-inv { color: var(--inverse); border-color: var(--inverse); }
+        .mode-norm { color: var(--accent); border-color: var(--accent); }
+
+        .settings-panel {
+            position: absolute;
+            bottom: 90px; /* Above trigger */
+            left: 32px;
+            width: 300px;
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 24px;
+            box-sizing: border-box;
+
+            /* Diagonal Float Animation */
+            transform-origin: bottom left;
+            transform: translate(-20%, 20%) scale(0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition:
+                transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.3s ease;
+
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            max-height: 70vh;
+            overflow-y: auto;
+            z-index: 90;
+        }
+
+        .settings-panel.open {
+            transform: translate(0, 0) scale(1);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* --- Controls --- */
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .value-display {
+            color: var(--accent);
+        }
+
+        .warn-text {
+            color: var(--warn);
+        }
+
+        /* Sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--text);
+            margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]:hover::-webkit-slider-thumb {
+            background: var(--accent);
+            transform: scale(1.2);
+        }
+
+        /* Specific style for temperature slider */
+        #inp-temp::-webkit-slider-thumb {
+            background: var(--warn);
+        }
+
+        /* --- Pixelation Toggle --- */
+        canvas.pixelated {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+
+        .toggle-switch {
+            width: 40px;
+            height: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            position: relative;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            width: 16px;
+            height: 16px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: transform 0.3s, background 0.3s;
+        }
+
+        .toggle-active .toggle-switch {
+            background: rgba(56, 189, 248, 0.3); /* accent dim */
+        }
+
+        .toggle-active .toggle-switch::after {
+            transform: translateX(20px);
+            background: var(--accent);
+        }
+
+        /* Color Ramp */
+        .color-ramp {
+            display: flex;
+            height: 24px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            position: relative;
+        }
+
+        input[type="color"] {
+            opacity: 0;
+            position: absolute;
+            width: 20%; /* 5 colors = 20% each */
+            height: 100%;
+            cursor: pointer;
+            padding: 0;
+            border: none;
+        }
+
+        .ramp-preview {
+            flex: 1;
+            height: 100%;
+        }
+
+        .overlay-hint {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s;
+            color: rgba(255,255,255,0.5);
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Scrollbar for panel */
+        .settings-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+        .settings-panel::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+    <div class="mode-indicator" id="modeIndicator">Freeze Mode</div>
+    <div class="overlay-hint" id="hint">Left Click: Frost • Right Click: Inverse Frost</div>
+    <!-- UI Buttons Row -->
+    <div class="ui-row">
+      <!-- 1. Settings Toggle -->
+      <div class="ui-trigger" id="uiToggle" title="Settings">
+        <svg viewBox="0 0 24 24">
+          <path d="M11 19V5h2v14zM7 5v14H5V5zM19 5v14h-2V5z"/>
+          <path class="plus" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" style="display:none;"/>
+        </svg>
+      </div>
+      <!-- 2. Burn / Reset -->
+      <div class="ui-trigger" id="uiBurn" title="Burn / Reset">
+        <svg viewBox="0 0 24 24">
+          <path d="M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.96 6.4 7.92 10.07 9.12 13.22C9.16 13.32 9.2 13.44 9.2 13.57C9.2 13.8 9 14 8.79 14C8.63 14 8.5 13.91 8.41 13.75C7.35 12.05 7 9.97 7.35 8.04C4.8 10.2 3.65 13.71 4.7 16.94C5.46 19.34 7.68 21 10.25 21C12.83 21 15.05 19.34 15.81 16.94C16.03 16.25 16.14 15.53 16.14 14.78C16.14 14.5 16.12 14.22 16.08 13.96C16.71 13.63 17.26 13.19 17.7 12.65C18.12 12.15 18.5 11.46 18.66 10.64C18.36 10.91 18 11.13 17.66 11.2M13 16C13 16.55 12.55 17 12 17C11.45 17 11 16.55 11 16C11 15.45 11.45 15 12 15C12.55 15 13 15.45 13 16Z"/>
+        </svg>
+      </div>
+      <!-- 3. Snapshot -->
+      <div class="ui-trigger" id="uiSnap" title="Snapshot">
+        <svg viewBox="0 0 24 24">
+          <path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/>
+        </svg>
+      </div>
+    </div>
+    <!-- Settings Panel -->
+    <div class="settings-panel" id="panel">
+      <!-- Temperature (Ising Model) -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Temperature</span>
+          <span class="value-display warn-text" id="val-temp">0.0</span>
+        </div>
+        <!-- Range 0.0 to 1.0 -->
+        <input type="range" id="inp-temp" min="0" max="100" value="0">
+      </div>
+      <!-- Sharpness Toggle -->
+      <div class="control-group">
+        <div class="toggle-row" id="btn-sharp">
+          <div class="label-row" style="margin:0; width:auto;">
+            <span>Sharp View</span>
+          </div>
+          <div class="toggle-switch"></div>
+        </div>
+      </div>
+      <!-- Speed -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Growth Speed</span>
+          <span class="value-display" id="val-speed">8</span>
+        </div>
+        <input type="range" id="inp-speed" min="1" max="40" value="8">
+      </div>
+      <!-- Angle/Bias -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Growth Angle</span>
+          <span class="value-display" id="val-angle">0°</span>
+        </div>
+        <input type="range" id="inp-angle" min="0" max="360" value="0">
+      </div>
+      <!-- Emergence: Feed (Beta) -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Vapor Feed</span>
+          <span class="value-display" id="val-feed">0.06</span>
+        </div>
+        <input type="range" id="inp-feed" min="0" max="100" value="60">
+      </div>
+      <!-- Emergence: Diffusion (Alpha) -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Diffusion</span>
+          <span class="value-display" id="val-diff">1.0</span>
+        </div>
+        <input type="range" id="inp-diff" min="50" max="150" value="100">
+      </div>
+      <!-- Color Ramp (5 Steps) -->
+      <div class="control-group">
+        <div class="label-row">
+          <span>Thermal Gradient</span>
+        </div>
+        <div class="color-ramp" id="rampVis">
+          <div class="ramp-preview" id="c1-prev"></div>
+          <div class="ramp-preview" id="c2-prev"></div>
+          <div class="ramp-preview" id="c3-prev"></div>
+          <div class="ramp-preview" id="c4-prev"></div>
+          <div class="ramp-preview" id="c5-prev"></div>
+          <input type="color" id="c1" style="left:0%">
+          <input type="color" id="c2" style="left:20%">
+          <input type="color" id="c3" style="left:40%">
+          <input type="color" id="c4" style="left:60%">
+          <input type="color" id="c5" style="left:80%">
+        </div>
+      </div>
+      <div style="margin-top:10px; font-size:10px; color:rgba(255,255,255,0.3); text-align:center;">
+        WEBGL 2.0 FLUID AUTOMATA
+      </div>
+    </div>
+    <!-- SHADERS -->
+    <script type="x-shader/x-vertex" id="vs">
+      #version 300 es
+        in vec4 position;
+        out vec2 vUv;
+        void main() {
+            vUv = position.xy * 0.5 + 0.5;
+            gl_Position = position;
+        }
+    </script>
+    <!-- SIMULATION SHADER: Hexagonal Automata + Ising Temperature -->
+    <script type="x-shader/x-fragment" id="fs-sim">
+      #version 300 es
+        precision highp float;
+
+        uniform sampler2D u_state;
+        uniform vec2 u_res;
+        uniform vec3 u_mouse; // x, y, mode (1=Normal, 2=Inverse)
+        uniform float u_time;
+
+        // Physics Constants
+        uniform float u_feed;  // Vapor addition
+        uniform float u_diff;  // Diffusion Rate
+        uniform float u_angle; // Symmetry Angle
+        uniform float u_temp;  // Temperature (Ising melting)
+
+        out vec4 outColor;
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / u_res;
+            vec2 texel = 1.0 / u_res;
+
+            // Read self
+            vec4 cell = texture(u_state, uv);
+            float ice = cell.r;   // Ice Density
+            float vapor = cell.g; // Vapor Density
+            float type = cell.b;  // 0.0 = Normal, 1.0 = Inverse
+
+            // --- 1. Hexagonal Neighbor Sampling ---
+
+            vec2 n[6];
+            n[0] = vec2(1.0, 0.0);
+            n[1] = vec2(-1.0, 0.0);
+            n[2] = vec2(0.0, 1.0);
+            n[3] = vec2(0.0, -1.0);
+            n[4] = vec2(1.0, 1.0);
+            n[5] = vec2(-1.0, -1.0);
+
+            // Angle Bias Vector
+            vec2 biasDir = vec2(cos(u_angle), sin(u_angle));
+
+            float avgVapor = 0.0;
+            float diffuseSum = 0.0;
+            float weightSum = 0.0;
+
+            // For type propagation and stability check
+            float neighborTypeAccum = 0.0;
+            float iceNeighborCount = 0.0;
+
+            for(int i = 0; i < 6; i++) {
+                vec2 neighborCoord = uv + (n[i] * texel);
+                vec4 neighbor = texture(u_state, neighborCoord);
+
+                // SYMMETRY BIAS:
+                // We dot product the neighbor direction with our angle.
+                // Increased strength (0.6) for visible rotation.
+                vec2 neighborDir = normalize(n[i]);
+                float alignment = dot(neighborDir, biasDir);
+                float w = 1.0 + (alignment * 0.65);
+
+                diffuseSum += neighbor.g * w;
+                weightSum += w;
+
+                if(neighbor.r > 0.1) {
+                    iceNeighborCount += 1.0;
+                    neighborTypeAccum += neighbor.b; // Sum types
+                }
+            }
+
+            avgVapor = diffuseSum / weightSum;
+
+            // --- 2. Physics ---
+
+            // A. Diffusion
+            float laplacian = avgVapor - vapor;
+            vapor += laplacian * u_diff;
+
+            // B. Accretion (Freezing) & Melting (Ising)
+
+            // Freezing Phase: Occurs more at low temps
+            // If temp is high (1.0), freezeFactor becomes 0.0 (no freezing)
+            float freezeFactor = 1.0 - u_temp;
+            if (freezeFactor > 0.0) {
+                if (iceNeighborCount > 0.0 || ice > 0.01) {
+                    float conv = vapor * 0.6 * freezeFactor;
+                    vapor -= conv;
+                    ice += conv;
+
+                    // Propagate Type
+                    if (ice < 0.1 && iceNeighborCount > 0.0) {
+                        float avgType = neighborTypeAccum / iceNeighborCount;
+                        type = (avgType > 0.5) ? 1.0 : 0.0;
+                    }
+                }
+            }
+
+            // Melting Phase: Occurs at high temps based on Stability
+            // Ising Model: Stability is proportional to aligned neighbors.
+            // 6 neighbors = Very Stable (Interior)
+            // 1 neighbor = Unstable (Tip)
+            if (u_temp > 0.0 && ice > 0.0) {
+                // Exposure: 0.0 = Buried, 1.0 = Exposed
+                float exposure = 1.0 - (iceNeighborCount / 6.0);
+
+                // Base melt rate based on temperature
+                float meltRate = u_temp * 0.15;
+
+                // Tips melt faster than cores
+                float effectiveMelt = meltRate * (0.2 + 0.8 * exposure);
+
+                // Apply melt
+                float amount = ice * effectiveMelt;
+                ice -= amount;
+                vapor += amount * 0.8; // Conservation (some lost to atmosphere)
+            }
+
+            // C. Feeding (Inhibited by heat)
+            vapor += u_feed * 0.001 * (1.0 - u_temp * 0.5);
+
+            // --- 3. Interaction (1px Precision) ---
+            float d = distance(gl_FragCoord.xy, u_mouse.xy);
+
+            // Mode 1: Normal Frost (Left Click)
+            if(u_mouse.z > 0.5 && u_mouse.z < 1.5 && d < 1.0) {
+                ice = 1.0;
+                vapor = 0.0;
+                type = 0.0; // Normal
+            }
+
+            // Mode 2: Inverse Frost (Right Click)
+            if(u_mouse.z > 1.5 && d < 1.0) {
+                ice = 1.0;
+                vapor = 0.0;
+                type = 1.0; // Inverse
+            }
+
+            // Clamp
+            ice = clamp(ice, 0.0, 1.0);
+            vapor = clamp(vapor, 0.0, 1.0);
+
+            outColor = vec4(ice, vapor, type, 1.0);
+        }
+    </script>
+    <!-- RENDER SHADER -->
+    <script type="x-shader/x-fragment" id="fs-render">
+      #version 300 es
+        precision highp float;
+
+        uniform sampler2D u_state;
+        uniform vec3 u_c1;
+        uniform vec3 u_c2;
+        uniform vec3 u_c3;
+        uniform vec3 u_c4;
+        uniform vec3 u_c5;
+
+        in vec2 vUv;
+        out vec4 outColor;
+
+        void main() {
+            vec2 coord = vUv;
+
+            // Sample
+            vec4 data = texture(u_state, coord);
+            float ice = data.r;
+            float vapor = data.g;
+            float type = data.b;
+
+            // Compute pseudo-normal for 3D effect
+            float eps = 1.0 / 800.0;
+            float n = texture(u_state, coord + vec2(0.0, eps)).r;
+            float e = texture(u_state, coord + vec2(eps, 0.0)).r;
+            float s = texture(u_state, coord - vec2(0.0, eps)).r;
+            float w = texture(u_state, coord - vec2(eps, 0.0)).r;
+
+            vec3 normal = normalize(vec3(w-e, s-n, 0.5));
+            vec3 lightDir = normalize(vec3(-0.5, 0.5, 1.0));
+            float lighting = dot(normal, lightDir) * 0.5 + 0.5;
+
+            // 5-Step Color Ramp Logic
+            vec3 col;
+            float t = ice + (vapor * 0.2);
+
+            if(t < 0.25) {
+                col = mix(u_c1, u_c2, t * 4.0);
+            } else if (t < 0.5) {
+                col = mix(u_c2, u_c3, (t - 0.25) * 4.0);
+            } else if (t < 0.75) {
+                col = mix(u_c3, u_c4, (t - 0.5) * 4.0);
+            } else {
+                col = mix(u_c4, u_c5, (t - 0.75) * 4.0);
+            }
+
+            // Apply lighting to ice parts
+            if (ice > 0.01) {
+                col *= lighting;
+                col += vec3(0.1) * pow(lighting, 10.0);
+            }
+
+            // INVERSE FROST LOGIC
+            // If the cell is Type 1, we invert the color
+            if (type > 0.5) {
+                col = 1.0 - col;
+            }
+
+            outColor = vec4(col, 1.0);
+        }
+    </script>
+    <script>
+      /**
+         * FROST ENGINE
+         * WebGL 2.0 Fluid Automata with Ising Temperature
+         */
+
+        const canvas = document.getElementById('gl');
+        // IMPORTANT: preserveDrawingBuffer required for screenshots to work reliably
+        const gl = canvas.getContext('webgl2', {
+            alpha: false,
+            antialias: false,
+            preserveDrawingBuffer: true
+        });
+
+        if (!gl) {
+            alert("WebGL 2.0 not supported. Please use a modern browser.");
+        }
+
+        gl.getExtension('EXT_color_buffer_float');
+        gl.getExtension('OES_texture_float_linear');
+
+        // --- State Management ---
+        const state = {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            mouse: { x: 0, y: 0, down: 0 }, // 0=Up, 1=Normal, 2=Inverse
+            touchMode: 1, // 1=Normal, 2=Inverse
+            frame: 0,
+            speed: 8,
+            angle: 0,
+            feed: 0.06,
+            diff: 1.0,
+            temp: 0.0,
+            c1: "", c2: "", c3: "", c4: "", c5: "",
+            rgb1: [0,0,0], rgb2: [0,0,0], rgb3: [0,0,0], rgb4: [0,0,0], rgb5: [0,0,0]
+        };
+
+        // --- Color Generators ---
+        function generateRandomPalette() {
+            const hslToHex = (h, s, l) => {
+                l /= 100;
+                const a = s * Math.min(l, 1 - l) / 100;
+                const f = n => {
+                    const k = (n + h / 30) % 12;
+                    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                    return Math.round(255 * color).toString(16).padStart(2, '0');
+                };
+                return `#${f(0)}${f(8)}${f(4)}`;
+            };
+
+            const baseHue = Math.random() * 360;
+            const shift = 25;
+
+            // Generate 5 distinct steps
+            state.c1 = hslToHex(baseHue, 60, 5);   // Deepest Background
+            state.c2 = hslToHex(baseHue, 50, 20);  // Dark Shadow
+            state.c3 = hslToHex(baseHue + shift, 60, 50); // Midtone
+            state.c4 = hslToHex(baseHue + shift*1.5, 80, 80); // Highlight
+            state.c5 = "#ffffff"; // White Tip
+
+            ['c1','c2','c3','c4','c5'].forEach(id => {
+                document.getElementById(id).value = state[id];
+            });
+        }
+
+        // --- WebGL Boilerplate ---
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vsSrc, fsSrc) {
+            const vs = createShader(gl, gl.VERTEX_SHADER, vsSrc);
+            const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+            if (!vs || !fs) return null;
+            const prog = gl.createProgram();
+            gl.attachShader(prog, vs);
+            gl.attachShader(prog, fs);
+            gl.linkProgram(prog);
+            if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+            return prog;
+        }
+
+        const verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+        const vBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+        const vsSrc = document.getElementById('vs').textContent.trim();
+        const simProg = createProgram(gl, vsSrc, document.getElementById('fs-sim').textContent.trim());
+        const renderProg = createProgram(gl, vsSrc, document.getElementById('fs-render').textContent.trim());
+
+        // --- Textures ---
+
+        let texA, texB;
+        let fbA, fbB;
+
+        function createTexture() {
+            const t = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, t);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, state.width, state.height, 0, gl.RGBA, gl.FLOAT, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+            return t;
+        }
+
+        function createFramebuffer(tex) {
+            const fb = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+            return fb;
+        }
+
+        function initBuffers() {
+            texA = createTexture();
+            texB = createTexture();
+            fbA = createFramebuffer(texA);
+            fbB = createFramebuffer(texB);
+        }
+
+        initBuffers();
+
+        // --- Uniforms ---
+
+        const uniforms = {
+            sim: {
+                state: gl.getUniformLocation(simProg, 'u_state'),
+                res: gl.getUniformLocation(simProg, 'u_res'),
+                mouse: gl.getUniformLocation(simProg, 'u_mouse'),
+                time: gl.getUniformLocation(simProg, 'u_time'),
+                feed: gl.getUniformLocation(simProg, 'u_feed'),
+                diff: gl.getUniformLocation(simProg, 'u_diff'),
+                angle: gl.getUniformLocation(simProg, 'u_angle'),
+                temp: gl.getUniformLocation(simProg, 'u_temp'),
+            },
+            render: {
+                state: gl.getUniformLocation(renderProg, 'u_state'),
+                c1: gl.getUniformLocation(renderProg, 'u_c1'),
+                c2: gl.getUniformLocation(renderProg, 'u_c2'),
+                c3: gl.getUniformLocation(renderProg, 'u_c3'),
+                c4: gl.getUniformLocation(renderProg, 'u_c4'),
+                c5: gl.getUniformLocation(renderProg, 'u_c5'),
+            }
+        };
+
+        // --- Input Logic ---
+
+        function hexToRgb(hex) {
+            const bigint = parseInt(hex.slice(1), 16);
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            return [r/255, g/255, b/255];
+        }
+
+        function updateColors() {
+            ['c1','c2','c3','c4','c5'].forEach((key, i) => {
+                state[`rgb${i+1}`] = hexToRgb(state[key]);
+                document.getElementById(`${key}-prev`).style.backgroundColor = state[key];
+            });
+        }
+
+        generateRandomPalette();
+        updateColors();
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            state.width = window.innerWidth;
+            state.height = window.innerHeight;
+            initBuffers();
+        });
+
+        // Mouse Handling
+        function setMouse(x, y, downVal) {
+            state.mouse.x = x;
+            state.mouse.y = state.height - y;
+            state.mouse.down = downVal;
+        }
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        window.addEventListener('mousedown', e => {
+            if (e.target !== canvas) return; // Only paint if clicking canvas
+            const val = (e.button === 2) ? 2 : 1;
+            setMouse(e.clientX, e.clientY, val);
+        });
+
+        window.addEventListener('mousemove', e => {
+            if(state.mouse.down > 0) {
+                setMouse(e.clientX, e.clientY, state.mouse.down);
+            } else {
+                setMouse(e.clientX, e.clientY, 0);
+            }
+        });
+
+        window.addEventListener('mouseup', e => setMouse(e.clientX, e.clientY, 0));
+
+        // Touch
+        const modeInd = document.getElementById('modeIndicator');
+
+        function updateModeUI() {
+            modeInd.textContent = state.touchMode === 1 ? "Normal Frost" : "Inverse Frost";
+            modeInd.className = "mode-indicator show " + (state.touchMode === 1 ? "mode-norm" : "mode-inv");
+            setTimeout(() => {
+                 modeInd.classList.remove('show');
+            }, 1500);
+        }
+
+        window.addEventListener('touchstart', e => {
+            if (e.target !== canvas) return; // Allow UI interaction
+            e.preventDefault();
+            setMouse(e.touches[0].clientX, e.touches[0].clientY, state.touchMode);
+        }, {passive: false});
+
+        window.addEventListener('touchmove', e => {
+            if (e.target !== canvas) return; // Allow UI interaction
+            e.preventDefault();
+            setMouse(e.touches[0].clientX, e.touches[0].clientY, state.touchMode);
+        }, {passive: false});
+
+        window.addEventListener('touchend', () => {
+            setMouse(0,0,0);
+            state.touchMode = state.touchMode === 1 ? 2 : 1;
+            updateModeUI();
+        });
+
+        // --- New UI Logic ---
+
+        // 1. Settings Toggle
+        const toggle = document.getElementById('uiToggle');
+        const panel = document.getElementById('panel');
+
+        toggle.addEventListener('click', () => {
+            toggle.classList.toggle('active');
+            panel.classList.toggle('open');
+            const path1 = toggle.querySelector('path:not(.plus)');
+            const path2 = toggle.querySelector('.plus');
+            if(toggle.classList.contains('active')){
+                path1.style.display = 'none';
+                path2.style.display = 'block';
+            } else {
+                path1.style.display = 'block';
+                path2.style.display = 'none';
+            }
+        });
+
+        // 2. Burn / Reset
+        document.getElementById('uiBurn').addEventListener('click', () => {
+            // Re-init texture memory with zeros
+            const zero = new Float32Array(state.width * state.height * 4);
+            gl.bindTexture(gl.TEXTURE_2D, texA);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, state.width, state.height, 0, gl.RGBA, gl.FLOAT, zero);
+            gl.bindTexture(gl.TEXTURE_2D, texB);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, state.width, state.height, 0, gl.RGBA, gl.FLOAT, zero);
+            state.frame = 0;
+            // Visual feedback handled by CSS active state usually,
+            // but we can add a flash if needed. For now, immediate clear is obvious.
+        });
+
+        // 3. Snapshot
+        document.getElementById('uiSnap').addEventListener('click', () => {
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `frost_capture_${Date.now()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        });
+
+
+        // -- New Temperature Slider --
+        document.getElementById('inp-temp').addEventListener('input', (e) => {
+            const v = parseInt(e.target.value);
+            state.temp = v / 100.0;
+            document.getElementById('val-temp').textContent = state.temp.toFixed(1);
+        });
+
+        // -- Sharpness Toggle --
+        const btnSharp = document.getElementById('btn-sharp');
+        let isSharp = false;
+
+        btnSharp.addEventListener('click', () => {
+            isSharp = !isSharp;
+            if(isSharp) {
+                btnSharp.classList.add('toggle-active');
+                canvas.classList.add('pixelated');
+            } else {
+                btnSharp.classList.remove('toggle-active');
+                canvas.classList.remove('pixelated');
+            }
+        });
+
+        document.getElementById('inp-speed').addEventListener('input', (e) => {
+            state.speed = parseInt(e.target.value);
+            document.getElementById('val-speed').textContent = state.speed;
+        });
+
+        // -- Updated Angle Slider --
+        document.getElementById('inp-angle').addEventListener('input', (e) => {
+            const deg = parseInt(e.target.value);
+            state.angle = deg * (Math.PI / 180);
+            document.getElementById('val-angle').textContent = deg + "°";
+        });
+
+        document.getElementById('inp-feed').addEventListener('input', (e) => {
+            const v = parseInt(e.target.value);
+            state.feed = v / 1000.0;
+            document.getElementById('val-feed').textContent = state.feed.toFixed(3);
+        });
+
+        document.getElementById('inp-diff').addEventListener('input', (e) => {
+            const v = parseInt(e.target.value);
+            state.diff = v / 100.0;
+            document.getElementById('val-diff').textContent = state.diff.toFixed(1);
+        });
+
+        ['c1', 'c2', 'c3', 'c4', 'c5'].forEach(id => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                state[id] = e.target.value;
+                updateColors();
+            });
+        });
+
+        setTimeout(() => {
+            document.getElementById('hint').style.opacity = 1;
+            setTimeout(() => {
+                document.getElementById('hint').style.opacity = 0;
+            }, 4000);
+        }, 1000);
+
+
+        // --- Main Loop ---
+
+        function step() {
+            gl.useProgram(simProg);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texA);
+            gl.uniform1i(uniforms.sim.state, 0);
+
+            gl.uniform2f(uniforms.sim.res, state.width, state.height);
+            gl.uniform3f(uniforms.sim.mouse, state.mouse.x, state.mouse.y, state.mouse.down);
+            gl.uniform1f(uniforms.sim.time, state.frame);
+
+            gl.uniform1f(uniforms.sim.feed, state.feed);
+            gl.uniform1f(uniforms.sim.diff, state.diff);
+            gl.uniform1f(uniforms.sim.angle, state.angle);
+            gl.uniform1f(uniforms.sim.temp, state.temp); // Pass Temperature
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbB);
+            gl.viewport(0, 0, state.width, state.height);
+
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            let tempT = texA; texA = texB; texB = tempT;
+            let tempF = fbA; fbA = fbB; fbB = tempF;
+
+            state.frame++;
+        }
+
+        function draw() {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.useProgram(renderProg);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, texA);
+            gl.uniform1i(uniforms.render.state, 0);
+
+            gl.uniform3fv(uniforms.render.c1, state.rgb1);
+            gl.uniform3fv(uniforms.render.c2, state.rgb2);
+            gl.uniform3fv(uniforms.render.c3, state.rgb3);
+            gl.uniform3fv(uniforms.render.c4, state.rgb4);
+            gl.uniform3fv(uniforms.render.c5, state.rgb5);
+
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        function loop() {
+            if (simProg && renderProg) {
+                for(let i=0; i < state.speed; i++) {
+                    step();
+                }
+                draw();
+            }
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+  </body>
+</html>

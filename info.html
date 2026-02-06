@@ -7,9 +7,21 @@
             name="viewport"
             content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
         />
-        <link rel="icon" type="image/x-icon" href="/IORI/3die.ico" />
-        <link type="text/css" rel="stylesheet" href="/IORI/assets/main.css" />
-        <link type="text/css" rel="stylesheet" href="/IORI/assets/burger.css" />
+        <link
+            rel="icon"
+            type="image/x-icon"
+            href="/images/3die.ico"
+        />
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/main.css"
+        />
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/burger.css"
+        />
         <style>
             body {
                 touch-action: none;
@@ -112,7 +124,7 @@
                 // hdri
 
                 new RGBELoader()
-                    .setPath("/IORI/assets/")
+                    .setPath("/assets/")
                     .load("3dieMainBckg.hdr", function (texture) {
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
@@ -124,10 +136,10 @@
                 // objects
 
                 const foregroundTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/contact/background.jpg",
+                    "/assets/contact/background.jpg",
                 );
                 const foregroundAplha = new THREE.TextureLoader().load(
-                    "/IORI/assets/contact/foreground.jpg",
+                    "/assets/contact/foreground.jpg",
                 );
 
                 foregroundMaterial = new THREE.MeshStandardMaterial({
@@ -136,10 +148,10 @@
                     map: foregroundTexture,
                 });
                 const midgroundTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/contact/background.jpg",
+                    "/assets/contact/background.jpg",
                 );
                 const midgroundAlpha = new THREE.TextureLoader().load(
-                    "/IORI/assets/contact/midground.jpg",
+                    "/assets/contact/midground.jpg",
                 );
 
                 midgroundMaterial = new THREE.MeshStandardMaterial({
@@ -148,7 +160,7 @@
                     map: midgroundTexture,
                 });
                 const backgroundTexture = new THREE.TextureLoader().load(
-                    "/IORI/assets/contact/background.jpg",
+                    "/assets/contact/background.jpg",
                 );
 
                 backgroundMaterial = new THREE.MeshStandardMaterial({
@@ -180,97 +192,105 @@
                 backgroundObj.position.z = -500;
 
                 const loader = new FontLoader();
-                loader.load("/IORI/assets/contactFont.json", function (font) {
-                    const color = 0xfffb00;
+                loader.load(
+                    "/assets/contactFont.json",
+                    function (font) {
+                        const color = 0xfffb00;
 
-                    const matDark = new THREE.LineBasicMaterial({
-                        color: color,
-                        side: THREE.DoubleSide,
-                    });
+                        const matDark = new THREE.LineBasicMaterial({
+                            color: color,
+                            side: THREE.DoubleSide,
+                        });
 
-                    const matLite = new THREE.MeshBasicMaterial({
-                        color: color,
-                        transparent: true,
-                        opacity: 1,
-                        side: THREE.DoubleSide,
-                    });
+                        const matLite = new THREE.MeshBasicMaterial({
+                            color: color,
+                            transparent: true,
+                            opacity: 1,
+                            side: THREE.DoubleSide,
+                        });
 
-                    const message =
-                        "design\n art \n technologies \n and their fusion \n websites \n design \n motion design \n sound visualisations \n";
-
-                    if (
-                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-                            navigator.userAgent,
-                        )
-                    ) {
                         const message =
-                            "We love design\n art \n technologies \n and their fusion \n websites \n design \n motion design \n sound visualisations \n visualisations\n";
-                    }
+                            "design\n art \n technologies \n and their fusion \n websites \n design \n motion design \n sound visualisations \n";
 
-                    const shapes = font.generateShapes(message, 45);
-
-                    const geometry = new THREE.ShapeGeometry(shapes);
-
-                    geometry.computeBoundingBox();
-
-                    const xMid =
-                        -0.5 *
-                        (geometry.boundingBox.max.x -
-                            geometry.boundingBox.min.x);
-
-                    geometry.translate(xMid, 0, 0);
-
-                    // make shape ( N.B. edge view not visible )
-
-                    const text = new THREE.Mesh(geometry, matLite);
-                    text.position.z = -150;
-                    text.position.y = 100;
-                    text.scale.setScalar(0.00025 * window.innerWidth);
-                    if (
-                        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-                            navigator.userAgent,
-                        )
-                    ) {
-                        text.position.y = 65;
-                        text.scale.setScalar(0.00035 * window.innerWidth);
-                    }
-                    scene.add(text);
-
-                    // make line shape ( N.B. edge view remains visible )
-
-                    const holeShapes = [];
-
-                    for (let i = 0; i < shapes.length; i++) {
-                        const shape = shapes[i];
-
-                        if (shape.holes && shape.holes.length > 0) {
-                            for (let j = 0; j < shape.holes.length; j++) {
-                                const hole = shape.holes[j];
-                                holeShapes.push(hole);
-                            }
+                        if (
+                            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                                navigator.userAgent,
+                            )
+                        ) {
+                            const message =
+                                "We love design\n art \n technologies \n and their fusion \n websites \n design \n motion design \n sound visualisations \n visualisations\n";
                         }
-                    }
 
-                    shapes.push.apply(shapes, holeShapes);
+                        const shapes = font.generateShapes(message, 45);
 
-                    const lineText = new THREE.Object3D();
+                        const geometry = new THREE.ShapeGeometry(shapes);
 
-                    for (let i = 0; i < shapes.length; i++) {
-                        const shape = shapes[i];
+                        geometry.computeBoundingBox();
 
-                        const points = shape.getPoints();
-                        const geometry =
-                            new THREE.BufferGeometry().setFromPoints(points);
+                        const xMid =
+                            -0.5 *
+                            (geometry.boundingBox.max.x -
+                                geometry.boundingBox.min.x);
 
                         geometry.translate(xMid, 0, 0);
 
-                        const lineMesh = new THREE.Line(geometry, matDark);
-                        lineText.add(lineMesh);
-                    }
+                        // make shape ( N.B. edge view not visible )
 
-                    scene.add(lineText);
-                    lineText.position.z = -100;
-                }); //end load function
+                        const text = new THREE.Mesh(geometry, matLite);
+                        text.position.z = -150;
+                        text.position.y = 100;
+                        text.scale.setScalar(0.00025 * window.innerWidth);
+                        if (
+                            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                                navigator.userAgent,
+                            )
+                        ) {
+                            text.position.y = 65;
+                            text.scale.setScalar(0.00035 * window.innerWidth);
+                        }
+                        scene.add(text);
+
+                        // make line shape ( N.B. edge view remains visible )
+
+                        const holeShapes = [];
+
+                        for (let i = 0; i < shapes.length; i++) {
+                            const shape = shapes[i];
+
+                            if (shape.holes && shape.holes.length > 0) {
+                                for (let j = 0; j < shape.holes.length; j++) {
+                                    const hole = shape.holes[j];
+                                    holeShapes.push(hole);
+                                }
+                            }
+                        }
+
+                        shapes.push.apply(shapes, holeShapes);
+
+                        const lineText = new THREE.Object3D();
+
+                        for (let i = 0; i < shapes.length; i++) {
+                            const shape = shapes[i];
+
+                            const points = shape.getPoints();
+                            const geometry =
+                                new THREE.BufferGeometry().setFromPoints(
+                                    points,
+                                );
+
+                            geometry.translate(xMid, 0, 0);
+
+                            const lineMesh = new THREE.Line(geometry, matDark);
+                            lineText.add(lineMesh);
+                        }
+
+                        lineText.position.z = -100;
+                        lineText.position.y = 350;
+                        lineText.scale.x = 0.5;
+                        lineText.scale.y = 1;
+                        scene.add(lineText);
+                    },
+                ); //end load function
 
                 // postprocessing
 
@@ -331,7 +351,7 @@
                 <span></span>
                 <span></span>
                 <ul class="menuItem">
-                    <li><a href="./index.html">home</a></li>
+                    <li><a href="/">home</a></li>
                     <li><a href="./portfolio.html">portfolio</a></li>
                     <li><a href="./shop.html">shop</a></li>
                     <li>

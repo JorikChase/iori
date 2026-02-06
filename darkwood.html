@@ -1,0 +1,695 @@
+
+<html>
+  <title>Unction</title>
+    <link rel="stylesheet" type="text/css" href="css/global.css">
+    <link rel="stylesheet" href="css/playerU.css">
+  <style>
+     body {
+    /*background-image: url(img/gradient.png);*/
+    background-position: bottom;
+    background-size: 100%, 100%;
+    background-repeat: repeat, repeat;
+    overflow: hidden;
+    margin: 0px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    }
+
+    #element::-webkit-scrollbar { 
+    display: none; 
+	}
+	::-webkit-scrollbar { 
+    display: none; 
+	}
+    no-repeat center center fixed a:link {
+    color: none;
+    background-color: none;
+
+    }
+
+    a:link {
+    color: #A7A7A7;
+    text-decoration: none;
+    }
+    a:visited {
+    color: #A7A7A7;
+    background-color: none;
+    }
+    #icons {
+    cursor: pointer; cursor: hand;
+    }
+    img {
+    width: auto;
+    }
+    
+    canvas{
+      position: fixed;
+      width: 100%;
+      top: 0;
+      left: 0;
+      z-index: -100;
+    }
+    #vimeo{
+      pointer-events: none;
+    }
+
+    audio{
+      position: absolute;
+    }
+
+    #squareDiv{
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      /*border: 1px solid white;*/
+      margin: 0;
+      -webkit-transform: translate(-50%, -50%);
+      -ms-transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%);
+    }
+
+  </style>
+<style type="text/css"></style></head>
+<body bgcolor="black" cz-shortcut-listen="true">
+
+
+  <div id="squareDiv"></div>
+  
+<!-- <script src="js/DetectorUnction.js"></script> -->
+
+
+<script id="fs" type="x-fragment/x-shader">
+
+uniform sampler2D texture; 
+uniform float time; // seconds
+varying vec2 vUv;
+uniform vec2 resolution;
+
+void main() {
+    gl_FragColor = texture2D(texture, vUv);
+}
+</script>
+<script id="vs" type="x-shader/x-vertex">
+
+    varying vec2 vUv;
+    uniform float time;
+    void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+    }
+</script>
+<script id="diffFs" type="x-shader/x-vertex">
+uniform sampler2D texture;
+uniform sampler2D texture2;
+uniform sampler2D texture3;
+varying vec2 vUv;
+
+void main() {
+  vec4 tex0 = texture2D(texture, vUv);
+  vec4 tex1 = texture2D(texture2, vUv);
+  vec4 tex2 = texture2D(texture3, vUv);
+
+  vec4 fc = (tex2 - tex1);
+  float avg = dot(tex2.rgb - tex1.rgb, vec3(1.0))/3.0;
+  // fc = avg <= 0.01  ? fc : 1.0-fc;
+  vec4 add = (fc + tex0);
+  gl_FragColor = (fc);//mod(add,tex2.r);
+  // gl_FragColor = smoothstep(tex2,tex0,mod(add,tex2.r));
+}
+</script>
+<script type="x-shader/x-fragment" id="fbFs">
+varying vec2 vUv;
+uniform sampler2D texture;
+uniform sampler2D texture2;
+    uniform float mouseX;
+    uniform float mouseY;
+    uniform float goo;
+
+void main(){
+
+    vec2 tc = vUv;
+    vec4 look = texture2D(texture,tc);//sample repos texture
+    // vec2 offs = vec2(look.y-look.x,look.w-look.z)*0.005;
+      vec2 offs = vec2(look.y-look.x,look.w-look.z)*vec2(mouseX/goo, mouseY/goo);
+    vec2 coord = offs+tc;  //relative coordinates
+    
+    vec4 repos = texture2D(texture, coord);
+    
+    gl_FragColor = repos;    
+} 
+
+</script>
+<script id="flowFs" type="x-shader/x-fragment">
+   
+    uniform vec2 resolution;
+    uniform float time;
+    uniform sampler2D texture;
+    varying vec2 vUv;
+    uniform float mouseX;
+    uniform float mouseY;
+
+
+    void main( void ){
+      vec2 p = gl_FragCoord.xy / resolution.xy;
+      
+      // vec2 uv = p*0.15 + 0.25;
+      vec2 uv = vUv;
+      // vec2 uv = vUv*0.05 + vec2(0.62, 0.57);
+      
+      vec2 e = 1.0/resolution.xy;
+      
+      
+       float am1 = 0.5*sin( time );
+      // float am1 = 3.333;
+       float am2 = 0.5*cos( time );
+      // float am2 = 10.0;
+      
+      for( int i=0; i<25; i++ ){
+        float h  = dot( texture2D(texture, uv*0.5             ).xyz, vec3(0.333) );
+        float h1 = dot( texture2D(texture, uv+vec2(e.x,mouseX)).xyz, vec3(0.333) );
+        float h2 = dot( texture2D(texture, uv+vec2(mouseY,e.y)).xyz, vec3(0.333) );
+            // gradient
+        vec2 g = 0.00075*vec2( (h1-h), (h2-h) )/e;
+            // isoline    
+        // vec2 f = g.yx*vec2(-1.0,1.0);
+        vec2 f = g.yx*vec2(10.0*mouseX, 10.0*mouseY);
+        
+        g = mix( g, f, 0.5 );
+        
+        uv -= 0.000075*g;
+      }
+      
+      vec3 col = texture2D(texture, uv).xyz;
+      
+        col *= 2.0;
+        
+      gl_FragColor = vec4(col, 1.0);
+    }
+</script>
+<script id="chromaFs" type="x-shader/x-fragment">
+    uniform sampler2D texture;
+    uniform float time; // seconds
+    varying vec2 vUv;
+    uniform vec2 resolution;
+    uniform float mouseX;
+    uniform float mouseY;
+
+    void main(void) {
+      float   centerBuffer    = 0.0,
+      vignetteStrength  = 0.0,
+      aberrationStrength  = 1.2;
+      
+      float   chrDist,
+      vigDist;
+      
+      vec2 uv = vUv;
+      
+      //calculate how far each pixel is from the center of the screen
+      vec2 vecDist = uv - ( 0.5 , 0.5 );
+      chrDist = vigDist = length( vecDist );
+      
+      //modify the distance from the center, so that only the edges are affected
+      chrDist -= centerBuffer;
+      if( chrDist < 0.0 ) chrDist = 0.0;
+      
+      //distort the UVs
+      vec2 uvR = uv * ( 1.0 + chrDist * 0.02 * aberrationStrength ),
+      uvB = uv * ( 1.0 - chrDist * 0.02 * aberrationStrength );
+      
+      //get the individual channels using the modified UVs
+      vec4 c;
+      
+      c.x = texture2D( texture , uvR ).x;
+      c.y = texture2D( texture , uv ).y;
+      c.z = texture2D( texture , uvB ).z;
+      
+      //apply vignette
+      c *= 1.0 - vigDist* vignetteStrength;
+      
+      gl_FragColor = c;
+    }
+</script>
+  <script id="chromaFs2" type="x-shader/x-fragment">
+    uniform sampler2D texture;
+    uniform float time; // seconds
+    varying vec2 vUv;
+    uniform vec2 resolution;
+    uniform float mouseX;
+    uniform float mouseY;
+//note: http://glsl.heroku.com/e#3290.7
+// copied from Little Grasshopper
+// Given a vec2 in [-1,+1], generate a texture coord in [0,+1]
+vec2 barrelDistortion( vec2 p, vec2 amt )
+{
+    p = 2.0*p-1.0;
+    //float BarrelPower = 1.125;
+    const float maxBarrelPower = 3.0;
+    float theta  = atan(p.y, p.x);
+    float radius = length(p);
+    radius = pow(radius, 1.0 + maxBarrelPower * amt.x);
+    p.x = radius * cos(theta);
+    p.y = radius * sin(theta);
+
+    return 0.5 * ( p + 1.0 );
+}
+
+
+float sat( float t )
+{
+  return clamp( t, 0.0, 1.0 );
+}
+
+float linterp( float t ) {
+  return sat( 1.0 - abs( 2.0*t - 1.0 ) );
+}
+
+float remap( float t, float a, float b ) {
+  return sat( (t - a) / (b - a) );
+}
+
+vec3 spectrum_offset( float t ) {
+  vec3 ret;
+  float lo = step(t,0.5);
+  float hi = 1.0-lo;
+  float w = linterp( remap( t, 1.0/6.0, 5.0/6.0 ) );
+  ret = vec3(lo,1.0,hi) * vec3(1.0-w, w, 1.0-w);
+
+  return pow( ret, vec3(1.0/2.2) );
+}
+
+float nrand( vec2 n )
+{
+  return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+const int num_iter = 16;
+const float reci_num_iter_f = 1.0 / float(num_iter);
+const float gamma = 1600.0;
+
+vec3 lin2srgb( vec3 c )
+{
+    return pow( c, vec3(gamma) );
+}
+vec3 srgb2lin( vec3 c )
+{
+    return pow( c, vec3(1.0/gamma));
+}
+
+
+void main()
+{ 
+  vec2 uv = vUv;
+    
+    const float MAX_DIST_PX = 160.0;
+    float max_distort_px = MAX_DIST_PX * (1.0-mouseX/resolution.x);
+  vec2 max_distort = vec2(max_distort_px) / resolution.xy;
+
+    vec2 oversiz = barrelDistortion( vec2(1,1), max_distort );
+    uv = 2.0 * uv - 1.0;
+  uv = uv / (oversiz*oversiz);
+  uv = 0.5 * uv + 0.5;
+    
+  vec3 sumcol = vec3(0.0);
+  vec3 sumw = vec3(0.0);
+    float rnd = nrand( uv + fract(time) );
+  for ( int i=0; i<num_iter;++i )
+  {
+    float t = (float(i)+rnd) * reci_num_iter_f;
+    vec3 w = spectrum_offset( t );
+    sumw += w;
+    sumcol += w * srgb2lin(texture2D( texture, barrelDistortion(uv, max_distort*t ) ).rgb);
+  }
+    
+    sumcol.rgb /= sumw;
+  
+    vec3 outcol = lin2srgb(sumcol.rgb);
+    outcol += rnd/255.0;
+    
+  gl_FragColor = vec4( outcol, 1.0);
+}
+</script>
+<script id="blurFrag" type="x-shader/x-fragment">
+uniform sampler2D texture;
+uniform vec2 resolution;
+uniform float mouseX;
+uniform float mouseY;
+uniform float blurWidth;
+
+varying vec2 vUv;
+
+void main() {
+  float step_w = blurWidth/resolution.x;
+  float step_h = blurWidth/resolution.y;
+  vec2 tc = vUv;
+  vec4 input0 = texture2D(texture,tc);
+   
+  vec2 x1 = vec2(step_w, 0.0);
+  vec2 y1 = vec2(0.0, step_h);
+    
+  input0 += texture2D(texture, tc+x1); // right
+  input0 += texture2D(texture, tc-x1); // left
+  input0 += texture2D(texture, tc+y1); // top
+  input0 += texture2D(texture, tc-y1); // bottom
+
+  input0 *=0.2;
+
+  gl_FragColor = input0;
+}
+</script>
+<script id="sharpenFrag" type="x-shader/x-fragment">
+uniform sampler2D texture;
+uniform vec2 resolution;
+uniform float mouseX;
+uniform float mouseY;
+
+varying vec2 vUv;
+float kernel[9];
+vec2 offset[9];
+void main() {
+  float step_w = 1.0/resolution.x;
+  float step_h = 1.0/resolution.y;
+  vec2 tc = vUv;
+  vec4 input0 = texture2D(texture,tc);
+   
+  // kernel[0] = -2.0; kernel[1] = -1.0; kernel[2] = 0.0;
+  // kernel[3] = -1.0; kernel[4] = 1.0; kernel[5] = 1.0;
+  // kernel[6] = 0.0; kernel[7] = 1.0; kernel[8] = 2.0; 
+  kernel[0] = -1.0; kernel[1] = -1.0; kernel[2] = -1.0;
+  kernel[3] = -1.0; kernel[4] = 8.0; kernel[5] = -1.0;
+  kernel[6] = -1.0; kernel[7] = -1.0; kernel[8] = -1.0; 
+
+
+  offset[0] = vec2(-step_w, -step_h);
+  offset[1] = vec2(0.0, -step_h);
+  offset[2] = vec2(step_w, -step_h);
+  offset[3] = vec2(-step_w, 0.0);
+  offset[4] = vec2(0.0, 0.0);
+  offset[5] = vec2(step_w, 0.0);
+  offset[6] = vec2(-step_w, step_h);
+  offset[7] = vec2(0.0, step_h);
+  offset[8] = vec2(step_w, step_h);
+    
+  input0 += texture2D(texture, tc + offset[0]) * kernel[0];
+  input0 += texture2D(texture, tc + offset[1]) * kernel[1];
+  input0 += texture2D(texture, tc + offset[2]) * kernel[2];
+  input0 += texture2D(texture, tc + offset[3]) * kernel[3];
+  input0 += texture2D(texture, tc + offset[4]) * kernel[4];
+  input0 += texture2D(texture, tc + offset[5]) * kernel[5];
+  input0 += texture2D(texture, tc + offset[6]) * kernel[6];
+  input0 += texture2D(texture, tc + offset[7]) * kernel[7];
+  input0 += texture2D(texture, tc + offset[8]) * kernel[8];
+
+
+  // input0 *=0.2;
+  float kernelWeight = kernel[0] + kernel[2] + kernel[3] + kernel[4] + kernel[5] + kernel[6] + kernel[7] + kernel[8]; 
+
+  if (kernelWeight <= 0.0) {
+     kernelWeight = 1.0;
+   }
+  gl_FragColor = vec4((input0/kernelWeight).rgb, 1.0);
+}
+</script>
+<script id="embossFrag" type="x-shader/x-fragment">
+uniform sampler2D texture;
+uniform vec2 resolution;
+uniform float mouseX;
+uniform float mouseY;
+
+varying vec2 vUv;
+float kernel[9];
+vec2 offset[9];
+void main() {
+  float step_w = 1.0/resolution.x;
+  float step_h = 1.0/resolution.y;
+  vec2 tc = vUv;
+  vec4 input0 = texture2D(texture,tc);
+   
+  kernel[0] = -2.0; kernel[1] = -1.0; kernel[2] = 0.0;
+  kernel[3] = -1.0; kernel[4] = 1.0; kernel[5] = 1.0;
+  kernel[6] = 0.0; kernel[7] = 1.0; kernel[8] = 2.0; 
+  // kernel[0] = -1.0; kernel[1] = -1.0; kernel[2] = -1.0;
+  // kernel[3] = -1.0; kernel[4] = 8.0; kernel[5] = -1.0;
+  // kernel[6] = -1.0; kernel[7] = -1.0; kernel[8] = -1.0; 
+
+
+  offset[0] = vec2(-step_w, -step_h);
+  offset[1] = vec2(0.0, -step_h);
+  offset[2] = vec2(step_w, -step_h);
+  offset[3] = vec2(-step_w, 0.0);
+  offset[4] = vec2(0.0, 0.0);
+  offset[5] = vec2(step_w, 0.0);
+  offset[6] = vec2(-step_w, step_h);
+  offset[7] = vec2(0.0, step_h);
+  offset[8] = vec2(step_w, step_h);
+    
+  input0 += texture2D(texture, tc + offset[0]) * kernel[0];
+  input0 += texture2D(texture, tc + offset[1]) * kernel[1];
+  input0 += texture2D(texture, tc + offset[2]) * kernel[2];
+  input0 += texture2D(texture, tc + offset[3]) * kernel[3];
+  input0 += texture2D(texture, tc + offset[4]) * kernel[4];
+  input0 += texture2D(texture, tc + offset[5]) * kernel[5];
+  input0 += texture2D(texture, tc + offset[6]) * kernel[6];
+  input0 += texture2D(texture, tc + offset[7]) * kernel[7];
+  input0 += texture2D(texture, tc + offset[8]) * kernel[8];
+
+
+  // input0 *=0.2;
+  float kernelWeight = kernel[0] + kernel[2] + kernel[3] + kernel[4] + kernel[5] + kernel[6] + kernel[7] + kernel[8]; 
+
+  if (kernelWeight <= 0.0) {
+     kernelWeight = 1.0;
+   }
+  gl_FragColor = vec4((input0/kernelWeight).rgb, 1.0);
+}
+</script>
+<script id="colorFs" type="x-shader/x-fragment">
+uniform sampler2D texture;
+varying vec2 vUv;
+
+vec3 rainbow(float h) {
+  h = mod(mod(h, 1.0) + 1.0, 1.0);
+  float h6 = h * 6.0;
+  float r = clamp(h6 - 4.0, 0.0, 1.0) +
+    clamp(2.0 - h6, 0.0, 1.0);
+  float g = h6 < 2.0
+    ? clamp(h6, 0.0, 1.0)
+    : clamp(4.0 - h6, 0.0, 1.0);
+  float b = h6 < 4.0
+    ? clamp(h6 - 2.0, 0.0, 1.0)
+    : clamp(6.0 - h6, 0.0, 1.0);
+  return vec3(r, g, b);
+}
+
+vec3 rgb2hsv(vec3 c)
+{
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return vec3(abs(( (q.z + (q.w - q.y) / (6.0 * d + e))) ), d / (q.x + e), q.x);
+}
+
+vec3 hsv2rgb(vec3 c)
+{
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+
+void main(){
+
+  vec4 tex0 = texture2D(texture, vUv);
+  vec3 hsv = rgb2hsv(tex0.rgb);
+
+  hsv.r += 0.001;
+  // hsv.r = mod(hsv.r, 1.0);
+  hsv.g *= 1.01;
+  // hsv.g = mod(hsv.g, 1.0);
+  vec3 rgb = hsv2rgb(hsv); 
+
+  gl_FragColor = vec4(rgb,1.0);
+}
+</script>
+<script type="x-shader/x-fragment" id="flow2">
+ 
+    uniform vec2 resolution;
+    uniform float time;
+    uniform sampler2D texture;
+    varying vec2 vUv;
+    uniform float mouseX;
+    uniform float mouseY;
+
+    void main( void ){
+      vec2 p = gl_FragCoord.xy / resolution.xy;
+      
+      // vec2 uv = p*0.15 + 0.25;
+      vec2 uv = vUv;
+      // vec2 uv = vUv*0.05 + vec2(0.62, 0.57);
+      
+      vec2 e = 1.0/resolution.xy;
+      
+      
+      // float am1 = 0.5 + 0.5*sin( time );
+      float am1 = 0.5 + 0.5*0.927180409;
+      // float am2 = 0.5 + 0.5*cos( time );
+      float am2 = 10.0;
+      
+      for( int i=0; i<20; i++ ){
+        float h  = dot( texture2D(texture, uv*0.99,               -100.0).xyz, vec3(0.333) );
+        float h1 = dot( texture2D(texture, uv+vec2(e.x,mouseX), -100.0).xyz, vec3(0.333) );
+        float h2 = dot( texture2D(texture, uv+vec2(mouseY,e.y), -100.0).xyz, vec3(0.333) );
+            // gradient
+        vec2 g = 0.001*vec2( (h1-h), (h2-h) )/e;
+            // isoline    
+        // vec2 f = g.yx*vec2(-1.0,1.0);
+        vec2 f = g.yx*vec2(3.0*mouseX, 3.0*mouseY);
+        
+        g = mix( g, f, am1 );
+        
+        uv += 0.0001*g*am2;
+      }
+      
+      vec3 col = texture2D(texture, uv).xyz;
+      
+        // col *= 1.001;
+        
+      gl_FragColor = vec4(col, 1.0);
+    }
+</script>
+<script id="bumpFs" type="x-fragment/x-shader">
+  
+uniform sampler2D texture;
+uniform float mouseX;
+uniform float mouseY;
+uniform float time;
+uniform float lightWidth;
+uniform float lightBrightness;
+varying vec2 vUv;
+uniform vec2 resolution;
+
+vec2 texelWidth = 1.0/resolution; 
+
+void main() {
+    
+    vec4 input0 = texture2D(texture,vUv);
+
+
+    float step = 5.0;
+    float tl = abs(texture2D(texture, vUv + texelWidth * vec2(-step, -step)).x);   // top left
+    float  l = abs(texture2D(texture, vUv + texelWidth * vec2(-step,  0.0)).x);   // left
+    float bl = abs(texture2D(texture, vUv + texelWidth * vec2(-step,  step)).x);   // bottom left
+    float  t = abs(texture2D(texture, vUv + texelWidth * vec2( 0.0, -step)).x);   // top
+    float  b = abs(texture2D(texture, vUv + texelWidth * vec2( 0.0,  step)).x);   // bottom
+    float tr = abs(texture2D(texture, vUv + texelWidth * vec2( step, -step)).x);   // top right
+    float  r = abs(texture2D(texture, vUv + texelWidth * vec2( step,  0.0)).x);   // right
+    float br = abs(texture2D(texture, vUv + texelWidth * vec2( step,  step)).x);   // bottom right
+
+    float mult = 0.01;
+
+    float dX = tr*mult + 2.0*r*mult + br*mult -tl*mult - 2.0*l*mult - bl*mult;
+    float dY = bl*mult + 2.0*b*mult + br*mult -tl*mult - 2.0*t*mult - tr*mult;
+    
+
+    vec4 diffuseColor = texture2D(texture, vUv);
+
+    vec3 color = normalize(vec3(dX,dY,1.0/50.0));
+    
+    for( int i = 0; i<4; i++){
+      color +=color;
+    }
+
+    vec3 lightDir = vec3( vec2( mouseX/resolution.x, 1.0-mouseY/resolution.y)-(gl_FragCoord.xy / vec2(resolution.x,resolution.y)), lightWidth );
+    lightDir.x *= resolution.x/resolution.y;
+
+    float D = length(lightDir);
+
+    vec3 N = normalize(color);
+    vec3 L = normalize(lightDir);
+    vec3 H = normalize(L);
+
+    vec4 lightColor = input0;
+    vec4 ambientColor = vec4(vec3(input0.rgb*lightBrightness),0.5);
+    
+    vec3 falloff = vec3(1.0,3.0,20.5);
+  
+    vec3 diffuse = (lightColor.rgb * lightColor.a) * max(dot(N, L), 0.0);
+    vec3 ambient = ambientColor.rgb * ambientColor.a;
+    
+    float shin = 1000.1;
+    float sf = max(0.0,dot(N,H));
+    sf = pow(sf, shin);
+  
+    float attenuation = 1.0 / (falloff.x + (falloff.y*D) + (falloff.z * D * D) );
+
+    vec3 intensity =  ambient+(diffuse+sf ) * attenuation;
+    vec3 finalColor = (diffuseColor.rgb * intensity);
+
+    vec3 col = ambient+( finalColor+sf );
+
+    color *=0.5;
+    color +=0.5;
+
+    // vec4 C = index == 0 ? vec4(col, 1.0) : vec4(color, 1.0);
+    vec4 C = vec4(col, 1.0);
+    gl_FragColor = C;
+}
+</script>
+
+      <audio id="music" preload="true">
+    <!-- <source src="http://www.alexkatz.me/codepen/music/interlude.mp3"> -->
+    <!-- <source src="http://www.alexkatz.me/codepen/music/interlude.ogg"> -->
+  </audio>
+  <div id="audioplayer">
+    <!-- <button id="pButton" class="play" onclick="play()"></button> -->
+    <!-- <div id="timeline"> -->
+<!--       <p id="title">
+        <img id="titleImg" style="opacity: 0.7" src="img/unctionname2.png" alt="">
+        TEST
+      </p> -->
+      <ul id="credits">
+        <li>
+            <b>UNCTION</b>    |    <a href="http://ezramiller.biz/" target="_blank">EZRA MILLER</a><a><br>
+            Sound Design by Sinjin Hawke
+        </a></li><a>
+      </a></ul><a>
+      <!-- <div id="playhead"></div> -->
+    <!-- </div> -->
+        <div id="icons">
+    <div id="volume">
+          <i class="demo-icon icon-volume-up"></i> 
+        </div>
+        <div id="half">
+          <i class="demo-icon icon-half"></i> 
+        </div>
+        <div id="mute">
+            <i class="demo-icon icon-mute"></i> 
+    </div> 
+    </div>
+
+    <!--       <div id="volumeBar">
+          <div id="innerVolume">
+            
+          </div> -->
+        <!-- </div> -->
+
+  </a></div><a>
+
+<audio id="topLeft" loop="true" src="audio/topLeft.mp3"></audio>
+<audio id="topRight" loop="true" src="audio/topRight.mp3"></audio>
+<audio id="bottomLeft" loop="true" src="audio/bottomLeft.mp3"></audio>
+<audio id="bottomRight" loop="true" src="audio/bottomRight.mp3"></audio>
+<audio id="middle" loop="true" src="audio/middle.mp3"></audio>
+<script src="js/three.min.js"></script>
+<script src="js/playerU.js"></script>
+<script src="js/mainU.js"></script>
+
+
+
+</a></body></html>

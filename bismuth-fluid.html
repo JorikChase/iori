@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Bismuth Crystal Fluid</title>
+    <style>
+      body, html { margin: 0; padding: 0; overflow: hidden; background-color: #101010; width: 100%; height: 100%; }
+        canvas { width: 100%; height: 100%; display: block; }
+        #instruction {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-family: sans-serif;
+            font-size: 14px;
+            pointer-events: none;
+            text-align: center;
+        }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script>
+      (function() {
+            const canvas = document.getElementById('c');
+            const gl = canvas.getContext('webgl2');
+            if (!gl) { console.error('WebGL2 not supported'); return; }
+
+            // --- Bismuth Physics Configuration ---
+            const SIM_RES = 256;
+            const DYE_RES = 1024;
+            const ITERATIONS = 20;
+
+            // MODIFIED: Increased significantly (closer to 1.0) to decrease diffusion.
+            // Motion keeps going for longer.
+            const DISSIPATION = 0.98;
+
+            // MODIFIED: Increased to 0.97 so structures stay on screen much longer
+            // and look more "solid".
+            const DYE_DISSIPATION = 0.97;
+
+            const CURL = 50.0;
+            const VELOCITY_SNAP = 0.0;
+
+            // Extensions
+            gl.getExtension('EXT_color_buffer_float');
+            gl.getExtension('OES_texture_float_linear');
+
+            // --- Shaders ---
+
+            const vs = `#version 300 es
+            void main() {
+                vec2 p = vec2(float(gl_VertexID % 2) * 4.0 - 1.0, float(gl_VertexID / 2) * 4.0 - 1.0);
+                gl_Position = vec4(p, 0.0, 1.0);
+            }`;
+
+            const baseFs = `#version 300 es
+            precision highp float;
+            out vec4 outColor;
+            uniform vec2 texelSize;
+            uniform sampler2D uVelocity;
+            uniform sampler2D uSource;
+            uniform float dt;
+            uniform float dissipation;`;
+
+            // 1. Curl Shader
+            const curlFs = `#version 300 es
+            precision highp float;
+            out vec4 outColor;
+            uniform sampler2D uVelocity;
+            uniform vec2 texelSize;
+
+            void main() {
+                vec2 T = texelSize;
+                vec2 C = gl_FragCoord.xy * T;
+                float L = texture(uVelocity, C - vec2(T.x, 0.0)).y;
+                float R = texture(uVelocity, C + vec2(T.x, 0.0)).y;
+                float B = texture(uVelocity, C - vec2(0.0, T.y)).x;
+                float T_val = texture(uVelocity, C + vec2(0.0, T.y)).x;
+                float vorticity = (R - L) - (T_val - B);
+                outColor = vec4(0.5 * vorticity, 0.0, 0.0, 1.0);
+            }`;
+
+            // 2. Vorticity Confinement
+            const vorticityFs = `#version 300 es
+            precision highp float;
+            out vec4 outColor;
+            uniform sampler2D uVelocity;
+            uniform sampler2D uCurl;
+            uniform vec2 texelSize;
+            uniform float curl;
+            uniform float dt;
+
+            void main() {
+                vec2 T = texelSize;
+                vec2 C = gl_FragCoord.xy * T;
+
+                float L = texture(uCurl, C - vec2(T.x, 0.0)).x;
+                float R = texture(uCurl, C + vec2(T.x, 0.0)).x;
+                float B = texture(uCurl, C - vec2(0.0, T.y)).x;
+                float T_val = texture(uCurl, C + vec2(0.0, T.y)).x;
+                float C_val = texture(uCurl, C).x;
+
+                vec2 force = vec2(abs(T_val) - abs(B), abs(R) - abs(L));
+
+                // Manhattan Logic
+                if (abs(force.x) > abs(force.y)) {
+                    force.y = 0.0;
+                    force.x = sign(force.x);
+                } else {
+                    force.x = 0.0;
+                    force.y = sign(force.y);
+                }
+
+                force *= curl * C_val;
+                force.xy = vec2(force.y, -force.x);
+
+                vec2 vel = texture(uVelocity, C).xy;
+                outColor = vec4(vel + force * dt, 0.0, 1.0);
+            }`;
+
+            const advectFs = `${baseFs}
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                vec2 vel = texture(uVelocity, coord).xy;
+
+                if (abs(vel.x) > abs(vel.y)) {
+                    vel.y *= ${VELOCITY_SNAP.toFixed(1)};
+                } else {
+                    vel.x *= ${VELOCITY_SNAP.toFixed(1)};
+                }
+
+                vec2 back = coord - vel * dt;
+                outColor = texture(uSource, back) * dissipation;
+            }`;
+
+            const divergenceFs = `${baseFs}
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float L = texture(uVelocity, coord - vec2(texelSize.x, 0.0)).x;
+                float R = texture(uVelocity, coord + vec2(texelSize.x, 0.0)).x;
+                float B = texture(uVelocity, coord - vec2(0.0, texelSize.y)).y;
+                float T = texture(uVelocity, coord + vec2(0.0, texelSize.y)).y;
+                outColor = vec4(0.5 * (R - L + T - B), 0, 0, 1);
+            }`;
+
+            const pressureFs = `${baseFs}
+            uniform sampler2D uDivergence;
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float L = texture(uSource, coord - vec2(texelSize.x, 0.0)).x;
+                float R = texture(uSource, coord + vec2(texelSize.x, 0.0)).x;
+                float B = texture(uSource, coord - vec2(0.0, texelSize.y)).x;
+                float T = texture(uSource, coord + vec2(0.0, texelSize.y)).x;
+                float div = texture(uDivergence, coord).x;
+                outColor = vec4((L + R + B + T - div) * 0.25, 0, 0, 1);
+            }`;
+
+            const gradientFs = `${baseFs}
+            uniform sampler2D uPressure;
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float L = texture(uPressure, coord - vec2(texelSize.x, 0.0)).x;
+                float R = texture(uPressure, coord + vec2(texelSize.x, 0.0)).x;
+                float B = texture(uPressure, coord - vec2(0.0, texelSize.y)).x;
+                float T = texture(uPressure, coord + vec2(0.0, texelSize.y)).x;
+                vec2 vel = texture(uVelocity, coord).xy;
+                outColor = vec4(vel - 0.5 * vec2(R - L, T - B), 0, 1);
+            }`;
+
+            // BISMUTH LOGIC: Hollow Hopper Splats
+            const splatFs = `${baseFs}
+            uniform vec2 point;
+            uniform vec3 color;
+            uniform float radius;
+            uniform int uFill; // 1 = solid, 0 = hollow
+
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                vec2 d = abs(gl_FragCoord.xy - point);
+                float dist = max(d.x, d.y);
+
+                vec3 c = texture(uSource, coord).xyz;
+
+                float rimWidth = radius * 0.4;
+                float rimConfig = smoothstep(radius - rimWidth - 2.0, radius - rimWidth, dist);
+                float outer = smoothstep(radius, radius - 2.0, dist);
+
+                float shape = (uFill == 1) ? outer : (rimConfig * outer);
+                if (radius < 5.0) shape = outer;
+
+                outColor = vec4(c + color * shape, 1);
+            }`;
+
+            // MODIFIED: Added uTime for dynamic color shifting
+            const displayFs = `${baseFs}
+            uniform float uTime;
+
+            vec3 palette(float t) {
+                vec3 a = vec3(0.5, 0.5, 0.5);
+                vec3 b = vec3(0.5, 0.5, 0.5);
+                vec3 c = vec3(1.0, 1.0, 1.0);
+                // Shift phase 'd' over time to simulate changing oxide thickness
+                vec3 d = vec3(0.00, 0.33, 0.67) + uTime * 0.05;
+                return a + b * cos(6.28318 * (c * t + d));
+            }
+
+            void main() {
+                vec2 coord = gl_FragCoord.xy * texelSize;
+                float d = texture(uSource, coord).x;
+
+                float dx = texture(uSource, coord + vec2(texelSize.x, 0.0)).x - texture(uSource, coord - vec2(texelSize.x, 0.0)).x;
+                float dy = texture(uSource, coord + vec2(0.0, texelSize.y)).x - texture(uSource, coord - vec2(0.0, texelSize.y)).x;
+
+                vec3 normal = normalize(vec3(-dx * 50.0, -dy * 50.0, 1.0));
+
+                vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
+                float diff = max(dot(normal, lightDir), 0.0);
+
+                vec3 viewDir = vec3(0.0, 0.0, 1.0);
+                vec3 halfDir = normalize(lightDir + viewDir);
+                float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
+
+                float bands = 8.0;
+                float steppedInfo = floor(d * bands) / bands;
+
+                vec3 baseColor = palette(steppedInfo * 2.0 + 0.1);
+                float shadow = smoothstep(0.0, 0.2, d);
+
+                vec3 finalColor = baseColor * (diff * 0.8 + 0.2);
+                finalColor += vec3(1.0) * spec * 0.8;
+                finalColor *= shadow;
+
+                outColor = vec4(finalColor, 1.0);
+            }`;
+
+            // --- Boilerplate ---
+            function createProgram(fs) {
+                const p = gl.createProgram();
+                const s1 = gl.createShader(gl.VERTEX_SHADER);
+                const s2 = gl.createShader(gl.FRAGMENT_SHADER);
+                gl.shaderSource(s1, vs); gl.compileShader(s1);
+                gl.shaderSource(s2, fs); gl.compileShader(s2);
+                gl.attachShader(p, s1); gl.attachShader(p, s2);
+                gl.linkProgram(p);
+                if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+                return {
+                    id: p,
+                    uni: name => gl.getUniformLocation(p, name)
+                };
+            }
+
+            function createFBO(w, h) {
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                // REPEAT enabled for seamless looping
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+                const fbo = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+                return { fbo, tex, w, h, attach: (id) => gl.activeTexture(gl.TEXTURE0 + id) || gl.bindTexture(gl.TEXTURE_2D, tex) };
+            }
+
+            function createDoubleFBO(w, h) {
+                let fbo1 = createFBO(w, h);
+                let fbo2 = createFBO(w, h);
+                return {
+                    get read() { return fbo1; },
+                    get write() { return fbo2; },
+                    swap() { let temp = fbo1; fbo1 = fbo2; fbo2 = temp; }
+                };
+            }
+
+            let width, height;
+            let velocity, density, divergence, pressure, curl;
+
+            const P = {
+                advect: createProgram(advectFs),
+                splat: createProgram(splatFs),
+                curl: createProgram(curlFs),
+                vorticity: createProgram(vorticityFs),
+                div: createProgram(divergenceFs),
+                pressure: createProgram(pressureFs),
+                grad: createProgram(gradientFs),
+                display: createProgram(displayFs)
+            };
+
+            function resize() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+
+                let simW = SIM_RES;
+                let simH = Math.floor(SIM_RES * height / width);
+                let dyeW = DYE_RES;
+                let dyeH = Math.floor(DYE_RES * height / width);
+
+                velocity = createDoubleFBO(simW, simH);
+                density = createDoubleFBO(dyeW, dyeH);
+                divergence = createFBO(simW, simH);
+                curl = createFBO(simW, simH);
+                pressure = createDoubleFBO(simW, simH);
+            }
+            window.onresize = resize;
+            resize();
+
+            function run(prog, fbo, inputs = {}) {
+                gl.useProgram(prog.id);
+                if (fbo) {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.fbo);
+                    gl.viewport(0, 0, fbo.w, fbo.h);
+                } else {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                    gl.viewport(0, 0, width, height);
+                }
+
+                if (fbo) gl.uniform2f(prog.uni('texelSize'), 1.0/fbo.w, 1.0/fbo.h);
+                else gl.uniform2f(prog.uni('texelSize'), 1.0/width, 1.0/height);
+
+                for (let k in inputs) {
+                    const val = inputs[k];
+                    if (val && (val instanceof WebGLTexture || val.attach)) {
+                        val.attach ? val.attach(inputs[k+"_id"]) : null;
+                        gl.uniform1i(prog.uni(k), inputs[k+"_id"]);
+                    } else if (val && val.length === 2) gl.uniform2fv(prog.uni(k), val);
+                    else if (val && val.length === 3) gl.uniform3fv(prog.uni(k), val);
+                    else gl.uniform1f(prog.uni(k), val);
+                }
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+
+            // --- Interaction & Update ---
+            let pointers = [];
+
+            function update() {
+                const dt = 0.016;
+
+                pointers.forEach(p => {
+                    if (p.prevX === undefined) { p.prevX = p.x; p.prevY = p.y; }
+                    let dx = p.x - p.prevX;
+                    let dy = p.y - p.prevY;
+
+                    const MAX_FORCE = 30;
+                    if (dx > MAX_FORCE) dx = MAX_FORCE;
+                    if (dx < -MAX_FORCE) dx = -MAX_FORCE;
+                    if (dy > MAX_FORCE) dy = MAX_FORCE;
+                    if (dy < -MAX_FORCE) dy = -MAX_FORCE;
+
+                    const dist = Math.hypot(dx, dy);
+
+                    let radiusScale = 1.0 + Math.min(dist / 20.0, 1.0);
+
+                    // Splat Velocity (Movement)
+                    run(P.splat, velocity.write, {
+                        uSource: velocity.read, uSource_id: 0,
+                        point: [p.x * (velocity.read.w / width), p.y * (velocity.read.h / height)],
+                        color: [dx * 1.0, dy * 1.0, 0],
+                        radius: 20.0 * radiusScale,
+                        uFill: 1 // Solid
+                    });
+                    velocity.swap();
+
+                    // Splat Density (The "Metal")
+                    run(P.splat, density.write, {
+                        uSource: density.read, uSource_id: 1,
+                        point: [p.x * (density.read.w / width), p.y * (density.read.h / height)],
+                        color: [0.8, 0.8, 0.8],
+                        radius: 30.0 * radiusScale,
+                        uFill: 0 // Hollow
+                    });
+                    density.swap();
+
+                    p.prevX = p.x;
+                    p.prevY = p.y;
+                    p.dx = dx * 0.9; p.dy = dy * 0.9;
+                });
+                pointers = pointers.filter(p => p.down);
+
+                run(P.curl, curl, { uVelocity: velocity.read, uVelocity_id: 0 });
+
+                run(P.vorticity, velocity.write, {
+                    uVelocity: velocity.read, uVelocity_id: 0,
+                    uCurl: curl, uCurl_id: 1,
+                    curl: CURL,
+                    dt: dt
+                });
+                velocity.swap();
+
+                run(P.advect, velocity.write, {
+                    uVelocity: velocity.read, uVelocity_id: 0,
+                    uSource: velocity.read, uSource_id: 0,
+                    dt: dt, dissipation: DISSIPATION
+                });
+                velocity.swap();
+
+                run(P.advect, density.write, {
+                    uVelocity: velocity.read, uVelocity_id: 0,
+                    uSource: density.read, uSource_id: 1,
+                    dt: dt, dissipation: DYE_DISSIPATION
+                });
+                density.swap();
+
+                run(P.div, divergence, { uVelocity: velocity.read, uVelocity_id: 0 });
+
+                for(let i=0; i<ITERATIONS; i++) {
+                    run(P.pressure, pressure.write, {
+                        uDivergence: divergence, uDivergence_id: 0,
+                        uSource: pressure.read, uSource_id: 1
+                    });
+                    pressure.swap();
+                }
+
+                run(P.grad, velocity.write, {
+                    uPressure: pressure.read, uPressure_id: 0,
+                    uVelocity: velocity.read, uVelocity_id: 1
+                });
+                velocity.swap();
+
+                // MODIFIED: Pass uTime
+                run(P.display, null, {
+                    uSource: density.read,
+                    uSource_id: 0,
+                    uTime: performance.now() / 1000.0
+                });
+
+                requestAnimationFrame(update);
+            }
+
+            function getPointer(id) {
+                let p = pointers.find(p => p.id === id);
+                if (!p) {
+                    p = { id, x: 0, y: 0, dx: 0, dy: 0, down: true, prevX: undefined, prevY: undefined };
+                    pointers.push(p);
+                }
+                return p;
+            }
+
+            // ROBUST INPUT HANDLING
+            window.addEventListener('mousemove', e => {
+                const rect = canvas.getBoundingClientRect();
+                if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
+
+                    const p = getPointer(-1);
+                    p.x = e.clientX - rect.left;
+                    p.y = height - (e.clientY - rect.top);
+                    p.down = true;
+                } else {
+                     const p = pointers.find(p => p.id === -1);
+                     if (p) p.down = false;
+                }
+            });
+
+            window.addEventListener('mousedown', e => {
+                const rect = canvas.getBoundingClientRect();
+                if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    startPointer(-1, e.clientX - rect.left, height - (e.clientY - rect.top));
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                 const p = pointers.find(p => p.id === -1);
+                 if(p) p.down = false;
+            });
+
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                Array.from(e.changedTouches).forEach(t => {
+                    const p = getPointer(t.identifier);
+                    const rect = canvas.getBoundingClientRect();
+                    p.x = t.clientX - rect.left;
+                    p.y = height - (t.clientY - rect.top);
+                });
+            }, {passive: false});
+
+            function startPointer(id, x, y) {
+                const p = getPointer(id);
+                p.x = x; p.y = y;
+                p.prevX = x; p.prevY = y;
+                p.dx = 0; p.dy = 0;
+                p.down = true;
+            }
+
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                Array.from(e.changedTouches).forEach(t => {
+                    const rect = canvas.getBoundingClientRect();
+                    startPointer(t.identifier, t.clientX - rect.left, height - (t.clientY - rect.top));
+                });
+            }, {passive: false});
+
+            canvas.addEventListener('touchend', e => {
+                 Array.from(e.changedTouches).forEach(t => {
+                     const p = pointers.find(p => p.id === t.identifier);
+                     if(p) p.down = false;
+                 });
+            });
+
+            update();
+        })();
+    </script>
+  </body>
+</html>

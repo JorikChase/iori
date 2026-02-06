@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-Body Gravity Simulation (v5 Phantoms)</title>
+    <style>
+      body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        .controls-container {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .control-button {
+            padding: 10px 15px;
+            background-color: rgba(50, 50, 50, 0.8);
+            color: white;
+            border: 1px solid #555;
+            border-radius: 8px; /* Rounded corners */
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            backdrop-filter: blur(5px);
+            transition: background-color 0.2s ease;
+        }
+        .control-button:hover {
+            background-color: rgba(85, 85, 85, 0.9);
+        }
+    </style>
+  </head>
+  <body>
+    <!-- Control Buttons --><div class="controls-container">
+      <button id="btn-random-vel" class="control-button">Random Velocities</button>
+      <button id="btn-reset-stable" class="control-button">Reset Stable Orbit</button>
+      <button id="btn-reset-phantoms" class="control-button">Reset Phantoms (Stable)</button>
+    </div>
+    <canvas id="simulation-canvas"></canvas>
+    <!-- Importmap for Three.js --><script type="importmap">
+      {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+    <!-- Main simulation script --><script type="module">
+      import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        console.log("--- Module Script Loaded (3-Body v5) ---");
+
+        let scene, camera, renderer, controls, clock;
+        let sphere1, sphere2, sphere3;
+
+        // --- Visual extras ---
+        let centroidOrb; // The pink orb at the centroid
+        let sumOrb; // The purple orb at the vector sum
+        let vertexEdges; // The lines connecting the 3 main orbs
+
+        // --- Trails (Past) ---
+        let trail1, trail2, trail3;
+        let centroidTrail; // Cyan line for the centroid's actual path
+        let trail1Points = [];
+        let trail2Points = [];
+        let trail3Points = [];
+        let centroidTrailPoints = []; // Points for the centroid's actual path
+
+        // --- Predictions (Future) ---
+        let predictionLine1, predictionLine2, predictionLine3;
+        let centroidPredictionLine; // Yellow line for centroid's future path
+        let centroidPredictionPoints = [];
+
+        const PREDICTION_STEPS = 200;
+        const predictionMaterial = new THREE.LineBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.5 });
+        const centroidPredictionMaterial = new THREE.LineBasicMaterial({ color: 0xFFFF00, transparent: true, opacity: 0.8 }); // Yellow
+
+        // --- Physics Simulation Variables ---
+        const G = 0.8;
+        const mass1 = 10;
+        const mass2 = 10;
+        const mass3 = 10;
+        const epsilon = 0.1; // Softening factor to prevent division by zero
+
+        // --- Initial Stable Orbit Parameters (moved to global) ---
+        const STABLE_R = 2.0;
+        const STABLE_S = 1.52;
+        const STABLE_SQRT3_2 = Math.sqrt(3) / 2.0;
+
+        // Re-usable vectors for physics
+        const forceVec = new THREE.Vector3();
+        const directionVec = new THREE.Vector3();
+        const acceleration1 = new THREE.Vector3();
+        const acceleration2 = new THREE.Vector3();
+        const acceleration3 = new THREE.Vector3();
+
+        // Re-usable vectors for prediction simulation
+        const ghostPos1 = new THREE.Vector3();
+        const ghostPos2 = new THREE.Vector3();
+        const ghostPos3 = new THREE.Vector3();
+        const ghostVel1 = new THREE.Vector3();
+        const ghostVel2 = new THREE.Vector3();
+        const ghostVel3 = new THREE.Vector3();
+        const ghostAccel1 = new THREE.Vector3();
+        const ghostAccel2 = new THREE.Vector3();
+        const ghostAccel3 = new THREE.Vector3();
+
+        // Re-usable vectors for visuals
+        const ghostCentroid = new THREE.Vector3(); // For prediction
+        const currentCentroid = new THREE.Vector3(); // For current frame
+        const currentSum = new THREE.Vector3(); // For current frame sum
+
+
+        // --- Logging ---
+        let frameCount = 0;
+        const logFrequency = 200;
+
+        // --- [NEW] Phantom Orb Variables ---
+        let phantomSphere1, phantomSphere2, phantomSphere3;
+        let phantomTrail1, phantomTrail2, phantomTrail3;
+        let phantomPredictionLine1, phantomPredictionLine2, phantomPredictionLine3;
+
+        let phantomTrail1Points = [];
+        let phantomTrail2Points = [];
+        let phantomTrail3Points = [];
+
+        // Re-usable vectors for phantom prediction
+        const phantomGhostPos1 = new THREE.Vector3();
+        const phantomGhostPos2 = new THREE.Vector3();
+        const phantomGhostPos3 = new THREE.Vector3();
+        const phantomGhostVel1 = new THREE.Vector3();
+        const phantomGhostVel2 = new THREE.Vector3();
+        const phantomGhostVel3 = new THREE.Vector3();
+        const phantomGhostAccel1 = new THREE.Vector3();
+        const phantomGhostAccel2 = new THREE.Vector3();
+        const phantomGhostAccel3 = new THREE.Vector3();
+
+
+        /**
+         * Calculates the geometric centroid (center point) of the three spheres.
+         * @param {THREE.Vector3} pos1 - Position of sphere 1
+         * @param {THREE.Vector3} pos2 - Position of sphere 2
+         * @param {THREE.Vector3} pos3 - Position of sphere 3
+         * @param {THREE.Vector3} outCentroid - (Output) The centroid vector.
+         */
+        function calculateCentroid(pos1, pos2, pos3, outCentroid) {
+            outCentroid.copy(pos1).add(pos2).add(pos3).divideScalar(3);
+        }
+
+        /**
+         * Calculates the vector sum of the three spheres.
+         * @param {THREE.Vector3} pos1 - Position of sphere 1
+         * @param {THREE.Vector3} pos2 - Position of sphere 2
+         * @param {THREE.Vector3} pos3 - Position of sphere 3
+         * @param {THREE.Vector3} outSum - (Output) The sum vector.
+         */
+        function calculateSum(pos1, pos2, pos3, outSum) {
+            outSum.copy(pos1).add(pos2).add(pos3);
+        }
+
+        /**
+         * Initializes the THREE.js scene, camera, renderer, controls, and objects.
+         */
+        function init() {
+            console.log("init(): Starting initialization...");
+
+            // --- Basic Scene Setup ---
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 10); // Initial camera position
+
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('simulation-canvas'),
+                antialias: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            console.log("init(): Renderer initialized.");
+
+            clock = new THREE.Clock();
+
+            // --- Lighting ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            // --- Controls ---
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            console.log("init(): Controls initialized.");
+
+            // --- Create the 3 Main Orbs ---
+            const geometry1 = new THREE.SphereGeometry(0.2, 32, 32);
+            const material1 = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                metalness: 0.9,
+                roughness: 0.1
+            }); // Red
+            sphere1 = new THREE.Mesh(geometry1, material1);
+            sphere1.userData.mass = mass1;
+            sphere1.userData.velocity = new THREE.Vector3();
+
+            const geometry2 = new THREE.SphereGeometry(0.2, 32, 32);
+            const material2 = new THREE.MeshStandardMaterial({
+                color: 0x0000ff,
+                metalness: 0.9,
+                roughness: 0.1
+            }); // Blue
+            sphere2 = new THREE.Mesh(geometry2, material2);
+            sphere2.userData.mass = mass2;
+            sphere2.userData.velocity = new THREE.Vector3();
+
+            const geometry3 = new THREE.SphereGeometry(0.2, 32, 32);
+            const material3 = new THREE.MeshStandardMaterial({
+                color: 0x00ff00,
+                metalness: 0.9,
+                roughness: 0.1
+            }); // Green
+            sphere3 = new THREE.Mesh(geometry3, material3);
+            sphere3.userData.mass = mass3;
+            sphere3.userData.velocity = new THREE.Vector3();
+
+            scene.add(sphere1);
+            scene.add(sphere2);
+            scene.add(sphere3);
+            console.log("init(): 3 Main Spheres added to scene.");
+
+            // --- [NEW] Create the 3 Phantom Orbs ---
+            const phantomGeometry = new THREE.SphereGeometry(0.15, 24, 24); // Slightly smaller
+            const phantomMaterial1 = new THREE.MeshStandardMaterial({
+                color: 0xff8800, // Orange
+                metalness: 0.8,
+                roughness: 0.3,
+                transparent: true,
+                opacity: 0.4
+            });
+            const phantomMaterial2 = new THREE.MeshStandardMaterial({
+                color: 0x00ffff, // Cyan
+                metalness: 0.8,
+                roughness: 0.3,
+                transparent: true,
+                opacity: 0.4
+            });
+            const phantomMaterial3 = new THREE.MeshStandardMaterial({
+                color: 0xff00ff, // Magenta
+                metalness: 0.8,
+                roughness: 0.3,
+                transparent: true,
+                opacity: 0.4
+            });
+
+            phantomSphere1 = new THREE.Mesh(phantomGeometry, phantomMaterial1);
+            phantomSphere1.userData.mass = mass1; // Phantoms have same mass
+            phantomSphere1.userData.velocity = new THREE.Vector3();
+
+            phantomSphere2 = new THREE.Mesh(phantomGeometry, phantomMaterial2);
+            phantomSphere2.userData.mass = mass2;
+            phantomSphere2.userData.velocity = new THREE.Vector3();
+
+            phantomSphere3 = new THREE.Mesh(phantomGeometry, phantomMaterial3);
+            phantomSphere3.userData.mass = mass3;
+            phantomSphere3.userData.velocity = new THREE.Vector3();
+
+            scene.add(phantomSphere1);
+            scene.add(phantomSphere2);
+            scene.add(phantomSphere3);
+            console.log("init(): 3 Phantom Spheres added to scene.");
+
+
+            // --- Add Centroid Orb ---
+            const centroidGeometry = new THREE.SphereGeometry(0.1, 16, 16); // Smaller
+            const centroidMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFC0CB,
+                emissive: 0xFFC0CB,
+                emissiveIntensity: 0.5,
+                metalness: 0.7,
+                roughness: 0.2
+            }); // Pink
+            centroidOrb = new THREE.Mesh(centroidGeometry, centroidMaterial);
+            scene.add(centroidOrb);
+            console.log("init(): Centroid orb added.");
+
+            // --- Add Sum Orb ---
+            const sumGeometry = new THREE.SphereGeometry(0.08, 16, 16); // Even smaller
+            const sumMaterial = new THREE.MeshStandardMaterial({
+                color: 0x9932CC,
+                emissive: 0x9932CC,
+                emissiveIntensity: 0.5,
+                metalness: 0.7,
+                roughness: 0.2
+            }); // Purple (DarkOrchid)
+            sumOrb = new THREE.Mesh(sumGeometry, sumMaterial);
+            scene.add(sumOrb);
+            console.log("init(): Sum orb added.");
+
+            // --- Setup Trails (Past) ---
+            const trail1Material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const trail2Material = new THREE.LineBasicMaterial({ color: 0x0000ff });
+            const trail3Material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+            const centroidTrailMaterial = new THREE.LineBasicMaterial({ color: 0x00FFFF }); // Cyan
+
+            trail1 = new THREE.Line(new THREE.BufferGeometry(), trail1Material);
+            trail2 = new THREE.Line(new THREE.BufferGeometry(), trail2Material);
+            trail3 = new THREE.Line(new THREE.BufferGeometry(), trail3Material);
+            centroidTrail = new THREE.Line(new THREE.BufferGeometry(), centroidTrailMaterial);
+
+            scene.add(trail1);
+            scene.add(trail2);
+            scene.add(trail3);
+            scene.add(centroidTrail);
+            console.log("init(): Trails added to scene (empty).");
+
+            // --- [NEW] Setup Phantom Trails (Past) ---
+            const phantomTrailMaterial1 = new THREE.LineBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.4 }); // Orange
+            const phantomTrailMaterial2 = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.4 }); // Cyan
+            const phantomTrailMaterial3 = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.4 }); // Magenta
+
+            phantomTrail1 = new THREE.Line(new THREE.BufferGeometry(), phantomTrailMaterial1);
+            phantomTrail2 = new THREE.Line(new THREE.BufferGeometry(), phantomTrailMaterial2);
+            phantomTrail3 = new THREE.Line(new THREE.BufferGeometry(), phantomTrailMaterial3);
+
+            scene.add(phantomTrail1);
+            scene.add(phantomTrail2);
+            scene.add(phantomTrail3);
+            console.log("init(): Phantom Trails added to scene (empty).");
+
+            // --- Add Vertex Edges ---
+            const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+            const edgeGeometry = new THREE.BufferGeometry();
+            const edgePoints = [
+                new THREE.Vector3(), new THREE.Vector3(),
+                new THREE.Vector3(), new THREE.Vector3()
+            ];
+            edgeGeometry.setFromPoints(edgePoints);
+            vertexEdges = new THREE.Line(edgeGeometry, edgeMaterial);
+            scene.add(vertexEdges);
+            console.log("init(): Vertex edges added.");
+
+            // --- Setup Prediction Lines (Future) ---
+            predictionLine1 = new THREE.Line(new THREE.BufferGeometry(), predictionMaterial);
+            predictionLine2 = new THREE.Line(new THREE.BufferGeometry(), predictionMaterial);
+            predictionLine3 = new THREE.Line(new THREE.BufferGeometry(), predictionMaterial);
+            centroidPredictionLine = new THREE.Line(new THREE.BufferGeometry(), centroidPredictionMaterial);
+
+            scene.add(predictionLine1);
+            scene.add(predictionLine2);
+            scene.add(predictionLine3);
+            scene.add(centroidPredictionLine);
+            console.log("init(): Prediction lines added.");
+
+            // --- [NEW] Setup Phantom Prediction Lines (Future) ---
+            const phantomPredictionMaterial = new THREE.LineBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.2 }); // Fainter
+            phantomPredictionLine1 = new THREE.Line(new THREE.BufferGeometry(), phantomPredictionMaterial);
+            phantomPredictionLine2 = new THREE.Line(new THREE.BufferGeometry(), phantomPredictionMaterial);
+            phantomPredictionLine3 = new THREE.Line(new THREE.BufferGeometry(), phantomPredictionMaterial);
+
+            scene.add(phantomPredictionLine1);
+            scene.add(phantomPredictionLine2);
+            scene.add(phantomPredictionLine3);
+            console.log("init(): Phantom Prediction lines added.");
+
+
+            // --- Helpers and Listeners ---
+            const axesHelper = new THREE.AxesHelper(2);
+            scene.add(axesHelper);
+            console.log("init(): AxesHelper added.");
+
+            // --- Button Listeners ---
+            document.getElementById('btn-random-vel').addEventListener('click', () => {
+                resetSimulation('random');
+            });
+            document.getElementById('btn-reset-stable').addEventListener('click', () => {
+                resetSimulation('stable');
+            });
+            document.getElementById('btn-reset-phantoms').addEventListener('click', () => {
+                resetSimulation('phantoms');
+            });
+
+            window.addEventListener('resize', onWindowResize, false);
+            console.log("init(): Initialization complete.");
+
+            // --- Set initial state ---
+            resetSimulation('stable');
+            console.log("init(): Initial state set to 'stable'.");
+        }
+
+        /**
+         * Resets the simulation state to either 'stable', 'random', or 'phantoms'.
+         * @param {'stable' | 'random' | 'phantoms'} mode - The mode to reset to.
+         */
+        function resetSimulation(mode) {
+            console.log(`resetSimulation(): Resetting to '${mode}' mode.`);
+
+            // Main orbs reset
+            if (mode === 'stable' || mode === 'phantoms') {
+                sphere1.position.set(STABLE_R, 0, 0);
+                sphere1.userData.velocity.set(0, STABLE_S, 0);
+
+                sphere2.position.set(-STABLE_R / 2, STABLE_R * STABLE_SQRT3_2, 0);
+                sphere2.userData.velocity.set(-STABLE_S * STABLE_SQRT3_2, -STABLE_S / 2, 0);
+
+                sphere3.position.set(-STABLE_R / 2, -STABLE_R * STABLE_SQRT3_2, 0);
+                sphere3.userData.velocity.set(STABLE_S * STABLE_SQRT3_2, -STABLE_S / 2, 0);
+            } else if (mode === 'random') {
+                const posScale = 3.0;
+                const velScale = 1.0;
+                const rand = () => Math.random() - 0.5;
+
+                sphere1.position.set(rand() * posScale, rand() * posScale, rand() * posScale);
+                sphere1.userData.velocity.set(rand() * velScale, rand() * velScale, rand() * velScale);
+
+                sphere2.position.set(rand() * posScale, rand() * posScale, rand() * posScale);
+                sphere2.userData.velocity.set(rand() * velScale, rand() * velScale, rand() * velScale);
+
+                sphere3.position.set(rand() * posScale, rand() * posScale, rand() * posScale);
+                sphere3.userData.velocity.set(rand() * velScale, rand() * velScale, rand() * velScale);
+            }
+
+            // Phantom orbs reset (always stable-like, with slight perturbation)
+            const perturbation = 0.01; // Small change to velocities
+            phantomSphere1.position.copy(sphere1.position);
+            phantomSphere1.userData.velocity.copy(sphere1.userData.velocity).add(new THREE.Vector3(perturbation * (Math.random()-0.5), perturbation * (Math.random()-0.5), perturbation * (Math.random()-0.5)));
+
+            phantomSphere2.position.copy(sphere2.position);
+            phantomSphere2.userData.velocity.copy(sphere2.userData.velocity).add(new THREE.Vector3(perturbation * (Math.random()-0.5), perturbation * (Math.random()-0.5), perturbation * (Math.random()-0.5)));
+
+            phantomSphere3.position.copy(sphere3.position);
+            phantomSphere3.userData.velocity.copy(sphere3.userData.velocity).add(new THREE.Vector3(perturbation * (Math.random()-0.5), perturbation * (Math.random()-0.5), perturbation * (Math.random()-0.5)));
+
+
+            // --- Clear all trails ---
+            trail1Points = [];
+            trail2Points = [];
+            trail3Points = [];
+            centroidTrailPoints = [];
+            phantomTrail1Points = [];
+            phantomTrail2Points = [];
+            phantomTrail3Points = [];
+
+            // --- Add the new starting points to the trails ---
+            calculateCentroid(sphere1.position, sphere2.position, sphere3.position, currentCentroid);
+
+            trail1Points.push(sphere1.position.clone());
+            trail2Points.push(sphere2.position.clone());
+            trail3Points.push(sphere3.position.clone());
+            centroidTrailPoints.push(currentCentroid.clone());
+
+            phantomTrail1Points.push(phantomSphere1.position.clone());
+            phantomTrail2Points.push(phantomSphere2.position.clone());
+            phantomTrail3Points.push(phantomSphere3.position.clone());
+
+            // --- Update trail geometries ---
+            trail1.geometry.setFromPoints(trail1Points);
+            trail2.geometry.setFromPoints(trail2Points);
+            trail3.geometry.setFromPoints(trail3Points);
+            centroidTrail.geometry.setFromPoints(centroidTrailPoints);
+
+            phantomTrail1.geometry.setFromPoints(phantomTrail1Points);
+            phantomTrail2.geometry.setFromPoints(phantomTrail2Points);
+            phantomTrail3.geometry.setFromPoints(phantomTrail3Points);
+
+            // --- Clear prediction lines (they will be repopulated on next animate) ---
+            centroidPredictionPoints = [];
+            predictionLine1.geometry.setFromPoints([]);
+            predictionLine2.geometry.setFromPoints([]);
+            predictionLine3.geometry.setFromPoints([]);
+            centroidPredictionLine.geometry.setFromPoints(centroidPredictionPoints);
+
+            phantomPredictionLine1.geometry.setFromPoints([]);
+            phantomPredictionLine2.geometry.setFromPoints([]);
+            phantomPredictionLine3.geometry.setFromPoints([]);
+
+            // Reset frame count for logging
+            frameCount = 0;
+            // Reset clock to avoid huge dt
+            clock.getDelta(); // Call once to reset the internal timer
+        }
+
+        /**
+         * Computes the gravitational accelerations for the three bodies.
+         * @param {THREE.Vector3} pos1 - Position of sphere 1
+         * @param {THREE.Vector3} pos2 - Position of sphere 2
+         * @param {THREE.Vector3} pos3 - Position of sphere 3
+         * @param {THREE.Vector3} outAccel1 - (Output) Acceleration vector for sphere 1
+         * @param {THREE.Vector3} outAccel2 - (Output) Acceleration vector for sphere 2
+         * @param {THREE.Vector3} outAccel3 - (Output) Acceleration vector for sphere 3
+         */
+        function computeAccelerations(pos1, pos2, pos3, outAccel1, outAccel2, outAccel3) {
+            outAccel1.set(0, 0, 0);
+            outAccel2.set(0, 0, 0);
+            outAccel3.set(0, 0, 0);
+
+            let distanceSq, forceMagnitude;
+
+            // --- 1 vs 2 ---
+            directionVec.subVectors(pos2, pos1);
+            distanceSq = directionVec.lengthSq() + epsilon;
+            forceMagnitude = (G * mass1 * mass2) / distanceSq;
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+            outAccel1.addScaledVector(forceVec, 1 / mass1);
+            outAccel2.addScaledVector(forceVec, -1 / mass2);
+
+            // --- 1 vs 3 ---
+            directionVec.subVectors(pos3, pos1);
+            distanceSq = directionVec.lengthSq() + epsilon;
+            forceMagnitude = (G * mass1 * mass3) / distanceSq;
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+            outAccel1.addScaledVector(forceVec, 1 / mass1);
+            outAccel3.addScaledVector(forceVec, -1 / mass3);
+
+            // --- 2 vs 3 ---
+            directionVec.subVectors(pos3, pos2);
+            distanceSq = directionVec.lengthSq() + epsilon;
+            forceMagnitude = (G * mass2 * mass3) / distanceSq;
+            forceVec.copy(directionVec).normalize().multiplyScalar(forceMagnitude);
+            outAccel2.addScaledVector(forceVec, 1 / mass2);
+            outAccel3.addScaledVector(forceVec, -1 / mass3);
+        }
+
+        /**
+         * Updates the physics simulation by one time step (dt) for a set of spheres.
+         * @param {number} dt - Delta time
+         * @param {THREE.Mesh} s1 - Sphere 1
+         * @param {THREE.Mesh} s2 - Sphere 2
+         * @param {THREE.Mesh} s3 - Sphere 3
+         * @param {THREE.Vector3} a1 - Acceleration vector for sphere 1 (re-usable)
+         * @param {THREE.Vector3} a2 - Acceleration vector for sphere 2 (re-usable)
+         * @param {THREE.Vector3} a3 - Acceleration vector for sphere 3 (re-usable)
+         */
+        function updateSpheresPhysics(dt, s1, s2, s3, a1, a2, a3) {
+            computeAccelerations(s1.position, s2.position, s3.position, a1, a2, a3);
+
+            s1.userData.velocity.addScaledVector(a1, dt);
+            s2.userData.velocity.addScaledVector(a2, dt);
+            s3.userData.velocity.addScaledVector(a3, dt);
+
+            s1.position.addScaledVector(s1.userData.velocity, dt);
+            s2.position.addScaledVector(s2.userData.velocity, dt);
+            s3.position.addScaledVector(s3.userData.velocity, dt);
+        }
+
+        /**
+         * Updates the trail lines (past paths) for all bodies and the centroid.
+         */
+        function updateTrails() {
+            trail1Points.push(sphere1.position.clone());
+            trail2Points.push(sphere2.position.clone());
+            trail3Points.push(sphere3.position.clone());
+
+            centroidTrailPoints.push(currentCentroid.clone());
+
+            trail1.geometry.setFromPoints(trail1Points);
+            trail2.geometry.setFromPoints(trail2Points);
+            trail3.geometry.setFromPoints(trail3Points);
+            centroidTrail.geometry.setFromPoints(centroidTrailPoints);
+
+            // --- [NEW] Update Phantom Trails ---
+            phantomTrail1Points.push(phantomSphere1.position.clone());
+            phantomTrail2Points.push(phantomSphere2.position.clone());
+            phantomTrail3Points.push(phantomSphere3.position.clone());
+
+            phantomTrail1.geometry.setFromPoints(phantomTrail1Points);
+            phantomTrail2.geometry.setFromPoints(phantomTrail2Points);
+            phantomTrail3.geometry.setFromPoints(phantomTrail3Points);
+        }
+
+        /**
+         * Updates non-physics visual elements like the centroid orb, sum orb, and vertex edges.
+         */
+        function updateVisualExtras() {
+            // 1. Update the pink centroid orb position
+            centroidOrb.position.copy(currentCentroid);
+
+            // 2. Update the vertex edge positions
+            const positions = vertexEdges.geometry.attributes.position;
+            positions.setXYZ(0, sphere1.position.x, sphere1.position.y, sphere1.position.z);
+            positions.setXYZ(1, sphere2.position.x, sphere2.position.y, sphere2.position.z);
+            positions.setXYZ(2, sphere3.position.x, sphere3.position.y, sphere3.position.z);
+            positions.setXYZ(3, sphere1.position.x, sphere1.position.y, sphere1.position.z); // Close loop
+
+            positions.needsUpdate = true;
+
+            // 3. Update the purple sum orb position
+            sumOrb.position.copy(currentSum);
+        }
+
+        /**
+         * Updates the predictive trace lines (future paths) for a given set of spheres.
+         * @param {number} dt - Delta time
+         * @param {THREE.Mesh} s1 - Sphere 1
+         * @param {THREE.Mesh} s2 - Sphere 2
+         * @param {THREE.Mesh} s3 - Sphere 3
+         * @param {THREE.Line} pLine1 - Prediction line for sphere 1
+         * @param {THREE.Line} pLine2 - Prediction line for sphere 2
+         * @param {THREE.Line} pLine3 - Prediction line for sphere 3
+         * @param {THREE.Line | null} cPLine - Centroid prediction line (optional)
+         * @param {THREE.Vector3} gPos1 - Ghost position 1 (re-usable)
+         * @param {THREE.Vector3} gPos2 - Ghost position 2 (re-usable)
+         * @param {THREE.Vector3} gPos3 - Ghost position 3 (re-usable)
+         * @param {THREE.Vector3} gVel1 - Ghost velocity 1 (re-usable)
+         * @param {THREE.Vector3} gVel2 - Ghost velocity 2 (re-usable)
+         * @param {THREE.Vector3} gVel3 - Ghost velocity 3 (re-usable)
+         * @param {THREE.Vector3} gAccel1 - Ghost acceleration 1 (re-usable)
+         * @param {THREE.Vector3} gAccel2 - Ghost acceleration 2 (re-usable)
+         * @param {THREE.Vector3} gAccel3 - Ghost acceleration 3 (re-usable)
+         * @param {THREE.Vector3} gCentroid - Ghost centroid (re-usable)
+         */
+        function updatePrediction(dt, s1, s2, s3, pLine1, pLine2, pLine3, cPLine,
+                                  gPos1, gPos2, gPos3, gVel1, gVel2, gVel3,
+                                  gAccel1, gAccel2, gAccel3, gCentroid) {
+            if (dt <= 0) return;
+
+            let predictionPoints1 = [];
+            let predictionPoints2 = [];
+            let predictionPoints3 = [];
+            let currentCentroidPredictionPoints = [];
+
+            // 1. Set initial state for the shadow simulation
+            gPos1.copy(s1.position);
+            gVel1.copy(s1.userData.velocity);
+            gPos2.copy(s2.position);
+            gVel2.copy(s2.userData.velocity);
+            gPos3.copy(s3.position);
+            gVel3.copy(s3.userData.velocity);
+
+            // Add the current position as the start of the prediction
+            predictionPoints1.push(gPos1.clone());
+            predictionPoints2.push(gPos2.clone());
+            predictionPoints3.push(gPos3.clone());
+
+            if (cPLine) {
+                calculateCentroid(gPos1, gPos2, gPos3, gCentroid);
+                currentCentroidPredictionPoints.push(gCentroid.clone());
+            }
+
+            // 2. Run the shadow simulation loop
+            for (let i = 0; i < PREDICTION_STEPS; i++) {
+                computeAccelerations(gPos1, gPos2, gPos3, gAccel1, gAccel2, gAccel3);
+
+                gVel1.addScaledVector(gAccel1, dt);
+                gVel2.addScaledVector(gAccel2, dt);
+                gVel3.addScaledVector(gAccel3, dt);
+
+                gPos1.addScaledVector(gVel1, dt);
+                gPos2.addScaledVector(gVel2, dt);
+                gPos3.addScaledVector(gVel3, dt);
+
+                predictionPoints1.push(gPos1.clone());
+                predictionPoints2.push(gPos2.clone());
+                predictionPoints3.push(gPos3.clone());
+
+                if (cPLine) {
+                    calculateCentroid(gPos1, gPos2, gPos3, gCentroid);
+                    currentCentroidPredictionPoints.push(gCentroid.clone());
+                }
+            }
+
+            // 3. Update the prediction line geometries
+            pLine1.geometry.setFromPoints(predictionPoints1);
+            pLine2.geometry.setFromPoints(predictionPoints2);
+            pLine3.geometry.setFromPoints(predictionPoints3);
+            if (cPLine) {
+                cPLine.geometry.setFromPoints(currentCentroidPredictionPoints);
+            }
+        }
+
+        /**
+         * The main animation loop.
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = clock.getDelta();
+            frameCount++;
+
+            const clampedDt = Math.min(dt, 0.05);
+
+            // --- Physics Update ---
+            if (clampedDt > 0) {
+                 // Main orbs
+                 updateSpheresPhysics(clampedDt, sphere1, sphere2, sphere3, acceleration1, acceleration2, acceleration3);
+                 // Phantom orbs
+                 updateSpheresPhysics(clampedDt, phantomSphere1, phantomSphere2, phantomSphere3, phantomGhostAccel1, phantomGhostAccel2, phantomGhostAccel3);
+            }
+
+            // --- Centroid & Sum Calculation (used by visuals, controls, and trails) ---
+            calculateCentroid(sphere1.position, sphere2.position, sphere3.position, currentCentroid);
+            calculateSum(sphere1.position, sphere2.position, sphere3.position, currentSum);
+
+            // --- Visual Updates ---
+            updateVisualExtras();
+            updateTrails();
+            if (clampedDt > 0) {
+                // Main prediction
+                updatePrediction(clampedDt, sphere1, sphere2, sphere3, predictionLine1, predictionLine2, predictionLine3, centroidPredictionLine,
+                                 ghostPos1, ghostPos2, ghostPos3, ghostVel1, ghostVel2, ghostVel3,
+                                 ghostAccel1, ghostAccel2, ghostAccel3, ghostCentroid);
+                // Phantom prediction
+                updatePrediction(clampedDt, phantomSphere1, phantomSphere2, phantomSphere3, phantomPredictionLine1, phantomPredictionLine2, phantomPredictionLine3, null, // Phantoms don't have their own centroid prediction line for simplicity
+                                 phantomGhostPos1, phantomGhostPos2, phantomGhostPos3, phantomGhostVel1, phantomGhostVel2, phantomGhostVel3,
+                                 phantomGhostAccel1, phantomGhostAccel2, phantomGhostAccel3, ghostCentroid); // Re-using ghostCentroid as it's just a temp
+            }
+
+            // --- Camera and Controls Update ---
+            controls.target.copy(currentCentroid);
+            controls.update();
+
+            // --- Render ---
+            renderer.render(scene, camera);
+
+            if (frameCount === 1) {
+                console.log("animate(): First frame rendered successfully.");
+            }
+        }
+
+        /**
+         * Handles window resize events to keep the viewport correct.
+         */
+        function onWindowResize() {
+            console.log("onWindowResize(): Adjusting camera and renderer.");
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Start the simulation ---
+        init();
+        animate();
+        console.log("--- 3-Body Simulation (v5) Started ---");
+    </script>
+  </body>
+</html>

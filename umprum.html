@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>umprum linktree</title>
+    <!-- GSAP for High-End Physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <style>
+      /* --- BRUTALIST RESET --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: none; /* We build our own */
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            font-family: 'JetBrains Mono', 'Monaco', monospace;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- THE SHUTTER (The Moving Black Plane) --- */
+        .shutter {
+            position: absolute;
+            background-color: #000000;
+            z-index: 1;
+            will-change: transform;
+        }
+
+        /* Desktop Layout (Vertical Split) */
+        @media (min-width: 769px) {
+            .shutter {
+                top: 0;
+                bottom: 0;
+                width: 50%; /* Strictly 50% width */
+                left: 50%;  /* Starts firmly on the Right half */
+                transform: translateX(0%); /* No transform needed for initial state */
+            }
+        }
+
+        /* Mobile Layout (Horizontal Split) */
+        @media (max-width: 768px) {
+            .shutter {
+                left: 0;
+                right: 0;
+                height: 50%; /* Strictly 50% height */
+                top: 50%;    /* Starts firmly on the Bottom half */
+                transform: translateY(0%); /* No transform needed for initial state */
+            }
+        }
+
+        /* --- CONTENT LAYER (Difference Mode) --- */
+        .content-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            color: #ffffff;
+            display: flex;
+        }
+
+        .half {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            pointer-events: auto;
+        }
+
+        @media (max-width: 768px) {
+            .content-layer { flex-direction: column; }
+        }
+
+        /* --- TYPOGRAPHY & MAGNETS --- */
+        .nav-link {
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 2rem;
+            margin: 1rem 0;
+            position: relative;
+            display: inline-block;
+            text-decoration: none;
+            color: #ffffff;
+            font-weight: 700;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -20px;
+            width: 10px;
+            height: 2px;
+            background: white;
+            opacity: 0;
+            transform: translateY(-50%);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .nav-link:hover::before {
+            opacity: 1;
+            left: -30px;
+        }
+
+        /* --- CUSTOM CURSOR --- */
+        .cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 20px;
+            height: 20px;
+            background-color: white;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            mix-blend-mode: difference;
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .cursor.hovered {
+            width: 60px;
+            height: 60px;
+            opacity: 0.5;
+        }
+
+        /* --- SENSOR BTN --- */
+        #sensor-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: transparent;
+            border: 1px solid white;
+            color: white;
+            padding: 10px 20px;
+            font-family: inherit;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            mix-blend-mode: difference;
+            display: none;
+            cursor: pointer;
+        }
+
+        /* --- UTILS --- */
+        .label {
+            position: absolute;
+            font-size: 0.7rem;
+            opacity: 0.5;
+            text-transform: uppercase;
+        }
+        .tl { top: 20px; left: 20px; }
+        .tr { top: 20px; right: 20px; }
+        .bl { bottom: 20px; left: 20px; }
+        .br { bottom: 20px; right: 20px; }
+    </style>
+  </head>
+  <body>
+    <!-- The Shutter (Black Panel) -->
+    <div class="shutter" id="shutter"></div>
+    <!-- The Cursor -->
+    <div class="cursor" id="cursor"></div>
+    <!-- Content (mix-blend-mode handles the coloring) -->
+    <div class="content-layer">
+      <!-- Left / Top Half -->
+      <div class="half" id="half-1">
+        <div class="label tl">umprum</div>
+        <a href="/assets/pdf-cut.pdf" class="nav-link magnetic" target="_blank"><span>works.pdf cut</span></a>
+        <a href="https://iori.me" class="nav-link magnetic" target="_blank"><span>projects iori.me</span></a>
+        <a href="https://soundcloud.com/ioriori" class="nav-link magnetic" target="_blank"><span>soundcloud iori</span></a>
+        <a href="/death.html" class="nav-link magnetic" target="_blank"><span>last human second</span></a>
+      </div>
+      <!-- Right / Bottom Half -->
+      <div class="half" id="half-2">
+        <div class="label br">murpmu</div>
+        <a href="https://drive.google.com/file/d/1hnYkHc8kJtkzQbDYTY4yP15GiJxKOCk0/view?usp=sharing" class="nav-link magnetic" target="_blank"><span>works.pdf full</span></a>
+        <a href="https://instagram.com/jorikjonathan" class="nav-link magnetic" target="_blank"><span>works instagram</span></a>
+        <a href="https://drive.google.com/drive/folders/1c5gPFlmY-RObks5hSHJdNfNBsa_p7JPV?usp=sharing" class="nav-link magnetic" target="_blank"><span>videos / realtime</span></a>
+        <a href="/universe.html" class="nav-link magnetic" target="_blank"><span>last universal second</span></a>
+      </div>
+    </div>
+    <button id="sensor-btn">Initialize Gyro</button>
+    <script>
+      // --- CONFIG ---
+        const cursor = document.querySelector('#cursor');
+        const shutter = document.querySelector('#shutter');
+        const links = document.querySelectorAll('.magnetic');
+        let isMobile = window.innerWidth <= 768;
+
+        // State tracking
+        // Desktop Default: Shutter on Right (left: 50%). Active side is LEFT.
+        // Mobile Default: Shutter on Bottom (top: 50%). Active side is TOP.
+        let currentSide = isMobile ? 'top' : 'left';
+
+        // --- GSAP SETTINGS ---
+        const xSet = gsap.quickSetter(cursor, "x", "px");
+        const ySet = gsap.quickSetter(cursor, "y", "px");
+
+        // --- INIT ---
+        function init() {
+            // Animate content in
+            gsap.from('.nav-link', {
+                y: 50,
+                opacity: 0,
+                stagger: 0.1,
+                duration: 1.5,
+                ease: "power4.out",
+                delay: 0.2
+            });
+
+            // Note: We do NOT set initial shutter position here anymore.
+            // We rely on CSS `left: 50%` or `top: 50%` for the perfect initial paint.
+        }
+        init();
+
+        // --- MOUSE & SWAP LOGIC ---
+        window.addEventListener("mousemove", (e) => {
+            xSet(e.clientX);
+            ySet(e.clientY);
+
+            if (isMobile) return;
+
+            const width = window.innerWidth;
+            const threshold = width / 2;
+
+            // Logic:
+            // Shutter base position is `left: 50%` (Right Side).
+
+            // If Mouse > Threshold (Right Side):
+            // We want Right Side to be White.
+            // We must move Shutter to Left Side.
+            // Target: xPercent: -100 (moves 100% of its width to the left).
+
+            if (e.clientX > threshold) {
+                if (currentSide !== 'right') {
+                    currentSide = 'right';
+                    gsap.to(shutter, {
+                        xPercent: -100,
+                        duration: 1.2,
+                        ease: "expo.out",
+                        overwrite: true
+                    });
+                }
+            } else {
+                // Mouse < Threshold (Left Side):
+                // We want Left Side to be White.
+                // We must move Shutter to Right Side (Default position).
+                // Target: xPercent: 0 (returns to natural CSS position).
+
+                if (currentSide !== 'left') {
+                    currentSide = 'left';
+                    gsap.to(shutter, {
+                        xPercent: 0,
+                        duration: 1.2,
+                        ease: "expo.out",
+                        overwrite: true
+                    });
+                }
+            }
+        });
+
+
+        // --- MAGNETIC BUTTONS ---
+        links.forEach(link => {
+            const span = link.querySelector('span');
+
+            link.addEventListener("mousemove", (e) => {
+                const rect = link.getBoundingClientRect();
+                const relX = e.clientX - rect.left - rect.width / 2;
+                const relY = e.clientY - rect.top - rect.height / 2;
+
+                gsap.to(link, {
+                    x: relX * 0.3,
+                    y: relY * 0.3,
+                    duration: 0.5,
+                    ease: "power2.out"
+                });
+
+                gsap.to(span, {
+                    x: relX * 0.2,
+                    y: relY * 0.2,
+                    duration: 0.5,
+                    ease: "power2.out"
+                });
+
+                cursor.classList.add('hovered');
+            });
+
+            link.addEventListener("mouseleave", () => {
+                gsap.to([link, span], {
+                    x: 0,
+                    y: 0,
+                    duration: 0.8,
+                    ease: "elastic.out(1, 0.3)"
+                });
+                cursor.classList.remove('hovered');
+            });
+        });
+
+        // --- MOBILE TOUCH LOGIC ---
+        window.addEventListener('touchstart', (e) => {
+            if (!isMobile) return;
+            const y = e.touches[0].clientY;
+            const height = window.innerHeight;
+
+            // Mobile Base: Shutter at Top: 50% (Bottom Side)
+
+            if (y < height / 2) {
+                // Touched Top. We want Top White.
+                // Move Shutter to Bottom (Default position: yPercent: 0).
+                if (currentSide !== 'top') {
+                    currentSide = 'top';
+                    gsap.to(shutter, { yPercent: 0, duration: 1, ease: "power4.out", overwrite: true });
+                }
+            } else {
+                // Touched Bottom. We want Bottom White.
+                // Move Shutter to Top (yPercent: -100).
+                if (currentSide !== 'bottom') {
+                    currentSide = 'bottom';
+                    gsap.to(shutter, { yPercent: -100, duration: 1, ease: "power4.out", overwrite: true });
+                }
+            }
+        });
+
+        // --- GYRO LOGIC ---
+        const sensorBtn = document.getElementById('sensor-btn');
+        if (window.DeviceOrientationEvent && isMobile) {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                sensorBtn.style.display = 'block';
+                sensorBtn.addEventListener('click', () => {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(r => {
+                            if (r === 'granted') {
+                                window.addEventListener('deviceorientation', handleOrientation);
+                                sensorBtn.style.display = 'none';
+                            }
+                        })
+                        .catch(console.error);
+                });
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
+            }
+        }
+
+        function handleOrientation(event) {
+            if (!isMobile) return;
+            const tilt = event.beta;
+
+            if (tilt > 10) {
+                // Tilted Toward User -> Bottom White
+                // Move Shutter Up (-100%)
+                 if (currentSide !== 'bottom') {
+                    currentSide = 'bottom';
+                    gsap.to(shutter, { yPercent: -100, duration: 1.5, ease: "power3.out", overwrite: true });
+                 }
+            } else if (tilt < -10) {
+                 // Tilted Away -> Top White
+                 // Move Shutter Down (0%)
+                 if (currentSide !== 'top') {
+                    currentSide = 'top';
+                    gsap.to(shutter, { yPercent: 0, duration: 1.5, ease: "power3.out", overwrite: true });
+                 }
+            }
+        }
+
+        // --- RESIZE ---
+        window.addEventListener('resize', () => {
+            const wasMobile = isMobile;
+            isMobile = window.innerWidth <= 768;
+
+            // Clean up transforms if switching modes
+            if (wasMobile !== isMobile) {
+                gsap.set(shutter, { clearProps: "all" });
+                currentSide = isMobile ? 'top' : 'left';
+            }
+        });
+    </script>
+  </body>
+</html>

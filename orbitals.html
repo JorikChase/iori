@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Hydrogen Orbitals - Immersive Edition</title>
+    <style>
+      body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            cursor: pointer;
+            touch-action: none; /* Prevents scroll */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding-bottom: 40px;
+            align-items: center;
+        }
+        #instruction {
+            color: rgba(255, 255, 255, 0.6);
+            font-family: 'Helvetica Neue', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-size: 0.8rem;
+            text-align: center;
+            mix-blend-mode: overlay;
+            transition: opacity 0.8s ease;
+            max-width: 80%;
+            line-height: 1.5em;
+        }
+        #status {
+            font-size: 0.6rem;
+            margin-top: 8px;
+            opacity: 0.5;
+            letter-spacing: 1px;
+        }
+    </style>
+  </head>
+  <body>
+    <div id="ui-layer">
+      <div id="instruction">Tap to Enable Sensors</div>
+      <div id="status"></div>
+    </div>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Vertex Shader -->
+    <script type="x-shader/x-vertex" id="vertexShader">
+      varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = vec4(position, 1.0);
+        }
+    </script>
+    <!-- Fragment Shader -->
+    <script type="x-shader/x-fragment" id="fragmentShader">
+      uniform float uTime;
+        uniform vec2 uResolution;
+        uniform float uMorph; // 0.0 to 2.0 (Sphere -> Dumbbell -> Clover)
+        uniform vec2 uCamRot; // x = pitch, y = yaw
+
+        varying vec2 vUv;
+
+        // Constants
+        #define MAX_STEPS 70
+        #define MAX_DIST 14.0
+        #define SURF_DIST 0.01
+
+        // --- Math Helpers ---
+        mat2 rot(float a) {
+            float s = sin(a);
+            float c = cos(a);
+            return mat2(c, -s, s, c);
+        }
+
+        // Smooth min for blending shapes
+        float smin(float a, float b, float k) {
+            float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+            return mix(b, a, h) - k * h * (1.0 - h);
+        }
+
+        // --- Procedural Palette ---
+        vec3 palette( float t ) {
+            vec3 a = vec3(0.5, 0.5, 0.5);
+            vec3 b = vec3(0.5, 0.5, 0.5);
+            vec3 c = vec3(1.0, 1.0, 1.0);
+            vec3 d = vec3(0.263, 0.416, 0.557);
+            return a + b*cos( 6.28318*(c*t+d) );
+        }
+
+        // --- SDF Functions ---
+        float sdSphere(vec3 p, float s) {
+            return length(p) - s;
+        }
+
+        float sdDumbbell(vec3 p, float s) {
+            float d1 = length(p - vec3(0.0, 0.8, 0.0)) - s;
+            float d2 = length(p + vec3(0.0, 0.8, 0.0)) - s;
+            return smin(d1, d2, 0.8);
+        }
+
+        float sdClover(vec3 p) {
+            float s = 0.55;
+            float k = 0.5;
+            float offset = 0.85;
+            float d = length(p - vec3(offset, offset, 0.0)) - s;
+            d = smin(d, length(p - vec3(-offset, -offset, 0.0)) - s, k);
+            d = smin(d, length(p - vec3(-offset, offset, 0.0)) - s, k);
+            d = smin(d, length(p - vec3(offset, -offset, 0.0)) - s, k);
+            return d;
+        }
+
+        // --- Scene Mapping ---
+        float getDist(vec3 p, float morph) {
+            // Camera Rotation applied INVERSELY to the point to simulate camera movement
+            // Yaw (Y-axis)
+            p.xz *= rot(uCamRot.y);
+            // Pitch (X-axis)
+            p.yz *= rot(uCamRot.x);
+
+            // Auto-rotate the object slightly for life
+            p.xz *= rot(uTime * 0.1);
+
+            float sphere = sdSphere(p, 0.9);
+            float dumbbell = sdDumbbell(p, 0.6);
+            float clover = sdClover(p);
+
+            float d = 0.0;
+
+            if (morph < 1.0) {
+                d = mix(sphere, dumbbell, smoothstep(0.0, 1.0, morph));
+            } else {
+                d = mix(dumbbell, clover, smoothstep(1.0, 2.0, morph));
+            }
+
+            // Liquid Displacement
+            float flow = uTime * 1.2;
+            vec3 q = p;
+            q.x += sin(p.y * 2.0 + flow) * 0.1;
+            float noise = sin(q.x*3.0 + flow) * sin(q.y*2.5 - flow*0.5) * sin(q.z*3.0 + flow*0.8);
+            d += noise * 0.07;
+
+            return d;
+        }
+
+        // Phase for color
+        float getPhase(vec3 p, float morph) {
+            // Apply same rotation logic to align color
+            vec3 q = p;
+            q.xz *= rot(uCamRot.y);
+            q.yz *= rot(uCamRot.x);
+            q.xz *= rot(uTime * 0.1);
+
+            float phaseS = 1.0;
+            float phaseP = q.y;
+            float phaseD = q.x * q.y;
+
+            float ph = 0.0;
+            if (morph < 1.0) {
+                ph = mix(phaseS, phaseP, smoothstep(0.0, 1.0, morph));
+            } else {
+                ph = mix(phaseP, phaseD, smoothstep(1.0, 2.0, morph));
+            }
+            return ph;
+        }
+
+        float getDensity(vec3 p, float morph) {
+            float d = getDist(p, morph);
+            return exp(-2.0 * max(d, 0.0)) * smoothstep(1.2, 0.0, d);
+        }
+
+        // --- Raymarch ---
+        vec4 raymarch(vec3 ro, vec3 rd, float morph) {
+            float totalDist = 0.0;
+            vec3 col = vec3(0.0);
+            float accumulation = 0.0;
+
+            for(int i = 0; i < MAX_STEPS; i++) {
+                vec3 p = ro + rd * totalDist;
+                float dens = getDensity(p, morph);
+
+                if(dens > 0.001) {
+                    float phase = getPhase(p, morph);
+                    float t = length(p)*0.2 - uTime*0.2;
+                    vec3 baseCol = palette(t + phase*0.2);
+
+                    if (phase < 0.0) baseCol = baseCol.brg * 1.2;
+
+                    float val = dens * 0.12;
+                    accumulation += val;
+                    col += baseCol * val * (1.0 - accumulation * 0.9);
+                }
+
+                if(accumulation >= 1.0 || totalDist > MAX_DIST) break;
+                totalDist += 0.05 + max(0.0, (1.0 - dens) * 0.05);
+            }
+            return vec4(col, accumulation);
+        }
+
+        vec3 getBackground(vec3 rd) {
+            return mix(vec3(0.0), vec3(0.01, 0.0, 0.05), rd.y*0.5 + 0.5);
+        }
+
+        void main() {
+            vec2 uv = (vUv - 0.5) * 2.0;
+            uv.x *= uResolution.x / uResolution.y;
+
+            vec3 ro = vec3(0.0, 0.0, 6.5);
+
+            // Chromatic Aberration Setup
+            float spread = 0.015 * (1.0 + length(uv)*0.8);
+            vec3 rdR = normalize(vec3(uv.x + spread, uv.y, -2.0));
+            vec3 rdG = normalize(vec3(uv.x,          uv.y, -2.0));
+            vec3 rdB = normalize(vec3(uv.x - spread, uv.y, -2.0));
+
+            vec4 resR = raymarch(ro, rdR, uMorph);
+            vec4 resG = raymarch(ro, rdG, uMorph);
+            vec4 resB = raymarch(ro, rdB, uMorph);
+
+            vec3 orbitalColor = vec3(resR.r, resG.g, resB.b);
+            float alphaAvg = (resR.a + resG.a + resB.a) / 3.0;
+
+            vec3 bg = getBackground(rdG);
+            vec3 finalColor = orbitalColor + bg * max(0.0, (1.0 - alphaAvg));
+
+            finalColor = pow(finalColor, vec3(1.1));
+            finalColor += orbitalColor * 0.3;
+            finalColor *= 1.2 - dot(uv, uv) * 0.45;
+
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+    <!-- Main Logic -->
+    <script>
+      // --- 1. Three.js Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const uniforms = {
+            uTime: { value: 0 },
+            uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            uMorph: { value: 0.0 }, // Controlled by Touch X
+            uCamRot: { value: new THREE.Vector2(0.0, 0.0) } // Controlled by Gyro
+        };
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const material = new THREE.ShaderMaterial({
+            vertexShader: document.getElementById('vertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShader').textContent,
+            uniforms: uniforms
+        });
+        scene.add(new THREE.Mesh(geometry, material));
+
+        // --- 2. State & Input Variables ---
+        let targetMorph = 0.0;
+        let targetRotX = 0.0; // Pitch
+        let targetRotY = 0.0; // Yaw
+        let hasGyro = false;
+        let permissionsGranted = false;
+
+        const instructionEl = document.getElementById('instruction');
+        const statusEl = document.getElementById('status');
+
+        // --- 3. Resize Handler ---
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 4. Touch Handling (Morphing) ---
+        function handleTouch(x) {
+            // Map screen width (0 to 1) to Morph State (0 to 2.5)
+            targetMorph = (x / window.innerWidth) * 2.5;
+            targetMorph = Math.max(0, Math.min(2.0, targetMorph));
+        }
+
+        window.addEventListener('touchstart', (e) => {
+            if(e.touches.length > 0) handleTouch(e.touches[0].clientX);
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            if(e.touches.length > 0) handleTouch(e.touches[0].clientX);
+        }, {passive: false});
+
+        window.addEventListener('mousemove', (e) => {
+            if(!hasGyro) {
+                // Desktop fallback: Mouse X = Morph, Mouse Y = Pitch
+                targetMorph = (e.clientX / window.innerWidth) * 2.5;
+                targetRotX = (e.clientY / window.innerHeight - 0.5) * 2.0;
+            }
+        });
+
+        // --- 5. Gyro Handling (Immersive Rotation) ---
+        function handleOrientation(e) {
+            if (!hasGyro) {
+                hasGyro = true;
+                instructionEl.innerHTML = "Drag Horizontal to Morph<br>Tilt to Inspect";
+                statusEl.innerText = "";
+            }
+
+            // Beta: -180 to 180 (Front/Back Tilt) -> Pitch
+            // Gamma: -90 to 90 (Left/Right Tilt) -> Yaw
+
+            // We clamp and smooth the values
+            let beta = e.beta;
+            let gamma = e.gamma;
+
+            // Handle nulls on some devices
+            if (beta === null || gamma === null) return;
+
+            // Mapping:
+            // Holding phone upright: Beta is around 90. Flat is 0.
+            // Let's assume user holds phone at ~45deg angle naturally.
+            // We want delta rotation mostly.
+
+            // Pitch (X-axis rotation)
+            // Map -45 to 45 deg to -1.0 to 1.0 radians approx
+            targetRotX = (beta - 45) * 0.03;
+
+            // Yaw (Y-axis rotation)
+            // Map -45 to 45 deg
+            targetRotY = gamma * 0.03;
+        }
+
+        // --- 6. Permission Logic (The Critical iOS Fix) ---
+        function requestSensorPermission() {
+            if (permissionsGranted) return;
+
+            // Function to enable listeners
+            const enableListeners = () => {
+                window.addEventListener('deviceorientation', handleOrientation);
+                permissionsGranted = true;
+                instructionEl.innerHTML = "Drag Horizontal to Morph";
+                // Fade out instruction after delay
+                setTimeout(() => { instructionEl.style.opacity = 0; }, 2000);
+            };
+
+            // Check if iOS 13+ permission is needed
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            enableListeners();
+                        } else {
+                            statusEl.innerText = "Sensor access denied.";
+                        }
+                    })
+                    .catch(e => {
+                        console.error(e);
+                        // Fallback: Just enable it, might be non-iOS
+                        enableListeners();
+                    });
+            } else {
+                // Non-iOS or older devices
+                enableListeners();
+            }
+        }
+
+        // Bind permission request to the entire screen click/tap
+        document.body.addEventListener('click', requestSensorPermission);
+        document.body.addEventListener('touchend', (e) => {
+            // Only trigger if we haven't dragged much (a tap)
+            requestSensorPermission();
+        });
+
+
+        // --- 7. Animation Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Smooth Interpolation (Lerp)
+            uniforms.uMorph.value += (targetMorph - uniforms.uMorph.value) * 0.05;
+
+            // Camera Rotation Lerp
+            uniforms.uCamRot.value.x += (targetRotX - uniforms.uCamRot.value.x) * 0.05;
+            uniforms.uCamRot.value.y += (targetRotY - uniforms.uCamRot.value.y) * 0.05;
+
+            uniforms.uTime.value = clock.getElapsedTime();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+  </body>
+</html>

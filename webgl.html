@@ -1,6 +1,6 @@
 
 <title> WEBGL sandbox </title>
-<link rel="icon" type="image/x-icon" href="/IORI/3die.ico" />
+<link rel="icon" type="image/x-icon" href="/images/3die.ico" />
 <script type="text/javascript">
     // thanks to John Horton Conway's game of life algorithm, thank You to Cake23 for a WebGL sandbox framework from scratch, formula bases, basic coordinate transformations and inspiration.
                                                                            // github.com/Flexi23/Cake23 | WebSocket Hub for Kinect v2 and MIDI controllers
@@ -32,7 +32,7 @@
     var showSplineEditor = true; // not used in composite shader anyway
     var showSplineScale = false;
     var pointOnSplineSpeed = 3;
-    var h = 512; 
+    var h = 512;
     var w = 1024; // spline editor texture size
 
     var trackingObjects = [];
@@ -243,7 +243,7 @@
                 stickman = new Stickman(body);
                 trackingObject.stickman = stickman;
             }
-            
+
             stickman.leftHandPoiToy.x = body.handLeft.x;
             stickman.leftHandPoiToy.y = body.handLeft.y;
             stickman.leftHandPoiToy.z = body.handLeft.z;
@@ -301,12 +301,12 @@
         bodyTrackingBounds[1].x = (vec3.x > bodyTrackingBounds[1].x) ? vec3.x : bodyTrackingBounds[1].x;
         bodyTrackingBounds[1].y = (vec3.y > bodyTrackingBounds[1].y) ? vec3.y : bodyTrackingBounds[1].y;
         bodyTrackingBounds[1].z = (vec3.z > bodyTrackingBounds[1].z) ? vec3.z : bodyTrackingBounds[1].z;
-        
+
         // right lower rear
         bodyTrackingBounds[2].x = (vec3.x > bodyTrackingBounds[2].x) ? vec3.x : bodyTrackingBounds[2].x;
         bodyTrackingBounds[2].y = (vec3.y < bodyTrackingBounds[2].y) ? vec3.y : bodyTrackingBounds[2].y;
         bodyTrackingBounds[2].z = (vec3.z > bodyTrackingBounds[2].z) ? vec3.z : bodyTrackingBounds[2].z;
-        
+
         // left lower rear
         bodyTrackingBounds[3].x = (vec3.x < bodyTrackingBounds[3].x) ? vec3.x : bodyTrackingBounds[3].x;
         bodyTrackingBounds[3].y = (vec3.y < bodyTrackingBounds[3].y) ? vec3.y : bodyTrackingBounds[3].y;
@@ -316,17 +316,17 @@
         bodyTrackingBounds[4].x = (vec3.x < bodyTrackingBounds[4].x) ? vec3.x : bodyTrackingBounds[4].x;
         bodyTrackingBounds[4].y = (vec3.y > bodyTrackingBounds[4].y) ? vec3.y : bodyTrackingBounds[4].y;
         bodyTrackingBounds[4].z = (vec3.z < bodyTrackingBounds[4].z) ? vec3.z : bodyTrackingBounds[4].z;
-        
+
         // right upper front
         bodyTrackingBounds[5].x = (vec3.x > bodyTrackingBounds[5].x) ? vec3.x : bodyTrackingBounds[5].x;
         bodyTrackingBounds[5].y = (vec3.y > bodyTrackingBounds[5].y) ? vec3.y : bodyTrackingBounds[5].y;
         bodyTrackingBounds[5].z = (vec3.z < bodyTrackingBounds[5].z) ? vec3.z : bodyTrackingBounds[5].z;
-        
+
         // right lower front
         bodyTrackingBounds[6].x = (vec3.x > bodyTrackingBounds[6].x) ? vec3.x : bodyTrackingBounds[6].x;
         bodyTrackingBounds[6].y = (vec3.y < bodyTrackingBounds[6].y) ? vec3.y : bodyTrackingBounds[6].y;
         bodyTrackingBounds[6].z = (vec3.z < bodyTrackingBounds[6].z) ? vec3.z : bodyTrackingBounds[6].z;
-        
+
         // left lower front
         bodyTrackingBounds[7].x = (vec3.x < bodyTrackingBounds[7].x) ? vec3.x : bodyTrackingBounds[7].x;
         bodyTrackingBounds[7].y = (vec3.y < bodyTrackingBounds[7].y) ? vec3.y : bodyTrackingBounds[7].y;
@@ -382,7 +382,7 @@
             updateBodyTrackingBounds(trackingObject.body.head);
             updateBodyTrackingBounds(trackingObject.body.handLeft);
             updateBodyTrackingBounds(trackingObject.body.handRight);
-            
+
             var nearest = null;
             var nearestControlL = null;
             var nearestControlR = null;
@@ -455,7 +455,7 @@
                 }
             }
         });
-        
+
         if (cake23 && updated) {
 
             cake23.server.updateBodyTrackingBounds(JSON.stringify([cake23userName, getRoundedBodyTrackingBounds()]));
@@ -555,7 +555,7 @@
             drawSpline(context, outlineControls);
             context.stroke();
 
-            // draw crosses through the hands to the 
+            // draw crosses through the hands to the
 
             function drawLine(from3D, to3D) {
                 var from2D = {};
@@ -1732,7 +1732,7 @@ uniform vec2 scale;
 uniform vec2 mouse;
 uniform vec2 mouseV;
 uniform float mouseDown;
-    
+
 uniform float usePoiToys;
 uniform vec4 poiToy;
 
@@ -1789,7 +1789,7 @@ uniform vec4 col8;
 uniform vec4 head9;
 uniform vec4 col9;
 
-    
+
 
 // Korg NanoKontrol2
 uniform vec4 midifader1;
@@ -2023,11 +2023,11 @@ vec4 applyMoverForce(vec4 p, vec2 f00, int moverState, vec4 mover, float active)
     if(moverState == 4 || moverState == 3){
         vec2 pos = (p.xy - mover.xy);
         float d = length(pos*aspect)*0.65;
-        
+
         vec2 warp = - 20. * pos / exp(d) * pixelSize * aspect;
         if( moverState == 3 && length(warp) > length(p.zw)){
             p.zw += warp*aspect;
-        }	
+        }
     }
     return p;
 }
@@ -2051,7 +2051,7 @@ vec4 applyMoverForces(vec4 p, vec2 foo)
     {
         p = applyMoverForce(p, foo, (mouseDown == 1.) ? 3 : 4, poiToy*vec4(1./aspect,viewSize)*vec4(1,1,2,2) + vec4(0.5,0.5,0,0), 1. );
     }
-        
+
     p.xy += foo;
     return p;
 }
@@ -2064,9 +2064,9 @@ float mouseFilter(vec2 uv){
 
 // A simple way to create color variation in a cheap way (yes, trigonometrics ARE cheap
 // in the GPU, don't try to be smart and use a triangle wave instead).
-    
+
 // See http://iquilezles.org/www/articles/palettes/palettes.htm for more information
-    
+
 vec3 pal( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d )
 {
     return a + b*cos( 6.28318*(c*t+d) );
@@ -2104,11 +2104,11 @@ void main(void){
     float redTwilight= 4. * (1. - rawBlur4.r) * rawBlur4.r;
     p.zw += gradient(sampler_blur4, p.xy, pixelSize*16., vec4(1,1,1,0)) * pixelSize;
 
-        
+
     vec2 oo = vec2(0);
     // oo += gradient(sampler_blur, p.xy, pixelSize*4., vec4(0.,1.,0.,4.))*pixelSize; // move from alpha, smooth
     // oo += rot90(gradient(sampler_blur2, p.xy, pixelSize*8., vec4(0.,0,0.,-8.)))*pixelSize; // move orthogonal to the gradient
-        
+
     p = applyMoverForces(p, f+oo); // fluid + other offset
 
     float index = ((uv.y-0.5/particleTexSize.y) + (uv.x-0.5/particleTexSize.x) * particleTexSize.y) * particleTexSize.x;
@@ -2126,7 +2126,7 @@ void main(void){
 
     gl_FragColor.xy = fract(p.xy); // wrap
 
-    gl_FragColor.zw = p.zw; 
+    gl_FragColor.zw = p.zw;
 }
 </script>
 <script id="shader-fs-advance" type="x-shader/x-fragment">
@@ -2137,13 +2137,13 @@ void main(void) {
     vec2 f = texture2D(sampler_fluid, uv).xz*pixelSize;
 
     float pointer = mouseFilter(uv);
-    
+
     vec2 uv = uv_orig - applyMoverForces(vec4(uv_orig,- f*0.0), vec2(0)).zw*aspect.yx;
-    
+
     gl_FragColor = vec4(0);
     vec2 uv_a = uv + gradient(sampler_blur4, uv, pixelSize*18., vec4(1,1,1,0))*pixelSize*9.;
-    gl_FragColor.a = texture2D(sampler_particle_projection, uv_a).r; // particle projection in alpha to be Gaussian diffused for the next frame 
-    
+    gl_FragColor.a = texture2D(sampler_particle_projection, uv_a).r; // particle projection in alpha to be Gaussian diffused for the next frame
+
 
     float huntingFactor = 6.9;
     float reactFactor = 0.59;
@@ -2153,7 +2153,7 @@ void main(void) {
 
     uv_r += gradient(sampler_blur, uv, pixelSize*4., vec4(-4,0,0,0))*pixelSize;
     uv_r += gradient(sampler_blur4, uv, pixelSize*16., vec4(0,-huntingFactor,huntingFactor,1))*pixelSize;
-    
+
     vec4 rawPrev_r = texture2D(sampler_prev, uv_r);
     gl_FragColor.r = rawPrev_r.r;
     gl_FragColor.r += (texture2D(sampler_blur3, uv_r).r - texture2D(sampler_blur5, uv_r).r) * reactFactor;
@@ -2170,7 +2170,7 @@ void main(void) {
     gl_FragColor.g += (texture2D(sampler_blur3, uv_g).g - texture2D(sampler_blur5, uv_g).g) * reactFactor;
     gl_FragColor.g += noise.g * 1. / 256. - darken;
     gl_FragColor.g += pointer;
-        
+
     vec2 uv_b = uv - f + gradient(sampler_blur, uv, pixelSize*2., vec4(0,0,1,0))*pixelSize;
 
     uv_b += gradient(sampler_blur, uv, pixelSize*4., vec4(0,0,-4,0))*pixelSize;
@@ -2187,7 +2187,7 @@ void main(void) {
     if(frame == 0.){
         gl_FragColor *= 0.;
     }
-        
+
     gl_FragColor = clamp(gl_FragColor, 0., 1.);
 }
 </script>
@@ -2265,20 +2265,20 @@ void main(void) {
     vec4 rawBlur = texture2D(sampler_blur, uv);
     vec4 rawBlur2 = texture2D(sampler_blur5, uv);
     vec4 rawBlur4 = texture2D(sampler_blur4, uv);
-    
+
     vec4 tap = vec4(0,0,0,1);
     vec2 warp = gradient(sampler_blur2, uv, pixelSize * 4., tap)*pixelSize*92.;
     vec2 cannyEdge = gradient(sampler_prev, uv - warp*pixelSize*64., pixelSize*0.66, tap);
-    
+
     float edgeLength = 4.*length(cannyEdge)*(1.-dot(rawBlur2,vec4(1,1,1,0)*1.75));
-    
+
     gl_FragColor = rawPrev; // bypass
 
-    
+
     gl_FragColor = mix(rawPrev*1.8 - rawBlur*1.5 + rawBlur4*1.75 - edgeLength*2., vec4(1), edgeLength);
-    
+
     //gl_FragColor.r = max(gl_FragColor.r, gl_FragColor.g);
-    
+
     //gl_FragColor = rawPrev; // bypass
 
     gl_FragColor = max(gl_FragColor, gl_FragColor.brga*0.7);
@@ -2286,7 +2286,7 @@ void main(void) {
     //gl_FragColor = 1.- gl_FragColor;// invert
 
     //gl_FragColor = mix(gl_FragColor, rawParticleProjection, texture2D(sampler_blur4, uv_orig).a*1.33);
-    
+
     //gl_FragColor = mix(gl_FragColor, vec4(1)-gl_FragColor, texture2D(sampler_spline_scene, uv-warp*pixelSize*24. - cannyEdge*pixelSize*8.));
 }
 // #composite end
@@ -2478,7 +2478,7 @@ void main() {
     //gl_Position.xy += gradient(sampler_blur, gl_Position.xy*0.5+0.5, pixelSize*3., vec4(1,-0.,0,0))*pixelSize*32.;
 
     gl_Position.zw = vec2(0,1);
-    gl_PointSize = 1.;	
+    gl_PointSize = 1.;
 }
 </script>
 <script type="x-shader/x-fragment" id="shader-particle-renderer-fs">
@@ -3088,7 +3088,7 @@ void main() {
         for(var i = 0; i < numDragonDropControls; i++){
             var dnd = dragonDropControls[i];
             var x = dnd.x / sizeX;
-            var y = 1 - dnd.y / sizeY;				
+            var y = 1 - dnd.y / sizeY;
             gl.uniform4f(gl.getUniformLocation(program, "dnd" + (i+1)), x, y, dnd.size, (dnd.grabbedBy != null) ? 1 : 0);
         }
 
@@ -3104,7 +3104,7 @@ void main() {
                 var y = 1 - p3d.p2d.y / sizeY;
                 var dx = (x - p3d.old.p2d.x / sizeX);
                 var dy = (y - 1 + p3d.old.p2d.y / sizeY);
-                gl.uniform4f(gl.getUniformLocation(program, name), x, y, dx, dy);				
+                gl.uniform4f(gl.getUniformLocation(program, name), x, y, dx, dy);
             }else{
                 gl.uniform4f(gl.getUniformLocation(program, name), 0.5, 0.5, 0, 0);
             }
@@ -3179,7 +3179,7 @@ void main() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO);
         gl.useProgram(prog_render_particles);
 
-        
+
         if (mainBufferToggle < 0) {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, texture_main_l);
@@ -3550,11 +3550,11 @@ void main() {
             justify-content: center!important;
     }
     }
-    
+
 </style>
-<link rel="icon" type="image/x-icon" href="/IORI/3die.ico" />
-<link type="text/css" rel="stylesheet" href="/IORI/assets/main.css" />
-<link type="text/css" rel="stylesheet" href="/IORI/assets/burger.css" />
+<link rel="icon" type="image/x-icon" href="/images/3die.ico" />
+<link type="text/css" rel="stylesheet" href="/assets/main.css" />
+<link type="text/css" rel="stylesheet" href="/assets/burger.css" />
 	</head>
     <nav class="menu--bottom--right" role="navigation">
         <div class="menuToggle">
@@ -3563,7 +3563,7 @@ void main() {
           <span></span>
           <span></span>
           <ul class="menuItem">
-          <li><a href="./index.html">home</a></li>
+          <li><a href="/">home</a></li>
             <li><a href="./portfolio.html">portfolio</a></li>
             <li><a href="./shop.html">shop</a></li>
             <li><a href="./info.html">info</a></li>

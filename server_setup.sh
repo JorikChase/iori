@@ -24,7 +24,8 @@ set -e
 SOURCE_DIR="/root/iori"
 WEB_ROOT="/var/www/iori"
 LOG_FILE="/var/log/caddy/iori.log"
-ZAUSI_SCRIPT="./setup_zausi.sh"
+# We'll detect the script name dynamically below
+ZAUSI_SCRIPT_NAME="setup_zausi.sh"
 
 # ==================================
 # SCRIPT FUNCTIONS
@@ -43,13 +44,13 @@ show_help() {
 
 pull_from_git() {
     echo "--- Task: Pulling from Git (main branch) ---"
-
+    
     if [ ! -d "$SOURCE_DIR" ]; then
         echo "Error: Source directory $SOURCE_DIR does not exist."
         echo "Please clone the repository first: git clone <url> $SOURCE_DIR"
         exit 1
     fi
-
+    
     cd "$SOURCE_DIR" || { echo "Failed to cd into $SOURCE_DIR"; exit 1; }
 
     echo "Fetching latest changes from origin..."
@@ -64,7 +65,7 @@ pull_from_git() {
 
 ensure_dependencies() {
     echo "--- Task: Ensuring Dependencies (Caddy, rsync) ---"
-
+    
     if ! command -v caddy &> /dev/null
     then
         echo "Caddy not found. Running full install..."
@@ -113,20 +114,25 @@ sync_website_files() {
 
 deploy_zausi_app() {
     echo "--- Task: Deploying Zausi Rust App ---"
-
-    # Check if the setup script exists (it should be in the repo now)
+    
+    # Check for standard naming or user naming convention
     if [ -f "$SOURCE_DIR/setup_zausi.sh" ]; then
-        chmod +x "$SOURCE_DIR/setup_zausi.sh"
-        # Run the Zausi setup script
-        "$SOURCE_DIR/setup_zausi.sh"
+        TARGET_SCRIPT="$SOURCE_DIR/setup_zausi.sh"
+    elif [ -f "$SOURCE_DIR/zausi-setup.sh" ]; then
+        TARGET_SCRIPT="$SOURCE_DIR/zausi-setup.sh"
     else
-        echo "Warning: setup_zausi.sh not found in $SOURCE_DIR. Skipping Rust deployment."
+        echo "Warning: No Zausi setup script found (checked setup_zausi.sh and zausi-setup.sh). Skipping Rust deployment."
+        return
     fi
+
+    echo "Found setup script: $TARGET_SCRIPT"
+    chmod +x "$TARGET_SCRIPT"
+    "$TARGET_SCRIPT"
 }
 
 configure_caddy() {
     echo "--- Task: Configuring Caddy (Caddyfile) ---"
-
+    
     # Create the Caddyfile using a 'heredoc'
     tee /etc/caddy/Caddyfile > /dev/null <<EOF
 {
@@ -142,22 +148,38 @@ iori.me {
     root * $WEB_ROOT
 
     # --- ZAUSI APP CONFIGURATION ---
-    # Reverse proxy /zausi to the Rust app running on port 3000
-    # handle_path strips the '/zausi' prefix before sending to the app
-    handle_path /zausi* {
+    
+    # 1. Force trailing slash for the main app entry.
+    redir /zausi /zausi/
+
+    # 2. Path Leaking Fix:
+    # The app generates absolute links to /auth and /callback (common in OAuth).
+    # We must proxy these specific root paths to the app, even though the app
+    # generally lives at /zausi.
+    handle /auth* {
+        reverse_proxy localhost:3000
+    }
+    handle /callback* {
         reverse_proxy localhost:3000
     }
 
-    # Tell the file server to look for web.html first when
-    # a directory (like /) is requested.
-    file_server {
-        index web.html index.html
+    # 3. Main App Proxy:
+    # handle_path matches /zausi/* and strips the prefix before proxying.
+    handle_path /zausi/* {
+        reverse_proxy localhost:3000
     }
 
-    # Fallback for non-existent files (SPA-like behavior).
-    # Caddy tries {path}, then {path}/ (which uses the index above),
-    # then finally falls back to /web.html.
-    try_files {path} {path}/ /web.html
+    # --- MAIN SITE CONFIGURATION ---
+    # This 'handle' block matches everything else.
+    handle {
+        # Fallback for non-existent files (SPA-like behavior).
+        try_files {path} {path}/ /web.html
+
+        # Serve static files
+        file_server {
+            index web.html index.html
+        }
+    }
 }
 
 3die.fr {
@@ -169,12 +191,12 @@ iori.me {
     file_server
 }
 EOF
-    echo "Caddyfile has been written with correct index for iori.me and proxy for /zausi."
+    echo "Caddyfile has been written with correct index for iori.me and proxy for /zausi, /auth, and /callback."
 }
 
 configure_firewall() {
     echo "--- Task: Configuring Firewall (ufw) ---"
-
+    
     # Allow HTTP (for SSL challenge) and HTTPS (for serving)
     ufw allow http
     ufw allow https
@@ -237,6 +259,7 @@ echo ""
 echo "Caddy is now serving your sites."
 echo " - https://iori.me/ (web.html)"
 echo " - https://iori.me/zausi (Rust App on :3000)"
+echo " - https://iori.me/auth (Proxied to Rust App)"
 echo " - https://3die.fr/ (index.html)"
 echo ""
 echo "You can check the status with:"

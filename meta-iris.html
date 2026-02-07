@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IRIS_REPLICANT_v12_ULTIMATE</title>
+    <style>
+        :root {
+            /* REPLICANT v3 PALETTE */
+            --bg: #000000;
+            --ink: #ffffff;
+            --amber: #ffaa00;
+            --cyan: #00f0ff;
+            --glass: rgba(5, 8, 12, 0.85);
+            /* Darker, higher contrast */
+            --border: rgba(255, 255, 255, 0.2);
+            --active: #00f0ff;
+            --glow: 0 0 4px rgba(0, 240, 255, 0.5);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+            color: var(--ink);
+            cursor: crosshair;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- UI PANEL --- */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 270px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        #ui-panel {
+            pointer-events: auto;
+            background: var(--glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--amber);
+            padding: 18px;
+            border-radius: 2px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+            transition: opacity 0.3s, transform 0.3s;
+            transform-origin: top right;
+        }
+
+        #ui-panel.collapsed {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+            pointer-events: none;
+        }
+
+        /* --- CONTROLS --- */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: var(--amber);
+            font-weight: 800;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255, 170, 0, 0.3);
+            padding-bottom: 8px;
+            text-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+            margin-bottom: 18px;
+        }
+
+        .p-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            color: var(--ink);
+            padding: 8px 0;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .p-btn:hover {
+            background: var(--cyan);
+            color: #000;
+            box-shadow: var(--glow);
+            border-color: var(--cyan);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .slider-row {
+            display: grid;
+            grid-template-columns: 55px 1fr 30px;
+            align-items: center;
+            gap: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .lbl {
+            color: #8899aa;
+            transition: color 0.2s;
+        }
+
+        .slider-row:hover .lbl {
+            color: var(--cyan);
+            text-shadow: 0 0 5px rgba(0, 240, 255, 0.4);
+        }
+
+        .val {
+            text-align: right;
+            color: var(--cyan);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ENERGY BAR SLIDER */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 2px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 4px;
+            background: var(--amber);
+            margin-top: -4px;
+            box-shadow: 0 0 8px var(--amber);
+            border-radius: 1px;
+            cursor: ew-resize;
+            transition: all 0.2s;
+        }
+
+        input[type=range]:hover::-webkit-slider-thumb {
+            height: 16px;
+            width: 6px;
+            margin-top: -6px;
+            background: var(--cyan);
+            box-shadow: 0 0 12px var(--cyan);
+        }
+
+        /* --- BOTTOM ACTIONS --- */
+        .action-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: #8899aa;
+            padding: 10px;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .action-btn:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .action-btn.active {
+            background: var(--amber);
+            color: #000;
+            border-color: var(--amber);
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.4);
+        }
+
+        /* --- PROGRESS BAR --- */
+        #accum-bar {
+            height: 3px;
+            background: var(--cyan);
+            width: 0%;
+            margin-top: 15px;
+            transition: width 0.1s;
+            box-shadow: 0 0 10px var(--cyan);
+        }
+
+        /* --- MARQUEE --- */
+        @keyframes hue-shift {
+            0% {
+                backdrop-filter: hue-rotate(0deg) saturate(200%) invert(10%);
+                border-color: rgba(255, 0, 0, 0.8);
+            }
+
+            25% {
+                backdrop-filter: hue-rotate(90deg) saturate(200%) invert(10%);
+                border-color: rgba(0, 255, 0, 0.8);
+            }
+
+            50% {
+                backdrop-filter: hue-rotate(180deg) saturate(200%) invert(10%);
+                border-color: rgba(0, 0, 255, 0.8);
+            }
+
+            75% {
+                backdrop-filter: hue-rotate(270deg) saturate(200%) invert(10%);
+                border-color: rgba(255, 0, 255, 0.8);
+            }
+
+            100% {
+                backdrop-filter: hue-rotate(360deg) saturate(200%) invert(10%);
+                border-color: rgba(255, 0, 0, 0.8);
+            }
+        }
+
+        @keyframes box-pulse {
+            0% {
+                box-shadow: 0 0 1px rgba(255, 255, 255, 0.1), inset 0 0 1px rgba(255, 255, 255, 0.1);
+            }
+
+            50% {
+                box-shadow: 0 0 2px rgba(255, 255, 255, 0.3), inset 0 0 2px rgba(255, 255, 255, 0.2);
+            }
+
+            100% {
+                box-shadow: 0 0 1px rgba(255, 255, 255, 0.1), inset 0 0 1px rgba(255, 255, 255, 0.1);
+            }
+        }
+
+        #selection-marquee {
+            position: absolute;
+            z-index: 50;
+            display: none;
+            pointer-events: none;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+
+            /* Combined Animations */
+            animation: hue-shift 8s linear infinite, box-pulse 2s ease-in-out infinite;
+        }
+
+        /* --- OVERLAYS --- */
+        .crosshair {
+            position: fixed;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .ch-h {
+            height: 1px;
+            width: 100%;
+            top: 50%;
+            left: 0;
+        }
+
+        .ch-v {
+            width: 1px;
+            height: 100%;
+            left: 50%;
+            top: 0;
+        }
+
+        #toggle-icon {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            z-index: 101;
+            fill: var(--amber);
+            opacity: 0.8;
+            pointer-events: auto;
+            filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
+            transition: opacity 0.2s;
+        }
+
+        #toggle-icon:hover {
+            opacity: 1;
+            filter: drop-shadow(0 0 8px var(--amber));
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="crosshair ch-h"></div>
+    <div class="crosshair ch-v"></div>
+    <div id="selection-marquee"></div>
+
+    <svg id="toggle-icon" viewBox="0 0 24 24" onclick="toggleUI()">
+        <path d="M3 6h18M3 12h18M3 18h18" stroke="none" />
+        <rect x="2" y="4" width="20" height="2" />
+        <rect x="2" y="11" width="20" height="2" />
+        <rect x="2" y="18" width="20" height="2" />
+    </svg>
+
+    <div id="ui-container">
+        <div id="ui-panel">
+
+            <div class="preset-grid">
+                <button class="p-btn" onclick="loadPreset('p1')">A1</button>
+                <button class="p-btn" onclick="loadPreset('p2')">B2</button>
+                <button class="p-btn" onclick="loadPreset('p3')">C3</button>
+                <button class="p-btn" onclick="loadPreset('p4')">D4</button>
+                <button class="p-btn" onclick="loadPreset('p5')">E5</button>
+                <button class="p-btn" onclick="loadPreset('p6')">F6</button>
+            </div>
+
+            <div class="control-group">
+                <!-- Main Physical Params -->
+                <div class="slider-row">
+                    <span class="lbl">DILAT</span>
+                    <input type="range" id="param-dilation" min="0.15" max="0.75" step="0.01">
+                    <span class="val" id="val-dilation"></span>
+                </div>
+                <div class="slider-row">
+                    <span class="lbl">LIGHT</span>
+                    <input type="range" id="param-light" min="0.0" max="6.28" step="0.01">
+                    <span class="val" id="val-light"></span>
+                </div>
+
+                <!-- Optics -->
+                <div class="slider-row" style="margin-top:5px">
+                    <span class="lbl" style="color:var(--amber)">FOCUS</span>
+                    <input type="range" id="param-focus" min="0.0" max="1.0" step="0.01">
+                    <span class="val" id="val-focus" style="color:var(--amber)"></span>
+                </div>
+                <div class="slider-row">
+                    <span class="lbl" style="color:var(--amber)">SATUR</span>
+                    <input type="range" id="param-sat" min="0.0" max="2.0" step="0.1">
+                    <span class="val" id="val-sat" style="color:var(--amber)"></span>
+                </div>
+                <div class="slider-row">
+                    <span class="lbl" style="color:var(--amber)">HUE</span>
+                    <input type="range" id="param-hue" min="0.0" max="1.0" step="0.01">
+                    <span class="val" id="val-hue" style="color:var(--amber)"></span>
+                </div>
+
+                <!-- Genetics -->
+                <div class="slider-row" style="margin-top:5px">
+                    <span class="lbl">STRAN</span>
+                    <input type="range" id="param-chaos" min="0.0" max="6.0" step="0.1">
+                    <span class="val" id="val-chaos"></span>
+                </div>
+                <div class="slider-row">
+                    <span class="lbl">COLAR</span>
+                    <input type="range" id="param-collarette" min="0.1" max="0.8" step="0.01">
+                    <span class="val" id="val-collarette"></span>
+                </div>
+                <div class="slider-row">
+                    <span class="lbl">MELAN</span>
+                    <input type="range" id="param-melanin" min="0.0" max="1.0" step="0.01">
+                    <span class="val" id="val-melanin"></span>
+                </div>
+                <div class="slider-row">
+                    <span class="lbl">RELIEF</span>
+                    <input type="range" id="param-relief" min="0.0" max="2.0" step="0.1">
+                    <span class="val" id="val-relief"></span>
+                </div>
+            </div>
+
+            <div class="action-row">
+                <button class="action-btn" id="anim-toggle">PAUSE</button>
+                <button class="action-btn" id="res-toggle">L-RES</button>
+                <button class="action-btn" id="shot-btn">CAP</button>
+            </div>
+
+            <div id="accum-bar"></div>
+        </div>
+    </div>
+
+    <canvas id="gl"></canvas>
+
+    <!-- SHADERS -->
+    <script id="vs" type="x-shader/x-vertex">
+        #version 300 es
+        in vec4 position;
+        void main() { gl_Position = position; }
+    </script>
+
+    <script id="fs" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+
+        out vec4 fragColor;
+
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform int u_frame;
+        uniform sampler2D u_accum;
+        
+        uniform vec2 u_mouse;
+        uniform float u_zoom;
+        uniform float u_isMobile;
+        uniform vec4 u_cropRect; 
+        
+        // PARAMS
+        uniform float u_dilation;
+        uniform float u_chaos;
+        uniform float u_collarette;
+        uniform float u_melanin;
+        uniform float u_relief; 
+        uniform float u_lightAngle;
+        uniform float u_hue;
+        uniform float u_focus;
+        uniform float u_saturation;
+
+        #define PI 3.14159265359
+        #define MAX_DIST 40.0
+        #define SURF_DIST 0.002
+        
+        // Clean Sclera Color
+        const vec3 BG_COL = vec3(0.92, 0.92, 0.90); 
+
+        // UTILS
+        float hash(vec2 p) {
+            vec3 p3  = fract(vec3(p.xyx) * .1031);
+            p3 += dot(p3, p3.yzx + 33.33);
+            return fract((p3.x + p3.y) * p3.z);
+        }
+        
+        float noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+        }
+
+        vec2 hash2(vec2 p ) {
+            p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));
+            return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+        }
+
+        float voronoi(in vec2 x) {
+            vec2 n = floor(x);
+            vec2 f = fract(x);
+            float m = 8.0;
+            for( int j=-1; j<=1; j++ )
+            for( int i=-1; i<=1; i++ ) {
+                vec2 g = vec2( float(i), float(j) );
+                vec2 o = hash2( n + g );
+                vec2 r = g + o - f;
+                float d = dot(r,r);
+                if( d<m ) m = d;
+            }
+            return sqrt(m);
+        }
+
+        float fbm(vec2 p) {
+            float v = 0.0; float a = 0.5;
+            for (int i = 0; i < 5; ++i) {
+                v += a * noise(p);
+                p = p * 2.0 + 100.0;
+                a *= 0.5;
+            }
+            return v;
+        }
+
+        float ridgedNoise(vec2 p) { return 2.0 * (0.5 - abs(0.5 - noise(p))); }
+
+        // HUE SHIFT FUNCTION
+        vec3 hueShift(vec3 color, float hue) {
+            const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+            float cosAngle = cos(hue * 6.28);
+            return vec3(color * cosAngle + cross(k, color) * sin(hue * 6.28) + k * dot(k, color) * (1.0 - cosAngle));
+        }
+
+        // GEOMETRY
+        float sdCornea(vec3 p) { return length(p - vec3(0, 0, 0.5)) - 2.4; }
+        float sdSclera(vec3 p) { return length(p - vec3(0, 0, -3.8)) - 5.5; }
+
+        vec2 mapIris(vec3 p) {
+            vec3 pIrisSpace = p - vec3(0.0, 0.0, 1.3);
+            float r = length(pIrisSpace.xy);
+            float a = atan(pIrisSpace.y, pIrisSpace.x);
+            
+            float pupilR = u_dilation * 1.5; 
+            float irisR = 1.95; 
+            
+            float effectiveR = max(r, pupilR + 0.2);
+            float coneDepth = (effectiveR - irisR) * 0.25; 
+            
+            float thickProfile = smoothstep(pupilR, pupilR + 0.05, r);
+            thickProfile *= smoothstep(irisR, irisR - 0.2, r);
+            float thickness = 0.04 * thickProfile;
+            float dPlane = abs(pIrisSpace.z - coneDepth) - thickness;
+            
+            float disp = 0.0;
+            if (dPlane < 0.5) {
+                float normR = (r - pupilR)/(irisR - pupilR);
+                vec2 pol = vec2(normR, a);
+                
+                // Fibers
+                vec2 mapPos = vec2(pol.x, pol.y * (2.0 + u_chaos * 0.5));
+                float ridges = ridgedNoise(vec2(mapPos.x * 6.0, mapPos.y * 20.0));
+                float warp = fbm(vec2(pol.y * 5.0, pol.x * 10.0));
+                float ridge = smoothstep(0.2, 0.0, abs(pol.x - u_collarette + warp * 0.05));
+                ridge *= (0.6 + 0.4 * ridgedNoise(vec2(pol.y * 15.0, pol.x * 5.0)));
+                
+                // ORGANIC DOMAIN WARPING FOR STROMA
+                vec2 stromaCoord = vec2(pol.y * 12.0, pol.x * 4.0);
+                float organicWarp = fbm(stromaCoord * 0.5 + 4.0);
+                stromaCoord += organicWarp * 1.5; // Distort the grid
+                
+                float stroma = voronoi(stromaCoord);
+                stroma = smoothstep(0.1, 0.8, stroma);
+                
+                float macro = ridges * 0.2 + ridge * 0.4;
+                macro -= (1.0 - stroma) * 0.2; // Deeper holes
+                
+                disp = macro * 0.15 * u_relief * thickProfile; 
+            }
+
+            float dDisk = max(r - irisR, pupilR - r);
+            return vec2(max(dDisk, dPlane - disp), disp);
+        }
+
+        float mapScene(vec3 p) {
+            float dC = sdCornea(p);
+            float dS = sdSclera(p);
+            float k = 0.5;
+            float h = clamp( 0.5 + 0.5*(dS-dC)/k, 0.0, 1.0 );
+            return mix( dS, dC, h ) - k*h*(1.0-h); 
+        }
+
+        vec3 getIrisNormal(vec3 p) {
+            vec2 e = vec2(0.005, 0.0);
+            float d = mapIris(p).x;
+            return normalize(d - vec3(mapIris(p-e.xyy).x, mapIris(p-e.yxy).x, mapIris(p-e.yyx).x));
+        }
+
+        float calcShadow(vec3 p, vec3 lightDir) {
+            if (u_relief < 0.1) return 1.0;
+            float res = 1.0; float t = 0.02;
+            for(int i=0; i<4; i++) {
+                float h = mapIris(p + lightDir*t).x;
+                if( h<0.001 ) return 0.2;
+                res = min( res, 8.0*h/t );
+                t += h;
+            }
+            return clamp(res, 0.2, 1.0);
+        }
+
+        vec3 getIrisColor(vec3 p, float disp, vec3 normal, vec3 viewDir, vec3 lightDir, bool highQuality) {
+            vec3 pIrisSpace = p - vec3(0.0, 0.0, 1.3);
+            float r = length(pIrisSpace.xy);
+            float a = atan(pIrisSpace.y, pIrisSpace.x);
+            float pupilR = u_dilation * 1.5;
+            float irisR = 2.15;
+            float normR = clamp((r - pupilR) / (irisR - pupilR), 0.0, 1.0);
+            
+            float cloud = fbm(vec2(normR, a * 2.0));
+            
+            // COLORS
+            vec3 colBlue = vec3(0.25, 0.5, 0.75);
+            vec3 colBrown = vec3(0.35, 0.15, 0.05);
+            vec3 colHoney = vec3(0.8, 0.6, 0.2);
+            
+            vec3 outerBase = mix(colBlue, colBrown, u_melanin);
+            vec3 outerDetail = mix(vec3(0.9), colHoney, u_melanin);
+            vec3 innerBase = mix(colBlue, colHoney, clamp(u_melanin*1.5, 0.0, 1.0));
+
+            float zoneMask = smoothstep(u_collarette - 0.1, u_collarette + 0.1, normR);
+            vec3 baseColor = mix(innerBase, outerBase, zoneMask);
+            vec3 detailColor = mix(vec3(0.9, 0.8, 0.6), outerDetail, zoneMask);
+            
+            baseColor *= (0.8 + 0.4 * cloud);
+            float fiberMask = smoothstep(-0.02, 0.05, disp);
+            vec3 col = mix(baseColor * 0.5, detailColor, fiberMask);
+            
+            // Domain Warped Stroma Darkening
+            vec2 stromaCoord = vec2(a * 12.0, normR * 4.0);
+            stromaCoord += fbm(stromaCoord * 0.5 + 4.0) * 1.5;
+            float stromaDeep = voronoi(stromaCoord);
+            col *= (0.6 + 0.4 * smoothstep(0.0, 0.5, stromaDeep));
+            
+            float edgeShadow = smoothstep(0.0, 0.1, normR) * smoothstep(1.0, 0.9, normR);
+            col *= (0.5 + 0.5 * edgeShadow);
+
+            vec3 shadowLight = normalize(lightDir + vec3(0.0,0.0,0.5));
+            float shadow = calcShadow(p, shadowLight);
+            col *= shadow;
+
+            float diff = clamp(dot(normal, lightDir), 0.0, 1.0);
+            float sss = smoothstep(-0.5, 0.5, dot(viewDir, -lightDir));
+            col += baseColor * sss * 0.4;
+            col *= (0.2 + 0.8 * diff);
+            
+            if (highQuality) {
+                float microC = pow(noise(p.xy * 200.0 + lightDir.xy * 2.0), 2.0);
+                col += vec3(0.2) * microC * diff;
+            }
+
+            vec3 h = normalize(lightDir + viewDir);
+            float spec = pow(clamp(dot(normal, h), 0.0, 1.0), 40.0);
+            col += spec * 0.4; 
+
+            // APPLY HUE
+            col = hueShift(col, u_hue);
+
+            return col;
+        }
+
+        vec4 traceIrisRay(vec3 startP, vec3 rayDir, vec3 lightDir, bool highQuality) {
+            float tIris = 0.1;
+            vec3 pIris = startP;
+            float hitDisp = 0.0;
+            bool hitIris = false;
+            
+            int maxSteps = highQuality ? 128 : (u_isMobile > 0.5 ? 20 : 50);
+            
+            for(int i=0; i<maxSteps; i++) {
+                pIris = startP + rayDir * tIris;
+                vec2 res = mapIris(pIris);
+                float threshold = highQuality ? 0.0001 : 0.005;
+                if(res.x < threshold) { hitIris = true; hitDisp = res.y; break; }
+                if(tIris > 3.0) break; 
+                tIris += res.x * 0.6;
+            }
+            
+            if (hitIris) {
+                vec3 nIris = getIrisNormal(pIris);
+                vec3 col = getIrisColor(pIris, hitDisp, nIris, -rayDir, lightDir, highQuality);
+                
+                float caustic = pow(noise(pIris.xy*3.0 + lightDir.xy), 3.0);
+                col += vec3(1.0, 0.9, 0.7) * caustic * 0.2;
+                
+                float depth = distance(startP, pIris);
+                vec3 absorb = vec3(0.92, 0.96, 0.98); 
+                col *= pow(absorb, vec3(depth * 3.0));
+                return vec4(col, 1.0);
+            }
+            return vec4(0.0);
+        }
+
+        vec3 renderPass(vec3 ro, vec3 rd, vec3 lightDir, bool insideCrop, bool isStochastic) {
+            vec3 col = BG_COL;
+            float t = 0.0;
+            int hitObj = 0; 
+            for(int i=0; i<40; i++) {
+                float d = mapScene(ro + rd * t);
+                if(d < SURF_DIST) { hitObj = 1; break; }
+                if(t > MAX_DIST) break;
+                t += d;
+            }
+
+            if(hitObj == 1) {
+                vec3 pSurf = ro + rd * t;
+                vec2 e = vec2(0.001, 0.0);
+                float d0 = mapScene(pSurf);
+                vec3 nSurf = normalize(d0 - vec3(mapScene(pSurf-e.xyy), mapScene(pSurf-e.yxy), mapScene(pSurf-e.yyx)));
+                
+                float diff = clamp(dot(nSurf, lightDir), 0.0, 1.0);
+                vec3 scleraCol = BG_COL * mix(0.85, 1.0, diff); 
+                
+                vec3 h = normalize(lightDir - rd);
+                float specWet = pow(clamp(dot(nSurf, h), 0.0, 1.0), 30.0);
+                scleraCol += specWet * 0.3;
+
+                float rim = 1.0 - max(dot(-rd, nSurf), 0.0);
+                scleraCol = mix(scleraCol, BG_COL, pow(rim, 4.0));
+
+                float rad = length(pSurf.xy);
+                float limbusMix = smoothstep(1.75, 2.1, rad); 
+
+                if (limbusMix < 1.0) {
+                    vec3 irisFinal = vec3(0.0);
+                    vec3 ref = reflect(rd, nSurf);
+                    float specCornea = pow(max(dot(ref, lightDir), 0.0), 60.0);
+                    
+                    if (insideCrop) {
+                        float randIOR = hash(gl_FragCoord.xy + u_time * 11.0);
+                        float stochasticIOR = mix(1.34, 1.41, randIOR); 
+                        vec3 rdIn = refract(rd, nSurf, 1.0/stochasticIOR);
+                        
+                        float dof = (1.0 - u_focus) * 0.05; 
+                        vec3 scatter = (vec3(hash(gl_FragCoord.xy + u_time), hash(gl_FragCoord.yx + u_time), hash(gl_FragCoord.xx + u_time)) - 0.5) * dof;
+                        rdIn = normalize(rdIn + scatter);
+
+                        vec4 trace = traceIrisRay(pSurf, rdIn, lightDir, true);
+                        if (trace.a > 0.0) {
+                            vec3 spectralTint = mix(vec3(1.0, 0.5, 0.5), vec3(0.5, 0.5, 1.0), randIOR);
+                            vec3 tinted = trace.rgb * (vec3(0.5) + spectralTint * 0.8);
+                            irisFinal = 1.0 - tinted;
+                        }
+                    } else {
+                        vec3 rdIn = refract(rd, nSurf, 1.0/1.376);
+                        vec4 trace = traceIrisRay(pSurf, rdIn, lightDir, false);
+                        if (trace.a > 0.5) irisFinal = trace.rgb;
+                    }
+
+                    irisFinal += specCornea;
+                    float f = pow(1.0 - max(dot(-rd, nSurf), 0.0), 3.0);
+                    irisFinal += f * vec3(0.2, 0.25, 0.3);
+                    col = mix(irisFinal, scleraCol, limbusMix);
+                } else {
+                    col = scleraCol;
+                }
+            }
+            return col;
+        }
+
+        void main() {
+            bool insideCrop = false;
+            if (u_cropRect.z > 0.0) {
+                if (gl_FragCoord.x >= u_cropRect.x && gl_FragCoord.x <= u_cropRect.z &&
+                    gl_FragCoord.y >= u_cropRect.y && gl_FragCoord.y <= u_cropRect.w) {
+                    insideCrop = true;
+                }
+            }
+
+            vec2 jitter = vec2(0.0);
+            if (insideCrop) jitter = vec2(hash(gl_FragCoord.xy + u_time), hash(gl_FragCoord.xy + u_time * 1.5)) - 0.5;
+            vec2 uv = (gl_FragCoord.xy + jitter - 0.5 * u_resolution.xy) / u_resolution.y;
+            
+            // CAMERA
+            float camDist = u_zoom;
+            float rotX = (u_mouse.y / u_resolution.y - 0.5) * 0.75; 
+            float rotY = (0.5 - u_mouse.x / u_resolution.x) * 1.0;
+            
+            vec3 ro = vec3(0.0, 0.0, camDist);
+            mat2 ry = mat2(cos(rotY), sin(rotY), -sin(rotY), cos(rotY));
+            mat2 rx = mat2(cos(rotX), sin(rotX), -sin(rotX), cos(rotX));
+            ro.yz *= rx; ro.xz *= ry;
+            
+            float la = u_lightAngle;
+            vec3 lightDir = normalize(vec3(cos(la), sin(la), 0.5));
+            vec3 rd = normalize(vec3(uv, -2.5));
+            rd.yz *= rx; rd.xz *= ry;
+            
+            vec3 col = vec3(0.0);
+
+            // GLOBAL BLUR LOGIC
+            // If focus is perfect (1.0), do one trace.
+            // If focus is low (<1.0), separate RGB channels for chromatic defocus
+            
+            if (insideCrop || u_focus > 0.95) {
+                col = renderPass(ro, rd, lightDir, insideCrop, false);
+            } else {
+                // CHROMATIC DISPERSION (OPTICAL BLUR)
+                float blurAmt = (1.0 - u_focus) * 0.015;
+                
+                // Red Ray
+                vec3 rdR = normalize(vec3(uv + vec2(blurAmt, 0.0), -2.5));
+                rdR.yz *= rx; rdR.xz *= ry;
+                float r = renderPass(ro, rdR, lightDir, false, false).r;
+                
+                // Green Ray
+                vec3 rdG = normalize(vec3(uv + vec2(0.0, blurAmt), -2.5));
+                rdG.yz *= rx; rdG.xz *= ry;
+                float g = renderPass(ro, rdG, lightDir, false, false).g;
+                
+                // Blue Ray
+                vec3 rdB = normalize(vec3(uv + vec2(-blurAmt, -blurAmt), -2.5));
+                rdB.yz *= rx; rdB.xz *= ry;
+                float b = renderPass(ro, rdB, lightDir, false, false).b;
+                
+                col = vec3(r, g, b);
+            }
+
+            // ACCUMULATION
+            if (u_frame > 0 && insideCrop) {
+                vec3 prev = texture(u_accum, gl_FragCoord.xy / u_resolution.xy).rgb;
+                float blend = 1.0 / float(u_frame + 1);
+                col = mix(prev, col, blend);
+            }
+            
+            // SATURATION ADJUSTMENT
+            float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+            col = mix(vec3(luma), col, u_saturation);
+
+            // VIGNETTE
+            float dC = length(uv);
+            col *= smoothstep(0.9, 0.35, dC * 0.5);
+
+            fragColor = vec4(col, 1.0);
+        }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('gl');
+        const gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
+        if (!gl) document.body.innerHTML = "WEBGL 2.0 REQUIRED";
+
+        function createProgram(vsSource, fsSource) {
+            const vs = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vs, vsSource); gl.compileShader(vs);
+            if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(vs));
+            const fs = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fs, fsSource); gl.compileShader(fs);
+            if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(fs));
+            const prog = gl.createProgram();
+            gl.attachShader(prog, vs); gl.attachShader(prog, fs);
+            gl.linkProgram(prog);
+            return prog;
+        }
+
+        const program = createProgram(document.getElementById('vs').text.trim(), document.getElementById('fs').text.trim());
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        const posLoc = gl.getAttribLocation(program, "position");
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+        let textures = [], framebuffers = [];
+        let texWidth, texHeight;
+
+        function initBuffers() {
+            texWidth = canvas.width; texHeight = canvas.height;
+            if (textures.length > 0) {
+                textures.forEach(t => gl.deleteTexture(t));
+                framebuffers.forEach(f => gl.deleteFramebuffer(f));
+            }
+            textures = []; framebuffers = [];
+            gl.getExtension("EXT_color_buffer_float");
+
+            for (let i = 0; i < 2; i++) {
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, texWidth, texHeight, 0, gl.RGBA, gl.FLOAT, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                textures.push(tex);
+                const fb = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+                framebuffers.push(fb);
+            }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        }
+
+        const state = {
+            dilation: 0.35, chaos: 1.2, collarette: 0.45, melanin: 0.5,
+            relief: 1.0, lightAngle: 1.0, hue: 0.0, focus: 1.0, saturation: 1.0,
+            zoom: 16.0, mouseX: 0, mouseY: 0,
+            paused: false, mobile: false, frameCount: 0,
+            crop: { x: 0, y: 0, w: 0, h: 0, active: false }
+        };
+        const target = { ...state };
+        let isPointerDown = false;
+        let isRightDown = false;
+        let autoAnimate = true;
+        let dragStart = { x: 0, y: 0 };
+        const marquee = document.getElementById('selection-marquee');
+
+        const presets = {
+            'p1': { melanin: 0.05, chaos: 1.8, collarette: 0.5, hue: 0.0, saturation: 1.0 },
+            'p2': { melanin: 0.45, chaos: 0.8, collarette: 0.4, hue: 0.0, saturation: 0.9 },
+            'p3': { melanin: 0.25, chaos: 1.4, collarette: 0.45, hue: 0.55, saturation: 1.2 },
+            'p4': { melanin: 0.95, chaos: 0.5, collarette: 0.3, hue: 0.0, saturation: 0.5 },
+            'p5': { melanin: 0.0, chaos: 2.5, collarette: 0.45, hue: 0.8, saturation: 1.5 },
+            'p6': { melanin: 0.7, chaos: 1.1, collarette: 0.35, hue: 0.1, saturation: 1.0 },
+        };
+
+        function resetAccumulation() {
+            state.frameCount = 0;
+            document.getElementById('accum-bar').style.width = '0%';
+        }
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('pointerdown', e => {
+            if (e.button === 2) {
+                isRightDown = true;
+                dragStart = { x: e.clientX, y: e.clientY };
+                marquee.style.display = 'block';
+                marquee.style.left = e.clientX + 'px';
+                marquee.style.top = e.clientY + 'px';
+                marquee.style.width = '0px';
+                marquee.style.height = '0px';
+                state.crop.active = false;
+                resetAccumulation();
+            } else {
+                isPointerDown = true;
+                resetAccumulation();
+                if (state.crop.active) {
+                    state.crop.active = false;
+                    state.crop.w = 0;
+                    marquee.style.display = 'none';
+                    resetAccumulation();
+                }
+            }
+        });
+
+        window.addEventListener('pointermove', e => {
+            target.mouseX = e.clientX;
+            target.mouseY = e.clientY;
+            if (isRightDown) {
+                const x = Math.min(dragStart.x, e.clientX);
+                const y = Math.min(dragStart.y, e.clientY);
+                const w = Math.abs(e.clientX - dragStart.x);
+                const h = Math.abs(e.clientY - dragStart.y);
+                marquee.style.left = x + 'px';
+                marquee.style.top = y + 'px';
+                marquee.style.width = w + 'px';
+                marquee.style.height = h + 'px';
+            } else {
+                if (!state.paused && !state.crop.active) resetAccumulation();
+            }
+        });
+
+        window.addEventListener('pointerup', e => {
+            if (e.button === 2) {
+                isRightDown = false;
+                const rect = marquee.getBoundingClientRect();
+                if (rect.width > 5 && rect.height > 5) {
+                    state.crop.active = true;
+                    state.crop.x = rect.left;
+                    state.crop.y = rect.top;
+                    state.crop.w = rect.width;
+                    state.crop.h = rect.height;
+                } else {
+                    marquee.style.display = 'none';
+                    state.crop.active = false;
+                }
+                resetAccumulation();
+            } else {
+                isPointerDown = false;
+                resetAccumulation();
+            }
+        });
+
+        window.addEventListener('wheel', e => {
+            state.zoom += e.deltaY * 0.02;
+            state.zoom = Math.max(3.0, Math.min(35.0, state.zoom));
+            resetAccumulation();
+        });
+
+        function bind(id, key) {
+            const el = document.getElementById('param-' + id);
+            const disp = document.getElementById('val-' + id);
+            el.addEventListener('input', e => {
+                target[key] = parseFloat(e.target.value);
+                disp.innerText = target[key].toFixed(2);
+                if (key !== 'dilation') autoAnimate = false;
+                resetAccumulation();
+            });
+            disp.innerText = target[key].toFixed(2);
+            el.value = target[key];
+        }
+
+        bind('dilation', 'dilation'); bind('chaos', 'chaos');
+        bind('collarette', 'collarette'); bind('melanin', 'melanin');
+        bind('relief', 'relief'); bind('light', 'lightAngle');
+        bind('hue', 'hue'); bind('focus', 'focus'); bind('sat', 'saturation');
+
+        window.loadPreset = (name) => {
+            const p = presets[name];
+            for (let k in p) {
+                target[k] = p[k];
+                if (document.getElementById('param-' + k)) {
+                    document.getElementById('param-' + k).value = p[k];
+                    document.getElementById('val-' + k).innerText = p[k].toFixed(2);
+                }
+            }
+            autoAnimate = false;
+            resetAccumulation();
+        };
+
+        window.toggleUI = () => {
+            document.getElementById('ui-panel').classList.toggle('collapsed');
+        };
+
+        document.getElementById('anim-toggle').onclick = (e) => {
+            state.paused = !state.paused;
+            e.target.innerText = state.paused ? "RUN" : "PAUSE";
+            e.target.classList.toggle('active');
+            if (state.paused) resetAccumulation();
+        };
+
+        document.getElementById('res-toggle').onclick = (e) => {
+            state.mobile = !state.mobile;
+            e.target.classList.toggle('active');
+            resetAccumulation();
+        };
+
+        document.getElementById('shot-btn').onclick = () => {
+            const ui = document.getElementById('ui-container');
+            const cursors = document.querySelectorAll('.crosshair');
+            const marq = document.getElementById('selection-marquee');
+            ui.classList.add('hidden');
+            cursors.forEach(c => c.classList.add('hidden'));
+            const wasMarqueeVisible = marq.style.display !== 'none';
+            marq.style.display = 'none';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    render(performance.now(), true);
+                    const link = document.createElement('a');
+                    link.download = `IRIS_BIO_${Date.now()}.png`;
+                    link.href = canvas.toDataURL();
+                    link.click();
+                    ui.classList.remove('hidden');
+                    cursors.forEach(c => c.classList.remove('hidden'));
+                    if (wasMarqueeVisible) marq.style.display = 'block';
+                });
+            });
+        };
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            initBuffers();
+            resetAccumulation();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        const uLocs = {
+            res: gl.getUniformLocation(program, 'u_resolution'),
+            time: gl.getUniformLocation(program, 'u_time'),
+            frame: gl.getUniformLocation(program, 'u_frame'),
+            accum: gl.getUniformLocation(program, 'u_accum'),
+            mouse: gl.getUniformLocation(program, 'u_mouse'),
+            zoom: gl.getUniformLocation(program, 'u_zoom'),
+            mobile: gl.getUniformLocation(program, 'u_isMobile'),
+            cropRect: gl.getUniformLocation(program, 'u_cropRect'),
+            dilation: gl.getUniformLocation(program, 'u_dilation'),
+            chaos: gl.getUniformLocation(program, 'u_chaos'),
+            collarette: gl.getUniformLocation(program, 'u_collarette'),
+            melanin: gl.getUniformLocation(program, 'u_melanin'),
+            relief: gl.getUniformLocation(program, 'u_relief'),
+            lightAngle: gl.getUniformLocation(program, 'u_lightAngle'),
+            hue: gl.getUniformLocation(program, 'u_hue'),
+            focus: gl.getUniformLocation(program, 'u_focus'),
+            saturation: gl.getUniformLocation(program, 'u_saturation'),
+        };
+
+        function lerp(start, end, amt) { return (1 - amt) * start + amt * end; }
+
+        function render(time, forceCapture = false) {
+            let t = time * 0.001;
+            let isMoving = false;
+            let dx = target.mouseX - state.mouseX;
+            let dy = target.mouseY - state.mouseY;
+            if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+                state.mouseX += dx * 0.08;
+                state.mouseY += dy * 0.08;
+                isMoving = true;
+            }
+
+            let targetDilation = target.dilation;
+            if (autoAnimate && !isPointerDown) targetDilation = target.dilation + Math.sin(t) * 0.03;
+            if (isPointerDown) targetDilation = 0.15;
+
+            const keys = ['chaos', 'collarette', 'melanin', 'relief', 'lightAngle', 'hue', 'focus', 'saturation'];
+            keys.forEach(k => {
+                let diff = target[k] - state[k];
+                if (Math.abs(diff) > 0.001) {
+                    state[k] = lerp(state[k], target[k], 0.08);
+                    isMoving = true;
+                } else { state[k] = target[k]; }
+            });
+
+            if (Math.abs(targetDilation - state.dilation) > 0.001) {
+                state.dilation = lerp(state.dilation, targetDilation, isPointerDown ? 0.2 : 0.05);
+                isMoving = true;
+            } else { state.dilation = targetDilation; }
+
+            if ((isPointerDown || autoAnimate) && !state.paused) {
+                document.getElementById('val-dilation').innerText = state.dilation.toFixed(2);
+            }
+
+            if (isMoving && !state.paused) resetAccumulation();
+            if (state.paused) t = 0;
+
+            let maxFrames = state.crop.active ? 256 : 1;
+
+            if (state.paused && state.frameCount > maxFrames && !forceCapture) {
+                requestAnimationFrame(render);
+                return;
+            }
+
+            const readIdx = state.frameCount % 2;
+            const writeIdx = (state.frameCount + 1) % 2;
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[writeIdx]);
+            gl.useProgram(program);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, textures[readIdx]);
+            gl.uniform1i(uLocs.accum, 0);
+
+            gl.uniform2f(uLocs.res, canvas.width, canvas.height);
+            gl.uniform1f(uLocs.time, t);
+            gl.uniform1i(uLocs.frame, state.frameCount);
+            gl.uniform2f(uLocs.mouse, state.mouseX, state.mouseY);
+            gl.uniform1f(uLocs.zoom, state.zoom);
+            gl.uniform1f(uLocs.mobile, state.mobile ? 1.0 : 0.0);
+
+            let cx1 = 0, cy1 = 0, cx2 = 0, cy2 = 0;
+            if (state.crop.active) {
+                cx1 = state.crop.x;
+                cy1 = canvas.height - (state.crop.y + state.crop.h);
+                cx2 = state.crop.x + state.crop.w;
+                cy2 = canvas.height - state.crop.y;
+            }
+            gl.uniform4f(uLocs.cropRect, cx1, cy1, cx2, cy2);
+            gl.uniform1f(uLocs.dilation, state.dilation);
+            gl.uniform1f(uLocs.chaos, state.chaos);
+            gl.uniform1f(uLocs.collarette, state.collarette);
+            gl.uniform1f(uLocs.melanin, state.melanin);
+            gl.uniform1f(uLocs.relief, state.relief);
+            gl.uniform1f(uLocs.lightAngle, state.lightAngle);
+            gl.uniform1f(uLocs.hue, state.hue);
+            gl.uniform1f(uLocs.focus, state.focus);
+            gl.uniform1f(uLocs.saturation, state.saturation);
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffers[writeIdx]);
+            gl.blitFramebuffer(0, 0, texWidth, texHeight, 0, 0, texWidth, texHeight, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+            if (state.paused && !isMoving && state.crop.active) {
+                const pct = Math.min(100, (state.frameCount / maxFrames) * 100);
+                document.getElementById('accum-bar').style.width = pct + '%';
+            } else {
+                document.getElementById('accum-bar').style.width = '0%';
+            }
+
+            state.frameCount++;
+            if (!forceCapture) requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+    </script>
+</body>
+
+</html>

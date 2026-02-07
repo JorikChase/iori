@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iori.me || 3die.fr - Node Web</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
-      body, html {
+        body,
+        html {
             margin: 0;
             padding: 0;
             width: 100%;
@@ -18,6 +20,7 @@
             user-select: none;
             -webkit-user-select: none;
         }
+
         canvas {
             display: block;
             width: 100%;
@@ -27,17 +30,19 @@
             cursor: grab;
             -webkit-tap-highlight-color: transparent;
         }
+
         canvas:active {
             cursor: grabbing;
         }
     </style>
-  </head>
-  <body>
+</head>
+
+<body>
     <canvas id="node-canvas"></canvas>
     <!-- Import D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
-      // --- 1. CONFIGURATION & STATE ---
+        // --- 1. CONFIGURATION & STATE ---
         const config = {
             tapDistanceThreshold: 15, // Max pixels moved to count as a tap
             tapTimeThreshold: 500,    // Max ms duration to count as a tap
@@ -93,15 +98,15 @@
             ["index.html", "info.html"], ["index.html", "shop.html"],
             ["shop.html", "info.html"], ["index.html", "portfolio.html"],
             ["index.html", "indent.html"], ["websites.html", "metyou.html"], ["websites.html", "zsprodeti.html"],
-            ["game.html", "darkwood.html"],["tboi2.html", "darkwood.html"],["game.html", "tboi2.html"],
-            ["fractals.html", "webgl.html"], ["orbitals.html", "webgl.html"],
+            ["game.html", "darkwood.html"], ["tboi2.html", "darkwood.html"], ["game.html", "tboi2.html"],
+            ["fractals.html", "webgl.html"], ["orbitals.html", "webgl.html"], ["iris.html", "meta-iris.html"], ["meta-iris.html", "fractals.html"],
             ["orbitals.html", "fractals.html"], ["fractals.html", "lambda_cognition.html"],
             ["three-body.html", "lambda_cognition.html"],
-            ["liquid-automata.html", "fractals.html"],["liquid-automata.html", "crystalize.html"],
+            ["liquid-automata.html", "fractals.html"], ["liquid-automata.html", "crystalize.html"],
             ["three-body.html", "fractals.html"], ["three-body.html", "orbitals.html"], ["indent.html", "disphere.html"], ["disphere.html", "disphere-inverse.html"], ["disphere-ray.html", "disphere-inverse.html"], ["disphere-ray.html", "disphere-symmetry.html"],
             ["two-body.html", "three-body.html"], ["bismuth-fluid.html", "fluid.html"],
             ["diffusion-fluid.html", "fluid.html"], ["diffusion-fluid.html", "disphere-symmetry.html"], ["disphere-ray.html", "liquid-automata.html"],
-            ["sudoku.html", "game.html"], ["class-action.html", "index.html"], ["orbitals.html", "crystalize.html"], ["fractals.html", "crystalize.html"],["sigmoid-helix.html", "death.html"],["sigmoid-helix.html", "universe.html"],
+            ["sudoku.html", "game.html"], ["class-action.html", "index.html"], ["orbitals.html", "crystalize.html"], ["fractals.html", "crystalize.html"], ["sigmoid-helix.html", "death.html"], ["sigmoid-helix.html", "universe.html"],
             // Hub connections for umprum
             ["umprum.html", "index.html"], ["umprum.html", "portfolio.html"], ["umprum.html", "orbitals.html"], ["umprum.html", "death.html"], ["umprum.html", "universe.html"]
         ];
@@ -112,20 +117,20 @@
         linksList.forEach(l => {
             const sId = typeof l.source === 'string' ? l.source : l.source.id;
             const tId = typeof l.target === 'string' ? l.target : l.target.id;
-            nodeDegrees.set(sId, (nodeDegrees.get(sId)||0)+1);
-            nodeDegrees.set(tId, (nodeDegrees.get(tId)||0)+1);
+            nodeDegrees.set(sId, (nodeDegrees.get(sId) || 0) + 1);
+            nodeDegrees.set(tId, (nodeDegrees.get(tId) || 0) + 1);
         });
 
-        const nodes = Array.from(new Set([...linksList.map(d=> typeof d.source === 'string' ? d.source : d.source.id), ...linksList.map(d=> typeof d.target === 'string' ? d.target : d.target.id)])).map(id => {
+        const nodes = Array.from(new Set([...linksList.map(d => typeof d.source === 'string' ? d.source : d.source.id), ...linksList.map(d => typeof d.target === 'string' ? d.target : d.target.id)])).map(id => {
             const degree = nodeDegrees.get(id) || 0;
             const t = Math.min(1, Math.max(0, (degree - 1) / 5));
             const color = d3.interpolateViridis(t);
             return {
                 id: id,
                 radius: hubNodes.includes(id) ? 10 : 5,
-                color: d3.color(color).copy({opacity: 0.9}).toString(),
-                x: width/2 + (Math.random()-0.5)*100,
-                y: height/2 + (Math.random()-0.5)*100
+                color: d3.color(color).copy({ opacity: 0.9 }).toString(),
+                x: width / 2 + (Math.random() - 0.5) * 100,
+                y: height / 2 + (Math.random() - 0.5) * 100
             };
         });
 
@@ -197,7 +202,7 @@
                     context.translate(transform.x, transform.y);
                     context.scale(transform.k, transform.k);
                     context.beginPath();
-                    context.arc(node.x, node.y, node.radius + 5, 0, 2*Math.PI);
+                    context.arc(node.x, node.y, node.radius + 5, 0, 2 * Math.PI);
                     context.fillStyle = "white";
                     context.fill();
                     context.restore();
@@ -249,5 +254,6 @@
             draw();
         });
     </script>
-  </body>
+</body>
+
 </html>

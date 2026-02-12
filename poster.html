@@ -4,130 +4,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Landscape Viewer (Corrected)</title>
+    <title>Gyro Labyrinth</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background: #111;
+            background: #0a0a0a;
             font-family: 'Segoe UI', sans-serif;
-            color: white;
+            user-select: none;
         }
 
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
+        /* --- DESKTOP UI --- */
+        #score-display {
+            position: absolute;
+            top: 40px;
+            width: 100%;
+            text-align: center;
+            font-size: 80px;
+            font-weight: 200;
+            color: rgba(255, 255, 255, 0.9);
+            pointer-events: none;
+            z-index: 10;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            opacity: 0;
+            transition: opacity 1s;
+        }
+
+        #qr-container {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            background: white;
+            padding: 15px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.27), opacity 0.6s;
+            z-index: 20;
+        }
+
+        /* --- MOBILE UI --- */
+        #mobile-ui {
             display: none;
-        }
-
-        /* UI Overlays */
-        .overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            display: flex;
+            background: #111;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 10;
-            pointer-events: none;
         }
 
-        .interactive {
-            pointer-events: auto;
-            background: rgba(0, 0, 0, 0.92);
-            backdrop-filter: blur(5px);
-        }
-
-        #qrcode {
-            margin: 20px;
-            background: white;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        h1 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        p {
-            margin: 5px;
-            text-align: center;
-            color: #ccc;
-            max-width: 300px;
-            line-height: 1.5;
-        }
-
-        button {
-            padding: 16px 32px;
-            font-size: 18px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #00C4FF, #0074E4);
-            color: white;
+        #btn-spawn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF0055, #FF5500);
             border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            margin-top: 30px;
-            box-shadow: 0 4px 20px rgba(0, 116, 228, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        button:active {
-            transform: scale(0.96);
-            box-shadow: 0 2px 10px rgba(0, 116, 228, 0.3);
-        }
-
-        .status-pill {
-            margin-top: 20px;
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            font-family: monospace;
-            font-size: 13px;
-            color: #888;
+            outline: none;
+            box-shadow: 0 0 30px rgba(255, 85, 0, 0.4);
+            font-size: 40px;
+            color: white;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            transition: transform 0.1s;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .dot {
-            width: 8px;
-            height: 8px;
+        #btn-spawn:active {
+            transform: scale(0.9);
+            box-shadow: 0 0 15px rgba(255, 85, 0, 0.6);
+        }
+
+        /* Status Dot (Mobile) */
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background: #333;
             border-radius: 50%;
-            background: #666;
+            position: absolute;
+            top: 30px;
+            right: 30px;
         }
 
-        .dot.green {
+        .status-dot.connected {
             background: #00FF88;
-            box-shadow: 0 0 8px #00FF88;
+            box-shadow: 0 0 10px #00FF88;
         }
 
-        .dot.red {
-            background: #FF4444;
-        }
-
-        .dot.yellow {
-            background: #FFAA00;
-            animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                opacity: 0.5;
-            }
-
-            50% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0.5;
-            }
+        /* Intro Overlay */
+        #intro-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-family: monospace;
+            z-index: 100;
+            pointer-events: none;
+            transition: opacity 0.5s;
         }
     </style>
 
@@ -138,7 +121,8 @@
         {
             "imports": {
                 "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
             }
         }
     </script>
@@ -146,24 +130,15 @@
 
 <body>
 
-    <div id="host-ui" class="overlay interactive" style="display: none;">
-        <h1>Desktop Viewer</h1>
+    <div id="score-display">0.0</div>
+    <div id="qr-container">
         <div id="qrcode"></div>
-        <p>Scan with your phone to connect</p>
-        <div class="status-pill">
-            <div id="host-dot" class="dot yellow"></div>
-            <span id="host-status">Connecting to Cloud (443)...</span>
-        </div>
     </div>
 
-    <div id="controller-ui" class="overlay interactive" style="display: none;">
-        <h1>Mobile Controller</h1>
-        <p>Ensure your screen orientation is unlocked</p>
-        <button id="btn-connect">Start Connection</button>
-        <div class="status-pill">
-            <div id="ctrl-dot" class="dot"></div>
-            <span id="ctrl-status">Ready to connect</span>
-        </div>
+    <div id="mobile-ui">
+        <div class="status-dot" id="conn-dot"></div>
+        <button id="btn-spawn">+</button>
+        <div style="margin-top: 30px; color: #444; font-family: monospace; font-size: 12px;">UNLOCK ORIENTATION</div>
     </div>
 
     <div id="canvas-container"></div>
@@ -171,258 +146,411 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import * as CANNON from 'cannon-es';
 
-        // --- Configuration ---
+        // --- CONFIG ---
         const ASSET_URL = './assets/landscape.glb';
+        const BROKER_URL = 'wss://public:public@public.cloud.shiftr.io:443/mqtt';
 
-        // --- NETWORK STRATEGY: SHIFTR.IO (Port 443) ---
-        const BROKER_HOST = 'public.cloud.shiftr.io';
-        const BROKER_URL = `wss://public:public@public.cloud.shiftr.io:443/mqtt`;
+        // --- GLOBALS ---
+        let scene, camera, renderer, world;
+        let groundMesh, groundBody;
+        let balls = []; // Array of { mesh, body, startTime, active }
+        let client;
+        let isGameActive = false;
+        let audioCtx;
 
-        // --- State ---
-        let scene, camera, renderer, model, controls, client;
-        let targetRotation = { x: 0, z: 0 };
-        let currentRotation = { x: 0, z: 0 };
+        // State
+        const state = {
+            targetRot: { x: 0, z: 0 },
+            currentRot: { x: 0, z: 0 },
+            score: 0,
+            bestTime: 0
+        };
 
-        // --- App Logic ---
+        // --- ENTRY POINT ---
         const urlParams = new URLSearchParams(window.location.search);
         const role = urlParams.get('role');
+        const channelId = urlParams.get('id') || 'game-' + Math.random().toString(36).substr(2, 9);
 
-        // Unique Channel ID
-        let channelId = urlParams.get('id');
-        if (!channelId && role !== 'controller') {
-            channelId = 'view-' + Math.random().toString(36).substr(2, 9);
-        }
+        if (role === 'controller') initController();
+        else initHost();
 
-        if (role === 'controller') {
-            initController();
-        } else {
-            initHost();
-        }
-
-        // ==========================================
-        // HOST LOGIC (Desktop)
-        // ==========================================
-        function initHost() {
-            document.getElementById('host-ui').style.display = 'flex';
-            document.getElementById('canvas-container').style.display = 'block';
-
-            const statusText = document.getElementById('host-status');
-            const statusDot = document.getElementById('host-dot');
-
+        // =================================================================
+        // HOST LOGIC (Desktop Game)
+        // =================================================================
+        async function initHost() {
+            initAudio();
             initThree();
+            initPhysics();
 
-            // Connect to Shiftr
-            console.log("Connecting to:", BROKER_HOST);
+            // Generate QR
+            const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${channelId}`;
+            new QRCode(document.getElementById("qrcode"), { text: link, width: 160, height: 160 });
 
-            const clientId = 'host-' + Math.random().toString(16).substr(2, 8);
-
-            client = mqtt.connect(BROKER_URL, {
-                clientId: clientId,
-                clean: true,
-                keepalive: 60
-            });
+            // Network
+            client = mqtt.connect(BROKER_URL, { clientId: 'host-' + Math.random().toString(16) });
 
             client.on('connect', () => {
-                console.log("Secure Connection Established");
-                statusText.innerText = "Online. Waiting for mobile...";
-                statusDot.className = "dot green";
-
-                const topic = `gyro-room/${channelId}`;
-                client.subscribe(topic);
-
-                // Generate QR Code
-                const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${channelId}`;
-                document.getElementById("qrcode").innerHTML = "";
-                new QRCode(document.getElementById("qrcode"), { text: link, width: 220, height: 220 });
+                console.log("Host Online");
+                client.subscribe(`game/${channelId}/#`);
             });
 
-            client.on('message', (topic, message) => {
-                // Fade out UI
-                const ui = document.getElementById('host-ui');
-                if (ui.style.display !== 'none') {
-                    ui.style.opacity = '0';
-                    setTimeout(() => ui.style.display = 'none', 500);
+            client.on('message', (topic, msg) => {
+                const data = JSON.parse(msg.toString());
+                const sub = topic.split('/').pop();
+
+                if (sub === 'gyro') {
+                    // Start Game Transition on first data
+                    if (!isGameActive) startGameTransition();
+
+                    // Map Gyro to Tilt
+                    // Limit tilt to 25 degrees for playability
+                    const limit = 25;
+                    state.targetRot.x = THREE.MathUtils.degToRad(Math.max(-limit, Math.min(limit, data.b)));
+                    state.targetRot.z = THREE.MathUtils.degToRad(Math.max(-limit, Math.min(limit, -data.g))); // Inverted Z
                 }
-
-                try {
-                    const data = JSON.parse(message.toString());
-                    const limit = 45;
-
-                    // --- MAPPING LOGIC ---
-                    // Beta (Front/Back) -> X Axis
-                    // Gamma (Left/Right) -> Z Axis (INVERTED HERE with -data.g)
-                    const rx = Math.max(-limit, Math.min(limit, data.b));
-                    const rz = Math.max(-limit, Math.min(limit, -data.g)); // <--- FIXED HERE
-
-                    targetRotation.x = THREE.MathUtils.degToRad(rx);
-                    targetRotation.z = THREE.MathUtils.degToRad(rz);
-                } catch (e) { }
+                else if (sub === 'spawn') {
+                    spawnBall();
+                }
             });
 
-            client.on('error', (err) => {
-                console.error(err);
-                statusText.innerText = "Firewall Error: " + err.message;
-                statusDot.className = "dot red";
-            });
-
-            client.on('offline', () => {
-                statusText.innerText = "Connection lost. Reconnecting...";
-                statusDot.className = "dot yellow";
-            });
+            // Load Level
+            loadLevel();
+            animate();
         }
 
-        // ==========================================
-        // CONTROLLER LOGIC (Mobile)
-        // ==========================================
-        function initController() {
-            const ui = document.getElementById('controller-ui');
-            const btn = document.getElementById('btn-connect');
-            const statusText = document.getElementById('ctrl-status');
-            const statusDot = document.getElementById('ctrl-dot');
-            ui.style.display = 'flex';
+        function startGameTransition() {
+            isGameActive = true;
 
-            btn.addEventListener('click', async () => {
+            // Hide QR
+            const qr = document.getElementById('qr-container');
+            qr.style.transform = 'scale(0) rotate(90deg)';
+            qr.style.opacity = '0';
 
-                // 1. iOS Permission
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    try {
-                        const response = await DeviceOrientationEvent.requestPermission();
-                        if (response !== 'granted') return alert('Gyroscope permission needed!');
-                    } catch (e) { console.error(e); }
-                }
+            // Show Score
+            document.getElementById('score-display').style.opacity = '1';
 
-                btn.innerText = "Connecting...";
-                btn.disabled = true;
-                statusDot.className = "dot yellow";
+            // Swoop Camera (Simple animation)
+            const startPos = camera.position.clone();
+            const endPos = new THREE.Vector3(0, 15, 20); // Play View
+            const startRot = camera.quaternion.clone();
 
-                // 2. Connect
-                const clientId = 'ctrl-' + Math.random().toString(16).substr(2, 8);
+            // Dummy camera for target rotation
+            const dummy = new THREE.PerspectiveCamera();
+            dummy.position.copy(endPos);
+            dummy.lookAt(0, 0, 0);
+            const endRot = dummy.quaternion;
 
-                client = mqtt.connect(BROKER_URL, {
-                    clientId: clientId,
-                    clean: true,
-                    keepalive: 60
-                });
+            let t = 0;
+            const swoop = () => {
+                t += 0.015;
+                if (t >= 1) return;
 
-                client.on('connect', () => {
-                    btn.style.display = 'none';
-                    statusText.innerText = "Connected & Streaming";
-                    statusDot.className = "dot green";
-                    ui.style.background = "rgba(0,0,0,0.95)";
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - t, 3);
 
-                    const topic = `gyro-room/${channelId}`;
-                    let lastTime = 0;
+                camera.position.lerpVectors(startPos, endPos, ease);
+                camera.quaternion.slerpQuaternions(startRot, endRot, ease);
+                requestAnimationFrame(swoop);
+            };
+            swoop();
 
-                    // 3. Stream Data
-                    window.addEventListener('deviceorientation', (event) => {
-                        const now = Date.now();
-                        if (now - lastTime > 40) {
-                            if (event.beta === null) return;
-
-                            const payload = JSON.stringify({
-                                b: Math.round(event.beta),
-                                g: Math.round(event.gamma)
-                            });
-                            client.publish(topic, payload);
-                            lastTime = now;
-                        }
-                    });
-                });
-
-                client.on('error', (err) => {
-                    statusText.innerText = "Error: " + err.message;
-                    statusDot.className = "dot red";
-                    btn.disabled = false;
-                    btn.innerText = "Retry";
-                });
-            });
+            playSound('start');
         }
 
-        // ==========================================
-        // THREE.JS (Standard)
-        // ==========================================
-        function initThree() {
-            const container = document.getElementById('canvas-container');
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111111);
-            scene.fog = new THREE.Fog(0x111111, 10, 50);
-
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 12, 16);
-            camera.lookAt(0, 0, 0);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
-            renderer.shadowMap.enabled = true;
-            container.appendChild(renderer.domElement);
-
-            if (!role) {
-                controls = new OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.05;
-                controls.enablePan = false;
-                controls.maxPolarAngle = Math.PI / 2 - 0.1;
-            }
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(ambientLight);
-
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-            dirLight.position.set(5, 20, 10);
-            dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 1024;
-            dirLight.shadow.mapSize.height = 1024;
-            scene.add(dirLight);
-
+        function loadLevel() {
             const loader = new GLTFLoader();
             loader.load(ASSET_URL, (gltf) => {
-                model = gltf.scene;
-                const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                model.position.sub(center);
+                groundMesh = gltf.scene;
 
-                model.traverse((node) => {
-                    if (node.isMesh) {
-                        node.castShadow = true;
-                        node.receiveShadow = true;
+                // Center and standard material
+                const box = new THREE.Box3().setFromObject(groundMesh);
+                const center = box.getCenter(new THREE.Vector3());
+                groundMesh.position.sub(center);
+
+                groundMesh.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Physics: Create Trimesh
+                        createTrimeshBody(child);
                     }
                 });
 
-                scene.add(model);
-            }, undefined, (e) => {
-                console.error(e);
-                const geo = new THREE.BoxGeometry(5, 0.2, 5);
-                const mat = new THREE.MeshStandardMaterial({ color: 0x0074E4, roughness: 0.2 });
-                model = new THREE.Mesh(geo, mat);
-                scene.add(model);
+                scene.add(groundMesh);
             });
+        }
 
+        // =================================================================
+        // PHYSICS ENGINE (Cannon-es)
+        // =================================================================
+        function initPhysics() {
+            world = new CANNON.World();
+            world.gravity.set(0, -20, 0); // High gravity for snappy feel
+
+            // Material
+            const groundMat = new CANNON.Material();
+            const ballMat = new CANNON.Material();
+            const contactMat = new CANNON.ContactMaterial(groundMat, ballMat, {
+                friction: 0.5,
+                restitution: 0.7
+            });
+            world.addContactMaterial(contactMat);
+
+            // We rotate the gravity vector or the body? 
+            // Better to rotate the KINEMATIC ground body.
+            // But Trimeshes are static. 
+            // Trick: We will keep ground static and rotate gravity vector? No, bad for friction.
+            // Solution: We make the ground a Kinematic body.
+
+            groundBody = new CANNON.Body({
+                mass: 0, // 0 = Static/Kinematic
+                type: CANNON.Body.KINEMATIC,
+                material: groundMat
+            });
+            world.addBody(groundBody);
+        }
+
+        function createTrimeshBody(mesh) {
+            // Simplified: Use Box for trees, Trimesh for ground if possible
+            // For robustness in this demo, we'll try a Hull or Box approximation if complex
+            // But let's try raw Trimesh (might be heavy if high poly)
+
+            const geometry = mesh.geometry;
+            if (!geometry.attributes.position) return;
+
+            const vertices = [];
+            const indices = [];
+
+            const pos = geometry.attributes.position.array;
+            for (let i = 0; i < pos.length; i += 3) {
+                vertices.push(pos[i], pos[i + 1], pos[i + 2]);
+            }
+            // If no index, generate linear
+            if (geometry.index) {
+                for (let i = 0; i < geometry.index.array.length; i++) {
+                    indices.push(geometry.index.array[i]);
+                }
+            } else {
+                for (let i = 0; i < vertices.length / 3; i++) {
+                    indices.push(i);
+                }
+            }
+
+            // Create Shape
+            const shape = new CANNON.Trimesh(vertices, indices);
+
+            // Offset to match mesh local position relative to scene center
+            const offset = new CANNON.Vec3(mesh.position.x, mesh.position.y, mesh.position.z);
+            // Note: This assumes mesh is direct child of scene or we flattened it.
+            // For a single GLB merged mesh, this is fine.
+
+            groundBody.addShape(shape, offset);
+        }
+
+        function spawnBall() {
+            if (!world) return;
+
+            // Visual
+            const geo = new THREE.SphereGeometry(0.5, 32, 32);
+            const mat = new THREE.MeshStandardMaterial({
+                color: Math.random() * 0xffffff,
+                roughness: 0.1, metalness: 0.5
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            scene.add(mesh);
+
+            // Physical
+            const shape = new CANNON.Sphere(0.5);
+            const body = new CANNON.Body({
+                mass: 5,
+                shape: shape,
+                position: new CANNON.Vec3(0, 10, 0) // Drop from sky
+            });
+            world.addBody(body);
+
+            // Sound
+            playSound('spawn');
+
+            balls.push({ mesh, body, active: true, startTime: Date.now() });
+        }
+
+        // =================================================================
+        // AUDIO (Synthetic)
+        // =================================================================
+        function initAudio() {
+            try {
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            } catch (e) { }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'spawn') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'start') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        // =================================================================
+        // RENDER LOOP
+        // =================================================================
+        function initThree() {
+            scene = new THREE.Scene();
+            // Gradient Background
+            scene.background = new THREE.Color(0x111111);
+            scene.fog = new THREE.Fog(0x111111, 20, 60);
+
+            // Initial Camera: TOP DOWN
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 40, 1); // Almost straight up
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambient);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(10, 20, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.left = -20;
+            dirLight.shadow.camera.right = 20;
+            dirLight.shadow.camera.top = 20;
+            dirLight.shadow.camera.bottom = -20;
+            scene.add(dirLight);
+
+            // Resize
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
-
-            animate();
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            if (controls) controls.update();
 
-            if (model) {
-                // Smooth Lerp
-                currentRotation.x += (targetRotation.x - currentRotation.x) * 0.08;
-                currentRotation.z += (targetRotation.z - currentRotation.z) * 0.08;
+            // 1. Smoothly Interpolate Board Rotation
+            state.currentRot.x += (state.targetRot.x - state.currentRot.x) * 0.1;
+            state.currentRot.z += (state.targetRot.z - state.currentRot.z) * 0.1;
 
-                model.rotation.x = currentRotation.x;
-                model.rotation.z = currentRotation.z;
+            if (groundBody) {
+                // Apply rotation to Physics Ground
+                groundBody.quaternion.setFromEuler(state.currentRot.x, 0, state.currentRot.z, 'XYZ');
             }
+
+            if (groundMesh) {
+                // Sync Visual Ground to Physics Ground
+                groundMesh.position.copy(groundBody.position);
+                groundMesh.quaternion.copy(groundBody.quaternion);
+            }
+
+            // 2. Step Physics
+            if (world) {
+                world.step(1 / 60);
+
+                // 3. Update Balls & Score
+                let maxTime = 0;
+                const now = Date.now();
+
+                balls.forEach(b => {
+                    if (!b.active) return;
+
+                    // Sync Visuals
+                    b.mesh.position.copy(b.body.position);
+                    b.mesh.quaternion.copy(b.body.quaternion);
+
+                    // Check Void
+                    if (b.body.position.y < -10) {
+                        b.active = false;
+                        scene.remove(b.mesh);
+                        world.removeBody(b.body);
+                    } else {
+                        // Calc time alive
+                        const time = (now - b.startTime) / 1000;
+                        if (time > maxTime) maxTime = time;
+                    }
+                });
+
+                // Update Score UI
+                if (isGameActive && maxTime > 0) {
+                    document.getElementById('score-display').innerText = maxTime.toFixed(2);
+                }
+            }
+
             renderer.render(scene, camera);
+        }
+
+        // =================================================================
+        // CONTROLLER LOGIC (Mobile)
+        // =================================================================
+        function initController() {
+            document.getElementById('mobile-ui').style.display = 'flex';
+            const btn = document.getElementById('btn-spawn');
+            const dot = document.getElementById('conn-dot');
+
+            // Connect Network
+            client = mqtt.connect(BROKER_URL, { clientId: 'ctrl-' + Math.random().toString(16) });
+
+            client.on('connect', () => {
+                dot.classList.add('connected');
+
+                // Handle Gyro
+                let lastTime = 0;
+                window.addEventListener('deviceorientation', (e) => {
+                    if (Date.now() - lastTime > 30) {
+                        if (e.beta === null) return;
+                        client.publish(`game/${channelId}/gyro`, JSON.stringify({
+                            b: Math.round(e.beta),
+                            g: Math.round(e.gamma)
+                        }));
+                        lastTime = Date.now();
+                    }
+                });
+            });
+
+            // Handle Spawn Button
+            btn.addEventListener('click', () => {
+                // iOS Permission Check on first click
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission();
+                }
+
+                if (client.connected) {
+                    client.publish(`game/${channelId}/spawn`, '1');
+                    // Haptic feedback
+                    if (window.navigator.vibrate) window.navigator.vibrate(50);
+                }
+            });
         }
     </script>
 </body>

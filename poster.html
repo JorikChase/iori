@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Landscape Balancer (Secure)</title>
+    <title>Landscape Balancer (EMQX)</title>
     <style>
         body {
             margin: 0;
@@ -56,13 +56,13 @@
         button {
             padding: 15px 30px;
             font-size: 18px;
-            background: #2196F3;
+            background: #673AB7;
             color: white;
             border: none;
             border-radius: 50px;
             cursor: pointer;
             margin-top: 20px;
-            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+            box-shadow: 0 4px 15px rgba(103, 58, 183, 0.4);
         }
 
         button:active {
@@ -98,7 +98,7 @@
         <h1>Desktop Viewer</h1>
         <div id="qrcode"></div>
         <p>Scan to Connect</p>
-        <div id="status">Connecting to Secure Cloud (Port 443)...</div>
+        <div id="status">Connecting to EMQX Cloud...</div>
     </div>
 
     <div id="controller-ui" class="overlay interactive" style="display: none;">
@@ -117,10 +117,11 @@
         // --- Configuration ---
         const ASSET_URL = './assets/landscape.glb';
 
-        // --- BROKER STRATEGY ---
-        // We use the Eclipse broker on Port 443 (Standard HTTPS port)
-        // This punches through almost all corporate firewalls.
-        const BROKER_URL = 'wss://mqtt.eclipseprojects.io:443/mqtt';
+        // --- BROKER CONFIGURATION (EMQX) ---
+        // Protocol: wss (Secure WebSocket)
+        // Port: 8084 (Standard SSL MQTT Port)
+        // Path: /mqtt
+        const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
 
         // --- State ---
         let scene, camera, renderer, model, client;
@@ -153,23 +154,26 @@
             initThree();
 
             console.log("Connecting to:", BROKER_URL);
+
+            const clientId = 'host-' + Math.random().toString(16).substr(2, 8);
+
             client = mqtt.connect(BROKER_URL, {
-                keepalive: 60,
-                protocolId: 'MQTT',
-                protocolVersion: 4,
+                clientId: clientId,
                 clean: true,
+                connectTimeout: 4000,
                 reconnectPeriod: 1000,
-                connectTimeout: 30 * 1000,
             });
 
             client.on('connect', () => {
-                console.log("MQTT Connected on 443");
+                console.log("EMQX Connected");
                 const topic = `gyro-sync/${channelId}`;
                 client.subscribe(topic);
 
                 const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${channelId}`;
+
+                document.getElementById("qrcode").innerHTML = ""; // Clear old
                 new QRCode(document.getElementById("qrcode"), { text: link, width: 200, height: 200 });
-                document.getElementById('status').innerText = "Secure Connection Ready.";
+                document.getElementById('status').innerText = "Cloud Ready. Waiting for data...";
             });
 
             client.on('message', (topic, message) => {
@@ -187,7 +191,11 @@
 
             client.on('error', (err) => {
                 console.error("MQTT Error:", err);
-                document.getElementById('status').innerText = "Connection Error. Check Console.";
+                document.getElementById('status').innerText = "Error: " + err.message;
+            });
+
+            client.on('offline', () => {
+                document.getElementById('status').innerText = "Connection lost. Reconnecting...";
             });
         }
 
@@ -201,6 +209,8 @@
             ui.style.display = 'flex';
 
             btn.addEventListener('click', async () => {
+
+                // 1. iOS Permissions
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     try {
                         const response = await DeviceOrientationEvent.requestPermission();
@@ -210,13 +220,13 @@
 
                 btn.innerText = "Connecting...";
 
+                const clientId = 'ctrl-' + Math.random().toString(16).substr(2, 8);
+
                 client = mqtt.connect(BROKER_URL, {
-                    keepalive: 60,
-                    protocolId: 'MQTT',
-                    protocolVersion: 4,
+                    clientId: clientId,
                     clean: true,
+                    connectTimeout: 4000,
                     reconnectPeriod: 1000,
-                    connectTimeout: 30 * 1000,
                 });
 
                 client.on('connect', () => {
@@ -228,7 +238,8 @@
                     let lastTime = 0;
                     window.addEventListener('deviceorientation', (event) => {
                         const now = Date.now();
-                        if (now - lastTime > 50) { // 20fps cap for stability
+                        // 30ms throttle
+                        if (now - lastTime > 30) {
                             if (event.beta === null) return;
                             const payload = JSON.stringify({
                                 b: Math.round(event.beta),
@@ -240,7 +251,7 @@
                     });
                 });
 
-                client.on('error', (err) => status.innerText = "Error: " + err);
+                client.on('error', (err) => status.innerText = "Error: " + err.message);
             });
         }
 
@@ -278,7 +289,7 @@
             }, undefined, (err) => {
                 console.error(err);
                 const geo = new THREE.BoxGeometry(4, 0.2, 4);
-                const mat = new THREE.MeshStandardMaterial({ color: 0x44aa88 });
+                const mat = new THREE.MeshStandardMaterial({ color: 0x673AB7 });
                 model = new THREE.Mesh(geo, mat);
                 scene.add(model);
             });

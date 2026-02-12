@@ -77,6 +77,13 @@
             font-family: monospace;
             opacity: 0.6;
         }
+
+        #status-mobile {
+            margin-top: 20px;
+            opacity: 0.7;
+            font-family: monospace;
+            color: #aaa;
+        }
     </style>
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -98,14 +105,14 @@
         <h1>Desktop Viewer</h1>
         <div id="qrcode"></div>
         <p>Scan to connect Mobile Controller</p>
-        <div id="status">Waiting for peer...</div>
+        <div id="status">Initializing Network...</div>
     </div>
 
     <div id="controller-ui" class="overlay interactive" style="display: none;">
         <h1>Mobile Controller</h1>
         <p>Tap below to enable Gyroscope</p>
         <button id="btn-connect">Start Connection</button>
-        <div id="status-mobile" style="margin-top:20px; opacity: 0.7;"></div>
+        <div id="status-mobile">Ready to connect</div>
     </div>
 
     <div id="canvas-container"></div>
@@ -117,9 +124,25 @@
         // --- Configuration ---
         const ASSET_URL = './assets/landscape.glb';
 
+        // --- WebRTC Configuration (STUN Servers) ---
+        // This helps devices find each other through NAT/Firewalls
+        const peerConfig = {
+            debug: 2,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' }
+                ]
+            }
+        };
+
         // --- State ---
         let scene, camera, renderer, model;
-        let targetRotation = { x: 0, z: 0 }; // Target rotation from gyro
+        // Start with small rotation so we can see if it moves
+        let targetRotation = { x: 0, z: 0 };
+        let currentRotation = { x: 0, z: 0 };
 
         // --- App Logic ---
         const urlParams = new URLSearchParams(window.location.search);
@@ -142,12 +165,15 @@
             // 1. Setup Three.js
             initThree();
 
-            // 2. Setup PeerJS
-            const peer = new Peer(); // Auto-generate ID
+            // 2. Setup PeerJS with STUN config
+            const peer = new Peer(peerConfig);
 
             peer.on('open', (id) => {
                 const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${id}`;
                 console.log('Session ID:', id);
+
+                // Clear any previous QR code
+                document.getElementById("qrcode").innerHTML = "";
 
                 // Generate QR
                 new QRCode(document.getElementById("qrcode"), {
@@ -160,23 +186,35 @@
             });
 
             peer.on('connection', (conn) => {
-                document.getElementById('host-ui').style.display = 'none'; // Hide QR on connect
-                console.log("Mobile connected!");
+                console.log("PeerJS: Mobile connected!");
+                document.getElementById('status').innerText = "Mobile Connected!";
+
+                // Hide UI after a brief moment to show success
+                setTimeout(() => {
+                    document.getElementById('host-ui').style.display = 'none';
+                }, 1000);
 
                 conn.on('data', (data) => {
                     // Data format: { beta: x-tilt, gamma: z-tilt }
-                    // Map gyro data to rotation (simple smoothing handled in render loop)
-                    // Beta (front/back tilt) maps to X axis
-                    // Gamma (left/right tilt) maps to Z axis (or Y depending on desire)
-
-                    // Clamping and scaling for nicer feel
-                    const limit = 45; // Max tilt in degrees
+                    // Limit the tilt to avoid flipping the model upside down
+                    const limit = 45;
                     const rx = Math.max(-limit, Math.min(limit, data.beta));
                     const rz = Math.max(-limit, Math.min(limit, data.gamma));
 
+                    // Update target rotation (converted to radians)
                     targetRotation.x = THREE.MathUtils.degToRad(rx);
                     targetRotation.z = THREE.MathUtils.degToRad(rz);
                 });
+
+                conn.on('close', () => {
+                    document.getElementById('status').innerText = "Connection lost. Please refresh.";
+                    document.getElementById('host-ui').style.display = 'flex';
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                document.getElementById('status').innerText = "Network Error: " + err.type;
             });
         }
 
@@ -192,24 +230,28 @@
             btn.addEventListener('click', async () => {
 
                 // 1. iOS 13+ Permission Request
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     try {
                         const response = await DeviceOrientationEvent.requestPermission();
                         if (response !== 'granted') {
-                            alert('Permission denied. Cannot rotate.');
+                            status.innerText = 'Permission denied. Cannot rotate.';
                             return;
                         }
                     } catch (e) {
                         console.error(e);
+                        status.innerText = "Error requesting sensor permission.";
+                        return;
                     }
                 }
 
                 btn.innerText = "Connecting...";
+                btn.disabled = true;
 
-                // 2. Connect via PeerJS
-                const peer = new Peer();
+                // 2. Connect via PeerJS with STUN config
+                const peer = new Peer(peerConfig);
 
                 peer.on('open', () => {
+                    status.innerText = "Peer Open. Finding Host...";
                     const conn = peer.connect(remoteId);
 
                     conn.on('open', () => {
@@ -217,9 +259,14 @@
                         status.innerText = "Connected! Tilt your phone.";
                         ui.style.background = "#222"; // Visual feedback
 
+                        // Prevent screen sleep (experimental)
+                        try { if (navigator.wakeLock) navigator.wakeLock.request('screen'); } catch (e) { }
+
                         // 3. Start Streaming Gyro Data
                         window.addEventListener('deviceorientation', (event) => {
-                            // Send only necessary data
+                            // Only send if we have data
+                            if (event.beta === null || event.gamma === null) return;
+
                             conn.send({
                                 beta: event.beta,  // Front/Back tilt [-180, 180]
                                 gamma: event.gamma // Left/Right tilt [-90, 90]
@@ -227,7 +274,18 @@
                         });
                     });
 
-                    conn.on('error', (err) => alert("Connection Error: " + err));
+                    conn.on('error', (err) => {
+                        console.error(err);
+                        status.innerText = "Connection Error: " + err;
+                        btn.disabled = false;
+                        btn.innerText = "Retry Connection";
+                    });
+                });
+
+                peer.on('error', (err) => {
+                    status.innerText = "Peer Error: " + err.type;
+                    btn.disabled = false;
+                    btn.innerText = "Retry";
                 });
             });
         }
@@ -244,20 +302,21 @@
 
             // Camera (Static)
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 5, 10); // Elevated view
+            camera.position.set(0, 8, 12); // Slightly higher up
             camera.lookAt(0, 0, 0);
 
             // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputColorSpace = THREE.SRGBColorSpace; // Better colors for GLB
             container.appendChild(renderer.domElement);
 
             // Lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
             dirLight.position.set(5, 10, 7);
             scene.add(dirLight);
 
@@ -272,10 +331,12 @@
                 model.position.sub(center); // Center at 0,0,0
 
                 scene.add(model);
+                console.log("Model loaded");
             }, undefined, (error) => {
                 console.error('Error loading GLB:', error);
+
                 // Fallback cube if model fails (for testing)
-                const geo = new THREE.BoxGeometry(3, 0.2, 3);
+                const geo = new THREE.BoxGeometry(4, 0.2, 4);
                 const mat = new THREE.MeshStandardMaterial({ color: 0x44aa88 });
                 model = new THREE.Mesh(geo, mat);
                 scene.add(model);
@@ -296,9 +357,12 @@
 
             if (model) {
                 // Smooth interpolation (Lerp) for buttery smooth movement
-                // 0.1 is the speed factor. Lower = smoother/slower, Higher = snappier
-                model.rotation.x += (targetRotation.x - model.rotation.x) * 0.1;
-                model.rotation.z += (targetRotation.z - model.rotation.z) * 0.1;
+                // We interpolate currentRotation towards targetRotation
+                currentRotation.x += (targetRotation.x - currentRotation.x) * 0.1;
+                currentRotation.z += (targetRotation.z - currentRotation.z) * 0.1;
+
+                model.rotation.x = currentRotation.x;
+                model.rotation.z = currentRotation.z;
             }
 
             renderer.render(scene, camera);

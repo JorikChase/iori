@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Landscape Viewer (Firewall Safe)</title>
+    <title>Landscape Viewer (Corrected)</title>
     <style>
         body {
             margin: 0;
@@ -177,7 +177,6 @@
         const ASSET_URL = './assets/landscape.glb';
 
         // --- NETWORK STRATEGY: SHIFTR.IO (Port 443) ---
-        // This broker runs on standard HTTPS port 443, bypassing school firewalls.
         const BROKER_HOST = 'public.cloud.shiftr.io';
         const BROKER_URL = `wss://public:public@public.cloud.shiftr.io:443/mqtt`;
 
@@ -190,7 +189,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const role = urlParams.get('role');
 
-        // Unique Channel ID to avoid public collisions
+        // Unique Channel ID
         let channelId = urlParams.get('id');
         if (!channelId && role !== 'controller') {
             channelId = 'view-' + Math.random().toString(36).substr(2, 9);
@@ -217,7 +216,6 @@
             // Connect to Shiftr
             console.log("Connecting to:", BROKER_HOST);
 
-            // Random client ID prevents "kicking" previous sessions
             const clientId = 'host-' + Math.random().toString(16).substr(2, 8);
 
             client = mqtt.connect(BROKER_URL, {
@@ -241,7 +239,7 @@
             });
 
             client.on('message', (topic, message) => {
-                // Fade out UI on first message
+                // Fade out UI
                 const ui = document.getElementById('host-ui');
                 if (ui.style.display !== 'none') {
                     ui.style.opacity = '0';
@@ -250,12 +248,13 @@
 
                 try {
                     const data = JSON.parse(message.toString());
-                    // Clamp and Map
+                    const limit = 45;
+
+                    // --- MAPPING LOGIC ---
                     // Beta (Front/Back) -> X Axis
-                    // Gamma (Left/Right) -> Z Axis
-                    const limit = 35;
+                    // Gamma (Left/Right) -> Z Axis (INVERTED HERE with -data.g)
                     const rx = Math.max(-limit, Math.min(limit, data.b));
-                    const rz = Math.max(-limit, Math.min(limit, data.g));
+                    const rz = Math.max(-limit, Math.min(limit, -data.g)); // <--- FIXED HERE
 
                     targetRotation.x = THREE.MathUtils.degToRad(rx);
                     targetRotation.z = THREE.MathUtils.degToRad(rz);
@@ -319,7 +318,6 @@
                     // 3. Stream Data
                     window.addEventListener('deviceorientation', (event) => {
                         const now = Date.now();
-                        // 40ms throttle (25fps) is smoother for networks
                         if (now - lastTime > 40) {
                             if (event.beta === null) return;
 
@@ -349,8 +347,6 @@
             const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x111111);
-
-            // Fog for depth
             scene.fog = new THREE.Fog(0x111111, 10, 50);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -364,16 +360,14 @@
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // Orbit Controls for Desktop (Mouse)
             if (!role) {
                 controls = new OrbitControls(camera, renderer.domElement);
                 controls.enableDamping = true;
                 controls.dampingFactor = 0.05;
                 controls.enablePan = false;
-                controls.maxPolarAngle = Math.PI / 2 - 0.1; // Don't go below ground
+                controls.maxPolarAngle = Math.PI / 2 - 0.1;
             }
 
-            // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
 
@@ -384,17 +378,13 @@
             dirLight.shadow.mapSize.height = 1024;
             scene.add(dirLight);
 
-            // Loader
             const loader = new GLTFLoader();
             loader.load(ASSET_URL, (gltf) => {
                 model = gltf.scene;
-
-                // Center model
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 model.position.sub(center);
 
-                // Enable shadows on model
                 model.traverse((node) => {
                     if (node.isMesh) {
                         node.castShadow = true;
@@ -405,7 +395,6 @@
                 scene.add(model);
             }, undefined, (e) => {
                 console.error(e);
-                // Graceful fallback
                 const geo = new THREE.BoxGeometry(5, 0.2, 5);
                 const mat = new THREE.MeshStandardMaterial({ color: 0x0074E4, roughness: 0.2 });
                 model = new THREE.Mesh(geo, mat);
@@ -423,18 +412,16 @@
 
         function animate() {
             requestAnimationFrame(animate);
-
             if (controls) controls.update();
 
             if (model) {
-                // Smooth Lerp for physics-like feel
+                // Smooth Lerp
                 currentRotation.x += (targetRotation.x - currentRotation.x) * 0.08;
                 currentRotation.z += (targetRotation.z - currentRotation.z) * 0.08;
 
                 model.rotation.x = currentRotation.x;
                 model.rotation.z = currentRotation.z;
             }
-
             renderer.render(scene, camera);
         }
     </script>

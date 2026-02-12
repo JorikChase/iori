@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Landscape Balancer (EMQX)</title>
+    <title>Landscape Balancer (HiveMQ 8884)</title>
     <style>
         body {
             margin: 0;
@@ -56,13 +56,13 @@
         button {
             padding: 15px 30px;
             font-size: 18px;
-            background: #673AB7;
+            background: #E91E63;
             color: white;
             border: none;
             border-radius: 50px;
             cursor: pointer;
             margin-top: 20px;
-            box-shadow: 0 4px 15px rgba(103, 58, 183, 0.4);
+            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
         }
 
         button:active {
@@ -76,6 +76,17 @@
             font-family: monospace;
             opacity: 0.6;
             color: #aaa;
+        }
+
+        /* Mobile debug log */
+        #log-mobile {
+            margin-top: 20px;
+            font-family: monospace;
+            color: #888;
+            font-size: 12px;
+            max-width: 80%;
+            text-align: center;
+            white-space: pre-wrap;
         }
     </style>
 
@@ -98,14 +109,14 @@
         <h1>Desktop Viewer</h1>
         <div id="qrcode"></div>
         <p>Scan to Connect</p>
-        <div id="status">Connecting to EMQX Cloud...</div>
+        <div id="status">Initializing...</div>
     </div>
 
     <div id="controller-ui" class="overlay interactive" style="display: none;">
         <h1>Mobile Controller</h1>
         <p>Tap to Start</p>
         <button id="btn-connect">Connect Gyro</button>
-        <div id="status-mobile" style="margin-top:20px; font-family:monospace; color:#888;"></div>
+        <div id="log-mobile">Ready</div>
     </div>
 
     <div id="canvas-container"></div>
@@ -117,11 +128,11 @@
         // --- Configuration ---
         const ASSET_URL = './assets/landscape.glb';
 
-        // --- BROKER CONFIGURATION (EMQX) ---
-        // Protocol: wss (Secure WebSocket)
-        // Port: 8084 (Standard SSL MQTT Port)
-        // Path: /mqtt
-        const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
+        // --- BROKER CONFIGURATION ---
+        // HiveMQ Public Broker
+        // Protocol: wss (Secure WebSocket - Required for HTTPS)
+        // Port: 8884 (The correct Secure MQTT port)
+        const BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
 
         // --- State ---
         let scene, camera, renderer, model, client;
@@ -150,9 +161,11 @@
         function initHost() {
             document.getElementById('host-ui').style.display = 'flex';
             document.getElementById('canvas-container').style.display = 'block';
+            const statusEl = document.getElementById('status');
 
             initThree();
 
+            statusEl.innerText = "Connecting to HiveMQ (8884)...";
             console.log("Connecting to:", BROKER_URL);
 
             const clientId = 'host-' + Math.random().toString(16).substr(2, 8);
@@ -160,20 +173,19 @@
             client = mqtt.connect(BROKER_URL, {
                 clientId: clientId,
                 clean: true,
-                connectTimeout: 4000,
-                reconnectPeriod: 1000,
+                connectTimeout: 5000,
             });
 
             client.on('connect', () => {
-                console.log("EMQX Connected");
+                console.log("HiveMQ Connected");
                 const topic = `gyro-sync/${channelId}`;
                 client.subscribe(topic);
 
                 const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${channelId}`;
 
-                document.getElementById("qrcode").innerHTML = ""; // Clear old
+                document.getElementById("qrcode").innerHTML = "";
                 new QRCode(document.getElementById("qrcode"), { text: link, width: 200, height: 200 });
-                document.getElementById('status').innerText = "Cloud Ready. Waiting for data...";
+                statusEl.innerText = "Connected! Waiting for mobile...";
             });
 
             client.on('message', (topic, message) => {
@@ -190,12 +202,10 @@
             });
 
             client.on('error', (err) => {
-                console.error("MQTT Error:", err);
-                document.getElementById('status').innerText = "Error: " + err.message;
+                statusEl.innerText = "Error: " + err.message;
             });
-
             client.on('offline', () => {
-                document.getElementById('status').innerText = "Connection lost. Reconnecting...";
+                statusEl.innerText = "Connection lost. Reconnecting...";
             });
         }
 
@@ -205,8 +215,10 @@
         function initController() {
             const ui = document.getElementById('controller-ui');
             const btn = document.getElementById('btn-connect');
-            const status = document.getElementById('status-mobile');
+            const logEl = document.getElementById('log-mobile');
             ui.style.display = 'flex';
+
+            const log = (msg) => { logEl.innerText = msg; console.log(msg); };
 
             btn.addEventListener('click', async () => {
 
@@ -215,30 +227,31 @@
                     try {
                         const response = await DeviceOrientationEvent.requestPermission();
                         if (response !== 'granted') return alert('Permission denied');
-                    } catch (e) { console.error(e); }
+                    } catch (e) { log("Perm Error: " + e); }
                 }
 
                 btn.innerText = "Connecting...";
+                log("Connecting to HiveMQ...");
 
                 const clientId = 'ctrl-' + Math.random().toString(16).substr(2, 8);
 
+                // Force clean session to avoid ghosting
                 client = mqtt.connect(BROKER_URL, {
                     clientId: clientId,
                     clean: true,
-                    connectTimeout: 4000,
-                    reconnectPeriod: 1000,
+                    connectTimeout: 5000,
                 });
 
                 client.on('connect', () => {
                     btn.style.display = 'none';
-                    status.innerText = "Connected! Tilt phone.";
+                    log("Connected! Tilting active.");
                     ui.style.background = "#222";
                     const topic = `gyro-sync/${channelId}`;
 
                     let lastTime = 0;
                     window.addEventListener('deviceorientation', (event) => {
                         const now = Date.now();
-                        // 30ms throttle
+                        // 30ms throttle (approx 30fps)
                         if (now - lastTime > 30) {
                             if (event.beta === null) return;
                             const payload = JSON.stringify({
@@ -251,7 +264,18 @@
                     });
                 });
 
-                client.on('error', (err) => status.innerText = "Error: " + err.message);
+                client.on('error', (err) => {
+                    log("MQTT Error: " + err.message);
+                    btn.innerText = "Retry";
+                });
+
+                client.on('offline', () => {
+                    log("Offline. Reconnecting...");
+                });
+
+                client.on('close', () => {
+                    log("Connection Closed.");
+                });
             });
         }
 
@@ -289,7 +313,7 @@
             }, undefined, (err) => {
                 console.error(err);
                 const geo = new THREE.BoxGeometry(4, 0.2, 4);
-                const mat = new THREE.MeshStandardMaterial({ color: 0x673AB7 });
+                const mat = new THREE.MeshStandardMaterial({ color: 0xE91E63 });
                 model = new THREE.Mesh(geo, mat);
                 scene.add(model);
             });

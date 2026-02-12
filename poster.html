@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Landscape Balancer (HiveMQ 8884)</title>
+    <title>Landscape Viewer (Firewall Safe)</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background: #111;
-            font-family: sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             color: white;
         }
 
@@ -37,56 +37,97 @@
 
         .interactive {
             pointer-events: auto;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.92);
+            backdrop-filter: blur(5px);
         }
 
         #qrcode {
             margin: 20px;
             background: white;
-            padding: 10px;
-            border-radius: 8px;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
-        h1,
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
         p {
-            margin: 10px;
+            margin: 5px;
             text-align: center;
+            color: #ccc;
+            max-width: 300px;
+            line-height: 1.5;
         }
 
         button {
-            padding: 15px 30px;
+            padding: 16px 32px;
             font-size: 18px;
-            background: #E91E63;
+            font-weight: 600;
+            background: linear-gradient(135deg, #00C4FF, #0074E4);
             color: white;
             border: none;
             border-radius: 50px;
             cursor: pointer;
-            margin-top: 20px;
-            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
+            margin-top: 30px;
+            box-shadow: 0 4px 20px rgba(0, 116, 228, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
         button:active {
-            transform: scale(0.95);
+            transform: scale(0.96);
+            box-shadow: 0 2px 10px rgba(0, 116, 228, 0.3);
         }
 
-        #status {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            font-family: monospace;
-            opacity: 0.6;
-            color: #aaa;
-        }
-
-        /* Mobile debug log */
-        #log-mobile {
+        .status-pill {
             margin-top: 20px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
             font-family: monospace;
+            font-size: 13px;
             color: #888;
-            font-size: 12px;
-            max-width: 80%;
-            text-align: center;
-            white-space: pre-wrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .dot.green {
+            background: #00FF88;
+            box-shadow: 0 0 8px #00FF88;
+        }
+
+        .dot.red {
+            background: #FF4444;
+        }
+
+        .dot.yellow {
+            background: #FFAA00;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.5;
+            }
         }
     </style>
 
@@ -108,15 +149,21 @@
     <div id="host-ui" class="overlay interactive" style="display: none;">
         <h1>Desktop Viewer</h1>
         <div id="qrcode"></div>
-        <p>Scan to Connect</p>
-        <div id="status">Initializing...</div>
+        <p>Scan with your phone to connect</p>
+        <div class="status-pill">
+            <div id="host-dot" class="dot yellow"></div>
+            <span id="host-status">Connecting to Cloud (443)...</span>
+        </div>
     </div>
 
     <div id="controller-ui" class="overlay interactive" style="display: none;">
         <h1>Mobile Controller</h1>
-        <p>Tap to Start</p>
-        <button id="btn-connect">Connect Gyro</button>
-        <div id="log-mobile">Ready</div>
+        <p>Ensure your screen orientation is unlocked</p>
+        <button id="btn-connect">Start Connection</button>
+        <div class="status-pill">
+            <div id="ctrl-dot" class="dot"></div>
+            <span id="ctrl-status">Ready to connect</span>
+        </div>
     </div>
 
     <div id="canvas-container"></div>
@@ -124,18 +171,18 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         // --- Configuration ---
         const ASSET_URL = './assets/landscape.glb';
 
-        // --- BROKER CONFIGURATION ---
-        // HiveMQ Public Broker
-        // Protocol: wss (Secure WebSocket - Required for HTTPS)
-        // Port: 8884 (The correct Secure MQTT port)
-        const BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
+        // --- NETWORK STRATEGY: SHIFTR.IO (Port 443) ---
+        // This broker runs on standard HTTPS port 443, bypassing school firewalls.
+        const BROKER_HOST = 'public.cloud.shiftr.io';
+        const BROKER_URL = `wss://public:public@public.cloud.shiftr.io:443/mqtt`;
 
         // --- State ---
-        let scene, camera, renderer, model, client;
+        let scene, camera, renderer, model, controls, client;
         let targetRotation = { x: 0, z: 0 };
         let currentRotation = { x: 0, z: 0 };
 
@@ -143,10 +190,10 @@
         const urlParams = new URLSearchParams(window.location.search);
         const role = urlParams.get('role');
 
-        // Unique Channel ID
+        // Unique Channel ID to avoid public collisions
         let channelId = urlParams.get('id');
         if (!channelId && role !== 'controller') {
-            channelId = 'land-' + Math.random().toString(36).substr(2, 9);
+            channelId = 'view-' + Math.random().toString(36).substr(2, 9);
         }
 
         if (role === 'controller') {
@@ -161,51 +208,69 @@
         function initHost() {
             document.getElementById('host-ui').style.display = 'flex';
             document.getElementById('canvas-container').style.display = 'block';
-            const statusEl = document.getElementById('status');
+
+            const statusText = document.getElementById('host-status');
+            const statusDot = document.getElementById('host-dot');
 
             initThree();
 
-            statusEl.innerText = "Connecting to HiveMQ (8884)...";
-            console.log("Connecting to:", BROKER_URL);
+            // Connect to Shiftr
+            console.log("Connecting to:", BROKER_HOST);
 
+            // Random client ID prevents "kicking" previous sessions
             const clientId = 'host-' + Math.random().toString(16).substr(2, 8);
 
             client = mqtt.connect(BROKER_URL, {
                 clientId: clientId,
                 clean: true,
-                connectTimeout: 5000,
+                keepalive: 60
             });
 
             client.on('connect', () => {
-                console.log("HiveMQ Connected");
-                const topic = `gyro-sync/${channelId}`;
+                console.log("Secure Connection Established");
+                statusText.innerText = "Online. Waiting for mobile...";
+                statusDot.className = "dot green";
+
+                const topic = `gyro-room/${channelId}`;
                 client.subscribe(topic);
 
+                // Generate QR Code
                 const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${channelId}`;
-
                 document.getElementById("qrcode").innerHTML = "";
-                new QRCode(document.getElementById("qrcode"), { text: link, width: 200, height: 200 });
-                statusEl.innerText = "Connected! Waiting for mobile...";
+                new QRCode(document.getElementById("qrcode"), { text: link, width: 220, height: 220 });
             });
 
             client.on('message', (topic, message) => {
-                document.getElementById('host-ui').style.display = 'none';
+                // Fade out UI on first message
+                const ui = document.getElementById('host-ui');
+                if (ui.style.display !== 'none') {
+                    ui.style.opacity = '0';
+                    setTimeout(() => ui.style.display = 'none', 500);
+                }
+
                 try {
                     const data = JSON.parse(message.toString());
-                    const limit = 45;
+                    // Clamp and Map
+                    // Beta (Front/Back) -> X Axis
+                    // Gamma (Left/Right) -> Z Axis
+                    const limit = 35;
                     const rx = Math.max(-limit, Math.min(limit, data.b));
                     const rz = Math.max(-limit, Math.min(limit, data.g));
 
                     targetRotation.x = THREE.MathUtils.degToRad(rx);
                     targetRotation.z = THREE.MathUtils.degToRad(rz);
-                } catch (e) { console.error(e); }
+                } catch (e) { }
             });
 
             client.on('error', (err) => {
-                statusEl.innerText = "Error: " + err.message;
+                console.error(err);
+                statusText.innerText = "Firewall Error: " + err.message;
+                statusDot.className = "dot red";
             });
+
             client.on('offline', () => {
-                statusEl.innerText = "Connection lost. Reconnecting...";
+                statusText.innerText = "Connection lost. Reconnecting...";
+                statusDot.className = "dot yellow";
             });
         }
 
@@ -215,45 +280,49 @@
         function initController() {
             const ui = document.getElementById('controller-ui');
             const btn = document.getElementById('btn-connect');
-            const logEl = document.getElementById('log-mobile');
+            const statusText = document.getElementById('ctrl-status');
+            const statusDot = document.getElementById('ctrl-dot');
             ui.style.display = 'flex';
-
-            const log = (msg) => { logEl.innerText = msg; console.log(msg); };
 
             btn.addEventListener('click', async () => {
 
-                // 1. iOS Permissions
+                // 1. iOS Permission
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     try {
                         const response = await DeviceOrientationEvent.requestPermission();
-                        if (response !== 'granted') return alert('Permission denied');
-                    } catch (e) { log("Perm Error: " + e); }
+                        if (response !== 'granted') return alert('Gyroscope permission needed!');
+                    } catch (e) { console.error(e); }
                 }
 
                 btn.innerText = "Connecting...";
-                log("Connecting to HiveMQ...");
+                btn.disabled = true;
+                statusDot.className = "dot yellow";
 
+                // 2. Connect
                 const clientId = 'ctrl-' + Math.random().toString(16).substr(2, 8);
 
-                // Force clean session to avoid ghosting
                 client = mqtt.connect(BROKER_URL, {
                     clientId: clientId,
                     clean: true,
-                    connectTimeout: 5000,
+                    keepalive: 60
                 });
 
                 client.on('connect', () => {
                     btn.style.display = 'none';
-                    log("Connected! Tilting active.");
-                    ui.style.background = "#222";
-                    const topic = `gyro-sync/${channelId}`;
+                    statusText.innerText = "Connected & Streaming";
+                    statusDot.className = "dot green";
+                    ui.style.background = "rgba(0,0,0,0.95)";
 
+                    const topic = `gyro-room/${channelId}`;
                     let lastTime = 0;
+
+                    // 3. Stream Data
                     window.addEventListener('deviceorientation', (event) => {
                         const now = Date.now();
-                        // 30ms throttle (approx 30fps)
-                        if (now - lastTime > 30) {
+                        // 40ms throttle (25fps) is smoother for networks
+                        if (now - lastTime > 40) {
                             if (event.beta === null) return;
+
                             const payload = JSON.stringify({
                                 b: Math.round(event.beta),
                                 g: Math.round(event.gamma)
@@ -265,55 +334,80 @@
                 });
 
                 client.on('error', (err) => {
-                    log("MQTT Error: " + err.message);
+                    statusText.innerText = "Error: " + err.message;
+                    statusDot.className = "dot red";
+                    btn.disabled = false;
                     btn.innerText = "Retry";
-                });
-
-                client.on('offline', () => {
-                    log("Offline. Reconnecting...");
-                });
-
-                client.on('close', () => {
-                    log("Connection Closed.");
                 });
             });
         }
 
         // ==========================================
-        // THREE.JS SCENE
+        // THREE.JS (Standard)
         // ==========================================
         function initThree() {
             const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a1a);
+            scene.background = new THREE.Color(0x111111);
+
+            // Fog for depth
+            scene.fog = new THREE.Fog(0x111111, 10, 50);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 8, 12);
+            camera.position.set(0, 12, 16);
             camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+            // Orbit Controls for Desktop (Mouse)
+            if (!role) {
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.enablePan = false;
+                controls.maxPolarAngle = Math.PI / 2 - 0.1; // Don't go below ground
+            }
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-            dirLight.position.set(5, 10, 7);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(5, 20, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
             scene.add(dirLight);
 
+            // Loader
             const loader = new GLTFLoader();
             loader.load(ASSET_URL, (gltf) => {
                 model = gltf.scene;
+
+                // Center model
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 model.position.sub(center);
+
+                // Enable shadows on model
+                model.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                    }
+                });
+
                 scene.add(model);
-            }, undefined, (err) => {
-                console.error(err);
-                const geo = new THREE.BoxGeometry(4, 0.2, 4);
-                const mat = new THREE.MeshStandardMaterial({ color: 0xE91E63 });
+            }, undefined, (e) => {
+                console.error(e);
+                // Graceful fallback
+                const geo = new THREE.BoxGeometry(5, 0.2, 5);
+                const mat = new THREE.MeshStandardMaterial({ color: 0x0074E4, roughness: 0.2 });
                 model = new THREE.Mesh(geo, mat);
                 scene.add(model);
             });
@@ -329,12 +423,18 @@
 
         function animate() {
             requestAnimationFrame(animate);
+
+            if (controls) controls.update();
+
             if (model) {
-                currentRotation.x += (targetRotation.x - currentRotation.x) * 0.1;
-                currentRotation.z += (targetRotation.z - currentRotation.z) * 0.1;
+                // Smooth Lerp for physics-like feel
+                currentRotation.x += (targetRotation.x - currentRotation.x) * 0.08;
+                currentRotation.z += (targetRotation.z - currentRotation.z) * 0.08;
+
                 model.rotation.x = currentRotation.x;
                 model.rotation.z = currentRotation.z;
             }
+
             renderer.render(scene, camera);
         }
     </script>

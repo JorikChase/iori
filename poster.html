@@ -4,10 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Gyro Labyrinth: Pure</title>
+    <title>Gyro Labyrinth: Optimized</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap" rel="stylesheet">
 
     <style>
         body {
@@ -18,17 +18,16 @@
             font-family: 'Inter', sans-serif;
         }
 
-        /* --- DESKTOP UI --- */
+        /* UI */
         #score-display {
             position: absolute;
             top: 40px;
             width: 100%;
             text-align: center;
-            font-size: 40px;
-            color: #666;
-            /* Subtle Grey */
-            font-weight: 300;
-            letter-spacing: 2px;
+            font-size: 32px;
+            color: #555;
+            font-weight: 400;
+            letter-spacing: 1px;
             pointer-events: none;
             z-index: 10;
             opacity: 0;
@@ -40,14 +39,13 @@
             bottom: 40px;
             right: 40px;
             background: white;
-            padding: 10px;
-            border-radius: 4px;
+            padding: 12px;
+            border-radius: 6px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             transition: transform 0.6s, opacity 0.6s;
             z-index: 20;
         }
 
-        /* --- MOBILE UI --- */
         #mobile-ui {
             display: none;
             position: absolute;
@@ -134,19 +132,16 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import * as CANNON from 'cannon-es';
 
-        // --- CONFIG ---
         const ASSET_URL = './assets/landscape.glb';
         const BROKER_URL = 'wss://public:public@public.cloud.shiftr.io:443/mqtt';
 
-        // --- GLOBALS ---
         let scene, camera, renderer, world;
-        let groundMesh, groundBody;
+        let groundContainer, groundBody; // Container for visuals
         let balls = [];
         let client;
         let isGameActive = false;
         let audioCtx;
 
-        // State
         const state = {
             targetRot: { x: 0, z: 0 },
             currentRot: { x: 0, z: 0 },
@@ -154,15 +149,14 @@
         };
 
         const urlParams = new URLSearchParams(window.location.search);
-        const role = urlParams.get('role');
         const channelId = urlParams.get('id') || 'game-' + Math.random().toString(36).substr(2, 9);
 
-        if (role === 'controller') initController();
+        if (urlParams.get('role') === 'controller') initController();
         else initHost();
 
-        // =================================================================
-        // HOST LOGIC
-        // =================================================================
+        // ==========================================
+        // HOST
+        // ==========================================
         function initHost() {
             initThree();
             initPhysics();
@@ -176,7 +170,6 @@
             client = mqtt.connect(BROKER_URL, { clientId: 'host-' + Math.random().toString(16) });
 
             client.on('connect', () => {
-                console.log("Host Online");
                 client.subscribe(`game/${channelId}/#`);
             });
 
@@ -208,7 +201,6 @@
             document.getElementById('qr-container').style.opacity = '0';
             document.getElementById('score-display').style.opacity = '1';
 
-            // Camera Move
             const startPos = camera.position.clone();
             const endPos = new THREE.Vector3(0, 15, 20);
             const startRot = camera.quaternion.clone();
@@ -239,67 +231,80 @@
         function loadLevel() {
             const loader = new GLTFLoader();
             loader.load(ASSET_URL, (gltf) => {
-                groundMesh = gltf.scene;
+                groundContainer = gltf.scene;
 
-                // --- FIX FOR FLOATING PHYSICS ---
-                // 1. Calculate the center of the mesh
-                const box = new THREE.Box3().setFromObject(groundMesh);
+                // 1. Calculate Center of the entire scene (Ground + Trees)
+                const box = new THREE.Box3().setFromObject(groundContainer);
                 const center = box.getCenter(new THREE.Vector3());
 
-                // 2. INSTEAD of moving the mesh position, we move the GEOMETRY itself.
-                // This ensures that (0,0,0) world space matches the geometry vertices exactly.
-                groundMesh.traverse(child => {
+                // 2. Center visual offset
+                // We move the scene object itself, we DO NOT modify child geometry
+                // This keeps tree positions valid relative to the ground.
+                groundContainer.position.sub(center);
+
+                scene.add(groundContainer);
+
+                // 3. Generate Physics from visual children
+                // We need to apply the SAME offset (-center) to the physics shapes
+                groundContainer.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
 
-                        // Apply center offset to geometry directly
-                        child.geometry.translate(-center.x, -center.y, -center.z);
+                        // Heuristic: Is this the terrain or a prop?
+                        // If it's huge, it's terrain -> Trimesh
+                        // If it's small, it's a tree -> Box
 
-                        // Apply Scale to geometry directly (baking it in)
-                        // This prevents Physics/Visual mismatch if scale was used
-                        child.geometry.scale(child.scale.x, child.scale.y, child.scale.z);
-                        child.scale.set(1, 1, 1); // Reset object scale
+                        // Get dimensions
+                        child.geometry.computeBoundingBox();
+                        const b = child.geometry.boundingBox;
+                        const size = new THREE.Vector3();
+                        b.getSize(size);
 
-                        // Visuals
-                        if (child.material) {
-                            child.material.roughness = 0.5;
-                            child.material.metalness = 0.5;
+                        // Calculate world position relative to our centered container
+                        // Since child is in container, its local position is correct relative to the container center
+                        // BUT, we need to account for any nested transforms.
+                        // For a flat GLB, child.position is enough.
+
+                        // The offset for the physics shape is the child's position
+                        const offset = new CANNON.Vec3(child.position.x, child.position.y, child.position.z);
+
+                        // Logic: If area > 100, likely ground.
+                        if (size.x * size.z > 100) {
+                            // GROUND: High Quality Trimesh
+                            createTrimeshShape(child, offset);
+                            // Visual tweak
+                            if (child.material) {
+                                child.material.roughness = 0.8;
+                                child.material.metalness = 0.2;
+                            }
+                        } else {
+                            // TREE/PROP: Low Quality Box (Optimization)
+                            createBoxShape(child, size, offset);
                         }
-
-                        // Now create physics from this "baked" geometry
-                        createTrimeshBody(child);
                     }
                 });
-
-                // Reset mesh position to 0 since we moved geometry
-                groundMesh.position.set(0, 0, 0);
-                scene.add(groundMesh);
             });
         }
 
-        // =================================================================
+        // ==========================================
         // PHYSICS
-        // =================================================================
+        // ==========================================
         function initPhysics() {
             world = new CANNON.World();
             world.gravity.set(0, -20, 0);
-
-            // Tweak solver for better contacts
-            world.solver.iterations = 20;
-            world.solver.tolerance = 0.001;
+            world.solver.iterations = 10;
 
             const groundMat = new CANNON.Material();
             const ballMat = new CANNON.Material();
 
             const contactMat = new CANNON.ContactMaterial(groundMat, ballMat, {
-                friction: 0.0,      // Zero friction prevents "sticking" on slopes
-                restitution: 0.8,   // 0.8 = Nice clean bounce
-                contactEquationStiffness: 1e8,
-                contactEquationRelaxation: 3
+                friction: 0.1,
+                restitution: 0.7,   // Nice bounce
             });
             world.addContactMaterial(contactMat);
 
+            // The Kinematic Body that holds all shapes
             groundBody = new CANNON.Body({
                 mass: 0,
                 type: CANNON.Body.KINEMATIC,
@@ -309,16 +314,16 @@
             world.addBody(groundBody);
         }
 
-        function createTrimeshBody(mesh) {
+        // High Quality Collider (Ground)
+        function createTrimeshShape(mesh, offset) {
             const geometry = mesh.geometry;
-            if (!geometry.attributes.position) return;
-
             const vertices = [];
             const indices = [];
 
             const pos = geometry.attributes.position.array;
             for (let i = 0; i < pos.length; i += 3) {
-                vertices.push(pos[i], pos[i + 1], pos[i + 2]);
+                // Apply Scale if exists
+                vertices.push(pos[i] * mesh.scale.x, pos[i + 1] * mesh.scale.y, pos[i + 2] * mesh.scale.z);
             }
 
             if (geometry.index) {
@@ -328,13 +333,32 @@
             }
 
             const shape = new CANNON.Trimesh(vertices, indices);
-            // No offset needed because we baked position into geometry
-            groundBody.addShape(shape);
+            groundBody.addShape(shape, offset);
+        }
+
+        // Low Quality Collider (Trees)
+        function createBoxShape(mesh, size, offset) {
+            // Cannon Box takes half-extents
+            const halfExtents = new CANNON.Vec3(
+                (size.x * mesh.scale.x) / 2,
+                (size.y * mesh.scale.y) / 2,
+                (size.z * mesh.scale.z) / 2
+            );
+            const shape = new CANNON.Box(halfExtents);
+
+            // Adjust offset: GLTFs usually pivot at bottom, Box pivots at center
+            // We need to move the box UP by half height
+            const adjustedOffset = new CANNON.Vec3(
+                offset.x,
+                offset.y + halfExtents.y,
+                offset.z
+            );
+
+            groundBody.addShape(shape, adjustedOffset);
         }
 
         function spawnBall() {
             if (!world) return;
-
             const radius = 0.5;
 
             // Visual
@@ -349,7 +373,7 @@
             // Physical
             const shape = new CANNON.Sphere(radius);
             const body = new CANNON.Body({
-                mass: 5, // Heavy enough to fall well
+                mass: 5,
                 shape: shape,
                 position: new CANNON.Vec3(0, 15, 0),
                 linearDamping: 0.1,
@@ -361,9 +385,9 @@
             balls.push({ mesh, body, active: true, startTime: Date.now() });
         }
 
-        // =================================================================
-        // AUDIO & RENDER
-        // =================================================================
+        // ==========================================
+        // RENDER & AUDIO
+        // ==========================================
         function initAudio() {
             if (audioCtx) return;
             try {
@@ -381,22 +405,19 @@
             osc.connect(gain);
             gain.connect(audioCtx.destination);
 
+            const t = audioCtx.currentTime;
             if (type === 'spawn') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.15);
-            } else if (type === 'start') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(220, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 0.5);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.5);
+                osc.frequency.setValueAtTime(600, t);
+                osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.start(t); osc.stop(t + 0.1);
+            } else {
+                osc.frequency.setValueAtTime(200, t);
+                osc.frequency.linearRampToValueAtTime(400, t + 0.5);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.5);
+                osc.start(t); osc.stop(t + 0.5);
             }
         }
 
@@ -421,8 +442,7 @@
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
             dirLight.position.set(10, 30, 10);
             dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 2048;
-            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.mapSize.set(2048, 2048);
             dirLight.shadow.camera.left = -30;
             dirLight.shadow.camera.right = 30;
             dirLight.shadow.camera.top = 30;
@@ -439,17 +459,15 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Rotate Physics World
             state.currentRot.x += (state.targetRot.x - state.currentRot.x) * 0.1;
             state.currentRot.z += (state.targetRot.z - state.currentRot.z) * 0.1;
 
             if (groundBody) {
                 groundBody.quaternion.setFromEuler(state.currentRot.x, 0, state.currentRot.z, 'XYZ');
             }
-            // No need to sync mesh position because it's at (0,0,0) with baked geometry
-            // Just sync rotation
-            if (groundMesh) {
-                groundMesh.quaternion.copy(groundBody.quaternion);
+            if (groundContainer) {
+                groundContainer.quaternion.copy(groundBody.quaternion);
+                // Position is handled by the container offset, no need to sync pos
             }
 
             if (world) {
@@ -478,13 +496,12 @@
                     document.getElementById('score-display').innerText = maxTime.toFixed(2);
                 }
             }
-
             renderer.render(scene, camera);
         }
 
-        // =================================================================
+        // ==========================================
         // CONTROLLER
-        // =================================================================
+        // ==========================================
         function initController() {
             document.getElementById('mobile-ui').style.display = 'flex';
             const btn = document.getElementById('btn-spawn');
@@ -494,7 +511,6 @@
 
             client.on('connect', () => {
                 dot.classList.add('connected');
-
                 let lastTime = 0;
                 window.addEventListener('deviceorientation', (e) => {
                     if (Date.now() - lastTime > 30) {
@@ -512,7 +528,6 @@
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission();
                 }
-
                 if (client.connected) {
                     client.publish(`game/${channelId}/spawn`, '1');
                     if (window.navigator.vibrate) window.navigator.vibrate(20);

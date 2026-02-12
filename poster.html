@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Gyro Remote Viewer</title>
+    <title>Landscape Balancer (MQTT)</title>
     <style>
         body {
             margin: 0;
@@ -37,7 +37,7 @@
 
         .interactive {
             pointer-events: auto;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
         }
 
         #qrcode {
@@ -56,14 +56,13 @@
         button {
             padding: 15px 30px;
             font-size: 18px;
-            background: #4CAF50;
+            background: #2196F3;
             color: white;
             border: none;
             border-radius: 50px;
             cursor: pointer;
             margin-top: 20px;
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-            transition: transform 0.2s;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
         }
 
         button:active {
@@ -76,17 +75,11 @@
             left: 20px;
             font-family: monospace;
             opacity: 0.6;
-        }
-
-        #status-mobile {
-            margin-top: 20px;
-            opacity: 0.7;
-            font-family: monospace;
             color: #aaa;
         }
     </style>
 
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <script type="importmap">
@@ -104,15 +97,15 @@
     <div id="host-ui" class="overlay interactive" style="display: none;">
         <h1>Desktop Viewer</h1>
         <div id="qrcode"></div>
-        <p>Scan to connect Mobile Controller</p>
-        <div id="status">Initializing Network...</div>
+        <p>Scan to Connect</p>
+        <div id="status">Connecting to Cloud...</div>
     </div>
 
     <div id="controller-ui" class="overlay interactive" style="display: none;">
         <h1>Mobile Controller</h1>
-        <p>Tap below to enable Gyroscope</p>
-        <button id="btn-connect">Start Connection</button>
-        <div id="status-mobile">Ready to connect</div>
+        <p>Tap to Start</p>
+        <button id="btn-connect">Connect Gyro</button>
+        <div id="status-mobile" style="margin-top:20px; font-family:monospace; color:#888;"></div>
     </div>
 
     <div id="canvas-container"></div>
@@ -123,31 +116,23 @@
 
         // --- Configuration ---
         const ASSET_URL = './assets/landscape.glb';
-
-        // --- WebRTC Configuration (STUN Servers) ---
-        // This helps devices find each other through NAT/Firewalls
-        const peerConfig = {
-            debug: 2,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' },
-                    { urls: 'stun:stun4.l.google.com:19302' }
-                ]
-            }
-        };
+        // We use a public, free WebSocket MQTT broker (HiveMQ)
+        const BROKER_URL = 'wss://broker.hivemq.com:8000/mqtt';
 
         // --- State ---
-        let scene, camera, renderer, model;
-        // Start with small rotation so we can see if it moves
+        let scene, camera, renderer, model, client;
         let targetRotation = { x: 0, z: 0 };
         let currentRotation = { x: 0, z: 0 };
 
         // --- App Logic ---
         const urlParams = new URLSearchParams(window.location.search);
         const role = urlParams.get('role');
-        const remoteId = urlParams.get('id');
+
+        // Generate a random channel ID if one doesn't exist
+        let channelId = urlParams.get('id');
+        if (!channelId && role !== 'controller') {
+            channelId = 'land-' + Math.random().toString(36).substr(2, 9);
+        }
 
         if (role === 'controller') {
             initController();
@@ -156,65 +141,46 @@
         }
 
         // ==========================================
-        // HOST LOGIC (Desktop / Viewer)
+        // HOST LOGIC (Desktop)
         // ==========================================
         function initHost() {
             document.getElementById('host-ui').style.display = 'flex';
             document.getElementById('canvas-container').style.display = 'block';
 
-            // 1. Setup Three.js
             initThree();
 
-            // 2. Setup PeerJS with STUN config
-            const peer = new Peer(peerConfig);
+            // 1. Connect to MQTT Broker
+            console.log("Connecting to MQTT...");
+            client = mqtt.connect(BROKER_URL);
 
-            peer.on('open', (id) => {
-                const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${id}`;
-                console.log('Session ID:', id);
+            client.on('connect', () => {
+                console.log("MQTT Connected");
+                const topic = `gyro-sync/${channelId}`;
 
-                // Clear any previous QR code
-                document.getElementById("qrcode").innerHTML = "";
+                // Subscribe to the specific channel
+                client.subscribe(topic);
 
                 // Generate QR
-                new QRCode(document.getElementById("qrcode"), {
-                    text: link,
-                    width: 200,
-                    height: 200
-                });
-
-                document.getElementById('status').innerText = "Session Ready. Waiting for mobile...";
+                const link = `${window.location.origin}${window.location.pathname}?role=controller&id=${channelId}`;
+                new QRCode(document.getElementById("qrcode"), { text: link, width: 200, height: 200 });
+                document.getElementById('status').innerText = "Cloud Ready. Waiting for data...";
             });
 
-            peer.on('connection', (conn) => {
-                console.log("PeerJS: Mobile connected!");
-                document.getElementById('status').innerText = "Mobile Connected!";
+            client.on('message', (topic, message) => {
+                // We received data!
+                document.getElementById('host-ui').style.display = 'none'; // Hide UI
 
-                // Hide UI after a brief moment to show success
-                setTimeout(() => {
-                    document.getElementById('host-ui').style.display = 'none';
-                }, 1000);
+                try {
+                    const data = JSON.parse(message.toString());
 
-                conn.on('data', (data) => {
-                    // Data format: { beta: x-tilt, gamma: z-tilt }
-                    // Limit the tilt to avoid flipping the model upside down
+                    // Limit angles
                     const limit = 45;
-                    const rx = Math.max(-limit, Math.min(limit, data.beta));
-                    const rz = Math.max(-limit, Math.min(limit, data.gamma));
+                    const rx = Math.max(-limit, Math.min(limit, data.b)); // Beta
+                    const rz = Math.max(-limit, Math.min(limit, data.g)); // Gamma
 
-                    // Update target rotation (converted to radians)
                     targetRotation.x = THREE.MathUtils.degToRad(rx);
                     targetRotation.z = THREE.MathUtils.degToRad(rz);
-                });
-
-                conn.on('close', () => {
-                    document.getElementById('status').innerText = "Connection lost. Please refresh.";
-                    document.getElementById('host-ui').style.display = 'flex';
-                });
-            });
-
-            peer.on('error', (err) => {
-                console.error(err);
-                document.getElementById('status').innerText = "Network Error: " + err.type;
+                } catch (e) { console.error(e); }
             });
         }
 
@@ -229,120 +195,89 @@
 
             btn.addEventListener('click', async () => {
 
-                // 1. iOS 13+ Permission Request
+                // 1. iOS Permissions
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     try {
                         const response = await DeviceOrientationEvent.requestPermission();
-                        if (response !== 'granted') {
-                            status.innerText = 'Permission denied. Cannot rotate.';
-                            return;
-                        }
-                    } catch (e) {
-                        console.error(e);
-                        status.innerText = "Error requesting sensor permission.";
-                        return;
-                    }
+                        if (response !== 'granted') return alert('Permission denied');
+                    } catch (e) { console.error(e); }
                 }
 
                 btn.innerText = "Connecting...";
-                btn.disabled = true;
 
-                // 2. Connect via PeerJS with STUN config
-                const peer = new Peer(peerConfig);
+                // 2. Connect to MQTT
+                client = mqtt.connect(BROKER_URL);
 
-                peer.on('open', () => {
-                    status.innerText = "Peer Open. Finding Host...";
-                    const conn = peer.connect(remoteId);
+                client.on('connect', () => {
+                    btn.style.display = 'none';
+                    status.innerText = "Connected! Tilt phone.";
+                    ui.style.background = "#222";
+                    const topic = `gyro-sync/${channelId}`;
 
-                    conn.on('open', () => {
-                        btn.style.display = 'none';
-                        status.innerText = "Connected! Tilt your phone.";
-                        ui.style.background = "#222"; // Visual feedback
+                    // 3. Stream Data
+                    let lastTime = 0;
+                    window.addEventListener('deviceorientation', (event) => {
+                        const now = Date.now();
+                        // Throttle to ~30ms (30fps) to save bandwidth
+                        if (now - lastTime > 30) {
+                            if (event.beta === null) return;
 
-                        // Prevent screen sleep (experimental)
-                        try { if (navigator.wakeLock) navigator.wakeLock.request('screen'); } catch (e) { }
-
-                        // 3. Start Streaming Gyro Data
-                        window.addEventListener('deviceorientation', (event) => {
-                            // Only send if we have data
-                            if (event.beta === null || event.gamma === null) return;
-
-                            conn.send({
-                                beta: event.beta,  // Front/Back tilt [-180, 180]
-                                gamma: event.gamma // Left/Right tilt [-90, 90]
+                            // Send JSON payload
+                            const payload = JSON.stringify({
+                                b: Math.round(event.beta),  // Round to integer to save bytes
+                                g: Math.round(event.gamma)
                             });
-                        });
-                    });
 
-                    conn.on('error', (err) => {
-                        console.error(err);
-                        status.innerText = "Connection Error: " + err;
-                        btn.disabled = false;
-                        btn.innerText = "Retry Connection";
+                            client.publish(topic, payload);
+                            lastTime = now;
+                        }
                     });
                 });
 
-                peer.on('error', (err) => {
-                    status.innerText = "Peer Error: " + err.type;
-                    btn.disabled = false;
-                    btn.innerText = "Retry";
-                });
+                client.on('error', (err) => status.innerText = "Error: " + err);
             });
         }
 
         // ==========================================
-        // THREE.JS SCENE (Host Only)
+        // THREE.JS SCENE
         // ==========================================
         function initThree() {
             const container = document.getElementById('canvas-container');
-
-            // Scene
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x222222);
+            scene.background = new THREE.Color(0x1a1a1a);
 
-            // Camera (Static)
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 8, 12); // Slightly higher up
+            camera.position.set(0, 8, 12);
             camera.lookAt(0, 0, 0);
 
-            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.outputColorSpace = THREE.SRGBColorSpace; // Better colors for GLB
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
             container.appendChild(renderer.domElement);
 
-            // Lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
-
             const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
             dirLight.position.set(5, 10, 7);
             scene.add(dirLight);
 
-            // Load Model
             const loader = new GLTFLoader();
             loader.load(ASSET_URL, (gltf) => {
                 model = gltf.scene;
-
-                // Center the model roughly
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
-                model.position.sub(center); // Center at 0,0,0
-
+                model.position.sub(center);
                 scene.add(model);
-                console.log("Model loaded");
-            }, undefined, (error) => {
-                console.error('Error loading GLB:', error);
-
-                // Fallback cube if model fails (for testing)
+            }, undefined, (err) => {
+                console.error(err);
+                // Fallback Cube
                 const geo = new THREE.BoxGeometry(4, 0.2, 4);
                 const mat = new THREE.MeshStandardMaterial({ color: 0x44aa88 });
                 model = new THREE.Mesh(geo, mat);
                 scene.add(model);
             });
 
-            // Resize Handler
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -354,17 +289,13 @@
 
         function animate() {
             requestAnimationFrame(animate);
-
             if (model) {
-                // Smooth interpolation (Lerp) for buttery smooth movement
-                // We interpolate currentRotation towards targetRotation
+                // Smooth interpolation
                 currentRotation.x += (targetRotation.x - currentRotation.x) * 0.1;
                 currentRotation.z += (targetRotation.z - currentRotation.z) * 0.1;
-
                 model.rotation.x = currentRotation.x;
                 model.rotation.z = currentRotation.z;
             }
-
             renderer.render(scene, camera);
         }
     </script>

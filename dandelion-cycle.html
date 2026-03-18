@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organic Dandelion Journey</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            color: rgba(255, 255, 255, 0.9);
+            text-transform: uppercase;
+            letter-spacing: 6px;
+            font-size: 0.8rem;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+            transition: opacity 0.5s;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #888;
+            font-family: sans-serif;
+            pointer-events: none;
+            letter-spacing: 2px;
+            font-size: 0.8rem;
+        }
+    </style>
+    <!-- Import Three.js and GSAP -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.4/gsap.min.js"></script>
+</head>
+
+<body>
+
+    <div id="loading">Synthesizing Organic Journey...</div>
+    <div id="ui"><span id="stage-text">Initializing</span></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        // --- CONFIGURATION ---
+        const CONFIG = {
+            colors: {
+                stem: 0x5c7a40,
+                leaf: 0x3d5c2e,
+                calyx: 0x3d5c2e,
+                flowerBase: 0xc98d08,
+                flowerTip: 0xffe600,
+                flowerWither: 0xcc8822,
+                seedCenter: 0x6b5a45,
+                seedFluff: 0xffffff,
+                ground: 0x080808
+            },
+            plantHeight: 7.0,
+            seedCount: 300,
+            innerSeedCount: 150,
+            petalCount: 380,
+            windStrength: 1.2
+        };
+
+        // --- UTILS ---
+        const simplex = new SimplexNoise();
+
+        const createNoiseTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, 512, 512);
+
+            const idata = ctx.createImageData(512, 512);
+            const buffer = idata.data;
+
+            for (let y = 0; y < 512; y++) {
+                for (let x = 0; x < 512; x++) {
+                    const nx = x / 512, ny = y / 512;
+                    let v = simplex.noise(nx * 6, ny * 6) * 0.5 + 0.5;
+                    v += simplex.noise(nx * 15, ny * 15) * 0.2;
+                    const idx = (y * 512 + x) * 4;
+                    const c = Math.floor(v * 150 + 30);
+                    buffer[idx] = c; buffer[idx + 1] = c; buffer[idx + 2] = c; buffer[idx + 3] = 255;
+                }
+            }
+            ctx.putImageData(idata, 0, 0);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        };
+
+        const createFluffTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 512, 512);
+            const cx = 256, cy = 256;
+
+            // Draw fine hairs
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 1.5;
+
+            const count = 300;
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const len = 100 + Math.random() * 140;
+
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+
+                const cpX = cx + Math.cos(angle) * (len * 0.5);
+                const cpY = cy + Math.sin(angle) * (len * 0.5);
+                const endX = cx + Math.cos(angle) * len;
+                const endY = cy + Math.sin(angle) * len;
+
+                const jX = cpX + (Math.random() - 0.5) * 20;
+                const jY = cpY + (Math.random() - 0.5) * 20;
+
+                ctx.quadraticCurveTo(jX, jY, endX, endY);
+                ctx.stroke();
+            }
+
+            const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 80);
+            grd.addColorStop(0, "rgba(255, 255, 255, 1.0)");
+            grd.addColorStop(0.4, "rgba(255, 255, 255, 0.5)");
+            grd.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+            ctx.fill();
+
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(CONFIG.colors.ground, 0.04);
+        scene.background = new THREE.Color(CONFIG.colors.ground);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 5, 14);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 4, 0);
+        controls.maxPolarAngle = Math.PI / 1.8;
+        controls.minDistance = 3;
+        controls.maxDistance = 25;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        sunLight.position.set(5, 12, 5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.bias = -0.0001;
+        scene.add(sunLight);
+
+        const rimLight = new THREE.SpotLight(0x4477ff, 2.0);
+        rimLight.position.set(-10, 5, -5);
+        rimLight.lookAt(0, 5, 0);
+        scene.add(rimLight);
+
+        const noiseTex = createNoiseTexture();
+        const fluffTex = createFluffTexture();
+
+        // Groups for shifting the world
+        const worldGroup = new THREE.Group();
+        scene.add(worldGroup);
+
+        const groundGeo = new THREE.PlaneGeometry(80, 80, 128, 128); // Larger ground for travel
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x111111,
+            roughness: 1.0,
+            displacementMap: noiseTex,
+            displacementScale: 1.5,
+            map: noiseTex
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        worldGroup.add(ground);
+
+        const grassGeo = new THREE.ConeGeometry(0.04, 0.5, 3);
+        grassGeo.translate(0, 0.25, 0);
+        const grassMat = new THREE.MeshLambertMaterial({ color: 0x223318 });
+        const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, 6000);
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < 6000; i++) {
+            const r = 1 + Math.random() * 35; // Wider spread
+            const t = Math.random() * Math.PI * 2;
+            dummy.position.set(Math.cos(t) * r, 0, Math.sin(t) * r);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.rotation.x = (Math.random() - 0.5) * 0.4;
+            dummy.scale.setScalar(0.5 + Math.random());
+            dummy.updateMatrix();
+            grassMesh.setMatrixAt(i, dummy.matrix);
+        }
+        worldGroup.add(grassMesh);
+
+        // --- DANDELION CLASS ---
+
+        class Dandelion {
+            constructor() {
+                this.root = new THREE.Group();
+                // Add to worldGroup so it moves with ground updates
+                worldGroup.add(this.root);
+
+                this.stemPoints = [
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 3, 0),
+                    new THREE.Vector3(0, CONFIG.plantHeight, 0)
+                ];
+                this.curve = new THREE.CatmullRomCurve3(this.stemPoints);
+
+                this.headGroup = new THREE.Group();
+                this.flowerGroup = new THREE.Group();
+                this.seedGroup = new THREE.Group();
+                this.calyxGroup = new THREE.Group();
+                this.leafGroup = new THREE.Group();
+
+                this.headGroup.add(this.flowerGroup);
+                this.headGroup.add(this.seedGroup);
+                this.headGroup.add(this.calyxGroup);
+                this.root.add(this.leafGroup);
+                this.root.add(this.headGroup);
+
+                this.petals = [];
+                this.seeds = [];
+                this.sepals = [];
+                this.isDispersing = false;
+
+                // Hero Seed Logic
+                this.heroSeed = null;
+                this.heroIndex = -1;
+                this.onLandCallback = null;
+
+                this.build();
+            }
+
+            createRealPetalGeometry() {
+                const widthSegments = 4;
+                const heightSegments = 8;
+                const geometry = new THREE.PlaneGeometry(0.12, 1.0, widthSegments, heightSegments);
+                geometry.translate(0, 0.5, 0);
+
+                const pos = geometry.attributes.position;
+                const count = pos.count;
+                const colors = new Float32Array(count * 3);
+
+                const baseColor = new THREE.Color(CONFIG.colors.flowerBase);
+                const tipColor = new THREE.Color(CONFIG.colors.flowerTip);
+                const tempColor = new THREE.Color();
+
+                for (let i = 0; i < count; i++) {
+                    const x = pos.getX(i);
+                    const y = pos.getY(i);
+                    const z = pos.getZ(i);
+
+                    const v = y;
+                    let widthScale = 0.3 + Math.sin(v * Math.PI * 0.6) * 0.7;
+
+                    let yOffset = 0;
+                    if (v > 0.95) {
+                        const freq = 60.0;
+                        yOffset = Math.abs(Math.sin(x * freq)) * -0.05;
+                    }
+
+                    const curlZ = Math.pow(x * 5.0, 2) * 0.05;
+
+                    pos.setX(i, x * widthScale);
+                    pos.setY(i, y + yOffset);
+                    pos.setZ(i, z + curlZ);
+
+                    tempColor.lerpColors(baseColor, tipColor, Math.pow(v, 0.5));
+                    colors[i * 3] = tempColor.r;
+                    colors[i * 3 + 1] = tempColor.g;
+                    colors[i * 3 + 2] = tempColor.b;
+                }
+
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geometry.computeVertexNormals();
+                return geometry;
+            }
+
+            build() {
+                // 1. STEM
+                this.stemGeo = new THREE.TubeGeometry(this.curve, 24, 0.08, 8, false);
+                const stemMat = new THREE.MeshStandardMaterial({
+                    color: CONFIG.colors.stem,
+                    roughness: 0.8,
+                    map: noiseTex
+                });
+                this.stemMesh = new THREE.Mesh(this.stemGeo, stemMat);
+                this.stemMesh.castShadow = true;
+                this.root.add(this.stemMesh);
+
+                // 2. LEAVES
+                const leafGeo = new THREE.PlaneGeometry(1.5, 4.5, 7, 14);
+                const lPos = leafGeo.attributes.position;
+                for (let i = 0; i < lPos.count; i++) {
+                    const y = lPos.getY(i);
+                    const u = (y + 2.25) / 4.5;
+                    const x = lPos.getX(i);
+                    const width = Math.sin(u * Math.PI) * (1 - u * 0.2);
+                    let tooth = Math.abs(Math.sin((u * 20) - (Math.abs(x) * 2))) > 0.3 ? 1.0 : 0.4;
+                    if (Math.abs(x) < 0.1) tooth = 1.0;
+                    lPos.setX(i, x * width * tooth);
+                    lPos.setZ(i, Math.pow(u, 2) * 1.5 - (Math.abs(x) * 0.5));
+                }
+                leafGeo.computeVertexNormals();
+
+                const leafMat = new THREE.MeshStandardMaterial({
+                    color: CONFIG.colors.leaf,
+                    side: THREE.DoubleSide,
+                    roughness: 0.7,
+                    map: noiseTex
+                });
+
+                for (let i = 0; i < 12; i++) {
+                    const leaf = new THREE.Mesh(leafGeo, leafMat);
+                    leaf.position.y = 0.2;
+                    leaf.rotation.x = -Math.PI / 2.2;
+                    leaf.rotation.z = (i / 12) * Math.PI * 2;
+                    leaf.scale.set(0, 0, 0);
+                    this.leafGroup.add(leaf);
+                }
+
+                // 3. CALYX
+                const sepalGeo = new THREE.ConeGeometry(0.1, 0.9, 5);
+                sepalGeo.translate(0, 0.45, 0);
+                sepalGeo.scale(1, 1, 0.2);
+
+                for (let i = 0; i < 20; i++) {
+                    const pivot = new THREE.Group();
+                    const sepal = new THREE.Mesh(sepalGeo, leafMat);
+                    pivot.rotation.y = (i / 20) * Math.PI * 2;
+                    pivot.add(sepal);
+                    this.calyxGroup.add(pivot);
+                    this.sepals.push(sepal);
+                }
+
+                // 4. FLOWER
+                const petalGeo = this.createRealPetalGeometry();
+                this.petalMat = new THREE.MeshStandardMaterial({
+                    vertexColors: true,
+                    side: THREE.DoubleSide,
+                    roughness: 0.5,
+                    emissive: 0x554400,
+                    emissiveIntensity: 0.1
+                });
+
+                this.petalMesh = new THREE.InstancedMesh(petalGeo, this.petalMat, CONFIG.petalCount);
+                this.petalMesh.castShadow = true;
+                this.petalMesh.receiveShadow = true;
+                this.flowerGroup.add(this.petalMesh);
+
+                const phi = Math.PI * (3 - Math.sqrt(5));
+
+                for (let i = 0; i < CONFIG.petalCount; i++) {
+                    const theta = i * phi;
+                    const normalizedIndex = i / CONFIG.petalCount;
+                    const r = 0.02 + Math.sqrt(normalizedIndex) * 0.40;
+                    const length = 0.4 + (normalizedIndex * 0.6) + (Math.random() * 0.15);
+
+                    const maxAngle = (Math.PI / 180) * (15 + (normalizedIndex * 95));
+                    const closedAngle = (Math.PI / 180) * (-40 * normalizedIndex);
+
+                    const coneHeight = (1.0 - Math.pow(normalizedIndex, 2)) * 0.5;
+
+                    this.petals.push({
+                        idx: i,
+                        theta: theta,
+                        radius: r,
+                        y: coneHeight,
+                        scale: 0,
+                        length: length,
+                        maxAngle: maxAngle,
+                        closedAngle: closedAngle,
+                        rotYNoise: (Math.random() - 0.5) * 0.2
+                    });
+                }
+
+                // 5. SEEDS
+                const stalkGeo = new THREE.CylinderGeometry(0.003, 0.003, 1.0);
+                stalkGeo.translate(0, 0.5, 0);
+
+                const planeGeo = new THREE.PlaneGeometry(0.8, 0.8);
+                planeGeo.translate(0, 0.4, 0);
+
+                const geo1 = planeGeo.clone();
+                const geo2 = planeGeo.clone();
+                geo2.rotateY(Math.PI / 2);
+
+                const pos1 = geo1.attributes.position.array;
+                const pos2 = geo2.attributes.position.array;
+                const uv1 = geo1.attributes.uv.array;
+                const uv2 = geo2.attributes.uv.array;
+
+                const combinedPos = new Float32Array(pos1.length + pos2.length);
+                combinedPos.set(pos1); combinedPos.set(pos2, pos1.length);
+                const combinedUV = new Float32Array(uv1.length + uv2.length);
+                combinedUV.set(uv1); combinedUV.set(uv2, uv1.length);
+
+                const combinedGeo = new THREE.BufferGeometry();
+                combinedGeo.setAttribute('position', new THREE.BufferAttribute(combinedPos, 3));
+                combinedGeo.setAttribute('uv', new THREE.BufferAttribute(combinedUV, 2));
+
+                const seedMat = new THREE.MeshBasicMaterial({
+                    color: CONFIG.colors.seedFluff,
+                    map: fluffTex,
+                    alphaMap: fluffTex,
+                    transparent: true,
+                    opacity: 0.95,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.NormalBlending
+                });
+
+                const totalSeeds = CONFIG.seedCount + CONFIG.innerSeedCount;
+                this.seedInstMesh = new THREE.InstancedMesh(combinedGeo, seedMat, totalSeeds);
+                this.seedGroup.add(this.seedInstMesh);
+
+                const stalkMat = new THREE.MeshLambertMaterial({ color: CONFIG.colors.seedCenter });
+                this.stalkInstMesh = new THREE.InstancedMesh(stalkGeo, stalkMat, totalSeeds);
+                this.seedGroup.add(this.stalkInstMesh);
+
+                for (let i = 0; i < CONFIG.seedCount; i++) {
+                    this.addSeed(i, i, CONFIG.seedCount, 1.0, 1.0);
+                }
+                for (let i = 0; i < CONFIG.innerSeedCount; i++) {
+                    this.addSeed(CONFIG.seedCount + i, i, CONFIG.innerSeedCount, 0.7, 0.6);
+                }
+
+                this.seedGroup.visible = false;
+
+                // Select a Hero Seed index
+                this.heroIndex = Math.floor(CONFIG.seedCount * 0.8);
+            }
+
+            addSeed(index, i, count, radiusScale, sizeScale) {
+                const phi = Math.PI * (3 - Math.sqrt(5));
+                const theta = i * phi;
+                const y = 1 - (i / (count - 1)) * 2;
+                const radiusAtY = Math.sqrt(1 - y * y);
+
+                const dir = new THREE.Vector3(Math.cos(theta) * radiusAtY, y, Math.sin(theta) * radiusAtY).normalize();
+
+                this.seeds.push({
+                    id: index,
+                    dir: dir,
+                    pos: new THREE.Vector3(),
+                    rot: new THREE.Quaternion(),
+                    scaleStalk: 0,
+                    scaleFluff: 0,
+                    targetSize: sizeScale,
+                    radiusFactor: radiusScale,
+                    velocity: new THREE.Vector3(),
+                    isFlying: false,
+                    turbulenceOffset: Math.random() * 100,
+                    flightTime: 0
+                });
+            }
+
+            reset(hardReset = false) {
+                this.isDispersing = false;
+                this.heroSeed = null;
+
+                this.seedGroup.visible = false;
+                this.seeds.forEach(s => {
+                    s.isFlying = false;
+                    s.velocity.set(0, 0, 0);
+                    s.scaleStalk = 0;
+                    s.scaleFluff = 0;
+                    s.pos.set(0, 0, 0);
+                    s.flightTime = 0;
+                });
+                this.seedInstMesh.count = this.seeds.length;
+                this.stalkInstMesh.count = this.seeds.length;
+
+                this.flowerGroup.visible = true;
+                this.petalMat.opacity = 1.0;
+                this.petals.forEach(p => p.scale = 0);
+
+                this.sepals.forEach(s => s.rotation.x = 0);
+
+                this.stemPoints[2].y = 0;
+                this.leafGroup.children.forEach(l => l.scale.set(0, 0, 0));
+                this.headGroup.scale.set(1, 1, 1);
+
+                this.update(0, 0.1);
+            }
+
+            update(time, dt) {
+                this.time = time;
+
+                const noiseX = simplex.noise(time * 0.4, 0) * CONFIG.windStrength;
+                const noiseZ = simplex.noise(0, time * 0.4) * CONFIG.windStrength;
+                const currentH = this.stemPoints[2].y;
+
+                this.stemPoints[1].x = noiseX * 0.5 * (currentH / 7);
+                this.stemPoints[1].z = noiseZ * 0.5 * (currentH / 7);
+                this.stemPoints[1].y = currentH * 0.5;
+                this.stemPoints[2].x = noiseX * (currentH / 7);
+                this.stemPoints[2].z = noiseZ * (currentH / 7);
+
+                this.curve.updateArcLengths();
+                this.stemGeo.dispose();
+                this.stemGeo = new THREE.TubeGeometry(this.curve, 20, 0.08, 8, false);
+                this.stemMesh.geometry = this.stemGeo;
+
+                const pathPoint = this.curve.getPoint(1);
+                const tangent = this.curve.getTangent(1);
+                this.headGroup.position.copy(pathPoint);
+                const axis = new THREE.Vector3(0, 1, 0);
+                this.headGroup.quaternion.setFromUnitVectors(axis, tangent);
+
+                if (this.isDispersing) {
+                    const windDir = new THREE.Vector3(1, 0.3, 0).normalize();
+                    dummy.scale.set(1, 1, 1);
+                    let activeSeeds = 0;
+
+                    for (let i = 0; i < this.seeds.length; i++) {
+                        const seed = this.seeds[i];
+                        if (seed.isFlying) {
+                            activeSeeds++;
+                            seed.flightTime += dt;
+
+                            const turbulenceX = simplex.noise(seed.pos.x + time, seed.pos.y);
+                            const turbulenceY = simplex.noise(seed.pos.z + time, seed.pos.x);
+
+                            seed.velocity.add(windDir.clone().multiplyScalar(dt * 0.8));
+                            seed.velocity.x += turbulenceX * 0.02;
+                            seed.velocity.y += turbulenceY * 0.02 + 0.005;
+                            seed.velocity.multiplyScalar(0.96);
+
+                            if (seed === this.heroSeed && seed.flightTime > 5.0) {
+                                seed.velocity.y -= 0.02 * dt;
+                                seed.velocity.multiplyScalar(0.99);
+
+                                // FIX: Check Landing against World Y (Approximate)
+                                // Seed is local to headGroup (y ~ height).
+                                // It must drop roughly plantHeight to hit ground.
+                                const worldY = seed.pos.y + this.headGroup.position.y;
+
+                                if (worldY <= 0.2) {
+                                    seed.isFlying = false;
+
+                                    // FIX: Calculate True World Position for Landing
+                                    const landPos = new THREE.Vector3(
+                                        seed.pos.x + this.headGroup.position.x + this.root.position.x,
+                                        0,
+                                        seed.pos.z + this.headGroup.position.z + this.root.position.z
+                                    );
+
+                                    if (this.onLandCallback) this.onLandCallback(landPos);
+                                }
+                            }
+
+                            seed.pos.add(seed.velocity);
+
+                            const moveDir = seed.velocity.clone().normalize();
+                            const targetQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 1, 0).add(moveDir).normalize());
+                            seed.rot.slerp(targetQ, 0.1);
+
+                            dummy.position.copy(seed.pos);
+                            dummy.quaternion.copy(seed.rot);
+                            dummy.scale.setScalar(seed.scaleFluff);
+                            dummy.updateMatrix();
+                            this.seedInstMesh.setMatrixAt(i, dummy.matrix);
+                            this.stalkInstMesh.setMatrixAt(i, dummy.matrix);
+                        }
+                    }
+                    if (activeSeeds > 0) {
+                        this.seedInstMesh.instanceMatrix.needsUpdate = true;
+                        this.stalkInstMesh.instanceMatrix.needsUpdate = true;
+                    }
+                }
+            }
+        }
+
+        // --- ANIMATION CONTROLLER ---
+
+        const dandelion = new Dandelion();
+        const uiLabel = document.getElementById('stage-text');
+        document.getElementById('loading').style.display = 'none';
+
+        // Camera State for tracking
+        let isFollowingSeed = false;
+
+        // Setup Landing Callback
+        dandelion.onLandCallback = (landPos) => {
+            isFollowingSeed = false;
+            uiLabel.innerText = "Rebirth";
+
+            // Seamless Transition Logic:
+            ground.position.set(landPos.x, 0, landPos.z);
+            grassMesh.position.set(landPos.x, 0, landPos.z);
+            dandelion.root.position.copy(landPos);
+
+            // FIX: Teleport camera controls immediately to avoid visual jump
+            controls.target.copy(landPos).add(new THREE.Vector3(0, 2, 0));
+            // Maintain offset relative to new target?
+            // Actually, if we just set the target, the camera position remains where it was (which is near the landing spot)
+            // So the view should be consistent.
+
+            // Start Next Cycle
+            cycleCount++;
+            runCycle();
+        };
+
+
+        function updatePetals(scale, openingFactor) {
+            const dummy = new THREE.Object3D();
+            const radialSqueeze = 0.4 + (0.6 * openingFactor);
+
+            dandelion.petals.forEach((p, i) => {
+                const x = Math.sin(p.theta) * p.radius * scale * radialSqueeze;
+                const z = Math.cos(p.theta) * p.radius * scale * radialSqueeze;
+                const currentY = p.y * scale * (1 - openingFactor * 0.5);
+
+                dummy.position.set(x, currentY, z);
+                dummy.rotation.set(0, 0, 0);
+                dummy.rotateY(p.theta + p.rotYNoise);
+
+                const targetAngle = THREE.MathUtils.lerp(p.closedAngle, p.maxAngle, openingFactor);
+                dummy.rotateX(targetAngle);
+
+                dummy.scale.set(p.scale * scale, p.scale * scale * p.length, p.scale * scale);
+                dummy.updateMatrix();
+                dandelion.petalMesh.setMatrixAt(i, dummy.matrix);
+            });
+            dandelion.petalMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        function updateSeeds(stalkScale, fluffScale, expansion) {
+            const dummy = new THREE.Object3D();
+            dandelion.seeds.forEach((s, i) => {
+                if (s.isFlying) return;
+
+                const rad = 0.6 * expansion * s.radiusFactor;
+                dummy.position.copy(s.dir).multiplyScalar(rad);
+                dummy.lookAt(0, 0, 0);
+                dummy.rotateX(-Math.PI / 2);
+
+                s.pos.copy(dummy.position);
+                s.rot.copy(dummy.quaternion);
+                s.scaleStalk = stalkScale * s.targetSize;
+                s.scaleFluff = fluffScale * s.targetSize;
+
+                dummy.scale.set(s.scaleStalk, s.scaleStalk, s.scaleStalk);
+                dummy.updateMatrix();
+                dandelion.stalkInstMesh.setMatrixAt(i, dummy.matrix);
+
+                dummy.translateY(1.0 * s.scaleStalk);
+                dummy.scale.set(s.scaleFluff, s.scaleFluff, s.scaleFluff);
+                dummy.updateMatrix();
+                dandelion.seedInstMesh.setMatrixAt(i, dummy.matrix);
+            });
+            dandelion.seedInstMesh.instanceMatrix.needsUpdate = true;
+            dandelion.stalkInstMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        let cycleCount = 0;
+
+        function runCycle() {
+            dandelion.reset(cycleCount === 0);
+
+            const timeline = gsap.timeline();
+
+            // PHASE 1: GROWTH
+            timeline.call(() => uiLabel.innerText = "Germination");
+            timeline.to(dandelion.leafGroup.children.map(l => l.scale), {
+                x: 1, y: 1, z: 1, duration: 3.0, stagger: 0.1, ease: "back.out(1.2)"
+            });
+
+            timeline.call(() => uiLabel.innerText = "Bolting");
+            const growObj = { h: 0 };
+            timeline.to(growObj, {
+                h: CONFIG.plantHeight, duration: 3.0, ease: "power2.inOut",
+                onUpdate: () => { dandelion.stemPoints[2].y = growObj.h; }
+            }, "-=1");
+
+            // PHASE 2: ANTHESIS
+            timeline.call(() => uiLabel.innerText = "Anthesis");
+            timeline.to(dandelion.sepals.map(s => s.rotation), { x: 1.8, duration: 2.0, ease: "power2.inOut" });
+
+            const bloomObj = { growth: 0, open: 0 };
+
+            timeline.to(bloomObj, {
+                growth: 1, duration: 2.5, ease: "power2.out",
+                onUpdate: () => {
+                    dandelion.petals.forEach(p => p.scale = bloomObj.growth);
+                    updatePetals(1, bloomObj.open);
+                }
+            }, "-=1.0");
+
+            timeline.to(bloomObj, {
+                open: 1.0, duration: 3.5, ease: "power3.inOut",
+                onUpdate: () => { updatePetals(1, bloomObj.open); }
+            }, "<1.5");
+
+            timeline.call(() => uiLabel.innerText = "Photosynthesis");
+            timeline.to(bloomObj, {
+                open: 1.2, duration: 4.0, ease: "sine.inOut", yoyo: true, repeat: 1,
+                onUpdate: () => { updatePetals(1, bloomObj.open); }
+            });
+
+            // PHASE 3: SENESCENCE
+            timeline.call(() => uiLabel.innerText = "Senescence");
+            timeline.to(dandelion.petalMat.emissive, { r: 0.1, g: 0.05, b: 0.0, duration: 2 });
+
+            timeline.to(bloomObj, {
+                growth: 0.5, open: 0.0, duration: 2.5, ease: "power2.inOut",
+                onUpdate: () => {
+                    dandelion.petals.forEach(p => p.scale = bloomObj.growth);
+                    updatePetals(1, bloomObj.open);
+                }
+            });
+            timeline.to(dandelion.sepals.map(s => s.rotation), { x: -0.2, duration: 1.5 }, "-=1.5");
+
+            // PHASE 4: FRUCTIFICATION
+            timeline.call(() => uiLabel.innerText = "Fructification");
+            timeline.call(() => { dandelion.seedGroup.visible = true; dandelion.flowerGroup.visible = false; });
+
+            timeline.to(dandelion.sepals.map(s => s.rotation), { x: 3.0, duration: 3.0, ease: "power2.inOut" });
+
+            const seedState = { stalk: 0, fluff: 0.1, expansion: 0.2 };
+
+            timeline.to(seedState, {
+                stalk: 1, expansion: 1, duration: 2.5, ease: "power2.out",
+                onUpdate: () => { updateSeeds(seedState.stalk, seedState.fluff, seedState.expansion); }
+            });
+
+            timeline.to(seedState, {
+                fluff: 1, duration: 3.0, ease: "elastic.out(1, 0.7)",
+                onUpdate: () => { updateSeeds(seedState.stalk, seedState.fluff, seedState.expansion); }
+            }, "-=0.5");
+
+            // PHASE 5: JOURNEY BEGINS
+            timeline.call(() => uiLabel.innerText = "The Journey");
+            timeline.call(() => {
+                dandelion.isDispersing = true;
+
+                dandelion.heroSeed = dandelion.seeds[dandelion.heroIndex];
+
+                const indices = Array.from({ length: dandelion.seeds.length }, (_, k) => k);
+                for (let i = indices.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [indices[i], indices[j]] = [indices[j], indices[i]];
+                }
+
+                indices.forEach((seedIdx, i) => {
+                    setTimeout(() => {
+                        if (dandelion.seeds[seedIdx]) {
+                            dandelion.seeds[seedIdx].isFlying = true;
+                            const speed = dandelion.seeds[seedIdx].targetSize < 1 ? 0.12 : 0.08;
+                            dandelion.seeds[seedIdx].velocity.copy(dandelion.seeds[seedIdx].dir).multiplyScalar(speed);
+
+                            if (dandelion.seeds[seedIdx] === dandelion.heroSeed) {
+                                isFollowingSeed = true;
+                            }
+                        }
+                    }, i * 6);
+                });
+            });
+        }
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            dandelion.update(time, dt);
+
+            if (isFollowingSeed && dandelion.heroSeed) {
+                // FIX: Track the ACTUAL World Position (Root + Head + SeedLocal)
+                // Previously missed headGroup and seedLocal offset causing bad tracking
+                const seedWorldPos = new THREE.Vector3()
+                    .copy(dandelion.root.position)
+                    .add(dandelion.headGroup.position)
+                    .add(dandelion.heroSeed.pos);
+
+                controls.target.lerp(seedWorldPos, 0.05);
+            } else {
+                const headPos = dandelion.headGroup.position.clone().add(dandelion.root.position);
+                controls.target.lerp(headPos, 0.05);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        runCycle();
+        animate();
+
+    </script>
+</body>
+
+</html>

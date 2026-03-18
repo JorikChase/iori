@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>N-Dimensional Viewer</title>
+    <!-- Import Circular Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Questrial&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --ui-color: #ffffff;
+            --ui-faint: rgba(255, 255, 255, 0.2);
+            --accent: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--ui-color);
+            font-family: 'Questrial', sans-serif;
+            /* Circular Font */
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            outline: none;
+        }
+
+        /* Brutalist UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+
+        /* Top Bar: Shape Tools */
+        .toolbar {
+            display: flex;
+            gap: 1.5rem;
+            pointer-events: auto;
+            align-self: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .tool {
+            width: 44px;
+            height: 44px;
+            border: 1px solid var(--ui-faint);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.5;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+        }
+
+        .tool:hover {
+            border-color: var(--ui-color);
+            opacity: 0.8;
+        }
+
+        .tool.active {
+            background: var(--ui-color);
+            border-color: var(--ui-color);
+            opacity: 1;
+        }
+
+        .tool.active .icon {
+            stroke: var(--bg-color);
+        }
+
+        .separator {
+            width: 1px;
+            height: 30px;
+            background: var(--ui-faint);
+            margin: auto 0.5rem;
+        }
+
+        /* Icons */
+        .icon {
+            width: 22px;
+            height: 22px;
+            stroke: var(--ui-color);
+            fill: none;
+            stroke-width: 2;
+        }
+
+        #btn-color .icon {
+            stroke-width: 0;
+        }
+
+        /* Bottom Bar: Slider and Info */
+        .controls {
+            width: 100%;
+            max-width: 600px;
+            align-self: center;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .dim-display {
+            font-size: 5rem;
+            font-weight: 400;
+            width: 140px;
+            /* Widened for decimals */
+            text-align: right;
+            line-height: 1;
+            letter-spacing: -2px;
+            font-variant-numeric: tabular-nums;
+            /* Prevents jitter */
+        }
+
+        .slider-container {
+            flex-grow: 1;
+            position: relative;
+            height: 40px;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 1px;
+            cursor: pointer;
+            background: var(--ui-faint);
+        }
+
+        input[type=range]::-moz-range-track {
+            width: 100%;
+            height: 1px;
+            cursor: pointer;
+            background: var(--ui-faint);
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            height: 20px;
+            width: 20px;
+            background: var(--bg-color);
+            border: 2px solid var(--ui-color);
+            border-radius: 50%;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -10px;
+        }
+
+        input[type=range]::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            background: var(--bg-color);
+            border: 2px solid var(--ui-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+    <!-- Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+
+<body>
+
+    <div id="ui-layer">
+        <!-- Top Tools -->
+        <div class="toolbar">
+            <div class="tool active" id="btn-cube">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                </svg>
+            </div>
+            <div class="tool" id="btn-simplex">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <polygon points="12,5 20,20 4,20"></polygon>
+                </svg>
+            </div>
+            <div class="tool" id="btn-sphere">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8"></circle>
+                </svg>
+            </div>
+
+            <div class="separator"></div>
+
+            <div class="tool" id="btn-color">
+                <svg class="icon" viewBox="0 0 24 24" style="stroke: none;">
+                    <path d="M12 2 A10 10 0 0 1 20.66 7 L12 12 Z" fill="#ff4444" />
+                    <path d="M20.66 7 A10 10 0 0 1 20.66 17 L12 12 Z" fill="#ffeb3b" />
+                    <path d="M20.66 17 A10 10 0 0 1 12 22 L12 12 Z" fill="#4caf50" />
+                    <path d="M12 22 A10 10 0 0 1 3.34 17 L12 12 Z" fill="#00bcd4" />
+                    <path d="M3.34 17 A10 10 0 0 1 3.34 7 L12 12 Z" fill="#2196f3" />
+                    <path d="M3.34 7 A10 10 0 0 1 12 2 L12 12 Z" fill="#9c27b0" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="controls">
+            <!-- Number Display -->
+            <div class="dim-display" id="dim-val">3.00</div>
+
+            <div class="slider-container">
+                <!-- STEP 0.01 for fractional dimensions -->
+                <input type="range" id="dim-slider" min="0" max="9" step="0.01" value="3.00">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            maxDimension: 9,
+            pointCloudThreshold: 8,
+            pointCountSphere: 2500,
+            cameraDistance: 3.5,
+            rotationSpeed: 0.005,
+            scale: 2.5,
+            minZoom: 1,
+            maxZoom: 20
+        };
+
+        const AXIS_COLORS = [
+            [1, 0.2, 0.2], [0.2, 1, 0.2], [0.2, 0.4, 1], [1, 0.9, 0.1],
+            [0, 1, 1], [1, 0, 1], [1, 0.5, 0], [0.6, 0, 1], [0.5, 1, 0], [1, 0.6, 0.8]
+        ];
+
+        let currentDimension = 3.0; // Float
+        let lastGeneratedCeil = 3;  // Integer tracker to avoid re-generating geometry
+        let currentShape = 'cube';
+        let isColorEnabled = false;
+
+        let nVertices = [];
+        let nEdges = [];
+        let rotations = [];
+
+        // Rotations are based on the ceiling of the dimension
+        function initRotations(n) {
+            rotations = [];
+            if (n < 3) return;
+            const numRotations = Math.max(1, Math.floor(n / 1.5));
+
+            for (let i = 0; i < numRotations; i++) {
+                let a1 = Math.floor(Math.random() * n);
+                let a2 = Math.floor(Math.random() * n);
+                while (a1 === a2) a2 = Math.floor(Math.random() * n);
+
+                rotations.push({
+                    axis1: a1,
+                    axis2: a2,
+                    angle: 0,
+                    speed: (Math.random() - 0.5) * 0.015
+                });
+            }
+        }
+
+        // Generate geometry for the Ceiling dimension
+        function generateHypercube(n) {
+            nVertices = [];
+            nEdges = [];
+            if (n === 0) { nVertices.push([]); return; }
+            const numVerts = Math.pow(2, n);
+            for (let i = 0; i < numVerts; i++) {
+                let coord = [];
+                for (let bit = 0; bit < n; bit++) coord.push((i & (1 << bit)) ? 1 : -1);
+                nVertices.push(coord);
+            }
+            // Generate edges (Standard hypercube logic)
+            for (let i = 0; i < numVerts; i++) {
+                for (let bit = 0; bit < n; bit++) {
+                    let neighbor = i ^ (1 << bit);
+                    if (i < neighbor) nEdges.push({ p1: i, p2: neighbor, dim: bit });
+                }
+            }
+        }
+
+        function generateSimplex(n) {
+            nVertices = [];
+            nEdges = [];
+            const count = n + 1;
+            for (let i = 0; i < count; i++) {
+                let v = [];
+                for (let d = 0; d < n; d++) v.push((Math.random() - 0.5) * 2);
+                let mag = Math.sqrt(v.reduce((a, b) => a + b * b, 0));
+                if (mag === 0) mag = 1;
+                v = v.map(x => x / mag * 1.5);
+                nVertices.push(v);
+            }
+            for (let i = 0; i < count; i++) {
+                for (let j = i + 1; j < count; j++) nEdges.push({ p1: i, p2: j, dim: 0 });
+            }
+        }
+
+        function generateHypersphere(n) {
+            nVertices = [];
+            nEdges = [];
+            if (n === 0) { nVertices.push([]); return; }
+            for (let i = 0; i < CONFIG.pointCountSphere; i++) {
+                let v = [];
+                let sumSq = 0;
+                for (let d = 0; d < n; d++) {
+                    let g = 0;
+                    for (let k = 0; k < 6; k++) g += Math.random();
+                    g -= 3;
+                    v.push(g);
+                    sumSq += g * g;
+                }
+                let mag = Math.sqrt(sumSq);
+                v = v.map(x => (x / mag) * 1.2);
+                nVertices.push(v);
+            }
+        }
+
+        function rotateVertex(v, n) {
+            let r = [...v];
+            rotations.forEach(rot => {
+                if (rot.axis1 >= n || rot.axis2 >= n) return;
+                let x1 = r[rot.axis1], x2 = r[rot.axis2];
+                let c = Math.cos(rot.angle), s = Math.sin(rot.angle);
+                r[rot.axis1] = x1 * c - x2 * s;
+                r[rot.axis2] = x1 * s + x2 * c;
+            });
+            return r;
+        }
+
+        function projectTo3D(v, n) {
+            let currentV = [...v];
+            let currentDim = n;
+            // Project down until we hit 3D
+            while (currentDim > 3) {
+                let w = currentV[currentDim - 1];
+                let div = CONFIG.cameraDistance - w;
+                if (div <= 0.01) div = 0.01;
+                let factor = CONFIG.cameraDistance / div;
+                let newV = [];
+                for (let i = 0; i < currentDim - 1; i++) newV.push(currentV[i] * factor);
+                currentV = newV;
+                currentDim--;
+            }
+            while (currentV.length < 3) currentV.push(0);
+            return new THREE.Vector3(currentV[0], currentV[1], currentV[2]);
+        }
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6 });
+        const geometryLines = new THREE.BufferGeometry();
+        const linesMesh = new THREE.LineSegments(geometryLines, lineMaterial);
+        scene.add(linesMesh);
+
+        const pointMaterial = new THREE.PointsMaterial({ vertexColors: true, size: 0.08, transparent: true, opacity: 0.8 });
+        const geometryPoints = new THREE.BufferGeometry();
+        const pointsMesh = new THREE.Points(geometryPoints, pointMaterial);
+        scene.add(pointsMesh);
+
+        const contentGroup = new THREE.Group();
+        contentGroup.add(linesMesh);
+        contentGroup.add(pointsMesh);
+        scene.add(contentGroup);
+
+        // Core logic update: Check if the Ceiling integer changed.
+        // If Ceiling changed (e.g. 3.2 -> 4.1), regenerate geometry.
+        // If only fraction changed (3.2 -> 3.8), just re-render in animate loop.
+        function checkAndUpdateGeometry(force = false) {
+            const neededCeil = Math.ceil(currentDimension);
+
+            // Simplex always needs regeneration to look random/organic, 
+            // but for stability we only regen on integer change or force
+            if (neededCeil !== lastGeneratedCeil || force) {
+                lastGeneratedCeil = neededCeil;
+
+                const n = neededCeil;
+                if (currentShape === 'cube') generateHypercube(n);
+                else if (currentShape === 'simplex') generateSimplex(n);
+                else if (currentShape === 'sphere') generateHypersphere(n);
+
+                // Re-init rotations for the new dimensions
+                initRotations(n);
+
+                // Setup Buffers
+                let showLines = true;
+                if (currentShape === 'sphere') showLines = false;
+                if (currentShape === 'cube' && n > CONFIG.pointCloudThreshold) showLines = false;
+
+                linesMesh.visible = showLines;
+                pointsMesh.visible = true;
+
+                if (showLines) {
+                    const edgeCount = nEdges.length;
+                    // We just allocate buffer size here, data is filled in animate
+                    geometryLines.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edgeCount * 2 * 3), 3));
+                    geometryLines.setAttribute('color', new THREE.BufferAttribute(new Float32Array(edgeCount * 2 * 3), 3));
+                }
+
+                const pCount = nVertices.length;
+                geometryPoints.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pCount * 3), 3));
+                geometryPoints.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pCount * 3), 3));
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            rotations.forEach(r => r.angle += r.speed);
+
+            const n = lastGeneratedCeil;
+            const floorDim = Math.floor(currentDimension);
+            const fraction = currentDimension % 1;
+
+            // If currentDimension is exactly integer (e.g., 3.0), we treat it as full scale
+            // If currentDimension is 3.5, floor is 3. 
+            // Indices < 3 (0,1,2) are scale 1. 
+            // Index 3 is scale 0.5.
+
+            const projectedCache = [];
+            const scaleFactor = CONFIG.scale / (1 + currentDimension * 0.1);
+
+            for (let i = 0; i < nVertices.length; i++) {
+                // 1. Copy Vertex
+                let v = [...nVertices[i]];
+
+                // 2. Apply Axis Extrusion (Fractional Scaling)
+                // We assume vertices generated for 'n' (Ceil)
+                for (let d = 0; d < n; d++) {
+                    let s = 1;
+                    if (d > floorDim) s = 0; // Should not happen if n=ceil, but safety
+                    else if (d === floorDim) {
+                        // This is the expanding dimension
+                        // If fraction is 0, we are exactly at integer, so this dim shouldn't exist 
+                        // effectively, or it's 0.
+                        // However, math.ceil(3.0) is 3. floor is 3. d=3 is never hit.
+                        // math.ceil(3.1) is 4. floor is 3. d=3 is hit. scale is 0.1.
+                        s = fraction;
+                    }
+                    v[d] *= s;
+                }
+
+                // 3. Rotate
+                let rv = rotateVertex(v, n);
+
+                // 4. Project
+                let p3 = projectTo3D(rv, n);
+                p3.multiplyScalar(scaleFactor);
+                projectedCache.push(p3);
+            }
+
+            // Update Point Colors & Positions
+            const pCount = nVertices.length;
+            const pPos = geometryPoints.attributes.position.array;
+            const pCol = geometryPoints.attributes.color.array;
+
+            for (let i = 0; i < pCount; i++) {
+                pPos[i * 3] = projectedCache[i].x;
+                pPos[i * 3 + 1] = projectedCache[i].y;
+                pPos[i * 3 + 2] = projectedCache[i].z;
+
+                let col = [1, 1, 1];
+                if (isColorEnabled) {
+                    col = AXIS_COLORS[i % AXIS_COLORS.length];
+                }
+                pCol[i * 3] = col[0]; pCol[i * 3 + 1] = col[1]; pCol[i * 3 + 2] = col[2];
+            }
+            geometryPoints.attributes.position.needsUpdate = true;
+            geometryPoints.attributes.color.needsUpdate = true;
+
+            // Update Line Colors & Positions
+            if (linesMesh.visible) {
+                const lPos = geometryLines.attributes.position.array;
+                const lCol = geometryLines.attributes.color.array;
+
+                for (let i = 0; i < nEdges.length; i++) {
+                    const idx1 = nEdges[i].p1;
+                    const idx2 = nEdges[i].p2;
+                    const p1 = projectedCache[idx1];
+                    const p2 = projectedCache[idx2];
+
+                    lPos[i * 6] = p1.x; lPos[i * 6 + 1] = p1.y; lPos[i * 6 + 2] = p1.z;
+                    lPos[i * 6 + 3] = p2.x; lPos[i * 6 + 4] = p2.y; lPos[i * 6 + 5] = p2.z;
+
+                    let col = [1, 1, 1];
+                    if (isColorEnabled) {
+                        if (currentShape === 'cube') {
+                            col = AXIS_COLORS[nEdges[i].dim % AXIS_COLORS.length];
+                        } else {
+                            col = AXIS_COLORS[i % AXIS_COLORS.length];
+                        }
+                    }
+
+                    lCol[i * 6] = col[0]; lCol[i * 6 + 1] = col[1]; lCol[i * 6 + 2] = col[2];
+                    lCol[i * 6 + 3] = col[0]; lCol[i * 6 + 4] = col[1]; lCol[i * 6 + 5] = col[2];
+                }
+                geometryLines.attributes.position.needsUpdate = true;
+                geometryLines.attributes.color.needsUpdate = true;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        const slider = document.getElementById('dim-slider');
+        const display = document.getElementById('dim-val');
+        const btnColor = document.getElementById('btn-color');
+
+        function setShape(shape, btnId) {
+            currentShape = shape;
+            document.querySelectorAll('.tool:not(#btn-color)').forEach(t => t.classList.remove('active'));
+            document.getElementById(btnId).classList.add('active');
+            checkAndUpdateGeometry(true);
+        }
+
+        document.getElementById('btn-cube').addEventListener('click', () => setShape('cube', 'btn-cube'));
+        document.getElementById('btn-simplex').addEventListener('click', () => setShape('simplex', 'btn-simplex'));
+        document.getElementById('btn-sphere').addEventListener('click', () => setShape('sphere', 'btn-sphere'));
+
+        btnColor.addEventListener('click', () => {
+            isColorEnabled = !isColorEnabled;
+            // No need to regen geometry, colors update in animate loop
+        });
+
+        slider.addEventListener('input', (e) => {
+            currentDimension = parseFloat(e.target.value);
+            display.innerText = currentDimension.toFixed(2);
+            checkAndUpdateGeometry();
+        });
+
+        // Mouse/Touch Interaction
+        let isDragging = false;
+        let prevPos = { x: 0, y: 0 };
+        window.addEventListener('wheel', (e) => {
+            camera.position.z += e.deltaY * 0.01;
+            camera.position.z = Math.max(CONFIG.minZoom, Math.min(CONFIG.maxZoom, camera.position.z));
+        });
+        document.addEventListener('mousedown', () => isDragging = true);
+        document.addEventListener('mouseup', () => isDragging = false);
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const delta = { x: e.offsetX - prevPos.x, y: e.offsetY - prevPos.y };
+                rotateContent(delta.x, delta.y);
+            }
+            prevPos = { x: e.offsetX, y: e.offsetY };
+        });
+
+        function rotateContent(dx, dy) {
+            const deltaRotationQuaternion = new THREE.Quaternion()
+                .setFromEuler(new THREE.Euler(toRadians(dy * 1), toRadians(dx * 1), 0, 'XYZ'));
+            contentGroup.quaternion.multiplyQuaternions(deltaRotationQuaternion, contentGroup.quaternion);
+        }
+
+        let initialPinchDist = 0;
+        let initialZoom = 5;
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                prevPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                initialPinchDist = getPinchDist(e);
+                initialZoom = camera.position.z;
+            }
+        }, { passive: false });
+        document.addEventListener('touchend', () => isDragging = false);
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && isDragging) {
+                const delta = { x: e.touches[0].clientX - prevPos.x, y: e.touches[0].clientY - prevPos.y };
+                rotateContent(delta.x, delta.y);
+                prevPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            } else if (e.touches.length === 2) {
+                const dist = getPinchDist(e);
+                const factor = initialPinchDist / dist;
+                camera.position.z = Math.max(CONFIG.minZoom, Math.min(CONFIG.maxZoom, initialZoom * factor));
+            }
+        }, { passive: false });
+
+        function getPinchDist(e) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        function toRadians(angle) { return angle * (Math.PI / 180); }
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        checkAndUpdateGeometry(true);
+        animate();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lighter Flame Engine (Elastic Grid)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Inter', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: default;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 260px;
+            background: rgba(10, 10, 12, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            color: #ccc;
+            z-index: 10;
+            transition: opacity 0.3s;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        #ui-container:hover {
+            opacity: 1;
+            background: rgba(10, 10, 12, 0.9);
+        }
+
+        .control-group {
+            margin-bottom: 14px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 6px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            color: #888;
+        }
+
+        .control-group input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #007bff;
+            height: 4px;
+            border-radius: 2px;
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .control-group input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #007bff;
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+        }
+
+        .val {
+            font-family: 'Menlo', monospace;
+            color: #fff;
+            font-weight: 400;
+        }
+
+        #error-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #111;
+            color: #ff5555;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: sans-serif;
+            font-weight: 300;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-container">
+        <div class="control-group">
+            <label>Fuel Amount <span id="val-fuel" class="val">1.4</span></label>
+            <input type="range" id="param-fuel" min="0.1" max="3.0" step="0.1" value="1.4">
+        </div>
+        <div class="control-group">
+            <label>Fuel Frequency <span id="val-freq" class="val">1</span></label>
+            <input type="range" id="param-freq" min="1" max="10" step="1" value="1">
+        </div>
+        <div class="control-group">
+            <label>Vertical Speed <span id="val-speed" class="val">0.6</span></label>
+            <input type="range" id="param-speed" min="0.1" max="2.0" step="0.1" value="0.6">
+        </div>
+        <div class="control-group">
+            <label>Turbulence <span id="val-turb" class="val">1.2</span></label>
+            <input type="range" id="param-turb" min="0.0" max="3.0" step="0.1" value="1.2">
+        </div>
+        <div class="control-group">
+            <label>Expansion <span id="val-exp" class="val">0.8</span></label>
+            <input type="range" id="param-exp" min="0.0" max="2.0" step="0.1" value="0.8">
+        </div>
+        <div class="control-group">
+            <label>Flame Life (Decay) <span id="val-decay" class="val">0.85</span></label>
+            <input type="range" id="param-decay" min="0.800" max="0.999" step="0.001" value="0.85">
+        </div>
+        <div class="control-group">
+            <label>Box Height (Scale) <span id="val-height" class="val">1.3</span></label>
+            <input type="range" id="param-height" min="1.0" max="3.0" step="0.1" value="1.3">
+        </div>
+        <div class="control-group">
+            <label>Box Width (Scale) <span id="val-width" class="val">1.2</span></label>
+            <input type="range" id="param-width" min="0.5" max="3.0" step="0.1" value="1.2">
+        </div>
+        <div class="control-group">
+            <label>Box Depth (Scale) <span id="val-depth" class="val">1.2</span></label>
+            <input type="range" id="param-depth" min="0.5" max="3.0" step="0.1" value="1.2">
+        </div>
+    </div>
+
+    <div id="loading">Loading HDRI Environment...</div>
+
+    <div id="error-overlay">
+        <h2 id="error-title">WebGPU Error</h2>
+        <p id="error-msg"></p>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <!-- ========================================== -->
+    <!-- PHYSICS SHADER                             -->
+    <!-- ========================================== -->
+    <script type="wbgo/wgsl" id="physics-shader">
+    struct Uniforms {
+        resolution: vec2<f32>,
+        time: f32,
+        dt: f32,
+        params1: vec4<f32>, 
+        params2: vec4<f32>, 
+        cameraPos: vec4<f32>, 
+    };
+
+    @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+    @group(0) @binding(1) var inputVolume: texture_2d<f32>;
+    @group(0) @binding(2) var inputSampler: sampler;
+
+    struct VertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) uv: vec2<f32>,
+    };
+
+    @vertex
+    fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+        var pos = vec2<f32>(0.0, 0.0);
+        if (vertexIndex == 0u) { pos = vec2<f32>(-1.0, -1.0); }
+        else if (vertexIndex == 1u) { pos = vec2<f32>(3.0, -1.0); }
+        else { pos = vec2<f32>(-1.0, 3.0); }
+        var output: VertexOutput;
+        output.position = vec4<f32>(pos, 0.0, 1.0);
+        output.uv = pos * 0.5 + 0.5;
+        output.uv.y = 1.0 - output.uv.y; 
+        return output;
+    }
+
+    fn hash(p: vec3<f32>) -> f32 {
+        var p3 = fract(p * 0.1031);
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.x + p3.y) * p3.z);
+    }
+    fn noise(x: vec3<f32>) -> f32 {
+        let i = floor(x);
+        let f = fract(x);
+        let u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix( hash(i + vec3(0.,0.,0.)), hash(i + vec3(1.,0.,0.)), u.x),
+                       mix( hash(i + vec3(0.,1.,0.)), hash(i + vec3(1.,1.,0.)), u.x), u.y),
+                   mix(mix( hash(i + vec3(0.,0.,1.)), hash(i + vec3(1.,0.,1.)), u.x),
+                       mix( hash(i + vec3(0.,1.,1.)), hash(i + vec3(1.,1.,1.)), u.x), u.y), u.z);
+    }
+    fn fbm(x: vec3<f32>) -> f32 {
+        var v = 0.0; var a = 0.5; var p = x;
+        for (var i = 0; i < 3; i++) { v += a * noise(p); p = p * 2.0; a *= 0.5; }
+        return v;
+    }
+
+    fn sample3D(uv: vec3<f32>) -> vec4<f32> {
+        let slices = 256.0;
+        let gridCols = 16.0;
+        let gridRows = 16.0;
+
+        let z = uv.z * slices;
+        let zFloor = floor(z);
+        let zCeil = min(zFloor + 1.0, slices - 1.0);
+        let zFract = fract(z);
+
+        let col1 = zFloor % gridCols;
+        let row1 = floor(zFloor / gridCols);
+        let uv1 = vec2<f32>((col1 + uv.x) / gridCols, (row1 + uv.y) / gridRows);
+
+        let col2 = zCeil % gridCols;
+        let row2 = floor(zCeil / gridCols);
+        let uv2 = vec2<f32>((col2 + uv.x) / gridCols, (row2 + uv.y) / gridRows);
+
+        return mix(textureSample(inputVolume, inputSampler, uv1), textureSample(inputVolume, inputSampler, uv2), zFract);
+    }
+
+    @fragment
+    fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+        let fuelParam = uniforms.params1.x;
+        let speedParam = uniforms.params1.y;
+        let turbParam = uniforms.params1.z;
+        let expParam = uniforms.params1.w;
+        let decayParam = uniforms.params2.x; 
+        let shouldInject = uniforms.params2.y; 
+        
+        // ELASTIC SIMULATION: We ignore box dimensions for physics.
+        // This means physics happen in 0..1 UV space.
+        // The Render shader stretches this 0..1 space to the box dimensions.
+        
+        let slices = 256.0; 
+        let gridCols = 16.0;
+        let gridRows = 16.0;
+
+        let totalWidth = input.uv.x * gridCols;
+        let totalHeight = input.uv.y * gridRows;
+        
+        let col = floor(totalWidth);
+        let row = floor(totalHeight);
+        let zIndex = row * gridCols + col;
+        
+        let xLocal = fract(totalWidth);
+        let yLocal = fract(totalHeight);
+
+        if (zIndex >= slices) { discard; }
+
+        let pos = vec3<f32>(xLocal, yLocal, zIndex / slices);
+        
+        // Use normalized coordinates for noise so features scale with the box
+        let centerPos = vec3<f32>((xLocal - 0.5) * 2.0, yLocal, ((zIndex/slices) - 0.5) * 2.0);
+
+        // 1. VELOCITY (Grid Relative)
+        let verticalProfile = mix(1.0, 0.3, smoothstep(0.2, 1.2, yLocal)); 
+        var velocity = vec3<f32>(0.0, verticalProfile * speedParam, 0.0);
+
+        let outwardDir = normalize(vec3<f32>(centerPos.x, 0.0, centerPos.z));
+        let expansionCurve = smoothstep(0.1, 0.6, yLocal) * (1.0 - yLocal * 0.5); 
+        velocity += outwardDir * expansionCurve * expParam;
+
+        let turbulenceMask = smoothstep(0.15, 0.45, yLocal);
+        let tScale = 0.5; // Adjusted for UV space
+        let tTime = uniforms.time * 1.5;
+        
+        let noiseX = fbm(vec3<f32>(centerPos.x * tScale, centerPos.y * tScale - tTime, centerPos.z * tScale)) - 0.45;
+        let noiseZ = fbm(vec3<f32>(centerPos.x * tScale + 13.5, centerPos.y * tScale - tTime, centerPos.z * tScale + 13.5)) - 0.45;
+        
+        let turbForce = vec3<f32>(noiseX, 0.0, noiseZ) * turbParam * 2.5 * turbulenceMask;
+        velocity += turbForce;
+
+        // 2. ADVECTION (Pure UV Space)
+        let dt = 0.016;
+        let backPos = pos - velocity * dt; 
+        let safeBackPos = clamp(backPos, vec3<f32>(0.0), vec3<f32>(1.0));
+        let oldState = sample3D(safeBackPos);
+        
+        var density = oldState.r * decayParam; 
+        var temp = oldState.g * (decayParam * 0.99);
+
+        // 3. INJECTION
+        let r = length(centerPos.xz);
+        
+        if (yLocal < 0.1 && r < 0.22) { 
+            let streakNoise = fbm(vec3<f32>(centerPos.x * 20.0, uniforms.time * 6.0, centerPos.z * 20.0));
+            let streaks = smoothstep(0.4, 0.7, streakNoise);
+            let mask = smoothstep(0.22, 0.05, r);
+            let injection = mask * (0.2 + streaks * 0.8) * fuelParam * shouldInject; 
+            density = min(1.0, density + injection * 0.5);
+            temp = min(1.0, temp + injection * 0.5);
+        }
+        
+        // 4. BOUNDARIES
+        if (yLocal < 0.01) { density = 0.0; temp = 0.0; } 
+        if (yLocal > 0.8) { 
+            let fade = (yLocal - 0.8) * 5.0; 
+            density *= exp(-fade * 4.0); 
+        } 
+        let wallDist = max(abs(centerPos.x), abs(centerPos.z));
+        density *= smoothstep(0.95, 0.8, wallDist);
+
+        return vec4<f32>(density, temp, 0.0, 1.0);
+    }
+</script>
+
+    <!-- ========================================== -->
+    <!-- RENDER SHADER                              -->
+    <!-- ========================================== -->
+    <script type="wbgo/wgsl" id="render-shader">
+    struct Uniforms {
+        resolution: vec2<f32>,
+        time: f32,
+        dt: f32,
+        params1: vec4<f32>, 
+        params2: vec4<f32>,
+        cameraPos: vec4<f32>, 
+    };
+
+    @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+    @group(0) @binding(1) var inputVolume: texture_2d<f32>;
+    @group(0) @binding(2) var inputSampler: sampler;
+    @group(0) @binding(3) var envTexture: texture_2d<f32>;
+    @group(0) @binding(4) var envSampler: sampler;
+
+    struct VertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) uv: vec2<f32>,
+    };
+
+    @vertex
+    fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+        var pos = vec2<f32>(0.0, 0.0);
+        if (vertexIndex == 0u) { pos = vec2<f32>(-1.0, -1.0); }
+        else if (vertexIndex == 1u) { pos = vec2<f32>(3.0, -1.0); }
+        else { pos = vec2<f32>(-1.0, 3.0); }
+        var output: VertexOutput;
+        output.position = vec4<f32>(pos, 0.0, 1.0);
+        output.uv = pos * 0.5 + 0.5;
+        return output;
+    }
+
+    fn sample3D(uv: vec3<f32>) -> vec4<f32> {
+        let slices = 256.0;
+        let z = uv.z * slices;
+        let zFloor = floor(z);
+        let zCeil = min(zFloor + 1.0, slices - 1.0);
+        let zFract = fract(z);
+        let gridCols = 16.0;
+        let gridRows = 16.0;
+        
+        let col1 = zFloor % gridCols;
+        let row1 = floor(zFloor / gridCols);
+        let uv1 = vec2<f32>((col1 + uv.x) / gridCols, (row1 + uv.y) / gridRows);
+
+        let col2 = zCeil % gridCols;
+        let row2 = floor(zCeil / gridCols);
+        let uv2 = vec2<f32>((col2 + uv.x) / gridCols, (row2 + uv.y) / gridRows);
+
+        return mix(textureSampleLevel(inputVolume, inputSampler, uv1, 0.0),
+                   textureSampleLevel(inputVolume, inputSampler, uv2, 0.0), zFract);
+    }
+
+    fn rayBoxDst(boundsMin: vec3<f32>, boundsMax: vec3<f32>, rayOrigin: vec3<f32>, invRayDir: vec3<f32>) -> vec2<f32> {
+        let t0 = (boundsMin - rayOrigin) * invRayDir;
+        let t1 = (boundsMax - rayOrigin) * invRayDir;
+        let tmin = min(t0, t1);
+        let tmax = max(t0, t1);
+        let dstA = max(max(tmin.x, tmin.y), tmin.z);
+        let dstB = min(min(tmax.x, tmax.y), tmax.z);
+        return vec2<f32>(max(0.0, dstA), max(0.0, dstB - max(0.0, dstA)));
+    }
+
+    fn getFlameColor(t: f32) -> vec3<f32> {
+        let blue = vec3<f32>(0.05, 0.2, 2.0); 
+        let cyan = vec3<f32>(0.1, 0.9, 1.2);
+        let yellow = vec3<f32>(2.5, 1.5, 0.2); 
+        let orange = vec3<f32>(1.2, 0.4, 0.05);
+
+        if (t > 0.5) { 
+             let f = (t - 0.5) * 2.0;
+             return cyan * (1.0 - f) + blue * f;
+        } else if (t > 0.2) {
+             let f = (t - 0.2) * 3.33;
+             return yellow * (1.0 - f) + cyan * f;
+        } else {
+             let f = t * 5.0;
+             return orange * (1.0 - f) + yellow * f;
+        }
+    }
+
+    @fragment
+    fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+        let aspect = uniforms.resolution.x / uniforms.resolution.y;
+        let uv = (input.uv - 0.5) * 2.0;
+        
+        let ro = uniforms.cameraPos.xyz;
+        let camTarget = vec3<f32>(0.0, 0.3, 0.0);
+        
+        let forward = normalize(camTarget - ro);
+        let right = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), forward));
+        let up = cross(forward, right);
+        let rd = normalize(forward + (uv.x * right * aspect + uv.y * up) * 0.5); 
+        
+        let pi = 3.14159;
+        let theta = acos(clamp(rd.y, -1.0, 1.0));
+        let phi = atan2(rd.z, rd.x);
+        let envUV = vec2<f32>(phi / (2.0 * pi) + 0.5, theta / pi);
+        
+        let rawEnv = textureSample(envTexture, envSampler, envUV).rgb;
+        let luminance = dot(rawEnv, vec3<f32>(0.299, 0.587, 0.114));
+        let desaturated = mix(vec3<f32>(luminance), rawEnv, 0.012); 
+        var col = desaturated * 0.4; 
+
+        let boxHeight = uniforms.params2.z;
+        let boxWidth = uniforms.params2.w;
+        let boxDepth = uniforms.cameraPos.w; 
+        
+        let halfWidth = boxWidth * 0.5;
+        let halfDepth = boxDepth * 0.5;
+        
+        let boxMin = vec3<f32>(-halfWidth, 0.0, -halfDepth); 
+        let boxMax = vec3<f32>(halfWidth, boxHeight, halfDepth); 
+        let invRd = 1.0 / (rd + vec3<f32>(1e-5));
+        
+        let boxInfo = rayBoxDst(boxMin, boxMax, ro, invRd);
+        let dstToBox = boxInfo.x;
+        let dstInsideBox = boxInfo.y;
+        
+        if (dstInsideBox > 0.0) {
+            let stepSize = 0.005; // High Precision
+            var t = dstToBox;
+            var transmittance = 1.0;
+            var accumulatedColor = vec3<f32>(0.0);
+
+            for (var i = 0; i < 350; i++) { 
+                if (transmittance < 0.01 || t > dstToBox + dstInsideBox) { break; }
+                let p = ro + rd * t;
+                let boxUV = (p - boxMin) / (boxMax - boxMin);
+                
+                let data = sample3D(boxUV);
+                let density = data.r;
+                let temperature = data.g;
+                
+                if (density > 0.001) {
+                    // REVERTED TRANSPARENCY: Reduced base absorption from 300.0 to 40.0
+                    // This makes the orange part see-through again
+                    let absorptionFactor = mix(40.0, 4.0, smoothstep(0.2, 0.8, temperature));
+                    let absorption = density * absorptionFactor; 
+                    
+                    var lightColor = getFlameColor(temperature);
+                    
+                    // --- FRESNEL HIGHLIGHT (EDGE ONLY) ---
+                    // Approximate Normal (Radial outward from center axis)
+                    let radialNormal = normalize(vec3<f32>(p.x, 0.0, p.z));
+                    
+                    // Fresnel Term: Using power 6.0 for extreme glancing angles only
+                    let fresnel = 1.0 - abs(dot(rd, radialNormal));
+                    let rim = pow(fresnel, 6.0); // Very tight edge
+                    
+                    let edgeTint = vec3<f32>(0.5, 0.7, 1.0); // Blue-white glass tint
+                    
+                    // Apply to all density, allowing even faint blobs to catch the light
+                    let solidFactor = smoothstep(0.01, 0.1, density);
+                    
+                    // Add bright rim to the color
+                    lightColor += edgeTint * rim * solidFactor * 5.0; 
+
+                    // Emission
+                    let emission = lightColor * density * 8.0; 
+                    
+                    let stepTransmittance = exp(-absorption * stepSize);
+                    accumulatedColor += emission * transmittance * (1.0 - stepTransmittance) / absorption;
+                    transmittance *= stepTransmittance;
+                }
+                t += stepSize;
+            }
+            col = col * transmittance + accumulatedColor;
+        }
+
+        col = col / (col + vec3<f32>(1.0));
+        col = pow(col, vec3<f32>(1.0/2.2));
+
+        return vec4<f32>(col, 1.0);
+    }
+</script>
+
+    <script>
+        function showError(title, msg, logs) {
+            const el = document.getElementById('error-overlay');
+            el.style.display = 'flex';
+            document.getElementById('error-title').textContent = title;
+            document.getElementById('error-msg').textContent = msg;
+            console.error(title, msg);
+        }
+
+        async function init() {
+            if (!navigator.gpu) { showError("WebGPU Not Supported", "Browser Error"); return; }
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) { showError("No Adapter", "Hardware Error"); return; }
+            const device = await adapter.requestDevice();
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device, format, alphaMode: 'premultiplied' });
+
+            // Load HDRI Image
+            const img = new Image();
+            img.src = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/hall_of_mammals.jpg';
+            img.crossOrigin = "Anonymous";
+            await new Promise(r => img.onload = r);
+
+            // Pre-process: Blur the background using 2D Canvas
+            // This is more efficient than doing it in the shader every frame
+            const blurCanvas = document.createElement('canvas');
+            blurCanvas.width = img.width;
+            blurCanvas.height = img.height;
+            const ctx = blurCanvas.getContext('2d');
+            ctx.filter = 'blur(64px)'; // Strong blur for depth of field effect
+            ctx.drawImage(img, 0, 0);
+
+            document.getElementById('loading').style.display = 'none';
+
+            const envTexture = device.createTexture({
+                size: [img.width, img.height],
+                format: 'rgba8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            // Upload the blurred canvas instead of the raw image
+            device.queue.copyExternalImageToTexture({ source: blurCanvas }, { texture: envTexture }, [img.width, img.height]);
+
+            const envSampler = device.createSampler({
+                magFilter: 'linear', minFilter: 'linear',
+                addressModeU: 'repeat', addressModeV: 'clamp-to-edge',
+            });
+
+            // 256^3 Grid (16 columns * 16 rows of 256x256 slices)
+            // Width: 16 * 256 = 4096
+            // Height: 16 * 256 = 4096
+            const width = 4096;
+            const height = 4096;
+
+            const createTex = () => device.createTexture({
+                size: [width, height],
+                format: 'rgba16float',
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+            const textureA = createTex();
+            const textureB = createTex();
+
+            const sampler = device.createSampler({
+                magFilter: 'linear', minFilter: 'linear',
+                addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+            });
+
+            const uniformBuffer = device.createBuffer({
+                size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            });
+
+            const physicsModule = device.createShaderModule({ code: document.getElementById('physics-shader').textContent });
+            const renderModule = device.createShaderModule({ code: document.getElementById('render-shader').textContent });
+
+            const physicsPipeline = device.createRenderPipeline({
+                layout: 'auto',
+                vertex: { module: physicsModule, entryPoint: 'vertexMain' },
+                fragment: { module: physicsModule, entryPoint: 'fragmentMain', targets: [{ format: 'rgba16float' }] },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            const renderPipeline = device.createRenderPipeline({
+                layout: 'auto',
+                vertex: { module: renderModule, entryPoint: 'vertexMain' },
+                fragment: { module: renderModule, entryPoint: 'fragmentMain', targets: [{ format }] },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            const physicsBG_A_to_B = device.createBindGroup({
+                layout: physicsPipeline.getBindGroupLayout(0),
+                entries: [{ binding: 0, resource: { buffer: uniformBuffer } }, { binding: 1, resource: textureA.createView() }, { binding: 2, resource: sampler }]
+            });
+            const physicsBG_B_to_A = device.createBindGroup({
+                layout: physicsPipeline.getBindGroupLayout(0),
+                entries: [{ binding: 0, resource: { buffer: uniformBuffer } }, { binding: 1, resource: textureB.createView() }, { binding: 2, resource: sampler }]
+            });
+            const renderBG_A = device.createBindGroup({
+                layout: renderPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: uniformBuffer } },
+                    { binding: 1, resource: textureA.createView() },
+                    { binding: 2, resource: sampler },
+                    { binding: 3, resource: envTexture.createView() },
+                    { binding: 4, resource: envSampler }
+                ]
+            });
+            const renderBG_B = device.createBindGroup({
+                layout: renderPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: uniformBuffer } },
+                    { binding: 1, resource: textureB.createView() },
+                    { binding: 2, resource: sampler },
+                    { binding: 3, resource: envTexture.createView() },
+                    { binding: 4, resource: envSampler }
+                ]
+            });
+
+            // UI Handlers
+            const inputs = {
+                fuel: document.getElementById('param-fuel'),
+                speed: document.getElementById('param-speed'),
+                turb: document.getElementById('param-turb'),
+                exp: document.getElementById('param-exp'),
+                decay: document.getElementById('param-decay'),
+                freq: document.getElementById('param-freq'),
+                height: document.getElementById('param-height'),
+                width: document.getElementById('param-width'),
+                depth: document.getElementById('param-depth'),
+            };
+            const displays = {
+                fuel: document.getElementById('val-fuel'),
+                speed: document.getElementById('val-speed'),
+                turb: document.getElementById('val-turb'),
+                exp: document.getElementById('val-exp'),
+                decay: document.getElementById('val-decay'),
+                freq: document.getElementById('val-freq'),
+                height: document.getElementById('val-height'),
+                width: document.getElementById('val-width'),
+                depth: document.getElementById('val-depth'),
+            };
+
+            // Tuned defaults: Decay 0.85
+            const params = { fuel: 1.5, speed: 0.6, turb: 1.2, exp: 0.8, decay: 0.85, freq: 1, height: 1.3, width: 1.2, depth: 1.2 };
+
+            Object.keys(inputs).forEach(key => {
+                inputs[key].addEventListener('input', (e) => {
+                    params[key] = parseFloat(e.target.value);
+                    displays[key].textContent = params[key];
+                });
+            });
+
+            let camRadius = 0.8; // Zoomed in much more
+            let camAzimuth = 0.0;
+            let camElevation = 0.4;
+
+            window.addEventListener('mousemove', e => {
+                const nx = (e.clientX / window.innerWidth) - 0.5;
+                const ny = (e.clientY / window.innerHeight) - 0.5;
+                camAzimuth = nx * 2.0;
+                camElevation = 0.4 - (ny * 0.5);
+            });
+
+            canvas.addEventListener('wheel', e => {
+                e.preventDefault();
+                camRadius += e.deltaY * 0.002;
+                camRadius = Math.max(1.0, Math.min(6.0, camRadius));
+            }, { passive: false });
+
+            let frameCount = 0;
+
+            function frame() {
+                frameCount++;
+                const time = performance.now() / 1000.0;
+
+                const y = Math.sin(camElevation) * camRadius;
+                const r_xz = Math.cos(camElevation) * camRadius;
+                const x = Math.sin(camAzimuth) * r_xz;
+                const z = Math.cos(camAzimuth) * r_xz;
+                const targetY = 0.3;
+
+                const shouldInject = (frameCount % Math.round(params.freq) === 0) ? 1.0 : 0.0;
+
+                device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([
+                    canvas.width, canvas.height, time, 0.016,
+                    params.fuel, params.speed, params.turb, params.exp,
+                    params.decay, shouldInject, params.height, params.width,
+                    x, y + targetY, z, params.depth
+                ]));
+
+                const encoder = device.createCommandEncoder();
+                const readA = Math.floor(time * 60) % 2 === 0;
+
+                const physicsPass = encoder.beginRenderPass({
+                    colorAttachments: [{ view: readA ? textureB.createView() : textureA.createView(), clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'load', storeOp: 'store' }]
+                });
+                physicsPass.setPipeline(physicsPipeline);
+                physicsPass.setBindGroup(0, readA ? physicsBG_A_to_B : physicsBG_B_to_A);
+                physicsPass.draw(3);
+                physicsPass.end();
+
+                const renderPass = encoder.beginRenderPass({
+                    colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: { r: 0.05, g: 0.05, b: 0.05, a: 1 }, loadOp: 'clear', storeOp: 'store' }]
+                });
+                renderPass.setPipeline(renderPipeline);
+                renderPass.setBindGroup(0, readA ? renderBG_B : renderBG_A);
+                renderPass.draw(3);
+                renderPass.end();
+
+                device.queue.submit([encoder.finish()]);
+                requestAnimationFrame(frame);
+            }
+            requestAnimationFrame(frame);
+        }
+        init();
+    </script>
+</body>
+
+</html>

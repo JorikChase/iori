@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Art SDF Aquarium - Larger Archways</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('glcanvas');
+        canvas.width = 320;
+        canvas.height = 180;
+
+        const gl = canvas.getContext('webgl2');
+
+        const vsSource = `#version 300 es
+    in vec4 a_position;
+    void main() {
+        gl_Position = a_position;
+    }`;
+
+        const fsSource = `#version 300 es
+    precision highp float;
+
+    out vec4 fragColor;
+
+    uniform vec2 u_resolution;
+    uniform float u_time;
+
+    // --- Utility & Noise ---
+    mat2 rot(float a) {
+        float s = sin(a), c = cos(a);
+        return mat2(c, -s, s, c);
+    }
+
+    float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    float noise(vec3 p) {
+        vec3 i = floor(p);
+        vec3 f = fract(p);
+        vec3 u = f * f * (3.0 - 2.0 * f);
+        
+        float n = i.x + i.y*157.0 + 113.0*i.z;
+        return mix(mix(mix( fract(sin(n + 0.0)*43758.5453), fract(sin(n + 1.0)*43758.5453), u.x),
+                       mix( fract(sin(n + 157.0)*43758.5453), fract(sin(n + 158.0)*43758.5453), u.x), u.y),
+                   mix(mix( fract(sin(n + 113.0)*43758.5453), fract(sin(n + 114.0)*43758.5453), u.x),
+                       mix( fract(sin(n + 270.0)*43758.5453), fract(sin(n + 271.0)*43758.5453), u.x), u.y), u.z);
+    }
+
+    float fbm(vec2 p) {
+        float f = 0.0;
+        float w = 0.5;
+        vec3 p3 = vec3(p.x, 0.0, p.y);
+        for (int i = 0; i < 3; i++) {
+            f += w * noise(p3);
+            p3 *= 2.0;
+            w *= 0.5;
+        }
+        return f;
+    }
+
+    // Polynomial Smooth Minimum
+    float smin(float a, float b, float k) {
+        float h = clamp( 0.5+0.5*(b-a)/k, 0.0, 1.0 );
+        return mix( b, a, h ) - k*h*(1.0-h);
+    }
+
+    // --- Scene Definition ---
+    vec2 map(vec3 p) {
+        vec2 res = vec2(1000.0, 0.0); 
+
+        // 1. Terrain (Sand)
+        float d_terr = p.y + 1.5 + fbm(p.xz * 0.5) * 1.2;
+        res = vec2(d_terr, 1.0);
+
+        // 2. ORGANIC ROCKS 
+        {
+            vec2 cell_id = floor(p.xz / 6.0);
+            vec3 rp = p;
+            rp.xz = mod(rp.xz, 6.0) - 3.0;
+            
+            float h = hash(cell_id);
+            float h2 = fract(h * 45.12);
+            
+            vec2 offset = vec2(fract(h * 13.33), fract(h * 31.77)) * 3.0 - 1.5;
+            rp.xz -= offset;
+
+            vec3 bp = rp - vec3(0.0, -1.1, 0.0); 
+            
+            float r1 = 0.5 + h * 0.4;
+            float d_rock = length(bp) - r1;
+
+            vec3 p2 = bp - vec3((h2 - 0.5) * 1.5, -0.2, (fract(h*3.1) - 0.5) * 1.5);
+            float r2 = 0.3 + fract(h2*4.4) * 0.4;
+            d_rock = smin(d_rock, length(p2) - r2, 0.6); 
+
+            vec3 p3 = bp - vec3((fract(h*7.2) - 0.5) * 0.8, (h2 - 0.2) * 0.8, (fract(h2*9.1) - 0.5) * 0.8);
+            float r3 = 0.3 + h * 0.3;
+            d_rock = smin(d_rock, length(p3) - r3, 0.5); 
+
+            d_rock -= abs(sin(rp.x * 2.5) * sin(rp.y * 3.5) * sin(rp.z * 2.5)) * 0.2;
+            d_rock += noise(rp * 5.0) * 0.08;
+
+            if(d_rock < res.x) res = vec2(d_rock, 2.0);
+
+            vec3 top_p = bp - vec3(0.0, r1 + 0.1, 0.0); 
+            
+            if (h > 0.8) {
+                float d_coral = length(top_p) - 0.45 + sin(top_p.x * 20.0) * sin(top_p.y * 20.0) * sin(top_p.z * 20.0) * 0.05;
+                if(d_coral < res.x) res = vec2(d_coral, 4.0);
+            } else if (h > 0.6) {
+                float base = length(top_p) - 0.35;
+                vec3 tcp = top_p;
+                tcp.xz = mod(tcp.xz, 0.25) - 0.125;
+                float tubes = max(length(tcp.xz) - 0.08, abs(top_p.y) - 0.4);
+                tubes = max(tubes, -(length(tcp.xz) - 0.05));
+                float d_tube_coral = max(tubes, base);
+                if (d_tube_coral < res.x) res = vec2(d_tube_coral, 6.0);
+            } else if (h > 0.2) {
+                float d_base = length(top_p) - 0.35; 
+                vec3 tp = top_p;
+                
+                float a = atan(tp.x, tp.z);
+                float r = length(tp.xz);
+                float seg = 6.28318 / 6.0; 
+                a = mod(a + seg*0.5, seg) - seg*0.5;
+                tp = vec3(r * sin(a), tp.y, r * cos(a));
+                
+                float c = cos(0.8), s = sin(0.8);
+                tp.yz = mat2(c, -s, s, c) * tp.yz;
+                
+                tp.x += sin(tp.y * 12.0 - u_time * 6.0 + h * 10.0) * 0.15; 
+                
+                float tent_h = clamp(tp.y, 0.0, 0.5); 
+                float d_tentacles = length(tp - vec3(0.0, tent_h, 0.0)) - 0.1; 
+                
+                float d_anemone = min(d_base, d_tentacles);
+                if (d_anemone < res.x) res = vec2(d_anemone, 12.0); 
+            }
+        }
+
+        // 3. ORGANIC CORAL ARCHWAYS (10% Larger)
+        {
+            vec3 ap = p;
+            ap.z = mod(ap.z, 25.0) - 12.5;
+            ap.y += 0.5; 
+
+            // Base Torus (Donut shape) standing up
+            // Increased by 10%: Ring Radius 5.0 -> 5.5 | Tube Radius 1.8 -> 1.98 | Offset 2.5 -> 2.75
+            vec2 t_q = vec2(length(ap.xy * vec2(1.0, 1.5) + vec2(0.0, 2.75)) - 5.5, ap.z);
+            float arch = length(t_q) - 1.98;
+            
+            // Extreme organic displacement
+            arch -= abs(sin(ap.x * 1.5) * sin(ap.y * 2.0) * sin(ap.z * 1.5)) * 0.5;
+            arch += noise(ap * 3.0) * 0.2; // Rough texture
+            
+            if(arch < res.x) res = vec2(arch, 8.0);
+        }
+
+        // 4. Starfish & Sea Fans
+        {
+            vec3 sp = p;
+            vec2 sid = floor(sp.xz / 5.0);
+            sp.xz = mod(sp.xz, 5.0) - 2.5;
+            float s_hash = hash(sid + vec2(11.2, 33.3));
+            
+            if (s_hash > 0.75) {
+                sp.y += 0.6; 
+                float ang = s_hash * 6.28;
+                sp.xz = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * sp.xz;
+                sp.z += sin(sp.y * 2.0 + u_time * 1.5) * 0.2;
+                
+                float d_fan = length(sp * vec3(1.2, 0.8, 10.0)) - 0.8;
+                d_fan -= abs(sin(sp.x * 15.0 + sp.y * 10.0)) * 0.05; 
+                
+                if (d_fan < res.x) res = vec2(d_fan, 11.0); 
+
+            } else if (s_hash > 0.3) {
+                sp.y += 1.45; 
+                float ang = s_hash * 6.28;
+                sp.xz = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * sp.xz;
+
+                float a = atan(sp.x, sp.z);
+                float r = length(sp.xz);
+                float seg = 6.28318 / 5.0; 
+                a = mod(a + seg*0.5, seg) - seg*0.5;
+                vec3 rp = vec3(r * sin(a), sp.y, r * cos(a));
+                
+                float w = clamp(0.08 - rp.z * 0.15, 0.01, 0.1);
+                vec3 q = rp - vec3(0.0, 0.0, 0.2); 
+                float d_star = length(max(abs(q) - vec3(w, 0.02, 0.2), 0.0)) - 0.01;
+                
+                if (d_star < res.x) res = vec2(d_star, 9.0);
+            }
+        }
+
+        // 5. Algae / Kelp
+        {
+            vec3 kp = p;
+            vec2 kid = floor(kp.xz / 3.0);
+            kp.xz = mod(kp.xz, 3.0) - 1.5;
+            float h2 = hash(kid + vec2(12.3, 45.6));
+            
+            if (h2 > 0.4) {
+                kp.x += sin(kp.y * 3.0 + u_time * 2.0 + h2 * 10.0) * 0.2;
+                float d_kelp = length(kp.xz) - 0.05 + kp.y * 0.01;
+                d_kelp = max(d_kelp, abs(kp.y - 0.0) - 1.5);
+                if(d_kelp < res.x) res = vec2(d_kelp, 3.0);
+            }
+        }
+
+        // 6. Fish 
+        {
+            vec3 fp = p;
+            fp.z -= u_time * 2.5;
+            vec2 fid = floor(fp.xz / 5.0);
+            fp.xz = mod(fp.xz, 5.0) - 2.5;
+            fp.y -= -0.5 + sin(u_time * 0.5 + fid.x * 10.0) * 0.5;
+            
+            float wiggle = sin(fp.z * 5.0 - u_time * 15.0) * 0.1;
+            fp.x += wiggle;
+            
+            float d_fish_body = length(fp * vec3(3.0, 1.5, 0.5)) - 0.25;
+            vec3 tp = fp - vec3(0.0, 0.0, -0.4);
+            tp.x -= sin(u_time * 15.0 - 1.0) * 0.15;
+            float d_tail = length(max(abs(tp) - vec3(0.01, 0.15, 0.15), 0.0)) - 0.02;
+            
+            float d_fish = min(d_fish_body, d_tail);
+            if(d_fish < res.x) res = vec2(d_fish, 5.0);
+        }
+
+        // 7. Jellyfish
+        {
+            vec3 jp = p;
+            jp.z -= u_time * 0.8; 
+            vec2 jid = floor(jp.xz / 8.0); 
+            jp.xz = mod(jp.xz, 8.0) - 4.0;
+            float j_hash = hash(jid + vec2(4.4, 5.5));
+            
+            if(j_hash > 0.3) { 
+                jp.y -= 0.2 + sin(u_time * 2.0 + j_hash * 10.0) * 0.4; 
+                
+                float d_dome = length(jp) - 0.5;
+                d_dome = max(d_dome, -jp.y); 
+                d_dome = max(d_dome, -(length(jp - vec3(0.0, -0.1, 0.0)) - 0.48)); 
+                
+                vec3 tp = jp;
+                float a = atan(tp.x, tp.z);
+                float r = length(tp.xz);
+                float seg = 6.28318 / 8.0; 
+                a = mod(a + seg*0.5, seg) - seg*0.5;
+                tp = vec3(r * sin(a), tp.y, r * cos(a));
+                
+                tp.z -= 0.35;
+                tp.x += sin(tp.y * 10.0 - u_time * 4.0) * 0.08; 
+                float d_tent = length(max(abs(tp - vec3(0.0, -0.4, 0.0)) - vec3(0.02, 0.4, 0.02), 0.0)) - 0.01;
+                
+                float d_jelly = min(d_dome, d_tent);
+                if(d_jelly < res.x) res = vec2(d_jelly, 10.0);
+            }
+        }
+
+        // 8. Manta Rays
+        {
+            vec3 mp = p;
+            mp.z -= u_time * 4.5; 
+            vec2 mid = floor(mp.xz / 20.0); 
+            mp.xz = mod(mp.xz, 20.0) - 10.0;
+            
+            mp.y -= 3.0 + sin(u_time * 0.2 + mid.x * 10.0) * 1.5; 
+            mp.x += sin(u_time * 0.5 + mid.y) * 2.0;
+
+            float flap = sin(u_time * 3.0 - abs(mp.x) * 1.5) * 0.3;
+            mp.y -= flap * abs(mp.x); 
+            
+            float d_manta_body = length(mp * vec3(0.5, 4.0, 1.0)) - 1.0;
+            
+            vec3 hp = mp - vec3(0.0, 0.0, 1.0);
+            hp.x = abs(hp.x) - 0.5;
+            float d_horns = length(max(abs(hp) - vec3(0.1, 0.05, 0.3), 0.0)) - 0.05;
+
+            vec3 ttp = mp - vec3(0.0, 0.0, -1.2);
+            ttp.x += sin(u_time * 4.0 - ttp.z * 5.0) * 0.1; 
+            float d_mtail = length(max(abs(ttp) - vec3(0.02, 0.02, 1.5), 0.0)) - 0.02;
+
+            float d_manta = min(min(d_manta_body, d_horns), d_mtail);
+            if(d_manta < res.x) res = vec2(d_manta, 13.0); 
+        }
+
+        return res;
+    }
+
+    vec3 getNormal(vec3 p) {
+        vec2 e = vec2(0.01, 0.0);
+        return normalize(vec3(
+            map(p + e.xyy).x - map(p - e.xyy).x,
+            map(p + e.yxy).x - map(p - e.yxy).x,
+            map(p + e.yyx).x - map(p - e.yyx).x
+        ));
+    }
+
+    vec3 getMaterialColor(float m) {
+        if (m == 1.0) return vec3(0.80, 0.70, 0.45); // Sand
+        if (m == 2.0) return vec3(0.35, 0.38, 0.40); // Darker Rock base
+        if (m == 3.0) return vec3(0.15, 0.60, 0.25); // Algae
+        if (m == 4.0) return vec3(0.90, 0.35, 0.45); // Brain Coral
+        if (m == 5.0) return vec3(1.00, 0.65, 0.10); // Fish
+        if (m == 6.0) return vec3(0.55, 0.20, 0.80); // Tube Coral
+        if (m == 8.0) return vec3(0.30, 0.33, 0.38); // Archway Stone
+        if (m == 9.0) return vec3(1.00, 0.25, 0.15); // Starfish
+        if (m == 10.0) return vec3(0.20, 0.95, 1.00); // Jellyfish
+        if (m == 11.0) return vec3(0.85, 0.10, 0.30); // Sea Fan 
+        if (m == 12.0) return vec3(0.20, 1.00, 0.10); // Sea Anemone (Hyper Neon Green)
+        if (m == 13.0) return vec3(0.25, 0.30, 0.60); // Manta Ray 
+        return vec3(1.0);
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+
+        vec3 ro = vec3(0.0, 0.0, u_time * 1.5);
+        vec3 target = ro + vec3(0.0, 0.0, 1.0);
+        
+        ro.x += sin(u_time * 0.5) * 0.5;
+        target.x += sin(u_time * 0.5 + 0.5) * 0.5;
+
+        vec3 cw = normalize(target - ro);
+        vec3 cu = normalize(cross(cw, vec3(0.0, 1.0, 0.0)));
+        vec3 cv = normalize(cross(cu, cw));
+        vec3 rd = normalize(uv.x * cu + uv.y * cv + 1.2 * cw);
+
+        float t = 0.0;
+        float m = -1.0;
+        const int MAX_STEPS = 120; 
+        const float MAX_DIST = 60.0;
+        const float SURF_DIST = 0.01;
+
+        for (int i = 0; i < MAX_STEPS; i++) {
+            vec3 p = ro + rd * t;
+            vec2 d = map(p);
+            if (d.x < SURF_DIST) {
+                m = d.y;
+                break;
+            }
+            if (t > MAX_DIST) break;
+            
+            t += d.x * 0.7; 
+        }
+
+        vec3 waterColor = vec3(0.02, 0.15, 0.35);
+        vec3 col = waterColor;
+
+        if (t < MAX_DIST) {
+            vec3 p = ro + rd * t;
+            vec3 n = getNormal(p);
+            vec3 lightDir = normalize(vec3(0.5, 0.8, -0.3));
+            
+            float diff = clamp(dot(n, lightDir), 0.0, 1.0);
+            float amb = 0.3 + 0.7 * clamp(0.5 + 0.5 * n.y, 0.0, 1.0);
+
+            if (m == 10.0) { amb += 0.8; diff += 0.5; } 
+            if (m == 13.0) { amb += 0.2; } 
+            if (m == 12.0) { amb += 0.6; diff += 0.4; } 
+            
+            vec3 matColor = getMaterialColor(m);
+
+            if (m == 1.0 || m == 2.0 || m == 8.0) {
+                float caustics = max(0.0, sin(p.x * 6.0 + u_time*2.0) * sin(p.z * 6.0 + u_time*2.0));
+                matColor += caustics * 0.15 * vec3(0.8, 0.9, 1.0);
+            }
+            
+            diff = floor(diff * 4.0) / 4.0; 
+            col = matColor * (diff * vec3(1.0, 0.9, 0.8) + amb * vec3(0.2, 0.3, 0.4));
+        }
+
+        col = mix(col, waterColor, 1.0 - exp(-0.004 * t * t));
+        
+        float dither = (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453) - 0.5) * 0.1;
+        col += dither;
+        col = floor(col * 7.0) / 7.0;
+        col = pow(col, vec3(0.4545));
+
+        fragColor = vec4(col, 1.0);
+    }
+    `;
+
+        function compileShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader error: ' + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        const program = gl.createProgram();
+        gl.attachShader(program, compileShader(gl, gl.VERTEX_SHADER, vsSource));
+        gl.attachShader(program, compileShader(gl, gl.FRAGMENT_SHADER, fsSource));
+        gl.linkProgram(program);
+        gl.useProgram(program);
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, 1, -1, -1, 1, 1, 1, -1]), gl.STATIC_DRAW);
+
+        const posAttr = gl.getAttribLocation(program, "a_position");
+        gl.enableVertexAttribArray(posAttr);
+        gl.vertexAttribPointer(posAttr, 2, gl.FLOAT, false, 0, 0);
+
+        const timeLoc = gl.getUniformLocation(program, "u_time");
+        const resLoc = gl.getUniformLocation(program, "u_resolution");
+
+        let startTime = performance.now();
+
+        function render(now) {
+            gl.uniform2f(resLoc, canvas.width, canvas.height);
+            gl.uniform1f(timeLoc, (now - startTime) * 0.001);
+
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+    </script>
+</body>
+
+</html>

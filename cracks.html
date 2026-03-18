@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Grayscale Shatter Simulator</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        const vertexShaderSource = `#version 300 es
+        in vec4 a_position;
+        out vec2 vUv;
+        void main() {
+            vUv = a_position.xy * 0.5 + 0.5;
+            gl_Position = a_position;
+        }`;
+
+        // --- THE PHYSICS ENGINE ---
+        // TEXTURE CHANNELS:
+        // R: Glass Structure (1.0 = Cracked, 0.0 = Intact)
+        // G: Active Tip Energy (Transient: > 0.0 means it is moving)
+        // B: Active Tip Velocity X 
+        // A: Active Tip Velocity Y  --OR--  Persistent Vertical Bleed Intensity (Grayscale)
+        const simFragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        uniform sampler2D u_state;
+        uniform vec2 u_res;
+        uniform vec3 u_mouse;
+        uniform float u_click_trigger;
+        uniform float u_time;
+        uniform float u_frame;
+
+        out vec4 outColor;
+
+        float hash(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+        }
+
+        void main() {
+            vec2 texel = 1.0 / u_res;
+            vec2 uv = gl_FragCoord.xy * texel;
+
+            vec4 cell = texture(u_state, uv);
+            vec4 next_cell = cell;
+
+            // --- 1. HANDLE USER IMPACT ---
+            if (u_click_trigger > 0.5) {
+                float dist = distance(gl_FragCoord.xy, u_mouse.xy);
+                
+                // Pure Origin Seed
+                if (dist < 1.0) {
+                    next_cell.r = 1.0; 
+                    next_cell.g = 0.0; 
+                    next_cell.b = 0.0;
+                    // Seed a random grayscale intensity for vertical bleeds
+                    next_cell.a = 0.4 + hash(uv * u_time) * 0.6; 
+                    outColor = next_cell; return;
+                } 
+                
+                // Starburst Spawner
+                if (dist >= 1.0 && dist <= 4.0) {
+                    vec2 dir = normalize(gl_FragCoord.xy - u_mouse.xy);
+                    float angle = atan(dir.y, dir.x);
+                    
+                    float rays = floor(8.0 + hash(u_mouse.xy) * 8.0); // 8 to 16 major spokes
+                    float step_ang = 6.28318 / rays;
+                    float snapped = round(angle / step_ang) * step_ang;
+                    
+                    if (abs(angle - snapped) < step_ang * 0.12) {
+                        float final_angle = snapped + (hash(uv) - 0.5) * 0.05; 
+                        vec2 v = vec2(cos(final_angle), sin(final_angle));
+                        next_cell = vec4(1.0, 1.0, v.x, v.y);
+                        outColor = next_cell; return;
+                    }
+                }
+            }
+
+            // --- 2. PHYSICS SIMULATION ---
+            if (cell.r > 0.5) {
+                // ALREADY CRACKED GLASS
+                if (cell.g > 0.0) {
+                    next_cell.g = 0.0;
+                    next_cell.b = 0.0; 
+                    
+                    // Occasional vertical bleed seed left along the crack line with varying intensity
+                    if (hash(uv * u_time * 11.0) < 0.03) {
+                        next_cell.a = 0.3 + hash(uv * 73.0) * 0.7;
+                    } else {
+                        next_cell.a = 0.0;
+                    }
+                }
+            } else {
+                // SOLID GLASS
+                bool incoming = false;
+                float max_energy = 0.0;
+                vec2 new_vel = vec2(0.0);
+                float incoming_bleed = 0.0;
+
+                for (int y = -1; y <= 1; y++) {
+                    for (int x = -1; x <= 1; x++) {
+                        if (x == 0 && y == 0) continue;
+                        vec2 offset = vec2(float(x), float(y));
+                        vec4 n_cell = texture(u_state, uv + offset * texel);
+
+                        // A. Propagate Vertical Bleed (straight up/down)
+                        if (x == 0 && n_cell.g == 0.0 && n_cell.a > 0.0) {
+                            if (n_cell.a > incoming_bleed) incoming_bleed = n_cell.a;
+                        }
+
+                        // B. Pull Crack Tips
+                        if (n_cell.g > 0.0) {
+                            float energy = n_cell.g;
+                            vec2 v = normalize(n_cell.ba);
+                            float seed = uv.x * 13.37 + uv.y * 73.31 + u_frame;
+                            
+                            vec2 step_main = vec2(0.0);
+                            if (hash(vec2(seed, 10.0)) < abs(v.x)) step_main.x = sign(v.x);
+                            if (hash(vec2(seed, 11.0)) < abs(v.y)) step_main.y = sign(v.y);
+                            if (step_main == vec2(0.0)) { 
+                                if (abs(v.x) > abs(v.y)) step_main.x = sign(v.x); else step_main.y = sign(v.y);
+                            }
+
+                            bool can_branch = (energy > 0.6) && (hash(vec2(seed, 1.0)) < 0.05);
+                            float b_dir = hash(vec2(seed, 2.0)) > 0.5 ? 1.0 : -1.0;
+                            float b_angle = atan(v.y, v.x) + b_dir * (1.0 + hash(vec2(seed, 3.0)) * 0.5); 
+                            vec2 v_branch = vec2(cos(b_angle), sin(b_angle));
+                            
+                            vec2 step_branch = vec2(0.0);
+                            if (hash(vec2(seed, 12.0)) < abs(v_branch.x)) step_branch.x = sign(v_branch.x);
+                            if (hash(vec2(seed, 13.0)) < abs(v_branch.y)) step_branch.y = sign(v_branch.y);
+                            if (step_branch == vec2(0.0)) {
+                                if (abs(v_branch.x) > abs(v_branch.y)) step_branch.x = sign(v_branch.x); else step_branch.y = sign(v_branch.y);
+                            }
+
+                            if (step_main == -offset) {
+                                if (energy > max_energy) {
+                                    incoming = true;
+                                    max_energy = energy;
+                                    new_vel = v;
+                                }
+                            } else if (can_branch && step_branch == -offset) {
+                                if (0.5 > max_energy) {
+                                    incoming = true;
+                                    max_energy = 0.5;
+                                    new_vel = v_branch;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (incoming) {
+                    next_cell.r = 1.0; 
+                    next_cell.g = max_energy - 0.001; 
+                    if (next_cell.g < 0.1) next_cell.g = 0.0; 
+                    next_cell.ba = new_vel;
+                } else {
+                    if (incoming_bleed > 0.0) {
+                        float intensity = incoming_bleed - 0.002; // Fades vertically
+                        if (intensity > 0.0) next_cell.a = intensity;
+                    }
+                }
+            }
+
+            outColor = next_cell;
+        }`;
+
+        // --- THE RENDER SHADER ---
+        const renderFragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        uniform sampler2D u_state;
+        uniform vec2 u_res;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        void main() {
+            vec2 texel = 1.0 / u_res;
+            vec4 cell = texture(u_state, vUv);
+            vec3 color = vec3(0.0);
+
+            // 1. VERTICAL PIXEL BLEED (Varying Grayscale)
+            if (cell.a > 0.0 && cell.g == 0.0) {
+                float intensity = cell.a;
+                color += vec3(1.0) * intensity * 1.2; 
+            }
+
+            // 2. CRACKED GLASS STRUCTURE
+            if (cell.r > 0.5) {
+                // Core crack
+                outColor = vec4(max(color, vec3(1.0)), 1.0);
+                return;
+            } else {
+                // Simple directional bevel / frosting (Grayscale)
+                float n = texture(u_state, vUv + vec2(0.0, 1.0) * texel).r;
+                float e = texture(u_state, vUv + vec2(1.0, 0.0) * texel).r;
+                float s = texture(u_state, vUv + vec2(0.0, -1.0) * texel).r;
+                float w = texture(u_state, vUv + vec2(-1.0, 0.0) * texel).r;
+                
+                float sum = n + e + s + w;
+
+                if (sum > 0.0) {
+                    // Slight dimensional bevel based on neighbor difference
+                    float bevel = clamp((w - e + n - s) * 0.5 + 0.5, 0.0, 1.0);
+                    color += vec3(0.4) * bevel; 
+                    // Soft varying frost near edges
+                    color += vec3(0.3) * min(sum * 0.25, 1.0); 
+                }
+            }
+
+            // Tone Mapping
+            color = 1.0 - exp(-color * 1.5);
+            outColor = vec4(color, 1.0);
+        }`;
+
+        class GrayscaleShatterApp {
+            constructor() {
+                this.canvas = document.getElementById('glcanvas');
+                this.gl = this.canvas.getContext('webgl2', { antialias: false });
+
+                if (!this.gl) return alert('WebGL 2 is required.');
+
+                this.gl.getExtension('EXT_color_buffer_float');
+                this.gl.getExtension('OES_texture_float_linear');
+
+                this.programs = {};
+                this.fbos = [];
+                this.textures = [];
+                this.currentFBO = 0;
+                this.frame = 0;
+
+                this.pointer = { x: -100, y: -100, down: false };
+                this.lastBurst = { x: -100, y: -100 };
+                this.clickTrigger = 0.0;
+
+                this.initWebGL();
+                this.bindEvents();
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
+                this.render = this.render.bind(this);
+                requestAnimationFrame(this.render);
+            }
+
+            compileShader(type, source) {
+                const shader = this.gl.createShader(type);
+                this.gl.shaderSource(shader, source);
+                this.gl.compileShader(shader);
+                if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+                    console.error(this.gl.getShaderInfoLog(shader));
+                    return null;
+                }
+                return shader;
+            }
+
+            createProgram(vsSource, fsSource) {
+                const prog = this.gl.createProgram();
+                this.gl.attachShader(prog, this.compileShader(this.gl.VERTEX_SHADER, vsSource));
+                this.gl.attachShader(prog, this.compileShader(this.gl.FRAGMENT_SHADER, fsSource));
+                this.gl.linkProgram(prog);
+                return prog;
+            }
+
+            initWebGL() {
+                const gl = this.gl;
+                const vbo = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+
+                this.programs.sim = this.createProgram(vertexShaderSource, simFragmentShaderSource);
+                this.programs.render = this.createProgram(vertexShaderSource, renderFragmentShaderSource);
+
+                [this.programs.sim, this.programs.render].forEach(prog => {
+                    const posLoc = gl.getAttribLocation(prog, 'a_position');
+                    gl.enableVertexAttribArray(posLoc);
+                    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+                });
+
+                this.uniforms = {
+                    sim: {
+                        state: gl.getUniformLocation(this.programs.sim, 'u_state'),
+                        res: gl.getUniformLocation(this.programs.sim, 'u_res'),
+                        mouse: gl.getUniformLocation(this.programs.sim, 'u_mouse'),
+                        click_trigger: gl.getUniformLocation(this.programs.sim, 'u_click_trigger'),
+                        time: gl.getUniformLocation(this.programs.sim, 'u_time'),
+                        frame: gl.getUniformLocation(this.programs.sim, 'u_frame')
+                    },
+                    render: {
+                        state: gl.getUniformLocation(this.programs.render, 'u_state'),
+                        res: gl.getUniformLocation(this.programs.render, 'u_res')
+                    }
+                };
+            }
+
+            createFBOs(width, height) {
+                const gl = this.gl;
+                if (this.textures.length > 0) {
+                    this.textures.forEach(t => gl.deleteTexture(t));
+                    this.fbos.forEach(f => gl.deleteFramebuffer(f));
+                    this.textures = []; this.fbos = [];
+                }
+
+                const zeroData = new Float32Array(width * height * 4);
+                for (let i = 0; i < 2; i++) {
+                    const tex = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, tex);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, width, height, 0, gl.RGBA, gl.FLOAT, zeroData);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+                    const fbo = gl.createFramebuffer();
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+                    this.textures.push(tex);
+                    this.fbos.push(fbo);
+                }
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                this.gl.viewport(0, 0, this.width, this.height);
+                this.createFBOs(this.width, this.height);
+            }
+
+            handlePointer(x, y, isDown, isFreshClick = false) {
+                this.pointer.down = isDown;
+                this.pointer.x = x;
+                this.pointer.y = this.height - y;
+
+                if (isFreshClick) {
+                    this.clickTrigger = 1.0;
+                    this.lastBurst = { x: this.pointer.x, y: this.pointer.y };
+                } else if (isDown) {
+                    // Reduced threshold from 80 to 25 pixels for denser dragging
+                    if (Math.hypot(this.pointer.x - this.lastBurst.x, this.pointer.y - this.lastBurst.y) > 25) {
+                        this.clickTrigger = 1.0;
+                        this.lastBurst = { x: this.pointer.x, y: this.pointer.y };
+                    }
+                }
+            }
+
+            bindEvents() {
+                const t = this.canvas;
+                t.addEventListener('mousedown', e => this.handlePointer(e.clientX, e.clientY, true, true));
+                t.addEventListener('mousemove', e => { if (this.pointer.down) this.handlePointer(e.clientX, e.clientY, true); });
+                window.addEventListener('mouseup', () => this.pointer.down = false);
+
+                t.addEventListener('touchstart', e => { e.preventDefault(); this.handlePointer(e.touches[0].clientX, e.touches[0].clientY, true, true); }, { passive: false });
+                t.addEventListener('touchmove', e => { e.preventDefault(); if (this.pointer.down) this.handlePointer(e.touches[0].clientX, e.touches[0].clientY, true); }, { passive: false });
+                window.addEventListener('touchend', () => this.pointer.down = false);
+            }
+
+            stepSimulation(isFirstStep) {
+                const gl = this.gl;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos[1 - this.currentFBO]);
+                gl.useProgram(this.programs.sim);
+
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, this.textures[this.currentFBO]);
+                gl.uniform1i(this.uniforms.sim.state, 0);
+
+                gl.uniform2f(this.uniforms.sim.res, this.width, this.height);
+                gl.uniform3f(this.uniforms.sim.mouse, this.pointer.x, this.pointer.y, this.pointer.down ? 1.0 : 0.0);
+                gl.uniform1f(this.uniforms.sim.click_trigger, isFirstStep ? this.clickTrigger : 0.0);
+                gl.uniform1f(this.uniforms.sim.time, performance.now() / 1000.0);
+                gl.uniform1f(this.uniforms.sim.frame, this.frame);
+
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+                this.currentFBO = 1 - this.currentFBO;
+                this.frame++;
+            }
+
+            render() {
+                const gl = this.gl;
+
+                for (let i = 0; i < 12; i++) {
+                    this.stepSimulation(i === 0);
+                }
+                this.clickTrigger = 0.0;
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.useProgram(this.programs.render);
+
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, this.textures[this.currentFBO]);
+                gl.uniform1i(this.uniforms.render.state, 0);
+                gl.uniform2f(this.uniforms.render.res, this.width, this.height);
+
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+                requestAnimationFrame(this.render);
+            }
+        }
+
+        window.onload = () => new GrayscaleShatterApp();
+    </script>
+</body>
+
+</html>

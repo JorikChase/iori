@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Procedural Dither Comparison Grid (Color)</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            /* Ensure the canvas captures the scroll event */
+            touch-action: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="glcanvas"></canvas>
+
+    <!-- VERTEX SHADER -->
+    <script id="vs" type="x-shader/x-vertex">#version 300 es
+        in vec4 position;
+        void main() {
+            gl_Position = position;
+        }
+    </script>
+
+    <!-- FRAGMENT SHADER -->
+    <script id="fs" type="x-shader/x-fragment">#version 300 es
+        precision highp float;
+        
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform float u_scale; // Controlled by mouse wheel
+
+        out vec4 fragColor;
+        
+        // Helper function for rotation
+        mat2 rotate2d(float angle){
+            float c = cos(angle);
+            float s = sin(angle);
+            return mat2(c, -s, s, c);
+        }
+
+        // --- SCENE GENERATION (STATIC) ---
+        // Generates a colorful sphere and background gradient
+        vec3 getSceneColor(vec2 uv) {
+            // Static background color gradient
+            vec3 bg_color = 0.5 + 0.5 * cos(uv.xyx * 2.0 + vec3(0.0, 2.0, 4.0));
+            
+            // Sphere math
+            vec2 p = (uv * 2.0 - 1.0);
+            // Aspect ratio correction
+            p.x *= u_resolution.x / u_resolution.y; 
+            
+            float d = length(p);
+            
+            if (d < 0.8) {
+                // Simple diffuse lighting on a sphere
+                float z = sqrt(0.64 - d*d);
+                vec3 normal = normalize(vec3(p, z));
+                vec3 lightDir = normalize(vec3(-0.5, 0.5, 1.0));
+                float diffuse = max(dot(normal, lightDir), 0.0);
+                
+                // Sphere color: mix diffuse lighting with base colors
+                vec3 sphere_base = 0.5 + 0.5 * sin(p.y * 5.0 + vec3(0.0, 1.0, 2.0));
+                return mix(bg_color, sphere_base * diffuse, 0.8);
+            }
+            return bg_color * 0.3; 
+        }
+
+        // --- ALGORITHM 1A: GRAYSCALE BAYER MATRIX (8x8) ---
+        // Ordered Dither using Bitwise logic (0 to 63)
+        float bayerDither(vec2 p) {
+            ivec2 ip = ivec2(p);
+            int x = ip.x;
+            int y = ip.y;
+            
+            int M = 0;
+            if ((x & 4) != 0) M += 32; if ((y & 4) != 0) M += 48;
+            if ((x & 2) != 0) M += 8;  if ((y & 2) != 0) M += 12;
+            if ((x & 1) != 0) M += 2;  if ((y & 1) != 0) M += 3;
+            
+            return float(M) / 64.0;
+        }
+
+        // --- ALGORITHM 1B: COLOR BAYER DITHER ---
+        // Applies dither per channel and quantizes to 8-color palette (1-bit color depth)
+        vec3 applyColorBayer(vec3 color, vec2 fragCoord_scaled) {
+            // Threshold is 0.0 to 1.0
+            float threshold = bayerDither(fragCoord_scaled);
+
+            // Apply dither per color channel independently
+            // If the color value is greater than the threshold, set channel to 1.0, else 0.0
+            vec3 dithered = step(threshold, color); 
+            
+            // Result is quantized to an 8-color palette (0 or 1 per channel)
+            return dithered;
+        }
+
+        // --- ALGORITHM 2: AM HALFTONE ---
+        // Rotated grid of circles (Halftone)
+        float halftone(vec2 uv, float luma, float angleDeg, float base_freq) {
+            float angle = radians(angleDeg);
+            mat2 rot = rotate2d(angle);
+            
+            // Frequency scaled by the user input (u_scale)
+            float freq = base_freq / u_scale; 
+            
+            // Rotate the screen space coordinates
+            vec2 p = rot * (uv * vec2(u_resolution.x/u_resolution.y, 1.0));
+            vec2 gridPos = p * freq;
+            vec2 cellUV = fract(gridPos) - 0.5;
+            
+            float dist = length(cellUV);
+            
+            // Dot radius based on luminance
+            float radius = sqrt(luma) * 0.7; 
+            float aaf = 0.1;
+            
+            // Halftone calculation: 1.0 (inside dot), 0.0 (outside)
+            return smoothstep(radius, radius - aaf, dist);
+        }
+
+        // --- ALGORITHM 3: BLUE NOISE (IGN) ---
+        // Interleaved Gradient Noise (Pseudo-Blue Noise)
+        float ign(vec2 p) {
+            vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+            return fract(magic.z * fract(dot(p, magic.xy)));
+        }
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+            
+            // Determine the cell index (0-15) for the 4x4 grid
+            ivec2 cell_id = ivec2(floor(uv * 4.0)); // ID of the cell (0-3)
+            int index = cell_id.y * 4 + cell_id.x; // 0 to 15
+            
+            // Calculate Color Scene
+            vec3 color = getSceneColor(uv);
+            
+            // Calculate Luminance (for monochrome techniques)
+            float luma = dot(color, vec3(0.299, 0.587, 0.114));
+
+            vec3 finalColor = vec3(0.0);
+            
+            // --- 16 VARIATIONS GRID ---
+            
+            // --- Row 1: Color Bayer Matrix (Ordered Color Dither) ---
+            if (index == 0) { 
+                finalColor = applyColorBayer(color, gl_FragCoord.xy / u_scale * 0.25); // Coarse
+            } else if (index == 1) {
+                finalColor = applyColorBayer(color, gl_FragCoord.xy / u_scale * 0.5); // Standard
+            } else if (index == 2) { 
+                finalColor = applyColorBayer(color, gl_FragCoord.xy / u_scale * 2.0); // Fine
+            } else if (index == 3) {
+                finalColor = applyColorBayer(color, gl_FragCoord.xy / (u_scale + 0.3) * 0.5); // Moire Test (Shifted Scale)
+            
+            // --- Row 2: Color Halftone (Simulated CMYK Screens) ---
+            // Halftone is monochrome, but we multiply the dot by a primary/secondary color
+            } else if (index == 4) { 
+                float dot = halftone(uv, luma, 0.0, 100.0);
+                finalColor = vec3(dot, dot, dot); // Grayscale halftone for ref
+            } else if (index == 5) {
+                // Halftone with Cyan tint (CMY K=0)
+                float dot = halftone(uv, 1.0 - color.r, 15.0, 100.0); // Screen based on complement of Red
+                finalColor = vec3(0.0, dot, dot); // Cyan dot color
+            } else if (index == 6) { 
+                // Halftone with Magenta tint (CMY K=0)
+                float dot = halftone(uv, 1.0 - color.g, 45.0, 100.0); // Screen based on complement of Green
+                finalColor = vec3(dot, 0.0, dot); // Magenta dot color
+            } else if (index == 7) { 
+                // Halftone with Yellow tint (CMY K=0)
+                float dot = halftone(uv, 1.0 - color.b, 75.0, 100.0); // Screen based on complement of Blue
+                finalColor = vec3(dot, dot, 0.0); // Yellow dot color
+            
+            // --- Row 3: Stochastic / Hybrid ---
+            } else if (index == 8) {
+                // Blue Noise in Grayscale
+                float threshold = ign(gl_FragCoord.xy); 
+                float ditherBit = luma > threshold ? 1.0 : 0.0;
+                finalColor = vec3(ditherBit);
+            } else if (index == 9) {
+                // Blue Noise with color quantization (less effective than Bayer)
+                vec3 threshold = vec3(ign(gl_FragCoord.xy + vec2(0.0, 0.0)), ign(gl_FragCoord.xy + vec2(100.0, 50.0)), ign(gl_FragCoord.xy + vec2(50.0, 100.0)));
+                finalColor = step(threshold, color); 
+            } else if (index == 10) { 
+                // Stretched Bayer (Horizontal) - Grayscale
+                float threshold = bayerDither(gl_FragCoord.xy * vec2(0.5, 2.0) / u_scale); 
+                float ditherBit = luma > threshold ? 1.0 : 0.0;
+                finalColor = vec3(ditherBit);
+            } else if (index == 11) {
+                // Halftone (Very Fine Dots) - Magenta Tint
+                float dot = halftone(uv, 1.0 - color.g, 30.0, 150.0);
+                finalColor = vec3(dot, 0.0, dot); 
+            
+            // --- Row 4: Frequency / Reference ---
+            } else if (index == 12) {
+                // Halftone (Coarse Dots) - Yellow Tint
+                float dot = halftone(uv, 1.0 - color.b, 60.0, 50.0); 
+                finalColor = vec3(dot, dot, 0.0); 
+            } else if (index == 13) { 
+                // Original Color Scene (Reference Image)
+                finalColor = color; 
+            } else if (index == 14) { 
+                // Stretched Bayer (Vertical) - Grayscale
+                float threshold = bayerDither(gl_FragCoord.xy * vec2(2.0, 0.5) / u_scale); 
+                float ditherBit = luma > threshold ? 1.0 : 0.0;
+                finalColor = vec3(ditherBit);
+            } else if (index == 15) {
+                // Halftone (Extreme Moire Test) - Cyan Tint
+                float dot = halftone(uv, 1.0 - color.r, 22.5, 95.5);
+                finalColor = vec3(0.0, dot, dot); 
+            }
+
+            fragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl2');
+
+        if (!gl) {
+            console.error("WebGL 2.0 not supported.");
+            document.body.innerHTML = "<h1 style='color:white;text-align:center;padding-top:20%'>WebGL 2.0 not supported</h1>";
+        }
+
+        // --- Shader Boilerplate ---
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error("Shader Error:", gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        const vsSrc = document.getElementById('vs').text.trim();
+        const fsSrc = document.getElementById('fs').text.trim();
+
+        const program = gl.createProgram();
+        const vs = createShader(gl, gl.VERTEX_SHADER, vsSrc);
+        const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.error("Link Error:", gl.getProgramInfoLog(program));
+        }
+
+        // Fullscreen Quad Setup
+        const positions = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+        const locPos = gl.getAttribLocation(program, "position");
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+        gl.enableVertexAttribArray(locPos);
+        gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, 0, 0);
+
+        // Uniform Locations
+        const locRes = gl.getUniformLocation(program, "u_resolution");
+        const locTime = gl.getUniformLocation(program, "u_time");
+        const locScale = gl.getUniformLocation(program, "u_scale");
+
+        // --- Custom State for Zoom Control ---
+        let ditherScale = 4.0;
+        // EXPANDED RANGE
+        const SCALE_MIN = 0.5; // Zoom out larger
+        const SCALE_MAX = 20.0; // Zoom in closer
+        const ZOOM_FACTOR = 0.01;
+
+        function handleWheel(event) {
+            event.preventDefault(); // Prevent page scroll
+
+            // Adjust scale based on scroll direction (deltaY)
+            const delta = event.deltaY * ZOOM_FACTOR;
+            ditherScale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, ditherScale + delta));
+        }
+
+        // Attach event listener for zoom control
+        canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function render(time) {
+            time *= 0.001;
+
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.useProgram(program);
+
+            // Update Uniforms
+            gl.uniform2f(locRes, canvas.width, canvas.height);
+            gl.uniform1f(locTime, time);
+            gl.uniform1f(locScale, ditherScale); // Use dynamic scale
+
+            gl.bindVertexArray(vao);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+    </script>
+</body>
+
+</html>

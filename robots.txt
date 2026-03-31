@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Sitemaps for both domains
+Sitemap: https://iori.me/sitemap-iori.xml
+Sitemap: https://3die.fr/sitemap-3die.xml

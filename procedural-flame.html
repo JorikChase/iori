@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Volumetric Flame</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #050505;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #error-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff5555;
+            display: none;
+            text-align: center;
+            max-width: 80%;
+            font-family: monospace;
+            z-index: 20;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="error-msg"></div>
+
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        /**
+         * SHADER SOURCE STRINGS
+         */
+
+        const computeVS = `#version 300 es
+layout(location = 0) in vec2 a_position;
+out vec2 v_uv;
+void main() {
+    v_uv = a_position * 0.5 + 0.5;
+    gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+
+        const velocityFS = `#version 300 es
+precision highp float;
+precision highp sampler3D;
+in vec2 v_uv;
+
+uniform sampler3D u_velocityTex;
+uniform sampler3D u_stateTex; 
+uniform float u_currentZ;
+uniform vec3 u_res;
+uniform float u_dt;
+uniform float u_time;
+uniform vec3 u_wind;
+
+layout(location = 0) out vec4 out_Velocity;
+
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+float snoise(vec3 v){ 
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy) );
+  vec3 x0 = v - i + dot(i, C.xxx) ;
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min( g.xyz, l.zxy );
+  vec3 i2 = max( g.xyz, l.zxy );
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i); 
+  vec4 p = permute( permute( permute( i.z + vec4(0.0, i1.z, i2.z, 1.0 )) + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+  float n_ = 0.142857142857;
+  vec3  ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_ );
+  vec4 x = x_ *ns.x + ns.yyyy;
+  vec4 y = y_ *ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4( x.xy, y.xy );
+  vec4 b1 = vec4( x.zw, y.zw );
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+  vec3 p0 = vec3(a0.xy,h.x);
+  vec3 p1 = vec3(a0.zw,h.y);
+  vec3 p2 = vec3(a1.xy,h.z);
+  vec3 p3 = vec3(a1.zw,h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 105.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+}
+
+vec3 computeCurl(vec3 p) {
+    float e = 0.1;
+    vec3 dx = vec3(e, 0.0, 0.0); vec3 dy = vec3(0.0, e, 0.0); vec3 dz = vec3(0.0, 0.0, e);
+    float x = snoise(p + dy) - snoise(p - dy) - (snoise(p + dz) - snoise(p - dz));
+    float y = snoise(p + dz) - snoise(p - dz) - (snoise(p + dx) - snoise(p - dx));
+    float z = snoise(p + dx) - snoise(p - dx) - (snoise(p + dy) - snoise(p - dy));
+    return vec3(x, y, z) / (2.0 * e);
+}
+
+void main() {
+    vec3 uvw = vec3(v_uv, (u_currentZ + 0.5) / u_res.z);
+    
+    vec3 currentVel = texture(u_velocityTex, uvw).xyz;
+    vec4 state = texture(u_stateTex, uvw);
+    float heat = state.g;
+    float fuel = state.b;
+    
+    float activity = heat + (fuel * 1.5); 
+    
+    vec3 traceVel = currentVel + vec3(0.0, 0.4, 0.0); 
+    vec3 pastUVW = uvw - (traceVel * u_dt);
+    vec3 advectedVel = texture(u_velocityTex, pastUVW).xyz;
+    
+    vec3 buoyancy = vec3(0.0, activity * 4.0, 0.0);
+    
+    vec3 curlPos = uvw * 2.0 + vec3(0.0, -u_time * 1.5, 0.0);
+    
+    // SAFE TURBULENCE: Capped wind speed to prevent explosion
+    float windSpeed = clamp(length(u_wind), 0.0, 15.0);
+    // Made combustion much less sensitive to movement (reduced multiplier from 1.2 to 0.4)
+    float turbStrength = 5.0 + (windSpeed * 0.4); 
+    vec3 turbulence = computeCurl(curlPos) * activity * turbStrength; 
+    
+    vec3 finalVel = advectedVel + (buoyancy + turbulence) * u_dt;
+    
+    vec2 center = vec2(0.5, 0.5);
+    float dist = length(uvw.xz - center);
+    float baseRad = 0.6 * (1.0 - uvw.y) * sqrt(max(0.0, uvw.y + 0.05));
+    
+    // Add noise distortion to the tail when moving (Made more sensitive and aggressive)
+    float tailNoise = snoise(vec3(uvw.xy * 8.0, u_time * 6.0));
+    float distortion = tailNoise * uvw.y * smoothstep(0.1, 3.0, windSpeed) * 0.45;
+    
+    float maxRad = max(0.0, baseRad + distortion);
+    float mask = 1.0 - smoothstep(maxRad * 0.6, maxRad, dist);
+    
+    vec3 toCenter = vec3(center.x - uvw.x, 0.0, center.y - uvw.z);
+    finalVel += toCenter * (1.0 - mask) * 5.0 * u_dt;
+    
+    // SAFE DAMPENING: Keeps the math stable
+    finalVel *= mix(0.80, 0.985, mask); 
+    
+    finalVel -= u_wind * mask * 0.3 * u_dt;
+    
+    float nozzle = smoothstep(0.08, 0.02, dist) * smoothstep(0.03, 0.0, uvw.y);
+    finalVel.y += nozzle * 6.0 * u_dt; 
+    
+    out_Velocity = vec4(finalVel, 1.0);
+}`;
+
+        const stateFS = `#version 300 es
+precision highp float;
+precision highp sampler3D;
+in vec2 v_uv;
+
+uniform sampler3D u_stateTex;    
+uniform sampler3D u_velocityTex; 
+uniform float u_currentZ;
+uniform vec3 u_res;
+uniform float u_dt;
+uniform float u_time;
+uniform vec3 u_wind;
+
+layout(location = 0) out vec4 out_State;
+
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+float snoise(vec3 v){ 
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy) );
+  vec3 x0 = v - i + dot(i, C.xxx) ;
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min( g.xyz, l.zxy );
+  vec3 i2 = max( g.xyz, l.zxy );
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i); 
+  vec4 p = permute( permute( permute( i.z + vec4(0.0, i1.z, i2.z, 1.0 )) + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+  float n_ = 0.142857142857;
+  vec3  ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_ );
+  vec4 x = x_ *ns.x + ns.yyyy;
+  vec4 y = y_ *ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4( x.xy, y.xy );
+  vec4 b1 = vec4( x.zw, y.zw );
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+  vec3 p0 = vec3(a0.xy,h.x);
+  vec3 p1 = vec3(a0.zw,h.y);
+  vec3 p2 = vec3(a1.xy,h.z);
+  vec3 p3 = vec3(a1.zw,h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 105.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+}
+
+void main() {
+    vec3 uvw = vec3(v_uv, (u_currentZ + 0.5) / u_res.z);
+    
+    vec3 vel = texture(u_velocityTex, uvw).xyz;
+    vec3 traceVel = vel + vec3(0.0, 0.6, 0.0);
+    vec3 pastUVW = uvw - (traceVel * u_dt * 1.2); 
+    
+    vec4 state = texture(u_stateTex, pastUVW);
+    
+    float density = state.r;
+    float temp = state.g;
+    float fuel = state.b;
+
+    fuel -= 4.0 * u_dt;
+    float reaction = smoothstep(0.05, 0.4, fuel) * smoothstep(0.95, 0.4, fuel);
+    
+    temp += reaction * 18.0 * u_dt; 
+    density += reaction * 10.0 * u_dt; 
+    
+    vec2 center = vec2(0.5, 0.5);
+    float dist = length(uvw.xz - center);
+    float windSpeed = clamp(length(u_wind), 0.0, 15.0);
+    
+    float baseRad = 0.6 * (1.0 - uvw.y) * sqrt(max(0.0, uvw.y + 0.05));
+    float tailNoise = snoise(vec3(uvw.xy * 8.0, u_time * 6.0));
+    float distortion = tailNoise * uvw.y * smoothstep(0.1, 3.0, windSpeed) * 0.45;
+    
+    float maxRad = max(0.0, baseRad + distortion);
+    float mask = 1.0 - smoothstep(maxRad * 0.6, maxRad, dist);
+    
+    float nozzle = smoothstep(0.08, 0.02, dist) * smoothstep(0.04, 0.0, uvw.y);
+    fuel = mix(fuel, 1.0, nozzle);
+    
+    temp = max(0.0, temp - 3.0 * u_dt); 
+    
+    density *= mix(0.50, 0.96, mask);
+    temp    *= mix(0.50, 0.98, mask);
+    fuel    *= mix(0.00, 1.00, mask); 
+    
+    fuel = max(0.0, fuel);
+
+    out_State = vec4(density, temp, fuel, 1.0);
+}
+`;
+
+        const raymarchVS = `#version 300 es
+layout(location = 0) in vec3 a_position;
+uniform mat4 u_mvp;
+uniform vec3 u_volumeOffset;
+out vec3 v_worldPos;
+void main() {
+    // Reverted bounding box size to standard. No clipping!
+    v_worldPos = a_position + u_volumeOffset;
+    gl_Position = u_mvp * vec4(v_worldPos, 1.0);
+}`;
+
+        const raymarchFS = `#version 300 es
+precision highp float;
+precision highp sampler3D;
+in vec3 v_worldPos;
+
+uniform sampler3D u_stateTex;
+uniform sampler3D u_velocityTex;
+uniform sampler2D u_lutTex;
+uniform vec3 u_cameraPos;
+uniform vec3 u_volumeOffset;
+uniform int u_debugStage; 
+uniform float u_time; 
+uniform vec3 u_wind;
+
+out vec4 out_FragColor;
+
+// --- NOISE FOR DYNAMIC RENDERING ---
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+float snoise(vec3 v){ 
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy) );
+  vec3 x0 = v - i + dot(i, C.xxx) ;
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min( g.xyz, l.zxy );
+  vec3 i2 = max( g.xyz, l.zxy );
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i); 
+  vec4 p = permute( permute( permute( i.z + vec4(0.0, i1.z, i2.z, 1.0 )) + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+  float n_ = 0.142857142857;
+  vec3  ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_ );
+  vec4 x = x_ *ns.x + ns.yyyy;
+  vec4 y = y_ *ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4( x.xy, y.xy );
+  vec4 b1 = vec4( x.zw, y.zw );
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+  vec3 p0 = vec3(a0.xy,h.x);
+  vec3 p1 = vec3(a0.zw,h.y);
+  vec3 p2 = vec3(a1.xy,h.z);
+  vec3 p3 = vec3(a1.zw,h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 105.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+}
+
+vec2 intersectAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax) {
+    vec3 tMin = (boxMin - rayOrigin) / rayDir;
+    vec3 tMax = (boxMax - rayOrigin) / rayDir;
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+    return vec2(tNear, tFar);
+}
+
+void main() {
+    vec3 rayDir = normalize(v_worldPos - u_cameraPos);
+    vec2 hit = intersectAABB(u_cameraPos, rayDir, vec3(-1.0) + u_volumeOffset, vec3(1.0) + u_volumeOffset);
+    
+    if (hit.x > hit.y || hit.y < 0.0) discard;
+
+    float t = max(hit.x, 0.0);
+    float dither = fract(sin(dot(v_worldPos.xy, vec2(12.9898, 78.233))) * 43758.5453);
+    float stepSize = 0.012; 
+    t += dither * stepSize;
+    
+    vec3 currentPos = u_cameraPos + rayDir * t;
+    vec4 finalColor = vec4(0.0);
+    
+    for (int i = 0; i < 180; i++) { 
+        if (t > hit.y) break;
+        
+        vec3 uvw = (currentPos - u_volumeOffset) * 0.5 + 0.5;
+        float windSpeed = clamp(length(u_wind.xy), 0.0, 15.0);
+        
+        // BUG FIX: Clamp warpedY to 1.0 maximum so (1.0 - warpedY) never becomes negative!
+        float squash = 1.0 + windSpeed * 0.05; 
+        float warpedY = clamp(uvw.y * squash, 0.0, 1.0);
+        
+        float ambientEnvelope = pow(warpedY, 1.5); 
+        float bendEnvelope = pow(warpedY, 2.5); 
+        
+        vec2 ambientSway = vec2(
+            sin(warpedY * 6.0 - u_time * 5.0),
+            cos(warpedY * 4.5 - u_time * 3.8)
+        ) * 0.04 * ambientEnvelope;
+        
+        vec2 inertialSway = vec2(u_wind.x, u_wind.y * 0.5) * 0.18 * bendEnvelope;
+        vec2 sway = ambientSway + inertialSway;
+        
+        vec3 warpedUvw = vec3(uvw.x + sway.x, warpedY, uvw.z + sway.y);
+        
+        float aeroThinning = clamp(1.0 - windSpeed * 0.05, 0.4, 1.0);
+        float baseRad = 0.6 * aeroThinning * (1.0 - warpedY) * sqrt(max(0.0, warpedY + 0.05));
+        
+        // Distort the mask boundary directly so the tail shreds
+        float tailNoise = snoise(vec3(warpedUvw.xy * 8.0, u_time * 6.0));
+        float distortion = tailNoise * warpedY * smoothstep(0.1, 3.0, windSpeed) * 0.45;
+        float maxRad = max(0.0, baseRad + distortion);
+        
+        float mask = 1.0 - smoothstep(maxRad * 0.6, maxRad, length(warpedUvw.xz - vec2(0.5)));
+        
+        // DYNAMIC ENHANCEMENT: Perturb the UVs safely for highly detailed flame licks
+        vec3 detailUvw = warpedUvw;
+        if (mask > 0.01) {
+            float noiseX = snoise(vec3(warpedUvw.xy * 4.0, u_time * 2.5));
+            float noiseZ = snoise(vec3(warpedUvw.yz * 4.0, -u_time * 2.5));
+            
+            // Link the amplitude of the jiggle directly to the movement speed (windSpeed).
+            // Made more sensitive: kicks in almost immediately at 0.05 speed and maxes out at 2.0.
+            float jiggleAmp = smoothstep(0.05, 2.0, windSpeed) * 0.12;
+            
+            detailUvw.xz += vec2(noiseX, noiseZ) * jiggleAmp * mask * (1.0 - warpedY * 0.5);
+        }
+        
+        vec4 state = texture(u_stateTex, detailUvw);
+        float density = state.r * mask; 
+        float temp = state.g * mask;
+        
+        if (u_debugStage == 3 && density > 0.01) { 
+            vec3 vel = texture(u_velocityTex, detailUvw).xyz;
+            float t_val = clamp(temp * 0.15, 0.0, 1.0);
+            
+            vec3 emitColor = texture(u_lutTex, vec2(t_val, 0.5)).rgb * 2.5; 
+            vec3 velColor = vec3(abs(vel.x), max(0.0, vel.y), abs(vel.z)) * mask;
+            emitColor += velColor * 1.0; 
+            
+            vec4 sampleColor = vec4(emitColor * density, density * 0.15); 
+            sampleColor.rgb *= sampleColor.a; 
+            
+            finalColor += sampleColor * (1.0 - finalColor.a);
+        }
+        
+        if (finalColor.a >= 0.98) break;
+        t += stepSize;
+        currentPos += rayDir * stepSize;
+    }
+    
+    if (u_debugStage == 3) {
+        finalColor.rgb *= 1.2; 
+        finalColor.rgb = finalColor.rgb / (vec3(1.0) + finalColor.rgb * 0.25);
+    }
+    
+    out_FragColor = vec4(finalColor.rgb, clamp(finalColor.a, 0.0, 1.0));
+}`;
+
+        /**
+         * WEBGL ENGINE & LOGIC
+         */
+
+        let debugStage = 3;
+
+        function showError(msg) {
+            const errDiv = document.getElementById('error-msg');
+            errDiv.style.display = 'block';
+            errDiv.innerText = msg;
+            throw new Error(msg);
+        }
+
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl2', { antialias: false });
+
+        if (!gl) showError("WebGL 2.0 is not supported on your device.");
+
+        const extColorFloat = gl.getExtension('EXT_color_buffer_float');
+        const extColorHalfFloat = gl.getExtension('EXT_color_buffer_half_float');
+        const extHalfFloatLinear = gl.getExtension('OES_texture_half_float_linear');
+
+        if (!extColorFloat && !extColorHalfFloat) {
+            showError("Floating point render targets not supported on this device.");
+        }
+
+        function compileShader(type, source) {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, source);
+            gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+                showError("Shader Compile Error: " + gl.getShaderInfoLog(s));
+                return null;
+            }
+            return s;
+        }
+
+        function createProgram(vsSrc, fsSrc) {
+            const p = gl.createProgram();
+            gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSrc));
+            gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+            gl.linkProgram(p);
+            return p;
+        }
+
+        function create3DTexture(width, height, depth) {
+            const tex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_3D, tex);
+            gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA16F, width, height, depth, 0, gl.RGBA, gl.HALF_FLOAT, null);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+            return tex;
+        }
+
+        function createPingPong(width, height, depth) {
+            return {
+                read: { tex: create3DTexture(width, height, depth), fbo: gl.createFramebuffer() },
+                write: { tex: create3DTexture(width, height, depth), fbo: gl.createFramebuffer() },
+                swap() { let t = this.read; this.read = this.write; this.write = t; }
+            };
+        }
+
+        const RES = [64, 64, 64];
+        const pVelocity = createProgram(computeVS, velocityFS);
+        const pState = createProgram(computeVS, stateFS);
+        const pRaymarch = createProgram(raymarchVS, raymarchFS);
+
+        const texVelocity = createPingPong(RES[0], RES[1], RES[2]);
+        const texState = createPingPong(RES[0], RES[1], RES[2]);
+
+        const quadVAO = gl.createVertexArray();
+        const quadVBO = gl.createBuffer();
+        gl.bindVertexArray(quadVAO);
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        const cubeVAO = gl.createVertexArray();
+        const cubeVBO = gl.createBuffer();
+        const cubeVerts = new Float32Array([
+            -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, -1, 1, 1, 1, 1, -1, 1, 1,
+            1, -1, -1, -1, -1, -1, -1, 1, -1, 1, -1, -1, -1, 1, -1, 1, 1, -1,
+            -1, 1, 1, 1, 1, 1, 1, 1, -1, -1, 1, 1, 1, 1, -1, -1, 1, -1,
+            -1, -1, -1, 1, -1, -1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, -1, 1,
+            1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, 1, -1, 1, 1, 1,
+            -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, -1, -1, -1, 1, 1, -1, 1, -1
+        ]);
+        gl.bindVertexArray(cubeVAO);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubeVBO);
+        gl.bufferData(gl.ARRAY_BUFFER, cubeVerts, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+        const lutTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, lutTex);
+        const lutData = new Uint8Array(256 * 4);
+        for (let i = 0; i < 256; i++) {
+            let t = i / 255.0;
+            let r = Math.min(1.0, t * 2.5);
+            let g = Math.min(1.0, Math.max(0.0, t * 3.0 - 0.5));
+            let b = Math.min(1.0, Math.max(0.0, t * 3.0 - 1.5));
+            lutData[i * 4] = r * 255;
+            lutData[i * 4 + 1] = g * 255;
+            lutData[i * 4 + 2] = b * 255;
+            lutData[i * 4 + 3] = 255;
+        }
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lutData);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+
+        function computePass(program, targetWrapper, texBinds, uniforms) {
+            gl.useProgram(program);
+            gl.bindVertexArray(quadVAO);
+            gl.viewport(0, 0, RES[0], RES[1]);
+
+            gl.disable(gl.BLEND);
+
+            for (let i = 0; i < texBinds.length; i++) {
+                gl.activeTexture(gl.TEXTURE0 + i);
+                gl.bindTexture(gl.TEXTURE_3D, texBinds[i]);
+            }
+
+            for (const [name, val] of Object.entries(uniforms)) {
+                const loc = gl.getUniformLocation(program, name);
+                if (Array.isArray(val)) gl.uniform3fv(loc, val);
+                else if (typeof val === 'number') gl.uniform1f(loc, val);
+                else gl.uniform1i(loc, val);
+            }
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, targetWrapper.fbo);
+            const zLoc = gl.getUniformLocation(program, "u_currentZ");
+            for (let z = 0; z < RES[2]; z++) {
+                gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, targetWrapper.tex, 0, z);
+                gl.uniform1f(zLoc, z);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        }
+
+        function perspective(out, fovy, aspect, near, far) {
+            let f = 1.0 / Math.tan(fovy / 2), nf = 1 / (near - far);
+            out[0] = f / aspect; out[1] = 0; out[2] = 0; out[3] = 0;
+            out[4] = 0; out[5] = f; out[6] = 0; out[7] = 0;
+            out[8] = 0; out[9] = 0; out[10] = (far + near) * nf; out[11] = -1;
+            out[12] = 0; out[13] = 0; out[14] = (2 * far * near) * nf; out[15] = 0;
+        }
+        function lookAt(out, eye, center, up) {
+            let x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
+            let eyex = eye[0], eyey = eye[1], eyez = eye[2];
+            let upx = up[0], upy = up[1], upz = up[2];
+            let centerx = center[0], centery = center[1], centerz = center[2];
+            z0 = eyex - centerx; z1 = eyey - centery; z2 = eyez - centerz;
+            len = 1 / Math.hypot(z0, z1, z2); z0 *= len; z1 *= len; z2 *= len;
+            x0 = upy * z2 - upz * z1; x1 = upz * z0 - upx * z2; x2 = upx * z1 - upy * z0;
+            len = 1 / Math.hypot(x0, x1, x2); x0 *= len; x1 *= len; x2 *= len;
+            y0 = z1 * x2 - z2 * x1; y1 = z2 * x0 - z0 * x2; y2 = z0 * x1 - z1 * x0;
+            out[0] = x0; out[1] = y0; out[2] = z0; out[3] = 0;
+            out[4] = x1; out[5] = y1; out[6] = z1; out[7] = 0;
+            out[8] = x2; out[9] = y2; out[10] = z2; out[11] = 0;
+            out[12] = -(x0 * eyex + x1 * eyey + x2 * eyez);
+            out[13] = -(y0 * eyex + y1 * eyey + y2 * eyez);
+            out[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
+            out[15] = 1;
+        }
+        function multiply(out, a, b) {
+            let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3]; out[0] = b0 * a[0] + b1 * a[4] + b2 * a[8] + b3 * a[12]; out[1] = b0 * a[1] + b1 * a[5] + b2 * a[9] + b3 * a[13]; out[2] = b0 * a[2] + b1 * a[6] + b2 * a[10] + b3 * a[14]; out[3] = b0 * a[3] + b1 * a[7] + b2 * a[11] + b3 * a[15];
+            b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7]; out[4] = b0 * a[0] + b1 * a[4] + b2 * a[8] + b3 * a[12]; out[5] = b0 * a[1] + b1 * a[5] + b2 * a[9] + b3 * a[13]; out[6] = b0 * a[2] + b1 * a[6] + b2 * a[10] + b3 * a[14]; out[7] = b0 * a[3] + b1 * a[7] + b2 * a[11] + b3 * a[15];
+            b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11]; out[8] = b0 * a[0] + b1 * a[4] + b2 * a[8] + b3 * a[12]; out[9] = b0 * a[1] + b1 * a[5] + b2 * a[9] + b3 * a[13]; out[10] = b0 * a[2] + b1 * a[6] + b2 * a[10] + b3 * a[14]; out[11] = b0 * a[3] + b1 * a[7] + b2 * a[11] + b3 * a[15];
+            b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15]; out[12] = b0 * a[0] + b1 * a[4] + b2 * a[8] + b3 * a[12]; out[13] = b0 * a[1] + b1 * a[5] + b2 * a[9] + b3 * a[13]; out[14] = b0 * a[2] + b1 * a[6] + b2 * a[10] + b3 * a[14]; out[15] = b0 * a[3] + b1 * a[7] + b2 * a[11] + b3 * a[15];
+        }
+
+        let startTime = performance.now();
+        const dt = 0.016;
+
+        let camAngleX = 0;
+        let camAngleY = 0.2;
+        let camRadius = 4.0;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        let targetVolumePos = [0, 0, 0];
+        let volumePos = [0, 0, 0];
+        let lastVolumePos = [0, 0, 0];
+        let wind = [0, 0, 0];
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.style.cursor = 'default';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) {
+                let ndcX = (e.clientX / window.innerWidth) * 2.0 - 1.0;
+                let ndcY = -(e.clientY / window.innerHeight) * 2.0 + 1.0;
+
+                let fov = Math.PI / 4;
+                let heightAtOrigin = 2.0 * camRadius * Math.tan(fov / 2.0);
+                let widthAtOrigin = heightAtOrigin * (window.innerWidth / window.innerHeight);
+
+                targetVolumePos[0] = ndcX * widthAtOrigin * 0.5;
+                targetVolumePos[1] = ndcY * heightAtOrigin * 0.5 + 1.0;
+            } else {
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+                camAngleX -= dx * 0.01;
+                camAngleY += dy * 0.01;
+                camAngleY = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, camAngleY));
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            camRadius += e.deltaY * 0.005;
+            camRadius = Math.max(1.5, Math.min(10.0, camRadius));
+        }, { passive: true });
+
+        canvas.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            lastMouseX = e.touches[0].clientX;
+            lastMouseY = e.touches[0].clientY;
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const dx = e.touches[0].clientX - lastMouseX;
+            const dy = e.touches[0].clientY - lastMouseY;
+            camAngleX -= dx * 0.01;
+            camAngleY += dy * 0.01;
+            camAngleY = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, camAngleY));
+            lastMouseX = e.touches[0].clientX;
+            lastMouseY = e.touches[0].clientY;
+        }, { passive: true });
+
+        function render() {
+            let time = (performance.now() - startTime) * 0.001;
+
+            lastVolumePos[0] = volumePos[0];
+            lastVolumePos[1] = volumePos[1];
+            volumePos[0] += (targetVolumePos[0] - volumePos[0]) * 0.08;
+            volumePos[1] += (targetVolumePos[1] - volumePos[1]) * 0.08;
+
+            let rawWindX = (volumePos[0] - lastVolumePos[0]) / dt;
+            let rawWindY = (volumePos[1] - lastVolumePos[1]) / dt;
+
+            wind[0] += (rawWindX - wind[0]) * 0.15;
+            wind[1] += (rawWindY - wind[1]) * 0.15;
+            wind[2] = 0.0;
+
+            gl.disable(gl.CULL_FACE);
+
+            computePass(pVelocity, texVelocity.write, [texVelocity.read.tex, texState.read.tex], {
+                u_velocityTex: 0, u_stateTex: 1, u_res: RES, u_dt: dt, u_time: time, u_wind: wind
+            });
+            texVelocity.swap();
+
+            computePass(pState, texState.write, [texState.read.tex, texVelocity.read.tex], {
+                u_stateTex: 0, u_velocityTex: 1, u_res: RES, u_dt: dt, u_time: time, u_wind: wind
+            });
+            texState.swap();
+
+            gl.enable(gl.CULL_FACE);
+            gl.cullFace(gl.FRONT);
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.clearColor(0.05, 0.05, 0.06, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+            gl.useProgram(pRaymarch);
+
+            const camX = camRadius * Math.cos(camAngleY) * Math.sin(camAngleX);
+            const camY = camRadius * Math.sin(camAngleY);
+            const camZ = camRadius * Math.cos(camAngleY) * Math.cos(camAngleX);
+            const cameraPos = [camX, camY, camZ];
+
+            let proj = new Float32Array(16);
+            let view = new Float32Array(16);
+            let mvp = new Float32Array(16);
+            perspective(proj, Math.PI / 4, canvas.width / canvas.height, 0.1, 10.0);
+            lookAt(view, cameraPos, [0, 0, 0], [0, 1, 0]);
+            multiply(mvp, proj, view);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_3D, texState.read.tex);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, lutTex);
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_3D, texVelocity.read.tex);
+
+            gl.uniform1i(gl.getUniformLocation(pRaymarch, "u_stateTex"), 0);
+            gl.uniform1i(gl.getUniformLocation(pRaymarch, "u_lutTex"), 1);
+            gl.uniform1i(gl.getUniformLocation(pRaymarch, "u_velocityTex"), 2);
+            gl.uniform3fv(gl.getUniformLocation(pRaymarch, "u_cameraPos"), cameraPos);
+            gl.uniformMatrix4fv(gl.getUniformLocation(pRaymarch, "u_mvp"), false, mvp);
+            gl.uniform1i(gl.getUniformLocation(pRaymarch, "u_debugStage"), debugStage);
+            gl.uniform1f(gl.getUniformLocation(pRaymarch, "u_time"), time);
+            gl.uniform3fv(gl.getUniformLocation(pRaymarch, "u_volumeOffset"), volumePos);
+            gl.uniform3fv(gl.getUniformLocation(pRaymarch, "u_wind"), wind);
+
+            gl.bindVertexArray(cubeVAO);
+            gl.drawArrays(gl.TRIANGLES, 0, 36);
+
+            requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+
+</html>

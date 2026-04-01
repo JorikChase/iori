@@ -82,9 +82,11 @@
 
             const CONFIG = {
                 SIM_RES: 256, DYE_RES: 1024, DENSITY_DISSIPATION: 0.99, VELOCITY_DISSIPATION: 0.995,
+                SPIN_DISSIPATION: 0.995, // Increased from 0.98 to make the magic linger much longer
                 PRESSURE_ITERATIONS: 20, CURL: 30.0, SPLAT_RADIUS: 0.008, SPLAT_FORCE: 200.0,
                 BUOYANCY: 180.0,
-                SIM_SPEED: 1.6
+                SIM_SPEED: 1.6,
+                WIND_STRENGTH: 250.0
             };
             gl.getExtension('EXT_color_buffer_float');
             gl.getExtension('OES_texture_float_linear');
@@ -97,8 +99,8 @@
             precision highp float; precision highp sampler2D; in vec2 vUv; out vec4 outColor; uniform vec2 uTexelSize; uniform float uDt;`;
 
             const buoyancyFs = `${commonFs}
-            uniform sampler2D uVelocity; uniform sampler2D uDensity; uniform float uBuoyancy;
-            void main() { vec2 vel = texture(uVelocity, vUv).xy; float T = texture(uDensity, vUv).r; vel.y += T * uBuoyancy * uDt; outColor = vec4(vel, 0.0, 1.0); }`;
+            uniform sampler2D uVelocity; uniform sampler2D uDensity; uniform float uBuoyancy; uniform vec2 uWind;
+            void main() { vec2 vel = texture(uVelocity, vUv).xy; float T = texture(uDensity, vUv).r; vel.y += T * uBuoyancy * uDt; vel.x += T * uWind.x * uDt; outColor = vec4(vel, 0.0, 1.0); }`;
 
             const curlFs = `${commonFs}
             uniform sampler2D uVelocity;
@@ -138,7 +140,7 @@
                 force /= length(force) + 0.0001; 
                 
                 // Map coordinates to a lower-frequency 3D space to stay within grid resolution bounds
-                vec3 noiseCoord = vec3(vUv * 15.0, uTime * 0.4); // Lowered scalar from 45.0 to 15.0
+                vec3 noiseCoord = vec3(vUv * 15.0, uTime * 0.4); 
                 
                 vec2 microForce = vec2(
                     fbm(noiseCoord),
@@ -159,6 +161,24 @@
                 vec4 result = texture(uSource, coord);
                 float mask = step(0.0, coord.x) * step(coord.x, 1.0) * step(0.0, coord.y) * step(coord.y, 1.0);
                 outColor = result * uDissipation * mask; 
+            }`;
+
+            // NEW SHADER: Advects and accumulates the curl to detect cyclic, spinning vortices
+            const spinAccumFs = `${commonFs}
+            uniform sampler2D uVelocity; uniform sampler2D uSource; uniform sampler2D uCurl; uniform float uDissipation;
+            void main() { 
+                vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexelSize;
+                float pastSpin = texture(uSource, coord).x;
+                float currentCurl = texture(uCurl, vUv).x;
+                
+                // Mask to prevent texture wrapping artifacts
+                float mask = step(0.0, coord.x) * step(coord.x, 1.0) * step(0.0, coord.y) * step(coord.y, 1.0);
+                
+                // Non-linear accumulation: STRICTER THRESHOLD for magical vortices
+                float curlPower = smoothstep(20.0, 60.0, abs(currentCurl)) * 1.2;
+                float newSpin = (pastSpin * uDissipation * mask) + curlPower; 
+                
+                outColor = vec4(newSpin, 0.0, 0.0, 1.0); 
             }`;
 
             const divergenceFs = `${commonFs}
@@ -183,7 +203,7 @@
                 vec2 velocity = texture(uVelocity, vUv).xy; velocity.xy -= vec2(R - L, T - B) * 0.5; outColor = vec4(velocity, 0.0, 1.0); }`;
 
             const splatFs = `${commonFs}
-        uniform sampler2D uTarget; uniform float uAspectRatio; uniform vec2 uPoint; uniform vec3 uColor; uniform float uRadius; uniform float uTime;
+        uniform sampler2D uTarget; uniform float uAspectRatio; uniform vec2 uPoint; uniform vec3 uColor; uniform float uRadius; uniform float uTime; uniform float uIsVelocity;
         
         // 3D Hash and Noise to allow animation on the Z-axis (Depth)
         float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
@@ -212,8 +232,8 @@
             vec3 noiseCoord = vec3(p * 8.0, uTime * 0.8);
             
             // Use 3D FBM for highly detailed warp
-            float warpX = fbm(noiseCoord) * 2.0 - 1.0;
-            float warpY = fbm(noiseCoord + vec3(100.0, -100.0, 50.0)) * 2.0 - 1.0; 
+            float warpX = fbm(noiseCoord);
+            float warpY = fbm(noiseCoord + vec3(100.0, -100.0, 50.0)); 
             
             vec2 warpedP = p + vec2(warpX, warpY) * 0.035; 
             
@@ -223,24 +243,67 @@
             float nTexture = fbm(noiseCoord * 2.0 + vec3(0.0, 0.0, uTime * 0.5));
             shape *= 0.6 + 0.4 * nTexture; 
             
-            outColor = vec4(max(texture(uTarget, vUv).xyz, shape * uColor), 1.0); 
+            vec3 base = texture(uTarget, vUv).xyz;
+            vec3 splat = shape * uColor;
+            
+            // Density uses max() to prevent infinite visual explosion. 
+            // Velocity uses addition (+) to preserve physics momentum symmetrically.
+            outColor = vec4(mix(max(base, splat), base + splat, uIsVelocity), 1.0); 
         }`;
 
             const displayFs = `${commonFs}
         uniform sampler2D uTexture;
-            vec3 firePalette(float x) {
-                x = clamp(x, 0.0, 1.0);
-                vec3 c1 = vec3(0.02, 0.0, 0.0); vec3 c2 = vec3(0.8, 0.05, 0.0); vec3 c3 = vec3(1.0, 0.4, 0.0); vec3 c4 = vec3(1.0, 0.9, 0.1); vec3 c5 = vec3(1.0, 1.0, 1.0);
-                if (x < 0.1) return mix(c1, c2, x * 10.0);
-                if (x < 0.35) return mix(c2, c3, (x - 0.1) * 4.0);
-                if (x < 0.7) return mix(c3, c4, (x - 0.35) * 2.85);
-                return mix(c4, c5, (x - 0.7) * 3.33); }
-            void main() {
-                float temperature = texture(uTexture, vUv).r;
-                vec3 finalColor = firePalette(smoothstep(0.0, 1.0, temperature));
-                float R = texture(uTexture, vUv + vec2(uTexelSize.x, 0.0)).r; float T = texture(uTexture, vUv + vec2(0.0, uTexelSize.y)).r;
-                finalColor += max(0.0, temperature - (R + T)*0.5) * 0.5 * vec3(1.0, 0.8, 0.4);
-                if (temperature < 0.01) finalColor = vec3(0.0); outColor = vec4(finalColor, 1.0); }`;
+        uniform sampler2D uSpin; // Our new cyclic memory buffer
+        uniform float uTime;
+        
+        // IQ's cosine-based procedural palette for the rainbow swirl
+        vec3 rainbowPalette(float t) {
+            vec3 a = vec3(0.5, 0.5, 0.5);
+            vec3 b = vec3(0.5, 0.5, 0.5);
+            vec3 c = vec3(1.0, 1.0, 1.0);
+            vec3 d = vec3(0.00, 0.33, 0.67);
+            return a + b * cos(6.28318 * (c * t + d));
+        }
+
+        vec3 firePalette(float x) {
+            x = clamp(x, 0.0, 1.0);
+            vec3 c1 = vec3(0.02, 0.0, 0.0); vec3 c2 = vec3(0.8, 0.05, 0.0); vec3 c3 = vec3(1.0, 0.4, 0.0); vec3 c4 = vec3(1.0, 0.9, 0.1); vec3 c5 = vec3(1.0, 1.0, 1.0);
+            if (x < 0.1) return mix(c1, c2, x * 10.0);
+            if (x < 0.35) return mix(c2, c3, (x - 0.1) * 4.0);
+            if (x < 0.7) return mix(c3, c4, (x - 0.35) * 2.85);
+            return mix(c4, c5, (x - 0.7) * 3.33); 
+        }
+
+        void main() {
+            float temperature = texture(uTexture, vUv).r;
+            vec3 finalColor = firePalette(smoothstep(0.0, 1.0, temperature));
+            float R = texture(uTexture, vUv + vec2(uTexelSize.x, 0.0)).r; 
+            float T = texture(uTexture, vUv + vec2(0.0, uTexelSize.y)).r;
+            finalColor += max(0.0, temperature - (R + T)*0.5) * 0.5 * vec3(1.0, 0.8, 0.4);
+            
+            // Extract the sustained rotation memory
+            float spin = texture(uSpin, vUv).r;
+            
+            // Map the spin into a stricter isolated threshold (slightly lowered so it triggers easier)
+            float magicIntensity = smoothstep(4.0, 12.0, spin);
+            
+            // If the fluid is caught in a highly cyclical vortex AND exists visually
+            if (magicIntensity > 0.0 && temperature > 0.01) {
+                // Generate shifting iridescent color based on time, space, and spin intensity
+                float palT = uTime * 0.5 + vUv.x * 3.0 + vUv.y * 3.0 - spin * 0.1;
+                vec3 magicColor = rainbowPalette(palT);
+                
+                // Blend magic on top. Fade out in the hottest white areas to prevent blown-out exposure,
+                // but allow it to penetrate slightly deeper into the flame core now.
+                float tempMask = smoothstep(0.01, 0.2, temperature) * (1.0 - smoothstep(0.4, 0.9, temperature));
+                
+                // Multiplier increased from 0.3 to 1.2 for significantly more vibrant rainbows!
+                finalColor += magicColor * magicIntensity * 1.2 * tempMask;
+            }
+            
+            if (temperature < 0.01) finalColor = vec3(0.0); 
+            outColor = vec4(finalColor, 1.0); 
+        }`;
 
             function createProgram(fs) {
                 const program = gl.createProgram();
@@ -249,7 +312,8 @@
                 gl.compileShader(vsShader); gl.compileShader(fsShader);
                 gl.attachShader(program, vsShader); gl.attachShader(program, fsShader); gl.linkProgram(program);
                 return {
-                    id: program, uni: Object.fromEntries(['uTexelSize', 'uDt', 'uVelocity', 'uSource', 'uPressure', 'uDivergence', 'uCurl', 'uCurlScale', 'uDissipation', 'uTarget', 'uAspectRatio', 'uPoint', 'uColor', 'uRadius', 'uTexture', 'uDensity', 'uBuoyancy', 'uTime']
+                    // Added uSpin to the automated uniform extraction
+                    id: program, uni: Object.fromEntries(['uTexelSize', 'uDt', 'uVelocity', 'uSource', 'uPressure', 'uDivergence', 'uCurl', 'uCurlScale', 'uDissipation', 'uTarget', 'uAspectRatio', 'uPoint', 'uColor', 'uRadius', 'uTexture', 'uDensity', 'uBuoyancy', 'uTime', 'uWind', 'uIsVelocity', 'uSpin']
                         .map(n => [n, gl.getUniformLocation(program, n)]))
                 };
             }
@@ -266,7 +330,8 @@
 
             function createDoubleFBO(w, h, type) { let fbo1 = createFBO(w, h, type), fbo2 = createFBO(w, h, type); return { read: () => fbo1, write: () => fbo2, swap: () => { let t = fbo1; fbo1 = fbo2; fbo2 = t; } }; }
 
-            const programs = { buoyancy: createProgram(buoyancyFs), curl: createProgram(curlFs), vorticity: createProgram(vorticityFs), advect: createProgram(advectFs), divergence: createProgram(divergenceFs), pressure: createProgram(pressureFs), gradient: createProgram(gradientFs), splat: createProgram(splatFs), display: createProgram(displayFs) };
+            // Registered new spinAccum program
+            const programs = { buoyancy: createProgram(buoyancyFs), curl: createProgram(curlFs), vorticity: createProgram(vorticityFs), advect: createProgram(advectFs), spinAccum: createProgram(spinAccumFs), divergence: createProgram(divergenceFs), pressure: createProgram(pressureFs), gradient: createProgram(gradientFs), splat: createProgram(splatFs), display: createProgram(displayFs) };
 
             const blit = (() => {
                 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
@@ -277,10 +342,11 @@
                 };
             })();
 
-            let velocity, density, pressure, divergence, curl;
+            // Added spinMemory Ping-Pong FBO
+            let velocity, density, pressure, divergence, curl, spinMemory;
             function initFBOs() {
                 const w = canvas.width, h = canvas.height, simW = CONFIG.SIM_RES, simH = Math.floor(simW * h / w), dyeW = CONFIG.DYE_RES, dyeH = Math.floor(dyeW * h / w);
-                velocity = createDoubleFBO(simW, simH); density = createDoubleFBO(dyeW, dyeH); pressure = createDoubleFBO(simW, simH); divergence = createFBO(simW, simH); curl = createFBO(simW, simH);
+                velocity = createDoubleFBO(simW, simH); density = createDoubleFBO(dyeW, dyeH); pressure = createDoubleFBO(simW, simH); spinMemory = createDoubleFBO(simW, simH); divergence = createFBO(simW, simH); curl = createFBO(simW, simH);
             }
 
             function runProgram(p, uniforms, outputFBO) {
@@ -292,38 +358,76 @@
             let startTime = Date.now();
 
             function applySplat(x, y, dx, dy, colorIntensity, rMult = 1.0, timeOverride) {
-                runProgram(programs.splat, { uTarget: { ...velocity.read(), unit: 0 }, uAspectRatio: velocity.read().width / velocity.read().height, uPoint: [x, y], uColor: [dx * CONFIG.SPLAT_FORCE, dy * CONFIG.SPLAT_FORCE, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride }, velocity.write()); velocity.swap();
-                runProgram(programs.splat, { uTarget: { ...density.read(), unit: 0 }, uAspectRatio: density.read().width / density.read().height, uPoint: [x, y], uColor: [colorIntensity, 0.0, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride }, density.write()); density.swap();
+                runProgram(programs.splat, { uTarget: { ...velocity.read(), unit: 0 }, uAspectRatio: velocity.read().width / velocity.read().height, uPoint: [x, y], uColor: [dx * CONFIG.SPLAT_FORCE, dy * CONFIG.SPLAT_FORCE, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 1.0 }, velocity.write()); velocity.swap();
+                runProgram(programs.splat, { uTarget: { ...density.read(), unit: 0 }, uAspectRatio: density.read().width / density.read().height, uPoint: [x, y], uColor: [colorIntensity, 0.0, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 0.0 }, density.write()); density.swap();
             }
 
             let lastTime = Date.now(), pointers = [];
             function update() {
-                // Calculate real delta time, then scale it by our new SIM_SPEED multiplier
                 let baseDt = Math.min((Date.now() - lastTime) / 1000, 0.016);
                 lastTime = Date.now();
                 let dt = baseDt * CONFIG.SIM_SPEED;
 
-                // Scale the absolute time as well so shader noise boils faster proportionately
                 let time = ((Date.now() - startTime) / 1000.0) * CONFIG.SIM_SPEED;
+
+                let windAnim = time * 0.4;
+                let windGusts = Math.cos(windAnim) * 0.5 + Math.cos(windAnim * 2.7) * 0.3 + Math.cos(windAnim * 5.1) * 0.2;
+                let currentWind = windGusts * CONFIG.WIND_STRENGTH;
 
                 if (pointers.length > 0) pointers.forEach(p => {
                     let cDx = Math.max(-100.0, Math.min(100.0, p.dx));
                     let cDy = Math.max(-100.0, Math.min(100.0, p.dy));
 
-                    applySplat(p.x / canvas.width, 1.0 - p.y / canvas.height, cDx / canvas.width, -cDy / canvas.height + 0.01, 2.5, 1.0, time);
+                    let px = p.x / canvas.width;
+                    let py = 1.0 - p.y / canvas.height;
+                    let vx = cDx / canvas.width;
+                    let vy = -cDy / canvas.height + 0.01;
+
+                    // Calculate true cursor speed to dynamically scale the brush size
+                    let cursorSpeed = Math.sqrt(Math.pow(cDx / canvas.width, 2) + Math.pow(cDy / canvas.height, 2));
+
+                    // Base size is much smaller (0.2x), but scales up quickly with movement (up to 1.2x max)
+                    let dynamicRadius = 0.2 + Math.min(cursorSpeed * 25.0, 1.0);
+
+                    // 1. Core Normal Stream (smooth, dynamically sized based on speed)
+                    applySplat(px, py, vx, vy, 2.5, dynamicRadius, time);
+
+                    // 2. Magic Turbulent Stream (thin, slightly offset, rapidly oscillating circular velocity)
+                    let speed = Math.sqrt(vx * vx + vy * vy);
+                    if (speed > 0.0) {
+                        let perpX = -vy / speed;
+                        let perpY = vx / speed;
+
+                        // Circular, corkscrew injection using sine AND cosine
+                        let swirlPhase = time * 45.0;
+                        let swirlForce = 0.08;
+                        let rotX = Math.cos(swirlPhase) * swirlForce;
+                        let rotY = Math.sin(swirlPhase) * swirlForce;
+
+                        applySplat(px + perpX * 0.005, py + perpY * 0.005, vx + rotX, vy + rotY, 1.2, dynamicRadius * 0.4, time);
+                    }
+
                     p.dx = 0;
                     p.dy = 0;
                 });
 
-                runProgram(programs.buoyancy, { uVelocity: { ...velocity.read(), unit: 0 }, uDensity: { ...density.read(), unit: 1 }, uBuoyancy: CONFIG.BUOYANCY, uDt: dt }, velocity.write()); velocity.swap();
+                runProgram(programs.buoyancy, { uVelocity: { ...velocity.read(), unit: 0 }, uDensity: { ...density.read(), unit: 1 }, uBuoyancy: CONFIG.BUOYANCY, uWind: [currentWind, 0.0], uDt: dt }, velocity.write()); velocity.swap();
+
                 runProgram(programs.curl, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 } }, curl);
+
+                // Calculate and accumulate persistent, cyclical spin patterns
+                runProgram(programs.spinAccum, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uSource: { ...spinMemory.read(), unit: 1 }, uCurl: { ...curl, unit: 2 }, uDt: dt, uDissipation: CONFIG.SPIN_DISSIPATION }, spinMemory.write()); spinMemory.swap();
+
                 runProgram(programs.vorticity, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uCurl: { ...curl, unit: 1 }, uCurlScale: CONFIG.CURL, uDt: dt, uTime: time }, velocity.write()); velocity.swap();
                 runProgram(programs.divergence, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 } }, divergence);
                 for (let i = 0; i < CONFIG.PRESSURE_ITERATIONS; i++) { runProgram(programs.pressure, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uPressure: { ...pressure.read(), unit: 0 }, uDivergence: { ...divergence, unit: 1 } }, pressure.write()); pressure.swap(); }
                 runProgram(programs.gradient, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uPressure: { ...pressure.read(), unit: 0 }, uVelocity: { ...velocity.read(), unit: 1 } }, velocity.write()); velocity.swap();
                 runProgram(programs.advect, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uSource: { ...velocity.read(), unit: 0 }, uDt: dt, uDissipation: CONFIG.VELOCITY_DISSIPATION }, velocity.write()); velocity.swap();
                 runProgram(programs.advect, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uSource: { ...density.read(), unit: 1 }, uDt: dt, uDissipation: CONFIG.DENSITY_DISSIPATION }, density.write()); density.swap();
-                runProgram(programs.display, { uTexelSize: [1.0 / density.read().width, 1.0 / density.read().height], uTexture: { ...density.read(), unit: 0 } }, null);
+
+                // INJECTED uSpin: We now pass the accumulated spin memory into the display renderer
+                runProgram(programs.display, { uTexelSize: [1.0 / density.read().width, 1.0 / density.read().height], uTexture: { ...density.read(), unit: 0 }, uSpin: { ...spinMemory.read(), unit: 1 }, uTime: time }, null);
+
                 requestAnimationFrame(update);
             }
 

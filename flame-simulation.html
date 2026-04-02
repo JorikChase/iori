@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>satisfying Fire simulator</title>
+
+    <head>
+        <!-- Dynamic SEO & Google Analytics -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() { dataLayer.push(arguments); }
+            gtag('js', new Date());
+
+            if (window.location.hostname.includes('3die.fr')) {
+                gtag('config', 'G-ERECDMYSNT');
+            } else {
+                gtag('config', 'G-GKKJ5VX340');
+            }
+
+            // Dynamic Canonical
+            (function () {
+                let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+                canon.rel = 'canonical';
+                canon.href = window.location.origin + window.location.pathname;
+                if (!document.head.contains(canon)) document.head.appendChild(canon);
+            })();
+        </script>
+        <style>
+            body,
+            html {
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background-color: #050000;
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+
+            canvas {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+
+            #ui {
+                position: absolute;
+                top: 30px;
+                left: 30px;
+                color: rgba(255, 200, 100, 0.7);
+                pointer-events: none;
+                text-shadow: 0px 2px 10px rgba(255, 100, 0, 0.5);
+            }
+
+            h1 {
+                margin: 0 0 5px 0;
+                font-size: 24px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+            }
+
+            p {
+                margin: 0;
+                font-size: 14px;
+                opacity: 0.8;
+            }
+        </style>
+    </head>
+
+<body>
+    <canvas id="c"></canvas>
+    <script>
+        (function () {
+            const canvas = document.getElementById('c');
+            const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+            if (!gl) return;
+
+            const CONFIG = {
+                SIM_RES: 256, DYE_RES: 1024,
+                DENSITY_DISSIPATION: 0.9995, // Increased further to let smoke linger longer
+                VELOCITY_DISSIPATION: 0.992,
+                SPIN_DISSIPATION: 0.995,
+                PRESSURE_ITERATIONS: 20, CURL: 30.0, SPLAT_RADIUS: 0.008, SPLAT_FORCE: 200.0,
+                BUOYANCY: 180.0,
+                SIM_SPEED: 1.6,
+                WIND_STRENGTH: 250.0
+            };
+            gl.getExtension('EXT_color_buffer_float');
+            gl.getExtension('OES_texture_float_linear');
+
+            const baseVs = `#version 300 es
+            in vec2 aPosition; out vec2 vUv;
+            void main() { vUv = aPosition * 0.5 + 0.5; gl_Position = vec4(aPosition, 0.0, 1.0); }`;
+
+            const commonFs = `#version 300 es
+            precision highp float; precision highp sampler2D; in vec2 vUv; out vec4 outColor; uniform vec2 uTexelSize; uniform float uDt;`;
+
+            const buoyancyFs = `${commonFs}
+            uniform sampler2D uVelocity; uniform sampler2D uDensity; uniform float uBuoyancy; uniform vec2 uWind;
+            void main() { 
+                vec2 vel = texture(uVelocity, vUv).xy; 
+                float T = texture(uDensity, vUv).r; 
+                
+                // Hot fire rises quickly. Cooler smoke loses lift and drifts.
+                float buoyantForce = mix(uBuoyancy * 0.05, uBuoyancy, smoothstep(0.05, 0.4, T));
+                vel.y += T * buoyantForce * uDt; 
+                
+                // Wind affects smoke more visibly as it hangs in the air
+                vel.x += T * uWind.x * uDt * mix(1.5, 1.0, smoothstep(0.05, 0.4, T)); 
+                
+                outColor = vec4(vel, 0.0, 1.0); 
+            }`;
+
+            const curlFs = `${commonFs}
+            uniform sampler2D uVelocity;
+            void main() {
+                float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).y; float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).y;
+                float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).x; float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).x;
+                outColor = vec4(0.5 * (R - L - T + B), 0.0, 0.0, 1.0); }`;
+
+            const vorticityFs = `${commonFs}
+            uniform sampler2D uVelocity; uniform sampler2D uCurl; uniform float uCurlScale; uniform float uTime;
+            
+            float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+            float noise(vec3 x) {
+                vec3 i = floor(x); vec3 f = fract(x); vec3 u = f*f*(3.0-2.0*f);
+                return mix(mix(mix( hash(i+vec3(0,0,0)), hash(i+vec3(1,0,0)),u.x),
+                               mix( hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)),u.x),u.y),
+                           mix(mix( hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)),u.x),
+                               mix( hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)),u.x),u.y),u.z);
+            }
+            float fbm(vec3 p) {
+                float v = 0.0; float a = 0.5; vec3 shift = vec3(100.0);
+                for (int i = 0; i < 3; ++i) { 
+                    v += a * (noise(p) * 2.0 - 1.0);
+                    p = p * 2.0 + shift; 
+                    a *= 0.5;
+                }
+                return v;
+            }
+
+            void main() {
+                float L = texture(uCurl, vUv - vec2(uTexelSize.x, 0.0)).x; float R = texture(uCurl, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uCurl, vUv + vec2(0.0, uTexelSize.y)).x; float B = texture(uCurl, vUv - vec2(0.0, uTexelSize.y)).x; float C = texture(uCurl, vUv).x;
+                vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L)); 
+                force /= length(force) + 0.0001; 
+                vec3 noiseCoord = vec3(vUv * 15.0, uTime * 0.4); 
+                vec2 microForce = vec2(fbm(noiseCoord), fbm(noiseCoord + vec3(100.0, -100.0, 50.0)));
+                force += microForce * 2.0; 
+                force *= uCurlScale * C; 
+                force.y *= -1.0;
+                outColor = vec4(texture(uVelocity, vUv).xy + force * uDt, 0.0, 1.0); }`;
+
+            const advectFs = `${commonFs}
+            uniform sampler2D uVelocity; uniform sampler2D uSource; uniform float uDissipation;
+            void main() { 
+                vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexelSize;
+                vec4 result = texture(uSource, coord);
+                float mask = step(0.0, coord.x) * step(coord.x, 1.0) * step(0.0, coord.y) * step(coord.y, 1.0);
+                outColor = result * uDissipation * mask; 
+            }`;
+
+            const spinAccumFs = `${commonFs}
+            uniform sampler2D uVelocity; uniform sampler2D uSource; uniform sampler2D uCurl; uniform float uDissipation;
+            void main() { 
+                vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexelSize;
+                float pastSpin = texture(uSource, coord).x;
+                float currentCurl = texture(uCurl, vUv).x;
+                float mask = step(0.0, coord.x) * step(coord.x, 1.0) * step(0.0, coord.y) * step(coord.y, 1.0);
+                float curlPower = smoothstep(20.0, 60.0, abs(currentCurl)) * 1.2;
+                float newSpin = (pastSpin * uDissipation * mask) + curlPower; 
+                outColor = vec4(newSpin, 0.0, 0.0, 1.0); 
+            }`;
+
+            const divergenceFs = `${commonFs}
+            uniform sampler2D uVelocity;
+            void main() {
+                float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).x; float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).y; float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).y;
+                outColor = vec4(0.5 * (R - L + T - B), 0.0, 0.0, 1.0); }`;
+
+            const pressureFs = `${commonFs}
+            uniform sampler2D uPressure; uniform sampler2D uDivergence;
+            void main() {
+                float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x; float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x; float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+                outColor = vec4((L + R + T + B - texture(uDivergence, vUv).x) * 0.25, 0.0, 0.0, 1.0); }`;
+
+            const gradientFs = `${commonFs}
+            uniform sampler2D uPressure; uniform sampler2D uVelocity;
+            void main() {
+                float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x; float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+                float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x; float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+                vec2 velocity = texture(uVelocity, vUv).xy; velocity.xy -= vec2(R - L, T - B) * 0.5; outColor = vec4(velocity, 0.0, 1.0); }`;
+
+            const splatFs = `${commonFs}
+        uniform sampler2D uTarget; uniform float uAspectRatio; uniform vec2 uPoint; uniform vec3 uColor; uniform float uRadius; uniform float uTime; uniform float uIsVelocity;
+        
+        float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+        float noise(vec3 x) {
+            vec3 i = floor(x); vec3 f = fract(x); vec3 u = f*f*(3.0-2.0*f);
+            return mix(mix(mix( hash(i+vec3(0,0,0)), hash(i+vec3(1,0,0)),u.x),
+                           mix( hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)),u.x),u.y),
+                       mix(mix( hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)),u.x),
+                           mix( hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)),u.x),u.y),u.z);
+        }
+        float fbm(vec3 p) {
+            float v = 0.0; float a = 0.5; vec3 shift = vec3(100.0);
+            for (int i = 0; i < 4; ++i) {
+                v += a * (noise(p) * 2.0 - 1.0); 
+                p = p * 2.0 + shift; a *= 0.5;
+            }
+            return v;
+        }
+        
+        void main() {
+            vec2 p = vUv - uPoint.xy; p.x *= uAspectRatio;
+            vec3 noiseCoord = vec3(p * 8.0, uTime * 0.8);
+            float warpX = fbm(noiseCoord); float warpY = fbm(noiseCoord + vec3(100.0, -100.0, 50.0)); 
+            vec2 warpedP = p + vec2(warpX, warpY) * 0.035; 
+            float shape = exp(-dot(warpedP, warpedP) / uRadius);
+            float nTexture = fbm(noiseCoord * 2.0 + vec3(0.0, 0.0, uTime * 0.5));
+            shape *= smoothstep(-0.2, 0.5, nTexture); // Heavily fragment mask to make it organic
+            vec3 base = texture(uTarget, vUv).xyz; vec3 splat = shape * uColor;
+            outColor = vec4(mix(max(base, splat), base + splat, uIsVelocity), 1.0); 
+        }`;
+
+            const displayFs = `${commonFs}
+        uniform sampler2D uTexture; uniform sampler2D uSpin; uniform float uTime;
+        
+        float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+        float noise(vec3 x) {
+            vec3 i = floor(x); vec3 f = fract(x); vec3 u = f*f*(3.0-2.0*f);
+            return mix(mix(mix( hash(i+vec3(0,0,0)), hash(i+vec3(1,0,0)),u.x),
+                           mix( hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)),u.x),u.y),
+                       mix(mix( hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)),u.x),
+                           mix( hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)),u.x),u.y),u.z);
+        }
+        float fbm(vec3 p) {
+            float v = 0.0; float a = 0.5; vec3 shift = vec3(100.0);
+            for (int i = 0; i < 3; ++i) {
+                v += a * (noise(p) * 2.0 - 1.0); p = p * 2.0 + shift; a *= 0.5;
+            }
+            return v;
+        }
+
+        vec3 rainbowPalette(float t) {
+            vec3 a = vec3(0.5, 0.5, 0.5); vec3 b = vec3(0.5, 0.5, 0.5); vec3 c = vec3(1.0, 1.0, 1.0); vec3 d = vec3(0.00, 0.33, 0.67);
+            return a + b * cos(6.28318 * (c * t + d));
+        }
+
+        vec3 firePalette(float x) {
+            x = clamp(x, 0.0, 1.0);
+            vec3 c1 = vec3(0.02, 0.0, 0.0); vec3 c2 = vec3(0.8, 0.05, 0.0); vec3 c3 = vec3(1.0, 0.4, 0.0); vec3 c4 = vec3(1.0, 0.9, 0.1); vec3 c5 = vec3(1.0, 1.0, 1.0);
+            if (x < 0.1) return mix(c1, c2, x * 10.0);
+            if (x < 0.35) return mix(c2, c3, (x - 0.1) * 4.0);
+            if (x < 0.7) return mix(c3, c4, (x - 0.35) * 2.85);
+            return mix(c4, c5, (x - 0.7) * 3.33); 
+        }
+
+        void main() {
+            float temperature = texture(uTexture, vUv).r;
+            
+            // Phase 2: Lingering Organic Smoke
+            vec3 noiseCoord = vec3(vUv * 12.0, uTime * 0.2);
+            float smokeNoise = fbm(noiseCoord) * 0.5 + 0.5;
+            // A subtle, highly textured dark grey/blue smoke base
+            vec3 smokeColor = mix(vec3(0.1, 0.12, 0.15), vec3(0.35, 0.35, 0.4), smokeNoise);
+            
+            // Phase 1: Bright Fire Gradient
+            float fireFactor = smoothstep(0.1, 1.0, temperature);
+            vec3 fireColorBase = firePalette(fireFactor);
+            
+            // Brighten Edges
+            float R = texture(uTexture, vUv + vec2(uTexelSize.x, 0.0)).r; 
+            float T_adj = texture(uTexture, vUv + vec2(0.0, uTexelSize.y)).r;
+            fireColorBase += max(0.0, temperature - (R + T_adj)*0.5) * 0.5 * vec3(1.0, 0.8, 0.4);
+
+            // Composite Smoke and Fire
+            vec3 finalColor = mix(smokeColor, fireColorBase, smoothstep(0.1, 0.35, temperature));
+            
+            // Allow smoke to linger extremely long, but slowly fade out near absolute zero density
+            finalColor *= smoothstep(0.0, 0.01, temperature);
+            
+            // Phase 3: Magic Iridescent Overlay (unaffected by smoke change)
+            float spin = texture(uSpin, vUv).r;
+            float magicIntensity = smoothstep(4.0, 12.0, spin);
+            
+            if (magicIntensity > 0.0 && temperature > 0.01) {
+                float palT = uTime * 0.5 + vUv.x * 3.0 + vUv.y * 3.0 - spin * 0.1;
+                vec3 magicColor = rainbowPalette(palT);
+                float tempMask = smoothstep(0.01, 0.2, temperature) * (1.0 - smoothstep(0.4, 0.9, temperature));
+                finalColor += magicColor * magicIntensity * 1.2 * tempMask;
+            }
+            
+            outColor = vec4(finalColor, 1.0); 
+        }`;
+
+            function createProgram(fs) {
+                const program = gl.createProgram();
+                const vsShader = gl.createShader(gl.VERTEX_SHADER); const fsShader = gl.createShader(gl.FRAGMENT_SHADER);
+                gl.shaderSource(vsShader, baseVs); gl.shaderSource(fsShader, fs);
+                gl.compileShader(vsShader); gl.compileShader(fsShader);
+                gl.attachShader(program, vsShader); gl.attachShader(program, fsShader); gl.linkProgram(program);
+                return { id: program, uni: Object.fromEntries(['uTexelSize', 'uDt', 'uVelocity', 'uSource', 'uPressure', 'uDivergence', 'uCurl', 'uCurlScale', 'uDissipation', 'uTarget', 'uAspectRatio', 'uPoint', 'uColor', 'uRadius', 'uTexture', 'uDensity', 'uBuoyancy', 'uTime', 'uWind', 'uIsVelocity', 'uSpin'].map(n => [n, gl.getUniformLocation(program, n)])) };
+            }
+
+            function createFBO(w, h, type = gl.HALF_FLOAT) {
+                gl.activeTexture(gl.TEXTURE0); const texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, type, null);
+                const fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+                gl.viewport(0, 0, w, h); gl.clear(gl.COLOR_BUFFER_BIT);
+                return { fbo, texture, width: w, height: h, attach: (id) => { gl.activeTexture(gl.TEXTURE0 + id); gl.bindTexture(gl.TEXTURE_2D, texture); return id; } };
+            }
+            function createDoubleFBO(w, h, type) { let fbo1 = createFBO(w, h, type), fbo2 = createFBO(w, h, type); return { read: () => fbo1, write: () => fbo2, swap: () => { let t = fbo1; fbo1 = fbo2; fbo2 = t; } }; }
+
+            const programs = { buoyancy: createProgram(buoyancyFs), curl: createProgram(curlFs), vorticity: createProgram(vorticityFs), advect: createProgram(advectFs), spinAccum: createProgram(spinAccumFs), divergence: createProgram(divergenceFs), pressure: createProgram(pressureFs), gradient: createProgram(gradientFs), splat: createProgram(splatFs), display: createProgram(displayFs) };
+
+            const blit = (() => {
+                gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
+                gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(0);
+                return (destFBO) => {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, destFBO ? destFBO.fbo : null); gl.viewport(0, 0, destFBO ? destFBO.width : canvas.width, destFBO ? destFBO.height : canvas.height); gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+                };
+            })();
+
+            let velocity, density, pressure, divergence, curl, spinMemory;
+            function initFBOs() {
+                const w = canvas.width, h = canvas.height, simW = CONFIG.SIM_RES, simH = Math.floor(simW * h / w), dyeW = CONFIG.DYE_RES, dyeH = Math.floor(dyeW * h / w);
+                velocity = createDoubleFBO(simW, simH); density = createDoubleFBO(dyeW, dyeH); pressure = createDoubleFBO(simW, simH); spinMemory = createDoubleFBO(simW, simH); divergence = createFBO(simW, simH); curl = createFBO(simW, simH);
+            }
+
+            function runProgram(p, uniforms, outputFBO) {
+                gl.useProgram(p.id);
+                for (let k in uniforms) { if (p.uni[k]) { if (uniforms[k].attach) gl.uniform1i(p.uni[k], uniforms[k].attach(uniforms[k].unit)); else if (uniforms[k].length === 2) gl.uniform2fv(p.uni[k], uniforms[k]); else if (uniforms[k].length === 3) gl.uniform3fv(p.uni[k], uniforms[k]); else gl.uniform1f(p.uni[k], uniforms[k]); } }
+                blit(outputFBO);
+            }
+
+            let startTime = Date.now();
+
+            function applySplat(x, y, dx, dy, colorIntensity, rMult = 1.0, timeOverride) {
+                runProgram(programs.splat, { uTarget: { ...velocity.read(), unit: 0 }, uAspectRatio: velocity.read().width / velocity.read().height, uPoint: [x, y], uColor: [dx * CONFIG.SPLAT_FORCE, dy * CONFIG.SPLAT_FORCE, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 1.0 }, velocity.write()); velocity.swap();
+                runProgram(programs.splat, { uTarget: { ...density.read(), unit: 0 }, uAspectRatio: density.read().width / density.read().height, uPoint: [x, y], uColor: [colorIntensity, 0.0, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 0.0 }, density.write()); density.swap();
+            }
+
+            let lastTime = Date.now();
+            let activePointers = new Map();
+
+            function update() {
+                let baseDt = Math.min((Date.now() - lastTime) / 1000, 0.016);
+                lastTime = Date.now();
+                let dt = baseDt * CONFIG.SIM_SPEED;
+
+                let time = ((Date.now() - startTime) / 1000.0) * CONFIG.SIM_SPEED;
+                let windAnim = time * 0.4;
+                let currentWind = (Math.cos(windAnim) * 0.5 + Math.cos(windAnim * 2.7) * 0.3 + Math.cos(windAnim * 5.1) * 0.2) * CONFIG.WIND_STRENGTH;
+
+                // Simulate "Virtual Torch" inertia for all active pointers
+                activePointers.forEach((p, id) => {
+                    // Spring/easing physics
+                    let dx = p.tx - p.x;
+                    let dy = p.ty - p.y;
+
+                    p.x += dx * 0.15; // Smooth interpolation factor
+                    p.y += dy * 0.15;
+
+                    let cDx = dx * 0.15;
+                    let cDy = dy * 0.15;
+
+                    let px = p.x / canvas.width;
+                    let py = 1.0 - p.y / canvas.height;
+
+                    // Velocity relative to canvas
+                    let vx = cDx / canvas.width;
+                    // Adding a tiny baseline vertical velocity so holding still still produces fire drafts
+                    let vy = -cDy / canvas.height + 0.005;
+
+                    let cursorSpeed = Math.sqrt(Math.pow(vx, 2) + Math.pow(vy - 0.005, 2)) * 100.0;
+
+                    // Radius scales up dynamically but never drops to zero
+                    let dynamicRadius = 0.4 + Math.min(cursorSpeed * 1.5, 1.0);
+
+                    // 1. Core Flame (lowered intensity to reveal richer colors)
+                    applySplat(px, py, vx * 5.0, vy * 5.0, 1.5, dynamicRadius, time);
+
+                    // 2. Magical Sub-Swirl Detail (lowered intensity)
+                    let speed = Math.sqrt(vx * vx + vy * vy);
+                    if (speed > 0.0) {
+                        let perpX = -vy / speed;
+                        let perpY = vx / speed;
+                        let swirlPhase = time * 45.0;
+                        let rotX = Math.cos(swirlPhase) * 0.05;
+                        let rotY = Math.sin(swirlPhase) * 0.05;
+                        applySplat(px + perpX * 0.005, py + perpY * 0.005, (vx + rotX) * 5.0, (vy + rotY) * 5.0, 0.8, dynamicRadius * 0.4, time);
+                    }
+                });
+
+                runProgram(programs.buoyancy, { uVelocity: { ...velocity.read(), unit: 0 }, uDensity: { ...density.read(), unit: 1 }, uBuoyancy: CONFIG.BUOYANCY, uWind: [currentWind, 0.0], uDt: dt }, velocity.write()); velocity.swap();
+                runProgram(programs.curl, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 } }, curl);
+                runProgram(programs.spinAccum, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uSource: { ...spinMemory.read(), unit: 1 }, uCurl: { ...curl, unit: 2 }, uDt: dt, uDissipation: CONFIG.SPIN_DISSIPATION }, spinMemory.write()); spinMemory.swap();
+                runProgram(programs.vorticity, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uCurl: { ...curl, unit: 1 }, uCurlScale: CONFIG.CURL, uDt: dt, uTime: time }, velocity.write()); velocity.swap();
+                runProgram(programs.divergence, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 } }, divergence);
+                for (let i = 0; i < CONFIG.PRESSURE_ITERATIONS; i++) { runProgram(programs.pressure, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uPressure: { ...pressure.read(), unit: 0 }, uDivergence: { ...divergence, unit: 1 } }, pressure.write()); pressure.swap(); }
+                runProgram(programs.gradient, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uPressure: { ...pressure.read(), unit: 0 }, uVelocity: { ...velocity.read(), unit: 1 } }, velocity.write()); velocity.swap();
+                runProgram(programs.advect, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uSource: { ...velocity.read(), unit: 0 }, uDt: dt, uDissipation: CONFIG.VELOCITY_DISSIPATION }, velocity.write()); velocity.swap();
+                runProgram(programs.advect, { uTexelSize: [1.0 / velocity.read().width, 1.0 / velocity.read().height], uVelocity: { ...velocity.read(), unit: 0 }, uSource: { ...density.read(), unit: 1 }, uDt: dt, uDissipation: CONFIG.DENSITY_DISSIPATION }, density.write()); density.swap();
+
+                runProgram(programs.display, { uTexelSize: [1.0 / density.read().width, 1.0 / density.read().height], uTexture: { ...density.read(), unit: 0 }, uSpin: { ...spinMemory.read(), unit: 1 }, uTime: time }, null);
+
+                requestAnimationFrame(update);
+            }
+
+            function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; initFBOs(); }
+            window.addEventListener('resize', resize); resize();
+
+            // Re-written event listeners for the target/inertia brush system
+            canvas.addEventListener('mousemove', e => {
+                if (e.buttons > 0) {
+                    if (!activePointers.has('mouse')) activePointers.set('mouse', { tx: e.offsetX, ty: e.offsetY, x: e.offsetX, y: e.offsetY });
+                    else { let p = activePointers.get('mouse'); p.tx = e.offsetX; p.ty = e.offsetY; }
+                } else activePointers.delete('mouse');
+            });
+            canvas.addEventListener('mousedown', e => activePointers.set('mouse', { tx: e.offsetX, ty: e.offsetY, x: e.offsetX, y: e.offsetY }));
+            window.addEventListener('mouseup', () => activePointers.delete('mouse'));
+
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                Array.from(e.targetTouches).forEach(t => {
+                    if (activePointers.has(t.identifier)) { let p = activePointers.get(t.identifier); p.tx = t.clientX; p.ty = t.clientY; }
+                    else activePointers.set(t.identifier, { tx: t.clientX, ty: t.clientY, x: t.clientX, y: t.clientY });
+                });
+            }, { passive: false });
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                Array.from(e.targetTouches).forEach(t => activePointers.set(t.identifier, { tx: t.clientX, ty: t.clientY, x: t.clientX, y: t.clientY }));
+            }, { passive: false });
+            canvas.addEventListener('touchend', e => {
+                let currentIds = Array.from(e.targetTouches).map(t => t.identifier);
+                for (let id of activePointers.keys()) if (id !== 'mouse' && !currentIds.includes(id)) activePointers.delete(id);
+            });
+
+            update();
+        })();
+    </script>
+</body>
+
+</html>

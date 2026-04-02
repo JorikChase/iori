@@ -200,7 +200,7 @@
                 vec2 velocity = texture(uVelocity, vUv).xy; velocity.xy -= vec2(R - L, T - B) * 0.5; outColor = vec4(velocity, 0.0, 1.0); }`;
 
             const splatFs = `${commonFs}
-        uniform sampler2D uTarget; uniform float uAspectRatio; uniform vec2 uPoint; uniform vec3 uColor; uniform float uRadius; uniform float uTime; uniform float uIsVelocity;
+        uniform sampler2D uTarget; uniform float uAspectRatio; uniform vec2 uPoint; uniform vec3 uColor; uniform float uRadius; uniform float uTime; uniform float uIsVelocity; uniform vec2 uPointerVelocity;
         
         float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
         float noise(vec3 x) {
@@ -221,12 +221,35 @@
         
         void main() {
             vec2 p = vUv - uPoint.xy; p.x *= uAspectRatio;
+            
+            // Transform coordinates to stretch the brush based on velocity
+            float speed = length(uPointerVelocity);
+            float visualSpeed = min(speed * 5.0, 2.0); // Clamp the maximum stretch to prevent razor-thin streaks
+            if (speed > 0.001) {
+                vec2 dir = uPointerVelocity / speed;
+                float pDotDir = dot(p, dir);
+                vec2 proj = pDotDir * dir;
+                vec2 perp = p - proj;
+                
+                // Stretch along movement path, pinch perpendicular to movement path
+                float stretch = 1.0 + visualSpeed * 2.0; 
+                float pinch = 1.0 + visualSpeed * 0.5;
+                
+                p = (proj / stretch) + (perp * pinch);
+            }
+            
             vec3 noiseCoord = vec3(p * 8.0, uTime * 0.8);
             float warpX = fbm(noiseCoord); float warpY = fbm(noiseCoord + vec3(100.0, -100.0, 50.0)); 
             vec2 warpedP = p + vec2(warpX, warpY) * 0.035; 
             float shape = exp(-dot(warpedP, warpedP) / uRadius);
             float nTexture = fbm(noiseCoord * 2.0 + vec3(0.0, 0.0, uTime * 0.5));
             shape *= smoothstep(-0.2, 0.5, nTexture); // Heavily fragment mask to make it organic
+            
+            // Sharpen the final shape to eliminate faint, low-density wisps from the brush.
+            // This ensures we only inject "hot" fluid (fire) and completely prevents 
+            // the instant grey smoke halo from spawning around the cursor.
+            shape = smoothstep(0.15, 0.4, shape);
+            
             vec3 base = texture(uTarget, vUv).xyz; vec3 splat = shape * uColor;
             outColor = vec4(mix(max(base, splat), base + splat, uIsVelocity), 1.0); 
         }`;
@@ -308,7 +331,7 @@
                 gl.shaderSource(vsShader, baseVs); gl.shaderSource(fsShader, fs);
                 gl.compileShader(vsShader); gl.compileShader(fsShader);
                 gl.attachShader(program, vsShader); gl.attachShader(program, fsShader); gl.linkProgram(program);
-                return { id: program, uni: Object.fromEntries(['uTexelSize', 'uDt', 'uVelocity', 'uSource', 'uPressure', 'uDivergence', 'uCurl', 'uCurlScale', 'uDissipation', 'uTarget', 'uAspectRatio', 'uPoint', 'uColor', 'uRadius', 'uTexture', 'uDensity', 'uBuoyancy', 'uTime', 'uWind', 'uIsVelocity', 'uSpin'].map(n => [n, gl.getUniformLocation(program, n)])) };
+                return { id: program, uni: Object.fromEntries(['uTexelSize', 'uDt', 'uVelocity', 'uSource', 'uPressure', 'uDivergence', 'uCurl', 'uCurlScale', 'uDissipation', 'uTarget', 'uAspectRatio', 'uPoint', 'uColor', 'uRadius', 'uTexture', 'uDensity', 'uBuoyancy', 'uTime', 'uWind', 'uIsVelocity', 'uSpin', 'uPointerVelocity'].map(n => [n, gl.getUniformLocation(program, n)])) };
             }
 
             function createFBO(w, h, type = gl.HALF_FLOAT) {
@@ -335,7 +358,14 @@
 
             let velocity, density, pressure, divergence, curl, spinMemory;
             function initFBOs() {
-                const w = canvas.width, h = canvas.height, simW = CONFIG.SIM_RES, simH = Math.floor(simW * h / w), dyeW = CONFIG.DYE_RES, dyeH = Math.floor(dyeW * h / w);
+                const w = canvas.width, h = canvas.height;
+
+                // Dynamically scale resolution grid up for large/Retina screens for high fidelity
+                const simW = Math.floor(Math.max(256, Math.min(w * 0.5, 512)));
+                const simH = Math.floor(simW * h / w);
+                const dyeW = Math.floor(Math.max(1024, Math.min(w, 2048)));
+                const dyeH = Math.floor(dyeW * h / w);
+
                 velocity = createDoubleFBO(simW, simH); density = createDoubleFBO(dyeW, dyeH); pressure = createDoubleFBO(simW, simH); spinMemory = createDoubleFBO(simW, simH); divergence = createFBO(simW, simH); curl = createFBO(simW, simH);
             }
 
@@ -348,8 +378,8 @@
             let startTime = Date.now();
 
             function applySplat(x, y, dx, dy, colorIntensity, rMult = 1.0, timeOverride) {
-                runProgram(programs.splat, { uTarget: { ...velocity.read(), unit: 0 }, uAspectRatio: velocity.read().width / velocity.read().height, uPoint: [x, y], uColor: [dx * CONFIG.SPLAT_FORCE, dy * CONFIG.SPLAT_FORCE, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 1.0 }, velocity.write()); velocity.swap();
-                runProgram(programs.splat, { uTarget: { ...density.read(), unit: 0 }, uAspectRatio: density.read().width / density.read().height, uPoint: [x, y], uColor: [colorIntensity, 0.0, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 0.0 }, density.write()); density.swap();
+                runProgram(programs.splat, { uTarget: { ...velocity.read(), unit: 0 }, uAspectRatio: velocity.read().width / velocity.read().height, uPoint: [x, y], uPointerVelocity: [dx, dy], uColor: [dx * CONFIG.SPLAT_FORCE, dy * CONFIG.SPLAT_FORCE, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 1.0 }, velocity.write()); velocity.swap();
+                runProgram(programs.splat, { uTarget: { ...density.read(), unit: 0 }, uAspectRatio: density.read().width / density.read().height, uPoint: [x, y], uPointerVelocity: [dx, dy], uColor: [colorIntensity, 0.0, 0.0], uRadius: CONFIG.SPLAT_RADIUS * rMult, uTime: timeOverride, uIsVelocity: 0.0 }, density.write()); density.swap();
             }
 
             let lastTime = Date.now();
@@ -376,23 +406,24 @@
                     let cDx = dx * 0.15;
                     let cDy = dy * 0.15;
 
-                    let px = p.x / canvas.width;
-                    let py = 1.0 - p.y / canvas.height;
+                    // Divide by window display size, not internal canvas resolution
+                    let px = p.x / window.innerWidth;
+                    let py = 1.0 - p.y / window.innerHeight;
 
-                    // Velocity relative to canvas
-                    let vx = cDx / canvas.width;
+                    // Velocity relative to window display size
+                    let vx = cDx / window.innerWidth;
                     // Adding a tiny baseline vertical velocity so holding still still produces fire drafts
-                    let vy = -cDy / canvas.height + 0.005;
+                    let vy = -cDy / window.innerHeight + 0.005;
 
                     let cursorSpeed = Math.sqrt(Math.pow(vx, 2) + Math.pow(vy - 0.005, 2)) * 100.0;
 
                     // Radius scales up dynamically but never drops to zero
                     let dynamicRadius = 0.4 + Math.min(cursorSpeed * 1.5, 1.0);
 
-                    // 1. Core Flame (lowered intensity to reveal richer colors)
-                    applySplat(px, py, vx * 5.0, vy * 5.0, 1.5, dynamicRadius, time);
+                    // 1. Core Flame (lowered velocity multiplier from 5.0 to 1.5 to stop blowing out the smoke)
+                    applySplat(px, py, vx * 1.5, vy * 1.5, 1.5, dynamicRadius, time);
 
-                    // 2. Magical Sub-Swirl Detail (lowered intensity)
+                    // 2. Magical Sub-Swirl Detail (lowered velocity multiplier)
                     let speed = Math.sqrt(vx * vx + vy * vy);
                     if (speed > 0.0) {
                         let perpX = -vy / speed;
@@ -400,7 +431,7 @@
                         let swirlPhase = time * 45.0;
                         let rotX = Math.cos(swirlPhase) * 0.05;
                         let rotY = Math.sin(swirlPhase) * 0.05;
-                        applySplat(px + perpX * 0.005, py + perpY * 0.005, (vx + rotX) * 5.0, (vy + rotY) * 5.0, 0.8, dynamicRadius * 0.4, time);
+                        applySplat(px + perpX * 0.005, py + perpY * 0.005, (vx + rotX) * 1.5, (vy + rotY) * 1.5, 0.8, dynamicRadius * 0.4, time);
                     }
                 });
 
@@ -419,7 +450,13 @@
                 requestAnimationFrame(update);
             }
 
-            function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; initFBOs(); }
+            function resize() {
+                // Multiply by devicePixelRatio to render crisp graphics on high density displays (Retina, 4k, Phones)
+                let dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = window.innerWidth * dpr;
+                canvas.height = window.innerHeight * dpr;
+                initFBOs();
+            }
             window.addEventListener('resize', resize); resize();
 
             // Re-written event listeners for the target/inertia brush system

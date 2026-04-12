@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDF Jelly Fungus Timelapse | iori.me</title>
+    <meta name="description" content="Procedural fungal growth simulation using Signed Distance Fields (SDF) and timelapse-style visualization.">
+    <meta property="og:title" content="SDF Jelly Fungus Timelapse">
+    <meta property="og:description" content="Procedural fungal growth simulation using Signed Distance Fields (SDF).">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            font-weight: normal;
+            color: #ff8c00;
+        }
+
+        p {
+            margin: 0;
+            font-size: 12px;
+        }
+    </style>
+    <!-- Import Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+
+<body>
+
+    <div id="ui">
+        <h1>Synthetic Silviculture Fungus Engine</h1>
+        <p>Perpetual Slime Mold Lifecycle with Tracing Feedback Loop</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const PIXEL_SCALE = 4;
+        const TARGET_BRANCHES = 800; // Large buffer for a long, continuous snake
+        const MAX_SHADER_BRANCHES = 1000; // Hard cap sent to the GPU
+        const GROWTH_SPEED = 0.02;
+        const MAX_RADIUS = 0.06;
+
+        // --- SHADERS ---
+        const vertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = vec4(position, 1.0);
+            }
+        `;
+
+        // The new Feedback Compositor shader
+        const blendFragmentShader = `
+            precision highp float;
+            varying vec2 vUv;
+            uniform sampler2D tDiffuse; // Current Frame
+            uniform sampler2D tPrev;    // Previous Frame
+
+            void main() {
+                vec4 curr = texture2D(tDiffuse, vUv);
+                vec4 prev = texture2D(tPrev, vUv);
+                
+                // Feedback loop: mix current frame with the previous frame without any decay.
+                // Using max() guarantees the bright slime leaves a permanent glowing smear.
+                vec3 finalCol = max(curr.rgb, prev.rgb);
+                
+                gl_FragColor = vec4(finalCol, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            precision highp float;
+
+            uniform float u_time;
+            uniform vec2 u_resolution;
+            uniform int u_activeBranches;
+            uniform vec3 u_center; // Tracks the crawling mold's head
+            uniform sampler2D u_data; 
+
+            #define MAX_STEPS 150
+            #define SURF_DIST 0.002
+            #define MAX_DIST 50.0
+
+            float hash(float n) { return fract(sin(n) * 1e4); }
+            float noise(vec3 x) {
+                const vec3 step = vec3(110, 241, 171);
+                vec3 i = floor(x);
+                vec3 f = fract(x);
+                float n = dot(i, step);
+                vec3 u = f * f * (3.0 - 2.0 * f);
+                return mix(mix(mix( hash(n + dot(step, vec3(0, 0, 0))), hash(n + dot(step, vec3(1, 0, 0))), u.x),
+                               mix( hash(n + dot(step, vec3(0, 1, 0))), hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y),
+                           mix(mix( hash(n + dot(step, vec3(0, 0, 1))), hash(n + dot(step, vec3(1, 0, 1))), u.x),
+                               mix( hash(n + dot(step, vec3(0, 1, 1))), hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z);
+            }
+
+            float smin(float a, float b, float k) {
+                float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+                return mix(b, a, h) - k * h * (1.0 - h);
+            }
+
+            float sdCapsule(vec3 p, vec3 a, vec3 b, float r1, float r2) {
+                vec3 pa = p - a, ba = b - a;
+                float l2 = max(dot(ba, ba), 0.00001); 
+                float h = clamp(dot(pa, ba) / l2, 0.0, 1.0);
+                float r = mix(r1, r2, h); 
+                return length(pa - ba * h) - r;
+            }
+
+            float map(vec3 p) {
+                float d = MAX_DIST; 
+                
+                // Bounding sphere MUST follow u_center.
+                // Adjusted to give room for the zoomed-in view.
+                if (length(p - u_center) > 30.0) return length(p - u_center) - 29.5;
+
+                for(int i = 0; i < 1000; i++) { 
+                    if (i >= u_activeBranches) break;
+                    vec4 s1 = texture2D(u_data, vec2((float(i*2) + 0.5) / 2048.0, 0.5));
+                    vec4 s2 = texture2D(u_data, vec2((float(i*2+1) + 0.5) / 2048.0, 0.5));
+                    float dist = sdCapsule(p, s1.xyz, s2.xyz, s1.w, s2.w);
+                    if (i == 0) {
+                        d = dist;
+                    } else {
+                        d = smin(d, dist, 0.08); 
+                    }
+                }
+                return d;
+            }
+
+            vec3 getNormal(vec3 p) {
+                vec2 e = vec2(0.001, 0);
+                vec3 n = vec3(
+                    map(p + e.xyy) - map(p - e.xyy),
+                    map(p + e.yxy) - map(p - e.yxy),
+                    map(p + e.yyx) - map(p - e.yyx)
+                );
+                return normalize(n);
+            }
+
+            float rayMarch(vec3 ro, vec3 rd) {
+                float dO = 0.0;
+                for(int i = 0; i < MAX_STEPS; i++) {
+                    vec3 p = ro + rd * dO;
+                    float dS = map(p);
+                    dO += dS * 0.8; 
+                    if(dO > MAX_DIST || abs(dS) < SURF_DIST) break;
+                }
+                return dO;
+            }
+
+            mat3 setCamera(vec3 ro, vec3 ta, float cr) {
+                vec3 cw = normalize(ta - ro);
+                vec3 cp = vec3(sin(cr), cos(cr), 0.0);
+                vec3 cu = normalize(cross(cw, cp));
+                vec3 cv = normalize(cross(cu, cw));
+                return mat3(cu, cv, cw);
+            }
+
+            void main() {
+                vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+                float vignette = floor((1.0 - length(uv) * 0.3) * 4.0) / 4.0; 
+                vec3 bgCol = vec3(0.05, 0.04, 0.06) * vignette; 
+
+                // --- CAMERA SETTINGS ---
+                // Positioned directly above, looking perfectly straight down.
+                // The tiny 0.001 offset prevents the look-at math from dividing by zero (Gimbal Lock).
+                float camHeight = 22.0; // Distance from the ground
+                vec3 ro = u_center + vec3(0.001, camHeight, 0.001); 
+                vec3 ta = u_center; // Look exactly at the total center of mass
+                mat3 ca = setCamera(ro, ta, 0.0);
+                vec3 rd = ca * normalize(vec3(uv, 1.2)); 
+
+                float d = rayMarch(ro, rd);
+                vec3 col = bgCol;
+
+                if(d < MAX_DIST) {
+                    vec3 p = ro + rd * d;
+                    vec3 n = getNormal(p);
+                    vec3 lightDir = normalize(vec3(0.5, 2.0, -1.0));
+                    vec3 viewDir = normalize(ro - p);
+                    vec3 halfVector = normalize(lightDir + viewDir);
+
+                    float nVal = floor(noise(p * 5.0 - u_time * 0.5) * 3.0) / 3.0; 
+                    vec3 slimeYellow = vec3(1.0, 0.85, 0.1); 
+                    vec3 deepVeinOrange = vec3(1.0, 0.3, 0.0);
+                    vec3 albedo = mix(slimeYellow, deepVeinOrange, nVal * 0.8);
+                    
+                    float dif = floor(max(dot(n, lightDir), 0.0) * 3.0) / 3.0; 
+                    float spec = step(0.6, pow(max(dot(n, halfVector), 0.0), 32.0));
+                    float fresnel = step(0.6, pow(1.0 - max(dot(n, viewDir), 0.0), 3.0));
+                    
+                    float shadow = 1.0;
+                    float shadowDist = rayMarch(p + n * SURF_DIST * 2.0, lightDir);
+                    if(shadowDist < MAX_DIST) shadow = 0.5; 
+
+                    col = albedo * (dif * 0.8 + 0.2) * shadow; 
+                    col += deepVeinOrange * fresnel * 0.9; 
+                    col += vec3(1.0, 0.9, 0.8) * spec * shadow; 
+                }
+
+                col = col / (1.0 + col);
+                col = pow(col, vec3(0.4545));
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        // --- SIMULATION ENGINE ---
+        class Branch {
+            constructor(start, dir, parentRadius = 0.015, parentAge = 0) {
+                this.start = start.clone();
+                this.end = start.clone();
+                this.dir = dir.clone().normalize();
+                this.length = 0;
+                this.maxLength = 0.15 + Math.random() * 0.3;
+                this.radius = parentRadius;
+                this.maxRadius = Math.max(0.01, MAX_RADIUS - (parentAge * 0.002));
+                this.age = parentAge + 1;
+                this.isGrowing = true;
+                this.isDying = false;
+            }
+
+            grow(allBranches) {
+                if (!this.isGrowing) return false;
+                let repulsion = new THREE.Vector3(0, 0, 0);
+                let count = 0;
+                for (let i = 0; i < allBranches.length; i++) {
+                    let other = allBranches[i];
+                    if (other === this) continue;
+                    let dist = this.end.distanceTo(other.end);
+                    if (dist > 0.01 && dist < 0.4) {
+                        let push = this.end.clone().sub(other.end).normalize();
+                        repulsion.add(push.divideScalar(dist));
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    repulsion.normalize().multiplyScalar(0.2);
+                    this.dir.add(repulsion);
+                }
+                this.dir.add(new THREE.Vector3(0, -this.end.y * 0.5, 0));
+                this.dir.add(new THREE.Vector3((Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.05, (Math.random() - 0.5) * 0.6));
+                this.dir.normalize();
+                this.end.add(this.dir.clone().multiplyScalar(GROWTH_SPEED));
+                this.length += GROWTH_SPEED;
+                if (this.radius < this.maxRadius) this.radius += 0.001;
+                if (this.length >= this.maxLength) {
+                    this.isGrowing = false;
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        let camera, renderer;
+        let sdfScene, blendScene;
+        let material, blendMaterial;
+        let dataTexture, dataArray;
+        let sdfTarget, rt1, rt2;
+        let branches = [];
+        let time = 0;
+        let cameraTarget = new THREE.Vector3(0, 0, 0);
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // --- SCENES & RENDERER ---
+            sdfScene = new THREE.Scene();
+            blendScene = new THREE.Scene();
+
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+
+            const w = window.innerWidth / PIXEL_SCALE;
+            const h = window.innerHeight / PIXEL_SCALE;
+
+            renderer.setSize(w, h, false);
+            renderer.setPixelRatio(1);
+            container.appendChild(renderer.domElement);
+
+            // --- RENDER TARGETS FOR FEEDBACK LOOP ---
+            // NearestFilter forces the pixels to stay razor-sharp during the blending process
+            const rtOptions = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat };
+            sdfTarget = new THREE.WebGLRenderTarget(w, h, rtOptions);
+            rt1 = new THREE.WebGLRenderTarget(w, h, rtOptions);
+            rt2 = new THREE.WebGLRenderTarget(w, h, rtOptions);
+
+            // --- SHADER MATERIALS ---
+            const texWidth = 2048;
+            dataArray = new Float32Array(texWidth * 4);
+            dataTexture = new THREE.DataTexture(dataArray, texWidth, 1, THREE.RGBAFormat, THREE.FloatType);
+            dataTexture.needsUpdate = true;
+
+            material = new THREE.ShaderMaterial({
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                uniforms: {
+                    u_time: { value: 0 },
+                    u_resolution: { value: new THREE.Vector2(w, h) },
+                    u_data: { value: dataTexture },
+                    u_activeBranches: { value: 0 },
+                    u_center: { value: cameraTarget }
+                }
+            });
+            const sdfQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+            sdfScene.add(sdfQuad);
+
+            blendMaterial = new THREE.ShaderMaterial({
+                vertexShader: vertexShader,
+                fragmentShader: blendFragmentShader,
+                uniforms: {
+                    tDiffuse: { value: null }, // The current pure render
+                    tPrev: { value: null }     // The previous blended frame
+                }
+            });
+            const blendQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blendMaterial);
+            blendScene.add(blendQuad);
+
+            // Initialize Simulation
+            const rootStart = new THREE.Vector3(0, 0.0, 0);
+            for (let i = 0; i < 3; i++) {
+                const angle = (Math.PI * 2 / 3) * i;
+                const rootDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+                branches.push(new Branch(rootStart, rootDir, 0.015, 0));
+            }
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        function updateSimulation() {
+            let newBranches = [];
+            let totalCenter = new THREE.Vector3(0, 0, 0);
+
+            let livingCount = branches.filter(b => !b.isDying).length;
+            if (livingCount > TARGET_BRANCHES) {
+                let toKill = livingCount - TARGET_BRANCHES;
+                for (let i = 0; i < branches.length && toKill > 0; i++) {
+                    if (!branches[i].isDying) {
+                        branches[i].isDying = true;
+                        branches[i].isGrowing = false;
+                        toKill--;
+                    }
+                }
+            }
+
+            for (let i = branches.length - 1; i >= 0; i--) {
+                let b = branches[i];
+                if (b.isDying) {
+                    b.radius -= 0.0015;
+                    if (b.radius <= 0.001) {
+                        branches.splice(i, 1);
+                        continue;
+                    }
+                } else if (b.isGrowing) {
+                    if (b.grow(branches)) {
+                        let numChildren = Math.random() > 0.85 ? 2 : 1;
+                        for (let c = 0; c < numChildren; c++) {
+                            let splitDir = b.dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 1.5);
+                            splitDir.y += (Math.random() - 0.5) * 0.1;
+                            splitDir.normalize();
+                            newBranches.push(new Branch(b.end, splitDir, b.radius, b.age));
+                        }
+                    }
+                } else if (b.radius < b.maxRadius * 1.2) {
+                    b.radius += 0.0002;
+                }
+                totalCenter.add(b.start);
+            }
+            branches.push(...newBranches);
+            if (branches.length > 0) {
+                totalCenter.divideScalar(branches.length);
+                cameraTarget.copy(totalCenter);
+            }
+        }
+
+        function syncDataToGPU() {
+            let uploadCount = Math.min(branches.length, MAX_SHADER_BRANCHES);
+            for (let i = 0; i < uploadCount; i++) {
+                let b = branches[i];
+                dataArray[i * 8 + 0] = b.start.x;
+                dataArray[i * 8 + 1] = b.start.y;
+                dataArray[i * 8 + 2] = b.start.z;
+                dataArray[i * 8 + 3] = b.radius;
+                dataArray[i * 8 + 4] = b.end.x;
+                dataArray[i * 8 + 5] = b.end.y;
+                dataArray[i * 8 + 6] = b.end.z;
+                dataArray[i * 8 + 7] = b.radius * 0.95;
+            }
+            dataTexture.needsUpdate = true;
+            material.uniforms.u_activeBranches.value = uploadCount;
+        }
+
+        function onWindowResize() {
+            const w = window.innerWidth / PIXEL_SCALE;
+            const h = window.innerHeight / PIXEL_SCALE;
+
+            renderer.setSize(w, h, false);
+            material.uniforms.u_resolution.value.set(w, h);
+
+            sdfTarget.setSize(w, h);
+            rt1.setSize(w, h);
+            rt2.setSize(w, h);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateSimulation();
+            syncDataToGPU();
+            time += 0.016;
+            material.uniforms.u_time.value = time;
+
+            // --- PING-PONG FEEDBACK RENDERING ---
+
+            // 1. Render the fresh 3D SDF frame into the first hidden target
+            renderer.setRenderTarget(sdfTarget);
+            renderer.render(sdfScene, camera);
+
+            // 2. Feed the fresh frame AND the previous decaying frame into the blending material
+            blendMaterial.uniforms.tDiffuse.value = sdfTarget.texture;
+            blendMaterial.uniforms.tPrev.value = rt1.texture;
+
+            // 3. Render the combined (trailing) image into the second hidden target
+            renderer.setRenderTarget(rt2);
+            renderer.render(blendScene, camera);
+
+            // 4. Render the exact same combined image out to the visible screen
+            renderer.setRenderTarget(null);
+            renderer.render(blendScene, camera);
+
+            // 5. Swap the ping-pong buffers for the next frame!
+            let temp = rt1;
+            rt1 = rt2;
+            rt2 = temp;
+        }
+
+        window.onload = init;
+    </script>
+</body>
+
+</html>

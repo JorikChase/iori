@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mycelium Engine: Cellular Automata | iori.me</title>
+    <meta name="description" content="Organic growth simulation based on mycelium networks using cellular automata logic. Explore algorithmic biological systems.">
+    <meta property="og:title" content="Mycelium Engine: Cellular Automata">
+    <meta property="og:description" content="Organic growth simulation based on mycelium networks using cellular automata logic.">
+    <meta name="twitter:card" content="summary_large_image">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            cursor: crosshair;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+
+        .active-tool {
+            background-color: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
+        /* Sidebar Transition */
+        #sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-hidden {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-visible {
+            transform: translateX(0);
+        }
+    </style>
+</head>
+
+<body class="flex h-screen w-screen overflow-hidden">
+
+    <!-- Hamburger Toggle Button (Top Left) -->
+    <button id="btn-toggle-menu"
+        class="fixed top-4 left-4 z-30 p-2 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-lg text-emerald-400 hover:bg-slate-800 transition-all shadow-lg focus:outline-none">
+        <svg id="icon-menu" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+        <svg id="icon-close" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+
+    <!-- Sidebar Controls (Overlay) -->
+    <div id="sidebar"
+        class="fixed inset-y-0 left-0 w-80 bg-slate-900 border-r border-slate-700 flex flex-col z-20 shadow-2xl sidebar-hidden overflow-y-auto">
+        <div class="p-6 border-b border-slate-800 pt-16">
+            <h1 class="text-2xl font-bold text-emerald-400 mb-1">Mycelium Engine</h1>
+            <p class="text-xs text-slate-400 uppercase tracking-tighter">Configuration Panel</p>
+        </div>
+
+        <div class="p-6 flex-1 flex flex-col gap-6">
+            <!-- Simulation State -->
+            <div class="flex gap-2">
+                <button id="btn-play"
+                    class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded font-semibold transition-colors">Pause</button>
+                <button id="btn-clear"
+                    class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded font-semibold transition-colors">Clear
+                    Grid</button>
+            </div>
+
+            <!-- Brush Tools -->
+            <div>
+                <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Brush Tool</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="tool-btn active-tool border border-slate-600 rounded py-2 text-sm transition-colors"
+                        data-tool="spore">🍄 Spore</button>
+                    <button class="tool-btn border border-slate-600 rounded py-2 text-sm transition-colors"
+                        data-tool="nutrient">💧 Nutrient</button>
+                    <button class="tool-btn border border-slate-600 rounded py-2 text-sm transition-colors"
+                        data-tool="toxin">☠️ Toxin</button>
+                    <button class="tool-btn border border-slate-600 rounded py-2 text-sm transition-colors"
+                        data-tool="erase">🧹 Erase</button>
+                </div>
+            </div>
+
+            <!-- Parameters -->
+            <div>
+                <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Environment Rules</h3>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs mb-1">
+                        <label>Sim Speed</label>
+                        <span id="val-speed" class="text-emerald-400">3x</span>
+                    </div>
+                    <input type="range" id="sl-speed" min="1" max="10" value="3">
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs mb-1">
+                        <label>Nutrient Diffusion</label>
+                        <span id="val-diffusion" class="text-emerald-400">0.1</span>
+                    </div>
+                    <input type="range" id="sl-diffusion" min="0" max="0.5" step="0.01" value="0.1">
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs mb-1">
+                        <label>Branching Prob</label>
+                        <span id="val-branch" class="text-emerald-400">2.5%</span>
+                    </div>
+                    <input type="range" id="sl-branch" min="0" max="0.1" step="0.001" value="0.025">
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs mb-1">
+                        <label>Consumption Rate</label>
+                        <span id="val-consume" class="text-emerald-400">15%</span>
+                    </div>
+                    <input type="range" id="sl-consume" min="0.01" max="0.5" step="0.01" value="0.15">
+                </div>
+            </div>
+
+            <div class="mt-auto pt-4 border-t border-slate-800">
+                <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-2">Simulated Biology</p>
+                <p class="text-xs text-slate-400 leading-relaxed italic">
+                    Mycelium hyphae navigate via chemotropism, seeking nutrient gradients. Stochastic branching ensures
+                    coverage, while anastomosis integrates separate networks.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation Canvas -->
+    <div id="canvas-container" class="flex-1 overflow-hidden relative">
+        <canvas id="sim-canvas"></canvas>
+    </div>
+
+    <script>
+        // --- Configuration & State ---
+        const config = {
+            width: 0,
+            height: 0,
+            resolutionScale: 1.0,
+            speed: 3,
+            diffusionRate: 0.1,
+            branchProb: 0.025,
+            consumeRate: 0.15,
+            sensorAngle: Math.PI / 4,
+            sensorDist: 3,
+            starvationThreshold: 0.01
+        };
+
+        const STATE_EMPTY = 0;
+        const STATE_MATURE = 1;
+        const STATE_DEAD = 2;
+        const STATE_TOXIN = 3;
+
+        let isPlaying = true;
+        let currentTool = 'spore';
+        let isDrawing = false;
+        let sidebarOpen = false;
+
+        let gridState;
+        let gridNutrients;
+        let nextNutrients;
+        let tips = [];
+
+        const canvas = document.getElementById('sim-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        let imageData;
+
+        // --- Initialization ---
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            let cw = container.clientWidth || window.innerWidth;
+            let ch = container.clientHeight || window.innerHeight;
+
+            config.width = Math.max(1, Math.floor(cw * config.resolutionScale));
+            config.height = Math.max(1, Math.floor(ch * config.resolutionScale));
+
+            canvas.width = config.width;
+            canvas.height = config.height;
+
+            gridState = new Uint8Array(config.width * config.height);
+            gridNutrients = new Float32Array(config.width * config.height);
+            nextNutrients = new Float32Array(config.width * config.height);
+            tips = [];
+
+            imageData = ctx.createImageData(config.width, config.height);
+
+            seedNutrients();
+            addSpore(config.width / 2, config.height / 2);
+        }
+
+        function seedNutrients() {
+            gridNutrients.fill(0);
+            const numBlobs = Math.floor((config.width * config.height) / 3000);
+
+            for (let i = 0; i < numBlobs; i++) {
+                let cx = Math.random() * config.width;
+                let cy = Math.random() * config.height;
+                let radius = 20 + Math.random() * 50;
+                let intensity = 0.4 + Math.random() * 0.6;
+
+                for (let y = -radius; y <= radius; y++) {
+                    for (let x = -radius; x <= radius; x++) {
+                        if (x * x + y * y <= radius * radius) {
+                            let px = Math.floor(cx + x);
+                            let py = Math.floor(cy + y);
+                            if (px >= 0 && px < config.width && py >= 0 && py < config.height) {
+                                let idx = py * config.width + px;
+                                gridNutrients[idx] = Math.min(1.0, gridNutrients[idx] + intensity * (1 - Math.sqrt(x * x + y * y) / radius));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function addSpore(x, y) {
+            for (let i = 0; i < 6; i++) {
+                tips.push({
+                    x: x,
+                    y: y,
+                    angle: (Math.PI * 2 / 6) * i + Math.random(),
+                    energy: 1.0,
+                    age: 0
+                });
+            }
+        }
+
+        // --- Core Simulation Logic ---
+        function updateCA() {
+            for (let y = 1; y < config.height - 1; y++) {
+                for (let x = 1; x < config.width - 1; x++) {
+                    let idx = y * config.width + x;
+
+                    let sum = gridNutrients[idx - 1] +
+                        gridNutrients[idx + 1] +
+                        gridNutrients[idx - config.width] +
+                        gridNutrients[idx + config.width];
+
+                    nextNutrients[idx] = gridNutrients[idx] + config.diffusionRate * (sum / 4 - gridNutrients[idx]);
+                    nextNutrients[idx] = Math.max(0, Math.min(1, nextNutrients[idx]));
+
+                    if (gridState[idx] === STATE_TOXIN) {
+                        nextNutrients[idx] *= 0.85;
+                    }
+                }
+            }
+
+            let temp = gridNutrients;
+            gridNutrients = nextNutrients;
+            nextNutrients = temp;
+
+            for (let i = tips.length - 1; i >= 0; i--) {
+                let tip = tips[i];
+                let idx = Math.floor(tip.y) * config.width + Math.floor(tip.x);
+
+                let available = gridNutrients[idx];
+                let consumed = available * config.consumeRate;
+                gridNutrients[idx] -= consumed;
+                tip.energy += consumed;
+                tip.age++;
+
+                if (tip.x < 1 || tip.x >= config.width - 1 || tip.y < 1 || tip.y >= config.height - 1 ||
+                    gridState[idx] === STATE_TOXIN) {
+                    tips.splice(i, 1);
+                    continue;
+                }
+
+                if (gridState[idx] === STATE_MATURE && tip.age > 3) {
+                    tips.splice(i, 1);
+                    continue;
+                }
+
+                gridState[idx] = STATE_MATURE;
+
+                let sF = sense(tip, 0);
+                let sL = sense(tip, -config.sensorAngle);
+                let sR = sense(tip, config.sensorAngle);
+
+                if (sF > sL && sF > sR) {
+                    // Straight
+                } else if (sF < sL && sF < sR) {
+                    tip.angle += (Math.random() > 0.5 ? 1 : -1) * config.sensorAngle;
+                } else if (sL < sR) {
+                    tip.angle += config.sensorAngle;
+                } else if (sR < sL) {
+                    tip.angle -= config.sensorAngle;
+                }
+
+                tip.angle += (Math.random() - 0.5) * 0.4;
+                tip.x += Math.cos(tip.angle);
+                tip.y += Math.sin(tip.angle);
+
+                if (tip.energy > 0.5 && Math.random() < config.branchProb) {
+                    tip.energy *= 0.5;
+                    tips.push({
+                        x: tip.x,
+                        y: tip.y,
+                        angle: tip.angle + (Math.random() > 0.5 ? 1 : -1) * (Math.PI / 2.2 + Math.random() * 0.3),
+                        energy: tip.energy,
+                        age: 0
+                    });
+                }
+            }
+        }
+
+        function sense(tip, angleOffset) {
+            let a = tip.angle + angleOffset;
+            let sx = Math.floor(tip.x + Math.cos(a) * config.sensorDist);
+            let sy = Math.floor(tip.y + Math.sin(a) * config.sensorDist);
+
+            if (sx >= 0 && sx < config.width && sy >= 0 && sy < config.height) {
+                let idx = sy * config.width + sx;
+                if (gridState[idx] === STATE_TOXIN) return -5;
+                if (gridState[idx] === STATE_MATURE) return gridNutrients[idx] * 0.2;
+                return gridNutrients[idx];
+            }
+            return -1;
+        }
+
+        function render() {
+            let data = imageData.data;
+
+            for (let i = 0; i < config.width * config.height; i++) {
+                let ptr = i * 4;
+                let state = gridState[i];
+                let nut = gridNutrients[i];
+
+                if (state === STATE_EMPTY) {
+                    data[ptr] = 8 + nut * 30;
+                    data[ptr + 1] = 12 + nut * 60;
+                    data[ptr + 2] = 8 + nut * 15;
+                    data[ptr + 3] = 255;
+                }
+                else if (state === STATE_MATURE) {
+                    let brightness = 180 + (nut * 75);
+                    data[ptr] = brightness;
+                    data[ptr + 1] = brightness;
+                    data[ptr + 2] = brightness * 0.85;
+                    data[ptr + 3] = 255;
+                }
+                else if (state === STATE_TOXIN) {
+                    data[ptr] = 120;
+                    data[ptr + 1] = 0;
+                    data[ptr + 2] = 180;
+                    data[ptr + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+
+            ctx.fillStyle = '#10b981';
+            for (let tip of tips) {
+                ctx.fillRect(Math.floor(tip.x), Math.floor(tip.y), 2, 2);
+            }
+        }
+
+        function loop() {
+            if (isPlaying) {
+                for (let i = 0; i < config.speed; i++) {
+                    updateCA();
+                }
+                render();
+            }
+            requestAnimationFrame(loop);
+        }
+
+        // --- Interaction / Brushes ---
+        function applyBrush(evt) {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / Math.max(1, rect.width);
+            const scaleY = canvas.height / Math.max(1, rect.height);
+
+            const x = Math.floor((evt.clientX - rect.left) * scaleX);
+            const y = Math.floor((evt.clientY - rect.top) * scaleY);
+
+            if (x < 0 || x >= config.width || y < 0 || y >= config.height) return;
+
+            const brushSize = currentTool === 'spore' ? 0 : Math.max(10, Math.floor(config.width * 0.015));
+
+            if (currentTool === 'spore') {
+                addSpore(x, y);
+            } else {
+                for (let dy = -brushSize; dy <= brushSize; dy++) {
+                    for (let dx = -brushSize; dx <= brushSize; dx++) {
+                        if (dx * dx + dy * dy <= brushSize * brushSize) {
+                            let px = x + dx;
+                            let py = y + dy;
+                            if (px >= 0 && px < config.width && py >= 0 && py < config.height) {
+                                let idx = py * config.width + px;
+                                if (currentTool === 'nutrient') {
+                                    gridNutrients[idx] = Math.min(1.0, gridNutrients[idx] + 0.6);
+                                    if (gridState[idx] === STATE_TOXIN) gridState[idx] = STATE_EMPTY;
+                                } else if (currentTool === 'toxin') {
+                                    gridState[idx] = STATE_TOXIN;
+                                } else if (currentTool === 'erase') {
+                                    gridState[idx] = STATE_EMPTY;
+                                    gridNutrients[idx] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!isPlaying) render();
+        }
+
+        // --- UI Logic ---
+        const sidebar = document.getElementById('sidebar');
+        const btnToggleMenu = document.getElementById('btn-toggle-menu');
+        const iconMenu = document.getElementById('icon-menu');
+        const iconClose = document.getElementById('icon-close');
+
+        function toggleSidebar() {
+            sidebarOpen = !sidebarOpen;
+            if (sidebarOpen) {
+                sidebar.classList.remove('sidebar-hidden');
+                sidebar.classList.add('sidebar-visible');
+                iconMenu.classList.add('hidden');
+                iconClose.classList.remove('hidden');
+            } else {
+                sidebar.classList.remove('sidebar-visible');
+                sidebar.classList.add('sidebar-hidden');
+                iconMenu.classList.remove('hidden');
+                iconClose.classList.add('hidden');
+            }
+        }
+
+        btnToggleMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSidebar();
+        });
+
+        // Close sidebar when clicking canvas if it's open
+        canvas.addEventListener('mousedown', (e) => {
+            if (sidebarOpen) {
+                toggleSidebar();
+            }
+            isDrawing = true;
+            applyBrush(e);
+        });
+
+        // --- Event Listeners ---
+        canvas.addEventListener('mousemove', applyBrush);
+        window.addEventListener('mouseup', () => { isDrawing = false; });
+
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tool-btn').forEach(b => {
+                    b.classList.remove('active-tool');
+                    b.classList.add('border-slate-600');
+                });
+                const target = e.currentTarget;
+                target.classList.add('active-tool');
+                target.classList.remove('border-slate-600');
+                currentTool = target.dataset.tool;
+            });
+        });
+
+        document.getElementById('btn-play').addEventListener('click', (e) => {
+            isPlaying = !isPlaying;
+            e.target.textContent = isPlaying ? "Pause" : "Play";
+            e.target.classList.toggle('bg-emerald-600', isPlaying);
+            e.target.classList.toggle('bg-slate-600', !isPlaying);
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            gridState.fill(STATE_EMPTY);
+            gridNutrients.fill(0);
+            tips = [];
+            render();
+        });
+
+        const bindSlider = (sliderId, valId, configKey, formatFunc) => {
+            const slider = document.getElementById(sliderId);
+            const valDisplay = document.getElementById(valId);
+            slider.addEventListener('input', (e) => {
+                let val = parseFloat(e.target.value);
+                config[configKey] = val;
+                valDisplay.textContent = formatFunc(val);
+            });
+        };
+
+        bindSlider('sl-speed', 'val-speed', 'speed', v => v + 'x');
+        bindSlider('sl-diffusion', 'val-diffusion', 'diffusionRate', v => v.toFixed(2));
+        bindSlider('sl-branch', 'val-branch', 'branchProb', v => (v * 100).toFixed(1) + '%');
+        bindSlider('sl-consume', 'val-consume', 'consumeRate', v => Math.round(v * 100) + '%');
+
+        window.addEventListener('resize', () => {
+            clearTimeout(window.resizeTimer);
+            window.resizeTimer = setTimeout(() => {
+                init();
+            }, 500);
+        });
+
+        // Start
+        setTimeout(() => {
+            init();
+            loop();
+        }, 50);
+    </script>
+</body>
+
+</html>

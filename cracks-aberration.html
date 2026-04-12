@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Shattered LCD - Hyper-Intricate | iori.me</title>
+    <meta name="description" content="Interactive shattered LCD screen simulation with hyper-intricate crack physics and chromatic aberration.">
+    <meta property="og:title" content="Shattered LCD - Hyper-Intricate">
+    <meta property="og:description" content="Interactive shattered LCD screen simulation with hyper-intricate crack physics.">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        const vertexShaderSource = `#version 300 es
+        in vec4 a_position;
+        out vec2 vUv;
+        void main() {
+            vUv = a_position.xy * 0.5 + 0.5;
+            gl_Position = a_position;
+        }`;
+
+        // --- THE PHYSICS ENGINE ---
+        // R: Crack State (1=Cracked)
+        // G: Active Tip Energy
+        // B: Velocity X
+        // A: Velocity Y / Bleed Intensity
+        const simFragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        uniform sampler2D u_state;
+        uniform vec2 u_res;
+        uniform vec3 u_mouse;
+        uniform float u_click_trigger;
+        uniform float u_time;
+        uniform float u_frame;
+
+        out vec4 outColor;
+
+        float hash(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+        }
+
+        void main() {
+            vec2 texel = 1.0 / u_res;
+            vec2 uv = gl_FragCoord.xy * texel;
+
+            vec4 cell = texture(u_state, uv);
+            vec4 next_cell = cell;
+
+            // 1. IMPACT LOGIC
+            if (u_click_trigger > 0.5) {
+                float dist = distance(gl_FragCoord.xy, u_mouse.xy);
+                if (dist < 1.0) {
+                    next_cell = vec4(1.0, 0.0, 0.0, 0.8 + hash(uv * u_time) * 0.2);
+                    outColor = next_cell; return;
+                } 
+                if (dist >= 1.0 && dist <= 5.0) {
+                    vec2 dir = normalize(gl_FragCoord.xy - u_mouse.xy);
+                    float angle = atan(dir.y, dir.x);
+                    float seed = hash(vec2(angle * 15.0, u_mouse.x + u_mouse.y));
+                    
+                    if (seed > 0.95) {
+                        float final_angle = angle + (hash(uv) - 0.5) * 0.1; 
+                        vec2 v = vec2(cos(final_angle), sin(final_angle));
+                        next_cell = vec4(1.0, 1.0, v.x, v.y);
+                        outColor = next_cell; return;
+                    }
+                }
+            }
+
+            // 2. PROPAGATION
+            if (cell.r > 0.5) {
+                if (cell.g > 0.0) {
+                    next_cell.g = 0.0;
+                    // Seed persistent bleeds
+                    next_cell.a = (hash(uv * u_time) < 0.01) ? 0.5 + hash(uv) * 0.5 : 0.0;
+                }
+            } else {
+                bool incoming = false;
+                float max_energy = 0.0;
+                vec2 new_vel = vec2(0.0);
+                float incoming_bleed = 0.0;
+
+                for (int y = -1; y <= 1; y++) {
+                    for (int x = -1; x <= 1; x++) {
+                        if (x == 0 && y == 0) continue;
+                        vec2 offset = vec2(float(x), float(y));
+                        vec4 n_cell = texture(u_state, uv + offset * texel);
+
+                        // Vertical bleed
+                        if (x == 0 && n_cell.g == 0.0 && n_cell.a > 0.0) {
+                            incoming_bleed = max(incoming_bleed, n_cell.a);
+                        }
+
+                        // Crack Movement
+                        if (n_cell.g > 0.0) {
+                            float energy = n_cell.g;
+                            vec2 v = n_cell.zw; // Velocity stored in ZW
+                            float seed = uv.x * 13.37 + uv.y * 73.31 + u_frame;
+                            
+                            // Stochastic movement check
+                            vec2 step = vec2(0.0);
+                            if (hash(vec2(seed, 1.0)) < abs(v.x)) step.x = sign(v.x);
+                            if (hash(vec2(seed, 2.0)) < abs(v.y)) step.y = sign(v.y);
+                            if (step == vec2(0.0)) { if(abs(v.x)>abs(v.y)) step.x=sign(v.x); else step.y=sign(v.y); }
+
+                            if (step == -offset) {
+                                if (energy > max_energy) {
+                                    incoming = true;
+                                    max_energy = energy;
+                                    new_vel = v + (hash(uv + u_frame) - 0.5) * 0.05; // Jitter
+                                }
+                            }
+
+                            // Branching
+                            if (energy > 0.2 && hash(vec2(seed, 3.0)) < 0.08) {
+                                float b_ang = atan(v.y, v.x) + (hash(uv)-0.5)*1.5;
+                                vec2 b_v = vec2(cos(b_ang), sin(b_ang));
+                                vec2 b_step = vec2(0.0);
+                                if (hash(vec2(seed, 4.0)) < abs(b_v.x)) b_step.x = sign(b_v.x);
+                                if (hash(vec2(seed, 5.0)) < abs(b_v.y)) b_step.y = sign(b_v.y);
+                                if (b_step == -offset) {
+                                    if (energy * 0.8 > max_energy) {
+                                        incoming = true;
+                                        max_energy = energy * 0.8;
+                                        new_vel = b_v;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (incoming) {
+                    next_cell = vec4(1.0, max_energy - 0.0005, new_vel.x, new_vel.y);
+                } else if (incoming_bleed > 0.0) {
+                    next_cell.a = incoming_bleed - 0.001;
+                }
+            }
+
+            outColor = next_cell;
+        }`;
+
+        // --- THE RENDER SHADER ---
+        const renderFragmentShaderSource = `#version 300 es
+        precision highp float;
+        
+        uniform sampler2D u_state;
+        uniform vec2 u_res;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        vec3 spectral(float t) {
+            vec3 c = 0.5 + 0.5 * cos(6.28318 * (t + vec3(0.0, 0.33, 0.67)));
+            return clamp(c, 0.0, 1.0);
+        }
+
+        void main() {
+            vec2 texel = 1.0 / u_res;
+            vec4 cell = texture(u_state, vUv);
+            vec3 color = vec3(0.0);
+
+            // 1. LCD BLEED
+            if (cell.a > 0.0 && cell.g == 0.0) {
+                float sub = floor(mod(gl_FragCoord.x, 3.0));
+                vec3 bc = vec3(sub==0.0?1.0:0.0, sub==1.0?1.0:0.0, sub==2.0?1.0:0.0);
+                float scan = 0.8 + 0.2 * sin(gl_FragCoord.y * 1.5);
+                color += bc * pow(cell.a, 2.5) * scan * 6.0;
+            }
+
+            // 2. FRACTURE
+            if (cell.r > 0.5) {
+                outColor = vec4(max(color, vec3(1.2)), 1.0);
+                return;
+            } else {
+                float n = texture(u_state, vUv + vec2(0.0, texel.y)).r;
+                float s = texture(u_state, vUv - vec2(0.0, texel.y)).r;
+                float e = texture(u_state, vUv + vec2(texel.x, 0.0)).r;
+                float w = texture(u_state, vUv - vec2(texel.x, 0.0)).r;
+                float edge = n + s + e + w;
+
+                if (edge > 0.0) {
+                    float phase = dot(vUv * u_res, vec2(0.12, 0.08));
+                    vec3 irid = spectral(fract(phase));
+                    color += irid * 0.8 + vec3(0.1, 0.3, 0.6) * 0.4;
+                }
+            }
+
+            color = 1.0 - exp(-color * 2.0);
+            outColor = vec4(color, 1.0);
+        }`;
+
+        class HyperIntricateShatterApp {
+            constructor() {
+                this.canvas = document.getElementById('glcanvas');
+                this.gl = this.canvas.getContext('webgl2', { antialias: false });
+                if (!this.gl) return alert('WebGL 2 required.');
+                this.gl.getExtension('EXT_color_buffer_float');
+                this.gl.getExtension('OES_texture_float_linear');
+
+                this.programs = {};
+                this.fbos = [];
+                this.textures = [];
+                this.currentFBO = 0;
+                this.frame = 0;
+                this.pointer = { x: -100, y: -100, down: false };
+                this.lastBurst = { x: -100, y: -100 };
+                this.clickTrigger = 0.0;
+
+                this.initWebGL();
+                this.bindEvents();
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.render = this.render.bind(this);
+                requestAnimationFrame(this.render);
+            }
+
+            compileShader(type, source) {
+                const shader = this.gl.createShader(type);
+                this.gl.shaderSource(shader, source);
+                this.gl.compileShader(shader);
+                if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+                    console.error("Shader Error:", this.gl.getShaderInfoLog(shader));
+                    this.gl.deleteShader(shader);
+                    return null;
+                }
+                return shader;
+            }
+
+            createProgram(vsSource, fsSource) {
+                const prog = this.gl.createProgram();
+                const vs = this.compileShader(this.gl.VERTEX_SHADER, vsSource);
+                const fs = this.compileShader(this.gl.FRAGMENT_SHADER, fsSource);
+                if (!vs || !fs) return null;
+                this.gl.attachShader(prog, vs);
+                this.gl.attachShader(prog, fs);
+                this.gl.linkProgram(prog);
+                if (!this.gl.getProgramParameter(prog, this.gl.LINK_STATUS)) {
+                    console.error("Link Error:", this.gl.getProgramInfoLog(prog));
+                    return null;
+                }
+                return prog;
+            }
+
+            initWebGL() {
+                const gl = this.gl;
+                const vbo = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+
+                this.programs.sim = this.createProgram(vertexShaderSource, simFragmentShaderSource);
+                this.programs.render = this.createProgram(vertexShaderSource, renderFragmentShaderSource);
+
+                if (this.programs.sim && this.programs.render) {
+                    [this.programs.sim, this.programs.render].forEach(prog => {
+                        const posLoc = gl.getAttribLocation(prog, 'a_position');
+                        gl.enableVertexAttribArray(posLoc);
+                        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+                    });
+
+                    this.uniforms = {
+                        sim: {
+                            state: gl.getUniformLocation(this.programs.sim, 'u_state'),
+                            res: gl.getUniformLocation(this.programs.sim, 'u_res'),
+                            mouse: gl.getUniformLocation(this.programs.sim, 'u_mouse'),
+                            click_trigger: gl.getUniformLocation(this.programs.sim, 'u_click_trigger'),
+                            time: gl.getUniformLocation(this.programs.sim, 'u_time'),
+                            frame: gl.getUniformLocation(this.programs.sim, 'u_frame')
+                        },
+                        render: {
+                            state: gl.getUniformLocation(this.programs.render, 'u_state'),
+                            res: gl.getUniformLocation(this.programs.render, 'u_res')
+                        }
+                    };
+                }
+            }
+
+            createFBOs(width, height) {
+                const gl = this.gl;
+                if (this.textures.length > 0) {
+                    this.textures.forEach(t => gl.deleteTexture(t));
+                    this.fbos.forEach(f => gl.deleteFramebuffer(f));
+                    this.textures = []; this.fbos = [];
+                }
+                const zeroData = new Float32Array(width * height * 4);
+                for (let i = 0; i < 2; i++) {
+                    const tex = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, tex);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, width, height, 0, gl.RGBA, gl.FLOAT, zeroData);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                    const fbo = gl.createFramebuffer();
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+                    this.textures.push(tex);
+                    this.fbos.push(fbo);
+                }
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                this.gl.viewport(0, 0, this.width, this.height);
+                this.createFBOs(this.width, this.height);
+            }
+
+            handlePointer(x, y, isDown, isFreshClick = false) {
+                this.pointer.down = isDown;
+                this.pointer.x = x;
+                this.pointer.y = this.height - y;
+                if (isFreshClick) {
+                    this.clickTrigger = 1.0;
+                    this.lastBurst = { x: this.pointer.x, y: this.pointer.y };
+                } else if (isDown) {
+                    if (Math.hypot(this.pointer.x - this.lastBurst.x, this.pointer.y - this.lastBurst.y) > 22) {
+                        this.clickTrigger = 1.0;
+                        this.lastBurst = { x: this.pointer.x, y: this.pointer.y };
+                    }
+                }
+            }
+
+            bindEvents() {
+                const t = this.canvas;
+                t.addEventListener('mousedown', e => this.handlePointer(e.clientX, e.clientY, true, true));
+                t.addEventListener('mousemove', e => { if (this.pointer.down) this.handlePointer(e.clientX, e.clientY, true); });
+                window.addEventListener('mouseup', () => this.pointer.down = false);
+                t.addEventListener('touchstart', e => { e.preventDefault(); this.handlePointer(e.touches[0].clientX, e.touches[0].clientY, true, true); }, { passive: false });
+                t.addEventListener('touchmove', e => { e.preventDefault(); if (this.pointer.down) this.handlePointer(e.touches[0].clientX, e.touches[0].clientY, true); }, { passive: false });
+                window.addEventListener('touchend', () => this.pointer.down = false);
+            }
+
+            stepSimulation(isFirstStep) {
+                if (!this.programs.sim) return;
+                const gl = this.gl;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos[1 - this.currentFBO]);
+                gl.useProgram(this.programs.sim);
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, this.textures[this.currentFBO]);
+                gl.uniform1i(this.uniforms.sim.state, 0);
+                gl.uniform2f(this.uniforms.sim.res, this.width, this.height);
+                gl.uniform3f(this.uniforms.sim.mouse, this.pointer.x, this.pointer.y, this.pointer.down ? 1.0 : 0.0);
+                gl.uniform1f(this.uniforms.sim.click_trigger, isFirstStep ? this.clickTrigger : 0.0);
+                gl.uniform1f(this.uniforms.sim.time, performance.now() / 1000.0);
+                gl.uniform1f(this.uniforms.sim.frame, this.frame);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                this.currentFBO = 1 - this.currentFBO;
+                this.frame++;
+            }
+
+            render() {
+                if (!this.programs.render) return;
+                const gl = this.gl;
+                for (let i = 0; i < 16; i++) { this.stepSimulation(i === 0); }
+                this.clickTrigger = 0.0;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.useProgram(this.programs.render);
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, this.textures[this.currentFBO]);
+                gl.uniform1i(this.uniforms.render.state, 0);
+                gl.uniform2f(this.uniforms.render.res, this.width, this.height);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                requestAnimationFrame(this.render);
+            }
+        }
+        window.onload = () => new HyperIntricateShatterApp();
+    </script>
+</body>
+
+</html>

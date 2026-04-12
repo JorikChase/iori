@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Realistic Ink Water Engine | iori.me</title>
+    <meta name="description" content="Physical simulation of ink diffusion and fluid dynamics on watercolor paper. Explore procedural ink art.">
+    <meta property="og:title" content="Realistic Ink Water Engine">
+    <meta property="og:description" content="Physical simulation of ink diffusion and fluid dynamics on watercolor paper.">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            touch-action: none;
+            /* Prevent scrolling on mobile */
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+    <!-- Lightweight WebGL helper -->
+    <script src="https://twgljs.org/dist/4.x/twgl-full.min.js"></script>
+</head>
+
+<body>
+    <canvas id="glcanvas"></canvas>
+
+    <script>
+        // --- SHADER DEFINITIONS ---
+
+        const baseVertexShader = `#version 300 es
+        in vec2 position;
+        out vec2 vUv;
+        void main() {
+            vUv = position * 0.5 + 0.5;
+            gl_Position = vec4(position, 0.0, 1.0);
+        }`;
+
+        const splatShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+        
+        uniform sampler2D uTarget;
+        uniform float uAspectRatio;
+        uniform vec4 uColor;
+        uniform vec2 uPoint;
+        uniform float uRadius;
+
+        void main() {
+            vec2 p = vUv - uPoint;
+            p.x *= uAspectRatio;
+            float splat = exp(-dot(p, p) / uRadius);
+            vec4 base = texture(uTarget, vUv);
+            outColor = base + splat * uColor;
+        }`;
+
+        const advectionShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uVelocity;
+        uniform sampler2D uSource;
+        uniform vec2 uTexelSize;
+        uniform float uDt;
+        uniform float uDissipation;
+
+        void main() {
+            vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexelSize;
+            outColor = uDissipation * texture(uSource, coord);
+        }`;
+
+        const divergenceShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uVelocity;
+        uniform vec2 uTexelSize;
+
+        void main() {
+            float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).x;
+            float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).x;
+            float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).y;
+            float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).y;
+            vec2 C = texture(uVelocity, vUv).xy;
+            
+            if (vUv.x - uTexelSize.x < 0.0) L = -C.x;
+            if (vUv.x + uTexelSize.x > 1.0) R = -C.x;
+            if (vUv.y - uTexelSize.y < 0.0) B = -C.y;
+            if (vUv.y + uTexelSize.y > 1.0) T = -C.y;
+
+            float div = 0.5 * (R - L + T - B);
+            outColor = vec4(div, 0.0, 0.0, 1.0);
+        }`;
+
+        const curlShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uVelocity;
+        uniform vec2 uTexelSize;
+
+        void main() {
+            float L = texture(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).y;
+            float R = texture(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).y;
+            float T = texture(uVelocity, vUv + vec2(0.0, uTexelSize.y)).x;
+            float B = texture(uVelocity, vUv - vec2(0.0, uTexelSize.y)).x;
+            float vorticity = R - L - T + B;
+            outColor = vec4(0.5 * vorticity, 0.0, 0.0, 1.0);
+        }`;
+
+        const vorticityShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uVelocity;
+        uniform sampler2D uCurl;
+        uniform float uCurlValue;
+        uniform float uDt;
+        uniform vec2 uTexelSize;
+
+        void main() {
+            float L = texture(uCurl, vUv - vec2(uTexelSize.x, 0.0)).x;
+            float R = texture(uCurl, vUv + vec2(uTexelSize.x, 0.0)).x;
+            float T = texture(uCurl, vUv + vec2(0.0, uTexelSize.y)).x;
+            float B = texture(uCurl, vUv - vec2(0.0, uTexelSize.y)).x;
+            float C = texture(uCurl, vUv).x;
+
+            vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+            force /= length(force) + 0.0001;
+            force *= uCurlValue * C;
+            force.y *= -1.0;
+
+            vec2 vel = texture(uVelocity, vUv).xy;
+            outColor = vec4(vel + force * uDt, 0.0, 1.0);
+        }`;
+
+        const pressureShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uPressure;
+        uniform sampler2D uDivergence;
+        uniform vec2 uTexelSize;
+
+        void main() {
+            float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+            float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+            float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+            float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+            float C = texture(uPressure, vUv).x;
+            float divergence = texture(uDivergence, vUv).x;
+            float pressure = (L + R + B + T - divergence) * 0.25;
+            outColor = vec4(pressure, 0.0, 0.0, 1.0);
+        }`;
+
+        const gradientSubtractShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uPressure;
+        uniform sampler2D uVelocity;
+        uniform vec2 uTexelSize;
+
+        void main() {
+            float L = texture(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+            float R = texture(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+            float T = texture(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+            float B = texture(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+            vec2 velocity = texture(uVelocity, vUv).xy;
+            velocity.xy -= vec2(R - L, T - B);
+            outColor = vec4(velocity, 0.0, 1.0);
+        }`;
+
+        const clearShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+        uniform sampler2D uTexture;
+        uniform float uValue;
+
+        void main() {
+            outColor = uValue * texture(uTexture, vUv);
+        }`;
+
+        const displayShader = `#version 300 es
+        precision highp float;
+        precision highp sampler2D;
+        in vec2 vUv;
+        out vec4 outColor;
+
+        uniform sampler2D uDye;
+        uniform sampler2D uVelocity;
+        uniform vec2 uTexelSize;
+        
+        // Procedural noise for watercolor paper
+        float random(vec2 st) {
+            return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+        }
+        
+        float noise(vec2 st) {
+            vec2 i = floor(st);
+            vec2 f = fract(st);
+            float a = random(i);
+            float b = random(i + vec2(1.0, 0.0));
+            float c = random(i + vec2(0.0, 1.0));
+            float d = random(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        float fbm(vec2 st) {
+            float value = 0.0;
+            float amplitude = 0.5;
+            for (int i = 0; i < 4; i++) {
+                value += amplitude * noise(st);
+                st *= 2.0;
+                amplitude *= 0.5;
+            }
+            return value;
+        }
+
+        float getDensity(vec2 uv) {
+            vec4 d = texture(uDye, uv);
+            return length(d.rgb) + d.a;
+        }
+
+        void main() {
+            // 1. Generate Watercolor Paper Texture
+            float paperGrain = fbm(vUv * 300.0);
+            float fineGrain = random(vUv * 1000.0) * 0.05;
+            vec3 paperColor = vec3(0.95, 0.94, 0.91) - (1.0 - paperGrain) * 0.05 - fineGrain; // Warm, textured white
+
+            // 2. Fetch Dye (Ink)
+            vec4 dyeData = texture(uDye, vUv);
+            vec3 dye = dyeData.rgb;
+            float whitePaint = dyeData.a;
+            
+            // 3. Subtractive Blending (Beer-Lambert Law approximation)
+            // Real ink darkens the paper by absorbing light. We convert the RGB dye 
+            // values into an absorption factor.
+            vec3 inkAbsorption = exp(-dye * 1.5); // Multiply strength
+            vec3 finalColor = paperColor * inkAbsorption;
+
+            // Apply Opaque White Paint over the top (now perfectly matching paper texture)
+            finalColor = mix(finalColor, paperColor, clamp(whitePaint * 1.5, 0.0, 1.0));
+
+            // 4. Surface Warping / Wet Specular Highlight
+            // Calculate a normal map based on the gradient of the dye density + white paint
+            float dL = getDensity(vUv - vec2(uTexelSize.x, 0.0));
+            float dR = getDensity(vUv + vec2(uTexelSize.x, 0.0));
+            float dB = getDensity(vUv - vec2(0.0, uTexelSize.y));
+            float dT = getDensity(vUv + vec2(0.0, uTexelSize.y));
+            
+            vec3 normal = normalize(vec3(dR - dL, dT - dB, 0.04));
+            
+            // Lighting calculations
+            vec3 lightDir = normalize(vec3(0.8, 0.8, 1.0));
+            vec3 viewDir = vec3(0.0, 0.0, 1.0);
+            vec3 halfVector = normalize(lightDir + viewDir);
+            
+            // Specular reflection
+            float spec = pow(max(dot(normal, halfVector), 0.0), 30.0);
+            
+            // Only make it glossy where there is ink density (wet look)
+            float wetness = clamp(length(dye) * 0.8 + whitePaint, 0.0, 1.0);
+            finalColor += spec * vec3(1.0, 0.98, 0.95) * 0.25 * wetness;
+
+            // Optional: slight chromatic aberration at fluid edges based on velocity
+            vec2 vel = texture(uVelocity, vUv).xy;
+            float velMag = length(vel);
+            if (velMag > 0.0) {
+                float r = texture(uDye, vUv - vel * uTexelSize * 1.5).r;
+                float b = texture(uDye, vUv + vel * uTexelSize * 1.5).b;
+                // Subtle edge tinting (skip for white paint by restricting to rgb)
+                finalColor.r *= exp(-r * 0.2 * wetness);
+                finalColor.b *= exp(-b * 0.2 * wetness);
+            }
+
+            outColor = vec4(finalColor, 1.0);
+        }`;
+
+        // --- APPLICATION LOGIC ---
+
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl2', { antialias: false, depth: false });
+
+        if (!gl) {
+            document.body.innerHTML = '<div style="color:white; padding:20px;">WebGL2 is required but not supported on this device.</div>';
+            throw new Error("WebGL2 not supported");
+        }
+
+        // Essential extensions for high-quality fluid physics
+        gl.getExtension('EXT_color_buffer_float');
+        gl.getExtension('OES_texture_float_linear');
+
+        // Compile Programs
+        const programs = {
+            clear: twgl.createProgramInfo(gl, [baseVertexShader, clearShader]),
+            display: twgl.createProgramInfo(gl, [baseVertexShader, displayShader]),
+            splat: twgl.createProgramInfo(gl, [baseVertexShader, splatShader]),
+            advection: twgl.createProgramInfo(gl, [baseVertexShader, advectionShader]),
+            divergence: twgl.createProgramInfo(gl, [baseVertexShader, divergenceShader]),
+            curl: twgl.createProgramInfo(gl, [baseVertexShader, curlShader]),
+            vorticity: twgl.createProgramInfo(gl, [baseVertexShader, vorticityShader]),
+            pressure: twgl.createProgramInfo(gl, [baseVertexShader, pressureShader]),
+            gradientSubtract: twgl.createProgramInfo(gl, [baseVertexShader, gradientSubtractShader]),
+        };
+
+        const quadBuffer = twgl.primitives.createXYQuadBufferInfo(gl);
+
+        // Settings
+        const config = {
+            SIM_RESOLUTION: 512, // High enough for physics, low enough for 60fps
+            DYE_RESOLUTION: 1024, // Higher resolution for smooth ink color
+            DENSITY_DISSIPATION: 1.0, // Set to 1.0 so colors never fade
+            VELOCITY_DISSIPATION: 0.98,
+            PRESSURE_ITERATIONS: 40, // High iterations = realistic water curling
+            CURL: 25.0, // Swirl intensity
+            SPLAT_RADIUS: 0.0005, // Further reduced for a finer, more delicate stream
+            SPLAT_FORCE: 150.0 // Dramatically reduced so dragging doesn't violently inject flow
+        };
+
+        // Pointer state
+        const pointers = [];
+
+        // Framebuffer factory
+        function createFBO(w, h, isFloat = true) {
+            const type = isFloat ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+            const format = isFloat ? gl.RGBA16F : gl.RGBA;
+
+            const attachments = [
+                { format: gl.RGBA, internalFormat: format, type: type, min: gl.LINEAR, mag: gl.LINEAR, wrap: gl.CLAMP_TO_EDGE }
+            ];
+            return twgl.createFramebufferInfo(gl, attachments, w, h);
+        }
+
+        function createDoubleFBO(w, h, isFloat = true) {
+            return {
+                read: createFBO(w, h, isFloat),
+                write: createFBO(w, h, isFloat),
+                swap: function () {
+                    const temp = this.read;
+                    this.read = this.write;
+                    this.write = temp;
+                }
+            };
+        }
+
+        let fbos = {};
+
+        function initFramebuffers() {
+            twgl.resizeCanvasToDisplaySize(canvas);
+            const w = canvas.width;
+            const h = canvas.height;
+
+            const simW = Math.floor(w * (config.SIM_RESOLUTION / Math.max(w, h)));
+            const simH = Math.floor(h * (config.SIM_RESOLUTION / Math.max(w, h)));
+
+            const dyeW = Math.floor(w * (config.DYE_RESOLUTION / Math.max(w, h)));
+            const dyeH = Math.floor(h * (config.DYE_RESOLUTION / Math.max(w, h)));
+
+            if (fbos.velocity) gl.deleteFramebuffer(fbos.velocity.read.framebuffer);
+            // Recreating objects logic omitted for brevity, simple overwrite is fine here.
+            fbos = {
+                velocity: createDoubleFBO(simW, simH),
+                dye: createDoubleFBO(dyeW, dyeH),
+                pressure: createDoubleFBO(simW, simH),
+                divergence: createFBO(simW, simH),
+                curl: createFBO(simW, simH)
+            };
+        }
+
+        initFramebuffers();
+        window.addEventListener('resize', initFramebuffers);
+
+        // Helper to draw fullscreen quad
+        function blit(target, program, uniforms) {
+            twgl.bindFramebufferInfo(gl, target);
+            gl.useProgram(program.program);
+            twgl.setBuffersAndAttributes(gl, program, quadBuffer);
+            twgl.setUniforms(program, uniforms);
+            twgl.drawBufferInfo(gl, quadBuffer);
+        }
+
+        // HSV to RGB for generating vibrant ink colors
+        function hsvToRgb(h, s, v) {
+            let r, g, b;
+            const i = Math.floor(h * 6);
+            const f = h * 6 - i;
+            const p = v * (1 - s);
+            const q = v * (1 - f * s);
+            const t = v * (1 - (1 - f) * s);
+            switch (i % 6) {
+                case 0: r = v, g = t, b = p; break;
+                case 1: r = q, g = v, b = p; break;
+                case 2: r = p, g = v, b = t; break;
+                case 3: r = p, g = q, b = v; break;
+                case 4: r = t, g = p, b = v; break;
+                case 5: r = v, g = p, b = q; break;
+            }
+            return [r, g, b];
+        }
+
+        function generateRandomVibrantColor() {
+            // High saturation and value to ensure the ink looks brilliant against the paper
+            return hsvToRgb(Math.random(), 0.9 + Math.random() * 0.1, 0.8 + Math.random() * 0.2);
+        }
+
+        // Prevent right click menu
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Input handling
+        canvas.addEventListener('pointerdown', (e) => {
+            let color;
+            if (e.button === 2) {
+                // Right click sprays opaque white paint (uses the alpha channel)
+                color = [0.0, 0.0, 0.0, 1.0];
+            } else {
+                // Left click / touch sprays random vibrant color
+                const rgb = generateRandomVibrantColor();
+                color = [rgb[0], rgb[1], rgb[2], 0.0];
+            }
+            let dx = 0;
+            let dy = 0;
+            pointers.push({ id: e.pointerId, x: e.clientX, y: e.clientY, dx, dy, active: true, color: color });
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            const pointer = pointers.find(p => p.id === e.pointerId);
+            if (pointer) {
+                pointer.dx = e.clientX - pointer.x;
+                pointer.dy = e.clientY - pointer.y;
+                pointer.x = e.clientX;
+                pointer.y = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('pointerup', (e) => {
+            const index = pointers.findIndex(p => p.id === e.pointerId);
+            if (index !== -1) pointers.splice(index, 1);
+        });
+
+        canvas.addEventListener('pointercancel', (e) => {
+            const index = pointers.findIndex(p => p.id === e.pointerId);
+            if (index !== -1) pointers.splice(index, 1);
+        });
+
+        function applySplats() {
+            for (let i = 0; i < pointers.length; i++) {
+                const p = pointers[i];
+                if (!p.active) continue;
+
+                const w = canvas.width;
+                const h = canvas.height;
+                const px = p.x / w;
+                const py = 1.0 - p.y / h;
+
+                // Apply Velocity Splat
+                blit(fbos.velocity.write, programs.splat, {
+                    uTarget: fbos.velocity.read.attachments[0],
+                    uAspectRatio: w / h,
+                    uPoint: [px, py],
+                    uColor: [p.dx * config.SPLAT_FORCE, -p.dy * config.SPLAT_FORCE, 0.0, 0.0],
+                    uRadius: config.SPLAT_RADIUS
+                });
+                fbos.velocity.swap();
+
+                // Apply Dye Splat
+                blit(fbos.dye.write, programs.splat, {
+                    uTarget: fbos.dye.read.attachments[0],
+                    uAspectRatio: w / h,
+                    uPoint: [px, py],
+                    uColor: [p.color[0] * 0.08, p.color[1] * 0.08, p.color[2] * 0.08, p.color[3] * 0.08],
+                    uRadius: config.SPLAT_RADIUS * 2.0 // Dye spreads slightly wider than velocity force
+                });
+                fbos.dye.swap();
+
+                p.dx = 0;
+                p.dy = 0;
+            }
+        }
+
+        // Animation Loop
+        let lastTime = performance.now();
+
+        function render(time) {
+            let dt = (time - lastTime) / 1000;
+            dt = Math.min(dt, 0.016666); // Cap dt to 60fps to prevent explosion on lag
+            lastTime = time;
+
+            twgl.resizeCanvasToDisplaySize(canvas);
+
+            applySplats();
+
+            const simTexelSize = [1.0 / fbos.velocity.read.width, 1.0 / fbos.velocity.read.height];
+            const dyeTexelSize = [1.0 / fbos.dye.read.width, 1.0 / fbos.dye.read.height];
+
+            // 1. Vorticity (Curl)
+            blit(fbos.curl, programs.curl, {
+                uVelocity: fbos.velocity.read.attachments[0],
+                uTexelSize: simTexelSize
+            });
+
+            // 2. Apply Vorticity Force
+            blit(fbos.velocity.write, programs.vorticity, {
+                uVelocity: fbos.velocity.read.attachments[0],
+                uCurl: fbos.curl.attachments[0],
+                uCurlValue: config.CURL,
+                uDt: dt,
+                uTexelSize: simTexelSize
+            });
+            fbos.velocity.swap();
+
+            // 3. Divergence
+            blit(fbos.divergence, programs.divergence, {
+                uVelocity: fbos.velocity.read.attachments[0],
+                uTexelSize: simTexelSize
+            });
+
+            // 4. Clear Pressure
+            blit(fbos.pressure.write, programs.clear, {
+                uTexture: fbos.pressure.read.attachments[0],
+                uValue: 0.8 // Partial clear helps stabilize the solver
+            });
+            fbos.pressure.swap();
+
+            // 5. Pressure Solve (Jacobi Iteration)
+            for (let i = 0; i < config.PRESSURE_ITERATIONS; i++) {
+                blit(fbos.pressure.write, programs.pressure, {
+                    uPressure: fbos.pressure.read.attachments[0],
+                    uDivergence: fbos.divergence.attachments[0],
+                    uTexelSize: simTexelSize
+                });
+                fbos.pressure.swap();
+            }
+
+            // 6. Gradient Subtraction (Make velocity divergence-free)
+            blit(fbos.velocity.write, programs.gradientSubtract, {
+                uPressure: fbos.pressure.read.attachments[0],
+                uVelocity: fbos.velocity.read.attachments[0],
+                uTexelSize: simTexelSize
+            });
+            fbos.velocity.swap();
+
+            // 7. Advect Velocity
+            blit(fbos.velocity.write, programs.advection, {
+                uVelocity: fbos.velocity.read.attachments[0],
+                uSource: fbos.velocity.read.attachments[0],
+                uDt: dt,
+                uDissipation: config.VELOCITY_DISSIPATION,
+                uTexelSize: simTexelSize
+            });
+            fbos.velocity.swap();
+
+            // 8. Advect Dye
+            blit(fbos.dye.write, programs.advection, {
+                uVelocity: fbos.velocity.read.attachments[0], // Dye follows velocity
+                uSource: fbos.dye.read.attachments[0],
+                uDt: dt,
+                uDissipation: config.DENSITY_DISSIPATION,
+                uTexelSize: dyeTexelSize
+            });
+            fbos.dye.swap();
+
+            // 9. Display to Screen
+            blit(null, programs.display, {
+                uDye: fbos.dye.read.attachments[0],
+                uVelocity: fbos.velocity.read.attachments[0],
+                uTexelSize: dyeTexelSize
+            });
+
+            requestAnimationFrame(render);
+        }
+
+        // Start engine
+        requestAnimationFrame(render);
+
+    </script>
+</body>
+
+</html>

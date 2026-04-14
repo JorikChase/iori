@@ -1,33 +1,32 @@
+<!DOCTYPE html>
+
 <head>
     <!-- Dynamic SEO & Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
 
-      if (window.location.hostname.includes('3die.fr')) {
-          gtag('config', 'G-ERECDMYSNT');
-      } else {
-          gtag('config', 'G-GKKJ5VX340');
-      }
+        if (window.location.hostname.includes('3die.fr')) {
+            gtag('config', 'G-ERECDMYSNT');
+        } else {
+            gtag('config', 'G-GKKJ5VX340');
+        }
 
-      // Dynamic Canonical
-      (function() {
-        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
-        canon.rel = 'canonical';
-        canon.href = window.location.origin + window.location.pathname;
-        if (!document.head.contains(canon)) document.head.appendChild(canon);
-      })();
+        // Dynamic Canonical
+        (function () {
+            let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+            canon.rel = 'canonical';
+            canon.href = window.location.origin + window.location.pathname;
+            if (!document.head.contains(canon)) document.head.appendChild(canon);
+        })();
     </script>
 
-    <link
-        type="text/css"
-        rel="stylesheet"
-        href="/assets/burger.css"
-    />
+    <link type="text/css" rel="stylesheet" href="/assets/burger.css" />
 </head>
+
 <body>
     <nav class="menu--bottom--right" role="navigation">
         <div class="menuToggle">
@@ -50,6 +49,7 @@
             align-items: center;
             background-color: #232323;
         }
+
         .center-nav {
             opacity: 0;
             background-image: url(/star.svg);
@@ -63,7 +63,8 @@
             padding: 0;
             transition: all 0.25s ease-in-out;
         }
-        .center-nav > div {
+
+        .center-nav>div {
             opacity: 0;
             width: 100%;
             height: 100%;
@@ -73,23 +74,28 @@
             justify-content: center;
             align-items: center;
         }
+
         .center-nav:hover {
             opacity: 0.9;
             transform: rotate(45deg);
         }
-        .center-nav:hover > div {
+
+        .center-nav:hover>div {
             opacity: 0.8;
             transform: rotate(-45deg);
         }
-        .center-nav:hover > div:hover {
+
+        .center-nav:hover>div:hover {
             opacity: 1;
             transform: rotate(-45deg);
         }
-        .center-nav > div > a {
+
+        .center-nav>div>a {
             color: black;
             text-decoration: none;
         }
-        .center-nav > div > a:hover {
+
+        .center-nav>div>a:hover {
             transform: scale(1.1);
         }
     </style>

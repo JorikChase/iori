@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Interactive Sandbox</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* The Centered Pause Menu */
+        #menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+
+        .menu-panel {
+            background: rgba(15, 23, 42, 0.95);
+            padding: 32px 48px;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 1.1rem;
+            border: 1px solid #334155;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .menu-panel:hover {
+            transform: scale(1.02);
+            border-color: #60a5fa;
+        }
+
+        /* Minimal HUD for when playing */
+        .hud {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            font-family: monospace;
+            font-size: 1rem;
+            z-index: 5;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px #000;
+            display: none;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-family: sans-serif;
+            font-size: 24px;
+            pointer-events: none;
+            z-index: 5;
+            font-weight: 300;
+            display: none;
+        }
+
+        #error-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.95);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            text-align: left;
+            color: #f87171;
+            z-index: 30;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gpuCanvas"></canvas>
+
+    <div id="crosshair">+</div>
+
+    <div class="hud" id="game-hud">
+        <span id="cam-indicator" style="color:#a78bfa; font-weight: bold;">Mode: Orbit</span><br>
+        <span id="mat-indicator" style="color:#fbbf24; font-weight: bold;">Equip: Sand</span>
+    </div>
+
+    <div id="menu-overlay">
+        <div class="menu-panel" id="start-btn">
+            <h2 style="margin: 0 0 16px 0; color: #f8fafc;">WebGPU Sandbox</h2>
+            <hr style="border-color:#334155; margin: 16px 0;">
+            <div style="text-align: left; margin-bottom: 24px; color: #cbd5e1; line-height: 1.6;">
+                <strong>[Mouse]</strong> Look Around<br>
+                <strong>[WASD/QE]</strong> Move (Flying Mode)<br>
+                <strong>[C]</strong> Toggle Orbit/Flying Mode<br>
+                <strong>[1 - 7]</strong> Select Material<br>
+                <strong>[SPACE]</strong> Shoot Material<br>
+                <strong>[ESC]</strong> Pause / Open Menu<br><br>
+                <em style="color: #94a3b8;">* Hint: Lava + Water = Stone + Steam</em><br>
+                <em style="color: #84cc16;">* Hint: Seed + Water = Tree. Tree + Lava = Fire!</em>
+            </div>
+            <strong style="color: #60a5fa; font-size: 1.2rem;">Click Anywhere to Play</strong>
+        </div>
+    </div>
+
+    <div id="error-overlay">
+        <h2 style="margin:0 0 0.5rem 0;">Compilation Failed</h2>
+        <p id="error-text"
+            style="color: #cbd5e1; font-family: monospace; font-size: 0.85rem; max-width: 800px; white-space: pre-wrap;">
+        </p>
+    </div>
+
+    <script type="module">
+        const GRID_SIZE = 32;
+        let device, context, format, uniformBuffer, voxelBuffer, canvas;
+        let renderPipeline = null, computePipeline = null;
+        let renderBindGroup = null, computeBindGroup = null;
+        let startTime = performance.now();
+
+        // Interaction State
+        let mouseX = 0.5; let mouseY = 0.3;
+        let isMenuOpen = true;
+        let isSpawning = false;
+        let selectedMaterial = 2; // 1:Solid, 2:Sand, 3:Water, 4:Eraser, 5:Lava
+
+        let cameraMode = 0; // 0: Orbit, 1: Flying
+        let keys = { w: false, a: false, s: false, d: false, q: false, e: false };
+        let fpsPos = { x: 16.0, y: 16.0, z: -10.0 };
+
+        function initInteractivity() {
+            const menuOverlay = document.getElementById('menu-overlay');
+            const gameHud = document.getElementById('game-hud');
+            const crosshair = document.getElementById('crosshair');
+
+            // --- POINTER LOCK API ---
+            menuOverlay.addEventListener('click', () => {
+                canvas.requestPointerLock();
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement === canvas) {
+                    isMenuOpen = false;
+                    menuOverlay.style.display = 'none';
+                    gameHud.style.display = 'block';
+                    crosshair.style.display = 'block';
+                } else {
+                    isMenuOpen = true;
+                    menuOverlay.style.display = 'flex';
+                    gameHud.style.display = 'none';
+                    crosshair.style.display = 'none';
+                    keys = { w: false, a: false, s: false, d: false, q: false, e: false };
+                    isSpawning = false;
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isMenuOpen) {
+                    mouseX += e.movementX * 0.005;
+                    mouseY += e.movementY * 0.005;
+                    mouseY = Math.max(-1.5, Math.min(1.5, mouseY));
+                }
+            });
+
+            // --- KEYBOARD HOOKS ---
+            const matNames = ["", "Solid", "Sand", "Water", "Eraser", "Lava", "Seed", "Wood"];
+            const matColors = ["", "#ef4444", "#fbbf24", "#3b82f6", "#94a3b8", "#f97316", "#84cc16", "#78350f"];
+
+            window.addEventListener('keydown', (e) => {
+                if (isMenuOpen) return;
+
+                if (e.code === 'Space') isSpawning = true;
+                if (e.key === '1') selectedMaterial = 1;
+                if (e.key === '2') selectedMaterial = 2;
+                if (e.key === '3') selectedMaterial = 3;
+                if (e.key === '4') selectedMaterial = 4;
+                if (e.key === '5') selectedMaterial = 5;
+                if (e.key === '6') selectedMaterial = 6;
+                if (e.key === '7') selectedMaterial = 7;
+
+                if (e.key.toLowerCase() === 'c') {
+                    cameraMode = cameraMode === 0 ? 1 : 0;
+                    document.getElementById('cam-indicator').innerText = cameraMode === 0 ? 'Mode: Orbit' : 'Mode: Flying';
+                }
+
+                if (e.code === 'KeyW') keys.w = true;
+                if (e.code === 'KeyS') keys.s = true;
+                if (e.code === 'KeyA') keys.a = true;
+                if (e.code === 'KeyD') keys.d = true;
+                if (e.code === 'KeyQ') keys.q = true;
+                if (e.code === 'KeyE') keys.e = true;
+
+                if (selectedMaterial >= 1 && selectedMaterial <= 7) {
+                    document.getElementById('mat-indicator').innerText = `Equip: ${matNames[selectedMaterial]}`;
+                    document.getElementById('mat-indicator').style.color = matColors[selectedMaterial];
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'Space') isSpawning = false;
+                if (e.code === 'KeyW') keys.w = false;
+                if (e.code === 'KeyS') keys.s = false;
+                if (e.code === 'KeyA') keys.a = false;
+                if (e.code === 'KeyD') keys.d = false;
+                if (e.code === 'KeyQ') keys.q = false;
+                if (e.code === 'KeyE') keys.e = false;
+            });
+
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function generateVoxelData() {
+            const data = new Uint32Array(GRID_SIZE * GRID_SIZE * GRID_SIZE);
+            for (let z = 0; z < GRID_SIZE; z++) {
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const idx = x + y * GRID_SIZE + z * GRID_SIZE * GRID_SIZE;
+                        if (y === 0) { data[idx] = 5; continue; } // Marble Floor
+                        if ((x === 4 || x === 27) && (z === 4 || z === 27) && y < 18) { data[idx] = 4; continue; } // Pillars
+                        data[idx] = 0; // Air
+                    }
+                }
+            }
+            return data;
+        }
+
+        // ==========================================
+        // 1. THE COMPUTE SHADER (Physics & Alchemy)
+        // ==========================================
+        const computeShaderCode = `
+            struct Uniforms {
+                resolution: vec2<f32>,
+                time_and_spawner: vec2<f32>, 
+                camPos: vec4<f32>,
+                camDir: vec4<f32>,
+            };
+            @group(0) @binding(0) var<uniform> ubuf: Uniforms;
+            
+            struct AtomicVoxelGrid { data: array<atomic<u32>>, };
+            @group(0) @binding(1) var<storage, read_write> grid: AtomicVoxelGrid;
+
+            fn pcg_hash(input: u32) -> u32 {
+                var state = input * 747796405u + 2891336453u;
+                var word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+                return (word >> 22u) ^ word;
+            }
+
+            @compute @workgroup_size(4, 4, 4)
+            fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
+                let timeInt = u32(ubuf.time_and_spawner.x * 60.0);
+                let spawnMode = u32(ubuf.time_and_spawner.y);
+                
+                // --- PLAYER INTERACTION (Thread 0,0,0 only) ---
+                if (id.x == 0u && id.y == 0u && id.z == 0u && spawnMode > 0u) {
+                    let ro = ubuf.camPos.xyz;
+                    let rd = normalize(ubuf.camDir.xyz);
+                    
+                    var mapPos = vec3<i32>(floor(ro));
+                    let deltaDist = vec3<f32>(abs(1.0 / rd.x), abs(1.0 / rd.y), abs(1.0 / rd.z));
+                    var rayStep = vec3<i32>(0); var sideDist = vec3<f32>(0.0);
+                    
+                    if (rd.x < 0.0) { rayStep.x = -1; sideDist.x = (ro.x - f32(mapPos.x)) * deltaDist.x; } 
+                    else            { rayStep.x = 1;  sideDist.x = (f32(mapPos.x) + 1.0 - ro.x) * deltaDist.x; }
+                    if (rd.y < 0.0) { rayStep.y = -1; sideDist.y = (ro.y - f32(mapPos.y)) * deltaDist.y; } 
+                    else            { rayStep.y = 1;  sideDist.y = (f32(mapPos.y) + 1.0 - ro.y) * deltaDist.y; }
+                    if (rd.z < 0.0) { rayStep.z = -1; sideDist.z = (ro.z - f32(mapPos.z)) * deltaDist.z; } 
+                    else            { rayStep.z = 1;  sideDist.z = (f32(mapPos.z) + 1.0 - ro.z) * deltaDist.z; }
+
+                    var prevPos = mapPos;
+                    var hitFound = false;
+                    
+                    for(var i = 0; i < 40; i = i + 1) {
+                        if (mapPos.x >= 0 && mapPos.x < 32 && mapPos.y >= 0 && mapPos.y < 32 && mapPos.z >= 0 && mapPos.z < 32) {
+                            let checkIdx = u32(mapPos.x) + (u32(mapPos.y) * 32u) + (u32(mapPos.z) * 1024u);
+                            if (atomicLoad(&grid.data[checkIdx]) != 0u) {
+                                hitFound = true; break;
+                            }
+                        }
+                        prevPos = mapPos;
+                        
+                        if (sideDist.x < sideDist.y) {
+                            if (sideDist.x < sideDist.z) { sideDist.x += deltaDist.x; mapPos.x += rayStep.x; } 
+                            else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; }
+                        } else {
+                            if (sideDist.y < sideDist.z) { sideDist.y += deltaDist.y; mapPos.y += rayStep.y; } 
+                            else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; }
+                        }
+                    }
+                    
+                    var spawnPos = prevPos; // Normally build ON the surface
+                    if (!hitFound) { spawnPos = mapPos; }
+                    
+                    // If using Eraser, target the actual block we hit instead of the surface!
+                    if (spawnMode == 4u && hitFound) { spawnPos = mapPos; }
+
+                    // Scatter spray for Sand and Water, but precision for Solid, Eraser, and Lava
+                    if (spawnMode != 1u && spawnMode != 4u && spawnMode != 5u) {
+                        spawnPos.x += i32(pcg_hash(timeInt * 13u) % 3u) - 1;
+                        spawnPos.z += i32(pcg_hash(timeInt * 19u) % 3u) - 1;
+                    }
+                    
+                    if (spawnPos.x > 0 && spawnPos.x < 31 && spawnPos.y > 0 && spawnPos.y < 31 && spawnPos.z > 0 && spawnPos.z < 31) {
+                        let s_idx = u32(spawnPos.x) + (u32(spawnPos.y) * 32u) + (u32(spawnPos.z) * 1024u);
+                        
+                        var matId = 0u;
+                        if (spawnMode == 1u) { matId = 1u; } // Solid
+                        else if (spawnMode == 2u) { matId = 6u; } // Sand
+                        else if (spawnMode == 3u) { matId = 7u; } // Water
+                        else if (spawnMode == 4u) { matId = 0u; } // Eraser
+                        else if (spawnMode == 5u) { matId = 8u; } // Lava!
+                        else if (spawnMode == 6u) { matId = 11u; } // Seed
+                        else if (spawnMode == 7u) { matId = 12u; } // Wood
+                        
+                        if (spawnMode == 4u) {
+                            // Eraser physically overwrites whatever is there
+                            atomicStore(&grid.data[s_idx], 0u);
+                        } else if (atomicLoad(&grid.data[s_idx]) == 0u) {
+                            atomicStore(&grid.data[s_idx], matId);
+                        }
+                    }
+                }
+
+                if (id.x >= 32u || id.y >= 32u || id.z >= 32u) { return; }
+                let idx = id.x + (id.y * 32u) + (id.z * 1024u);
+
+                if (id.y % 2u != timeInt % 2u) { return; }
+
+                let mat = atomicLoad(&grid.data[idx]);
+                
+                // --- ALCHEMY & REACTIONS ---
+                var neighbors = array<u32, 6>(0u, 0u, 0u, 0u, 0u, 0u);
+                if (id.x > 0u)  { neighbors[0] = atomicLoad(&grid.data[idx - 1u]); }
+                if (id.x < 31u) { neighbors[1] = atomicLoad(&grid.data[idx + 1u]); }
+                if (id.y > 0u)  { neighbors[2] = atomicLoad(&grid.data[idx - 32u]); }
+                if (id.y < 31u) { neighbors[3] = atomicLoad(&grid.data[idx + 32u]); }
+                if (id.z > 0u)  { neighbors[4] = atomicLoad(&grid.data[idx - 1024u]); }
+                if (id.z < 31u) { neighbors[5] = atomicLoad(&grid.data[idx + 1024u]); }
+
+                // Water & Lava -> Stone & Steam
+                if (mat == 7u || mat == 8u) {
+                    var targetMat = 8u; if (mat == 8u) { targetMat = 7u; }
+                    for(var i=0; i<6; i++) {
+                        if (neighbors[i] == targetMat) {
+                            if (mat == 7u) { atomicStore(&grid.data[idx], 10u); } 
+                            else { atomicStore(&grid.data[idx], 9u); } 
+                            return;
+                        }
+                    }
+                }
+                
+                // Seed + Water -> Sprout (Wood Tip)
+                if (mat == 11u) {
+                    for(var i=0; i<6; i++) {
+                        if (neighbors[i] == 7u) {
+                            atomicStore(&grid.data[idx], 16u); 
+                            return;
+                        }
+                    }
+                }
+                
+                // Wood/Leaves + Lava/Fire -> Catch Fire!
+                if (mat == 12u || mat == 13u || mat == 16u) {
+                    for(var i=0; i<6; i++) {
+                        if (neighbors[i] == 8u || neighbors[i] == 14u) {
+                            atomicStore(&grid.data[idx], 14u); 
+                            return;
+                        }
+                    }
+                }
+
+                // --- SAND & SEED PHYSICS ---
+                if (mat == 6u || mat == 11u) { 
+                    if (id.y == 0u) { return; } 
+                    
+                    let belowIdx = id.x + ((id.y - 1u) * 32u) + (id.z * 1024u);
+                    let belowMat = atomicLoad(&grid.data[belowIdx]);
+                    
+                    if (belowMat == 0u) {
+                        if (atomicCompareExchangeWeak(&grid.data[belowIdx], 0u, mat).exchanged) { atomicStore(&grid.data[idx], 0u); }
+                    } else {
+                        let rand = pcg_hash(idx + timeInt) % 4u;
+                        var dx: i32 = 0; var dz: i32 = 0;
+                        if (rand == 0u) { dx = -1; } else if (rand == 1u) { dx = 1; }
+                        else if (rand == 2u) { dz = -1; } else if (rand == 3u) { dz = 1; }
+                        
+                        let nx = i32(id.x) + dx; let nz = i32(id.z) + dz;
+                        if (nx >= 0 && nx < 32 && nz >= 0 && nz < 32) {
+                            let sideIdx = u32(nx) + (id.y * 32u) + (u32(nz) * 1024u);
+                            let diagIdx = u32(nx) + ((id.y - 1u) * 32u) + (u32(nz) * 1024u);
+                            
+                            if (atomicLoad(&grid.data[sideIdx]) == 0u && atomicLoad(&grid.data[diagIdx]) == 0u) {
+                                if (atomicCompareExchangeWeak(&grid.data[diagIdx], 0u, mat).exchanged) { atomicStore(&grid.data[idx], 0u); }
+                            }
+                        }
+                    }
+                }
+                
+                // --- FLUID PHYSICS (Water & Lava) ---
+                else if (mat == 7u || mat == 8u) { 
+                    if (id.y == 0u) { return; } 
+                    
+                    let belowIdx = id.x + ((id.y - 1u) * 32u) + (id.z * 1024u);
+                    let belowMat = atomicLoad(&grid.data[belowIdx]);
+                    
+                    if (belowMat == 0u) {
+                        if (atomicCompareExchangeWeak(&grid.data[belowIdx], 0u, mat).exchanged) { atomicStore(&grid.data[idx], 0u); }
+                    } else {
+                        let rand = pcg_hash(idx + timeInt * mat) % 4u;
+                        var dx: i32 = 0; var dz: i32 = 0;
+                        if (rand == 0u) { dx = -1; } else if (rand == 1u) { dx = 1; }
+                        else if (rand == 2u) { dz = -1; } else if (rand == 3u) { dz = 1; }
+                        
+                        let nx = i32(id.x) + dx; let nz = i32(id.z) + dz;
+                        if (nx >= 0 && nx < 32 && nz >= 0 && nz < 32) {
+                            let sideIdx = u32(nx) + (id.y * 32u) + (u32(nz) * 1024u);
+                            if (atomicLoad(&grid.data[sideIdx]) == 0u) {
+                                if (atomicCompareExchangeWeak(&grid.data[sideIdx], 0u, mat).exchanged) { atomicStore(&grid.data[idx], 0u); }
+                            }
+                        }
+                    }
+                }
+
+                // --- TREE GROWTH (Wood Tip) ---
+                else if (mat == 16u) {
+                    let rand = pcg_hash(idx + timeInt * 16u);
+                    
+                    // Slow down growth animation
+                    if (rand % 3u != 0u) { return; }
+                    
+                    // Stop growing if too high or by random chance
+                    if (id.y >= 28u || rand % 10u == 0u) {
+                        atomicStore(&grid.data[idx], 13u); // Cap with leaves
+                        return;
+                    }
+                    
+                    let aboveIdx = id.x + ((id.y + 1u) * 32u) + (id.z * 1024u);
+                    
+                    // Grow Upwards
+                    if (atomicLoad(&grid.data[aboveIdx]) == 0u) {
+                        if (atomicCompareExchangeWeak(&grid.data[aboveIdx], 0u, 16u).exchanged) {
+                            atomicStore(&grid.data[idx], 12u); // Leave solid wood behind
+                        }
+                    } else {
+                        atomicStore(&grid.data[idx], 13u); // Blocked, turn to leaves
+                    }
+                    
+                    // Spawn leaves on sides randomly
+                    if (rand % 2u == 0u) {
+                        var dx: i32 = 0; var dz: i32 = 0;
+                        let dirRand = (rand >> 4u) % 4u;
+                        if (dirRand == 0u) { dx = -1; } else if (dirRand == 1u) { dx = 1; }
+                        else if (dirRand == 2u) { dz = -1; } else if (dirRand == 3u) { dz = 1; }
+                        
+                        let nx = i32(id.x) + dx; let nz = i32(id.z) + dz;
+                        if (nx >= 0 && nx < 32 && nz >= 0 && nz < 32) {
+                            let sideIdx = u32(nx) + (id.y * 32u) + (u32(nz) * 1024u);
+                            if (atomicLoad(&grid.data[sideIdx]) == 0u) {
+                                atomicStore(&grid.data[sideIdx], 13u); 
+                            }
+                        }
+                    }
+                }
+
+                // --- FIRE PHYSICS ---
+                else if (mat == 14u) {
+                    let rand = pcg_hash(idx + timeInt * 14u);
+                    if (rand % 25u == 0u) {
+                        atomicStore(&grid.data[idx], 15u); // Burn out into Smoke
+                    }
+                }
+
+                // --- GAS PHYSICS (Steam & Smoke) ---
+                else if (mat == 10u || mat == 15u) {
+                    if (id.y >= 31u) { atomicStore(&grid.data[idx], 0u); return; } // Dissipate at ceiling
+                    
+                    let rand = pcg_hash(idx + timeInt * mat);
+                    if (rand % 16u == 0u) { atomicStore(&grid.data[idx], 0u); return; } // Chance to randomly dissipate
+                    
+                    let aboveIdx = id.x + ((id.y + 1u) * 32u) + (id.z * 1024u);
+                    let aboveMat = atomicLoad(&grid.data[aboveIdx]);
+                    
+                    if (aboveMat == 0u) {
+                        if (atomicCompareExchangeWeak(&grid.data[aboveIdx], 0u, mat).exchanged) { atomicStore(&grid.data[idx], 0u); }
+                    } else {
+                        var dx: i32 = 0; var dz: i32 = 0;
+                        let dirRand = rand % 4u;
+                        if (dirRand == 0u) { dx = -1; } else if (dirRand == 1u) { dx = 1; }
+                        else if (dirRand == 2u) { dz = -1; } else if (dirRand == 3u) { dz = 1; }
+                        
+                        let nx = i32(id.x) + dx; let nz = i32(id.z) + dz;
+                        if (nx >= 0 && nx < 32 && nz >= 0 && nz < 32) {
+                            let sideIdx = u32(nx) + (id.y * 32u) + (u32(nz) * 1024u);
+                            let diagIdx = u32(nx) + ((id.y + 1u) * 32u) + (u32(nz) * 1024u);
+                            
+                            if (atomicLoad(&grid.data[sideIdx]) == 0u && atomicLoad(&grid.data[diagIdx]) == 0u) {
+                                if (atomicCompareExchangeWeak(&grid.data[diagIdx], 0u, mat).exchanged) { atomicStore(&grid.data[idx], 0u); }
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+
+        // ==========================================
+        // 2. THE RENDER SHADER (Clean Path Tracing + Day/Night Cycle)
+        // ==========================================
+        const renderShaderCode = `
+            struct Uniforms {
+                resolution: vec2<f32>, 
+                time_and_spawner: vec2<f32>, 
+                camPos: vec4<f32>,
+                camDir: vec4<f32>, 
+            };
+            @group(0) @binding(0) var<uniform> ubuf: Uniforms;
+            struct VoxelGrid { data: array<u32>, };
+            @group(0) @binding(1) var<storage, read> grid: VoxelGrid;
+
+            fn hash3(p: vec2<f32>, t: f32) -> vec3<f32> {
+                var p3 = fract(p.xyx * vec3<f32>(0.1031, 0.1030, 0.0973));
+                p3 = p3 + dot(p3, p3.yxz + 33.33);
+                return fract((p3.xxy + p3.yzz) * p3.zyx + vec3<f32>(t, t, t));
+            }
+
+            fn getVoxel(pos: vec3<i32>) -> u32 {
+                if (pos.x < 0 || pos.x >= 32 || pos.y < 0 || pos.y >= 32 || pos.z < 0 || pos.z >= 32) { return 0u; }
+                return grid.data[u32(pos.x) + (u32(pos.y) * 32u) + (u32(pos.z) * 1024u)]; 
+            }
+
+            struct HitInfo { hit: bool, material: u32, mapPos: vec3<f32>, normal: vec3<f32>, t: f32, };
+
+            fn raycast(ro: vec3<f32>, rd: vec3<f32>, maxSteps: i32) -> HitInfo {
+                var mapPos = floor(ro);
+                let deltaDist = vec3<f32>(abs(1.0 / rd.x), abs(1.0 / rd.y), abs(1.0 / rd.z));
+                var rayStep = vec3<f32>(0.0, 0.0, 0.0); var sideDist = vec3<f32>(0.0, 0.0, 0.0);
+
+                if (rd.x < 0.0) { rayStep.x = -1.0; sideDist.x = (ro.x - mapPos.x) * deltaDist.x; } else { rayStep.x = 1.0;  sideDist.x = (mapPos.x + 1.0 - ro.x) * deltaDist.x; }
+                if (rd.y < 0.0) { rayStep.y = -1.0; sideDist.y = (ro.y - mapPos.y) * deltaDist.y; } else { rayStep.y = 1.0;  sideDist.y = (mapPos.y + 1.0 - ro.y) * deltaDist.y; }
+                if (rd.z < 0.0) { rayStep.z = -1.0; sideDist.z = (ro.z - mapPos.z) * deltaDist.z; } else { rayStep.z = 1.0;  sideDist.z = (mapPos.z + 1.0 - ro.z) * deltaDist.z; }
+                
+                var mask = vec3<f32>(0.0); var hitMat = 0u;
+
+                for(var i: i32 = 0; i < maxSteps; i = i + 1) {
+                    hitMat = getVoxel(vec3<i32>(mapPos));
+                    if (hitMat != 0u) { break; } 
+                    if (sideDist.x < sideDist.y) {
+                        if (sideDist.x < sideDist.z) { sideDist.x += deltaDist.x; mapPos.x += rayStep.x; mask = vec3<f32>(1.0, 0.0, 0.0); } 
+                        else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; mask = vec3<f32>(0.0, 0.0, 1.0); }
+                    } else {
+                        if (sideDist.y < sideDist.z) { sideDist.y += deltaDist.y; mapPos.y += rayStep.y; mask = vec3<f32>(0.0, 1.0, 0.0); } 
+                        else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; mask = vec3<f32>(0.0, 0.0, 1.0); }
+                    }
+                }
+                var info: HitInfo; info.hit = (hitMat != 0u); info.material = hitMat; info.mapPos = mapPos; info.normal = -rayStep * mask; 
+                
+                var t = 0.0;
+                if (mask.x > 0.5) { t = (mapPos.x - ro.x + (1.0 - rayStep.x) * 0.5) / rd.x; }
+                else if (mask.y > 0.5) { t = (mapPos.y - ro.y + (1.0 - rayStep.y) * 0.5) / rd.y; }
+                else if (mask.z > 0.5) { t = (mapPos.z - ro.z + (1.0 - rayStep.z) * 0.5) / rd.z; }
+                info.t = t;
+                
+                return info;
+            }
+
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>, @location(0) uv : vec2<f32>,
+            };
+
+            @vertex fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
+                var pos = array<vec2<f32>, 6>(vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(-1.0,  1.0), vec2<f32>(1.0, -1.0), vec2<f32>( 1.0, 1.0));
+                var uv = array<vec2<f32>, 6>(vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0), vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0));
+                var output : VertexOutput; output.position = vec4<f32>(pos[VertexIndex], 0.0, 1.0); output.uv = uv[VertexIndex]; return output;
+            }
+
+            @fragment fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+                var p = uv * 2.0 - vec2<f32>(1.0);
+                p.x = p.x * (ubuf.resolution.x / ubuf.resolution.y);
+
+                let ro = ubuf.camPos.xyz;
+                let forward = normalize(ubuf.camDir.xyz);
+                let right = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), forward));
+                let up = cross(forward, right);
+                let rd = normalize(forward + right * p.x + up * p.y) + vec3<f32>(0.00001);
+
+                // --- DAY/NIGHT CYCLE MATH ---
+                let sunSpeed = 0.25; 
+                let sunAngle = ubuf.time_and_spawner.x * sunSpeed;
+                let lightDir = normalize(vec3<f32>(cos(sunAngle), sin(sunAngle), -0.5));
+                let sunHeight = lightDir.y;
+                
+                let daySky = vec3<f32>(0.3, 0.6, 0.9);
+                let sunsetSky = vec3<f32>(0.9, 0.4, 0.2);
+                let nightSky = vec3<f32>(0.01, 0.01, 0.02);
+                
+                var skyColor = nightSky;
+                if (sunHeight > 0.1) { skyColor = mix(sunsetSky, daySky, smoothstep(0.1, 0.4, sunHeight)); } 
+                else { skyColor = mix(nightSky, sunsetSky, smoothstep(-0.2, 0.1, sunHeight)); }
+                
+                let sunColor = mix(vec3<f32>(1.0, 0.5, 0.2), vec3<f32>(1.0, 0.95, 0.9), smoothstep(0.0, 0.4, sunHeight));
+                let sunIntensity = smoothstep(-0.1, 0.2, sunHeight);
+                let ambient = mix(0.02, 0.15, smoothstep(-0.2, 0.2, sunHeight));
+                // ----------------------------
+
+                var currentRo = ro; var currentRd = rd;
+                var finalCol = vec3<f32>(0.0); var attenuation = vec3<f32>(1.0); 
+
+                for (var bounce = 0; bounce < 3; bounce = bounce + 1) {
+                    let hit = raycast(currentRo, currentRd, 150);
+                    
+                    if (!hit.hit) {
+                        // Draw the physical sun disc in the sky!
+                        var sunDisc = 0.0;
+                        if (sunHeight > -0.2) {
+                            let sunDot = dot(currentRd, lightDir);
+                            if (sunDot > 0.995) { sunDisc = 1.0; }
+                            else if (sunDot > 0.98) { sunDisc = smoothstep(0.98, 0.995, sunDot) * 0.5; }
+                        }
+                        finalCol += attenuation * (skyColor + vec3<f32>(sunDisc * 2.0 * sunIntensity) * sunColor); 
+                        break;
+                    }
+
+                    if (hit.material == 8u || hit.material == 14u) { 
+                        var flicker = 1.0;
+                        if (hit.material == 14u) { 
+                            // Make fire flicker actively based on time and position
+                            flicker = 0.8 + 0.4 * fract(sin(hit.mapPos.x * 13.0 + hit.mapPos.y * 7.0 + ubuf.time_and_spawner.x * 10.0) * 43758.5453); 
+                        }
+                        finalCol += attenuation * vec3<f32>(4.0, 1.2, 0.2) * flicker; 
+                        break; 
+                    }
+
+                    var albedo = vec3<f32>(1.0); var reflectivity = 0.0; 
+                    
+                    if (hit.material == 1u) { albedo = vec3<f32>(0.9, 0.2, 0.2); } 
+                    else if (hit.material == 4u) { albedo = vec3<f32>(0.95, 0.95, 0.95); reflectivity = 1.0; } 
+                    else if (hit.material == 5u) { 
+                        let gx = u32(abs(hit.mapPos.x)); let gz = u32(abs(hit.mapPos.z));
+                        if ((gx + gz) % 2u == 0u) { albedo = vec3<f32>(0.15); } else { albedo = vec3<f32>(0.1); } 
+                        reflectivity = 0.15; 
+                    }
+                    else if (hit.material == 6u) { albedo = vec3<f32>(0.95, 0.75, 0.25); } 
+                    else if (hit.material == 7u) { albedo = vec3<f32>(0.1, 0.4, 0.9); reflectivity = 0.4; } 
+                    else if (hit.material == 9u) { albedo = vec3<f32>(0.35, 0.35, 0.35); } // Stone
+                    else if (hit.material == 10u) { albedo = vec3<f32>(0.8, 0.8, 0.9); } // Steam
+                    else if (hit.material == 11u) { albedo = vec3<f32>(0.5, 0.6, 0.2); } // Seed
+                    else if (hit.material == 12u || hit.material == 16u) { albedo = vec3<f32>(0.4, 0.25, 0.1); } // Wood
+                    else if (hit.material == 13u) { albedo = vec3<f32>(0.2, 0.5, 0.15); } // Leaves
+                    else if (hit.material == 14u) { albedo = vec3<f32>(1.0, 0.5, 0.0); reflectivity = 0.1;} // Fire
+                    else if (hit.material == 15u) { albedo = vec3<f32>(0.2, 0.2, 0.2); } // Smoke
+
+                    // --- APPLY 2x2 SMOOTH TEXTURE TO ALBEDO (COLOR) ---
+                    let exactHitPos = currentRo + currentRd * hit.t;
+                    var uv2 = vec2<f32>(0.0);
+                    if (abs(hit.normal.x) > 0.5) { uv2 = fract(exactHitPos.yz); }
+                    else if (abs(hit.normal.y) > 0.5) { uv2 = fract(exactHitPos.xz); }
+                    else { uv2 = fract(exactHitPos.xy); }
+                    
+                    let baseSeed = vec2<f32>(
+                        hit.mapPos.x * 7.1 + hit.mapPos.y * 11.3 + hit.normal.z * 3.1,
+                        hit.mapPos.z * 13.7 + hit.normal.x * 2.7 + hit.normal.y * 5.9
+                    );
+                    
+                    let n00 = hash3(baseSeed + vec2<f32>(0.0, 0.0), 1.0).x;
+                    let n10 = hash3(baseSeed + vec2<f32>(1.0, 0.0), 1.0).x;
+                    let n01 = hash3(baseSeed + vec2<f32>(0.0, 1.0), 1.0).x;
+                    let n11 = hash3(baseSeed + vec2<f32>(1.0, 1.0), 1.0).x;
+                    
+                    let smoothUV = smoothstep(vec2<f32>(0.0), vec2<f32>(1.0), uv2);
+                    let nx0 = mix(n00, n10, smoothUV.x);
+                    let nx1 = mix(n01, n11, smoothUV.x);
+                    let texNoise = mix(nx0, nx1, smoothUV.y); 
+                    
+                    if (reflectivity < 1.0) {
+                        albedo = albedo * (0.6 + 0.8 * texNoise);
+                    }
+                    // --------------------------------------------------
+
+                    var diffuse = 0.0; 
+                    if (sunIntensity > 0.0) {
+                        diffuse = max(dot(hit.normal, lightDir), 0.0) * sunIntensity; 
+                        let shadowOrigin = hit.mapPos + vec3<f32>(0.5) + hit.normal * 0.51;
+                        if (raycast(shadowOrigin, lightDir, 40).hit) { diffuse = 0.0; }
+                    }
+
+                    // OPTIMAL VOXEL GLOBAL ILLUMINATION (Neighborhood Radiosity)
+                    // Scans a localized 3D radius for Lava to cast completely noise-free light!
+                    var lavaGlow = vec3<f32>(0.0);
+                    let cx = i32(hit.mapPos.x); let cy = i32(hit.mapPos.y); let cz = i32(hit.mapPos.z);
+                    for(var z = -3; z <= 3; z++) {
+                        for(var y = -3; y <= 3; y++) {
+                            for(var x = -3; x <= 3; x++) {
+                                let dist = abs(x) + abs(y) + abs(z);
+                                if (dist <= 4 && dist > 0) { // Diamond-shaped light falloff
+                                    let vx = cx + x; let vy = cy + y; let vz = cz + z;
+                                    if (vx >= 0 && vx < 32 && vy >= 0 && vy < 32 && vz >= 0 && vz < 32) {
+                                        let vIdx = u32(vx) + (u32(vy) * 32u) + (u32(vz) * 1024u);
+                                        let vMat = grid.data[vIdx];
+                                        if (vMat == 8u || vMat == 14u) { // Found Lava or Fire!
+                                            let distSq = f32(x*x + y*y + z*z);
+                                            var flicker = 1.0;
+                                            if (vMat == 14u) {
+                                                flicker = 0.8 + 0.4 * fract(sin(f32(vIdx) + ubuf.time_and_spawner.x * 10.0) * 43758.5453);
+                                            }
+                                            lavaGlow += vec3<f32>(4.0, 1.2, 0.2) * flicker / (distSq * 1.5 + 1.0);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let ao = clamp(hit.mapPos.y / 10.0 + 0.2, 0.1, 1.0);
+                    let directLight = albedo * (diffuse * sunColor + ambient) * ao + (lavaGlow * albedo);
+
+                    if (reflectivity > 0.0) {
+                        if (reflectivity < 1.0) { finalCol += attenuation * directLight * (1.0 - reflectivity); }
+                        currentRo = hit.mapPos + vec3<f32>(0.5) + hit.normal * 0.51;
+                        currentRd = reflect(currentRd, hit.normal);
+                        attenuation *= albedo * reflectivity;
+                    } else {
+                        // CLEAN LIGHTING: No random diffuse bouncing means ZERO noise!
+                        finalCol += attenuation * directLight; 
+                        break; 
+                    }
+                }
+
+                let vignette = 1.0 - smoothstep(0.5, 1.5, length(p));
+                finalCol = finalCol * vignette / (finalCol * vignette + vec3<f32>(1.0));
+                return vec4<f32>(pow(finalCol, vec3<f32>(1.0/2.2)), 1.0);
+            }
+        `;
+
+        async function initWebGPU() {
+            canvas = document.getElementById('gpuCanvas');
+            resizeCanvas(); initInteractivity();
+            if (!navigator.gpu) { alert("WebGPU not supported."); return; }
+
+            const adapter = await navigator.gpu.requestAdapter();
+            device = await adapter.requestDevice();
+
+            device.addEventListener('uncapturederror', (event) => {
+                document.getElementById('error-overlay').style.display = 'flex';
+                document.getElementById('error-text').innerHTML += "<b>Validation Error:</b><br>" + event.error.message + "<br><br>";
+            });
+
+            context = canvas.getContext('webgpu');
+            format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device: device, format: format, alphaMode: 'premultiplied' });
+
+            uniformBuffer = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+            const voxelData = generateVoxelData();
+            voxelBuffer = device.createBuffer({ size: voxelData.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+            device.queue.writeBuffer(voxelBuffer, 0, voxelData);
+
+            const computeBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
+                    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
+                ]
+            });
+            computeBindGroup = device.createBindGroup({
+                layout: computeBindGroupLayout,
+                entries: [{ binding: 0, resource: { buffer: uniformBuffer } }, { binding: 1, resource: { buffer: voxelBuffer } }]
+            });
+
+            const renderBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+                    { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "read-only-storage" } }
+                ]
+            });
+            renderBindGroup = device.createBindGroup({
+                layout: renderBindGroupLayout,
+                entries: [{ binding: 0, resource: { buffer: uniformBuffer } }, { binding: 1, resource: { buffer: voxelBuffer } }]
+            });
+
+            try {
+                const cModule = device.createShaderModule({ code: computeShaderCode });
+                computePipeline = await device.createComputePipelineAsync({
+                    layout: device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] }),
+                    compute: { module: cModule, entryPoint: 'cs_main' }
+                });
+
+                const rModule = device.createShaderModule({ code: renderShaderCode });
+                renderPipeline = await device.createRenderPipelineAsync({
+                    layout: device.createPipelineLayout({ bindGroupLayouts: [renderBindGroupLayout] }),
+                    vertex: { module: rModule, entryPoint: 'vs_main' },
+                    fragment: { module: rModule, entryPoint: 'fs_main', targets: [{ format: format }] },
+                    primitive: { topology: 'triangle-list' }
+                });
+
+                requestAnimationFrame(frame);
+            } catch (e) {
+                document.getElementById('error-overlay').style.display = 'flex';
+                document.getElementById('error-text').innerText = e.message;
+            }
+        }
+
+        function frame() {
+            if (!renderPipeline || !computePipeline) return;
+            const timeSecs = (performance.now() - startTime) / 1000.0;
+
+            let ro = [0, 0, 0];
+            let dir = [0, 0, 0];
+
+            if (cameraMode === 0) {
+                // Orbit Mode Math
+                let radius = 28.0;
+                ro[0] = 16.0 + Math.sin(mouseX) * Math.cos(mouseY) * radius;
+                ro[1] = 16.0 + Math.sin(mouseY) * radius;
+                ro[2] = 16.0 + Math.cos(mouseX) * Math.cos(mouseY) * radius;
+
+                let target = [16.0, 16.0, 16.0];
+                let len = Math.sqrt((target[0] - ro[0]) ** 2 + (target[1] - ro[1]) ** 2 + (target[2] - ro[2]) ** 2);
+                dir = [(target[0] - ro[0]) / len, (target[1] - ro[1]) / len, (target[2] - ro[2]) / len];
+            } else {
+                // FPS Quake Mode Math
+                let pitch = -mouseY;
+                let yaw = mouseX;
+
+                dir[0] = Math.cos(pitch) * Math.sin(yaw);
+                dir[1] = Math.sin(pitch);
+                dir[2] = Math.cos(pitch) * Math.cos(yaw);
+
+                let right = [Math.sin(yaw - Math.PI / 2), 0, Math.cos(yaw - Math.PI / 2)];
+
+                let speed = 0.3;
+                if (keys.w) { fpsPos.x += dir[0] * speed; fpsPos.y += dir[1] * speed; fpsPos.z += dir[2] * speed; }
+                if (keys.s) { fpsPos.x -= dir[0] * speed; fpsPos.y -= dir[1] * speed; fpsPos.z -= dir[2] * speed; }
+                if (keys.a) { fpsPos.x += right[0] * speed; fpsPos.z += right[2] * speed; }
+                if (keys.d) { fpsPos.x -= right[0] * speed; fpsPos.z -= right[2] * speed; }
+                if (keys.e) { fpsPos.y += speed; }
+                if (keys.q) { fpsPos.y -= speed; }
+
+                ro = [fpsPos.x, fpsPos.y, fpsPos.z];
+            }
+
+            const spawnMode = (isSpawning && !isMenuOpen) ? selectedMaterial : 0.0;
+            const uniformData = new Float32Array([
+                canvas.width, canvas.height, timeSecs, spawnMode,
+                ro[0], ro[1], ro[2], 0.0,
+                dir[0], dir[1], dir[2], 0.0
+            ]);
+            device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+            const commandEncoder = device.createCommandEncoder();
+
+            const computePass = commandEncoder.beginComputePass();
+            computePass.setPipeline(computePipeline);
+            computePass.setBindGroup(0, computeBindGroup);
+            computePass.dispatchWorkgroups(8, 8, 8);
+            computePass.end();
+
+            const textureView = context.getCurrentTexture().createView();
+            const renderPassDescriptor = {
+                colorAttachments: [{
+                    view: textureView, clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }, loadOp: 'clear', storeOp: 'store',
+                }]
+            };
+
+            const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
+            renderPass.setPipeline(renderPipeline);
+            renderPass.setBindGroup(0, renderBindGroup);
+            renderPass.draw(6);
+            renderPass.end();
+
+            device.queue.submit([commandEncoder.finish()]);
+            requestAnimationFrame(frame);
+        }
+
+        initWebGPU();
+    </script>
+</body>
+
+</html>

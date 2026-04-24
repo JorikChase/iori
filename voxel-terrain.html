@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU PSVO Voxel Engine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            color: #f8fafc;
+            font-family: system-ui, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Unified ESC Menu Overlay */
+        #menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.90);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            backdrop-filter: blur(8px);
+        }
+
+        .menu-container {
+            display: flex;
+            width: 800px;
+            height: 500px;
+            background: rgba(30, 41, 59, 0.95);
+            border-radius: 12px;
+            border: 1px solid #475569;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            pointer-events: auto;
+        }
+
+        /* Menu Sidebar */
+        .menu-sidebar {
+            width: 200px;
+            background: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid #475569;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem 0;
+        }
+
+        .menu-tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            color: #94a3b8;
+            font-weight: 600;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .menu-tab:hover {
+            color: #f8fafc;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .menu-tab.active {
+            color: #60a5fa;
+            border-left-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        /* Menu Content */
+        .menu-content-area {
+            flex-grow: 1;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .menu-panel {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .menu-panel.active {
+            display: flex;
+        }
+
+        .menu-panel h2 {
+            margin-top: 0;
+            color: #f8fafc;
+            font-size: 1.5rem;
+            border-bottom: 1px solid #475569;
+            padding-bottom: 0.5rem;
+        }
+
+        /* Settings Elements */
+        .setting-row {
+            margin-bottom: 1.5rem;
+        }
+
+        .setting-row label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: #60a5fa;
+        }
+
+        .slider-val {
+            background: #0f172a;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-family: monospace;
+            border: 1px solid #334155;
+        }
+
+        /* Inventory Elements */
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            overflow-y: auto;
+            max-height: 350px;
+            padding-right: 10px;
+        }
+
+        .inv-item {
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .inv-item:hover {
+            transform: translateY(-2px);
+            border-color: #94a3b8;
+        }
+
+        .inv-item.active {
+            border-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        .inv-color {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            margin: 0 auto 0.5rem auto;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Controls Elements */
+        .controls-list {
+            line-height: 1.8;
+            color: #cbd5e1;
+        }
+
+        .key {
+            background: #0f172a;
+            border: 1px solid #475569;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f8fafc;
+            font-family: monospace;
+            margin-right: 0.5rem;
+        }
+
+        .btn-play {
+            margin-top: auto;
+            align-self: flex-end;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-play:hover {
+            background: #3b82f6;
+        }
+
+        /* HUD */
+        .hud {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            font-family: monospace;
+            font-size: 1rem;
+            z-index: 5;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px #000;
+            display: none;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-family: sans-serif;
+            font-size: 24px;
+            pointer-events: none;
+            z-index: 5;
+            font-weight: 300;
+            display: none;
+        }
+
+        #error-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.95);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            text-align: left;
+            color: #f87171;
+            z-index: 30;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gpuCanvas"></canvas>
+    <div id="crosshair">+</div>
+
+    <div class="hud" id="game-hud">
+        <span id="pos-indicator" style="color:#94a3b8;">Pos: 0, 0, 0</span><br>
+        <span id="mat-indicator" style="color:#84cc16; font-weight: bold;">Equip: Seed</span>
+    </div>
+
+    <!-- Unified ESC Menu -->
+    <div id="menu-overlay">
+        <div class="menu-container">
+            <div class="menu-sidebar">
+                <div class="menu-tab active" data-target="panel-inventory">Inventory</div>
+                <div class="menu-tab" data-target="panel-settings">Settings</div>
+                <div class="menu-tab" data-target="panel-controls">Controls</div>
+            </div>
+
+            <div class="menu-content-area">
+                <div class="menu-panel active" id="panel-inventory">
+                    <h2>Material Inventory</h2>
+                    <div class="inventory-grid" id="inv-grid"></div>
+                    <button class="btn-play" id="btn-play-inv">Resume [ESC]</button>
+                </div>
+
+                <div class="menu-panel" id="panel-settings">
+                    <h2>Engine Settings</h2>
+                    <div class="setting-row">
+                        <label for="chunk-radius">Chunk Streaming Radius (Live)</label>
+                        <div class="slider-container">
+                            <input type="range" id="chunk-radius" min="1" max="5" value="2">
+                            <span class="slider-val" id="radius-val">2</span>
+                        </div>
+                        <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+                            Determines how far out the infinite procedural noise will load chunks around you.
+                        </p>
+                    </div>
+                    <button class="btn-play" id="btn-play-set">Resume [ESC]</button>
+                </div>
+
+                <div class="menu-panel" id="panel-controls">
+                    <h2>Engine Controls</h2>
+                    <div class="controls-list">
+                        <div><span class="key">WASD</span> Move around the world (Noclip enabled)</div>
+                        <div><span class="key">Shift</span> Sprint / Fly faster</div>
+                        <div><span class="key">Mouse</span> Look around</div>
+                        <hr style="border-color:#334155; margin: 1rem 0;">
+                        <div><span class="key">L-Click</span> Destroy Block (Matches surface scale)</div>
+                        <div><span class="key">R-Click</span> Build Block (Matches surface scale)</div>
+                        <hr style="border-color:#334155; margin: 1rem 0;">
+                        <div><span class="key">J</span> <b>Subdivide</b> (Downscale targeted block)</div>
+                        <div><span class="key">K</span> <b>Merge</b> (Upscale identical siblings / Clean topology)</div>
+                        <div><span class="key">ESC</span> Open Menu / Inventory</div>
+                    </div>
+                    <button class="btn-play" id="btn-play-ctrl">Click to Play</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="error-overlay">
+        <h2 style="margin:0 0 0.5rem 0;">Compilation Failed</h2>
+        <p id="error-text"
+            style="color: #cbd5e1; font-family: monospace; font-size: 0.85rem; max-width: 800px; white-space: pre-wrap;">
+        </p>
+    </div>
+
+    <script type="module">
+        // ==========================================
+        // 1. ENGINE CONSTANTS & MATERIALS
+        // ==========================================
+        const CHUNK_SIZE = 32;
+        const HASH_TABLE_SIZE = 8192;
+        const MAX_NODES = 4000000;
+
+        const MATERIALS = [
+            { id: 0, name: "Air", color: "#000000", isPhysics: false },
+            { id: 1, name: "Solid", color: "#ef4444", isPhysics: false },
+            { id: 2, name: "Sand", color: "#fbbf24", isPhysics: true },
+            { id: 3, name: "Water", color: "#3b82f6", isPhysics: true },
+            { id: 4, name: "Marble", color: "#e2e8f0", isPhysics: false },
+            { id: 5, name: "Lava", color: "#f97316", isPhysics: true },
+            { id: 6, name: "Wood", color: "#78350f", isPhysics: false },
+            { id: 7, name: "Leaves", color: "#4ade80", isPhysics: false },
+            { id: 8, name: "Stone", color: "#64748b", isPhysics: false },
+            { id: 9, name: "Steam", color: "#cbd5e1", isPhysics: true },
+            { id: 10, name: "Fire", color: "#facc15", isPhysics: true },
+            { id: 11, name: "Smoke", color: "#475569", isPhysics: true },
+            { id: 12, name: "Dirt", color: "#5c4033", isPhysics: false },
+            { id: 13, name: "Grass", color: "#166534", isPhysics: false },
+            { id: 14, name: "Seed", color: "#84cc16", isPhysics: true },
+            { id: 15, name: "Snow", color: "#ffffff", isPhysics: false },
+            { id: 16, name: "Bedrock", color: "#111827", isPhysics: false },
+            { id: 17, name: "Gravel", color: "#52525b", isPhysics: true }
+        ];
+
+        let device, context, format, uniformBuffer, canvas;
+        let slabBuffer, hashBuffer;
+        let renderPipeline, renderBindGroup;
+        let startTime = performance.now();
+
+        // Interaction State
+        let mouseX = 0.5; let mouseY = 0.3;
+        let isMenuOpen = true;
+        let selectedMaterial = 14;
+        let currentRadius = 2;
+        let keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false };
+        let fpsPos = { x: 16.0, y: 120.0, z: -10.0 }; // Spawned High to observe Macro-Terrain
+
+        let loadedChunks = new Set();
+
+        function popcount(n) {
+            n = n - ((n >> 1) & 0x55555555);
+            n = (n & 0x33333333) + ((n >> 2) & 0x33333333);
+            return (((n + (n >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+        }
+
+        // ==========================================
+        // 2. PROCEDURAL SIMPLEX NOISE ALGORITHM
+        // ==========================================
+        class SimpleNoise {
+            constructor(seed = 12345) { this.seed = seed; }
+            hash(x, y, z) {
+                let h = this.seed + x * 374761393 + y * 668265263 + z * 2246822519;
+                h = (h ^ (h >>> 13)) * 3266489917;
+                h = (h ^ (h >>> 16)) * 668265263;
+                return (h ^ (h >>> 13)) >>> 0;
+            }
+            fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+            lerp(a, b, t) { return a + t * (b - a); }
+            grad(hash, x, y, z) {
+                let h = hash & 15; let u = h < 8 ? x : y;
+                let v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+                return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+            }
+            noise3D(x, y, z) {
+                let X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+                x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+                let u = this.fade(x), v = this.fade(y), w = this.fade(z);
+                let A = this.hash(X, Y, Z) & 255, B = this.hash(X + 1, Y, Z) & 255, C = this.hash(X, Y + 1, Z) & 255, D = this.hash(X + 1, Y + 1, Z) & 255;
+                let E = this.hash(X, Y, Z + 1) & 255, F = this.hash(X + 1, Y, Z + 1) & 255, G = this.hash(X, Y + 1, Z + 1) & 255, H = this.hash(X + 1, Y + 1, Z + 1) & 255;
+
+                return this.lerp(
+                    this.lerp(
+                        this.lerp(this.grad(A, x, y, z), this.grad(B, x - 1, y, z), u),
+                        this.lerp(this.grad(C, x, y - 1, z), this.grad(D, x - 1, y - 1, z), u), v),
+                    this.lerp(
+                        this.lerp(this.grad(E, x, y, z - 1), this.grad(F, x - 1, y, z - 1), u),
+                        this.lerp(this.grad(G, x, y - 1, z - 1), this.grad(H, x - 1, y - 1, z - 1), u), v), w);
+            }
+            fbm2D(x, z, octaves) {
+                let v = 0, amp = 0.5, freq = 1;
+                for (let i = 0; i < octaves; i++) { v += this.noise3D(x * freq, 0, z * freq) * amp; amp *= 0.5; freq *= 2; }
+                return v;
+            }
+            fbm3D(x, y, z, octaves) {
+                let v = 0, amp = 0.5, freq = 1;
+                for (let i = 0; i < octaves; i++) { v += this.noise3D(x * freq, y * freq, z * freq) * amp; amp *= 0.5; freq *= 2; }
+                return v;
+            }
+        }
+        const noise = new SimpleNoise(42);
+
+        // ==========================================
+        // 3. THE 32-BIT POINTER PSVO MEMORY MANAGER
+        // ==========================================
+        class PSVONodeManager {
+            constructor(maxNodes) {
+                this.memory = new Uint32Array(maxNodes * 2);
+                this.allocOffset = 1;
+                this.activeList = [];
+                this.freeList = [];
+            }
+
+            allocate(count) {
+                if (count === 8 && this.freeList.length > 0) return this.freeList.pop();
+                if (this.allocOffset + count >= MAX_NODES) {
+                    console.warn("PSVO SLAB OUT OF MEMORY!");
+                    return -1;
+                }
+                let ptr = this.allocOffset;
+                this.allocOffset += count;
+                return ptr;
+            }
+
+            setRouting(index, childMask, leafMask) {
+                this.memory[index * 2] = (childMask & 0xFF) | ((leafMask & 0xFF) << 8);
+            }
+
+            setPointer(index, firstChildIdx) {
+                this.memory[index * 2 + 1] = firstChildIdx >>> 0;
+            }
+
+            setPayload(index, materialId, automataState = 0, health = 255, flags = 0) {
+                this.memory[index * 2 + 1] = (materialId & 0xFF) | ((automataState & 0xFF) << 8) | ((health & 0xFF) << 16) | ((flags & 0xFF) << 24);
+            }
+
+            getVoxelPath(x, y, z, hashTable) {
+                let cx = Math.floor(x / 32); let cy = Math.floor(y / 32); let cz = Math.floor(z / 32);
+                let rootIdx = hashTable.getChunkRoot(cx, cy, cz);
+                if (rootIdx === -1) return null;
+
+                let lx = ((Math.floor(x) % 32) + 32) % 32; let ly = ((Math.floor(y) % 32) + 32) % 32; let lz = ((Math.floor(z) % 32) + 32) % 32;
+                let nodeIdx = rootIdx; let size = 32; let currentPos = { x: 0, y: 0, z: 0 };
+                let path = [{ idx: nodeIdx, size: size, octant: -1 }];
+
+                for (let level = 0; level <= 5; level++) {
+                    let word0 = this.memory[nodeIdx * 2];
+                    let word1 = this.memory[nodeIdx * 2 + 1];
+
+                    let childMask = word0 & 0xFF;
+                    let leafMask = (word0 >> 8) & 0xFF;
+                    let firstChild = word1;
+
+                    if (level === 0 && childMask === 0) {
+                        let mat = word1 & 0xFF;
+                        return { hit: mat !== 0, material: mat, path, size: 32, nodeOrigin: { x: cx * 32, y: cy * 32, z: cz * 32 } };
+                    }
+
+                    let halfSize = size / 2;
+                    let ox = (lx >= currentPos.x + halfSize) ? 1 : 0; let oy = (ly >= currentPos.y + halfSize) ? 1 : 0; let oz = (lz >= currentPos.z + halfSize) ? 1 : 0;
+
+                    if (ox) currentPos.x += halfSize; if (oy) currentPos.y += halfSize; if (oz) currentPos.z += halfSize;
+
+                    let octant = ox | (oy << 1) | (oz << 2);
+                    if ((childMask & (1 << octant)) === 0) return null;
+
+                    let isLeaf = (leafMask & (1 << octant)) !== 0;
+                    let offset = popcount(childMask & ((1 << octant) - 1));
+                    let childIdx = firstChild + offset;
+
+                    path.push({ idx: childIdx, size: halfSize, octant: octant, parentIdx: nodeIdx });
+
+                    if (isLeaf || level === 5) {
+                        let cWord1 = this.memory[childIdx * 2 + 1];
+                        return { hit: true, material: cWord1 & 0xFF, path, size: halfSize, nodeOrigin: { x: cx * 32 + currentPos.x, y: cy * 32 + currentPos.y, z: cz * 32 + currentPos.z } };
+                    }
+
+                    nodeIdx = childIdx; size = halfSize;
+                }
+                return null;
+            }
+
+            raycast(rox, roy, roz, rdx, rdy, rdz, hashTable) {
+                let mapPos = { x: Math.floor(rox), y: Math.floor(roy), z: Math.floor(roz) };
+                let deltaDist = { x: Math.abs(1 / rdx), y: Math.abs(1 / rdy), z: Math.abs(1 / rdz) };
+                let rayStep = { x: Math.sign(rdx), y: Math.sign(rdy), z: Math.sign(rdz) };
+                let sideDist = {
+                    x: (rdx < 0 ? rox - mapPos.x : mapPos.x + 1 - rox) * deltaDist.x,
+                    y: (rdy < 0 ? roy - mapPos.y : mapPos.y + 1 - roy) * deltaDist.y,
+                    z: (rdz < 0 ? roz - mapPos.z : mapPos.z + 1 - roz) * deltaDist.z
+                };
+                let mask = { x: 0, y: 0, z: 0 };
+
+                for (let i = 0; i < 150; i++) {
+                    let hitInfo = this.getVoxelPath(mapPos.x, mapPos.y, mapPos.z, hashTable);
+                    if (hitInfo && hitInfo.material !== 0) {
+                        hitInfo.mapPos = { x: mapPos.x, y: mapPos.y, z: mapPos.z };
+                        hitInfo.normal = { x: -rayStep.x * mask.x, y: -rayStep.y * mask.y, z: -rayStep.z * mask.z };
+                        return hitInfo;
+                    }
+
+                    if (sideDist.x < sideDist.y) {
+                        if (sideDist.x < sideDist.z) { sideDist.x += deltaDist.x; mapPos.x += rayStep.x; mask = { x: 1, y: 0, z: 0 }; }
+                        else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; mask = { x: 0, y: 0, z: 1 }; }
+                    } else {
+                        if (sideDist.y < sideDist.z) { sideDist.y += deltaDist.y; mapPos.y += rayStep.y; mask = { x: 0, y: 1, z: 0 }; }
+                        else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; mask = { x: 0, y: 0, z: 1 }; }
+                    }
+                }
+                return null;
+            }
+
+            subdivide(targetInfo) {
+                let path = targetInfo.path;
+                if (!path || path.length === 0) return false;
+                let leafData = path[path.length - 1];
+                if (leafData.size <= 1) return false;
+
+                let newChildren = this.allocate(8);
+                if (newChildren === -1) return false;
+
+                if (path.length > 1) {
+                    let parentData = path[path.length - 2];
+                    let pWord0 = this.memory[parentData.idx * 2];
+                    let pLeafMask = (pWord0 >> 8) & 0xFF;
+                    pLeafMask &= ~(1 << leafData.octant);
+                    this.setRouting(parentData.idx, pWord0 & 0xFF, pLeafMask);
+                }
+
+                this.setRouting(leafData.idx, 0xFF, 0xFF);
+                this.setPointer(leafData.idx, newChildren);
+                let targetMat = targetInfo.material;
+                for (let i = 0; i < 8; i++) {
+                    this.setRouting(newChildren + i, 0, 0);
+                    this.setPayload(newChildren + i, targetMat);
+                }
+                return true;
+            }
+
+            merge(targetInfo) {
+                let path = targetInfo.path;
+                if (!path || path.length < 2) return false;
+
+                let parentData = path[path.length - 2];
+                let pWord0 = this.memory[parentData.idx * 2];
+                let pChildMask = pWord0 & 0xFF;
+                let pLeafMask = (pWord0 >> 8) & 0xFF;
+                let pFirstChild = this.memory[parentData.idx * 2 + 1];
+
+                if (pChildMask !== 0xFF || pLeafMask !== 0xFF) return false;
+
+                let firstMat = this.memory[(pFirstChild) * 2 + 1] & 0xFF;
+                for (let i = 1; i < 8; i++) {
+                    let mat = this.memory[(pFirstChild + i) * 2 + 1] & 0xFF;
+                    if (mat !== firstMat) return false;
+                }
+
+                if (path.length > 2) {
+                    let gpData = path[path.length - 3];
+                    let gpWord0 = this.memory[gpData.idx * 2];
+                    let gpLeafMask = (gpWord0 >> 8) & 0xFF;
+                    gpLeafMask |= (1 << parentData.octant);
+                    this.setRouting(gpData.idx, gpWord0 & 0xFF, gpLeafMask);
+                }
+
+                this.setRouting(parentData.idx, 0, 0);
+                this.setPayload(parentData.idx, firstMat);
+                this.freeList.push(pFirstChild);
+                return true;
+            }
+
+            tryMergeUpwards(targetInfo) {
+                if (!targetInfo || !targetInfo.path) return;
+                let pathCopy = [...targetInfo.path];
+                while (pathCopy.length >= 2) {
+                    let tempInfo = { path: pathCopy };
+                    if (this.merge(tempInfo)) {
+                        pathCopy.pop();
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            checkFaceEmpty(startX, startY, startZ, stepAxis1, stepAxis2, s, hashTable) {
+                for (let i = 0; i < s; i++) {
+                    for (let j = 0; j < s; j++) {
+                        let cx = startX + (stepAxis1 === 'x' ? i : (stepAxis2 === 'x' ? j : 0));
+                        let cy = startY + (stepAxis1 === 'y' ? i : (stepAxis2 === 'y' ? j : 0));
+                        let cz = startZ + (stepAxis1 === 'z' ? i : (stepAxis2 === 'z' ? j : 0));
+                        let v = this.getVoxelPath(cx, cy, cz, hashTable);
+                        if (!v || v.material === 0) return true;
+                    }
+                }
+                return false;
+            }
+
+            // ==========================================
+            // THE ACTIVE LIST PHYSICS ENGINE
+            // ==========================================
+            wakeUpBlock(bx, by, bz, hashTable) {
+                let node = this.getVoxelPath(bx, by, bz, hashTable);
+                if (node && node.material !== 0) {
+                    let matInfo = MATERIALS.find(m => m.id === node.material);
+                    if (matInfo && matInfo.isPhysics) {
+                        let ox = node.nodeOrigin.x; let oy = node.nodeOrigin.y; let oz = node.nodeOrigin.z;
+                        let isDup = false;
+                        for (let j = Math.max(0, this.activeList.length - 60); j < this.activeList.length; j++) {
+                            let a = this.activeList[j];
+                            if (a.x === ox && a.y === oy && a.z === oz) { isDup = true; break; }
+                        }
+                        if (!isDup) this.activeList.push({ x: ox, y: oy, z: oz, mat: node.material, age: 0 });
+                    }
+                }
+            }
+
+            physicsTick(hashTable) {
+                let modified = false;
+
+                let unique = new Map();
+                for (let p of this.activeList) {
+                    unique.set(`${p.x},${p.y},${p.z}`, p);
+                }
+                this.activeList = Array.from(unique.values());
+                let processedOrigins = new Set();
+
+                for (let i = this.activeList.length - 1; i >= 0; i--) {
+                    let p = this.activeList[i];
+
+                    let current = this.getVoxelPath(p.x, p.y, p.z, hashTable);
+                    if (!current || current.material !== p.mat) {
+                        this.activeList.splice(i, 1);
+                        continue;
+                    }
+
+                    let originKey = `${current.nodeOrigin.x},${current.nodeOrigin.y},${current.nodeOrigin.z}`;
+                    if (current.size > 1) {
+                        if (processedOrigins.has(originKey)) { this.activeList.splice(i, 1); continue; }
+                        processedOrigins.add(originKey);
+                    }
+
+                    // --- SHATTER-ON-STRESS ---
+                    if (current.size > 1) {
+                        let s = current.size;
+                        let cx = current.nodeOrigin.x; let cy = current.nodeOrigin.y; let cz = current.nodeOrigin.z;
+                        let needsShatter = false;
+
+                        if (p.mat === 10) {
+                            needsShatter = true;
+                        } else {
+                            if (p.mat === 2 || p.mat === 3 || p.mat === 5 || p.mat === 17 || p.mat === 14) {
+                                needsShatter = this.checkFaceEmpty(cx, cy - 1, cz, 'x', 'z', s, hashTable);
+                            }
+                            if (!needsShatter && (p.mat === 3 || p.mat === 5)) {
+                                needsShatter =
+                                    this.checkFaceEmpty(cx - 1, cy, cz, 'y', 'z', s, hashTable) ||
+                                    this.checkFaceEmpty(cx + s, cy, cz, 'y', 'z', s, hashTable) ||
+                                    this.checkFaceEmpty(cx, cy, cz - 1, 'x', 'y', s, hashTable) ||
+                                    this.checkFaceEmpty(cx, cy, cz + s, 'x', 'y', s, hashTable);
+                            }
+                            if (!needsShatter && (p.mat === 9 || p.mat === 11)) {
+                                needsShatter = this.checkFaceEmpty(cx, cy + s, cz, 'x', 'z', s, hashTable);
+                            }
+                        }
+
+                        if (needsShatter) {
+                            if (this.subdivide(current)) {
+                                this.activeList.splice(i, 1);
+                                let half = s / 2;
+                                for (let dx of [0, 1]) {
+                                    for (let dy of [0, 1]) {
+                                        for (let dz of [0, 1]) {
+                                            this.activeList.push({
+                                                x: cx + dx * half, y: cy + dy * half, z: cz + dz * half, mat: p.mat, age: 0
+                                            });
+                                        }
+                                    }
+                                }
+                                modified = true;
+                            }
+                            continue;
+                        } else {
+                            this.activeList.splice(i, 1);
+                            continue;
+                        }
+                    }
+
+                    let mat = p.mat;
+                    let moved = false;
+
+                    if (mat === 9 || mat === 10 || mat === 11) {
+                        if (Math.random() < 0.05) {
+                            this.setPayload(current.path[current.path.length - 1].idx, 0);
+                            this.activeList.splice(i, 1);
+                            this.wakeUpBlock(p.x, p.y + 1, p.z, hashTable);
+                            this.tryMergeUpwards(current);
+                            modified = true;
+                            continue;
+                        }
+                    }
+
+                    // --- 2. SCALE-AGNOSTIC TREE AUTOMATA (THE SEED) ---
+                    if (mat === 14) {
+                        p.age = p.age || 0;
+                        let s = current.size;
+                        let cCenter = { x: p.x + s / 2, y: p.y + s / 2, z: p.z + s / 2 };
+
+                        if (p.age === 0) {
+                            let nbrs = [
+                                { dx: p.x - 1, dy: p.y, dz: p.z + s / 2 },
+                                { dx: p.x + s, dy: p.y, dz: p.z + s / 2 },
+                                { dx: p.x + s / 2, dy: p.y, dz: p.z - 1 },
+                                { dx: p.x + s / 2, dy: p.y, dz: p.z + s }
+                            ];
+                            for (let n of nbrs) {
+                                let nInfo = this.getVoxelPath(n.dx, n.dy, n.dz, hashTable);
+                                if (nInfo && nInfo.material === 3) {
+                                    this.setPayload(nInfo.path[nInfo.path.length - 1].idx, 0);
+                                    this.wakeUpBlock(n.dx, n.dy + 1, n.dz, hashTable);
+                                    p.age = 1;
+                                    modified = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (p.age > 0) {
+                            let nyCenter = cCenter.y + s;
+                            let target = this.getVoxelPath(cCenter.x, nyCenter, cCenter.z, hashTable);
+
+                            if (p.age < 5 && target && target.material === 0) {
+                                while (target && target.size > s) {
+                                    if (!this.subdivide(target)) break;
+                                    target = this.getVoxelPath(cCenter.x, nyCenter, cCenter.z, hashTable);
+                                }
+                                if (target && target.size === s) {
+                                    this.setPayload(current.path[current.path.length - 1].idx, 6);
+                                    this.setPayload(target.path[target.path.length - 1].idx, 14);
+
+                                    let lNeighbors = [{ dx: s, dz: 0 }, { dx: -s, dz: 0 }, { dx: 0, dz: s }, { dx: 0, dz: -s }];
+                                    for (let ln of lNeighbors) {
+                                        if (Math.random() > 0.3) {
+                                            let lTarget = this.getVoxelPath(cCenter.x + ln.dx, nyCenter, cCenter.z + ln.dz, hashTable);
+                                            if (lTarget && lTarget.material === 0) {
+                                                while (lTarget && lTarget.size > s) {
+                                                    if (!this.subdivide(lTarget)) break;
+                                                    lTarget = this.getVoxelPath(cCenter.x + ln.dx, nyCenter, cCenter.z + ln.dz, hashTable);
+                                                }
+                                                if (lTarget && lTarget.size === s) {
+                                                    this.setPayload(lTarget.path[lTarget.path.length - 1].idx, 7);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    p.y += s; p.age++;
+                                    moved = true; modified = true;
+                                }
+                            }
+
+                            if (!moved) {
+                                this.setPayload(current.path[current.path.length - 1].idx, 7);
+                                this.activeList.splice(i, 1);
+                                modified = true;
+                            }
+                        }
+                        if (p.age > 0 || !moved) continue;
+                    }
+
+
+                    // --- 3. ALCHEMY & REACTIONS ---
+                    let transformed = false;
+                    if (mat === 3 || mat === 5 || mat === 6 || mat === 7 || mat === 10) {
+                        let neighbors = [{ dx: 1, dy: 0, dz: 0 }, { dx: -1, dy: 0, dz: 0 }, { dx: 0, dy: 1, dz: 0 }, { dx: 0, dy: -1, dz: 0 }, { dx: 0, dy: 0, dz: 1 }, { dx: 0, dy: 0, dz: -1 }];
+                        for (let n of neighbors) {
+                            let nx = p.x + n.dx, ny = p.y + n.dy, nz = p.z + n.dz;
+                            let nInfo = this.getVoxelPath(nx, ny, nz, hashTable);
+                            if (nInfo && nInfo.size === 1) {
+                                let nMat = nInfo.material;
+                                if ((mat === 3 && nMat === 5) || (mat === 5 && nMat === 3)) {
+                                    let selfNewMat = (mat === 3) ? 9 : 8;
+                                    let nNewMat = (nMat === 5) ? 8 : 9;
+                                    this.setPayload(current.path[current.path.length - 1].idx, selfNewMat);
+                                    this.setPayload(nInfo.path[nInfo.path.length - 1].idx, nNewMat);
+                                    p.mat = selfNewMat; mat = selfNewMat;
+                                    if (nNewMat === 9) this.activeList.push({ x: nx, y: ny, z: nz, mat: 9 });
+                                    transformed = true; modified = true; break;
+                                }
+                                if ((mat === 10 || mat === 5) && (nMat === 6 || nMat === 7)) {
+                                    this.setPayload(nInfo.path[nInfo.path.length - 1].idx, 10);
+                                    this.activeList.push({ x: nx, y: ny, z: nz, mat: 10 });
+                                    modified = true;
+                                }
+                            }
+                        }
+                    }
+                    if (transformed && mat === 8) { this.activeList.splice(i, 1); continue; }
+
+                    if (mat === 10) continue;
+
+                    let targets = [];
+                    if (mat === 2 || mat === 3 || mat === 5 || mat === 17 || mat === 14) {
+                        targets.push({ dx: 0, dy: -1, dz: 0 });
+                        if (mat !== 14) {
+                            let diag = [{ dx: -1, dy: -1, dz: 0 }, { dx: 1, dy: -1, dz: 0 }, { dx: 0, dy: -1, dz: -1 }, { dx: 0, dy: -1, dz: 1 }];
+                            diag.sort(() => Math.random() - 0.5);
+                            targets.push(...diag);
+                        }
+                        if (mat === 3 || mat === 5) {
+                            let horiz = [{ dx: -1, dy: 0, dz: 0 }, { dx: 1, dy: 0, dz: 0 }, { dx: 0, dy: 0, dz: -1 }, { dx: 0, dy: 0, dz: 1 }];
+                            horiz.sort(() => Math.random() - 0.5);
+                            targets.push(...horiz);
+                        }
+                    } else if (mat === 9 || mat === 11) {
+                        targets.push({ dx: 0, dy: 1, dz: 0 });
+                        let diag = [{ dx: -1, dy: 1, dz: 0 }, { dx: 1, dy: 1, dz: 0 }, { dx: 0, dy: 1, dz: -1 }, { dx: 0, dy: 1, dz: 1 }];
+                        diag.sort(() => Math.random() - 0.5);
+                        targets.push(...diag);
+                        let horiz = [{ dx: -1, dy: 0, dz: 0 }, { dx: 1, dy: 0, dz: 0 }, { dx: 0, dy: 0, dz: -1 }, { dx: 0, dy: 0, dz: 1 }];
+                        horiz.sort(() => Math.random() - 0.5);
+                        targets.push(...horiz);
+                    }
+
+                    for (let dir of targets) {
+                        let nx = p.x + dir.dx; let ny = p.y + dir.dy; let nz = p.z + dir.dz;
+                        let target = this.getVoxelPath(nx, ny, nz, hashTable);
+
+                        if (!target || target.material === 0) {
+                            while (target && target.size > 1) {
+                                if (!this.subdivide(target)) break;
+                                target = this.getVoxelPath(nx, ny, nz, hashTable);
+                            }
+
+                            if (target && target.size === 1) {
+                                let currentIdx = current.path[current.path.length - 1].idx;
+                                let targetIdx = target.path[target.path.length - 1].idx;
+                                this.setPayload(currentIdx, 0);
+                                this.setPayload(targetIdx, p.mat);
+
+                                let wakeOffsets = [
+                                    { dx: 0, dy: 1, dz: 0 }, { dx: 0, dy: -1, dz: 0 },
+                                    { dx: 1, dy: 0, dz: 0 }, { dx: -1, dy: 0, dz: 0 }, { dx: 0, dy: 0, dz: 1 }, { dx: 0, dy: 0, dz: -1 },
+                                    { dx: 1, dy: 1, dz: 0 }, { dx: -1, dy: 1, dz: 0 }, { dx: 0, dy: 1, dz: 1 }, { dx: 0, dy: 1, dz: -1 },
+                                    { dx: 1, dy: -1, dz: 0 }, { dx: -1, dy: -1, dz: 0 }, { dx: 0, dy: -1, dz: 1 }, { dx: 0, dy: -1, dz: -1 }
+                                ];
+                                for (let w of wakeOffsets) {
+                                    this.wakeUpBlock(p.x + w.dx, p.y + w.dy, p.z + w.dz, hashTable);
+                                }
+
+                                this.tryMergeUpwards(current);
+
+                                p.x = nx; p.y = ny; p.z = nz;
+                                moved = true; modified = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!moved) {
+                        this.activeList.splice(i, 1);
+                        this.tryMergeUpwards(current);
+                    }
+                }
+                return modified;
+            }
+        }
+
+        class SpatialHashTable {
+            constructor(size) {
+                this.size = size;
+                this.memory = new Int32Array(size * 4);
+                for (let i = 0; i < size * 4; i++) this.memory[i] = -1;
+            }
+
+            hash(x, y, z) {
+                let p1 = 73856093; let p2 = 19349669; let p3 = 83492791;
+                let res = ((x * p1) ^ (y * p2) ^ (z * p3)) % this.size;
+                return res < 0 ? res + this.size : res;
+            }
+
+            insert(x, y, z, rootNodeIndex) {
+                let h = this.hash(x, y, z);
+                for (let i = 0; i < this.size; i++) {
+                    let idx = ((h + i) % this.size) * 4;
+                    if (this.memory[idx + 3] === -1 || this.memory[idx + 3] === -2 || (this.memory[idx] === x && this.memory[idx + 1] === y && this.memory[idx + 2] === z)) {
+                        this.memory[idx] = x; this.memory[idx + 1] = y; this.memory[idx + 2] = z; this.memory[idx + 3] = rootNodeIndex;
+                        return;
+                    }
+                }
+            }
+
+            getChunkRoot(cx, cy, cz) {
+                let h = this.hash(cx, cy, cz);
+                for (let i = 0; i < this.size; i++) {
+                    let idx = ((h + i) % this.size) * 4;
+                    if (this.memory[idx + 3] === -1) return -1;
+                    if (this.memory[idx + 3] !== -2 && this.memory[idx] === cx && this.memory[idx + 1] === cy && this.memory[idx + 2] === cz) {
+                        return this.memory[idx + 3];
+                    }
+                }
+                return -1;
+            }
+
+            remove(x, y, z) {
+                let h = this.hash(x, y, z);
+                for (let i = 0; i < this.size; i++) {
+                    let idx = ((h + i) % this.size) * 4;
+                    if (this.memory[idx + 3] === -1) return;
+                    if (this.memory[idx + 3] !== -2 && this.memory[idx] === x && this.memory[idx + 1] === y && this.memory[idx + 2] === z) {
+                        this.memory[idx + 3] = -2;
+                        return;
+                    }
+                }
+            }
+        }
+
+        let psvo = new PSVONodeManager(MAX_NODES);
+        let hashTable = new SpatialHashTable(HASH_TABLE_SIZE);
+
+        // ==========================================
+        // 4. INFINITE MACRO-STREAMING CHUNK GENERATOR
+        // ==========================================
+        function generateChunk(cx, cy, cz, manager, hash) {
+            let rootIdx = manager.allocate(1);
+            hash.insert(cx, cy, cz, rootIdx);
+
+            let maxGlobalY = cy * 32 + 31;
+            let minGlobalY = cy * 32;
+
+            if (minGlobalY > 128) {
+                manager.setRouting(rootIdx, 0, 0); manager.setPayload(rootIdx, 0); return;
+            }
+            if (maxGlobalY < -70) {
+                manager.setRouting(rootIdx, 0, 0); manager.setPayload(rootIdx, 16); return;
+            }
+
+            let dense = new Uint8Array(32768);
+            let step = 16; // THE MACRO TERRAIN QUANTIZER
+
+            for (let bx = 0; bx < 32; bx += step) {
+                for (let bz = 0; bz < 32; bz += step) {
+                    let wx = cx * 32 + bx;
+                    let wz = cz * 32 + bz;
+
+                    let hBase = noise.fbm2D(wx * 0.015, wz * 0.015, 3);
+                    let normalizedH = (hBase + 1) / 2;
+                    let surfaceY = Math.floor((normalizedH * 64) / step) * step;
+
+                    for (let by = 0; by < 32; by += step) {
+                        let wy = cy * 32 + by;
+                        let mat = 0;
+
+                        if (wy <= -60) mat = 16;
+                        else if (wy <= surfaceY) {
+                            let cave = noise.fbm3D(wx * 0.04, wy * 0.04, wz * 0.04, 2);
+                            if (cave > 0.4) {
+                                if (wy < -40) mat = 5;
+                                else if (wy < -15) mat = 3;
+                                else mat = 0;
+                            } else {
+                                if (wy === surfaceY) {
+                                    if (wy > 32) mat = 15;
+                                    else mat = 13;
+                                } else if (wy >= surfaceY - step) {
+                                    mat = 12;
+                                } else {
+                                    mat = 8;
+                                }
+                            }
+                        }
+
+                        for (let ix = 0; ix < step; ix++) {
+                            for (let iy = 0; iy < step; iy++) {
+                                for (let iz = 0; iz < step; iz++) {
+                                    dense[(bx + ix) + (by + iy) * 32 + (bz + iz) * 1024] = mat;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (let bx = 0; bx < 32; bx += step) {
+                for (let bz = 0; bz < 32; bz += step) {
+                    for (let by = 0; by < 32; by += step) {
+                        if (dense[bx + by * 32 + bz * 1024] === 13) {
+                            if (Math.abs(noise.noise3D(cx * 32 + bx, cy * 32 + by, cz * 32 + bz)) > 0.4) {
+                                let h = 1;
+                                let wy = by + step;
+                                if (wy < 32) {
+                                    for (let ix = 0; ix < step; ix++) for (let iy = 0; iy < step; iy++) for (let iz = 0; iz < step; iz++)
+                                        dense[(bx + ix) + (wy + iy) * 32 + (bz + iz) * 1024] = 6;
+                                }
+                                let ly = by + 2 * step;
+                                if (ly < 32) {
+                                    for (let ix = 0; ix < step; ix++) for (let iy = 0; iy < step; iy++) for (let iz = 0; iz < step; iz++)
+                                        dense[(bx + ix) + (ly + iy) * 32 + (bz + iz) * 1024] = 7;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            function buildNode(ox, oy, oz, size, nodeIdx) {
+                let firstMat = dense[ox + oy * 32 + oz * 1024];
+                let uniform = true;
+                for (let i = 0; i < size; i++) {
+                    for (let j = 0; j < size; j++) {
+                        for (let k = 0; k < size; k++) {
+                            if (dense[(ox + i) + (oy + j) * 32 + (oz + k) * 1024] !== firstMat) { uniform = false; break; }
+                        }
+                        if (!uniform) break;
+                    }
+                    if (!uniform) break;
+                }
+
+                if (uniform) {
+                    manager.setRouting(nodeIdx, 0, 0);
+                    manager.setPayload(nodeIdx, firstMat);
+                    return true;
+                } else {
+                    let childrenIdx = manager.allocate(8);
+                    if (childrenIdx === -1) {
+                        manager.setRouting(nodeIdx, 0, 0); manager.setPayload(nodeIdx, firstMat); return true;
+                    }
+                    let half = size / 2;
+                    let l0 = buildNode(ox, oy, oz, half, childrenIdx) ? 1 : 0;
+                    let l1 = buildNode(ox + half, oy, oz, half, childrenIdx + 1) ? 1 : 0;
+                    let l2 = buildNode(ox, oy + half, oz, half, childrenIdx + 2) ? 1 : 0;
+                    let l3 = buildNode(ox + half, oy + half, oz, half, childrenIdx + 3) ? 1 : 0;
+                    let l4 = buildNode(ox, oy, oz + half, half, childrenIdx + 4) ? 1 : 0;
+                    let l5 = buildNode(ox + half, oy, oz + half, half, childrenIdx + 5) ? 1 : 0;
+                    let l6 = buildNode(ox, oy + half, oz + half, half, childrenIdx + 6) ? 1 : 0;
+                    let l7 = buildNode(ox + half, oy + half, oz + half, half, childrenIdx + 7) ? 1 : 0;
+
+                    let leafMask = l0 | (l1 << 1) | (l2 << 2) | (l3 << 3) | (l4 << 4) | (l5 << 5) | (l6 << 6) | (l7 << 7);
+                    manager.setRouting(nodeIdx, 0xFF, leafMask);
+                    manager.setPointer(nodeIdx, childrenIdx);
+                    return false;
+                }
+            }
+
+            buildNode(0, 0, 0, 32, rootIdx);
+        }
+
+        function generateWorld(radius) {
+            psvo = new PSVONodeManager(MAX_NODES);
+            hashTable = new SpatialHashTable(HASH_TABLE_SIZE);
+            loadedChunks.clear();
+            currentRadius = radius;
+
+            let pcx = Math.floor(fpsPos.x / 32); let pcy = Math.floor(fpsPos.y / 32); let pcz = Math.floor(fpsPos.z / 32);
+            for (let dx = -currentRadius; dx <= currentRadius; dx++) {
+                for (let dy = -2; dy <= 1; dy++) {
+                    for (let dz = -currentRadius; dz <= currentRadius; dz++) {
+                        if (dx * dx + dz * dz <= currentRadius * currentRadius) {
+                            generateChunk(pcx + dx, pcy + dy, pcz + dz, psvo, hashTable);
+                            loadedChunks.add(`${pcx + dx},${pcy + dy},${pcz + dz}`);
+                        }
+                    }
+                }
+            }
+            if (device) {
+                device.queue.writeBuffer(slabBuffer, 0, psvo.memory);
+                device.queue.writeBuffer(hashBuffer, 0, hashTable.memory);
+            }
+        }
+
+        // ==========================================
+        // 5. UI & INTERACTIVITY SETUP
+        // ==========================================
+        function initUI() {
+            const menuOverlay = document.getElementById('menu-overlay');
+            const gameHud = document.getElementById('game-hud');
+            const crosshair = document.getElementById('crosshair');
+            const tabs = document.querySelectorAll('.menu-tab');
+            const panels = document.querySelectorAll('.menu-panel');
+            const invGrid = document.getElementById('inv-grid');
+            const radiusSlider = document.getElementById('chunk-radius');
+            const radiusVal = document.getElementById('radius-val');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panels.forEach(p => p.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.target).classList.add('active');
+                });
+            });
+
+            MATERIALS.forEach(mat => {
+                if (mat.id === 0) return;
+                let div = document.createElement('div');
+                div.className = `inv-item ${mat.id === selectedMaterial ? 'active' : ''}`;
+                div.innerHTML = `<div class="inv-color" style="background-color: ${mat.color}"></div><div>${mat.name}</div>`;
+                div.addEventListener('click', () => {
+                    document.querySelectorAll('.inv-item').forEach(el => el.classList.remove('active'));
+                    div.classList.add('active');
+                    selectedMaterial = mat.id;
+                    document.getElementById('mat-indicator').innerText = `Equip: ${mat.name}`;
+                    document.getElementById('mat-indicator').style.color = mat.color;
+                });
+                invGrid.appendChild(div);
+            });
+
+            radiusSlider.addEventListener('input', (e) => {
+                generateWorld(parseInt(e.target.value));
+                radiusVal.innerText = currentRadius;
+            });
+
+            function toggleMenu(forceClose = false) {
+                isMenuOpen = !forceClose;
+                menuOverlay.style.display = forceClose ? 'none' : 'flex';
+                gameHud.style.display = forceClose ? 'block' : 'none';
+                crosshair.style.display = forceClose ? 'block' : 'none';
+                if (isMenuOpen) keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false };
+            }
+
+            document.querySelectorAll('.btn-play').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    try {
+                        if (canvas.requestPointerLock) await canvas.requestPointerLock();
+                    } catch (e) {
+                        console.warn("Pointer lock blocked by sandbox/iframe.");
+                    }
+                    toggleMenu(true);
+                });
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement !== canvas) toggleMenu(false);
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape' && !isMenuOpen) {
+                    if (document.exitPointerLock) document.exitPointerLock();
+                    toggleMenu(false);
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isMenuOpen) {
+                    mouseX += e.movementX * 0.003;
+                    mouseY += e.movementY * 0.003;
+                    mouseY = Math.max(-1.5, Math.min(1.5, mouseY));
+                }
+            });
+
+            function executeRaycastAction() {
+                let pitch = -mouseY; let yaw = mouseX;
+                let dir = [Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw)];
+                return psvo.raycast(fpsPos.x, fpsPos.y, fpsPos.z, dir[0], dir[1], dir[2], hashTable);
+            }
+
+            window.addEventListener('mousedown', (e) => {
+                if (isMenuOpen) return;
+                let hit = executeRaycastAction();
+                if (!hit) return;
+
+                function paintVoxel(bx, by, bz, mat, targetSize) {
+                    let qx = Math.floor(bx); let qy = Math.floor(by); let qz = Math.floor(bz);
+                    let pathInfo = psvo.getVoxelPath(qx, qy, qz, hashTable);
+                    if (!pathInfo) return;
+                    if (mat !== 0 && pathInfo.material !== 0) return;
+
+                    let matInfo = MATERIALS.find(m => m.id === mat);
+                    let actualTargetSize = Math.min(targetSize, pathInfo.size);
+
+                    while (pathInfo && pathInfo.size > actualTargetSize) {
+                        if (!psvo.subdivide(pathInfo)) break;
+                        pathInfo = psvo.getVoxelPath(qx, qy, qz, hashTable);
+                    }
+
+                    if (pathInfo) {
+                        let targetIdx = pathInfo.path[pathInfo.path.length - 1].idx;
+                        psvo.setPayload(targetIdx, mat);
+
+                        if (matInfo && matInfo.isPhysics) {
+                            psvo.activeList.push({ x: pathInfo.nodeOrigin.x, y: pathInfo.nodeOrigin.y, z: pathInfo.nodeOrigin.z, mat: mat, age: 0 });
+                        }
+
+                        if (mat === 0) {
+                            let s = pathInfo.size;
+                            for (let x = 0; x < s; x++) for (let z = 0; z < s; z++) psvo.wakeUpBlock(qx + x, qy + s, qz + z, hashTable);
+                            for (let x = 0; x < s; x++) for (let z = 0; z < s; z++) psvo.wakeUpBlock(qx + x, qy - 1, qz + z, hashTable);
+                            for (let x = 0; x < s; x++) for (let y = 0; y < s; y++) {
+                                psvo.wakeUpBlock(qx + x, qy + y, qz - 1, hashTable);
+                                psvo.wakeUpBlock(qx + x, qy + y, qz + s, hashTable);
+                            }
+                            for (let z = 0; z < s; z++) for (let y = 0; y < s; y++) {
+                                psvo.wakeUpBlock(qx - 1, qy + y, qz + z, hashTable);
+                                psvo.wakeUpBlock(qx + s, qy + y, qz + z, hashTable);
+                            }
+                        }
+
+                        psvo.tryMergeUpwards(pathInfo);
+                    }
+                }
+
+                if (e.button === 0) {
+                    paintVoxel(hit.mapPos.x + 0.5, hit.mapPos.y + 0.5, hit.mapPos.z + 0.5, 0, hit.size);
+                }
+                if (e.button === 2) {
+                    let placeX = hit.mapPos.x + hit.normal.x + 0.5;
+                    let placeY = hit.mapPos.y + hit.normal.y + 0.5;
+                    let placeZ = hit.mapPos.z + hit.normal.z + 0.5;
+                    paintVoxel(placeX, placeY, placeZ, selectedMaterial, hit.size);
+                }
+
+                if (device) device.queue.writeBuffer(slabBuffer, 0, psvo.memory);
+            });
+            window.addEventListener('contextmenu', e => e.preventDefault());
+
+            window.addEventListener('keydown', (e) => {
+                if (isMenuOpen) return;
+                if (e.code === 'KeyW') keys.w = true; if (e.code === 'KeyS') keys.s = true;
+                if (e.code === 'KeyA') keys.a = true; if (e.code === 'KeyD') keys.d = true;
+                if (e.code === 'KeyE') keys.e = true; if (e.code === 'KeyQ') keys.q = true;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = true;
+
+                if (e.code === 'KeyJ') {
+                    let hit = executeRaycastAction();
+                    if (hit && psvo.subdivide(hit)) if (device) device.queue.writeBuffer(slabBuffer, 0, psvo.memory);
+                }
+                if (e.code === 'KeyK') {
+                    let hit = executeRaycastAction();
+                    if (hit) {
+                        psvo.merge(hit);
+                        if (device) device.queue.writeBuffer(slabBuffer, 0, psvo.memory);
+                    }
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'KeyW') keys.w = false; if (e.code === 'KeyS') keys.s = false;
+                if (e.code === 'KeyA') keys.a = false; if (e.code === 'KeyD') keys.d = false;
+                if (e.code === 'KeyE') keys.e = false; if (e.code === 'KeyQ') keys.q = false;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = false;
+            });
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+        }
+
+
+        // ==========================================
+        // 6. WEBGPU PATH TRACER
+        // ==========================================
+        const renderShaderCode = `
+            struct Uniforms {
+                resolution: vec2<f32>, 
+                time: f32, padding: f32, 
+                camPos: vec4<f32>,
+                camDir: vec4<f32>, 
+            };
+            @group(0) @binding(0) var<uniform> ubuf: Uniforms;
+
+            struct VoxelNode { word0: u32, word1: u32, };
+            struct ChunkSlab { nodes: array<VoxelNode>, };
+            @group(0) @binding(1) var<storage, read> slab: ChunkSlab;
+
+            struct HashEntry { x: i32, y: i32, z: i32, rootIdx: i32 };
+            struct HashTable { entries: array<HashEntry>, };
+            @group(0) @binding(2) var<storage, read> hashMap: HashTable;
+
+            fn hashSpatial(x: i32, y: i32, z: i32) -> i32 {
+                let p1 = 73856093; let p2 = 19349669; let p3 = 83492791;
+                var res = ((x * p1) ^ (y * p2) ^ (z * p3)) % 8192;
+                if (res < 0) { res += 8192; }
+                return res;
+            }
+
+            fn getChunkRoot(cx: i32, cy: i32, cz: i32) -> i32 {
+                let h = hashSpatial(cx, cy, cz);
+                for(var i: i32 = 0; i < 8192; i++) {
+                    let idx = (h + i) % 8192;
+                    let entry = hashMap.entries[idx];
+                    if (entry.rootIdx == -1) { return -1; }
+                    if (entry.rootIdx != -2 && entry.x == cx && entry.y == cy && entry.z == cz) { return entry.rootIdx; }
+                }
+                return -1;
+            }
+
+            fn getBits(val: u32, offset: u32, count: u32) -> u32 {
+                let mask = (1u << count) - 1u;
+                return (val >> offset) & mask;
+            }
+
+            struct HitInfo { hit: bool, material: u32, mapPos: vec3<f32>, normal: vec3<f32>, t: f32, nodeSize: f32 };
+
+            fn getVoxelPSVO(worldPos: vec3<f32>) -> HitInfo {
+                var info: HitInfo; info.hit = false;
+                
+                let cx = i32(floor(worldPos.x / 32.0));
+                let cy = i32(floor(worldPos.y / 32.0));
+                let cz = i32(floor(worldPos.z / 32.0));
+                
+                let rootIdx = getChunkRoot(cx, cy, cz);
+                if (rootIdx == -1) { return info; }
+
+                let ix = i32(floor(worldPos.x));
+                let iy = i32(floor(worldPos.y));
+                let iz = i32(floor(worldPos.z));
+                var lx = u32((ix % 32 + 32) % 32);
+                var ly = u32((iy % 32 + 32) % 32);
+                var lz = u32((iz % 32 + 32) % 32);
+
+                var nodeIdx = u32(rootIdx);
+                var size = 32u;
+                var currentPos = vec3<u32>(0u,0u,0u);
+
+                for (var level = 0u; level <= 5u; level++) {
+                    let node = slab.nodes[nodeIdx];
+                    let childMask = getBits(node.word0, 0u, 8u);
+                    let leafMask = getBits(node.word0, 8u, 8u);
+                    let firstChild = node.word1;
+
+                    if (level == 0u && childMask == 0u) {
+                        let mat = getBits(node.word1, 0u, 8u);
+                        if (mat != 0u) {
+                            info.hit = true; info.material = mat; info.nodeSize = 32.0;
+                            info.mapPos = vec3<f32>(f32(cx*32), f32(cy*32), f32(cz*32));
+                            return info;
+                        }
+                        return info; 
+                    }
+
+                    let halfSize = size / 2u;
+                    var ox = 0u; if (lx >= currentPos.x + halfSize) { ox = 1u; currentPos.x += halfSize; }
+                    var oy = 0u; if (ly >= currentPos.y + halfSize) { oy = 1u; currentPos.y += halfSize; }
+                    var oz = 0u; if (lz >= currentPos.z + halfSize) { oz = 1u; currentPos.z += halfSize; }
+                    let octant = ox | (oy << 1u) | (oz << 2u);
+                    
+                    if ((childMask & (1u << octant)) == 0u) { return info; } 
+                    
+                    let isLeaf = (leafMask & (1u << octant)) != 0u;
+                    let offset = countOneBits(childMask & ((1u << octant) - 1u));
+                    let childIdx = firstChild + offset;
+                    
+                    if (isLeaf || level == 5u) {
+                        let childNode = slab.nodes[childIdx];
+                        info.hit = true;
+                        info.material = getBits(childNode.word1, 0u, 8u);
+                        info.nodeSize = f32(halfSize);
+                        info.mapPos = vec3<f32>(f32(cx*32 + i32(currentPos.x)), f32(cy*32 + i32(currentPos.y)), f32(cz*32 + i32(currentPos.z)));
+                        return info;
+                    }
+                    
+                    nodeIdx = childIdx;
+                    size = halfSize;
+                }
+                return info;
+            }
+
+            fn raycast(ro: vec3<f32>, rd: vec3<f32>, maxSteps: i32) -> HitInfo {
+                var mapPos = floor(ro);
+                let deltaDist = vec3<f32>(abs(1.0 / rd.x), abs(1.0 / rd.y), abs(1.0 / rd.z));
+                var rayStep = vec3<f32>(0.0, 0.0, 0.0); var sideDist = vec3<f32>(0.0, 0.0, 0.0);
+
+                if (rd.x < 0.0) { rayStep.x = -1.0; sideDist.x = (ro.x - mapPos.x) * deltaDist.x; } else { rayStep.x = 1.0;  sideDist.x = (mapPos.x + 1.0 - ro.x) * deltaDist.x; }
+                if (rd.y < 0.0) { rayStep.y = -1.0; sideDist.y = (ro.y - mapPos.y) * deltaDist.y; } else { rayStep.y = 1.0;  sideDist.y = (mapPos.y + 1.0 - ro.y) * deltaDist.y; }
+                if (rd.z < 0.0) { rayStep.z = -1.0; sideDist.z = (ro.z - mapPos.z) * deltaDist.z; } else { rayStep.z = 1.0;  sideDist.z = (mapPos.z + 1.0 - ro.z) * deltaDist.z; }
+                
+                var mask = vec3<f32>(0.0); 
+                var hitData: HitInfo;
+
+                for(var i: i32 = 0; i < maxSteps; i++) {
+                    hitData = getVoxelPSVO(mapPos);
+                    if (hitData.hit && hitData.material != 0u) { break; } 
+                    
+                    if (sideDist.x < sideDist.y) {
+                        if (sideDist.x < sideDist.z) { sideDist.x += deltaDist.x; mapPos.x += rayStep.x; mask = vec3<f32>(1.0, 0.0, 0.0); } 
+                        else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; mask = vec3<f32>(0.0, 0.0, 1.0); }
+                    } else {
+                        if (sideDist.y < sideDist.z) { sideDist.y += deltaDist.y; mapPos.y += rayStep.y; mask = vec3<f32>(0.0, 1.0, 0.0); } 
+                        else { sideDist.z += deltaDist.z; mapPos.z += rayStep.z; mask = vec3<f32>(0.0, 0.0, 1.0); }
+                    }
+                }
+                
+                hitData.normal = -rayStep * mask; 
+                if (mask.x > 0.5) { hitData.t = (mapPos.x - ro.x + (1.0 - rayStep.x) * 0.5) / rd.x; }
+                else if (mask.y > 0.5) { hitData.t = (mapPos.y - ro.y + (1.0 - rayStep.y) * 0.5) / rd.y; }
+                else if (mask.z > 0.5) { hitData.t = (mapPos.z - ro.z + (1.0 - rayStep.z) * 0.5) / rd.z; }
+                return hitData;
+            }
+
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>, @location(0) uv : vec2<f32>,
+            };
+
+            @vertex fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
+                var pos = array<vec2<f32>, 6>(vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(-1.0,  1.0), vec2(1.0, -1.0), vec2( 1.0, 1.0));
+                var uv = array<vec2<f32>, 6>(vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, 1.0), vec2(1.0, 0.0), vec2(1.0, 1.0));
+                var output : VertexOutput; output.position = vec4<f32>(pos[VertexIndex], 0.0, 1.0); output.uv = uv[VertexIndex]; return output;
+            }
+
+            @fragment fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+                var p = uv * 2.0 - vec2<f32>(1.0);
+                p.x = p.x * (ubuf.resolution.x / ubuf.resolution.y);
+
+                let ro = ubuf.camPos.xyz;
+                let forward = normalize(ubuf.camDir.xyz);
+                let right = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), forward));
+                let up = cross(forward, right);
+                let rd = normalize(forward + right * p.x + up * p.y);
+
+                let hit = raycast(ro, rd, 600); 
+                var finalCol = vec3<f32>(0.02, 0.05, 0.1) + max(0.0, rd.y) * vec3<f32>(0.1, 0.3, 0.6);
+
+                if (hit.hit && hit.material != 0u) {
+                    var albedo = vec3<f32>(0.8);
+                    if (hit.material == 1u) { albedo = vec3(0.9, 0.2, 0.2); } 
+                    else if (hit.material == 2u) { albedo = vec3(0.9, 0.7, 0.2); } 
+                    else if (hit.material == 3u) { albedo = vec3(0.2, 0.4, 0.9); } 
+                    else if (hit.material == 4u) { albedo = vec3(0.8, 0.8, 0.8); } 
+                    else if (hit.material == 5u) { albedo = vec3(1.0, 0.4, 0.0); } 
+                    else if (hit.material == 6u) { albedo = vec3(0.4, 0.2, 0.1); } 
+                    else if (hit.material == 7u) { albedo = vec3(0.2, 0.7, 0.2); } 
+                    else if (hit.material == 8u) { albedo = vec3(0.4, 0.4, 0.45); } 
+                    else if (hit.material == 9u) { albedo = vec3(0.8, 0.8, 0.9); } 
+                    else if (hit.material == 10u) { albedo = vec3(1.0, 0.8, 0.1); } 
+                    else if (hit.material == 11u) { albedo = vec3(0.3, 0.3, 0.3); } 
+                    else if (hit.material == 12u) { albedo = vec3(0.36, 0.25, 0.20); } 
+                    else if (hit.material == 13u) { albedo = vec3(0.08, 0.39, 0.20); } 
+                    else if (hit.material == 14u) { albedo = vec3(0.51, 0.80, 0.08); } 
+                    else if (hit.material == 15u) { albedo = vec3(0.90, 0.90, 0.95); } 
+                    else if (hit.material == 16u) { albedo = vec3(0.05, 0.05, 0.05); } 
+                    else if (hit.material == 17u) { albedo = vec3(0.32, 0.32, 0.35); } 
+                    
+                    let lightDir = normalize(vec3<f32>(0.5, 1.0, -0.3));
+                    let diffuse = max(dot(hit.normal, lightDir), 0.1);
+                    finalCol = albedo * diffuse;
+
+                    if (hit.material == 5u || hit.material == 10u) {
+                        finalCol = albedo * 1.5; 
+                    }
+
+                    let exactHitPos = ro + rd * hit.t;
+                    let localPos = exactHitPos - hit.mapPos;
+                    let uvw = clamp(localPos / hit.nodeSize, vec3<f32>(0.0), vec3<f32>(1.0));
+
+                    let edgeThickness = 0.05 / hit.nodeSize;
+                    var edges = 0.0;
+                    if (abs(hit.normal.x) > 0.5) {
+                        if (uvw.y < edgeThickness || uvw.y > 1.0-edgeThickness || uvw.z < edgeThickness || uvw.z > 1.0-edgeThickness) { edges = 1.0; }
+                    } else if (abs(hit.normal.y) > 0.5) {
+                        if (uvw.x < edgeThickness || uvw.x > 1.0-edgeThickness || uvw.z < edgeThickness || uvw.z > 1.0-edgeThickness) { edges = 1.0; }
+                    } else {
+                        if (uvw.x < edgeThickness || uvw.x > 1.0-edgeThickness || uvw.y < edgeThickness || uvw.y > 1.0-edgeThickness) { edges = 1.0; }
+                    }
+
+                    let centerHit = raycast(ro, forward, 600);
+                    if (centerHit.hit && length(hit.mapPos - centerHit.mapPos) < 0.01) {
+                        if (edges > 0.0) { finalCol = vec3<f32>(1.0, 1.0, 1.0); } 
+                        finalCol += vec3<f32>(0.1, 0.1, 0.1); 
+                    } else {
+                        if (edges > 0.0) { finalCol *= 0.5; } 
+                    }
+                }
+
+                return vec4<f32>(pow(finalCol, vec3<f32>(1.0/2.2)), 1.0);
+            }
+        `;
+
+        async function initEngine() {
+            canvas = document.getElementById('gpuCanvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initUI();
+
+            if (!navigator.gpu) { alert("WebGPU not supported."); return; }
+            const adapter = await navigator.gpu.requestAdapter();
+            device = await adapter.requestDevice();
+
+            device.addEventListener('uncapturederror', (event) => {
+                document.getElementById('error-overlay').style.display = 'flex';
+                document.getElementById('error-text').innerHTML += "<b>Validation Error:</b><br>" + event.error.message + "<br><br>";
+            });
+
+            context = canvas.getContext('webgpu');
+            format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device, format, alphaMode: 'premultiplied' });
+
+            uniformBuffer = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+            slabBuffer = device.createBuffer({ size: MAX_NODES * 8, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+            device.queue.writeBuffer(slabBuffer, 0, psvo.memory);
+
+            hashBuffer = device.createBuffer({ size: HASH_TABLE_SIZE * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+            device.queue.writeBuffer(hashBuffer, 0, hashTable.memory);
+
+            const renderBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+                    { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "read-only-storage" } },
+                    { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "read-only-storage" } }
+                ]
+            });
+            renderBindGroup = device.createBindGroup({
+                layout: renderBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: uniformBuffer } },
+                    { binding: 1, resource: { buffer: slabBuffer } },
+                    { binding: 2, resource: { buffer: hashBuffer } }
+                ]
+            });
+
+            const rModule = device.createShaderModule({ code: renderShaderCode });
+            renderPipeline = await device.createRenderPipelineAsync({
+                layout: device.createPipelineLayout({ bindGroupLayouts: [renderBindGroupLayout] }),
+                vertex: { module: rModule, entryPoint: 'vs_main' },
+                fragment: { module: rModule, entryPoint: 'fs_main', targets: [{ format }] },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            generateWorld(currentRadius);
+            requestAnimationFrame(frame);
+        }
+
+        function frame() {
+            if (!renderPipeline) return;
+            const timeSecs = (performance.now() - startTime) / 1000.0;
+
+            let pitch = -mouseY; let yaw = mouseX;
+            let dir = [Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw)];
+            let right = [Math.sin(yaw - Math.PI / 2), 0, Math.cos(yaw - Math.PI / 2)];
+
+            let speed = keys.shift ? 6.0 : 2.0;
+            let nx = fpsPos.x, ny = fpsPos.y, nz = fpsPos.z;
+            if (keys.w) { nx += dir[0] * speed; ny += dir[1] * speed; nz += dir[2] * speed; }
+            if (keys.s) { nx -= dir[0] * speed; ny -= dir[1] * speed; nz -= dir[2] * speed; }
+            if (keys.a) { nx += right[0] * speed; nz += right[2] * speed; }
+            if (keys.d) { nx -= right[0] * speed; nz -= right[2] * speed; }
+            if (keys.e) { ny += speed; }
+            if (keys.q) { ny -= speed; }
+
+            // Ghost Mode / No-Clip (Removed Kinematic Collision)
+            fpsPos.x = nx;
+            fpsPos.y = ny;
+            fpsPos.z = nz;
+
+            document.getElementById('pos-indicator').innerText = `Pos: ${Math.floor(fpsPos.x)}, ${Math.floor(fpsPos.y)}, ${Math.floor(fpsPos.z)}`;
+
+            const uniformData = new Float32Array([
+                canvas.width, canvas.height, timeSecs, 0.0,
+                fpsPos.x, fpsPos.y, fpsPos.z, 0.0,
+                dir[0], dir[1], dir[2], 0.0
+            ]);
+            device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+            let bufferChanged = false;
+
+            // --- INFINITE CHUNK STREAMING (Persistent Caching) ---
+            let pcx = Math.floor(fpsPos.x / 32); let pcy = Math.floor(fpsPos.y / 32); let pcz = Math.floor(fpsPos.z / 32);
+            let desiredChunks = new Set();
+
+            for (let dx = -currentRadius; dx <= currentRadius; dx++) {
+                for (let dy = -2; dy <= 1; dy++) {
+                    for (let dz = -currentRadius; dz <= currentRadius; dz++) {
+                        if (dx * dx + dz * dz <= currentRadius * currentRadius) {
+                            desiredChunks.add(`${pcx + dx},${pcy + dy},${pcz + dz}`);
+                        }
+                    }
+                }
+            }
+
+            for (let key of desiredChunks) {
+                if (!loadedChunks.has(key)) {
+                    let [cx, cy, cz] = key.split(',').map(Number);
+                    generateChunk(cx, cy, cz, psvo, hashTable);
+                    loadedChunks.add(key);
+                    bufferChanged = true;
+                    break; // Max 1 Chunk Per Frame
+                }
+            }
+
+            if (!isMenuOpen) {
+                if (psvo.physicsTick(hashTable)) bufferChanged = true;
+            }
+
+            if (bufferChanged && device) {
+                device.queue.writeBuffer(slabBuffer, 0, psvo.memory);
+                device.queue.writeBuffer(hashBuffer, 0, hashTable.memory);
+            }
+
+            const commandEncoder = device.createCommandEncoder();
+            const textureView = context.getCurrentTexture().createView();
+            const renderPass = commandEncoder.beginRenderPass({
+                colorAttachments: [{ view: textureView, clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }, loadOp: 'clear', storeOp: 'store' }]
+            });
+            renderPass.setPipeline(renderPipeline);
+            renderPass.setBindGroup(0, renderBindGroup);
+            renderPass.draw(6);
+            renderPass.end();
+
+            device.queue.submit([commandEncoder.finish()]);
+            requestAnimationFrame(frame);
+        }
+
+        initEngine();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<!-- Set dark mode by default, JS will override based on localStorage -->
+<html lang="en" class="dark">
+
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>SUDOKU minimal</title>
+    <meta name="description" content="Minimalistic Sudoku game with dark mode support. Challenge yourself with Easy, Medium, and Hard puzzles." />
+    <meta name="keywords" content="3DIE, IORI, Sudoku, game, minimalist, logic puzzle, dark mode" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SUDOKU minimal" />
+    <meta property="og:description" content="Minimalistic Sudoku game with dark mode support. Challenge yourself with Easy, Medium, and Hard puzzles." />
+    <meta property="og:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SUDOKU minimal" />
+    <meta name="twitter:description" content="Minimalistic Sudoku game with dark mode support. Challenge yourself with Easy, Medium, and Hard puzzles." />
+    <meta name="twitter:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- iOS and Android PWA & New Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icon/ios/32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icon/ios/16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon/ios/180.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- CRITICAL FIX: Force Tailwind to follow the HTML class toggle, not the OS preference -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <style>
+        /* Custom styles for the brutalist look */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+            touch-action: manipulation;
+            /* Prevent double-tap zoom */
+        }
+
+        .sudoku-cell {
+            border-radius: 0;
+            transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* --- LAYERED HIGHLIGHTING SYSTEM --- 
+           Order matters here for CSS specificity. 
+           Lower rules override higher rules if both are applied.
+        */
+
+        /* 1. Base Disabled (Given Clues) */
+        .sudoku-cell.cell-disabled {
+            background-color: #f9fafb;
+            /* gray-50 */
+            color: #111827;
+            /* gray-900 */
+            font-weight: 700;
+            cursor: pointer;
+            /* Allowed to click to see highlights */
+        }
+
+        .dark .sudoku-cell.cell-disabled {
+            background-color: #111827;
+            /* gray-900 */
+            color: #d1d5db;
+            /* gray-300 */
+        }
+
+        /* 2. Crosshair Highlight (Row, Col, Box) */
+        .sudoku-cell.cell-crosshair {
+            background-color: #f3f4f6;
+            /* gray-100 */
+        }
+
+        .dark .sudoku-cell.cell-crosshair {
+            background-color: #1f2937;
+            /* gray-800 */
+        }
+
+        /* 3. Matching Number Highlight */
+        .sudoku-cell.cell-highlight-num {
+            background-color: #bae6fd;
+            /* sky-200 */
+        }
+
+        .dark .sudoku-cell.cell-highlight-num {
+            background-color: #0369a1;
+            /* sky-700 */
+        }
+
+        /* 4. Actively Selected Cell */
+        .sudoku-cell.cell-selected {
+            background-color: #93c5fd;
+            /* blue-300 */
+        }
+
+        .dark .sudoku-cell.cell-selected {
+            background-color: #1e3a8a;
+            /* blue-900 */
+        }
+
+        /* 5. Invalid / Mistake State */
+        .sudoku-cell.user-invalid {
+            background-color: #dc2626 !important;
+            /* red-600 */
+            color: #ffffff !important;
+            /* white */
+        }
+
+        /* --- Text Colors --- */
+        .sudoku-cell.user-valid {
+            color: #2563eb;
+            /* blue-600 */
+            font-weight: 600;
+        }
+
+        .dark .sudoku-cell.user-valid {
+            color: #60a5fa;
+            /* blue-400 */
+        }
+
+        /* --- UI Elements --- */
+        .numpad-btn {
+            border-radius: 0;
+            transition: all 0.1s ease-in-out;
+            /* Added flex centering to ensure numbers stay perfectly centered */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .numpad-btn:active {
+            transform: scale(0.95);
+            background-color: #60a5fa !important;
+        }
+
+        .difficulty-btn {
+            border-radius: 0;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .difficulty-btn.active {
+            background-color: #1f2937;
+            color: #fff;
+            border-color: #1f2937;
+        }
+
+        .dark .difficulty-btn.active {
+            background-color: #d1d5db;
+            color: #000;
+            border-color: #d1d5db;
+        }
+
+        /* --- Animations --- */
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-4px);
+            }
+
+            75% {
+                transform: translateX(4px);
+            }
+        }
+
+        .shake-animation {
+            animation: shake 0.3s ease-in-out;
+        }
+
+        /* --- Numpad Positioning --- */
+        @media (orientation: portrait) {
+            #numpad-container {
+                transition: transform 0.2s ease-in-out, opacity 0.2s ease-in-out, visibility 0.2s;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+                padding: 0.75rem;
+                /* Slightly more padding for the larger block */
+                background-color: #fff;
+                border-top: 2px solid #000;
+                transform: translateY(100%);
+                opacity: 0;
+                visibility: hidden;
+                z-index: 50;
+            }
+
+            .dark #numpad-container {
+                background-color: #000;
+                border-color: #d1d5db;
+            }
+
+            #numpad-container.numpad-active {
+                transform: translateY(0);
+                opacity: 1;
+                visibility: visible;
+            }
+
+            #numpad-grid {
+                /* Changed to 5 columns to create a 5x2 grid for mobile */
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 0.5rem;
+            }
+
+            .numpad-btn {
+                height: 3.5rem;
+                /* Fixed height for thumb tapping */
+            }
+
+            #numpad-erase {
+                grid-column: auto;
+                /* Reset to take up 1 standard slot */
+            }
+
+            body {
+                padding-bottom: 10rem;
+                /* Increased to account for the 2 rows */
+            }
+        }
+
+        @media (orientation: landscape) {
+            #main-container {
+                flex-direction: row;
+                align-items: flex-start;
+                gap: 2rem;
+            }
+
+            #numpad-container,
+            #numpad-container.numpad-active {
+                position: relative;
+                width: 14rem;
+                /* Fixed width so flexbox doesn't squish it */
+                flex-shrink: 0;
+                /* Prevent shrinking */
+                margin-top: 0;
+                padding: 0;
+                border: none;
+                transform: translateY(0);
+                opacity: 1;
+                visibility: visible;
+                z-index: auto;
+            }
+
+            #numpad-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 0.5rem;
+            }
+
+            .numpad-btn {
+                aspect-ratio: 1 / 1;
+                /* Forces perfect squares on desktop */
+            }
+
+            #numpad-erase {
+                grid-column: span 3 / span 3;
+                aspect-ratio: auto;
+                /* Overrides square aspect ratio */
+                height: 3.5rem;
+                /* Bar shape for Erase */
+            }
+
+            body {
+                padding-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-white text-black dark:bg-black dark:text-gray-300 min-h-screen flex items-center justify-center p-4">
+
+    <main id="main-container" class="flex flex-col items-center justify-center gap-6">
+
+        <!-- Left Side (Grid + Controls) -->
+        <div class="flex flex-col items-center">
+
+            <!-- Difficulty -->
+            <div id="difficulty-selector" class="flex justify-center gap-2 mb-4">
+                <button data-difficulty="Easy"
+                    class="difficulty-btn active uppercase text-sm font-bold tracking-wider px-3 py-1 border-2 border-black dark:border-gray-300">Easy</button>
+                <button data-difficulty="Medium"
+                    class="difficulty-btn uppercase text-sm font-bold tracking-wider px-3 py-1 border-2 border-black dark:border-gray-300">Medium</button>
+                <button data-difficulty="Hard"
+                    class="difficulty-btn uppercase text-sm font-bold tracking-wider px-3 py-1 border-2 border-black dark:border-gray-300">Hard</button>
+            </div>
+
+            <!-- The Sudoku Grid -->
+            <div id="grid-container"
+                class="grid grid-cols-9 w-max shadow-lg border-2 border-black dark:border-gray-300">
+                <!-- Cells will be generated by JavaScript -->
+            </div>
+
+            <!-- Info Bar -->
+            <div class="flex justify-between w-full mt-4">
+                <span id="mistakes-counter" class="text-lg font-bold uppercase tracking-wider">Mistakes: 0</span>
+                <a id="theme-toggle"
+                    class="uppercase font-bold tracking-widest cursor-pointer hover:text-red-500 transition-colors text-lg"></a>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex flex-wrap justify-center space-x-6 sm:space-x-8 mt-4">
+                <a id="new-game"
+                    class="uppercase font-bold tracking-widest cursor-pointer hover:text-red-500 transition-colors">New
+                    Game</a>
+                <a id="check-solution"
+                    class="uppercase font-bold tracking-widest cursor-pointer hover:text-red-500 transition-colors">Check</a>
+                <a id="export-history"
+                    class="uppercase font-bold tracking-widest cursor-pointer hover:text-red-500 transition-colors">Export</a>
+            </div>
+
+            <!-- Message Area -->
+            <div id="message" class="mt-4 text-xl font-bold uppercase tracking-wider h-8"></div>
+        </div>
+
+        <!-- Numpad Container -->
+        <div id="numpad-container">
+            <div id="numpad-grid" class="grid">
+                <!-- Numbers 1-9 (Removed Tailwind heights to let CSS handle it) -->
+                <button data-number="1"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">1</button>
+                <button data-number="2"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">2</button>
+                <button data-number="3"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">3</button>
+                <button data-number="4"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">4</button>
+                <button data-number="5"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">5</button>
+                <button data-number="6"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">6</button>
+                <button data-number="7"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">7</button>
+                <button data-number="8"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">8</button>
+                <button data-number="9"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800">9</button>
+                <!-- Erase Button -->
+                <button id="numpad-erase" data-number="0"
+                    class="numpad-btn w-full text-2xl font-bold border-2 border-black dark:border-gray-300 bg-white dark:bg-black hover:bg-gray-100 dark:hover:bg-gray-800 text-red-500">X</button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gridContainer = document.getElementById('grid-container');
+            const messageEl = document.getElementById('message');
+            const newGameBtn = document.getElementById('new-game');
+            const checkBtn = document.getElementById('check-solution');
+            const exportBtn = document.getElementById('export-history');
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const numpadContainer = document.getElementById('numpad-container');
+            const difficultySelector = document.getElementById('difficulty-selector');
+            const mistakesCounterEl = document.getElementById('mistakes-counter');
+
+            let currentBoard = [];
+            let solutionBoard = [];
+            let gameHistory = [];
+            let currentDifficulty = 'Easy';
+            let mistakeCounter = 0;
+            let selectedCell = null;
+
+            const difficultySettings = { 'Easy': 35, 'Medium': 45, 'Hard': 55 };
+            const scoreSettings = {
+                'Easy': { base: 1000, penalty: 100 },
+                'Medium': { base: 3000, penalty: 150 },
+                'Hard': { base: 5000, penalty: 200 }
+            };
+
+            // --- Theme Toggle ---
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    themeToggleBtn.textContent = 'Light Mode';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    themeToggleBtn.textContent = 'Dark Mode';
+                }
+            }
+
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                localStorage.setItem('sudokuTheme', newTheme);
+                applyTheme(newTheme);
+            });
+
+            // --- Game Logic ---
+            function loadHistory() {
+                gameHistory = JSON.parse(localStorage.getItem('sudokuHistory')) || [];
+            }
+
+            function calculateScore() {
+                const settings = scoreSettings[currentDifficulty];
+                const score = settings.base - (mistakeCounter * settings.penalty);
+                return Math.max(0, score);
+            }
+
+            function saveGameToHistory() {
+                const endTime = new Date();
+                gameHistory.push({
+                    date: endTime.toLocaleString(),
+                    difficulty: currentDifficulty,
+                    mistakes: mistakeCounter,
+                    score: calculateScore()
+                });
+                localStorage.setItem('sudokuHistory', JSON.stringify(gameHistory));
+            }
+
+            function generateHistoryExport() {
+                if (gameHistory.length === 0) {
+                    messageEl.textContent = 'No History';
+                    messageEl.style.color = '#f59e0b';
+                    return;
+                }
+                const tableRows = gameHistory.map(game => {
+                    return `<tr><td>${game.date}</td><td>${game.difficulty}</td><td>${game.mistakes}</td><td>${game.score}</td></tr>`;
+                }).join('');
+                const htmlContent = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-AR"><title>Sudoku Game History</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:20px;line-height:1.6}h1{text-align:center;color:#333}table{width:100%;max-width:800px;margin:20px auto;border-collapse:collapse;box-shadow:0 2px 4px rgba(0,0,0,0.1)}th,td{border:1px solid #ddd;padding:12px 15px;text-align:left}th{background-color:#f4f4f4;color:#333;text-transform:uppercase;font-size:0.9em;letter-spacing:0.05em}tr:nth-child(even){background-color:#f9f9f9}tr:hover{background-color:#f1f1f1}</style></head><body><h1>Sudoku Game History</h1><table><thead><tr><th>Date Completed</th><th>Difficulty</th><th>Mistakes</th><th>Score</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sudoku_history.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            function shuffle(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            function isSafe(board, row, col, num) {
+                for (let x = 0; x < 9; x++) if (board[row][x] === num) return false;
+                for (let y = 0; y < 9; y++) if (board[y][col] === num) return false;
+                const startRow = row - (row % 3), startCol = col - (col % 3);
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        if (board[i + startRow][j + startCol] === num) return false;
+                    }
+                }
+                return true;
+            }
+
+            function solveSudoku(board) {
+                for (let row = 0; row < 9; row++) {
+                    for (let col = 0; col < 9; col++) {
+                        if (board[row][col] === 0) {
+                            let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                            shuffle(numbers);
+                            for (let num of numbers) {
+                                if (isSafe(board, row, col, num)) {
+                                    board[row][col] = num;
+                                    if (solveSudoku(board)) return true;
+                                    board[row][col] = 0;
+                                }
+                            }
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            function generatePuzzle() {
+                let emptyBoard = Array(9).fill(0).map(() => Array(9).fill(0));
+                solveSudoku(emptyBoard);
+                solutionBoard = emptyBoard.map(row => [...row]);
+                currentBoard = emptyBoard.map(row => [...row]);
+
+                let holesToMake = difficultySettings[currentDifficulty];
+                let holes = 0;
+
+                while (holes < holesToMake) {
+                    let row = Math.floor(Math.random() * 9);
+                    let col = Math.floor(Math.random() * 9);
+                    if (currentBoard[row][col] !== 0) {
+                        currentBoard[row][col] = 0;
+                        holes++;
+                    }
+                }
+            }
+
+            // --- DOM Rendering ---
+            function renderBoard() {
+                gridContainer.innerHTML = '';
+                messageEl.textContent = '';
+                mistakeCounter = 0;
+                mistakesCounterEl.textContent = 'Mistakes: 0';
+                deselectCell();
+
+                for (let i = 0; i < 9; i++) {
+                    for (let j = 0; j < 9; j++) {
+                        const cell = document.createElement('div');
+                        cell.dataset.row = i;
+                        cell.dataset.col = j;
+                        cell.tabIndex = 0;
+                        cell.className = 'sudoku-cell w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-3xl text-center font-mono border border-gray-300 dark:border-gray-700 flex items-center justify-center';
+
+                        if (j === 2 || j === 5) cell.classList.add('border-r-black', 'dark:border-r-gray-400', 'border-r-2');
+                        if (i === 2 || i === 5) cell.classList.add('border-b-black', 'dark:border-b-gray-400', 'border-b-2');
+
+                        const value = currentBoard[i][j];
+                        if (value !== 0) {
+                            cell.textContent = value;
+                            cell.classList.add('cell-disabled');
+                        } else {
+                            cell.classList.add('user-valid');
+                        }
+
+                        cell.addEventListener('click', handleCellClick);
+                        gridContainer.appendChild(cell);
+                    }
+                }
+                validateAndHighlight();
+            }
+
+            function getBoardFromDOM() {
+                const board = Array(9).fill(0).map(() => Array(9).fill(0));
+                const cells = gridContainer.querySelectorAll('.sudoku-cell');
+                cells.forEach(cell => {
+                    const row = parseInt(cell.dataset.row);
+                    const col = parseInt(cell.dataset.col);
+                    board[row][col] = parseInt(cell.textContent) || 0;
+                });
+                return board;
+            }
+
+            // --- Interaction & Gamification ---
+            function updateHighlights() {
+                const cells = gridContainer.querySelectorAll('.sudoku-cell');
+                cells.forEach(c => c.classList.remove('cell-crosshair', 'cell-highlight-num'));
+
+                if (!selectedCell) return;
+
+                const selR = parseInt(selectedCell.dataset.row);
+                const selC = parseInt(selectedCell.dataset.col);
+                const selVal = selectedCell.textContent;
+
+                cells.forEach(cell => {
+                    if (cell === selectedCell) return;
+
+                    const r = parseInt(cell.dataset.row);
+                    const c = parseInt(cell.dataset.col);
+
+                    // Crosshair Highlight
+                    if (r === selR || c === selC || (Math.floor(r / 3) === Math.floor(selR / 3) && Math.floor(c / 3) === Math.floor(selC / 3))) {
+                        cell.classList.add('cell-crosshair');
+                    }
+
+                    // Number matching Highlight
+                    if (selVal !== '' && cell.textContent === selVal) {
+                        cell.classList.add('cell-highlight-num');
+                    }
+                });
+            }
+
+            function handleCellClick(e) {
+                const clickedCell = e.target;
+
+                if (clickedCell === selectedCell) {
+                    deselectCell();
+                } else {
+                    if (selectedCell) {
+                        selectedCell.classList.remove('cell-selected');
+                    }
+                    selectedCell = clickedCell;
+                    selectedCell.classList.add('cell-selected');
+                    numpadContainer.classList.add('numpad-active');
+                    updateHighlights();
+                }
+            }
+
+            function deselectCell() {
+                if (selectedCell) {
+                    selectedCell.classList.remove('cell-selected');
+                }
+                selectedCell = null;
+                numpadContainer.classList.remove('numpad-active');
+                updateHighlights();
+            }
+
+            function triggerMistakeFeedback(cell) {
+                cell.classList.add('shake-animation');
+                setTimeout(() => cell.classList.remove('shake-animation'), 300);
+                if (navigator.vibrate) navigator.vibrate(50);
+            }
+
+            function handleNumpadClick(e) {
+                const clickedButton = e.target.closest('.numpad-btn');
+                if (!clickedButton || !selectedCell) return;
+
+                // Prevent changing original clues, but give feedback
+                if (selectedCell.classList.contains('cell-disabled')) {
+                    triggerMistakeFeedback(selectedCell);
+                    return;
+                }
+
+                const num = parseInt(clickedButton.dataset.number);
+                const row = parseInt(selectedCell.dataset.row);
+                const col = parseInt(selectedCell.dataset.col);
+
+                if (num === 0) { // Erase
+                    selectedCell.textContent = '';
+                    currentBoard[row][col] = 0;
+                } else {
+                    selectedCell.textContent = num;
+                    currentBoard[row][col] = num;
+
+                    // Check for mistake immediately for gamification feedback
+                    if (solutionBoard[row][col] !== num) {
+                        mistakeCounter++;
+                        mistakesCounterEl.textContent = `Mistakes: ${mistakeCounter}`;
+                        triggerMistakeFeedback(selectedCell);
+                    }
+                }
+
+                messageEl.textContent = '';
+                validateAndHighlight();
+                updateHighlights();
+            }
+
+            function handleDifficultyClick(e) {
+                const clickedButton = e.target.closest('.difficulty-btn');
+                if (!clickedButton) return;
+
+                difficultySelector.querySelectorAll('.difficulty-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                clickedButton.classList.add('active');
+                currentDifficulty = clickedButton.dataset.difficulty;
+                newGame();
+            }
+
+            // --- Validation ---
+            function validateAndHighlight() {
+                const cells = gridContainer.querySelectorAll('.sudoku-cell');
+                let isInvalid = Array(9).fill(0).map(() => Array(9).fill(false));
+                const board = getBoardFromDOM();
+
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        const num = board[r][c];
+                        if (num === 0) continue;
+                        for (let c2 = 0; c2 < 9; c2++) if (c !== c2 && board[r][c2] === num) { isInvalid[r][c] = true; isInvalid[r][c2] = true; }
+                        for (let r2 = 0; r2 < 9; r2++) if (r !== r2 && board[r2][c] === num) { isInvalid[r][c] = true; isInvalid[r2][c] = true; }
+                        const startRow = r - (r % 3), startCol = c - (c % 3);
+                        for (let i = 0; i < 3; i++) {
+                            for (let j = 0; j < 3; j++) {
+                                const boxR = startRow + i, boxC = startCol + j;
+                                if (boxR === r && boxC === c) continue;
+                                if (board[boxR][boxC] === num) { isInvalid[r][c] = true; isInvalid[boxR][boxC] = true; }
+                            }
+                        }
+                    }
+                }
+
+                cells.forEach(cell => {
+                    const r = parseInt(cell.dataset.row);
+                    const c = parseInt(cell.dataset.col);
+
+                    // Remove both to reset state cleanly before adding
+                    cell.classList.remove('user-invalid');
+
+                    if (isInvalid[r][c]) {
+                        cell.classList.add('user-invalid');
+                    }
+                });
+            }
+
+            function checkSolution() {
+                validateAndHighlight();
+                const cells = gridContainer.querySelectorAll('.sudoku-cell');
+                let isComplete = true;
+                let hasErrors = false;
+
+                cells.forEach(cell => {
+                    if (cell.textContent === '') isComplete = false;
+                    if (cell.classList.contains('user-invalid')) hasErrors = true;
+                });
+
+                const board = getBoardFromDOM();
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        if (board[r][c] !== 0 && board[r][c] !== solutionBoard[r][c]) {
+                            hasErrors = true;
+                        }
+                    }
+                }
+
+                if (!isComplete) {
+                    messageEl.textContent = 'Keep Going...';
+                    messageEl.style.color = '#94a3b8';
+                } else if (hasErrors) {
+                    messageEl.textContent = 'Errors Found...';
+                    messageEl.style.color = '#ef4444';
+                } else {
+                    const finalScore = calculateScore();
+                    messageEl.textContent = `Solved! Score: ${finalScore}`;
+                    messageEl.style.color = '#22c55e';
+                    deselectCell();
+                    saveGameToHistory();
+                }
+            }
+
+            function newGame() {
+                generatePuzzle();
+                renderBoard();
+            }
+
+            // --- Event Listeners & Init ---
+            newGameBtn.addEventListener('click', newGame);
+            checkBtn.addEventListener('click', checkSolution);
+            exportBtn.addEventListener('click', generateHistoryExport);
+            numpadContainer.addEventListener('click', handleNumpadClick);
+            difficultySelector.addEventListener('click', handleDifficultyClick);
+
+            const savedTheme = localStorage.getItem('sudokuTheme') || 'dark';
+            applyTheme(savedTheme);
+            loadHistory();
+            newGame();
+        });
+    </script>
+</body>
+
+</html>

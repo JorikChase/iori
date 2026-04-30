@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>learn PI by heart MINIMAL</title>
+    <meta name="description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="keywords" content="3DIE, IORI, generative art, three.js, webgl, fractals, code experiments, shader" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="learn PI by heart MINIMAL" />
+    <meta property="og:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta property="og:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="learn PI by heart MINIMAL" />
+    <meta name="twitter:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="twitter:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- iOS and Android PWA & New Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icon/ios/32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icon/ios/16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon/ios/180.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+
+    <style>
+        :root {
+            /* Base Theme variables */
+            --bg: #050505;
+            --text: #ffffff;
+            --text-muted: #444444;
+            --primary: #ffffff;
+            --success: #00ff41;
+            --error: #ff003c;
+            --hint: #222222;
+            --grid-line: #222222;
+
+            /* Synesthesia Digit Colors (Dark Mode) */
+            --c0: #ffffff;
+            /* White */
+            --c1: #ffea00;
+            /* Yellow */
+            --c2: #8aff8a;
+            /* Light Green */
+            --c3: #8ad4ff;
+            /* Light Blue */
+            --c4: #4780ff;
+            /* Dark Blue */
+            --c5: #c071ff;
+            /* Purple */
+            --c6: #ff8ae6;
+            /* Pink */
+            --c7: #ff4d4d;
+            /* Red */
+            --c8: #ff9d00;
+            /* Orange */
+            --c9: #c48959;
+            /* Brown */
+        }
+
+        [data-theme="light"] {
+            /* Base Theme variables */
+            --bg: #f4f4f4;
+            --text: #050505;
+            --text-muted: #aaaaaa;
+            --primary: #050505;
+            --success: #00992a;
+            --error: #d50000;
+            --hint: #dddddd;
+            --grid-line: #dddddd;
+
+            /* Synesthesia Digit Colors (Light Mode) */
+            --c0: #111111;
+            /* Dark Grey */
+            --c1: #cca600;
+            /* Yellow */
+            --c2: #21a321;
+            /* Light Green */
+            --c3: #1a8fcf;
+            /* Light Blue */
+            --c4: #003db3;
+            /* Dark Blue */
+            --c5: #7b29ba;
+            /* Purple */
+            --c6: #d622a3;
+            /* Pink */
+            --c7: #cc0000;
+            /* Red */
+            --c8: #d16100;
+            /* Orange */
+            --c9: #784825;
+            /* Brown */
+        }
+
+        /* Color Utility Classes */
+        .c0 {
+            color: var(--c0);
+        }
+
+        .c1 {
+            color: var(--c1);
+        }
+
+        .c2 {
+            color: var(--c2);
+        }
+
+        .c3 {
+            color: var(--c3);
+        }
+
+        .c4 {
+            color: var(--c4);
+        }
+
+        .c5 {
+            color: var(--c5);
+        }
+
+        .c6 {
+            color: var(--c6);
+        }
+
+        .c7 {
+            color: var(--c7);
+        }
+
+        .c8 {
+            color: var(--c8);
+        }
+
+        .c9 {
+            color: var(--c9);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            font-variant-numeric: tabular-nums;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Space Grotesk', sans-serif;
+            text-transform: uppercase;
+            overflow: hidden;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            z-index: 10;
+        }
+
+        .stat-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .lives {
+            font-size: 1.5rem;
+            letter-spacing: 5px;
+            color: var(--primary);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--text);
+            color: var(--text);
+            font-family: inherit;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.2s;
+            margin-top: 2rem;
+        }
+
+        .theme-toggle:hover {
+            background: var(--text);
+            color: var(--bg);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+
+        .combo-meter {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: color 0.2s, transform 0.1s;
+            z-index: 5;
+        }
+
+        .combo-meter.active {
+            color: var(--success);
+            transform: scale(1.1);
+        }
+
+        .combo-meter.hint-mode {
+            color: var(--primary);
+            opacity: 0.5;
+        }
+
+        .play-area {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .tape-row {
+            display: flex;
+            width: 100%;
+            height: 70px;
+            align-items: center;
+            font-size: 3.5rem;
+            font-weight: 700;
+        }
+
+        .reference-row {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateY(10px);
+            color: var(--hint);
+        }
+
+        .reference-row.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .ref-active-digit {
+            text-shadow: 0 0 15px currentColor;
+            filter: brightness(1.2);
+        }
+
+        .left-half {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            white-space: nowrap;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            touch-action: pan-x;
+        }
+
+        .left-half::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tape-content {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+        }
+
+        .cursor-container {
+            width: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .cursor {
+            width: 2rem;
+            height: 3.5rem;
+            border-bottom: 5px solid var(--primary);
+            animation: blink 1s infinite step-end;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .digit-index {
+            position: absolute;
+            bottom: -20px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .right-half {
+            flex: 1;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .digit {
+            display: inline-block;
+            width: 2rem;
+            text-align: center;
+        }
+
+        .active-row .tape-content .digit:last-child {
+            animation: popIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .spacer {
+            display: inline-block;
+            width: 1rem;
+        }
+
+        .muted {
+            color: var(--text-muted);
+            margin-right: 1rem;
+        }
+
+        .keypad-container {
+            width: 100%;
+            padding: 0 1rem 1rem 1rem;
+            margin-bottom: env(safe-area-inset-bottom);
+        }
+
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: var(--grid-line);
+            border: 2px solid var(--grid-line);
+        }
+
+        .key {
+            background: var(--bg);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            border: none;
+            padding: 1.2rem 0;
+            cursor: pointer;
+            transition: background-color 0.05s, color 0.05s, transform 0.05s;
+            touch-action: manipulation;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .key:active,
+        .key.simulated-active {
+            background: var(--text);
+            color: var(--bg) !important;
+            transform: scale(0.95);
+        }
+
+        .key.hint-key {
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+
+        .key.hint-key.hint-active {
+            background: var(--primary);
+            color: var(--bg);
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .overlay h1 {
+            font-size: 3rem;
+            margin: 0 0 1rem 0;
+            text-align: center;
+        }
+
+        .overlay p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                border-color: var(--primary);
+            }
+
+            50% {
+                border-color: transparent;
+            }
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .shake {
+            animation: shakeScreen 0.3s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+
+        @keyframes shakeScreen {
+
+            0%,
+            100% {
+                transform: translate3d(0, 0, 0);
+            }
+
+            10%,
+            30%,
+            50%,
+            70%,
+            90% {
+                transform: translate3d(-10px, 0, 0);
+            }
+
+            20%,
+            40%,
+            60%,
+            80% {
+                transform: translate3d(10px, 0, 0);
+            }
+        }
+
+        .flash-error {
+            background-color: var(--error) !important;
+        }
+
+        @media (max-height: 700px) {
+            .tape-row {
+                font-size: 2.8rem;
+                height: 50px;
+            }
+
+            .cursor {
+                height: 2.8rem;
+                width: 1.8rem;
+            }
+
+            .digit {
+                width: 1.8rem;
+            }
+
+            .key {
+                padding: 1rem 0;
+            }
+
+            header {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <header>
+            <div class="stat-block">
+                <span class="stat-value" id="ui-score">0</span>
+                <span class="stat-label">SCORE</span>
+            </div>
+            <div class="stat-block">
+                <span class="lives" id="ui-lives">///</span>
+                <span class="stat-label">LIVES</span>
+            </div>
+            <div class="stat-block">
+                <span class="stat-value" id="ui-best">0</span>
+                <span class="stat-label">BEST</span>
+            </div>
+        </header>
+
+        <main id="main-area">
+            <div class="combo-meter" id="combo-display">x1.0</div>
+
+            <div class="play-area">
+                <div class="tape-row reference-row" id="reference-row">
+                    <div class="left-half" id="ref-tape-left">
+                        <div class="tape-content" id="ref-tape-content">
+                            <span class="muted"><span class="c3">3</span>.</span>
+                        </div>
+                    </div>
+                    <div class="cursor-container">
+                        <div class="digit ref-active-digit" id="ref-current-digit"></div>
+                    </div>
+                    <div class="right-half" id="ref-tape-right"></div>
+                </div>
+
+                <div class="tape-row active-row">
+                    <div class="left-half" id="tape-left">
+                        <div class="tape-content" id="tape-content-user">
+                            <span class="muted"><span class="c3">3</span>.</span>
+                        </div>
+                    </div>
+                    <div class="cursor-container">
+                        <div class="cursor" id="cursor"></div>
+                        <div class="digit-index" id="digit-index">#1</div>
+                    </div>
+                    <div class="right-half"></div>
+                </div>
+            </div>
+
+            <div class="overlay visible" id="start-screen">
+                <h1>PI MINIMAL</h1>
+                <p>TAP ANY NUMBER TO BEGIN</p>
+                <button class="theme-toggle">TOGGLE THEME</button>
+            </div>
+
+            <div class="overlay" id="game-over-screen">
+                <h1 style="color: var(--error);">SYSTEM FAILURE</h1>
+                <p id="final-stats">YOU REMEMBERED X DIGITS</p>
+                <p style="margin-top: 2rem; color: var(--text-muted); font-size: 0.8rem; letter-spacing: 2px;">TAP ANY
+                    NUMBER TO RESTART</p>
+            </div>
+        </main>
+
+        <div class="keypad-container">
+            <div class="keypad" id="keypad">
+                <button class="key c1" data-val="1">1</button>
+                <button class="key c2" data-val="2">2</button>
+                <button class="key c3" data-val="3">3</button>
+                <button class="key c4" data-val="4">4</button>
+                <button class="key c5" data-val="5">5</button>
+                <button class="key c6" data-val="6">6</button>
+                <button class="key c7" data-val="7">7</button>
+                <button class="key c8" data-val="8">8</button>
+                <button class="key c9" data-val="9">9</button>
+                <button class="key hint-key" id="hint-btn" data-val="HINT">HINT</button>
+                <button class="key c0" data-val="0">0</button>
+                <button class="key empty-key" data-val=""></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PI_STRING = "1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989";
+
+        let state = {
+            status: 'start',
+            index: 0,
+            lives: 3,
+            combo: 1.0,
+            score: 0,
+            best: localStorage.getItem('piMinimalBest') || 0,
+            lastTime: 0,
+            isHintMode: false
+        };
+
+        const DOM = {
+            body: document.body,
+            tapeLeft: document.getElementById('tape-left'),
+            tapeContentUser: document.getElementById('tape-content-user'),
+            refTapeLeft: document.getElementById('ref-tape-left'),
+            refTapeContent: document.getElementById('ref-tape-content'),
+            refTapeRight: document.getElementById('ref-tape-right'),
+            refCurrentDigit: document.getElementById('ref-current-digit'),
+            referenceRow: document.getElementById('reference-row'),
+            cursor: document.getElementById('cursor'),
+            digitIndex: document.getElementById('digit-index'),
+            uiScore: document.getElementById('ui-score'),
+            uiLives: document.getElementById('ui-lives'),
+            uiBest: document.getElementById('ui-best'),
+            comboDisplay: document.getElementById('combo-display'),
+            startScreen: document.getElementById('start-screen'),
+            gameOverScreen: document.getElementById('game-over-screen'),
+            finalStats: document.getElementById('final-stats'),
+            themeToggles: document.querySelectorAll('.theme-toggle'),
+            keypad: document.getElementById('keypad'),
+            hintBtn: document.getElementById('hint-btn')
+        };
+
+        // --- SYNTHESIZER ENGINE ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx, masterGain, compressor;
+
+        // A minor pentatonic scale (A, C, D, E, G) across 2 octaves
+        const DIGIT_FREQUENCIES = {
+            '0': 220.00, // A3
+            '1': 261.63, // C4
+            '2': 293.66, // D4
+            '3': 329.63, // E4
+            '4': 392.00, // G4
+            '5': 440.00, // A4
+            '6': 523.25, // C5
+            '7': 587.33, // D5
+            '8': 659.25, // E5
+            '9': 783.99  // G5
+        };
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+
+                // Master compression to prevent clipping when typing fast
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0.6;
+
+                compressor = audioCtx.createDynamicsCompressor();
+                compressor.threshold.value = -10;
+                compressor.knee.value = 40;
+                compressor.ratio.value = 12;
+                compressor.attack.value = 0;
+                compressor.release.value = 0.25;
+
+                masterGain.connect(compressor);
+                compressor.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type, digit) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            if (type === 'correct' && digit !== undefined) {
+                const freq = DIGIT_FREQUENCIES[digit];
+
+                // Pluck Synthesizer: Sine (Body) + Triangle (Pluck transient)
+                const osc1 = audioCtx.createOscillator();
+                const osc2 = audioCtx.createOscillator();
+                osc1.type = 'sine';
+                osc2.type = 'triangle';
+                osc1.frequency.value = freq;
+                osc2.frequency.value = freq;
+
+                // Pluck Envelope
+                const env = audioCtx.createGain();
+                env.gain.setValueAtTime(0, now);
+                env.gain.linearRampToValueAtTime(1, now + 0.015); // Sharp attack
+                env.gain.exponentialRampToValueAtTime(0.001, now + 1.2); // Smooth decay
+
+                // Lowpass Filter (gives the muted, string-like Kalimba tone)
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(freq * 3, now); // Starts bright
+                filter.frequency.exponentialRampToValueAtTime(freq, now + 0.3); // Decays to dull quickly
+
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(env);
+                env.connect(masterGain);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 1.5);
+                osc2.stop(now + 1.5);
+
+            } else if (type === 'wrong') {
+                // Harsh error buzz
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                osc.connect(gain);
+                gain.connect(masterGain);
+
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        }
+
+        DOM.tapeLeft.addEventListener('scroll', () => {
+            if (state.status === 'playing' && state.isHintMode) {
+                DOM.refTapeLeft.scrollLeft = DOM.tapeLeft.scrollLeft;
+            }
+        });
+
+        function startGame() {
+            initAudio();
+            state.status = 'playing';
+            state.index = 0;
+            state.lives = 3;
+            state.combo = 1.0;
+            state.score = 0;
+            state.isHintMode = false;
+            state.lastTime = Date.now();
+
+            DOM.tapeContentUser.innerHTML = '<span class="muted"><span class="c3">3</span>.</span>';
+            DOM.refTapeContent.innerHTML = '<span class="muted"><span class="c3">3</span>.</span>';
+
+            DOM.startScreen.classList.remove('visible');
+            DOM.gameOverScreen.classList.remove('visible');
+            DOM.referenceRow.classList.remove('visible');
+            DOM.hintBtn.classList.remove('hint-active');
+
+            updateReferenceTape();
+            updateUI();
+        }
+
+        function gameOver() {
+            state.status = 'gameover';
+            if (state.score > state.best) {
+                state.best = state.score;
+                localStorage.setItem('piMinimalBest', state.best);
+            }
+
+            DOM.finalStats.innerHTML = `DIGITS: ${state.index}<br>SCORE: ${state.score}`;
+            DOM.gameOverScreen.classList.add('visible');
+            updateUI();
+        }
+
+        function triggerErrorVisuals() {
+            DOM.body.classList.add('shake', 'flash-error');
+            setTimeout(() => DOM.body.classList.remove('shake', 'flash-error'), 300);
+        }
+
+        function toggleHint() {
+            if (state.status !== 'playing') return;
+
+            state.isHintMode = !state.isHintMode;
+
+            if (state.isHintMode) {
+                state.score = Math.max(0, state.score - 50);
+                state.combo = 1.0;
+                DOM.referenceRow.classList.add('visible');
+                DOM.hintBtn.classList.add('hint-active');
+                DOM.refTapeLeft.scrollLeft = DOM.tapeLeft.scrollLeft;
+            } else {
+                DOM.referenceRow.classList.remove('visible');
+                DOM.hintBtn.classList.remove('hint-active');
+            }
+
+            updateUI();
+        }
+
+        function updateReferenceTape() {
+            if (state.status !== 'playing') return;
+
+            const currentStrChar = PI_STRING[state.index];
+            DOM.refCurrentDigit.textContent = currentStrChar;
+            DOM.refCurrentDigit.className = `digit ref-active-digit c${currentStrChar}`;
+
+            DOM.refTapeRight.innerHTML = '';
+            for (let i = 1; i <= 8; i++) {
+                let targetIdx = state.index + i;
+                if (targetIdx >= PI_STRING.length) break;
+
+                if (targetIdx > 0 && targetIdx % 4 === 0) {
+                    const spacer = document.createElement('span');
+                    spacer.className = 'spacer';
+                    DOM.refTapeRight.appendChild(spacer);
+                }
+
+                const d = document.createElement('span');
+                const targetChar = PI_STRING[targetIdx];
+                d.className = `digit c${targetChar}`;
+                d.textContent = targetChar;
+                DOM.refTapeRight.appendChild(d);
+            }
+        }
+
+        function processInput(char) {
+            initAudio();
+            if (char === '') return;
+
+            // Start or Restart from any numeric input
+            if (state.status === 'start' || state.status === 'gameover') {
+                if (/[0-9]/.test(char)) startGame();
+                return;
+            }
+
+            if (char === 'HINT' || char === ' ') {
+                toggleHint();
+                return;
+            }
+
+            if (!/[0-9]/.test(char)) return;
+
+            const now = Date.now();
+            const correctChar = PI_STRING[state.index];
+
+            if (char === correctChar) {
+                // Play specific synesthesia tone
+                playSound('correct', char);
+
+                if (!state.isHintMode) {
+                    const diff = now - state.lastTime;
+                    if (diff < 600) state.combo = Math.min(state.combo + 0.2, 5.0);
+                    else if (diff < 1200) state.combo = Math.min(state.combo + 0.1, 5.0);
+                    else state.combo = 1.0;
+                    state.score += Math.floor(10 * state.combo);
+
+                    DOM.comboDisplay.classList.add('active');
+                    setTimeout(() => DOM.comboDisplay.classList.remove('active'), 150);
+                }
+
+                if (state.index > 0 && state.index % 4 === 0) {
+                    const sp1 = document.createElement('span');
+                    sp1.className = 'spacer';
+                    DOM.tapeContentUser.appendChild(sp1);
+
+                    const sp2 = document.createElement('span');
+                    sp2.className = 'spacer';
+                    DOM.refTapeContent.appendChild(sp2);
+                }
+
+                const d1 = document.createElement('span');
+                d1.className = `digit c${char}`;
+                d1.textContent = char;
+                DOM.tapeContentUser.appendChild(d1);
+
+                const d2 = document.createElement('span');
+                d2.className = `digit c${char}`;
+                d2.textContent = char;
+                DOM.refTapeContent.appendChild(d2);
+
+                state.index++;
+                state.lastTime = now;
+
+                updateReferenceTape();
+
+                DOM.tapeLeft.scrollLeft = DOM.tapeLeft.scrollWidth;
+                DOM.refTapeLeft.scrollLeft = DOM.refTapeLeft.scrollWidth;
+
+                if (state.index >= PI_STRING.length) gameOver();
+
+            } else {
+                playSound('wrong');
+                triggerErrorVisuals();
+                state.lives--;
+                state.combo = 1.0;
+                if (state.lives <= 0) gameOver();
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            DOM.uiScore.textContent = state.score;
+            DOM.uiBest.textContent = state.best;
+
+            let livesStr = '';
+            for (let i = 0; i < state.lives; i++) livesStr += '/';
+            DOM.uiLives.textContent = livesStr || '-';
+
+            if (state.isHintMode) {
+                DOM.comboDisplay.textContent = 'LEARNING MODE';
+                DOM.comboDisplay.classList.add('hint-mode');
+            } else {
+                DOM.comboDisplay.textContent = `x${state.combo.toFixed(1)}`;
+                DOM.comboDisplay.classList.remove('hint-mode');
+                DOM.comboDisplay.style.opacity = state.combo > 1.0 ? 1 : 0.3;
+            }
+
+            DOM.digitIndex.textContent = `#${state.index + 1}`;
+        }
+
+        DOM.keypad.addEventListener('pointerdown', (e) => {
+            const keyBtn = e.target.closest('.key');
+            if (!keyBtn) return;
+            keyBtn.classList.add('simulated-active');
+            processInput(keyBtn.getAttribute('data-val'));
+        });
+
+        DOM.keypad.addEventListener('pointerup', (e) => {
+            const keyBtn = e.target.closest('.key');
+            if (keyBtn) keyBtn.classList.remove('simulated-active');
+        });
+
+        DOM.keypad.addEventListener('pointerout', (e) => {
+            const keyBtn = e.target.closest('.key');
+            if (keyBtn) keyBtn.classList.remove('simulated-active');
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ') e.preventDefault();
+            const keyBtn = document.querySelector(`.key[data-val="${e.key}"]`);
+            if (keyBtn) {
+                keyBtn.classList.add('simulated-active');
+                setTimeout(() => keyBtn.classList.remove('simulated-active'), 100);
+            } else if (e.key === ' ') {
+                const hintBtn = document.getElementById('hint-btn');
+                hintBtn.classList.add('simulated-active');
+                setTimeout(() => hintBtn.classList.remove('simulated-active'), 100);
+            }
+            processInput(e.key);
+        });
+
+        DOM.themeToggles.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', currentTheme === 'dark' ? 'light' : 'dark');
+            });
+        });
+
+        updateUI();
+
+    </script>
+</body>
+
+</html>

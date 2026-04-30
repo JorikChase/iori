@@ -1,7 +1,7 @@
 {
-  "name": "3DIE.FR",
-  "short_name": "3DIE",
-  "description": "3DIE.FR - Official Website & Portfolio",
+  "name": "3DIE / IORI",
+  "short_name": "3DIE-IORI",
+  "description": "3DIE.FR & IORI.ME - Official Website & Portfolio",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

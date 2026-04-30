@@ -1,6 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
 
-<title> WEBGL sandbox </title>
-<script type="text/javascript">
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>WEBGL sandbox</title>
+    <meta name="description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="keywords" content="3DIE, IORI, generative art, three.js, webgl, fractals, code experiments, shader" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="WEBGL sandbox" />
+    <meta property="og:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta property="og:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="WEBGL sandbox" />
+    <meta name="twitter:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="twitter:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- iOS and Android PWA & New Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icon/ios/32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icon/ios/16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon/ios/180.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+
+    <script type="text/javascript">
     // thanks to John Horton Conway's game of life algorithm, thank You to Cake23 for a WebGL sandbox framework from scratch, formula bases, basic coordinate transformations and inspiration.
                                                                            // github.com/Flexi23/Cake23 | WebSocket Hub for Kinect v2 and MIDI controllers
     // main texture loop dimensions
@@ -461,7 +513,6 @@
         }
     }
 
-
     function drawStickMen(context) {
 
         activeTrackingObjects.forEach(function (trackingObject) {
@@ -472,7 +523,6 @@
                 stickman = new Stickman(body);
                 trackingObject.stickman = stickman;
             }
-
 
             // draw the outline
 
@@ -580,7 +630,6 @@
             drawCrossThrough(trackingObject.body.handLeft);
             drawCrossThrough(trackingObject.body.handRight);
             context.stroke();
-
 
             // draw the face
             context.fillStyle = "#FFF";
@@ -1788,8 +1837,6 @@ uniform vec4 col8;
 uniform vec4 head9;
 uniform vec4 col9;
 
-
-
 // Korg NanoKontrol2
 uniform vec4 midifader1;
 uniform vec4 midifader2;
@@ -2103,7 +2150,6 @@ void main(void){
     float redTwilight= 4. * (1. - rawBlur4.r) * rawBlur4.r;
     p.zw += gradient(sampler_blur4, p.xy, pixelSize*16., vec4(1,1,1,0)) * pixelSize;
 
-
     vec2 oo = vec2(0);
     // oo += gradient(sampler_blur, p.xy, pixelSize*4., vec4(0.,1.,0.,4.))*pixelSize; // move from alpha, smooth
     // oo += rot90(gradient(sampler_blur2, p.xy, pixelSize*8., vec4(0.,0,0.,-8.)))*pixelSize; // move orthogonal to the gradient
@@ -2142,7 +2188,6 @@ void main(void) {
     gl_FragColor = vec4(0);
     vec2 uv_a = uv + gradient(sampler_blur4, uv, pixelSize*18., vec4(1,1,1,0))*pixelSize*9.;
     gl_FragColor.a = texture2D(sampler_particle_projection, uv_a).r; // particle projection in alpha to be Gaussian diffused for the next frame
-
 
     float huntingFactor = 6.9;
     float reactFactor = 0.59;
@@ -2272,7 +2317,6 @@ void main(void) {
     float edgeLength = 4.*length(cannyEdge)*(1.-dot(rawBlur2,vec4(1,1,1,0)*1.75));
 
     gl_FragColor = rawPrev; // bypass
-
 
     gl_FragColor = mix(rawPrev*1.8 - rawBlur*1.5 + rawBlur4*1.75 - edgeLength*2., vec4(1), edgeLength);
 
@@ -2704,7 +2748,6 @@ void main() {
             c.height = viewY;
             updateAspectRatio();
         });
-
 
         if (startFullpage) {
             viewX = window.innerWidth;
@@ -3178,7 +3221,6 @@ void main() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO);
         gl.useProgram(prog_render_particles);
 
-
         if (mainBufferToggle < 0) {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, texture_main_l);
@@ -3340,7 +3382,6 @@ void main() {
             gl.uniform1i(gl.getUniformLocation(prog_fluid_p, "sampler_p"), 1);
             renderAsTriangleStrip(FBO_fluid_p);
         }
-
 
         gl.viewport(0, 0, (sizeX / simScale), (sizeY / simScale));
         gl.useProgram(prog_fluid_div);
@@ -3553,12 +3594,6 @@ void main() {
 </style>
 <link type="text/css" rel="stylesheet" href="/assets/main.css" />
 <link type="text/css" rel="stylesheet" href="/assets/burger.css" />
-	    <!-- iOS and Android PWA & New Favicons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icon/ios/32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="icon/ios/16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="icon/ios/180.png">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#000000">
 </head>
     <nav class="menu--bottom--right" role="navigation">
         <div class="menuToggle">
@@ -3578,3 +3613,5 @@ void main() {
 		<canvas id="c"></canvas>
 	</body>
 	</html>
+
+</html>

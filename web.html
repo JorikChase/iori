@@ -6,44 +6,48 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
 
-      if (window.location.hostname.includes('3die.fr')) {
-          gtag('config', 'G-ERECDMYSNT');
-      } else {
-          gtag('config', 'G-GKKJ5VX340');
-      }
+        if (window.location.hostname.includes('3die.fr')) {
+            gtag('config', 'G-ERECDMYSNT');
+        } else {
+            gtag('config', 'G-GKKJ5VX340');
+        }
 
-      // Dynamic Canonical
-      (function() {
-        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
-        canon.rel = 'canonical';
-        canon.href = window.location.origin + window.location.pathname;
-        if (!document.head.contains(canon)) document.head.appendChild(canon);
-      })();
+        // Dynamic Canonical
+        (function () {
+            let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+            canon.rel = 'canonical';
+            canon.href = window.location.origin + window.location.pathname;
+            if (!document.head.contains(canon)) document.head.appendChild(canon);
+        })();
     </script>
 
     <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+
     <!-- Primary Meta Tags -->
     <title>iori.me || 3die.fr - Node Web</title>
-    <meta name="description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="description"
+        content="Exploring The Age of Data through generative art, fractals, and code experiments." />
     <meta name="keywords" content="3DIE, IORI, generative art, three.js, webgl, fractals, code experiments, shader" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="iori.me || 3die.fr - Node Web" />
-    <meta property="og:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta property="og:description"
+        content="Exploring The Age of Data through generative art, fractals, and code experiments." />
     <meta property="og:image" content="https://iori.me/assets/icon.ico" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="iori.me || 3die.fr - Node Web" />
-    <meta name="twitter:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="twitter:description"
+        content="Exploring The Age of Data through generative art, fractals, and code experiments." />
     <meta name="twitter:image" content="https://iori.me/assets/icon.ico" />
 
     <!-- iOS and Android PWA & New Favicons -->
@@ -149,7 +153,7 @@
             ["game.html", "darkwood.html"], ["tboi2.html", "darkwood.html"], ["game.html", "tboi2.html"],
             ["fractals.html", "webgl.html"], ["orbitals.html", "webgl.html"], ["iris.html", "meta-iris.html"], ["meta-iris.html", "fractals.html"],
             ["orbitals.html", "fractals.html"], ["fractals.html", "lambda_cognition.html"],
-            ["three-body.html", "lambda_cognition.html"], ["game.html", "aquarium.html"],
+            ["three-body.html", "lambda_cognition.html"], ["game.html", "aquarium.html"], ["sudoku.html", "pi.html"], ["pi.html", "game.html"],
             ["liquid-automata.html", "cracks.html"], ["cracks.html", "cracks-aberration.html"], ["dandelion-cycle.html", "dither-types.html"], ["aquarium.html", "dandelion-cycle.html"], ["fractals.html", "fractal-dimension.html"], ["diffusion-fluid.html", "lighter-flame.html"],
             ["liquid-automata.html", "fractals.html"], ["liquid-automata.html", "crystalize.html"], ["liquid-automata.html", "mycelium.html"], ["mycelium.html", "fungal-growth.html"], ["fungal-growth.html", "slime-mold.html"],
             ["three-body.html", "fractals.html"], ["three-body.html", "orbitals.html"], ["indent.html", "disphere.html"], ["disphere.html", "disphere-inverse.html"], ["disphere-ray.html", "disphere-inverse.html"], ["disphere-ray.html", "disphere-symmetry.html"],

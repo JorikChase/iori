@@ -3,23 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Splat Showcase — Engine Core</title>
+    <title>IORI — Interactive 3D Showcase</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: sans-serif; }
-        #viewer-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-        #ui-overlay { position: absolute; top: 20px; left: 20px; z-index: 10; color: #fff; pointer-events: none; }
-        h1 { margin: 0 0 5px 0; font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.9; }
-        .status { font-size: 0.8rem; color: #00ffcc; opacity: 0.8; }
+        :root {
+            --bg-color: #0a0a0a;
+            --accent-color: #00ffcc;
+            --panel-bg: rgba(15, 15, 15, 0.75);
+            --text-color: #ffffff;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #viewer-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Premium Minimal UI Controls */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+            box-sizing: border-box;
+        }
+
+        header {
+            pointer-events: auto;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .status-wrapper {
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-color);
+        }
+
+        #scene-status {
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--accent-color);
+            opacity: 0.9;
+        }
+
+        /* Sidebar Navigation Control */
+        #controls-sidebar {
+            position: absolute;
+            right: 30px;
+            top: 30px;
+            bottom: 30px;
+            width: 260px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            z-index: 20;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+
+        .sidebar-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            opacity: 0.5;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .scene-menu-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-right: -5px;
+            padding-right: 5px;
+        }
+
+        /* Custom Scrollbar */
+        .scene-menu-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scene-menu-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .scene-menu-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 2px;
+        }
+        .scene-menu-container::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+
+        .scene-btn {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            text-align: left;
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            opacity: 0.6;
+            white-space: nowrap;
+            overflow: hidden;
+            text-transform: capitalize;
+            text-overflow: ellipsis;
+        }
+
+        .scene-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            opacity: 1;
+            padding-left: 16px;
+        }
+
+        .scene-btn.active {
+            background: rgba(0, 255, 204, 0.1);
+            color: var(--accent-color);
+            font-weight: 500;
+            opacity: 1;
+            border-left: 2px solid var(--accent-color);
+            padding-left: 14px;
+        }
+
+        /* Instructions Footer */
+        footer {
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+            opacity: 0.4;
+        }
     </style>
 </head>
 <body>
 
-    <div id="ui-overlay">
-        <h1 id="scene-title">Initializing Viewer</h1>
-        <div id="scene-status" class="status">Pre-fetching assets...</div>
-    </div>
-
     <div id="viewer-container"></div>
+
+    <div id="ui-layer">
+        <header>
+            <h1 id="scene-title">Loading Showcase</h1>
+            <div class="status-wrapper">
+                <div class="pulse-dot"></div>
+                <div id="scene-status">Initializing WebGL Sorter...</div>
+            </div>
+        </header>
+
+        <div id="controls-sidebar">
+            <div class="sidebar-title">Select Environment</div>
+            <div class="scene-menu-container" id="menu-container">
+                </div>
+        </div>
+
+        <footer>
+            Left Click + Drag to Rotate &bull; Right Click + Drag to Pan &bull; Scroll to Zoom
+        </footer>
+    </div>
 
     <script type="importmap">
         {
@@ -33,29 +218,67 @@
     <script type="module">
         import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 
-        // 1. Point this directly to your Hugging Face outputs or your local Caddy assets folder
-const CDN_BASE = "https://huggingface.co/datasets/iorioriori/splats/resolve/main/";
+        // 1. Full Scene Index Manifest
+        const splatScenes = [
+            "gs_Dandy", "gs_alive", "gs_and_l", "gs_carousel", "gs_creatures",
+            "gs_fia", "gs_flora", "gs_govno", "gs_ior", "gs_iridescence",
+            "gs_iriscient", "gs_jjj", "gs_kaczinski", "gs_kanal", "gs_kolo",
+            "gs_kyticki", "gs_lili", "gs_lou", "gs_ma_bh", "gs_meadow",
+            "gs_moses", "gs_my_man", "gs_nova_scena", "gs_p_edti", "gs_pool",
+            "gs_puddy", "gs_pulz", "gs_rapture", "gs_rozi", "gs_ruh",
+            "gs_scen_rie", "gs_shack", "gs_stvana", "gs_tick", "gs_umu",
+            "gs_vltava", "gs_vodn_k", "gs_yum", "gs_yummy_like_u", "gs_zoch"
+        ];
 
-        // 2. Instantiate the unified WebGL & Worker Sort Engine
+        // 2. Point directly to your local assets folder under your Caddy directory
+        const CDN_BASE = "./splats/";
+        let currentSceneId = null;
+        let isTransitioning = false;
+
+        // 3. Initialize the Unified High-Performance Splat Renderer Engine
         const viewer = new GaussianSplats3D.Viewer({
-            'initialCameraPosition': [0, 2, 5],
+            'initialCameraPosition': [0, 1.5, 4],
             'initialCameraLookAt': [0, 0, 0],
             'cameraUp': [0, 1, 0],
-            'showLoadingUI': false, // We use our own clean UI overlay
-            'rootElement': document.getElementById('viewer-container')
+            'showLoadingUI': false, // Disables standard brutalist layout spinner
+            'rootElement': document.getElementById('viewer-container'),
+            'dynamicScene': true,
+            'integerCoordinateResolution': false
         });
 
-        let currentSceneId = null;
+        // 4. Generate Sidebar Buttons
+        const menuContainer = document.getElementById('menu-container');
+        splatScenes.forEach((sceneName) => {
+            const btn = document.createElement('button');
+            btn.className = 'scene-btn';
+            btn.id = `btn-${sceneName}`;
+            // Prettify strings (e.g., "gs_nova_scena" -> "Nova Scena")
+            btn.innerText = sceneName.replace("gs_", "").replace(/_/g, " ");
+            
+            btn.addEventListener('click', () => {
+                if (btn.classList.contains('active') || isTransitioning) return;
+                switchScene(sceneName);
+            });
+            menuContainer.appendChild(btn);
+        });
 
+        // 5. Stream and Swap Control Logic
         async function switchScene(sceneName) {
+            isTransitioning = true;
             const titleEl = document.getElementById('scene-title');
             const statusEl = document.getElementById('scene-status');
             
-            titleEl.innerText = sceneName.replace("gs_", "").toUpperCase();
-            statusEl.innerText = "Streaming compressed SPZ layers...";
+            // Highlight active side-panel items
+            document.querySelectorAll('.scene-btn').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.getElementById(`btn-${sceneName}`);
+            if (activeBtn) activeBtn.classList.add('active');
 
-            // Gracefully drop old memory contexts to prevent canvas leakage
+            titleEl.innerText = sceneName.replace("gs_", "").replace(/_/g, " ").toUpperCase();
+            statusEl.innerText = "Reading localized stream arrays...";
+
+            // Evacuate preceding scene blocks instantly to conserve GPU memory overhead
             if (currentSceneId !== null) {
+                statusEl.innerText = "Purging memory buffers...";
                 await viewer.removeSplatScene(currentSceneId);
                 currentSceneId = null;
             }
@@ -63,24 +286,28 @@ const CDN_BASE = "https://huggingface.co/datasets/iorioriori/splats/resolve/main
             try {
                 const url = `${CDN_BASE}${sceneName}.spz`;
                 
-                // Natively streams, decompresses ZSTD layers, and retains reflection attributes
+                // Mounts the asset natively using multi-threaded WASM sorting tasks
                 currentSceneId = await viewer.addSplatScene(url, {
                     'progressiveLoad': true,
                     'splatAlphaRemovalThreshold': 5
                 });
 
-                statusEl.innerText = "✨ Active (Full Spherical Harmonics Loaded)";
+                statusEl.innerText = "Render Stable (3 SH Channels Active)";
             } catch (err) {
-                console.error("❌ Stream Error:", err);
-                statusEl.innerText = "⚠️ Network drop detected. Retrying...";
+                console.error("❌ Local asset execution failure:", err);
+                statusEl.innerText = "⚠️ Local streaming fault. Retrying...";
+            } finally {
+                isTransitioning = false;
             }
         }
 
-        // Initialize the base loop and drop into your first scene
+        // Boot engine loop tracking structures
         viewer.start();
+        
+        // Initial Scene Load (Defaults to the kyticki asset)
         switchScene("gs_kyticki");
 
-        // Expose to window for your navigation controls
+        // Expose globally to window object for execution directly from browser console
         window.switchShowcaseScene = switchScene;
     </script>
 </body>

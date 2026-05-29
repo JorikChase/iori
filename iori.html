@@ -217,6 +217,18 @@
         const canvas = document.getElementById("splat-canvas");
         const bootScreen = document.getElementById("boot-screen");
 
+        // Global fetch interception registry to prevent secure blob URL routing issues
+        let virtualFetchCallback = null;
+        const originalFetch = window.fetch;
+        window.fetch = async function (input, init) {
+            const url = typeof input === "string" ? input : (input instanceof Request ? input.url : "");
+            if (virtualFetchCallback) {
+                const intercepted = virtualFetchCallback(url);
+                if (intercepted) return intercepted;
+            }
+            return originalFetch.apply(this, arguments);
+        };
+
         function initEngine() {
             try {
                 renderer = new SPLAT.WebGLRenderer(canvas);
@@ -241,7 +253,7 @@
 
             try {
                 console.log("Streaming compressed splat binary from Hugging Face...");
-                const response = await fetch(fileUrl);
+                const response = await originalFetch(fileUrl);
                 if (!response.ok) throw new Error(`HTTP fetch failed with code ${response.status}`);
                 
                 const arrayBuffer = await response.arrayBuffer();
@@ -254,19 +266,24 @@
                 writer.close();
                 
                 const gzippedBuffer = await new Response(compressionStream.readable).arrayBuffer();
+                const gzippedBlob = new Blob([gzippedBuffer], { type: "application/x-gzip" });
                 
-                // Wrap the gzipped ArrayBuffer in a browser Blob object.
-                const blob = new Blob([gzippedBuffer], { type: "application/x-gzip" });
+                // Build a virtual, same-origin relative path that gsplat.js can load securely
+                const virtualUrl = window.location.origin + "/scene.splat";
                 
-                // Create a local object URL and append '?ext=scene.splat' to tell the loader
-                // to trigger the native gsplat.js GZIP decompression and parsing pipeline.
-                const objectUrl = URL.createObjectURL(blob) + "?ext=scene.splat";
+                // Set the interceptor callback so the library loads our in-memory gzipped asset
+                virtualFetchCallback = (url) => {
+                    if (url === virtualUrl || url.endsWith("/scene.splat")) {
+                        return new Response(gzippedBlob);
+                    }
+                    return null;
+                };
                 
-                console.log("Loading splat data natively via gsplat.js loader with Gzip Object URL...");
-                const splatObject = await SPLAT.Loader.LoadAsync(objectUrl, scene);
+                console.log("Loading splat data natively via gsplat.js loader with Virtual Safe URL...");
+                const splatObject = await SPLAT.Loader.LoadAsync(virtualUrl, scene);
                 
-                // Revoke Object URL to release local browser memory
-                URL.revokeObjectURL(objectUrl);
+                // Clear the interceptor to prevent memory leak
+                virtualFetchCallback = null;
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;

@@ -246,14 +246,23 @@
                 
                 const arrayBuffer = await response.arrayBuffer();
                 
-                // Wrap the fetched ArrayBuffer in a browser Blob object.
-                const blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
+                console.log("Compressing raw bytes to Gzip format natively in memory...");
+                // Create a browser native Compression Stream to gzip-wrap the uncompressed binary
+                const compressionStream = new CompressionStream("gzip");
+                const writer = compressionStream.writable.getWriter();
+                writer.write(arrayBuffer);
+                writer.close();
                 
-                // Create a local object URL and append '?ext=scene.splat' to trick
-                // the library's loader into using the .splat parser natively
+                const gzippedBuffer = await new Response(compressionStream.readable).arrayBuffer();
+                
+                // Wrap the gzipped ArrayBuffer in a browser Blob object.
+                const blob = new Blob([gzippedBuffer], { type: "application/x-gzip" });
+                
+                // Create a local object URL and append '?ext=scene.splat' to tell the loader
+                // to trigger the native gsplat.js GZIP decompression and parsing pipeline.
                 const objectUrl = URL.createObjectURL(blob) + "?ext=scene.splat";
                 
-                console.log("Loading splat data natively via gsplat.js loader with object URL...");
+                console.log("Loading splat data natively via gsplat.js loader with Gzip Object URL...");
                 const splatObject = await SPLAT.Loader.LoadAsync(objectUrl, scene);
                 
                 // Revoke Object URL to release local browser memory

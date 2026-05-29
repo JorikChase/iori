@@ -245,101 +245,31 @@
                 if (!response.ok) throw new Error(`HTTP fetch failed with code ${response.status}`);
                 
                 const arrayBuffer = await response.arrayBuffer();
-                const buffer = new Uint8Array(arrayBuffer);
                 
-                console.log("Parsing 32-byte splat buffer data with custom decoder...");
+                // Wrap the fetched ArrayBuffer in a File object.
+                // gsplat.js natively supports File objects and uses the extension inside 
+                // the name property to select the perfect decoder.
+                const file = new File([arrayBuffer], "scene.splat", { type: "application/octet-stream" });
                 
-                // --- CUSTOM HIGH-PERFORMANCE 32-BYTE .SPLAT PARSER ---
-                const vertexCount = buffer.length / 32;
-                if (vertexCount === 0 || vertexCount % 1 !== 0) {
-                    throw new Error("Invalid .splat binary stream byte length.");
-                }
-
-                // Allocate standard typed arrays expected by gsplat.js GPU buffers
-                const positions = new Float32Array(vertexCount * 3);
-                const rotations = new Float32Array(vertexCount * 4);
-                const scales = new Float32Array(vertexCount * 3);
-                const colors = new Uint8Array(vertexCount * 4);
-                
-                const dataView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-                
-                for (let i = 0; i < vertexCount; i++) {
-                    const byteOffset = i * 32;
-                    
-                    // 1. Read Positions (12 bytes - 3 Floats)
-                    positions[i * 3 + 0] = dataView.getFloat32(byteOffset + 0, true);
-                    positions[i * 3 + 1] = dataView.getFloat32(byteOffset + 4, true);
-                    positions[i * 3 + 2] = dataView.getFloat32(byteOffset + 8, true);
-                    
-                    // 2. Read Scales (12 bytes - 3 Floats)
-                    // Convert back from linear space to original log scales expected by gsplat.js shaders
-                    scales[i * 3 + 0] = Math.log(Math.max(1e-5, dataView.getFloat32(byteOffset + 12, true)));
-                    scales[i * 3 + 1] = Math.log(Math.max(1e-5, dataView.getFloat32(byteOffset + 16, true)));
-                    scales[i * 3 + 2] = Math.log(Math.max(1e-5, dataView.getFloat32(byteOffset + 20, true)));
-                    
-                    // 3. Read Colors (4 bytes - RGBA)
-                    colors[i * 4 + 0] = dataView.getUint8(byteOffset + 24);
-                    colors[i * 4 + 1] = dataView.getUint8(byteOffset + 25);
-                    colors[i * 4 + 2] = dataView.getUint8(byteOffset + 26);
-                    colors[i * 4 + 3] = dataView.getUint8(byteOffset + 27);
-                    
-                    // 4. Read Rotations (4 bytes - Quaternion uint8s mapped from [-1, 1] to [0, 255])
-                    const r0 = (dataView.getUint8(byteOffset + 28) - 128) / 128;
-                    const r1 = (dataView.getUint8(byteOffset + 29) - 128) / 128;
-                    const r2 = (dataView.getUint8(byteOffset + 30) - 128) / 128;
-                    const r3 = (dataView.getUint8(byteOffset + 31) - 128) / 128;
-                    
-                    // Re-normalize decoded rotations
-                    const len = Math.sqrt(r0*r0 + r1*r1 + r2*r2 + r3*r3);
-                    if (len > 0) {
-                        rotations[i * 4 + 0] = r0 / len;
-                        rotations[i * 4 + 1] = r1 / len;
-                        rotations[i * 4 + 2] = r2 / len;
-                        rotations[i * 4 + 3] = r3 / len;
-                    } else {
-                        rotations[i * 4 + 0] = 1;
-                        rotations[i * 4 + 1] = 0;
-                        rotations[i * 4 + 2] = 0;
-                        rotations[i * 4 + 3] = 0;
-                    }
-                }
-
-                // Bind attributes to the standard SplatData model
-                const splatData = new SPLAT.SplatData();
-                
-                // Set backing underscored fields first to support internal getter mappings
-                splatData._positions = positions;
-                splatData._rotations = rotations;
-                splatData._scales = scales;
-                splatData._colors = colors;
-
-                // Explicitly define configurable properties to override read-only getters on the instance
-                const props = { positions, rotations, scales, colors };
-                for (const [key, value] of Object.entries(props)) {
-                    Object.defineProperty(splatData, key, {
-                        value: value,
-                        writable: true,
-                        enumerable: true,
-                        configurable: true
-                    });
-                }
-
-                // Instantiate splat object using verified constructor
-                const splatObject = new SPLAT.Splat(splatData);
-                scene.addObject(splatObject);
+                console.log("Loading splat data natively via gsplat.js loader...");
+                const splatObject = await SPLAT.Loader.LoadAsync(file, scene);
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;
+                const vertexCount = splatObject.splatData.vertexCount;
                 const sampleCount = Math.min(vertexCount, 3000);
                 
-                for (let i = 0; i < sampleCount; i++) {
-                    sumX += positions[i * 3];
-                    sumY += positions[i * 3 + 1];
-                    sumZ += positions[i * 3 + 2];
+                if (sampleCount > 0 && splatObject.splatData) {
+                    const positions = splatObject.splatData.positions;
+                    for (let i = 0; i < sampleCount; i++) {
+                        sumX += positions[i * 3];
+                        sumY += positions[i * 3 + 1];
+                        sumZ += positions[i * 3 + 2];
+                    }
+                    sceneCenter.x = sumX / sampleCount;
+                    sceneCenter.y = sumY / sampleCount;
+                    sceneCenter.z = sumZ / sampleCount;
                 }
-                sceneCenter.x = sumX / sampleCount;
-                sceneCenter.y = sumY / sampleCount;
-                sceneCenter.z = sumZ / sampleCount;
 
                 // Sweep Camera on Load (Reveal cinematic swoop starting from offset)
                 currentCamPos.x = sceneCenter.x + 3;

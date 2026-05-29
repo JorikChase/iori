@@ -159,10 +159,10 @@
         let renderer, scene, camera;
         let isUsingFallback = false;
         let isLoaded = false; 
+        let isTransitioning = false; // CRITICAL: GPU memory synchronization block flag
 
         let ndcX = 0, ndcY = 0, smoothX = 0, smoothY = 0;
 
-        // Anchor configurations mapping to native Luma structural outputs
         const focalPoint = { x: 0, y: 0, z: 0 };
         let currentCamPos = { x: 0, y: 1.0, z: 4.5 }; 
 
@@ -185,6 +185,15 @@
             }
         }
 
+        // Helper function to safely yield frames to the GPU buffer operations
+        function syncGpuBuffers() {
+            return new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(resolve);
+                });
+            });
+        }
+
         async function loadFrontLoadedWaterfall() {
             container.classList.remove("active");
             bootScreen.style.opacity = "1";
@@ -194,39 +203,42 @@
             scene = new SPLAT.Scene();
 
             try {
-                // ---- STAGE 1: MICRO-CORE PASS (INSTANT SEAMLESS REVEAL) ----
+                // ---- STAGE 1: MICRO-CORE PASS ----
                 console.log(`[WATERFALL 1/5] Extracting micro focal point core...`);
+                isTransitioning = true;
                 await SPLAT.Loader.LoadAsync(`${hfRoot}_part1.ply`, scene);
+                await syncGpuBuffers(); // Force alignment settlement before loop begins
                 
-                // Fixed: Explicit instantiation allocation replaces non-existent .set() method
                 camera.position = new SPLAT.Vector3(currentCamPos.x, currentCamPos.y, currentCamPos.z);
                 isLoaded = true;
+                isTransitioning = false;
                 
-                // Unveil the landing layout immediately while background transfers run
                 container.classList.add("active");
                 bootScreen.style.opacity = "0";
                 bootScreen.style.pointerEvents = "none";
 
-                // ---- STAGES 2-5: ASYNC WATERFALL REFINE CONCURRENCY PIPELINE ----
-                SPLAT.Loader.LoadAsync(`${hfRoot}_part2.ply`, scene)
-                    .then(() => {
-                        console.log("[WATERFALL 2/5] Core subject reinforcement integrated.");
-                        return SPLAT.Loader.LoadAsync(`${hfRoot}_part3.ply`, scene);
-                    })
-                    .then(() => {
-                        console.log("[WATERFALL 3/5] Spatial midground data coupled.");
-                        return SPLAT.Loader.LoadAsync(`${hfRoot}_part4.ply`, scene);
-                    })
-                    .then(() => {
-                        console.log("[WATERFALL 4/5] Background architectural fill generated.");
-                        return SPLAT.Loader.LoadAsync(`${hfRoot}_part5.ply`, scene);
-                    })
-                    .then(() => {
-                        console.log("%c[WATERFALL 5/5] Visual field fully synchronized. Specular arrays live.", "color: #00ff00");
-                    })
-                    .catch(err => {
-                        console.warn("Progressive background streamer paused or blocked.", err);
-                    });
+                // ---- STAGES 2-5: ASYNC WATERFALL WITH HARDWARE SYNCHRONIZATION ----
+                // Pauses drawing loops during data buffer transitions to prevent instance mismatches
+                const appendChunk = async (partNumber) => {
+                    console.log(`[WATERFALL ${partNumber}/5] Streaming next data array pass...`);
+                    isTransitioning = true;
+                    await SPLAT.Loader.LoadAsync(`${hfRoot}_part${partNumber}.ply`, scene);
+                    await syncGpuBuffers(); // Wait for VRAM allocation settlement
+                    isTransitioning = false;
+                };
+
+                // Sequential block evaluation avoids race-state buffer fragmentation
+                await appendChunk(2);
+                console.log("[WATERFALL 2/5] Core subject reinforced.");
+                
+                await appendChunk(3);
+                console.log("[WATERFALL 3/5] Spatial midground data coupled.");
+                
+                await appendChunk(4);
+                console.log("[WATERFALL 4/5] Background architectural fill generated.");
+                
+                await appendChunk(5);
+                console.log("%c[WATERFALL 5/5] Visual field fully synchronized. Specular arrays live.", "color: #00ff00");
 
             } catch (err) {
                 console.error("Critical loader execution breakdown. Stepping down to vector matrix.", err);
@@ -250,7 +262,8 @@
         function renderLoop() {
             requestAnimationFrame(renderLoop);
 
-            if (isUsingFallback || !isLoaded) return; 
+            // Halt frames during active buffer configuration changes
+            if (isUsingFallback || !isLoaded || isTransitioning) return; 
 
             smoothX += (ndcX - smoothX) * 0.05;
             smoothY += (ndcY - smoothY) * 0.05;

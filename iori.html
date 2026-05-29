@@ -33,7 +33,6 @@
             z-index: 1;
         }
 
-        /* Premium Minimal UI Controls */
         #ui-layer {
             position: absolute;
             top: 0;
@@ -49,9 +48,7 @@
             box-sizing: border-box;
         }
 
-        header {
-            pointer-events: auto;
-        }
+        header { pointer-events: auto; }
 
         h1 {
             margin: 0;
@@ -85,7 +82,6 @@
             opacity: 0.9;
         }
 
-        /* Sidebar Navigation Control */
         #controls-sidebar {
             position: absolute;
             right: 30px;
@@ -124,20 +120,13 @@
             padding-right: 5px;
         }
 
-        /* Custom Scrollbar */
-        .scene-menu-container::-webkit-scrollbar {
-            width: 4px;
-        }
-        .scene-menu-container::-webkit-scrollbar-track {
-            background: transparent;
-        }
+        .scene-menu-container::-webkit-scrollbar { width: 4px; }
+        .scene-menu-container::-webkit-scrollbar-track { background: transparent; }
         .scene-menu-container::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.15);
             border-radius: 2px;
         }
-        .scene-menu-container::-webkit-scrollbar-thumb:hover {
-            background: var(--accent-color);
-        }
+        .scene-menu-container::-webkit-scrollbar-thumb:hover { background: var(--accent-color); }
 
         .scene-btn {
             width: 100%;
@@ -174,7 +163,6 @@
             padding-left: 14px;
         }
 
-        /* Instructions Footer */
         footer {
             font-size: 0.7rem;
             letter-spacing: 0.05em;
@@ -197,8 +185,7 @@
 
         <div id="controls-sidebar">
             <div class="sidebar-title">Select Environment</div>
-            <div class="scene-menu-container" id="menu-container">
-                </div>
+            <div class="scene-menu-container" id="menu-container"></div>
         </div>
 
         <footer>
@@ -218,7 +205,6 @@
     <script type="module">
         import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 
-        // 1. Full Scene Index Manifest
         const splatScenes = [
             "gs_Dandy", "gs_alive", "gs_and_l", "gs_carousel", "gs_creatures",
             "gs_fia", "gs_flora", "gs_govno", "gs_ior", "gs_iridescence",
@@ -230,29 +216,25 @@
             "gs_vltava", "gs_vodn_k", "gs_yum", "gs_yummy_like_u", "gs_zoch"
         ];
 
-        // 2. Point directly to your local assets folder under your Caddy directory
         const CDN_BASE = "./splats/";
         let currentSceneId = null;
         let isTransitioning = false;
 
-        // 3. Initialize the Unified High-Performance Splat Renderer Engine
         const viewer = new GaussianSplats3D.Viewer({
             'initialCameraPosition': [0, 1.5, 4],
             'initialCameraLookAt': [0, 0, 0],
             'cameraUp': [0, 1, 0],
-            'showLoadingUI': false, // Disables standard brutalist layout spinner
+            'showLoadingUI': false,
             'rootElement': document.getElementById('viewer-container'),
             'dynamicScene': true,
             'integerCoordinateResolution': false
         });
 
-        // 4. Generate Sidebar Buttons
         const menuContainer = document.getElementById('menu-container');
         splatScenes.forEach((sceneName) => {
             const btn = document.createElement('button');
             btn.className = 'scene-btn';
             btn.id = `btn-${sceneName}`;
-            // Prettify strings (e.g., "gs_nova_scena" -> "Nova Scena")
             btn.innerText = sceneName.replace("gs_", "").replace(/_/g, " ");
             
             btn.addEventListener('click', () => {
@@ -262,52 +244,45 @@
             menuContainer.appendChild(btn);
         });
 
-        // 5. Stream and Swap Control Logic
         async function switchScene(sceneName) {
             isTransitioning = true;
             const titleEl = document.getElementById('scene-title');
             const statusEl = document.getElementById('scene-status');
             
-            // Highlight active side-panel items
             document.querySelectorAll('.scene-btn').forEach(b => b.classList.remove('active'));
             const activeBtn = document.getElementById(`btn-${sceneName}`);
             if (activeBtn) activeBtn.classList.add('active');
 
             titleEl.innerText = sceneName.replace("gs_", "").replace(/_/g, " ").toUpperCase();
-            statusEl.innerText = "Reading localized stream arrays...";
+            statusEl.innerText = "Streaming optimized splat buffers...";
 
-            // Evacuate preceding scene blocks instantly to conserve GPU memory overhead
             if (currentSceneId !== null) {
-                statusEl.innerText = "Purging memory buffers...";
+                statusEl.innerText = "Purging memory graphics grids...";
                 await viewer.removeSplatScene(currentSceneId);
                 currentSceneId = null;
             }
 
             try {
-                const url = `${CDN_BASE}${sceneName}.spz`;
+                // Now streaming native .ksplat binary files
+                const url = `${CDN_BASE}${sceneName}.ksplat`;
                 
-                // Mounts the asset natively using multi-threaded WASM sorting tasks
                 currentSceneId = await viewer.addSplatScene(url, {
                     'progressiveLoad': true,
                     'splatAlphaRemovalThreshold': 5
                 });
 
-                statusEl.innerText = "Render Stable (3 SH Channels Active)";
+                statusEl.innerText = "Render Stable (Reflections Active)";
             } catch (err) {
                 console.error("❌ Local asset execution failure:", err);
-                statusEl.innerText = "⚠️ Local streaming fault. Retrying...";
+                statusEl.innerText = "⚠️ Streaming fault. Retrying...";
             } finally {
                 isTransitioning = false;
             }
         }
 
-        // Boot engine loop tracking structures
         viewer.start();
-        
-        // Initial Scene Load (Defaults to the kyticki asset)
         switchScene("gs_kyticki");
 
-        // Expose globally to window object for execution directly from browser console
         window.switchShowcaseScene = switchScene;
     </script>
 </body>

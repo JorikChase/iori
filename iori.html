@@ -330,9 +330,9 @@
             camera.position.y = currentCamPos.y;
             camera.position.z = currentCamPos.z;
 
-            const up = new SPLAT.Vector3(0, 1, 0);
-            const lookTarget = new SPLAT.Vector3(currentCamLook.x, currentCamLook.y, currentCamLook.z);
-            camera.lookAt(lookTarget, up);
+            // --- NEW WORKING CODE ---
+const lookTarget = new SPLAT.Vector3(currentCamLook.x, currentCamLook.y, currentCamLook.z);
+camera.rotation = SPLAT.Quaternion.LookRotation(camera.position.subtract(lookTarget), new SPLAT.Vector3(0, 1, 0));
 
             renderer.render(scene, camera);
         }

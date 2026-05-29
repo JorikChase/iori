@@ -240,25 +240,66 @@
             scene = new SPLAT.Scene();
 
             try {
-                console.log("Streaming compressed splat binary...");
+                console.log("Streaming compressed splat binary from Hugging Face...");
                 const response = await fetch(fileUrl);
                 if (!response.ok) throw new Error(`HTTP fetch failed with code ${response.status}`);
                 
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = new Uint8Array(arrayBuffer);
                 
-                console.log("Deserializing raw splat buffer data...");
-                // Direct deserialization bypasses standard decompression wrapper completely
-                const splatData = SPLAT.SplatData.Deserialize(buffer);
-                const splatObject = new SPLAT.SplatObject(splatData);
-                scene.addObject(splatObject);
+                console.log("Parsing raw splat buffer data dynamically...");
+                
+                let splatObject = null;
+
+                // --- THE DYNAMIC CONSTRUCTOR CASCADE ---
+                // Try Strategy A: Standard direct static deserialization of standard Splat structures
+                try {
+                    if (typeof SPLAT.Splat !== "undefined" && typeof SPLAT.Splat.Deserialize === "function") {
+                        splatObject = SPLAT.Splat.Deserialize(buffer);
+                    }
+                } catch (e) {
+                    console.warn("Strategy A failed. Trying Strategy B...", e);
+                }
+
+                // Try Strategy B: Deserializing data stream first, then instantiating via Splat
+                if (!splatObject) {
+                    try {
+                        const splatData = SPLAT.SplatData.Deserialize(buffer);
+                        if (typeof SPLAT.Splat === "function") {
+                            splatObject = new SPLAT.Splat(splatData);
+                        } else if (typeof SPLAT.SplatObject === "function") {
+                            splatObject = new SPLAT.SplatObject(splatData);
+                        }
+                    } catch (e) {
+                        console.warn("Strategy B failed. Trying Strategy C...", e);
+                    }
+                }
+
+                // Try Strategy C: Loading directly via built-in Loader binary array helper
+                if (!splatObject) {
+                    try {
+                        splatObject = await SPLAT.Loader.LoadAsync(fileUrl, scene);
+                    } catch (e) {
+                        throw new Error("All parsing strategies exhausted. Falling back.");
+                    }
+                }
+
+                // If parsed successfully via byte arrays, append it to the WebGL rendering tree
+                if (splatObject && !scene.objects.includes(splatObject)) {
+                    if (typeof scene.addObject === "function") {
+                        scene.addObject(splatObject);
+                    } else if (typeof scene.add === "function") {
+                        scene.add(splatObject);
+                    }
+                }
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;
-                const sampleCount = Math.min(scene.objects[0]?.splatData?.vertexCount || 0, 3000);
+                const activeSplat = scene.objects[0] || splatObject;
+                const sampleCount = Math.min(activeSplat?.splatData?.vertexCount || 0, 3000);
                 
-                if (sampleCount > 0 && scene.objects[0]?.splatData) {
-                    const data = scene.objects[0].splatData;
+                if (sampleCount > 0 && activeSplat?.splatData) {
+                    const data = activeSplat.splatData;
                     for (let i = 0; i < sampleCount; i++) {
                         sumX += data.positions[i * 3];
                         sumY += data.positions[i * 3 + 1];

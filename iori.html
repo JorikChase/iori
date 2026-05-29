@@ -248,11 +248,14 @@
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;
-                const vertexCount = splatObject.splatData.vertexCount;
+                
+                // ROBUST FIX: support both .splatData and .data formats of the returned Splat object
+                const data = splatObject.splatData || splatObject.data;
+                const vertexCount = data ? data.vertexCount : 0;
                 const sampleCount = Math.min(vertexCount, 3000);
                 
-                if (sampleCount > 0 && splatObject.splatData) {
-                    const positions = splatObject.splatData.positions;
+                if (sampleCount > 0 && data) {
+                    const positions = data.positions;
                     for (let i = 0; i < sampleCount; i++) {
                         sumX += positions[i * 3];
                         sumY += positions[i * 3 + 1];

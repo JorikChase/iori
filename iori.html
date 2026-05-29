@@ -153,15 +153,8 @@
         const chosenScene = splatScenes[Math.floor(Math.random() * splatScenes.length)];
         const hfRoot = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenScene}`;
 
-        let renderer, scene, camera;
-        let isUsingFallback = false;
+        let renderer, scene, camera, controls;
         let isLoaded = false; 
-
-        let ndcX = 0, ndcY = 0, smoothX = 0, smoothY = 0;
-        
-        // Target tracking center will update dynamically on file parse completion
-        let sceneCenter = { x: 0, y: 0, z: 0 };
-        let cameraOffset = { x: 0, y: 0.5, z: 4.0 };
 
         const container = document.getElementById("canvas-container");
         const canvas = document.getElementById("splat-canvas");
@@ -172,10 +165,18 @@
                 renderer = new SPLAT.WebGLRenderer(canvas);
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
+                
+                // Native control configuration allows smooth orbit rotation interactions
+                controls = new SPLAT.OrbitControls(camera, canvas);
+
+                // Set a reliable base view vector directly at the world origin
+                camera.position = new SPLAT.Vector3(0, 1.5, 4.0);
+
                 resizeCanvas();
                 loadFrontLoadedWaterfall();
+
             } catch (err) {
-                console.warn("WebGL initialization failed. Loading backup vector layout...", err);
+                console.warn("WebGL framework startup error. Launching fallback system...", err);
                 initFallbackEngine();
             }
         }
@@ -188,54 +189,29 @@
             scene = new SPLAT.Scene();
 
             try {
-                const targetUrl = `${hfRoot}_part1.ply`;
-                console.log(`[START] Querying Hugging Face: ${targetUrl}`);
-
-                // ---- STAGE 1: CORE FOCUS PASS ----
-                const coreObject = await SPLAT.Loader.LoadAsync(targetUrl, scene);
+                // ---- STAGE 1: MICRO-CORE PASS (INSTANT SEAMLESS REVEAL) ----
+                console.log(`[START] Streaming core geometry array from Hugging Face...`);
+                await SPLAT.Loader.LoadAsync(`${hfRoot}_part1.ply`, scene);
                 
-                // ---- CALCULATE TRUE COORD CENTER ----
-                const data = coreObject.data || coreObject.splatData || coreObject;
-                const positions = data ? (data.positions || data._positions) : null;
-                const vertexCount = positions ? (positions.length / 3) : 0;
-                const sampleCount = Math.min(vertexCount, 2500);
-                
-                if (sampleCount > 0 && positions) {
-                    let sumX = 0, sumY = 0, sumZ = 0;
-                    for (let i = 0; i < sampleCount; i++) {
-                        sumX += positions[i * 3];
-                        sumY += positions[i * 3 + 1];
-                        sumZ += positions[i * 3 + 2];
-                    }
-                    sceneCenter.x = sumX / sampleCount;
-                    sceneCenter.y = sumY / sampleCount;
-                    sceneCenter.z = sumZ / sampleCount;
-                }
-                console.log(`[AUTOFRAME] Object isolated at structural world vectors:`, sceneCenter);
-
-                // Set initial camera frame layout safely relative to calculated spatial cluster
-                camera.position.x = sceneCenter.x + cameraOffset.x;
-                camera.position.y = sceneCenter.y + cameraOffset.y;
-                camera.position.z = sceneCenter.z + cameraOffset.z;
-
                 isLoaded = true;
                 container.classList.add("active");
                 bootScreen.style.opacity = "0";
                 bootScreen.style.pointerEvents = "none";
 
                 // ---- STAGES 2-5: BACKGROUND CASCADE PIPELINE ----
-                // Runs completely asynchronously without halting active frame updates
+                // Streams remaining data channels concurrently without interrupting active frames
                 const streamPart = (num) => {
                     return SPLAT.Loader.LoadAsync(`${hfRoot}_part${num}.ply`, scene)
-                        .then(() => console.log(`[WATERFALL ${num}/5] Injected layer components into canvas context.`));
+                        .then(() => console.log(`[WATERFALL ${num}/5] Layer combined.`));
                 };
 
+                // Trigger background loading chains asynchronously
                 streamPart(2)
                     .then(() => streamPart(3))
                     .then(() => streamPart(4))
                     .then(() => streamPart(5))
-                    .then(() => console.log("%c[SUCCESS] Volumetric field synchronized completely.", "color: #00ff00"))
-                    .catch(e => console.warn("Background asset append dropped:", e));
+                    .then(() => console.log("%c[SUCCESS] Cascade complete.", "color: #00ff00"))
+                    .catch(e => console.warn("Background channel connection lost:", e));
 
             } catch (err) {
                 console.error("Pipeline failure:", err);
@@ -243,37 +219,12 @@
             }
         }
 
-        window.addEventListener("mousemove", (e) => {
-            ndcX = (e.clientX / window.innerWidth) * 2 - 1;
-            ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-
-        window.addEventListener("touchmove", (e) => {
-            if (e.touches.length > 0) {
-                ndcX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-                ndcY = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
-            }
-        });
-
         function renderLoop() {
             requestAnimationFrame(renderLoop);
-            if (isUsingFallback || !isLoaded) return; 
+            if (!isLoaded) return; 
 
-            smoothX += (ndcX - smoothX) * 0.05;
-            smoothY += (ndcY - smoothY) * 0.05;
-
-            // Anchor view transforms relative to the calculated data coordinates
-            camera.position.x = (sceneCenter.x + cameraOffset.x) + (smoothX * 1.5);
-            camera.position.y = (sceneCenter.y + cameraOffset.y) + (smoothY * 1.0);
-            camera.position.z = (sceneCenter.z + cameraOffset.z);
-
-            const dir = new SPLAT.Vector3(
-                camera.position.x - sceneCenter.x,
-                camera.position.y - sceneCenter.y,
-                camera.position.z - sceneCenter.z
-            );
-            camera.rotation = SPLAT.Quaternion.LookRotation(dir, new SPLAT.Vector3(0, 1, 0));
-
+            // Update orbit view matrices seamlessly
+            controls.update();
             renderer.render(scene, camera);
         }
 
@@ -281,15 +232,13 @@
         window.addEventListener("resize", resizeCanvas);
 
         // =========================================================================
-        // --- BACKUP VECTOR CLOUD FALLBACK SUBSYSTEM ---
+        // --- DEFENSIVE VECTOR OFFLINE SYSTEM FALLBACK ---
         // =========================================================================
         let fallbackCtx; let points = []; const maxPoints = 300;
         function initFallbackEngine() {
-            isUsingFallback = true;
             container.innerHTML = '<canvas id="fallback-canvas" style="display:block; width:100%; height:100%;"></canvas>';
             const fallbackCanvas = document.getElementById("fallback-canvas");
             fallbackCtx = fallbackCanvas.getContext("2d");
-            window.addEventListener("resize", () => { fallbackCanvas.width = window.innerWidth; fallbackCanvas.height = window.innerHeight; });
             fallbackCanvas.width = window.innerWidth; fallbackCanvas.height = window.innerHeight;
 
             for (let i = 0; i < maxPoints; i++) {
@@ -300,18 +249,15 @@
         }
 
         function fallbackRenderLoop() {
-            if (!isUsingFallback) return; requestAnimationFrame(fallbackRenderLoop);
+            requestAnimationFrame(fallbackRenderLoop);
             fallbackCtx.fillStyle = "rgba(5, 5, 5, 0.25)"; fallbackCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-            smoothX += (ndcX - smoothX) * 0.05;
             const centerX = window.innerWidth / 2; const centerY = window.innerHeight / 2; const perspectiveScale = 400;
 
             for (let i = 0; i < points.length; i++) {
-                let pt = points[i]; let cosY = Math.cos(smoothX * 0.4); let sinY = Math.sin(smoothX * 0.4);
-                let x1 = pt.x * cosY - pt.z * sinY; let z1 = pt.x * sinY + pt.z * cosY; let dZ = z1 + 350;
-
+                let pt = points[i]; let dZ = pt.z + 350;
                 if (dZ > 0) {
-                    const scrX = x1 * (perspectiveScale / dZ) + centerX; const scrY = pt.y * (perspectiveScale / dZ) + centerY; const scrSize = pt.radius * (perspectiveScale / dZ);
-                    pt.pulse += 0.01; const opacity = (Math.abs(Math.sin(pt.pulse)) * 0.4 + 0.5) * (1 - (z1 / 500));
+                    const scrX = pt.x * (perspectiveScale / dZ) + centerX; const scrY = pt.y * (perspectiveScale / dZ) + centerY; const scrSize = pt.radius * (perspectiveScale / dZ);
+                    pt.pulse += 0.01; const opacity = (Math.abs(Math.sin(pt.pulse)) * 0.4 + 0.5) * (1 - (pt.z / 500));
                     fallbackCtx.beginPath(); fallbackCtx.arc(scrX, scrY, scrSize, 0, Math.PI * 2); fallbackCtx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.85})`; fallbackCtx.fill();
                 }
             }

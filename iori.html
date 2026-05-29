@@ -138,10 +138,8 @@
         import * as SPLAT from "https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js";
 
         // =========================================================================
-        // DATASET CHANNEL PATHWAYS
+        // NATIVE DIRECTORY CHANNELS (No Proxy Redirects, Zero Middleware Throttling)
         // =========================================================================
-        const HF_USER_REPO = "iorioriori/splats";
-
         const splatScenes = [
             "gs_Dandy", "gs_alive", "gs_and_l", "gs_carousel", "gs_creatures",
             "gs_fia", "gs_flora", "gs_govno", "gs_ior", "gs_iridescence",
@@ -154,12 +152,14 @@
         ];
 
         const chosenScene = splatScenes[Math.floor(Math.random() * splatScenes.length)];
-        const hfRoot = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenScene}`;
+        
+        // Pointing directly to your site's local root assets directory
+        const assetRoot = `./assets/${chosenScene}`;
 
         let renderer, scene, camera;
         let isUsingFallback = false;
         let isLoaded = false; 
-        let isTransitioning = false; // CRITICAL: GPU memory synchronization block flag
+        let isTransitioning = false; 
 
         let ndcX = 0, ndcY = 0, smoothX = 0, smoothY = 0;
 
@@ -185,7 +185,6 @@
             }
         }
 
-        // Helper function to safely yield frames to the GPU buffer operations
         function syncGpuBuffers() {
             return new Promise(resolve => {
                 requestAnimationFrame(() => {
@@ -203,11 +202,11 @@
             scene = new SPLAT.Scene();
 
             try {
-                // ---- STAGE 1: MICRO-CORE PASS ----
-                console.log(`[WATERFALL 1/5] Extracting micro focal point core...`);
+                // ---- STAGE 1: NATIVE MICRO-CORE PASS (SUB-SECOND REVEAL) ----
+                console.log(`[WATERFALL 1/5] Extracting focus geometry...`);
                 isTransitioning = true;
-                await SPLAT.Loader.LoadAsync(`${hfRoot}_part1.ply`, scene);
-                await syncGpuBuffers(); // Force alignment settlement before loop begins
+                await SPLAT.Loader.LoadAsync(`${assetRoot}_part1.ply`, scene);
+                await syncGpuBuffers(); 
                 
                 camera.position = new SPLAT.Vector3(currentCamPos.x, currentCamPos.y, currentCamPos.z);
                 isLoaded = true;
@@ -218,16 +217,13 @@
                 bootScreen.style.pointerEvents = "none";
 
                 // ---- STAGES 2-5: ASYNC WATERFALL WITH HARDWARE SYNCHRONIZATION ----
-                // Pauses drawing loops during data buffer transitions to prevent instance mismatches
                 const appendChunk = async (partNumber) => {
-                    console.log(`[WATERFALL ${partNumber}/5] Streaming next data array pass...`);
                     isTransitioning = true;
-                    await SPLAT.Loader.LoadAsync(`${hfRoot}_part${partNumber}.ply`, scene);
-                    await syncGpuBuffers(); // Wait for VRAM allocation settlement
+                    await SPLAT.Loader.LoadAsync(`${assetRoot}_part${partNumber}.ply`, scene);
+                    await syncGpuBuffers(); 
                     isTransitioning = false;
                 };
 
-                // Sequential block evaluation avoids race-state buffer fragmentation
                 await appendChunk(2);
                 console.log("[WATERFALL 2/5] Core subject reinforced.");
                 
@@ -238,7 +234,7 @@
                 console.log("[WATERFALL 4/5] Background architectural fill generated.");
                 
                 await appendChunk(5);
-                console.log("%c[WATERFALL 5/5] Visual field fully synchronized. Specular arrays live.", "color: #00ff00");
+                console.log("%c[WATERFALL 5/5] Visual field fully synchronized.", "color: #00ff00");
 
             } catch (err) {
                 console.error("Critical loader execution breakdown. Stepping down to vector matrix.", err);
@@ -261,8 +257,6 @@
 
         function renderLoop() {
             requestAnimationFrame(renderLoop);
-
-            // Halt frames during active buffer configuration changes
             if (isUsingFallback || !isLoaded || isTransitioning) return; 
 
             smoothX += (ndcX - smoothX) * 0.05;

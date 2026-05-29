@@ -3,143 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spark 2.0 - High Fidelity Showcase</title>
+    <title>Splat Showcase — Engine Core</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: sans-serif; }
-        #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        #viewer-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         #ui-overlay { position: absolute; top: 20px; left: 20px; z-index: 10; color: #fff; pointer-events: none; }
-        h1 { margin: 0 0 5px 0; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.9; }
+        h1 { margin: 0 0 5px 0; font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.9; }
         .status { font-size: 0.8rem; color: #00ffcc; opacity: 0.8; }
     </style>
 </head>
 <body>
 
     <div id="ui-overlay">
-        <h1 id="scene-title">Initializing...</h1>
-        <div id="scene-status" class="status">Streaming SPZ 4 Assets...</div>
+        <h1 id="scene-title">Initializing Viewer</h1>
+        <div id="scene-status" class="status">Pre-fetching assets...</div>
     </div>
 
-    <div id="canvas-container"></div>
+    <div id="viewer-container"></div>
 
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "spz-loader": "https://unpkg.com/@spz-loader/three@1.0.4/dist/spz-loader.module.js"
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
             }
         }
     </script>
 
     <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { SpzLoader } from 'spz-loader';
+        import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 
-        // 1. Core Engine Setup
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 2, 5);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        container.appendChild(renderer.domElement);
-
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 + 0.1; // Don't clip below floor line
-
-        // 2. Cinematic Camera Interpolation State
-        let targetRotation = 0;
-        let currentRotation = 0;
-        let autoOrbit = true;
-
-        // 3. Dynamic SPZ Stream Controller
-        // Replace this with your direct Hugging Face repository URL path
+        // 1. Point this directly to your Hugging Face outputs or your local Caddy assets folder
         const CDN_BASE = "https://huggingface.co/datasets/iorioriori/splats/resolve/main/optimized_outputs/";
-        let currentSplatMesh = null;
 
-        async function loadSplatScene(sceneName) {
+        // 2. Instantiate the unified WebGL & Worker Sort Engine
+        const viewer = new GaussianSplats3D.Viewer({
+            'initialCameraPosition': [0, 2, 5],
+            'initialCameraLookAt': [0, 0, 0],
+            'cameraUp': [0, 1, 0],
+            'showLoadingUI': false, // We use our own clean UI overlay
+            'rootElement': document.getElementById('viewer-container')
+        });
+
+        let currentSceneId = null;
+
+        async function switchScene(sceneName) {
             const titleEl = document.getElementById('scene-title');
             const statusEl = document.getElementById('scene-status');
             
             titleEl.innerText = sceneName.replace("gs_", "").toUpperCase();
-            statusEl.innerText = "Connecting to stream payload...";
+            statusEl.innerText = "Streaming compressed SPZ layers...";
 
-            // Clean up previous context structures seamlessly to avoid WebGL memory leaks
-            if (currentSplatMesh) {
-                scene.remove(currentSplatMesh);
-                if (currentSplatMesh.geometry) currentSplatMesh.geometry.dispose();
-                if (currentSplatMesh.material) currentSplatMesh.material.dispose();
-                currentSplatMesh = null;
+            // Gracefully drop old memory contexts to prevent canvas leakage
+            if (currentSceneId !== null) {
+                await viewer.removeSplatScene(currentSceneId);
+                currentSceneId = null;
             }
 
             try {
                 const url = `${CDN_BASE}${sceneName}.spz`;
-                const loader = new SpzLoader();
                 
-                // Parse and compile asynchronously via background workers
-                const splatGroup = await loader.loadAsync(url, (progress) => {
-                    const percent = Math.round((progress.loaded / progress.total) * 100);
-                    statusEl.innerText = `Streaming high-fidelity channels: ${percent}%`;
+                // Natively streams, decompresses ZSTD layers, and retains reflection attributes
+                currentSceneId = await viewer.addSplatScene(url, {
+                    'progressiveLoad': true,
+                    'splatAlphaRemovalThreshold': 5
                 });
 
-                currentSplatMesh = splatGroup;
-                scene.add(currentSplatMesh);
-                
-                statusEl.innerText = "✨ Rendering Complete (3 SH Reflection Bands Active)";
-                
-                // Trigger smooth cinematic camera entry swoop
-                autoOrbit = true;
-                currentRotation = 0;
-                targetRotation = Math.PI * 2;
-
+                statusEl.innerText = "✨ Active (Full Spherical Harmonics Loaded)";
             } catch (err) {
-                console.error("❌ Streaming pipeline failure:", err);
-                statusEl.innerText = "⚠️ Stream interrupted. Reconnecting...";
+                console.error("❌ Stream Error:", err);
+                statusEl.innerText = "⚠️ Network drop detected. Retrying...";
             }
         }
 
-        // Interrupt auto-orbit whenever the user interacts with the showcase manually
-        controls.addEventListener('start', () => { autoOrbit = false; });
+        // Initialize the base loop and drop into your first scene
+        viewer.start();
+        switchScene("gs_kyticki");
 
-        // Window Resizing Handlers
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // 4. Unified Frame Execution Loop
-        function tick() {
-            requestAnimationFrame(tick);
-
-            if (autoOrbit) {
-                // Smooth camera sweep using basic interpolation damping
-                currentRotation += (targetRotation - currentRotation) * 0.015;
-                camera.position.x = Math.sin(currentRotation) * 5;
-                camera.position.z = Math.cos(currentRotation) * 5;
-                camera.lookAt(0, 0, 0);
-            } else {
-                controls.update();
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        // Run Engine & Load initial asset safely
-        tick();
-        
-        // Test with the scene that just finished compiling successfully in your terminal
-        loadSplatScene("gs_kyticki");
-
-        // Expose globally to hook straight into your landing page UI navigation buttons
-        window.switchShowcaseScene = loadSplatScene;
+        // Expose to window for your navigation controls
+        window.switchShowcaseScene = switchScene;
     </script>
 </body>
 </html>

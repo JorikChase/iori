@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IORI</title>
+    
+    <!-- Google Fonts for Brutalist Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- BRUTALIST & MINIMALIST RESET --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            color: #ffffff;
+        }
+
+        /* --- BACKGROUND CANVAS LAYER --- */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            /* Smooth dramatic blur reveal */
+            transition: filter 3s cubic-bezier(0.16, 1, 0.3, 1), opacity 2s ease;
+            opacity: 0;
+            filter: brightness(0) contrast(1.8) blur(30px);
+        }
+
+        #canvas-container.active {
+            opacity: 1;
+            filter: brightness(1.05) contrast(1.02) blur(0px);
+        }
+
+        #splat-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- ULTRA-MINIMAL BRUTALIST OVERLAY --- */
+        .brutalist-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Allows cursor to pass directly to splat interactions */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        /* Bold, massive brutalist heading centered */
+        .brand-title {
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(5rem, 25vw, 32rem);
+            font-weight: 800;
+            line-height: 0.75;
+            letter-spacing: -0.06em;
+            text-transform: uppercase;
+            color: #ffffff;
+            text-align: center;
+            mix-blend-mode: difference; /* Interacts beautifully with the bright spots of the splat */
+        }
+
+        /* --- SUBTLE VINTAGE SCREEN FILTER --- */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 100;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+            background-size: 100% 4px;
+            opacity: 0.25;
+        }
+
+        /* --- MINIMALIST LOADING SCREEN --- */
+        #boot-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.05);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Retro horizontal filter lines -->
+    <div class="scanlines"></div>
+
+    <!-- Active Splat Display viewport -->
+    <div id="canvas-container">
+        <canvas id="splat-canvas"></canvas>
+    </div>
+
+    <!-- Pure Brutalist Text Layout Overlay -->
+    <div class="brutalist-overlay">
+        <h1 class="brand-title">IORI</h1>
+    </div>
+
+    <!-- Minimalistic boot loader frame -->
+    <div id="boot-screen">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Load Splat engine from CDN -->
+    <script type="module">
+        import * as SPLAT from "https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js";
+
+        // =========================================================================
+        // HUGGING FACE ROUTING CONFIGURATION
+        // Linked directly to your live 'iorioriori/splats' repository.
+        // =========================================================================
+        const HF_USER_REPO = "iorioriori/splats";
+
+        // --- DATABASE OF YOUR OPTIMIZED .SPLAT FILES ---
+        const splatFiles = [
+            "gs_Dandy.splat",
+            "gs_alive.splat",
+            "gs_and_l.splat",
+            "gs_carousel.splat",
+            "gs_creatures.splat",
+            "gs_fia.splat",
+            "gs_flora.splat",
+            "gs_govno.splat",
+            "gs_ior.splat",
+            "gs_iridescence.splat",
+            "gs_iriscient.splat",
+            "gs_jjj.splat",
+            "gs_kaczinski.splat",
+            "gs_kanal.splat",
+            "gs_kolo.splat",
+            "gs_kyticki.splat",
+            "gs_lili.splat",
+            "gs_lou.splat",
+            "gs_ma_bh.splat",
+            "gs_meadow.splat",
+            "gs_moses.splat",
+            "gs_my_man.splat",
+            "gs_nova_scena.splat",
+            "gs_p_edti.splat",
+            "gs_pool.splat",
+            "gs_puddy.splat",
+            "gs_pulz.splat",
+            "gs_rapture.splat",
+            "gs_rozi.splat",
+            "gs_ruh.splat",
+            "gs_scen_rie.splat",
+            "gs_shack.splat",
+            "gs_stvana.splat",
+            "gs_tick.splat",
+            "gs_umu.splat",
+            "gs_vltava.splat",
+            "gs_vodn_k.splat",
+            "gs_yum.splat",
+            "gs_yummy_like_u.splat",
+            "gs_zoch.splat"
+        ];
+
+        // Pick one randomly on initialize
+        const chosenFile = splatFiles[Math.floor(Math.random() * splatFiles.length)];
+        
+        // Dynamically build the CORS-friendly direct streaming CDN link pointing to Hugging Face
+        let activeFilename = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenFile}`;
+
+        let renderer, scene, camera;
+        let isUsingFallback = false;
+
+        // Interaction coordinates (Normalized: -1 to 1)
+        let ndcX = 0, ndcY = 0;
+        let smoothX = 0, smoothY = 0;
+
+        let currentCamPos = { x: 0, y: 0, z: 12 };
+        let currentCamLook = { x: 0, y: 0, z: 0 };
+        
+        // Auto-framing metrics
+        let sceneCenter = { x: 0, y: 0, z: 0 };
+        let targetDistance = 4.0; // Distance of camera from center of the splat
+
+        const container = document.getElementById("canvas-container");
+        const canvas = document.getElementById("splat-canvas");
+        const bootScreen = document.getElementById("boot-screen");
+
+        function initEngine() {
+            try {
+                renderer = new SPLAT.WebGLRenderer(canvas);
+                scene = new SPLAT.Scene();
+                camera = new SPLAT.Camera();
+
+                resizeCanvas();
+                loadAsset(activeFilename);
+
+            } catch (err) {
+                console.warn("Splat engine failed to load WebGL context. Activating fallback...", err);
+                initFallbackEngine();
+            }
+        }
+
+        async function loadAsset(fileUrl) {
+            container.classList.remove("active");
+            bootScreen.style.opacity = "1";
+            bootScreen.style.pointerEvents = "auto";
+
+            scene = new SPLAT.Scene();
+
+            try {
+                await SPLAT.Loader.LoadAsync(fileUrl, scene);
+                
+                // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
+                // Reads the loaded splat particles to automatically find the average center
+                // so that your camera is perfectly aligned and focused regardless of raw file offsets.
+                let sumX = 0, sumY = 0, sumZ = 0;
+                const sampleCount = Math.min(scene.objects[0]?.splatData?.vertexCount || 0, 3000);
+                
+                if (sampleCount > 0 && scene.objects[0]?.splatData) {
+                    const data = scene.objects[0].splatData;
+                    // Gather coordinates of sample splat points
+                    for (let i = 0; i < sampleCount; i++) {
+                        sumX += data.positions[i * 3];
+                        sumY += data.positions[i * 3 + 1];
+                        sumZ += data.positions[i * 3 + 2];
+                    }
+                    sceneCenter.x = sumX / sampleCount;
+                    sceneCenter.y = sumY / sampleCount;
+                    sceneCenter.z = sumZ / sampleCount;
+                }
+
+                // Sweep Camera on Load (Reveal cinematic swoop starting from offset)
+                currentCamPos.x = sceneCenter.x + 3;
+                currentCamPos.y = sceneCenter.y + 1.5;
+                currentCamPos.z = sceneCenter.z + targetDistance + 6; // Start zoomed out
+
+                currentCamLook.x = sceneCenter.x;
+                currentCamLook.y = sceneCenter.y;
+                currentCamLook.z = sceneCenter.z;
+
+                setTimeout(() => {
+                    container.classList.add("active");
+                }, 100);
+
+                setTimeout(() => {
+                    bootScreen.style.opacity = "0";
+                    bootScreen.style.pointerEvents = "none";
+                }, 500);
+
+            } catch (err) {
+                console.error("Failed to load Hugging Face splat asset. Transitioning to custom vector fallback.", err);
+                initFallbackEngine();
+            }
+        }
+
+        // --- SMOOTH MOUSE INTERACTION TRACKING ---
+        window.addEventListener("mousemove", (e) => {
+            ndcX = (e.clientX / window.innerWidth) * 2 - 1;
+            ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener("touchmove", (e) => {
+            if (e.touches.length > 0) {
+                ndcX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                ndcY = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+            }
+        });
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+
+            if (isUsingFallback) return;
+
+            // Silky smooth interpolation loop
+            smoothX += (ndcX - smoothX) * 0.05;
+            smoothY += (ndcY - smoothY) * 0.05;
+
+            // Target camera positioning with subtle offsets driven by cursor movements
+            const targetX = sceneCenter.x + (smoothX * 1.8);
+            const targetY = sceneCenter.y + (smoothY * 1.3) + 0.4;
+            const targetZ = sceneCenter.z + targetDistance;
+
+            // Animate towards target
+            currentCamPos.x += (targetX - currentCamPos.x) * 0.07;
+            currentCamPos.y += (targetY - currentCamPos.y) * 0.07;
+            currentCamPos.z += (targetZ - currentCamPos.z) * 0.07;
+
+            currentCamLook.x += (sceneCenter.x - currentCamLook.x) * 0.07;
+            currentCamLook.y += (sceneCenter.y - currentCamLook.y) * 0.07;
+            currentCamLook.z += (sceneCenter.z - currentCamLook.z) * 0.07;
+
+            camera.position.x = currentCamPos.x;
+            camera.position.y = currentCamPos.y;
+            camera.position.z = currentCamPos.z;
+
+            const up = new SPLAT.Vector3(0, 1, 0);
+            const lookTarget = new SPLAT.Vector3(currentCamLook.x, currentCamLook.y, currentCamLook.z);
+            camera.lookAt(lookTarget, up);
+
+            renderer.render(scene, camera);
+        }
+
+        function resizeCanvas() {
+            if (!renderer) return;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        window.addEventListener("resize", resizeCanvas);
+
+
+        // =========================================================================
+        // --- ORGANIC VECTOR CLOUD FALLBACK (Offline / CORS error protection) ---
+        // =========================================================================
+        let fallbackCtx;
+        let points = [];
+        const maxPoints = 300;
+
+        function initFallbackEngine() {
+            isUsingFallback = true;
+            
+            container.innerHTML = '<canvas id="fallback-canvas" style="display:block; width:100%; height:100%;"></canvas>';
+            const fallbackCanvas = document.getElementById("fallback-canvas");
+            fallbackCtx = fallbackCanvas.getContext("2d");
+
+            function resizeFallback() {
+                fallbackCanvas.width = window.innerWidth;
+                fallbackCanvas.height = window.innerHeight;
+            }
+            window.addEventListener("resize", resizeFallback);
+            resizeFallback();
+
+            // Populate coordinates for 3D vector points
+            points = [];
+            for (let i = 0; i < maxPoints; i++) {
+                points.push({
+                    x: (Math.random() - 0.5) * 500,
+                    y: (Math.random() - 0.5) * 500,
+                    z: Math.random() * 500,
+                    radius: Math.random() * 1.5 + 0.5,
+                    pulse: Math.random() * Math.PI
+                });
+            }
+
+            bootScreen.style.opacity = "0";
+            bootScreen.style.pointerEvents = "none";
+            container.classList.add("active");
+
+            fallbackRenderLoop();
+        }
+
+        function fallbackRenderLoop() {
+            if (!isUsingFallback) return;
+            requestAnimationFrame(fallbackRenderLoop);
+
+            // Semi-transparent clears to create gorgeous trailing movement frames
+            fallbackCtx.fillStyle = "rgba(5, 5, 5, 0.25)";
+            fallbackCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+            smoothX += (ndcX - smoothX) * 0.05;
+            smoothY += (ndcY - smoothY) * 0.05;
+
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            const perspectiveScale = 400;
+
+            for (let i = 0; i < points.length; i++) {
+                let pt = points[i];
+
+                // Smoothly calculate rotation angles across axes based on cursor coordinates
+                let cosY = Math.cos(smoothX * 0.4);
+                let sinY = Math.sin(smoothX * 0.4);
+                let cosX = Math.cos(smoothY * 0.3);
+                let sinX = Math.sin(smoothY * 0.3);
+
+                // Y Axis Rotation
+                let x1 = pt.x * cosY - pt.z * sinY;
+                let z1 = pt.x * sinY + pt.z * cosY;
+
+                // X Axis Rotation
+                let y1 = pt.y * cosX - z1 * sinX;
+                let z2 = pt.y * sinX + z1 * cosX;
+
+                let dZ = z2 + 350;
+
+                if (dZ > 0) {
+                    const scrX = x1 * (perspectiveScale / dZ) + centerX;
+                    const scrY = y1 * (perspectiveScale / dZ) + centerY;
+                    const scrSize = pt.radius * (perspectiveScale / dZ);
+                    
+                    pt.pulse += 0.01;
+                    const pulseAlpha = Math.abs(Math.sin(pt.pulse)) * 0.4 + 0.5;
+                    const depthAlpha = (1 - (z2 / 500));
+                    const opacity = pulseAlpha * depthAlpha;
+
+                    // Draw organic points
+                    fallbackCtx.beginPath();
+                    fallbackCtx.arc(scrX, scrY, scrSize, 0, Math.PI * 2);
+                    fallbackCtx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.85})`;
+                    fallbackCtx.fill();
+
+                    // Connect close neighbors with beautiful vector lines to simulate branch structures
+                    if (i < points.length - 1 && dZ < 400) {
+                        let nextPt = points[i + 1];
+                        let dist = Math.sqrt(Math.pow(pt.x - nextPt.x, 2) + Math.pow(pt.y - nextPt.y, 2) + Math.pow(pt.z - nextPt.z, 2));
+                        if (dist < 70) {
+                            let nX1 = nextPt.x * cosY - nextPt.z * sinY;
+                            let nZ1 = nextPt.x * sinY + nextPt.z * cosY;
+                            let nY1 = nextPt.y * cosX - nZ1 * sinX;
+                            let nZ2 = nextPt.y * sinX + nZ1 * cosX;
+
+                            let nScrX = nX1 * (perspectiveScale / (nZ2 + 350)) + centerX;
+                            let nScrY = nY1 * (perspectiveScale / (nZ2 + 350)) + centerY;
+
+                            fallbackCtx.beginPath();
+                            fallbackCtx.moveTo(scrX, scrY);
+                            fallbackCtx.lineTo(nScrX, nScrY);
+                            fallbackCtx.strokeStyle = `rgba(255, 255, 255, ${depthAlpha * 0.1})`;
+                            fallbackCtx.stroke();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Run
+        window.onload = () => {
+            initEngine();
+            renderLoop();
+        };
+
+    </script>
+</body>
+</html>

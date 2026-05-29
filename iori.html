@@ -306,10 +306,23 @@
 
                 // Bind attributes to the standard SplatData model
                 const splatData = new SPLAT.SplatData();
-                splatData.positions = positions;
-                splatData.rotations = rotations;
-                splatData.scales = scales;
-                splatData.colors = colors;
+                
+                // Set backing underscored fields first to support internal getter mappings
+                splatData._positions = positions;
+                splatData._rotations = rotations;
+                splatData._scales = scales;
+                splatData._colors = colors;
+
+                // Explicitly define configurable properties to override read-only getters on the instance
+                const props = { positions, rotations, scales, colors };
+                for (const [key, value] of Object.entries(props)) {
+                    Object.defineProperty(splatData, key, {
+                        value: value,
+                        writable: true,
+                        enumerable: true,
+                        configurable: true
+                    });
+                }
 
                 // Instantiate splat object using verified constructor
                 const splatObject = new SPLAT.Splat(splatData);

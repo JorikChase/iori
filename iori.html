@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IORI</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght=800&display=swap" rel="stylesheet">
 
     <style>
         /* --- BRUTALIST & MINIMALIST RESET --- */
@@ -66,7 +63,8 @@
         }
 
         .brand-title {
-            font-family: 'Syne', sans-serif;
+            /* Clean fallback font stack eliminating corporate network stylesheet boundaries */
+            font-family: 'Syne', 'Impact', 'Arial Black', sans-serif;
             font-size: clamp(5rem, 25vw, 32rem);
             font-weight: 800;
             line-height: 0.75;
@@ -167,7 +165,6 @@
                 camera = new SPLAT.Camera();
                 controls = new SPLAT.OrbitControls(camera, canvas);
 
-                // Initialize camera relative to origin
                 camera.position = new SPLAT.Vector3(0, 1.2, 3.5);
 
                 resizeCanvas();
@@ -190,28 +187,37 @@
                 await SPLAT.Loader.LoadAsync(blobUrl, activeScene);
                 URL.revokeObjectURL(blobUrl);
                 
-                // Unveil canvas immediately upon loading part 1
+                // Rebuild renderer to size the base buffer layout instantly
+                renderer = new SPLAT.WebGLRenderer(canvas);
+
                 isLoaded = true;
                 container.classList.add("active");
                 bootScreen.style.opacity = "0";
                 bootScreen.style.pointerEvents = "none";
 
-                // ---- STAGES 2-5: SEQUENTIAL STREAMING BACKGROUND PIPELINE ----
+                // ---- STAGES 2-5: SEQUENTIAL BACKGROUND STREAMING WITH BUFFER REBUILDS ----
                 for (let i = 2; i <= 5; i++) {
                     console.log(`[NET FETCH] Downloading part ${i} over background channels...`);
                     const res = await fetch(`${hfRoot}_part${i}.ply`);
-                    if (!res.ok) break; // Terminate if a specific chunk sequence is missing
+                    if (!res.ok) break; 
                     const dataBlob = await res.blob();
-                    
                     const bUrl = URL.createObjectURL(dataBlob);
-                    // Append data directly to the actively rendering context
+                    
+                    // Unset load token to protect drawing frames during live heap expansions
+                    isLoaded = false;
+                    
+                    // Ingest directly into active scene to fire library's internal structural handlers
                     await SPLAT.Loader.LoadAsync(bUrl, activeScene);
                     URL.revokeObjectURL(bUrl);
+
+                    // FORCE HARDWARE ALLOCATION REBUILD: Destroys old buffers and reads new size
+                    renderer = new SPLAT.WebGLRenderer(canvas);
                     
-                    console.log(`[GPU UNLOCKED] Combined part ${i} into canvas context seamlessly.`);
+                    isLoaded = true;
+                    console.log(`[GPU REBUILT] Re-allocated WebGL buffers for total cumulative elements up to part ${i}.`);
                     
-                    // Minor thread settlement window to prevent event worker starvation
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    // Keep main event loops unblocked
+                    await new Promise(resolve => setTimeout(resolve, 80));
                 }
                 console.log("%c[SUCCESS] Dynamic cloud generation complete.", "color: #00ff00");
 
@@ -223,7 +229,7 @@
 
         function renderLoop() {
             requestAnimationFrame(renderLoop);
-            if (!isLoaded) return; // Keep rendering active even during pipeline mutations
+            if (!isLoaded) return; 
 
             controls.update();
             renderer.render(activeScene, camera);

@@ -242,11 +242,61 @@
             scene = new SPLAT.Scene();
 
             try {
-                console.log("Streaming standard gzipped splat from Hugging Face natively...");
+                console.log("Streaming pre-gzipped splat from Hugging Face...");
+                const response = await fetch(fileUrl);
+                if (!response.ok) throw new Error(`HTTP fetch failed with code ${response.status}`);
                 
-                // Directly call standard Loader. LoadAsync automatically detects 
-                // the standard gzipped stream contents and decodes coordinates natively!
-                const splatObject = await SPLAT.Loader.LoadAsync(fileUrl, scene);
+                const arrayBuffer = await response.arrayBuffer();
+                
+                console.log("Decompressing gzipped splat natively in the browser...");
+                // Decode the gzipped bytes natively using browser's DecompressionStream
+                const ds = new DecompressionStream("gzip");
+                const decompressedStream = new Response(arrayBuffer).body.pipeThrough(ds);
+                const decompressedArrayBuffer = await new Response(decompressedStream).arrayBuffer();
+                
+                console.log("Parsing uncompressed splat bytes...");
+                let splatObject = null;
+
+                // Cascade Strategy 1: Direct LoadFromArrayBuffer on main Loader
+                const mainLoaderFunc = SPLAT.Loader.LoadFromArrayBuffer || SPLAT.Loader.loadFromArrayBuffer;
+                if (mainLoaderFunc) {
+                    try {
+                        splatObject = await mainLoaderFunc.call(SPLAT.Loader, decompressedArrayBuffer, scene);
+                    } catch (e) {
+                        console.warn("Strategy 1 failed, trying fallbacks...", e);
+                    }
+                }
+
+                // Cascade Strategy 2: Direct LoadFromArrayBuffer on SplatLoader instance
+                if (!splatObject && typeof SPLAT.SplatLoader !== "undefined") {
+                    try {
+                        const splatLoader = new SPLAT.SplatLoader();
+                        const loaderFunc = splatLoader.LoadFromArrayBuffer || splatLoader.loadFromArrayBuffer;
+                        if (loaderFunc) {
+                            splatObject = await loaderFunc.call(splatLoader, decompressedArrayBuffer, scene);
+                        }
+                    } catch (e) {
+                        console.warn("Strategy 2 failed, trying fallbacks...", e);
+                    }
+                }
+
+                // Cascade Strategy 3: Safe Blob Object URL via SplatLoader (guarantees zero query-string CSP blocks)
+                if (!splatObject) {
+                    try {
+                        const uncompressedBlob = new Blob([decompressedArrayBuffer], { type: "application/octet-stream" });
+                        const objectUrl = URL.createObjectURL(uncompressedBlob);
+                        
+                        if (typeof SPLAT.SplatLoader !== "undefined") {
+                            const splatLoader = new SPLAT.SplatLoader();
+                            splatObject = await splatLoader.LoadAsync(objectUrl, scene);
+                        } else {
+                            splatObject = await SPLAT.Loader.LoadAsync(objectUrl, scene);
+                        }
+                        URL.revokeObjectURL(objectUrl);
+                    } catch (e) {
+                        throw new Error("All splat parsing strategies failed: " + e.message);
+                    }
+                }
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;

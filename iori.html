@@ -240,41 +240,11 @@
             scene = new SPLAT.Scene();
 
             try {
-                console.log("Streaming compressed splat binary from Hugging Face...");
-                const response = await fetch(fileUrl);
-                if (!response.ok) throw new Error(`HTTP fetch failed with code ${response.status}`);
+                console.log("Streaming standard gzipped splat from Hugging Face...");
                 
-                const arrayBuffer = await response.arrayBuffer();
-                
-                console.log("Compressing raw bytes to Gzip format natively in memory...");
-                // Stream and compress the entire TypedArray safely to prevent write truncation
-                const stream = new ReadableStream({
-                    start(controller) {
-                        controller.enqueue(new Uint8Array(arrayBuffer));
-                        controller.close();
-                    }
-                }).pipeThrough(new CompressionStream("gzip"));
-                
-                const gzippedBuffer = await new Response(stream).arrayBuffer();
-                const gzippedBlob = new Blob([gzippedBuffer], { type: "application/x-gzip" });
-                
-                // Secure, clean Blob Object URL with no violating query strings
-                const objectUrl = URL.createObjectURL(gzippedBlob);
-                
-                console.log("Loading splat data natively via SPLAT.SplatLoader...");
-                
-                // Force routing via direct SplatLoader class to bypass the URL extension switch-case
-                let loader;
-                if (typeof SPLAT.SplatLoader !== "undefined") {
-                    loader = new SPLAT.SplatLoader();
-                } else {
-                    loader = SPLAT.Loader;
-                }
-
-                const splatObject = await loader.LoadAsync(objectUrl, scene);
-                
-                // Clean up the Object URL immediately
-                URL.revokeObjectURL(objectUrl);
+                // Directly call standard Loader. LoadAsync automatically detects 
+                // gzipped stream contents and decodes coordinates onto matching alignments natively!
+                const splatObject = await SPLAT.Loader.LoadAsync(fileUrl, scene);
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;

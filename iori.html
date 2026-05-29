@@ -6,53 +6,133 @@
     <title>IORI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght=800&display=swap" rel="stylesheet">
 
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-drag: none; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #050505; color: #ffffff; }
-        
+        /* --- BRUTALIST & MINIMALIST RESET --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            color: #ffffff;
+        }
+
+        /* --- BACKGROUND CANVAS LAYER --- */
         #canvas-container {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
             transition: filter 2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.5s ease;
-            opacity: 0; filter: brightness(0) contrast(1.8) blur(30px);
+            opacity: 0;
+            filter: brightness(0) contrast(1.8) blur(30px);
         }
-        #canvas-container.active { opacity: 1; filter: brightness(1.05) contrast(1.02) blur(0px); }
-        #splat-canvas { display: block; width: 100%; height: 100%; }
 
+        #canvas-container.active {
+            opacity: 1;
+            filter: brightness(1.05) contrast(1.02) blur(0px);
+        }
+
+        #splat-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- ULTRA-MINIMAL BRUTALIST OVERLAY --- */
         .brutalist-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
-            pointer-events: none; display: flex; justify-content: center; align-items: center; padding: 2rem;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
         }
+
         .brand-title {
-            font-family: 'Syne', sans-serif; font-size: clamp(5rem, 25vw, 32rem);
-            font-weight: 800; line-height: 0.75; letter-spacing: -0.06em;
-            text-transform: uppercase; color: #ffffff; text-align: center; mix-blend-mode: difference;
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(5rem, 25vw, 32rem);
+            font-weight: 800;
+            line-height: 0.75;
+            letter-spacing: -0.06em;
+            text-transform: uppercase;
+            color: #ffffff;
+            text-align: center;
+            mix-blend-mode: difference;
         }
 
+        /* --- SUBTLE SCANLINE FILTER --- */
         .scanlines {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 100;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
-            background-size: 100% 4px; opacity: 0.25;
+            background-size: 100% 4px;
+            opacity: 0.25;
         }
 
+        /* --- LOADING LAYOUT --- */
         #boot-screen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #050505;
-            z-index: 1000; display: flex; justify-content: center; align-items: center; transition: opacity 0.4s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.4s ease;
         }
+
         .spinner {
-            width: 30px; height: 30px; border: 2px solid rgba(255, 255, 255, 0.05);
-            border-left-color: #ffffff; border-radius: 50%; animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
+            width: 30px;
+            height: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.05);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
         }
+
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
     <div class="scanlines"></div>
-    <div id="canvas-container"><canvas id="splat-canvas"></canvas></div>
-    <div class="brutalist-overlay"><h1 class="brand-title">IORI</h1></div>
-    <div id="boot-screen"><div class="spinner"></div></div>
+
+    <div id="canvas-container">
+        <canvas id="splat-canvas"></canvas>
+    </div>
+
+    <div class="brutalist-overlay">
+        <h1 class="brand-title">IORI</h1>
+    </div>
+
+    <div id="boot-screen">
+        <div class="spinner"></div>
+    </div>
 
     <script type="module">
         import * as SPLAT from "https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js";
@@ -73,9 +153,8 @@
         const chosenScene = splatScenes[Math.floor(Math.random() * splatScenes.length)];
         const hfRoot = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenScene}`;
 
-        let renderer, scene, camera, controls;
+        let renderer, activeScene, camera, controls;
         let isLoaded = false; 
-        let isTransitioning = false; 
 
         const container = document.getElementById("canvas-container");
         const canvas = document.getElementById("splat-canvas");
@@ -84,95 +163,77 @@
         function initEngine() {
             try {
                 renderer = new SPLAT.WebGLRenderer(canvas);
-                scene = new SPLAT.Scene();
+                activeScene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
                 controls = new SPLAT.OrbitControls(camera, canvas);
 
-                // Point camera straight at the normalized origin center (0,0,0)
+                // Initialize camera relative to origin
                 camera.position = new SPLAT.Vector3(0, 1.2, 3.5);
 
                 resizeCanvas();
-                loadFrontLoadedWaterfall();
+                runProgressiveWaterfall();
             } catch (err) {
-                console.warn("WebGL initialization failed. Loading fallback layout...", err);
+                console.warn("WebGL runtime initialization failure. Launching fallback engine...", err);
                 initFallbackEngine();
             }
         }
 
-        function syncGpuBuffers() {
-            return new Promise(resolve => {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(resolve);
-                });
-            });
-        }
-
-        async function loadFrontLoadedWaterfall() {
-            scene = new SPLAT.Scene();
-
+        async function runProgressiveWaterfall() {
             try {
-                // ---- STAGE 1: DOWNLOAD PHASE (UNBLOCKED LOOP) ----
+                // ---- STAGE 1: CORE FOCUS PASS ----
                 console.log(`[NET FETCH] Downloading core focus pass from Hugging Face...`);
                 const response = await fetch(`${hfRoot}_part1.ply`);
                 if (!response.ok) throw new Error("Network request rejected.");
                 const blob = await response.blob();
                 
-                // ---- STAGE 1: UPLOAD PHASE (ISOLATED BUFFER BLOCK) ----
-                isTransitioning = true;
                 const blobUrl = URL.createObjectURL(blob);
-                await SPLAT.Loader.LoadAsync(blobUrl, scene);
+                await SPLAT.Loader.LoadAsync(blobUrl, activeScene);
                 URL.revokeObjectURL(blobUrl);
-                await syncGpuBuffers(); 
                 
+                // Unveil canvas immediately upon loading part 1
                 isLoaded = true;
-                isTransitioning = false;
                 container.classList.add("active");
                 bootScreen.style.opacity = "0";
                 bootScreen.style.pointerEvents = "none";
 
-                // ---- STAGES 2-5: ASYNC STREAMING PASSES ----
-                const streamPart = async (num) => {
-                    console.log(`[NET FETCH] Downloading part ${num} over background channels...`);
-                    const res = await fetch(`${hfRoot}_part${num}.ply`);
-                    if (!res.ok) return;
+                // ---- STAGES 2-5: SEQUENTIAL STREAMING BACKGROUND PIPELINE ----
+                for (let i = 2; i <= 5; i++) {
+                    console.log(`[NET FETCH] Downloading part ${i} over background channels...`);
+                    const res = await fetch(`${hfRoot}_part${i}.ply`);
+                    if (!res.ok) break; // Terminate if a specific chunk sequence is missing
                     const dataBlob = await res.blob();
                     
-                    // Pause drawing loops briefly to bind incoming asset data
-                    isTransitioning = true;
                     const bUrl = URL.createObjectURL(dataBlob);
-                    await SPLAT.Loader.LoadAsync(bUrl, scene);
+                    // Append data directly to the actively rendering context
+                    await SPLAT.Loader.LoadAsync(bUrl, activeScene);
                     URL.revokeObjectURL(bUrl);
-                    await syncGpuBuffers(); 
-                    isTransitioning = false;
-                    console.log(`[GPU UNLOCKED] Combined part ${num} into canvas.`);
-                };
-
-                // Stream the background details sequentially
-                await streamPart(2);
-                await streamPart(3);
-                await streamPart(4);
-                await streamPart(5);
+                    
+                    console.log(`[GPU UNLOCKED] Combined part ${i} into canvas context seamlessly.`);
+                    
+                    // Minor thread settlement window to prevent event worker starvation
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
                 console.log("%c[SUCCESS] Dynamic cloud generation complete.", "color: #00ff00");
 
             } catch (err) {
-                console.error("Pipeline failure, stepping down to backup subsystem:", err);
+                console.error("Pipeline breakdown across data streams:", err);
                 initFallbackEngine();
             }
         }
 
         function renderLoop() {
             requestAnimationFrame(renderLoop);
-            if (!isLoaded || isTransitioning) return; 
+            if (!isLoaded) return; // Keep rendering active even during pipeline mutations
 
             controls.update();
-            renderer.render(scene, camera);
+            renderer.render(activeScene, camera);
         }
 
         function resizeCanvas() { if (renderer) renderer.setSize(window.innerWidth, window.innerHeight); }
         window.addEventListener("resize", resizeCanvas);
 
         // =========================================================================
-        // --- BACKUP FALLBACK LOGIC ---
+        // --- VECTOR CLOUD FALLBACK SUBSYSTEM ---
         // =========================================================================
         let fallbackCtx; let points = []; const maxPoints = 300;
         function initFallbackEngine() {

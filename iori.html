@@ -246,13 +246,18 @@
                 
                 const arrayBuffer = await response.arrayBuffer();
                 
-                // Wrap the fetched ArrayBuffer in a File object.
-                // gsplat.js natively supports File objects and uses the extension inside 
-                // the name property to select the perfect decoder.
-                const file = new File([arrayBuffer], "scene.splat", { type: "application/octet-stream" });
+                // Wrap the fetched ArrayBuffer in a browser Blob object.
+                const blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
                 
-                console.log("Loading splat data natively via gsplat.js loader...");
-                const splatObject = await SPLAT.Loader.LoadAsync(file, scene);
+                // Create a local object URL and append '?ext=scene.splat' to trick
+                // the library's loader into using the .splat parser natively
+                const objectUrl = URL.createObjectURL(blob) + "?ext=scene.splat";
+                
+                console.log("Loading splat data natively via gsplat.js loader with object URL...");
+                const splatObject = await SPLAT.Loader.LoadAsync(objectUrl, scene);
+                
+                // Revoke Object URL to release local browser memory
+                URL.revokeObjectURL(objectUrl);
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;

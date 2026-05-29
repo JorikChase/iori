@@ -247,68 +247,86 @@
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = new Uint8Array(arrayBuffer);
                 
-                console.log("Parsing raw splat buffer data dynamically...");
+                console.log("Parsing 32-byte splat buffer data with custom decoder...");
                 
-                let splatObject = null;
-
-                // --- THE DYNAMIC CONSTRUCTOR CASCADE ---
-                // Try Strategy A: Standard direct static deserialization of standard Splat structures
-                try {
-                    if (typeof SPLAT.Splat !== "undefined" && typeof SPLAT.Splat.Deserialize === "function") {
-                        splatObject = SPLAT.Splat.Deserialize(buffer);
-                    }
-                } catch (e) {
-                    console.warn("Strategy A failed. Trying Strategy B...", e);
+                // --- CUSTOM HIGH-PERFORMANCE 32-BYTE .SPLAT PARSER ---
+                const vertexCount = buffer.length / 32;
+                if (vertexCount === 0 || vertexCount % 1 !== 0) {
+                    throw new Error("Invalid .splat binary stream byte length.");
                 }
 
-                // Try Strategy B: Deserializing data stream first, then instantiating via Splat
-                if (!splatObject) {
-                    try {
-                        const splatData = SPLAT.SplatData.Deserialize(buffer);
-                        if (typeof SPLAT.Splat === "function") {
-                            splatObject = new SPLAT.Splat(splatData);
-                        } else if (typeof SPLAT.SplatObject === "function") {
-                            splatObject = new SPLAT.SplatObject(splatData);
-                        }
-                    } catch (e) {
-                        console.warn("Strategy B failed. Trying Strategy C...", e);
+                // Allocate standard typed arrays expected by gsplat.js GPU buffers
+                const positions = new Float32Array(vertexCount * 3);
+                const rotations = new Float32Array(vertexCount * 4);
+                const scales = new Float32Array(vertexCount * 3);
+                const colors = new Uint8Array(vertexCount * 4);
+                
+                const dataView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+                
+                for (let i = 0; i < vertexCount; i++) {
+                    const byteOffset = i * 32;
+                    
+                    // 1. Read Positions (12 bytes - 3 Floats)
+                    positions[i * 3 + 0] = dataView.getFloat32(byteOffset + 0, true);
+                    positions[i * 3 + 1] = dataView.getFloat32(byteOffset + 4, true);
+                    positions[i * 3 + 2] = dataView.getFloat32(byteOffset + 8, true);
+                    
+                    // 2. Read Scales (12 bytes - 3 Floats)
+                    // Convert back from linear space to original log scales expected by gsplat.js shaders
+                    scales[i * 3 + 0] = Math.log(Math.max(1e-5, dataView.getFloat32(byteOffset + 12, true)));
+                    scales[i * 3 + 1] = Math.log(Math.max(1e-5, dataView.getFloat32(byteOffset + 16, true)));
+                    scales[i * 3 + 2] = Math.log(Math.max(1e-5, dataView.getFloat32(byteOffset + 20, true)));
+                    
+                    // 3. Read Colors (4 bytes - RGBA)
+                    colors[i * 4 + 0] = dataView.getUint8(byteOffset + 24);
+                    colors[i * 4 + 1] = dataView.getUint8(byteOffset + 25);
+                    colors[i * 4 + 2] = dataView.getUint8(byteOffset + 26);
+                    colors[i * 4 + 3] = dataView.getUint8(byteOffset + 27);
+                    
+                    // 4. Read Rotations (4 bytes - Quaternion uint8s mapped from [-1, 1] to [0, 255])
+                    const r0 = (dataView.getUint8(byteOffset + 28) - 128) / 128;
+                    const r1 = (dataView.getUint8(byteOffset + 29) - 128) / 128;
+                    const r2 = (dataView.getUint8(byteOffset + 30) - 128) / 128;
+                    const r3 = (dataView.getUint8(byteOffset + 31) - 128) / 128;
+                    
+                    // Re-normalize decoded rotations
+                    const len = Math.sqrt(r0*r0 + r1*r1 + r2*r2 + r3*r3);
+                    if (len > 0) {
+                        rotations[i * 4 + 0] = r0 / len;
+                        rotations[i * 4 + 1] = r1 / len;
+                        rotations[i * 4 + 2] = r2 / len;
+                        rotations[i * 4 + 3] = r3 / len;
+                    } else {
+                        rotations[i * 4 + 0] = 1;
+                        rotations[i * 4 + 1] = 0;
+                        rotations[i * 4 + 2] = 0;
+                        rotations[i * 4 + 3] = 0;
                     }
                 }
 
-                // Try Strategy C: Loading directly via built-in Loader binary array helper
-                if (!splatObject) {
-                    try {
-                        splatObject = await SPLAT.Loader.LoadAsync(fileUrl, scene);
-                    } catch (e) {
-                        throw new Error("All parsing strategies exhausted. Falling back.");
-                    }
-                }
+                // Bind attributes to the standard SplatData model
+                const splatData = new SPLAT.SplatData();
+                splatData.positions = positions;
+                splatData.rotations = rotations;
+                splatData.scales = scales;
+                splatData.colors = colors;
 
-                // If parsed successfully via byte arrays, append it to the WebGL rendering tree
-                if (splatObject && !scene.objects.includes(splatObject)) {
-                    if (typeof scene.addObject === "function") {
-                        scene.addObject(splatObject);
-                    } else if (typeof scene.add === "function") {
-                        scene.add(splatObject);
-                    }
-                }
+                // Instantiate splat object using verified constructor
+                const splatObject = new SPLAT.Splat(splatData);
+                scene.addObject(splatObject);
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;
-                const activeSplat = scene.objects[0] || splatObject;
-                const sampleCount = Math.min(activeSplat?.splatData?.vertexCount || 0, 3000);
+                const sampleCount = Math.min(vertexCount, 3000);
                 
-                if (sampleCount > 0 && activeSplat?.splatData) {
-                    const data = activeSplat.splatData;
-                    for (let i = 0; i < sampleCount; i++) {
-                        sumX += data.positions[i * 3];
-                        sumY += data.positions[i * 3 + 1];
-                        sumZ += data.positions[i * 3 + 2];
-                    }
-                    sceneCenter.x = sumX / sampleCount;
-                    sceneCenter.y = sumY / sampleCount;
-                    sceneCenter.z = sumZ / sampleCount;
+                for (let i = 0; i < sampleCount; i++) {
+                    sumX += positions[i * 3];
+                    sumY += positions[i * 3 + 1];
+                    sumZ += positions[i * 3 + 2];
                 }
+                sceneCenter.x = sumX / sampleCount;
+                sceneCenter.y = sumY / sampleCount;
+                sceneCenter.z = sumZ / sampleCount;
 
                 // Sweep Camera on Load (Reveal cinematic swoop starting from offset)
                 currentCamPos.x = sceneCenter.x + 3;

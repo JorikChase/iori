@@ -9,56 +9,134 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" rel="stylesheet">
 
     <style>
-        /* --- BRUTALIST RESET --- */
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-drag: none; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #050505; color: #ffffff; }
-        
+        /* --- BRUTALIST & MINIMALIST RESET --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            color: #ffffff;
+        }
+
+        /* --- BACKGROUND CANVAS LAYER --- */
         #canvas-container {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
-            transition: filter 2.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.5s ease;
-            opacity: 0; filter: brightness(0) contrast(1.8) blur(30px);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            transition: filter 2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.5s ease;
+            opacity: 0;
+            filter: brightness(0) contrast(1.8) blur(30px);
         }
-        #canvas-container.active { opacity: 1; filter: brightness(1.05) contrast(1.02) blur(0px); }
-        #splat-canvas { display: block; width: 100%; height: 100%; }
 
+        #canvas-container.active {
+            opacity: 1;
+            filter: brightness(1.05) contrast(1.02) blur(0px);
+        }
+
+        #splat-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- ULTRA-MINIMAL BRUTALIST OVERLAY --- */
         .brutalist-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
-            pointer-events: none; display: flex; justify-content: center; align-items: center; padding: 2rem;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
         }
+
         .brand-title {
-            font-family: 'Syne', sans-serif; font-size: clamp(5rem, 25vw, 32rem);
-            font-weight: 800; line-height: 0.75; letter-spacing: -0.06em;
-            text-transform: uppercase; color: #ffffff; text-align: center; mix-blend-mode: difference;
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(5rem, 25vw, 32rem);
+            font-weight: 800;
+            line-height: 0.75;
+            letter-spacing: -0.06em;
+            text-transform: uppercase;
+            color: #ffffff;
+            text-align: center;
+            mix-blend-mode: difference;
         }
 
+        /* --- SUBTLE SCANLINE FILTER --- */
         .scanlines {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 100;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
-            background-size: 100% 4px; opacity: 0.25;
+            background-size: 100% 4px;
+            opacity: 0.25;
         }
 
+        /* --- LOADING LAYOUT --- */
         #boot-screen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #050505;
-            z-index: 1000; display: flex; justify-content: center; align-items: center; transition: opacity 0.4s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.4s ease;
         }
+
         .spinner {
-            width: 30px; height: 30px; border: 2px solid rgba(255, 255, 255, 0.05);
-            border-left-color: #ffffff; border-radius: 50%; animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
+            width: 30px;
+            height: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.05);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
         }
+
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
     <div class="scanlines"></div>
-    <div id="canvas-container"><canvas id="splat-canvas"></canvas></div>
-    <div class="brutalist-overlay"><h1 class="brand-title">IORI</h1></div>
-    <div id="boot-screen"><div class="spinner"></div></div>
+
+    <div id="canvas-container">
+        <canvas id="splat-canvas"></canvas>
+    </div>
+
+    <div class="brutalist-overlay">
+        <h1 class="brand-title">IORI</h1>
+    </div>
+
+    <div id="boot-screen">
+        <div class="spinner"></div>
+    </div>
 
     <script type="module">
         import * as SPLAT from "https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js";
 
-        // Target your exact Hugging Face infrastructure path directly
         const HF_USER_REPO = "iorioriori/splats";
 
         const splatScenes = [
@@ -78,11 +156,12 @@
         let renderer, scene, camera;
         let isUsingFallback = false;
         let isLoaded = false; 
-        let isTransitioning = false; 
 
         let ndcX = 0, ndcY = 0, smoothX = 0, smoothY = 0;
-        const focalPoint = { x: 0, y: 0, z: 0 };
-        let currentCamPos = { x: 0, y: 1.0, z: 4.5 }; 
+        
+        // Target tracking center will update dynamically on file parse completion
+        let sceneCenter = { x: 0, y: 0, z: 0 };
+        let cameraOffset = { x: 0, y: 0.5, z: 4.0 };
 
         const container = document.getElementById("canvas-container");
         const canvas = document.getElementById("splat-canvas");
@@ -96,17 +175,9 @@
                 resizeCanvas();
                 loadFrontLoadedWaterfall();
             } catch (err) {
-                console.warn("WebGL framework startup error. Launching fallback system...", err);
+                console.warn("WebGL initialization failed. Loading backup vector layout...", err);
                 initFallbackEngine();
             }
-        }
-
-        function syncGpuBuffers() {
-            return new Promise(resolve => {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(resolve);
-                });
-            });
         }
 
         async function loadFrontLoadedWaterfall() {
@@ -118,46 +189,56 @@
 
             try {
                 const targetUrl = `${hfRoot}_part1.ply`;
-                console.log(`[NET CHECK] Querying Hugging Face Endpoint: ${targetUrl}`);
+                console.log(`[START] Querying Hugging Face: ${targetUrl}`);
 
-                // ---- DEFENSIVE SPA OVERRIDE VALIDATION LAYER ----
-                const checkResponse = await fetch(targetUrl, { method: "HEAD" });
-                const contentType = checkResponse.headers.get("content-type") || "";
-
-                if (contentType.includes("text/html")) {
-                    throw new Error("Target returned web text layout parameters instead of raw point datasets.");
+                // ---- STAGE 1: CORE FOCUS PASS ----
+                const coreObject = await SPLAT.Loader.LoadAsync(targetUrl, scene);
+                
+                // ---- CALCULATE TRUE COORD CENTER ----
+                const data = coreObject.data || coreObject.splatData || coreObject;
+                const positions = data ? (data.positions || data._positions) : null;
+                const vertexCount = positions ? (positions.length / 3) : 0;
+                const sampleCount = Math.min(vertexCount, 2500);
+                
+                if (sampleCount > 0 && positions) {
+                    let sumX = 0, sumY = 0, sumZ = 0;
+                    for (let i = 0; i < sampleCount; i++) {
+                        sumX += positions[i * 3];
+                        sumY += positions[i * 3 + 1];
+                        sumZ += positions[i * 3 + 2];
+                    }
+                    sceneCenter.x = sumX / sampleCount;
+                    sceneCenter.y = sumY / sampleCount;
+                    sceneCenter.z = sumZ / sampleCount;
                 }
+                console.log(`[AUTOFRAME] Object isolated at structural world vectors:`, sceneCenter);
 
-                // ---- STAGE 1: MICRO-CORE REVEAL ----
-                isTransitioning = true;
-                await SPLAT.Loader.LoadAsync(targetUrl, scene);
-                await syncGpuBuffers(); 
-                
-                // Fixed allocation assignment architecture
-                camera.position = new SPLAT.Vector3(currentCamPos.x, currentCamPos.y, currentCamPos.z);
+                // Set initial camera frame layout safely relative to calculated spatial cluster
+                camera.position.x = sceneCenter.x + cameraOffset.x;
+                camera.position.y = sceneCenter.y + cameraOffset.y;
+                camera.position.z = sceneCenter.z + cameraOffset.z;
+
                 isLoaded = true;
-                isTransitioning = false;
-                
                 container.classList.add("active");
                 bootScreen.style.opacity = "0";
                 bootScreen.style.pointerEvents = "none";
 
-                // ---- STAGES 2-5: ASYNC BACKGROUND COUPLING PIPELINE ----
-                const appendChunk = async (partNumber) => {
-                    isTransitioning = true;
-                    await SPLAT.Loader.LoadAsync(`${hfRoot}_part${partNumber}.ply`, scene);
-                    await syncGpuBuffers(); 
-                    isTransitioning = false;
+                // ---- STAGES 2-5: BACKGROUND CASCADE PIPELINE ----
+                // Runs completely asynchronously without halting active frame updates
+                const streamPart = (num) => {
+                    return SPLAT.Loader.LoadAsync(`${hfRoot}_part${num}.ply`, scene)
+                        .then(() => console.log(`[WATERFALL ${num}/5] Injected layer components into canvas context.`));
                 };
 
-                await appendChunk(2);
-                await appendChunk(3);
-                await appendChunk(4);
-                await appendChunk(5);
-                console.log("%c[SUCCESS] Cascade complete.", "color: #00ff00");
+                streamPart(2)
+                    .then(() => streamPart(3))
+                    .then(() => streamPart(4))
+                    .then(() => streamPart(5))
+                    .then(() => console.log("%c[SUCCESS] Volumetric field synchronized completely.", "color: #00ff00"))
+                    .catch(e => console.warn("Background asset append dropped:", e));
 
             } catch (err) {
-                console.error("Pipeline loading failure, launching fallback:", err.message || err);
+                console.error("Pipeline failure:", err);
                 initFallbackEngine();
             }
         }
@@ -167,21 +248,29 @@
             ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
         });
 
+        window.addEventListener("touchmove", (e) => {
+            if (e.touches.length > 0) {
+                ndcX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                ndcY = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+            }
+        });
+
         function renderLoop() {
             requestAnimationFrame(renderLoop);
-            if (isUsingFallback || !isLoaded || isTransitioning) return; 
+            if (isUsingFallback || !isLoaded) return; 
 
             smoothX += (ndcX - smoothX) * 0.05;
             smoothY += (ndcY - smoothY) * 0.05;
 
-            camera.position.x = currentCamPos.x + (smoothX * 1.5);
-            camera.position.y = currentCamPos.y + (smoothY * 1.0);
-            camera.position.z = currentCamPos.z;
+            // Anchor view transforms relative to the calculated data coordinates
+            camera.position.x = (sceneCenter.x + cameraOffset.x) + (smoothX * 1.5);
+            camera.position.y = (sceneCenter.y + cameraOffset.y) + (smoothY * 1.0);
+            camera.position.z = (sceneCenter.z + cameraOffset.z);
 
             const dir = new SPLAT.Vector3(
-                camera.position.x - focalPoint.x,
-                camera.position.y - focalPoint.y,
-                camera.position.z - focalPoint.z
+                camera.position.x - sceneCenter.x,
+                camera.position.y - sceneCenter.y,
+                camera.position.z - sceneCenter.z
             );
             camera.rotation = SPLAT.Quaternion.LookRotation(dir, new SPLAT.Vector3(0, 1, 0));
 
@@ -192,7 +281,7 @@
         window.addEventListener("resize", resizeCanvas);
 
         // =========================================================================
-        // --- DEFENSIVE VECTOR OFFLINE SYSTEM FALLBACK ---
+        // --- BACKUP VECTOR CLOUD FALLBACK SUBSYSTEM ---
         // =========================================================================
         let fallbackCtx; let points = []; const maxPoints = 300;
         function initFallbackEngine() {

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IORI</title>
     
-    <!-- Google Fonts for Brutalist Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" rel="stylesheet">
@@ -36,8 +35,8 @@
             width: 100vw;
             height: 100vh;
             z-index: 1;
-            /* Smooth dramatic blur reveal */
-            transition: filter 3s cubic-bezier(0.16, 1, 0.3, 1), opacity 2s ease;
+            /* Smooth cinematic reveal when the core pass drops */
+            transition: filter 2.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.5s ease;
             opacity: 0;
             filter: brightness(0) contrast(1.8) blur(30px);
         }
@@ -61,14 +60,13 @@
             width: 100%;
             height: 100%;
             z-index: 10;
-            pointer-events: none; /* Allows cursor to pass directly to splat interactions */
+            pointer-events: none;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 2rem;
         }
 
-        /* Bold, massive brutalist heading centered */
         .brand-title {
             font-family: 'Syne', sans-serif;
             font-size: clamp(5rem, 25vw, 32rem);
@@ -78,10 +76,10 @@
             text-transform: uppercase;
             color: #ffffff;
             text-align: center;
-            mix-blend-mode: difference; /* Interacts beautifully with the bright spots of the splat */
+            mix-blend-mode: difference;
         }
 
-        /* --- SUBTLE VINTAGE SCREEN FILTER --- */
+        /* --- SUBTLE SCANLINE FILTER --- */
         .scanlines {
             position: absolute;
             top: 0;
@@ -95,7 +93,7 @@
             opacity: 0.25;
         }
 
-        /* --- MINIMALIST LOADING SCREEN --- */
+        /* --- LOADING LAYOUT --- */
         #boot-screen {
             position: fixed;
             top: 0;
@@ -107,7 +105,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: opacity 1s ease;
+            transition: opacity 0.4s ease;
         }
 
         .spinner {
@@ -119,9 +117,7 @@
             animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -144,75 +140,33 @@
         import * as SPLAT from "https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js";
 
         // =========================================================================
-        // HUGGING FACE ROUTING CONFIGURATION
-        // Linked directly to your live 'iorioriori/splats' repository.
+        // DATASET CHANNEL PATHWAYS
         // =========================================================================
         const HF_USER_REPO = "iorioriori/splats";
 
-        // --- DIRECT LIST MAPPED TO YOUR COMPRESSED .SPLAT EXPORTS ---
-        const splatFiles = [
-            "gs_Dandy.splat",
-            "gs_alive.splat",
-            "gs_and_l.splat",
-            "gs_carousel.splat",
-            "gs_creatures.splat",
-            "gs_fia.splat",
-            "gs_flora.splat",
-            "gs_govno.splat",
-            "gs_ior.splat",
-            "gs_iridescence.splat",
-            "gs_iriscient.splat",
-            "gs_jjj.splat",
-            "gs_kaczinski.splat",
-            "gs_kanal.splat",
-            "gs_kolo.splat",
-            "gs_kyticki.splat",
-            "gs_lili.splat",
-            "gs_lou.splat",
-            "gs_ma_bh.splat",
-            "gs_meadow.splat",
-            "gs_moses.splat",
-            "gs_my_man.splat",
-            "gs_nova_scena.splat",
-            "gs_p_edti.splat",
-            "gs_pool.splat",
-            "gs_puddy.splat",
-            "gs_pulz.splat",
-            "gs_rapture.splat",
-            "gs_rozi.splat",
-            "gs_ruh.splat",
-            "gs_scen_rie.splat",
-            "gs_shack.splat",
-            "gs_stvana.splat",
-            "gs_tick.splat",
-            "gs_umu.splat",
-            "gs_vltava.splat",
-            "gs_vodn_k.splat",
-            "gs_yum.splat",
-            "gs_yummy_like_u.splat",
-            "gs_zoch.splat"
+        const splatScenes = [
+            "gs_Dandy", "gs_alive", "gs_and_l", "gs_carousel", "gs_creatures",
+            "gs_fia", "gs_flora", "gs_govno", "gs_ior", "gs_iridescence",
+            "gs_iriscient", "gs_jjj", "gs_kaczinski", "gs_kanal", "gs_kolo",
+            "gs_kyticki", "gs_lili", "gs_lou", "gs_ma_bh", "gs_meadow",
+            "gs_moses", "gs_my_man", "gs_nova_scena", "gs_p_edti", "gs_pool",
+            "gs_puddy", "gs_pulz", "gs_rapture", "gs_rozi", "gs_ruh",
+            "gs_scen_rie", "gs_shack", "gs_stvana", "gs_tick", "gs_umu",
+            "gs_vltava", "gs_vodn_k", "gs_yum", "gs_yummy_like_u", "gs_zoch"
         ];
 
-        // Pick one randomly on initialize
-        const chosenFile = splatFiles[Math.floor(Math.random() * splatFiles.length)];
-        
-        // Target your dataset file path
-        let activeFilename = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenFile}`;
+        const chosenScene = splatScenes[Math.floor(Math.random() * splatScenes.length)];
+        const hfRoot = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenScene}`;
 
         let renderer, scene, camera;
         let isUsingFallback = false;
-        let isLoaded = false; // Render guard flag
+        let isLoaded = false; 
 
-        // Interaction coordinates (Normalized: -1 to 1)
-        let ndcX = 0, ndcY = 0;
-        let smoothX = 0, smoothY = 0;
+        let ndcX = 0, ndcY = 0, smoothX = 0, smoothY = 0;
 
-        let currentCamPos = { x: 0, y: 0, z: 12 };
-        let currentCamLook = { x: 0, y: 0, z: 0 };
-        
-        // Auto-framing metrics
-        let sceneCenter = { x: 0, y: 0, z: 0 };
-        let targetDistance = 5.0; // Comfortably stepped back for massive Luma fields
+        // Anchor configurations mapping to native Luma structural outputs
+        const focalPoint = { x: 0, y: 0, z: 0 };
+        let currentCamPos = { x: 0, y: 1.0, z: 4.5 }; 
 
         const container = document.getElementById("canvas-container");
         const canvas = document.getElementById("splat-canvas");
@@ -225,78 +179,65 @@
                 camera = new SPLAT.Camera();
 
                 resizeCanvas();
-                loadAsset(activeFilename);
+                loadFrontLoadedWaterfall();
 
             } catch (err) {
-                console.warn("Splat engine failed to load WebGL context. Activating fallback...", err);
+                console.warn("WebGL runtime initialization failure. Launching fallback engine...", err);
                 initFallbackEngine();
             }
         }
 
-        async function loadAsset(fileUrl) {
+        async function loadFrontLoadedWaterfall() {
             container.classList.remove("active");
             bootScreen.style.opacity = "1";
             bootScreen.style.pointerEvents = "auto";
-            isLoaded = false; // Reset render guard on load
+            isLoaded = false; 
 
             scene = new SPLAT.Scene();
 
             try {
-                console.log("Streaming standard gzipped splat natively from Hugging Face...");
+                // ---- STAGE 1: MICRO-CORE PASS (INSTANT SEAMLESS REVEAL) ----
+                // This chunk is strictly restricted to ~2.5% (~6MB), rendering in milliseconds
+                print(`[WATERFALL 1/5] Extracting micro focal point core...`);
+                await SPLAT.Loader.LoadAsync(`${hfRoot}_part1.ply`, scene);
                 
-                // --- THE ULTIMATE NATIVE FIX ---
-                // SPLAT.Loader.LoadAsync automatically handles the gzipped stream 
-                // decompression natively on the fly with zero extra code overhead!
-                const splatObject = await SPLAT.Loader.LoadAsync(fileUrl, scene);
-                
-                // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
-                let sumX = 0, sumY = 0, sumZ = 0;
-                
-                // Safe cascading logic supporting all potential data layout properties of the returned Splat object
-                const data = splatObject.data || splatObject.splatData || splatObject;
-                const positions = data ? (data.positions || data._positions) : null;
-                const vertexCount = positions ? (positions.length / 3) : 0;
-                const sampleCount = Math.min(vertexCount, 3000);
-                
-                if (sampleCount > 0 && positions) {
-                    for (let i = 0; i < sampleCount; i++) {
-                        sumX += positions[i * 3];
-                        sumY += positions[i * 3 + 1];
-                        sumZ += positions[i * 3 + 2];
-                    }
-                    sceneCenter.x = sumX / sampleCount;
-                    sceneCenter.y = sumY / sampleCount;
-                    sceneCenter.z = sumZ / sampleCount;
-                }
-
-                // Sweep Camera on Load (Reveal cinematic swoop starting from offset)
-                currentCamPos.x = sceneCenter.x + 3;
-                currentCamPos.y = sceneCenter.y + 2.0;
-                currentCamPos.z = sceneCenter.z + targetDistance + 8; // Zoomed back initially
-
-                currentCamLook.x = sceneCenter.x;
-                currentCamLook.y = sceneCenter.y;
-                currentCamLook.z = sceneCenter.z;
-
-                // Set loaded flag to true ONLY now when the scene buffers are fully populated and bound
+                camera.position.set(currentCamPos.x, currentCamPos.y, currentCamPos.z);
                 isLoaded = true;
+                
+                // Unveil the landing layout immediately while background transfers are cold
+                container.classList.add("active");
+                bootScreen.style.opacity = "0";
+                bootScreen.style.pointerEvents = "none";
 
-                setTimeout(() => {
-                    container.classList.add("active");
-                }, 100);
-
-                setTimeout(() => {
-                    bootScreen.style.opacity = "0";
-                    bootScreen.style.pointerEvents = "none";
-                }, 500);
+                // ---- STAGES 2-5: ASYNC WATERFALL REFINE CONCURRENCY PIPELINE ----
+                // Chains remaining passes cleanly so they stream in without frame rate drops
+                SPLAT.Loader.LoadAsync(`${hfRoot}_part2.ply`, scene)
+                    .then(() => {
+                        console.log("[WATERFALL 2/5] Core subject reinforcement integrated.");
+                        return SPLAT.Loader.LoadAsync(`${hfRoot}_part3.ply`, scene);
+                    })
+                    .then(() => {
+                        console.log("[WATERFALL 3/5] Spatial midground data coupled.");
+                        return SPLAT.Loader.LoadAsync(`${hfRoot}_part4.ply`, scene);
+                    })
+                    .then(() => {
+                        console.log("[WATERFALL 4/5] Background architectural fill generated.");
+                        return SPLAT.Loader.LoadAsync(`${hfRoot}_part5.ply`, scene);
+                    })
+                    .then(() => {
+                        console.log("%c[WATERFALL 5/5] Visual field fully synchronized. Specular arrays live.", "color: #00ff00");
+                    })
+                    .catch(err => {
+                        console.warn("Progressive background streamer paused or blocked.", err);
+                    });
 
             } catch (err) {
-                console.error("Failed to parse native file asset. Transferring execution to fallback matrix.", err);
+                console.error("Critical loader execution breakdown. Stepping down to vector matrix.", err);
                 initFallbackEngine();
             }
         }
 
-        // --- SMOOTH MOUSE INTERACTION TRACKING ---
+        // --- MOUSE & TOUCH FLUID INTERACTION INTERPOLATION ---
         window.addEventListener("mousemove", (e) => {
             ndcX = (e.clientX / window.innerWidth) * 2 - 1;
             ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -312,36 +253,27 @@
         function renderLoop() {
             requestAnimationFrame(renderLoop);
 
-            if (isUsingFallback) return;
-            if (!isLoaded) return; // Prevent WebGL draw calls before arrays are allocated on the GPU
+            if (isUsingFallback || !isLoaded) return; 
 
-            // Smooth interpolation loop
             smoothX += (ndcX - smoothX) * 0.05;
             smoothY += (ndcY - smoothY) * 0.05;
 
-            // Target camera positioning with subtle offsets driven by cursor movements
-            const targetX = sceneCenter.x + (smoothX * 2.0);
-            const targetY = sceneCenter.y + (smoothY * 1.5) + 0.4;
-            const targetZ = sceneCenter.z + targetDistance;
+            const targetX = focalPoint.x + (smoothX * 1.5);
+            const targetY = focalPoint.y + (smoothY * 1.0) + 0.3; 
+            const targetZ = focalPoint.z + 4.5; 
 
-            // Animate values smoothly
             currentCamPos.x += (targetX - currentCamPos.x) * 0.07;
             currentCamPos.y += (targetY - currentCamPos.y) * 0.07;
             currentCamPos.z += (targetZ - currentCamPos.z) * 0.07;
-
-            currentCamLook.x += (sceneCenter.x - currentCamLook.x) * 0.07;
-            currentCamLook.y += (sceneCenter.y - currentCamLook.y) * 0.07;
-            currentCamLook.z += (sceneCenter.z - currentCamLook.z) * 0.07;
 
             camera.position.x = currentCamPos.x;
             camera.position.y = currentCamPos.y;
             camera.position.z = currentCamPos.z;
 
-            // Safe Look-Rotation Calculation to bypass vector property subtraction errors
             const dir = new SPLAT.Vector3(
-                camera.position.x - currentCamLook.x,
-                camera.position.y - currentCamLook.y,
-                camera.position.z - currentCamLook.z
+                camera.position.x - focalPoint.x,
+                camera.position.y - focalPoint.y,
+                camera.position.z - focalPoint.z
             );
             camera.rotation = SPLAT.Quaternion.LookRotation(dir, new SPLAT.Vector3(0, 1, 0));
 
@@ -356,7 +288,7 @@
 
 
         // =========================================================================
-        // --- ORGANIC VECTOR CLOUD FALLBACK (Offline / CORS error protection) ---
+        // --- VECTOR CLOUD FALLBACK SUBSYSTEM ---
         // =========================================================================
         let fallbackCtx;
         let points = [];
@@ -364,7 +296,6 @@
 
         function initFallbackEngine() {
             isUsingFallback = true;
-            
             container.innerHTML = '<canvas id="fallback-canvas" style="display:block; width:100%; height:100%;"></canvas>';
             const fallbackCanvas = document.getElementById("fallback-canvas");
             fallbackCtx = fallbackCanvas.getContext("2d");
@@ -376,7 +307,6 @@
             window.addEventListener("resize", resizeFallback);
             resizeFallback();
 
-            // Populate coordinates for 3D vector points
             points = [];
             for (let i = 0; i < maxPoints; i++) {
                 points.push({
@@ -462,12 +392,10 @@
             }
         }
 
-        // Run
         window.onload = () => {
             initEngine();
             renderLoop();
         };
-
     </script>
 </body>
 </html>

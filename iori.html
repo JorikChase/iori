@@ -201,6 +201,7 @@
 
         let renderer, scene, camera;
         let isUsingFallback = false;
+        let isLoaded = false; // Render guard flag
 
         // Interaction coordinates (Normalized: -1 to 1)
         let ndcX = 0, ndcY = 0;
@@ -236,6 +237,7 @@
             container.classList.remove("active");
             bootScreen.style.opacity = "1";
             bootScreen.style.pointerEvents = "auto";
+            isLoaded = false; // Reset render guard on load
 
             scene = new SPLAT.Scene();
 
@@ -275,6 +277,9 @@
                 currentCamLook.y = sceneCenter.y;
                 currentCamLook.z = sceneCenter.z;
 
+                // Set loaded flag to true ONLY now when the scene buffers are fully populated and bound
+                isLoaded = true;
+
                 setTimeout(() => {
                     container.classList.add("active");
                 }, 100);
@@ -307,6 +312,7 @@
             requestAnimationFrame(renderLoop);
 
             if (isUsingFallback) return;
+            if (!isLoaded) return; // Prevent WebGL draw calls before arrays are allocated on the GPU
 
             // Smooth interpolation loop
             smoothX += (ndcX - smoothX) * 0.05;

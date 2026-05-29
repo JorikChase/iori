@@ -240,10 +240,10 @@
             scene = new SPLAT.Scene();
 
             try {
-                console.log("Streaming standard gzipped splat from Hugging Face...");
+                console.log("Streaming standard gzipped splat from Hugging Face natively...");
                 
                 // Directly call standard Loader. LoadAsync automatically detects 
-                // gzipped stream contents and decodes coordinates onto matching alignments natively!
+                // the standard gzipped stream contents and decodes coordinates natively!
                 const splatObject = await SPLAT.Loader.LoadAsync(fileUrl, scene);
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---

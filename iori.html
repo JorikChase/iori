@@ -217,18 +217,6 @@
         const canvas = document.getElementById("splat-canvas");
         const bootScreen = document.getElementById("boot-screen");
 
-        // Global fetch interception registry to prevent secure blob URL routing issues
-        let virtualFetchCallback = null;
-        const originalFetch = window.fetch;
-        window.fetch = async function (input, init) {
-            const url = typeof input === "string" ? input : (input instanceof Request ? input.url : "");
-            if (virtualFetchCallback) {
-                const intercepted = virtualFetchCallback(url);
-                if (intercepted) return intercepted;
-            }
-            return originalFetch.apply(this, arguments);
-        };
-
         function initEngine() {
             try {
                 renderer = new SPLAT.WebGLRenderer(canvas);
@@ -253,37 +241,40 @@
 
             try {
                 console.log("Streaming compressed splat binary from Hugging Face...");
-                const response = await originalFetch(fileUrl);
+                const response = await fetch(fileUrl);
                 if (!response.ok) throw new Error(`HTTP fetch failed with code ${response.status}`);
                 
                 const arrayBuffer = await response.arrayBuffer();
                 
                 console.log("Compressing raw bytes to Gzip format natively in memory...");
-                // Create a browser native Compression Stream to gzip-wrap the uncompressed binary
-                const compressionStream = new CompressionStream("gzip");
-                const writer = compressionStream.writable.getWriter();
-                writer.write(arrayBuffer);
-                writer.close();
+                // Stream and compress the entire TypedArray safely to prevent write truncation
+                const stream = new ReadableStream({
+                    start(controller) {
+                        controller.enqueue(new Uint8Array(arrayBuffer));
+                        controller.close();
+                    }
+                }).pipeThrough(new CompressionStream("gzip"));
                 
-                const gzippedBuffer = await new Response(compressionStream.readable).arrayBuffer();
+                const gzippedBuffer = await new Response(stream).arrayBuffer();
                 const gzippedBlob = new Blob([gzippedBuffer], { type: "application/x-gzip" });
                 
-                // Build a virtual, same-origin relative path that gsplat.js can load securely
-                const virtualUrl = window.location.origin + "/scene.splat";
+                // Secure, clean Blob Object URL with no violating query strings
+                const objectUrl = URL.createObjectURL(gzippedBlob);
                 
-                // Set the interceptor callback so the library loads our in-memory gzipped asset
-                virtualFetchCallback = (url) => {
-                    if (url === virtualUrl || url.endsWith("/scene.splat")) {
-                        return new Response(gzippedBlob);
-                    }
-                    return null;
-                };
+                console.log("Loading splat data natively via SPLAT.SplatLoader...");
                 
-                console.log("Loading splat data natively via gsplat.js loader with Virtual Safe URL...");
-                const splatObject = await SPLAT.Loader.LoadAsync(virtualUrl, scene);
+                // Force routing via direct SplatLoader class to bypass the URL extension switch-case
+                let loader;
+                if (typeof SPLAT.SplatLoader !== "undefined") {
+                    loader = new SPLAT.SplatLoader();
+                } else {
+                    loader = SPLAT.Loader;
+                }
+
+                const splatObject = await loader.LoadAsync(objectUrl, scene);
                 
-                // Clear the interceptor to prevent memory leak
-                virtualFetchCallback = null;
+                // Clean up the Object URL immediately
+                URL.revokeObjectURL(objectUrl);
                 
                 // --- CAMERA ORIENTATION & AUTO-FRAMING ALGORITHM ---
                 let sumX = 0, sumY = 0, sumZ = 0;
@@ -366,9 +357,13 @@
             camera.position.y = currentCamPos.y;
             camera.position.z = currentCamPos.z;
 
-            // FIXED CALLABLE LOOK-ROTATION MATH BINDING (Fixes camera.lookAt TypeError)
-            const lookTarget = new SPLAT.Vector3(currentCamLook.x, currentCamLook.y, currentCamLook.z);
-            camera.rotation = SPLAT.Quaternion.LookRotation(camera.position.subtract(lookTarget), new SPLAT.Vector3(0, 1, 0));
+            // Safe Look-Rotation Calculation to bypass vector property subtraction errors
+            const dir = new SPLAT.Vector3(
+                camera.position.x - currentCamLook.x,
+                camera.position.y - currentCamLook.y,
+                camera.position.z - currentCamLook.z
+            );
+            camera.rotation = SPLAT.Quaternion.LookRotation(dir, new SPLAT.Vector3(0, 1, 0));
 
             renderer.render(scene, camera);
         }

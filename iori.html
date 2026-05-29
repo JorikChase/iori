@@ -9,137 +9,58 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap" rel="stylesheet">
 
     <style>
-        /* --- BRUTALIST & MINIMALIST RESET --- */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-drag: none;
-        }
-
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #050505;
-            color: #ffffff;
-        }
-
-        /* --- BACKGROUND CANVAS LAYER --- */
+        /* --- BRUTALIST RESET --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-drag: none; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #050505; color: #ffffff; }
+        
         #canvas-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
             transition: filter 2.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.5s ease;
-            opacity: 0;
-            filter: brightness(0) contrast(1.8) blur(30px);
+            opacity: 0; filter: brightness(0) contrast(1.8) blur(30px);
         }
+        #canvas-container.active { opacity: 1; filter: brightness(1.05) contrast(1.02) blur(0px); }
+        #splat-canvas { display: block; width: 100%; height: 100%; }
 
-        #canvas-container.active {
-            opacity: 1;
-            filter: brightness(1.05) contrast(1.02) blur(0px);
-        }
-
-        #splat-canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* --- ULTRA-MINIMAL BRUTALIST OVERLAY --- */
         .brutalist-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 2rem;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+            pointer-events: none; display: flex; justify-content: center; align-items: center; padding: 2rem;
         }
-
         .brand-title {
-            font-family: 'Syne', sans-serif;
-            font-size: clamp(5rem, 25vw, 32rem);
-            font-weight: 800;
-            line-height: 0.75;
-            letter-spacing: -0.06em;
-            text-transform: uppercase;
-            color: #ffffff;
-            text-align: center;
-            mix-blend-mode: difference;
+            font-family: 'Syne', sans-serif; font-size: clamp(5rem, 25vw, 32rem);
+            font-weight: 800; line-height: 0.75; letter-spacing: -0.06em;
+            text-transform: uppercase; color: #ffffff; text-align: center; mix-blend-mode: difference;
         }
 
-        /* --- SUBTLE SCANLINE FILTER --- */
         .scanlines {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            pointer-events: none;
-            z-index: 100;
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 100;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
-            background-size: 100% 4px;
-            opacity: 0.25;
+            background-size: 100% 4px; opacity: 0.25;
         }
 
-        /* --- LOADING LAYOUT --- */
         #boot-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #050505;
-            z-index: 1000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: opacity 0.4s ease;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #050505;
+            z-index: 1000; display: flex; justify-content: center; align-items: center; transition: opacity 0.4s ease;
         }
-
         .spinner {
-            width: 30px;
-            height: 30px;
-            border: 2px solid rgba(255, 255, 255, 0.05);
-            border-left-color: #ffffff;
-            border-radius: 50%;
-            animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
+            width: 30px; height: 30px; border: 2px solid rgba(255, 255, 255, 0.05);
+            border-left-color: #ffffff; border-radius: 50%; animation: spin 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
         }
-
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
     <div class="scanlines"></div>
-
-    <div id="canvas-container">
-        <canvas id="splat-canvas"></canvas>
-    </div>
-
-    <div class="brutalist-overlay">
-        <h1 class="brand-title">IORI</h1>
-    </div>
-
-    <div id="boot-screen">
-        <div class="spinner"></div>
-    </div>
+    <div id="canvas-container"><canvas id="splat-canvas"></canvas></div>
+    <div class="brutalist-overlay"><h1 class="brand-title">IORI</h1></div>
+    <div id="boot-screen"><div class="spinner"></div></div>
 
     <script type="module">
         import * as SPLAT from "https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js";
 
-        // =========================================================================
-        // NATIVE DIRECTORY CHANNELS (No Proxy Redirects, Zero Middleware Throttling)
-        // =========================================================================
+        // Target your exact Hugging Face infrastructure path directly
+        const HF_USER_REPO = "iorioriori/splats";
+
         const splatScenes = [
             "gs_Dandy", "gs_alive", "gs_and_l", "gs_carousel", "gs_creatures",
             "gs_fia", "gs_flora", "gs_govno", "gs_ior", "gs_iridescence",
@@ -152,9 +73,7 @@
         ];
 
         const chosenScene = splatScenes[Math.floor(Math.random() * splatScenes.length)];
-        
-        // Pointing directly to your site's local root assets directory
-        const assetRoot = `./assets/${chosenScene}`;
+        const hfRoot = `https://huggingface.co/datasets/${HF_USER_REPO}/resolve/main/${chosenScene}`;
 
         let renderer, scene, camera;
         let isUsingFallback = false;
@@ -162,7 +81,6 @@
         let isTransitioning = false; 
 
         let ndcX = 0, ndcY = 0, smoothX = 0, smoothY = 0;
-
         const focalPoint = { x: 0, y: 0, z: 0 };
         let currentCamPos = { x: 0, y: 1.0, z: 4.5 }; 
 
@@ -175,12 +93,10 @@
                 renderer = new SPLAT.WebGLRenderer(canvas);
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
-
                 resizeCanvas();
                 loadFrontLoadedWaterfall();
-
             } catch (err) {
-                console.warn("WebGL runtime initialization failure. Launching fallback engine...", err);
+                console.warn("WebGL framework startup error. Launching fallback system...", err);
                 initFallbackEngine();
             }
         }
@@ -198,16 +114,26 @@
             bootScreen.style.opacity = "1";
             bootScreen.style.pointerEvents = "auto";
             isLoaded = false; 
-
             scene = new SPLAT.Scene();
 
             try {
-                // ---- STAGE 1: NATIVE MICRO-CORE PASS (SUB-SECOND REVEAL) ----
-                console.log(`[WATERFALL 1/5] Extracting focus geometry...`);
+                const targetUrl = `${hfRoot}_part1.ply`;
+                console.log(`[NET CHECK] Querying Hugging Face Endpoint: ${targetUrl}`);
+
+                // ---- DEFENSIVE SPA OVERRIDE VALIDATION LAYER ----
+                const checkResponse = await fetch(targetUrl, { method: "HEAD" });
+                const contentType = checkResponse.headers.get("content-type") || "";
+
+                if (contentType.includes("text/html")) {
+                    throw new Error("Target returned web text layout parameters instead of raw point datasets.");
+                }
+
+                // ---- STAGE 1: MICRO-CORE REVEAL ----
                 isTransitioning = true;
-                await SPLAT.Loader.LoadAsync(`${assetRoot}_part1.ply`, scene);
+                await SPLAT.Loader.LoadAsync(targetUrl, scene);
                 await syncGpuBuffers(); 
                 
+                // Fixed allocation assignment architecture
                 camera.position = new SPLAT.Vector3(currentCamPos.x, currentCamPos.y, currentCamPos.z);
                 isLoaded = true;
                 isTransitioning = false;
@@ -216,43 +142,29 @@
                 bootScreen.style.opacity = "0";
                 bootScreen.style.pointerEvents = "none";
 
-                // ---- STAGES 2-5: ASYNC WATERFALL WITH HARDWARE SYNCHRONIZATION ----
+                // ---- STAGES 2-5: ASYNC BACKGROUND COUPLING PIPELINE ----
                 const appendChunk = async (partNumber) => {
                     isTransitioning = true;
-                    await SPLAT.Loader.LoadAsync(`${assetRoot}_part${partNumber}.ply`, scene);
+                    await SPLAT.Loader.LoadAsync(`${hfRoot}_part${partNumber}.ply`, scene);
                     await syncGpuBuffers(); 
                     isTransitioning = false;
                 };
 
                 await appendChunk(2);
-                console.log("[WATERFALL 2/5] Core subject reinforced.");
-                
                 await appendChunk(3);
-                console.log("[WATERFALL 3/5] Spatial midground data coupled.");
-                
                 await appendChunk(4);
-                console.log("[WATERFALL 4/5] Background architectural fill generated.");
-                
                 await appendChunk(5);
-                console.log("%c[WATERFALL 5/5] Visual field fully synchronized.", "color: #00ff00");
+                console.log("%c[SUCCESS] Cascade complete.", "color: #00ff00");
 
             } catch (err) {
-                console.error("Critical loader execution breakdown. Stepping down to vector matrix.", err);
+                console.error("Pipeline loading failure, launching fallback:", err.message || err);
                 initFallbackEngine();
             }
         }
 
-        // --- MOUSE & TOUCH FLUID INTERACTION INTERPOLATION ---
         window.addEventListener("mousemove", (e) => {
             ndcX = (e.clientX / window.innerWidth) * 2 - 1;
             ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-
-        window.addEventListener("touchmove", (e) => {
-            if (e.touches.length > 0) {
-                ndcX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-                ndcY = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
-            }
         });
 
         function renderLoop() {
@@ -262,16 +174,8 @@
             smoothX += (ndcX - smoothX) * 0.05;
             smoothY += (ndcY - smoothY) * 0.05;
 
-            const targetX = focalPoint.x + (smoothX * 1.5);
-            const targetY = focalPoint.y + (smoothY * 1.0) + 0.3; 
-            const targetZ = focalPoint.z + 4.5; 
-
-            currentCamPos.x += (targetX - currentCamPos.x) * 0.07;
-            currentCamPos.y += (targetY - currentCamPos.y) * 0.07;
-            currentCamPos.z += (targetZ - currentCamPos.z) * 0.07;
-
-            camera.position.x = currentCamPos.x;
-            camera.position.y = currentCamPos.y;
+            camera.position.x = currentCamPos.x + (smoothX * 1.5);
+            camera.position.y = currentCamPos.y + (smoothY * 1.0);
             camera.position.z = currentCamPos.z;
 
             const dir = new SPLAT.Vector3(
@@ -284,122 +188,47 @@
             renderer.render(scene, camera);
         }
 
-        function resizeCanvas() {
-            if (!renderer) return;
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+        function resizeCanvas() { if (renderer) renderer.setSize(window.innerWidth, window.innerHeight); }
         window.addEventListener("resize", resizeCanvas);
 
-
         // =========================================================================
-        // --- VECTOR CLOUD FALLBACK SUBSYSTEM ---
+        // --- DEFENSIVE VECTOR OFFLINE SYSTEM FALLBACK ---
         // =========================================================================
-        let fallbackCtx;
-        let points = [];
-        const maxPoints = 300;
-
+        let fallbackCtx; let points = []; const maxPoints = 300;
         function initFallbackEngine() {
             isUsingFallback = true;
             container.innerHTML = '<canvas id="fallback-canvas" style="display:block; width:100%; height:100%;"></canvas>';
             const fallbackCanvas = document.getElementById("fallback-canvas");
             fallbackCtx = fallbackCanvas.getContext("2d");
+            window.addEventListener("resize", () => { fallbackCanvas.width = window.innerWidth; fallbackCanvas.height = window.innerHeight; });
+            fallbackCanvas.width = window.innerWidth; fallbackCanvas.height = window.innerHeight;
 
-            function resizeFallback() {
-                fallbackCanvas.width = window.innerWidth;
-                fallbackCanvas.height = window.innerHeight;
-            }
-            window.addEventListener("resize", resizeFallback);
-            resizeFallback();
-
-            points = [];
             for (let i = 0; i < maxPoints; i++) {
-                points.push({
-                    x: (Math.random() - 0.5) * 500,
-                    y: (Math.random() - 0.5) * 500,
-                    z: Math.random() * 500,
-                    radius: Math.random() * 1.5 + 0.5,
-                    pulse: Math.random() * Math.PI
-                });
+                points.push({ x: (Math.random() - 0.5) * 500, y: (Math.random() - 0.5) * 500, z: Math.random() * 500, radius: Math.random() * 1.5 + 0.5, pulse: Math.random() * Math.PI });
             }
-
-            bootScreen.style.opacity = "0";
-            bootScreen.style.pointerEvents = "none";
-            container.classList.add("active");
-
+            bootScreen.style.opacity = "0"; bootScreen.style.pointerEvents = "none"; container.classList.add("active");
             fallbackRenderLoop();
         }
 
         function fallbackRenderLoop() {
-            if (!isUsingFallback) return;
-            requestAnimationFrame(fallbackRenderLoop);
-
-            fallbackCtx.fillStyle = "rgba(5, 5, 5, 0.25)";
-            fallbackCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-
+            if (!isUsingFallback) return; requestAnimationFrame(fallbackRenderLoop);
+            fallbackCtx.fillStyle = "rgba(5, 5, 5, 0.25)"; fallbackCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
             smoothX += (ndcX - smoothX) * 0.05;
-            smoothY += (ndcY - smoothY) * 0.05;
-
-            const centerX = window.innerWidth / 2;
-            const centerY = window.innerHeight / 2;
-            const perspectiveScale = 400;
+            const centerX = window.innerWidth / 2; const centerY = window.innerHeight / 2; const perspectiveScale = 400;
 
             for (let i = 0; i < points.length; i++) {
-                let pt = points[i];
-
-                let cosY = Math.cos(smoothX * 0.4);
-                let sinY = Math.sin(smoothX * 0.4);
-                let cosX = Math.cos(smoothY * 0.3);
-                let sinX = Math.sin(smoothY * 0.3);
-
-                let x1 = pt.x * cosY - pt.z * sinY;
-                let z1 = pt.x * sinY + pt.z * cosY;
-                let y1 = pt.y * cosX - z1 * sinX;
-                let z2 = pt.y * sinX + z1 * cosX;
-
-                let dZ = z2 + 350;
+                let pt = points[i]; let cosY = Math.cos(smoothX * 0.4); let sinY = Math.sin(smoothX * 0.4);
+                let x1 = pt.x * cosY - pt.z * sinY; let z1 = pt.x * sinY + pt.z * cosY; let dZ = z1 + 350;
 
                 if (dZ > 0) {
-                    const scrX = x1 * (perspectiveScale / dZ) + centerX;
-                    const scrY = y1 * (perspectiveScale / dZ) + centerY;
-                    const scrSize = pt.radius * (perspectiveScale / dZ);
-                    
-                    pt.pulse += 0.01;
-                    const pulseAlpha = Math.abs(Math.sin(pt.pulse)) * 0.4 + 0.5;
-                    const depthAlpha = (1 - (z2 / 500));
-                    const opacity = pulseAlpha * depthAlpha;
-
-                    fallbackCtx.beginPath();
-                    fallbackCtx.arc(scrX, scrY, scrSize, 0, Math.PI * 2);
-                    fallbackCtx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.85})`;
-                    fallbackCtx.fill();
-
-                    if (i < points.length - 1 && dZ < 400) {
-                        let nextPt = points[i + 1];
-                        let dist = Math.sqrt(Math.pow(pt.x - nextPt.x, 2) + Math.pow(pt.y - nextPt.y, 2) + Math.pow(pt.z - nextPt.z, 2));
-                        if (dist < 70) {
-                            let nX1 = nextPt.x * cosY - nextPt.z * sinY;
-                            let nZ1 = nextPt.x * sinY + nextPt.z * cosY;
-                            let nY1 = nextPt.y * cosX - nZ1 * sinX;
-                            let nZ2 = nextPt.y * sinX + nZ1 * cosX;
-
-                            let nScrX = nX1 * (perspectiveScale / (nZ2 + 350)) + centerX;
-                            let nScrY = nY1 * (perspectiveScale / (nZ2 + 350)) + centerY;
-
-                            fallbackCtx.beginPath();
-                            fallbackCtx.moveTo(scrX, scrY);
-                            fallbackCtx.lineTo(nScrX, nScrY);
-                            fallbackCtx.strokeStyle = `rgba(255, 255, 255, ${depthAlpha * 0.1})`;
-                            fallbackCtx.stroke();
-                        }
-                    }
+                    const scrX = x1 * (perspectiveScale / dZ) + centerX; const scrY = pt.y * (perspectiveScale / dZ) + centerY; const scrSize = pt.radius * (perspectiveScale / dZ);
+                    pt.pulse += 0.01; const opacity = (Math.abs(Math.sin(pt.pulse)) * 0.4 + 0.5) * (1 - (z1 / 500));
+                    fallbackCtx.beginPath(); fallbackCtx.arc(scrX, scrY, scrSize, 0, Math.PI * 2); fallbackCtx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.85})`; fallbackCtx.fill();
                 }
             }
         }
 
-        window.onload = () => {
-            initEngine();
-            renderLoop();
-        };
+        window.onload = () => { initEngine(); renderLoop(); };
     </script>
 </body>
 </html>

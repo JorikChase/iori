@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Image-GS Nebulabrot</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #030205; }
+        body { cursor: grab; }
+        body:active { cursor: grabbing; }
+        canvas { display: block; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+        #hud { position: fixed; top: 12px; left: 12px; color: #888; font: 11px/1.6 monospace; pointer-events: none; z-index: 10; text-shadow: 0 0 4px #000; }
+    </style>
+</head>
+<body>
+<canvas id="glCanvas"></canvas>
+<div id="hud"></div>
+<script>
+const ddFromNum = v => [v, 0.0];
+const ddTwoSum = (a, b) => { const s = a + b, bp = s - a, ap = s - bp; return [s, (a - ap) + (b - bp)]; };
+const ddQuickTwoSum = (a, b) => { const s = a + b; return [s, b - (s - a)]; };
+const ddAdd = (x, y) => { const s = ddTwoSum(x[0], y[0]), t = ddTwoSum(x[1], y[1]); let c = s[1] + t[0]; const v = ddTwoSum(s[0], c); c = v[1] + t[1]; return ddQuickTwoSum(v[0], c); };
+const ddSub = (x, y) => ddAdd(x, [-y[0], -y[1]]);
+const DD_SPLIT = 134217729;
+const ddSplit = a => { const t = a * DD_SPLIT, ah = t - (t - a); return [ah, a - ah]; };
+const ddTwoProd = (a, b) => { const p = a * b, as = ddSplit(a), bs = ddSplit(b); return [p, ((as[0]*bs[0]-p)+as[0]*bs[1]+as[1]*bs[0])+as[1]*bs[1]]; };
+const ddMul = (x, y) => { const p = ddTwoProd(x[0], y[0]); let c = x[0]*y[1]+x[1]*y[0]; const s = ddTwoSum(p[0], p[1]+c); return s; };
+const ddMulD = (x, d) => { const p = ddTwoProd(x[0], d); const p2 = x[1]*d; return ddTwoSum(p[0], p[1]+p2); };
+
+const camera = {
+    cx: ddFromNum(-0.5), cy: ddFromNum(0.0), zoom: 3.5,
+    tcx: ddFromNum(-0.5), tcy: ddFromNum(0.0), tzoom: 3.5,
+    moving: false, moveTimer: 0
+};
+
+const TARGET_W = 200, TARGET_H = 200;
+const MAX_GAUSSIANS = 6000;
+const BATCH_SIZE = 512;
+const OPT_STEPS_PER_FRAME = 4;
+const INIT_SCALE_PX = 20.0;
+const INIT_SCALE = INIT_SCALE_PX / Math.min(TARGET_W, TARGET_H);
+
+let targetImage = new Float32Array(TARGET_W * TARGET_H * 3);
+let gData = new Float32Array(MAX_GAUSSIANS * 8);
+let numG = 0;
+let aM = new Float32Array(MAX_GAUSSIANS * 8);
+let aV = new Float32Array(MAX_GAUSSIANS * 8);
+let aT = 0;
+let totalOptSteps = 0;
+let budgetTarget = 0;
+let lastDensifyStep = 0;
+
+const workerSrc = `
+let histR, histG, histB, tw, th, totalSamples = 0, maxVal = 0;
+
+function init(w, h) {
+    tw = w; th = h;
+    histR = new Float32Array(w * h);
+    histG = new Float32Array(w * h);
+    histB = new Float32Array(w * h);
+    totalSamples = 0; maxVal = 0;
+}
+
+function sample(cx0, cy0, zoom, maxIter, count) {
+    const aspect = tw / th;
+    for (let s = 0; s < count; s++) {
+        const u = Math.random(), v = Math.random();
+        const cr = cx0 + (u - 0.5) * zoom * aspect;
+        const ci = cy0 + (v - 0.5) * zoom;
+        let zr = 0, zi = 0, iter = 0;
+        const oR = [], oI = [];
+        for (; iter < maxIter; iter++) {
+            const zr2 = zr*zr, zi2 = zi*zi;
+            if (zr2 + zi2 > 4.0) break;
+            zi = 2*zr*zi + ci; zr = zr2 - zi2 + cr;
+            oR.push(zr); oI.push(zi);
+        }
+        if (iter > 1 && iter < maxIter) {
+            for (let j = 0; j < iter; j++) {
+                const px = Math.floor(((oR[j] - cx0) / (zoom * aspect) + 0.5) * tw);
+                const py = Math.floor(((oI[j] - cy0) / zoom + 0.5) * th);
+                if (px >= 0 && px < tw && py >= 0 && py < th) {
+                    const idx = py * tw + px;
+                    if (iter < maxIter * 0.33) histR[idx]++;
+                    else if (iter < maxIter * 0.66) histG[idx]++;
+                    else histB[idx]++;
+                    if (histR[idx] > maxVal) maxVal = histR[idx];
+                    if (histG[idx] > maxVal) maxVal = histG[idx];
+                    if (histB[idx] > maxVal) maxVal = histB[idx];
+                }
+            }
+        }
+        totalSamples++;
+    }
+}
+
+function getTarget() {
+    const img = new Float32Array(tw * th * 3);
+    const sc = maxVal > 0 ? 1.0 / maxVal : 1.0;
+    for (let i = 0; i < tw * th; i++) {
+        img[i*3]   = Math.pow(histR[i] * sc, 0.45);
+        img[i*3+1] = Math.pow(histG[i] * sc, 0.45);
+        img[i*3+2] = Math.pow(histB[i] * sc, 0.45);
+    }
+    return img;
+}
+
+self.onmessage = function(e) {
+    const d = e.data;
+    if (d.cmd === 'init') { init(d.w, d.h); return; }
+    if (d.cmd === 'sample') {
+        sample(d.cx, d.cy, d.zoom, d.maxIter, d.count);
+        const img = getTarget();
+        self.postMessage({ img, samples: totalSamples }, [img.buffer]);
+    }
+};
+`;
+
+const worker = new Worker(URL.createObjectURL(new Blob([workerSrc], {type:'text/javascript'})));
+worker.postMessage({cmd:'init', w:TARGET_W, h:TARGET_H});
+
+let workerBusy = false;
+let workerSampleCount = 0;
+worker.onmessage = e => {
+    workerBusy = false;
+    workerSampleCount = e.data.samples;
+    if (e.data.img && e.data.img.length === targetImage.length) {
+        targetImage = e.data.img;
+    }
+};
+
+function computeInitialTarget() {
+    const cx = camera.cx[0], cy = camera.cy[0], zoom = camera.zoom;
+    const aspect = TARGET_W / TARGET_H;
+    const maxIter = 200;
+    for (let py = 0; py < TARGET_H; py++) {
+        for (let px = 0; px < TARGET_W; px++) {
+            const u = (px + 0.5) / TARGET_W, v = (py + 0.5) / TARGET_H;
+            const cr = cx + (u - 0.5) * zoom * aspect;
+            const ci = cy + (v - 0.5) * zoom;
+            let zr = 0, zi = 0, iter = 0;
+            for (; iter < maxIter; iter++) {
+                const zr2 = zr*zr, zi2 = zi*zi;
+                if (zr2 + zi2 > 256.0) break;
+                zi = 2*zr*zi + ci; zr = zr2 - zi2 + cr;
+            }
+            const idx = (py * TARGET_W + px) * 3;
+            if (iter >= maxIter) {
+                targetImage[idx] = targetImage[idx+1] = targetImage[idx+2] = 0;
+            } else {
+                const log_zn = Math.log(zr*zr+zi*zi) * 0.5;
+                const nu = Math.log(log_zn / Math.LN2) / Math.LN2;
+                const smooth = iter + 1 - nu;
+                const t = smooth * 0.02;
+                targetImage[idx]   = 0.5 + 0.5 * Math.cos(6.28318 * (t + 0.0));
+                targetImage[idx+1] = 0.5 + 0.5 * Math.cos(6.28318 * (t + 0.33));
+                targetImage[idx+2] = 0.5 + 0.5 * Math.cos(6.28318 * (t + 0.67));
+            }
+        }
+    }
+}
+
+const GRID_RES = 16;
+const gridCells = new Array(GRID_RES * GRID_RES);
+for (let i = 0; i < gridCells.length; i++) gridCells[i] = [];
+
+function rebuildGrid() {
+    for (let i = 0; i < gridCells.length; i++) gridCells[i].length = 0;
+    for (let i = 0; i < numG; i++) {
+        const b = i * 8;
+        const mx = gData[b], my = gData[b+1];
+        const isx = gData[b+3], isy = gData[b+4];
+        const theta = gData[b+2];
+        const sx = 3.0 / isx, sy = 3.0 / isy;
+        const c = Math.cos(theta), s = Math.sin(theta);
+        const ex = Math.abs(c*sx) + Math.abs(s*sy);
+        const ey = Math.abs(s*sx) + Math.abs(c*sy);
+        const x0 = Math.max(0, Math.floor((mx-ex) * GRID_RES));
+        const y0 = Math.max(0, Math.floor((my-ey) * GRID_RES));
+        const x1 = Math.min(GRID_RES-1, Math.floor((mx+ex) * GRID_RES));
+        const y1 = Math.min(GRID_RES-1, Math.floor((my+ey) * GRID_RES));
+        for (let gy = y0; gy <= y1; gy++)
+            for (let gx = x0; gx <= x1; gx++)
+                gridCells[gy * GRID_RES + gx].push(i);
+    }
+}
+
+function initGaussians(budget) {
+    numG = 0; aT = 0; totalOptSteps = 0; lastDensifyStep = 0;
+    aM.fill(0); aV.fill(0);
+    budgetTarget = budget;
+
+    const gradMag = new Float32Array(TARGET_W * TARGET_H);
+    let gradSum = 0;
+    for (let y = 1; y < TARGET_H-1; y++) {
+        for (let x = 1; x < TARGET_W-1; x++) {
+            const i = y*TARGET_W+x;
+            let mag = 0;
+            for (let c = 0; c < 3; c++) {
+                const dx = targetImage[(i+1)*3+c] - targetImage[(i-1)*3+c];
+                const dy = targetImage[(i+TARGET_W)*3+c] - targetImage[(i-TARGET_W)*3+c];
+                mag += dx*dx + dy*dy;
+            }
+            mag = Math.sqrt(mag);
+            gradMag[i] = mag;
+            gradSum += mag;
+        }
+    }
+
+    const halfBudget = Math.floor(budget / 4);
+    const lambda = 0.3;
+
+    for (let n = 0; n < halfBudget; n++) {
+        let px, py;
+        if (gradSum > 0 && Math.random() > lambda) {
+            let r = Math.random() * gradSum, acc = 0;
+            px = 0; py = 0;
+            outer: for (let y = 1; y < TARGET_H-1; y++) {
+                for (let x = 1; x < TARGET_W-1; x++) {
+                    acc += gradMag[y*TARGET_W+x];
+                    if (acc >= r) { px = x; py = y; break outer; }
+                }
+            }
+        } else {
+            px = Math.floor(Math.random() * TARGET_W);
+            py = Math.floor(Math.random() * TARGET_H);
+        }
+        const i = numG * 8;
+        gData[i]   = (px + 0.5) / TARGET_W;
+        gData[i+1] = (py + 0.5) / TARGET_H;
+        gData[i+2] = 0;
+        gData[i+3] = 1.0 / INIT_SCALE;
+        gData[i+4] = 1.0 / INIT_SCALE;
+        const ti = (py * TARGET_W + px) * 3;
+        gData[i+5] = targetImage[ti];
+        gData[i+6] = targetImage[ti+1];
+        gData[i+7] = targetImage[ti+2];
+        numG++;
+    }
+    rebuildGrid();
+}
+
+function addGaussiansError(count) {
+    if (numG >= budgetTarget || numG >= MAX_GAUSSIANS) return;
+    const batchSize = 1024;
+    let errSum = 0;
+    const errAccum = new Float32Array(TARGET_W * TARGET_H);
+    for (let b = 0; b < batchSize; b++) {
+        const px = Math.random() * TARGET_W | 0;
+        const py = Math.random() * TARGET_H | 0;
+        const x = (px + 0.5) / TARGET_W, y = (py + 0.5) / TARGET_H;
+        const ti = (py * TARGET_W + px) * 3;
+        const tR = targetImage[ti], tG = targetImage[ti+1], tB = targetImage[ti+2];
+        const gx = Math.min(GRID_RES-1, Math.max(0, Math.floor(x*GRID_RES)));
+        const gy = Math.min(GRID_RES-1, Math.max(0, Math.floor(y*GRID_RES)));
+        const cell = gridCells[gy*GRID_RES+gx];
+        let wSum = 0, cR = 0, cG = 0, cB = 0;
+        for (let ci = 0; ci < cell.length; ci++) {
+            const gi = cell[ci], base = gi*8;
+            const dx = x-gData[base], dy = y-gData[base+1];
+            const isx = gData[base+3], isy = gData[base+4];
+            const cosT = Math.cos(gData[base+2]), sinT = Math.sin(gData[base+2]);
+            const vx = cosT*dx+sinT*dy, vy = -sinT*dx+cosT*dy;
+            const Q = vx*vx*isx*isx+vy*vy*isy*isy;
+            if (Q > 18) continue;
+            const G = Math.exp(-0.5*Q);
+            wSum += G; cR += G*gData[base+5]; cG += G*gData[base+6]; cB += G*gData[base+7];
+        }
+        if (wSum > 1e-10) { cR/=wSum; cG/=wSum; cB/=wSum; }
+        const e = Math.abs(cR-tR)+Math.abs(cG-tG)+Math.abs(cB-tB);
+        errAccum[py*TARGET_W+px] += e;
+        errSum += e;
+    }
+    if (errSum < 1e-6) return;
+
+    const cdf = new Float32Array(TARGET_W * TARGET_H);
+    cdf[0] = errAccum[0];
+    for (let i = 1; i < cdf.length; i++) cdf[i] = cdf[i-1] + errAccum[i];
+
+    for (let n = 0; n < count && numG < MAX_GAUSSIANS && numG < budgetTarget; n++) {
+        const r = Math.random() * cdf[cdf.length-1];
+        let lo = 0, hi = cdf.length - 1;
+        while (lo < hi) { const mid = (lo+hi)>>1; cdf[mid] < r ? lo=mid+1 : hi=mid; }
+        const px = lo % TARGET_W, py = (lo / TARGET_W) | 0;
+        const i = numG * 8;
+        gData[i]   = (px+0.5)/TARGET_W;
+        gData[i+1] = (py+0.5)/TARGET_H;
+        gData[i+2] = 0;
+        gData[i+3] = 1.0/INIT_SCALE;
+        gData[i+4] = 1.0/INIT_SCALE;
+        const ti = (py*TARGET_W+px)*3;
+        gData[i+5] = targetImage[ti];
+        gData[i+6] = targetImage[ti+1];
+        gData[i+7] = targetImage[ti+2];
+        numG++;
+    }
+    rebuildGrid();
+}
+
+function doOptStep(batch) {
+    aT++;
+    const grad = new Float32Array(numG * 8);
+    const lrMu = 2e-3, lrCol = 1e-2, lrSc = 5e-3, lrTh = 5e-3;
+    const b1 = 0.9, b2 = 0.999, eps = 1e-8;
+    const TOP_K = 10;
+    let lossSum = 0;
+
+    for (let b = 0; b < batch; b++) {
+        const px = Math.random() * TARGET_W | 0;
+        const py = Math.random() * TARGET_H | 0;
+        const x = (px+0.5)/TARGET_W, y = (py+0.5)/TARGET_H;
+        const ti = (py*TARGET_W+px)*3;
+        const tR = targetImage[ti], tG = targetImage[ti+1], tB = targetImage[ti+2];
+
+        const gx = Math.min(GRID_RES-1, Math.max(0, Math.floor(x*GRID_RES)));
+        const gy = Math.min(GRID_RES-1, Math.max(0, Math.floor(y*GRID_RES)));
+        const cell = gridCells[gy*GRID_RES+gx];
+
+        const allContribs = [];
+
+        for (let ci = 0; ci < cell.length; ci++) {
+            const gi = cell[ci], base = gi*8;
+            const dx = x-gData[base], dy = y-gData[base+1];
+            const theta = gData[base+2];
+            const isx = gData[base+3], isy = gData[base+4];
+            const cosT = Math.cos(theta), sinT = Math.sin(theta);
+            const vx = cosT*dx+sinT*dy, vy = -sinT*dx+cosT*dy;
+            const Q = vx*vx*isx*isx+vy*vy*isy*isy;
+            if (Q > 18) continue;
+            const G = Math.exp(-0.5*Q);
+            allContribs.push({gi, G, vx, vy, isx, isy, cosT, sinT});
+        }
+
+        allContribs.sort((a, b) => b.G - a.G);
+        const contribs = allContribs.slice(0, TOP_K);
+
+        let wSum = 0, cR = 0, cG = 0, cB = 0;
+        for (let ci = 0; ci < contribs.length; ci++) {
+            const c = contribs[ci], base = c.gi * 8;
+            wSum += c.G;
+            cR += c.G*gData[base+5]; cG += c.G*gData[base+6]; cB += c.G*gData[base+7];
+        }
+        if (wSum < 1e-10) continue;
+        cR /= wSum; cG /= wSum; cB /= wSum;
+        const eR = cR-tR, eG = cG-tG, eB = cB-tB;
+        lossSum += eR*eR + eG*eG + eB*eB;
+
+        for (let ci = 0; ci < contribs.length; ci++) {
+            const c = contribs[ci];
+            const gi = c.gi, G = c.G;
+            const vx = c.vx, vy = c.vy;
+            const isx = c.isx, isy = c.isy;
+            const cosT = c.cosT, sinT = c.sinT;
+            const base = gi * 8;
+            const w = G / wSum;
+            grad[base+5] += 2*eR*w;
+            grad[base+6] += 2*eG*w;
+            grad[base+7] += 2*eB*w;
+            const dLdG = 2*(eR*(gData[base+5]-cR)+eG*(gData[base+6]-cG)+eB*(gData[base+7]-cB))/wSum;
+            const isx2 = isx*isx, isy2 = isy*isy;
+            grad[base]   += dLdG * G * (isx2*vx*cosT - isy2*vy*sinT);
+            grad[base+1] += dLdG * G * (isx2*vx*sinT + isy2*vy*cosT);
+            grad[base+2] += dLdG * (-G * vx * vy * (isx2 - isy2));
+            grad[base+3] += dLdG * (-G * isx * vx * vx);
+            grad[base+4] += dLdG * (-G * isy * vy * vy);
+        }
+    }
+
+    let gradNorm = 0;
+    for (let i = 0; i < numG * 8; i++) gradNorm += grad[i]*grad[i];
+    gradNorm = Math.sqrt(gradNorm);
+
+    const invBatch = 1.0 / batch;
+    const b1c = 1-b1, b2c = 1-b2;
+    const b1t = 1-Math.pow(b1,aT), b2t = 1-Math.pow(b2,aT);
+    for (let i = 0; i < numG; i++) {
+        for (let j = 0; j < 8; j++) {
+            const idx = i*8+j;
+            const g = grad[idx] * invBatch;
+            aM[idx] = b1*aM[idx] + b1c*g;
+            aV[idx] = b2*aV[idx] + b2c*g*g;
+            const lr = j<2 ? lrMu : j===2 ? lrTh : j<5 ? lrSc : lrCol;
+            gData[idx] -= lr * (aM[idx]/b1t) / (Math.sqrt(aV[idx]/b2t) + eps);
+        }
+        const b = i*8;
+        gData[b]   = Math.max(0, Math.min(1, gData[b]));
+        gData[b+1] = Math.max(0, Math.min(1, gData[b+1]));
+        gData[b+2] = ((gData[b+2] % Math.PI) + Math.PI) % Math.PI;
+        const minIS = 1.0/(200.0/TARGET_W), maxIS = 1.0/(0.5/TARGET_W);
+        gData[b+3] = Math.max(minIS, Math.min(maxIS, gData[b+3]));
+        gData[b+4] = Math.max(minIS, Math.min(maxIS, gData[b+4]));
+        gData[b+5] = Math.max(0, Math.min(1, gData[b+5]));
+        gData[b+6] = Math.max(0, Math.min(1, gData[b+6]));
+        gData[b+7] = Math.max(0, Math.min(1, gData[b+7]));
+    }
+    rebuildGrid();
+    return { loss: lossSum / batch, gradNorm };
+}
+
+const canvas = document.getElementById('glCanvas');
+const gl = canvas.getContext('webgl2', {antialias:false, powerPreference:'high-performance', alpha:false, premultipliedAlpha:false});
+if (!gl) { document.body.innerHTML = '<div style="color:red;padding:2em;font-family:monospace">WebGL2 not supported</div>'; throw new Error('No WebGL2'); }
+
+const floatExt = gl.getExtension('EXT_color_buffer_float');
+const hasFloatFBO = !!floatExt;
+console.log('EXT_color_buffer_float:', hasFloatFBO);
+
+let canvasW = 0, canvasH = 0;
+
+function resizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvasW = Math.floor(window.innerWidth * dpr);
+    canvasH = Math.floor(window.innerHeight * dpr);
+    canvas.width = canvasW; canvas.height = canvasH;
+    if (gl) gl.viewport(0, 0, canvasW, canvasH);
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); needsResize = true; });
+let needsResize = true;
+
+const QUAD_VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec2 aQP;
+layout(location=1) in vec2 aMu;
+layout(location=2) in vec3 aTIS;
+layout(location=3) in vec3 aCol;
+out vec2 vLP;
+out float vISx;
+out float vISy;
+out vec3 vC;
+void main(){
+    float th=aTIS.x, isx=aTIS.y, isy=aTIS.z;
+    vISx=isx; vISy=isy; vC=aCol;
+    float ex=3.0/isx, ey=3.0/isy;
+    vLP=aQP*vec2(ex,ey);
+    float c=cos(th),s=sin(th);
+    vec2 off=vec2(c*vLP.x-s*vLP.y, s*vLP.x+c*vLP.y);
+    vec2 pos=aMu+off;
+    gl_Position=vec4(pos*2.0-1.0, 0.0, 1.0);
+    gl_Position.y=-gl_Position.y;
+}`;
+
+const QUAD_FS = `#version 300 es
+precision highp float;
+in vec2 vLP;
+in float vISx;
+in float vISy;
+in vec3 vC;
+out vec4 fc;
+void main(){
+    float Q=vLP.x*vLP.x*vISx*vISx+vLP.y*vLP.y*vISy*vISy;
+    if(Q>18.0) discard;
+    float G=exp(-0.5*Q);
+    fc=vec4(G*vC, G);
+}`;
+
+const NORM_VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec2 aP;
+out vec2 vUV;
+void main(){ vUV=aP*0.5+0.5; gl_Position=vec4(aP,0,1); }`;
+
+const NORM_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uA;
+out vec4 fc;
+void main(){
+    vec4 a=texture(uA,vUV);
+    if(a.a<0.001) fc=vec4(0.01,0.008,0.02,1);
+    else fc=vec4(a.rgb/a.a,1);
+}`;
+
+function compileShader(src, type) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); return null; }
+    return s;
+}
+function linkProgram(vs, fs) {
+    const p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); return null; }
+    return p;
+}
+
+const quadProg = linkProgram(compileShader(QUAD_VS, gl.VERTEX_SHADER), compileShader(QUAD_FS, gl.FRAGMENT_SHADER));
+const normProg = linkProgram(compileShader(NORM_VS, gl.VERTEX_SHADER), compileShader(NORM_FS, gl.FRAGMENT_SHADER));
+const normAccumLoc = gl.getUniformLocation(normProg, 'uA');
+
+const quadVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,1,1,-1,1]), gl.STATIC_DRAW);
+const quadIBO = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, quadIBO);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2,0,2,3]), gl.STATIC_DRAW);
+
+const instVBO = gl.createBuffer();
+const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);
+gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, quadIBO);
+gl.bindBuffer(gl.ARRAY_BUFFER, instVBO);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,2,gl.FLOAT,false,32,0); gl.vertexAttribDivisor(1,1);
+gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,3,gl.FLOAT,false,32,8); gl.vertexAttribDivisor(2,1);
+gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3,3,gl.FLOAT,false,32,20); gl.vertexAttribDivisor(3,1);
+gl.bindVertexArray(null);
+
+let accumW = 0, accumH = 0;
+const accumTex = gl.createTexture();
+const accumFBO = gl.createFramebuffer();
+
+function ensureAccumFBO() {
+    if (accumW === canvasW && accumH === canvasH) return;
+    accumW = canvasW; accumH = canvasH;
+    gl.bindTexture(gl.TEXTURE_2D, accumTex);
+    if (hasFloatFBO) {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, accumW, accumH, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    } else {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, accumW, accumH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    }
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, accumFBO);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, accumTex, 0);
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) {
+        console.error('FBO incomplete:', status, '(0x' + status.toString(16) + ')');
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+const normVAO = gl.createVertexArray();
+gl.bindVertexArray(normVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+gl.bindVertexArray(null);
+
+function renderGaussians() {
+    if (numG === 0) return;
+    ensureAccumFBO();
+
+    const inst = new Float32Array(numG * 8);
+    inst.set(gData.subarray(0, numG * 8));
+    gl.bindBuffer(gl.ARRAY_BUFFER, instVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, inst, gl.DYNAMIC_DRAW);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, accumFBO);
+    gl.viewport(0, 0, accumW, accumH);
+    gl.clearColor(0,0,0,0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    if (hasFloatFBO) {
+        gl.blendFunc(gl.ONE, gl.ONE);
+    } else {
+        gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ONE, gl.ONE);
+    }
+    gl.useProgram(quadProg);
+    gl.bindVertexArray(vao);
+    gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, numG);
+    gl.bindVertexArray(null);
+    gl.disable(gl.BLEND);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    gl.viewport(0, 0, canvasW, canvasH);
+    gl.clearColor(0.01,0.008,0.02,1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(normProg);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, accumTex);
+    gl.uniform1i(normAccumLoc, 0);
+    gl.bindVertexArray(normVAO);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    gl.bindVertexArray(null);
+}
+
+let ptrDown = false, lastPX = 0, lastPY = 0;
+let pinchDist = 0;
+
+canvas.addEventListener('pointerdown', e => {
+    ptrDown = true; lastPX = e.clientX; lastPY = e.clientY;
+    camera.moving = true; e.preventDefault();
+});
+window.addEventListener('pointermove', e => {
+    if (!ptrDown) return;
+    const dx = e.clientX-lastPX, dy = e.clientY-lastPY;
+    lastPX = e.clientX; lastPY = e.clientY;
+    const aspect = window.innerWidth / window.innerHeight;
+    camera.tcx = ddSub(camera.tcx, ddFromNum(-dx / window.innerWidth * camera.zoom * aspect));
+    camera.tcy = ddSub(camera.tcy, ddFromNum(-dy / window.innerHeight * camera.zoom));
+    camera.moving = true; camera.moveTimer = performance.now();
+});
+window.addEventListener('pointerup', () => { ptrDown = false; camera.moveTimer = performance.now(); });
+
+canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 1.08 : 1.0/1.08;
+    const aspect = window.innerWidth / window.innerHeight;
+    const mx = e.clientX / window.innerWidth, my = e.clientY / window.innerHeight;
+    const wx = camera.tcx[0] + (mx-0.5)*camera.tzoom*aspect;
+    const wy = camera.tcy[0] + (my-0.5)*camera.tzoom;
+    camera.tzoom *= factor;
+    camera.tcx = ddSub(camera.tcx, ddFromNum((wx-camera.tcx[0])*(1-factor)));
+    camera.tcy = ddSub(camera.tcy, ddFromNum((wy-camera.tcy[0])*(1-factor)));
+    camera.moving = true; camera.moveTimer = performance.now();
+}, {passive: false});
+
+canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+        const dx = e.touches[1].clientX-e.touches[0].clientX;
+        const dy = e.touches[1].clientY-e.touches[0].clientY;
+        pinchDist = Math.sqrt(dx*dx+dy*dy);
+    }
+}, {passive: false});
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+        const dx = e.touches[1].clientX-e.touches[0].clientX;
+        const dy = e.touches[1].clientY-e.touches[0].clientY;
+        const d = Math.sqrt(dx*dx+dy*dy);
+        if (pinchDist > 0) { camera.tzoom *= pinchDist/d; camera.moving = true; camera.moveTimer = performance.now(); }
+        pinchDist = d;
+    }
+}, {passive: false});
+
+function updateCamera() {
+    const t = 0.12;
+    camera.cx = ddAdd(ddMulD(camera.cx, 1-t), ddMulD(camera.tcx, t));
+    camera.cy = ddAdd(ddMulD(camera.cy, 1-t), ddMulD(camera.tcy, t));
+    camera.zoom += (camera.tzoom - camera.zoom) * t;
+    if (camera.moving && performance.now() - camera.moveTimer > 300) camera.moving = false;
+}
+
+let lastRebuildCx = camera.cx[0], lastRebuildCy = camera.cy[0], lastRebuildZoom = camera.zoom;
+let needsRebuild = true;
+
+function checkRebuild() {
+    const dz = Math.abs(camera.zoom - lastRebuildZoom) / Math.max(lastRebuildZoom, 1e-10);
+    const dx = Math.abs(camera.cx[0] - lastRebuildCx) / Math.max(camera.zoom, 1e-10);
+    const dy = Math.abs(camera.cy[0] - lastRebuildCy) / Math.max(camera.zoom, 1e-10);
+    if (dz > 0.1 || dx > 0.05 || dy > 0.05) needsRebuild = true;
+    if (needsRebuild && !camera.moving) {
+        needsRebuild = false;
+        lastRebuildCx = camera.cx[0]; lastRebuildCy = camera.cy[0]; lastRebuildZoom = camera.zoom;
+        computeInitialTarget();
+        initGaussians(Math.min(3000, MAX_GAUSSIANS));
+        worker.postMessage({cmd:'init', w:TARGET_W, h:TARGET_H});
+        workerSampleCount = 0;
+        requestWorkerSample();
+    }
+}
+
+function requestWorkerSample() {
+    if (workerBusy) return;
+    workerBusy = true;
+    const mi = Math.min(500, Math.max(50, Math.floor(80 + 30 * Math.log2(3.5 / camera.zoom))));
+    worker.postMessage({cmd:'sample', cx:camera.cx[0], cy:camera.cy[0], zoom:camera.zoom, maxIter:mi, count:1500});
+}
+
+const hudEl = document.getElementById('hud');
+let frameCount = 0, lastFpsTime = performance.now(), fps = 0;
+let lastLoss = 0, lastGradNorm = 0;
+
+function animate() {
+    requestAnimationFrame(animate);
+    updateCamera();
+    checkRebuild();
+
+    if (numG > 0) {
+        const stepsThisFrame = totalOptSteps < 10 ? 1 : OPT_STEPS_PER_FRAME;
+        try {
+            for (let i = 0; i < stepsThisFrame; i++) {
+                const result = doOptStep(BATCH_SIZE);
+                totalOptSteps++;
+                if (result) { lastLoss = result.loss; lastGradNorm = result.gradNorm; }
+            }
+            if (totalOptSteps - lastDensifyStep >= 50 && numG < budgetTarget) {
+                addGaussiansError(Math.min(Math.floor(budgetTarget/6), MAX_GAUSSIANS - numG));
+                lastDensifyStep = totalOptSteps;
+            }
+        } catch(e) {
+            console.error('doOptStep error:', e);
+        }
+    }
+
+    if (!workerBusy && workerSampleCount < 50000) requestWorkerSample();
+
+    renderGaussians();
+
+    frameCount++;
+    const now = performance.now();
+    if (now - lastFpsTime > 1000) {
+        fps = Math.round(frameCount * 1000 / (now - lastFpsTime));
+        frameCount = 0; lastFpsTime = now;
+    }
+    if (frameCount % 15 === 0) {
+        hudEl.textContent = `G: ${numG} | Step: ${totalOptSteps} | FPS: ${fps} | Loss: ${lastLoss.toFixed(4)} | gNorm: ${lastGradNorm.toFixed(2)} | Zoom: ${camera.zoom.toExponential(2)} | Neb: ${workerSampleCount}`;
+    }
+}
+
+computeInitialTarget();
+initGaussians(Math.min(3000, MAX_GAUSSIANS));
+lastRebuildCx = camera.cx[0]; lastRebuildCy = camera.cy[0]; lastRebuildZoom = camera.zoom;
+needsRebuild = false;
+console.log('Init complete — numG:', numG, 'hasFloatFBO:', hasFloatFBO, 'canvasW:', canvasW, 'canvasH:', canvasH);
+if (numG > 0) {
+    console.log('First Gaussian:', gData[0].toFixed(3), gData[1].toFixed(3), gData[2].toFixed(3), gData[3].toFixed(1), gData[4].toFixed(1), gData[5].toFixed(3), gData[6].toFixed(3), gData[7].toFixed(3));
+}
+requestWorkerSample();
+animate();
+</script>
+</body>
+</html>

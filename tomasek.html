@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Gyroscope Dice Roller</title>
+    <!-- Tailwind CSS for high-fidelity UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for immersive 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Cannon.js for ultra-realistic 3D physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0b0f19;
+            touch-action: none;
+            overflow: hidden;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen select-none overflow-hidden">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-0"></div>
+
+    <!-- UI Overlay Controls -->
+    <div class="absolute inset-0 flex flex-col justify-between p-4 md:p-6 pointer-events-none z-10 safe-top safe-bottom">
+        
+        <!-- Header & Scoring Display -->
+        <header class="w-full max-w-md mx-auto flex flex-col gap-3 items-center pointer-events-auto">
+            <!-- Minimalist Glass Total Score Capsule -->
+            <div class="glass-panel rounded-2xl px-6 py-2.5 flex items-center justify-center shadow-2xl transition-all duration-300">
+                <span id="score-total" class="text-5xl font-extrabold text-white tracking-tight leading-none">0</span>
+            </div>
+
+            <!-- Hidden trackers needed for JS dependencies to prevent errors -->
+            <span id="gyro-badge" class="hidden"></span>
+            <span id="dice-count" class="hidden"></span>
+        </header>
+
+        <!-- Minimal iOS Motion Authorization Prompt -->
+        <div id="gyro-prompt" class="w-full max-w-sm mx-auto glass-panel p-4 rounded-2xl flex flex-col items-center gap-3 text-center shadow-2xl pointer-events-auto border border-indigo-500/30">
+            <button id="enable-gyro-btn" class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all duration-200 shadow-lg shadow-indigo-600/20 uppercase tracking-wider">
+                Allow Device Motion
+            </button>
+        </div>
+
+        <!-- Footer Actions -->
+        <footer class="w-full max-w-md mx-auto flex flex-col gap-3 pointer-events-auto">
+            
+            <!-- Hidden wrapper for interaction tips (prevents JS breaks) -->
+            <p id="interaction-tip" class="hidden"></p>
+
+            <!-- Dice Type Selector (Text-only minimalist badges) -->
+            <div class="glass-panel rounded-2xl p-2 flex justify-between gap-1 shadow-xl">
+                <button onclick="switchDiceType('D4')" id="btn-D4" class="flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 active:scale-95">
+                    <span>D4</span>
+                </button>
+                <button onclick="switchDiceType('D6')" id="btn-D6" class="flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 active:scale-95">
+                    <span>D6</span>
+                </button>
+                <button onclick="switchDiceType('D8')" id="btn-D8" class="flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 active:scale-95">
+                    <span>D8</span>
+                </button>
+                <button onclick="switchDiceType('D12')" id="btn-D12" class="flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 active:scale-95">
+                    <span>D12</span>
+                </button>
+                <button onclick="switchDiceType('D20')" id="btn-D20" class="flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 active:scale-95">
+                    <span>D20</span>
+                </button>
+            </div>
+
+            <!-- Main Actions (Icon buttons with clean centration) -->
+            <div class="grid grid-cols-3 gap-3">
+                <!-- Clear Button -->
+                <button id="clear-btn" class="glass-panel hover:bg-red-500/10 border-red-500/20 hover:border-red-500/30 text-red-400 py-3.5 px-3 rounded-2xl font-bold transition-all duration-200 active:scale-95 flex items-center justify-center shadow-xl">
+                    <span class="text-xl">🧹</span>
+                </button>
+
+                <!-- Drop Dice Button (Main Action) -->
+                <button id="drop-btn" class="col-span-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white py-3.5 px-6 rounded-2xl transition-all duration-200 active:scale-95 shadow-lg shadow-indigo-600/30 flex items-center justify-center">
+                    <span class="text-xl">🎲</span>
+                </button>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Script Block -->
+    <script>
+        // --- 1. CONFIGURATION & STATE ---
+        const DICE_RADIUS = 0.8; 
+        const SPAWN_HEIGHT = 4.8;
+        const VIEWPORT_CONTAINMENT = 4.5; 
+
+        let scene, camera, renderer, world;
+        let groundBody, wallBodies = [];
+        let physicalDiceList = [];
+        let ghostDiceMesh; 
+        let ghostScale = 1.0; 
+        
+        let selectedDiceType = 'D6'; // Active dice type
+        const geometryCache = {}; // Cache geometries and face normals for each dice type
+        const materialCache = {}; // Cache procedural textures per face count
+        
+        // Input & Gyroscope Orientation Tracking
+        let gyroActive = false;
+        let currentRotation = { alpha: 0, beta: 0, gamma: 0 };
+        let mouseRotX = 0;
+        let mouseRotY = 0;
+        let isDragging = false;
+        let prevMousePosition = { x: 0, y: 0 };
+
+        // DOM elements
+        const scoreTotalEl = document.getElementById('score-total');
+        const diceCountEl = document.getElementById('dice-count');
+        const gyroBadge = document.getElementById('gyro-badge');
+        const gyroPrompt = document.getElementById('gyro-prompt');
+        const enableGyroBtn = document.getElementById('enable-gyro-btn');
+        const dropBtn = document.getElementById('drop-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const interactionTip = document.getElementById('interaction-tip');
+
+        // Contact Material Setup definitions
+        const diceMaterial = new CANNON.Material("diceMat");
+        const groundMaterial = new CANNON.Material("groundMat");
+
+        // --- Helper Function: Custom Beveled Cube Geometry ---
+        function createRoundedBoxGeometry(width, height, depth, radius, segments) {
+            const geometry = new THREE.BoxGeometry(width, height, depth, segments, segments, segments);
+            const positionAttribute = geometry.attributes.position;
+            const normalAttribute = geometry.attributes.normal;
+            
+            const halfWidth = width / 2;
+            const halfHeight = height / 2;
+            const halfDepth = depth / 2;
+            
+            const tempPos = new THREE.Vector3();
+            const tempNormal = new THREE.Vector3();
+            
+            for (let i = 0; i < positionAttribute.count; i++) {
+                tempPos.fromBufferAttribute(positionAttribute, i);
+                
+                const x = Math.min(halfWidth - radius, Math.max(radius - halfWidth, tempPos.x));
+                const y = Math.min(halfHeight - radius, Math.max(radius - halfHeight, tempPos.y));
+                const z = Math.min(halfDepth - radius, Math.max(radius - halfDepth, tempPos.z));
+                
+                tempNormal.set(tempPos.x - x, tempPos.y - y, tempPos.z - z);
+                
+                if (tempNormal.lengthSq() > 0) {
+                    tempNormal.normalize();
+                    tempPos.set(
+                        x + tempNormal.x * radius,
+                        y + tempNormal.y * radius,
+                        z + tempNormal.z * radius
+                    );
+                }
+                
+                positionAttribute.setXYZ(i, tempPos.x, tempPos.y, tempPos.z);
+                normalAttribute.setXYZ(i, tempNormal.x, tempNormal.y, tempNormal.z);
+            }
+            
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // --- 2. PROCEDURAL REAL 3D BEVELED POLYHEDRON GENERATOR ---
+        function createBeveledPolyhedronGeometry(type, radius, bevelFactor = 15) {
+            const cacheKey = `${type}_${radius}`;
+            if (geometryCache[cacheKey]) {
+                return geometryCache[cacheKey];
+            }
+
+            // A. High-fidelity custom rounded box bypass specifically for the D6
+            // This prevents orthogonal SDF collapses and maintains perfectly spaced vertices
+            if (type === 'D6') {
+                const geom = createRoundedBoxGeometry(radius * 2, radius * 2, radius * 2, radius * 0.2, 16);
+                const faceNormals = [
+                    new THREE.Vector3(1, 0, 0),  // Right (+X)
+                    new THREE.Vector3(-1, 0, 0), // Left (-X)
+                    new THREE.Vector3(0, 1, 0),  // Top (+Y)
+                    new THREE.Vector3(0, -1, 0), // Bottom (-Y)
+                    new THREE.Vector3(0, 0, 1),  // Front (+Z)
+                    new THREE.Vector3(0, 0, -1)  // Back (-Z)
+                ];
+                const result = { geometry: geom, faceNormals: faceNormals };
+                geometryCache[cacheKey] = result;
+                return result;
+            }
+
+            // B. Instantiate low-poly baseline platonic geometry for D4, D8, D12, D20
+            let baseGeom;
+            const scale = radius;
+            if (type === 'D4') baseGeom = new THREE.TetrahedronGeometry(scale * 1.15, 0);
+            else if (type === 'D8') baseGeom = new THREE.OctahedronGeometry(scale * 1.05, 0);
+            else if (type === 'D12') baseGeom = new THREE.DodecahedronGeometry(scale * 0.95, 0);
+            else if (type === 'D20') baseGeom = new THREE.IcosahedronGeometry(scale * 0.95, 0);
+
+            const posAttr = baseGeom.attributes.position;
+            const numTriangles = posAttr.count / 3;
+            const faceNormals = [];
+
+            // C. Extract unique face normals from flat triangles
+            for (let i = 0; i < numTriangles; i++) {
+                const vA = new THREE.Vector3().fromBufferAttribute(posAttr, i * 3);
+                const vB = new THREE.Vector3().fromBufferAttribute(posAttr, i * 3 + 1);
+                const vC = new THREE.Vector3().fromBufferAttribute(posAttr, i * 3 + 2);
+                
+                const cb = new THREE.Vector3().subVectors(vC, vB);
+                const ab = new THREE.Vector3().subVectors(vA, vB);
+                const normal = new THREE.Vector3().crossVectors(cb, ab).normalize();
+
+                let exists = false;
+                for (let n of faceNormals) {
+                    if (n.dot(normal) > 0.99) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    faceNormals.push(normal);
+                }
+            }
+
+            // Determine plane distance h
+            const vFirst = new THREE.Vector3().fromBufferAttribute(posAttr, 0);
+            let h = 0;
+            faceNormals.forEach(n => {
+                h = Math.max(h, vFirst.dot(n));
+            });
+
+            baseGeom.dispose();
+
+            // D. Create highly subdivided sphere as starting vertices for smooth-max projecting
+            const sphereSegments = type === 'D20' ? 24 : 32; 
+            const sphere = new THREE.SphereGeometry(radius * 1.4, sphereSegments, sphereSegments);
+            const spherePos = sphere.attributes.position;
+            const u = new THREE.Vector3();
+
+            const alpha = bevelFactor / radius; 
+
+            // Project every sphere vertex onto smooth-max boundary surface with strict convergence guards
+            for (let i = 0; i < spherePos.count; i++) {
+                u.set(spherePos.getX(i), spherePos.getY(i), spherePos.getZ(i));
+                u.normalize();
+
+                let L = radius;
+                for (let iter = 0; iter < 12; iter++) { // 12 iterations for crisp precision
+                    let sum = 0;
+                    let sumDeriv = 0;
+                    for (let f = 0; f < faceNormals.length; f++) {
+                        const dot = u.dot(faceNormals[f]);
+                        const val = L * dot - h;
+                        const expVal = Math.exp(Math.min(Math.max(alpha * val, -50), 50)); 
+                        sum += expVal;
+                        sumDeriv += dot * expVal;
+                    }
+
+                    // Safeguard against near-zero sum densities (prevents division by zero)
+                    if (sum < 1e-10) sum = 1e-10;
+
+                    const S_max = Math.log(sum) / alpha;
+                    const dS_dL = sumDeriv / sum;
+
+                    // Shield divisor from approaching zero
+                    const denom = Math.abs(dS_dL) < 1e-5 ? (dS_dL >= 0 ? 1e-5 : -1e-5) : dS_dL;
+                    let step = S_max / denom;
+
+                    // Safeguard 1: Clamp the individual iteration step to prevent runaway overshooting
+                    step = Math.max(-radius * 0.4, Math.min(radius * 0.4, step));
+
+                    L = L - step;
+
+                    // Safeguard 2: Strictly clamp absolute coordinate bounds relative to the platonic solid bounds
+                    L = Math.max(radius * 0.3, Math.min(radius * 1.8, L));
+                }
+                spherePos.setXYZ(i, u.x * L, u.y * L, u.z * L);
+            }
+
+            sphere.computeVertexNormals();
+
+            // E. Converge to flat non-indexed array, so we can group coplanar surfaces
+            const geom = sphere.toNonIndexed();
+            const geomPos = geom.attributes.position;
+            const geomNormal = geom.attributes.normal;
+            const totalTriangles = geomPos.count / 3;
+
+            // Group face triangles by nearest polyhedron face normals
+            const groups = Array.from({ length: faceNormals.length }, () => []);
+            for (let i = 0; i < totalTriangles; i++) {
+                const vA = new THREE.Vector3().fromBufferAttribute(geomPos, i * 3);
+                const vB = new THREE.Vector3().fromBufferAttribute(geomPos, i * 3 + 1);
+                const vC = new THREE.Vector3().fromBufferAttribute(geomPos, i * 3 + 2);
+
+                const cb = new THREE.Vector3().subVectors(vC, vB);
+                const ab = new THREE.Vector3().subVectors(vA, vB);
+                const normal = new THREE.Vector3().crossVectors(cb, ab).normalize();
+
+                let maxDot = -Infinity;
+                let closestFaceIdx = 0;
+                for (let f = 0; f < faceNormals.length; f++) {
+                    const dot = normal.dot(faceNormals[f]);
+                    if (dot > maxDot) {
+                        maxDot = dot;
+                        closestFaceIdx = f;
+                    }
+                }
+                groups[closestFaceIdx].push(i);
+            }
+
+            const reorderedPos = [];
+            const reorderedNorm = [];
+            const reorderedUv = [];
+
+            geom.clearGroups();
+            let vertexOffset = 0;
+
+            // F. Assign groups and project localized square Flat UVs for centered numbers
+            groups.forEach((triangles, faceIdx) => {
+                const startVertex = vertexOffset;
+                const N = faceNormals[faceIdx];
+
+                const U = new THREE.Vector3();
+                const V = new THREE.Vector3();
+                if (Math.abs(N.y) < 0.95) {
+                    U.crossVectors(new THREE.Vector3(0, 1, 0), N).normalize();
+                    V.crossVectors(N, U).normalize();
+                } else {
+                    U.crossVectors(new THREE.Vector3(0, 0, 1), N).normalize();
+                    V.crossVectors(N, U).normalize();
+                }
+
+                let minU = Infinity, maxU = -Infinity;
+                let minV = Infinity, maxV = -Infinity;
+
+                const tempP = new THREE.Vector3();
+                triangles.forEach(triIdx => {
+                    for (let v = 0; v < 3; v++) {
+                        tempP.fromBufferAttribute(geomPos, triIdx * 3 + v);
+                        const uRaw = tempP.dot(U);
+                        const vRaw = tempP.dot(V);
+                        minU = Math.min(minU, uRaw);
+                        maxU = Math.max(maxU, uRaw);
+                        minV = Math.min(minV, vRaw);
+                        maxV = Math.max(maxV, vRaw);
+                    }
+                });
+
+                const midU = (minU + maxU) / 2;
+                const midV = (minV + maxV) / 2;
+                const size = Math.max(maxU - minU, maxV - minV) || 1;
+
+                triangles.forEach(triIdx => {
+                    for (let v = 0; v < 3; v++) {
+                        const idx = triIdx * 3 + v;
+                        const px = geomPos.getX(idx);
+                        const py = geomPos.getY(idx);
+                        const pz = geomPos.getZ(idx);
+                        reorderedPos.push(px, py, pz);
+
+                        if (geomNormal) {
+                            reorderedNorm.push(geomNormal.getX(idx), geomNormal.getY(idx), geomNormal.getZ(idx));
+                        }
+
+                        tempP.set(px, py, pz);
+                        const uVal = 0.5 + (tempP.dot(U) - midU) / size;
+                        const vVal = 0.5 + (tempP.dot(V) - midV) / size;
+                        reorderedUv.push(uVal, vVal);
+                    }
+                    vertexOffset += 3;
+                });
+
+                geom.addGroup(startVertex, vertexOffset - startVertex, faceIdx);
+            });
+
+            geom.setAttribute('position', new THREE.Float32BufferAttribute(reorderedPos, 3));
+            if (geomNormal) {
+                geom.setAttribute('normal', new THREE.Float32BufferAttribute(reorderedNorm, 3));
+            }
+            geom.setAttribute('uv', new THREE.Float32BufferAttribute(reorderedUv, 2));
+
+            const result = { geometry: geom, faceNormals: faceNormals };
+            geometryCache[cacheKey] = result;
+            return result;
+        }
+
+        // --- 3. HIGH FIDELITY CANVAS TEXTURE GENERATOR ---
+        function createDiceTexture(number, totalFaces) {
+            const cacheKey = `${number}_${totalFaces}`;
+            if (materialCache[cacheKey]) {
+                return materialCache[cacheKey];
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            // Warm Ivory Base Color
+            ctx.fillStyle = '#f8f6f0';
+            ctx.fillRect(0, 0, 256, 256);
+
+            // Shading radial gradient
+            const grad = ctx.createRadialGradient(128, 128, 80, 128, 128, 128);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            grad.addColorStop(0.8, 'rgba(215, 210, 195, 0.15)');
+            grad.addColorStop(1, 'rgba(150, 140, 125, 0.35)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 256);
+
+            // Inner circular badge design
+            ctx.strokeStyle = '#dfdac5';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(128, 128, 92, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Charcoal Number Painting
+            ctx.fillStyle = (number === 1) ? '#e11d48' : '#1c1b22'; // D1 has red rose accent
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const fontSize = number >= 10 ? '80px' : '100px';
+            ctx.font = `800 ${fontSize} 'Plus Jakarta Sans', sans-serif`;
+
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+
+            ctx.fillText(number.toString(), 128, 128);
+
+            // Add underline indicator for numbers that could be inverted (e.g. 6 and 9)
+            if (totalFaces > 6 && (number === 6 || number === 9)) {
+                ctx.fillRect(98, 185, 60, 6);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = 4;
+            materialCache[cacheKey] = texture;
+            return texture;
+        }
+
+        // --- 4. CONVERT THREE.JS LOW-POLY TO CANNON.JS CONVEX POLYHEDRON ---
+        function createCannonConvexPolyhedron(threeGeometry) {
+            const posAttr = threeGeometry.attributes.position;
+            const uniqueVertices = [];
+            const faces = [];
+            const precision = 5;
+            const vertexMap = {};
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const x = posAttr.getX(i);
+                const y = posAttr.getY(i);
+                const z = posAttr.getZ(i);
+                const key = `${x.toFixed(precision)}_${y.toFixed(precision)}_${z.toFixed(precision)}`;
+                
+                if (vertexMap[key] === undefined) {
+                    vertexMap[key] = uniqueVertices.length;
+                    uniqueVertices.push(new CANNON.Vec3(x, y, z));
+                }
+            }
+
+            for (let i = 0; i < posAttr.count; i += 3) {
+                const idx0 = vertexMap[`${posAttr.getX(i).toFixed(precision)}_${posAttr.getY(i).toFixed(precision)}_${posAttr.getZ(i).toFixed(precision)}`];
+                const idx1 = vertexMap[`${posAttr.getX(i+1).toFixed(precision)}_${posAttr.getY(i+1).toFixed(precision)}_${posAttr.getZ(i+1).toFixed(precision)}`];
+                const idx2 = vertexMap[`${posAttr.getX(i+2).toFixed(precision)}_${posAttr.getY(i+2).toFixed(precision)}_${posAttr.getZ(i+2).toFixed(precision)}`];
+                faces.push([idx0, idx1, idx2]);
+            }
+
+            return new CANNON.ConvexPolyhedron(uniqueVertices, faces);
+        }
+
+        // Calculate custom physics shape based on Platonic Solid selected
+        function getPhysicsShape(type) {
+            if (type === 'D6') {
+                return new CANNON.Box(new CANNON.Vec3(DICE_RADIUS * 0.95, DICE_RADIUS * 0.95, DICE_RADIUS * 0.95));
+            }
+            
+            let flatGeom;
+            const scale = DICE_RADIUS;
+            if (type === 'D4') flatGeom = new THREE.TetrahedronGeometry(scale * 1.15, 0);
+            else if (type === 'D8') flatGeom = new THREE.OctahedronGeometry(scale * 1.05, 0);
+            else if (type === 'D12') flatGeom = new THREE.DodecahedronGeometry(scale * 0.95, 0);
+            else if (type === 'D20') flatGeom = new THREE.IcosahedronGeometry(scale * 0.95, 0);
+
+            const shape = createCannonConvexPolyhedron(flatGeom);
+            flatGeom.dispose();
+            return shape;
+        }
+
+        // --- 5. INITIALIZE 3D GRAPHICS & PHYSICS SYSTEMS ---
+        function initSystems() {
+            const container = document.getElementById('canvas-container');
+            const aspect = container.clientWidth / container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2('#0b0f19', 0.04);
+
+            camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100);
+            camera.position.set(0, 10, 8);
+            camera.lookAt(0, -0.5, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            container.appendChild(renderer.domElement);
+
+            // Ambient/Specular atmospheric lights
+            const ambientLight = new THREE.AmbientLight('#1d2433', 1.6);
+            scene.add(ambientLight);
+
+            const studioLight = new THREE.DirectionalLight('#e0e7ff', 2.2);
+            studioLight.position.set(5, 12, 5);
+            studioLight.castShadow = true;
+            studioLight.shadow.mapSize.width = 1024;
+            studioLight.shadow.mapSize.height = 1024;
+            studioLight.shadow.bias = -0.0005;
+            studioLight.shadow.camera.near = 0.5;
+            studioLight.shadow.camera.far = 25;
+            studioLight.shadow.camera.left = -6;
+            studioLight.shadow.camera.right = 6;
+            studioLight.shadow.camera.top = 6;
+            studioLight.shadow.camera.bottom = -6;
+            scene.add(studioLight);
+
+            const rimLightRight = new THREE.PointLight('#6366f1', 3.5, 15);
+            rimLightRight.position.set(-6, 3, -3);
+            scene.add(rimLightRight);
+
+            const rimLightLeft = new THREE.PointLight('#a855f7', 2.5, 15);
+            rimLightLeft.position.set(6, 2, 4);
+            scene.add(rimLightLeft);
+
+            // Physics engine world setups
+            world = new CANNON.World();
+            world.gravity.set(0, -18.0, 0); 
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 10;
+
+            const diceToGroundContact = new CANNON.ContactMaterial(diceMaterial, groundMaterial, {
+                friction: 0.15,
+                restitution: 0.45 
+            });
+            const diceToDiceContact = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
+                friction: 0.2,
+                restitution: 0.35 
+            });
+
+            world.addContactMaterial(diceToGroundContact);
+            world.addContactMaterial(diceToDiceContact);
+
+            // Static Plane floor
+            const floorGeo = new THREE.PlaneGeometry(30, 30);
+            const floorMat = new THREE.MeshStandardMaterial({
+                color: '#131824',
+                roughness: 0.35,
+                metalness: 0.8,
+                flatShading: false
+            });
+            const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+            floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.position.y = -2;
+            floorMesh.receiveShadow = true;
+            scene.add(floorMesh);
+
+            groundBody = new CANNON.Body({
+                mass: 0,
+                shape: new CANNON.Plane(),
+                material: groundMaterial
+            });
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            groundBody.position.set(0, -2, 0);
+            world.addBody(groundBody);
+
+            // Bounds containment walls
+            const createInvisibleWall = (px, py, pz, rx, ry, rz) => {
+                const wallBody = new CANNON.Body({
+                    mass: 0,
+                    shape: new CANNON.Plane(),
+                    material: groundMaterial
+                });
+                let q = new CANNON.Quaternion();
+                q.setFromEuler(rx, ry, rz);
+                wallBody.quaternion = q;
+                wallBody.position.set(px, py, pz);
+                world.addBody(wallBody);
+                wallBodies.push(wallBody);
+            };
+
+            createInvisibleWall(-VIEWPORT_CONTAINMENT, 0, 0, 0, Math.PI / 2, 0);  
+            createInvisibleWall(VIEWPORT_CONTAINMENT, 0, 0, 0, -Math.PI / 2, 0); 
+            createInvisibleWall(0, 0, -VIEWPORT_CONTAINMENT, 0, 0, 0);           
+            createInvisibleWall(0, 0, VIEWPORT_CONTAINMENT, Math.PI, 0, 0);       
+
+            // Instantiate default ghost
+            switchDiceType('D6');
+
+            // Wireframe landing reference circle
+            const ringGeo = new THREE.RingGeometry(DICE_RADIUS * 1.5, DICE_RADIUS * 1.6, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: '#6366f1', side: THREE.DoubleSide, opacity: 0.4, transparent: true });
+            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+            ringMesh.rotation.x = Math.PI / 2;
+            ringMesh.position.set(0, SPAWN_HEIGHT - 1.52, 0);
+            scene.add(ringMesh);
+        }
+
+        // --- 6. SWITCH DICE GEOMETRY & MATERIALS SYSTEM ---
+        function switchDiceType(type) {
+            selectedDiceType = type;
+
+            // Update UI selector buttons to reflect selection style
+            ['D4', 'D6', 'D8', 'D12', 'D20'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if (t === type) {
+                    btn.className = "flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 scale-100 shadow-lg shadow-indigo-600/10";
+                } else {
+                    btn.className = "flex-1 py-3 rounded-xl font-bold text-[13px] transition-all duration-200 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 active:scale-95 border border-transparent";
+                }
+            });
+
+            // Reconstruct ghost preview mesh
+            if (ghostDiceMesh) {
+                scene.remove(ghostDiceMesh);
+            }
+
+            const { geometry, faceNormals } = createBeveledPolyhedronGeometry(type, DICE_RADIUS);
+
+            const ghostMaterials = faceNormals.map((n, idx) => {
+                const tex = createDiceTexture(idx + 1, faceNormals.length);
+                return new THREE.MeshStandardMaterial({
+                    map: tex,
+                    roughness: 0.15,
+                    metalness: 0.05,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.05,
+                    transparent: true,
+                    opacity: 0.65
+                });
+            });
+
+            ghostDiceMesh = new THREE.Mesh(geometry, ghostMaterials);
+            ghostDiceMesh.position.set(0, SPAWN_HEIGHT - 1.5, 0);
+            scene.add(ghostDiceMesh);
+
+            // Entrance scale morph transition
+            ghostScale = 0.0;
+            ghostDiceMesh.scale.set(0, 0, 0);
+        }
+
+        // --- 7. INPUT & TILT ANGLE MANAGEMENT ---
+        function checkGyroAvailability() {
+            if (window.DeviceOrientationEvent) {
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    gyroPrompt.style.display = 'flex';
+                } else {
+                    gyroPrompt.style.display = 'none';
+                    window.addEventListener('deviceorientation', onDeviceOrientation, true);
+                }
+            } else {
+                gyroPrompt.style.display = 'none';
+            }
+        }
+
+        enableGyroBtn.addEventListener('click', () => {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', onDeviceOrientation, true);
+                            gyroPrompt.style.display = 'none';
+                        } else {
+                            gyroPrompt.style.display = 'none';
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Gyro Permission error: ", err);
+                        gyroPrompt.style.display = 'none';
+                    });
+            }
+        });
+
+        // Track real-time orientation input signals
+        function onDeviceOrientation(event) {
+            if (event.beta === null || event.gamma === null) return;
+
+            gyroActive = true;
+
+            currentRotation.alpha = event.alpha ? event.alpha : 0;
+            currentRotation.beta = event.beta;
+            currentRotation.gamma = event.gamma;
+        }
+
+        function updateGhostRotation() {
+            if (gyroActive) {
+                const betaRad = THREE.MathUtils.degToRad(currentRotation.beta);
+                const gammaRad = THREE.MathUtils.degToRad(currentRotation.gamma);
+                const alphaRad = THREE.MathUtils.degToRad(currentRotation.alpha);
+
+                const euler = new THREE.Euler(betaRad, gammaRad, alphaRad, 'YXZ');
+                ghostDiceMesh.quaternion.setFromEuler(euler);
+            } else {
+                if (!isDragging) {
+                    mouseRotX += 0.005;
+                    mouseRotY += 0.003;
+                }
+                const euler = new THREE.Euler(mouseRotX, mouseRotY, 0, 'YXZ');
+                ghostDiceMesh.quaternion.setFromEuler(euler);
+            }
+        }
+
+        // Mouse orientation control mechanics
+        function setupFallbackControls() {
+            const dom = renderer.domElement;
+
+            const onPointerDown = (e) => {
+                isDragging = true;
+                prevMousePosition = {
+                    x: e.clientX || e.touches?.[0]?.clientX,
+                    y: e.clientY || e.touches?.[0]?.clientY
+                };
+            };
+
+            const onPointerMove = (e) => {
+                if (!isDragging) return;
+                const clientX = e.clientX || e.touches?.[0]?.clientX;
+                const clientY = e.clientY || e.touches?.[0]?.clientY;
+
+                const deltaX = clientX - prevMousePosition.x;
+                const deltaY = clientY - prevMousePosition.y;
+
+                mouseRotY += deltaX * 0.007;
+                mouseRotX += deltaY * 0.007;
+
+                prevMousePosition = { x: clientX, y: clientY };
+            };
+
+            const onPointerUp = () => {
+                isDragging = false;
+            };
+
+            dom.addEventListener('touchstart', onPointerDown, { passive: true });
+            window.addEventListener('touchmove', onPointerMove, { passive: true });
+            window.addEventListener('touchend', onPointerUp, { passive: true });
+
+            dom.addEventListener('mousedown', onPointerDown);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+        }
+
+        // --- 8. SPAWN PHYSICAL DICE WITH PHYSICS ENGINE ---
+        function dropDice() {
+            const startRotation = ghostDiceMesh.quaternion.clone();
+            const diceType = selectedDiceType;
+
+            // Grab beveled geometric structures directly from active cache configurations
+            const { geometry, faceNormals } = createBeveledPolyhedronGeometry(diceType, DICE_RADIUS);
+
+            // Reconstruct highly reflective materials for instances
+            const physicalMaterials = faceNormals.map((n, idx) => {
+                const tex = createDiceTexture(idx + 1, faceNormals.length);
+                return new THREE.MeshStandardMaterial({
+                    map: tex,
+                    roughness: 0.15,
+                    metalness: 0.05,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.05
+                });
+            });
+
+            const physicalMesh = new THREE.Mesh(geometry, physicalMaterials);
+            physicalMesh.castShadow = true;
+            physicalMesh.receiveShadow = true;
+            scene.add(physicalMesh);
+
+            // Generate customized stable physics shape payload
+            const boxShape = getPhysicsShape(diceType);
+
+            const diceBody = new CANNON.Body({
+                mass: 1.2,
+                shape: boxShape,
+                material: diceMaterial
+            });
+
+            const randomOffset = (Math.random() - 0.5) * 0.3;
+            const spawnY = SPAWN_HEIGHT - 1.5;
+            diceBody.position.set(randomOffset, spawnY, randomOffset);
+            
+            // Transfer orientation quaternion directly to Cannon
+            diceBody.quaternion.set(startRotation.x, startRotation.y, startRotation.z, startRotation.w);
+
+            // Clean drop from rest values
+            diceBody.velocity.set(0, 0, 0);
+            diceBody.angularVelocity.set(0, 0, 0);
+
+            world.addBody(diceBody);
+
+            // Shrink ghost, then trigger respawn animation
+            ghostScale = 0.0;
+            ghostDiceMesh.scale.set(0, 0, 0);
+            ghostDiceMesh.material.forEach(m => {
+                m.opacity = 0;
+            });
+
+            physicalDiceList.push({
+                mesh: physicalMesh,
+                body: diceBody,
+                faceNormals: faceNormals, 
+                settledValue: 0,
+                isSettled: false,
+                type: diceType
+            });
+        }
+
+        // --- 9. DETECT SETTLED FACE MATH ---
+        function checkDiceSettlement() {
+            let total = 0;
+
+            physicalDiceList.forEach((dice) => {
+                const body = dice.body;
+                const speed = body.velocity.norm();
+                const rotSpeed = body.angularVelocity.norm();
+
+                if (speed < 0.04 && rotSpeed < 0.04) {
+                    if (!dice.isSettled) {
+                        dice.isSettled = true;
+                        dice.settledValue = getUpwardFace(dice.mesh, dice.faceNormals);
+                    }
+                    total += dice.settledValue;
+                } else {
+                    dice.isSettled = false;
+                }
+            });
+
+            scoreTotalEl.innerText = total;
+        }
+
+        // Uses vector dot product algorithms to safely compute vertical landing orientations
+        function getUpwardFace(mesh, faceNormals) {
+            const worldUp = new THREE.Vector3(0, 1, 0);
+            let maxDot = -Infinity;
+            let detectedValue = 1;
+
+            faceNormals.forEach((faceNormal, idx) => {
+                const currentFaceWorldDirection = faceNormal.clone().applyQuaternion(mesh.quaternion);
+                const dot = currentFaceWorldDirection.dot(worldUp);
+
+                if (dot > maxDot) {
+                    maxDot = dot;
+                    detectedValue = idx + 1; // Face index maps straight to dynamic digit value
+                }
+            });
+
+            return detectedValue;
+        }
+
+        // --- 10. RESET BOARD STATE ---
+        function clearBoard() {
+            physicalDiceList.forEach(dice => {
+                scene.remove(dice.mesh);
+                world.remove(dice.body);
+            });
+            physicalDiceList = [];
+            scoreTotalEl.innerText = '0';
+        }
+
+        // --- 11. SYSTEM LOOPS & RESPONSIVE HANDLERS ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            world.step(1 / 60);
+
+            physicalDiceList.forEach(dice => {
+                dice.mesh.position.copy(dice.body.position);
+                dice.mesh.quaternion.copy(dice.body.quaternion);
+            });
+
+            updateGhostRotation();
+
+            // Fade ghost scaling enter interpolation loop
+            if (ghostScale < 1.0) {
+                ghostScale += 0.04;
+                if (ghostScale > 1.0) ghostScale = 1.0;
+                ghostDiceMesh.scale.set(ghostScale, ghostScale, ghostScale);
+                ghostDiceMesh.material.forEach(m => {
+                    m.opacity = 0.65 * ghostScale;
+                });
+            }
+
+            checkDiceSettlement();
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
+
+        window.onload = function() {
+            initSystems();
+            setupFallbackControls();
+            checkGyroAvailability();
+
+            dropBtn.onclick = dropDice;
+            clearBtn.onclick = clearBoard;
+
+            animate();
+        };
+    </script>
+</body>
+</html>

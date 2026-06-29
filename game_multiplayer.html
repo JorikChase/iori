@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en">
+    <head>
+    <!-- Dynamic SEO & Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      if (window.location.hostname.includes('3die.fr')) {
+          gtag('config', 'G-ERECDMYSNT');
+      } else {
+          gtag('config', 'G-GKKJ5VX340');
+      }
+
+      // Dynamic Canonical
+      (function() {
+        let canon = document.querySelector("link[rel='canonical']") || document.createElement('link');
+        canon.rel = 'canonical';
+        canon.href = window.location.origin + window.location.pathname;
+        if (!document.head.contains(canon)) document.head.appendChild(canon);
+      })();
+    </script>
+
+    <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>game.html</title>
+    <meta name="description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="keywords" content="3DIE, IORI, generative art, three.js, webgl, fractals, code experiments, shader" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="game.html" />
+    <meta property="og:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta property="og:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="game.html" />
+    <meta name="twitter:description" content="Exploring The Age of Data through generative art, fractals, and code experiments." />
+    <meta name="twitter:image" content="https://iori.me/assets/icon.ico" />
+
+    <!-- iOS and Android PWA & New Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icon/ios/32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icon/ios/16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon/ios/180.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+
+    <meta
+            name="viewport"
+            content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+        />
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/main.css"
+        />
+        <link
+            type="text/css"
+            rel="stylesheet"
+            href="/assets/burger.css"
+        />
+        <style>
+            @font-face {
+                font-family: bitBoy;
+                src: url(/assets/dogica.ttf);
+            }
+            body {
+                font-family: bitBoy;
+            }
+        </style>
+        <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+    <body>
+        <div id="container"></div>
+
+        <!-- Import maps polyfill -->
+        <!-- Remove this when import maps will be widely supported -->
+        <script
+            async
+            src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"
+        ></script>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://threejs.org/build/three.module.js",
+                    "three/addons/": "https://threejs.org/examples/jsm/"
+                }
+            }
+        </script>
+
+        <script type="module">
+            import * as THREE from "three";
+
+            import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+            import { Octree } from "three/addons/math/Octree.js";
+            import { OctreeHelper } from "three/addons/helpers/OctreeHelper.js";
+
+            import { Capsule } from "three/addons/math/Capsule.js";
+
+            import { GUI } from "three/addons/libs/lil-gui.module.min.js";
+
+            import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+            import { RenderPixelatedPass } from "three/addons/postprocessing/RenderPixelatedPass.js";
+
+            let composer;
+
+            const clock = new THREE.Clock();
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.Fog(0x000000, 0, 25);
+
+            const camera = new THREE.PerspectiveCamera(
+                70,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000,
+            );
+            camera.rotation.order = "YXZ";
+
+            // Add camera to scene so its children (like the local racket) are rendered
+            scene.add(camera);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 30);
+            directionalLight.position.set(-5, 25, -1);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 0.01;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.right = 30;
+            directionalLight.shadow.camera.left = -30;
+            directionalLight.shadow.camera.top = 30;
+            directionalLight.shadow.camera.bottom = -30;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.radius = 4;
+            directionalLight.shadow.bias = -0.00006;
+            scene.add(directionalLight);
+
+            const container = document.getElementById("container");
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.VSMShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            container.appendChild(renderer.domElement);
+
+            composer = new EffectComposer(renderer);
+            const renderPixelatedPass = new RenderPixelatedPass(
+                8,
+                scene,
+                camera,
+            );
+            composer.addPass(renderPixelatedPass);
+            composer.setSize(window.innerWidth, window.innerHeight);
+
+            const GRAVITY = 30;
+
+            const NUM_SPHERES = 100;
+            const SPHERE_RADIUS = 0.2;
+
+            const STEPS_PER_FRAME = 5;
+
+            const sphereGeometry = new THREE.IcosahedronGeometry(
+                SPHERE_RADIUS,
+                5,
+            );
+            const tennisMaterial = new THREE.TextureLoader().load(
+                "/assets/tennis.jpg",
+            );
+            const sphereMaterial = new THREE.MeshLambertMaterial({
+                map: tennisMaterial,
+                emissiveMap: tennisMaterial,
+                emissive: 0x858585,
+            });
+
+            const spheres = [];
+            let sphereIdx = 0;
+
+            for (let i = 0; i < NUM_SPHERES; i++) {
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                sphere.castShadow = true;
+                sphere.receiveShadow = true;
+
+                scene.add(sphere);
+
+                spheres.push({
+                    mesh: sphere,
+                    collider: new THREE.Sphere(
+                        new THREE.Vector3(0, -100, 0),
+                        SPHERE_RADIUS,
+                    ),
+                    velocity: new THREE.Vector3(),
+                });
+            }
+
+            const worldOctree = new Octree();
+
+            const playerCollider = new Capsule(
+                new THREE.Vector3(0, 0.35, 0),
+                new THREE.Vector3(0, 1, 0),
+                0.35,
+            );
+
+            const playerVelocity = new THREE.Vector3();
+            const playerDirection = new THREE.Vector3();
+
+            let playerOnFloor = false;
+            let mouseTime = 0;
+
+            const keyStates = {};
+
+            const vector1 = new THREE.Vector3();
+            const vector2 = new THREE.Vector3();
+            const vector3 = new THREE.Vector3();
+
+            // --- Racket Creation ---
+            function createRacketMesh(frameColor = 0xff3333) {
+                const group = new THREE.Group();
+
+                // Frame
+                const torusGeom = new THREE.TorusGeometry(0.18, 0.015, 8, 24);
+                const frameMat = new THREE.MeshStandardMaterial({ color: frameColor, metalness: 0.8, roughness: 0.2 });
+                const frame = new THREE.Mesh(torusGeom, frameMat);
+                frame.position.y = 0.25;
+                frame.castShadow = true;
+                frame.receiveShadow = true;
+                group.add(frame);
+
+                // Strings
+                const stringGeom = new THREE.CylinderGeometry(0.002, 0.002, 0.36);
+                const stringMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
+                for (let i = -4; i <= 4; i++) {
+                    if (i === 0) continue;
+                    const s1 = new THREE.Mesh(stringGeom, stringMat);
+                    s1.position.set(i * 0.035, 0.25, 0);
+                    group.add(s1);
+
+                    const s2 = new THREE.Mesh(stringGeom, stringMat);
+                    s2.rotation.z = Math.PI / 2;
+                    s2.position.set(0, 0.25 + i * 0.035, 0);
+                    group.add(s2);
+                }
+
+                // Handle
+                const shaftGeom = new THREE.CylinderGeometry(0.012, 0.015, 0.25);
+                const handleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+                const shaft = new THREE.Mesh(shaftGeom, handleMat);
+                shaft.position.y = 0.05;
+                shaft.castShadow = true;
+                shaft.receiveShadow = true;
+                group.add(shaft);
+
+                return group;
+            }
+
+            // Local Racket Viewmodel
+            const localRacket = createRacketMesh(0xff3333);
+            localRacket.position.set(0.3, -0.25, -0.5);
+            localRacket.rotation.set(0.2, -0.3, 0);
+            camera.add(localRacket);
+
+            let isSwinging = false;
+            let swingStartTime = 0;
+
+            // --- Multiplayer Networking (PeerJS) ---
+            let isHost = false;
+            let peer = null;
+            let conn = null; // Client's connection to Host
+            const clients = new Map(); // Host's map of peerId -> connection & avatar data
+
+            function initNetworking() {
+                // Try to host first
+                peer = new Peer('krutart-tennis-global-host');
+
+                peer.on('open', (id) => {
+                    isHost = true;
+                    console.log('Hosting as', id);
+
+                    peer.on('connection', (c) => {
+                        console.log('Client connected:', c.peer);
+                        setupHostConnection(c);
+                    });
+                });
+
+                peer.on('error', (err) => {
+                    if (err.type === 'unavailable-id') {
+                        console.log('Host already exists, connecting as client...');
+                        peer.destroy();
+                        initAsClient();
+                    } else {
+                        console.error('PeerJS error:', err);
+                    }
+                });
+            }
+
+            function initAsClient() {
+                isHost = false;
+                peer = new Peer();
+
+                peer.on('open', (id) => {
+                    console.log('Client ID registered:', id);
+                    conn = peer.connect('krutart-tennis-global-host', { reliable: false });
+
+                    conn.on('open', () => {
+                        console.log('Connected to host!');
+                    });
+
+                    conn.on('data', (data) => {
+                        handleClientMessage(data);
+                    });
+
+                    conn.on('close', () => {
+                        console.log('Disconnected from host.');
+                    });
+                });
+            }
+
+            // Host receives client updates
+            function setupHostConnection(c) {
+                clients.set(c.peer, {
+                    connection: c,
+                    pos: new THREE.Vector3(0, 0, 0),
+                    rot: new THREE.Vector3(0, 0, 0),
+                    swing: false,
+                    swingTime: 0,
+                    avatar: createPlayerAvatar(0x00aaff)
+                });
+
+                c.on('data', (data) => {
+                    const clientData = clients.get(c.peer);
+                    if (!clientData) return;
+
+                    if (data.type === 'update') {
+                        clientData.pos.copy(data.pos);
+                        clientData.rot.copy(data.rot);
+                    } else if (data.type === 'swing') {
+                        clientData.swing = true;
+                        clientData.swingTime = performance.now();
+                        // Check if client swings and hits any balls
+                        checkClientSwingHit(clientData);
+                        // Broadcast swing event to other clients
+                        broadcast({ type: 'swing', id: c.peer });
+                    } else if (data.type === 'throw') {
+                        throwBallAt(data.pos, data.dir, data.impulse);
+                    }
+                });
+
+                c.on('close', () => {
+                    const clientData = clients.get(c.peer);
+                    if (clientData && clientData.avatar) {
+                        scene.remove(clientData.avatar);
+                    }
+                    clients.delete(c.peer);
+                    broadcast({ type: 'remove_player', id: c.peer });
+                });
+            }
+
+            function handleClientMessage(data) {
+                if (data.type === 'state') {
+                    // Update ball positions/velocities
+                    data.balls.forEach((b) => {
+                        const sphere = spheres[b.i];
+                        if (sphere) {
+                            sphere.collider.center.copy(b.p);
+                            sphere.velocity.copy(b.v);
+                        }
+                    });
+
+                    // Update player positions
+                    data.players.forEach((p) => {
+                        if (p.id === peer.id) return;
+                        let clientData = clients.get(p.id);
+                        if (!clientData) {
+                            clientData = {
+                                avatar: createPlayerAvatar(0x33ff33)
+                            };
+                            clients.set(p.id, clientData);
+                        }
+                        clientData.avatar.position.copy(p.p);
+                        clientData.avatar.rotation.y = p.r.y;
+                        
+                        // Handle racket rotation for external players
+                        const rack = clientData.avatar.userData.racket;
+                        if (rack) {
+                            rack.rotation.x = p.r.x;
+                        }
+                    });
+                } else if (data.type === 'swing') {
+                    const clientData = clients.get(data.id);
+                    if (clientData) {
+                        clientData.swing = true;
+                        clientData.swingTime = performance.now();
+                    }
+                    // Play hit sound
+                    const audio = document.getElementById("backgroundMusic");
+                    if (audio) {
+                        audio.currentTime = 0;
+                        audio.volume = 0.2;
+                        audio.play();
+                    }
+                } else if (data.type === 'remove_player') {
+                    const clientData = clients.get(data.id);
+                    if (clientData && clientData.avatar) {
+                        scene.remove(clientData.avatar);
+                    }
+                    clients.delete(data.id);
+                }
+            }
+
+            function broadcast(msg) {
+                clients.forEach((c) => {
+                    if (c.connection.open) {
+                        c.connection.send(msg);
+                    }
+                });
+            }
+
+            function createPlayerAvatar(colorHex) {
+                const group = new THREE.Group();
+
+                // Body representation
+                const bodyGeom = new THREE.CapsuleGeometry(0.35, 0.65, 4, 8);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.5 });
+                const body = new THREE.Mesh(bodyGeom, bodyMat);
+                body.position.y = 0.325;
+                body.castShadow = true;
+                body.receiveShadow = true;
+                group.add(body);
+
+                // Head representation
+                const headGeom = new THREE.SphereGeometry(0.2, 8, 8);
+                const head = new THREE.Mesh(headGeom, bodyMat);
+                head.position.y = 0.8;
+                head.castShadow = true;
+                group.add(head);
+
+                // Racket held by player
+                const racket = createRacketMesh(colorHex);
+                racket.position.set(0.35, 0.3, 0.2);
+                racket.rotation.set(0, 0, -Math.PI / 6);
+                group.add(racket);
+                group.userData = { racket };
+
+                scene.add(group);
+                return group;
+            }
+
+            initNetworking();
+
+            document.addEventListener("keydown", (event) => {
+                keyStates[event.code] = true;
+            });
+
+            document.addEventListener("keyup", (event) => {
+                keyStates[event.code] = false;
+            });
+
+            container.addEventListener("mousedown", () => {
+                document.body.requestPointerLock();
+                mouseTime = performance.now();
+            });
+
+            document.addEventListener("mouseup", () => {
+                if (document.pointerLockElement !== null) {
+                    triggerSwing();
+                }
+            });
+
+            document.body.addEventListener("mousemove", (event) => {
+                if (document.pointerLockElement === document.body) {
+                    camera.rotation.y -= event.movementX / 500;
+                    camera.rotation.x -= event.movementY / 500;
+                }
+            });
+            document.body.addEventListener("pointermove", (event) => {
+                if (
+                    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+                        navigator.userAgent,
+                    )
+                ) {
+                    camera.rotation.y += event.movementX / 10000;
+                    camera.rotation.x += event.movementY / 10000;
+                }
+            });
+
+            window.addEventListener("resize", onWindowResize);
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            function triggerSwing() {
+                if (isSwinging) return;
+                isSwinging = true;
+                swingStartTime = performance.now();
+
+                // Hitbox check
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                const hitboxCenter = new THREE.Vector3()
+                    .copy(playerCollider.end)
+                    .addScaledVector(dir, 1.4);
+
+                let hitAny = false;
+
+                spheres.forEach((sphere, idx) => {
+                    const dist = sphere.collider.center.distanceTo(hitboxCenter);
+                    if (dist < 1.6) {
+                        hitAny = true;
+                        const hitVelocity = dir.clone().normalize();
+                        hitVelocity.y += 0.28; // Add realistic lift
+                        hitVelocity.normalize().multiplyScalar(25).addScaledVector(playerVelocity, 0.4);
+
+                        if (isHost) {
+                            sphere.velocity.copy(hitVelocity);
+                        } else if (conn && conn.open) {
+                            // Request host to apply hit force
+                            conn.send({
+                                type: 'swing',
+                                hitIndex: idx,
+                                hitVelocity: { x: hitVelocity.x, y: hitVelocity.y, z: hitVelocity.z }
+                            });
+                        }
+
+                        // Play hit audio
+                        const audio = document.getElementById("backgroundMusic");
+                        if (audio) {
+                            audio.currentTime = 0;
+                            audio.volume = 0.2;
+                            audio.play();
+                        }
+                    }
+                });
+
+                if (!hitAny) {
+                    // Throw a new ball if nothing was hit
+                    const impulse = 15 + 30 * (1 - Math.exp((mouseTime - performance.now()) * 0.001));
+                    camera.getWorldDirection(playerDirection);
+
+                    if (isHost) {
+                        throwBallAt(playerCollider.end, playerDirection, impulse);
+                    } else if (conn && conn.open) {
+                        conn.send({
+                            type: 'throw',
+                            pos: { x: playerCollider.end.x, y: playerCollider.end.y, z: playerCollider.end.z },
+                            dir: { x: playerDirection.x, y: playerDirection.y, z: playerDirection.z },
+                            impulse: impulse
+                        });
+                    }
+                } else {
+                    // Send swing event to others
+                    if (isHost) {
+                        broadcast({ type: 'swing', id: 'host' });
+                    } else if (conn && conn.open) {
+                        conn.send({ type: 'swing' });
+                    }
+                }
+            }
+
+            function checkClientSwingHit(client) {
+                const dir = new THREE.Vector3();
+                dir.setFromEuler(new THREE.Euler(client.rot.x, client.rot.y, 0, 'YXZ'));
+                const hitboxCenter = new THREE.Vector3()
+                    .copy(client.pos)
+                    .addScaledVector(dir, 1.4);
+
+                spheres.forEach((sphere) => {
+                    const dist = sphere.collider.center.distanceTo(hitboxCenter);
+                    if (dist < 1.6) {
+                        const hitVelocity = dir.clone().normalize();
+                        hitVelocity.y += 0.28;
+                        hitVelocity.normalize().multiplyScalar(25);
+                        sphere.velocity.copy(hitVelocity);
+                    }
+                });
+            }
+
+            function throwBallAt(startPos, dirVec, impulse) {
+                const sphere = spheres[sphereIdx];
+                const dir = new THREE.Vector3(dirVec.x, dirVec.y, dirVec.z);
+                const pos = new THREE.Vector3(startPos.x, startPos.y, startPos.z);
+
+                sphere.collider.center.copy(pos).addScaledVector(dir, playerCollider.radius * 1.5);
+                sphere.velocity.copy(dir).multiplyScalar(impulse);
+
+                sphereIdx = (sphereIdx + 1) % spheres.length;
+            }
+
+            function throwBall() {
+                // Retained signature just in case, logic migrated to throwBallAt
+            }
+
+            function playerCollisions() {
+                const result = worldOctree.capsuleIntersect(playerCollider);
+
+                playerOnFloor = false;
+
+                if (result) {
+                    playerOnFloor = result.normal.y > 0;
+
+                    if (!playerOnFloor) {
+                        playerVelocity.addScaledVector(
+                            result.normal,
+                            -result.normal.dot(playerVelocity),
+                        );
+                    }
+
+                    playerCollider.translate(
+                        result.normal.multiplyScalar(result.depth),
+                    );
+                }
+            }
+
+            function updatePlayer(deltaTime) {
+                let damping = Math.exp(-4 * deltaTime) - 1;
+
+                if (!playerOnFloor) {
+                    playerVelocity.y -= GRAVITY * deltaTime;
+
+                    // small air resistance
+                    damping *= 0.1;
+                }
+
+                playerVelocity.addScaledVector(playerVelocity, damping);
+
+                const deltaPosition = playerVelocity
+                    .clone()
+                    .multiplyScalar(deltaTime);
+                playerCollider.translate(deltaPosition);
+
+                playerCollisions();
+
+                camera.position.copy(playerCollider.end);
+            }
+
+            function playerSphereCollision(sphere) {
+                const center = vector1
+                    .addVectors(playerCollider.start, playerCollider.end)
+                    .multiplyScalar(0.5);
+
+                const sphere_center = sphere.collider.center;
+
+                const r = playerCollider.radius + sphere.collider.radius;
+                const r2 = r * r;
+
+                for (const point of [
+                    playerCollider.start,
+                    playerCollider.end,
+                    center,
+                ]) {
+                    const d2 = point.distanceToSquared(sphere_center);
+
+                    if (d2 < r2) {
+                        const normal = vector1
+                            .subVectors(point, sphere_center)
+                            .normalize();
+                        const v1 = vector2
+                            .copy(normal)
+                            .multiplyScalar(normal.dot(playerVelocity));
+                        const v2 = vector3
+                            .copy(normal)
+                            .multiplyScalar(normal.dot(sphere.velocity));
+
+                        playerVelocity.add(v2).sub(v1);
+                        sphere.velocity.add(v1).sub(v2);
+
+                        const d = (r - Math.sqrt(d2)) / 2;
+                        sphere_center.addScaledVector(normal, -d);
+                    }
+                }
+            }
+
+            function spheresCollisions() {
+                for (let i = 0, length = spheres.length; i < length; i++) {
+                    const s1 = spheres[i];
+
+                    for (let j = i + 1; j < length; j++) {
+                        const s2 = spheres[j];
+
+                        const d2 = s1.collider.center.distanceToSquared(
+                            s2.collider.center,
+                        );
+                        const r = s1.collider.radius + s2.collider.radius;
+                        const r2 = r * r;
+
+                        if (d2 < r2) {
+                            const normal = vector1
+                                .subVectors(
+                                    s1.collider.center,
+                                    s2.collider.center,
+                                )
+                                .normalize();
+                            const v1 = vector2
+                                .copy(normal)
+                                .multiplyScalar(normal.dot(s1.velocity));
+                            const v2 = vector3
+                                .copy(normal)
+                                .multiplyScalar(normal.dot(s2.velocity));
+
+                            s1.velocity.add(v2).sub(v1);
+                            s2.velocity.add(v1).sub(v2);
+
+                            const d = (r - Math.sqrt(d2)) / 2;
+
+                            s1.collider.center.addScaledVector(normal, d);
+                            s2.collider.center.addScaledVector(normal, -d);
+                        }
+                    }
+                }
+            }
+
+            function updateSpheres(deltaTime) {
+                spheres.forEach((sphere) => {
+                    // Physics only simulated by host to prevent desync
+                    if (isHost) {
+                        sphere.collider.center.addScaledVector(
+                            sphere.velocity,
+                            deltaTime,
+                        );
+
+                        const result = worldOctree.sphereIntersect(sphere.collider);
+
+                        if (result) {
+                            sphere.velocity.addScaledVector(
+                                result.normal,
+                                -result.normal.dot(sphere.velocity) * 1.5,
+                            );
+                            sphere.collider.center.add(
+                                result.normal.multiplyScalar(result.depth),
+                            );
+                        } else {
+                            sphere.velocity.y -= GRAVITY * deltaTime;
+                        }
+
+                        const damping = Math.exp(-1.5 * deltaTime) - 1;
+                        sphere.velocity.addScaledVector(sphere.velocity, damping);
+
+                        playerSphereCollision(sphere);
+                    }
+                });
+
+                if (isHost) {
+                    spheresCollisions();
+                }
+
+                for (const sphere of spheres) {
+                    sphere.mesh.position.copy(sphere.collider.center);
+                }
+            }
+
+            function getForwardVector() {
+                camera.getWorldDirection(playerDirection);
+                playerDirection.y = 0;
+                playerDirection.normalize();
+
+                return playerDirection;
+            }
+
+            function getSideVector() {
+                camera.getWorldDirection(playerDirection);
+                playerDirection.y = 0;
+                playerDirection.normalize();
+                playerDirection.cross(camera.up);
+
+                return playerDirection;
+            }
+
+            function controls(deltaTime) {
+                const speedDelta = deltaTime * (playerOnFloor ? 25 : 8);
+
+                if (keyStates["KeyW"]) {
+                    playerVelocity.add(
+                        getForwardVector().multiplyScalar(speedDelta),
+                    );
+                }
+
+                if (keyStates["KeyS"]) {
+                    playerVelocity.add(
+                        getForwardVector().multiplyScalar(-speedDelta),
+                    );
+                }
+
+                if (keyStates["KeyA"]) {
+                    playerVelocity.add(
+                        getSideVector().multiplyScalar(-speedDelta),
+                    );
+                }
+
+                if (keyStates["KeyD"]) {
+                    playerVelocity.add(
+                        getSideVector().multiplyScalar(speedDelta),
+                    );
+                }
+
+                if (playerOnFloor) {
+                    if (keyStates["Space"]) {
+                        playerVelocity.y = 15;
+                    }
+                }
+            }
+
+            const loader = new GLTFLoader().setPath(
+                "/assets/obj/",
+            );
+
+            loader.load("col-wld.glb", (gltf) => {
+                scene.add(gltf.scene);
+
+                worldOctree.fromGraphNode(gltf.scene);
+
+                gltf.scene.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+
+                        if (child.material.map) {
+                            child.material.map.anisotropy = 4;
+                        }
+                    }
+                });
+
+                const helper = new OctreeHelper(worldOctree);
+                helper.visible = false;
+                scene.add(helper);
+
+                animate();
+            });
+
+            function teleportPlayerIfOob() {
+                if (camera.position.y <= -25) {
+                    playerCollider.start.set(0, 0.35, 0);
+                    playerCollider.end.set(0, 1, 0);
+                    playerCollider.radius = 0.35;
+                    camera.position.copy(playerCollider.end);
+                    camera.rotation.set(0, 0, 0);
+                }
+            }
+
+            function animate() {
+                const deltaTime =
+                    Math.min(0.05, clock.getDelta()) / STEPS_PER_FRAME;
+
+                for (let i = 0; i < STEPS_PER_FRAME; i++) {
+                    controls(deltaTime);
+
+                    updatePlayer(deltaTime);
+
+                    updateSpheres(deltaTime);
+
+                    teleportPlayerIfOob();
+                }
+
+                // Local viewmodel racket swing animation
+                if (isSwinging) {
+                    const elapsed = performance.now() - swingStartTime;
+                    if (elapsed > 180) {
+                        isSwinging = false;
+                        localRacket.position.set(0.3, -0.25, -0.5);
+                        localRacket.rotation.set(0.2, -0.3, 0);
+                    } else {
+                        const progress = elapsed / 180;
+                        localRacket.position.x = 0.3 - 0.6 * Math.sin(progress * Math.PI);
+                        localRacket.position.y = -0.25 + 0.3 * Math.sin(progress * Math.PI);
+                        localRacket.position.z = -0.5 + 0.1 * Math.cos(progress * Math.PI);
+                        localRacket.rotation.x = 0.2 + 1.8 * Math.sin(progress * Math.PI);
+                        localRacket.rotation.y = -0.3 - 1.2 * Math.sin(progress * Math.PI);
+                    }
+                }
+
+                // Send position updates / Broadcast scene state
+                if (isHost) {
+                    // Update client avatars in Host scene
+                    clients.forEach((client, peerId) => {
+                        if (client.avatar) {
+                            client.avatar.position.copy(client.pos);
+                            // Adjust head & body
+                            client.avatar.rotation.y = client.rot.y;
+                            
+                            // Animate other clients' rackets when swinging
+                            const rack = client.avatar.userData.racket;
+                            if (rack) {
+                                if (client.swing) {
+                                    const elapsed = performance.now() - client.swingTime;
+                                    if (elapsed > 180) {
+                                        client.swing = false;
+                                        rack.position.set(0.35, 0.3, 0.2);
+                                        rack.rotation.set(0, 0, -Math.PI / 6);
+                                    } else {
+                                        const progress = elapsed / 180;
+                                        rack.rotation.x = -Math.PI / 6 + 2.0 * Math.sin(progress * Math.PI);
+                                        rack.rotation.y = -Math.PI / 6 - 1.5 * Math.sin(progress * Math.PI);
+                                    }
+                                } else {
+                                    rack.rotation.x = client.rot.x;
+                                }
+                            }
+                        }
+                    });
+
+                    // Prepare sync message
+                    const stateMsg = {
+                        type: 'state',
+                        balls: spheres.map((s, idx) => ({
+                            i: idx,
+                            p: { x: s.collider.center.x, y: s.collider.center.y, z: s.collider.center.z },
+                            v: { x: s.velocity.x, y: s.velocity.y, z: s.velocity.z }
+                        })),
+                        players: Array.from(clients.entries()).map(([id, client]) => ({
+                            id: id,
+                            p: { x: client.pos.x, y: client.pos.y, z: client.pos.z },
+                            r: { x: client.rot.x, y: client.rot.y, z: client.rot.z }
+                        })).concat([{
+                            id: 'host',
+                            p: { x: playerCollider.end.x, y: playerCollider.end.y, z: playerCollider.end.z },
+                            r: { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z }
+                        }])
+                    };
+                    broadcast(stateMsg);
+                } else {
+                    // Client sends update to Host
+                    if (conn && conn.open) {
+                        conn.send({
+                            type: 'update',
+                            pos: { x: playerCollider.end.x, y: playerCollider.end.y, z: playerCollider.end.z },
+                            rot: { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z }
+                        });
+                    }
+                    // Interpolate client updates for host/other players
+                    clients.forEach((client, peerId) => {
+                        if (client.avatar) {
+                            const rack = client.avatar.userData.racket;
+                            if (client.swing && rack) {
+                                const elapsed = performance.now() - client.swingTime;
+                                if (elapsed > 180) {
+                                    client.swing = false;
+                                    rack.position.set(0.35, 0.3, 0.2);
+                                    rack.rotation.set(0, 0, -Math.PI / 6);
+                                } else {
+                                    const progress = elapsed / 180;
+                                    rack.rotation.x = -Math.PI / 6 + 2.0 * Math.sin(progress * Math.PI);
+                                    rack.rotation.y = -Math.PI / 6 - 1.5 * Math.sin(progress * Math.PI);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                renderer.render(scene, camera);
+
+                requestAnimationFrame(animate);
+
+                composer.render();
+            }
+        </script>
+        <audio autoplay id="backgroundMusic">
+            <source src="/assets/tennis_sound.mp3" />
+        </audio>
+
+        <script>
+            var audio = document.getElementById("backgroundMusic");
+            audio.volume = 0.2;
+        </script>
+        <nav class="menu--bottom--right" role="navigation">
+            <div class="menuToggle">
+                <input type="checkbox" />
+                <span></span>
+                <span></span>
+                <span></span>
+                <ul class="menuItem">
+                    <li><a href="/">home</a></li>
+                    <li><a href="./portfolio.html">portfolio</a></li>
+                    <li><a href="./shop.html">shop</a></li>
+                    <li><a href="./info.html">info</a></li>
+                </ul>
+            </div>
+        </nav>
+        <!-- <p style="position: absolute; bottom: 2em; left: 2em">
+      3 other player/s online
+    </p>-->
+    </body>
+</html>

@@ -147,6 +147,10 @@ iori.me {
     # Set the web root
     root * $WEB_ROOT
 
+    # Route specific sitemap and robots
+    rewrite /sitemap.xml /sitemap-iori.xml
+    rewrite /robots.txt /robots-iori.txt
+
     # --- ZAUSI APP CONFIGURATION ---
     
     # 1. Force trailing slash for the main app entry.
@@ -185,6 +189,10 @@ iori.me {
 3die.fr {
     # Set the web root
     root * $WEB_ROOT
+
+    # Route specific sitemap and robots
+    rewrite /sitemap.xml /sitemap-3die.xml
+    rewrite /robots.txt /robots-3die.txt
 
     # Enable the static file server
     # This will use Caddy's default (index.html)

@@ -866,6 +866,13 @@
                 return playerDirection;
             }
 
+            let mobileMoveX = 0;
+            let mobileMoveY = 0;
+            window.addEventListener('mobilemove', (e) => {
+                mobileMoveX = e.detail.x;
+                mobileMoveY = e.detail.y;
+            });
+
             function controls(deltaTime) {
                 const speedDelta = deltaTime * (playerOnFloor ? 25 : 8);
 
@@ -890,6 +897,18 @@
                 if (keyStates["KeyD"]) {
                     playerVelocity.add(
                         getSideVector().multiplyScalar(speedDelta),
+                    );
+                }
+
+                // Mobile Joystick Movement
+                if (mobileMoveY !== 0) {
+                    playerVelocity.add(
+                        getForwardVector().multiplyScalar(speedDelta * mobileMoveY),
+                    );
+                }
+                if (mobileMoveX !== 0) {
+                    playerVelocity.add(
+                        getSideVector().multiplyScalar(speedDelta * mobileMoveX),
                     );
                 }
 
@@ -1061,11 +1080,15 @@
             <source src="/assets/tennis_sound.mp3" />
         </audio>
 
+        <div id="joystickContainer" style="position: absolute; bottom: 2em; left: 2em; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.25); border-radius: 50%; display: none; justify-content: center; align-items: center; z-index: 10000; touch-action: none; user-select: none; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);">
+            <div id="joystickKnob" style="width: 44px; height: 44px; background: rgba(255,255,255,0.45); border-radius: 50%; pointer-events: none; transition: transform 0.05s ease;"></div>
+        </div>
+
         <script>
             var audio = document.getElementById("backgroundMusic");
             audio.volume = 0.2;
 
-            // Show mobile shoot button if touch device is detected
+            // Show mobile controls if touch device is detected
             if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
                 var btn = document.getElementById('mobileShootBtn');
                 if (btn) {
@@ -1075,6 +1098,63 @@
                         e.stopPropagation();
                         window.dispatchEvent(new CustomEvent('mobileshoot'));
                     }, { passive: false });
+                }
+
+                // Joystick Implementation
+                var joyContainer = document.getElementById('joystickContainer');
+                var joyKnob = document.getElementById('joystickKnob');
+                if (joyContainer && joyKnob) {
+                    joyContainer.style.display = 'flex';
+
+                    var joyActive = false;
+                    var joyCenterX = 0;
+                    var joyCenterY = 0;
+
+                    joyContainer.addEventListener('touchstart', function(e) {
+                        e.preventDefault();
+                        joyActive = true;
+                        var rect = joyContainer.getBoundingClientRect();
+                        joyCenterX = rect.left + rect.width / 2;
+                        joyCenterY = rect.top + rect.height / 2;
+                        updateJoystick(e.targetTouches[0]);
+                    }, { passive: false });
+
+                    window.addEventListener('touchmove', function(e) {
+                        if (!joyActive) return;
+                        // Match corresponding touch on joystick
+                        for (var i = 0; i < e.touches.length; i++) {
+                            var touch = e.touches[i];
+                            var rect = joyContainer.getBoundingClientRect();
+                            if (touch.clientX >= rect.left - 50 && touch.clientX <= rect.right + 50 &&
+                                touch.clientY >= rect.top - 50 && touch.clientY <= rect.bottom + 50) {
+                                updateJoystick(touch);
+                                break;
+                            }
+                        }
+                    }, { passive: true });
+
+                    window.addEventListener('touchend', function(e) {
+                        if (joyActive && e.touches.length === 0) {
+                            joyActive = false;
+                            joyKnob.style.transform = 'translate(0px, 0px)';
+                            window.dispatchEvent(new CustomEvent('mobilemove', { detail: { x: 0, y: 0 } }));
+                        }
+                    }, { passive: true });
+
+                    function updateJoystick(touch) {
+                        var dx = touch.clientX - joyCenterX;
+                        var dy = touch.clientY - joyCenterY;
+                        var dist = Math.sqrt(dx * dx + dy * dy);
+                        var maxDist = 40;
+
+                        if (dist > maxDist) {
+                            dx = (dx / dist) * maxDist;
+                            dy = (dy / dist) * maxDist;
+                        }
+
+                        joyKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+                        window.dispatchEvent(new CustomEvent('mobilemove', { detail: { x: dx / maxDist, y: -dy / maxDist } }));
+                    }
                 }
             }
         </script>

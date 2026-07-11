@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interactive Reaction-Diffusion</title>
+    <style>
+        /* Minimalist and Brutalist Styling */
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            background-color: #000; /* Pure black background for high contrast */
+            cursor: none; /* Hide cursor for an immersive experience */
+            /* Prevent pull-to-refresh and other touch-based browser actions */
+            touch-action: none;
+        }
+        canvas {
+            display: block; /* Remove any default spacing */
+        }
+    </style>
+</head>
+<body>
+    <!-- Three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Vertex Shader: A simple pass-through for a full-screen quad. No changes needed. -->
+    <script id="vertexShader" type="x-shader/x-vertex">
+        void main() {
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    </script>
+
+    <!-- Simulation Fragment Shader: The core Reaction-Diffusion simulation logic. -->
+    <script id="simulationFragmentShader" type="x-shader/x-fragment">
+        uniform sampler2D tOld;
+        uniform vec2 resolution;
+        uniform vec2 mousePos;
+        uniform float mouseActive; 
+        uniform float mouseErasing; // Flag for erasing
+        uniform float brushSize;
+        uniform float feed;
+        uniform float kill;
+        uniform float dt;
+        uniform float time;
+
+        // Standard 3x3 Laplacian kernel for calculating diffusion
+        vec2 laplace(vec2 uv) {
+            vec2 texel = 1.0 / resolution;
+            vec2 sum = vec2(0.0);
+            sum += texture2D(tOld, uv + vec2(-1.0, -1.0) * texel).rg * 0.05;
+            sum += texture2D(tOld, uv + vec2( 0.0, -1.0) * texel).rg * 0.2;
+            sum += texture2D(tOld, uv + vec2( 1.0, -1.0) * texel).rg * 0.05;
+            sum += texture2D(tOld, uv + vec2(-1.0,  0.0) * texel).rg * 0.2;
+            sum += texture2D(tOld, uv + vec2( 0.0,  0.0) * texel).rg * -1.0;
+            sum += texture2D(tOld, uv + vec2( 1.0,  0.0) * texel).rg * 0.2;
+            sum += texture2D(tOld, uv + vec2(-1.0,  1.0) * texel).rg * 0.05;
+            sum += texture2D(tOld, uv + vec2( 0.0,  1.0) * texel).rg * 0.2;
+            sum += texture2D(tOld, uv + vec2( 1.0,  1.0) * texel).rg * 0.05;
+            return sum;
+        }
+
+        // Simple pseudo-random function for generative seeding
+        float rand(vec2 co){
+            return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+        }
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution.xy;
+            vec4 oldState = texture2D(tOld, uv);
+            float u = oldState.r; // Chemical A
+            float v = oldState.g; // Chemical B
+
+            vec2 lap = laplace(uv);
+            
+            // Gray-Scott model reaction equations
+            float uvv = u * v * v;
+            float du = 1.0 * lap.r - uvv + feed * (1.0 - u);
+            float dv = 0.5 * lap.g + uvv - (kill + feed) * v;
+
+            float newU = u + du * dt;
+            float newV = v + dv * dt;
+
+            // Automatic Generative Seeding: Periodically adds new life to the simulation.
+            float timePeriod = 5.0; // Add a seed every 5 seconds
+            float timePhase = mod(time, timePeriod);
+
+            if (timePhase < 0.05) {
+                vec2 randomSeedPos = vec2(rand(vec2(floor(time / timePeriod), 0.1)), rand(vec2(floor(time / timePeriod), 0.9)));
+                randomSeedPos *= resolution.xy;
+                if (distance(gl_FragCoord.xy, randomSeedPos) < 25.0) {
+                    newV = 1.0;
+                }
+            }
+
+            // Pointer Interaction: "Paints" chemical B onto the canvas on drag.
+            if (mouseActive > 0.5) {
+                if (distance(gl_FragCoord.xy, mousePos) < brushSize) {
+                    newV = 1.0;
+                }
+            }
+            
+            // Pointer Eraser. Resets the chemicals to their initial state on right-click drag or two-finger drag.
+            if (mouseErasing > 0.5) {
+                if (distance(gl_FragCoord.xy, mousePos) < brushSize) {
+                    newU = 1.0;
+                    newV = 0.0;
+                }
+            }
+
+            // Clamp values to maintain stability
+            gl_FragColor = vec4(clamp(newU, 0.0, 1.0), clamp(newV, 0.0, 1.0), 0.0, 1.0);
+        }
+    </script>
+    
+    <!-- Trace Simulation Fragment Shader: Simulates the reaction-diffusion of the traces themselves. -->
+    <script id="traceSimulationFragmentShader" type="x-shader/x-fragment">
+        uniform sampler2D tDiffuse;    // The live simulation data (U, V chemicals), used to generate "food"
+        uniform sampler2D tPersistent; // The previously accumulated trace state
+        uniform vec2 resolution;
+        uniform float time;
+        uniform float traceDt;
+        uniform float traceFeed;
+        uniform float traceKill;
+        // Uniforms for erasing
+        uniform vec2 mousePos;
+        uniform float mouseErasing;
+        uniform float brushSize;
+
+
+        // Function to convert HSV (Hue, Saturation, Value) to RGB color space.
+        vec3 hsv2rgb(vec3 c) {
+            vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        }
+
+        // A laplacian function for vec3 (color)
+        vec3 laplace(sampler2D tex, vec2 uv, vec2 texel) {
+            vec3 sum = vec3(0.0);
+            sum += texture2D(tex, uv + vec2(-1.0, -1.0) * texel).rgb * 0.05;
+            sum += texture2D(tex, uv + vec2( 0.0, -1.0) * texel).rgb * 0.2;
+            sum += texture2D(tex, uv + vec2( 1.0, -1.0) * texel).rgb * 0.05;
+            sum += texture2D(tex, uv + vec2(-1.0,  0.0) * texel).rgb * 0.2;
+            sum += texture2D(tex, uv + vec2( 0.0,  0.0) * texel).rgb * -1.0;
+            sum += texture2D(tex, uv + vec2( 1.0,  0.0) * texel).rgb * 0.2;
+            sum += texture2D(tex, uv + vec2(-1.0,  1.0) * texel).rgb * 0.05;
+            sum += texture2D(tex, uv + vec2( 0.0,  1.0) * texel).rgb * 0.2;
+            sum += texture2D(tex, uv + vec2( 1.0,  1.0) * texel).rgb * 0.05;
+            return sum;
+        }
+
+        // Helper function to generate the visual pattern from the live simulation data.
+        vec3 getLiveColor(sampler2D tex, vec2 uv, float t) {
+            vec4 data = texture2D(tex, uv);
+            float u = data.r;
+            float v = data.g;
+
+            float wrinklePattern = sin(v * 50.0);
+            wrinklePattern = smoothstep(-0.2, 0.2, wrinklePattern);
+            float organismMask = smoothstep(0.0, 0.05, v - u);
+            vec3 liveColor = vec3(wrinklePattern) * 0.7 * organismMask + organismMask * vec3(0.1);
+            float contour = v - u;
+            float rainbowBand = smoothstep(0.05, 0.1, contour) * (1.0 - smoothstep(0.1, 0.15, contour));
+            if (rainbowBand > 0.0) {
+                float hue = contour * 8.0 + t * 0.1;
+                vec3 rainbowColor = hsv2rgb(vec3(hue, 0.8, 1.0));
+                liveColor = mix(liveColor, rainbowColor, rainbowBand * 0.9);
+            }
+            return liveColor;
+        }
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution.xy;
+            vec2 texel = 1.0 / resolution;
+
+            vec3 oldTrace = texture2D(tPersistent, uv).rgb;
+            vec3 diffusion = laplace(tPersistent, uv, texel);
+            vec3 food = getLiveColor(tDiffuse, uv, time);
+            vec3 reaction = oldTrace * traceKill;
+            vec3 newTrace = oldTrace + (diffusion - reaction + food * traceFeed) * traceDt;
+
+            // Pointer Eraser. Resets the trace color to black.
+            if (mouseErasing > 0.5) {
+                if (distance(gl_FragCoord.xy, mousePos) < brushSize) {
+                    newTrace = vec3(0.0);
+                }
+            }
+
+            gl_FragColor = vec4(clamp(newTrace, 0.0, 1.0), 1.0);
+        }
+    </script>
+
+    <!-- Displays the final composite image to the screen. Unchanged. -->
+    <script id="displayFragmentShader" type="x-shader/x-fragment">
+        uniform sampler2D tTrace;
+        uniform sampler2D tLivePattern;
+        uniform vec2 resolution;
+        uniform float time;
+
+        vec3 hsv2rgb(vec3 c) {
+            vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        }
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution.xy;
+            vec3 traceColor = texture2D(tTrace, uv).rgb;
+            vec4 data = texture2D(tLivePattern, uv);
+            float u = data.r;
+            float v = data.g;
+            float organismMask = smoothstep(0.0, 0.05, v - u);
+            vec3 liveColor = vec3(0.0);
+            float contour = v - u;
+            float rainbowBand = smoothstep(0.05, 0.1, contour) * (1.0 - smoothstep(0.1, 0.15, contour));
+            if (rainbowBand > 0.0) {
+                float hue = contour * 8.0 + time * 0.1;
+                liveColor = hsv2rgb(vec3(hue, 0.8, 1.0));
+            }
+            vec3 finalColor = traceColor + liveColor * organismMask * 0.8;
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+
+
+    <script>
+        // --- Three.js Setup ---
+        let scene, camera, renderer;
+        let plane, simulationMaterial, traceSimMaterial, displayMaterial;
+        let readBuffer, writeBuffer;
+        let traceReadBuffer, traceWriteBuffer;
+
+        // --- Interaction State ---
+        // For desktop hover effect
+        const mouse = { x: 0, y: 0, isMoving: false };
+        let mouseStopTimeout;
+        
+        // For unified click/touch interactions and position reporting
+        const pointer = { x: 0, y: 0 };
+        const previousPointer = { x: 0, y: 0 };
+        
+        // State flags for different interaction modes
+        let isErasing = false; // For mouse click and two-finger touch
+        let isTouchPainting = false; // For single-finger touch drag
+
+        // --- Simulation Parameters ---
+        const simParams = {
+            feed: 0.055,
+            kill: 0.056,
+            brushSize: 1.0, 
+            dt: 1.0,
+            traceDt: 1.3,
+            traceFeed: 0.55,
+            traceKill: 0.90
+        };
+
+        function init() {
+            // Renderer, Scene, Camera
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            scene = new THREE.Scene();
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            // Render Targets
+            const rtOptions = {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                // MODIFIED: Use HalfFloatType for better mobile compatibility
+                type: THREE.HalfFloatType, 
+                stencilBuffer: false
+            };
+            readBuffer = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, rtOptions);
+            writeBuffer = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, rtOptions);
+            traceReadBuffer = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, rtOptions);
+            traceWriteBuffer = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, rtOptions);
+
+            // --- Materials ---
+
+            // 1. Simulation Material
+            simulationMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tOld: { value: readBuffer.texture },
+                    resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                    mousePos: { value: new THREE.Vector2(0, 0) },
+                    mouseActive: { value: 0.0 },
+                    mouseErasing: { value: 0.0 }, 
+                    brushSize: { value: simParams.brushSize },
+                    feed: { value: simParams.feed },
+                    kill: { value: simParams.kill },
+                    dt: { value: simParams.dt },
+                    time: { value: 0.0 }
+                },
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('simulationFragmentShader').textContent
+            });
+
+            // 2. Trace Simulation Material
+            traceSimMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tDiffuse: { value: null },
+                    tPersistent: { value: traceReadBuffer.texture },
+                    resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                    time: { value: 0.0 },
+                    traceDt: { value: simParams.traceDt },
+                    traceFeed: { value: simParams.traceFeed },
+                    traceKill: { value: simParams.traceKill },
+                    mousePos: { value: new THREE.Vector2(0, 0) },
+                    mouseErasing: { value: 0.0 },
+                    brushSize: { value: simParams.brushSize }
+                },
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('traceSimulationFragmentShader').textContent
+            });
+
+            // 3. Display Material
+            displayMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tTrace: { value: traceWriteBuffer.texture },
+                    tLivePattern: { value: null },
+                    resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                    time: { value: 0.0 }
+                },
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('displayFragmentShader').textContent
+            });
+
+            // Screen-filling plane
+            const geometry = new THREE.PlaneGeometry(2, 2); // Corrected from PlaneBufferGeometry
+            plane = new THREE.Mesh(geometry, simulationMaterial);
+            scene.add(plane);
+
+            // Initialize simulation buffers
+            const initialData = new Float32Array(window.innerWidth * window.innerHeight * 4);
+            for (let i = 0; i < initialData.length; i += 4) {
+                initialData[i] = 1.0; // U
+            }
+            // Use HalfFloatType for the initial texture as well
+            const initialTexture = new THREE.DataTexture(initialData, window.innerWidth, window.innerHeight, THREE.RGBAFormat, THREE.FloatType);
+            initialTexture.needsUpdate = true;
+            const initialMaterial = new THREE.MeshBasicMaterial({ map: initialTexture });
+            plane.material = initialMaterial;
+            renderer.setRenderTarget(readBuffer);
+            renderer.render(scene, camera);
+            renderer.setRenderTarget(null);
+            plane.material = simulationMaterial;
+            initialMaterial.dispose();
+            initialTexture.dispose();
+
+            // --- MODIFIED Event Listeners for Hybrid Interaction ---
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('pointerdown', onPointerDown, false);
+            document.addEventListener('pointerup', onPointerUp, false);
+            document.addEventListener('pointermove', onPointerMove, false);
+            // Add specific touch listeners for multi-touch gestures
+            document.addEventListener('touchstart', onTouchStart, false);
+            document.addEventListener('touchmove', onTouchMove, { passive: false });
+            document.addEventListener('touchend', onTouchEnd, false);
+            document.addEventListener('contextmenu', (event) => event.preventDefault());
+        }
+
+        function onWindowResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            renderer.setSize(width, height);
+            readBuffer.setSize(width, height);
+            writeBuffer.setSize(width, height);
+            traceReadBuffer.setSize(width, height);
+            traceWriteBuffer.setSize(width, height);
+            simulationMaterial.uniforms.resolution.value.set(width, height);
+            traceSimMaterial.uniforms.resolution.value.set(width, height);
+            displayMaterial.uniforms.resolution.value.set(width, height);
+        }
+
+        // --- Interaction Handlers ---
+
+        function onPointerMove(event) {
+            // This event handles single-touch drag and mouse movement.
+            // For two-finger drag, the position is updated in onTouchMove.
+            if (event.isPrimary) {
+                pointer.x = event.clientX;
+                pointer.y = window.innerHeight - event.clientY;
+            }
+
+            // Handle desktop hover-to-paint logic
+            if (event.pointerType === 'mouse') {
+                mouse.isMoving = true;
+                clearTimeout(mouseStopTimeout);
+                mouseStopTimeout = setTimeout(() => {
+                    mouse.isMoving = false;
+                }, 100);
+            }
+        }
+        
+        function onPointerDown(event) {
+            // Update position immediately on down event
+            if (event.isPrimary) {
+                pointer.x = event.clientX;
+                pointer.y = window.innerHeight - event.clientY;
+            }
+            
+            if (event.pointerType === 'mouse') {
+                // On desktop, any click is for erasing
+                isErasing = true;
+            } else if (event.pointerType === 'touch') {
+                // On touch, a single pointer down begins a paint stroke.
+                // This might be overridden by onTouchStart if a second finger is added.
+                isTouchPainting = true;
+            }
+        }
+
+        function onPointerUp(event) {
+            // Reset all interaction states on pointer up
+            isErasing = false;
+            isTouchPainting = false;
+        }
+
+        // Specifically for detecting multi-touch gestures
+        function onTouchStart(event) {
+            if (event.touches.length >= 2) {
+                // Enter erase mode with two or more fingers
+                isErasing = true;
+                isTouchPainting = false; // Prioritize erasing over painting
+
+                // Use average position of two touches for the eraser center
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                pointer.x = (touch1.clientX + touch2.clientX) / 2;
+                pointer.y = window.innerHeight - (touch1.clientY + touch2.clientY) / 2;
+            }
+        }
+        
+        // NEW: Handle two-finger drag for erasing
+        function onTouchMove(event) {
+            event.preventDefault(); // Prevent page scrolling
+            // If we are in two-finger erase mode, update the pointer to the centroid
+            if (event.touches.length >= 2 && isErasing) {
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                pointer.x = (touch1.clientX + touch2.clientX) / 2;
+                pointer.y = window.innerHeight - (touch1.clientY + touch2.clientY) / 2;
+            }
+        }
+
+        // NEW: Handle end of a touch to exit erase mode cleanly
+        function onTouchEnd(event) {
+            // If the number of touches drops below 2, stop the erase mode.
+            if (event.touches.length < 2) {
+                isErasing = false;
+            }
+        }
+
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now() / 1000.0;
+
+            // Calculate pointer velocity for dynamic brush size
+            const dx = pointer.x - previousPointer.x;
+            const dy = pointer.y - previousPointer.y;
+            const pointerVelocity = Math.sqrt(dx * dx + dy * dy);
+            previousPointer.x = pointer.x;
+            previousPointer.y = pointer.y;
+            const dynamicBrushSize = Math.max(5.0, Math.min(150.0, pointerVelocity * 1.5 + simParams.brushSize));
+
+            // Determine active state for painting:
+            // Paint if (mouse is hovering AND we are not erasing with a click) OR (a touch paint stroke is active)
+            const shouldPaint = (mouse.isMoving && !isErasing) || isTouchPainting;
+
+            // --- Pass 1: Main Simulation Step ---
+            plane.material = simulationMaterial;
+            simulationMaterial.uniforms.tOld.value = readBuffer.texture;
+            simulationMaterial.uniforms.mousePos.value.set(pointer.x, pointer.y);
+            simulationMaterial.uniforms.mouseActive.value = shouldPaint ? 1.0 : 0.0;
+            simulationMaterial.uniforms.mouseErasing.value = isErasing ? 1.0 : 0.0; 
+            simulationMaterial.uniforms.brushSize.value = dynamicBrushSize;
+            simulationMaterial.uniforms.time.value = time;
+            renderer.setRenderTarget(writeBuffer);
+            renderer.render(scene, camera);
+            
+            // --- Pass 2: Trace Simulation Step ---
+            plane.material = traceSimMaterial;
+            traceSimMaterial.uniforms.tDiffuse.value = writeBuffer.texture;
+            traceSimMaterial.uniforms.tPersistent.value = traceReadBuffer.texture;
+            traceSimMaterial.uniforms.time.value = time;
+            traceSimMaterial.uniforms.mousePos.value.set(pointer.x, pointer.y);
+            traceSimMaterial.uniforms.mouseErasing.value = isErasing ? 1.0 : 0.0;
+            traceSimMaterial.uniforms.brushSize.value = dynamicBrushSize;
+            renderer.setRenderTarget(traceWriteBuffer);
+            renderer.render(scene, camera);
+
+            // --- Pass 3: Display Step ---
+            plane.material = displayMaterial;
+            displayMaterial.uniforms.tTrace.value = traceWriteBuffer.texture;
+            displayMaterial.uniforms.tLivePattern.value = writeBuffer.texture;
+            displayMaterial.uniforms.time.value = time;
+            renderer.setRenderTarget(null);
+            renderer.render(scene, camera);
+
+            // --- Swap All Buffers for the next frame ---
+            let temp = readBuffer;
+            readBuffer = writeBuffer;
+            writeBuffer = temp;
+
+            let traceTemp = traceReadBuffer;
+            traceReadBuffer = traceWriteBuffer;
+            traceWriteBuffer = traceTemp;
+        }
+
+        // --- Start the experience ---
+        init();
+        animate();
+    </script>
+</body>
+</html>

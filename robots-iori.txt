@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /burger.html
+Disallow: /clip.html
 
-Sitemap: https://iori.me/sitemap.xml
+Sitemap: https://iori.me/sitemap-iori.xml

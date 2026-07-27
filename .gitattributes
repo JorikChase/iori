@@ -1,1 +1,5 @@
+# TODO: git history rewrite needed — .ksplat/.glb/.pdf binaries are stored as
+# plain blobs in history (~3.7 GB). Migrate to LFS in a dedicated operation
+# (force-push + all machines re-clone). See BACKLOG.md. Until then, only mp4
+# uses LFS.
 *.mp4 filter=lfs diff=lfs merge=lfs -text

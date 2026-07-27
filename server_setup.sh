@@ -103,9 +103,22 @@ sync_website_files() {
     echo "Ensured directory $WEB_ROOT exists."
 
     # Sync website files using rsync (idempotent and efficient)
+    # Excludes: .git (repo internals must never be public), zausi (server-only),
+    #           splats + heavy unreferenced assets (production slimming — files
+    #           stay in the local repo), OS junk, session logs.
+    # TODO: git history rewrite pending for large binaries (see BACKLOG.md)
     echo "Syncing files from $SOURCE_DIR/ to $WEB_ROOT/..."
-    rsync -a --delete --exclude 'zausi' "$SOURCE_DIR/" "$WEB_ROOT/"
-    echo "File sync complete (excluding zausi source)."
+    rsync -a --delete \
+        --exclude '.git' \
+        --exclude 'zausi' \
+        --exclude 'splats/' \
+        --exclude 'assets/pdf-full.pdf' \
+        --exclude 'images/autoportrait copy.mp4' \
+        --exclude '.DS_Store' \
+        --exclude 'session-*.md' \
+        --exclude 'sandbox.md' \
+        "$SOURCE_DIR/" "$WEB_ROOT/"
+    echo "File sync complete (excluding .git, zausi, splats, heavy assets)."
 
     # Give ownership to the Caddy user
     chown -R caddy:caddy "$WEB_ROOT"
@@ -113,21 +126,10 @@ sync_website_files() {
 }
 
 deploy_zausi_app() {
-    echo "--- Task: Deploying Zausi Rust App ---"
-    
-    # Check for standard naming or user naming convention
-    if [ -f "$SOURCE_DIR/setup_zausi.sh" ]; then
-        TARGET_SCRIPT="$SOURCE_DIR/setup_zausi.sh"
-    elif [ -f "$SOURCE_DIR/zausi-setup.sh" ]; then
-        TARGET_SCRIPT="$SOURCE_DIR/zausi-setup.sh"
-    else
-        echo "Warning: No Zausi setup script found (checked setup_zausi.sh and zausi-setup.sh). Skipping Rust deployment."
-        return
-    fi
-
-    echo "Found setup script: $TARGET_SCRIPT"
-    chmod +x "$TARGET_SCRIPT"
-    "$TARGET_SCRIPT"
+    echo "--- Task: Zausi App ---"
+    echo "Zausi is archived and no longer compiled or deployed by this script."
+    echo "(Source archived 2026-07-27; replacement: Python API — see BACKLOG.md)"
+    return
 }
 
 configure_caddy() {
@@ -146,6 +148,14 @@ configure_caddy() {
 iori.me {
     # Set the web root
     root * $WEB_ROOT
+
+    # Block dotfiles (repo internals, env files) — never serve these.
+    # NOTE: must be a handle block (not bare respond) so it wins over the
+    # catch-all handle below — handle blocks are mutually exclusive.
+    @dotfiles path /.git* /.env* /.DS_Store
+    handle @dotfiles {
+        respond 404
+    }
 
     # Route specific sitemap and robots
     rewrite /sitemap.xml /sitemap-iori.xml
@@ -189,6 +199,14 @@ iori.me {
 3die.fr {
     # Set the web root
     root * $WEB_ROOT
+
+    # Block dotfiles (repo internals, env files) — never serve these.
+    # NOTE: must be a handle block (not bare respond) for consistency with
+    # the iori.me block and to survive future handle additions.
+    @dotfiles path /.git* /.env* /.DS_Store
+    handle @dotfiles {
+        respond 404
+    }
 
     # Route specific sitemap and robots
     rewrite /sitemap.xml /sitemap-3die.xml

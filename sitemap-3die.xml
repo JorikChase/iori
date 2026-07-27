@@ -2,237 +2,82 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://3die.fr/</loc>
-    <lastmod>2026-02-06</lastmod>
+    <lastmod>2026-04-30</lastmod>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://3die.fr/aquarium.html</loc>
-    <lastmod>2026-03-18</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/bismuth-fluid.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/bubbles.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/burger.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/clip.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/cracks.html</loc>
-    <lastmod>2026-03-18</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/crystalize.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/dandelion-cycle.html</loc>
-    <lastmod>2026-03-18</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
     <loc>https://3die.fr/darkwood.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/death.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/diffusion-fluid.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/disphere-inverse.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/disphere-ray.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/disphere-symmetry.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/disphere.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/dither-types.html</loc>
-    <lastmod>2026-03-18</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/fluid.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/fractal-dimension.html</loc>
-    <lastmod>2026-03-18</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/fractals.html</loc>
-    <lastmod>2026-03-01</lastmod>
+    <lastmod>2026-04-30</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://3die.fr/game.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://3die.fr/game_multiplayer.html</loc>
+    <lastmod>2026-06-29</lastmod>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://3die.fr/indent.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.4</priority>
   </url>
   <url>
     <loc>https://3die.fr/info.html</loc>
-    <lastmod>2026-02-06</lastmod>
+    <lastmod>2026-04-30</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://3die.fr/iris.html</loc>
-    <lastmod>2026-02-07</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/lambda_cognition.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/lighter-flame.html</loc>
-    <lastmod>2026-03-18</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/lili.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/liquid-automata.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/maska.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/meta-iris.html</loc>
-    <lastmod>2026-02-07</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
     <loc>https://3die.fr/metyou.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://3die.fr/orbitals.html</loc>
-    <lastmod>2026-02-06</lastmod>
+    <loc>https://3die.fr/pi.html</loc>
+    <lastmod>2026-04-30</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://3die.fr/portfolio.html</loc>
-    <lastmod>2026-02-06</lastmod>
+    <lastmod>2026-06-29</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://3die.fr/poster.html</loc>
-    <lastmod>2026-02-12</lastmod>
+    <lastmod>2026-04-30</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://3die.fr/shop.html</loc>
-    <lastmod>2026-02-06</lastmod>
+    <lastmod>2026-04-30</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://3die.fr/sigmoid-helix.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/socci.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/star.html</loc>
-    <lastmod>2026-02-06</lastmod>
+    <loc>https://3die.fr/sudoku.html</loc>
+    <lastmod>2026-04-30</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://3die.fr/tboi2.html</loc>
-    <lastmod>2026-02-06</lastmod>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://3die.fr/tomasek.html</loc>
+    <lastmod>2026-06-27</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://3die.fr/three-body-shaded.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/three-body.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/two-body.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/umprum.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/universe.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/web.html</loc>
-    <lastmod>2026-02-07</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://3die.fr/webgl.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
+    <loc>https://3die.fr/univerzum.html</loc>
+    <lastmod>2026-04-24</lastmod>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://3die.fr/websites.html</loc>
-    <lastmod>2026-02-06</lastmod>
-    <priority>0.5</priority>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.7</priority>
   </url>
 </urlset>

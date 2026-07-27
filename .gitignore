@@ -1,4 +1,16 @@
+# Secrets — never track
 required.md
+
+# Large binary collections — kept locally, untracked from git HEAD.
+# TODO: git history rewrite needed to fully purge these from history (see BACKLOG.md).
+# Files remain on disk locally; restore anytime from Backup A tarball (see RESTORE.md).
+splats/
+
+# Session logs / sandboxes — not part of the site
+session-*.md
+sandbox.md
+
+# Legacy dev leftovers
 clippy_dev_backup_1764260457/Cargo.toml
 clippy_dev/Cargo.lock
 clippy_dev/Cargo.toml
@@ -14,6 +26,7 @@ clippy_dev_backup_1764260190/.gitignore
 clippy_dev_backup_1764260190/Cargo.lock
 clippy_dev_backup_1764260190/Cargo.toml
 clippy_dev_backup_1764260190/index.html
+clippy_dev_backup_1764260190/src/main.rs
 clippy_dev_backup_1764260457/.gitignore
 clippy_dev_backup_1764260190/src/main.rs
 clippy_dev_backup_1764260457/Cargo.lock

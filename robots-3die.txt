@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /burger.html
+Disallow: /clip.html
 
-Sitemap: https://3die.fr/sitemap.xml
+Sitemap: https://3die.fr/sitemap-3die.xml

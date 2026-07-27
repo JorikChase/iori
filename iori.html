@@ -331,7 +331,10 @@
         async function probeCollection() {
             try {
                 const r = await fetch(`${CDN_BASE}${splatScenes[0]}.ksplat`, { method: 'HEAD' });
-                return r.ok;
+                // The SPA fallback serves web.html (text/html) for missing files,
+                // so status alone is not enough — verify it's really the binary.
+                const type = r.headers.get('content-type') || '';
+                return r.ok && !type.includes('text/html');
             } catch (e) {
                 return false;
             }

@@ -388,6 +388,81 @@
             audio.volume = 0.1;
         </script>
 
+        <!-- contact form (posts to api.3die.fr -> dashboard inbox) -->
+        <style>
+            .contact-trigger {
+                position: fixed; bottom: 1.2rem; left: 1.2rem; z-index: 60;
+                font-family: "Courier New", monospace; font-size: .8rem;
+                letter-spacing: .2em; text-transform: uppercase;
+                background: transparent; color: #fff; border: 1px solid #fff;
+                padding: .6em 1.2em; cursor: pointer; transition: all 140ms ease;
+            }
+            .contact-trigger:hover { background: #fff; color: #000; }
+            .contact-panel {
+                position: fixed; bottom: 4.5rem; left: 1.2rem; z-index: 60;
+                width: min(92vw, 380px);
+                background: #000; border: 2px solid #fff;
+                padding: 1.2rem; font-family: "Courier New", monospace;
+                display: none; box-shadow: 8px 8px 0 rgba(255,255,255,.15);
+            }
+            .contact-panel.open { display: block; animation: cpop 140ms ease; }
+            @keyframes cpop { from { transform: translateY(10px); opacity: 0; } }
+            .contact-panel .cp-title { letter-spacing: .3em; font-size: .85rem; margin-bottom: .8rem; color: #fff; }
+            .contact-panel input, .contact-panel textarea {
+                width: 100%; font: inherit; font-size: .85rem;
+                background: #000; color: #fff; border: 1px solid #555;
+                padding: .5em .7em; margin-bottom: .6rem; outline: none;
+            }
+            .contact-panel input:focus, .contact-panel textarea:focus { border-color: #fff; }
+            .contact-panel button {
+                font: inherit; letter-spacing: .2em; text-transform: uppercase;
+                background: #fff; color: #000; border: 1px solid #fff;
+                padding: .5em 1.4em; cursor: pointer;
+            }
+            .contact-panel .cp-status { margin-top: .6rem; font-size: .78rem; min-height: 1.1em; color: #aaa; }
+            .contact-panel .cp-status.err { color: #ff3b30; }
+        </style>
+        <button class="contact-trigger" id="contact-trigger">contact</button>
+        <form class="contact-panel" id="contact-panel">
+            <div class="cp-title">MESSAGE THE LABEL</div>
+            <input id="cf-name" type="text" placeholder="name" maxlength="120">
+            <input id="cf-email" type="email" placeholder="email" maxlength="200">
+            <textarea id="cf-body" placeholder="your message" rows="4" maxlength="8000" required></textarea>
+            <button type="submit">send</button>
+            <div class="cp-status" id="cf-status"></div>
+        </form>
+        <script>
+            (function () {
+                var trigger = document.getElementById("contact-trigger");
+                var panel = document.getElementById("contact-panel");
+                var status = document.getElementById("cf-status");
+                trigger.addEventListener("click", function () {
+                    panel.classList.toggle("open");
+                });
+                panel.addEventListener("submit", function (e) {
+                    e.preventDefault();
+                    status.className = "cp-status";
+                    status.textContent = "sending…";
+                    fetch("https://api.3die.fr/contact", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            name: document.getElementById("cf-name").value,
+                            email: document.getElementById("cf-email").value,
+                            body: document.getElementById("cf-body").value
+                        })
+                    }).then(function (r) {
+                        if (!r.ok) throw new Error("send failed (" + r.status + ")");
+                        status.textContent = "sent — we read everything.";
+                        document.getElementById("cf-body").value = "";
+                    }).catch(function (err) {
+                        status.className = "cp-status err";
+                        status.textContent = err.message + " — try 3diefr@gmail.com";
+                    });
+                });
+            })();
+        </script>
+
         <nav class="menu--bottom--right" role="navigation">
             <div class="menuToggle">
                 <input type="checkbox" />

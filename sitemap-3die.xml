@@ -6,6 +6,11 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://3die.fr/crow_archduke.html</loc>
+    <lastmod>2026-07-27</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://3die.fr/darkwood.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.5</priority>
@@ -31,9 +36,24 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://3die.fr/jachym.html</loc>
+    <lastmod>2026-07-27</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://3die.fr/metyou.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://3die.fr/moises.html</loc>
+    <lastmod>2026-07-27</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://3die.fr/music.html</loc>
+    <lastmod>2026-07-27</lastmod>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://3die.fr/pi.html</loc>

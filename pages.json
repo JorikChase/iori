@@ -57,6 +57,17 @@
       "lastmod": "2026-07-27"
     },
     {
+      "slug": "catalog.html",
+      "title": "iori — Catalog: Artists & Experiments",
+      "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.",
+      "category": "hub",
+      "type": "site",
+      "domain": "iori.me",
+      "url": "https://iori.me/catalog.html",
+      "og_image": null,
+      "lastmod": "2026-07-27"
+    },
+    {
       "slug": "civilisation-builder.html",
       "title": "Civilisation Builder — Reaction-Diffusion",
       "description": "Civilisations growing like reaction-diffusion patterns: an interactive study of emergence.",
@@ -86,6 +97,17 @@
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/cracks.html",
+      "og_image": null,
+      "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "crow_archduke.html",
+      "title": "crow_archduke — The Cathedral",
+      "description": "A cathedral full of volumetric smoke lit by a purple sunset, and a three-eyed alien priest preaching. The ceremonial alias of jáchym.",
+      "category": "artist",
+      "type": "artist",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/crow_archduke.html",
       "og_image": null,
       "lastmod": "2026-07-27"
     },
@@ -365,6 +387,17 @@
       "lastmod": "2026-07-27"
     },
     {
+      "slug": "jachym.html",
+      "title": "jáchym — 3DIE Artist",
+      "description": "jáchym works across image, sound and text — publishing both as himself and as crow_archduke under the 3DIE label.",
+      "category": "artist",
+      "type": "artist",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/jachym.html",
+      "og_image": null,
+      "lastmod": "2026-07-27"
+    },
+    {
       "slug": "lambda_cognition.html",
       "title": "Lambda Cognition & The TIH Framework",
       "description": "An essay on lambda calculus, cognition and the TIH framework: bridging sparse interaction with structured thought.",
@@ -449,6 +482,28 @@
       "type": "client",
       "domain": "3die.fr",
       "url": "https://3die.fr/metyou.html",
+      "og_image": null,
+      "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "moises.html",
+      "title": "moises — Photo Journal",
+      "description": "Photographs by moises: a composition-first journal of images and notes, published under the 3DIE label.",
+      "category": "artist",
+      "type": "artist",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/moises.html",
+      "og_image": null,
+      "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "music.html",
+      "title": "Music — 3DIE Label",
+      "description": "Music created under the 3DIE label: iori's SoundCloud catalogue, with the Bandcamp release on its way.",
+      "category": "site",
+      "type": "site",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/music.html",
       "og_image": null,
       "lastmod": "2026-07-27"
     },
@@ -735,6 +790,17 @@
       "type": "site",
       "domain": "iori.me",
       "url": "https://iori.me/web.html",
+      "og_image": null,
+      "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "web3d.html",
+      "title": "iori — 3D Node Web: Gravity & Orbits",
+      "description": "The catalogue as a three-dimensional node network: pages in gravity wells, orbiting their families. Click a node to travel.",
+      "category": "hub",
+      "type": "site",
+      "domain": "iori.me",
+      "url": "https://iori.me/web3d.html",
       "og_image": null,
       "lastmod": "2026-07-27"
     },

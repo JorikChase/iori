@@ -73,6 +73,13 @@
     "star.html":    { "title": "Star Topology — Interactive Visualization", "description": "The website itself as a star topology: an interactive visualization of how pages connect.", "category": "hub", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
     "game-of-life.html": { "title": "Game of Life — ASCII Edition", "description": "Conway's Game of Life rendered in living ASCII: cellular automata as typography.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
 
+    "catalog.html": { "title": "iori — Catalog: Artists & Experiments", "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.", "category": "hub", "domain": "iori.me", "type": "site", "priority": 0.9 },
+    "web3d.html":   { "title": "iori — 3D Node Web: Gravity & Orbits", "description": "The catalogue as a three-dimensional node network: pages in gravity wells, orbiting their families. Click a node to travel.", "category": "hub", "domain": "iori.me", "type": "site", "priority": 0.7 },
+    "jachym.html":  { "title": "jáchym — 3DIE Artist", "description": "jáchym works across image, sound and text — publishing both as himself and as crow_archduke under the 3DIE label.", "category": "artist", "domain": "3die.fr", "type": "artist", "priority": 0.7 },
+    "crow_archduke.html": { "title": "crow_archduke — The Cathedral", "description": "A cathedral full of volumetric smoke lit by a purple sunset, and a three-eyed alien priest preaching. The ceremonial alias of jáchym.", "category": "artist", "domain": "3die.fr", "type": "artist", "priority": 0.7 },
+    "moises.html":  { "title": "moises — Photo Journal", "description": "Photographs by moises: a composition-first journal of images and notes, published under the 3DIE label.", "category": "artist", "domain": "3die.fr", "type": "artist", "priority": 0.7 },
+    "music.html":   { "title": "Music — 3DIE Label", "description": "Music created under the 3DIE label: iori's SoundCloud catalogue, with the Bandcamp release on its way.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 0.7 },
+
     "burger.html":  { "title": "Burger Menu Component", "description": "Internal component showcase for the site navigation.", "category": "internal", "domain": "iori.me", "type": "internal", "hidden": true, "priority": 0.1 },
     "clip.html":    { "title": "CLIPPY", "description": "Internal assistant interface.", "category": "internal", "domain": "iori.me", "type": "internal", "hidden": true, "priority": 0.1 }
   }

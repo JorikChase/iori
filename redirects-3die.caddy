@@ -5,6 +5,7 @@ redir /4cube_volume.html https://iori.me/4cube_volume.html permanent
 redir /aquarium.html https://iori.me/aquarium.html permanent
 redir /bismuth-fluid.html https://iori.me/bismuth-fluid.html permanent
 redir /bubbles.html https://iori.me/bubbles.html permanent
+redir /catalog.html https://iori.me/catalog.html permanent
 redir /civilisation-builder.html https://iori.me/civilisation-builder.html permanent
 redir /cracks-aberration.html https://iori.me/cracks-aberration.html permanent
 redir /cracks.html https://iori.me/cracks.html permanent
@@ -52,4 +53,5 @@ redir /voxel-scale-less.html https://iori.me/voxel-scale-less.html permanent
 redir /voxel-terrain.html https://iori.me/voxel-terrain.html permanent
 redir /watercolor.html https://iori.me/watercolor.html permanent
 redir /web.html https://iori.me/ permanent
+redir /web3d.html https://iori.me/web3d.html permanent
 redir /webgl.html https://iori.me/webgl.html permanent

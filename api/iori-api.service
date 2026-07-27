@@ -1,0 +1,26 @@
+[Unit]
+Description=iori-api (FastAPI backend for iori.me / 3die.fr)
+After=network.target
+
+[Service]
+Type=simple
+User=ioriapi
+Group=ioriapi
+WorkingDirectory=/opt/iori-api
+Environment=PORT=3000
+Environment=DB_PATH=/var/lib/iori-api/iori.db
+Environment=MEDIA_DIR=/var/www/media
+Environment=MEDIA_BASEURL=https://3die.fr/media
+Environment=CORS_ORIGINS=https://dash.3die.fr,https://3die.fr,https://iori.me
+ExecStart=/opt/iori-api/venv/bin/python /opt/iori-api/main.py
+Restart=always
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/iori-api /var/www/media
+
+[Install]
+WantedBy=multi-user.target

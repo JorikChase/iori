@@ -125,11 +125,64 @@ sync_website_files() {
     echo "Set file permissions for 'caddy' user."
 }
 
-deploy_zausi_app() {
-    echo "--- Task: Zausi App ---"
-    echo "Zausi is archived and no longer compiled or deployed by this script."
-    echo "(Source archived 2026-07-27; replacement: Python API — see BACKLOG.md)"
-    return
+deploy_api() {
+    echo "--- Task: Deploying iori-api (Python backend) ---"
+
+    # Python runtime
+    if ! dpkg -l python3-venv &> /dev/null || ! dpkg -l python3-pip &> /dev/null; then
+        echo "Installing python3-venv / python3-pip..."
+        apt update
+        apt install -y python3-venv python3-pip
+    fi
+
+    # Service user (non-root)
+    if ! id ioriapi &> /dev/null; then
+        useradd --system --no-create-home --shell /usr/sbin/nologin ioriapi
+        echo "Created service user 'ioriapi'."
+    fi
+
+    # Directories
+    mkdir -p /opt/iori-api /var/lib/iori-api /var/www/media /var/www/iori-dash
+
+    # Deploy API source (exclude local dev artifacts)
+    rsync -a --delete \
+        --exclude 'venv/' \
+        --exclude '__pycache__/' \
+        --exclude '*.db*' \
+        --exclude 'media/' \
+        --exclude 'initial-passwords.txt' \
+        --exclude '.gitignore' \
+        "$SOURCE_DIR/api/" /opt/iori-api/
+
+    # Deploy dashboard static files
+    rsync -a --delete "$SOURCE_DIR/dash/" /var/www/iori-dash/
+
+    # Python environment
+    if [ ! -f /opt/iori-api/venv/bin/python ]; then
+        python3 -m venv /opt/iori-api/venv
+    fi
+    /opt/iori-api/venv/bin/pip install -q --upgrade pip
+    /opt/iori-api/venv/bin/pip install -q -r /opt/iori-api/requirements.txt
+
+    # Permissions
+    chown -R ioriapi:ioriapi /opt/iori-api /var/lib/iori-api /var/www/media
+    chown -R caddy:caddy /var/www/iori-dash
+
+    # systemd unit
+    cp /opt/iori-api/iori-api.service /etc/systemd/system/iori-api.service
+
+    # Retire zausi (archived 2026-07-27; replaced by iori-api)
+    if systemctl list-unit-files | grep -q '^zausi.service'; then
+        systemctl stop zausi || true
+        systemctl disable zausi || true
+        rm -f /etc/systemd/system/zausi.service
+        echo "Zausi service stopped and disabled."
+    fi
+
+    systemctl daemon-reload
+    systemctl enable iori-api
+    systemctl restart iori-api
+    echo "iori-api deployed and running on 127.0.0.1:3000."
 }
 
 configure_caddy() {
@@ -161,30 +214,7 @@ iori.me {
     rewrite /sitemap.xml /sitemap-iori.xml
     rewrite /robots.txt /robots-iori.txt
 
-    # --- ZAUSI APP CONFIGURATION ---
-    
-    # 1. Force trailing slash for the main app entry.
-    redir /zausi /zausi/
-
-    # 2. Path Leaking Fix:
-    # The app generates absolute links to /auth and /callback (common in OAuth).
-    # We must proxy these specific root paths to the app, even though the app
-    # generally lives at /zausi.
-    handle /auth* {
-        reverse_proxy localhost:3000
-    }
-    handle /callback* {
-        reverse_proxy localhost:3000
-    }
-
-    # 3. Main App Proxy:
-    # handle_path matches /zausi/* and strips the prefix before proxying.
-    handle_path /zausi/* {
-        reverse_proxy localhost:3000
-    }
-
     # --- MAIN SITE CONFIGURATION ---
-    # This 'handle' block matches everything else.
     handle {
         # Fallback for non-existent files (SPA-like behavior).
         try_files {path} {path}/ /web.html
@@ -201,11 +231,16 @@ iori.me {
     root * $WEB_ROOT
 
     # Block dotfiles (repo internals, env files) — never serve these.
-    # NOTE: must be a handle block (not bare respond) for consistency with
-    # the iori.me block and to survive future handle additions.
     @dotfiles path /.git* /.env* /.DS_Store
     handle @dotfiles {
         respond 404
+    }
+
+    # Media uploads (photos etc. — served by Caddy, stored outside git)
+    handle_path /media/* {
+        root * /var/www/media
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server
     }
 
     # Route specific sitemap and robots
@@ -214,6 +249,18 @@ iori.me {
 
     # Enable the static file server
     # This will use Caddy's default (index.html)
+    file_server
+}
+
+api.3die.fr {
+    # Python backend (iori-api on 127.0.0.1:3000)
+    reverse_proxy localhost:3000
+}
+
+dash.3die.fr {
+    # Task/communication dashboard (static SPA, talks to api.3die.fr)
+    root * /var/www/iori-dash
+    encode zstd gzip
     file_server
 }
 EOF
@@ -274,8 +321,8 @@ fi
 # These tasks run in *both* modes
 ensure_dependencies
 sync_website_files
-deploy_zausi_app    # <--- NEW: Setup/Update the Rust app
-configure_caddy     # <--- UPDATED: Adds the /zausi reverse proxy
+deploy_api
+configure_caddy
 configure_firewall
 reload_caddy_service
 
@@ -284,10 +331,11 @@ echo "--- [$(date)] Setup Complete! ---"
 echo ""
 echo "Caddy is now serving your sites."
 echo " - https://iori.me/ (web.html)"
-echo " - https://iori.me/zausi (Rust App on :3000)"
-echo " - https://iori.me/auth (Proxied to Rust App)"
 echo " - https://3die.fr/ (index.html)"
+echo " - https://3die.fr/media/ (uploaded media)"
+echo " - https://api.3die.fr/ (Python API on :3000)"
+echo " - https://dash.3die.fr/ (dashboard)"
 echo ""
 echo "You can check the status with:"
 echo "  systemctl status caddy"
-echo "  systemctl status zausi"
+echo "  systemctl status iori-api"

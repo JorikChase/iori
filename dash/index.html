@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>3DIE — DASH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- LOGIN -->
+  <section id="login-view" class="view hidden">
+    <form id="login-form" class="login-card" autocomplete="off">
+      <div class="login-title">3DIE<span class="blink">_</span>DASH</div>
+      <input id="login-user" type="text" placeholder="username" required autocapitalize="off">
+      <input id="login-pass" type="password" placeholder="password" required>
+      <button type="submit">ENTER</button>
+      <div id="login-error" class="error-line"></div>
+    </form>
+  </section>
+
+  <!-- MAIN -->
+  <section id="main-view" class="view hidden">
+    <header class="topbar">
+      <div class="brand">3DIE<span class="blink">_</span>DASH</div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="board">BOARD</button>
+        <button class="tab" data-tab="inbox">INBOX<span id="inbox-badge" class="badge hidden"></span></button>
+        <button class="tab" data-tab="blog">BLOG</button>
+      </nav>
+      <div class="userbox">
+        <span id="whoami"></span>
+        <button id="logout-btn" class="ghost-btn">OUT</button>
+      </div>
+    </header>
+
+    <!-- BOARD -->
+    <div id="tab-board" class="tabpanel">
+      <div class="board-toolbar">
+        <button id="add-task-btn" class="ghost-btn">+ TASK</button>
+        <button id="add-lane-btn" class="ghost-btn">+ LANE</button>
+        <button id="add-phase-btn" class="ghost-btn">+ PHASE</button>
+      </div>
+      <div id="board-scroll">
+        <table id="board-table"></table>
+      </div>
+    </div>
+
+    <!-- INBOX -->
+    <div id="tab-inbox" class="tabpanel hidden">
+      <div id="inbox-list" class="listcol"></div>
+    </div>
+
+    <!-- BLOG -->
+    <div id="tab-blog" class="tabpanel hidden">
+      <form id="post-form" class="post-card">
+        <div class="post-title">NEW POST</div>
+        <input id="post-caption" type="text" placeholder="caption / text">
+        <label class="file-drop" id="file-drop">
+          <input id="post-files" type="file" accept="image/*,video/*" multiple hidden>
+          <span id="file-drop-label">drop images here or click to choose</span>
+        </label>
+        <div id="post-preview" class="preview-row"></div>
+        <button type="submit" id="post-submit">PUBLISH</button>
+        <div id="post-status" class="error-line"></div>
+      </form>
+      <div id="feed-list" class="listcol"></div>
+    </div>
+  </section>
+
+  <!-- TASK MODAL -->
+  <div id="task-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <input id="task-title" type="text" placeholder="title">
+      <textarea id="task-body" placeholder="notes / description" rows="4"></textarea>
+      <div class="modal-grid">
+        <label>lane<input id="task-lane" list="lane-list"></label>
+        <label>phase<input id="task-phase" list="phase-list"></label>
+        <label>assignee<input id="task-assignee" placeholder=""></label>
+        <label>due<input id="task-due" type="date"></label>
+      </div>
+      <datalist id="lane-list"></datalist>
+      <datalist id="phase-list"></datalist>
+      <label class="pin-row"><input id="task-pinned" type="checkbox"> pinned</label>
+      <div class="modal-actions">
+        <button id="task-save">SAVE</button>
+        <button id="task-delete" class="danger">DELETE</button>
+        <button id="task-cancel" class="ghost-btn">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

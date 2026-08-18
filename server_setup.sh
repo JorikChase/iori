@@ -220,6 +220,15 @@ iori.me {
     rewrite /sitemap.xml /sitemap-iori.xml
     rewrite /robots.txt /robots-iori.txt
 
+    # Cache policy: HTML/JSON always revalidate (updates show instantly),
+    # fingerprinted assets cache forever, other assets short-lived
+    @revalidate path *.html / /pages.json /manifest.json /sitemap*.xml /robots*.txt
+    header @revalidate Cache-Control "no-cache"
+    @immutable path /icon/* /media/*
+    header @immutable Cache-Control "public, max-age=31536000, immutable"
+    @shortcache path /assets/* /images/* /js/* /moses_car_cursor.png
+    header @shortcache Cache-Control "public, max-age=3600"
+
     # --- MAIN SITE CONFIGURATION ---
     handle {
         # Static files; missing paths fall through to the error handlers
@@ -260,6 +269,15 @@ iori.me {
     # Route specific sitemap and robots
     rewrite /sitemap.xml /sitemap-3die.xml
     rewrite /robots.txt /robots-3die.txt
+
+    # Cache policy: HTML/JSON always revalidate (updates show instantly),
+    # fingerprinted assets cache forever, other assets short-lived
+    @revalidate path *.html / /pages.json /manifest.json /sitemap*.xml /robots*.txt
+    header @revalidate Cache-Control "no-cache"
+    @immutable path /icon/* /media/*
+    header @immutable Cache-Control "public, max-age=31536000, immutable"
+    @shortcache path /assets/* /images/* /js/* /moses_car_cursor.png
+    header @shortcache Cache-Control "public, max-age=3600"
 
     # Enable the static file server
     # This will use Caddy's default (index.html)

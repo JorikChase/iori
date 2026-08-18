@@ -112,19 +112,83 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const holder = document.getElementById('cathedral');
 const W = () => holder.clientWidth, H = () => holder.clientHeight;
+
+// capability probe: real volumetric godrays on capable desktops, fake shafts elsewhere
+const GODRAYS_OK =
+  matchMedia('(pointer: fine)').matches &&
+  innerWidth >= 900 &&
+  (navigator.hardwareConcurrency || 4) >= 4;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050208);
 scene.fog = new THREE.FogExp2(0x0a0512, 0.03);
 
 const camera = new THREE.PerspectiveCamera(50, W() / H(), 0.05, 200);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: !GODRAYS_OK });
 renderer.setSize(W(), H());
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, GODRAYS_OK ? 1.5 : 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 holder.appendChild(renderer.domElement);
+
+/* ---------- volumetric light-shaft pass (screen-space crepuscular rays) ---------- */
+const LightShaftShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    sunPos: { value: new THREE.Vector2(0.5, 0.5) },
+    sunColor: { value: new THREE.Color(0xffc06a) },
+    intensity: { value: 0.55 },
+    aspect: { value: 1.0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+    varying vec2 vUv;
+    uniform sampler2D tDiffuse;
+    uniform vec2 sunPos;
+    uniform vec3 sunColor;
+    uniform float intensity;
+    uniform float aspect;
+    #define TAPS 48
+    void main(){
+      vec4 base = texture2D(tDiffuse, vUv);
+      vec2 delta = sunPos - vUv;
+      delta.x *= aspect;
+      vec2 stepv = delta / float(TAPS) * 0.9;
+      vec2 uv = vUv;
+      float illum = 0.0;
+      float decay = 1.0;
+      for (int i = 0; i < TAPS; i++) {
+        uv += stepv;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
+        vec3 s = texture2D(tDiffuse, vec2(uv.x, uv.y)).rgb;
+        float lum = dot(s, vec3(0.299, 0.587, 0.114));
+        lum = smoothstep(0.42, 1.0, lum);   // only bright sources feed the rays
+        illum += lum * decay;
+        decay *= 0.955;
+      }
+      illum /= float(TAPS);
+      float dist = length(sunPos - vUv);
+      float atten = exp(-dist * 1.6);
+      vec3 rays = sunColor * illum * intensity * atten;
+      gl_FragColor = vec4(base.rgb + rays, base.a);
+    }`,
+};
+
+let composer = null, shaftPass = null;
+if (GODRAYS_OK) {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  shaftPass = new ShaderPass(LightShaftShader);
+  composer.addPass(shaftPass);
+  composer.addPass(new OutputPass());
+}
 
 /* ================= TIME-OF-DAY ENGINE =================
    pointer.x sweeps dawn -> dusk: 45% dawn ramp, 10% midday, 45% dusk ramp. */
@@ -193,7 +257,18 @@ sunHalo.scale.set(10, 10, 1);
 scene.add(sunHalo);
 
 const sunLight = new THREE.DirectionalLight(0xffc06a, 1.0);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -18;
+sunLight.shadow.camera.right = 18;
+sunLight.shadow.camera.top = 16;
+sunLight.shadow.camera.bottom = -4;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 70;
+sunLight.shadow.bias = -0.0006;
+sunLight.shadow.normalBias = 0.02;
 scene.add(sunLight);
+scene.add(sunLight.target);
 scene.add(new THREE.AmbientLight(0x1a0f2e, 1.2));
 const eyeLight = new THREE.PointLight(0xb27fe8, 3, 6, 2);
 
@@ -204,6 +279,7 @@ const stoneDark = new THREE.MeshStandardMaterial({ color: 0x0b0710, roughness: 1
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 70), stoneDark);
 floor.rotation.x = -Math.PI / 2;
 floor.position.z = -8;
+floor.receiveShadow = true;
 scene.add(floor);
 
 const colGeo = new THREE.CylinderGeometry(0.45, 0.55, 9, 10);
@@ -213,9 +289,12 @@ for (let i = 0; i < 6; i++) {
     const z = 4 - i * 5;
     const col = new THREE.Mesh(colGeo, stone);
     col.position.set(side * 5.5, 4.5, z);
+    col.castShadow = true;
+    col.receiveShadow = true;
     scene.add(col);
     const cap = new THREE.Mesh(capGeo, stone);
     cap.position.set(side * 5.5, 9.1, z);
+    cap.castShadow = true;
     scene.add(cap);
   }
 }
@@ -265,12 +344,15 @@ const rayMat = new THREE.ShaderMaterial({
     }`,
   transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
 });
+const fakeRays = [];
 for (const side of [-1, 1]) {
   for (let i = 0; i < 3; i++) {
     const ray = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 14), rayMat);
     ray.position.set(side * 4.6, 5.2, 1 - i * 9);
     ray.rotation.z = side * 0.5;
     ray.rotation.y = side * 0.25;
+    ray.visible = !GODRAYS_OK; // real volumetric pass replaces these on capable devices
+    fakeRays.push(ray);
     scene.add(ray);
   }
 }
@@ -330,63 +412,67 @@ for (let i = 0; i < 10; i++) {
 /* ================= THE PRIEST ================= */
 const priest = new THREE.Group();
 const leather = new THREE.MeshStandardMaterial({ color: 0x14100c, roughness: 0.85 });
-const boneWhite = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.55, metalness: 0.05 });
+const boneWhite = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.5, metalness: 0.05 });
 const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.35, metalness: 0.8 });
 
+function shadowed(mesh) { mesh.castShadow = true; return mesh; }
+
 // robe + shoulders
-const robe = new THREE.Mesh(new THREE.ConeGeometry(1.1, 3.4, 12, 1, true), leather);
+const robe = shadowed(new THREE.Mesh(new THREE.ConeGeometry(1.1, 3.4, 12, 1, true), leather));
 robe.position.y = 1.7;
 priest.add(robe);
-const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10), leather);
+const shoulders = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10), leather));
 shoulders.position.y = 3.1;
 shoulders.scale.set(1.15, 0.7, 0.9);
 priest.add(shoulders);
 
 // hood behind the mask
-const hood = new THREE.Mesh(new THREE.SphereGeometry(0.52, 16, 12), leather);
-hood.position.set(0, 3.72, -0.08);
-hood.scale.set(1, 1.2, 1);
+const hood = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.46, 16, 12), leather));
+hood.position.set(0, 3.72, -0.14);
+hood.scale.set(1, 1.25, 1.05);
 priest.add(hood);
 
-/* ----- the plague mask (bone-white Venetian) ----- */
+/* ----- the plague mask (bone-white, menacing but elegant) ----- */
 const mask = new THREE.Group();
 
-// lathe-turned mask shell (crown -> chin profile)
+// lathe-turned mask shell — smaller, face-like, with a brow ridge
 const profile = [
-  new THREE.Vector2(0.02, 0.62),
-  new THREE.Vector2(0.30, 0.58),
-  new THREE.Vector2(0.40, 0.42),  // brow
-  new THREE.Vector2(0.37, 0.20),
-  new THREE.Vector2(0.40, 0.02),  // cheekbones
-  new THREE.Vector2(0.33, -0.18),
-  new THREE.Vector2(0.20, -0.34), // jaw
-  new THREE.Vector2(0.06, -0.44), // chin
+  new THREE.Vector2(0.015, 0.52),
+  new THREE.Vector2(0.235, 0.49),
+  new THREE.Vector2(0.335, 0.36),  // crown -> brow
+  new THREE.Vector2(0.355, 0.30),  // brow ridge
+  new THREE.Vector2(0.315, 0.16),
+  new THREE.Vector2(0.335, 0.02),  // cheekbones
+  new THREE.Vector2(0.27, -0.14),
+  new THREE.Vector2(0.165, -0.28), // jaw
+  new THREE.Vector2(0.05, -0.37),  // chin
 ];
-const shell = new THREE.Mesh(new THREE.LatheGeometry(profile, 28), boneWhite);
-shell.scale.set(1, 1, 0.92);
+const shell = shadowed(new THREE.Mesh(new THREE.LatheGeometry(profile, 32), boneWhite));
+shell.scale.set(1, 1, 0.9);
 mask.add(shell);
 
-// curved, tapering beak — bent cone with nostril holes
-const beakGeo = new THREE.ConeGeometry(0.15, 1.15, 18, 10);
+// the beak: long, tapering, S-curved downward — the plague doctor silhouette
+const beakGeo = new THREE.ConeGeometry(0.13, 0.95, 20, 14);
 {
   const pos = beakGeo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);           // along cone axis
-    const t = (y + 0.575) / 1.15;    // 0 at tip, 1 at base
-    pos.setX(i, pos.getX(i));
-    pos.setZ(i, pos.getZ(i) - Math.pow(1 - t, 2.2) * 0.35); // downward curve toward tip
+    const y = pos.getY(i);            // along cone axis (-0.475 tip .. +0.475 base)
+    const t = (y + 0.475) / 0.95;     // 0 tip -> 1 base
+    // strong droop toward the tip, slight lift at the base = the classic S
+    pos.setZ(i, pos.getZ(i) - Math.pow(1 - t, 2.0) * 0.34 + Math.pow(t, 2.0) * 0.05);
   }
   beakGeo.computeVertexNormals();
 }
-const beak = new THREE.Mesh(beakGeo, boneWhite);
-beak.rotation.x = Math.PI / 2 - 0.22; // point forward + slightly down
-beak.position.set(0, 0.02, 0.52);
+const beak = shadowed(new THREE.Mesh(beakGeo, boneWhite));
+beak.rotation.x = Math.PI / 2 - 0.30; // forward, drooping down
+beak.position.set(0, 0.06, 0.62);
 mask.add(beak);
-// nostrils
+// nostril slits on the beak's underside near the base (historically correct)
 for (const side of [-1, 1]) {
-  const n = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6),
+  const n = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6),
     new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1 }));
-  n.position.set(side * 0.055, -0.08, 0.56);
+  n.scale.set(1, 0.5, 1.6);
+  n.position.set(side * 0.045, -0.075, 0.42);
   mask.add(n);
 }
 
@@ -396,7 +482,6 @@ function irisTexture() {
   c.width = c.height = 64;
   const g = c.getContext('2d');
   g.fillStyle = '#1a0f2e'; g.fillRect(0, 0, 64, 64);
-  // radial iris fibers
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
     g.strokeStyle = i % 3 ? 'rgba(178,127,232,0.9)' : 'rgba(255,190,120,0.55)';
@@ -406,7 +491,7 @@ function irisTexture() {
     g.stroke();
   }
   g.fillStyle = '#000';
-  g.beginPath(); g.arc(32, 32, 8, 0, Math.PI * 2); g.fill(); // pupil
+  g.beginPath(); g.arc(32, 32, 8, 0, Math.PI * 2); g.fill();
   return new THREE.CanvasTexture(c);
 }
 const irisTex = irisTexture();
@@ -414,7 +499,6 @@ const eyes = [];
 
 function makeEye(radius, withGoggle) {
   const eye = new THREE.Group();
-  // eyeball with iris texture
   const ball = new THREE.Mesh(
     new THREE.SphereGeometry(radius, 20, 14),
     new THREE.MeshStandardMaterial({
@@ -425,12 +509,10 @@ function makeEye(radius, withGoggle) {
   );
   eye.add(ball);
   if (withGoggle) {
-    // brass rim
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.25, radius * 0.28, 10, 24), brass);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.3, radius * 0.3, 10, 24), brass);
     eye.add(rim);
-    // convex glass lens
     const lens = new THREE.Mesh(
-      new THREE.SphereGeometry(radius * 1.18, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+      new THREE.SphereGeometry(radius * 1.2, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
       new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.14, roughness: 0.05, metalness: 0.3 })
     );
     lens.rotation.x = Math.PI / 2;
@@ -441,18 +523,25 @@ function makeEye(radius, withGoggle) {
   return eye;
 }
 
-// two goggle eyes on the mask
+// leather strap wrapping the head — the goggles mount into it
+const strap = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 8, 28), leather);
+strap.rotation.x = Math.PI / 2;
+strap.position.set(0, 0.255, 0.02);
+strap.scale.set(1.06, 1, 1);
+mask.add(strap);
+
+// two goggle eyes
 const eyeL = makeEye(0.085, true);
-eyeL.position.set(-0.16, 0.30, 0.345);
+eyeL.position.set(-0.145, 0.255, 0.30);
 eyeL.rotation.y = -0.15;
 mask.add(eyeL);
 const eyeR = makeEye(0.085, true);
-eyeR.position.set(0.16, 0.30, 0.345);
+eyeR.position.set(0.145, 0.255, 0.30);
 eyeR.rotation.y = 0.15;
 mask.add(eyeR);
-// the third eye — forehead, no goggle, slightly larger, vertical
-const eye3 = makeEye(0.105, false);
-eye3.position.set(0, 0.52, 0.315);
+// the third eye — forehead, no goggle, larger, vertical
+const eye3 = makeEye(0.10, false);
+eye3.position.set(0, 0.44, 0.27);
 mask.add(eye3);
 
 mask.position.set(0, 3.72, 0.12);
@@ -460,21 +549,21 @@ priest.add(mask);
 eyeLight.position.set(0, 3.9, 0.8);
 priest.add(eyeLight);
 
-/* ----- wide-brim leather hat ----- */
+/* ----- wide-brim leather hat, tilted to shadow the goggles ----- */
 const hat = new THREE.Group();
-const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.035, 28), leather);
-const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.36, 0.38, 20), leather);
-crown.position.y = 0.2;
+const brim = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.03, 28), leather));
+const crown = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.34, 20), leather));
+crown.position.y = 0.18;
 hat.add(brim, crown);
-hat.position.set(0, 4.28, 0.0);
-hat.rotation.z = 0.06;
-hat.rotation.x = -0.05;
+hat.position.set(0, 4.18, 0.02);
+hat.rotation.z = 0.05;
+hat.rotation.x = -0.16; // brim dips over the eyes — instant menace
 priest.add(hat);
 
 // arms (preach!)
 const armGeo = new THREE.CylinderGeometry(0.06, 0.09, 1.5, 8);
-const armL = new THREE.Mesh(armGeo, leather);
-const armR = new THREE.Mesh(armGeo, leather);
+const armL = shadowed(new THREE.Mesh(armGeo, leather));
+const armR = shadowed(new THREE.Mesh(armGeo, leather));
 armL.position.set(-0.75, 2.9, 0.15);
 armR.position.set(0.75, 2.9, 0.15);
 priest.add(armL, armR);
@@ -482,8 +571,9 @@ priest.add(armL, armR);
 priest.position.set(0, 0, -13.5);
 scene.add(priest);
 
-const altar = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1, 1.2), stone);
+const altar = shadowed(new THREE.Mesh(new THREE.BoxGeometry(3.2, 1, 1.2), stone));
 altar.position.set(0, 0.5, -12.4);
+altar.receiveShadow = true;
 scene.add(altar);
 
 /* ================= pointer: gaze + sun ================= */
@@ -536,6 +626,18 @@ function tick() {
   sunLight.color.copy(skyC.sun);
   sunLight.intensity = skyC.sunI;
   sunLight.position.set(sunX * 0.3, Math.max(2, sunY * 0.5), -20);
+  sunLight.target.position.set(0, 1, -8);
+
+  // feed the volumetric shaft pass the sun's screen position
+  if (shaftPass) {
+    const v = sunMesh.position.clone().project(camera);
+    shaftPass.uniforms.sunPos.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
+    shaftPass.uniforms.sunColor.value.copy(skyC.sun);
+    shaftPass.uniforms.aspect.value = camera.aspect;
+    const onScreen = v.z < 1 && Math.abs(v.x) < 1.3 && Math.abs(v.y) < 1.3;
+    shaftPass.uniforms.intensity.value = THREE.MathUtils.lerp(
+      shaftPass.uniforms.intensity.value, onScreen ? 0.6 : 0.0, Math.min(1, dt * 3));
+  }
 
   timeTag.textContent = timeOfDay < 0.42 ? 'dawn' : timeOfDay < 0.58 ? 'midday' : timeOfDay < 0.9 ? 'dusk' : 'last light';
 
@@ -585,7 +687,8 @@ function tick() {
     if (s.position.x < -10) s.position.x = 10;
   }
 
-  renderer.render(scene, camera);
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
 }
 tick();
 
@@ -593,6 +696,7 @@ addEventListener('resize', () => {
   camera.aspect = W() / H();
   camera.updateProjectionMatrix();
   renderer.setSize(W(), H());
+  if (composer) composer.setSize(W(), H());
 });
 </script>
 </body>

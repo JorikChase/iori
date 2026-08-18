@@ -51,8 +51,16 @@
 
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background:#000; color:#fff; font-family:"Courier New", ui-monospace, monospace; }
+  html, body { height: 100%; }
+  body {
+    background:#000; color:#fff;
+    font-family:"Courier New", ui-monospace, monospace;
+    cursor: none; /* the car IS the cursor */
+    overflow-x: hidden;
+  }
   ::selection { background:#fff; color:#000; }
+  a { cursor: none; }
+
   header {
     position: sticky; top: 0; z-index: 20; background:#000;
     display:flex; align-items:baseline; gap:1.2rem;
@@ -64,45 +72,48 @@
   header nav { margin-left:auto; display:flex; gap:1rem; font-size:.8rem; }
   a { color:#555; text-decoration:none; letter-spacing:.15em; text-transform:uppercase; }
   a:hover { color:#fff; }
-
   .sub { padding: .9rem 1.2rem; color:#555; font-size:.75rem; letter-spacing:.25em; text-transform:uppercase; border-bottom:1px solid #1a1a1a; }
 
-  /* photo-first masonry */
-  #feed { columns: 2; column-gap: 2px; padding: 2px; }
-  .post { break-inside: avoid; position: relative; margin-bottom: 2px; overflow: hidden; cursor: pointer; }
+  /* freeform canvas */
+  #stage-wrap { position: relative; overflow: hidden; }
+  #tracks { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  #stage { position: relative; width: 1200px; transform-origin: top left; z-index: 2; }
+  .post { position: absolute; overflow: hidden; cursor: none; }
   .post img, .post video {
     width: 100%; display: block;
     filter: grayscale(15%) contrast(1.02);
-    transition: filter 180ms ease, transform 240ms cubic-bezier(.2,.9,.3,1);
+    transition: filter 180ms ease;
   }
-  .post:hover img { filter: none; transform: scale(1.015); }
+  .post:hover img { filter: none; }
   .post .cap {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    padding: .7rem .8rem; font-size: .72rem; letter-spacing:.12em;
-    background: linear-gradient(transparent, rgba(0,0,0,.85));
-    color: #ddd; opacity: 0; transition: opacity 160ms ease;
+    margin-top: .35rem; font-size: .72rem; letter-spacing:.12em; color: #888;
   }
-  .post:hover .cap { opacity: 1; }
-  .post .time { position:absolute; top:.6rem; right:.7rem; font-size:.65rem; color:rgba(255,255,255,.55); letter-spacing:.15em; opacity:0; transition: opacity 160ms; }
-  .post:hover .time { opacity:1; }
-  .text-post { border:1px solid #333; padding:1.4rem; color:#ddd; line-height:1.8; font-size:.85rem; }
+  .post .time { font-size: .62rem; color:#444; letter-spacing:.15em; }
+  .text-post { border:1px solid #333; padding:1.2rem; color:#ddd; line-height:1.8; font-size:.85rem; }
 
   #empty { padding: 5rem 1.2rem; color:#555; letter-spacing:.2em; text-align:center; line-height:2; }
 
+  /* the car cursor */
+  #car { position: fixed; z-index: 60; pointer-events: none; width: 96px; margin: -48px 0 0 -48px; }
+  #car img { width: 100%; display: block; }
+
   /* fullscreen viewer */
   #viewer {
-    position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.96);
+    position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.96);
     display: none; align-items: center; justify-content: center; flex-direction: column;
-    animation: fadein 140ms ease;
+    animation: fadein 140ms ease; cursor: none;
   }
   @keyframes fadein { from { opacity: 0; } }
   #viewer.open { display: flex; }
   #viewer img, #viewer video { max-width: 94vw; max-height: 82vh; animation: pop 160ms ease; }
   @keyframes pop { from { transform: scale(.97); opacity: 0; } }
   #viewer .vcap { margin-top: 1rem; color:#ccc; font-size:.8rem; letter-spacing:.1em; max-width: 70ch; text-align:center; line-height:1.7; padding: 0 1rem; }
-  #viewer .vclose { position:absolute; top:1rem; right:1.2rem; background:none; border:none; color:#fff; font:inherit; font-size:1.4rem; cursor:pointer; }
+  #viewer .vclose { position:absolute; top:1rem; right:1.2rem; background:none; border:none; color:#fff; font:inherit; font-size:1.4rem; cursor: none; }
 
-  @media (max-width: 720px) { #feed { columns: 1; } }
+  @media (pointer: coarse) {
+    body, a, .post, #viewer, #viewer .vclose { cursor: auto; }
+    #car { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -111,15 +122,20 @@
   <div class="logo">MOISES<span>_</span></div>
   <nav>
     <a href="https://3die.fr/">label</a>
-    <a href="https://iori.me/catalog.html">catalog</a>
+    <a href="https://iori.me/portfolio.html">portfolio</a>
     <a href="https://dash.3die.fr/">post</a>
   </nav>
 </header>
 
 <div class="sub">photo journal — 3die label</div>
 
-<div id="feed"></div>
+<div id="stage-wrap">
+  <canvas id="tracks"></canvas>
+  <div id="stage"></div>
+</div>
 <div id="empty">loading…</div>
+
+<div id="car"><img id="car-sprite" alt=""></div>
 
 <div id="viewer">
   <button class="vclose" id="vclose">×</button>
@@ -129,45 +145,74 @@
 
 <script>
 const API = "https://api.3die.fr";
+const CANVAS_W = 1200;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+/* ================= posts / freeform canvas ================= */
+
+const stage = document.getElementById("stage");
+const wrap = document.getElementById("stage-wrap");
+
+function fitStage() {
+  const scale = Math.min(1, wrap.clientWidth / CANVAS_W);
+  stage.style.transform = `scale(${scale})`;
+  wrap.style.height = (stage.offsetHeight * scale) + "px";
+}
+addEventListener("resize", fitStage);
+
 async function boot() {
-  const feed = document.getElementById("feed");
   const empty = document.getElementById("empty");
   try {
     const res = await fetch(`${API}/posts?author=moises&limit=200`);
     const { posts } = await res.json();
-    if (!posts.length) {
-      empty.textContent = "first photographs are being developed.";
-      return;
-    }
+    if (!posts.length) { empty.textContent = "first photographs are being developed."; return; }
     empty.remove();
-    for (const p of posts) renderPost(feed, p);
+    layoutPosts(posts);
   } catch (e) {
     empty.textContent = "journal unavailable right now.";
   }
 }
 
-function renderPost(feed, p) {
-  const el = document.createElement("div");
-  el.className = "post";
-  const date = new Date(p.created_at).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
-  if (!p.media.length) {
-    el.classList.add("text-post");
-    el.innerHTML = esc(p.caption);
-    feed.appendChild(el);
-    return;
+function layoutPosts(posts) {
+  let autoX = 40, autoY = 40, maxBottom = 400;
+  // posts with a saved layout go exactly where moises put them;
+  // new ones cascade in until he places them from the dashboard canvas.
+  for (const p of [...posts].reverse()) {
+    const el = document.createElement("div");
+    el.className = "post";
+    const lay = p.layout || {};
+    const hasLay = lay.x != null;
+    const x = hasLay ? lay.x : autoX;
+    const y = hasLay ? lay.y : autoY;
+    const w = (hasLay && lay.w) || 300;
+    if (!hasLay) { autoX += 340; if (autoX > CANVAS_W - 340) { autoX = 40; autoY += 380; } }
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    el.style.width = w + "px";
+    el.style.zIndex = (hasLay && lay.z) || 1;
+
+    const date = new Date(p.created_at).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
+    const first = p.media[0];
+    if (!first) {
+      el.classList.add("text-post");
+      el.innerHTML = esc(p.caption);
+    } else {
+      el.innerHTML =
+        (/\.(mp4|webm|mov)$/i.test(first)
+          ? `<video src="${esc(first)}" muted loop playsinline onmouseover="this.play()" onmouseout="this.pause()"></video>`
+          : `<img src="${esc(first)}" loading="lazy" alt="">`) +
+        `<div class="cap">${esc(p.caption || "")} <span class="time">${date}</span></div>`;
+      el.addEventListener("click", () => openViewer(p));
+    }
+    stage.appendChild(el);
+    maxBottom = Math.max(maxBottom, y + el.offsetHeight + 120);
   }
-  const first = p.media[0];
-  const isVideo = /\.(mp4|webm|mov)$/i.test(first);
-  el.innerHTML =
-    (isVideo ? `<video src="${esc(first)}" muted loop playsinline onmouseover="this.play()" onmouseout="this.pause()"></video>`
-             : `<img src="${esc(first)}" loading="lazy" alt="">`) +
-    `<div class="time">${date}</div>` +
-    (p.caption ? `<div class="cap">${esc(p.caption)}</div>` : "");
-  el.addEventListener("click", () => openViewer(p));
-  feed.appendChild(el);
+  stage.style.height = maxBottom + "px";
+  requestAnimationFrame(fitStage);
+  sizeTracks();
 }
+
+/* ================= fullscreen viewer ================= */
 
 function openViewer(p) {
   const v = document.getElementById("viewer");
@@ -189,6 +234,157 @@ document.getElementById("viewer").addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.getElementById("vclose").click();
 });
+
+/* ================= the car cursor =================
+   Atlas: 3x3 grid (center empty), 8 isometric directions.
+   The car chases the pointer with momentum; hard steering at speed = drift,
+   and the rear wheels lay fading tire tracks on #tracks.              */
+
+const carEl = document.getElementById("car");
+const carImg = document.getElementById("car-sprite");
+const tracksCv = document.getElementById("tracks");
+const tracksCtx = tracksCv.getContext("2d");
+
+const sprites = []; // 8 directional sprites: [NW,N,NE,W,E,SW,S,SE]
+const atlas = new Image();
+atlas.src = "moses_car_cursor.png";
+atlas.onload = () => {
+  const cw = Math.floor(atlas.width / 3);
+  const ch = Math.floor(atlas.height / 3);
+  const order = [[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2]]; // NW,N,NE,W,E,SW,S,SE
+  for (const [gx, gy] of order) {
+    const c = document.createElement("canvas");
+    c.width = cw; c.height = ch;
+    c.getContext("2d").drawImage(atlas, gx * cw, gy * ch, cw, ch, 0, 0, cw, ch);
+    sprites.push(c);
+  }
+  if (sprites[4]) carImg.src = sprites[4].toDataURL(); // default: E
+};
+
+function sizeTracks() {
+  tracksCv.width = wrap.clientWidth;
+  tracksCv.height = wrap.clientHeight;
+}
+addEventListener("resize", sizeTracks);
+sizeTracks();
+
+const car = {
+  x: innerWidth / 2, y: innerHeight / 2,
+  vx: 0, vy: 0,
+  heading: 0,          // where the car points
+  speed: 0,
+  drifting: false,
+};
+const target = { x: car.x, y: car.y };
+let pointerSeen = false;
+
+addEventListener("pointermove", (e) => {
+  target.x = e.clientX;
+  target.y = e.clientY;
+  pointerSeen = true;
+});
+addEventListener("touchmove", (e) => {
+  target.x = e.touches[0].clientX;
+  target.y = e.touches[0].clientY;
+  pointerSeen = true;
+}, { passive: true });
+
+const DIRS = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]; // NW..SE
+const DIR_ANGLES = DIRS.map(([x, y]) => Math.atan2(y, x));
+
+function angleLerp(a, b, t) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
+
+let lastT = performance.now();
+let trackClock = 0;
+
+function carTick(now) {
+  requestAnimationFrame(carTick);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  if (!pointerSeen || !sprites.length) return;
+
+  // desired velocity toward cursor (with arrival easing)
+  const dx = target.x - car.x, dy = target.y - car.y;
+  const dist = Math.hypot(dx, dy);
+  const wantSpeed = Math.min(900, dist * 4);
+  const wantAng = Math.atan2(dy, dx);
+
+  // steering: heading chases desired direction, limited turn rate
+  const turnRate = 6.5; // rad/s
+  car.heading = angleLerp(car.heading, wantAng, Math.min(1, turnRate * dt));
+
+  // heading vs velocity mismatch at speed => drift
+  const velAng = Math.atan2(car.vy, car.vx);
+  let slip = Math.abs(angleLerp(velAng, car.heading, 1) - velAng);
+  if (Math.abs(slip) > Math.PI) slip = Math.PI * 2 - Math.abs(slip);
+  car.drifting = car.speed > 240 && slip > 0.35;
+
+  // accelerate along heading; grip depends on drift state
+  const grip = car.drifting ? 0.86 : 0.80;
+  const accel = car.drifting ? 500 : 800;
+  car.vx += Math.cos(car.heading) * accel * dt * (wantSpeed / 900);
+  car.vy += Math.sin(car.heading) * accel * dt * (wantSpeed / 900);
+  car.vx *= Math.pow(grip, dt * 60);
+  car.vy *= Math.pow(grip, dt * 60);
+
+  // cap speed
+  car.speed = Math.hypot(car.vx, car.vy);
+  const maxS = 950;
+  if (car.speed > maxS) { car.vx *= maxS / car.speed; car.vy *= maxS / car.speed; car.speed = maxS; }
+
+  car.x += car.vx * dt;
+  car.y += car.vy * dt;
+
+  // choose sprite by heading quantized to 8 directions
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < 8; i++) {
+    let d = Math.abs(car.heading - DIR_ANGLES[i]);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  if (sprites[best]) carImg.src = sprites[best].toDataURL();
+
+  carEl.style.transform = `translate(${car.x}px, ${car.y}px)`;
+
+  // tire tracks while moving (heavier while drifting)
+  const wrapRect = wrap.getBoundingClientRect();
+  const inStage = car.y > wrapRect.top && car.y < wrapRect.bottom;
+  if (inStage && car.speed > 120) {
+    trackClock += dt;
+    const interval = car.drifting ? 0.012 : 0.03;
+    if (trackClock > interval) {
+      trackClock = 0;
+      const bx = car.x - wrapRect.left, by = car.y - wrapRect.top;
+      const px = Math.cos(car.heading + Math.PI / 2) * 10;
+      const py = Math.sin(car.heading + Math.PI / 2) * 10;
+      const back = 26;
+      const alpha = car.drifting ? 0.5 : 0.18;
+      tracksCtx.strokeStyle = `rgba(20,20,20,${alpha})`;
+      tracksCtx.lineWidth = car.drifting ? 5 : 3;
+      tracksCtx.lineCap = "round";
+      for (const side of [-1, 1]) {
+        tracksCtx.beginPath();
+        tracksCtx.moveTo(bx + px * side - Math.cos(car.heading) * back, by + py * side - Math.sin(car.heading) * back);
+        tracksCtx.lineTo(bx + px * side, by + py * side);
+        tracksCtx.stroke();
+      }
+    }
+  }
+
+  // tracks fade slowly
+  if ((now | 0) % 3 === 0) {
+    tracksCtx.globalCompositeOperation = "destination-out";
+    tracksCtx.fillStyle = "rgba(0,0,0,0.006)";
+    tracksCtx.fillRect(0, 0, tracksCv.width, tracksCv.height);
+    tracksCtx.globalCompositeOperation = "source-over";
+  }
+}
+requestAnimationFrame(carTick);
 
 boot();
 </script>

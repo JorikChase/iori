@@ -355,7 +355,7 @@
       <h2>1. Introduction to Fractals</h2>
       <h3>1.1 The Sierpinski Carpet</h3>
       <p>
-        The Sierpinski carpet is constructed by starting with a square, dividing it into a 3x3 grid, and removing the
+        <a href="mirrorbrot.html"><span class="accent accent-purple">The Sierpinski carpet</span></a> is constructed by starting with a square, dividing it into a 3x3 grid, and removing the
         central square. This process is then applied recursively to the remaining eight squares.
       </p>
       <div class="controls">
@@ -367,7 +367,7 @@
       <canvas id="sierpinski-carpet-canvas" class="interactive-canvas" width="500" height="500"></canvas>
       <h3>1.2 The Menger Sponge</h3>
       <p>
-        Extending this concept into three dimensions yields the Menger Sponge. One begins with a cube and recursively
+        Extending this concept into three dimensions yields the <a href="mandelbrot-gs.html"><span class="accent accent-purple">Menger Sponge</span></a>. One begins with a cube and recursively
         removes the central cube from each face and its interior. Use your mouse to rotate the camera.
       </p>
       <div class="controls">
@@ -384,7 +384,7 @@
       <h2>2. Stochastic and Emergent Systems</h2>
       <h3>2.1 Stochastic Processes: Brownian Motion</h3>
       <p>
-        Brownian motion, the random movement of particles, produces a statistically <span class="accent accent-blue">self-similar</span>—fractal—path. A
+        Brownian motion, the random movement of particles, produces a statistically <a href="diffusion-fluid.html"><span class="accent accent-blue">self-similar</span></a>—fractal—path. A
         magnified section of the path looks just as jagged and random as the whole.
       </p>
       <div class="controls">
@@ -394,7 +394,7 @@
       <h3>2.2 Langton's Ant</h3>
       <p>A simple automaton with a single "ant" on a grid. The ant turns left or right based on the color of the square
         it's on, flips the color, and moves forward. This simple rule set leads to chaotic behavior that eventually
-        builds a periodic "highway".</p>
+        builds a periodic <a href="game-of-life.html"><span class="accent accent-blue">"highway"</span></a>.</p>
       <div class="controls">
         <button id="ant-play-pause">Play</button>
         <button id="ant-reset">Reset</button>
@@ -403,27 +403,26 @@
       <h3>2.3 Voxel Fire Simulation</h3>
       <p>
         Fractal noise and particle systems are foundational to procedural generation in computer graphics. This
-        simulation uses a particle system originating from a 16x16 grid to create a fire effect. Each particle (a
-        "voxel" of fire) has a limited lifetime and follows simple rules, creating a complex, dynamic, and realistic
+        simulation uses a particle system originating from a 16x16 grid to create a fire effect. Each particle (<a href="flame.html"><span class="accent accent-orange">"voxel" of fire</span></a>) has a limited lifetime and follows simple rules, creating a complex, dynamic, and realistic
         whole. Use your mouse to rotate the camera.
       </p>
       <div id="fire-canvas-container" class="interactive-canvas-container">
         <canvas id="fire-canvas"></canvas>
       </div>        <h3>2.4 GPGPU Boids: Artificial Life</h3>
         <p>
-          The "Boids" algorithm simulates flocking behavior through three localized rules: Separation, Alignment, and Cohesion. By processing thousands of agents in real-time via GPGPU, the simulation yields macroscopic order from microscopic simplicity. Crucially, these flocks skirt the edge of instability—their fluid, non-repeating <span class="accent accent-orange">emergent behavior</span> is governed by underlying <a href="three-body.html"><span class="accent accent-purple">chaos attractors</span></a>. Move your mouse over the canvas to introduce a perturbation (a predator) and watch the system adapt.
+          The "Boids" algorithm simulates flocking behavior through three localized rules: Separation, Alignment, and Cohesion. By processing thousands of agents in real-time via <a href="start.html"><span class="accent accent-orange">GPGPU</span></a>, the simulation yields macroscopic order from microscopic simplicity. Crucially, these flocks skirt the edge of instability—their fluid, non-repeating <span class="accent accent-orange">emergent behavior</span> is governed by underlying <a href="three-body.html"><span class="accent accent-purple">chaos attractors</span></a>. Move your mouse over the canvas to introduce a perturbation (a predator) and watch the system adapt.
         </p>
         <div id="gpgpu-boids-container" class="interactive-canvas-container"></div>
         <h3 id="ch2-5">2.5 Synthetic Sylviculture</h3>
         <p>
-          Beyond abstract motion, <span class="accent accent-orange">emergent algorithms</span> fuel advancement in procedural nature modeling. <span class="accent accent-green">Synthetic sylviculture</span> relies on fractal recursion and environmental tropisms to grow digital forests. Rather than modeling a tree explicitly, algorithms simulate the botanical rules of light-seeking and structural integrity, allowing realistic, hyper-detailed foliage to literally grow itself within the simulation constraints.
+          Beyond abstract motion, <span class="accent accent-orange">emergent algorithms</span> fuel advancement in procedural nature modeling. <span class="accent accent-green">Synthetic sylviculture</span> relies on fractal recursion and environmental tropisms to grow digital forests. Rather than modeling a tree explicitly, algorithms simulate the <a href="dandelion-cycle.html"><span class="accent accent-green">botanical rules</span></a> of light-seeking and structural integrity, allowing realistic, hyper-detailed foliage to literally grow itself within the simulation constraints.
         </p>
       </section>      <section id="ch3">
         <h2>3. Cellular Automata</h2>
-        <p>While models like Boids explore agents in continuous space, <span class="accent accent-blue">cellular automata</span> constrain these dynamics to a discrete grid. The state of each cell evolves purely based on its immediately adjacent neighbors. Despite this rigidity, <span class="accent accent-blue">cellular automata</span> mathematically prove that intricate, life-like complexity can arise effortlessly from a handful of absolute rules.</p>
+        <p>While models like Boids explore agents in continuous space, <a href="ember-engine.html"><span class="accent accent-blue">cellular automata</span></a> constrain these dynamics to a discrete grid. The state of each cell evolves purely based on its immediately adjacent neighbors. Despite this rigidity, <span class="accent accent-blue">cellular automata</span> mathematically prove that intricate, life-like complexity can arise effortlessly from a handful of absolute rules.</p>
       <h3>3.1 Conway's Game of Life</h3>
       <p>A classic example where cells are either "alive" or "dead". The rules for survival, death, and birth based on
-        neighbor counts lead to incredibly complex and persistent patterns from simple initial conditions.</p>
+        neighbor counts lead to <a href="webgl.html"><span class="accent accent-blue">incredibly complex and persistent patterns</span></a> from simple initial conditions.</p>
       <div class="controls">
         <button id="life-play-pause">Play</button>
         <button id="life-reset">Reset</button>
@@ -432,11 +431,11 @@
     </section>
     <section id="ch4">
       <h2>4. Phase Transitions and Criticality</h2>        <p>
-          The jump from local rules to global behavior is the essence of <span class="accent accent-orange">emergence</span>. However, <span class="accent accent-orange">emergence</span> reaches its peak potential during phase transitions—moments where a system's global behavior abruptly shifts. When a system is poised exactly at this boundary, it operates at a <a href="https://www.youtube.com/watch?v=vwLb3XlPCB4&t=365s" target="_blank" rel="noopener noreferrer"><span class="accent accent-green">criticality point</span></a>. In this delicate state of criticality, fractal-like structures and infinite-range correlations naturally appear.
+          The jump from local rules to global behavior is the essence of <span class="accent accent-orange">emergence</span>. However, <span class="accent accent-orange">emergence</span> reaches its peak potential during phase transitions—moments where a system's global behavior abruptly shifts. When a system is poised exactly at this boundary, it operates at a <a href="https://www.youtube.com/watch?v=vwLb3XlPCB4&t=365s" target="_blank" rel="noopener noreferrer"><span class="accent accent-green">criticality point</span></a>. In this delicate state of criticality, <a href="slime-mold.html"><span class="accent accent-green">fractal-like structures</span></a> and infinite-range correlations naturally appear.
         </p>
         <h3>4.1 The Ising Model</h3>
         <p>
-          The Ising model illustrates this beautifully. By simulating atomic spins on a grid, it demonstrates a system caught between two phases: rigid order at low temperatures and chaotic disorder at high temperatures. The knife-edge transition between them is the <span class="accent accent-green">critical point</span>. Intriguingly, the "criticality hypothesis" suggests the human brain operates near a similar point—balancing the stability necessary for memory with the chaotic flexibility required for novel thought. Adjust the temperature below to traverse this boundary.
+          The Ising model illustrates this beautifully. By simulating atomic spins on a grid, it demonstrates a system caught between two phases: rigid order at low temperatures and chaotic disorder at high temperatures. <a href="civilisation-builder.html"><span class="accent accent-green">The knife-edge transition</span></a> between them is the <span class="accent accent-green">critical point</span>. Intriguingly, the "criticality hypothesis" suggests the human brain operates near a similar point—balancing the stability necessary for memory with the chaotic flexibility required for novel thought. Adjust the temperature below to traverse this boundary.
         </p>
       <div class="controls">
         <label>Temperature:
@@ -472,7 +471,7 @@
       <h3>5.2 Fractal Dimension of an Image</h3>
       <p>
         After processing an image to extract its edges, we can quantify the complexity of the resulting pattern by
-        calculating its <span class="accent accent-purple">fractal dimension</span> using the Box-Counting method.
+        calculating its <a href="fractal-dimension.html"><span class="accent accent-purple">fractal dimension</span></a> using the Box-Counting method.
       </p>
       <div class="controls">
         <button id="calculate-fd-btn">Calculate Fractal Dimension</button>
@@ -507,14 +506,14 @@
         <br>
         <br>
         An organism’s niche is a rugged boundary on this map, as intricate and detailed at the level of a biome as it is
-        at the scale of a single leaf’s edge. Evolution is not a climb, but a diffusion of a population across this
+        at the scale of a single leaf’s edge. Evolution is not a climb, but a <a href="mycelium.html"><span class="accent accent-green">diffusion of a population</span></a> across this
         impossibly complex surface.
         <br>
         <br>
         Thus, the profound similarity is revealed. Both the living organism and the simple algorithm are explorers of a
         rough and complex geometry. They are searchers, one blind and biological, the other blind and logical,
         navigating a landscape of possibility whose very roughness is the source of its richness. The butterfly’s wing
-        and the perceptron’s learned weights are both snapshots of a successful path found through this wilderness, a
+        and the <a href="lambda_cognition.html"><span class="accent accent-purple">perceptron’s learned weights</span></a> are both snapshots of a successful path found through this wilderness, a
         testament to the startling power of iterative fitting. They are two strikingly different manifestations of the
         same universal act: the slow, painful, yet ultimately beautiful convergence of a model to a world.
       </p>

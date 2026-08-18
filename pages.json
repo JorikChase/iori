@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-27",
+  "generated": "2026-08-18",
   "pages": [
     {
       "slug": "4cube.html",
@@ -57,21 +57,10 @@
       "lastmod": "2026-07-27"
     },
     {
-      "slug": "catalog.html",
-      "title": "iori — Catalog: Artists & Experiments",
-      "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.",
-      "category": "hub",
-      "type": "site",
-      "domain": "iori.me",
-      "url": "https://iori.me/catalog.html",
-      "og_image": null,
-      "lastmod": "2026-07-27"
-    },
-    {
       "slug": "civilisation-builder.html",
       "title": "Civilisation Builder — Reaction-Diffusion",
       "description": "Civilisations growing like reaction-diffusion patterns: an interactive study of emergence.",
-      "category": "organisms",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/civilisation-builder.html",
@@ -225,7 +214,7 @@
       "slug": "ember-engine.html",
       "title": "Ember Engine — Cellular Automata Fire",
       "description": "Cellular automata embers rising and dying out: fire as a rule-based organism.",
-      "category": "flames",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/ember-engine.html",
@@ -236,7 +225,7 @@
       "slug": "flame-simulation.html",
       "title": "Satisfying Fire Simulator",
       "description": "Feed the fire and watch it spread: an interactive combustion simulation built for satisfaction.",
-      "category": "flames",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/flame-simulation.html",
@@ -247,7 +236,7 @@
       "slug": "flame.html",
       "title": "2D Fire Simulator",
       "description": "A satisfying 2D fire simulator: cellular combustion rendered in warm, living pixels.",
-      "category": "flames",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/flame.html",
@@ -302,7 +291,7 @@
       "slug": "game-of-life.html",
       "title": "Game of Life — ASCII Edition",
       "description": "Conway's Game of Life rendered in living ASCII: cellular automata as typography.",
-      "category": "organisms",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/game-of-life.html",
@@ -376,6 +365,17 @@
       "lastmod": "2026-07-27"
     },
     {
+      "slug": "iori_INDEX.html",
+      "title": "iori — Flow Lenia Node Web",
+      "description": "The iori catalogue as a living flow-lenia organism: every page a cell, every visit a navigation of the whole network.",
+      "category": "hub",
+      "type": "site",
+      "domain": "iori.me",
+      "url": "https://iori.me/iori_INDEX.html",
+      "og_image": null,
+      "lastmod": "2026-08-18"
+    },
+    {
       "slug": "iris.html",
       "title": "Procedural Iris",
       "description": "A procedurally generated iris: infinite eyes grown from shader mathematics.",
@@ -434,7 +434,7 @@
       "slug": "liquid-automata.html",
       "title": "Frost — Generative Crystal Engine",
       "description": "Frost creeping across glass: a generative crystal engine of liquid automata.",
-      "category": "organisms",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/liquid-automata.html",
@@ -486,6 +486,28 @@
       "lastmod": "2026-07-27"
     },
     {
+      "slug": "mirrorbrot-16k.html",
+      "title": "Mirrorbrot — 16K Deep Edition",
+      "description": "The mirror-fold Mandelbrot pushed to 16K: deeper zooms, finer boundaries, same infinite fold.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/mirrorbrot-16k.html",
+      "og_image": null,
+      "lastmod": "2026-08-18"
+    },
+    {
+      "slug": "mirrorbrot.html",
+      "title": "Mirrorbrot — Mirror-Fold Deep Zoom",
+      "description": "The Mandelbrot set with its interior mirrored through the boundary via signed-distance folding: an infinite tiling deep-zoom explorer.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/mirrorbrot.html",
+      "og_image": null,
+      "lastmod": "2026-08-18"
+    },
+    {
       "slug": "moises.html",
       "title": "moises — Photo Journal",
       "description": "Photographs by moises: a composition-first journal of images and notes, published under the 3DIE label.",
@@ -495,6 +517,17 @@
       "url": "https://3die.fr/moises.html",
       "og_image": null,
       "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "multiOS.html",
+      "title": "Multi-OS VJ Studio Environment",
+      "description": "A Windows-style multi-OS desktop for VJing: draggable retro windows, CRT texture, studio tools in the browser.",
+      "category": "materials",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/multiOS.html",
+      "og_image": null,
+      "lastmod": "2026-08-18"
     },
     {
       "slug": "music.html",
@@ -511,7 +544,7 @@
       "slug": "mycelium.html",
       "title": "Mycelium Engine — Cellular Automata",
       "description": "A mycelium network grown by cellular automata: fungal computation rendered live.",
-      "category": "organisms",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/mycelium.html",
@@ -553,12 +586,12 @@
     },
     {
       "slug": "portfolio.html",
-      "title": "3DIE & iori — Interactive Art Portfolio",
-      "description": "Selected interactive works by the 3DIE label and iori: GPU simulations, WebGL experiments and real-time 3D experiences.",
-      "category": "site",
+      "title": "iori — Portfolio: Artists & Experiments",
+      "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.",
+      "category": "hub",
       "type": "site",
-      "domain": "3die.fr",
-      "url": "https://3die.fr/portfolio.html",
+      "domain": "iori.me",
+      "url": "https://iori.me/portfolio.html",
       "og_image": null,
       "lastmod": "2026-07-27"
     },
@@ -638,6 +671,17 @@
       "url": "https://iori.me/star.html",
       "og_image": null,
       "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "start.html",
+      "title": "Start — GPU Flocking Birds",
+      "description": "Thousands of birds flocking in real time via GPU compute: separation, alignment, cohesion — the boids showpiece of 3DIE & iori.",
+      "category": "materials",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/start.html",
+      "og_image": null,
+      "lastmod": "2026-08-18"
     },
     {
       "slug": "sudoku.html",
@@ -808,7 +852,7 @@
       "slug": "webgl.html",
       "title": "WEBGL Sandbox",
       "description": "A raw WebGL sandbox: feedback shaders and a half-million-particle system to play with.",
-      "category": "materials",
+      "category": "automata",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/webgl.html",

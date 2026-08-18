@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS posts (
     author TEXT NOT NULL,
     caption TEXT NOT NULL DEFAULT '',
     media TEXT NOT NULL DEFAULT '[]',
+    layout TEXT,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_lane_phase ON tasks(lane, phase, position);
@@ -133,6 +134,10 @@ def init_db():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     with db() as conn:
         conn.executescript(SCHEMA)
+        # migrations for existing databases
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(posts)").fetchall()]
+        if "layout" not in cols:
+            conn.execute("ALTER TABLE posts ADD COLUMN layout TEXT")
         if conn.execute("SELECT COUNT(*) c FROM lanes").fetchone()["c"] == 0:
             conn.executemany("INSERT INTO lanes(name, position) VALUES (?, ?)", DEFAULT_LANES)
         if conn.execute("SELECT COUNT(*) c FROM phases").fetchone()["c"] == 0:
@@ -479,6 +484,10 @@ def mark_message(msg_id: int, body: dict, user=Depends(require_user)):
 def post_dict(row):
     d = dict(row)
     d["media"] = [f"{MEDIA_BASEURL}/{m}" for m in json.loads(d["media"])]
+    try:
+        d["layout"] = json.loads(d["layout"]) if d.get("layout") else None
+    except (json.JSONDecodeError, TypeError):
+        d["layout"] = None
     return d
 
 
@@ -524,6 +533,34 @@ async def create_post(
             (user["username"], caption.strip(), json.dumps(saved), now()),
         )
         row = conn.execute("SELECT * FROM posts WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return post_dict(row)
+
+
+@app.patch("/posts/{post_id}")
+def update_post(post_id: int, body: dict, user=Depends(require_user)):
+    with db() as conn:
+        row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "post not found")
+        if row["author"] != user["username"] and user["role"] != "admin":
+            raise HTTPException(403, "can only edit your own posts")
+        if "caption" in body:
+            conn.execute("UPDATE posts SET caption = ? WHERE id = ?",
+                         (str(body["caption"])[:4000], post_id))
+        if "layout" in body:
+            lay = body["layout"]
+            if lay is not None:
+                if not isinstance(lay, dict):
+                    raise HTTPException(400, "layout must be an object")
+                clean = {}
+                for k in ("x", "y", "w", "z"):
+                    v = lay.get(k)
+                    clean[k] = max(-100000, min(100000, float(v))) if v is not None else None
+                conn.execute("UPDATE posts SET layout = ? WHERE id = ?",
+                             (json.dumps(clean), post_id))
+            else:
+                conn.execute("UPDATE posts SET layout = NULL WHERE id = ?", (post_id,))
+        row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
         return post_dict(row)
 
 

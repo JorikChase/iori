@@ -28,9 +28,12 @@
       <nav class="tabs">
         <button class="tab active" data-tab="board">BOARD</button>
         <button class="tab" data-tab="inbox">INBOX<span id="inbox-badge" class="badge hidden"></span></button>
+        <button class="tab" data-tab="chat">CHAT<span id="chat-badge" class="badge hidden"></span></button>
         <button class="tab" data-tab="blog">BLOG</button>
+        <button class="tab" data-tab="canvas">CANVAS</button>
       </nav>
       <div class="userbox">
+        <button id="profile-btn" class="ghost-btn" title="profile">⚙</button>
         <span id="whoami"></span>
         <button id="logout-btn" class="ghost-btn">OUT</button>
       </div>
@@ -51,6 +54,37 @@
     <!-- INBOX -->
     <div id="tab-inbox" class="tabpanel hidden">
       <div id="inbox-list" class="listcol"></div>
+    </div>
+
+    <!-- CHAT -->
+    <div id="tab-chat" class="tabpanel hidden">
+      <div id="chat-list" class="listcol chatcol"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" placeholder="message the crew…" autocomplete="off">
+        <button type="submit">SEND</button>
+      </form>
+    </div>
+
+    <!-- CANVAS (freeform layout editor) -->
+    <div id="tab-canvas" class="tabpanel hidden">
+      <div class="board-toolbar">
+        <span class="canvas-hint">drag to place &bull; corner to resize &bull; layout saves automatically</span>
+      </div>
+      <div id="canvas-scroll">
+        <div id="canvas-area"></div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="tab-profile" class="tabpanel hidden">
+      <form id="pw-form" class="post-card">
+        <div class="post-title">CHANGE PASSWORD</div>
+        <input id="pw-old" type="password" placeholder="current password" required>
+        <input id="pw-new" type="password" placeholder="new password (min 8 chars)" required minlength="8">
+        <input id="pw-new2" type="password" placeholder="repeat new password" required>
+        <button type="submit">CHANGE</button>
+        <div id="pw-status" class="error-line"></div>
+      </form>
     </div>
 
     <!-- BLOG -->

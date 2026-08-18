@@ -1,86 +1,665 @@
 {
   "$schema_note": "Registry for site.py — every public HTML page gets an entry. New pages are auto-added with TODO flags by `python3 site.py scan`. domain = canonical home; hidden = excluded from sitemap/hubs + noindex.",
   "pages": {
-    "index.html":   { "title": "3DIE — Design, Art & Technologies Label", "description": "3DIE is an independent label fusing design, art and technology: finished games, 3D-printed objects, music and the artists behind them.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 1.0 },
-    "web.html":     { "title": "iori — Node Web: Interactive Site Map", "description": "Navigate the iori catalogue as a living node graph: generative art, shaders, fractals and code experiments interconnected in real time.", "category": "hub", "domain": "iori.me", "type": "site", "priority": 1.0 },
-    "info.html":    { "title": "About & Contact — 3DIE", "description": "3DIE is design, art, technologies and their fusion: websites, motion design and sound visualisations. Contact the label here.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 0.8 },
-    "shop.html":    { "title": "3DIE Shop — 3D Models & Printed Objects", "description": "Browse the 3DIE collection of printable 3D models: crystals, flowers, cottages and planets rendered live in your browser.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 0.8 },
-    "portfolio.html": { "title": "3DIE & iori — Interactive Art Portfolio", "description": "Selected interactive works by the 3DIE label and iori: GPU simulations, WebGL experiments and real-time 3D experiences.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 0.8 },
-    "websites.html": { "title": "Client Websites — 3DIE", "description": "Websites designed and engineered by 3DIE: e-shops, school sites and product pages with motion-driven interfaces.", "category": "client", "domain": "3die.fr", "type": "client", "priority": 0.7 },
-    "indent.html":  { "title": "3DIE.FR — Alternate Gateway", "description": "An alternate entrance to the 3DIE label: design, art and technology experiments from the age of data.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 0.4 },
-    "metyou.html":  { "title": "MetYou.ai — Design Engineering Case Study", "description": "How 3DIE designed and engineered MetYou.ai: product design engineering from concept to interface.", "category": "client", "domain": "3die.fr", "type": "client", "priority": 0.6 },
-    "univerzum.html": { "title": "ZŠ Univerzum — School Website by 3DIE", "description": "Soukromá základní škola UNIVERZUM — a complete school website designed and built by 3DIE.", "category": "client", "domain": "3die.fr", "type": "client", "priority": 0.6 },
-    "iori.html":    { "title": "iori — Interactive 3D Splat Showcase", "description": "Gaussian splatting scenes captured and rendered by iori: walk through volumetric memories in real time.", "category": "site", "domain": "iori.me", "type": "artist", "priority": 0.7 },
-    "umprum.html":  { "title": "iori — Linktree & Selected Works", "description": "All of iori's doors in one place: works, projects, SoundCloud, videos and the last human second.", "category": "site", "domain": "iori.me", "type": "artist", "priority": 0.6 },
-    "lili.html":    { "title": "lili — Animated Portrait Study", "description": "An interactive animated portrait by iori: drag to scrub through painted frames of lili.", "category": "experiment", "domain": "iori.me", "type": "artist", "priority": 0.5 },
-    "socci.html":   { "title": "Socci Project — Generative Island", "description": "Explore the Socci island: a pannable, zoomable generative world with parallax cloud layers.", "category": "experiment", "domain": "iori.me", "type": "experiment", "priority": 0.5, "og_image": "images/socci-base-island.avif" },
-    "lambda_cognition.html": { "title": "Lambda Cognition & The TIH Framework", "description": "An essay on lambda calculus, cognition and the TIH framework: bridging sparse interaction with structured thought.", "category": "essay", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-
-    "game.html":    { "title": "RPG Tennis — 3DIE Game", "description": "A finished game by 3DIE: RPG tennis with real-time 3D physics in the browser.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.7 },
-    "game_multiplayer.html": { "title": "RPG Tennis Multiplayer — 3DIE Game", "description": "The multiplayer edition of 3DIE's RPG tennis: face other players in real-time 3D browser matches.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.7 },
-    "tboi2.html":   { "title": "TBOI: Repentance+ Advanced Ballistics", "description": "A fan-made ballistics sandbox inspired by The Binding of Isaac: Repentance — trajectory physics in the browser.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.6 },
-    "sudoku.html":  { "title": "SUDOKU Minimal", "description": "A brutally minimal sudoku: nothing but the grid, the numbers and you.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.5 },
-    "pi.html":      { "title": "Learn PI by Heart — Minimal Trainer", "description": "A minimal trainer for memorising the digits of pi, one decimal at a time.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.5 },
-    "poster.html":  { "title": "Gyro Labyrinth — Optimized", "description": "Tilt your device through a gyroscope-driven marble labyrinth, optimized for mobile play.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.5 },
-    "darkwood.html": { "title": "Unction — Darkwood Game", "description": "Unction: a dark atmospheric browser game built with three.js.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.5 },
-    "tomasek.html": { "title": "3D Gyroscope Dice Roller", "description": "Roll D4 through D20 dice with real physics and your phone's gyroscope: a 3D dice roller for the table.", "category": "game", "domain": "3die.fr", "type": "game", "priority": 0.5 },
-
-    "fluid.html":   { "title": "Toroidal Fluid Simulation", "description": "A real-time fluid simulation flowing across a torus: GPU-computed currents you can steer.", "category": "fluids", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "bismuth-fluid.html": { "title": "Bismuth Crystal Fluid", "description": "Iridescent bismuth-crystal colours poured into a living fluid simulation.", "category": "fluids", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "diffusion-fluid.html": { "title": "Diffusion Fluid", "description": "Watch dye diffuse through a simulated medium: a minimal study of fluid dynamics in the browser.", "category": "fluids", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "bubbles.html": { "title": "Iridescent Bubbles", "description": "Ray-marched soap bubbles with thin-film interference, drifting over an HDR environment.", "category": "fluids", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "flame.html":   { "title": "2D Fire Simulator", "description": "A satisfying 2D fire simulator: cellular combustion rendered in warm, living pixels.", "category": "flames", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "flame-simulation.html": { "title": "Satisfying Fire Simulator", "description": "Feed the fire and watch it spread: an interactive combustion simulation built for satisfaction.", "category": "flames", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "procedural-flame.html": { "title": "WebGL Volumetric Flame", "description": "A volumetric flame shader: procedural fire with real depth, noise and light.", "category": "flames", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "lighter-flame.html": { "title": "Lighter Flame Engine", "description": "A lighter flame on an elastic grid: flick it, bend it, watch it recover.", "category": "flames", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "ember-engine.html": { "title": "Ember Engine — Cellular Automata Fire", "description": "Cellular automata embers rising and dying out: fire as a rule-based organism.", "category": "flames", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "voxel-sandbox.html": { "title": "WebGPU Interactive Voxel Sandbox", "description": "Build and destroy in a WebGPU voxel sandbox: an interactive block world in the browser.", "category": "voxels", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "voxel-scale-less.html": { "title": "WebGPU PSVO Voxel Engine", "description": "A scale-less voxel engine in WebGPU: sparse voxel octrees rendered in real time.", "category": "voxels", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "voxel-terrain.html": { "title": "WebGPU Voxel Terrain", "description": "Procedural voxel terrain generated and explored live with a WebGPU engine.", "category": "voxels", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "disphere.html": { "title": "Disphere", "description": "The original disphere: a ray-marched study of spheres, distance fields and symmetry.", "category": "dispheres", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "disphere-inverse.html": { "title": "Disphere Inverse", "description": "The disphere turned inside out: inverted distance fields and negative space.", "category": "dispheres", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "disphere-ray.html": { "title": "Disphere Ray", "description": "Disphere under the ray: ray-marched spheres deformed in real time.", "category": "dispheres", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "disphere-symmetry.html": { "title": "Disphere Symmetry", "description": "Kaleidoscopic symmetry folded into the disphere: mirrored ray-marching in WebGL.", "category": "dispheres", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "fractals.html": { "title": "Fractal Optimization Through a Procedural Lens", "description": "Fractals as a procedural craft: optimization techniques and infinite detail, explored interactively.", "category": "fractals", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "fractal-dimension.html": { "title": "N-Dimensional Viewer", "description": "Travel through n-dimensional fractal space: slice, rotate and project higher dimensions.", "category": "fractals", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "mandelbrot-gs.html": { "title": "Image-GS Nebulabrot", "description": "The nebulabrot rendered with gaussian splatting: a Mandelbrot set nebula of points.", "category": "fractals", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "iris.html":    { "title": "Procedural Iris", "description": "A procedurally generated iris: infinite eyes grown from shader mathematics.", "category": "fractals", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "meta-iris.html": { "title": "Procedural Iris — Alien", "description": "The alien variant of the procedural iris: stranger eyes from the same mathematics.", "category": "fractals", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "mycelium.html": { "title": "Mycelium Engine — Cellular Automata", "description": "A mycelium network grown by cellular automata: fungal computation rendered live.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "fungal-growth.html": { "title": "SDF Jelly Fungus Timelapse", "description": "A jelly fungus growing in signed-distance-field space: organic timelapse in WebGL.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "slime-mold.html": { "title": "Procedural Physarum Simulation", "description": "Physarum polycephalum simulated: slime mold networks emerging from simple agents.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "dandelion-cycle.html": { "title": "Organic Dandelion Journey", "description": "The life cycle of a dandelion: from bloom to seed drift, an organic procedural journey.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "crystalize.html": { "title": "Cryo-Genesis v5.3 — Macro Studio", "description": "Grow crystals in a macro studio: crystallisation as an interactive instrument.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "liquid-automata.html": { "title": "Frost — Generative Crystal Engine", "description": "Frost creeping across glass: a generative crystal engine of liquid automata.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "two-body.html": { "title": "2-Body Gravity Simulation", "description": "Two bodies bound by gravity: the simplest orbit, simulated and visualised.", "category": "gravity", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "three-body.html": { "title": "3-Body Gravity Simulation — Enhanced", "description": "The three-body problem in motion: chaotic orbits emerging from three gravitating bodies.", "category": "gravity", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "three-body-shaded.html": { "title": "3-Body Gravity — Phantom Edition", "description": "The three-body problem with phantom trails: shaded paths of gravitational chaos.", "category": "gravity", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "orbitals.html": { "title": "Hydrogen Orbitals — Immersive Edition", "description": "Quantum orbitals of the hydrogen atom as immersive 3D probability clouds.", "category": "gravity", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "universe.html": { "title": "Cyclic Universe — Spacetime Distortion", "description": "A cyclic model of the universe: spacetime distorting through cosmic death and rebirth.", "category": "gravity", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "death.html":   { "title": "death.sh", "description": "The last human second: an audiovisual meditation on the death of a person and of the universe.", "category": "gravity", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "4cube.html":   { "title": "Binary-Pure Tesseract — Interactive 4D Projection", "description": "A tesseract projected from the fourth dimension: rotate a 4D hypercube in your browser.", "category": "dimensions", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "4cube_volume.html": { "title": "4D Tesseract Slicer — Volume Edition", "description": "Slice a 4D tesseract with fixed normals and watch smooth volumetric cross-sections appear.", "category": "dimensions", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "cracks.html":  { "title": "Grayscale Shatter Simulator", "description": "Shatter the screen: grayscale crack propagation driven by your input.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "cracks-aberration.html": { "title": "Shattered LCD — Hyper-Intricate", "description": "A hyper-intricate shattered LCD: chromatic aberration bleeding through cracked glass.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "dither-types.html": { "title": "Procedural Dither Comparison Grid", "description": "Every dithering algorithm side by side: a color comparison grid of procedural dithers.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "nasal-wave.html": { "title": "Nasal Wave Engine", "description": "A raw WebGL2 wave engine: undulating forms computed without any libraries.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "sigmoid-helix.html": { "title": "Kinetic Sigmoid Helix — Terminal Edition", "description": "A kinetic sigmoid helix rendered like a terminal: mathematics as brutal typography.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "watercolor.html": { "title": "Realistic Ink Water Engine", "description": "Ink bleeding into water: a realistic watercolor engine in WebGL.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "aquarium.html": { "title": "Pixel Art SDF Aquarium", "description": "A pixel-art aquarium rendered with signed distance fields: interactive underwater exploration.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "civilisation-builder.html": { "title": "Civilisation Builder — Reaction-Diffusion", "description": "Civilisations growing like reaction-diffusion patterns: an interactive study of emergence.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "maska.html":   { "title": "Face Landmarker WebGL", "description": "Your face driving a 3D head: webcam face-tracking with MediaPipe and WebGL.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "webgl.html":   { "title": "WEBGL Sandbox", "description": "A raw WebGL sandbox: feedback shaders and a half-million-particle system to play with.", "category": "materials", "domain": "iori.me", "type": "experiment", "priority": 0.6 },
-    "star.html":    { "title": "Star Topology — Interactive Visualization", "description": "The website itself as a star topology: an interactive visualization of how pages connect.", "category": "hub", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-    "game-of-life.html": { "title": "Game of Life — ASCII Edition", "description": "Conway's Game of Life rendered in living ASCII: cellular automata as typography.", "category": "organisms", "domain": "iori.me", "type": "experiment", "priority": 0.5 },
-
-    "catalog.html": { "title": "iori — Catalog: Artists & Experiments", "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.", "category": "hub", "domain": "iori.me", "type": "site", "priority": 0.9 },
-    "web3d.html":   { "title": "iori — 3D Node Web: Gravity & Orbits", "description": "The catalogue as a three-dimensional node network: pages in gravity wells, orbiting their families. Click a node to travel.", "category": "hub", "domain": "iori.me", "type": "site", "priority": 0.7 },
-    "jachym.html":  { "title": "jáchym — 3DIE Artist", "description": "jáchym works across image, sound and text — publishing both as himself and as crow_archduke under the 3DIE label.", "category": "artist", "domain": "3die.fr", "type": "artist", "priority": 0.7 },
-    "crow_archduke.html": { "title": "crow_archduke — The Cathedral", "description": "A cathedral full of volumetric smoke lit by a purple sunset, and a three-eyed alien priest preaching. The ceremonial alias of jáchym.", "category": "artist", "domain": "3die.fr", "type": "artist", "priority": 0.7 },
-    "moises.html":  { "title": "moises — Photo Journal", "description": "Photographs by moises: a composition-first journal of images and notes, published under the 3DIE label.", "category": "artist", "domain": "3die.fr", "type": "artist", "priority": 0.7 },
-    "music.html":   { "title": "Music — 3DIE Label", "description": "Music created under the 3DIE label: iori's SoundCloud catalogue, with the Bandcamp release on its way.", "category": "site", "domain": "3die.fr", "type": "site", "priority": 0.7 },
-
-    "burger.html":  { "title": "Burger Menu Component", "description": "Internal component showcase for the site navigation.", "category": "internal", "domain": "iori.me", "type": "internal", "hidden": true, "priority": 0.1 },
-    "clip.html":    { "title": "CLIPPY", "description": "Internal assistant interface.", "category": "internal", "domain": "iori.me", "type": "internal", "hidden": true, "priority": 0.1 }
+    "404.html": {
+      "title": "404 — Nothing Here",
+      "description": "Internal 404 page.",
+      "category": "internal",
+      "domain": "iori.me",
+      "type": "internal",
+      "hidden": true,
+      "priority": 0.1
+    },
+    "4cube.html": {
+      "title": "Binary-Pure Tesseract — Interactive 4D Projection",
+      "description": "A tesseract projected from the fourth dimension: rotate a 4D hypercube in your browser.",
+      "category": "dimensions",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "4cube_volume.html": {
+      "title": "4D Tesseract Slicer — Volume Edition",
+      "description": "Slice a 4D tesseract with fixed normals and watch smooth volumetric cross-sections appear.",
+      "category": "dimensions",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "aquarium.html": {
+      "title": "Pixel Art SDF Aquarium",
+      "description": "A pixel-art aquarium rendered with signed distance fields: interactive underwater exploration.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "bismuth-fluid.html": {
+      "title": "Bismuth Crystal Fluid",
+      "description": "Iridescent bismuth-crystal colours poured into a living fluid simulation.",
+      "category": "fluids",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "bubbles.html": {
+      "title": "Iridescent Bubbles",
+      "description": "Ray-marched soap bubbles with thin-film interference, drifting over an HDR environment.",
+      "category": "fluids",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "burger.html": {
+      "title": "Burger Menu Component",
+      "description": "Internal component showcase for the site navigation.",
+      "category": "internal",
+      "domain": "iori.me",
+      "type": "internal",
+      "hidden": true,
+      "priority": 0.1
+    },
+    "civilisation-builder.html": {
+      "title": "Civilisation Builder — Reaction-Diffusion",
+      "description": "Civilisations growing like reaction-diffusion patterns: an interactive study of emergence.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "clip.html": {
+      "title": "CLIPPY",
+      "description": "Internal assistant interface.",
+      "category": "internal",
+      "domain": "iori.me",
+      "type": "internal",
+      "hidden": true,
+      "priority": 0.1
+    },
+    "cracks-aberration.html": {
+      "title": "Shattered LCD — Hyper-Intricate",
+      "description": "A hyper-intricate shattered LCD: chromatic aberration bleeding through cracked glass.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "cracks.html": {
+      "title": "Grayscale Shatter Simulator",
+      "description": "Shatter the screen: grayscale crack propagation driven by your input.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "crow_archduke.html": {
+      "title": "crow_archduke — The Cathedral",
+      "description": "A cathedral full of volumetric smoke lit by a purple sunset, and a three-eyed alien priest preaching. The ceremonial alias of jáchym.",
+      "category": "artist",
+      "domain": "3die.fr",
+      "type": "artist",
+      "priority": 0.7
+    },
+    "crystalize.html": {
+      "title": "Cryo-Genesis v5.3 — Macro Studio",
+      "description": "Grow crystals in a macro studio: crystallisation as an interactive instrument.",
+      "category": "organisms",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "dandelion-cycle.html": {
+      "title": "Organic Dandelion Journey",
+      "description": "The life cycle of a dandelion: from bloom to seed drift, an organic procedural journey.",
+      "category": "organisms",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "darkwood.html": {
+      "title": "Unction — Darkwood Game",
+      "description": "Unction: a dark atmospheric browser game built with three.js.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.5
+    },
+    "death.html": {
+      "title": "death.sh",
+      "description": "The last human second: an audiovisual meditation on the death of a person and of the universe.",
+      "category": "gravity",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "diffusion-fluid.html": {
+      "title": "Diffusion Fluid",
+      "description": "Watch dye diffuse through a simulated medium: a minimal study of fluid dynamics in the browser.",
+      "category": "fluids",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "disphere-inverse.html": {
+      "title": "Disphere Inverse",
+      "description": "The disphere turned inside out: inverted distance fields and negative space.",
+      "category": "dispheres",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "disphere-ray.html": {
+      "title": "Disphere Ray",
+      "description": "Disphere under the ray: ray-marched spheres deformed in real time.",
+      "category": "dispheres",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "disphere-symmetry.html": {
+      "title": "Disphere Symmetry",
+      "description": "Kaleidoscopic symmetry folded into the disphere: mirrored ray-marching in WebGL.",
+      "category": "dispheres",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "disphere.html": {
+      "title": "Disphere",
+      "description": "The original disphere: a ray-marched study of spheres, distance fields and symmetry.",
+      "category": "dispheres",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "dither-types.html": {
+      "title": "Procedural Dither Comparison Grid",
+      "description": "Every dithering algorithm side by side: a color comparison grid of procedural dithers.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "ember-engine.html": {
+      "title": "Ember Engine — Cellular Automata Fire",
+      "description": "Cellular automata embers rising and dying out: fire as a rule-based organism.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "flame-simulation.html": {
+      "title": "Satisfying Fire Simulator",
+      "description": "Feed the fire and watch it spread: an interactive combustion simulation built for satisfaction.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "flame.html": {
+      "title": "2D Fire Simulator",
+      "description": "A satisfying 2D fire simulator: cellular combustion rendered in warm, living pixels.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "fluid.html": {
+      "title": "Toroidal Fluid Simulation",
+      "description": "A real-time fluid simulation flowing across a torus: GPU-computed currents you can steer.",
+      "category": "fluids",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "fractal-dimension.html": {
+      "title": "N-Dimensional Viewer",
+      "description": "Travel through n-dimensional fractal space: slice, rotate and project higher dimensions.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "fractals.html": {
+      "title": "Fractal Optimization Through a Procedural Lens",
+      "description": "Fractals as a procedural craft: optimization techniques and infinite detail, explored interactively.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "fungal-growth.html": {
+      "title": "SDF Jelly Fungus Timelapse",
+      "description": "A jelly fungus growing in signed-distance-field space: organic timelapse in WebGL.",
+      "category": "organisms",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "game-of-life.html": {
+      "title": "Game of Life — ASCII Edition",
+      "description": "Conway's Game of Life rendered in living ASCII: cellular automata as typography.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "game.html": {
+      "title": "RPG Tennis — 3DIE Game",
+      "description": "A finished game by 3DIE: RPG tennis with real-time 3D physics in the browser.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.7
+    },
+    "game_multiplayer.html": {
+      "title": "RPG Tennis Multiplayer — 3DIE Game",
+      "description": "The multiplayer edition of 3DIE's RPG tennis: face other players in real-time 3D browser matches.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.7
+    },
+    "indent.html": {
+      "title": "3DIE.FR — Alternate Gateway",
+      "description": "An alternate entrance to the 3DIE label: design, art and technology experiments from the age of data.",
+      "category": "site",
+      "domain": "3die.fr",
+      "type": "site",
+      "priority": 0.4
+    },
+    "index.html": {
+      "title": "3DIE — Design, Art & Technologies Label",
+      "description": "3DIE is an independent label fusing design, art and technology: finished games, 3D-printed objects, music and the artists behind them.",
+      "category": "site",
+      "domain": "3die.fr",
+      "type": "site",
+      "priority": 1.0
+    },
+    "info.html": {
+      "title": "About & Contact — 3DIE",
+      "description": "3DIE is design, art, technologies and their fusion: websites, motion design and sound visualisations. Contact the label here.",
+      "category": "site",
+      "domain": "3die.fr",
+      "type": "site",
+      "priority": 0.8
+    },
+    "iori.html": {
+      "title": "iori — Interactive 3D Splat Showcase",
+      "description": "Gaussian splatting scenes captured and rendered by iori: walk through volumetric memories in real time.",
+      "category": "site",
+      "domain": "iori.me",
+      "type": "artist",
+      "priority": 0.7
+    },
+    "iori_INDEX.html": {
+      "title": "iori — Flow Lenia Node Web",
+      "description": "The iori catalogue as a living flow-lenia organism: every page a cell, every visit a navigation of the whole network.",
+      "category": "hub",
+      "domain": "iori.me",
+      "type": "site",
+      "priority": 1.0
+    },
+    "iris.html": {
+      "title": "Procedural Iris",
+      "description": "A procedurally generated iris: infinite eyes grown from shader mathematics.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "jachym.html": {
+      "title": "jáchym — 3DIE Artist",
+      "description": "jáchym works across image, sound and text — publishing both as himself and as crow_archduke under the 3DIE label.",
+      "category": "artist",
+      "domain": "3die.fr",
+      "type": "artist",
+      "priority": 0.7
+    },
+    "lambda_cognition.html": {
+      "title": "Lambda Cognition & The TIH Framework",
+      "description": "An essay on lambda calculus, cognition and the TIH framework: bridging sparse interaction with structured thought.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "lighter-flame.html": {
+      "title": "Lighter Flame Engine",
+      "description": "A lighter flame on an elastic grid: flick it, bend it, watch it recover.",
+      "category": "flames",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "lili.html": {
+      "title": "lili — Animated Portrait Study",
+      "description": "An interactive animated portrait by iori: drag to scrub through painted frames of lili.",
+      "category": "experiment",
+      "domain": "iori.me",
+      "type": "artist",
+      "priority": 0.5
+    },
+    "liquid-automata.html": {
+      "title": "Frost — Generative Crystal Engine",
+      "description": "Frost creeping across glass: a generative crystal engine of liquid automata.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "mandelbrot-gs.html": {
+      "title": "Image-GS Nebulabrot",
+      "description": "The nebulabrot rendered with gaussian splatting: a Mandelbrot set nebula of points.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "maska.html": {
+      "title": "Face Landmarker WebGL",
+      "description": "Your face driving a 3D head: webcam face-tracking with MediaPipe and WebGL.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "meta-iris.html": {
+      "title": "Procedural Iris — Alien",
+      "description": "The alien variant of the procedural iris: stranger eyes from the same mathematics.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "metyou.html": {
+      "title": "MetYou.ai — Design Engineering Case Study",
+      "description": "How 3DIE designed and engineered MetYou.ai: product design engineering from concept to interface.",
+      "category": "client",
+      "domain": "3die.fr",
+      "type": "client",
+      "priority": 0.6
+    },
+    "mirrorbrot-16k.html": {
+      "title": "Mirrorbrot — 16K Deep Edition",
+      "description": "The mirror-fold Mandelbrot pushed to 16K: deeper zooms, finer boundaries, same infinite fold.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "mirrorbrot.html": {
+      "title": "Mirrorbrot — Mirror-Fold Deep Zoom",
+      "description": "The Mandelbrot set with its interior mirrored through the boundary via signed-distance folding: an infinite tiling deep-zoom explorer.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "moises.html": {
+      "title": "moises — Photo Journal",
+      "description": "Photographs by moises: a composition-first journal of images and notes, published under the 3DIE label.",
+      "category": "artist",
+      "domain": "3die.fr",
+      "type": "artist",
+      "priority": 0.7
+    },
+    "multiOS.html": {
+      "title": "Multi-OS VJ Studio Environment",
+      "description": "A Windows-style multi-OS desktop for VJing: draggable retro windows, CRT texture, studio tools in the browser.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "music.html": {
+      "title": "Music — 3DIE Label",
+      "description": "Music created under the 3DIE label: iori's SoundCloud catalogue, with the Bandcamp release on its way.",
+      "category": "site",
+      "domain": "3die.fr",
+      "type": "site",
+      "priority": 0.7
+    },
+    "mycelium.html": {
+      "title": "Mycelium Engine — Cellular Automata",
+      "description": "A mycelium network grown by cellular automata: fungal computation rendered live.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "nasal-wave.html": {
+      "title": "Nasal Wave Engine",
+      "description": "A raw WebGL2 wave engine: undulating forms computed without any libraries.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "orbitals.html": {
+      "title": "Hydrogen Orbitals — Immersive Edition",
+      "description": "Quantum orbitals of the hydrogen atom as immersive 3D probability clouds.",
+      "category": "gravity",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "pi.html": {
+      "title": "Learn PI by Heart — Minimal Trainer",
+      "description": "A minimal trainer for memorising the digits of pi, one decimal at a time.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.5
+    },
+    "portfolio.html": {
+      "title": "iori — Portfolio: Artists & Experiments",
+      "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.",
+      "category": "hub",
+      "domain": "iori.me",
+      "type": "site",
+      "priority": 0.9
+    },
+    "poster.html": {
+      "title": "Gyro Labyrinth — Optimized",
+      "description": "Tilt your device through a gyroscope-driven marble labyrinth, optimized for mobile play.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.5
+    },
+    "procedural-flame.html": {
+      "title": "WebGL Volumetric Flame",
+      "description": "A volumetric flame shader: procedural fire with real depth, noise and light.",
+      "category": "flames",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "shop.html": {
+      "title": "3DIE Shop — 3D Models & Printed Objects",
+      "description": "Browse the 3DIE collection of printable 3D models: crystals, flowers, cottages and planets rendered live in your browser.",
+      "category": "site",
+      "domain": "3die.fr",
+      "type": "site",
+      "priority": 0.8
+    },
+    "sigmoid-helix.html": {
+      "title": "Kinetic Sigmoid Helix — Terminal Edition",
+      "description": "A kinetic sigmoid helix rendered like a terminal: mathematics as brutal typography.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "slime-mold.html": {
+      "title": "Procedural Physarum Simulation",
+      "description": "Physarum polycephalum simulated: slime mold networks emerging from simple agents.",
+      "category": "organisms",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "socci.html": {
+      "title": "Socci Project — Generative Island",
+      "description": "Explore the Socci island: a pannable, zoomable generative world with parallax cloud layers.",
+      "category": "experiment",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "og_image": "images/socci-base-island.avif"
+    },
+    "star.html": {
+      "title": "Star Topology — Interactive Visualization",
+      "description": "The website itself as a star topology: an interactive visualization of how pages connect.",
+      "category": "hub",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "start.html": {
+      "title": "Start — GPU Flocking Birds",
+      "description": "Thousands of birds flocking in real time via GPU compute: separation, alignment, cohesion — the boids showpiece of 3DIE & iori.",
+      "category": "materials",
+      "domain": "3die.fr",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "sudoku.html": {
+      "title": "SUDOKU Minimal",
+      "description": "A brutally minimal sudoku: nothing but the grid, the numbers and you.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.5
+    },
+    "tboi2.html": {
+      "title": "TBOI: Repentance+ Advanced Ballistics",
+      "description": "A fan-made ballistics sandbox inspired by The Binding of Isaac: Repentance — trajectory physics in the browser.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.6
+    },
+    "three-body-shaded.html": {
+      "title": "3-Body Gravity — Phantom Edition",
+      "description": "The three-body problem with phantom trails: shaded paths of gravitational chaos.",
+      "category": "gravity",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "three-body.html": {
+      "title": "3-Body Gravity Simulation — Enhanced",
+      "description": "The three-body problem in motion: chaotic orbits emerging from three gravitating bodies.",
+      "category": "gravity",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "tomasek.html": {
+      "title": "3D Gyroscope Dice Roller",
+      "description": "Roll D4 through D20 dice with real physics and your phone's gyroscope: a 3D dice roller for the table.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.5
+    },
+    "two-body.html": {
+      "title": "2-Body Gravity Simulation",
+      "description": "Two bodies bound by gravity: the simplest orbit, simulated and visualised.",
+      "category": "gravity",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5
+    },
+    "umprum.html": {
+      "title": "iori — Linktree & Selected Works",
+      "description": "All of iori's doors in one place: works, projects, SoundCloud, videos and the last human second.",
+      "category": "site",
+      "domain": "iori.me",
+      "type": "artist",
+      "priority": 0.6
+    },
+    "universe.html": {
+      "title": "Cyclic Universe — Spacetime Distortion",
+      "description": "A cyclic model of the universe: spacetime distorting through cosmic death and rebirth.",
+      "category": "gravity",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "univerzum.html": {
+      "title": "ZŠ Univerzum — School Website by 3DIE",
+      "description": "Soukromá základní škola UNIVERZUM — a complete school website designed and built by 3DIE.",
+      "category": "client",
+      "domain": "3die.fr",
+      "type": "client",
+      "priority": 0.6
+    },
+    "voxel-sandbox.html": {
+      "title": "WebGPU Interactive Voxel Sandbox",
+      "description": "Build and destroy in a WebGPU voxel sandbox: an interactive block world in the browser.",
+      "category": "voxels",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "voxel-scale-less.html": {
+      "title": "WebGPU PSVO Voxel Engine",
+      "description": "A scale-less voxel engine in WebGPU: sparse voxel octrees rendered in real time.",
+      "category": "voxels",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "voxel-terrain.html": {
+      "title": "WebGPU Voxel Terrain",
+      "description": "Procedural voxel terrain generated and explored live with a WebGPU engine.",
+      "category": "voxels",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "watercolor.html": {
+      "title": "Realistic Ink Water Engine",
+      "description": "Ink bleeding into water: a realistic watercolor engine in WebGL.",
+      "category": "materials",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "web.html": {
+      "title": "iori — Node Web: Interactive Site Map",
+      "description": "Navigate the iori catalogue as a living node graph: generative art, shaders, fractals and code experiments interconnected in real time.",
+      "category": "hub",
+      "domain": "iori.me",
+      "type": "site",
+      "priority": 1.0
+    },
+    "web3d.html": {
+      "title": "iori — 3D Node Web: Gravity & Orbits",
+      "description": "The catalogue as a three-dimensional node network: pages in gravity wells, orbiting their families. Click a node to travel.",
+      "category": "hub",
+      "domain": "iori.me",
+      "type": "site",
+      "priority": 0.7
+    },
+    "webgl.html": {
+      "title": "WEBGL Sandbox",
+      "description": "A raw WebGL sandbox: feedback shaders and a half-million-particle system to play with.",
+      "category": "automata",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
+    "websites.html": {
+      "title": "Client Websites — 3DIE",
+      "description": "Websites designed and engineered by 3DIE: e-shops, school sites and product pages with motion-driven interfaces.",
+      "category": "client",
+      "domain": "3die.fr",
+      "type": "client",
+      "priority": 0.7
+    }
   }
 }

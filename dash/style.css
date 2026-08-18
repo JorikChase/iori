@@ -159,6 +159,42 @@ input:focus, textarea:focus { box-shadow: 4px 4px 0 var(--fg); }
 .feed-media { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .4rem; }
 .feed-media img, .feed-media video { max-width: 220px; max-height: 220px; border: 1px solid var(--dim); }
 
+/* ---------- canvas editor ---------- */
+.canvas-hint { color: var(--dim); font-size: .75rem; letter-spacing: .15em; align-self: center; }
+#canvas-scroll { overflow: auto; max-height: calc(100vh - 130px); padding: 0 1rem 1rem; }
+#canvas-area {
+  position: relative; width: 1200px; min-height: 800px;
+  border: 1px solid var(--dim);
+  background-image: linear-gradient(#111 1px, transparent 1px), linear-gradient(90deg, #111 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+.canvas-item {
+  position: absolute; cursor: grab; border: 1px solid transparent;
+  transition: border-color 120ms;
+  touch-action: none;
+}
+.canvas-item:hover { border-color: var(--dim); }
+.canvas-item.active { border-color: var(--fg); }
+.canvas-item img, .canvas-item video { width: 100%; display: block; pointer-events: none; }
+.canvas-item .cap { font-size: .68rem; color: var(--dim); padding-top: .2rem; }
+.canvas-item .resize-handle {
+  position: absolute; right: -6px; bottom: -6px; width: 14px; height: 14px;
+  background: var(--fg); cursor: nwse-resize; display: none;
+}
+.canvas-item.active .resize-handle { display: block; }
+
+/* ---------- chat ---------- */
+.chatcol { max-width: 900px; }
+.chatmsg { border: 1px solid var(--dim); padding: .55rem .9rem; max-width: 75%; animation: cardin 160ms ease; }
+.chatmsg.own { align-self: flex-end; border-color: var(--line); box-shadow: 4px 4px 0 #222; }
+.chatmsg .chat-meta { font-size: .7rem; color: var(--dim); margin-bottom: .25rem; display: flex; gap: .8rem; }
+.chatmsg .chat-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+.chat-form {
+  position: sticky; bottom: 0; display: flex; gap: .6rem;
+  padding: .8rem 1rem; background: var(--bg); border-top: 2px solid var(--line);
+}
+.chat-form input { flex: 1; }
+
 /* ---------- modal ---------- */
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(0,0,0,.8);

@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://iori.me/</loc>
-    <lastmod>2026-07-27</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <priority>1.0</priority>
   </url>
   <url>
@@ -29,11 +29,6 @@
     <loc>https://iori.me/bubbles.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://iori.me/catalog.html</loc>
-    <lastmod>2026-07-27</lastmod>
-    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://iori.me/civilisation-builder.html</loc>
@@ -181,6 +176,21 @@
     <priority>0.5</priority>
   </url>
   <url>
+    <loc>https://iori.me/mirrorbrot-16k.html</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/mirrorbrot.html</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/multiOS.html</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://iori.me/mycelium.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.6</priority>
@@ -194,6 +204,11 @@
     <loc>https://iori.me/orbitals.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/portfolio.html</loc>
+    <lastmod>2026-07-27</lastmod>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://iori.me/procedural-flame.html</loc>
@@ -264,6 +279,11 @@
     <loc>https://iori.me/watercolor.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/web.html</loc>
+    <lastmod>2026-07-27</lastmod>
+    <priority>1.0</priority>
   </url>
   <url>
     <loc>https://iori.me/web3d.html</loc>

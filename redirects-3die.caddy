@@ -5,7 +5,6 @@ redir /4cube_volume.html https://iori.me/4cube_volume.html permanent
 redir /aquarium.html https://iori.me/aquarium.html permanent
 redir /bismuth-fluid.html https://iori.me/bismuth-fluid.html permanent
 redir /bubbles.html https://iori.me/bubbles.html permanent
-redir /catalog.html https://iori.me/catalog.html permanent
 redir /civilisation-builder.html https://iori.me/civilisation-builder.html permanent
 redir /cracks-aberration.html https://iori.me/cracks-aberration.html permanent
 redir /cracks.html https://iori.me/cracks.html permanent
@@ -27,6 +26,7 @@ redir /fractals.html https://iori.me/fractals.html permanent
 redir /fungal-growth.html https://iori.me/fungal-growth.html permanent
 redir /game-of-life.html https://iori.me/game-of-life.html permanent
 redir /iori.html https://iori.me/iori.html permanent
+redir /iori_INDEX.html https://iori.me/ permanent
 redir /iris.html https://iori.me/iris.html permanent
 redir /lambda_cognition.html https://iori.me/lambda_cognition.html permanent
 redir /lighter-flame.html https://iori.me/lighter-flame.html permanent
@@ -35,9 +35,13 @@ redir /liquid-automata.html https://iori.me/liquid-automata.html permanent
 redir /mandelbrot-gs.html https://iori.me/mandelbrot-gs.html permanent
 redir /maska.html https://iori.me/maska.html permanent
 redir /meta-iris.html https://iori.me/meta-iris.html permanent
+redir /mirrorbrot-16k.html https://iori.me/mirrorbrot-16k.html permanent
+redir /mirrorbrot.html https://iori.me/mirrorbrot.html permanent
+redir /multiOS.html https://iori.me/multiOS.html permanent
 redir /mycelium.html https://iori.me/mycelium.html permanent
 redir /nasal-wave.html https://iori.me/nasal-wave.html permanent
 redir /orbitals.html https://iori.me/orbitals.html permanent
+redir /portfolio.html https://iori.me/portfolio.html permanent
 redir /procedural-flame.html https://iori.me/procedural-flame.html permanent
 redir /sigmoid-helix.html https://iori.me/sigmoid-helix.html permanent
 redir /slime-mold.html https://iori.me/slime-mold.html permanent
@@ -52,6 +56,6 @@ redir /voxel-sandbox.html https://iori.me/voxel-sandbox.html permanent
 redir /voxel-scale-less.html https://iori.me/voxel-scale-less.html permanent
 redir /voxel-terrain.html https://iori.me/voxel-terrain.html permanent
 redir /watercolor.html https://iori.me/watercolor.html permanent
-redir /web.html https://iori.me/ permanent
+redir /web.html https://iori.me/web.html permanent
 redir /web3d.html https://iori.me/web3d.html permanent
 redir /webgl.html https://iori.me/webgl.html permanent

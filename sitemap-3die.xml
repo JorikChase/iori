@@ -61,11 +61,6 @@
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://3die.fr/portfolio.html</loc>
-    <lastmod>2026-07-27</lastmod>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://3die.fr/poster.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.5</priority>
@@ -74,6 +69,11 @@
     <loc>https://3die.fr/shop.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://3die.fr/start.html</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://3die.fr/sudoku.html</loc>

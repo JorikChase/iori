@@ -64,6 +64,8 @@ function showMain() {
   loadBoard();
   loadInbox();
   loadFeed();
+  loadChat();
+  loadCanvas();
 }
 
 $("#login-form").addEventListener("submit", async (e) => {
@@ -381,6 +383,207 @@ function renderFeed(posts) {
     list.appendChild(el);
   }
 }
+
+/* ---------------- chat ---------------- */
+
+let chatLastId = 0;
+let chatSeenId = parseInt(localStorage.getItem("chat_seen") || "0", 10);
+
+async function loadChat() {
+  const { messages } = await api("/messages?kind=thread");
+  renderChat(messages);
+  if (messages.length) {
+    chatLastId = messages[0].id;
+    markChatSeen();
+  }
+}
+
+function markChatSeen() {
+  chatSeenId = Math.max(chatSeenId, chatLastId);
+  localStorage.setItem("chat_seen", String(chatSeenId));
+  updateBadges();
+}
+
+function renderChat(messages) {
+  const list = $("#chat-list");
+  list.innerHTML = messages.length ? "" : "<div class='msg'>no messages yet — say something.</div>";
+  // API returns newest-first; render oldest-first for chat flow
+  for (const m of [...messages].reverse()) {
+    const el = document.createElement("div");
+    el.className = "chatmsg" + (m.author === state.user?.username ? " own" : "");
+    el.innerHTML =
+      `<div class="chat-meta"><span>@${esc(m.author)}</span><span>${fmtTime(m.created_at)}</span></div>` +
+      `<div class="chat-text">${esc(m.body)}</div>`;
+    list.appendChild(el);
+  }
+  list.scrollTop = list.scrollHeight;
+}
+
+$("#chat-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("#chat-input").value.trim();
+  if (!text) return;
+  $("#chat-input").value = "";
+  await api("/messages", { method: "POST", body: JSON.stringify({ body: text }) });
+  loadChat();
+});
+
+/* ---------------- profile ---------------- */
+
+$("#profile-btn").addEventListener("click", () => {
+  state.tab = "profile";
+  $$(".tab").forEach((b) => b.classList.remove("active"));
+  $$(".tabpanel").forEach((p) => p.classList.add("hidden"));
+  $("#tab-profile").classList.remove("hidden");
+});
+
+$("#pw-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const status = $("#pw-status");
+  status.textContent = "";
+  if ($("#pw-new").value !== $("#pw-new2").value) {
+    status.textContent = "new passwords don't match";
+    return;
+  }
+  try {
+    await api("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ old_password: $("#pw-old").value, new_password: $("#pw-new").value }),
+    });
+    status.textContent = "password changed.";
+    $("#pw-form").reset();
+  } catch (err) {
+    status.textContent = err.message;
+  }
+});
+
+/* ---------------- canvas (freeform layout editor) ---------------- */
+
+const CANVAS_W = 1200;
+let canvasPosts = [];
+let maxZ = 1;
+
+async function loadCanvas() {
+  const { posts } = await api(`/posts?author=${encodeURIComponent(state.user.username)}&limit=200`);
+  canvasPosts = posts;
+  maxZ = Math.max(1, ...posts.map(p => (p.layout && p.layout.z) || 1));
+  renderCanvas();
+}
+
+function renderCanvas() {
+  const area = $("#canvas-area");
+  area.innerHTML = "";
+  let autoX = 30, autoY = 30;
+  for (const p of canvasPosts) {
+    const el = document.createElement("div");
+    el.className = "canvas-item";
+    const lay = p.layout || {};
+    const hasLay = lay.x != null;
+    const x = hasLay ? lay.x : autoX;
+    const y = hasLay ? lay.y : autoY;
+    const w = (hasLay && lay.w) || 260;
+    const z = (hasLay && lay.z) || 1;
+    if (!hasLay) { autoX += 40; autoY += 40; if (autoX > CANVAS_W - 300) { autoX = 30; autoY += 40; } }
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    el.style.width = w + "px";
+    el.style.zIndex = z;
+    const first = p.media[0];
+    el.innerHTML =
+      (first
+        ? (/\.(mp4|webm|mov)$/i.test(first)
+            ? `<video src="${esc(first)}" muted></video>`
+            : `<img src="${esc(first)}" draggable="false" alt="">`)
+        : `<div class="msg">${esc(p.caption).slice(0, 140)}</div>`) +
+      (p.caption && first ? `<div class="cap">${esc(p.caption).slice(0, 60)}</div>` : "") +
+      `<div class="resize-handle"></div>`;
+    attachCanvasDrag(el, p);
+    area.appendChild(el);
+  }
+  // grow canvas to fit content
+  let maxBottom = 800;
+  canvasPosts.forEach(p => {
+    if (p.layout && p.layout.y != null) maxBottom = Math.max(maxBottom, p.layout.y + 500);
+  });
+  area.style.minHeight = maxBottom + "px";
+}
+
+function attachCanvasDrag(el, post) {
+  let mode = null, startX = 0, startY = 0, origX = 0, origY = 0, origW = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    $$(".canvas-item").forEach(i => i.classList.remove("active"));
+    el.classList.add("active");
+    // bring to front
+    maxZ += 1;
+    el.style.zIndex = maxZ;
+    mode = e.target.classList.contains("resize-handle") ? "resize" : "drag";
+    startX = e.clientX; startY = e.clientY;
+    origX = parseFloat(el.style.left); origY = parseFloat(el.style.top);
+    origW = el.offsetWidth;
+    el.setPointerCapture(e.pointerId);
+    el.style.cursor = "grabbing";
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!mode) return;
+    const scale = el.parentElement.getBoundingClientRect().width / CANVAS_W || 1;
+    const dx = (e.clientX - startX) / scale;
+    const dy = (e.clientY - startY) / scale;
+    if (mode === "drag") {
+      el.style.left = Math.max(0, Math.min(CANVAS_W - 40, origX + dx)) + "px";
+      el.style.top = Math.max(0, origY + dy) + "px";
+    } else {
+      el.style.width = Math.max(80, Math.min(CANVAS_W, origW + dx)) + "px";
+    }
+  });
+
+  el.addEventListener("pointerup", async () => {
+    if (!mode) return;
+    mode = null;
+    el.style.cursor = "grab";
+    const layout = {
+      x: Math.round(parseFloat(el.style.left)),
+      y: Math.round(parseFloat(el.style.top)),
+      w: Math.round(el.offsetWidth),
+      z: parseInt(el.style.zIndex, 10),
+    };
+    post.layout = layout;
+    try {
+      await api(`/posts/${post.id}`, { method: "PATCH", body: JSON.stringify({ layout }) });
+    } catch (err) { console.error("layout save failed", err); }
+  });
+}
+
+/* ---------------- notifications (polling) ---------------- */
+
+let inboxUnread = 0;
+
+function updateBadges() {
+  $("#inbox-badge").textContent = inboxUnread || "";
+  $("#inbox-badge").classList.toggle("hidden", !inboxUnread);
+  const chatNew = Math.max(0, chatLastId - chatSeenId);
+  $("#chat-badge").textContent = chatNew || "";
+  $("#chat-badge").classList.toggle("hidden", !chatNew);
+  const total = inboxUnread + chatNew;
+  document.title = total ? `(${total}) 3DIE — DASH` : "3DIE — DASH";
+}
+
+async function pollNotifications() {
+  if (!state.user) return;
+  try {
+    const { messages: inbox } = await api("/messages?kind=contact");
+    inboxUnread = inbox.filter((m) => !m.read).length;
+    const { messages: chat } = await api("/messages?kind=thread");
+    if (chat.length) {
+      chatLastId = Math.max(chatLastId, chat[0].id);
+      if (state.tab === "chat") { renderChat(chat); markChatSeen(); }
+    }
+    updateBadges();
+  } catch { /* session may have expired */ }
+}
+setInterval(pollNotifications, 25000);
 
 /* ---------------- go ---------------- */
 boot();

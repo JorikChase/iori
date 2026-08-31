@@ -655,7 +655,7 @@ let cellById = new Map();
 let nextId = 0;
 
 const stats = {
-  births: 0, deaths: 0, merges: 0, generation: 0, riding: 0,
+  births: 0, deaths: 0, merges: 0, generation: 0, riding: 0, grown: 0,
   meanSplit: 1, meanMeta: 0.04, meanMotility: 1,
 };
 
@@ -698,6 +698,7 @@ class Cell {
     this.imm = 0;        // brief immunity so fused cells don't instantly refuse
     this.pulse = 0;      // tissue kickback when it births something
     this.ride = null;    // bond currently being travelled, if any
+    this.sproutCd = 0;   // tissue: cooldown before it can grow another node
     this.hudX = 0; this.hudY = 0;
     cellById.set(this.id, this);
   }
@@ -796,6 +797,79 @@ function wireCrossBonds() {
       crossPending.splice(i, 1);
     }
   }
+}
+
+/* ---------- growth at the rim ----------
+   An organism that reaches an OUTERMOST cell with enough energy is absorbed,
+   and the colony puts out a new node in its colour. Those nodes are tissue in
+   every other respect — immortal, bonded, rideable, and themselves outermost,
+   so the graph keeps reaching outward wherever the population happens to feed.
+   They carry no page, so they are deliberately not navigable and never take a
+   label; the 78 pages remain exactly the 78 labelled cells.                */
+const GROWN_CAP = 110;
+let grownCount = 0;
+
+function isOuterCell(c) {
+  if (!c.node || c.kind === 'nucleus') return false;
+  return c.node.grown || c.node.children.length === 0;
+}
+
+/* At the cap the oldest tip of the grown frontier is reabsorbed to make room.
+   Without this the colony simply stops growing after a minute or so and the
+   whole mechanic goes quiet; with it the frontier keeps shifting for as long as
+   the page is open. Only childless grown nodes are pruned, so nothing is ever
+   orphaned, and the 78 page cells are never candidates. */
+function pruneOldestGrownTip() {
+  let oldest = null;
+  for (const c of tissue) {
+    if (!c.node || !c.node.grown || c.node.children.length) continue;
+    if (!oldest || c.born < oldest.born) oldest = c;
+  }
+  if (!oldest) return false;
+  for (let i = bonds.length - 1; i >= 0; i--) {
+    if (bonds[i].a === oldest || bonds[i].b === oldest) bonds.splice(i, 1);
+  }
+  // anything riding a bond that just went away has to let go of it
+  for (const m of microbes) {
+    if (m.ride && (m.ride.bond.a === oldest || m.ride.bond.b === oldest)) m.ride = null;
+  }
+  const par = oldest.node.parent;
+  if (par) {
+    const k = par.children.indexOf(oldest.node);
+    if (k >= 0) par.children.splice(k, 1);
+  }
+  const t = tissue.indexOf(oldest);
+  if (t >= 0) tissue.splice(t, 1);
+  cellById.delete(oldest.id);
+  grownCount--;
+  return true;
+}
+
+function sproutFrom(host, color) {
+  if (grownCount >= GROWN_CAP && !pruneOldestGrownTip()) return null;
+  const len = Math.hypot(host.node.tx, host.node.ty) || 1;
+  const ang = Math.atan2(host.node.ty, host.node.tx) + (Math.random() - 0.5) * 0.5;
+  const reach = len + 0.34 + Math.random() * 0.16;
+  const node = {
+    slug: null, label: null, title: null, grown: true,
+    depth: (host.node.depth || 3) + 1,
+    children: [], parent: host.node,
+    tx: Math.cos(ang) * reach, ty: Math.sin(ang) * reach,
+    radius: Math.max(0.046, host.radius * 0.80),
+  };
+  host.node.children.push(node);
+  const c = new Cell({
+    x: host.x, y: host.y, z: host.z + (Math.random() - 0.5) * 0.22,
+    kind: 'tissue', node, radius: node.radius, color: color.slice(),
+  });
+  node.cell = c;
+  tissue.push(c);
+  bonds.push({ a: host, b: c, kind: 'grown' });
+  grownCount++;
+  stats.grown = grownCount;
+  host.pulse = 1;
+  c.flash = 1.5;
+  return c;
 }
 
 /* ---------- the mortal population ---------- */
@@ -975,6 +1049,17 @@ function updateMicrobes(dt, pointerWorld) {
       if (pd < 0.55) uptake += (1 - pd / 0.55) * 0.10;
     }
 
+    // reaching the rim well fed: absorbed, and the colony grows a node
+    if (nearest && !m.dying && m.energy > 0.55 && nearest.sproutCd <= 0 &&
+        isOuterCell(nearest) && nd < (nearest.radius + m.radius) * 0.78) {
+      if (sproutFrom(nearest, m.color)) {
+        nearest.sproutCd = 2.6;
+        cellById.delete(m.id);
+        microbes.splice(i, 1);
+        continue;
+      }
+    }
+
     // the food near a tissue cell is shared out among everything feeding on it,
     // so crowding starves the colony and sparse ground rewards motility --
     // this is the selection pressure, without it nothing ever dies
@@ -1066,6 +1151,8 @@ function updateTissue(dt) {
     c.x += c.vx; c.y += c.vy;
     c.vx *= 0.90; c.vy *= 0.90;
     c.pulse = Math.max(0, c.pulse - dt * 2.2);
+    c.sproutCd = Math.max(0, c.sproutCd - dt);
+    c.flash = Math.max(0, c.flash - dt * 2.0);
     c.radius = c.baseRadius * (0.25 + c.settle * 0.75) * (1 + c.pulse * 0.30);
   }
   // keep neighbours from fusing into one unreadable mass
@@ -1552,7 +1639,7 @@ function renderHUD() {
   // whatever the search or the traced path has selected
   const cand = [];
   for (const c of tissue) {
-    if (c.settle < 0.35 || !c.node) continue;
+    if (c.settle < 0.35 || !c.node || !c.node.slug) continue;   // grown nodes carry no page
     const p = worldToScreen(c.x, c.y);
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
     if (p.x < -120 || p.x > W + 120 || p.y < -80 || p.y > H + 80) continue;
@@ -1637,14 +1724,16 @@ function renderInstrument() {
   el('scale-line').style.width = Math.round(best / umPerPx) + 'px';
   el('scale-len').textContent = best >= 1000 ? (best / 1000) + ' mm' : best + ' µm';
 
-  const name = hoverCell && hoverCell.node ? hoverCell.node.label
+  const name = hoverCell && hoverCell.node && hoverCell.node.label ? hoverCell.node.label
+             : hoverCell ? 'NEW GROWTH'
              : searchHit ? searchHit.node.label : 'IORI.ME';
   el('live-readout').innerHTML =
     `${name} &nbsp; POP <b>${String(microbes.length).padStart(3, '0')}</b>` +
     ` &nbsp; GEN <b>${stats.generation}</b>` +
     ` &nbsp; <b>+${stats.births}</b> <span class="dead">\u2212${stats.deaths}</span>` +
     ` &nbsp; MIX <b>${stats.merges}</b>` +
-    ` &nbsp; ON LINE <b>${stats.riding}</b>`;
+    ` &nbsp; ON LINE <b>${stats.riding}</b>` +
+    (stats.grown ? ` &nbsp; GROWN <b>${stats.grown}</b>` : '');
 }
 
 /* ---------- the crawlable index ----------
@@ -1789,7 +1878,7 @@ function setupInputs() {
       if (now - lastTap < 340 &&
           Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 36) {
         const hit = pickCell(pointer.worldX, pointer.worldY);
-        if (hit && hit.node) showRouteModal(hit.node.slug);
+        if (hit && hit.node && hit.node.slug) showRouteModal(hit.node.slug);
         else resetView();
         lastTap = 0;
       } else {
@@ -1807,7 +1896,7 @@ function setupInputs() {
     track(e);
     const hit = pickCell(pointer.worldX, pointer.worldY);
     // on a cell it opens the page; on empty slide it frames the whole specimen
-    if (hit && hit.node) showRouteModal(hit.node.slug);
+    if (hit && hit.node && hit.node.slug) showRouteModal(hit.node.slug);
     else resetView();
   });
 
@@ -1840,7 +1929,7 @@ function setupInputs() {
     if (!q) return;
     let best = null, bestScore = -1;
     for (const c of tissue) {
-      if (!c.node) continue;
+      if (!c.node || !c.node.slug) continue;
       const hay = (c.node.slug + ' ' + c.node.title).toLowerCase();
       const i = hay.indexOf(q);
       if (i < 0) continue;

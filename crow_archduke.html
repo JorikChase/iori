@@ -600,35 +600,14 @@ let apseCentre = new THREE.Vector3(0, 6.5, APSE_Z);
   }
 }
 
-// ---- glazing: thin panes sitting in the apertures, tinted by the sky ----
-const winMat = new THREE.ShaderMaterial({
-  uniforms: { skyA: { value: new THREE.Color() }, skyB: { value: new THREE.Color() }, gain: { value: 1.0 } },
-  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `
-    varying vec2 vUv; uniform vec3 skyA, skyB; uniform float gain;
-    void main(){
-      vec3 col = mix(skyA, skyB, smoothstep(0.0, 1.0, vUv.y));
-      // leaded tracery: a lattice of dark cames over the glass
-      vec2 g = abs(fract(vUv * vec2(4.0, 9.0)) - 0.5);
-      float came = smoothstep(0.03, 0.09, min(g.x, g.y));
-      gl_FragColor = vec4(col * gain * (0.35 + came * 0.85), 1.0);
-    }`,
-  fog: false, side: THREE.DoubleSide,
-});
-for (const w of WINDOWS) {
-  const pane = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 6.2), winMat);
-  pane.position.copy(w);
-  pane.rotation.y = Math.PI / 2;
-  scene.add(pane);
-}
-// the great arch is the brightest thing in the room, so it should light the room
+// ---- the apertures are left OPEN ----
+// Glazed panes used to fill every window and the rose, which meant the walls
+// were pierced but you still could not see out: the sky, the cloud deck and the
+// shafts through it were all hidden behind a flat tinted quad. The tracery
+// stays; the glass is gone.
 const apseBounce = new THREE.PointLight(0xff9a5a, 34, 48, 1.7);
 apseBounce.position.set(0, 6.0, APSE_Z + 2.6);
 scene.add(apseBounce);
-
-const rosePane = new THREE.Mesh(new THREE.CircleGeometry(2.55, 40), winMat);
-rosePane.position.set(0, 15.2, APSE_Z + 0.2);
-scene.add(rosePane);
 
 /* ================= SMOKE =================
    Instanced billboards with fbm puff textures, animated entirely in the vertex
@@ -915,7 +894,35 @@ const mask = new THREE.Group();
 
 // Profile runs CHIN -> CROWN. The previous build listed it crown-first, which
 // reversed the lathe winding and left the shell inside-out and see-through.
-const shell = cast(new THREE.Mesh(new THREE.LatheGeometry([
+/* A lathe is radially symmetric, which is exactly why the shell read as a
+   balloon: at every height it was a circle. A head is not. This pushes the
+   cross-section toward the real thing — pinched across the temples, flared
+   across the cheekbones, deeper front-to-back than it is wide, with a brow that
+   projects and a back that flattens because this is a shell over a face rather
+   than a whole skull. */
+function sculptMask(geo) {
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const h = THREE.MathUtils.clamp((v.y + 0.40) / 0.89, 0, 1);  // 0 chin, 1 crown
+    const bell = (c, w) => Math.exp(-Math.pow((h - c) / w, 2));
+    const wide = 1.0 - 0.15 * bell(0.84, 0.15) + 0.07 * bell(0.50, 0.13);
+    const deep = 1.06 + 0.10 * bell(0.66, 0.12);
+    v.x *= wide;
+    v.z *= deep;
+    if (v.z < 0) v.z *= 0.80;                      // flatten the back of the shell
+    const r = Math.hypot(v.x, v.z) || 1e-4;
+    const front = Math.max(0, v.z) / r;            // 1 dead ahead, 0 at the sides
+    v.z += bell(0.70, 0.06) * 0.045 * front;       // brow ridge
+    v.z -= bell(0.56, 0.05) * 0.022 * front;       // and the socket under it
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const shell = cast(new THREE.Mesh(sculptMask(new THREE.LatheGeometry([
   new THREE.Vector2(0.048, -0.400),   // chin
   new THREE.Vector2(0.152, -0.322),
   new THREE.Vector2(0.248, -0.205),   // jaw
@@ -926,8 +933,8 @@ const shell = cast(new THREE.Mesh(new THREE.LatheGeometry([
   new THREE.Vector2(0.304, 0.368),    // crown
   new THREE.Vector2(0.182, 0.452),
   new THREE.Vector2(0.032, 0.488),
-], 48), boneWhite));
-shell.scale.set(0.94, 1.0, 1.14);
+], 64)), boneWhite));
+shell.scale.set(0.86, 1.0, 1.08);
 shell.receiveShadow = true;
 mask.add(shell);
 
@@ -942,7 +949,9 @@ function sweptBeak(curve, seg, ring, radiusAt) {
     const r = radiusAt(t);
     for (let j = 0; j < ring; j++) {
       const a = (j / ring) * Math.PI * 2;
-      const ox = Math.cos(a) * r * 0.72, oy = Math.sin(a) * r;
+      // N lies in the curve's plane (vertical here) and B is horizontal, so
+      // this is what makes the beak taller than wide rather than flattened
+      const ox = Math.cos(a) * r, oy = Math.sin(a) * r * 0.76;
       pos.push(p.x + N.x * ox + B.x * oy,
                p.y + N.y * ox + B.y * oy,
                p.z + N.z * ox + B.z * oy);
@@ -965,14 +974,17 @@ function sweptBeak(curve, seg, ring, radiusAt) {
   g.computeVertexNormals();
   return g;
 }
+/* The historical mask is a long cone projecting FORWARD off the face on a
+   gentle downward slope — it is not a hook. The old curve dropped further than
+   it reached, which is what made it droop. */
 const beakCurve = new THREE.CubicBezierCurve3(
-  new THREE.Vector3(0,  0.020, 0.06),
-  new THREE.Vector3(0,  0.060, 0.50),
-  new THREE.Vector3(0, -0.110, 0.82),
-  new THREE.Vector3(0, -0.520, 0.70),
+  new THREE.Vector3(0, -0.010, 0.06),
+  new THREE.Vector3(0, -0.030, 0.40),
+  new THREE.Vector3(0, -0.090, 0.72),
+  new THREE.Vector3(0, -0.225, 1.06),
 );
 const beak = cast(new THREE.Mesh(
-  sweptBeak(beakCurve, 40, 20, (t) => 0.168 * Math.pow(1 - t, 0.56) + 0.006), boneWhite));
+  sweptBeak(beakCurve, 46, 20, (t) => 0.126 * Math.pow(1 - t, 0.70) + 0.004), boneWhite));
 beak.receiveShadow = true;
 mask.add(beak);
 
@@ -981,7 +993,7 @@ for (const side of [-1, 1]) {
   const n = new THREE.Mesh(new THREE.SphereGeometry(0.021, 8, 6),
     new THREE.MeshStandardMaterial({ color: 0x0a0508, roughness: 1 }));
   n.scale.set(1, 0.55, 1.7);
-  n.position.set(side * 0.046, -0.062, 0.44);
+  n.position.set(side * 0.040, -0.072, 0.52);
   mask.add(n);
 }
 
@@ -990,7 +1002,7 @@ for (let i = 0; i < 8; i++) {
   const a = -0.32 + i * 0.115;
   for (const side of [-1, 1]) {
     const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 6), brass);
-    const rad = 0.30 + Math.cos(a * 2.4) * 0.05;
+    const rad = 0.265 + Math.cos(a * 2.4) * 0.045;
     rivet.position.set(side * rad, a, 0.13);
     mask.add(rivet);
   }
@@ -1039,7 +1051,7 @@ function makeEye(r, withGoggle) {
 const strap = new THREE.Mesh(new THREE.TorusGeometry(0.345, 0.036, 8, 32), leatherDark);
 strap.rotation.x = Math.PI / 2;
 strap.position.set(0, 0.245, 0.02);
-strap.scale.set(1.06, 1, 1.14);
+strap.scale.set(0.95, 1, 1.16);
 mask.add(strap);
 
 // dark plates sunk into the shell -- without these the goggles read as beads
@@ -1050,12 +1062,12 @@ function socket(x, y, z, r) {
   p.position.set(x, y, z);
   mask.add(p);
 }
-socket(-0.150, 0.250, 0.268, 0.132);
-socket( 0.150, 0.250, 0.268, 0.132);
+socket(-0.134, 0.250, 0.268, 0.126);
+socket( 0.134, 0.250, 0.268, 0.126);
 socket(0, 0.438, 0.232, 0.128);
 
-const eyeL = makeEye(0.086, true); eyeL.position.set(-0.150, 0.248, 0.300); mask.add(eyeL);
-const eyeR = makeEye(0.086, true); eyeR.position.set( 0.150, 0.248, 0.300); mask.add(eyeR);
+const eyeL = makeEye(0.086, true); eyeL.position.set(-0.134, 0.248, 0.300); mask.add(eyeL);
+const eyeR = makeEye(0.086, true); eyeR.position.set( 0.134, 0.248, 0.300); mask.add(eyeR);
 const eye3 = makeEye(0.100, false); eye3.position.set(0, 0.436, 0.262); mask.add(eye3);
 
 mask.position.set(0, 4.04, 0.12);
@@ -1215,9 +1227,6 @@ function tick() {
   // more cloud at the ends of the day, clearer at noon
   skyMat.uniforms.cover.value = 0.46 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.30;
   skyMat.uniforms.t.value = t;
-  winMat.uniforms.skyA.value.copy(skyC.horizon);
-  winMat.uniforms.skyB.value.copy(skyC.mid);
-  winMat.uniforms.gain.value = 0.7 + skyC.sunI * 0.35;
   scene.fog.color.copy(skyC.top).multiplyScalar(0.42);
   scene.fog.density = 0.009 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.005;
 

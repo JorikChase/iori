@@ -302,7 +302,7 @@
 
     <div id="scale-bar"><div id="scale-line"></div><span id="scale-len">50 µm</span></div>
     <div id="live-readout"></div>
-    <div id="boot-hint">CLICK A CELL TO SEED IT &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; SCROLL TO ZOOM &middot; / TO SEARCH</div>
+    <div id="boot-hint">TAP A CELL TO SEED IT &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; PINCH OR SCROLL TO ZOOM &middot; DOUBLE-TAP TO OPEN</div>
 
     <div id="search-box">
         <span>/</span>
@@ -1583,7 +1583,21 @@ function setupInputs() {
     pointer.worldX = w.x; pointer.worldY = w.y;
   };
 
+  /* Touch had no equivalent of the wheel or of a double click, so on a tablet
+     the stage could not be zoomed and no cell could be opened. Two fingers
+     pinch; a quick second tap opens the page. */
+  const active = new Map();
+  let pinchDist = 0, lastTap = 0, lastTapX = 0, lastTapY = 0;
+
   container.addEventListener('pointerdown', (e) => {
+    active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (active.size === 2) {
+      const [a, b] = [...active.values()];
+      pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+      pointer.isDown = false;         // two fingers means zoom, not seeding
+      pointer.seeding = null;
+      return;
+    }
     track(e);
     pointer.isDown = true; pointer.moved = 0;
     pointer.downX = e.clientX; pointer.downY = e.clientY;
@@ -1596,6 +1610,16 @@ function setupInputs() {
   });
 
   container.addEventListener('pointermove', (e) => {
+    if (active.has(e.pointerId)) active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (active.size === 2) {
+      const [a, b] = [...active.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist > 8 && d > 8) {
+        camera.userZoom = Math.min(3.4, Math.max(0.22, camera.userZoom * (pinchDist / d)));
+      }
+      pinchDist = d;
+      return;
+    }
     if (pointer.isDown && !pointer.seeding) {
       const dx = e.clientX - pointer.lastX, dy = e.clientY - pointer.lastY;
       pointer.moved += Math.abs(dx) + Math.abs(dy);
@@ -1607,7 +1631,23 @@ function setupInputs() {
     track(e);
   });
 
-  const release = () => { pointer.isDown = false; pointer.seeding = null; };
+  const release = (e) => {
+    if (e) active.delete(e.pointerId);
+    if (active.size < 2) pinchDist = 0;
+    // double-tap opens a cell, the touch stand-in for dblclick
+    if (e && e.pointerType === 'touch' && pointer.moved < 12) {
+      const now = performance.now();
+      if (now - lastTap < 340 &&
+          Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 36) {
+        const hit = pickCell(pointer.worldX, pointer.worldY);
+        if (hit && hit.node) showRouteModal(hit.node.slug);
+        lastTap = 0;
+      } else {
+        lastTap = now; lastTapX = e.clientX; lastTapY = e.clientY;
+      }
+    }
+    pointer.isDown = false; pointer.seeding = null;
+  };
   container.addEventListener('pointerup', release);
   container.addEventListener('pointercancel', release);
 

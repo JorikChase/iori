@@ -54,7 +54,7 @@
   body { background:#000; color:#fff; font-family:"Courier New", ui-monospace, monospace; }
   ::selection { background:#fff; color:#000; }
   #cathedral { position: relative; height: 100svh; overflow: hidden; border-bottom: 2px solid #fff; }
-  #cathedral canvas { display: block; }
+  #cathedral canvas { display: block; touch-action: pan-y; }
   .hud { position: absolute; z-index: 5; pointer-events: none; }
   #piece-title { top: 1rem; left: 1.2rem; letter-spacing:.3em; font-size:.85rem; text-shadow: 0 0 8px #000; }
   #piece-title span { animation: blink 1.2s steps(2) infinite; }
@@ -139,7 +139,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? 1.6 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.28;
+renderer.toneMappingExposure = 1.04;
 holder.appendChild(renderer.domElement);
 
 /* ================= procedural texture kit =================
@@ -278,11 +278,11 @@ function irisTexture() {
    pointer.x sweeps dawn -> dusk with golden hour taking 90% of the travel.  */
 
 const SKY_KEYS = [
-  { t: 0.00, top: 0x14092e, mid: 0x6a3a7a, horizon: 0xff9a5a, sun: 0xffb37a, sunI: 1.9 },
-  { t: 0.45, top: 0x3a2a6e, mid: 0xb85c8a, horizon: 0xffc37a, sun: 0xffd9a0, sunI: 3.0 },
-  { t: 0.50, top: 0x5a7fb8, mid: 0x9db8d6, horizon: 0xe8e4d8, sun: 0xfff4e0, sunI: 3.8 },
-  { t: 0.55, top: 0x4a2a5e, mid: 0xc86a6a, horizon: 0xffa04a, sun: 0xffc06a, sunI: 3.0 },
-  { t: 1.00, top: 0x0d0318, mid: 0x5a1a6a, horizon: 0xff4a2c, sun: 0xff6a3c, sunI: 2.1 },
+  { t: 0.00, top: 0x14092e, mid: 0x6a3a7a, horizon: 0xff9a5a, sun: 0xffb37a, sunI: 1.5 },
+  { t: 0.45, top: 0x3a2a6e, mid: 0xb85c8a, horizon: 0xffc37a, sun: 0xffd9a0, sunI: 2.1 },
+  { t: 0.50, top: 0x5a7fb8, mid: 0x9db8d6, horizon: 0xe8e4d8, sun: 0xfff4e0, sunI: 2.5 },
+  { t: 0.55, top: 0x4a2a5e, mid: 0xc86a6a, horizon: 0xffa04a, sun: 0xffc06a, sunI: 2.1 },
+  { t: 1.00, top: 0x0d0318, mid: 0x5a1a6a, horizon: 0xff4a2c, sun: 0xff6a3c, sunI: 1.6 },
 ];
 
 const _cA = new THREE.Color(), _cB = new THREE.Color();
@@ -306,23 +306,99 @@ function pointerToTime(x) {
 }
 
 /* ---------- sky DOME (was a floating quad with visible corners) ---------- */
+const SKY_RAY_TAPS = HIGH ? 12 : 6;
+const SKY_OCC_TAPS = HIGH ? 5 : 3;
 const skyMat = new THREE.ShaderMaterial({
   uniforms: {
     top: { value: new THREE.Color() }, mid: { value: new THREE.Color() },
-    horizon: { value: new THREE.Color() }, t: { value: 0 },
+    horizon: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() },
+    sunDir: { value: new THREE.Vector3(0, 0.3, -1) },
+    t: { value: 0 }, cover: { value: 0.5 },
   },
   vertexShader: `
     varying vec3 vDir;
     void main(){ vDir = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
   fragmentShader: `
-    varying vec3 vDir; uniform vec3 top, mid, horizon; uniform float t;
+    #define RAY_TAPS ${SKY_RAY_TAPS}
+    #define OCC_TAPS ${SKY_OCC_TAPS}
+    varying vec3 vDir;
+    uniform vec3 top, mid, horizon, sunCol, sunDir;
+    uniform float t, cover;
+
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float vnoise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f*f*(3.0-2.0*f);
+      return mix(mix(hash(i), hash(i+vec2(1,0)), f.x),
+                 mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+    }
+    float fbm(vec2 p){
+      float v = 0.0, a = 0.5;
+      for (int i = 0; i < 4; i++){ v += vnoise(p) * a; p *= 2.07; a *= 0.5; }
+      return v;
+    }
+
+    // Clouds live in ANGULAR space (azimuth, elevation) rather than on a flat
+    // deck. A flat deck divides by the view's y, so near the horizon — which is
+    // exactly where this camera looks, down the nave and out through the apse —
+    // the sample rate runs away and the cloud mushes into a flat band.
+    vec2 sph(vec3 d){ return vec2(atan(d.z, d.x), asin(clamp(d.y, -1.0, 1.0))); }
+
+    float cloudAt(vec2 ae){
+      // stretched along azimuth, squeezed in elevation => sunset strata
+      vec2 p = vec2(ae.x * 2.1, ae.y * 5.4);
+      vec2 w = vec2(fbm(p * 0.65 + t * 0.009), fbm(p * 0.65 + 5.1 - t * 0.007));
+      float f = fbm(p + w * 1.15 + vec2(t * 0.013, 0.0));
+      float band = smoothstep(0.52 - cover * 0.22, 0.86, f);
+      float h = smoothstep(-0.05, 0.12, ae.y) * smoothstep(1.25, 0.40, ae.y);
+      return band * h;
+    }
+
     void main(){
       float y = clamp(vDir.y * 0.5 + 0.5, 0.0, 1.0);
       vec3 col = mix(horizon, mid, smoothstep(0.46, 0.62, y));
       col = mix(col, top, smoothstep(0.60, 0.92, y));
-      // soft banded cloud, so the dome isn't a dead gradient
-      float band = sin(vDir.y * 22.0 + sin(vDir.x * 3.0 + t * 0.05) * 1.6);
-      col += 0.035 * band * smoothstep(0.75, 0.5, y);
+
+      vec2 ae = sph(vDir);
+      vec2 sae = sph(normalize(sunDir));
+      float dx = ae.x - sae.x;
+      dx = atan(sin(dx), cos(dx));            // shortest way round the sky
+      vec2 rel = vec2(dx, ae.y - sae.y);
+
+      float c = cloudAt(ae);
+      float sd = max(dot(normalize(vDir), normalize(sunDir)), 0.0);
+
+      // shade each billow by how much cloud lies between it and the sun
+      float occ = 0.0;
+      for (int i = 1; i <= OCC_TAPS; i++)
+        occ += cloudAt(ae - rel * (0.06 * float(i)));
+      occ /= float(OCC_TAPS);
+      float lit = 1.0 - occ * 0.72;
+
+      // This camera looks down the nave and straight INTO the sun, so the
+      // clouds it sees are backlit: the thick cores go to silhouette and only
+      // the thin margins glow. Lighting them toward the sun colour instead
+      // (the obvious thing) makes them the same colour as the sky behind and
+      // they vanish entirely.
+      vec3 back  = mix(sunCol * 2.1, mid * 0.06, smoothstep(0.10, 0.72, c));
+      vec3 front = mix(mid * 0.50, sunCol * 1.15, lit);
+      float facing = pow(clamp(sd, 0.0, 1.0), 1.1);
+      vec3 cloudCol = mix(front, back, facing);
+      col = mix(col, cloudCol, clamp(c * 1.05, 0.0, 1.0));
+
+      // crepuscular rays: march outward FROM the sun and collect the gaps, so
+      // the shafts line up with the clouds actually casting them
+      float rays = 0.0;
+      for (int i = 1; i <= RAY_TAPS; i++){
+        float f = float(i) / float(RAY_TAPS);
+        rays += (1.0 - cloudAt(sae + rel * f)) * (1.0 - f);
+      }
+      rays /= float(RAY_TAPS) * 0.5;
+      float reach = pow(sd, 5.0) * 0.85 + pow(sd, 1.6) * 0.16;
+      col += sunCol * rays * reach * 1.35 * smoothstep(-0.04, 0.10, ae.y);
+
+      col += sunCol * pow(sd, 240.0) * 3.2;     // the disc's own bloom
+      col += sunCol * pow(sd, 14.0) * 0.09;
       gl_FragColor = vec4(col, 1.0);
     }`,
   side: THREE.BackSide, fog: false, depthWrite: false,
@@ -368,11 +444,11 @@ sunLight.target.position.copy(SHADOW_TARGET);
 scene.add(sunLight, sunLight.target);
 
 // bounce/ambient, kept dim so the shadows actually read
-const hemi = new THREE.HemisphereLight(0x6a4a9a, 0x2a1a36, 1.1);
+const hemi = new THREE.HemisphereLight(0x6f6486, 0x2a2030, 0.85);
 scene.add(hemi);
-const eyeLight = new THREE.PointLight(0xb27fe8, 4, 8, 2);
+const eyeLight = new THREE.PointLight(0xb27fe8, 0.9, 3.4, 2);
 // soft key from the nave side, just enough to model the mask against the arch
-const key = new THREE.DirectionalLight(0xa88fd8, 0.9);
+const key = new THREE.DirectionalLight(0xcfc4e6, 0.9);
 key.position.set(3.2, 6.5, -6.0);
 key.target.position.set(0, 4.6, -13.5);
 scene.add(key, key.target);
@@ -709,62 +785,151 @@ const motes = new THREE.Points(
 scene.add(motes);
 
 /* ================= THE PRIEST ================= */
+
+// procedural leather: a grain normal map plus matching roughness, so the robe
+// reads as material rather than as a black silhouette
+function leatherMaps(seed, size = 256) {
+  const n = perlin2(seed);
+  const h = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let f = 0, amp = 0.5, fq = 7;
+      for (let o = 0; o < 4; o++) {
+        f += Math.abs(n((x / size) * fq, (y / size) * fq)) * amp;
+        amp *= 0.52; fq *= 2.17;
+      }
+      h[y * size + x] = Math.pow(f, 0.75);
+    }
+  }
+  const nc = document.createElement('canvas'); nc.width = nc.height = size;
+  const rc = document.createElement('canvas'); rc.width = rc.height = size;
+  const ng = nc.getContext('2d'), rg = rc.getContext('2d');
+  const ni = ng.createImageData(size, size), ri = rg.createImageData(size, size);
+  const at = (x, y) => h[((y + size) % size) * size + ((x + size) % size)];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 2.6;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 2.6;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * size + x) * 4;
+      ni.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
+      ni.data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
+      ni.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+      ni.data[i + 3] = 255;
+      const r = 150 + at(x, y) * 90;
+      ri.data[i] = ri.data[i + 1] = ri.data[i + 2] = r;
+      ri.data[i + 3] = 255;
+    }
+  }
+  ng.putImageData(ni, 0, 0); rg.putImageData(ri, 0, 0);
+  const mk = (cv, srgb) => {
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3, 3);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  return { normalMap: mk(nc, false), roughnessMap: mk(rc, false) };
+}
+const leatherTex = leatherMaps(41);
+
 const priest = new THREE.Group();
-const leather = new THREE.MeshStandardMaterial({ color: 0x1c150f, roughness: 0.72, metalness: 0.04 });
-const boneWhite = new THREE.MeshStandardMaterial({ color: 0xd8cfb8, roughness: 0.42, metalness: 0.03 });
-const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.3, metalness: 0.85 });
+const leather = new THREE.MeshStandardMaterial({
+  color: 0x2a2018, roughness: 0.78, metalness: 0.05,
+  normalMap: leatherTex.normalMap, roughnessMap: leatherTex.roughnessMap,
+  normalScale: new THREE.Vector2(0.6, 0.6),
+});
+const leatherDark = leather.clone();
+leatherDark.color = new THREE.Color(0x1a1310);
+const boneWhite = new THREE.MeshStandardMaterial({
+  color: 0xe4dbc2, roughness: 0.44, metalness: 0.03,
+  normalMap: leatherTex.normalMap, normalScale: new THREE.Vector2(0.18, 0.18),
+});
+const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.28, metalness: 0.88 });
 
 const cast = (m) => { m.castShadow = true; return m; };
 
-// cassock: a lathed silhouette rather than a cone, so it falls like cloth
-const robe = cast(new THREE.Mesh(new THREE.LatheGeometry([
-  new THREE.Vector2(1.30, 0.00), new THREE.Vector2(1.16, 0.70),
-  new THREE.Vector2(0.99, 1.45), new THREE.Vector2(0.84, 2.20),
-  new THREE.Vector2(0.70, 2.80), new THREE.Vector2(0.60, 3.20),
-], 28), leather));
+/* ----- cassock, with cloth folds worked into the lathe ----- */
+function foldedLathe(profile, segments, folds, depth) {
+  const g = new THREE.LatheGeometry(profile, segments);
+  const pos = g.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const r = Math.hypot(v.x, v.z);
+    if (r < 1e-4) continue;
+    const a = Math.atan2(v.z, v.x);
+    // folds deepen toward the hem, the way heavy cloth hangs
+    const k = 1 + Math.cos(a * folds) * depth * (0.35 + 0.65 * (1 - v.y / 3.4));
+    pos.setX(i, (v.x / r) * r * k);
+    pos.setZ(i, (v.z / r) * r * k);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+const robe = cast(new THREE.Mesh(foldedLathe([
+  new THREE.Vector2(1.34, 0.00),
+  new THREE.Vector2(1.18, 0.62),
+  new THREE.Vector2(1.02, 1.32),
+  new THREE.Vector2(0.88, 2.02),
+  new THREE.Vector2(0.75, 2.60),
+  new THREE.Vector2(0.64, 3.05),
+  new THREE.Vector2(0.58, 3.30),
+], 64, 11, 0.045), leather));
 robe.receiveShadow = true;
 priest.add(robe);
 
 // mozzetta over the shoulders
-const cape = cast(new THREE.Mesh(new THREE.LatheGeometry([
-  new THREE.Vector2(0.86, 2.95), new THREE.Vector2(0.74, 3.35),
-  new THREE.Vector2(0.52, 3.62), new THREE.Vector2(0.30, 3.78),
-], 28), leather));
+const cape = cast(new THREE.Mesh(foldedLathe([
+  new THREE.Vector2(0.30, 3.86),
+  new THREE.Vector2(0.56, 3.68),
+  new THREE.Vector2(0.78, 3.40),
+  new THREE.Vector2(0.90, 3.02),
+], 64, 9, 0.035), leatherDark));
+cape.receiveShadow = true;
 priest.add(cape);
 
-const neck = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.24, 0.4, 14), leather));
-neck.position.y = 3.86;
+// standing collar
+const collar = cast(new THREE.Mesh(
+  new THREE.CylinderGeometry(0.30, 0.25, 0.26, 24, 1, true), leatherDark));
+collar.position.y = 3.90;
+collar.material.side = THREE.DoubleSide;
+priest.add(collar);
+
+const neck = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.21, 0.34, 16), leatherDark));
+neck.position.y = 3.90;
 priest.add(neck);
 
-// hood shell behind the mask
-const hood = cast(new THREE.Mesh(new THREE.SphereGeometry(0.44, 20, 16), leather));
-hood.position.set(0, 4.06, -0.10);
-hood.scale.set(1.02, 1.20, 1.06);
+// the cowl sits BEHIND the mask and only frames it -- the previous build made
+// this a sphere wider than the mask, which swallowed the whole face
+const hood = cast(new THREE.Mesh(new THREE.SphereGeometry(0.38, 24, 18), leatherDark));
+hood.position.set(0, 4.06, -0.17);
+hood.scale.set(1.10, 1.16, 0.94);
 priest.add(hood);
 
 /* ----- the plague mask ----- */
 const mask = new THREE.Group();
 
-// face shell: a lathe profile with a real brow ridge and cheekbones, flattened
-// at the back so it reads as a mask worn on a face, not as a bare skull
+// Profile runs CHIN -> CROWN. The previous build listed it crown-first, which
+// reversed the lathe winding and left the shell inside-out and see-through.
 const shell = cast(new THREE.Mesh(new THREE.LatheGeometry([
-  new THREE.Vector2(0.020, 0.470),
-  new THREE.Vector2(0.170, 0.452),
-  new THREE.Vector2(0.278, 0.372),   // crown
-  new THREE.Vector2(0.330, 0.286),   // brow ridge
-  new THREE.Vector2(0.316, 0.212),   // brow undercut
-  new THREE.Vector2(0.330, 0.090),   // cheekbone
-  new THREE.Vector2(0.300, -0.060),
-  new THREE.Vector2(0.232, -0.196),  // jaw
-  new THREE.Vector2(0.130, -0.300),
-  new THREE.Vector2(0.038, -0.352),  // chin
-], 40), boneWhite));
-shell.scale.set(1.0, 1.0, 1.12);
+  new THREE.Vector2(0.048, -0.400),   // chin
+  new THREE.Vector2(0.152, -0.322),
+  new THREE.Vector2(0.248, -0.205),   // jaw
+  new THREE.Vector2(0.318, -0.062),
+  new THREE.Vector2(0.356, 0.078),    // cheekbone
+  new THREE.Vector2(0.342, 0.196),    // brow undercut
+  new THREE.Vector2(0.366, 0.278),    // brow ridge
+  new THREE.Vector2(0.304, 0.368),    // crown
+  new THREE.Vector2(0.182, 0.452),
+  new THREE.Vector2(0.032, 0.488),
+], 48), boneWhite));
+shell.scale.set(0.94, 1.0, 1.14);
+shell.receiveShadow = true;
 mask.add(shell);
 
-// the beak: an ellipse swept along an S-curve, tapering to a point. This is
-// the whole silhouette of the thing, so it is built properly rather than
-// approximated with a bent cone.
+// the beak: an ellipse swept along an S-curve, tapering to a point
 function sweptBeak(curve, seg, ring, radiusAt) {
   const pos = [], idx = [];
   const frames = curve.computeFrenetFrames(seg, false);
@@ -775,8 +940,7 @@ function sweptBeak(curve, seg, ring, radiusAt) {
     const r = radiusAt(t);
     for (let j = 0; j < ring; j++) {
       const a = (j / ring) * Math.PI * 2;
-      const ox = Math.cos(a) * r * 0.74;      // narrower than it is deep
-      const oy = Math.sin(a) * r;
+      const ox = Math.cos(a) * r * 0.72, oy = Math.sin(a) * r;
       pos.push(p.x + N.x * ox + B.x * oy,
                p.y + N.y * ox + B.y * oy,
                p.z + N.z * ox + B.z * oy);
@@ -785,8 +949,8 @@ function sweptBeak(curve, seg, ring, radiusAt) {
   for (let i = 0; i < seg; i++) {
     for (let j = 0; j < ring; j++) {
       const a = i * ring + j, b = i * ring + (j + 1) % ring;
-      const c = (i + 1) * ring + j, dd = (i + 1) * ring + (j + 1) % ring;
-      idx.push(a, c, b, b, c, dd);
+      const c = (i + 1) * ring + j, d = (i + 1) * ring + (j + 1) % ring;
+      idx.push(a, c, b, b, c, d);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -796,33 +960,34 @@ function sweptBeak(curve, seg, ring, radiusAt) {
   return g;
 }
 const beakCurve = new THREE.CubicBezierCurve3(
-  new THREE.Vector3(0,  0.030, 0.10),
-  new THREE.Vector3(0,  0.070, 0.46),
-  new THREE.Vector3(0, -0.090, 0.76),
-  new THREE.Vector3(0, -0.470, 0.66),
+  new THREE.Vector3(0,  0.020, 0.06),
+  new THREE.Vector3(0,  0.060, 0.50),
+  new THREE.Vector3(0, -0.110, 0.82),
+  new THREE.Vector3(0, -0.520, 0.70),
 );
 const beak = cast(new THREE.Mesh(
-  sweptBeak(beakCurve, 34, 18, (t) => 0.150 * Math.pow(1 - t, 0.58) + 0.006),
-  boneWhite));
+  sweptBeak(beakCurve, 40, 20, (t) => 0.168 * Math.pow(1 - t, 0.56) + 0.006), boneWhite));
+beak.receiveShadow = true;
 mask.add(beak);
 
 // nostril slits, low on the beak near the base
 for (const side of [-1, 1]) {
-  const n = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6),
+  const n = new THREE.Mesh(new THREE.SphereGeometry(0.021, 8, 6),
     new THREE.MeshStandardMaterial({ color: 0x0a0508, roughness: 1 }));
   n.scale.set(1, 0.55, 1.7);
-  n.position.set(side * 0.042, -0.055, 0.40);
+  n.position.set(side * 0.046, -0.062, 0.44);
   mask.add(n);
 }
 
-// riveted seam down the centre of the shell
-for (let i = 0; i < 7; i++) {
-  const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), brass);
-  const a = -0.30 + i * 0.115;
-  rivet.position.set(0.24, a, 0.20 + Math.cos(a * 2.2) * 0.05);
-  mask.add(rivet);
-  const r2 = rivet.clone(); r2.position.x = -0.24;
-  mask.add(r2);
+// riveted seams down the cheeks
+for (let i = 0; i < 8; i++) {
+  const a = -0.32 + i * 0.115;
+  for (const side of [-1, 1]) {
+    const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 6), brass);
+    const rad = 0.30 + Math.cos(a * 2.4) * 0.05;
+    rivet.position.set(side * rad, a, 0.13);
+    mask.add(rivet);
+  }
 }
 
 /* ----- eyes ----- */
@@ -834,32 +999,30 @@ function makeEye(r, withGoggle) {
   const sclera = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18),
     new THREE.MeshStandardMaterial({ color: 0xe6e0f0, roughness: 0.16 }));
   grp.add(sclera);
-  // iris as a spherical cap hugging the eyeball: the texture is a polar strip,
-  // so the pupil lands on the pole and the limbal ring on the rim
   const iris = new THREE.Mesh(
     new THREE.SphereGeometry(r * 1.006, 30, 18, 0, Math.PI * 2, 0, 0.64),
     new THREE.MeshStandardMaterial({
       map: irisTex, emissive: 0xffffff, emissiveMap: irisTex,
-      emissiveIntensity: 0.75, roughness: 0.1,
+      emissiveIntensity: 0.55, roughness: 0.1,
     }));
-  iris.rotation.x = Math.PI / 2;             // cap faces +z
+  iris.rotation.x = Math.PI / 2;
   grp.add(iris);
   const spec = new THREE.Mesh(new THREE.SphereGeometry(r * 0.15, 8, 6),
     new THREE.MeshBasicMaterial({ color: 0xffffff }));
   spec.position.set(-r * 0.36, r * 0.34, r * 0.86);
   grp.add(spec);
   if (withGoggle) {
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 1.34, r * 0.26, 10, 26), brass);
-    rim.position.z = r * 0.22;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 1.36, r * 0.24, 10, 26), brass);
+    rim.position.z = r * 0.24;
     grp.add(rim);
     const lens = new THREE.Mesh(
-      new THREE.SphereGeometry(r * 1.3, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.42),
+      new THREE.SphereGeometry(r * 1.32, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.42),
       new THREE.MeshPhysicalMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.10, roughness: 0.04,
-        metalness: 0.1, transmission: 0.0,
+        color: 0xffffff, transparent: true, opacity: 0.10,
+        roughness: 0.04, metalness: 0.1,
       }));
     lens.rotation.x = Math.PI / 2;
-    lens.position.z = r * 0.26;
+    lens.position.z = r * 0.28;
     grp.add(lens);
   }
   eyes.push({ grp, iris });
@@ -867,47 +1030,84 @@ function makeEye(r, withGoggle) {
 }
 
 // leather strap the goggles mount into
-const strap = new THREE.Mesh(new THREE.TorusGeometry(0.325, 0.032, 8, 30), leather);
+const strap = new THREE.Mesh(new THREE.TorusGeometry(0.345, 0.036, 8, 32), leatherDark);
 strap.rotation.x = Math.PI / 2;
-strap.position.set(0, 0.235, 0.02);
-strap.scale.set(1.07, 1, 1.02);
+strap.position.set(0, 0.245, 0.02);
+strap.scale.set(1.06, 1, 1.14);
 mask.add(strap);
 
-const eyeL = makeEye(0.082, true); eyeL.position.set(-0.142, 0.238, 0.255); mask.add(eyeL);
-const eyeR = makeEye(0.082, true); eyeR.position.set( 0.142, 0.238, 0.255); mask.add(eyeR);
-const eye3 = makeEye(0.098, false); eye3.position.set(0, 0.418, 0.215); mask.add(eye3);
+// dark plates sunk into the shell -- without these the goggles read as beads
+// stuck on a smooth balloon rather than lenses set into sockets
+function socket(x, y, z, r) {
+  const p = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), leatherDark);
+  p.scale.set(1, 0.92, 0.42);
+  p.position.set(x, y, z);
+  mask.add(p);
+}
+socket(-0.150, 0.250, 0.268, 0.132);
+socket( 0.150, 0.250, 0.268, 0.132);
+socket(0, 0.438, 0.232, 0.128);
 
-mask.position.set(0, 4.02, 0.10);
+const eyeL = makeEye(0.086, true); eyeL.position.set(-0.150, 0.248, 0.300); mask.add(eyeL);
+const eyeR = makeEye(0.086, true); eyeR.position.set( 0.150, 0.248, 0.300); mask.add(eyeR);
+const eye3 = makeEye(0.100, false); eye3.position.set(0, 0.436, 0.262); mask.add(eye3);
+
+mask.position.set(0, 4.04, 0.12);
 priest.add(mask);
-eyeLight.position.set(0, 4.15, 0.75);
+eyeLight.position.set(0, 4.18, 1.05);
 priest.add(eyeLight);
 
-/* ----- wide-brim hat, tilted to shadow the goggles ----- */
+/* ----- wide-brim hat ----- */
 const hat = new THREE.Group();
-hat.add(cast(new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.035, 34), leather)));
-const crown = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.31, 0.34, 24), leather));
-crown.position.y = 0.185;
+const brim = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.70, 0.032, 40), leather));
+hat.add(brim);
+const curl = cast(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.028, 8, 44), leather));
+curl.rotation.x = Math.PI / 2;
+curl.position.y = 0.014;
+hat.add(curl);
+const crown = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.305, 0.40, 28), leather));
+crown.position.y = 0.216;
 hat.add(crown);
-const band = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.026, 8, 28), brass);
+const crownTop = cast(new THREE.Mesh(new THREE.SphereGeometry(0.245, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2), leather));
+crownTop.position.y = 0.416;
+hat.add(crownTop);
+const band = new THREE.Mesh(new THREE.TorusGeometry(0.295, 0.030, 8, 30), brass);
 band.rotation.x = Math.PI / 2;
-band.position.y = 0.05;
+band.position.y = 0.055;
 hat.add(band);
-hat.position.set(0, 4.47, 0.00);
-hat.rotation.set(-0.17, 0, 0.05);
+hat.position.set(0, 4.52, -0.02);
+hat.rotation.set(-0.15, 0, 0.045);
 priest.add(hat);
 
-// arms
-const armGeo = new THREE.CylinderGeometry(0.055, 0.095, 1.5, 10);
-const armL = cast(new THREE.Mesh(armGeo, leather));
-const armR = cast(new THREE.Mesh(armGeo, leather));
-armL.position.set(-0.72, 3.05, 0.14);
-armR.position.set(0.72, 3.05, 0.14);
-priest.add(armL, armR);
+/* ----- arms with elbows and gloved hands ----- */
+function makeArm() {
+  const g = new THREE.Group();
+  const upper = cast(new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.56, 6, 14), leather));
+  upper.position.y = -0.34;
+  g.add(upper);
+  const fore = new THREE.Group();
+  fore.position.y = -0.68;
+  const foreMesh = cast(new THREE.Mesh(new THREE.CapsuleGeometry(0.066, 0.50, 6, 14), leather));
+  foreMesh.position.y = -0.30;
+  fore.add(foreMesh);
+  const cuff = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.078, 0.13, 16), leatherDark));
+  cuff.position.y = -0.54;
+  fore.add(cuff);
+  const hand = cast(new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 12), leatherDark));
+  hand.scale.set(0.82, 1.30, 0.62);
+  hand.position.y = -0.66;
+  fore.add(hand);
+  g.add(fore);
+  g.userData.fore = fore;
+  return g;
+}
+const armL = makeArm(); armL.position.set(-0.56, 3.44, 0.06); priest.add(armL);
+const armR = makeArm(); armR.position.set( 0.56, 3.44, 0.06); priest.add(armR);
 
 priest.position.set(0, 0.7, -13.5);
 scene.add(priest);
 
-// dais the priest stands on, plus the altar in front of him
+// dais and altar
 const dais = cast(new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.5, 0.7, 28), stone));
 dais.position.set(0, 0.35, -13.5);
 dais.receiveShadow = true;
@@ -956,7 +1156,7 @@ let composer = null, shaftPass = null, bloomPass = null;
 if (HIGH) {
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.62, 0.7, 0.78);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.48, 0.68, 0.88);
   composer.addPass(bloomPass);
   shaftPass = new ShaderPass(LightShaftShader);
   composer.addPass(shaftPass);
@@ -970,11 +1170,15 @@ addEventListener('pointermove', (e) => {
   pointer.y = e.clientY / innerHeight;
   pointer.seen = true;
 });
-addEventListener('touchmove', (e) => {
+const fromTouch = (e) => {
+  if (!e.touches.length) return;
   pointer.x = e.touches[0].clientX / innerWidth;
   pointer.y = e.touches[0].clientY / innerHeight;
   pointer.seen = true;
-}, { passive: true });
+};
+// touchstart too, so the first tap already turns the sky and moves the gaze
+addEventListener('touchstart', fromTouch, { passive: true });
+addEventListener('touchmove', fromTouch, { passive: true });
 
 /* ================= LOOP ================= */
 const headTarget = new THREE.Vector3();
@@ -1000,6 +1204,10 @@ function tick() {
   skyMat.uniforms.top.value.copy(skyC.top);
   skyMat.uniforms.mid.value.copy(skyC.mid);
   skyMat.uniforms.horizon.value.copy(skyC.horizon);
+  skyMat.uniforms.sunCol.value.copy(skyC.sun);
+  skyMat.uniforms.sunDir.value.copy(sunDir);
+  // more cloud at the ends of the day, clearer at noon
+  skyMat.uniforms.cover.value = 0.46 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.30;
   skyMat.uniforms.t.value = t;
   winMat.uniforms.skyA.value.copy(skyC.horizon);
   winMat.uniforms.skyB.value.copy(skyC.mid);
@@ -1017,12 +1225,12 @@ function tick() {
   sunLight.position.copy(SHADOW_TARGET).addScaledVector(sunDir, 62);
   sunLight.color.copy(skyC.sun);
   sunLight.intensity = skyC.sunI;
-  hemi.intensity = 0.85 + skyC.sunI * 0.22;
+  hemi.intensity = 0.62 + skyC.sunI * 0.16;
   hemi.color.copy(skyC.mid);
   apseBounce.color.copy(skyC.horizon);
-  apseBounce.intensity = 16 + skyC.sunI * 7;
-  key.color.copy(skyC.mid).lerp(new THREE.Color(0xbfa4ee), 0.5);
-  key.intensity = 0.75 + skyC.sunI * 0.13;
+  apseBounce.intensity = 11 + skyC.sunI * 5;
+  key.color.copy(skyC.mid).lerp(new THREE.Color(0xF2EBDA), 0.72);
+  key.intensity = 0.55 + skyC.sunI * 0.10;
 
   smokeMat.uniforms.uTime.value = t;
   smokeMat.uniforms.uSunDir.value.copy(sunDir);
@@ -1053,10 +1261,15 @@ function tick() {
   /* --- the priest preaches on --- */
   priest.rotation.y = Math.sin(t * 0.22) * 0.11;
   priest.position.y = 0.7 + Math.sin(t * 0.5) * 0.045;
-  armL.rotation.z = 0.9 + Math.sin(t * 0.9) * 0.55;
-  armL.rotation.x = Math.sin(t * 0.5) * 0.35;
-  armR.rotation.z = -0.9 - Math.sin(t * 0.9 + Math.PI * 0.7) * 0.55;
-  armR.rotation.x = Math.cos(t * 0.42) * 0.35;
+  armL.rotation.z = 0.72 + Math.sin(t * 0.9) * 0.48;
+  armL.rotation.x = Math.sin(t * 0.5) * 0.32;
+  armR.rotation.z = -0.72 - Math.sin(t * 0.9 + Math.PI * 0.7) * 0.48;
+  armR.rotation.x = Math.cos(t * 0.42) * 0.32;
+  // elbows, so the gesture bends instead of pivoting from the shoulder alone
+  armL.userData.fore.rotation.x = -0.55 - Math.sin(t * 0.9 + 0.6) * 0.42;
+  armR.userData.fore.rotation.x = -0.55 - Math.cos(t * 0.75 + 1.1) * 0.42;
+  armL.userData.fore.rotation.z = Math.sin(t * 0.6) * 0.14;
+  armR.userData.fore.rotation.z = -Math.sin(t * 0.55) * 0.14;
   mask.rotation.y = Math.sin(t * 0.21) * 0.13;
   mask.rotation.x = Math.sin(t * 0.31) * 0.05;
 
@@ -1075,12 +1288,12 @@ function tick() {
   const gx = (pointer.seen ? (pointer.x - 0.5) * 3.4 : Math.sin(t * 0.4) * 0.7) + sacc.x;
   const gy = (pointer.seen ? (0.5 - pointer.y) * 2.3 : Math.cos(t * 0.3) * 0.4) + sacc.y;
   gaze.set(headTarget.x + gx, headTarget.y + gy, headTarget.z + 2.7);
-  const pulse = 0.55 + Math.sin(t * 2.1) * 0.3;
+  const pulse = 0.42 + Math.sin(t * 2.1) * 0.22;
   eyes.forEach((e, i) => {
     e.grp.lookAt(gaze);
     e.iris.material.emissiveIntensity = pulse + Math.sin(t * 3 + i * 2) * 0.14;
   });
-  eyeLight.intensity = 2.4 + Math.sin(t * 2.1) * 1.3;
+  eyeLight.intensity = 0.7 + Math.sin(t * 2.1) * 0.35;
 
   /* --- light shafts, seeded from the blazing apse opening --- */
   if (shaftPass) {

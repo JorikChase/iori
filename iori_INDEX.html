@@ -56,6 +56,14 @@
             touch-action: none;
         }
 
+        /* the index is a document, not part of the stage — it scrolls and its
+           text can be selected */
+        #site-index, #site-index * {
+            touch-action: pan-y;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
         body, html {
             width: 100%;
             height: 100%;
@@ -180,20 +188,16 @@
         }
 
         /* ---------- instrument chrome ---------- */
-        #scope-hud {
-            position: absolute; top: 16px; left: 16px; z-index: 14;
-            display: grid; gap: 2px; pointer-events: none;
-            font-family: monospace; font-size: 10px; letter-spacing: 1px;
-            background: rgba(8, 10, 14, 0.55);
-            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 230, 0, 0.22);
-            border-left: 3px solid rgba(255, 230, 0, 0.75);
-            padding: 9px 12px 10px;
+        /* one line, bottom-left — the counters that make the evolution legible,
+           without a panel sitting on top of the specimen */
+        #live-readout {
+            position: absolute; bottom: 22px; left: 20px; z-index: 14;
+            pointer-events: none; white-space: nowrap;
+            font-family: monospace; font-size: 10px; letter-spacing: 1.6px;
+            color: rgba(255, 255, 255, 0.42);
         }
-        #scope-hud .rd { display: flex; gap: 12px; justify-content: space-between; }
-        #scope-hud .rd span { color: rgba(255, 255, 255, 0.38); }
-        #scope-hud .rd b { color: #FFE600; font-weight: 700; }
-        #scope-hud .sep { margin-top: 7px; padding-top: 7px; border-top: 1px dashed rgba(255,255,255,0.14); }
+        #live-readout b { color: #FFE600; font-weight: 700; }
+        #live-readout .dead { color: rgba(255, 120, 120, 0.85); }
 
         #scale-bar {
             position: absolute; bottom: 22px; right: 20px; z-index: 14;
@@ -209,7 +213,7 @@
         }
 
         #boot-hint {
-            position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 40px; left: 20px;
             z-index: 14; pointer-events: none; white-space: nowrap;
             font-family: monospace; font-size: 10px; letter-spacing: 2px;
             color: rgba(255, 255, 255, 0.34);
@@ -246,7 +250,9 @@
         /* The full page list. Always in the DOM -- this page is iori.me's front
            door and used to contain no links at all. */
         #site-index {
-            position: absolute; inset: 0; z-index: 16; overflow-y: auto;
+            position: absolute; inset: 0; z-index: 16;
+            overflow-y: auto; overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
             background: rgba(0, 0, 0, 0.94);
             backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
             opacity: 0; visibility: hidden; pointer-events: none;
@@ -277,6 +283,11 @@
             box-shadow: 0 6px 20px rgba(0,0,0,0.7), 0 0 16px rgba(255, 230, 0, 0.45);
         }
 
+        @media (max-width: 560px) {
+            #boot-hint { white-space: normal; max-width: 60vw; }
+            #live-readout { font-size: 9px; letter-spacing: 1px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             #boot-hint { transition: none; }
         }
@@ -289,19 +300,9 @@
     <svg id="hud-svg"></svg>
     <div id="hud-labels"></div>
 
-    <div id="scope-hud">
-        <div class="rd"><span>OBJ</span><b id="rd-mag">40×</b></div>
-        <div class="rd"><span>FOCUS</span><b id="rd-focus">+0.00</b></div>
-        <div class="rd"><span>SPECIMEN</span><b id="rd-specimen">IORI.ME</b></div>
-        <div class="rd sep"><span>TISSUE</span><b id="rd-tissue">0/0</b></div>
-        <div class="rd"><span>POP</span><b id="rd-pop">000</b></div>
-        <div class="rd"><span>GEN</span><b id="rd-gen">G0</b></div>
-        <div class="rd"><span>TRAITS</span><b id="rd-traits">—</b></div>
-        <div class="rd"><span>FLUX</span><b id="rd-flux">+0 −0</b></div>
-    </div>
-
     <div id="scale-bar"><div id="scale-line"></div><span id="scale-len">50 µm</span></div>
-    <div id="boot-hint">CULTURING SPECIMEN &middot; DRAG TO PAN &middot; SCROLL TO FOCUS &middot; / TO SEARCH &middot; I FOR INDEX</div>
+    <div id="live-readout"></div>
+    <div id="boot-hint">CLICK A CELL TO SEED IT &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; SCROLL TO ZOOM &middot; / TO SEARCH</div>
 
     <div id="search-box">
         <span>/</span>
@@ -654,7 +655,7 @@ let cellById = new Map();
 let nextId = 0;
 
 const stats = {
-  births: 0, deaths: 0, generation: 0,
+  births: 0, deaths: 0, merges: 0, generation: 0,
   meanSplit: 1, meanMeta: 0.04, meanMotility: 1,
 };
 
@@ -693,6 +694,9 @@ class Cell {
     this.energy = o.energy ?? 0.35;
     this.gen = o.gen ?? 0;
     this.dying = 0;
+    this.flash = 0;      // birth / division / fusion pop
+    this.imm = 0;        // brief immunity so fused cells don't instantly refuse
+    this.pulse = 0;      // tissue kickback when it births something
     this.hudX = 0; this.hudY = 0;
     cellById.set(this.id, this);
   }
@@ -705,7 +709,7 @@ function newGenome(parent) {
       split: 0.85 + Math.random() * 0.35,
       meta: 0.030 + Math.random() * 0.022,
       motility: 0.6 + Math.random() * 0.8,
-      size: 0.016 + Math.random() * 0.016,
+      size: 0.021 + Math.random() * 0.019,
       hue: Math.random() * 360,
     };
   }
@@ -714,7 +718,7 @@ function newGenome(parent) {
     split: THREE_clamp(g.split + gauss() * 0.06, 0.55, 1.9),
     meta: THREE_clamp(g.meta + gauss() * 0.004, 0.012, 0.085),
     motility: THREE_clamp(g.motility + gauss() * 0.12, 0.15, 2.4),
-    size: THREE_clamp(g.size + gauss() * 0.003, 0.010, 0.042),
+    size: THREE_clamp(g.size + gauss() * 0.003, 0.013, 0.055),
     hue: (g.hue + gauss() * 16 + 360) % 360,
   };
 }
@@ -792,14 +796,77 @@ function spawnMicrobe(host, genome, gen) {
     x: host.x + Math.cos(a) * d, y: host.y + Math.sin(a) * d,
     z: host.z + (Math.random() - 0.5) * 0.3,
     kind: 'microbe', radius: g.size,
-    color: hslToRgb(g.hue, 62, 58), genome: g, gen: gen ?? 0,
+    color: hslToRgb(g.hue, 72, 62), genome: g, gen: gen ?? 0,
     energy: 0.30,
   });
   c.vx = Math.cos(a) * 0.004; c.vy = Math.sin(a) * 0.004;
+  c.flash = 1; c.imm = 0.8;
   microbes.push(c);
   stats.births++;
   if (c.gen > stats.generation) stats.generation = c.gen;
   return c;
+}
+
+/* A node seeded by hand blooms past the carrying capacity and then dies back —
+   that overshoot is the point: you push life in and watch it settle. */
+function seedFrom(cell, n) {
+  if (!cell) return 0;
+  let made = 0;
+  for (let i = 0; i < n; i++) {
+    if (microbes.length >= MICROBE_CAP * 1.6) break;
+    const m = spawnMicrobe(cell, newGenome(null), 0);
+    m.energy = 0.42 + Math.random() * 0.30;
+    made++;
+  }
+  cell.pulse = 1;
+  return made;
+}
+
+/* Fusion. Two organisms that meet merge into one, pooling their energy and
+   recombining their genomes trait by trait — this is the "mixing" half of the
+   population, and it is where the colony's colours come from over time. */
+function mixMicrobes() {
+  for (let i = 0; i < microbes.length; i++) {
+    const a = microbes[i];
+    if (a.dying || a.imm > 0) continue;
+    for (let j = i + 1; j < microbes.length; j++) {
+      const b = microbes[j];
+      if (b.dying || b.imm > 0) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const th = (a.radius + b.radius) * 0.58;
+      if (dx * dx + dy * dy > th * th) continue;
+
+      const ma = a.radius * a.radius, mb = b.radius * b.radius, mt = ma + mb;
+      a.x = (a.x * ma + b.x * mb) / mt;
+      a.y = (a.y * ma + b.y * mb) / mt;
+      a.vx = (a.vx * ma + b.vx * mb) / mt;
+      a.vy = (a.vy * ma + b.vy * mb) / mt;
+
+      const ga = a.genome, gb = b.genome;
+      const pick = (x, y) => (Math.random() < 0.5 ? x : y);
+      // hue blends on the circle, so red + violet does not detour through green
+      const ha = ga.hue * Math.PI / 180, hb = gb.hue * Math.PI / 180;
+      const hue = (Math.atan2(
+        Math.sin(ha) * ma + Math.sin(hb) * mb,
+        Math.cos(ha) * ma + Math.cos(hb) * mb) * 180 / Math.PI + 360) % 360;
+      a.genome = {
+        split: THREE_clamp(pick(ga.split, gb.split) + gauss() * 0.04, 0.55, 1.9),
+        meta: THREE_clamp(pick(ga.meta, gb.meta) + gauss() * 0.003, 0.012, 0.085),
+        motility: THREE_clamp(pick(ga.motility, gb.motility) + gauss() * 0.09, 0.15, 2.4),
+        size: THREE_clamp(Math.sqrt(ga.size * ga.size + gb.size * gb.size), 0.013, 0.055),
+        hue,
+      };
+      a.color = hslToRgb(hue, 72, 64);
+      a.energy = Math.min(1.7, a.energy + b.energy);
+      a.gen = Math.max(a.gen, b.gen) + 1;
+      a.flash = 1.4; a.imm = 1.1;
+      if (a.gen > stats.generation) stats.generation = a.gen;
+      cellById.delete(b.id);
+      microbes.splice(j, 1);
+      stats.merges++;
+      return;                 // one fusion per frame keeps the event readable
+    }
+  }
 }
 
 function updateMicrobes(dt, pointerWorld) {
@@ -840,6 +907,8 @@ function updateMicrobes(dt, pointerWorld) {
     const upkeep = g.meta * (1 + crowd * 2.4) * (0.50 + (m.radius / 0.03) ** 2 * 1.00);
     m.energy += (uptake - upkeep) * dt;
 
+    m.flash = Math.max(0, m.flash - dt * 2.6);
+    m.imm = Math.max(0, m.imm - dt);
     m.vx += (Math.random() - 0.5) * 0.0009 * g.motility;
     m.vy += (Math.random() - 0.5) * 0.0009 * g.motility;
     m.x += m.vx; m.y += m.vy;
@@ -861,6 +930,7 @@ function updateMicrobes(dt, pointerWorld) {
       m.energy = 0.26;
       const n = 1 + (Math.random() < 0.42 ? 1 : 0);
       for (let k = 0; k < n; k++) spawnMicrobe(m, newGenome(g), m.gen + 1);
+      m.flash = 1; m.imm = 0.7;
     }
   }
 
@@ -869,6 +939,8 @@ function updateMicrobes(dt, pointerWorld) {
     const host = tissue[(Math.random() * tissue.length) | 0];
     spawnMicrobe(host, newGenome(null), 0);
   }
+
+  mixMicrobes();
 
   if (microbes.length) {
     let s = 0, mt = 0, mo = 0;
@@ -893,7 +965,8 @@ function updateTissue(dt) {
     }
     c.x += c.vx; c.y += c.vy;
     c.vx *= 0.90; c.vy *= 0.90;
-    c.radius = c.baseRadius * (0.25 + c.settle * 0.75);
+    c.pulse = Math.max(0, c.pulse - dt * 2.2);
+    c.radius = c.baseRadius * (0.25 + c.settle * 0.75) * (1 + c.pulse * 0.30);
   }
   // keep neighbours from fusing into one unreadable mass
   for (let i = 0; i < tissue.length; i++) {
@@ -1187,8 +1260,13 @@ function render(now) {
     if (nc >= MAX_RENDER) return;
     const o = nc * CELL_STRIDE;
     const blur = Math.min(1, Math.abs(c.z - camera.focus) * 1.35);
-    cellData[o] = c.x; cellData[o + 1] = c.y; cellData[o + 2] = c.radius;
-    cellData[o + 3] = c.color[0]; cellData[o + 4] = c.color[1]; cellData[o + 5] = c.color[2];
+    const fl = c.flash || 0;                       // births, divisions, fusions
+    cellData[o] = c.x; cellData[o + 1] = c.y;
+    cellData[o + 2] = c.radius * (1 + fl * 0.45);
+    const boost = 1 + fl * 1.7;
+    cellData[o + 3] = c.color[0] * boost;
+    cellData[o + 4] = c.color[1] * boost;
+    cellData[o + 5] = c.color[2] * boost;
     cellData[o + 6] = blur;
     cellData[o + 7] = c.kind === 'microbe' ? 0 : c.kind === 'nucleus' ? 2 : 1;
     cellData[o + 8] = c.seed;
@@ -1271,6 +1349,7 @@ const pointer = {
   x: innerWidth * 0.5, y: innerHeight * 0.5,
   worldX: 0, worldY: 0, isDown: false, moved: 0, downX: 0, downY: 0,
   lastX: 0, lastY: 0, seen: false,
+  seeding: null, seedClock: 0,
 };
 let hoverCell = null, focusPath = new Set(), searchHit = null;
 
@@ -1408,26 +1487,23 @@ const el = (id) => document.getElementById(id);
 function renderInstrument() {
   const H = innerHeight;
   const umPerPx = (camera.zoom * UM_PER_UNIT) / H;
+  if (!Number.isFinite(umPerPx) || umPerPx <= 0) return;
   let best = BAR_STEPS[0], bestErr = Infinity;
-  for (const s of BAR_STEPS) {
-    const px = s / umPerPx;
+  for (const st of BAR_STEPS) {
+    const px = st / umPerPx;
     const err = Math.abs(px - 96);
-    if (err < bestErr && px < 200) { bestErr = err; best = s; }
+    if (err < bestErr && px < 200) { bestErr = err; best = st; }
   }
   el('scale-line').style.width = Math.round(best / umPerPx) + 'px';
   el('scale-len').textContent = best >= 1000 ? (best / 1000) + ' mm' : best + ' µm';
 
-  const mag = Math.max(2, Math.round(80 / camera.zoom));
-  el('rd-mag').textContent = mag + '×';
-  el('rd-focus').textContent = (camera.focus >= 0 ? '+' : '') + camera.focus.toFixed(2);
-  el('rd-tissue').textContent = tissue.length + '/' + NODES.size;
-  el('rd-pop').textContent = String(microbes.length).padStart(3, '0');
-  el('rd-gen').textContent = 'G' + stats.generation;
-  el('rd-traits').textContent =
-    `s${stats.meanSplit.toFixed(2)} m${stats.meanMeta.toFixed(3)} v${stats.meanMotility.toFixed(2)}`;
-  el('rd-flux').textContent = `+${stats.births} −${stats.deaths}`;
-  el('rd-specimen').textContent = hoverCell && hoverCell.node
-    ? hoverCell.node.label : (searchHit ? searchHit.node.label : 'IORI.ME');
+  const name = hoverCell && hoverCell.node ? hoverCell.node.label
+             : searchHit ? searchHit.node.label : 'IORI.ME';
+  el('live-readout').innerHTML =
+    `${name} &nbsp; POP <b>${String(microbes.length).padStart(3, '0')}</b>` +
+    ` &nbsp; GEN <b>${stats.generation}</b>` +
+    ` &nbsp; <b>+${stats.births}</b> <span class="dead">\u2212${stats.deaths}</span>` +
+    ` &nbsp; MIX <b>${stats.merges}</b>`;
 }
 
 /* ---------- the crawlable index ----------
@@ -1496,7 +1572,7 @@ function setupInputs() {
 
   // the chrome sits inside the canvas container, so without this a click on a
   // button also reaches the stage and navigates to whatever cell was last hit
-  for (const id of ['scope-hud', 'search-box', 'index-toggle', 'site-index', 'scale-bar']) {
+  for (const id of ['search-box', 'index-toggle', 'site-index', 'scale-bar', 'live-readout']) {
     const node = el(id);
     if (node) node.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
@@ -1513,10 +1589,14 @@ function setupInputs() {
     pointer.downX = e.clientX; pointer.downY = e.clientY;
     pointer.lastX = e.clientX; pointer.lastY = e.clientY;
     container.setPointerCapture?.(e.pointerId);
+    // press a node and it starts seeding; press empty slide and you pan it
+    pointer.seeding = pickCell(pointer.worldX, pointer.worldY);
+    pointer.seedClock = 0;
+    if (pointer.seeding) seedFrom(pointer.seeding, 3);
   });
 
   container.addEventListener('pointermove', (e) => {
-    if (pointer.isDown) {
+    if (pointer.isDown && !pointer.seeding) {
       const dx = e.clientX - pointer.lastX, dy = e.clientY - pointer.lastY;
       pointer.moved += Math.abs(dx) + Math.abs(dy);
       // drag pans the stage, like moving the slide under the objective
@@ -1527,18 +1607,23 @@ function setupInputs() {
     track(e);
   });
 
-  const release = (e) => {
-    if (!pointer.isDown) return;
-    pointer.isDown = false;
-    if (pointer.moved >= 6) return;
-    const hit = pickCell(pointer.worldX, pointer.worldY);   // test now, not last frame
-    if (hit && hit.node) showRouteModal(hit.node.slug);
-  };
+  const release = () => { pointer.isDown = false; pointer.seeding = null; };
   container.addEventListener('pointerup', release);
-  container.addEventListener('pointercancel', () => { pointer.isDown = false; });
+  container.addEventListener('pointercancel', release);
 
-  // scroll = the coarse focus knob: it racks the objective in and out
+  // a node's label card is the way to its page; double-clicking the cell body
+  // itself does the same, so the canvas is not a dead end
+  container.addEventListener('dblclick', (e) => {
+    track(e);
+    const hit = pickCell(pointer.worldX, pointer.worldY);
+    if (hit && hit.node) showRouteModal(hit.node.slug);
+  });
+
+  // scroll zooms the stage -- but the index panel is a scrolling document that
+  // lives inside this same container, so it must keep its own wheel events
   container.addEventListener('wheel', (e) => {
+    if (e.target.closest && e.target.closest('#site-index')) return;
+    if (el('site-index').classList.contains('open')) return;
     e.preventDefault();
     camera.userZoom = Math.min(3.4, Math.max(0.22, camera.userZoom * Math.exp(e.deltaY * 0.0012)));
   }, { passive: false });
@@ -1596,6 +1681,11 @@ function updateCamera(dt) {
   camera.baseZoom = Math.min(6.6, far * 2.25);
   camera.targetZoom = camera.baseZoom * camera.userZoom;
 
+  // you can drag the slide, but not lose the specimen off the edge of it
+  const lim = far * 0.85;
+  camera.panX = Math.max(-lim, Math.min(lim, camera.panX));
+  camera.panY = Math.max(-lim, Math.min(lim, camera.panY));
+
   const mx = (pointer.x - 0.5 * innerWidth) / innerHeight;
   const my = (0.5 * innerHeight - pointer.y) / innerHeight;
   let cx = camera.panX + mx * camera.zoom * 0.10;
@@ -1624,6 +1714,10 @@ function frame(now) {
       birthNext();
     }
     wireCrossBonds();
+    if (pointer.isDown && pointer.seeding) {
+      pointer.seedClock += dt;
+      while (pointer.seedClock > 0.085) { pointer.seedClock -= 0.085; seedFrom(pointer.seeding, 1); }
+    }
     updateTissue(dt);
     updateMicrobes(dt, pointer.seen ? { x: pointer.worldX, y: pointer.worldY } : null);
   }

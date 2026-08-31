@@ -655,7 +655,7 @@ let cellById = new Map();
 let nextId = 0;
 
 const stats = {
-  births: 0, deaths: 0, merges: 0, generation: 0,
+  births: 0, deaths: 0, merges: 0, generation: 0, riding: 0,
   meanSplit: 1, meanMeta: 0.04, meanMotility: 1,
 };
 
@@ -697,12 +697,17 @@ class Cell {
     this.flash = 0;      // birth / division / fusion pop
     this.imm = 0;        // brief immunity so fused cells don't instantly refuse
     this.pulse = 0;      // tissue kickback when it births something
+    this.ride = null;    // bond currently being travelled, if any
     this.hudX = 0; this.hudY = 0;
     cellById.set(this.id, this);
   }
   get isTissue() { return this.kind !== 'microbe'; }
 }
 
+/* lobes / spin / shell describe the organism's BODY PLAN. They used to be
+   derived from the render seed, which meant shape was decorative noise: nothing
+   about form was inherited, mutated or recombined. As genes they drift down a
+   lineage and blend when two organisms fuse. */
 function newGenome(parent) {
   if (!parent) {
     return {
@@ -711,6 +716,9 @@ function newGenome(parent) {
       motility: 0.6 + Math.random() * 0.8,
       size: 0.040 + Math.random() * 0.030,
       hue: Math.random() * 360,
+      lobes: 3 + Math.random() * 4,
+      spin: (Math.random() - 0.5) * 1.5,
+      shell: 0.85 + Math.random() * 0.35,
     };
   }
   const g = parent;
@@ -720,6 +728,9 @@ function newGenome(parent) {
     motility: THREE_clamp(g.motility + gauss() * 0.12, 0.15, 2.4),
     size: THREE_clamp(g.size + gauss() * 0.005, 0.026, 0.098),
     hue: (g.hue + gauss() * 16 + 360) % 360,
+    lobes: THREE_clamp(g.lobes + gauss() * 0.42, 2, 8),
+    spin: THREE_clamp(g.spin + gauss() * 0.16, -1.7, 1.7),
+    shell: THREE_clamp(g.shell + gauss() * 0.045, 0.68, 1.38),
   };
 }
 const THREE_clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -855,11 +866,18 @@ function mixMicrobes() {
         motility: THREE_clamp(pick(ga.motility, gb.motility) + gauss() * 0.09, 0.15, 2.4),
         size: THREE_clamp(Math.sqrt(ga.size * ga.size + gb.size * gb.size), 0.026, 0.098),
         hue,
+        // the two body plans average and then mutate off that average, so a
+        // fusion produces a shape that is recognisably descended from both
+        lobes: THREE_clamp((ga.lobes + gb.lobes) * 0.5 + gauss() * 0.55, 2, 8),
+        spin: THREE_clamp((ga.spin + gb.spin) * 0.5 + gauss() * 0.18, -1.7, 1.7),
+        shell: THREE_clamp((ga.shell + gb.shell) * 0.5 + gauss() * 0.05, 0.68, 1.38),
       };
       a.color = hslToRgb(hue, 72, 64);
       a.energy = Math.min(1.7, a.energy + b.energy);
       a.gen = Math.max(a.gen, b.gen) + 1;
       a.flash = 1.4; a.imm = 1.1;
+      // if either was travelling, the survivor carries on down that wire
+      if (!a.ride && b.ride) a.ride = b.ride;
       if (a.gen > stats.generation) stats.generation = a.gen;
       cellById.delete(b.id);
       microbes.splice(j, 1);
@@ -867,6 +885,66 @@ function mixMicrobes() {
       return;                 // one fusion per frame keeps the event readable
     }
   }
+}
+
+/* Organisms occasionally latch onto a bond and travel it between two tissue
+   cells. The line feeds them while they ride, so a journey is usually where a
+   division happens — offspring keep riding just behind the parent, which is why
+   you get beads running along a wire, and why two of them meeting mid-span is
+   the most likely place for a fusion. */
+const RIDE_CHANCE = 0.55;      // attempts per organism per second
+const RIDE_REACH = 0.16;       // how close to a bond it has to be to latch
+
+function segDist(px, py, ax, ay, bx, by) {
+  const vx = bx - ax, vy = by - ay;
+  const L2 = vx * vx + vy * vy;
+  if (L2 < 1e-9) return { d: Math.hypot(px - ax, py - ay), t: 0 };
+  let t = ((px - ax) * vx + (py - ay) * vy) / L2;
+  t = Math.max(0, Math.min(1, t));
+  return { d: Math.hypot(px - (ax + vx * t), py - (ay + vy * t)), t };
+}
+
+function tryLatch(m) {
+  let best = null, bestD = RIDE_REACH;
+  for (const b of bonds) {
+    if (b.a.settle < 0.9 || b.b.settle < 0.9) continue;
+    const r = segDist(m.x, m.y, b.a.x, b.a.y, b.b.x, b.b.y);
+    if (r.d < bestD) { bestD = r.d; best = { bond: b, t: r.t }; }
+  }
+  if (!best) return false;
+  m.ride = {
+    bond: best.bond,
+    t: best.t,
+    dir: Math.random() < 0.5 ? 1 : -1,
+    speed: 0.10 + Math.random() * 0.16 * m.genome.motility,
+    off: (Math.random() - 0.5) * 0.9,   // sit slightly off the wire
+    left: 3 + Math.random() * 6,        // seconds before it lets go regardless
+  };
+  return true;
+}
+
+function rideStep(m, dt) {
+  const r = m.ride, b = r.bond;
+  // a bond whose endpoints have moved is still valid; the tissue is immortal so
+  // it can never dangle, but a cross-link can be added late
+  r.t += r.dir * r.speed * dt;
+  r.left -= dt;
+  if (r.t <= 0 || r.t >= 1 || r.left <= 0) {
+    m.ride = null;
+    // let go with a nudge along the line so it drifts off naturally
+    m.vx += (b.b.x - b.a.x) * 0.004 * r.dir;
+    m.vy += (b.b.y - b.a.y) * 0.004 * r.dir;
+    return 0;
+  }
+  const t = r.t;
+  const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  const off = r.off * m.radius;
+  m.x = b.a.x + dx * t + nx * off;
+  m.y = b.a.y + dy * t + ny * off;
+  m.vx = m.vy = 0;
+  return 0.085;                 // the line feeds whatever is riding it
 }
 
 function updateMicrobes(dt, pointerWorld) {
@@ -878,15 +956,19 @@ function updateMicrobes(dt, pointerWorld) {
     // nutrient: the tissue feeds them, and the objective's focus (your cursor)
     // is a warm spot -- so selection visibly pulls the colony toward you
     let uptake = 0.006, nearest = null, nd = Infinity;
+    if (m.ride) uptake += rideStep(m, dt);
+    else if (!m.dying && Math.random() < dt * RIDE_CHANCE) tryLatch(m);
     for (const t of tissue) {
       const d = Math.hypot(t.x - m.x, t.y - m.y);
       if (d < nd) { nd = d; nearest = t; }
     }
     if (nearest && nd < 0.9) {
       uptake += 0.078 / (nd + 0.30);
-      const pull = 0.00055 / (nd + 0.15) * g.motility;
-      m.vx += (nearest.x - m.x) * pull;
-      m.vy += (nearest.y - m.y) * pull;
+      if (!m.ride) {
+        const pull = 0.00055 / (nd + 0.15) * g.motility;
+        m.vx += (nearest.x - m.x) * pull;
+        m.vy += (nearest.y - m.y) * pull;
+      }
     }
     if (pointerWorld) {
       const pd = Math.hypot(pointerWorld.x - m.x, pointerWorld.y - m.y);
@@ -909,10 +991,12 @@ function updateMicrobes(dt, pointerWorld) {
 
     m.flash = Math.max(0, m.flash - dt * 2.6);
     m.imm = Math.max(0, m.imm - dt);
-    m.vx += (Math.random() - 0.5) * 0.0009 * g.motility;
-    m.vy += (Math.random() - 0.5) * 0.0009 * g.motility;
-    m.x += m.vx; m.y += m.vy;
-    m.vx *= 0.88; m.vy *= 0.88;
+    if (!m.ride) {
+      m.vx += (Math.random() - 0.5) * 0.0009 * g.motility;
+      m.vy += (Math.random() - 0.5) * 0.0009 * g.motility;
+      m.x += m.vx; m.y += m.vy;
+      m.vx *= 0.88; m.vy *= 0.88;
+    }
     m.radius = g.size * (0.72 + THREE_clamp(m.energy, 0, 1.6) * 0.42);
 
     // drift back if they wander off the slide
@@ -925,11 +1009,24 @@ function updateMicrobes(dt, pointerWorld) {
       if (m.dying > 2) { cellById.delete(m.id); microbes.splice(i, 1); stats.deaths++; }
       continue;
     }
-    if (m.energy <= 0) { m.dying = 1; continue; }       // apoptosis
+    if (m.energy <= 0) { m.dying = 1; m.ride = null; continue; }   // apoptosis
     if (m.energy >= g.split && microbes.length < MICROBE_CAP * 1.18) {
       m.energy = 0.26;
       const n = 1 + (Math.random() < 0.42 ? 1 : 0);
-      for (let k = 0; k < n; k++) spawnMicrobe(m, newGenome(g), m.gen + 1);
+      for (let k = 0; k < n; k++) {
+        const child = spawnMicrobe(m, newGenome(g), m.gen + 1);
+        if (m.ride) {
+          // trail the parent down the same wire
+          child.ride = {
+            bond: m.ride.bond,
+            t: THREE_clamp(m.ride.t - m.ride.dir * (0.05 + k * 0.04), 0.01, 0.99),
+            dir: m.ride.dir,
+            speed: m.ride.speed * (0.85 + Math.random() * 0.3),
+            off: -m.ride.off * (0.6 + Math.random() * 0.8),
+            left: m.ride.left,
+          };
+        }
+      }
       m.flash = 1; m.imm = 0.7;
     }
   }
@@ -941,6 +1038,9 @@ function updateMicrobes(dt, pointerWorld) {
   }
 
   mixMicrobes();
+
+  stats.riding = 0;
+  for (const m of microbes) if (m.ride) stats.riding++;
 
   if (microbes.length) {
     let s = 0, mt = 0, mo = 0;
@@ -1005,7 +1105,7 @@ let floatOK = false;
 if (gl) floatOK = !!gl.getExtension('EXT_color_buffer_float');
 
 const MAX_BONDS = 420;
-const CELL_STRIDE = 9, BOND_STRIDE = 9;
+const CELL_STRIDE = 12, BOND_STRIDE = 9;
 const cellData = new Float32Array(MAX_RENDER * CELL_STRIDE);
 const bondData = new Float32Array(MAX_BONDS * BOND_STRIDE);
 
@@ -1030,8 +1130,9 @@ const CELL_VS = `#version 300 es
 in vec2 aQuad;
 in vec2 aCenter; in float aRadius; in vec3 aColor;
 in float aBlur; in float aKind; in float aSeed;
+in vec3 aForm;                       // lobes, spin, shell spacing
 uniform vec2 uCam; uniform float uZoom, uAspect;
-out vec2 vLocal; out vec3 vColor;
+out vec2 vLocal; out vec3 vColor, vForm;
 out float vBlur, vKind, vSeed, vRadius;
 void main(){
   float soft = 1.0 + aBlur * 2.2;
@@ -1039,13 +1140,13 @@ void main(){
   vec2 world = aCenter + aQuad * R;
   vec2 st = (world - uCam) / uZoom;
   gl_Position = vec4(st.x * 2.0 / uAspect, st.y * 2.0, 0.0, 1.0);
-  vLocal = aQuad * R; vColor = aColor;
+  vLocal = aQuad * R; vColor = aColor; vForm = aForm;
   vBlur = aBlur; vKind = aKind; vSeed = aSeed; vRadius = aRadius;
 }`;
 
 const CELL_FS = `#version 300 es
 precision highp float;
-in vec2 vLocal; in vec3 vColor;
+in vec2 vLocal; in vec3 vColor, vForm;
 in float vBlur, vKind, vSeed, vRadius;
 uniform float uTime, uGain;
 out vec4 frag;
@@ -1070,14 +1171,13 @@ void main(){
     // plain blobs: concentric kernel shells under an n-fold petal symmetry,
     // slowly turning. The species falls out of the cell's own seed, so no two
     // are alike and the shape stays stable for that individual's whole life.
-    float lobes = 3.0 + floor(mod(vSeed * 13.0, 5.0));
-    float spin  = (fract(vSeed * 7.31) - 0.5) * 1.5;
+    float lobes = vForm.x, spin = vForm.y, shell = vForm.z;
     float th    = atan(vLocal.y, vLocal.x) + uTime * spin;
     float petal = 1.0 + 0.20 * cos(th * lobes) + 0.07 * cos(th * lobes * 2.0);
     float uu = u / petal;
-    float k1 = exp(-pow(uu - 0.30*soft, 2.0) / (0.032*soft*soft));
-    float k2 = exp(-pow(uu - 0.61*soft, 2.0) / (0.020*soft*soft));
-    float k3 = exp(-pow(uu - 0.89*soft, 2.0) / (0.013*soft*soft));
+    float k1 = exp(-pow(uu - 0.30*shell*soft, 2.0) / (0.032*soft*soft));
+    float k2 = exp(-pow(uu - 0.61*shell*soft, 2.0) / (0.020*soft*soft));
+    float k3 = exp(-pow(uu - 0.89*shell*soft, 2.0) / (0.013*soft*soft));
     dens = (core*0.40 + k1*0.56 + k2*0.44 + k3*0.28) / soft;
   } else {
     float ring1 = exp(-pow(u - 0.60*soft, 2.0) / (0.045*soft*soft));
@@ -1225,6 +1325,7 @@ function setupGL() {
   inst(cellProg, 'aBlur', 1, CELL_STRIDE, 6);
   inst(cellProg, 'aKind', 1, CELL_STRIDE, 7);
   inst(cellProg, 'aSeed', 1, CELL_STRIDE, 8);
+  inst(cellProg, 'aForm', 3, CELL_STRIDE, 9);
 
   bondVAO = gl.createVertexArray();
   gl.bindVertexArray(bondVAO);
@@ -1287,6 +1388,10 @@ function render(now) {
     cellData[o + 6] = blur;
     cellData[o + 7] = c.kind === 'microbe' ? 0 : c.kind === 'nucleus' ? 2 : 1;
     cellData[o + 8] = c.seed;
+    const g = c.genome;
+    cellData[o + 9]  = g ? g.lobes : 0;
+    cellData[o + 10] = g ? g.spin : 0;
+    cellData[o + 11] = g ? g.shell : 1;
     nc++;
   };
   for (const c of tissue) push(c);
@@ -1538,7 +1643,8 @@ function renderInstrument() {
     `${name} &nbsp; POP <b>${String(microbes.length).padStart(3, '0')}</b>` +
     ` &nbsp; GEN <b>${stats.generation}</b>` +
     ` &nbsp; <b>+${stats.births}</b> <span class="dead">\u2212${stats.deaths}</span>` +
-    ` &nbsp; MIX <b>${stats.merges}</b>`;
+    ` &nbsp; MIX <b>${stats.merges}</b>` +
+    ` &nbsp; ON LINE <b>${stats.riding}</b>`;
 }
 
 /* ---------- the crawlable index ----------

@@ -123,11 +123,13 @@ const W = () => holder.clientWidth, H = () => holder.clientHeight;
 
 // capability probe: full post stack + dense smoke on capable desktops
 // innerWidth can be 0 when the page boots in a background/hidden tab, which
-// would otherwise lock a capable machine into the degraded path for good
-const HIGH =
-  matchMedia('(pointer: fine)').matches &&
-  Math.max(innerWidth || 0, screen.width || 0) >= 900 &&
-  (navigator.hardwareConcurrency || 4) >= 4;
+// would otherwise lock a capable machine into the degraded path for good.
+// A coarse pointer used to disqualify a device outright, which shut every
+// tablet out of the post stack even though they run it comfortably — they just
+// have to clear a higher core count than a mouse-driven machine does.
+const COARSE = matchMedia('(pointer: coarse)').matches;
+const VIEW_W = Math.max(innerWidth || 0, screen.width || 0);
+const HIGH = VIEW_W >= 900 && (navigator.hardwareConcurrency || 4) >= (COARSE ? 6 : 4);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0512, 0.018);
@@ -135,7 +137,7 @@ scene.fog = new THREE.FogExp2(0x0a0512, 0.018);
 const camera = new THREE.PerspectiveCamera(48, W() / H(), 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: !HIGH, powerPreference: 'high-performance' });
 renderer.setSize(W(), H());
-renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? 1.6 : 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? (COARSE ? 1.25 : 1.6) : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;

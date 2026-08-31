@@ -283,7 +283,7 @@
             box-shadow: 0 6px 20px rgba(0,0,0,0.7), 0 0 16px rgba(255, 230, 0, 0.45);
         }
 
-        @media (max-width: 560px) {
+        @media (max-width: 900px) {
             #boot-hint { white-space: normal; max-width: 60vw; }
             #live-readout { font-size: 9px; letter-spacing: 1px; }
         }
@@ -1423,12 +1423,15 @@ function renderHUD() {
     const d = Math.hypot(p.x - pointer.x, p.y - pointer.y);
     // label what you are pointing at, not just what is biggest -- the cursor is
     // the objective, and the readout follows it
+    // rough width of the card so it can be clamped inside the viewport;
+    // 10px monospace plus the "> " prefix and the padding
+    const cardW = 26 + (c.node.label.length + 2) * 6.3;
     let score = screenR * 1.2 - d * 0.55;
     if (p.x < 210 && p.y < 140) score -= 3000;      // stay off the readout
     if (c.node.depth <= 1) score += 1400;           // nucleus + the four lineages, always
     if (focusPath.has(c.id)) score += 4000;
     if (c === searchHit) score += 9000;
-    cand.push({ c, p, score, screenR });
+    cand.push({ c, p, score, screenR, cardW });
   }
   cand.sort((a, b) => b.score - a.score);
   const keep = cand.slice(0, MAX_CARDS);
@@ -1458,8 +1461,8 @@ function renderHUD() {
       }
     }
     for (const k of keep) {
-      k.bx = Math.max(8, Math.min(W - 130, k.bx));
-      k.by = Math.max(18, Math.min(H - 18, k.by));
+      k.bx = Math.max(8, Math.min(W - k.cardW - 8, k.bx));
+      k.by = Math.max(18, Math.min(H - 46, k.by));
     }
   }
 

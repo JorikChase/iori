@@ -17,6 +17,10 @@ python3 site.py check    # must pass
 
 - `site.py heads` rewrites the marked `<!-- SEO:BEGIN/END -->` block in every
   page's `<head>` — never hand-edit inside the markers; edit pages.meta.json instead
+- `site.py nav` rewrites the marked `<!-- NAV:BEGIN/END -->` block in
+  `iori_INDEX.html` — the crawlable page list behind the INDEX panel. Same rule:
+  never hand-edit inside the markers. It renders its map in WebGL, so without
+  this block iori.me's landing page ships with no links at all
 - Hidden/internal pages: `"hidden": true` (excluded from sitemap/hubs, noindex)
 - New pages then appear automatically in catalog.html, web3d.html, sitemaps
 

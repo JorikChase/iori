@@ -79,7 +79,7 @@
 
 <div id="cathedral">
   <div class="hud" id="piece-title">THE CATHEDRAL<span>_</span></div>
-  <div class="hud" id="piece-hint">pointer steers the gaze &bull; pointer x turns the sky</div>
+  <div class="hud" id="piece-hint">the eyes follow you &bull; pointer x turns the sky</div>
   <div class="hud" id="time-tag">dusk</div>
   <nav class="topnav">
     <a href="https://3die.fr/">label</a>
@@ -115,91 +115,174 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const holder = document.getElementById('cathedral');
 const W = () => holder.clientWidth, H = () => holder.clientHeight;
 
-// capability probe: real volumetric godrays on capable desktops, fake shafts elsewhere
-const GODRAYS_OK =
+// capability probe: full post stack + dense smoke on capable desktops
+// innerWidth can be 0 when the page boots in a background/hidden tab, which
+// would otherwise lock a capable machine into the degraded path for good
+const HIGH =
   matchMedia('(pointer: fine)').matches &&
-  innerWidth >= 900 &&
+  Math.max(innerWidth || 0, screen.width || 0) >= 900 &&
   (navigator.hardwareConcurrency || 4) >= 4;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050208);
-scene.fog = new THREE.FogExp2(0x0a0512, 0.03);
+scene.fog = new THREE.FogExp2(0x0a0512, 0.018);
 
-const camera = new THREE.PerspectiveCamera(50, W() / H(), 0.05, 200);
-const renderer = new THREE.WebGLRenderer({ antialias: !GODRAYS_OK });
+const camera = new THREE.PerspectiveCamera(48, W() / H(), 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias: !HIGH, powerPreference: 'high-performance' });
 renderer.setSize(W(), H());
-renderer.setPixelRatio(Math.min(devicePixelRatio, GODRAYS_OK ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? 1.6 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.28;
 holder.appendChild(renderer.domElement);
 
-/* ---------- volumetric light-shaft pass (screen-space crepuscular rays) ---------- */
-const LightShaftShader = {
-  uniforms: {
-    tDiffuse: { value: null },
-    sunPos: { value: new THREE.Vector2(0.5, 0.5) },
-    sunColor: { value: new THREE.Color(0xffc06a) },
-    intensity: { value: 0.55 },
-    aspect: { value: 1.0 },
-  },
-  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `
-    varying vec2 vUv;
-    uniform sampler2D tDiffuse;
-    uniform vec2 sunPos;
-    uniform vec3 sunColor;
-    uniform float intensity;
-    uniform float aspect;
-    #define TAPS 48
-    void main(){
-      vec4 base = texture2D(tDiffuse, vUv);
-      vec2 delta = sunPos - vUv;
-      delta.x *= aspect;
-      vec2 stepv = delta / float(TAPS) * 0.9;
-      vec2 uv = vUv;
-      float illum = 0.0;
-      float decay = 1.0;
-      for (int i = 0; i < TAPS; i++) {
-        uv += stepv;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
-        vec3 s = texture2D(tDiffuse, vec2(uv.x, uv.y)).rgb;
-        float lum = dot(s, vec3(0.299, 0.587, 0.114));
-        lum = smoothstep(0.42, 1.0, lum);   // only bright sources feed the rays
-        illum += lum * decay;
-        decay *= 0.955;
-      }
-      illum /= float(TAPS);
-      float dist = length(sunPos - vUv);
-      float atten = exp(-dist * 1.6);
-      vec3 rays = sunColor * illum * intensity * atten;
-      gl_FragColor = vec4(base.rgb + rays, base.a);
-    }`,
-};
+/* ================= procedural texture kit =================
+   Everything here is generated in a canvas at load — no external assets, which
+   is what lets this page stay a single file.                               */
 
-let composer = null, shaftPass = null;
-if (GODRAYS_OK) {
-  composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  shaftPass = new ShaderPass(LightShaftShader);
-  composer.addPass(shaftPass);
-  composer.addPass(new OutputPass());
+// small seeded gradient-noise generator, used by the smoke and stone textures
+function perlin2(seed) {
+  const p = Uint8Array.from({ length: 256 }, (_, i) => i);
+  let s = seed >>> 0;
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 255; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; const t = p[i]; p[i] = p[j]; p[j] = t; }
+  const perm = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+  const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const grad = (h, x, y) => (h & 1 ? -x : x) + (h & 2 ? -y : y);
+  return (x, y) => {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+    const xf = x - Math.floor(x), yf = y - Math.floor(y);
+    const u = fade(xf), v = fade(yf);
+    const aa = perm[perm[X] + Y], ab = perm[perm[X] + Y + 1];
+    const ba = perm[perm[X + 1] + Y], bb = perm[perm[X + 1] + Y + 1];
+    return lerp(lerp(grad(aa, xf, yf), grad(ba, xf - 1, yf), u),
+                lerp(grad(ab, xf, yf - 1), grad(bb, xf - 1, yf - 1), u), v);
+  };
 }
 
-/* ================= TIME-OF-DAY ENGINE =================
-   pointer.x sweeps dawn -> dusk: 45% dawn ramp, 10% midday, 45% dusk ramp. */
+// a smoke puff: fbm turbulence carved out by a soft radial falloff. Replaces
+// the old radial-gradient blob, which was the reason the smoke read as a flat
+// milky haze rather than as smoke.
+function smokeTexture(seed, size = 256) {
+  const n = perlin2(seed);
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const img = g.createImageData(size, size);
+  const d = img.data;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = x / size - 0.5, v = y / size - 0.5;
+      const r = Math.min(1, Math.hypot(u, v) * 2);
+      let f = 0, amp = 0.5, fq = 2.6;
+      for (let o = 0; o < 5; o++) {
+        f += Math.abs(n((x / size) * fq, (y / size) * fq)) * amp;
+        amp *= 0.55; fq *= 2.13;
+      }
+      const falloff = Math.pow(Math.max(0, 1 - r), 1.7);
+      let a = falloff * (0.30 + f * 1.35);
+      a = Math.max(0, Math.min(1, (a - 0.10) * 1.45));
+      const i = (y * size + x) * 4;
+      d[i] = d[i + 1] = d[i + 2] = 255;
+      d[i + 3] = a * 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.needsUpdate = true;
+  return t;
+}
+
+function stoneTexture(seed, size = 512) {
+  const n = perlin2(seed);
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const img = g.createImageData(size, size);
+  const d = img.data;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let f = 0, amp = 0.5, fq = 5;
+      for (let o = 0; o < 4; o++) { f += n((x / size) * fq, (y / size) * fq) * amp; amp *= 0.5; fq *= 2.2; }
+      let v = 0.5 + f * 0.5;
+      // mortar joints -> a slab grid, offset every other course
+      const course = Math.floor(y / (size / 8));
+      const gx = (x + (course % 2) * (size / 8)) % (size / 4);
+      const gy = y % (size / 8);
+      const joint = (gx < 3 || gy < 3) ? 0.45 : 1.0;
+      v *= joint;
+      const i = (y * size + x) * 4;
+      const base = 26 + v * 44;
+      d[i] = base * 1.02; d[i + 1] = base * 0.95; d[i + 2] = base * 1.12; d[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function glowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 2, 64, 64, 63);
+  grad.addColorStop(0, 'rgba(255,248,235,1)');
+  grad.addColorStop(0.25, 'rgba(255,210,150,0.5)');
+  grad.addColorStop(1, 'rgba(255,150,90,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+// iris, drawn in polar strip form: the vertical axis is radius, so it maps
+// cleanly onto a spherical cap -- pupil at the pole, limbal ring at the rim.
+function irisTexture() {
+  const w = 256, h = 128;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = '#221338';
+  g.fillRect(0, 0, w, h);
+  for (let x = 0; x < w; x++) {
+    const a = x / w;
+    const streak = 0.5 + 0.5 * Math.sin(a * Math.PI * 2 * 34 + Math.sin(a * 61) * 2.2);
+    for (let y = 0; y < h; y++) {
+      const rr = y / h;                       // 0 = pupil edge, 1 = limbus
+      if (rr < 0.30) continue;                // pupil handled below
+      const t = (rr - 0.30) / 0.70;
+      const fib = streak * (0.35 + t * 0.65);
+      const r = 90 + fib * 120, gg = 55 + fib * 70, b = 160 + fib * 90;
+      const dark = 1 - Math.pow(t, 3) * 0.75; // limbal ring
+      g.fillStyle = `rgb(${(r * dark) | 0},${(gg * dark) | 0},${(b * dark) | 0})`;
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  g.fillStyle = '#050308';
+  g.fillRect(0, 0, w, Math.floor(h * 0.30));  // pupil
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/* ================= TIME OF DAY =================
+   pointer.x sweeps dawn -> dusk with golden hour taking 90% of the travel.  */
 
 const SKY_KEYS = [
-  // t, top, mid, horizon, sun color, sun intensity
-  { t: 0.00, top: 0x14092e, mid: 0x6a3a7a, horizon: 0xff9a5a, sun: 0xffb37a, sunI: 0.7 },  // early dawn
-  { t: 0.45, top: 0x3a2a6e, mid: 0xb85c8a, horizon: 0xffc37a, sun: 0xffd9a0, sunI: 1.0 },  // golden morning
-  { t: 0.50, top: 0x5a7fb8, mid: 0x9db8d6, horizon: 0xe8e4d8, sun: 0xfff4e0, sunI: 1.25 }, // midday
-  { t: 0.55, top: 0x4a2a5e, mid: 0xc86a6a, horizon: 0xffa04a, sun: 0xffc06a, sunI: 1.0 },  // golden evening
-  { t: 1.00, top: 0x0d0318, mid: 0x5a1a6a, horizon: 0xff4a2c, sun: 0xff6a3c, sunI: 0.8 },  // deep dusk
+  { t: 0.00, top: 0x14092e, mid: 0x6a3a7a, horizon: 0xff9a5a, sun: 0xffb37a, sunI: 1.9 },
+  { t: 0.45, top: 0x3a2a6e, mid: 0xb85c8a, horizon: 0xffc37a, sun: 0xffd9a0, sunI: 3.0 },
+  { t: 0.50, top: 0x5a7fb8, mid: 0x9db8d6, horizon: 0xe8e4d8, sun: 0xfff4e0, sunI: 3.8 },
+  { t: 0.55, top: 0x4a2a5e, mid: 0xc86a6a, horizon: 0xffa04a, sun: 0xffc06a, sunI: 3.0 },
+  { t: 1.00, top: 0x0d0318, mid: 0x5a1a6a, horizon: 0xff4a2c, sun: 0xff6a3c, sunI: 2.1 },
 ];
 
 const _cA = new THREE.Color(), _cB = new THREE.Color();
@@ -216,367 +299,671 @@ function skyAt(t) {
   };
 }
 
-// pointer.x -> time with golden hour occupying 90% of travel
 function pointerToTime(x) {
-  if (x < 0.45) return (x / 0.45) * 0.45;          // dawn ramp
-  if (x < 0.55) return 0.45 + ((x - 0.45) / 0.10) * 0.10; // compressed midday
-  return 0.55 + ((x - 0.55) / 0.45) * 0.45;        // dusk ramp
+  if (x < 0.45) return (x / 0.45) * 0.45;
+  if (x < 0.55) return 0.45 + ((x - 0.45) / 0.10) * 0.10;
+  return 0.55 + ((x - 0.55) / 0.45) * 0.45;
 }
 
-/* ---------- sky backdrop + sun disc ---------- */
+/* ---------- sky DOME (was a floating quad with visible corners) ---------- */
 const skyMat = new THREE.ShaderMaterial({
   uniforms: {
     top: { value: new THREE.Color() }, mid: { value: new THREE.Color() },
     horizon: { value: new THREE.Color() }, t: { value: 0 },
   },
-  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  vertexShader: `
+    varying vec3 vDir;
+    void main(){ vDir = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
   fragmentShader: `
-    varying vec2 vUv; uniform vec3 top, mid, horizon; uniform float t;
+    varying vec3 vDir; uniform vec3 top, mid, horizon; uniform float t;
     void main(){
-      float y = vUv.y;
-      vec3 col = mix(horizon, mid, smoothstep(0.08, 0.45, y));
-      col = mix(col, top, smoothstep(0.45, 0.95, y));
-      col += 0.04 * sin(vUv.x * 36.0 + t * 0.1) * (1.0 - y);
+      float y = clamp(vDir.y * 0.5 + 0.5, 0.0, 1.0);
+      vec3 col = mix(horizon, mid, smoothstep(0.46, 0.62, y));
+      col = mix(col, top, smoothstep(0.60, 0.92, y));
+      // soft banded cloud, so the dome isn't a dead gradient
+      float band = sin(vDir.y * 22.0 + sin(vDir.x * 3.0 + t * 0.05) * 1.6);
+      col += 0.035 * band * smoothstep(0.75, 0.5, y);
       gl_FragColor = vec4(col, 1.0);
     }`,
-  fog: false, depthWrite: false,
+  side: THREE.BackSide, fog: false, depthWrite: false,
 });
-const sky = new THREE.Mesh(new THREE.PlaneGeometry(120, 50), skyMat);
-sky.position.set(0, 12, -36);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(220, 32, 20), skyMat);
 scene.add(sky);
 
 const sunMesh = new THREE.Mesh(
-  new THREE.CircleGeometry(1.6, 32),
-  new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: 0.95 })
+  new THREE.SphereGeometry(4.5, 20, 14),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false })
 );
 scene.add(sunMesh);
 const sunHalo = new THREE.Sprite(new THREE.SpriteMaterial({
-  map: makeGlowTexture(), transparent: true, opacity: 0.5, depthWrite: false, fog: false,
+  map: glowTexture(), transparent: true, depthWrite: false, fog: false,
+  blending: THREE.AdditiveBlending,
 }));
-sunHalo.scale.set(10, 10, 1);
+sunHalo.scale.set(46, 46, 1);
 scene.add(sunHalo);
 
-const sunLight = new THREE.DirectionalLight(0xffc06a, 1.0);
+// ONE source of truth for the sun. The disc, the directional light and the
+// smoke's scattering term are all derived from this vector, so shadows always
+// point away from the sun you can actually see -- which was not true before.
+const sunDir = new THREE.Vector3();
+function updateSunDir(t) {
+  const az = THREE.MathUtils.lerp(-0.38, 0.38, t);    // swings across the apse arch
+  const el = 0.05 + Math.sin(t * Math.PI) * 0.26;     // stays low: long shadows
+  sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)).normalize();
+}
+
+const SHADOW_TARGET = new THREE.Vector3(0, 4, -12);
+const sunLight = new THREE.DirectionalLight(0xffc06a, 3);
 sunLight.castShadow = true;
-sunLight.shadow.mapSize.set(2048, 2048);
-sunLight.shadow.camera.left = -18;
-sunLight.shadow.camera.right = 18;
-sunLight.shadow.camera.top = 16;
-sunLight.shadow.camera.bottom = -4;
+sunLight.shadow.mapSize.set(HIGH ? 2048 : 1024, HIGH ? 2048 : 1024);
+sunLight.shadow.camera.left = -22;
+sunLight.shadow.camera.right = 22;
+sunLight.shadow.camera.top = 24;
+sunLight.shadow.camera.bottom = -24;
 sunLight.shadow.camera.near = 1;
-sunLight.shadow.camera.far = 70;
-sunLight.shadow.bias = -0.0006;
-sunLight.shadow.normalBias = 0.02;
-scene.add(sunLight);
-scene.add(sunLight.target);
-scene.add(new THREE.AmbientLight(0x1a0f2e, 1.2));
-const eyeLight = new THREE.PointLight(0xb27fe8, 3, 6, 2);
+sunLight.shadow.camera.far = 130;
+sunLight.shadow.bias = -0.0004;
+sunLight.shadow.normalBias = 0.035;
+sunLight.target.position.copy(SHADOW_TARGET);
+scene.add(sunLight, sunLight.target);
 
-/* ================= CATHEDRAL ================= */
-const stone = new THREE.MeshStandardMaterial({ color: 0x120b18, roughness: 0.9 });
-const stoneDark = new THREE.MeshStandardMaterial({ color: 0x0b0710, roughness: 1.0 });
+// bounce/ambient, kept dim so the shadows actually read
+const hemi = new THREE.HemisphereLight(0x6a4a9a, 0x2a1a36, 1.1);
+scene.add(hemi);
+const eyeLight = new THREE.PointLight(0xb27fe8, 4, 8, 2);
+// soft key from the nave side, just enough to model the mask against the arch
+const key = new THREE.DirectionalLight(0xa88fd8, 0.9);
+key.position.set(3.2, 6.5, -6.0);
+key.target.position.set(0, 4.6, -13.5);
+scene.add(key, key.target);
 
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 70), stoneDark);
+
+/* ================= THE CATHEDRAL =================
+   Walls, vault and apse are ExtrudeGeometry with real holes, so the window and
+   door apertures are actual geometry. That is what makes the sun throw
+   window-shaped pools of light down the nave -- previously the walls were
+   solid boxes that cast no shadow at all, and the "windows" were decal planes.
+
+   Nave runs z = +8 (entrance, behind camera) to z = -28.5 (apse).           */
+
+const NAVE_HALF = 7, NAVE_LEN = 36, WALL_H = 11, APSE_Z = -28.5;
+
+const stoneMap = stoneTexture(7);
+const stone = new THREE.MeshStandardMaterial({ color: 0x4e3c60, roughness: 0.92, map: stoneMap });
+const stoneDark = new THREE.MeshStandardMaterial({ color: 0x362a44, roughness: 1.0, map: stoneMap });
+const floorMap = stoneTexture(19);
+floorMap.repeat.set(6, 10);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x40334e, roughness: 0.7, map: floorMap, metalness: 0.08 });
+
+function archPath(cx, sill, w, h) {
+  const hw = w / 2;
+  const p = new THREE.Path();
+  p.moveTo(cx - hw, sill);
+  p.lineTo(cx - hw, sill + h - hw);
+  p.absarc(cx, sill + h - hw, hw, Math.PI, 0, true);
+  p.lineTo(cx + hw, sill);
+  p.lineTo(cx - hw, sill);
+  return p;
+}
+
+function slab(shape, depth) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 18 });
+  g.computeVertexNormals();
+  return g;
+}
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(46, 70), floorMat);
 floor.rotation.x = -Math.PI / 2;
-floor.position.z = -8;
+floor.position.z = -10;
 floor.receiveShadow = true;
 scene.add(floor);
 
-const colGeo = new THREE.CylinderGeometry(0.45, 0.55, 9, 10);
-const capGeo = new THREE.BoxGeometry(1.4, 0.5, 1.4);
-for (let i = 0; i < 6; i++) {
+// ---- side walls, pierced by four arched windows each ----
+const WINDOWS = [];        // world-space centres, used to seed the smoke
+{
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0); shape.lineTo(NAVE_LEN, 0);
+  shape.lineTo(NAVE_LEN, WALL_H); shape.lineTo(0, WALL_H); shape.lineTo(0, 0);
+  const winZ = [5.5, 14, 22.5, 31];
+  for (const x of winZ) shape.holes.push(archPath(x, 3.6, 3.4, 6.4));
+  const wallGeo = slab(shape, 0.7);
+
   for (const side of [-1, 1]) {
-    const z = 4 - i * 5;
-    const col = new THREE.Mesh(colGeo, stone);
-    col.position.set(side * 5.5, 4.5, z);
-    col.castShadow = true;
-    col.receiveShadow = true;
-    scene.add(col);
-    const cap = new THREE.Mesh(capGeo, stone);
-    cap.position.set(side * 5.5, 9.1, z);
-    cap.castShadow = true;
-    scene.add(cap);
+    const wall = new THREE.Mesh(wallGeo, stoneDark);
+    wall.rotation.y = Math.PI / 2;               // local +x -> world -z
+    wall.position.set(side * NAVE_HALF, 0, 8);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    scene.add(wall);
+    for (const x of winZ) WINDOWS.push(new THREE.Vector3(side * NAVE_HALF, 6.5, 8 - x));
   }
 }
 
-// side walls + glowing windows (window tint follows the sky)
+// ---- apse wall: a great arched opening plus a rose window ----
+let apseCentre = new THREE.Vector3(0, 6.5, APSE_Z);
+{
+  const shape = new THREE.Shape();
+  shape.moveTo(-10, 0); shape.lineTo(10, 0); shape.lineTo(10, 20); shape.lineTo(-10, 20); shape.lineTo(-10, 0);
+  shape.holes.push(archPath(0, 1.2, 7.2, 10.5));          // the great opening
+  const rose = new THREE.Path();
+  rose.absarc(0, 15.2, 2.6, 0, Math.PI * 2, true);
+  shape.holes.push(rose);
+  const apse = new THREE.Mesh(slab(shape, 0.8), stoneDark);
+  apse.position.set(0, 0, APSE_Z);
+  apse.castShadow = true;
+  apse.receiveShadow = true;
+  scene.add(apse);
+
+  // rose tracery: a ring and spokes, so the rose casts a patterned shadow
+  const brassRing = new THREE.MeshStandardMaterial({ color: 0x6a4f28, roughness: 0.5, metalness: 0.7 });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.12, 8, 40), brassRing);
+  ring.position.set(0, 15.2, APSE_Z + 0.4);
+  ring.castShadow = true;
+  scene.add(ring);
+  for (let i = 0; i < 8; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.14, 5.2, 0.22), brassRing);
+    spoke.position.set(0, 15.2, APSE_Z + 0.4);
+    spoke.rotation.z = (i / 8) * Math.PI;
+    spoke.castShadow = true;
+    scene.add(spoke);
+  }
+}
+
+// ---- barrel vault over the nave ----
+{
+  const shape = new THREE.Shape();
+  shape.moveTo(-9.2, 0); shape.lineTo(9.2, 0); shape.lineTo(9.2, 9); shape.lineTo(-9.2, 9); shape.lineTo(-9.2, 0);
+  const bore = new THREE.Path();
+  bore.moveTo(-NAVE_HALF - 0.2, 0);
+  bore.absarc(0, 0, NAVE_HALF + 0.2, Math.PI, 0, true);
+  bore.lineTo(-NAVE_HALF - 0.2, 0);
+  shape.holes.push(bore);
+  const vault = new THREE.Mesh(slab(shape, NAVE_LEN + 1), stoneDark);
+  vault.position.set(0, WALL_H, APSE_Z);
+  vault.castShadow = true;
+  vault.receiveShadow = true;
+  scene.add(vault);
+}
+
+// ---- arcade: columns with arches springing between them ----
+{
+  const colGeo = new THREE.CylinderGeometry(0.42, 0.5, 8.4, 16);
+  const baseGeo = new THREE.CylinderGeometry(0.62, 0.72, 0.5, 16);
+  const capGeo = new THREE.CylinderGeometry(0.68, 0.46, 0.55, 16);
+  const zs = [];
+  for (let i = 0; i < 6; i++) zs.push(5 - i * 5.5);
+  for (const z of zs) {
+    for (const side of [-1, 1]) {
+      const x = side * 5.4;
+      const col = new THREE.Mesh(colGeo, stone);
+      col.position.set(x, 4.45, z);
+      col.castShadow = true; col.receiveShadow = true;
+      scene.add(col);
+      const base = new THREE.Mesh(baseGeo, stone);
+      base.position.set(x, 0.25, z);
+      base.castShadow = true; base.receiveShadow = true;
+      scene.add(base);
+      const cap = new THREE.Mesh(capGeo, stone);
+      cap.position.set(x, 8.9, z);
+      cap.castShadow = true;
+      scene.add(cap);
+    }
+  }
+  const archGeo = new THREE.TorusGeometry(2.75, 0.3, 8, 26, Math.PI);
+  for (let i = 0; i < zs.length - 1; i++) {
+    const zm = (zs[i] + zs[i + 1]) / 2;
+    for (const side of [-1, 1]) {
+      const arch = new THREE.Mesh(archGeo, stone);
+      arch.position.set(side * 5.4, 9.15, zm);
+      arch.rotation.y = Math.PI / 2;             // arch spans along z
+      arch.castShadow = true;
+      scene.add(arch);
+    }
+  }
+}
+
+// ---- glazing: thin panes sitting in the apertures, tinted by the sky ----
 const winMat = new THREE.ShaderMaterial({
-  uniforms: { skyA: { value: new THREE.Color() }, skyB: { value: new THREE.Color() } },
+  uniforms: { skyA: { value: new THREE.Color() }, skyB: { value: new THREE.Color() }, gain: { value: 1.0 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
   fragmentShader: `
-    varying vec2 vUv; uniform vec3 skyA, skyB;
+    varying vec2 vUv; uniform vec3 skyA, skyB; uniform float gain;
     void main(){
       vec3 col = mix(skyA, skyB, smoothstep(0.0, 1.0, vUv.y));
-      float arch = smoothstep(0.5, 0.48, abs(vUv.x - 0.5) + max(0.0, vUv.y - 0.72) * 0.9);
-      gl_FragColor = vec4(col * 1.5, arch);
+      // leaded tracery: a lattice of dark cames over the glass
+      vec2 g = abs(fract(vUv * vec2(4.0, 9.0)) - 0.5);
+      float came = smoothstep(0.03, 0.09, min(g.x, g.y));
+      gl_FragColor = vec4(col * gain * (0.35 + came * 0.85), 1.0);
     }`,
-  transparent: true, fog: false,
+  fog: false, side: THREE.DoubleSide,
 });
-const wallGeo = new THREE.BoxGeometry(0.6, 12, 34);
-for (const side of [-1, 1]) {
-  const wall = new THREE.Mesh(wallGeo, stoneDark);
-  wall.position.set(side * 7.2, 6, -8);
-  scene.add(wall);
-  for (let i = 0; i < 3; i++) {
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 6.5), winMat);
-    win.position.set(side * 6.85, 5.4, 1 - i * 9);
-    win.rotation.y = side * -Math.PI / 2;
-    scene.add(win);
+for (const w of WINDOWS) {
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 6.2), winMat);
+  pane.position.copy(w);
+  pane.rotation.y = Math.PI / 2;
+  scene.add(pane);
+}
+// the great arch is the brightest thing in the room, so it should light the room
+const apseBounce = new THREE.PointLight(0xff9a5a, 34, 48, 1.7);
+apseBounce.position.set(0, 6.0, APSE_Z + 2.6);
+scene.add(apseBounce);
+
+const rosePane = new THREE.Mesh(new THREE.CircleGeometry(2.55, 40), winMat);
+rosePane.position.set(0, 15.2, APSE_Z + 0.2);
+scene.add(rosePane);
+
+/* ================= SMOKE =================
+   Instanced billboards with fbm puff textures, animated entirely in the vertex
+   shader (no per-frame CPU work), tinted by a Henyey-Greenstein phase function
+   against the real sun direction -- so the smoke genuinely lights up where it
+   sits between the camera and the sun, instead of being a uniform grey wash. */
+
+function smokeAtlas() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 4; i++) {
+    g.drawImage(smokeTexture(101 + i * 137, 256).image, (i % 2) * 256, Math.floor(i / 2) * 256);
   }
+  const t = new THREE.CanvasTexture(c);
+  t.needsUpdate = true;
+  return t;
 }
 
-const ceil = new THREE.Mesh(new THREE.PlaneGeometry(40, 70), stoneDark);
-ceil.rotation.x = Math.PI / 2;
-ceil.position.set(0, 12, -8);
-scene.add(ceil);
-
-// god-ray shafts, tinted by time of day
-const rayMat = new THREE.ShaderMaterial({
-  uniforms: { t: { value: 0 }, tint: { value: new THREE.Color(0x9a5fe8) } },
-  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader: `
-    varying vec2 vUv; uniform float t; uniform vec3 tint;
+const SMOKE_N = HIGH ? 240 : 90;
+const smokeMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uMap: { value: smokeAtlas() },
+    uTime: { value: 0 },
+    uSunDir: { value: new THREE.Vector3(0, 1, -1) },
+    uSunColor: { value: new THREE.Color(0xffc06a) },
+    uShade: { value: new THREE.Color(0x2a1c40) },
+    uFogColor: { value: new THREE.Color(0x0a0512) },
+    uFogDensity: { value: 0.018 },
+    uDensity: { value: 0.42 },
+  },
+  vertexShader: `
+    attribute vec3 iBase;
+    attribute float iSeed, iScale, iSpin, iPhase, iTex, iRise;
+    uniform float uTime;
+    varying vec2 vUv; varying float vAlpha, vTex; varying vec3 vWorld;
     void main(){
-      float across = smoothstep(0.0, 0.35, vUv.x) * smoothstep(1.0, 0.65, vUv.x);
-      float fade = smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.4, vUv.y);
-      float dust = 0.85 + 0.15 * sin(vUv.y * 30.0 - t * 0.4 + vUv.x * 8.0);
-      gl_FragColor = vec4(tint, across * fade * dust * 0.16);
+      float life = fract(uTime * 0.026 + iPhase);
+      vec3 c = iBase;
+      c.y += life * iRise;
+      c.x += sin(uTime * 0.11 + iSeed * 6.283) * 1.2;
+      c.z += cos(uTime * 0.08 + iSeed * 3.11) * 1.0;
+      float grow = 0.5 + life * 1.7;
+      float rot  = iSpin + uTime * 0.06 * (iSeed - 0.5);
+      vec2 p = position.xy * iScale * grow;
+      float cs = cos(rot), sn = sin(rot);
+      vec2 pr = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
+      vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+      vec3 up    = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+      vec3 world = c + right * pr.x + up * pr.y;
+      vWorld = world; vUv = uv; vTex = iTex;
+      vAlpha = smoothstep(0.0, 0.16, life) * smoothstep(1.0, 0.55, life);
+      gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
     }`,
-  transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+  fragmentShader: `
+    uniform sampler2D uMap;
+    uniform vec3 uSunDir, uSunColor, uShade, uFogColor;
+    uniform float uFogDensity, uDensity;
+    varying vec2 vUv; varying float vAlpha, vTex; varying vec3 vWorld;
+    void main(){
+      vec2 uv2 = vUv * 0.5 + vec2(mod(vTex, 2.0), floor(vTex * 0.5)) * 0.5;
+      float a = texture2D(uMap, uv2).a * vAlpha * uDensity;
+      if (a < 0.004) discard;
+      vec3 V = normalize(vWorld - cameraPosition);
+      float ct = dot(V, uSunDir);
+      // Henyey-Greenstein: strong forward lobe, so looking toward the sun
+      // through the smoke makes it glow
+      const float g = 0.6;
+      float hg = (1.0 - g*g) / pow(1.0 + g*g - 2.0*g*ct, 1.5) * 0.0796;
+      vec3 col = mix(uShade, uSunColor, clamp(hg * 1.05, 0.0, 0.85));
+      float dist = length(vWorld - cameraPosition);
+      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
+      col = mix(col, uFogColor, fogF * 0.7);
+      gl_FragColor = vec4(col, a);
+    }`,
+  transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
 });
-const fakeRays = [];
-for (const side of [-1, 1]) {
-  for (let i = 0; i < 3; i++) {
-    const ray = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 14), rayMat);
-    ray.position.set(side * 4.6, 5.2, 1 - i * 9);
-    ray.rotation.z = side * 0.5;
-    ray.rotation.y = side * 0.25;
-    ray.visible = !GODRAYS_OK; // real volumetric pass replaces these on capable devices
-    fakeRays.push(ray);
-    scene.add(ray);
+
+{
+  const quad = new THREE.PlaneGeometry(1, 1);
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.index = quad.index;
+  geo.setAttribute('position', quad.attributes.position);
+  geo.setAttribute('uv', quad.attributes.uv);
+  geo.instanceCount = SMOKE_N;
+
+  const base = new Float32Array(SMOKE_N * 3);
+  const seed = new Float32Array(SMOKE_N);
+  const scale = new Float32Array(SMOKE_N);
+  const spin = new Float32Array(SMOKE_N);
+  const phase = new Float32Array(SMOKE_N);
+  const tex = new Float32Array(SMOKE_N);
+  const rise = new Float32Array(SMOKE_N);
+
+  for (let i = 0; i < SMOKE_N; i++) {
+    const r = Math.random();
+    let x, y, z, sc, ri;
+    if (r < 0.30) {
+      // ground fog: wide, flat, hugging the flagstones
+      x = (Math.random() - 0.5) * 13; y = 0.2 + Math.random() * 0.9; z = 6 - Math.random() * 32;
+      sc = 4.5 + Math.random() * 4.5; ri = 1.2;
+    } else if (r < 0.62) {
+      // banks hanging in the window light, where the shafts fall
+      const wsrc = WINDOWS[(Math.random() * WINDOWS.length) | 0];
+      x = wsrc.x * (0.35 + Math.random() * 0.5); y = 1.5 + Math.random() * 7;
+      z = wsrc.z + (Math.random() - 0.5) * 6;
+      sc = 2.2 + Math.random() * 3.0; ri = 5;
+    } else {
+      // the general body of the nave
+      x = (Math.random() - 0.5) * 12; y = 0.5 + Math.random() * 11; z = 6 - Math.random() * 33;
+      sc = 2.4 + Math.random() * 4.0; ri = 6.5;
+    }
+    base[i * 3] = x; base[i * 3 + 1] = y; base[i * 3 + 2] = z;
+    seed[i] = Math.random();
+    scale[i] = sc;
+    spin[i] = Math.random() * Math.PI * 2;
+    phase[i] = Math.random();
+    tex[i] = (Math.random() * 4) | 0;
+    rise[i] = ri;
   }
+  const IA = (arr, n) => new THREE.InstancedBufferAttribute(arr, n);
+  geo.setAttribute('iBase', IA(base, 3));
+  geo.setAttribute('iSeed', IA(seed, 1));
+  geo.setAttribute('iScale', IA(scale, 1));
+  geo.setAttribute('iSpin', IA(spin, 1));
+  geo.setAttribute('iPhase', IA(phase, 1));
+  geo.setAttribute('iTex', IA(tex, 1));
+  geo.setAttribute('iRise', IA(rise, 1));
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 6, -10), 60);
+
+  const smoke = new THREE.Mesh(geo, smokeMat);
+  smoke.frustumCulled = false;
+  smoke.renderOrder = 10;
+  scene.add(smoke);
 }
 
-/* ================= SMOKE + GROUND FOG ================= */
-function makeGlowTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
-  grad.addColorStop(0, 'rgba(255,240,220,0.9)');
-  grad.addColorStop(0.4, 'rgba(220,180,255,0.25)');
-  grad.addColorStop(1, 'rgba(120,80,180,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
-}
-function smokeTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
-  grad.addColorStop(0, 'rgba(200,170,255,0.55)');
-  grad.addColorStop(0.5, 'rgba(150,110,220,0.18)');
-  grad.addColorStop(1, 'rgba(120,80,180,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
-}
-const smokeTex = smokeTexture();
-const smokes = [];
-for (let i = 0; i < 120; i++) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: smokeTex, transparent: true, opacity: 0.05 + Math.random() * 0.09, depthWrite: false,
-  }));
-  s.position.set((Math.random() - 0.5) * 13, Math.random() * 8 + 0.3, 6 - Math.random() * 26);
-  const sc = 3 + Math.random() * 6;
-  s.scale.set(sc, sc, 1);
-  s.userData = { drift: 0.05 + Math.random() * 0.22, sway: Math.random() * Math.PI * 2, rise: 0.02 + Math.random() * 0.08 };
-  smokes.push(s);
-  scene.add(s);
-}
-// ground fog: large slow banks hugging the floor
-const fogBanks = [];
-for (let i = 0; i < 10; i++) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: smokeTex, transparent: true, opacity: 0.07 + Math.random() * 0.06, depthWrite: false,
-  }));
-  s.position.set((Math.random() - 0.5) * 16, 0.4 + Math.random() * 0.8, 4 - Math.random() * 24);
-  const sc = 10 + Math.random() * 10;
-  s.scale.set(sc, sc * 0.35, 1);
-  s.userData = { sway: Math.random() * Math.PI * 2, speed: 0.1 + Math.random() * 0.2 };
-  fogBanks.push(s);
-  scene.add(s);
-}
+// dust motes: tiny bright specks that only read inside the light shafts
+const motes = new THREE.Points(
+  (() => {
+    const g = new THREE.BufferGeometry();
+    const n = HIGH ? 900 : 260;
+    const p = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      p[i * 3] = (Math.random() - 0.5) * 13;
+      p[i * 3 + 1] = Math.random() * 11;
+      p[i * 3 + 2] = 6 - Math.random() * 33;
+    }
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    return g;
+  })(),
+  new THREE.PointsMaterial({
+    size: 0.035, color: 0xffd9a8, transparent: true, opacity: 0.5,
+    depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+  })
+);
+scene.add(motes);
 
 /* ================= THE PRIEST ================= */
 const priest = new THREE.Group();
-const leather = new THREE.MeshStandardMaterial({ color: 0x14100c, roughness: 0.85 });
-const boneWhite = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.5, metalness: 0.05 });
-const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.35, metalness: 0.8 });
+const leather = new THREE.MeshStandardMaterial({ color: 0x1c150f, roughness: 0.72, metalness: 0.04 });
+const boneWhite = new THREE.MeshStandardMaterial({ color: 0xd8cfb8, roughness: 0.42, metalness: 0.03 });
+const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.3, metalness: 0.85 });
 
-function shadowed(mesh) { mesh.castShadow = true; return mesh; }
+const cast = (m) => { m.castShadow = true; return m; };
 
-// robe + shoulders
-const robe = shadowed(new THREE.Mesh(new THREE.ConeGeometry(1.1, 3.4, 12, 1, true), leather));
-robe.position.y = 1.7;
+// cassock: a lathed silhouette rather than a cone, so it falls like cloth
+const robe = cast(new THREE.Mesh(new THREE.LatheGeometry([
+  new THREE.Vector2(1.30, 0.00), new THREE.Vector2(1.16, 0.70),
+  new THREE.Vector2(0.99, 1.45), new THREE.Vector2(0.84, 2.20),
+  new THREE.Vector2(0.70, 2.80), new THREE.Vector2(0.60, 3.20),
+], 28), leather));
+robe.receiveShadow = true;
 priest.add(robe);
-const shoulders = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10), leather));
-shoulders.position.y = 3.1;
-shoulders.scale.set(1.15, 0.7, 0.9);
-priest.add(shoulders);
 
-// hood behind the mask
-const hood = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.46, 16, 12), leather));
-hood.position.set(0, 3.72, -0.14);
-hood.scale.set(1, 1.25, 1.05);
+// mozzetta over the shoulders
+const cape = cast(new THREE.Mesh(new THREE.LatheGeometry([
+  new THREE.Vector2(0.86, 2.95), new THREE.Vector2(0.74, 3.35),
+  new THREE.Vector2(0.52, 3.62), new THREE.Vector2(0.30, 3.78),
+], 28), leather));
+priest.add(cape);
+
+const neck = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.24, 0.4, 14), leather));
+neck.position.y = 3.86;
+priest.add(neck);
+
+// hood shell behind the mask
+const hood = cast(new THREE.Mesh(new THREE.SphereGeometry(0.44, 20, 16), leather));
+hood.position.set(0, 4.06, -0.10);
+hood.scale.set(1.02, 1.20, 1.06);
 priest.add(hood);
 
-/* ----- the plague mask (bone-white, menacing but elegant) ----- */
+/* ----- the plague mask ----- */
 const mask = new THREE.Group();
 
-// lathe-turned mask shell — smaller, face-like, with a brow ridge
-const profile = [
-  new THREE.Vector2(0.015, 0.52),
-  new THREE.Vector2(0.235, 0.49),
-  new THREE.Vector2(0.335, 0.36),  // crown -> brow
-  new THREE.Vector2(0.355, 0.30),  // brow ridge
-  new THREE.Vector2(0.315, 0.16),
-  new THREE.Vector2(0.335, 0.02),  // cheekbones
-  new THREE.Vector2(0.27, -0.14),
-  new THREE.Vector2(0.165, -0.28), // jaw
-  new THREE.Vector2(0.05, -0.37),  // chin
-];
-const shell = shadowed(new THREE.Mesh(new THREE.LatheGeometry(profile, 32), boneWhite));
-shell.scale.set(1, 1, 0.9);
+// face shell: a lathe profile with a real brow ridge and cheekbones, flattened
+// at the back so it reads as a mask worn on a face, not as a bare skull
+const shell = cast(new THREE.Mesh(new THREE.LatheGeometry([
+  new THREE.Vector2(0.020, 0.470),
+  new THREE.Vector2(0.170, 0.452),
+  new THREE.Vector2(0.278, 0.372),   // crown
+  new THREE.Vector2(0.330, 0.286),   // brow ridge
+  new THREE.Vector2(0.316, 0.212),   // brow undercut
+  new THREE.Vector2(0.330, 0.090),   // cheekbone
+  new THREE.Vector2(0.300, -0.060),
+  new THREE.Vector2(0.232, -0.196),  // jaw
+  new THREE.Vector2(0.130, -0.300),
+  new THREE.Vector2(0.038, -0.352),  // chin
+], 40), boneWhite));
+shell.scale.set(1.0, 1.0, 1.12);
 mask.add(shell);
 
-// the beak: long, tapering, S-curved downward — the plague doctor silhouette
-const beakGeo = new THREE.ConeGeometry(0.13, 0.95, 20, 14);
-{
-  const pos = beakGeo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);            // along cone axis (-0.475 tip .. +0.475 base)
-    const t = (y + 0.475) / 0.95;     // 0 tip -> 1 base
-    // strong droop toward the tip, slight lift at the base = the classic S
-    pos.setZ(i, pos.getZ(i) - Math.pow(1 - t, 2.0) * 0.34 + Math.pow(t, 2.0) * 0.05);
+// the beak: an ellipse swept along an S-curve, tapering to a point. This is
+// the whole silhouette of the thing, so it is built properly rather than
+// approximated with a bent cone.
+function sweptBeak(curve, seg, ring, radiusAt) {
+  const pos = [], idx = [];
+  const frames = curve.computeFrenetFrames(seg, false);
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg;
+    const p = curve.getPointAt(t);
+    const N = frames.normals[i], B = frames.binormals[i];
+    const r = radiusAt(t);
+    for (let j = 0; j < ring; j++) {
+      const a = (j / ring) * Math.PI * 2;
+      const ox = Math.cos(a) * r * 0.74;      // narrower than it is deep
+      const oy = Math.sin(a) * r;
+      pos.push(p.x + N.x * ox + B.x * oy,
+               p.y + N.y * ox + B.y * oy,
+               p.z + N.z * ox + B.z * oy);
+    }
   }
-  beakGeo.computeVertexNormals();
+  for (let i = 0; i < seg; i++) {
+    for (let j = 0; j < ring; j++) {
+      const a = i * ring + j, b = i * ring + (j + 1) % ring;
+      const c = (i + 1) * ring + j, dd = (i + 1) * ring + (j + 1) % ring;
+      idx.push(a, c, b, b, c, dd);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
-const beak = shadowed(new THREE.Mesh(beakGeo, boneWhite));
-beak.rotation.x = Math.PI / 2 - 0.30; // forward, drooping down
-beak.position.set(0, 0.06, 0.62);
+const beakCurve = new THREE.CubicBezierCurve3(
+  new THREE.Vector3(0,  0.030, 0.10),
+  new THREE.Vector3(0,  0.070, 0.46),
+  new THREE.Vector3(0, -0.090, 0.76),
+  new THREE.Vector3(0, -0.470, 0.66),
+);
+const beak = cast(new THREE.Mesh(
+  sweptBeak(beakCurve, 34, 18, (t) => 0.150 * Math.pow(1 - t, 0.58) + 0.006),
+  boneWhite));
 mask.add(beak);
-// nostril slits on the beak's underside near the base (historically correct)
+
+// nostril slits, low on the beak near the base
 for (const side of [-1, 1]) {
-  const n = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1 }));
-  n.scale.set(1, 0.5, 1.6);
-  n.position.set(side * 0.045, -0.075, 0.42);
+  const n = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x0a0508, roughness: 1 }));
+  n.scale.set(1, 0.55, 1.7);
+  n.position.set(side * 0.042, -0.055, 0.40);
   mask.add(n);
 }
 
-/* ----- three detailed eyes ----- */
-function irisTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#1a0f2e'; g.fillRect(0, 0, 64, 64);
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * Math.PI * 2;
-    g.strokeStyle = i % 3 ? 'rgba(178,127,232,0.9)' : 'rgba(255,190,120,0.55)';
-    g.beginPath();
-    g.moveTo(32 + Math.cos(a) * 8, 32 + Math.sin(a) * 8);
-    g.lineTo(32 + Math.cos(a) * 26, 32 + Math.sin(a) * 26);
-    g.stroke();
-  }
-  g.fillStyle = '#000';
-  g.beginPath(); g.arc(32, 32, 8, 0, Math.PI * 2); g.fill();
-  return new THREE.CanvasTexture(c);
+// riveted seam down the centre of the shell
+for (let i = 0; i < 7; i++) {
+  const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), brass);
+  const a = -0.30 + i * 0.115;
+  rivet.position.set(0.24, a, 0.20 + Math.cos(a * 2.2) * 0.05);
+  mask.add(rivet);
+  const r2 = rivet.clone(); r2.position.x = -0.24;
+  mask.add(r2);
 }
+
+/* ----- eyes ----- */
 const irisTex = irisTexture();
 const eyes = [];
 
-function makeEye(radius, withGoggle) {
-  const eye = new THREE.Group();
-  const ball = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 20, 14),
+function makeEye(r, withGoggle) {
+  const grp = new THREE.Group();
+  const sclera = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18),
+    new THREE.MeshStandardMaterial({ color: 0xe6e0f0, roughness: 0.16 }));
+  grp.add(sclera);
+  // iris as a spherical cap hugging the eyeball: the texture is a polar strip,
+  // so the pupil lands on the pole and the limbal ring on the rim
+  const iris = new THREE.Mesh(
+    new THREE.SphereGeometry(r * 1.006, 30, 18, 0, Math.PI * 2, 0, 0.64),
     new THREE.MeshStandardMaterial({
-      color: 0xffffff, roughness: 0.15,
-      emissive: 0x8a5fd8, emissiveIntensity: 0.6,
-      map: irisTex,
-    })
-  );
-  eye.add(ball);
+      map: irisTex, emissive: 0xffffff, emissiveMap: irisTex,
+      emissiveIntensity: 0.75, roughness: 0.1,
+    }));
+  iris.rotation.x = Math.PI / 2;             // cap faces +z
+  grp.add(iris);
+  const spec = new THREE.Mesh(new THREE.SphereGeometry(r * 0.15, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  spec.position.set(-r * 0.36, r * 0.34, r * 0.86);
+  grp.add(spec);
   if (withGoggle) {
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.3, radius * 0.3, 10, 24), brass);
-    eye.add(rim);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 1.34, r * 0.26, 10, 26), brass);
+    rim.position.z = r * 0.22;
+    grp.add(rim);
     const lens = new THREE.Mesh(
-      new THREE.SphereGeometry(radius * 1.2, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.14, roughness: 0.05, metalness: 0.3 })
-    );
+      new THREE.SphereGeometry(r * 1.3, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.42),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.10, roughness: 0.04,
+        metalness: 0.1, transmission: 0.0,
+      }));
     lens.rotation.x = Math.PI / 2;
-    lens.position.z = radius * 0.25;
-    eye.add(lens);
+    lens.position.z = r * 0.26;
+    grp.add(lens);
   }
-  eyes.push(ball);
-  return eye;
+  eyes.push({ grp, iris });
+  return grp;
 }
 
-// leather strap wrapping the head — the goggles mount into it
-const strap = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 8, 28), leather);
+// leather strap the goggles mount into
+const strap = new THREE.Mesh(new THREE.TorusGeometry(0.325, 0.032, 8, 30), leather);
 strap.rotation.x = Math.PI / 2;
-strap.position.set(0, 0.255, 0.02);
-strap.scale.set(1.06, 1, 1);
+strap.position.set(0, 0.235, 0.02);
+strap.scale.set(1.07, 1, 1.02);
 mask.add(strap);
 
-// two goggle eyes
-const eyeL = makeEye(0.085, true);
-eyeL.position.set(-0.145, 0.255, 0.30);
-eyeL.rotation.y = -0.15;
-mask.add(eyeL);
-const eyeR = makeEye(0.085, true);
-eyeR.position.set(0.145, 0.255, 0.30);
-eyeR.rotation.y = 0.15;
-mask.add(eyeR);
-// the third eye — forehead, no goggle, larger, vertical
-const eye3 = makeEye(0.10, false);
-eye3.position.set(0, 0.44, 0.27);
-mask.add(eye3);
+const eyeL = makeEye(0.082, true); eyeL.position.set(-0.142, 0.238, 0.255); mask.add(eyeL);
+const eyeR = makeEye(0.082, true); eyeR.position.set( 0.142, 0.238, 0.255); mask.add(eyeR);
+const eye3 = makeEye(0.098, false); eye3.position.set(0, 0.418, 0.215); mask.add(eye3);
 
-mask.position.set(0, 3.72, 0.12);
+mask.position.set(0, 4.02, 0.10);
 priest.add(mask);
-eyeLight.position.set(0, 3.9, 0.8);
+eyeLight.position.set(0, 4.15, 0.75);
 priest.add(eyeLight);
 
-/* ----- wide-brim leather hat, tilted to shadow the goggles ----- */
+/* ----- wide-brim hat, tilted to shadow the goggles ----- */
 const hat = new THREE.Group();
-const brim = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.03, 28), leather));
-const crown = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.34, 20), leather));
-crown.position.y = 0.18;
-hat.add(brim, crown);
-hat.position.set(0, 4.18, 0.02);
-hat.rotation.z = 0.05;
-hat.rotation.x = -0.16; // brim dips over the eyes — instant menace
+hat.add(cast(new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.035, 34), leather)));
+const crown = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.31, 0.34, 24), leather));
+crown.position.y = 0.185;
+hat.add(crown);
+const band = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.026, 8, 28), brass);
+band.rotation.x = Math.PI / 2;
+band.position.y = 0.05;
+hat.add(band);
+hat.position.set(0, 4.47, 0.00);
+hat.rotation.set(-0.17, 0, 0.05);
 priest.add(hat);
 
-// arms (preach!)
-const armGeo = new THREE.CylinderGeometry(0.06, 0.09, 1.5, 8);
-const armL = shadowed(new THREE.Mesh(armGeo, leather));
-const armR = shadowed(new THREE.Mesh(armGeo, leather));
-armL.position.set(-0.75, 2.9, 0.15);
-armR.position.set(0.75, 2.9, 0.15);
+// arms
+const armGeo = new THREE.CylinderGeometry(0.055, 0.095, 1.5, 10);
+const armL = cast(new THREE.Mesh(armGeo, leather));
+const armR = cast(new THREE.Mesh(armGeo, leather));
+armL.position.set(-0.72, 3.05, 0.14);
+armR.position.set(0.72, 3.05, 0.14);
 priest.add(armL, armR);
 
-priest.position.set(0, 0, -13.5);
+priest.position.set(0, 0.7, -13.5);
 scene.add(priest);
 
-const altar = shadowed(new THREE.Mesh(new THREE.BoxGeometry(3.2, 1, 1.2), stone));
-altar.position.set(0, 0.5, -12.4);
+// dais the priest stands on, plus the altar in front of him
+const dais = cast(new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.5, 0.7, 28), stone));
+dais.position.set(0, 0.35, -13.5);
+dais.receiveShadow = true;
+scene.add(dais);
+const altar = cast(new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.1, 1.3), stone));
+altar.position.set(0, 0.55, -11.4);
 altar.receiveShadow = true;
 scene.add(altar);
 
-/* ================= pointer: gaze + sun ================= */
+/* ================= POST ================= */
+const LightShaftShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    sunPos: { value: new THREE.Vector2(0.5, 0.5) },
+    sunColor: { value: new THREE.Color(0xffc06a) },
+    intensity: { value: 0.0 },
+    aspect: { value: 1.0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+    varying vec2 vUv;
+    uniform sampler2D tDiffuse;
+    uniform vec2 sunPos; uniform vec3 sunColor;
+    uniform float intensity, aspect;
+    #define TAPS 56
+    void main(){
+      vec4 base = texture2D(tDiffuse, vUv);
+      vec2 delta = (sunPos - vUv) / float(TAPS) * 0.92;
+      vec2 uv = vUv;
+      float illum = 0.0, decay = 1.0;
+      for (int i = 0; i < TAPS; i++) {
+        uv += delta;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
+        vec3 s = texture2D(tDiffuse, uv).rgb;
+        float lum = dot(s, vec3(0.299, 0.587, 0.114));
+        illum += smoothstep(0.55, 1.4, lum) * decay;
+        decay *= 0.962;
+      }
+      illum /= float(TAPS);
+      vec2 d = (sunPos - vUv) * vec2(aspect, 1.0);
+      gl_FragColor = vec4(base.rgb + sunColor * illum * intensity * exp(-length(d) * 1.15), base.a);
+    }`,
+};
+
+let composer = null, shaftPass = null, bloomPass = null;
+if (HIGH) {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(W(), H()), 0.62, 0.7, 0.78);
+  composer.addPass(bloomPass);
+  shaftPass = new ShaderPass(LightShaftShader);
+  composer.addPass(shaftPass);
+  composer.addPass(new OutputPass());   // tone mapping + colour space happen here
+}
+
+/* ================= POINTER ================= */
 const pointer = { x: 0.5, y: 0.5, seen: false };
 addEventListener('pointermove', (e) => {
   pointer.x = e.clientX / innerWidth;
@@ -589,102 +976,123 @@ addEventListener('touchmove', (e) => {
   pointer.seen = true;
 }, { passive: true });
 
-// camera orbits the mask; angles lerped from pointer
+/* ================= LOOP ================= */
 const headTarget = new THREE.Vector3();
+const gaze = new THREE.Vector3();
+const sacc = { x: 0, y: 0, tx: 0, ty: 0, next: 0 };
 let camAz = 0, camPol = 0, timeOfDay = 0.75;
+// opening move: establish the whole nave, then settle in on the mask
+let camRadius = 19;
 const timeTag = document.getElementById('time-tag');
-
 const clock = new THREE.Clock();
+
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.getElapsedTime();
 
-  // --- sun / time of day ---
+  /* --- sun and sky --- */
   const targetTime = pointer.seen ? pointerToTime(pointer.x) : 0.75;
   timeOfDay = THREE.MathUtils.lerp(timeOfDay, targetTime, Math.min(1, dt * 2.5));
   const skyC = skyAt(timeOfDay);
+  updateSunDir(timeOfDay);
+
   skyMat.uniforms.top.value.copy(skyC.top);
   skyMat.uniforms.mid.value.copy(skyC.mid);
   skyMat.uniforms.horizon.value.copy(skyC.horizon);
   skyMat.uniforms.t.value = t;
   winMat.uniforms.skyA.value.copy(skyC.horizon);
-  winMat.uniforms.skyB.value.copy(skyC.top);
-  rayMat.uniforms.tint.value.copy(skyC.mid);
-  scene.fog.color.copy(skyC.top).multiplyScalar(0.35);
-  scene.background = skyC.top.clone().multiplyScalar(0.15);
+  winMat.uniforms.skyB.value.copy(skyC.mid);
+  winMat.uniforms.gain.value = 0.7 + skyC.sunI * 0.35;
+  scene.fog.color.copy(skyC.top).multiplyScalar(0.42);
+  scene.fog.density = 0.009 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.005;
 
-  // sun path: rises east (left) to midday apex, sets west (right)
-  const sunT = timeOfDay;
-  const sunX = THREE.MathUtils.lerp(-34, 34, sunT);
-  const sunY = 1.5 + Math.sin(sunT * Math.PI) * 16;
-  sunMesh.position.set(sunX, sunY, -35);
+  sunMesh.position.copy(sunDir).multiplyScalar(190);
   sunMesh.material.color.copy(skyC.sun);
   sunHalo.position.copy(sunMesh.position);
   sunHalo.material.color.copy(skyC.sun);
-  sunHalo.material.opacity = 0.3 + skyC.sunI * 0.25;
+  sunHalo.material.opacity = 0.35 + skyC.sunI * 0.12;
+
+  // the light comes from where the sun actually is
+  sunLight.position.copy(SHADOW_TARGET).addScaledVector(sunDir, 62);
   sunLight.color.copy(skyC.sun);
   sunLight.intensity = skyC.sunI;
-  sunLight.position.set(sunX * 0.3, Math.max(2, sunY * 0.5), -20);
-  sunLight.target.position.set(0, 1, -8);
+  hemi.intensity = 0.85 + skyC.sunI * 0.22;
+  hemi.color.copy(skyC.mid);
+  apseBounce.color.copy(skyC.horizon);
+  apseBounce.intensity = 16 + skyC.sunI * 7;
+  key.color.copy(skyC.mid).lerp(new THREE.Color(0xbfa4ee), 0.5);
+  key.intensity = 0.75 + skyC.sunI * 0.13;
 
-  // feed the volumetric shaft pass the sun's screen position
-  if (shaftPass) {
-    const v = sunMesh.position.clone().project(camera);
-    shaftPass.uniforms.sunPos.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
-    shaftPass.uniforms.sunColor.value.copy(skyC.sun);
-    shaftPass.uniforms.aspect.value = camera.aspect;
-    const onScreen = v.z < 1 && Math.abs(v.x) < 1.3 && Math.abs(v.y) < 1.3;
-    shaftPass.uniforms.intensity.value = THREE.MathUtils.lerp(
-      shaftPass.uniforms.intensity.value, onScreen ? 0.6 : 0.0, Math.min(1, dt * 3));
-  }
+  smokeMat.uniforms.uTime.value = t;
+  smokeMat.uniforms.uSunDir.value.copy(sunDir);
+  smokeMat.uniforms.uSunColor.value.copy(skyC.sun).multiplyScalar(0.30 + skyC.sunI * 0.10);
+  smokeMat.uniforms.uShade.value.copy(skyC.top).multiplyScalar(0.55);
+  smokeMat.uniforms.uFogColor.value.copy(scene.fog.color);
+  smokeMat.uniforms.uFogDensity.value = scene.fog.density;
+  motes.material.opacity = 0.22 + skyC.sunI * 0.09;
 
-  timeTag.textContent = timeOfDay < 0.42 ? 'dawn' : timeOfDay < 0.58 ? 'midday' : timeOfDay < 0.9 ? 'dusk' : 'last light';
+  timeTag.textContent = timeOfDay < 0.42 ? 'dawn' : timeOfDay < 0.58 ? 'midday'
+                      : timeOfDay < 0.9 ? 'dusk' : 'last light';
 
-  // --- camera: lerped subtle orbit around the mask ---
+  /* --- camera: open wide on the nave, then settle onto the mask --- */
   mask.getWorldPosition(headTarget);
-  const wantAz = pointer.seen ? (pointer.x - 0.5) * 0.9 : Math.sin(t * 0.1) * 0.25;
-  const wantPol = pointer.seen ? (pointer.y - 0.5) * 0.5 : Math.cos(t * 0.13) * 0.12;
-  camAz = THREE.MathUtils.lerp(camAz, wantAz, Math.min(1, dt * 3.2));
-  camPol = THREE.MathUtils.lerp(camPol, wantPol, Math.min(1, dt * 3.2));
-  const radius = 2.6;
+  const wantRadius = pointer.seen ? 5.4 + pointer.y * 2.0 : 6.2;
+  camRadius = THREE.MathUtils.lerp(camRadius, wantRadius, Math.min(1, dt * 0.55));
+  const wantAz = pointer.seen ? (pointer.x - 0.5) * 1.05 : Math.sin(t * 0.1) * 0.3;
+  const wantPol = pointer.seen ? (pointer.y - 0.5) * 0.45 : Math.cos(t * 0.13) * 0.12;
+  camAz = THREE.MathUtils.lerp(camAz, wantAz, Math.min(1, dt * 3.0));
+  camPol = THREE.MathUtils.lerp(camPol, wantPol, Math.min(1, dt * 3.0));
   camera.position.set(
-    headTarget.x + Math.sin(camAz) * radius,
-    headTarget.y + 0.25 + camPol * 1.6,
-    headTarget.z + Math.cos(camAz) * radius
+    headTarget.x + Math.sin(camAz) * camRadius,
+    headTarget.y + 0.15 + camPol * 1.9 + (camRadius - 5.4) * 0.06,
+    headTarget.z + Math.cos(camAz) * camRadius,
   );
-  camera.lookAt(headTarget.x, headTarget.y + 0.05, headTarget.z);
+  camera.lookAt(headTarget.x, headTarget.y - 0.05 + (camRadius - 5.4) * 0.07, headTarget.z);
 
-  // --- priest preaches on ---
-  priest.rotation.y = Math.sin(t * 0.22) * 0.12;
-  priest.position.y = Math.sin(t * 0.5) * 0.05;
+  /* --- the priest preaches on --- */
+  priest.rotation.y = Math.sin(t * 0.22) * 0.11;
+  priest.position.y = 0.7 + Math.sin(t * 0.5) * 0.045;
   armL.rotation.z = 0.9 + Math.sin(t * 0.9) * 0.55;
   armL.rotation.x = Math.sin(t * 0.5) * 0.35;
   armR.rotation.z = -0.9 - Math.sin(t * 0.9 + Math.PI * 0.7) * 0.55;
   armR.rotation.x = Math.cos(t * 0.42) * 0.35;
-  mask.rotation.y = Math.sin(t * 0.21) * 0.14;
+  mask.rotation.y = Math.sin(t * 0.21) * 0.13;
+  mask.rotation.x = Math.sin(t * 0.31) * 0.05;
 
-  // eyes pulse (emissive)
-  const pulse = 0.5 + Math.sin(t * 2.1) * 0.35;
-  eyes.forEach((e, i) => {
-    e.material.emissiveIntensity = pulse + Math.sin(t * 3 + i * 2) * 0.15;
-  });
-  eyeLight.intensity = 2 + Math.sin(t * 2.1) * 1.2;
-
-  // --- smoke + ground fog ---
-  for (const s of smokes) {
-    const u = s.userData;
-    s.position.x += Math.sin(t * 0.3 + u.sway) * 0.0035;
-    s.position.y += u.rise * 0.008;
-    s.position.z += u.drift * 0.012;
-    if (s.position.y > 9) s.position.y = 0.2;
-    if (s.position.z > 8) s.position.z = -22;
+  /* --- the eyes follow the cursor ---
+     A gaze point is placed on a plane in front of the mask and each eyeball is
+     aimed at it. Because the aim is recomputed after the head sway, the eyes
+     stay locked on you while the head moves. */
+  priest.updateMatrixWorld(true);
+  if (t > sacc.next) {                       // micro-saccades
+    sacc.next = t + 1.1 + Math.random() * 2.2;
+    sacc.tx = (Math.random() - 0.5) * 0.28;
+    sacc.ty = (Math.random() - 0.5) * 0.20;
   }
-  for (const s of fogBanks) {
-    const u = s.userData;
-    s.position.x += Math.sin(t * u.speed + u.sway) * 0.006;
-    if (s.position.x > 10) s.position.x = -10;
-    if (s.position.x < -10) s.position.x = 10;
+  sacc.x += (sacc.tx - sacc.x) * Math.min(1, dt * 9);
+  sacc.y += (sacc.ty - sacc.y) * Math.min(1, dt * 9);
+  const gx = (pointer.seen ? (pointer.x - 0.5) * 3.4 : Math.sin(t * 0.4) * 0.7) + sacc.x;
+  const gy = (pointer.seen ? (0.5 - pointer.y) * 2.3 : Math.cos(t * 0.3) * 0.4) + sacc.y;
+  gaze.set(headTarget.x + gx, headTarget.y + gy, headTarget.z + 2.7);
+  const pulse = 0.55 + Math.sin(t * 2.1) * 0.3;
+  eyes.forEach((e, i) => {
+    e.grp.lookAt(gaze);
+    e.iris.material.emissiveIntensity = pulse + Math.sin(t * 3 + i * 2) * 0.14;
+  });
+  eyeLight.intensity = 2.4 + Math.sin(t * 2.1) * 1.3;
+
+  /* --- light shafts, seeded from the blazing apse opening --- */
+  if (shaftPass) {
+    const v = apseCentre.clone().project(camera);
+    shaftPass.uniforms.sunPos.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
+    shaftPass.uniforms.sunColor.value.copy(skyC.sun);
+    shaftPass.uniforms.aspect.value = camera.aspect;
+    const onScreen = v.z < 1 && Math.abs(v.x) < 1.4 && Math.abs(v.y) < 1.4;
+    shaftPass.uniforms.intensity.value = THREE.MathUtils.lerp(
+      shaftPass.uniforms.intensity.value,
+      onScreen ? 0.55 + skyC.sunI * 0.12 : 0.0,
+      Math.min(1, dt * 3));
   }
 
   if (composer) composer.render();
@@ -697,7 +1105,9 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(W(), H());
   if (composer) composer.setSize(W(), H());
+  if (bloomPass) bloomPass.setSize(W(), H());
 });
+
 </script>
 </body>
 </html>

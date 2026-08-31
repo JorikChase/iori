@@ -93,9 +93,18 @@
 
   #empty { padding: 5rem 1.2rem; color:#555; letter-spacing:.2em; text-align:center; line-height:2; }
 
-  /* the car cursor */
-  #car { position: fixed; z-index: 60; pointer-events: none; width: 96px; margin: -48px 0 0 -48px; }
-  #car img { width: 100%; display: block; }
+  /* the car cursor — one 4x2 sprite atlas, direction is a background-position step */
+  #car {
+    position: fixed; top: 0; left: 0; z-index: 100; pointer-events: none;
+    width: 128px; height: 80px; margin: -40px 0 0 -64px;
+    background-image: url("moises_car_atlas.png");
+    background-size: 512px 160px;      /* 4 cols x 128px, 2 rows x 80px */
+    background-repeat: no-repeat;
+    background-position: -256px 0px;   /* east */
+    opacity: 0; transition: opacity 200ms ease;
+    will-change: transform;
+  }
+  #car.ready { opacity: 1; }
 
   /* fullscreen viewer */
   #viewer {
@@ -135,7 +144,7 @@
 </div>
 <div id="empty">loading…</div>
 
-<div id="car"><img id="car-sprite" alt=""></div>
+<div id="car"></div>
 
 <div id="viewer">
   <button class="vclose" id="vclose">×</button>
@@ -236,30 +245,38 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ================= the car cursor =================
-   Atlas: 3x3 grid (center empty), 8 isometric directions.
-   The car chases the pointer with momentum; hard steering at speed = drift,
-   and the rear wheels lay fading tire tracks on #tracks.              */
+   moises_car_atlas.png is a 4x2 grid of 256x160 cells, built from the source
+   turnaround by tools/build_car_atlas.py. Row-major order:
+
+       N  NE  E  SE
+       S  SW  W  NW
+
+   Picking a direction is a background-position step — no canvas, no per-frame
+   image decode. The car follows the pointer almost exactly, and the sprite is
+   chosen from the direction it is actually travelling, quantised to the eight
+   straight/diagonal headings the art provides.                              */
 
 const carEl = document.getElementById("car");
-const carImg = document.getElementById("car-sprite");
 const tracksCv = document.getElementById("tracks");
 const tracksCtx = tracksCv.getContext("2d");
 
-const sprites = []; // 8 directional sprites: [NW,N,NE,W,E,SW,S,SE]
+const CELL_W = 128, CELL_H = 80;   // displayed cell size (the atlas is 2x this)
+const OCT = Math.PI / 4;
+// octant 0 is east, counting clockwise on screen (y grows downward):
+//   0 E   1 SE   2 S   3 SW   4 W   5 NW   6 N   7 NE
+// mapped onto the atlas cell index for each of those
+const ATLAS_FOR_OCT = [2, 3, 4, 5, 6, 7, 0, 1];
+
+function setDir(oct) {
+  const i = ATLAS_FOR_OCT[oct];
+  carEl.style.backgroundPosition =
+    `${-(i % 4) * CELL_W}px ${-Math.floor(i / 4) * CELL_H}px`;
+}
+
+let atlasReady = false;
 const atlas = new Image();
-atlas.src = "moses_car_cursor.png";
-atlas.onload = () => {
-  const cw = Math.floor(atlas.width / 3);
-  const ch = Math.floor(atlas.height / 3);
-  const order = [[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2]]; // NW,N,NE,W,E,SW,S,SE
-  for (const [gx, gy] of order) {
-    const c = document.createElement("canvas");
-    c.width = cw; c.height = ch;
-    c.getContext("2d").drawImage(atlas, gx * cw, gy * ch, cw, ch, 0, 0, cw, ch);
-    sprites.push(c);
-  }
-  if (sprites[4]) carImg.src = sprites[4].toDataURL(); // default: E
-};
+atlas.src = "moises_car_atlas.png";
+atlas.onload = () => { atlasReady = true; };
 
 function sizeTracks() {
   tracksCv.width = wrap.clientWidth;
@@ -270,13 +287,13 @@ sizeTracks();
 
 const car = {
   x: innerWidth / 2, y: innerHeight / 2,
-  vx: 0, vy: 0,
-  heading: 0,          // where the car points
+  mx: 0, my: 0,     // smoothed travel vector, drives the sprite choice
+  ang: 0,           // smooth heading, drives the tyre tracks
+  oct: 0,           // current sprite octant
   speed: 0,
-  drifting: false,
 };
 const target = { x: car.x, y: car.y };
-let pointerSeen = false;
+let pointerSeen = false, shown = false;
 
 addEventListener("pointermove", (e) => {
   target.x = e.clientX;
@@ -289,97 +306,77 @@ addEventListener("touchmove", (e) => {
   pointerSeen = true;
 }, { passive: true });
 
-const DIRS = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]; // NW..SE
-const DIR_ANGLES = DIRS.map(([x, y]) => Math.atan2(y, x));
-
-function angleLerp(a, b, t) {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
-}
-
 let lastT = performance.now();
-let trackClock = 0;
+let trackClock = 0, fadeClock = 0;
 
 function carTick(now) {
   requestAnimationFrame(carTick);
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
-  if (!pointerSeen || !sprites.length) return;
+  if (!pointerSeen || !atlasReady) return;
+  if (!shown) { shown = true; carEl.classList.add("ready"); }
 
-  // desired velocity toward cursor (with arrival easing)
-  const dx = target.x - car.x, dy = target.y - car.y;
-  const dist = Math.hypot(dx, dy);
-  const wantSpeed = Math.min(900, dist * 4);
-  const wantAng = Math.atan2(dy, dx);
+  // near-instant follow, frame-rate independent. 0.55 per 60Hz frame keeps the
+  // car within a few pixels of the pointer at any speed, leaving just enough
+  // lag to read as a chase rather than a decal stuck to the cursor.
+  const k = 1 - Math.pow(1 - 0.55, dt * 60);
+  const px = car.x, py = car.y;
+  car.x += (target.x - car.x) * k;
+  car.y += (target.y - car.y) * k;
+  carEl.style.transform = `translate3d(${car.x}px, ${car.y}px, 0)`;
 
-  // steering: heading chases desired direction, limited turn rate
-  const turnRate = 6.5; // rad/s
-  car.heading = angleLerp(car.heading, wantAng, Math.min(1, turnRate * dt));
+  const dx = car.x - px, dy = car.y - py;
+  car.speed = Math.hypot(dx, dy) / Math.max(dt, 1e-4);
 
-  // heading vs velocity mismatch at speed => drift
-  const velAng = Math.atan2(car.vy, car.vx);
-  let slip = Math.abs(angleLerp(velAng, car.heading, 1) - velAng);
-  if (Math.abs(slip) > Math.PI) slip = Math.PI * 2 - Math.abs(slip);
-  car.drifting = car.speed > 240 && slip > 0.35;
+  // smooth the travel vector before reading a heading off it, so the sprite
+  // doesn't rattle between two cells on sub-pixel jitter
+  const s = 1 - Math.pow(1 - 0.22, dt * 60);
+  car.mx += (dx - car.mx) * s;
+  car.my += (dy - car.my) * s;
 
-  // accelerate along heading; grip depends on drift state
-  const grip = car.drifting ? 0.86 : 0.80;
-  const accel = car.drifting ? 500 : 800;
-  car.vx += Math.cos(car.heading) * accel * dt * (wantSpeed / 900);
-  car.vy += Math.sin(car.heading) * accel * dt * (wantSpeed / 900);
-  car.vx *= Math.pow(grip, dt * 60);
-  car.vy *= Math.pow(grip, dt * 60);
-
-  // cap speed
-  car.speed = Math.hypot(car.vx, car.vy);
-  const maxS = 950;
-  if (car.speed > maxS) { car.vx *= maxS / car.speed; car.vy *= maxS / car.speed; car.speed = maxS; }
-
-  car.x += car.vx * dt;
-  car.y += car.vy * dt;
-
-  // choose sprite by heading quantized to 8 directions
-  let best = 0, bestD = Infinity;
-  for (let i = 0; i < 8; i++) {
-    let d = Math.abs(car.heading - DIR_ANGLES[i]);
-    if (d > Math.PI) d = Math.PI * 2 - d;
-    if (d < bestD) { bestD = d; best = i; }
+  if (Math.hypot(car.mx, car.my) / Math.max(dt, 1e-4) > 55) {
+    car.ang = Math.atan2(car.my, car.mx);
+    // hysteresis: hold the current octant until well past its border, so a
+    // heading sitting near a boundary doesn't flip back and forth
+    let off = car.ang - car.oct * OCT;
+    while (off > Math.PI) off -= Math.PI * 2;
+    while (off < -Math.PI) off += Math.PI * 2;
+    if (Math.abs(off) > OCT * 0.72) {
+      car.oct = ((Math.round(car.ang / OCT) % 8) + 8) % 8;
+      setDir(car.oct);
+    }
   }
-  if (sprites[best]) carImg.src = sprites[best].toDataURL();
 
-  carEl.style.transform = `translate(${car.x}px, ${car.y}px)`;
-
-  // tire tracks while moving (heavier while drifting)
+  // tyre tracks, laid from the rear axle while moving over the journal canvas
   const wrapRect = wrap.getBoundingClientRect();
-  const inStage = car.y > wrapRect.top && car.y < wrapRect.bottom;
-  if (inStage && car.speed > 120) {
+  const onStage = tracksCv.height > 0 && car.y > wrapRect.top && car.y < wrapRect.bottom;
+  if (onStage && car.speed > 150) {
     trackClock += dt;
-    const interval = car.drifting ? 0.012 : 0.03;
-    if (trackClock > interval) {
+    const hard = car.speed > 1400;                 // thrown about = heavier rubber
+    if (trackClock > (hard ? 0.012 : 0.028)) {
       trackClock = 0;
       const bx = car.x - wrapRect.left, by = car.y - wrapRect.top;
-      const px = Math.cos(car.heading + Math.PI / 2) * 10;
-      const py = Math.sin(car.heading + Math.PI / 2) * 10;
-      const back = 26;
-      const alpha = car.drifting ? 0.5 : 0.18;
-      tracksCtx.strokeStyle = `rgba(20,20,20,${alpha})`;
-      tracksCtx.lineWidth = car.drifting ? 5 : 3;
+      const ca = Math.cos(car.ang), sa = Math.sin(car.ang);
+      const ox = -sa * 11, oy = ca * 11;           // half the track width
+      const back = 30;
+      tracksCtx.strokeStyle = `rgba(22,22,22,${hard ? 0.42 : 0.16})`;
+      tracksCtx.lineWidth = hard ? 5 : 3;
       tracksCtx.lineCap = "round";
       for (const side of [-1, 1]) {
         tracksCtx.beginPath();
-        tracksCtx.moveTo(bx + px * side - Math.cos(car.heading) * back, by + py * side - Math.sin(car.heading) * back);
-        tracksCtx.lineTo(bx + px * side, by + py * side);
+        tracksCtx.moveTo(bx + ox * side - ca * back, by + oy * side - sa * back);
+        tracksCtx.lineTo(bx + ox * side, by + oy * side);
         tracksCtx.stroke();
       }
     }
   }
 
   // tracks fade slowly
-  if ((now | 0) % 3 === 0) {
+  fadeClock += dt;
+  if (fadeClock > 0.25 && tracksCv.height > 0) {
+    fadeClock = 0;
     tracksCtx.globalCompositeOperation = "destination-out";
-    tracksCtx.fillStyle = "rgba(0,0,0,0.006)";
+    tracksCtx.fillStyle = "rgba(0,0,0,0.05)";
     tracksCtx.fillRect(0, 0, tracksCv.width, tracksCv.height);
     tracksCtx.globalCompositeOperation = "source-over";
   }

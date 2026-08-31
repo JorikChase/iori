@@ -178,6 +178,108 @@
         #route-modal.active {
             opacity: 1;
         }
+
+        /* ---------- instrument chrome ---------- */
+        #scope-hud {
+            position: absolute; top: 16px; left: 16px; z-index: 14;
+            display: grid; gap: 2px; pointer-events: none;
+            font-family: monospace; font-size: 10px; letter-spacing: 1px;
+            background: rgba(8, 10, 14, 0.55);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 230, 0, 0.22);
+            border-left: 3px solid rgba(255, 230, 0, 0.75);
+            padding: 9px 12px 10px;
+        }
+        #scope-hud .rd { display: flex; gap: 12px; justify-content: space-between; }
+        #scope-hud .rd span { color: rgba(255, 255, 255, 0.38); }
+        #scope-hud .rd b { color: #FFE600; font-weight: 700; }
+        #scope-hud .sep { margin-top: 7px; padding-top: 7px; border-top: 1px dashed rgba(255,255,255,0.14); }
+
+        #scale-bar {
+            position: absolute; bottom: 22px; right: 20px; z-index: 14;
+            pointer-events: none; text-align: right;
+            font-family: monospace; font-size: 10px; letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.55);
+        }
+        #scale-line {
+            height: 3px; width: 96px; margin: 0 0 4px auto;
+            background: rgba(255, 255, 255, 0.75);
+            border-left: 1px solid #fff; border-right: 1px solid #fff;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+        }
+
+        #boot-hint {
+            position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+            z-index: 14; pointer-events: none; white-space: nowrap;
+            font-family: monospace; font-size: 10px; letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.34);
+            transition: opacity 1.4s ease 2.4s;
+        }
+        #boot-hint.fade { opacity: 0; }
+
+        #search-box {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%) translateY(-140%);
+            z-index: 15; display: flex; align-items: center; gap: 8px;
+            background: rgba(8, 10, 14, 0.8);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 230, 0, 0.5); padding: 7px 12px;
+            transition: transform 0.22s ease, opacity 0.22s ease; opacity: 0;
+        }
+        #search-box.open { transform: translateX(-50%) translateY(0); opacity: 1; }
+        #search-box span { color: #FFE600; font-family: monospace; font-size: 11px; }
+        #search-input {
+            background: none; border: none; outline: none; color: #fff;
+            font-family: monospace; font-size: 11px; letter-spacing: 1px; width: 200px;
+        }
+        #search-input::placeholder { color: rgba(255,255,255,0.28); }
+
+        #index-toggle {
+            position: absolute; top: 16px; right: 16px; z-index: 15;
+            background: rgba(8, 10, 14, 0.55);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 230, 0, 0.35); color: #FFE600;
+            font-family: monospace; font-size: 10px; letter-spacing: 2px;
+            padding: 8px 14px; cursor: pointer; pointer-events: auto;
+        }
+        #index-toggle:hover { border-color: #FFE600; background: rgba(255, 230, 0, 0.12); }
+
+        /* The full page list. Always in the DOM -- this page is iori.me's front
+           door and used to contain no links at all. */
+        #site-index {
+            position: absolute; inset: 0; z-index: 16; overflow-y: auto;
+            background: rgba(0, 0, 0, 0.94);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transition: opacity 0.25s ease, visibility 0.25s;
+        }
+        #site-index.open { opacity: 1; visibility: visible; pointer-events: auto; }
+        #site-index .index-body { max-width: 900px; margin: 0 auto; padding: 72px 24px 80px; }
+        #site-index h1 {
+            font-family: monospace; font-size: 12px; letter-spacing: 3px;
+            color: #FFE600; text-transform: uppercase; margin-bottom: 28px;
+        }
+        #site-index h2 {
+            font-family: monospace; font-size: 10px; letter-spacing: 3px;
+            color: rgba(255,255,255,0.35); text-transform: uppercase;
+            margin: 26px 0 8px; border-bottom: 1px dashed rgba(255,255,255,0.14); padding-bottom: 5px;
+        }
+        #site-index ul { list-style: none; columns: 2; column-gap: 32px; }
+        @media (max-width: 620px) { #site-index ul { columns: 1; } }
+        #site-index li { break-inside: avoid; margin: 3px 0; }
+        #site-index a {
+            font-family: monospace; font-size: 11px; letter-spacing: 0.6px;
+            color: rgba(255,255,255,0.72); text-decoration: none;
+        }
+        #site-index a:hover { color: #FFE600; text-decoration: underline; }
+
+        .hud-card.traced {
+            border-color: #FFE600;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.7), 0 0 16px rgba(255, 230, 0, 0.45);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #boot-hint { transition: none; }
+        }
     </style>
 </head>
 <body>
@@ -186,968 +288,1379 @@
     <canvas id="glcanvas"></canvas>
     <svg id="hud-svg"></svg>
     <div id="hud-labels"></div>
+
+    <div id="scope-hud">
+        <div class="rd"><span>OBJ</span><b id="rd-mag">40×</b></div>
+        <div class="rd"><span>FOCUS</span><b id="rd-focus">+0.00</b></div>
+        <div class="rd"><span>SPECIMEN</span><b id="rd-specimen">IORI.ME</b></div>
+        <div class="rd sep"><span>TISSUE</span><b id="rd-tissue">0/0</b></div>
+        <div class="rd"><span>POP</span><b id="rd-pop">000</b></div>
+        <div class="rd"><span>GEN</span><b id="rd-gen">G0</b></div>
+        <div class="rd"><span>TRAITS</span><b id="rd-traits">—</b></div>
+        <div class="rd"><span>FLUX</span><b id="rd-flux">+0 −0</b></div>
+    </div>
+
+    <div id="scale-bar"><div id="scale-line"></div><span id="scale-len">50 µm</span></div>
+    <div id="boot-hint">CULTURING SPECIMEN &middot; DRAG TO PAN &middot; SCROLL TO FOCUS &middot; / TO SEARCH &middot; I FOR INDEX</div>
+
+    <div id="search-box">
+        <span>/</span>
+        <input id="search-input" type="text" autocomplete="off" spellcheck="false"
+               aria-label="Find a page" placeholder="find a page">
+    </div>
+
+    <button id="index-toggle" aria-controls="site-index">INDEX</button>
+    <nav id="site-index" aria-label="All pages">
+        <div class="index-body"><h1>iori.me &mdash; full index</h1>
+            <!-- NAV:BEGIN (generated by site.py — do not edit by hand) -->
+            <h2>artist</h2>
+            <ul>
+                <li><a href="crow_archduke.html">crow_archduke — The Cathedral</a></li>
+                <li><a href="jachym.html">jáchym — 3DIE Artist</a></li>
+                <li><a href="moises.html">moises — Photo Journal</a></li>
+            </ul>
+            <h2>automata</h2>
+            <ul>
+                <li><a href="civilisation-builder.html">Civilisation Builder — Reaction-Diffusion</a></li>
+                <li><a href="ember-engine.html">Ember Engine — Cellular Automata Fire</a></li>
+                <li><a href="flame-simulation.html">Satisfying Fire Simulator</a></li>
+                <li><a href="flame.html">2D Fire Simulator</a></li>
+                <li><a href="game-of-life.html">Game of Life — ASCII Edition</a></li>
+                <li><a href="liquid-automata.html">Frost — Generative Crystal Engine</a></li>
+                <li><a href="mycelium.html">Mycelium Engine — Cellular Automata</a></li>
+                <li><a href="webgl.html">WEBGL Sandbox</a></li>
+            </ul>
+            <h2>client</h2>
+            <ul>
+                <li><a href="metyou.html">MetYou.ai — Design Engineering Case Study</a></li>
+                <li><a href="univerzum.html">ZŠ Univerzum — School Website by 3DIE</a></li>
+                <li><a href="websites.html">Client Websites — 3DIE</a></li>
+            </ul>
+            <h2>dimensions</h2>
+            <ul>
+                <li><a href="4cube.html">Binary-Pure Tesseract — Interactive 4D Projection</a></li>
+                <li><a href="4cube_volume.html">4D Tesseract Slicer — Volume Edition</a></li>
+            </ul>
+            <h2>dispheres</h2>
+            <ul>
+                <li><a href="disphere-inverse.html">Disphere Inverse</a></li>
+                <li><a href="disphere-ray.html">Disphere Ray</a></li>
+                <li><a href="disphere-symmetry.html">Disphere Symmetry</a></li>
+                <li><a href="disphere.html">Disphere</a></li>
+            </ul>
+            <h2>essay</h2>
+            <ul>
+                <li><a href="lambda_cognition.html">Lambda Cognition &amp; The TIH Framework</a></li>
+            </ul>
+            <h2>experiment</h2>
+            <ul>
+                <li><a href="lili.html">lili — Animated Portrait Study</a></li>
+                <li><a href="socci.html">Socci Project — Generative Island</a></li>
+            </ul>
+            <h2>flames</h2>
+            <ul>
+                <li><a href="lighter-flame.html">Lighter Flame Engine</a></li>
+                <li><a href="procedural-flame.html">WebGL Volumetric Flame</a></li>
+            </ul>
+            <h2>fluids</h2>
+            <ul>
+                <li><a href="bismuth-fluid.html">Bismuth Crystal Fluid</a></li>
+                <li><a href="bubbles.html">Iridescent Bubbles</a></li>
+                <li><a href="diffusion-fluid.html">Diffusion Fluid</a></li>
+                <li><a href="fluid.html">Toroidal Fluid Simulation</a></li>
+            </ul>
+            <h2>fractals</h2>
+            <ul>
+                <li><a href="fractal-dimension.html">N-Dimensional Viewer</a></li>
+                <li><a href="fractals.html">Fractal Optimization Through a Procedural Lens</a></li>
+                <li><a href="iris.html">Procedural Iris</a></li>
+                <li><a href="mandelbrot-gs.html">Image-GS Nebulabrot</a></li>
+                <li><a href="meta-iris.html">Procedural Iris — Alien</a></li>
+                <li><a href="mirrorbrot-16k.html">Mirrorbrot — 16K Deep Edition</a></li>
+                <li><a href="mirrorbrot.html">Mirrorbrot — Mirror-Fold Deep Zoom</a></li>
+            </ul>
+            <h2>game</h2>
+            <ul>
+                <li><a href="darkwood.html">Unction — Darkwood Game</a></li>
+                <li><a href="game.html">RPG Tennis — 3DIE Game</a></li>
+                <li><a href="game_multiplayer.html">RPG Tennis Multiplayer — 3DIE Game</a></li>
+                <li><a href="pi.html">Learn PI by Heart — Minimal Trainer</a></li>
+                <li><a href="poster.html">Gyro Labyrinth — Optimized</a></li>
+                <li><a href="sudoku.html">SUDOKU Minimal</a></li>
+                <li><a href="tboi2.html">TBOI: Repentance+ Advanced Ballistics</a></li>
+                <li><a href="tomasek.html">3D Gyroscope Dice Roller</a></li>
+            </ul>
+            <h2>gravity</h2>
+            <ul>
+                <li><a href="death.html">death.sh</a></li>
+                <li><a href="orbitals.html">Hydrogen Orbitals — Immersive Edition</a></li>
+                <li><a href="three-body-shaded.html">3-Body Gravity — Phantom Edition</a></li>
+                <li><a href="three-body.html">3-Body Gravity Simulation — Enhanced</a></li>
+                <li><a href="two-body.html">2-Body Gravity Simulation</a></li>
+                <li><a href="universe.html">Cyclic Universe — Spacetime Distortion</a></li>
+            </ul>
+            <h2>hub</h2>
+            <ul>
+                <li><a href="portfolio.html">iori — Portfolio: Artists &amp; Experiments</a></li>
+                <li><a href="star.html">Star Topology — Interactive Visualization</a></li>
+                <li><a href="web.html">iori — Node Web: Interactive Site Map</a></li>
+                <li><a href="web3d.html">iori — 3D Node Web: Gravity &amp; Orbits</a></li>
+            </ul>
+            <h2>materials</h2>
+            <ul>
+                <li><a href="aquarium.html">Pixel Art SDF Aquarium</a></li>
+                <li><a href="cracks-aberration.html">Shattered LCD — Hyper-Intricate</a></li>
+                <li><a href="cracks.html">Grayscale Shatter Simulator</a></li>
+                <li><a href="dither-types.html">Procedural Dither Comparison Grid</a></li>
+                <li><a href="maska.html">Face Landmarker WebGL</a></li>
+                <li><a href="multiOS.html">Multi-OS VJ Studio Environment</a></li>
+                <li><a href="nasal-wave.html">Nasal Wave Engine</a></li>
+                <li><a href="sigmoid-helix.html">Kinetic Sigmoid Helix — Terminal Edition</a></li>
+                <li><a href="start.html">Start — GPU Flocking Birds</a></li>
+                <li><a href="watercolor.html">Realistic Ink Water Engine</a></li>
+            </ul>
+            <h2>organisms</h2>
+            <ul>
+                <li><a href="crystalize.html">Cryo-Genesis v5.3 — Macro Studio</a></li>
+                <li><a href="dandelion-cycle.html">Organic Dandelion Journey</a></li>
+                <li><a href="fungal-growth.html">SDF Jelly Fungus Timelapse</a></li>
+                <li><a href="slime-mold.html">Procedural Physarum Simulation</a></li>
+            </ul>
+            <h2>site</h2>
+            <ul>
+                <li><a href="indent.html">3DIE.FR — Alternate Gateway</a></li>
+                <li><a href="index.html">3DIE — Design, Art &amp; Technologies Label</a></li>
+                <li><a href="info.html">About &amp; Contact — 3DIE</a></li>
+                <li><a href="iori.html">iori — Interactive 3D Splat Showcase</a></li>
+                <li><a href="music.html">Music — 3DIE Label</a></li>
+                <li><a href="shop.html">3DIE Shop — 3D Models &amp; Printed Objects</a></li>
+                <li><a href="umprum.html">iori — Linktree &amp; Selected Works</a></li>
+            </ul>
+            <h2>voxels</h2>
+            <ul>
+                <li><a href="voxel-sandbox.html">WebGPU Interactive Voxel Sandbox</a></li>
+                <li><a href="voxel-scale-less.html">WebGPU PSVO Voxel Engine</a></li>
+                <li><a href="voxel-terrain.html">WebGPU Voxel Terrain</a></li>
+            </ul>
+            <!-- NAV:END --></div>
+    </nav>
+
     <div id="route-modal">SYSTEM_NAV: <span id="modal-route">index.html</span></div>
 </div>
 
 <script>
-// Graph data — loaded from the site registry (pages.json) so EVERY page is
-// linked automatically, forever. Fallback keeps the piece alive offline.
-let RAW_CONNECTIONS = [["index.html", "info.html"], ["index.html", "shop.html"]];
+/* =====================================================================
+   iori.me — the specimen
 
-const adjMap = new Map();
-const allCatalogPages = new Set();
-let CATALOG_LIST = [];
-let unvisitedLinks = new Set();
+   Two populations under one objective:
 
-function buildGraph() {
-    adjMap.clear();
-    allCatalogPages.clear();
-    RAW_CONNECTIONS.forEach(([a, b]) => {
-        allCatalogPages.add(a);
-        allCatalogPages.add(b);
-        if (!adjMap.has(a)) adjMap.set(a, new Set());
-        if (!adjMap.has(b)) adjMap.set(b, new Set());
-        adjMap.get(a).add(b);
-        adjMap.get(b).add(a);
-    });
-    CATALOG_LIST = Array.from(allCatalogPages);
-    // Track unvisited catalog links so every site link is birthed first
-    unvisitedLinks = new Set(CATALOG_LIST);
-    unvisitedLinks.delete("index.html"); // Root starts as birthed
-}
+   * TISSUE  — one immortal cell per page on the site, bonded into a fixed
+     radial structure grown from the nucleus. Never dies, never merges, never
+     evicted. This is the site map, and it is what you navigate.
 
-async function loadConnections() {
-    try {
-        const res = await fetch('/pages.json', { cache: 'no-store' });
-        const data = await res.json();
-        const pages = data.pages;
-        const conns = [];
-        const byCat = {};
-        pages.forEach(p => { (byCat[p.category] = byCat[p.category] || []).push(p.slug); });
-        // chain pages within each family
-        for (const list of Object.values(byCat)) {
-            for (let i = 0; i < list.length - 1; i++) conns.push([list[i], list[i + 1]]);
-        }
-        // hubs (incl. portfolio) link outward to the catalogue
-        const hubs = pages.filter(p => p.category === 'hub').map(p => p.slug);
-        for (const h of hubs) {
-            pages.slice(0, 30).forEach(p => { if (p.slug !== h) conns.push([h, p.slug]); });
-        }
-        if (conns.length) RAW_CONNECTIONS = conns;
-    } catch (e) { /* offline: keep fallback graph */ }
-    buildGraph();
-}
+   * MICROBES — free-swimming, mortal, and carrying a small genome that
+     mutates on division. They feed off the tissue, compete for a fixed
+     carrying capacity, and die. This is the evolutionary algorithm, and it
+     runs where you can actually watch it.
+   ===================================================================== */
 
-buildGraph();
+const SELF = 'iori_INDEX.html';       // the page you are on: no cell for it
+const NUCLEUS = 'index.html';
+// the three oldest cells after the nucleus, birthed in this order
+const PRIMORDIAL = ['fractals.html', 'meta-iris.html', 'flame-simulation.html'];
+const BRANCH_LABEL = 'portfolio.html';  // the label/site lineage
 
-function formatNodeLabel(route) {
-    return route.replace('.html', '').replace(/[-_]/g, '_').toUpperCase();
-}
-
-const MAX_CELLS = 64;
-const MAX_TETHERS = 48;
-const MIN_CELL_RADIUS = 0.035;
-
-let cells = [];
-let tethers = [];
-let nextCellId = 0;
-
-// Camera System State
-const camera = {
-    x: 0,
-    y: 0,
-    zoom: 1.0,
-    targetX: 0,
-    targetY: 0,
-    targetZoom: 1.0,
-    baseZoom: 1.0,
-    isFirstDivisionDone: false
+// which categories descend from which primordial cell
+const LINEAGES = {
+  'fractals.html':         ['fractals', 'dispheres', 'dimensions', 'essay'],
+  'meta-iris.html':        ['materials', 'voxels', 'organisms', 'gravity', 'experiment'],
+  'flame-simulation.html': ['flames', 'fluids', 'automata'],
+  'portfolio.html':        ['hub', 'site', 'game', 'artist', 'client'],
 };
 
-// Pointer / Input State
-const pointer = {
-    x: window.innerWidth * 0.5,
-    y: window.innerHeight * 0.5,
-    worldX: 0,
-    worldY: 0,
-    isDown: false,
-    draggedCell: null
+// hand-authored semantic edges, carried over from the old node web. These are
+// drawn as secondary bonds on top of the structural tree -- they are what makes
+// the map navigable by meaning rather than only by category.
+const CURATED = [
+  ['fractals.html', 'webgl.html'], ['orbitals.html', 'webgl.html'],
+  ['iris.html', 'meta-iris.html'], ['meta-iris.html', 'fractals.html'],
+  ['orbitals.html', 'fractals.html'], ['fractals.html', 'lambda_cognition.html'],
+  ['three-body.html', 'lambda_cognition.html'], ['sudoku.html', 'pi.html'],
+  ['pi.html', 'game.html'], ['liquid-automata.html', 'cracks.html'],
+  ['cracks.html', 'cracks-aberration.html'], ['dandelion-cycle.html', 'dither-types.html'],
+  ['aquarium.html', 'dandelion-cycle.html'], ['fractals.html', 'fractal-dimension.html'],
+  ['diffusion-fluid.html', 'lighter-flame.html'], ['liquid-automata.html', 'fractals.html'],
+  ['liquid-automata.html', 'crystalize.html'], ['liquid-automata.html', 'mycelium.html'],
+  ['mycelium.html', 'fungal-growth.html'], ['fungal-growth.html', 'slime-mold.html'],
+  ['three-body.html', 'fractals.html'], ['three-body.html', 'orbitals.html'],
+  ['indent.html', 'disphere.html'], ['disphere.html', 'disphere-inverse.html'],
+  ['disphere-ray.html', 'disphere-inverse.html'], ['disphere-ray.html', 'disphere-symmetry.html'],
+  ['two-body.html', 'three-body.html'], ['bismuth-fluid.html', 'fluid.html'],
+  ['bismuth-fluid.html', 'watercolor.html'], ['lighter-flame.html', 'procedural-flame.html'],
+  ['flame.html', 'procedural-flame.html'], ['flame.html', 'bismuth-fluid.html'],
+  ['flame-simulation.html', 'flame.html'], ['diffusion-fluid.html', 'fluid.html'],
+  ['diffusion-fluid.html', 'disphere-symmetry.html'], ['disphere-ray.html', 'liquid-automata.html'],
+  ['liquid-automata.html', 'ember-engine.html'], ['sudoku.html', 'game.html'],
+  ['orbitals.html', 'crystalize.html'], ['fractals.html', 'crystalize.html'],
+  ['sigmoid-helix.html', 'death.html'], ['sigmoid-helix.html', 'universe.html'],
+  ['umprum.html', 'portfolio.html'], ['umprum.html', 'death.html'],
+  ['umprum.html', 'universe.html'], ['liquid-automata.html', 'voxel-scale-less.html'],
+  ['voxel-scale-less.html', 'voxel-sandbox.html'], ['voxel-sandbox.html', 'voxel-terrain.html'],
+  ['game.html', 'darkwood.html'], ['tboi2.html', 'darkwood.html'], ['game.html', 'tboi2.html'],
+  ['game.html', 'game_multiplayer.html'], ['game.html', 'aquarium.html'],
+  ['websites.html', 'metyou.html'], ['metyou.html', 'univerzum.html'],
+  ['websites.html', 'univerzum.html'], ['index.html', 'info.html'],
+  ['index.html', 'shop.html'], ['shop.html', 'info.html'], ['index.html', 'indent.html'],
+];
+
+// the tree, and the layout targets each node springs toward
+let NODES = new Map();          // slug -> node
+let ROOT = null;
+let CROSS = [];                 // curated edges that survived the page filter
+let structureReady = false;
+
+const RAD = [0, 0.80, 1.75, 2.62];   // ring radius by depth
+const R_BY_DEPTH = [0.20, 0.145, 0.108, 0.082];
+
+function labelFor(slug) {
+  return slug.replace('.html', '').replace(/[-_]/g, '_').toUpperCase();
+}
+
+const FALLBACK_PAGES = [
+  { slug: 'index.html', category: 'site', title: '3DIE' },
+  { slug: 'portfolio.html', category: 'hub', title: 'portfolio' },
+  { slug: 'fractals.html', category: 'fractals', title: 'fractals' },
+  { slug: 'meta-iris.html', category: 'fractals', title: 'meta-iris' },
+  { slug: 'flame-simulation.html', category: 'automata', title: 'flame simulation' },
+  { slug: 'web.html', category: 'hub', title: 'node web' },
+  { slug: 'info.html', category: 'site', title: 'info' },
+];
+
+function buildStructure(pages) {
+  pages = pages.filter((p) => p.slug !== SELF);
+  const bySlug = new Map(pages.map((p) => [p.slug, p]));
+
+  const mk = (slug, depth) => {
+    const p = bySlug.get(slug);
+    const n = {
+      slug, depth,
+      title: p ? p.title : labelFor(slug),
+      category: p ? p.category : 'site',
+      label: labelFor(slug),
+      children: [], parent: null, angle: 0, tx: 0, ty: 0,
+      radius: R_BY_DEPTH[Math.min(depth, 3)],
+    };
+    NODES.set(slug, n);
+    return n;
+  };
+  const link = (parent, child) => { child.parent = parent; parent.children.push(child); };
+
+  ROOT = mk(NUCLEUS, 0);
+
+  // curated degree, used to pick the most connected page as each category anchor
+  const deg = new Map();
+  for (const [a, b] of CURATED) {
+    if (!bySlug.has(a) || !bySlug.has(b)) continue;
+    deg.set(a, (deg.get(a) || 0) + 1);
+    deg.set(b, (deg.get(b) || 0) + 1);
+  }
+
+  const branchSlugs = [...PRIMORDIAL, BRANCH_LABEL];
+  const taken = new Set([NUCLEUS, ...branchSlugs]);
+  const byCat = new Map();
+  for (const p of pages) {
+    if (taken.has(p.slug)) continue;
+    if (!byCat.has(p.category)) byCat.set(p.category, []);
+    byCat.get(p.category).push(p);
+  }
+
+  const claimed = new Set();
+  for (const branch of branchSlugs) {
+    if (!bySlug.has(branch)) continue;
+    const bn = mk(branch, 1);
+    link(ROOT, bn);
+    for (const cat of LINEAGES[branch] || []) {
+      const members = (byCat.get(cat) || []).filter((p) => !claimed.has(p.slug));
+      if (!members.length) continue;
+      members.forEach((p) => claimed.add(p.slug));
+      members.sort((a, b) => (deg.get(b.slug) || 0) - (deg.get(a.slug) || 0)
+                          || a.slug.localeCompare(b.slug));
+      const anchor = mk(members[0].slug, 2);
+      link(bn, anchor);
+      for (const p of members.slice(1).sort((a, b) => a.slug.localeCompare(b.slug))) {
+        link(anchor, mk(p.slug, 3));
+      }
+    }
+  }
+  // anything whose category wasn't mapped still gets a home, so no page is lost
+  const orphans = pages.filter((p) => !claimed.has(p.slug) && !taken.has(p.slug));
+  if (orphans.length) {
+    const host = NODES.get(BRANCH_LABEL) || ROOT;
+    for (const p of orphans) link(host, mk(p.slug, host.depth + 1));
+  }
+
+  CROSS = CURATED.filter(([a, b]) => NODES.has(a) && NODES.has(b) && a !== b);
+
+  /* radial dendrogram: every leaf gets an equal slice, every parent centres
+     over its children. Stable, legible, and it makes the path from any page
+     back to the nucleus a straight run inward. */
+  let leaves = 0;
+  (function count(n) { n.children.length ? n.children.forEach(count) : leaves++; })(ROOT);
+  const step = (Math.PI * 2) / Math.max(1, leaves);
+  let cursor = 0;
+  (function place(n) {
+    if (!n.children.length) { n.angle = cursor * step; cursor++; }
+    else {
+      n.children.forEach(place);
+      const a = n.children.map((c) => c.angle);
+      n.angle = (Math.min(...a) + Math.max(...a)) / 2;
+    }
+    const r = RAD[Math.min(n.depth, 3)];
+    // a touch of jitter so the ring doesn't read as a machine-drawn circle
+    const j = Math.sin(n.angle * 12.7 + n.depth * 2.1) * 0.045;
+    n.tx = Math.cos(n.angle) * (r + j);
+    n.ty = Math.sin(n.angle) * (r + j);
+  })(ROOT);
+
+  structureReady = true;
+  return ROOT;
+}
+
+async function loadStructure() {
+  let pages = FALLBACK_PAGES;
+  try {
+    const res = await fetch('pages.json', { cache: 'no-store' });
+    const data = await res.json();
+    if (data && Array.isArray(data.pages) && data.pages.length) pages = data.pages;
+  } catch (e) { /* offline: the fallback keeps the piece alive */ }
+  buildStructure(pages);
+  buildCrawlableNav(pages);
+}
+
+/* ================= CELLS ================= */
+
+const MAX_RENDER = 320;          // hard ceiling: the data-texture width
+const MICROBE_CAP = 85;          // carrying capacity for the mortal population
+
+const LINEAGE_HUE = {
+  'fractals.html': 188, 'meta-iris.html': 288,
+  'flame-simulation.html': 24, 'portfolio.html': 58,
 };
 
-// Helper: HSL to RGB Conversion
+let tissue = [];       // immortal: one per page
+let microbes = [];     // mortal: the evolving population
+let bonds = [];        // structural, permanent
+let cellById = new Map();
+let nextId = 0;
+
+const stats = {
+  births: 0, deaths: 0, generation: 0,
+  meanSplit: 1, meanMeta: 0.04, meanMotility: 1,
+};
+
 function hslToRgb(h, s, l) {
-    h /= 360; s /= 100; l /= 100;
-    let r, g, b;
-    if (s === 0) {
-        r = g = b = l;
-    } else {
-        const hue2rgb = (p, q, t) => {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1/6) return p + (q - p) * 6 * t;
-            if (t < 1/2) return q;
-            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-        };
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
-        r = hue2rgb(p, q, h + 1/3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1/3);
-    }
-    return [r, g, b];
+  h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
+  if (s === 0) return [l, l, l];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const f = (t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
 }
 
-class Tether {
-    constructor(cellA, cellB, color) {
-        this.cellA = cellA;
-        this.cellB = cellB;
-        this.color = color;
-        this.life = 1.0;
-        this.width = Math.min(cellA.radius, cellB.radius) * 0.65;
-    }
-
-    update(dt) {
-        this.life -= dt * 0.4;
-        const dist = Math.hypot(this.cellA.x - this.cellB.x, this.cellA.y - this.cellB.y);
-        this.width = Math.max(0, (1.0 - dist / 0.45) * Math.min(this.cellA.radius, this.cellB.radius) * 0.75 * this.life);
-        return this.life > 0 && this.width > 0.005;
-    }
-}
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 0.82;
 
 class Cell {
-    constructor(x, y, radius, color, isLinked = false, nodeData = null, parentHue = null) {
-        this.id = nextCellId++;
-        this.x = x;
-        this.y = y;
-        this.vx = (Math.random() - 0.5) * 0.004;
-        this.vy = (Math.random() - 0.5) * 0.004;
-        this.baseRadius = Math.max(MIN_CELL_RADIUS, radius);
-        this.radius = this.baseRadius;
-        this.mass = Math.PI * this.radius * this.radius;
-        this.color = color;
-        this.parentHue = parentHue;
-        this.isLinked = isLinked;
-        this.nodeData = nodeData;
-        this.immunityTimer = 1.2;
-        this.isRoot = false;
-
-        // Smooth magnetic HUD label offset tracking
-        this.hudOffsetX = 0;
-        this.hudOffsetY = 0;
-
-        // Autonomous Biological Metabolism
-        this.isAutonomous = !isLinked;
-        this.energy = 0.2 + Math.random() * 0.2;
-        this.metabolicRate = 0.03 + Math.random() * 0.02;
-        this.splitEnergyThreshold = 1.0;
-    }
-
-    update(dt) {
-        this.immunityTimer = Math.max(0, this.immunityTimer - dt);
-
-        if (this.isAutonomous) {
-            // Chemotaxis toward nearest linked cell
-            let nearestSource = null;
-            let minDist = Infinity;
-            cells.forEach(other => {
-                if (other.isLinked) {
-                    const d = Math.hypot(other.x - this.x, other.y - this.y);
-                    if (d < minDist) {
-                        minDist = d;
-                        nearestSource = other;
-                    }
-                }
-            });
-
-            if (nearestSource && minDist < 1.0) {
-                const pull = 0.0003 / (minDist + 0.15);
-                this.vx += (nearestSource.x - this.x) * pull;
-                this.vy += (nearestSource.y - this.y) * pull;
-                this.energy += (0.12 / (minDist + 0.2)) * dt;
-            } else {
-                this.energy += 0.015 * dt;
-            }
-
-            // Gentle Brownian Motion
-            this.vx += (Math.random() - 0.5) * 0.0006;
-            this.vy += (Math.random() - 0.5) * 0.0006;
-
-            // Mass Swelling
-            this.radius = this.baseRadius * (1.0 + this.energy * 0.35);
-            this.mass = Math.PI * this.radius * this.radius;
-
-            // Autonomous Mitosis for unlinked cells
-            if (this.energy >= this.splitEnergyThreshold && this.immunityTimer <= 0 && cells.length < MAX_CELLS) {
-                this.energy = 0.2;
-                divideCell(this);
-                return;
-            }
-        }
-
-        // Viscous Damping
-        this.x += this.vx;
-        this.y += this.vy;
-        this.vx *= 0.86;
-        this.vy *= 0.86;
-
-        // Velocity Clamp
-        const speed = Math.hypot(this.vx, this.vy);
-        if (speed > 0.012) {
-            this.vx = (this.vx / speed) * 0.012;
-            this.vy = (this.vy / speed) * 0.012;
-        }
-
-        // Viewport Containment Force
-        const distFromCenter = Math.hypot(this.x, this.y);
-        if (distFromCenter > 0.42) {
-            const pullBack = (distFromCenter - 0.42) * 0.02;
-            this.vx -= (this.x / distFromCenter) * pullBack;
-            this.vy -= (this.y / distFromCenter) * pullBack;
-        }
-    }
+  constructor(o) {
+    this.id = nextId++;
+    this.x = o.x; this.y = o.y;
+    this.z = o.z ?? (Math.random() - 0.5) * 0.5;   // depth, for the focal plane
+    this.vx = 0; this.vy = 0;
+    this.kind = o.kind;                            // 'nucleus' | 'tissue' | 'microbe'
+    this.node = o.node || null;
+    this.radius = o.radius;
+    this.baseRadius = o.radius;
+    this.color = o.color;
+    this.seed = Math.random() * 1000;
+    this.born = performance.now() / 1000;
+    this.settle = 0;                               // 0..1 birth animation
+    this.genome = o.genome || null;
+    this.energy = o.energy ?? 0.35;
+    this.gen = o.gen ?? 0;
+    this.dying = 0;
+    this.hudX = 0; this.hudY = 0;
+    cellById.set(this.id, this);
+  }
+  get isTissue() { return this.kind !== 'microbe'; }
 }
 
-// Initialize Root Cell (index.html)
-function initEcosystem() {
-    cells = [];
-    tethers = [];
-    const rootData = { id: "index.html", route: "index.html", label: "INDEX" };
-    const rootCell = new Cell(0, 0, 0.13, [1.0, 1.0, 1.0], true, rootData, 0);
-    rootCell.isRoot = true;
-    cells.push(rootCell);
+function newGenome(parent) {
+  if (!parent) {
+    return {
+      split: 0.85 + Math.random() * 0.35,
+      meta: 0.030 + Math.random() * 0.022,
+      motility: 0.6 + Math.random() * 0.8,
+      size: 0.016 + Math.random() * 0.016,
+      hue: Math.random() * 360,
+    };
+  }
+  const g = parent;
+  return {
+    split: THREE_clamp(g.split + gauss() * 0.06, 0.55, 1.9),
+    meta: THREE_clamp(g.meta + gauss() * 0.004, 0.012, 0.085),
+    motility: THREE_clamp(g.motility + gauss() * 0.12, 0.15, 2.4),
+    size: THREE_clamp(g.size + gauss() * 0.003, 0.010, 0.042),
+    hue: (g.hue + gauss() * 16 + 360) % 360,
+  };
+}
+const THREE_clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+/* ---------- growth of the tissue ---------- */
+let birthQueue = [];
+let birthClock = 0;
+
+function seedNucleus() {
+  const n = ROOT;
+  const c = new Cell({
+    x: 0, y: 0, z: 0, kind: 'nucleus', node: n,
+    radius: n.radius * 0.86, color: [0.80, 0.90, 1.0],
+  });
+  c.settle = 1;
+  tissue.push(c);
+  n.cell = c;
+  birthQueue = [...n.children];
 }
 
-function divideCell(parentCell) {
-    const isParentLinked = parentCell.isLinked;
-    const parentRoute = parentCell.nodeData ? parentCell.nodeData.route : null;
-    
-    // Lookup graph neighbors in adjMap that have NOT been birthed yet
-    let neighbors = [];
-    if (parentRoute && adjMap.has(parentRoute)) {
-        neighbors = Array.from(adjMap.get(parentRoute)).filter(r => unvisitedLinks.has(r));
+function tissueColor(node) {
+  // hue encodes lineage, so the map reads as four coloured territories
+  let root = node, chain = [];
+  while (root.parent) { chain.push(root); root = root.parent; }
+  const lineage = chain[chain.length - 1];
+  const base = LINEAGE_HUE[lineage ? lineage.slug : ''] ?? 210;
+  const sibs = node.parent ? node.parent.children : [node];
+  const i = Math.max(0, sibs.indexOf(node));
+  const spread = (i / Math.max(1, sibs.length - 1) - 0.5) * (node.depth === 1 ? 0 : 46);
+  const l = node.depth <= 1 ? 74 : node.depth === 2 ? 66 : 60;
+  return hslToRgb(base + spread, 80, l);
+}
+
+function birthNext() {
+  if (!birthQueue.length) return false;
+  const node = birthQueue.shift();
+  const p = node.parent.cell;
+  if (!p) return false;
+  const jitter = 0.02;
+  const c = new Cell({
+    x: p.x + (Math.random() - 0.5) * jitter,
+    y: p.y + (Math.random() - 0.5) * jitter,
+    z: (node.depth - 1.5) * 0.18 + (Math.random() - 0.5) * 0.12,
+    kind: 'tissue', node,
+    radius: node.radius, color: tissueColor(node),
+  });
+  node.cell = c;
+  tissue.push(c);
+  bonds.push({ a: p, b: c, kind: 'structural' });
+  birthQueue.push(...node.children);
+  return true;
+}
+
+// curated cross-links become bonds as soon as both endpoints exist
+let crossPending = null;
+function wireCrossBonds() {
+  if (crossPending === null) crossPending = CROSS.slice();
+  for (let i = crossPending.length - 1; i >= 0; i--) {
+    const [a, b] = crossPending[i];
+    const ca = NODES.get(a)?.cell, cb = NODES.get(b)?.cell;
+    if (ca && cb) {
+      bonds.push({ a: ca, b: cb, kind: 'cross' });
+      crossPending.splice(i, 1);
     }
-    
-    const numOffspring = Math.floor(Math.random() * 2) + 2; // Spawn 2 or 3 daughter cells
-    const netAdded = isParentLinked ? numOffspring : numOffspring - 1;
+  }
+}
 
-    // Capacity management
-    while (cells.length + netAdded > MAX_CELLS) {
-        const unlinkedIdx = cells.findIndex(c => !c.isLinked && c !== parentCell);
-        if (unlinkedIdx !== -1) {
-            cells.splice(unlinkedIdx, 1);
-        } else {
-            let farthestIdx = -1;
-            let maxD = -1;
-            cells.forEach((c, idx) => {
-                if (c !== parentCell && !c.isRoot) {
-                    const d = Math.hypot(c.x - pointer.worldX, c.y - pointer.worldY);
-                    if (d > maxD) {
-                        maxD = d;
-                        farthestIdx = idx;
-                    }
-                }
-            });
+/* ---------- the mortal population ---------- */
+function spawnMicrobe(host, genome, gen) {
+  const g = genome || newGenome(null);
+  const a = Math.random() * Math.PI * 2;
+  const d = host.radius + g.size * 1.4;
+  const c = new Cell({
+    x: host.x + Math.cos(a) * d, y: host.y + Math.sin(a) * d,
+    z: host.z + (Math.random() - 0.5) * 0.3,
+    kind: 'microbe', radius: g.size,
+    color: hslToRgb(g.hue, 62, 58), genome: g, gen: gen ?? 0,
+    energy: 0.30,
+  });
+  c.vx = Math.cos(a) * 0.004; c.vy = Math.sin(a) * 0.004;
+  microbes.push(c);
+  stats.births++;
+  if (c.gen > stats.generation) stats.generation = c.gen;
+  return c;
+}
 
-            if (farthestIdx !== -1) {
-                if (cells[farthestIdx].nodeData) {
-                    unvisitedLinks.add(cells[farthestIdx].nodeData.route);
-                }
-                cells.splice(farthestIdx, 1);
-            } else {
-                break;
-            }
-        }
+function updateMicrobes(dt, pointerWorld) {
+  const crowd = microbes.length / MICROBE_CAP;
+  for (let i = microbes.length - 1; i >= 0; i--) {
+    const m = microbes[i];
+    const g = m.genome;
+
+    // nutrient: the tissue feeds them, and the objective's focus (your cursor)
+    // is a warm spot -- so selection visibly pulls the colony toward you
+    let uptake = 0.006, nearest = null, nd = Infinity;
+    for (const t of tissue) {
+      const d = Math.hypot(t.x - m.x, t.y - m.y);
+      if (d < nd) { nd = d; nearest = t; }
+    }
+    if (nearest && nd < 0.9) {
+      uptake += 0.078 / (nd + 0.30);
+      const pull = 0.00055 / (nd + 0.15) * g.motility;
+      m.vx += (nearest.x - m.x) * pull;
+      m.vy += (nearest.y - m.y) * pull;
+    }
+    if (pointerWorld) {
+      const pd = Math.hypot(pointerWorld.x - m.x, pointerWorld.y - m.y);
+      if (pd < 0.55) uptake += (1 - pd / 0.55) * 0.10;
     }
 
-    if (isParentLinked) {
-        parentCell.baseRadius = Math.max(MIN_CELL_RADIUS, parentCell.baseRadius * 0.72);
-        parentCell.radius = parentCell.baseRadius;
-        parentCell.mass = Math.PI * parentCell.radius * parentCell.radius;
-        parentCell.immunityTimer = 0.8;
+    // the food near a tissue cell is shared out among everything feeding on it,
+    // so crowding starves the colony and sparse ground rewards motility --
+    // this is the selection pressure, without it nothing ever dies
+    let neighbours = 0;
+    for (const o of microbes) {
+      if (o === m) continue;
+      const dx = o.x - m.x, dy = o.y - m.y;
+      if (dx * dx + dy * dy < 0.075) neighbours++;
+    }
+    uptake /= 1 + neighbours * 0.46;
+
+    const upkeep = g.meta * (1 + crowd * 2.4) * (0.50 + (m.radius / 0.03) ** 2 * 1.00);
+    m.energy += (uptake - upkeep) * dt;
+
+    m.vx += (Math.random() - 0.5) * 0.0009 * g.motility;
+    m.vy += (Math.random() - 0.5) * 0.0009 * g.motility;
+    m.x += m.vx; m.y += m.vy;
+    m.vx *= 0.88; m.vy *= 0.88;
+    m.radius = g.size * (0.72 + THREE_clamp(m.energy, 0, 1.6) * 0.42);
+
+    // drift back if they wander off the slide
+    const rr = Math.hypot(m.x, m.y);
+    if (rr > 3.1) { m.vx -= (m.x / rr) * 0.0025; m.vy -= (m.y / rr) * 0.0025; }
+
+    if (m.dying > 0) {
+      m.dying += dt * 3.2;
+      m.radius = g.size * Math.max(0, 1 - (m.dying - 1)) * 1.3;
+      if (m.dying > 2) { cellById.delete(m.id); microbes.splice(i, 1); stats.deaths++; }
+      continue;
+    }
+    if (m.energy <= 0) { m.dying = 1; continue; }       // apoptosis
+    if (m.energy >= g.split && microbes.length < MICROBE_CAP * 1.18) {
+      m.energy = 0.26;
+      const n = 1 + (Math.random() < 0.42 ? 1 : 0);
+      for (let k = 0; k < n; k++) spawnMicrobe(m, newGenome(g), m.gen + 1);
+    }
+  }
+
+  // the tissue keeps shedding new microbes while there is room
+  if (microbes.length < MICROBE_CAP * 0.9 && tissue.length && Math.random() < dt * 9.0) {
+    const host = tissue[(Math.random() * tissue.length) | 0];
+    spawnMicrobe(host, newGenome(null), 0);
+  }
+
+  if (microbes.length) {
+    let s = 0, mt = 0, mo = 0;
+    for (const m of microbes) { s += m.genome.split; mt += m.genome.meta; mo += m.genome.motility; }
+    stats.meanSplit = s / microbes.length;
+    stats.meanMeta = mt / microbes.length;
+    stats.meanMotility = mo / microbes.length;
+  }
+}
+
+/* ---------- tissue physics: springs to the layout, plus soft repulsion ---------- */
+function updateTissue(dt) {
+  for (const c of tissue) {
+    if (c.settle < 1) c.settle = Math.min(1, c.settle + dt * 1.5);
+    const n = c.node;
+    if (n && c.kind !== 'nucleus') {
+      const breathe = 1 + Math.sin(performance.now() * 0.0004 + c.seed) * 0.012;
+      c.vx += (n.tx * breathe - c.x) * 0.0055;
+      c.vy += (n.ty * breathe - c.y) * 0.0055;
     } else {
-        const parentIndex = cells.indexOf(parentCell);
-        if (parentIndex !== -1) cells.splice(parentIndex, 1);
+      c.vx += (0 - c.x) * 0.01; c.vy += (0 - c.y) * 0.01;
     }
-
-    const calculatedRadius = parentCell.baseRadius * Math.sqrt(1 / numOffspring) * 0.90;
-    const newRadius = Math.max(MIN_CELL_RADIUS, calculatedRadius);
-    const baseHue = parentCell.parentHue !== null ? parentCell.parentHue : Math.random() * 360;
-
-    let candidateRoutes = [...neighbors];
-    
-    if (candidateRoutes.length < numOffspring && unvisitedLinks.size > 0) {
-        for (const route of unvisitedLinks) {
-            if (!candidateRoutes.includes(route)) {
-                candidateRoutes.push(route);
-                if (candidateRoutes.length >= numOffspring) break;
-            }
-        }
+    c.x += c.vx; c.y += c.vy;
+    c.vx *= 0.90; c.vy *= 0.90;
+    c.radius = c.baseRadius * (0.25 + c.settle * 0.75);
+  }
+  // keep neighbours from fusing into one unreadable mass
+  for (let i = 0; i < tissue.length; i++) {
+    for (let j = i + 1; j < tissue.length; j++) {
+      const a = tissue[i], b = tissue[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx * dx + dy * dy;
+      const min = (a.radius + b.radius) * 1.28;
+      if (d2 < min * min && d2 > 1e-9) {
+        const d = Math.sqrt(d2);
+        const push = (min - d) / d * 0.016;
+        a.vx -= dx * push; a.vy -= dy * push;
+        b.vx += dx * push; b.vy += dy * push;
+      }
     }
-
-    const spawnedChildren = [];
-
-    for (let i = 0; i < numOffspring; i++) {
-        if (cells.length >= MAX_CELLS) break;
-
-        const angle = (i / numOffspring) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
-        const spawnDist = (isParentLinked ? parentCell.radius : newRadius) + newRadius * 0.85;
-        const childX = parentCell.x + Math.cos(angle) * spawnDist;
-        const childY = parentCell.y + Math.sin(angle) * spawnDist;
-
-        const childHue = (baseHue + ((i + 1) / (numOffspring + 1)) * 360) % 360;
-        const childColor = parentCell.isRoot && i === 0 ? [1.0, 1.0, 1.0] : hslToRgb(childHue, 85, 65);
-
-        let isLinked = false;
-        let nodeInfo = null;
-
-        if (i < candidateRoutes.length && unvisitedLinks.has(candidateRoutes[i])) {
-            const route = candidateRoutes[i];
-            unvisitedLinks.delete(route);
-            nodeInfo = {
-                id: route,
-                route: route,
-                label: formatNodeLabel(route)
-            };
-            isLinked = true;
-        }
-
-        const childCell = new Cell(childX, childY, newRadius, childColor, isLinked, nodeInfo, childHue);
-        
-        const pushForce = 0.012;
-        childCell.vx = Math.cos(angle) * pushForce;
-        childCell.vy = Math.sin(angle) * pushForce;
-
-        cells.push(childCell);
-        spawnedChildren.push(childCell);
-    }
-
-    if (isParentLinked) {
-        for (let i = 0; i < spawnedChildren.length; i++) {
-            if (tethers.length < MAX_TETHERS) {
-                tethers.push(new Tether(parentCell, spawnedChildren[i], parentCell.color));
-            }
-        }
-    }
-    for (let a = 0; a < spawnedChildren.length; a++) {
-        for (let b = a + 1; b < spawnedChildren.length; b++) {
-            if (tethers.length < MAX_TETHERS) {
-                tethers.push(new Tether(spawnedChildren[a], spawnedChildren[b], parentCell.color));
-            }
-        }
-    }
-
-    if (!camera.isFirstDivisionDone) {
-        camera.isFirstDivisionDone = true;
-        camera.baseZoom = 0.75;
-        camera.targetZoom = 0.75;
-    }
+  }
 }
 
-// Unlinked Cell Merging Engine
-function handleMerging() {
-    for (let i = 0; i < cells.length; i++) {
-        for (let j = i + 1; j < cells.length; j++) {
-            const c1 = cells[i];
-            const c2 = cells[j];
+/* ================= THE OBJECTIVE =================
+   Two passes.
 
-            if (c1.isLinked || c2.isLinked || c1.immunityTimer > 0 || c2.immunityTimer > 0) continue;
+   1. Every cell and every bond is drawn as its own small instanced quad,
+      additively accumulating a density field into a float buffer. Cost scales
+      with the area the cells actually cover, not with pixels x cells -- which
+      is what lifted the old 64-cell ceiling (it was the size of a uniform
+      array, evaluated three times per pixel).
 
-            const dx = c2.x - c1.x;
-            const dy = c2.y - c1.y;
-            const dist = Math.hypot(dx, dy);
-            const mergeThreshold = (c1.radius + c2.radius) * 0.60;
+   2. A fullscreen pass turns that field into a microscope image: lateral
+      chromatic dispersion ordered by wavelength, phase-contrast haloes from
+      the Laplacian of the density, Koehler circular aperture, and grain.
+                                                                             */
 
-            if (dist < mergeThreshold) {
-                const totalMass = c1.mass + c2.mass;
-                c1.x = (c1.x * c1.mass + c2.x * c2.mass) / totalMass;
-                c1.y = (c1.y * c1.mass + c2.y * c2.mass) / totalMass;
-                c1.vx = (c1.vx * c1.mass + c2.vx * c2.mass) / totalMass;
-                c1.vy = (c1.vy * c1.mass + c2.vy * c2.mass) / totalMass;
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, premultipliedAlpha: false });
+let floatOK = false;
+if (gl) floatOK = !!gl.getExtension('EXT_color_buffer_float');
 
-                const m1Ratio = c1.mass / totalMass;
-                const m2Ratio = c2.mass / totalMass;
-                c1.color = [
-                    c1.color[0] * m1Ratio + c2.color[0] * m2Ratio,
-                    c1.color[1] * m1Ratio + c2.color[1] * m2Ratio,
-                    c1.color[2] * m1Ratio + c2.color[2] * m2Ratio
-                ];
+const MAX_BONDS = 420;
+const CELL_STRIDE = 9, BOND_STRIDE = 9;
+const cellData = new Float32Array(MAX_RENDER * CELL_STRIDE);
+const bondData = new Float32Array(MAX_BONDS * BOND_STRIDE);
 
-                c1.mass = totalMass;
-                c1.baseRadius = Math.max(MIN_CELL_RADIUS, Math.sqrt(totalMass / Math.PI));
-                c1.energy = Math.min(1.0, c1.energy + c2.energy);
-                c1.immunityTimer = 0.8;
-
-                cells.splice(j, 1);
-                return;
-            }
-        }
-    }
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src);
+  return s;
+}
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
 }
 
-const vsSource = `#version 300 es
-in vec2 a_position;
-out vec2 v_uv;
-void main() {
-    v_uv = a_position * 0.5 + 0.5;
-    gl_Position = vec4(a_position, 0.0, 1.0);
+const QUAD = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
+
+const CELL_VS = `#version 300 es
+in vec2 aQuad;
+in vec2 aCenter; in float aRadius; in vec3 aColor;
+in float aBlur; in float aKind; in float aSeed;
+uniform vec2 uCam; uniform float uZoom, uAspect;
+out vec2 vLocal; out vec3 vColor;
+out float vBlur, vKind, vSeed, vRadius;
+void main(){
+  float soft = 1.0 + aBlur * 2.2;
+  float R = aRadius * (1.15 + 0.55 * soft);
+  vec2 world = aCenter + aQuad * R;
+  vec2 st = (world - uCam) / uZoom;
+  gl_Position = vec4(st.x * 2.0 / uAspect, st.y * 2.0, 0.0, 1.0);
+  vLocal = aQuad * R; vColor = aColor;
+  vBlur = aBlur; vKind = aKind; vSeed = aSeed; vRadius = aRadius;
 }`;
 
-const fsSource = `#version 300 es
+const CELL_FS = `#version 300 es
 precision highp float;
+in vec2 vLocal; in vec3 vColor;
+in float vBlur, vKind, vSeed, vRadius;
+uniform float uTime, uGain;
+out vec4 frag;
 
-in vec2 v_uv;
-out vec4 fragColor;
-
-uniform vec2 u_resolution;
-uniform vec2 u_camera_pos;
-uniform float u_zoom;
-uniform float u_time;
-uniform int u_num_cells;
-uniform int u_num_tethers;
-
-uniform vec2 u_cell_pos[${MAX_CELLS}];
-uniform vec3 u_cell_color[${MAX_CELLS}];
-uniform float u_cell_radius[${MAX_CELLS}];
-
-uniform vec2 u_tether_a[${MAX_TETHERS}];
-uniform vec2 u_tether_b[${MAX_TETHERS}];
-uniform float u_tether_width[${MAX_TETHERS}];
-uniform vec3 u_tether_color[${MAX_TETHERS}];
-
-float distToSegment(vec2 p, vec2 a, vec2 b) {
-    vec2 pa = p - a, ba = b - a;
-    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
-    return length(pa - ba * h);
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x),
+             mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
 }
+void main(){
+  float r = max(vRadius, 0.003);
+  float u = length(vLocal) / r;
+  float soft = 1.0 + vBlur * 2.2;
+  // membrane + two diffraction rings; defocus broadens and flattens them,
+  // exactly the way an out-of-focus cell blooms under a real objective
+  float core  = exp(-u*u*3.6 / (soft*soft));
+  float ring1 = exp(-pow(u - 0.60*soft, 2.0) / (0.045*soft*soft));
+  float ring2 = exp(-pow(u - 0.96*soft, 2.0) / (0.022*soft*soft));
+  float dens = (core*0.72 + ring1*0.52 + ring2*0.30) / soft;
 
-float getFlowLeniaDensity(vec2 st, out vec3 outColor) {
-    float totalDensity = 0.0;
-    vec3 colorAcc = vec3(0.0);
-    
-    float fluidNoise = sin(st.x * 24.0 + u_time * 1.2) * cos(st.y * 24.0 - u_time * 1.0) * 0.05;
-    
-    for (int i = 0; i < u_num_cells; i++) {
-        float d = distance(st, u_cell_pos[i]);
-        float r = max(u_cell_radius[i], 0.025);
-        float u = d / r;
-        
-        float core = exp(-u * u * 3.8);
-        float ring1 = exp(-pow(u - 0.60, 2.0) / 0.04);
-        float ring2 = exp(-pow(u - 0.95, 2.0) / 0.02);
-        
-        float cellDensity = (core * 0.80 + ring1 * 0.50 + ring2 * 0.30) * (1.0 + fluidNoise);
-        
-        totalDensity += cellDensity;
-        colorAcc += u_cell_color[i] * cellDensity;
-    }
+  // interior: granular cytoplasm and an off-centre nucleus
+  vec2 g = vLocal / r;
+  float gran = vnoise(g * 7.5 + vSeed) * 0.5 + vnoise(g * 17.0 - vSeed) * 0.28;
+  vec2 nuc = vec2(sin(vSeed*3.1), cos(vSeed*2.3)) * 0.26;
+  float nd = length(g - nuc);
+  float nucleus = exp(-nd*nd*11.0) * (0.30 + 0.20 * step(0.5, vKind));
+  dens *= (0.86 + gran * 0.30 / soft);
+  dens += nucleus * core * 0.55;
 
-    for (int t = 0; t < u_num_tethers; t++) {
-        if (u_tether_width[t] <= 0.001) continue;
-        
-        float segDist = distToSegment(st, u_tether_a[t], u_tether_b[t]);
-        float uT = segDist / u_tether_width[t];
-        
-        float tetherDensity = exp(-uT * uT * 4.5) * 0.70;
-        totalDensity += tetherDensity;
-        colorAcc += u_tether_color[t] * tetherDensity;
-    }
-
-    float leniaActivation = exp(-pow(totalDensity - 0.55, 2.0) / 0.08);
-    
-    outColor = colorAcc / max(totalDensity, 0.001);
-    return totalDensity + leniaActivation * 0.40;
-}
-
-void main() {
-    vec2 screenUV = gl_FragCoord.xy / u_resolution.xy;
-    vec2 screenCentered = screenUV - vec2(0.5);
-    
-    // Linear Orthographic Projection matching SVG HUD coordinates exactly
-    vec2 st = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
-    st = (st * u_zoom) + u_camera_pos;
-    
-    float edgeR2 = dot(screenCentered, screenCentered);
-    
-    // Viewport Edge Chromatic Dispersion
-    vec2 dispersionDir = screenCentered * (0.035 * edgeR2);
-    vec2 redST   = st + dispersionDir;
-    vec2 greenST = st;
-    vec2 blueST  = st - dispersionDir;
-    
-    vec3 cRed, cGreen, cBlue;
-    float dRed   = getFlowLeniaDensity(redST, cRed);
-    float dGreen = getFlowLeniaDensity(greenST, cGreen);
-    float dBlue  = getFlowLeniaDensity(blueST, cBlue);
-    
-    vec3 finalColor = vec3(0.0);
-    finalColor.r = mix(0.0, cRed.r, smoothstep(0.10, 0.75, dRed));
-    finalColor.g = mix(0.0, cGreen.g, smoothstep(0.10, 0.75, dGreen));
-    finalColor.b = mix(0.0, cBlue.b, smoothstep(0.10, 0.75, dBlue));
-    
-    // Dark-Field Phase Contrast Edge Glow
-    float edge = fwidth(dGreen) * 5.0;
-    finalColor += vec3(0.80, 0.92, 1.0) * edge * 1.30;
-    
-    // Soft Rectangular Viewport Vignette
-    vec2 edgeFactor = pow(abs(screenCentered) * 2.0, vec2(3.0));
-    float vignette = 1.0 - smoothstep(0.5, 1.5, edgeFactor.x + edgeFactor.y) * 0.35;
-    finalColor *= vignette;
-    
-    // Fine Grain Noise
-    float noise = (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.03;
-    finalColor += noise;
-
-    fragColor = vec4(finalColor, 1.0);
+  frag = vec4(vColor * dens, dens) * uGain;
 }`;
 
-let gl, program;
-let uResLoc, uCamLoc, uZoomLoc, uTimeLoc, uNumCellsLoc, uNumTethersLoc;
-let uCellPosLoc, uCellColorLoc, uCellRadiusLoc;
-let uTetherALoc, uTetherBLoc, uTetherWidthLoc, uTetherColorLoc;
+const BOND_VS = `#version 300 es
+in vec2 aQuad;
+in vec2 aA; in vec2 aB; in float aWidth; in vec3 aColor; in float aBlur;
+uniform vec2 uCam; uniform float uZoom, uAspect;
+out vec2 vSeg; out float vHalfLen, vWidth, vBlur2; out vec3 vColor;
+void main(){
+  vec2 d = aB - aA;
+  float len = max(length(d), 1e-5);
+  vec2 dir = d / len, nrm = vec2(-dir.y, dir.x);
+  float pad = aWidth * (2.4 + aBlur * 2.0);
+  vec2 local = vec2(aQuad.x * (len*0.5 + pad), aQuad.y * pad);
+  vec2 world = (aA + aB) * 0.5 + dir * local.x + nrm * local.y;
+  vec2 st = (world - uCam) / uZoom;
+  gl_Position = vec4(st.x * 2.0 / uAspect, st.y * 2.0, 0.0, 1.0);
+  vSeg = local; vHalfLen = len * 0.5; vWidth = aWidth; vBlur2 = aBlur; vColor = aColor;
+}`;
 
-function setupWebGL() {
-    const canvas = document.getElementById('glcanvas');
-    gl = canvas.getContext('webgl2');
+const BOND_FS = `#version 300 es
+precision highp float;
+in vec2 vSeg; in float vHalfLen, vWidth, vBlur2; in vec3 vColor;
+uniform float uGain;
+out vec4 frag;
+void main(){
+  float d = length(vec2(max(abs(vSeg.x) - vHalfLen, 0.0), vSeg.y));
+  float soft = 1.0 + vBlur2 * 2.2;
+  float dens = exp(-pow(d / (vWidth * soft), 2.0) * 4.2) * 0.42 / soft;
+  frag = vec4(vColor * dens, dens) * uGain;
+}`;
 
-    if (!gl) {
-        console.error("WebGL2 unavailable.");
-        return;
-    }
+const SCOPE_VS = `#version 300 es
+in vec2 aQuad;
+void main(){ gl_Position = vec4(aQuad, 0.0, 1.0); }`;
 
-    function createShader(gl, type, source) {
-        const shader = gl.createShader(type);
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            console.error(gl.getShaderInfoLog(shader));
-            gl.deleteShader(shader);
-            return null;
-        }
-        return shader;
-    }
+const SCOPE_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uField;
+uniform vec2 uRes; uniform float uTime, uAspect, uGainInv;
+out vec4 frag;
 
-    const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
-    const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-    program = gl.createProgram();
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec2 c = uv - 0.5;
+  float r2 = dot(c * vec2(uAspect, 1.0), c * vec2(uAspect, 1.0));
 
-    const positions = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
-    const vbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+  // lateral chromatic aberration: zero on axis, growing toward the field edge,
+  // and ordered red-outward / blue-inward the way a simple lens disperses
+  vec2 disp = c * (0.0115 * r2 + 0.0016);
+  vec4 fR = texture(uField, uv + disp * 1.00);
+  vec4 fG = texture(uField, uv);
+  vec4 fB = texture(uField, uv - disp * 0.90);
+  float dR = fR.a * uGainInv, dG = fG.a * uGainInv, dB = fB.a * uGainInv;
+  vec3 tint = vec3(fR.r, fG.g, fB.b) * uGainInv;
+  vec3 base = vec3(tint.r / max(dR, 0.02), tint.g / max(dG, 0.02), tint.b / max(dB, 0.02));
 
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    const aPosLoc = gl.getAttribLocation(program, 'a_position');
-    gl.enableVertexAttribArray(aPosLoc);
-    gl.vertexAttribPointer(aPosLoc, 2, gl.FLOAT, false, 0, 0);
+  // Lenia activation band -- the living-membrane look of the original piece
+  float act = exp(-pow(dG - 0.55, 2.0) / 0.08);
 
-    uResLoc = gl.getUniformLocation(program, 'u_resolution');
-    uCamLoc = gl.getUniformLocation(program, 'u_camera_pos');
-    uZoomLoc = gl.getUniformLocation(program, 'u_zoom');
-    uTimeLoc = gl.getUniformLocation(program, 'u_time');
-    uNumCellsLoc = gl.getUniformLocation(program, 'u_num_cells');
-    uNumTethersLoc = gl.getUniformLocation(program, 'u_num_tethers');
+  // phase contrast: the Laplacian of the density, which is what produces the
+  // bright halo around every object in a real phase objective
+  vec2 px = 1.0 / uRes;
+  float lap =
+      texture(uField, uv + vec2(px.x, 0.0)).a + texture(uField, uv - vec2(px.x, 0.0)).a
+    + texture(uField, uv + vec2(0.0, px.y)).a + texture(uField, uv - vec2(0.0, px.y)).a
+    - 4.0 * fG.a;
+  lap *= uGainInv;
+  float halo = max(0.0, -lap) * 3.1;
+  float shadowSide = max(0.0, lap) * 1.6;
 
-    uCellPosLoc = gl.getUniformLocation(program, 'u_cell_pos');
-    uCellColorLoc = gl.getUniformLocation(program, 'u_cell_color');
-    uCellRadiusLoc = gl.getUniformLocation(program, 'u_cell_radius');
+  vec3 col;
+  col.r = base.r * smoothstep(0.10, 0.72, dR);
+  col.g = base.g * smoothstep(0.10, 0.72, dG);
+  col.b = base.b * smoothstep(0.10, 0.72, dB);
+  col += vec3(0.78, 0.90, 1.0) * halo * 0.55;      // Airy-bright rim
+  col *= 1.0 - clamp(shadowSide, 0.0, 0.55);       // and the dark side of it
+  col += vec3(0.55, 0.80, 1.0) * act * 0.14;
 
-    uTetherALoc = gl.getUniformLocation(program, 'u_tether_a');
-    uTetherBLoc = gl.getUniformLocation(program, 'u_tether_b');
-    uTetherWidthLoc = gl.getUniformLocation(program, 'u_tether_width');
-    uTetherColorLoc = gl.getUniformLocation(program, 'u_tether_color');
+  // Koehler illumination: a round condenser aperture with a soft edge
+  float ap = length(c * vec2(uAspect, 1.0)) / 0.58;
+  col *= 1.0 - smoothstep(0.80, 1.34, ap) * 0.92;
+  col += vec3(0.06, 0.08, 0.13) * (1.0 - smoothstep(0.0, 1.05, ap)) * 0.35;  // field glow
+
+  // sensor grain
+  float n = fract(sin(dot(gl_FragCoord.xy + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+  col += (n - 0.5) * 0.028;
+
+  frag = vec4(max(col, 0.0), 1.0);
+}`;
+
+let cellProg, bondProg, scopeProg, quadBuf, cellBuf, bondBuf, cellVAO, bondVAO, scopeVAO;
+let fieldFBO, fieldTex, fbW = 0, fbH = 0;
+const GAIN = floatOK ? 1.0 : 0.22;      // RGBA8 fallback clamps at 1, so scale down
+
+function setupGL() {
+  if (!gl) return false;
+  cellProg = program(CELL_VS, CELL_FS);
+  bondProg = program(BOND_VS, BOND_FS);
+  scopeProg = program(SCOPE_VS, SCOPE_FS);
+
+  quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, QUAD, gl.STATIC_DRAW);
+
+  const bindQuad = (prog) => {
+    const loc = gl.getAttribLocation(prog, 'aQuad');
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  };
+  const inst = (prog, name, size, stride, offset) => {
+    const loc = gl.getAttribLocation(prog, name);
+    if (loc < 0) return;
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride * 4, offset * 4);
+    gl.vertexAttribDivisor(loc, 1);
+  };
+
+  cellVAO = gl.createVertexArray();
+  gl.bindVertexArray(cellVAO);
+  bindQuad(cellProg);
+  cellBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, cellBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, cellData.byteLength, gl.DYNAMIC_DRAW);
+  inst(cellProg, 'aCenter', 2, CELL_STRIDE, 0);
+  inst(cellProg, 'aRadius', 1, CELL_STRIDE, 2);
+  inst(cellProg, 'aColor', 3, CELL_STRIDE, 3);
+  inst(cellProg, 'aBlur', 1, CELL_STRIDE, 6);
+  inst(cellProg, 'aKind', 1, CELL_STRIDE, 7);
+  inst(cellProg, 'aSeed', 1, CELL_STRIDE, 8);
+
+  bondVAO = gl.createVertexArray();
+  gl.bindVertexArray(bondVAO);
+  bindQuad(bondProg);
+  bondBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, bondBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, bondData.byteLength, gl.DYNAMIC_DRAW);
+  inst(bondProg, 'aA', 2, BOND_STRIDE, 0);
+  inst(bondProg, 'aB', 2, BOND_STRIDE, 2);
+  inst(bondProg, 'aWidth', 1, BOND_STRIDE, 4);
+  inst(bondProg, 'aColor', 3, BOND_STRIDE, 5);
+  inst(bondProg, 'aBlur', 1, BOND_STRIDE, 8);
+
+  scopeVAO = gl.createVertexArray();
+  gl.bindVertexArray(scopeVAO);
+  bindQuad(scopeProg);
+
+  gl.bindVertexArray(null);
+  fieldFBO = gl.createFramebuffer();
+  fieldTex = gl.createTexture();
+  return true;
 }
 
-function resizeCanvas() {
-    const canvas = document.getElementById('glcanvas');
-    canvas.width = window.innerWidth * window.devicePixelRatio;
-    canvas.height = window.innerHeight * window.devicePixelRatio;
-    if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+function resizeField(w, h) {
+  if (w === fbW && h === fbH) return;
+  fbW = w; fbH = h;
+  gl.bindTexture(gl.TEXTURE_2D, fieldTex);
+  const internal = floatOK ? gl.RGBA16F : gl.RGBA8;
+  const type = floatOK ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+  gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, gl.RGBA, type, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fieldFBO);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fieldTex, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
-// World-to-Screen Projection
+function render(now) {
+  if (!gl) return;
+  const w = canvas.width, h = canvas.height;
+  resizeField(w, h);
+  const aspect = w / h;
+  const t = now * 0.001;
+
+  /* ---- pack instances, blurring by distance from the focal plane ---- */
+  let nc = 0;
+  const push = (c) => {
+    if (nc >= MAX_RENDER) return;
+    const o = nc * CELL_STRIDE;
+    const blur = Math.min(1, Math.abs(c.z - camera.focus) * 1.35);
+    cellData[o] = c.x; cellData[o + 1] = c.y; cellData[o + 2] = c.radius;
+    cellData[o + 3] = c.color[0]; cellData[o + 4] = c.color[1]; cellData[o + 5] = c.color[2];
+    cellData[o + 6] = blur;
+    cellData[o + 7] = c.kind === 'microbe' ? 0 : c.kind === 'nucleus' ? 2 : 1;
+    cellData[o + 8] = c.seed;
+    nc++;
+  };
+  for (const c of tissue) push(c);
+  for (const c of microbes) push(c);
+
+  let nb = 0;
+  for (const b of bonds) {
+    if (nb >= MAX_BONDS) break;
+    const o = nb * BOND_STRIDE;
+    const cross = b.kind === 'cross';
+    const width = Math.min(b.a.radius, b.b.radius) * (cross ? 0.14 : 0.30);
+    const s = Math.min(b.a.settle, b.b.settle);
+    if (s <= 0.02) continue;
+    bondData[o] = b.a.x; bondData[o + 1] = b.a.y;
+    bondData[o + 2] = b.b.x; bondData[o + 3] = b.b.y;
+    bondData[o + 4] = width * s;
+    const col = cross ? [0.42, 0.52, 0.70] : b.a.color;
+    bondData[o + 5] = col[0]; bondData[o + 6] = col[1]; bondData[o + 7] = col[2];
+    bondData[o + 8] = Math.min(1, Math.abs((b.a.z + b.b.z) * 0.5 - camera.focus) * 1.35);
+    nb++;
+  }
+
+  /* ---- pass 1: accumulate the density field ---- */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fieldFBO);
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE);
+
+  gl.useProgram(bondProg);
+  gl.bindVertexArray(bondVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bondBuf);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, bondData, 0, nb * BOND_STRIDE);
+  gl.uniform2f(gl.getUniformLocation(bondProg, 'uCam'), camera.x, camera.y);
+  gl.uniform1f(gl.getUniformLocation(bondProg, 'uZoom'), camera.zoom);
+  gl.uniform1f(gl.getUniformLocation(bondProg, 'uAspect'), aspect);
+  gl.uniform1f(gl.getUniformLocation(bondProg, 'uGain'), GAIN);
+  if (nb) gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, nb);
+
+  gl.useProgram(cellProg);
+  gl.bindVertexArray(cellVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, cellBuf);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, cellData, 0, nc * CELL_STRIDE);
+  gl.uniform2f(gl.getUniformLocation(cellProg, 'uCam'), camera.x, camera.y);
+  gl.uniform1f(gl.getUniformLocation(cellProg, 'uZoom'), camera.zoom);
+  gl.uniform1f(gl.getUniformLocation(cellProg, 'uAspect'), aspect);
+  gl.uniform1f(gl.getUniformLocation(cellProg, 'uTime'), t);
+  gl.uniform1f(gl.getUniformLocation(cellProg, 'uGain'), GAIN);
+  if (nc) gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, nc);
+
+  /* ---- pass 2: through the objective ---- */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, w, h);
+  gl.disable(gl.BLEND);
+  gl.useProgram(scopeProg);
+  gl.bindVertexArray(scopeVAO);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fieldTex);
+  gl.uniform1i(gl.getUniformLocation(scopeProg, 'uField'), 0);
+  gl.uniform2f(gl.getUniformLocation(scopeProg, 'uRes'), w, h);
+  gl.uniform1f(gl.getUniformLocation(scopeProg, 'uTime'), t);
+  gl.uniform1f(gl.getUniformLocation(scopeProg, 'uAspect'), aspect);
+  gl.uniform1f(gl.getUniformLocation(scopeProg, 'uGainInv'), 1 / GAIN);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.bindVertexArray(null);
+}
+
+/* ================= STAGE CONTROLS ================= */
+const camera = {
+  x: 0, y: 0, zoom: 0.9,
+  targetX: 0, targetY: 0, targetZoom: 0.9,
+  baseZoom: 0.9, userZoom: 1, focus: 0,
+  panX: 0, panY: 0,
+};
+const pointer = {
+  x: innerWidth * 0.5, y: innerHeight * 0.5,
+  worldX: 0, worldY: 0, isDown: false, moved: 0, downX: 0, downY: 0,
+  lastX: 0, lastY: 0, seen: false,
+};
+let hoverCell = null, focusPath = new Set(), searchHit = null;
+
 function worldToScreen(wx, wy) {
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const stX = (wx - camera.x) / camera.zoom;
-    const stY = (wy - camera.y) / camera.zoom;
-    const sx = stX * H + 0.5 * W;
-    const sy = 0.5 * H - stY * H;
-    return { x: sx, y: sy };
+  const W = innerWidth, H = innerHeight;
+  return {
+    x: ((wx - camera.x) / camera.zoom) * H + 0.5 * W,
+    y: 0.5 * H - ((wy - camera.y) / camera.zoom) * H,
+  };
 }
-
 function screenToWorld(sx, sy) {
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const stX = (sx - 0.5 * W) / H;
-    const stY = (0.5 * H - sy) / H;
-    const wx = stX * camera.zoom + camera.x;
-    const wy = stY * camera.zoom + camera.y;
-    return { x: wx, y: wy };
+  const W = innerWidth, H = innerHeight;
+  return {
+    x: ((sx - 0.5 * W) / H) * camera.zoom + camera.x,
+    y: ((0.5 * H - sy) / H) * camera.zoom + camera.y,
+  };
 }
 
-function showRouteModal(route) {
-    const modal = document.getElementById('route-modal');
-    const routeText = document.getElementById('modal-route');
-    routeText.textContent = route;
-    modal.classList.add('active');
-    setTimeout(() => {
-        modal.classList.remove('active');
-        window.location.href = route;
-    }, 1200);
+/* ================= HUD =================
+   DOM nodes persist and are keyed by cell id. The old build recreated every
+   card and every SVG path on every frame, which cost more than the simulation
+   and made hover states impossible. */
+const svg = document.getElementById('hud-svg');
+const labelsDiv = document.getElementById('hud-labels');
+const cards = new Map();
+const MAX_CARDS = 14;
+
+function makeCard(cell) {
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  line.setAttribute('class', 'hud-line');
+  svg.appendChild(line);
+  const ret = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  ret.setAttribute('class', 'hud-reticle');
+  svg.appendChild(ret);
+
+  const el = document.createElement('div');
+  el.className = 'hud-card';
+  const title = document.createElement('div');
+  title.className = 'hud-card-title';
+  title.textContent = '> ' + cell.node.label;
+  el.appendChild(title);
+  el.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    showRouteModal(cell.node.slug);
+  });
+  labelsDiv.appendChild(el);
+
+  const rec = { el, line, ret, cell, ox: 0, oy: 0 };
+  cards.set(cell.id, rec);
+  return rec;
+}
+
+function dropCard(id) {
+  const r = cards.get(id);
+  if (!r) return;
+  r.el.remove(); r.line.remove(); r.ret.remove();
+  cards.delete(id);
 }
 
 function renderHUD() {
-    const svg = document.getElementById('hud-svg');
-    const labelsDiv = document.getElementById('hud-labels');
-    svg.innerHTML = '';
-    labelsDiv.innerHTML = '';
+  const W = innerWidth, H = innerHeight;
+  // LOD: label what is nearest the cursor, plus anything big on screen, plus
+  // whatever the search or the traced path has selected
+  const cand = [];
+  for (const c of tissue) {
+    if (c.settle < 0.35 || !c.node) continue;
+    const p = worldToScreen(c.x, c.y);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    if (p.x < -120 || p.x > W + 120 || p.y < -80 || p.y > H + 80) continue;
+    const screenR = (c.radius / camera.zoom) * H;
+    const d = Math.hypot(p.x - pointer.x, p.y - pointer.y);
+    // label what you are pointing at, not just what is biggest -- the cursor is
+    // the objective, and the readout follows it
+    let score = screenR * 1.2 - d * 0.55;
+    if (p.x < 210 && p.y < 140) score -= 3000;      // stay off the readout
+    if (c.node.depth <= 1) score += 1400;           // nucleus + the four lineages, always
+    if (focusPath.has(c.id)) score += 4000;
+    if (c === searchHit) score += 9000;
+    cand.push({ c, p, score, screenR });
+  }
+  cand.sort((a, b) => b.score - a.score);
+  const keep = cand.slice(0, MAX_CARDS);
+  const keepIds = new Set(keep.map((k) => k.c.id));
+  for (const id of [...cards.keys()]) if (!keepIds.has(id)) dropCard(id);
 
-    const linkedCells = cells.filter(c => c.isLinked && c.nodeData);
-    if (linkedCells.length === 0) return;
-
-    // Base box positioning
-    const boxes = linkedCells.map((cell, idx) => {
-        const pos = worldToScreen(cell.x, cell.y);
-        const angle = (idx / linkedCells.length) * Math.PI * 2 - Math.PI / 4;
-        const dist = 48;
-        
-        let initialBoxX = pos.x + Math.cos(angle) * dist + 16;
-        let initialBoxY = pos.y + Math.sin(angle) * dist;
-
-        return {
-            cell: cell,
-            pos: pos,
-            boxX: initialBoxX,
-            boxY: initialBoxY,
-            width: 110,
-            height: 20
-        };
-    });
-
-    // Screen-space relaxation pass to prevent label collisions
-    for (let pass = 0; pass < 5; pass++) {
-        for (let i = 0; i < boxes.length; i++) {
-            for (let j = i + 1; j < boxes.length; j++) {
-                const b1 = boxes[i];
-                const b2 = boxes[j];
-                const dx = b2.boxX - b1.boxX;
-                const dy = b2.boxY - b1.boxY;
-                if (Math.abs(dx) < 115 && Math.abs(dy) < 22) {
-                    const overlapY = (22 - Math.abs(dy)) * 0.5 * (dy >= 0 ? 1 : -1);
-                    b1.boxY -= overlapY;
-                    b2.boxY += overlapY;
-                }
-            }
+  // spread the boxes so they don't stack on top of one another
+  keep.forEach((k, i) => {
+    const len = Math.hypot(k.c.x, k.c.y);
+    let dx = 1, dy = 0;
+    if (len > 1e-4) { dx = k.c.x / len; dy = -k.c.y / len; }   // screen y is flipped
+    else { const a = (i / Math.max(1, keep.length)) * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a); }
+    k.bx = k.p.x + dx * (k.screenR + 40) + 12;
+    k.by = k.p.y + dy * (k.screenR + 34);
+  });
+  for (let pass = 0; pass < 10; pass++) {
+    for (let i = 0; i < keep.length; i++) {
+      for (let j = i + 1; j < keep.length; j++) {
+        const A = keep[i], B = keep[j];
+        const dx = B.bx - A.bx, dy = B.by - A.by;
+        if (Math.abs(dx) < 126 && Math.abs(dy) < 26) {
+          const py = (26 - Math.abs(dy)) * 0.55 * (dy >= 0 ? 1 : -1);
+          A.by -= py; B.by += py;
+          const px = (126 - Math.abs(dx)) * 0.06 * (dx >= 0 ? 1 : -1);
+          A.bx -= px; B.bx += px;
         }
+      }
     }
+    for (const k of keep) {
+      k.bx = Math.max(8, Math.min(W - 130, k.bx));
+      k.by = Math.max(18, Math.min(H - 18, k.by));
+    }
+  }
 
-    // --- Large Radius Magnetic Attraction Pass with Slow Fluid Ease ---
-    const MAG_RADIUS = 550;   // Larger magnetic influence radius in pixels
-    const MAG_MAX_PULL = 48;  // Maximum pixel drift toward cursor
+  for (const k of keep) {
+    const rec = cards.get(k.c.id) || makeCard(k.c);
+    const [r, g, b] = k.c.color;
+    const rgb = `${(r * 255) | 0}, ${(g * 255) | 0}, ${(b * 255) | 0}`;
+    const mid = (k.p.x + k.bx) * 0.5;
+    rec.line.setAttribute('d', `M ${k.p.x} ${k.p.y} L ${mid} ${k.by} L ${k.bx} ${k.by}`);
+    rec.line.style.setProperty('--card-rgb', rgb);
+    const s = 5;
+    rec.ret.setAttribute('d', `M ${k.p.x - s} ${k.p.y} H ${k.p.x + s} M ${k.p.x} ${k.p.y - s} V ${k.p.y + s}`);
+    rec.ret.style.setProperty('--card-rgb', rgb);
+    rec.el.style.transform = `translate(${k.bx}px, ${k.by}px) translateY(-50%)`;
+    rec.el.style.setProperty('--card-rgb', rgb);
+    rec.el.classList.toggle('traced', focusPath.has(k.c.id));
+  }
+}
 
-    boxes.forEach(b => {
-        const distToPointer = Math.hypot(pointer.x - b.boxX, pointer.y - b.boxY);
-        let targetOffsetX = 0;
-        let targetOffsetY = 0;
+/* ---------- instrument readout ---------- */
+const UM_PER_UNIT = 400;
+const BAR_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000];
+const el = (id) => document.getElementById(id);
 
-        if (distToPointer < MAG_RADIUS && distToPointer > 0.001) {
-            const normDist = distToPointer / MAG_RADIUS;
-            // Smooth quadratic easing curve for gentle pull across larger distance
-            const easeFactor = Math.pow(1.0 - normDist, 2.2);
-            const pullMagnitude = easeFactor * MAG_MAX_PULL;
+function renderInstrument() {
+  const H = innerHeight;
+  const umPerPx = (camera.zoom * UM_PER_UNIT) / H;
+  let best = BAR_STEPS[0], bestErr = Infinity;
+  for (const s of BAR_STEPS) {
+    const px = s / umPerPx;
+    const err = Math.abs(px - 96);
+    if (err < bestErr && px < 200) { bestErr = err; best = s; }
+  }
+  el('scale-line').style.width = Math.round(best / umPerPx) + 'px';
+  el('scale-len').textContent = best >= 1000 ? (best / 1000) + ' mm' : best + ' µm';
 
-            targetOffsetX = ((pointer.x - b.boxX) / distToPointer) * pullMagnitude;
-            targetOffsetY = ((pointer.y - b.boxY) / distToPointer) * pullMagnitude;
-        }
+  const mag = Math.max(2, Math.round(80 / camera.zoom));
+  el('rd-mag').textContent = mag + '×';
+  el('rd-focus').textContent = (camera.focus >= 0 ? '+' : '') + camera.focus.toFixed(2);
+  el('rd-tissue').textContent = tissue.length + '/' + NODES.size;
+  el('rd-pop').textContent = String(microbes.length).padStart(3, '0');
+  el('rd-gen').textContent = 'G' + stats.generation;
+  el('rd-traits').textContent =
+    `s${stats.meanSplit.toFixed(2)} m${stats.meanMeta.toFixed(3)} v${stats.meanMotility.toFixed(2)}`;
+  el('rd-flux').textContent = `+${stats.births} −${stats.deaths}`;
+  el('rd-specimen').textContent = hoverCell && hoverCell.node
+    ? hoverCell.node.label : (searchHit ? searchHit.node.label : 'IORI.ME');
+}
 
-        // Frame-by-frame interpolation (lerp) for slow, graceful flowing momentum
-        b.cell.hudOffsetX += (targetOffsetX - b.cell.hudOffsetX) * 0.045;
-        b.cell.hudOffsetY += (targetOffsetY - b.cell.hudOffsetY) * 0.045;
+/* ---------- the crawlable index ----------
+   The old page contained not a single <a href>, so iori.me's homepage was
+   invisible to anything that does not run WebGL -- crawlers and screen readers
+   included. This is the same list the cells are built from. */
+function buildCrawlableNav(pages) {
+  const nav = el('site-index');
+  if (!nav) return;
+  // site.py writes this list into the markup so it is there without scripts;
+  // only fall back to building it here if that block is missing
+  if (nav.querySelector('.index-body ul')) return;
+  const groups = new Map();
+  for (const p of pages) {
+    if (p.slug === SELF) continue;
+    if (!groups.has(p.category)) groups.set(p.category, []);
+    groups.get(p.category).push(p);
+  }
+  const frag = document.createDocumentFragment();
+  for (const cat of [...groups.keys()].sort()) {
+    const h = document.createElement('h2');
+    h.textContent = cat;
+    frag.appendChild(h);
+    const ul = document.createElement('ul');
+    for (const p of groups.get(cat).sort((a, b) => a.slug.localeCompare(b.slug))) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = p.slug;
+      a.textContent = p.title || p.slug;
+      li.appendChild(a);
+      ul.appendChild(li);
+    }
+    frag.appendChild(ul);
+  }
+  nav.querySelector('.index-body').appendChild(frag);
+}
 
-        b.boxX += b.cell.hudOffsetX;
-        b.boxY += b.cell.hudOffsetY;
-    });
+/* ---------- navigation ---------- */
+function showRouteModal(route) {
+  const modal = el('route-modal');
+  el('modal-route').textContent = route;
+  modal.classList.add('active');
+  setTimeout(() => { window.location.href = route; }, 650);
+}
 
-    boxes.forEach(b => {
-        if (b.pos.x < -100 || b.pos.x > window.innerWidth + 100 || b.pos.y < -100 || b.pos.y > window.innerHeight + 100) return;
+// trace the bond chain from a cell back to the nucleus
+function tracePath(cell) {
+  const set = new Set();
+  let n = cell && cell.node;
+  while (n) { if (n.cell) set.add(n.cell.id); n = n.parent; }
+  return set;
+}
 
-        // Convert cell color [r, g, b] (0..1) to RGB string format
-        const [cr, cg, cb] = b.cell.color;
-        const r255 = Math.round(cr * 255);
-        const g255 = Math.round(cg * 255);
-        const b255 = Math.round(cb * 255);
-        const rgbStr = `${r255}, ${g255}, ${b255}`;
-
-        // Leader Line in SVG (from cell center to magnet box)
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const midX = (b.pos.x + b.boxX) * 0.5;
-        path.setAttribute('d', `M ${b.pos.x} ${b.pos.y} L ${midX} ${b.boxY} L ${b.boxX} ${b.boxY}`);
-        path.setAttribute('class', 'hud-line');
-        path.style.setProperty('--card-rgb', rgbStr);
-        svg.appendChild(path);
-
-        // Reticle (+) directly on cell center
-        const reticle = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const rSize = 5;
-        reticle.setAttribute('d', `M ${b.pos.x - rSize} ${b.pos.y} H ${b.pos.x + rSize} M ${b.pos.x} ${b.pos.y - rSize} V ${b.pos.y + rSize}`);
-        reticle.setAttribute('class', 'hud-reticle');
-        reticle.style.setProperty('--card-rgb', rgbStr);
-        svg.appendChild(reticle);
-
-        // Translucent Custom Colored HTML Card
-        const card = document.createElement('div');
-        card.className = 'hud-card';
-        card.style.left = `${b.boxX}px`;
-        card.style.top = `${b.boxY}px`;
-        card.style.setProperty('--card-rgb', rgbStr);
-
-        const title = document.createElement('div');
-        title.className = 'hud-card-title';
-        title.textContent = `> ${b.cell.nodeData.label}`;
-
-        card.appendChild(title);
-
-        card.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            showRouteModal(b.cell.nodeData.route);
-        });
-
-        labelsDiv.appendChild(card);
-    });
+/* ================= INPUT ================= */
+function pickCell(wx, wy) {
+  let near = null, nd = Infinity;
+  for (const c of tissue) {
+    const d = Math.hypot(c.x - wx, c.y - wy);
+    if (d < c.radius * 2.4 && d < nd) { nd = d; near = c; }
+  }
+  return near;
 }
 
 function setupInputs() {
-    const container = document.getElementById('canvas-container');
+  const container = document.getElementById('canvas-container');
 
-    const updatePointerPos = (e) => {
-        pointer.x = e.clientX;
-        pointer.y = e.clientY;
-        const wPos = screenToWorld(e.clientX, e.clientY);
-        pointer.worldX = wPos.x;
-        pointer.worldY = wPos.y;
-    };
+  // the chrome sits inside the canvas container, so without this a click on a
+  // button also reaches the stage and navigates to whatever cell was last hit
+  for (const id of ['scope-hud', 'search-box', 'index-toggle', 'site-index', 'scale-bar']) {
+    const node = el(id);
+    if (node) node.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
 
-    container.addEventListener('pointerdown', (e) => {
-        pointer.isDown = true;
-        updatePointerPos(e);
+  const track = (e) => {
+    pointer.x = e.clientX; pointer.y = e.clientY; pointer.seen = true;
+    const w = screenToWorld(e.clientX, e.clientY);
+    pointer.worldX = w.x; pointer.worldY = w.y;
+  };
 
-        pointer.draggedCell = null;
-        let closestDist = Infinity;
+  container.addEventListener('pointerdown', (e) => {
+    track(e);
+    pointer.isDown = true; pointer.moved = 0;
+    pointer.downX = e.clientX; pointer.downY = e.clientY;
+    pointer.lastX = e.clientX; pointer.lastY = e.clientY;
+    container.setPointerCapture?.(e.pointerId);
+  });
 
-        cells.forEach(cell => {
-            const d = Math.hypot(cell.x - pointer.worldX, cell.y - pointer.worldY);
-            if (d < cell.radius * 2.2 && d < closestDist) {
-                closestDist = d;
-                pointer.draggedCell = cell;
-            }
-        });
-    });
+  container.addEventListener('pointermove', (e) => {
+    if (pointer.isDown) {
+      const dx = e.clientX - pointer.lastX, dy = e.clientY - pointer.lastY;
+      pointer.moved += Math.abs(dx) + Math.abs(dy);
+      // drag pans the stage, like moving the slide under the objective
+      camera.panX -= (dx / innerHeight) * camera.zoom;
+      camera.panY += (dy / innerHeight) * camera.zoom;
+      pointer.lastX = e.clientX; pointer.lastY = e.clientY;
+    }
+    track(e);
+  });
 
-    container.addEventListener('pointermove', (e) => {
-        updatePointerPos(e);
+  const release = (e) => {
+    if (!pointer.isDown) return;
+    pointer.isDown = false;
+    if (pointer.moved >= 6) return;
+    const hit = pickCell(pointer.worldX, pointer.worldY);   // test now, not last frame
+    if (hit && hit.node) showRouteModal(hit.node.slug);
+  };
+  container.addEventListener('pointerup', release);
+  container.addEventListener('pointercancel', () => { pointer.isDown = false; });
 
-        if (pointer.isDown && pointer.draggedCell && !camera.isFirstDivisionDone) {
-            pointer.draggedCell.x = pointer.worldX;
-            pointer.draggedCell.y = pointer.worldY;
-        }
-    });
+  // scroll = the coarse focus knob: it racks the objective in and out
+  container.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camera.userZoom = Math.min(3.4, Math.max(0.22, camera.userZoom * Math.exp(e.deltaY * 0.0012)));
+  }, { passive: false });
 
-    container.addEventListener('pointerup', () => {
-        if (!pointer.isDown) return;
-        pointer.isDown = false;
+  // search: "/" to open, Enter to travel
+  const search = el('search-input');
+  addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement !== search) {
+      e.preventDefault(); el('search-box').classList.add('open'); search.focus();
+    } else if (e.key === 'Escape') {
+      el('search-box').classList.remove('open'); search.blur();
+      search.value = ''; searchHit = null;
+    } else if (e.key === 'i' && document.activeElement !== search) {
+      el('site-index').classList.toggle('open');
+    }
+  });
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    searchHit = null;
+    if (!q) return;
+    let best = null, bestScore = -1;
+    for (const c of tissue) {
+      if (!c.node) continue;
+      const hay = (c.node.slug + ' ' + c.node.title).toLowerCase();
+      const i = hay.indexOf(q);
+      if (i < 0) continue;
+      const score = 100 - i - Math.abs(hay.length - q.length) * 0.01;
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    searchHit = best;
+  });
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && searchHit) showRouteModal(searchHit.node.slug);
+  });
 
-        if (pointer.draggedCell) {
-            divideCell(pointer.draggedCell);
-        }
-        pointer.draggedCell = null;
-    });
+  el('index-toggle').addEventListener('click', () => el('site-index').classList.toggle('open'));
 }
 
+function resizeCanvas() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = Math.round(innerWidth * dpr);
+  canvas.height = Math.round(innerHeight * dpr);
+  canvas.style.width = innerWidth + 'px';
+  canvas.style.height = innerHeight + 'px';
+}
+
+/* ================= LOOP ================= */
 let lastTime = performance.now();
+let hintShown = false;
 
-function animate(now) {
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
-    lastTime = now;
+function updateCamera(dt) {
+  // the field of view opens as the specimen grows, then the wheel takes over
+  let far = 0.35;
+  for (const c of tissue) far = Math.max(far, Math.hypot(c.x, c.y) + c.radius * 2);
+  camera.baseZoom = Math.min(6.6, far * 2.25);
+  camera.targetZoom = camera.baseZoom * camera.userZoom;
 
-    let nearestDist = Infinity;
-    let closestCell = null;
+  const mx = (pointer.x - 0.5 * innerWidth) / innerHeight;
+  const my = (0.5 * innerHeight - pointer.y) / innerHeight;
+  let cx = camera.panX + mx * camera.zoom * 0.10;
+  let cy = camera.panY + my * camera.zoom * 0.10;
+  const target = searchHit || (hoverCell && hoverCell.kind !== 'nucleus' ? hoverCell : null);
+  if (target) { cx += target.x * 0.22; cy += target.y * 0.22; }
+  camera.targetX = cx; camera.targetY = cy;
 
-    for (let t = tethers.length - 1; t >= 0; t--) {
-        if (!tethers[t].update(dt)) {
-            tethers.splice(t, 1);
-        }
-    }
-
-    const currentCells = [...cells];
-
-    currentCells.forEach(cell => {
-        cells.forEach(other => {
-            if (cell === other) return;
-            const dx = other.x - cell.x;
-            const dy = other.y - cell.y;
-            const dist = Math.hypot(dx, dy);
-
-            // --- 1. Graph Topology Spring Attraction ---
-            if (cell.isLinked && other.isLinked && cell.nodeData && other.nodeData) {
-                const routeA = cell.nodeData.route;
-                const routeB = other.nodeData.route;
-
-                if (adjMap.has(routeA) && adjMap.get(routeA).has(routeB)) {
-                    const restDist = 0.22;
-                    const springK = 0.007;
-                    const delta = dist - restDist;
-                    
-                    if (dist > 0.0001) {
-                        const springForce = delta * springK;
-                        cell.vx += (dx / dist) * springForce;
-                        cell.vy += (dy / dist) * springForce;
-                    }
-
-                    if (dist < 0.38) {
-                        let existingTether = tethers.find(t => 
-                            (t.cellA === cell && t.cellB === other) || 
-                            (t.cellA === other && t.cellB === cell)
-                        );
-                        if (!existingTether && tethers.length < MAX_TETHERS) {
-                            const avgColor = [
-                                (cell.color[0] + other.color[0]) * 0.5,
-                                (cell.color[1] + other.color[1]) * 0.5,
-                                (cell.color[2] + other.color[2]) * 0.5
-                            ];
-                            tethers.push(new Tether(cell, other, avgColor));
-                        } else if (existingTether) {
-                            existingTether.life = Math.min(1.0, existingTether.life + dt * 1.2);
-                        }
-                    }
-                }
-            }
-
-            // --- 2. Collision & Overlap Repulsion ---
-            const minDist = Math.max(0.08, (cell.radius + other.radius) * 1.05);
-            if (dist < minDist && dist > 0) {
-                const overlap = (minDist - dist) / dist;
-                cell.vx -= dx * overlap * 0.015;
-                cell.vy -= dy * overlap * 0.015;
-            }
-        });
-
-        const distToCursor = Math.hypot(cell.x - pointer.worldX, cell.y - pointer.worldY);
-        if (distToCursor < 0.6) {
-            const pull = (1.0 - distToCursor / 0.6) * 0.004;
-            cell.vx += (pointer.worldX - cell.x) * pull;
-            cell.vy += (pointer.worldY - cell.y) * pull;
-        }
-
-        if (distToCursor < nearestDist) {
-            nearestDist = distToCursor;
-            closestCell = cell;
-        }
-
-        cell.update(dt);
-    });
-
-    handleMerging();
-
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const mouseNormX = (pointer.x - 0.5 * W) / H;
-    const mouseNormY = (0.5 * H - pointer.y) / H;
-
-    if (camera.isFirstDivisionDone) {
-        camera.targetX = mouseNormX * 0.16;
-        camera.targetY = mouseNormY * 0.16;
-
-        if (nearestDist < 0.35 && closestCell) {
-            camera.targetZoom = camera.baseZoom * 0.84;
-            camera.targetX = closestCell.x * 0.35 + mouseNormX * 0.06;
-            camera.targetY = closestCell.y * 0.35 + mouseNormY * 0.06;
-        } else {
-            camera.targetZoom = camera.baseZoom;
-        }
-    } else if (cells.length > 0) {
-        camera.targetX = cells[0].x;
-        camera.targetY = cells[0].y;
-    }
-
-    camera.x += (camera.targetX - camera.x) * 0.08;
-    camera.y += (camera.targetY - camera.y) * 0.08;
-    camera.zoom += (camera.targetZoom - camera.zoom) * 0.08;
-
-    if (gl) {
-        gl.useProgram(program);
-
-        gl.uniform2f(uResLoc, gl.canvas.width, gl.canvas.height);
-        gl.uniform2f(uCamLoc, camera.x, camera.y);
-        gl.uniform1f(uZoomLoc, camera.zoom);
-        gl.uniform1f(uTimeLoc, now * 0.001);
-        gl.uniform1i(uNumCellsLoc, Math.min(cells.length, MAX_CELLS));
-        gl.uniform1i(uNumTethersLoc, Math.min(tethers.length, MAX_TETHERS));
-
-        const posArray = new Float32Array(MAX_CELLS * 2);
-        const colorArray = new Float32Array(MAX_CELLS * 3);
-        const radiusArray = new Float32Array(MAX_CELLS);
-
-        for (let i = 0; i < Math.min(cells.length, MAX_CELLS); i++) {
-            posArray[i * 2] = cells[i].x;
-            posArray[i * 2 + 1] = cells[i].y;
-
-            colorArray[i * 3] = cells[i].color[0];
-            colorArray[i * 3 + 1] = cells[i].color[1];
-            colorArray[i * 3 + 2] = cells[i].color[2];
-
-            radiusArray[i] = cells[i].radius;
-        }
-
-        gl.uniform2fv(uCellPosLoc, posArray);
-        gl.uniform3fv(uCellColorLoc, colorArray);
-        gl.uniform1fv(uCellRadiusLoc, radiusArray);
-
-        const tAArray = new Float32Array(MAX_TETHERS * 2);
-        const tBArray = new Float32Array(MAX_TETHERS * 2);
-        const tWidthArray = new Float32Array(MAX_TETHERS);
-        const tColorArray = new Float32Array(MAX_TETHERS * 3);
-
-        for (let t = 0; t < Math.min(tethers.length, MAX_TETHERS); t++) {
-            tAArray[t * 2] = tethers[t].cellA.x;
-            tAArray[t * 2 + 1] = tethers[t].cellA.y;
-
-            tBArray[t * 2] = tethers[t].cellB.x;
-            tBArray[t * 2 + 1] = tethers[t].cellB.y;
-
-            tWidthArray[t] = tethers[t].width;
-
-            tColorArray[t * 3] = tethers[t].color[0];
-            tColorArray[t * 3 + 1] = tethers[t].color[1];
-            tColorArray[t * 3 + 2] = tethers[t].color[2];
-        }
-
-        gl.uniform2fv(uTetherALoc, tAArray);
-        gl.uniform2fv(uTetherBLoc, tBArray);
-        gl.uniform1fv(uTetherWidthLoc, tWidthArray);
-        gl.uniform3fv(uTetherColorLoc, tColorArray);
-
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
-
-    renderHUD();
-
-    requestAnimationFrame(animate);
+  camera.x += (camera.targetX - camera.x) * Math.min(1, dt * 4.5);
+  camera.y += (camera.targetY - camera.y) * Math.min(1, dt * 4.5);
+  camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, dt * 3.0);
 }
 
-window.addEventListener('resize', resizeCanvas);
-window.addEventListener('DOMContentLoaded', async () => {
-    setupWebGL();
-    resizeCanvas();
-    await loadConnections();
-    initEcosystem();
-    setupInputs();
-    requestAnimationFrame(animate);
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  if (structureReady) {
+    if (!tissue.length) seedNucleus();
+    // the specimen grows on its own -- nothing here waits for a click
+    birthClock += dt;
+    const interval = Math.max(0.035, 0.22 - tissue.length * 0.0021);
+    let guard = 4;
+    while (birthQueue.length && birthClock > interval && guard-- > 0) {
+      birthClock -= interval;
+      birthNext();
+    }
+    wireCrossBonds();
+    updateTissue(dt);
+    updateMicrobes(dt, pointer.seen ? { x: pointer.worldX, y: pointer.worldY } : null);
+  }
+
+  // whatever is under the cursor sets the focal plane and lights its lineage
+  hoverCell = pickCell(pointer.worldX, pointer.worldY);
+  const focusOn = hoverCell || searchHit;
+  focusPath = focusOn ? tracePath(focusOn) : new Set();
+  const wantFocus = focusOn ? focusOn.z : 0;
+  camera.focus += (wantFocus - camera.focus) * Math.min(1, dt * 3.5);
+
+  updateCamera(dt);
+  render(now);
+  renderHUD();
+  renderInstrument();
+
+  if (!hintShown && tissue.length > 6) {
+    hintShown = true;
+    el('boot-hint').classList.add('fade');
+  }
+  requestAnimationFrame(frame);
+}
+
+addEventListener('resize', resizeCanvas);
+addEventListener('DOMContentLoaded', async () => {
+  resizeCanvas();
+  if (!setupGL()) {
+    el('boot-hint').textContent = 'WEBGL2 UNAVAILABLE — USE THE INDEX BELOW';
+    el('site-index').classList.add('open');
+    await loadStructure();
+    return;
+  }
+  setupInputs();
+  await loadStructure();
+  requestAnimationFrame(frame);
 });
+
 </script>
 </body>
 </html>

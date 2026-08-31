@@ -114,6 +114,8 @@ sync_website_files() {
         --exclude 'splats/' \
         --exclude 'assets/pdf-full.pdf' \
         --exclude 'images/autoportrait copy.mp4' \
+        --exclude 'IMG.png' \
+        --exclude 'moses_car_cursor.png' \
         --exclude '.DS_Store' \
         --exclude 'session-*.md' \
         --exclude 'sandbox.md' \
@@ -226,7 +228,7 @@ iori.me {
     header @revalidate Cache-Control "no-cache"
     @immutable path /icon/* /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
-    @shortcache path /assets/* /images/* /js/* /moses_car_cursor.png
+    @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
     header @shortcache Cache-Control "public, max-age=3600"
 
     # --- MAIN SITE CONFIGURATION ---
@@ -276,7 +278,7 @@ iori.me {
     header @revalidate Cache-Control "no-cache"
     @immutable path /icon/* /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
-    @shortcache path /assets/* /images/* /js/* /moses_car_cursor.png
+    @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
     header @shortcache Cache-Control "public, max-age=3600"
 
     # Enable the static file server

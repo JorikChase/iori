@@ -263,10 +263,11 @@ const tracksCv = document.getElementById("tracks");
 const tracksCtx = tracksCv.getContext("2d");
 
 const CELL_W = 128, CELL_H = 80;   // displayed cell size (the atlas is 2x this)
-// (stepX, stepY) -> octant, indexed by (sy+1)*3 + (sx+1). The car only ever
-// drives one of eight headings, so the sprite is literally its direction.
-const OCT_FROM_STEP = [5, 6, 7, 4, -1, 0, 3, 2, 1];
-const TAN22 = Math.tan(Math.PI / 8);   // the straight/diagonal boundary
+// The eight headings the car can drive, in octant order:
+//   0 E  1 SE  2 S  3 SW  4 W  5 NW  6 N  7 NE
+const D = Math.SQRT1_2;
+const OCT_VEC = [[1, 0], [D, D], [0, 1], [-D, D], [-1, 0], [-D, -D], [0, -1], [D, -D]];
+const OCT = Math.PI / 4;
 // octant 0 is east, counting clockwise on screen (y grows downward):
 //   0 E   1 SE   2 S   3 SW   4 W   5 NW   6 N   7 NE
 // mapped onto the atlas cell index for each of those
@@ -295,12 +296,17 @@ const car = {
   hx: 0, hy: 0,     // smoothed vector to the cursor, quantised into a heading
   ux: 1, uy: 0,     // the unit step actually being driven
   oct: 0,           // current sprite octant
+  dwell: 0,         // time held in the current heading
+  moving: false,
   speed: 0,
   hue: 0,           // tyre-track colour, advanced by distance driven
+  trackL: null, trackR: null,   // last rear-wheel points, so rubber connects
 };
 const CHASE = 6.5;        // how hard it pulls toward the cursor
 const MAX_SPEED = 2000;   // px/s
-const DEADZONE = 9;       // stop fidgeting once it is basically there
+const GO = 26;            // start driving once the cursor is this far away
+const STOP = 7;           // and settle once it is this close
+const MIN_DWELL = 0.11;   // seconds a heading must be held before it can change
 const target = { x: car.x, y: car.y };
 let pointerSeen = false, shown = false;
 
@@ -333,37 +339,42 @@ function carTick(now) {
   const dx = target.x - car.x, dy = target.y - car.y;
   const dist = Math.hypot(dx, dy);
 
-  // smooth the vector to the cursor before quantising it, otherwise a heading
-  // sitting near a 22.5 degree boundary flickers between two sprites
-  const sm = 1 - Math.pow(1 - 0.30, dt * 60);
+  // smooth the vector to the cursor before reading a heading off it
+  const sm = 1 - Math.pow(1 - 0.22, dt * 60);
   car.hx += (dx - car.hx) * sm;
   car.hy += (dy - car.hy) * sm;
 
-  // the car drives on a grid: the eight straight and diagonal headings only.
-  // Anything within 22.5 degrees of an axis is a straight, the rest a diagonal,
-  // so it stair-steps toward the cursor instead of sliding at it.
-  const ax = Math.abs(car.hx), ay = Math.abs(car.hy);
-  let sx = 0, sy = 0;
-  if (dist > DEADZONE) {
-    if (ax > ay * TAN22) sx = Math.sign(car.hx);
-    if (ay > ax * TAN22) sy = Math.sign(car.hy);
-  }
+  // separate start and stop thresholds, so parking the cursor just off the car
+  // does not leave it twitching on and off the deadzone edge
+  if (car.moving) { if (dist < STOP) car.moving = false; }
+  else if (dist > GO) car.moving = true;
 
-  if (sx || sy) {
-    const inv = (sx && sy) ? Math.SQRT1_2 : 1;
-    car.ux = sx * inv; car.uy = sy * inv;
+  if (car.moving) {
+    const ang = Math.atan2(car.hy, car.hx);
+    car.dwell += dt;
+    // angular hysteresis plus a minimum dwell: a cursor sitting near a 22.5
+    // degree boundary used to flip the heading every frame, which is what the
+    // jitter was. It now has to travel well past the boundary AND the current
+    // heading has to have been held a moment before it can change.
+    let off = ang - car.oct * OCT;
+    while (off > Math.PI) off -= Math.PI * 2;
+    while (off < -Math.PI) off += Math.PI * 2;
+    if (Math.abs(off) > OCT * 0.80 && car.dwell > MIN_DWELL) {
+      car.oct = ((Math.round(ang / OCT) % 8) + 8) % 8;
+      car.dwell = 0;
+      setDir(car.oct);
+    }
+
+    const v = OCT_VEC[car.oct];
+    car.ux = v[0]; car.uy = v[1];
     car.speed = Math.min(MAX_SPEED, dist * CHASE);
-    const step = car.speed * dt;
-    const px = car.x, py = car.y;
+    const step = Math.min(car.speed * dt, dist);   // never overshoot the cursor
     car.x += car.ux * step;
     car.y += car.uy * step;
-
-    const oct = OCT_FROM_STEP[(sy + 1) * 3 + (sx + 1)];
-    if (oct >= 0 && oct !== car.oct) { car.oct = oct; setDir(oct); }
-
-    layTracks(px, py, step);
+    layTracks(step);
   } else {
     car.speed = 0;
+    car.trackL = car.trackR = null;   // lift the pen while parked
   }
 
   carEl.style.transform = `translate3d(${car.x}px, ${car.y}px, 0)`;
@@ -378,31 +389,44 @@ function carTick(now) {
   }
 }
 
-/* Two thin rubber lines from the rear axle, a segment per frame so they follow
-   the grid exactly. The hue advances with distance driven, so a long drive lays
-   down a spectrum rather than one flat colour. */
-function layTracks(px, py, step) {
+/* Two thin rubber lines from the rear axle. Each segment starts exactly where
+   the previous one ended -- including through a corner, where the wheel offsets
+   swing round to the new heading. Recomputing both ends from the current
+   heading (the obvious way) leaves a visible break at every turn. */
+function layTracks(step) {
   if (tracksCv.height <= 0) return;
   const wrapRect = wrap.getBoundingClientRect();
-  if (car.y < wrapRect.top || car.y > wrapRect.bottom) return;
-
-  car.hue = (car.hue + step * 0.30) % 360;
+  if (car.y < wrapRect.top || car.y > wrapRect.bottom) {
+    car.trackL = car.trackR = null;
+    return;
+  }
   const ox = -car.uy * 10, oy = car.ux * 10;    // half the track width
   const back = 24;
-  const x0 = px - wrapRect.left - car.ux * back;
-  const y0 = py - wrapRect.top - car.uy * back;
-  const x1 = car.x - wrapRect.left - car.ux * back;
-  const y1 = car.y - wrapRect.top - car.uy * back;
+  const bx = car.x - wrapRect.left - car.ux * back;
+  const by = car.y - wrapRect.top - car.uy * back;
+  const L = { x: bx + ox, y: by + oy };
+  const R = { x: bx - ox, y: by - oy };
 
-  tracksCtx.lineWidth = 1.6;
-  tracksCtx.lineCap = "round";
-  for (const side of [-1, 1]) {
-    tracksCtx.strokeStyle = `hsla(${(car.hue + side * 14 + 360) % 360}, 92%, 58%, 0.5)`;
-    tracksCtx.beginPath();
-    tracksCtx.moveTo(x0 + ox * side, y0 + oy * side);
-    tracksCtx.lineTo(x1 + ox * side, y1 + oy * side);
-    tracksCtx.stroke();
+  car.hue = (car.hue + step * 0.30) % 360;
+  if (car.trackL && car.trackR) {
+    tracksCtx.lineWidth = 1.6;
+    tracksCtx.lineCap = "round";
+    tracksCtx.lineJoin = "round";
+    // reject only genuine teleports (a resize, a tab returning from the
+    // background) -- a fixed pixel cap would also cut the trail on any machine
+    // running below about 25fps, where one frame legitimately covers a lot
+    const maxSeg = step * 1.7 + 28;
+    const pairs = [[car.trackL, L, -14], [car.trackR, R, 14]];
+    for (const [prev, now, shift] of pairs) {
+      if (Math.hypot(now.x - prev.x, now.y - prev.y) > maxSeg) continue;
+      tracksCtx.strokeStyle = `hsla(${(car.hue + shift + 360) % 360}, 92%, 58%, 0.55)`;
+      tracksCtx.beginPath();
+      tracksCtx.moveTo(prev.x, prev.y);
+      tracksCtx.lineTo(now.x, now.y);
+      tracksCtx.stroke();
+    }
   }
+  car.trackL = L; car.trackR = R;
 }
 requestAnimationFrame(carTick);
 

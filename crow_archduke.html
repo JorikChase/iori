@@ -952,7 +952,11 @@ function sweptBeak(curve, seg, ring, radiusAt) {
     for (let j = 0; j < ring; j++) {
       const a = i * ring + j, b = i * ring + (j + 1) % ring;
       const c = (i + 1) * ring + j, d = (i + 1) * ring + (j + 1) % ring;
-      idx.push(a, c, b, b, c, d);
+      // Frenet frames give N x B = T, so winding a->b->c is the one that
+      // faces outward. The mirrored order left every triangle inside-out and
+      // computeVertexNormals then baked inward normals, so the beak rendered
+      // its own interior.
+      idx.push(a, b, c, b, d, c);
     }
   }
   const g = new THREE.BufferGeometry();

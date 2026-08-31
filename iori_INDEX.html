@@ -302,7 +302,7 @@
 
     <div id="scale-bar"><div id="scale-line"></div><span id="scale-len">50 µm</span></div>
     <div id="live-readout"></div>
-    <div id="boot-hint">TAP A CELL TO SEED IT &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; PINCH OR SCROLL TO ZOOM &middot; DOUBLE-TAP TO OPEN</div>
+    <div id="boot-hint">TAP A CELL TO SEED &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; PINCH OR SCROLL TO ZOOM &middot; DOUBLE-TAP A CELL TO OPEN IT, THE SLIDE TO RESET</div>
 
     <div id="search-box">
         <span>/</span>
@@ -641,7 +641,7 @@ async function loadStructure() {
 /* ================= CELLS ================= */
 
 const MAX_RENDER = 320;          // hard ceiling: the data-texture width
-const MICROBE_CAP = 85;          // carrying capacity for the mortal population
+const MICROBE_CAP = 58;          // carrying capacity for the mortal population
 
 const LINEAGE_HUE = {
   'fractals.html': 188, 'meta-iris.html': 288,
@@ -709,7 +709,7 @@ function newGenome(parent) {
       split: 0.85 + Math.random() * 0.35,
       meta: 0.030 + Math.random() * 0.022,
       motility: 0.6 + Math.random() * 0.8,
-      size: 0.021 + Math.random() * 0.019,
+      size: 0.040 + Math.random() * 0.030,
       hue: Math.random() * 360,
     };
   }
@@ -718,7 +718,7 @@ function newGenome(parent) {
     split: THREE_clamp(g.split + gauss() * 0.06, 0.55, 1.9),
     meta: THREE_clamp(g.meta + gauss() * 0.004, 0.012, 0.085),
     motility: THREE_clamp(g.motility + gauss() * 0.12, 0.15, 2.4),
-    size: THREE_clamp(g.size + gauss() * 0.003, 0.013, 0.055),
+    size: THREE_clamp(g.size + gauss() * 0.005, 0.026, 0.098),
     hue: (g.hue + gauss() * 16 + 360) % 360,
   };
 }
@@ -853,7 +853,7 @@ function mixMicrobes() {
         split: THREE_clamp(pick(ga.split, gb.split) + gauss() * 0.04, 0.55, 1.9),
         meta: THREE_clamp(pick(ga.meta, gb.meta) + gauss() * 0.003, 0.012, 0.085),
         motility: THREE_clamp(pick(ga.motility, gb.motility) + gauss() * 0.09, 0.15, 2.4),
-        size: THREE_clamp(Math.sqrt(ga.size * ga.size + gb.size * gb.size), 0.013, 0.055),
+        size: THREE_clamp(Math.sqrt(ga.size * ga.size + gb.size * gb.size), 0.026, 0.098),
         hue,
       };
       a.color = hslToRgb(hue, 72, 64);
@@ -904,7 +904,7 @@ function updateMicrobes(dt, pointerWorld) {
     }
     uptake /= 1 + neighbours * 0.46;
 
-    const upkeep = g.meta * (1 + crowd * 2.4) * (0.50 + (m.radius / 0.03) ** 2 * 1.00);
+    const upkeep = g.meta * (1 + crowd * 2.4) * (0.50 + (m.radius / 0.055) ** 2 * 1.00);
     m.energy += (uptake - upkeep) * dt;
 
     m.flash = Math.max(0, m.flash - dt * 2.6);
@@ -1035,7 +1035,7 @@ out vec2 vLocal; out vec3 vColor;
 out float vBlur, vKind, vSeed, vRadius;
 void main(){
   float soft = 1.0 + aBlur * 2.2;
-  float R = aRadius * (1.15 + 0.55 * soft);
+  float R = aRadius * (1.35 + 0.60 * soft);
   vec2 world = aCenter + aQuad * R;
   vec2 st = (world - uCam) / uZoom;
   gl_Position = vec4(st.x * 2.0 / uAspect, st.y * 2.0, 0.0, 1.0);
@@ -1064,9 +1064,26 @@ void main(){
   // membrane + two diffraction rings; defocus broadens and flattens them,
   // exactly the way an out-of-focus cell blooms under a real objective
   float core  = exp(-u*u*3.6 / (soft*soft));
-  float ring1 = exp(-pow(u - 0.60*soft, 2.0) / (0.045*soft*soft));
-  float ring2 = exp(-pow(u - 0.96*soft, 2.0) / (0.022*soft*soft));
-  float dens = (core*0.72 + ring1*0.52 + ring2*0.30) / soft;
+  float dens;
+  if (vKind < 0.5) {
+    // Free-swimming organisms are drawn as Lenia creatures rather than as
+    // plain blobs: concentric kernel shells under an n-fold petal symmetry,
+    // slowly turning. The species falls out of the cell's own seed, so no two
+    // are alike and the shape stays stable for that individual's whole life.
+    float lobes = 3.0 + floor(mod(vSeed * 13.0, 5.0));
+    float spin  = (fract(vSeed * 7.31) - 0.5) * 1.5;
+    float th    = atan(vLocal.y, vLocal.x) + uTime * spin;
+    float petal = 1.0 + 0.20 * cos(th * lobes) + 0.07 * cos(th * lobes * 2.0);
+    float uu = u / petal;
+    float k1 = exp(-pow(uu - 0.30*soft, 2.0) / (0.032*soft*soft));
+    float k2 = exp(-pow(uu - 0.61*soft, 2.0) / (0.020*soft*soft));
+    float k3 = exp(-pow(uu - 0.89*soft, 2.0) / (0.013*soft*soft));
+    dens = (core*0.40 + k1*0.56 + k2*0.44 + k3*0.28) / soft;
+  } else {
+    float ring1 = exp(-pow(u - 0.60*soft, 2.0) / (0.045*soft*soft));
+    float ring2 = exp(-pow(u - 0.96*soft, 2.0) / (0.022*soft*soft));
+    dens = (core*0.72 + ring1*0.52 + ring2*0.30) / soft;
+  }
 
   // interior: granular cytoplasm and an off-centre nucleus
   vec2 g = vLocal / r;
@@ -1344,7 +1361,22 @@ const camera = {
   targetX: 0, targetY: 0, targetZoom: 0.9,
   baseZoom: 0.9, userZoom: 1, focus: 0,
   panX: 0, panY: 0,
+  manual: false,        // set once you pan or zoom; stops the auto drift
 };
+
+/* Zoom about a screen point, keeping the world under it pinned. Scaling the
+   camera without this anchor is what makes a zoom feel like it is happening to
+   you rather than something you are doing. */
+function zoomAbout(sx, sy, factor) {
+  const W = innerWidth || 1, H = innerHeight || 1;
+  const nx = (sx - 0.5 * W) / H, ny = (0.5 * H - sy) / H;
+  const before = camera.baseZoom * camera.userZoom;
+  camera.userZoom = Math.min(4.0, Math.max(0.13, camera.userZoom * factor));
+  const after = camera.baseZoom * camera.userZoom;
+  camera.panX += nx * (before - after);
+  camera.panY += ny * (before - after);
+  camera.manual = true;
+}
 const pointer = {
   x: innerWidth * 0.5, y: innerHeight * 0.5,
   worldX: 0, worldY: 0, isDown: false, moved: 0, downX: 0, downY: 0,
@@ -1354,14 +1386,14 @@ const pointer = {
 let hoverCell = null, focusPath = new Set(), searchHit = null;
 
 function worldToScreen(wx, wy) {
-  const W = innerWidth, H = innerHeight;
+  const W = innerWidth || 1, H = innerHeight || 1;
   return {
     x: ((wx - camera.x) / camera.zoom) * H + 0.5 * W,
     y: 0.5 * H - ((wy - camera.y) / camera.zoom) * H,
   };
 }
 function screenToWorld(sx, sy) {
-  const W = innerWidth, H = innerHeight;
+  const W = innerWidth || 1, H = innerHeight || 1;
   return {
     x: ((sx - 0.5 * W) / H) * camera.zoom + camera.x,
     y: ((0.5 * H - sy) / H) * camera.zoom + camera.y,
@@ -1544,6 +1576,12 @@ function buildCrawlableNav(pages) {
   nav.querySelector('.index-body').appendChild(frag);
 }
 
+function resetView() {
+  camera.manual = false;
+  camera.userZoom = 1;
+  camera.panX = 0; camera.panY = 0;
+}
+
 /* ---------- navigation ---------- */
 function showRouteModal(route) {
   const modal = el('route-modal');
@@ -1618,7 +1656,8 @@ function setupInputs() {
       const [a, b] = [...active.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       if (pinchDist > 8 && d > 8) {
-        camera.userZoom = Math.min(3.4, Math.max(0.22, camera.userZoom * (pinchDist / d)));
+        // anchor the pinch on the midpoint between the fingers
+        zoomAbout((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, pinchDist / d);
       }
       pinchDist = d;
       return;
@@ -1629,6 +1668,7 @@ function setupInputs() {
       // drag pans the stage, like moving the slide under the objective
       camera.panX -= (dx / innerHeight) * camera.zoom;
       camera.panY += (dy / innerHeight) * camera.zoom;
+      if (pointer.moved > 4) camera.manual = true;
       pointer.lastX = e.clientX; pointer.lastY = e.clientY;
     }
     track(e);
@@ -1644,6 +1684,7 @@ function setupInputs() {
           Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 36) {
         const hit = pickCell(pointer.worldX, pointer.worldY);
         if (hit && hit.node) showRouteModal(hit.node.slug);
+        else resetView();
         lastTap = 0;
       } else {
         lastTap = now; lastTapX = e.clientX; lastTapY = e.clientY;
@@ -1659,7 +1700,9 @@ function setupInputs() {
   container.addEventListener('dblclick', (e) => {
     track(e);
     const hit = pickCell(pointer.worldX, pointer.worldY);
+    // on a cell it opens the page; on empty slide it frames the whole specimen
     if (hit && hit.node) showRouteModal(hit.node.slug);
+    else resetView();
   });
 
   // scroll zooms the stage -- but the index panel is a scrolling document that
@@ -1668,7 +1711,7 @@ function setupInputs() {
     if (e.target.closest && e.target.closest('#site-index')) return;
     if (el('site-index').classList.contains('open')) return;
     e.preventDefault();
-    camera.userZoom = Math.min(3.4, Math.max(0.22, camera.userZoom * Math.exp(e.deltaY * 0.0012)));
+    zoomAbout(e.clientX, e.clientY, Math.exp(e.deltaY * 0.0016));
   }, { passive: false });
 
   // search: "/" to open, Enter to travel
@@ -1679,6 +1722,8 @@ function setupInputs() {
     } else if (e.key === 'Escape') {
       el('search-box').classList.remove('open'); search.blur();
       search.value = ''; searchHit = null;
+    } else if (e.key === '0' && document.activeElement !== search) {
+      resetView();
     } else if (e.key === 'i' && document.activeElement !== search) {
       el('site-index').classList.toggle('open');
     }
@@ -1721,7 +1766,12 @@ function updateCamera(dt) {
   // the field of view opens as the specimen grows, then the wheel takes over
   let far = 0.35;
   for (const c of tissue) far = Math.max(far, Math.hypot(c.x, c.y) + c.radius * 2);
-  camera.baseZoom = Math.min(6.6, far * 2.25);
+  const wantBase = Math.min(6.6, far * 2.25);
+  // while the specimen is still growing the frame opens to fit it; once you
+  // have taken the controls the base stops moving under your feet
+  camera.baseZoom = camera.manual
+    ? camera.baseZoom
+    : camera.baseZoom + (wantBase - camera.baseZoom) * Math.min(1, dt * 1.2);
   camera.targetZoom = camera.baseZoom * camera.userZoom;
 
   // you can drag the slide, but not lose the specimen off the edge of it
@@ -1729,17 +1779,37 @@ function updateCamera(dt) {
   camera.panX = Math.max(-lim, Math.min(lim, camera.panX));
   camera.panY = Math.max(-lim, Math.min(lim, camera.panY));
 
-  const mx = (pointer.x - 0.5 * innerWidth) / innerHeight;
-  const my = (0.5 * innerHeight - pointer.y) / innerHeight;
-  let cx = camera.panX + mx * camera.zoom * 0.10;
-  let cy = camera.panY + my * camera.zoom * 0.10;
-  const target = searchHit || (hoverCell && hoverCell.kind !== 'nucleus' ? hoverCell : null);
-  if (target) { cx += target.x * 0.22; cy += target.y * 0.22; }
+  let cx = camera.panX, cy = camera.panY;
+  if (!camera.manual) {
+    // before you touch it, the view drifts gently and leans toward whatever is
+    // under the cursor. Once you pan or zoom, that drift would fight you.
+    const W = innerWidth || 1, H = innerHeight || 1;
+    const mx = (pointer.x - 0.5 * W) / H;
+    const my = (0.5 * H - pointer.y) / H;
+    cx += mx * camera.zoom * 0.10;
+    cy += my * camera.zoom * 0.10;
+    const lean = searchHit || (hoverCell && hoverCell.kind !== 'nucleus' ? hoverCell : null);
+    if (lean) { cx += lean.x * 0.22; cy += lean.y * 0.22; }
+  } else if (searchHit) {
+    cx += searchHit.x * 0.30; cy += searchHit.y * 0.30;
+  }
   camera.targetX = cx; camera.targetY = cy;
 
-  camera.x += (camera.targetX - camera.x) * Math.min(1, dt * 4.5);
-  camera.y += (camera.targetY - camera.y) * Math.min(1, dt * 4.5);
-  camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, dt * 3.0);
+  const follow = camera.manual ? 18 : 4.5;   // manual panning should feel direct
+  camera.x += (camera.targetX - camera.x) * Math.min(1, dt * follow);
+  camera.y += (camera.targetY - camera.y) * Math.min(1, dt * follow);
+  camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, dt * (camera.manual ? 16 : 3.0));
+
+  // A viewport that is momentarily zero-sized (a hidden tab, a mobile browser
+  // mid-transition) turns the drift term into 0/0, and a single NaN frame then
+  // sticks to the camera forever and renders the page black. Catch it here
+  // rather than trusting every divide upstream.
+  if (!Number.isFinite(camera.x)) camera.x = 0;
+  if (!Number.isFinite(camera.y)) camera.y = 0;
+  if (!Number.isFinite(camera.panX)) camera.panX = 0;
+  if (!Number.isFinite(camera.panY)) camera.panY = 0;
+  if (!Number.isFinite(camera.zoom) || camera.zoom <= 0) camera.zoom = camera.baseZoom || 0.9;
+  if (!Number.isFinite(camera.userZoom) || camera.userZoom <= 0) camera.userZoom = 1;
 }
 
 function frame(now) {

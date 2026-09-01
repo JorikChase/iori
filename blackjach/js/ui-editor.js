@@ -7,6 +7,7 @@ AHB.uiEditor = (function () {
   const el = {};
   let allCards = [];
   let currentDeckId = null;
+  let currentDeck = null;
   let editingCardId = null;
   let pendingImageId = null; // image id staged in the open form (may be unsaved)
 
@@ -17,6 +18,17 @@ AHB.uiEditor = (function () {
     el.btnDeckDuplicate = document.getElementById('btn-deck-duplicate');
     el.btnDeckDelete = document.getElementById('btn-deck-delete');
     el.btnExportAll = document.getElementById('btn-export-all-decks');
+    el.btnShare = document.getElementById('btn-deck-share');
+    el.btnLeaderboard = document.getElementById('btn-deck-leaderboard');
+    el.sharedNote = document.getElementById('deck-manager-shared-note');
+
+    el.shareModal = document.getElementById('share-modal');
+    el.shareModalBackdrop = document.getElementById('share-modal-backdrop');
+    el.shareForm = document.getElementById('share-form');
+    el.shareDeckNameSpan = document.getElementById('share-deck-name');
+    el.shareNickname = document.getElementById('share-nickname');
+    el.shareFormErrors = document.getElementById('share-form-errors');
+    el.btnCancelShare = document.getElementById('btn-cancel-share');
 
     el.counts = document.getElementById('editor-counts');
     el.thinWarning = document.getElementById('editor-thin-warning');
@@ -53,13 +65,27 @@ AHB.uiEditor = (function () {
 
   async function refresh() {
     currentDeckId = await AHB.decksService.getActiveId();
-    const deck = currentDeckId ? await AHB.decksService.getById(currentDeckId) : null;
-    el.deckName.textContent = deck?.name || '—';
+    currentDeck = currentDeckId ? await AHB.decksService.getById(currentDeckId) : null;
+    el.deckName.textContent = currentDeck?.name || '—';
     allCards = currentDeckId ? await AHB.deckService.getAll(currentDeckId) : [];
     renderCounts();
     renderThinWarning();
     renderTagFilterOptions();
     renderList();
+    await renderShareState();
+  }
+
+  async function renderShareState() {
+    const apiReady = await AHB.apiService.isConfigured();
+    el.btnShare.hidden = !apiReady || !!currentDeck?.serverId;
+    if (currentDeck?.serverId) {
+      el.btnLeaderboard.hidden = false;
+      el.sharedNote.hidden = false;
+      el.sharedNote.textContent = `Shared publicly by ${currentDeck.sharedBy}.`;
+    } else {
+      el.btnLeaderboard.hidden = true;
+      el.sharedNote.hidden = true;
+    }
   }
 
   function renderCounts() {
@@ -182,6 +208,64 @@ AHB.uiEditor = (function () {
     } catch (err) {
       alert(err.message);
     }
+  }
+
+  // ---- Sharing / leaderboard ----
+
+  async function openShareModal() {
+    if (!currentDeck) return;
+    el.shareDeckNameSpan.textContent = currentDeck.name;
+    el.shareNickname.value = (await AHB.metaService.getValue('lastNickname')) || '';
+    el.shareFormErrors.hidden = true;
+    el.shareModal.hidden = false;
+    el.shareNickname.focus();
+  }
+
+  function closeShareModal() {
+    el.shareModal.hidden = true;
+  }
+
+  async function handleShareSubmit(e) {
+    e.preventDefault();
+    const nickname = el.shareNickname.value.trim();
+    if (!nickname) return;
+    const btn = el.shareForm.querySelector('#btn-confirm-share');
+    btn.disabled = true;
+    btn.textContent = 'Sharing…';
+    try {
+      const cards = allCards.map((c) => ({
+        difficulty: c.difficulty,
+        promptType: c.promptType,
+        promptText: c.promptText,
+        answer: c.answer,
+        distractors: c.distractors,
+        note: c.note,
+        tags: c.tags,
+      }));
+      // Attach image data URLs for image cards, matching what the card's
+      // promptImage id resolves to locally.
+      await Promise.all(allCards.map(async (c, i) => {
+        if (c.promptType === 'image' && c.promptImage) {
+          cards[i].imageDataUrl = await AHB.imageService.getDataUrl(c.promptImage);
+        }
+      }));
+      const result = await AHB.apiService.shareDeck({ name: currentDeck.name, sharedBy: nickname, cards });
+      await AHB.decksService.markShared(currentDeck.id, { serverId: result.id, sharedBy: nickname });
+      await AHB.metaService.setValue('lastNickname', nickname);
+      closeShareModal();
+      AHB.toast?.show(`"${currentDeck.name}" is now public.`);
+    } catch (err) {
+      el.shareFormErrors.hidden = false;
+      el.shareFormErrors.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Share deck';
+    }
+  }
+
+  function handleViewLeaderboard() {
+    if (!currentDeck?.serverId) return;
+    AHB.uiLeaderboard.open(currentDeck.serverId, currentDeck.name);
   }
 
   // ---- Card modal / form ----
@@ -311,12 +395,12 @@ AHB.uiEditor = (function () {
     const deck = await AHB.decksService.getById(currentDeckId);
     const data = await AHB.deckService.exportDeck(currentDeckId);
     const slug = (deck?.name || 'deck').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    downloadJson(data, `art-history-blackjack-${slug}-${new Date().toISOString().slice(0, 10)}.json`);
+    downloadJson(data, `blackjach-${slug}-${new Date().toISOString().slice(0, 10)}.json`);
   }
 
   async function handleExportAll() {
     const data = await AHB.deckService.exportAllDecks();
-    downloadJson(data, `art-history-blackjack-all-decks-${new Date().toISOString().slice(0, 10)}.json`);
+    downloadJson(data, `blackjach-all-decks-${new Date().toISOString().slice(0, 10)}.json`);
   }
 
   async function handleImportFile(file) {
@@ -342,6 +426,11 @@ AHB.uiEditor = (function () {
     el.btnDeckRename.addEventListener('click', handleDeckRename);
     el.btnDeckDuplicate.addEventListener('click', handleDeckDuplicate);
     el.btnDeckDelete.addEventListener('click', handleDeckDelete);
+    el.btnShare.addEventListener('click', openShareModal);
+    el.btnLeaderboard.addEventListener('click', handleViewLeaderboard);
+    el.btnCancelShare.addEventListener('click', closeShareModal);
+    el.shareModalBackdrop.addEventListener('click', closeShareModal);
+    el.shareForm.addEventListener('submit', handleShareSubmit);
 
     el.btnNew.addEventListener('click', () => openModal(null));
     el.btnCancel.addEventListener('click', closeModal);

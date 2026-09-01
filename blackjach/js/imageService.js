@@ -68,6 +68,21 @@ AHB.imageService = (function () {
     return id;
   }
 
+  // Fetch a remote image (e.g. a community deck's card image on
+  // blackjach-api) and store it locally, same as any other import.
+  async function storeFromUrl(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Couldn't download image (HTTP ${res.status}).`);
+    const blob = await res.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    return storeFromDataUrl(dataUrl);
+  }
+
   async function getDataUrl(imageId) {
     if (!imageId) return null;
     const row = await AHB.db.get(STORE, imageId);
@@ -78,5 +93,5 @@ AHB.imageService = (function () {
     if (imageId) await AHB.db.del(STORE, imageId);
   }
 
-  return { storeFromFile, storeFromDataUrl, getDataUrl, remove };
+  return { storeFromFile, storeFromDataUrl, storeFromUrl, getDataUrl, remove };
 })();

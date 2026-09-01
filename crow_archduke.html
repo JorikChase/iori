@@ -142,7 +142,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? (COARSE ? 1.25 : 1.6) :
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.04;
+renderer.toneMappingExposure = 0.94;
 holder.appendChild(renderer.domElement);
 
 /* ================= procedural texture kit =================
@@ -352,8 +352,8 @@ const skyMat = new THREE.ShaderMaterial({
       vec2 p = vec2(ae.x * 2.1, ae.y * 5.4);
       vec2 w = vec2(fbm(p * 0.65 + t * 0.009), fbm(p * 0.65 + 5.1 - t * 0.007));
       float f = fbm(p + w * 1.15 + vec2(t * 0.013, 0.0));
-      float band = smoothstep(0.52 - cover * 0.22, 0.86, f);
-      float h = smoothstep(-0.05, 0.12, ae.y) * smoothstep(1.25, 0.40, ae.y);
+      float band = smoothstep(0.50 - cover * 0.30, 0.74, f);   // tighter ramp = harder-edged billows
+      float h = smoothstep(-0.07, 0.09, ae.y) * smoothstep(1.35, 0.34, ae.y);
       return band * h;
     }
 
@@ -383,11 +383,11 @@ const skyMat = new THREE.ShaderMaterial({
       // the thin margins glow. Lighting them toward the sun colour instead
       // (the obvious thing) makes them the same colour as the sky behind and
       // they vanish entirely.
-      vec3 back  = mix(sunCol * 2.1, mid * 0.06, smoothstep(0.10, 0.72, c));
+      vec3 back  = mix(sunCol * 2.4, mid * 0.04, smoothstep(0.06, 0.62, c));
       vec3 front = mix(mid * 0.50, sunCol * 1.15, lit);
       float facing = pow(clamp(sd, 0.0, 1.0), 1.1);
       vec3 cloudCol = mix(front, back, facing);
-      col = mix(col, cloudCol, clamp(c * 1.05, 0.0, 1.0));
+      col = mix(col, cloudCol, clamp(c * 1.15, 0.0, 1.0));
 
       // crepuscular rays: march outward FROM the sun and collect the gaps, so
       // the shafts line up with the clouds actually casting them
@@ -396,7 +396,7 @@ const skyMat = new THREE.ShaderMaterial({
         float f = float(i) / float(RAY_TAPS);
         rays += (1.0 - cloudAt(sae + rel * f)) * (1.0 - f);
       }
-      rays /= float(RAY_TAPS) * 0.5;
+      rays /= float(RAY_TAPS) * 0.42;
       float reach = pow(sd, 5.0) * 0.85 + pow(sd, 1.6) * 0.16;
       col += sunCol * rays * reach * 1.35 * smoothstep(-0.04, 0.10, ae.y);
 
@@ -408,6 +408,30 @@ const skyMat = new THREE.ShaderMaterial({
 });
 const sky = new THREE.Mesh(new THREE.SphereGeometry(220, 32, 20), skyMat);
 scene.add(sky);
+
+/* Image-based lighting off the sky itself.
+   The mask's own albedo is very dark — around 4.5% linear on the shell and 1.5%
+   on the cape — which is correct for black leather. Blender shows it lit by a
+   bright neutral world, so it reads. Here there was no environment at all, only
+   a few dim direct lights, and a 2-5% albedo surface with nothing to reflect
+   renders black. This gives the whole scene the sunset to reflect. */
+const envScene = new THREE.Scene();
+envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 24, 16), skyMat));
+const pmrem = new THREE.PMREMGenerator(renderer);
+let envRT = null, envLastT = -1, envClock = 0;
+function updateEnvironment(t, dt) {
+  envClock += dt;
+  // regenerating a PMREM is not free, so only when the sky has actually moved
+  // A PMREM rebuild is a cubemap render plus convolutions. Sweeping the sky
+  // would otherwise trigger one every frame, so it is gated on the sky having
+  // actually moved AND a minimum interval.
+  if (envRT && (Math.abs(t - envLastT) < 0.06 || envClock < 0.5)) return;
+  envLastT = t; envClock = 0;
+  const prev = envRT;
+  envRT = pmrem.fromScene(envScene, 0.0, 1, 300);
+  scene.environment = envRT.texture;
+  if (prev) prev.dispose();
+}
 
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(4.5, 20, 14),
@@ -447,7 +471,7 @@ sunLight.target.position.copy(SHADOW_TARGET);
 scene.add(sunLight, sunLight.target);
 
 // bounce/ambient, kept dim so the shadows actually read
-const hemi = new THREE.HemisphereLight(0x6f6486, 0x2a2030, 0.85);
+const hemi = new THREE.HemisphereLight(0x6f6486, 0x2a2030, 0.22);
 scene.add(hemi);
 const eyeLight = new THREE.PointLight(0xb27fe8, 0.9, 3.4, 2);
 // soft key from the nave side, just enough to model the mask against the arch
@@ -468,11 +492,11 @@ scene.add(key, key.target);
 const NAVE_HALF = 7, NAVE_LEN = 36, WALL_H = 11, APSE_Z = -28.5;
 
 const stoneMap = stoneTexture(7);
-const stone = new THREE.MeshStandardMaterial({ color: 0x4e3c60, roughness: 0.92, map: stoneMap });
-const stoneDark = new THREE.MeshStandardMaterial({ color: 0x362a44, roughness: 1.0, map: stoneMap });
+const stone = new THREE.MeshStandardMaterial({ envMapIntensity: 0.30, color: 0x4e3c60, roughness: 0.92, map: stoneMap });
+const stoneDark = new THREE.MeshStandardMaterial({ envMapIntensity: 0.26, color: 0x362a44, roughness: 1.0, map: stoneMap });
 const floorMap = stoneTexture(19);
 floorMap.repeat.set(6, 10);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x40334e, roughness: 0.7, map: floorMap, metalness: 0.08 });
+const floorMat = new THREE.MeshStandardMaterial({ envMapIntensity: 0.34, color: 0x40334e, roughness: 0.7, map: floorMap, metalness: 0.08 });
 
 function archPath(cx, sill, w, h) {
   const hw = w / 2;
@@ -816,14 +840,14 @@ function leatherMaps(seed, size = 256) {
 const leatherTex = leatherMaps(41);
 
 const priest = new THREE.Group();
-const leather = new THREE.MeshStandardMaterial({
+const leather = new THREE.MeshStandardMaterial({ envMapIntensity: 0.55,
   color: 0x2a2018, roughness: 0.78, metalness: 0.05,
   normalMap: leatherTex.normalMap, roughnessMap: leatherTex.roughnessMap,
   normalScale: new THREE.Vector2(0.6, 0.6),
 });
 const leatherDark = leather.clone();
 leatherDark.color = new THREE.Color(0x1a1310);
-const boneWhite = new THREE.MeshStandardMaterial({
+const boneWhite = new THREE.MeshStandardMaterial({ envMapIntensity: 0.55,
   color: 0xe4dbc2, roughness: 0.44, metalness: 0.03,
   normalMap: leatherTex.normalMap, normalScale: new THREE.Vector2(0.18, 0.18),
 });
@@ -862,14 +886,24 @@ const robe = cast(new THREE.Mesh(foldedLathe([
 robe.receiveShadow = true;
 priest.add(robe);
 
-// mozzetta over the shoulders
+/* Mozzetta. Once the sculpted bust is in, this reads best as a wide translucent
+   shroud hanging around it rather than as a solid shoulder piece — it catches
+   the light from the arch and lets the painted chest show through. */
+const capeMat = new THREE.MeshStandardMaterial({
+  color: 0x140f1a, roughness: 0.88, metalness: 0.0,
+  envMapIntensity: 0.8,
+  transparent: true, opacity: 0.44, side: THREE.DoubleSide, depthWrite: false,
+  normalMap: leatherTex.normalMap, normalScale: new THREE.Vector2(0.35, 0.35),
+});
 const cape = cast(new THREE.Mesh(foldedLathe([
-  new THREE.Vector2(0.30, 3.86),
-  new THREE.Vector2(0.56, 3.68),
-  new THREE.Vector2(0.78, 3.40),
-  new THREE.Vector2(0.90, 3.02),
-], 64, 9, 0.035), leatherDark));
+  new THREE.Vector2(0.34, 4.02),
+  new THREE.Vector2(0.72, 3.76),
+  new THREE.Vector2(1.16, 3.30),
+  new THREE.Vector2(1.52, 2.62),
+  new THREE.Vector2(1.74, 1.90),
+], 72, 11, 0.055), capeMat));
 cape.receiveShadow = true;
+cape.renderOrder = 2;
 priest.add(cape);
 
 // standing collar
@@ -1168,7 +1202,8 @@ const MODEL_FIT = {
 let modelActive = false;
 
 // everything the model supersedes
-const PROCEDURAL_HEAD = [shell, beak, beakTip, beakRoot, strap, hat, hood, collar, neck, cape];
+// the cape is NOT in here: it stays, as a translucent layer around the model
+const PROCEDURAL_HEAD = [shell, beak, beakTip, beakRoot, strap, hat, hood, collar, neck];
 const modelGroup = new THREE.Group();
 priest.add(modelGroup);
 
@@ -1186,7 +1221,7 @@ new GLTFLoader().load(MODEL_FIT.url, (gltf) => {
     if (!o.isMesh) return;
     o.castShadow = true;
     o.receiveShadow = true;
-    o.material.envMapIntensity = 0.6;
+    o.material.envMapIntensity = 1.35;
   });
   modelGroup.add(root);
 
@@ -1318,8 +1353,9 @@ function tick() {
   skyMat.uniforms.sunCol.value.copy(skyC.sun);
   skyMat.uniforms.sunDir.value.copy(sunDir);
   // more cloud at the ends of the day, clearer at noon
-  skyMat.uniforms.cover.value = 0.46 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.30;
+  skyMat.uniforms.cover.value = 0.68 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.28;
   skyMat.uniforms.t.value = t;
+  updateEnvironment(timeOfDay, dt);
   scene.fog.color.copy(skyC.top).multiplyScalar(0.42);
   scene.fog.density = 0.009 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.005;
 
@@ -1333,10 +1369,10 @@ function tick() {
   sunLight.position.copy(SHADOW_TARGET).addScaledVector(sunDir, 62);
   sunLight.color.copy(skyC.sun);
   sunLight.intensity = skyC.sunI;
-  hemi.intensity = 0.62 + skyC.sunI * 0.16;
+  hemi.intensity = 0.16 + skyC.sunI * 0.05;
   hemi.color.copy(skyC.mid);
   apseBounce.color.copy(skyC.horizon);
-  apseBounce.intensity = 11 + skyC.sunI * 5;
+  apseBounce.intensity = 6 + skyC.sunI * 2.4;
   key.color.copy(skyC.mid).lerp(new THREE.Color(0xF2EBDA), 0.72);
   key.intensity = 0.55 + skyC.sunI * 0.10;
 

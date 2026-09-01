@@ -309,7 +309,7 @@ function pointerToTime(x) {
 }
 
 /* ---------- sky DOME (was a floating quad with visible corners) ---------- */
-const SKY_RAY_TAPS = HIGH ? 12 : 6;
+const SKY_RAY_TAPS = HIGH ? 18 : 8;
 const SKY_OCC_TAPS = HIGH ? 5 : 3;
 const skyMat = new THREE.ShaderMaterial({
   uniforms: {
@@ -349,10 +349,10 @@ const skyMat = new THREE.ShaderMaterial({
 
     float cloudAt(vec2 ae){
       // stretched along azimuth, squeezed in elevation => sunset strata
-      vec2 p = vec2(ae.x * 2.1, ae.y * 5.4);
+      vec2 p = vec2(ae.x * 4.3, ae.y * 10.5);   // finer cells = more, smaller billows
       vec2 w = vec2(fbm(p * 0.65 + t * 0.009), fbm(p * 0.65 + 5.1 - t * 0.007));
       float f = fbm(p + w * 1.15 + vec2(t * 0.013, 0.0));
-      float band = smoothstep(0.50 - cover * 0.30, 0.74, f);   // tighter ramp = harder-edged billows
+      float band = smoothstep(0.53 - cover * 0.20, 0.67, f);   // distinct puffs, not overcast
       float h = smoothstep(-0.07, 0.09, ae.y) * smoothstep(1.35, 0.34, ae.y);
       return band * h;
     }
@@ -383,8 +383,9 @@ const skyMat = new THREE.ShaderMaterial({
       // the thin margins glow. Lighting them toward the sun colour instead
       // (the obvious thing) makes them the same colour as the sky behind and
       // they vanish entirely.
-      vec3 back  = mix(sunCol * 2.4, mid * 0.04, smoothstep(0.06, 0.62, c));
-      vec3 front = mix(mid * 0.50, sunCol * 1.15, lit);
+      vec3 white = mix(sunCol, vec3(1.0), 0.55);
+      vec3 back  = mix(white * 2.5, mid * 0.05, smoothstep(0.06, 0.60, c));
+      vec3 front = mix(mid * 0.55, white * 1.35, lit);
       float facing = pow(clamp(sd, 0.0, 1.0), 1.1);
       vec3 cloudCol = mix(front, back, facing);
       col = mix(col, cloudCol, clamp(c * 1.15, 0.0, 1.0));
@@ -394,14 +395,20 @@ const skyMat = new THREE.ShaderMaterial({
       float rays = 0.0;
       for (int i = 1; i <= RAY_TAPS; i++){
         float f = float(i) / float(RAY_TAPS);
-        rays += (1.0 - cloudAt(sae + rel * f)) * (1.0 - f);
+        rays += 1.0 - cloudAt(sae + rel * f);
       }
-      rays /= float(RAY_TAPS) * 0.42;
-      float reach = pow(sd, 5.0) * 0.85 + pow(sd, 1.6) * 0.16;
-      col += sunCol * rays * reach * 1.35 * smoothstep(-0.04, 0.10, ae.y);
+      rays /= float(RAY_TAPS);
+      // Contrast is what turns this into shafts. Averaged raw it is a smooth
+      // halo -- every direction near the sun has a short, mostly clear corridor
+      // so everything glows equally. Raised to a power, only corridors clear
+      // along their WHOLE length light up, and the cloud either side of one
+      // reads as the edge of a beam.
+      rays = pow(clamp(rays, 0.0, 1.0), 4.0);
+      float reach = pow(sd, 2.0) * 0.85;
+      col += sunCol * rays * reach * 2.6 * smoothstep(-0.04, 0.10, ae.y);
 
       col += sunCol * pow(sd, 240.0) * 3.2;     // the disc's own bloom
-      col += sunCol * pow(sd, 14.0) * 0.09;
+      col += sunCol * pow(sd, 22.0) * 0.06;
       gl_FragColor = vec4(col, 1.0);
     }`,
   side: THREE.BackSide, fog: false, depthWrite: false,
@@ -856,8 +863,8 @@ const brass = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.28,
 const cast = (m) => { m.castShadow = true; return m; };
 
 /* ----- cassock, with cloth folds worked into the lathe ----- */
-function foldedLathe(profile, segments, folds, depth) {
-  const g = new THREE.LatheGeometry(profile, segments);
+function foldedLathe(profile, segments, folds, depth, phiStart = 0, phiLength = Math.PI * 2) {
+  const g = new THREE.LatheGeometry(profile, segments, phiStart, phiLength);
   const pos = g.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -892,16 +899,21 @@ priest.add(robe);
 const capeMat = new THREE.MeshStandardMaterial({
   color: 0x140f1a, roughness: 0.88, metalness: 0.0,
   envMapIntensity: 0.8,
-  transparent: true, opacity: 0.44, side: THREE.DoubleSide, depthWrite: false,
+  transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false,
   normalMap: leatherTex.normalMap, normalScale: new THREE.Vector2(0.35, 0.35),
 });
+/* Hung OPEN at the front. A full revolution wrapped the chest and hid the
+   painted 3DIE regardless of how transparent it was made — in LatheGeometry
+   phi = 0 is +Z, so leaving a gap centred there is what parts it toward the
+   camera. */
+const CAPE_GAP = 2.55;   // radians of opening: the lettering spans the whole chest
 const cape = cast(new THREE.Mesh(foldedLathe([
   new THREE.Vector2(0.34, 4.02),
   new THREE.Vector2(0.72, 3.76),
   new THREE.Vector2(1.16, 3.30),
   new THREE.Vector2(1.52, 2.62),
   new THREE.Vector2(1.74, 1.90),
-], 72, 11, 0.055), capeMat));
+], 72, 11, 0.055, CAPE_GAP * 0.5, Math.PI * 2 - CAPE_GAP), capeMat));
 cape.receiveShadow = true;
 cape.renderOrder = 2;
 priest.add(cape);
@@ -1196,7 +1208,7 @@ const MODEL_FIT = {
   z: -0.02,
   head: { y: 4.45, z: 0.10 },       // world y 5.15 minus the priest's own y of 0.70
   eye:  { x: 0.25, y: 0.00, z: -0.02 },  // relative to that head point
-  eye3: { y: 0.27, z: 0.10 },
+  eye3: { y: 0.185, z: 0.115 },
   eyeScale: 0.62,
 };
 let modelActive = false;
@@ -1353,7 +1365,7 @@ function tick() {
   skyMat.uniforms.sunCol.value.copy(skyC.sun);
   skyMat.uniforms.sunDir.value.copy(sunDir);
   // more cloud at the ends of the day, clearer at noon
-  skyMat.uniforms.cover.value = 0.68 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.28;
+  skyMat.uniforms.cover.value = 0.52 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.20;
   skyMat.uniforms.t.value = t;
   updateEnvironment(timeOfDay, dt);
   scene.fog.color.copy(skyC.top).multiplyScalar(0.42);

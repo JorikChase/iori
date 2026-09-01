@@ -640,7 +640,7 @@ async function loadStructure() {
 
 /* ================= CELLS ================= */
 
-const MAX_RENDER = 560;          // hard ceiling on instances drawn per frame
+const MAX_RENDER = 700;          // hard ceiling on instances drawn per frame
 const MICROBE_CAP = 58;          // carrying capacity for the mortal population
 
 const LINEAGE_HUE = {
@@ -655,7 +655,7 @@ let cellById = new Map();
 let nextId = 0;
 
 const stats = {
-  births: 0, deaths: 0, merges: 0, generation: 0, riding: 0, grown: 0,
+  births: 0, deaths: 0, merges: 0, generation: 0, riding: 0, grown: 0, fused: 0,
   meanSplit: 1, meanMeta: 0.04, meanMotility: 1,
 };
 
@@ -699,6 +699,11 @@ class Cell {
     this.pulse = 0;      // tissue kickback when it births something
     this.ride = null;    // bond currently being travelled, if any
     this.sproutCd = 0;   // tissue: cooldown before it can grow another node
+    this.mergeCd = 0;    // grown tips: settling time after a fusion
+    this.held = null;    // tip: nutrients gathered on it, waiting to be eaten
+    this.holdTimer = 0;
+    this.heldBy = null;  // nutrient: the tip currently holding it
+    this.matureIn = 0;   // a fused tip counts down to splitting in two
     this.hudX = 0; this.hudY = 0;
     cellById.set(this.id, this);
   }
@@ -806,9 +811,74 @@ function wireCrossBonds() {
    so the graph keeps reaching outward wherever the population happens to feed.
    They carry no page, so they are deliberately not navigable and never take a
    label; the 78 pages remain exactly the 78 labelled cells.                */
-const GROWN_CAP = 300;
-const SPROUTS_PER_NODE = 3;   // how many branches one node may put out
+const GROWN_CAP = 420;   // headroom: at the cap a fusion frees one slot but a
+                         // maturation split wants two, so growth degenerates to
+                         // one branch at a time and the fan-out never shows
+const SPROUTS_PER_NODE = 4;   // how many branches one node may put out
 let grownCount = 0;
+
+/* A free tip: grown, and nothing hanging off it yet. These are the only cells
+   allowed to fuse, which keeps the structure safe — nothing can ever be
+   orphaned, because a tip by definition has no children to orphan. */
+function isFreeTip(c) {
+  return !!c.node && c.node.grown === true && c.node.children.length === 0
+      && c.settle > 0.9 && c.mergeCd <= 0 && c.matureIn <= 0;
+}
+
+function removeGrownCell(cell) {
+  for (let i = bonds.length - 1; i >= 0; i--) {
+    if (bonds[i].a === cell || bonds[i].b === cell) bonds.splice(i, 1);
+  }
+  for (const m of microbes) {
+    if (m.ride && (m.ride.bond.a === cell || m.ride.bond.b === cell)) m.ride = null;
+  }
+  const par = cell.node.parent;
+  if (par) {
+    const k = par.children.indexOf(cell.node);
+    if (k >= 0) par.children.splice(k, 1);
+  }
+  const t = tissue.indexOf(cell);
+  if (t >= 0) tissue.splice(t, 1);
+  cellById.delete(cell.id);
+  grownCount--;
+}
+
+/* Two touching free tips become one bigger tip, which then matures and splits
+   in two. Radius is combined by area so the survivor looks like it really ate
+   the other, and the layout target is averaged so it settles between them. */
+function fuseFreeTips() {
+  for (let i = 0; i < tissue.length; i++) {
+    const a = tissue[i];
+    if (!isFreeTip(a)) continue;
+    for (let j = i + 1; j < tissue.length; j++) {
+      const b = tissue[j];
+      if (!isFreeTip(b)) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const reach = (a.radius + b.radius) * 0.80;
+      if (dx * dx + dy * dy > reach * reach) continue;
+
+      const ma = a.baseRadius * a.baseRadius, mb = b.baseRadius * b.baseRadius;
+      const mt = ma + mb;
+      a.x = (a.x * ma + b.x * mb) / mt;
+      a.y = (a.y * ma + b.y * mb) / mt;
+      a.baseRadius = Math.min(0.155, Math.sqrt(mt));
+      a.color = [
+        (a.color[0] * ma + b.color[0] * mb) / mt,
+        (a.color[1] * ma + b.color[1] * mb) / mt,
+        (a.color[2] * ma + b.color[2] * mb) / mt,
+      ];
+      a.node.tx = (a.node.tx + b.node.tx) * 0.5;
+      a.node.ty = (a.node.ty + b.node.ty) * 0.5;
+      a.node.radius = a.baseRadius;
+      a.flash = 1.8;
+      a.mergeCd = 1.2;
+      a.matureIn = 3.5 + Math.random() * 2.5;   // then it splits
+      removeGrownCell(b);
+      stats.fused++;
+      return;                                   // one fusion per frame, so it reads
+    }
+  }
+}
 
 function grownChildren(node) {
   let n = 0;
@@ -1025,7 +1095,10 @@ function updateMicrobes(dt, pointerWorld) {
     if (nearest && nd < 0.9) {
       uptake += 0.078 / (nd + 0.30);
       if (!m.ride) {
-        const pull = 0.00055 / (nd + 0.15) * g.motility;
+        // a growing tip pulls harder than ordinary tissue, so nutrients gather
+        // at the rim and arrive in clusters rather than singly
+        const tip = isOuterCell(nearest) ? 2.6 : 1.0;
+        const pull = 0.00055 * tip / (nd + 0.15) * g.motility;
         m.vx += (nearest.x - m.x) * pull;
         m.vy += (nearest.y - m.y) * pull;
       }
@@ -1035,14 +1108,18 @@ function updateMicrobes(dt, pointerWorld) {
       if (pd < 0.55) uptake += (1 - pd / 0.55) * 0.10;
     }
 
-    // reaching the rim well fed: absorbed, and the colony grows a node
-    if (nearest && !m.dying && m.energy > 0.55 && nearest.sproutCd <= 0 &&
-        isOuterCell(nearest) && nd < (nearest.radius + m.radius) * 0.78) {
-      if (sproutFrom(nearest, m.color)) {
-        nearest.sproutCd = 2.6;
-        cellById.delete(m.id);
-        microbes.splice(i, 1);
-        continue;
+    /* Reaching the rim well fed: the tip GRABS it and holds on.
+       Requiring several nutrients to touch in the same frame never fired — the
+       colony runs a few hundred tips against a few dozen nutrients, so two
+       never coincide. A tip instead latches whatever arrives and waits a
+       moment, so a cluster accumulates and is eaten together. */
+    if (nearest && !m.dying && m.energy > 0.50 && isOuterCell(nearest) &&
+        nearest.sproutCd <= 0 && nd < (nearest.radius + m.radius) * 1.15) {
+      if (!nearest.held) { nearest.held = []; nearest.holdTimer = 1.5; }
+      if (nearest.held.length < SPROUTS_PER_NODE) {
+        nearest.held.push(m);
+        m.heldBy = nearest;
+        m.ride = null;
       }
     }
 
@@ -1062,6 +1139,16 @@ function updateMicrobes(dt, pointerWorld) {
 
     m.flash = Math.max(0, m.flash - dt * 2.6);
     m.imm = Math.max(0, m.imm - dt);
+    if (m.heldBy) {
+      // pinned to the tip's surface, waiting with the rest of the cluster
+      const h = m.heldBy;
+      const a = Math.atan2(m.y - h.y, m.x - h.x);
+      const rr = h.radius + m.radius * 0.55;
+      m.x += (h.x + Math.cos(a) * rr - m.x) * 0.30;
+      m.y += (h.y + Math.sin(a) * rr - m.y) * 0.30;
+      m.vx = m.vy = 0;
+      continue;
+    }
     if (!m.ride) {
       m.vx += (Math.random() - 0.5) * 0.0009 * g.motility;
       m.vy += (Math.random() - 0.5) * 0.0009 * g.motility;
@@ -1110,6 +1197,10 @@ function updateMicrobes(dt, pointerWorld) {
 
   mixMicrobes();
 
+  for (let i = microbes.length - 1; i >= 0; i--) {
+    if (microbes[i].consumed) { cellById.delete(microbes[i].id); microbes.splice(i, 1); }
+  }
+
   stats.riding = 0;
   for (const m of microbes) if (m.ride) stats.riding++;
 
@@ -1138,7 +1229,41 @@ function updateTissue(dt) {
     c.vx *= 0.90; c.vy *= 0.90;
     c.pulse = Math.max(0, c.pulse - dt * 2.2);
     c.sproutCd = Math.max(0, c.sproutCd - dt);
+    c.mergeCd = Math.max(0, c.mergeCd - dt);
+    /* A tip that has been holding a cluster eats the lot and puts out one
+       branch per nutrient, so a well-fed tip fans rather than extending by one. */
+    if (c.held) {
+      c.holdTimer -= dt;
+      if (c.holdTimer <= 0) {
+        const room = SPROUTS_PER_NODE - grownChildren(c.node);
+        let made = 0;
+        for (const m of c.held) {
+          if (made < room && sproutFrom(c, m.color)) { m.consumed = true; made++; }
+          else m.heldBy = null;             // no room: released, not eaten
+        }
+        if (made) {
+          c.pulse = 1;
+          c.flash = 1.2;
+          c.sproutCd = 2.0 + made * 0.7;    // a bigger meal takes longer to digest
+        }
+        c.held = null;
+      }
+    }
     c.flash = Math.max(0, c.flash - dt * 2.0);
+    if (c.matureIn > 0) {
+      c.matureIn -= dt;
+      // a fused tip swells while it ripens, then puts out two
+      c.baseRadius = Math.min(0.155, c.baseRadius + dt * 0.004);
+      if (c.matureIn <= 0) {
+        let made = 0;
+        for (let k = 0; k < 2; k++) if (sproutFrom(c, c.color)) made++;
+        if (made) {
+          c.pulse = 1; c.flash = 1.4;
+          c.baseRadius *= 0.78;          // spent on the offspring
+          c.node.radius = c.baseRadius;
+        }
+      }
+    }
     c.radius = c.baseRadius * (0.25 + c.settle * 0.75) * (1 + c.pulse * 0.30);
   }
   /* Keep neighbours from fusing into one unreadable mass. Bucketed on a
@@ -1163,9 +1288,27 @@ function updateTissue(dt) {
           if (b.id <= a.id) continue;              // each pair once
           const dx = b.x - a.x, dy = b.y - a.y;
           const d2 = dx * dx + dy * dy;
-          const min = (a.radius + b.radius) * 1.28;
-          if (d2 < min * min && d2 > 1e-9) {
-            const d = Math.sqrt(d2);
+          if (d2 <= 1e-9) continue;
+          const d = Math.sqrt(d2);
+          const sum = a.radius + b.radius;
+          // Two FREE tips — grown, childless — are drawn together instead of
+          // held apart. The general repulsion keeps every pair at 1.28x their
+          // radii, which is further than the fusion test could ever reach, so
+          // without this exception they could never meet.
+          if (isFreeTip(a) && isFreeTip(b)) {
+            if (d < sum * 2.6 && d > sum * 0.72) {
+              const pull = 0.0022 * (1 - d / (sum * 2.6));
+              a.vx += dx * pull; a.vy += dy * pull;
+              b.vx -= dx * pull; b.vy -= dy * pull;
+            } else if (d < sum * 0.72) {
+              const push = (sum * 0.72 - d) / d * 0.016;
+              a.vx -= dx * push; a.vy -= dy * push;
+              b.vx += dx * push; b.vy += dy * push;
+            }
+            continue;
+          }
+          const min = sum * 1.28;
+          if (d2 < min * min) {
             const push = (min - d) / d * 0.016;
             a.vx -= dx * push; a.vy -= dy * push;
             b.vx += dx * push; b.vy += dy * push;
@@ -1737,7 +1880,8 @@ function renderInstrument() {
     ` &nbsp; <b>+${stats.births}</b> <span class="dead">\u2212${stats.deaths}</span>` +
     ` &nbsp; MIX <b>${stats.merges}</b>` +
     ` &nbsp; ON LINE <b>${stats.riding}</b>` +
-    (stats.grown ? ` &nbsp; GROWN <b>${stats.grown}</b>` : '');
+    (stats.grown ? ` &nbsp; GROWN <b>${stats.grown}</b>` : '') +
+    (stats.fused ? ` &nbsp; FUSED <b>${stats.fused}</b>` : '');
 }
 
 /* ---------- the crawlable index ----------
@@ -1959,6 +2103,7 @@ function resizeCanvas() {
 
 /* ================= LOOP ================= */
 let lastTime = performance.now();
+let fuseClock = 0;
 let hintShown = false;
 
 function updateCamera(dt) {
@@ -2031,6 +2176,10 @@ function frame(now) {
       while (pointer.seedClock > 0.085) { pointer.seedClock -= 0.085; seedFrom(pointer.seeding, 1); }
     }
     updateTissue(dt);
+    // fusion is an all-pairs scan over the free tips, and it is meant to happen
+    // occasionally rather than continuously, so it runs on its own slow clock
+    fuseClock += dt;
+    if (fuseClock > 0.12) { fuseClock = 0; fuseFreeTips(); }
     updateMicrobes(dt, pointer.seen ? { x: pointer.worldX, y: pointer.worldY } : null);
   }
 

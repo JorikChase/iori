@@ -117,6 +117,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const holder = document.getElementById('cathedral');
 const W = () => holder.clientWidth, H = () => holder.clientHeight;
@@ -1015,6 +1016,7 @@ for (const side of [-1, 1]) {
 }
 
 // riveted seams down the cheeks
+const rivets = [];
 for (let i = 0; i < 8; i++) {
   const a = -0.32 + i * 0.115;
   for (const side of [-1, 1]) {
@@ -1022,6 +1024,7 @@ for (let i = 0; i < 8; i++) {
     const rad = 0.265 + Math.cos(a * 2.4) * 0.045;
     rivet.position.set(side * rad, a, 0.13);
     mask.add(rivet);
+    rivets.push(rivet);
   }
 }
 
@@ -1059,6 +1062,7 @@ function makeEye(r, withGoggle) {
     lens.rotation.x = Math.PI / 2;
     lens.position.z = r * 0.28;
     grp.add(lens);
+    grp.userData.goggle = [rim, lens];
   }
   eyes.push({ grp, iris });
   return grp;
@@ -1073,11 +1077,13 @@ mask.add(strap);
 
 // dark plates sunk into the shell -- without these the goggles read as beads
 // stuck on a smooth balloon rather than lenses set into sockets
+const sockets = [];
 function socket(x, y, z, r) {
   const p = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), leatherDark);
   p.scale.set(1, 0.92, 0.42);
   p.position.set(x, y, z);
   mask.add(p);
+  sockets.push(p);
 }
 socket(-0.134, 0.250, 0.268, 0.126);
 socket( 0.134, 0.250, 0.268, 0.126);
@@ -1138,6 +1144,76 @@ function makeArm() {
 }
 const armL = makeArm(); armL.position.set(-0.56, 3.44, 0.06); priest.add(armL);
 const armR = makeArm(); armR.position.set( 0.56, 3.44, 0.06); priest.add(armR);
+
+/* ----- iori's sculpted mask, swapped in over the procedural one -----
+   The procedural head is what the page opens with, so nothing waits on a
+   download; the model fades in once it arrives and the code parts it replaces
+   are hidden. The three tracking eyes are NOT part of the model — they stay in
+   the mask group and get re-anchored into its sockets, so the gaze rig keeps
+   working exactly as before.                                               */
+/* The socket positions are not guesses: the model was raycast on a grid across
+   its face and the goggle openings show up as two pockets sitting ~0.4 deeper
+   than the surrounding shell, centred on x = +/-0.25, y = 5.15 (world). Those
+   are converted to priest space below. */
+const MODEL_FIT = {
+  url: 'assets/plague_doctor_web.glb',
+  height: 3.05,      // world height of the bust, chest to top of hat
+  y: 2.16,           // where the bottom of that bust sits in priest space
+  z: -0.02,
+  head: { y: 4.45, z: 0.10 },       // world y 5.15 minus the priest's own y of 0.70
+  eye:  { x: 0.25, y: 0.00, z: -0.02 },  // relative to that head point
+  eye3: { y: 0.27, z: 0.10 },
+  eyeScale: 0.62,
+};
+let modelActive = false;
+
+// everything the model supersedes
+const PROCEDURAL_HEAD = [shell, beak, beakTip, beakRoot, strap, hat, hood, collar, neck, cape];
+const modelGroup = new THREE.Group();
+priest.add(modelGroup);
+
+new GLTFLoader().load(MODEL_FIT.url, (gltf) => {
+  const root = gltf.scene;
+  const box = new THREE.Box3().setFromObject(root);
+  const size = new THREE.Vector3(), centre = new THREE.Vector3();
+  box.getSize(size); box.getCenter(centre);
+  const k = MODEL_FIT.height / Math.max(size.y, 1e-4);
+  root.scale.setScalar(k);
+  // sit its base at MODEL_FIT.y and centre it on the priest's axis
+  root.position.set(-centre.x * k, MODEL_FIT.y - (box.min.y * k), MODEL_FIT.z - centre.z * k);
+
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    o.material.envMapIntensity = 0.6;
+  });
+  modelGroup.add(root);
+
+  for (const m of PROCEDURAL_HEAD) m.visible = false;
+  for (const s of sockets) s.visible = false;
+  for (const r of rivets) r.visible = false;
+
+  // the mask group now marks the model's head: it still drives the camera
+  // target and still carries the eyes, it just no longer draws a head
+  mask.position.set(0, MODEL_FIT.head.y, MODEL_FIT.head.z);
+  mask.rotation.set(0, 0, 0);
+
+  for (const e of eyes) {
+    e.grp.scale.setScalar(MODEL_FIT.eyeScale);        // the openings are small
+    for (const g of (e.grp.userData.goggle || [])) g.visible = false;  // model has its own rims
+  }
+  eyeL.position.set(-MODEL_FIT.eye.x, MODEL_FIT.eye.y, MODEL_FIT.eye.z);
+  eyeR.position.set( MODEL_FIT.eye.x, MODEL_FIT.eye.y, MODEL_FIT.eye.z);
+  eye3.position.set(0, MODEL_FIT.eye3.y, MODEL_FIT.eye3.z);
+  eyeLight.position.set(0, MODEL_FIT.head.y + 0.1, 0.85);
+
+  // the arms sat inside the bust; bring them out below its hem
+  armL.position.set(-0.78, 2.62, 0.10);
+  armR.position.set( 0.78, 2.62, 0.10);
+
+  modelActive = true;
+}, undefined, () => { /* offline or missing: the procedural head simply stays */ });
 
 priest.position.set(0, 0.7, -13.5);
 scene.add(priest);
@@ -1302,8 +1378,10 @@ function tick() {
   armR.userData.fore.rotation.x = -0.55 - Math.cos(t * 0.75 + 1.1) * 0.42;
   armL.userData.fore.rotation.z = Math.sin(t * 0.6) * 0.14;
   armR.userData.fore.rotation.z = -Math.sin(t * 0.55) * 0.14;
-  mask.rotation.y = Math.sin(t * 0.21) * 0.13;
-  mask.rotation.x = Math.sin(t * 0.31) * 0.05;
+  if (!modelActive) {
+    mask.rotation.y = Math.sin(t * 0.21) * 0.13;
+    mask.rotation.x = Math.sin(t * 0.31) * 0.05;
+  }
 
   /* --- the eyes follow the cursor ---
      A gaze point is placed on a plane in front of the mask and each eyeball is

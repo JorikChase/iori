@@ -35,3 +35,9 @@ clippy_dev_backup_1764260457/src/main.rs
 sp33d/
 .DS_Store
 .claude/
+
+# Mask authoring source: 33 MB, and it still embeds three CC-BY-ND texture maps.
+# Only the web build (assets/plague_doctor_web.glb) is tracked and shipped —
+# tools/build_mask_glb.py regenerates it from this.
+assets/plague_doctor.glb
+assets/fantasy_plague_doctor_mask/

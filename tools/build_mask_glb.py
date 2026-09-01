@@ -18,7 +18,9 @@ SRC = os.path.join(ROOT, "assets", "plague_doctor.glb")
 DST = os.path.join(ROOT, "assets", "plague_doctor_web.glb")
 ND_DIR = os.path.join(ROOT, "assets", "fantasy_plague_doctor_mask", "textures")
 MAX_TEX = 1024
-JPEG_Q = 4          # ffmpeg -q:v, 2 = best, 31 = worst
+JPEG_Q = 4          # ffmpeg -q:v, 2 = best, 31 = worst.
+                    # Full chroma is what protects the data maps; a higher
+                    # quality floor on top of that just doubles the file.
 
 JSON_CHUNK, BIN_CHUNK = 0x4E4F534A, 0x004E4942
 
@@ -100,9 +102,15 @@ def main():
         out = os.path.join(tmp, f"{i}.jpg")
         with open(src, "wb") as fh:
             fh.write(raw)
+        # A normal map stores a vector per texel and a metallicRoughness map
+        # stores two unrelated channels; 4:2:0 chroma subsampling smears exactly
+        # that data, so those get full chroma and a higher quality floor. Only
+        # baseColor is a real colour image and can take the cheaper encode.
+        data_map = ("normal" in name.lower() or "metallicroughness" in name.lower())
         subprocess.run(
             ["ffmpeg", "-v", "error", "-y", "-i", src,
              "-vf", f"scale='min({MAX_TEX},iw)':-1:flags=lanczos",
+             "-pix_fmt", "yuvj444p" if data_map else "yuvj420p",
              "-q:v", str(JPEG_Q), out], check=True)
         with open(out, "rb") as fh:
             small = fh.read()

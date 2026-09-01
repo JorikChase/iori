@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Art History Blackjack</title>
+<title>blackjach</title>
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
 <header class="app-header">
   <div class="app-header__brand">
-    <span class="app-header__title">Art History Blackjack</span>
+    <span class="app-header__title">blackjach</span>
   </div>
   <nav class="app-nav" aria-label="Screens">
     <button class="app-nav__tab is-active" data-screen="game" type="button">Play</button>
     <button class="app-nav__tab" data-screen="editor" type="button">Deck</button>
+    <button class="app-nav__tab" data-screen="community" type="button">Community</button>
     <button class="app-nav__tab" data-screen="stats" type="button">Stats</button>
     <button class="app-nav__tab" data-screen="settings" type="button">Settings</button>
   </nav>
@@ -76,6 +77,16 @@
         <h2 class="run-result__title" id="run-result-title"></h2>
         <p class="run-result__detail" id="run-result-detail"></p>
         <div class="run-result__note" id="run-result-note" hidden></div>
+
+        <div class="score-submit" id="score-submit" hidden>
+          <p class="score-submit__prompt">Submit this score to <strong id="score-submit-deck-name"></strong>'s public leaderboard?</p>
+          <div class="score-submit__row">
+            <input type="text" id="score-submit-nickname" maxlength="24" placeholder="Nickname" />
+            <button type="button" class="btn btn--accent" id="btn-submit-score">Submit</button>
+          </div>
+          <div class="score-submit__result" id="score-submit-result" hidden></div>
+        </div>
+
         <button class="btn btn--primary" id="btn-continue" type="button">Continue <span class="btn__key">Space</span></button>
       </div>
 
@@ -110,6 +121,11 @@
           Import
           <input type="file" id="input-import-deck" accept="application/json" hidden />
         </label>
+      </div>
+      <div class="deck-manager__actions">
+        <button class="btn btn--accent" id="btn-deck-share" type="button">Share deck publicly</button>
+        <button class="btn btn--ghost" id="btn-deck-leaderboard" type="button" hidden>View leaderboard</button>
+        <span class="deck-manager__shared-note" id="deck-manager-shared-note" hidden></span>
       </div>
     </div>
 
@@ -210,6 +226,60 @@
     </form>
   </div>
 
+  <!-- ============ SHARE DECK MODAL ============ -->
+  <div class="modal" id="share-modal" hidden>
+    <div class="modal__backdrop" id="share-modal-backdrop"></div>
+    <form class="modal__panel" id="share-form">
+      <h2 class="modal__title">Share "<span id="share-deck-name"></span>" publicly</h2>
+      <p class="stats-subtext">
+        Anyone visiting Community will be able to browse, import, and play this deck, and post scores
+        to its public leaderboard. There's no way to unshare it later — this is a one-way publish.
+      </p>
+      <label class="field-block">Your nickname (shown as the deck's author)
+        <input type="text" id="share-nickname" required maxlength="24" placeholder="e.g. jachym" />
+      </label>
+      <div class="form-errors" id="share-form-errors" hidden></div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="btn-cancel-share">Cancel</button>
+        <button type="submit" class="btn btn--accent" id="btn-confirm-share">Share deck</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ LEADERBOARD MODAL ============ -->
+  <div class="modal" id="leaderboard-modal" hidden>
+    <div class="modal__backdrop" id="leaderboard-modal-backdrop"></div>
+    <div class="modal__panel">
+      <h2 class="modal__title">Leaderboard — <span id="leaderboard-deck-name"></span></h2>
+      <div class="table-wrap">
+        <table class="stats-table" id="leaderboard-table">
+          <thead>
+            <tr><th>#</th><th>Nickname</th><th>Points</th><th>Rungs</th><th>Outcome</th><th>When</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary" id="btn-close-leaderboard">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ COMMUNITY SCREEN ============ -->
+  <section id="screen-community" class="screen">
+    <div class="community-toolbar">
+      <label>Sort
+        <select id="community-sort">
+          <option value="new">Newest</option>
+          <option value="top">Top score</option>
+        </select>
+      </label>
+      <button class="btn btn--ghost" id="btn-community-refresh" type="button">Refresh</button>
+    </div>
+    <div class="community-notice" id="community-notice" hidden></div>
+    <div class="community-list" id="community-list"></div>
+  </section>
+
   <!-- ============ STATS SCREEN ============ -->
   <section id="screen-stats" class="screen">
     <p class="stats-deck-label">Showing stats for: <strong id="stats-deck-name">—</strong></p>
@@ -254,6 +324,19 @@
   <!-- ============ SETTINGS SCREEN ============ -->
   <section id="screen-settings" class="screen">
     <div class="settings-block">
+      <h2 class="stats-heading">Deck sharing</h2>
+      <p class="stats-subtext">
+        Set the blackjach-api server to enable sharing decks publicly, browsing the Community tab,
+        and posting scores to leaderboards. Leave blank to keep everything fully offline.
+      </p>
+      <div class="settings-api-row">
+        <input type="text" id="field-api-url" placeholder="https://blackjach-api.3die.fr" />
+        <button class="btn btn--ghost" id="btn-test-api" type="button">Test</button>
+        <button class="btn btn--primary" id="btn-save-api" type="button">Save</button>
+      </div>
+      <p class="settings-api-status" id="settings-api-status"></p>
+    </div>
+    <div class="settings-block">
       <h2 class="stats-heading">Reset stats</h2>
       <p class="stats-subtext">Clears session/all-time score, run history, and per-card accuracy. Your deck and images are kept.</p>
       <button class="btn btn--ghost" id="btn-reset-stats" type="button">Reset stats</button>
@@ -277,12 +360,15 @@
 <script src="js/seedDeck.js"></script>
 <script src="js/deckService.js"></script>
 <script src="js/decksService.js"></script>
+<script src="js/apiService.js"></script>
 <script src="js/statsService.js"></script>
 <script src="js/draw.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ui-deckSwitcher.js"></script>
+<script src="js/ui-leaderboard.js"></script>
 <script src="js/ui-game.js"></script>
 <script src="js/ui-editor.js"></script>
+<script src="js/ui-community.js"></script>
 <script src="js/ui-stats.js"></script>
 <script src="js/ui-settings.js"></script>
 <script src="js/main.js"></script>

@@ -24,6 +24,7 @@ AHB.nav = (function () {
     tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.screen === name));
     screens.forEach((s) => s.classList.toggle('is-active', s.id === `screen-${name}`));
     if (name === 'editor') AHB.uiEditor.refresh();
+    if (name === 'community') AHB.uiCommunity.refresh();
     if (name === 'stats') AHB.uiStats.refresh();
   }
 
@@ -42,8 +43,10 @@ async function bootstrap() {
 
   AHB.nav.init();
   AHB.uiDeckSwitcher.init();
+  AHB.uiLeaderboard.init();
   AHB.uiGame.init();
   AHB.uiEditor.init();
+  AHB.uiCommunity.init();
   AHB.uiStats.init();
   AHB.uiSettings.init();
 

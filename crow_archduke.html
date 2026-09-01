@@ -908,11 +908,11 @@ const capeMat = new THREE.MeshStandardMaterial({
    camera. */
 const CAPE_GAP = 2.55;   // radians of opening: the lettering spans the whole chest
 const cape = cast(new THREE.Mesh(foldedLathe([
-  new THREE.Vector2(0.34, 4.02),
-  new THREE.Vector2(0.72, 3.76),
-  new THREE.Vector2(1.16, 3.30),
-  new THREE.Vector2(1.52, 2.62),
-  new THREE.Vector2(1.74, 1.90),
+  new THREE.Vector2(0.36, 3.62),
+  new THREE.Vector2(0.78, 3.34),
+  new THREE.Vector2(1.24, 2.86),
+  new THREE.Vector2(1.58, 2.16),
+  new THREE.Vector2(1.80, 1.42),
 ], 72, 11, 0.055, CAPE_GAP * 0.5, Math.PI * 2 - CAPE_GAP), capeMat));
 cape.receiveShadow = true;
 cape.renderOrder = 2;
@@ -1254,6 +1254,20 @@ new GLTFLoader().load(MODEL_FIT.url, (gltf) => {
   eyeR.position.set( MODEL_FIT.eye.x, MODEL_FIT.eye.y, MODEL_FIT.eye.z);
   eye3.position.set(0, MODEL_FIT.eye3.y, MODEL_FIT.eye3.z);
   eyeLight.position.set(0, MODEL_FIT.head.y + 0.1, 0.85);
+
+  /* The robe was the thing still covering the chest. Measured by raycast down
+     the centre line: between y 3.0 and 3.8 the robe's surface sat about 0.2 in
+     FRONT of the model's, so the painted lettering was behind procedural cloth
+     no matter what the cape did. It is cut off below the bust, which is wider
+     than it is at every height they share. */
+  robe.geometry.dispose();
+  robe.geometry = foldedLathe([
+    new THREE.Vector2(1.34, 0.00),
+    new THREE.Vector2(1.18, 0.62),
+    new THREE.Vector2(1.02, 1.32),
+    new THREE.Vector2(0.94, 1.72),
+    new THREE.Vector2(0.90, 2.10),
+  ], 64, 11, 0.045);
 
   // the arms sat inside the bust; bring them out below its hem
   armL.position.set(-0.78, 2.62, 0.10);

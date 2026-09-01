@@ -5,6 +5,7 @@ window.AHB = window.AHB || {};
 AHB.uiGame = (function () {
   const el = {};
   let imageCacheCardId = null;
+  let pendingScoreSubmit = null; // {serverId, points, rungsCleared, outcome} for the run just finished
 
   function cacheEls() {
     el.ladder = document.getElementById('ladder');
@@ -28,6 +29,12 @@ AHB.uiGame = (function () {
     el.btnContinue = document.getElementById('btn-continue');
     el.scoreSession = document.getElementById('score-session');
     el.scoreAllTime = document.getElementById('score-alltime');
+
+    el.scoreSubmit = document.getElementById('score-submit');
+    el.scoreSubmitDeckName = document.getElementById('score-submit-deck-name');
+    el.scoreSubmitNickname = document.getElementById('score-submit-nickname');
+    el.btnSubmitScore = document.getElementById('btn-submit-score');
+    el.scoreSubmitResult = document.getElementById('score-submit-result');
   }
 
   function renderLadder(state) {
@@ -80,6 +87,60 @@ AHB.uiGame = (function () {
         <span class="option-btn__key">${i + 1}</span><span>${AHB.utils.escapeHtml(opt)}</span>
       </button>`;
     }).join('');
+  }
+
+  // Only for runs that scored on a deck linked to a public leaderboard
+  // (has a serverId — either shared or imported from Community).
+  async function renderScoreSubmit(state) {
+    if (!['won', 'banked'].includes(state.phase)) {
+      pendingScoreSubmit = null;
+      el.scoreSubmit.hidden = true;
+      return;
+    }
+    const deck = await AHB.decksService.getActive();
+    if (!deck?.serverId) {
+      pendingScoreSubmit = null;
+      el.scoreSubmit.hidden = true;
+      return;
+    }
+    el.scoreSubmit.hidden = false;
+    el.scoreSubmitDeckName.textContent = deck.name;
+    el.scoreSubmitResult.hidden = true;
+    el.scoreSubmitNickname.value = (await AHB.metaService.getValue('lastNickname')) || '';
+    el.btnSubmitScore.disabled = false;
+    el.btnSubmitScore.hidden = false;
+    el.btnSubmitScore.textContent = 'Submit';
+    pendingScoreSubmit = {
+      serverId: deck.serverId,
+      deckName: deck.name,
+      points: state.lastRunSummary.pointsBanked,
+      rungsCleared: state.lastRunSummary.rungsCleared,
+      outcome: state.lastRunSummary.outcome,
+    };
+  }
+
+  async function handleSubmitScore() {
+    if (!pendingScoreSubmit) return;
+    const nickname = el.scoreSubmitNickname.value.trim();
+    if (!nickname) { el.scoreSubmitNickname.focus(); return; }
+    el.btnSubmitScore.disabled = true;
+    el.btnSubmitScore.textContent = 'Submitting…';
+    const { serverId, deckName, points, rungsCleared, outcome } = pendingScoreSubmit;
+    try {
+      await AHB.apiService.submitScore(serverId, { nickname, points, rungsCleared, outcome });
+      await AHB.metaService.setValue('lastNickname', nickname);
+      el.btnSubmitScore.hidden = true;
+      el.scoreSubmitResult.hidden = false;
+      el.scoreSubmitResult.innerHTML = 'Submitted — <button type="button" class="btn btn--ghost" id="btn-view-leaderboard-inline">View leaderboard</button>';
+      document.getElementById('btn-view-leaderboard-inline').addEventListener('click', () => {
+        AHB.uiLeaderboard.open(serverId, deckName);
+      });
+    } catch (err) {
+      el.btnSubmitScore.disabled = false;
+      el.btnSubmitScore.textContent = 'Submit';
+      el.scoreSubmitResult.hidden = false;
+      el.scoreSubmitResult.textContent = `Couldn't submit: ${err.message}`;
+    }
   }
 
   function render(state) {
@@ -145,6 +206,7 @@ AHB.uiGame = (function () {
       } else {
         el.runResultNote.hidden = true;
       }
+      renderScoreSubmit(state);
     }
   }
 
@@ -153,6 +215,7 @@ AHB.uiGame = (function () {
     el.btnBank.addEventListener('click', () => AHB.game.bank());
     el.btnHit.addEventListener('click', () => AHB.game.hit());
     el.btnContinue.addEventListener('click', () => AHB.game.acknowledgeAndReset());
+    el.btnSubmitScore.addEventListener('click', handleSubmitScore);
 
     el.options.addEventListener('click', (e) => {
       const btn = e.target.closest('.option-btn');

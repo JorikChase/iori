@@ -34,6 +34,12 @@
 
   --color-overlay:        rgba(6, 10, 8, 0.72);
 
+  /* Card-front text — the face art (card-front.png) is a light parchment,
+     so its text needs its own dark palette instead of the app's light-on-dark one. */
+  --color-card-text:       #241a0f;
+  --color-card-text-muted: #5c4a35;
+  --color-card-accent:     #8a5a1f;
+
   /* --- Typography --- */
   --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, 'SFMono-Regular', monospace;
@@ -77,16 +83,20 @@
 
   /* --- Asset paths (reskin by overwriting these files in /assets — same
      filename, same format (.png), any resolution). Target sizes:
-       card-back.png  1000×1400  (2.5:3.5 card ratio, ~4x a 320px-wide card)
-       table-bg.png   1600×1600  (tiled/covered behind the whole table — see
+       card-back.png   1000×1400  (2.5:3.5 card ratio, ~4x a 320px-wide card)
+       card-front.png  1000×1400  same ratio — the face shown once a card is
+                                   flipped. Light background, so card-front
+                                   text uses the --color-card-* tokens below.
+       table-bg.png    1600×1600  (tiled/covered behind the whole table — see
                                    assets-reference/table-layout-reference@2x.png
                                    for where the card/UI sit on top of it)
-       icon-bank.png   512×512   transparent bg — used as a CSS mask, so only
-       icon-hit.png    512×512   its alpha shape matters; it auto-recolors. */
-  --asset-card-back: url('../assets/card-back.png');
-  --asset-table-bg:  url('../assets/table-bg.png');
-  --asset-icon-bank: url('../assets/icon-bank.png');
-  --asset-icon-hit:  url('../assets/icon-hit.png');
+       icon-bank.png    512×512   transparent bg — used as a CSS mask, so only
+       icon-hit.png     512×512   its alpha shape matters; it auto-recolors. */
+  --asset-card-back:  url('../assets/card-back.png');
+  --asset-card-front: url('../assets/card-front.png');
+  --asset-table-bg:   url('../assets/table-bg.png');
+  --asset-icon-bank:  url('../assets/icon-bank.png');
+  --asset-icon-hit:   url('../assets/icon-hit.png');
 }
 
 /* =========================================================
@@ -127,10 +137,10 @@ img { max-width: 100%; display: block; }
   z-index: 20;
 }
 .app-header__brand { flex-shrink: 0; }
-.app-header__title {
-  font-weight: var(--fw-bold);
-  font-size: var(--fs-lg);
-  letter-spacing: 0.01em;
+.app-header__logo {
+  display: block;
+  height: 1.75rem;
+  width: auto;
 }
 .deck-switcher {
   display: flex;
@@ -297,6 +307,9 @@ img { max-width: 100%; display: block; }
 }
 .playing-card__face--front {
   background: var(--color-surface-raised);
+  background-image: var(--asset-card-front);
+  background-size: cover;
+  background-position: center;
   transform: rotateY(180deg);
   padding: var(--space-4);
   gap: var(--space-3);
@@ -307,8 +320,8 @@ img { max-width: 100%; display: block; }
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--color-text-dim);
-  border: 1px solid var(--color-hairline);
+  color: var(--color-card-text-muted);
+  border: 1px solid var(--color-card-text-muted);
   border-radius: var(--radius-pill);
   padding: 0.15rem var(--space-2);
 }
@@ -318,8 +331,9 @@ img { max-width: 100%; display: block; }
   font-size: var(--fs-lg);
   line-height: 1.4;
   text-align: center;
+  color: var(--color-card-text);
 }
-.playing-card__prompt em { color: var(--color-accent-strong); font-style: italic; }
+.playing-card__prompt em { color: var(--color-card-accent); font-style: italic; }
 
 .options {
   display: grid;
@@ -729,7 +743,7 @@ img { max-width: 100%; display: block; }
    RESPONSIVE
    ========================================================= */
 @media (max-width: 480px) {
-  .app-header__title { font-size: var(--fs-base); }
+  .app-header__logo { height: 1.375rem; }
   .table { padding: var(--space-3); }
   .form-row { flex-direction: column; }
   .distractor-grid { grid-template-columns: 1fr; }

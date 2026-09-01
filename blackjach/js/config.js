@@ -1,5 +1,5 @@
 /* =========================================================
-   CONFIG — Art History Blackjack
+   CONFIG — blackjach
    Change the ladder length, point values, or draw behaviour
    by editing this one object. Nothing else in the codebase
    hardcodes rung counts or point totals.

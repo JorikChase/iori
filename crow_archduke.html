@@ -223,8 +223,10 @@ function stoneTexture(seed, size = 512) {
       const joint = (gx < 3 || gy < 3) ? 0.45 : 1.0;
       v *= joint;
       const i = (y * size + x) * 4;
-      const base = 26 + v * 44;
-      d[i] = base * 1.02; d[i + 1] = base * 0.95; d[i + 2] = base * 1.12; d[i + 3] = 255;
+      // near-neutral now: the material carries the colour and the map carries
+      // the masonry. A purple-tinted map fought every attempt to go pale.
+      const base = 150 + v * 95;
+      d[i] = base; d[i + 1] = base * 0.985; d[i + 2] = base * 0.95; d[i + 3] = 255;
     }
   }
   g.putImageData(img, 0, 0);
@@ -499,11 +501,11 @@ scene.add(key, key.target);
 const NAVE_HALF = 7, NAVE_LEN = 36, WALL_H = 11, APSE_Z = -28.5;
 
 const stoneMap = stoneTexture(7);
-const stone = new THREE.MeshStandardMaterial({ envMapIntensity: 0.30, color: 0x4e3c60, roughness: 0.92, map: stoneMap });
-const stoneDark = new THREE.MeshStandardMaterial({ envMapIntensity: 0.26, color: 0x362a44, roughness: 1.0, map: stoneMap });
+const stone = new THREE.MeshStandardMaterial({ envMapIntensity: 0.30, color: 0xcfc7b6, roughness: 0.92, map: stoneMap });
+const stoneDark = new THREE.MeshStandardMaterial({ envMapIntensity: 0.26, color: 0xb3aa99, roughness: 1.0, map: stoneMap });
 const floorMap = stoneTexture(19);
 floorMap.repeat.set(6, 10);
-const floorMat = new THREE.MeshStandardMaterial({ envMapIntensity: 0.34, color: 0x40334e, roughness: 0.7, map: floorMap, metalness: 0.08 });
+const floorMat = new THREE.MeshStandardMaterial({ envMapIntensity: 0.34, color: 0xa79e8d, roughness: 0.62, map: floorMap, metalness: 0.08 });
 
 function archPath(cx, sill, w, h) {
   const hw = w / 2;
@@ -632,6 +634,134 @@ let apseCentre = new THREE.Vector3(0, 6.5, APSE_Z);
   }
 }
 
+/* ================= FURNISHINGS =================
+   An empty nave reads as a corridor. Pews give the floor a scale and a
+   perspective to run down, transverse ribs stop the vault being a smooth tube,
+   and candle stands put a few warm points at human height under all that cold
+   window light. The pews are instanced -- one draw call for the lot. */
+{
+  const wood = new THREE.MeshStandardMaterial({
+    color: 0x3a2a1c, roughness: 0.72, metalness: 0.03, envMapIntensity: 0.4,
+    map: stoneMap,
+  });
+
+  const brassWarm = new THREE.MeshStandardMaterial({
+    color: 0x7a5c2e, roughness: 0.38, metalness: 0.85, envMapIntensity: 0.9 });
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, fog: false });
+  // its own wax material: boneWhite is declared further down with the priest,
+  // and a const referenced above its declaration throws on load
+  const waxMat = new THREE.MeshStandardMaterial({
+    color: 0xe8e0cc, roughness: 0.55, envMapIntensity: 0.5 });
+
+  const ROWS = [];
+  for (let z = 3.4; z > -9.5; z -= 1.55) ROWS.push(z);
+  const BLOCKS = [-3.05, 3.05];
+  const n = ROWS.length * BLOCKS.length;
+
+  const seat = new THREE.InstancedMesh(new THREE.BoxGeometry(2.7, 0.13, 0.52), wood, n);
+  const back = new THREE.InstancedMesh(new THREE.BoxGeometry(2.7, 0.52, 0.11), wood, n);
+  const ends = new THREE.InstancedMesh(new THREE.BoxGeometry(0.12, 0.92, 0.56), wood, n * 2);
+  for (const im of [seat, back, ends]) { im.castShadow = true; im.receiveShadow = true; }
+
+  const m4 = new THREE.Matrix4();
+  let bi = 0, ei = 0;
+  for (const z of ROWS) {
+    for (const x of BLOCKS) {
+      const jitter = Math.sin(z * 7.3 + x) * 0.03;   // nothing is ever perfectly aligned
+      m4.makeTranslation(x, 0.47, z + jitter);        seat.setMatrixAt(bi, m4);
+      m4.makeTranslation(x, 0.78, z + jitter - 0.24); back.setMatrixAt(bi, m4);
+      for (const sx of [-1, 1]) {
+        m4.makeTranslation(x + sx * 1.35, 0.46, z + jitter);
+        ends.setMatrixAt(ei++, m4);
+      }
+      bi++;
+    }
+  }
+  scene.add(seat, back, ends);
+
+  // transverse ribs across the vault, one per bay
+  const ribGeo = new THREE.TorusGeometry(NAVE_HALF + 0.18, 0.20, 8, 28, Math.PI);
+  for (let k = 0; k < 7; k++) {
+    const rib = new THREE.Mesh(ribGeo, stone);
+    rib.position.set(0, WALL_H, 4 - k * 5.2);
+    rib.castShadow = true;
+    scene.add(rib);
+  }
+
+  // steps up to the dais
+  for (let k = 0; k < 3; k++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(6.4 - k * 0.9, 0.22, 1.5 - k * 0.28), stone);
+    step.position.set(0, 0.11 + k * 0.22, -10.1 - k * 0.55);
+    step.castShadow = true; step.receiveShadow = true;
+    scene.add(step);
+  }
+
+  /* Chandeliers. The camera settles around z = -7 looking down the nave, so
+     most of the pews end up behind it — these hang in the part of the frame
+     that is actually on screen the whole time, and give the vault something to
+     cast shadows onto. */
+  const ringGeo = new THREE.TorusGeometry(1.05, 0.055, 8, 30);
+  const barGeo = new THREE.CylinderGeometry(0.022, 0.022, 3.4, 6);
+  for (const cz of [-6.0, -11.4, -17.0]) {
+    const chand = new THREE.Group();
+    const ring = new THREE.Mesh(ringGeo, brassWarm);
+    ring.rotation.x = Math.PI / 2;
+    ring.castShadow = true;
+    chand.add(ring);
+    for (let k = 0; k < 3; k++) {
+      const chain = new THREE.Mesh(barGeo, brassWarm);
+      const a = (k / 3) * Math.PI * 2;
+      chain.position.set(Math.cos(a) * 0.95, 1.7, Math.sin(a) * 0.95);
+      chain.rotation.z = -Math.cos(a) * 0.27;
+      chain.rotation.x = Math.sin(a) * 0.27;
+      chand.add(chain);
+    }
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const wax = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.037, 0.30, 8), waxMat);
+      wax.position.set(Math.cos(a) * 1.05, 0.19, Math.sin(a) * 1.05);
+      wax.castShadow = true;
+      const fl = new THREE.Mesh(new THREE.SphereGeometry(0.033, 8, 6), flameMat);
+      fl.position.set(Math.cos(a) * 1.05, 0.38, Math.sin(a) * 1.05);
+      fl.scale.set(1, 1.7, 1);
+      chand.add(wax, fl);
+    }
+    chand.position.set(0, 7.4, cz);
+    scene.add(chand);
+    const cl = new THREE.PointLight(0xffb877, 2.2, 13, 2);
+    cl.position.set(0, 7.5, cz);
+    scene.add(cl);
+  }
+
+  // candle stands flanking the altar -- the scene had no warm light at human
+  // height at all, only the cold sky through the apertures
+  for (const side of [-1, 1]) {
+    const stand = new THREE.Group();
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1.9, 12), brassWarm);
+    post.position.y = 0.95; post.castShadow = true;
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.40, 0.10, 16), brassWarm);
+    foot.position.y = 0.05; foot.castShadow = true;
+    const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.30, 0.07, 16), brassWarm);
+    tray.position.y = 1.92; tray.castShadow = true;
+    stand.add(post, foot, tray);
+    for (let c = 0; c < 5; c++) {
+      const a = (c / 5) * Math.PI * 2;
+      const wax = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.26, 8), waxMat);
+      wax.position.set(Math.cos(a) * 0.26, 2.09, Math.sin(a) * 0.26);
+      wax.castShadow = true;
+      const flame = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), flameMat);
+      flame.position.set(Math.cos(a) * 0.26, 2.26, Math.sin(a) * 0.26);
+      flame.scale.set(1, 1.7, 1);
+      stand.add(wax, flame);
+    }
+    stand.position.set(side * 3.6, 0, -9.6);
+    scene.add(stand);
+    const glow = new THREE.PointLight(0xffb066, 2.4, 9, 2);
+    glow.position.set(side * 3.6, 2.25, -9.6);
+    scene.add(glow);
+  }
+}
+
 // ---- the apertures are left OPEN ----
 // Glazed panes used to fill every window and the rose, which meant the walls
 // were pierced but you still could not see out: the sky, the cloud deck and the
@@ -669,7 +799,7 @@ const smokeMat = new THREE.ShaderMaterial({
     uShade: { value: new THREE.Color(0x2a1c40) },
     uFogColor: { value: new THREE.Color(0x0a0512) },
     uFogDensity: { value: 0.018 },
-    uDensity: { value: 0.42 },
+    uDensity: { value: 0.32 },
   },
   vertexShader: `
     attribute vec3 iBase;
@@ -1261,12 +1391,15 @@ new GLTFLoader().load(MODEL_FIT.url, (gltf) => {
      no matter what the cape did. It is cut off below the bust, which is wider
      than it is at every height they share. */
   robe.geometry.dispose();
+  // It can sit higher than the bust's hem as long as it stays NARROWER than the
+  // chest is deep at that height -- what pokes through is radius, not altitude.
   robe.geometry = foldedLathe([
     new THREE.Vector2(1.34, 0.00),
     new THREE.Vector2(1.18, 0.62),
     new THREE.Vector2(1.02, 1.32),
-    new THREE.Vector2(0.94, 1.72),
-    new THREE.Vector2(0.90, 2.10),
+    new THREE.Vector2(0.86, 1.95),
+    new THREE.Vector2(0.66, 2.32),
+    new THREE.Vector2(0.48, 2.62),
   ], 64, 11, 0.045);
 
   // the arms sat inside the bust; bring them out below its hem
@@ -1383,7 +1516,7 @@ function tick() {
   skyMat.uniforms.t.value = t;
   updateEnvironment(timeOfDay, dt);
   scene.fog.color.copy(skyC.top).multiplyScalar(0.42);
-  scene.fog.density = 0.009 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.005;
+  scene.fog.density = 0.0075 + (1 - Math.sin(timeOfDay * Math.PI)) * 0.004;
 
   sunMesh.position.copy(sunDir).multiplyScalar(190);
   sunMesh.material.color.copy(skyC.sun);

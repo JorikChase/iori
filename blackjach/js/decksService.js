@@ -21,10 +21,60 @@ AHB.decksService = (function () {
 
   async function create(name) {
     const now = Date.now();
-    const deck = { id: AHB.utils.uid('deck'), name: (name || 'Untitled deck').trim() || 'Untitled deck', createdAt: now, updatedAt: now };
+    const deck = {
+      id: AHB.utils.uid('deck'),
+      name: (name || 'Untitled deck').trim() || 'Untitled deck',
+      createdAt: now,
+      updatedAt: now,
+      // Set once this deck is shared to / imported from blackjach-api.
+      // Lets a run submit its score to that deck's public leaderboard.
+      serverId: null,
+      sharedBy: null,
+      sharedAt: null,
+    };
     await AHB.db.put(STORE, deck);
     emit();
     return deck;
+  }
+
+  async function markShared(id, { serverId, sharedBy }) {
+    const deck = await getById(id);
+    if (!deck) return null;
+    deck.serverId = serverId;
+    deck.sharedBy = sharedBy;
+    deck.sharedAt = Date.now();
+    deck.updatedAt = Date.now();
+    await AHB.db.put(STORE, deck);
+    emit();
+    return deck;
+  }
+
+  // Imports a deck fetched from blackjach-api's GET /decks/{id} as a new
+  // local deck, and immediately links it back to that deck's leaderboard
+  // (same as if you'd shared it yourself) so it can be played and scored.
+  async function importFromServer(serverDeck) {
+    const local = await create(serverDeck.name);
+    await markShared(local.id, { serverId: serverDeck.id, sharedBy: serverDeck.sharedBy });
+    const base = await AHB.apiService.getBaseUrl();
+    for (const card of serverDeck.cards) {
+      let promptImage = null;
+      if (card.promptType === 'image' && card.imageUrl) {
+        const absoluteUrl = /^https?:\/\//.test(card.imageUrl) ? card.imageUrl : base + card.imageUrl;
+        promptImage = await AHB.imageService.storeFromUrl(absoluteUrl);
+      }
+      await AHB.deckService.save({
+        deckId: local.id,
+        difficulty: card.difficulty,
+        promptType: card.promptType,
+        promptImage,
+        promptText: card.promptText,
+        answer: card.answer,
+        distractors: card.distractors,
+        note: card.note,
+        tags: card.tags,
+      });
+    }
+    return local;
   }
 
   async function rename(id, name) {
@@ -116,5 +166,6 @@ AHB.decksService = (function () {
   return {
     onChange, getAll, getById, create, rename, duplicate, remove,
     getActiveId, setActiveId, getActive, ensureReady,
+    markShared, importFromServer,
   };
 })();

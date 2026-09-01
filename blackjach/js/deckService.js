@@ -110,7 +110,7 @@ AHB.deckService = (function () {
   }
 
   async function importOneDeck(raw) {
-    if (!raw || !Array.isArray(raw.cards)) throw new Error('That file doesn\'t look like an Art History Blackjack deck export.');
+    if (!raw || !Array.isArray(raw.cards)) throw new Error('That file doesn\'t look like a blackjach deck export.');
     const deckId = raw.deckId || AHB.utils.uid('deck');
     const existingDeck = await AHB.decksService.getById(deckId);
     if (existingDeck) {

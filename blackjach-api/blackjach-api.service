@@ -1,0 +1,26 @@
+[Unit]
+Description=blackjach-api (public deck sharing + leaderboards for blackjach)
+After=network.target
+
+[Service]
+Type=simple
+User=blackjachapi
+Group=blackjachapi
+WorkingDirectory=/opt/blackjach-api
+Environment=PORT=3100
+Environment=DB_PATH=/var/lib/blackjach-api/blackjach.db
+Environment=MEDIA_DIR=/var/lib/blackjach-api/media
+Environment=MEDIA_BASEURL=https://blackjach-api.3die.fr/media
+Environment=CORS_ORIGINS=https://3die.fr,https://blackjach.3die.fr
+ExecStart=/opt/blackjach-api/venv/bin/python /opt/blackjach-api/main.py
+Restart=always
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/blackjach-api
+
+[Install]
+WantedBy=multi-user.target

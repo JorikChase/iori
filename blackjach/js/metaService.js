@@ -10,6 +10,8 @@ AHB.metaService = (function () {
     allTimeScore: 0,
     seeded: false,
     sessionLog: [], // recent run summaries, newest first
+    apiBaseUrl: '',  // empty = deck sharing / leaderboards disabled
+    lastNickname: '', // remembered so sharing/scoring doesn't re-ask every time
   };
 
   async function getValue(key) {

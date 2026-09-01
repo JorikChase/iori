@@ -941,20 +941,28 @@ mask.add(shell);
 // the beak: an ellipse swept along an S-curve, tapering to a point
 function sweptBeak(curve, seg, ring, radiusAt) {
   const pos = [], idx = [];
-  const frames = curve.computeFrenetFrames(seg, false);
+  // The curve is planar in YZ, so a frame built from a fixed side axis is both
+  // stable and predictable — a Frenet frame rolls with the curvature, which
+  // makes "which way is up on the beak" something you cannot rely on.
+  // SIDE is -X so that UP x SIDE = tangent, matching the outward winding below.
+  const SIDE = new THREE.Vector3(-1, 0, 0);
+  const T = new THREE.Vector3(), UP = new THREE.Vector3();
   for (let i = 0; i <= seg; i++) {
     const t = i / seg;
     const p = curve.getPointAt(t);
-    const N = frames.normals[i], B = frames.binormals[i];
+    curve.getTangentAt(t, T);
+    UP.crossVectors(T, new THREE.Vector3(1, 0, 0)).normalize();
     const r = radiusAt(t);
     for (let j = 0; j < ring; j++) {
       const a = (j / ring) * Math.PI * 2;
-      // N lies in the curve's plane (vertical here) and B is horizontal, so
-      // this is what makes the beak taller than wide rather than flattened
-      const ox = Math.cos(a) * r, oy = Math.sin(a) * r * 0.76;
-      pos.push(p.x + N.x * ox + B.x * oy,
-               p.y + N.y * ox + B.y * oy,
-               p.z + N.z * ox + B.z * oy);
+      const cu = Math.cos(a), sv = Math.sin(a);
+      // rounded triangle rather than an ellipse: a ridge along the culmen,
+      // flatter cheeks, a fuller underside — the profile a real beak has
+      const k = 1 + 0.24 * Math.max(0, cu) - 0.05 * Math.max(0, -cu);
+      const ou = cu * r * k, os = sv * r * 0.66;
+      pos.push(p.x + UP.x * ou + SIDE.x * os,
+               p.y + UP.y * ou + SIDE.y * os,
+               p.z + UP.z * ou + SIDE.z * os);
     }
   }
   for (let i = 0; i < seg; i++) {
@@ -984,9 +992,18 @@ const beakCurve = new THREE.CubicBezierCurve3(
   new THREE.Vector3(0, -0.225, 1.06),
 );
 const beak = cast(new THREE.Mesh(
-  sweptBeak(beakCurve, 46, 20, (t) => 0.126 * Math.pow(1 - t, 0.70) + 0.004), boneWhite));
+  sweptBeak(beakCurve, 48, 22, (t) => 0.122 * Math.pow(1 - t, 0.76) + 0.009), boneWhite));
 beak.receiveShadow = true;
 mask.add(beak);
+// cap the open end, so the taper reads as a blunt tip and not a cut-off tube
+const beakTip = cast(new THREE.Mesh(new THREE.SphereGeometry(0.0115, 12, 8), boneWhite));
+beakTip.position.copy(beakCurve.getPointAt(1));
+mask.add(beakTip);
+// the seam where the beak is stitched onto the face
+const beakRoot = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.014, 8, 24), leatherDark);
+beakRoot.position.set(0, -0.012, 0.20);
+beakRoot.rotation.x = 0.18;
+mask.add(beakRoot);
 
 // nostril slits, low on the beak near the base
 for (const side of [-1, 1]) {
@@ -1064,11 +1081,13 @@ function socket(x, y, z, r) {
 }
 socket(-0.134, 0.250, 0.268, 0.126);
 socket( 0.134, 0.250, 0.268, 0.126);
-socket(0, 0.438, 0.232, 0.128);
+socket(0, 0.430, 0.222, 0.106);
 
 const eyeL = makeEye(0.086, true); eyeL.position.set(-0.134, 0.248, 0.300); mask.add(eyeL);
 const eyeR = makeEye(0.086, true); eyeR.position.set( 0.134, 0.248, 0.300); mask.add(eyeR);
-const eye3 = makeEye(0.100, false); eye3.position.set(0, 0.436, 0.262); mask.add(eye3);
+// set into the brow with its own brass rim, like the pair below it — as a bare
+// sphere on the surface it read as a ball stuck to the forehead
+const eye3 = makeEye(0.068, true); eye3.position.set(0, 0.430, 0.252); mask.add(eye3);
 
 mask.position.set(0, 4.04, 0.12);
 priest.add(mask);
@@ -1108,13 +1127,11 @@ function makeArm() {
   const foreMesh = cast(new THREE.Mesh(new THREE.CapsuleGeometry(0.066, 0.50, 6, 14), leather));
   foreMesh.position.y = -0.30;
   fore.add(foreMesh);
-  const cuff = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.078, 0.13, 16), leatherDark));
-  cuff.position.y = -0.54;
+  // the sleeve ends in a cuff; no hands. Blobs on the ends of the arms read
+  // worse than sleeves that simply fall away into shadow.
+  const cuff = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.104, 0.062, 0.20, 16), leatherDark));
+  cuff.position.y = -0.58;
   fore.add(cuff);
-  const hand = cast(new THREE.Mesh(new THREE.SphereGeometry(0.082, 14, 12), leatherDark));
-  hand.scale.set(0.82, 1.30, 0.62);
-  hand.position.y = -0.66;
-  fore.add(hand);
   g.add(fore);
   g.userData.fore = fore;
   return g;

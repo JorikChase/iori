@@ -640,7 +640,7 @@ async function loadStructure() {
 
 /* ================= CELLS ================= */
 
-const MAX_RENDER = 320;          // hard ceiling: the data-texture width
+const MAX_RENDER = 560;          // hard ceiling on instances drawn per frame
 const MICROBE_CAP = 58;          // carrying capacity for the mortal population
 
 const LINEAGE_HUE = {
@@ -806,50 +806,36 @@ function wireCrossBonds() {
    so the graph keeps reaching outward wherever the population happens to feed.
    They carry no page, so they are deliberately not navigable and never take a
    label; the 78 pages remain exactly the 78 labelled cells.                */
-const GROWN_CAP = 110;
+const GROWN_CAP = 300;
+const SPROUTS_PER_NODE = 3;   // how many branches one node may put out
 let grownCount = 0;
 
-function isOuterCell(c) {
-  if (!c.node || c.kind === 'nucleus') return false;
-  return c.node.grown || c.node.children.length === 0;
+function grownChildren(node) {
+  let n = 0;
+  for (const ch of node.children) if (ch.grown) n++;
+  return n;
 }
 
-/* At the cap the oldest tip of the grown frontier is reabsorbed to make room.
-   Without this the colony simply stops growing after a minute or so and the
-   whole mechanic goes quiet; with it the frontier keeps shifting for as long as
-   the page is open. Only childless grown nodes are pruned, so nothing is ever
-   orphaned, and the 78 page cells are never candidates. */
-function pruneOldestGrownTip() {
-  let oldest = null;
-  for (const c of tissue) {
-    if (!c.node || !c.node.grown || c.node.children.length) continue;
-    if (!oldest || c.born < oldest.born) oldest = c;
-  }
-  if (!oldest) return false;
-  for (let i = bonds.length - 1; i >= 0; i--) {
-    if (bonds[i].a === oldest || bonds[i].b === oldest) bonds.splice(i, 1);
-  }
-  // anything riding a bond that just went away has to let go of it
-  for (const m of microbes) {
-    if (m.ride && (m.ride.bond.a === oldest || m.ride.bond.b === oldest)) m.ride = null;
-  }
-  const par = oldest.node.parent;
-  if (par) {
-    const k = par.children.indexOf(oldest.node);
-    if (k >= 0) par.children.splice(k, 1);
-  }
-  const t = tissue.indexOf(oldest);
-  if (t >= 0) tissue.splice(t, 1);
-  cellById.delete(oldest.id);
-  grownCount--;
-  return true;
+/* A node can host growth once it has no page children left below it, and it can
+   host several. The old test was "no children at all", which meant a node that
+   had sprouted once was no longer a candidate — so growth could only ever run
+   in single-file chains. Allowing a few branches per node is what turns it into
+   a spreading tree. */
+function isOuterCell(c) {
+  if (!c.node || c.kind === 'nucleus') return false;
+  for (const ch of c.node.children) if (!ch.grown) return false;
+  return grownChildren(c.node) < SPROUTS_PER_NODE;
 }
 
 function sproutFrom(host, color) {
-  if (grownCount >= GROWN_CAP && !pruneOldestGrownTip()) return null;
+  if (grownCount >= GROWN_CAP) return null;   // growth stops; nothing is ever taken back
   const len = Math.hypot(host.node.tx, host.node.ty) || 1;
-  const ang = Math.atan2(host.node.ty, host.node.tx) + (Math.random() - 0.5) * 0.5;
-  const reach = len + 0.34 + Math.random() * 0.16;
+  // siblings fan off the parent's bearing rather than piling onto it
+  const FAN = [0, 0.40, -0.40, 0.78, -0.78];
+  const k = grownChildren(host.node);
+  const ang = Math.atan2(host.node.ty, host.node.tx)
+            + (FAN[k] || 0) + (Math.random() - 0.5) * 0.16;
+  const reach = len + 0.32 + Math.random() * 0.14;
   const node = {
     slug: null, label: null, title: null, grown: true,
     depth: (host.node.depth || 3) + 1,
@@ -1155,18 +1141,36 @@ function updateTissue(dt) {
     c.flash = Math.max(0, c.flash - dt * 2.0);
     c.radius = c.baseRadius * (0.25 + c.settle * 0.75) * (1 + c.pulse * 0.30);
   }
-  // keep neighbours from fusing into one unreadable mass
-  for (let i = 0; i < tissue.length; i++) {
-    for (let j = i + 1; j < tissue.length; j++) {
-      const a = tissue[i], b = tissue[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d2 = dx * dx + dy * dy;
-      const min = (a.radius + b.radius) * 1.28;
-      if (d2 < min * min && d2 > 1e-9) {
-        const d = Math.sqrt(d2);
-        const push = (min - d) / d * 0.016;
-        a.vx -= dx * push; a.vy -= dy * push;
-        b.vx += dx * push; b.vy += dy * push;
+  /* Keep neighbours from fusing into one unreadable mass. Bucketed on a
+     uniform grid rather than compared every-pair: once the colony grows past a
+     couple of hundred cells the all-pairs version is tens of thousands of
+     checks a frame for a force that only ever acts between touching cells. */
+  const CELL = 0.30;
+  const buckets = new Map();
+  for (const c of tissue) {
+    const k = Math.floor(c.x / CELL) * 73856093 ^ Math.floor(c.y / CELL) * 19349663;
+    let arr = buckets.get(k);
+    if (!arr) buckets.set(k, arr = []);
+    arr.push(c);
+  }
+  for (const a of tissue) {
+    const gi = Math.floor(a.x / CELL), gj = Math.floor(a.y / CELL);
+    for (let oi = -1; oi <= 1; oi++) {
+      for (let oj = -1; oj <= 1; oj++) {
+        const arr = buckets.get((gi + oi) * 73856093 ^ (gj + oj) * 19349663);
+        if (!arr) continue;
+        for (const b of arr) {
+          if (b.id <= a.id) continue;              // each pair once
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const d2 = dx * dx + dy * dy;
+          const min = (a.radius + b.radius) * 1.28;
+          if (d2 < min * min && d2 > 1e-9) {
+            const d = Math.sqrt(d2);
+            const push = (min - d) / d * 0.016;
+            a.vx -= dx * push; a.vy -= dy * push;
+            b.vx += dx * push; b.vy += dy * push;
+          }
+        }
       }
     }
   }
@@ -1191,7 +1195,7 @@ const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, premult
 let floatOK = false;
 if (gl) floatOK = !!gl.getExtension('EXT_color_buffer_float');
 
-const MAX_BONDS = 420;
+const MAX_BONDS = 900;
 const CELL_STRIDE = 12, BOND_STRIDE = 9;
 const cellData = new Float32Array(MAX_RENDER * CELL_STRIDE);
 const bondData = new Float32Array(MAX_BONDS * BOND_STRIDE);

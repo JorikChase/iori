@@ -263,11 +263,16 @@ const tracksCv = document.getElementById("tracks");
 const tracksCtx = tracksCv.getContext("2d");
 
 const CELL_W = 128, CELL_H = 80;   // displayed cell size (the atlas is 2x this)
-// The eight headings the car can drive, in octant order:
-//   0 E  1 SE  2 S  3 SW  4 W  5 NW  6 N  7 NE
-const D = Math.SQRT1_2;
-const OCT_VEC = [[1, 0], [D, D], [0, 1], [-D, D], [-1, 0], [-D, -D], [0, -1], [D, -D]];
-const OCT = Math.PI / 4;
+/* The car drives a 16-point compass — every 22.5 degrees — while the sprite
+   still comes from the eight the artwork provides. A finer travel grid keeps
+   the stair-stepping legible without locking the motion to the same eight
+   bearings the art is drawn at. */
+const STEPS = 16;
+const STEP_ANG = (Math.PI * 2) / STEPS;
+const HEADINGS = Array.from({ length: STEPS }, (_, k) => {
+  const a = k * STEP_ANG;
+  return [Math.cos(a), Math.sin(a)];
+});
 // octant 0 is east, counting clockwise on screen (y grows downward):
 //   0 E   1 SE   2 S   3 SW   4 W   5 NW   6 N   7 NE
 // mapped onto the atlas cell index for each of those
@@ -295,7 +300,9 @@ const car = {
   x: innerWidth / 2, y: innerHeight / 2,
   hx: 0, hy: 0,     // smoothed vector to the cursor, quantised into a heading
   ux: 1, uy: 0,     // the unit step actually being driven
-  oct: 0,           // current sprite octant
+  step: 0,          // current heading on the 16-point compass
+  oct: -1,          // sprite octant derived from it
+  sux: 1, suy: 0,   // heading the tyre tracks lag behind, so turns curve
   dwell: 0,         // time held in the current heading
   moving: false,
   speed: 0,
@@ -352,28 +359,38 @@ function carTick(now) {
   if (car.moving) {
     const ang = Math.atan2(car.hy, car.hx);
     car.dwell += dt;
-    // angular hysteresis plus a minimum dwell: a cursor sitting near a 22.5
-    // degree boundary used to flip the heading every frame, which is what the
-    // jitter was. It now has to travel well past the boundary AND the current
-    // heading has to have been held a moment before it can change.
-    let off = ang - car.oct * OCT;
+    // angular hysteresis plus a minimum dwell: a cursor sitting near a heading
+    // boundary used to flip every frame, which is what the jitter was
+    let off = ang - car.step * STEP_ANG;
     while (off > Math.PI) off -= Math.PI * 2;
     while (off < -Math.PI) off += Math.PI * 2;
-    if (Math.abs(off) > OCT * 0.80 && car.dwell > MIN_DWELL) {
-      car.oct = ((Math.round(ang / OCT) % 8) + 8) % 8;
+    if (Math.abs(off) > STEP_ANG * 0.80 && car.dwell > MIN_DWELL) {
+      car.step = ((Math.round(ang / STEP_ANG) % STEPS) + STEPS) % STEPS;
       car.dwell = 0;
-      setDir(car.oct);
     }
+    // the sprite is the nearest of the eight the art gives us, so it only
+    // changes every other step of the compass
+    const oct = Math.round(car.step / 2) % 8;
+    if (oct !== car.oct) { car.oct = oct; setDir(oct); }
 
-    const v = OCT_VEC[car.oct];
+    const v = HEADINGS[car.step];
     car.ux = v[0]; car.uy = v[1];
     car.speed = Math.min(MAX_SPEED, dist * CHASE);
     const step = Math.min(car.speed * dt, dist);   // never overshoot the cursor
     car.x += car.ux * step;
     car.y += car.uy * step;
+
+    // The wheels used to be offset from the instantaneous heading, so the whole
+    // track snapped sideways the moment the car changed bearing — rigid, and
+    // nothing like rubber. Lagging the offset direction makes the pair sweep
+    // round through the turn instead.
+    const ts = 1 - Math.pow(1 - 0.11, dt * 60);
+    car.sux += (car.ux - car.sux) * ts;
+    car.suy += (car.uy - car.suy) * ts;
     layTracks(step);
   } else {
     car.speed = 0;
+    car.sux = car.ux; car.suy = car.uy;
     car.trackL = car.trackR = null;   // lift the pen while parked
   }
 
@@ -400,10 +417,12 @@ function layTracks(step) {
     car.trackL = car.trackR = null;
     return;
   }
-  const ox = -car.uy * 10, oy = car.ux * 10;    // half the track width
+  const sl = Math.hypot(car.sux, car.suy) || 1;
+  const tux = car.sux / sl, tuy = car.suy / sl;   // the lagged heading
+  const ox = -tuy * 10, oy = tux * 10;            // half the track width
   const back = 24;
-  const bx = car.x - wrapRect.left - car.ux * back;
-  const by = car.y - wrapRect.top - car.uy * back;
+  const bx = car.x - wrapRect.left - tux * back;
+  const by = car.y - wrapRect.top - tuy * back;
   const L = { x: bx + ox, y: by + oy };
   const R = { x: bx - ox, y: by - oy };
 

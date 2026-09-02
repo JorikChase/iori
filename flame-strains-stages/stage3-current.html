@@ -1,0 +1,2500 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Flame Strains</title>
+    <meta name="description" content="A living flame engine: any 2D cellular automaton burns as a strain inside one volumetric fire. Life, Langton's ants, cyclic waves, embers and reaction-diffusion share one field, wrapped on shells and raymarched in 3D.">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#050000">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #050000;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 264px;
+            padding: 10px 12px 24px 12px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            background: rgba(5, 2, 0, 0.68);
+            color: #d8a55f;
+            font-size: 10px;
+            user-select: none;
+            scrollbar-width: thin;
+            scrollbar-color: #5a2f10 transparent;
+        }
+        #ui::-webkit-scrollbar { width: 4px; }
+        #ui::-webkit-scrollbar-thumb { background: #5a2f10; }
+        #ui.hidden { display: none; }
+
+        h1 {
+            margin: 0 0 8px 0;
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 4px;
+            opacity: 0.9;
+        }
+
+        .row { display: flex; flex-wrap: wrap; gap: 3px; margin: 5px 0; }
+
+        button, select {
+            background: none;
+            color: #d8a55f;
+            border: 1px solid #5a2f10;
+            border-radius: 0;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+        select { padding: 1px 2px; }
+        button:hover, select:hover { border-color: #d8a55f; }
+        button.on { background: #d8a55f; color: #180800; }
+        button[data-id].on { background: #d8a55f; color: #180800; }
+
+        .mixrow {
+            display: grid;
+            grid-template-columns: 16px 92px 16px 1fr 28px;
+            align-items: center;
+            gap: 4px;
+            margin: 1px 0;
+        }
+        .mixrow button { width: 100%; padding: 2px 0; text-align: center; }
+        .mixrow select { width: 100%; }
+        .mixrow span { text-align: right; opacity: 0.8; }
+        .swatch { width: 16px; height: 16px; padding: 0; border: 1px solid #5a2f10; background: none; cursor: pointer; }
+        .swatch::-webkit-color-swatch-wrapper { padding: 1px; }
+        .swatch::-webkit-color-swatch { border: none; }
+
+        #presets button { padding: 1px 5px; }
+        .slotedit { margin: 1px 0 3px 20px; padding: 3px 6px 1px 6px; border-left: 1px solid #5a2f10; }
+        #fireShareLine { margin: 3px 0 4px 1px; opacity: 0.75; }
+        #fireShareLine b { color: #ffd9a0; font-weight: 400; }
+
+        label.s {
+            display: grid;
+            grid-template-columns: 74px 1fr 32px;
+            align-items: center;
+            gap: 5px;
+            margin: 1px 0;
+            opacity: 0.85;
+        }
+        label.s span:last-child { text-align: right; }
+
+        input[type=range] {
+            width: 100%;
+            height: 2px;
+            accent-color: #d8a55f;
+            background: transparent;
+        }
+
+        details { margin-top: 5px; }
+        summary { cursor: pointer; letter-spacing: 2px; opacity: 0.7; }
+
+        #burger {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            z-index: 30;
+            font-size: 14px;
+            padding: 2px 8px;
+            background: rgba(5, 2, 0, 0.5);
+            color: #d8a55f;
+            border: 1px solid #5a2f10;
+            cursor: pointer;
+            opacity: 0.5;
+            font-family: inherit;
+        }
+        #burger:hover { opacity: 1; }
+
+        #stat {
+            position: absolute;
+            right: 12px;
+            bottom: 8px;
+            color: rgba(216, 165, 95, 0.4);
+            font-size: 10px;
+            text-align: right;
+            pointer-events: none;
+        }
+
+        #error-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff5555;
+            display: none;
+            text-align: center;
+            max-width: 80%;
+            z-index: 20;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="error-msg"></div>
+    <canvas id="c"></canvas>
+    <button id="burger" title="Show / hide the panel (H)">☰</button>
+    <div id="ui">
+        <h1>Flame Strains</h1>
+        <div id="strains">
+            <div class="mixrow"><button class="strain-1" data-id="1" title="Select slot 1 for the brush">1</button><select id="slot1" title="Which automaton burns in this slot"></select><input type="color" id="col1" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix1" min="0" max="100" step="1" value="0"><span id="mix1V">0%</span></div>
+            <div class="slotedit" id="edit1" style="display:none"></div>
+            <div class="mixrow"><button class="strain-2" data-id="2" title="Select slot 2 for the brush">2</button><select id="slot2" title="Which automaton burns in this slot"></select><input type="color" id="col2" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix2" min="0" max="100" step="1" value="0"><span id="mix2V">0%</span></div>
+            <div class="slotedit" id="edit2" style="display:none"></div>
+            <div class="mixrow"><button class="strain-3" data-id="3" title="Select slot 3 for the brush">3</button><select id="slot3" title="Which automaton burns in this slot"></select><input type="color" id="col3" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix3" min="0" max="100" step="1" value="0"><span id="mix3V">0%</span></div>
+            <div class="slotedit" id="edit3" style="display:none"></div>
+            <div class="mixrow"><button class="strain-4" data-id="4" title="Select slot 4 for the brush">4</button><select id="slot4" title="Which automaton burns in this slot"></select><input type="color" id="col4" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix4" min="0" max="100" step="1" value="0"><span id="mix4V">0%</span></div>
+            <div class="slotedit" id="edit4" style="display:none"></div>
+            <div class="mixrow"><button class="strain-5" data-id="5" title="Select slot 5 for the brush">5</button><select id="slot5" title="Which automaton burns in this slot"></select><input type="color" id="col5" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix5" min="0" max="100" step="1" value="0"><span id="mix5V">0%</span></div>
+            <div class="slotedit" id="edit5" style="display:none"></div>
+            <div class="mixrow"><button class="strain-6" data-id="6" title="Select slot 6 for the brush">6</button><select id="slot6" title="Which automaton burns in this slot"></select><input type="color" id="col6" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix6" min="0" max="100" step="1" value="0"><span id="mix6V">0%</span></div>
+            <div class="slotedit" id="edit6" style="display:none"></div>
+            <div class="mixrow"><button class="strain-7" data-id="7" title="Select slot 7 for the brush">7</button><select id="slot7" title="Which automaton burns in this slot"></select><input type="color" id="col7" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix7" min="0" max="100" step="1" value="0"><span id="mix7V">0%</span></div>
+            <div class="slotedit" id="edit7" style="display:none"></div>
+            <div class="mixrow"><button class="strain-8" data-id="8" title="Select slot 8 for the brush">8</button><select id="slot8" title="Which automaton burns in this slot"></select><input type="color" id="col8" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix8" min="0" max="100" step="1" value="0"><span id="mix8V">0%</span></div>
+            <div class="slotedit" id="edit8" style="display:none"></div>
+            <div class="mixrow"><button class="strain-9" data-id="9" title="Select slot 9 for the brush">9</button><select id="slot9" title="Which automaton burns in this slot"></select><input type="color" id="col9" class="swatch" title="Colour of this strain (click to pick; the editor has the full ramp)"><input type="range" id="mix9" min="0" max="100" step="1" value="0"><span id="mix9V">0%</span></div>
+            <div class="slotedit" id="edit9" style="display:none"></div>
+        </div>
+        <div class="mixrow" style="grid-template-columns: 60px 1fr"><span style="font-size:11px;opacity:0.8">fire from</span><select id="fireModeSel" title="What the flame burns: only the automata (a faint pilot ignites them), or also an abstract fuel column"><option value="0">automata only</option><option value="1">fuel + automata</option></select></div>
+        <div id="fireShareLine">pure fire keeps <b id="fireShareV">100%</b> of the fuel</div>
+        <label class="s"><span>layers</span><select id="layerSel" title="Each automaton lives on its own shell of the atlas"><option value="0">mixed shells</option><option value="1">one per shell</option></select><span></span></label>
+        <label class="s"><span>traces</span><select id="trailSel"><option value="0">none</option><option value="1">glowing</option><option value="2">solid</option></select><span></span></label>
+        <label class="s"><span>trace fade</span><input type="range" id="trailDecay" min="0.5" max="0.995" step="0.005" value="0.9"><span id="trailDecayV">0.90</span></label>
+        <div class="row" id="presets"></div>
+        <div class="row">
+            <button id="bRandom" title="Roll a random combination of automata and shares (D)">🎲 mix</button>
+            <button id="bRandColors" title="Roll a random colour scheme for fire and strains (G)">🎨 colors</button>
+            <button id="bSeed" title="Scatter seeds of the selected strain (R)">seed</button>
+            <button id="bBurst" title="Burst-seed the current mix over the flame (X)">burst</button>
+            <button class="strain-0" data-id="0" title="Select the eraser for the brush">erase</button>
+            <button id="bClear" title="Remove every strain (C)">clear</button>
+            <button id="bSave" title="Save everything (mix, slots, colours, fire, render) as a .json file and to this browser">save</button>
+            <button id="bLoad" title="Load a saved .json">load</button>
+            <select id="recentSel" title="Recent saves kept in this browser"><option value="">recent…</option></select>
+            <input type="file" id="loadFile" accept="application/json" style="display:none">
+            <button id="bPause" title="Pause / resume (Space)">pause</button>
+            <button id="bAtlas" title="Inspect the raw field: one tile per shell, temperature then strains (T)">atlas</button>
+            <button id="bThermo" class="on" title="Thermostat: trims fuel, emission and exposure when the field runs too hot">thermostat</button>
+            <button id="bAuto" title="Auto mode: hides the UI and slowly wanders every parameter for an endless flame (A)">▶ auto</button>
+        </div>
+        <label class="s"><span>shell</span><input type="range" id="shell" min="0" max="11" step="1" value="8"><span id="shellV">8</span></label>
+        <label class="s"><span>brush</span><input type="range" id="brush" min="3" max="60" step="1" value="18"><span id="brushV">18</span></label>
+        <label class="s"><span>strain hz</span><input type="range" id="hz" min="1" max="60" step="1" value="24"><span id="hzV">24</span></label>
+        <label class="s"><span>drift</span><input type="range" id="drift" min="0" max="1" step="0.01" value="0.12"><span id="driftV">0.25</span></label>
+        <label class="s"><span>fertility</span><input type="range" id="spawn" min="0" max="3" step="0.05" value="1"><span id="spawnV">1.00</span></label>
+        <label class="s"><span>aggression</span><input type="range" id="aggro" min="0" max="1" step="0.01" value="0.3"><span id="aggroV">0.30</span></label>
+        <label class="s"><span>glow</span><input type="range" id="glow" min="0" max="2" step="0.01" value="0.9"><span id="glowV">0.90</span></label>
+        <details>
+            <summary>fire</summary>
+            <label class="s"><span>fuel</span><input type="range" id="fuel" min="0" max="2.5" step="0.01" value="1.5"><span id="fuelV">1.50</span></label>
+            <label class="s"><span>wind</span><input type="range" id="wind" min="0" max="3" step="0.05" value="1"><span id="windV">1.00</span></label>
+            <label class="s"><span>swirl</span><input type="range" id="swirl" min="-1" max="1" step="0.01" value="0"><span id="swirlV">0.00</span></label>
+            <label class="s"><span>coupling</span><input type="range" id="couple" min="0" max="0.5" step="0.01" value="0.06"><span id="coupleV">0.06</span></label>
+            <label class="s"><span>expand</span><input type="range" id="expand" min="0" max="1" step="0.01" value="0.06"><span id="expandV">0.06</span></label>
+            <label class="s"><span>buoyancy</span><input type="range" id="buoy" min="0.2" max="2.5" step="0.05" value="1"><span id="buoyV">1.00</span></label>
+            <label class="s"><span>vorticity</span><input type="range" id="curl" min="0" max="2.5" step="0.05" value="1"><span id="curlV">1.00</span></label>
+            <label class="s"><span>root height</span><input type="range" id="bandY" min="3" max="60" step="1" value="10"><span id="bandYV">10</span></label>
+            <label class="s"><span>root width</span><input type="range" id="bandW" min="2" max="30" step="0.5" value="5.5"><span id="bandWV">5.5</span></label>
+            <label class="s"><span>emission</span><input type="range" id="emitG" min="0" max="2" step="0.02" value="1"><span id="emitGV">1.00</span></label>
+            <label class="s"><span>cooling</span><input type="range" id="cool" min="0" max="0.1" step="0.002" value="0.05"><span id="coolV">0.050</span></label>
+            <label class="s"><span>burn</span><input type="range" id="burn" min="0" max="1" step="0.01" value="0.3"><span id="burnV">0.30</span></label>
+        </details>
+        <details>
+            <summary>render</summary>
+            <label class="s"><span>colours</span><select id="palSel"></select><span></span></label>
+            <label class="s"><span>shell variety</span><input type="range" id="shellVar" min="0" max="1" step="0.01" value="0"><span id="shellVarV">0.00</span></label>
+            <label class="s"><span>exposure</span><input type="range" id="exposure" min="0.3" max="1.6" step="0.01" value="1"><span id="exposureV">1.00</span></label>
+            <label class="s"><span>smoke</span><input type="range" id="smoke" min="0" max="3" step="0.05" value="0.5"><span id="smokeV">1.00</span></label>
+            <label class="s"><span>warp</span><input type="range" id="warp" min="0" max="0.2" step="0.005" value="0.06"><span id="warpV">0.06</span></label>
+            <label class="s"><span>density</span><input type="range" id="dens" min="2" max="40" step="0.5" value="14"><span id="densV">14</span></label>
+            <label class="s"><span>crisp</span><input type="range" id="crisp" min="0" max="1" step="0.01" value="0"><span id="crispV">0.00</span></label>
+            <label class="s"><span>steps</span><input type="range" id="steps" min="32" max="192" step="8" value="96"><span id="stepsV">96</span></label>
+            <label class="s"><span>scale</span><input type="range" id="scale" min="0.4" max="2" step="0.1" value="1"><span id="scaleV">1.0</span></label>
+        </details>
+    </div>
+    <div id="stat"></div>
+    <script>
+        (function () {
+            // =================================================================
+            // FLAME STRAINS — a living flame engine for 2D automata
+            //
+            // THE IDEA. Every automaton stays strictly two-dimensional. What
+            // makes the fire three-dimensional is not the automaton's storage
+            // but the manifold its field is wrapped on: a stack of K concentric
+            // shells around the flame axis, each shell a (theta, height) grid
+            // that wraps in theta. The carrier — the flame-simulation.html
+            // stable-fluids loop — runs on those shells with a weak radial
+            // coupling, so it is a thin true-3D fluid at 2D cost. Strains —
+            // Life, turmites, cyclic waves, embers, Gray-Scott — are rule
+            // functions on ONE shared state texture whose alpha channel is the
+            // strain id: one multiplexed step pass switches on the id per cell,
+            // so completely different automata coexist, compete for dead
+            // ground, and burn in the same fire. The carrier's temperature is an
+            // input to every rule (fire kills, sparks, erases) and every rule
+            // emits heat back into the carrier (automata are fuel).
+            //
+            // STORAGE. WebGL2 cannot render into a 3D texture in one pass, so
+            // the shells are tiled into one 2D atlas and every pass is a single
+            // fullscreen quad. Each tile carries a one-texel pad column on each
+            // side: every pass evaluates the pad texel as the wrapped cell, so
+            // hardware bilinear filtering across the theta seam is exact with no
+            // extra copy pass. Sampling is bilinear in-shell, lerped across
+            // shells; strains are fetched exactly (texelFetch), never filtered.
+            //
+            // DISPLAY. A single-scattering raymarch through the flame's cone.
+            // Each sample point is domain-warped by rising noise (hides the
+            // shell structure, gives the lick), mapped to (theta, height,
+            // shell), and shaded with the archetype's palette, smoke and spin
+            // overlay. Strain tints are fetched crisp, so the automata read as
+            // sharp cells inside a soft volume. Render resolution is decoupled
+            // from cell resolution: that is the sub-pixel volume look.
+            //
+            // ADDING AN AUTOMATON (per AUTOMATA_CATALOG.md): if its kernel
+            // exists — life-like, Generations, elementary, cyclic, turmite,
+            // Gray-Scott, ember, forest, crystal — it is ONE line of data in
+            // CATALOG below. A new kernel is one rule function plus a branch
+            // in the strainLib tables (alive/decay/aggro/emit/init/deadOf)
+            // and a tint. The 9 mix slots each bind one catalog entry; the
+            // sliders share a 100% fuel budget with the pure flame.
+            // =================================================================
+
+            function showError(msg) {
+                const errDiv = document.getElementById('error-msg');
+                errDiv.style.display = 'block';
+                errDiv.innerText = msg;
+            }
+            window.addEventListener('error', e => showError('Error: ' + e.message));
+
+            const canvas = document.getElementById('c');
+            const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+            if (!gl) { showError('WebGL 2.0 is not supported on your device.'); return; }
+            if (!gl.getExtension('EXT_color_buffer_float')) { showError('Floating point render targets are not supported on this device.'); return; }
+
+            // --- FIELD LAYOUT --------------------------------------------------
+            // NT cells around, NY cells up, K shells. Tiles are (NT+2) wide: one
+            // pad column per side so bilinear reads wrap across the theta seam.
+            // URL overrides: ?nt=320&ny=256&k=12 (field), any P key (?steps=64&scale=0.7 ...).
+            const Q = new URLSearchParams(location.search);
+            const qi = (n, d) => { const v = parseInt(Q.get(n)); return isFinite(v) && v > 0 ? v : d; };
+            const NT = qi('nt', 320), NY = qi('ny', 256), K = qi('k', 12);
+            const TILES = [Math.ceil(Math.sqrt(K)), 0]; TILES[1] = Math.ceil(K / TILES[0]);
+            const TW = NT + 2;
+            const ATLAS = [TW * TILES[0], NY * TILES[1]];  // 966 x 1024
+            const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            if (ATLAS[0] > maxTex || ATLAS[1] > maxTex) { showError('Atlas ' + ATLAS.join('x') + ' exceeds MAX_TEXTURE_SIZE ' + maxTex); return; }
+
+            // World geometry of the manifold: a cone H tall, R0 wide at its
+            // waist, tapering to the tip by profile(). Cell (x, y, k) sits at
+            // theta = x / NT * 2pi, height = y / NY * H, radius = R0 * profile * (k + 0.5) / K.
+            const H = 2.6, R0 = 0.7;
+
+            // Velocities are cells/second; the 2D flame was 144 cells tall.
+            const SCALE = NY / 144.0;
+            const CONFIG = {
+                DENSITY_DISSIPATION: 0.997,
+                VELOCITY_DISSIPATION: 0.992,
+                SPIN_DISSIPATION: 0.995,
+                PRESSURE_ITERATIONS: 14,
+                CURL: 30.0 * SCALE,
+                BUOYANCY: 180.0 * SCALE,
+                SIM_SPEED: 1.6,
+                WIND_STRENGTH: 25.0 * SCALE
+            };
+
+            // Live parameters (bound to the sliders below).
+            const P = {
+                shell: 8, brush: 18, hz: 24, drift: 0.12, aggro: 0.3, glow: 0.9,
+                fuel: 1.5, swirl: 0.0, wind: 1.0, couple: 0.06, expand: 0.06, burn: 0.3, cool: 0.05,
+                warp: 0.06, dens: 14, crisp: 0.0, steps: 96, scale: 1.0,
+                mix1: 0, mix2: 0, mix3: 0, mix4: 0, mix5: 0, mix6: 0, mix7: 0, mix8: 0, mix9: 0, spawn: 1.0,
+                trail: 0, trailDecay: 0.9, layered: 0, shellVar: 0, fireMode: 0, buoy: 1.0, curl: 1.0, bandY: 10, bandW: 5.5, emitG: 1.0, exposure: 1.0, smoke: 0.5, thermo: 1,
+                strain: 1, paused: false, substeps: 1, view: 0, dbg: 0
+            };
+            for (const k in P) if (Q.has(k) && typeof P[k] === 'number') { const v = parseFloat(Q.get(k)); if (isFinite(v)) P[k] = v; }
+
+            // --- SHADER BUILDING BLOCKS ----------------------------------------
+
+            const baseVs = `#version 300 es
+            in vec2 aPosition; out vec2 vUv;
+            void main() { vUv = aPosition * 0.5 + 0.5; gl_Position = vec4(aPosition, 0.0, 1.0); }`;
+
+            // Atlas addressing, shared by every pass.
+            const atlasLib = `#version 300 es
+            precision highp float; precision highp int; precision highp sampler2D;
+            in vec2 vUv; out vec4 outColor;
+            uniform float uDt; uniform float uTime;
+            const float NT = ${NT}.0, NY = ${NY}.0, K = ${K}.0, TW = ${TW}.0;
+            const vec2 TILES = vec2(${TILES[0]}.0, ${TILES[1]}.0);
+            const vec2 ATLAS = vec2(${ATLAS[0]}.0, ${ATLAS[1]}.0);
+            const float TAU = 6.28318530718;
+
+            // This fragment's cell: x in [0,NT), y in [0,NY), k in [0,K).
+            // Pad texels resolve to the wrapped cell, so they are always valid.
+            vec3 cellCoord() {
+                vec2 f = floor(gl_FragCoord.xy);
+                vec2 tile = floor(f / vec2(TW, NY));
+                float k = tile.y * TILES.x + tile.x;
+                vec2 local = f - tile * vec2(TW, NY);
+                float x = mod(local.x - 1.0 + NT, NT);
+                return vec3(x, local.y, k);
+            }
+            // Exact fetch at an integer cell. Wraps x, clamps y and k.
+            vec4 fetchCell(sampler2D t, vec3 c) {
+                float k = clamp(c.z, 0.0, K - 1.0);
+                vec2 tile = vec2(mod(k, TILES.x), floor(k / TILES.x));
+                float x = mod(c.x + NT, NT);
+                float y = clamp(c.y, 0.0, NY - 1.0);
+                return texelFetch(t, ivec2(tile * vec2(TW, NY) + vec2(1.0 + x, y)), 0);
+            }
+            // Bilinear in-shell sample at fractional cell coords (centers at i + 0.5).
+            vec4 sampleSlice(sampler2D t, vec2 p, float k) {
+                k = clamp(floor(k), 0.0, K - 1.0);
+                vec2 tile = vec2(mod(k, TILES.x), floor(k / TILES.x));
+                float x = mod(p.x, NT);
+                float y = clamp(p.y, 0.5, NY - 0.5);
+                return texture(t, (tile * vec2(TW, NY) + vec2(1.0 + x, y)) / ATLAS);
+            }
+            // Trilinear: p.z is a continuous shell coordinate, shell centers at k + 0.5.
+            // Inside the innermost shell the core value holds; beyond the outermost it fades to zero.
+            vec4 sampleVol(sampler2D t, vec3 p) {
+                float kk = p.z - 0.5;
+                float k0 = floor(kk);
+                if (k0 < 0.0) return sampleSlice(t, p.xy, 0.0);
+                float f = kk - k0;
+                vec4 a = sampleSlice(t, p.xy, k0);
+                vec4 b = (k0 + 1.0 > K - 1.0) ? vec4(0.0) : sampleSlice(t, p.xy, k0 + 1.0);
+                return mix(a, b, f);
+            }
+            // Cylinder position of a cell, for noise that must be continuous across the seam.
+            vec3 cylPos(vec3 c) {
+                float th = (c.x + 0.5) / NT * TAU;
+                return vec3(cos(th), (c.y + 0.5) / NY * 2.0, sin(th)) + c.z * 0.13;
+            }`;
+
+            const noiseLib = `
+            float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+            float noise(vec3 x) {
+                vec3 i = floor(x); vec3 f = fract(x); vec3 u = f*f*(3.0-2.0*f);
+                return mix(mix(mix( hash(i+vec3(0,0,0)), hash(i+vec3(1,0,0)),u.x),
+                               mix( hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)),u.x),u.y),
+                           mix(mix( hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)),u.x),
+                               mix( hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)),u.x),u.y),u.z);
+            }
+            float fbm3(vec3 p) {
+                float v = 0.0; float a = 0.5; vec3 shift = vec3(100.0);
+                for (int i = 0; i < 3; ++i) { v += a * (noise(p) * 2.0 - 1.0); p = p * 2.0 + shift; a *= 0.5; }
+                return v;
+            }
+            // Per-cell, per-step random in [0,1).
+            float hash13(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }`;
+
+            const paletteLib = `
+            vec3 rainbowPalette(float t) {
+                vec3 a = vec3(0.5), b = vec3(0.5), c = vec3(1.0), d = vec3(0.00, 0.33, 0.67);
+                return a + b * cos(6.28318 * (c * t + d));
+            }
+            // The fire ramp is data: five stops, uploaded per frame, so whole
+            // colour schemes swap live while the default stays the classic fire.
+            // Every SHELL of the atlas carries its own copy of the ramp (hue-
+            // rotated by the shell variety), so each layer can burn a colour.
+            uniform vec3 uPal[5];
+            uniform vec3 uPalS[80];      // up to 16 shells x 5 stops
+            uniform vec3 uSmokeA, uSmokeB;
+            vec3 fireStops(float x, vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4) {
+                x = clamp(x, 0.0, 1.0);
+                if (x < 0.1) return mix(c0, c1, x * 10.0);
+                if (x < 0.35) return mix(c1, c2, (x - 0.1) * 4.0);
+                if (x < 0.7) return mix(c2, c3, (x - 0.35) * 2.85);
+                return mix(c3, c4, (x - 0.7) * 3.33);
+            }
+            vec3 firePalette(float x) { return fireStops(x, uPal[0], uPal[1], uPal[2], uPal[3], uPal[4]); }
+            vec3 firePaletteAt(float x, int k) { int b = k * 5; return fireStops(x, uPalS[b], uPalS[b + 1], uPalS[b + 2], uPalS[b + 3], uPalS[b + 4]); }
+            vec3 firePaletteK(float x, float kk) {
+                float kf = clamp(kk - 0.5, 0.0, K - 1.0);
+                int k0 = int(floor(kf));
+                return mix(firePaletteAt(x, k0), firePaletteAt(x, min(k0 + 1, int(K) - 1)), fract(kf));
+            }
+            vec3 hsv(float h, float s, float v) {
+                vec3 c = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+                return v * mix(vec3(1.0), c, s);
+            }`;
+
+            // --- STRAIN INTERFACE: KERNELS + DATA ------------------------------
+            // Following AUTOMATA_CATALOG.md: a handful of kernels, and every
+            // named automaton is a parameter set, not code. Each of the 9 mix
+            // SLOTS is bound to one catalog entry: uSlotK[slot] names the
+            // kernel, uSlotP[slot] carries its parameters, uSlotRamp its colour ramp.
+            // The cell's alpha channel stores the SLOT id, so two slots may run
+            // the same rule as rival strains.
+            //
+            // Kernels (state channel semantics per kernel):
+            //   1 LIFE     outer-totalistic + Generations ageing (K2).
+            //              P = (B mask, S mask, C states). C=2 is plain
+            //              life-like; C>2 makes dying-age trails (Brian's
+            //              Brain, Star Wars, Lava...). r = 0 dead, 1 alive,
+            //              2..C-1 dying; g = generations alive.
+            //   2 TURMITE  agent-as-CA (K9). P = (turn mask: bit c set = turn
+            //              right on colour c, colour count). r colour, g ant,
+            //              b heading.
+            //   3 CYCLIC   cyclic CA (Fisch-Gravner-Griffeath). P = (n states,
+            //              threshold). r state, g steps-since-advance.
+            //   4 EMBER    fuel/heat/grain combustion CA. r fuel, g heat, b grain.
+            //   5 GS       Gray-Scott reaction-diffusion (K3+K5). P = (F, k).
+            //              r U, g V.
+            //   6 WOLFRAM  elementary CA, rows climb with the flame (K1).
+            //              P = (8-bit rule). r bit.
+            //   7 FOREST   Drossel-Schwabl forest fire. P = (regrow p,
+            //              lightning f). r 0 ash / 1 tree / 2 burning.
+            //   8 CRYSTAL  frost growth + melt. P = (stick p, melt T). r ice.
+            //
+            // Every kernel sees: NS(c,dx,dy) in-shell neighbours (same-slot
+            // checks via isId), NR(c,dk) radial neighbours, the carrier heat,
+            // and a random number. It returns a full state with slot id in .a.
+            // Adding a kernel = one branch in each table below + a rule; adding
+            // an automaton on an existing kernel = one line of DATA in CATALOG.
+            const strainLib = `
+            uniform sampler2D uStrain;
+            uniform float uBurn;
+            uniform float uSlotK[10];
+            uniform vec4 uSlotP[10];
+            uniform vec3 uSlotRamp[40];  // per-slot colour ramp: 4 stops, slot i at [i*4 .. i*4+3]
+            uniform vec4 uSlotMod[10];   // per-slot (emission x, aggression x, flammability x, spectrum spread)
+            // A strain's colour at position t (0..1) along its ramp; spread
+            // pulls every state toward the ramp's middle when small.
+            vec3 rampOf(float id, float t) {
+                int b = int(id + 0.5) * 4;
+                t = clamp(0.5 + (t - 0.5) * uSlotMod[int(id + 0.5)].w, 0.0, 1.0) * 3.0;
+                int i = min(int(floor(t)), 2);
+                return mix(uSlotRamp[b + i], uSlotRamp[b + i + 1], t - float(i));
+            }
+
+            uniform float uTrail, uTrailDecay, uHasMat, uHasFw, uStep;
+            uniform float uLayered, uSlotShell[10];
+            int kernelOf(float id) { int i = int(id + 0.5); return (i < 1 || i > 9) ? 0 : int(uSlotK[i] + 0.5); }
+            // Ghosts: traces left by movers. Encoded as a NEGATIVE slot id;
+            // r = intensity, g = hue (0..15) for fireworks, else unused.
+            bool isGhost(vec4 s) { return s.a < -0.5; }
+            vec4 ghostOf(float slot, float hue16) { return vec4(1.0, hue16, 0.0, -slot); }
+            // Material of a cell for the sand/water partition: 0 free, 1 sand, 2 water, 3 stone, 4 wall.
+            int matOf(vec4 s) {
+                if (s.a < 0.5) return (isGhost(s) && uTrail > 1.5) ? 4 : 0;
+                if (kernelOf(s.a) == 9) return int(s.r + 0.5);
+                return 4;
+            }
+            vec4 paramsOf(float id) { return uSlotP[int(id + 0.5)]; }
+            bool isId(vec4 s, float id) { return abs(s.a - id) < 0.5; }
+            // Neighbour in-shell: wraps theta, EMPTY beyond top and bottom.
+            vec4 NS(vec3 c, float dx, float dy) {
+                float y = c.y + dy;
+                if (y < 0.0 || y > NY - 1.0) return vec4(0.0);
+                return fetchCell(uStrain, vec3(c.x + dx, y, c.z));
+            }
+            // Radial neighbour: EMPTY beyond the innermost and outermost shell.
+            vec4 NR(vec3 c, float dk) {
+                float k = c.z + dk;
+                if (k < 0.0 || k > K - 1.0) return vec4(0.0);
+                return fetchCell(uStrain, vec3(c.xy, k));
+            }
+            // Is this cell "alive" for its kernel? Dead ground is contested.
+            float alive(vec4 s) {
+                int k = kernelOf(s.a);
+                if (k == 1) return step(0.5, s.r);             // alive or dying
+                if (k == 2) return max(s.g, step(0.5, s.r));
+                if (k == 3) return step(s.g, 5.5);             // a wave passed recently
+                if (k == 4) return step(0.05, s.g);            // burning
+                if (k == 5) return step(0.15, s.g);
+                if (k == 6) return step(0.5, s.r);
+                if (k == 7) return step(0.5, s.r);             // tree or burning
+                if (k == 8) return step(0.5, s.r);             // ice
+                if (k == 9) return step(0.5, s.r);             // any material
+                if (k == 10) return step(0.5, s.r);            // rocket, spark or flash
+                return 0.0;
+            }
+            // Chance per step that a dead cell returns to empty ground (ash).
+            float decayOf(vec4 s) {
+                int k = kernelOf(s.a);
+                if (k == 4) return s.r < 0.05 ? 0.02 : 0.0;    // a fuel bed persists
+                if (k == 7) return 0.015;
+                if (k == 1) return 0.006;                      // a rule's dead substrate lingers
+                if (k == 3 || k == 5 || k == 8) return 0.01;
+                if (k == 9 || k == 10) return 1.0;             // movers leave no territory
+                return k == 0 ? 0.0 : 0.02;
+            }
+            // How eagerly each kernel takes dead ground (scaled by aggression).
+            float aggroBase(int k);
+            float aggroOf(float id) {
+                int k = kernelOf(id);
+                return k >= 1 ? uSlotMod[int(id + 0.5)].y * aggroBase(k) : 0.0;
+            }
+            float aggroBase(int k) {
+                if (k == 1) return 1.0;
+                if (k == 2) return 0.0;    // ants colonise by walking
+                if (k == 3) return 0.12;
+                if (k == 4) return 0.5;
+                if (k == 5) return 0.35;
+                if (k == 6) return 0.7;    // rows need width to draw triangles
+                if (k == 7) return 0.8;    // the forest reclaims ground
+                if (k == 8) return 0.35;
+                return 0.0;   // materials and fireworks move; they do not colonise
+            }
+            // Heat a strain cell pours into the carrier. Automata are fuel.
+            float burnRateOf(float id) { return uBurn * uSlotMod[int(id + 0.5)].z; }
+            float emitOfRaw(vec4 s, int k, vec4 P) {
+                if (k == 1) {
+                    if (s.r < 0.5) return 0.0;
+                    if (s.r < 1.5) return mix(0.62, 0.42, smoothstep(0.0, 30.0, s.g));
+                    return 0.45 * (1.0 - (s.r - 1.0) / max(P.z - 1.0, 1.0));   // Generations trail glows out
+                }
+                if (k == 2) return s.g > 0.5 ? 0.8 : 0.25 * s.r / max(P.y - 1.0, 1.0);
+                if (k == 3) return 0.55 * exp(-s.g * 0.6);
+                if (k == 4) return s.g * 0.9;
+                if (k == 5) return s.g * 1.2;
+                if (k == 6) return s.r > 0.5 ? 0.72 : 0.0;
+                if (k == 7) return s.r > 1.5 ? 1.0 : s.r > 0.5 ? 0.05 : 0.0;
+                if (k == 8) return s.r > 0.5 ? 0.3 : 0.0;
+                if (k == 9) { int m = int(s.r + 0.5); return m == 1 ? 0.12 + s.g * 0.7 : m == 2 ? 0.12 : m == 3 ? 0.2 : 0.0; }
+                if (k == 10) { int t = int(s.r + 0.5); return t == 1 ? 0.5 : t == 2 ? 0.9 * clamp(s.g / max(P.y, 1.0), 0.2, 1.0) : t == 3 ? 1.2 : 0.0; }
+                return 0.0;
+            }
+            float emitOf(vec4 s) {
+                if (isGhost(s)) return uTrail > 1.5 ? 0.12 : 0.35 * s.r;
+                return emitOfRaw(s, kernelOf(s.a), paramsOf(s.a)) * uSlotMod[int(s.a + 0.5)].x;
+            }
+            // Water quenches the carrier; stone shades it a little.
+            float quenchOf(vec4 s) {
+                if (kernelOf(s.a) != 9) return 0.0;
+                int m = int(s.r + 0.5);
+                return m == 2 ? 0.3 : m == 3 ? 0.06 : 0.0;
+            }
+            // Force a strain cell exerts on the carrier (cells/s^2).
+            vec2 forceOf(vec4 s) {
+                if (kernelOf(s.a) == 2 && s.g > 0.5) { int d = int(s.b + 0.5); return 60.0 * (d == 0 ? vec2(1, 0) : d == 1 ? vec2(0, 1) : d == 2 ? vec2(-1, 0) : vec2(0, -1)); }
+                return vec2(0.0);
+            }
+            // Fresh state when a slot is seeded (h random, g grain noise).
+            vec4 initStrain(float id, float h, float g, bool center) {
+                int k = kernelOf(id);
+                if (k == 1) return vec4(h < 0.35 ? 1.0 : 0.0, 0.0, 0.0, id);
+                if (k == 2) return vec4(0.0, center ? 1.0 : 0.0, floor(h * 4.0), id);
+                if (k == 3) return vec4(floor(h * paramsOf(id).x), 0.0, 0.0, id);
+                if (k == 4) return vec4(1.0, center ? 1.0 : 0.0, g, id);
+                if (k == 5) return vec4(0.5, 0.25 + 0.1 * h, 0.0, id);
+                if (k == 6) return vec4(h < 0.25 ? 1.0 : 0.0, 0.0, 0.0, id);
+                if (k == 7) return vec4(h < 0.02 ? 2.0 : (h < 0.65 ? 1.0 : 0.0), 0.0, 0.0, id);
+                if (k == 8) return vec4((h < 0.1 || center) ? 1.0 : 0.0, 0.0, 0.0, id);
+                if (k == 9) { float mt = paramsOf(id).x; return (mt < 1.5 && h > 0.55) ? vec4(0.0) : vec4(mt, 0.0, 0.0, id); }   // sand falls as grains, liquids as blobs
+                if (k == 10) return center ? vec4(1.0, 10.0 + h * paramsOf(id).x, floor(g * 15.99) * 8.0 + 2.0, id) : vec4(0.0);   // one rocket, random hue
+                return vec4(0.0);
+            }
+            // Dead ground a strain claims when it colonises a neighbour cell.
+            vec4 deadOf(float id, float h) {
+                int k = kernelOf(id);
+                if (k == 1) return vec4(h < 0.25 ? 1.0 : 0.0, 0.0, 0.0, id);   // spores land alive
+                if (k == 3) return vec4(floor(h * paramsOf(id).x), 20.0, 0.0, id);
+                if (k == 4) return vec4(0.0, 0.0, h, id);
+                if (k == 5) return vec4(1.0, 0.0, 0.0, id);
+                if (k == 7) return vec4(h < 0.3 ? 1.0 : 0.0, 0.0, 0.0, id);   // saplings
+                return vec4(0.0, 0.0, 0.0, id);
+            }`;
+
+            const strainRulesLib = `
+            vec2 dirVec(int d) { return d == 0 ? vec2(1.0, 0.0) : d == 1 ? vec2(0.0, 1.0) : d == 2 ? vec2(-1.0, 0.0) : vec2(0.0, -1.0); }
+            int turn(int d, int col, int mask) { return (((mask >> col) & 1) == 1) ? (d + 3) & 3 : (d + 1) & 3; }
+            bool bitOf(int mask, int i) { return ((mask >> i) & 1) == 1; }
+
+            // 1 LIFE — every life-like AND Generations rule is data: B mask,
+            // S mask, C states. Only age-1 cells count as neighbours; with
+            // C > 2 a failing cell ages through dying states instead of
+            // vanishing, which is where the plasma-trail look comes from.
+            vec4 ruleLife(vec4 s, vec3 c, float heat, float rnd) {
+                vec4 P = paramsOf(s.a);
+                int B = int(P.x + 0.5), S = int(P.y + 0.5); float C = P.z;
+                int n = 0;
+                for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    vec4 t = NS(c, float(dx), float(dy));
+                    if (isId(t, s.a) && t.r > 0.5 && t.r < 1.5) n++;
+                }
+                float st = s.r, age = s.g;
+                if (st < 0.5) {                                    // dead
+                    st = bitOf(B, n) ? 1.0 : 0.0; age = 0.0;
+                    if (st < 0.5 && heat > 0.45 && rnd > 1.0 - 0.015 * heat) st = 1.0;  // sparked by the fire
+                } else if (st < 1.5) {                             // alive
+                    if (bitOf(S, n)) age = min(age + 1.0, 250.0);
+                    else { st = C > 2.5 ? 2.0 : 0.0; age = 0.0; }
+                    if (rnd < burnRateOf(s.a) * 0.1 * clamp(heat - 0.75, 0.0, 1.0)) { st = C > 2.5 ? 2.0 : 0.0; age = 0.0; }  // scorched by the plume
+                } else {                                           // dying
+                    st = st + 1.0 >= C ? 0.0 : st + 1.0;
+                }
+                return vec4(st, age, 0.0, s.a);
+            }
+
+            // 2 TURMITE — Langton's ant and friends as a CA: the ant that
+            // would step onto this cell is found by asking the neighbours.
+            // Returns slot*4 + direction, or -1. Checked for EVERY cell,
+            // since an ant may walk into any strain's territory.
+            int antArriving(vec3 c) {
+                for (int j = 0; j < 4; j++) {
+                    vec2 o = dirVec(j);
+                    vec4 t = NS(c, o.x, o.y);
+                    if (kernelOf(t.a) == 2 && t.g > 0.5) {
+                        int nd = turn(int(t.b + 0.5), int(t.r + 0.5), int(paramsOf(t.a).x + 0.5));
+                        if (nd == ((j + 2) & 3)) return int(t.a + 0.5) * 4 + nd;
+                    }
+                }
+                return -1;
+            }
+            vec4 ruleAnt(vec4 s, vec3 c, float heat, float rnd) {
+                float col = s.r;
+                if (s.g > 0.5) col = mod(col + 1.0, paramsOf(s.a).y);   // ant leaves, cell flips
+                if (rnd < burnRateOf(s.a) * 0.12 * clamp(heat - 0.6, 0.0, 1.0)) col = 0.0;   // fire chars the trail away
+                return vec4(col, 0.0, 0.0, s.a);
+            }
+
+            // 3 CYCLIC — n states in a cycle, advance when >= threshold
+            // neighbours (incl. radial) hold the next state. Spirals in 3D.
+            vec4 ruleCyclic(vec4 s, vec3 c, float heat, float rnd) {
+                vec4 P = paramsOf(s.a);
+                float nx = mod(s.r + 1.0, P.x);
+                int n = 0;
+                for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    vec4 t = NS(c, float(dx), float(dy));
+                    if (isId(t, s.a) && abs(t.r - nx) < 0.5) n++;
+                }
+                vec4 ri = NR(c, -1.0), ro = NR(c, 1.0);
+                if (isId(ri, s.a) && abs(ri.r - nx) < 0.5) n++;
+                if (isId(ro, s.a) && abs(ro.r - nx) < 0.5) n++;
+                bool adv = n >= int(P.y + 0.5);
+                if (heat > 0.5 && rnd < 0.03 * heat) adv = true;
+                if (rnd < burnRateOf(s.a) * 0.1 * clamp(heat - 0.95, 0.0, 1.0)) return vec4(0.0);   // the base burns the waves out
+                return vec4(adv ? nx : s.r, adv ? 0.0 : min(s.g + 1.0, 250.0), 0.0, s.a);
+            }
+
+            // 4 EMBER — fuel/heat/grain combustion, lit by the carrier,
+            // regrows when cold (from ember-engine.html).
+            vec4 ruleEmber(vec4 s, vec3 c, float heat, float rnd) {
+                float fuel = s.r, h = s.g, grain = s.b;
+                float sum = 0.0, wsum = 0.0;
+                for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    float w = (dx != 0 && dy != 0) ? 0.707 : 1.0;
+                    vec4 t = NS(c, float(dx), float(dy));
+                    sum += (isId(t, s.a) ? t.g : 0.0) * w; wsum += w;
+                }
+                vec4 ri = NR(c, -1.0), ro = NR(c, 1.0);
+                sum += (isId(ri, s.a) ? ri.g : 0.0) * 0.7 + (isId(ro, s.a) ? ro.g : 0.0) * 0.7; wsum += 1.4;
+                float dt = 0.075;
+                h += (sum / wsum - h) * 0.9 * dt;
+                vec4 P = paramsOf(s.a);
+                h += clamp(heat - 0.35, 0.0, 1.0) * P.y * dt;
+                float ign = 0.12 + grain * 0.15, rate = 0.6 + grain * 0.6;
+                if (h > ign && fuel > 0.0) { fuel -= rate * dt; h += rate * 2.2 * dt; }
+                h -= (fuel <= 0.0 ? 1.0 : 0.05) * dt;
+                if (h < 0.02) fuel += P.x * dt;
+                return vec4(clamp(fuel, 0.0, 1.0), clamp(h, 0.0, 1.0), grain, s.a);
+            }
+
+            // 5 GS — Gray-Scott. Foreign cells read as (U=1, V=0); the fire
+            // evaporates V. Parameter map regimes per Munafo/xmorphia.
+            vec4 ruleGS(vec4 s, vec3 c, float heat, float rnd) {
+                vec4 P = paramsOf(s.a);
+                vec2 lap = vec2(0.0);
+                for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    float w = (dx != 0 && dy != 0) ? 0.05 : 0.2;
+                    vec4 t = NS(c, float(dx), float(dy));
+                    lap += (isId(t, s.a) ? t.rg : vec2(1.0, 0.0)) * w;
+                }
+                lap -= s.rg;
+                vec4 ri = NR(c, -1.0), ro = NR(c, 1.0);
+                vec2 rad = (isId(ri, s.a) ? ri.rg : s.rg) + (isId(ro, s.a) ? ro.rg : s.rg);
+                float uvv = s.r * s.g * s.g;
+                float U = s.r + (1.0 * lap.x - uvv + P.x * (1.0 - s.r));
+                float V = s.g + (0.5 * lap.y + uvv - (P.x + P.y) * s.g);
+                V = mix(V, rad.y * 0.5, 0.04);
+                if (heat > 0.7) V -= 0.25 * (heat - 0.7);
+                return vec4(clamp(U, 0.0, 1.0), clamp(V, 0.0, 1.0), 0.0, s.a);
+            }
+
+            // 6 WOLFRAM — elementary CA; each cell reads the row below through
+            // the 8-bit rule, so the space-time diagram climbs with the flame.
+            vec4 ruleWolfram(vec4 s, vec3 c, float heat, float rnd) {
+                int R = int(paramsOf(s.a).x + 0.5);
+                vec4 L = NS(c, -1.0, -1.0), C = NS(c, 0.0, -1.0), R2 = NS(c, 1.0, -1.0);
+                float bit;
+                if (!isId(C, s.a)) bit = rnd < 0.02 ? 1.0 : 0.0;
+                else {
+                    int idx = (isId(L, s.a) && L.r > 0.5 ? 4 : 0) + (C.r > 0.5 ? 2 : 0) + (isId(R2, s.a) && R2.r > 0.5 ? 1 : 0);
+                    bit = bitOf(R, idx) ? 1.0 : 0.0;
+                }
+                if (rnd < burnRateOf(s.a) * 0.15 * clamp(heat - 0.8, 0.0, 1.0)) bit = 0.0;
+                return vec4(bit, 0.0, 0.0, s.a);
+            }
+
+            // 7 FOREST — Drossel-Schwabl: trees grow, fronts catch from
+            // neighbours, the carrier's heat, or lightning.
+            vec4 ruleForest(vec4 s, vec3 c, float heat, float rnd) {
+                vec4 P = paramsOf(s.a);
+                float st = s.r;
+                if (st > 1.5) st = 0.0;
+                else if (st > 0.5) {
+                    bool near = false;
+                    for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                        if (dx == 0 && dy == 0) continue;
+                        vec4 t = NS(c, float(dx), float(dy));
+                        if (isId(t, s.a) && t.r > 1.5) near = true;
+                    }
+                    vec4 ri = NR(c, -1.0), ro = NR(c, 1.0);
+                    if ((isId(ri, s.a) && ri.r > 1.5) || (isId(ro, s.a) && ro.r > 1.5)) near = true;
+                    if (near || (heat > 0.8 && rnd < 0.3) || rnd < P.y) st = 2.0;
+                } else if (rnd < P.x * (1.0 - clamp(heat, 0.0, 1.0))) st = 1.0;
+                return vec4(st, 0.0, 0.0, s.a);
+            }
+
+            // 9 MATERIAL — falling sand, water and stone: the catalog's K6
+            // scheduler done on a Margolus partition. Every step the grid is
+            // tiled into 2x2 blocks (offset alternating with uStep); all four
+            // cells of a block read the same four states and compute the same
+            // outcome, so each writes its own cell consistently. Evaluated for
+            // EVERY cell (empties must receive falling grains).
+            bool falls(int m) { return m == 1 || m == 2; }
+            vec4 materialMove(vec3 c, vec4 self, float rndUnused) {
+                float par = mod(uStep, 2.0);
+                vec2 base = floor((c.xy - par) / 2.0) * 2.0 + par;
+                int lx = int(c.x - base.x + 0.5), ly = int(c.y - base.y + 0.5);
+                int me = lx + ly * 2;                       // 0 BL, 1 BR, 2 TL, 3 TR
+                vec4 st[4]; int m[4];
+                for (int i = 0; i < 4; i++) {
+                    vec2 q = base + vec2(float(i & 1), float(i >> 1));
+                    if (q.y < 0.0 || q.y > NY - 1.0) { st[i] = vec4(0.0); m[i] = 4; continue; }
+                    st[i] = (i == me) ? self : fetchCell(uStrain, vec3(q, c.z));
+                    m[i] = matOf(st[i]);
+                }
+                float rb = hash13(vec3(base, c.z * 3.1) + vec3(uRnd, 0.0, uRnd * 0.7));
+                float spread = paramsOf(st[0].a).y + paramsOf(st[1].a).y + paramsOf(st[2].a).y + paramsOf(st[3].a).y;
+                #define SWAP(i, j) { vec4 t4 = st[i]; st[i] = st[j]; st[j] = t4; int ti = m[i]; m[i] = m[j]; m[j] = ti; }
+                // gravity in each column; sand sinks through water
+                if (falls(m[2]) && (m[0] == 0 || (m[2] == 1 && m[0] == 2))) SWAP(2, 0)
+                if (falls(m[3]) && (m[1] == 0 || (m[3] == 1 && m[1] == 2))) SWAP(3, 1)
+                // diagonal slide when blocked
+                if (rb < 0.5) {
+                    if (falls(m[2]) && m[1] == 0) SWAP(2, 1)
+                    if (falls(m[3]) && m[0] == 0) SWAP(3, 0)
+                } else {
+                    if (falls(m[3]) && m[0] == 0) SWAP(3, 0)
+                    if (falls(m[2]) && m[1] == 0) SWAP(2, 1)
+                }
+                // liquids level out sideways
+                if (spread > 0.0 && rb < spread * 0.5 + 0.2) {
+                    if (m[0] == 2 && m[1] == 0) SWAP(0, 1) else if (m[1] == 2 && m[0] == 0) SWAP(1, 0)
+                    if (m[2] == 2 && m[3] == 0) SWAP(2, 3) else if (m[3] == 2 && m[2] == 0) SWAP(3, 2)
+                }
+                #undef SWAP
+                vec4 o = st[me];
+                // a grain left this cell: leave a trace if traces are on
+                if (matOf(self) >= 1 && matOf(self) <= 3 && m[me] == 0 && uTrail > 0.5) o = ghostOf(self.a, 0.0);
+                return o;
+            }
+            // Per-cell material behaviour after the move: sand heats and glows, water boils off.
+            vec4 ruleMaterial(vec4 s, vec3 c, float heat, float rnd) {
+                int mt = int(s.r + 0.5);
+                if (mt == 1) return vec4(1.0, mix(s.g, clamp(heat, 0.0, 1.0), 0.15), 0.0, s.a);
+                if (mt == 2) { if (rnd < paramsOf(s.a).z * clamp(heat - 0.5, 0.0, 1.0)) return vec4(0.0); return s; }
+                return s;
+            }
+
+            // 10 FIREWORK — rockets climb one cell per step, burst into a ring
+            // of sparks that fly out then fall; each rocket carries its own hue.
+            // r: 1 rocket, 2 spark, 3 flash · g: life · b: hue16 * 8 + dir (8-way).
+            vec2 dir8(int d) { return d == 0 ? vec2(1, 0) : d == 1 ? vec2(1, 1) : d == 2 ? vec2(0, 1) : d == 3 ? vec2(-1, 1) : d == 4 ? vec2(-1, 0) : d == 5 ? vec2(-1, -1) : d == 6 ? vec2(0, -1) : vec2(1, -1); }
+            int fallDir(int d) { return (d == 0 || d == 1 || d == 7) ? 7 : (d == 3 || d == 4 || d == 5) ? 5 : 6; }
+            // What arrives here from neighbouring rockets, sparks and flashes. a = 0 if nothing.
+            vec4 fireworkArriving(vec3 c, float rnd) {
+                for (int j = 0; j < 8; j++) {
+                    vec2 o = dir8(j);
+                    vec4 t = NS(c, o.x, o.y);
+                    if (kernelOf(t.a) != 10 || t.r < 0.5) continue;
+                    int ty = int(t.r + 0.5); int hb = int(t.b + 0.5); int hue = hb / 8; int d = hb - hue * 8;
+                    vec4 P = paramsOf(t.a);
+                    if (ty == 3) {                                                   // a flash: I become a spark flying away from it
+                        return vec4(2.0, P.y, float(hue * 8 + ((j + 4) & 7)), t.a);
+                    }
+                    if (ty == 1 && j == 6 && t.g > 1.5) return vec4(1.0, t.g - 1.0, t.b, t.a);   // rocket below, still climbing
+                    if (ty == 2 && t.g > 1.5) {
+                        int nd = t.g < P.y * 0.55 ? fallDir(d) : d;
+                        if (rnd < 0.2) nd = (nd + (rnd < 0.1 ? 1 : 7)) & 7;
+                        if ((d + 4) % 8 == j) return vec4(2.0, t.g - 1.0, float(hue * 8 + nd), t.a);   // it was heading here
+                    }
+                }
+                return vec4(0.0);
+            }
+
+            // 8 CRYSTAL — frost: grows tip-first where it is cool, melts back
+            // wherever the fire reaches it.
+            vec4 ruleCrystal(vec4 s, vec3 c, float heat, float rnd) {
+                vec4 P = paramsOf(s.a);
+                float ice = s.r;
+                if (ice > 0.5) {
+                    if (rnd < burnRateOf(s.a) * 0.3 * clamp(heat - P.y, 0.0, 1.0)) ice = 0.0;
+                } else {
+                    int n = 0;
+                    for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                        if (dx == 0 && dy == 0) continue;
+                        vec4 t = NS(c, float(dx), float(dy));
+                        if (isId(t, s.a) && t.r > 0.5) n++;
+                    }
+                    if (n >= 1 && n <= 3 && rnd < P.x * (1.0 - clamp(heat, 0.0, 1.0))) ice = 1.0;
+                }
+                return vec4(ice, min(s.g + 1.0, 250.0), 0.0, s.a);
+            }`;
+
+            // --- SIMULATION PASSES (the archetype's 2D scheme, per shell) --------
+
+            const buoyancyFs = `${atlasLib}${strainLib}
+            uniform sampler2D uVelocity; uniform sampler2D uDensity; uniform float uBuoyancy; uniform vec2 uWind; uniform float uSwirl;
+            void main() {
+                vec3 c = cellCoord();
+                vec2 vel = fetchCell(uVelocity, c).xy;
+                float T = fetchCell(uDensity, c).r;
+                float hot = smoothstep(0.05, 0.4, T);
+                // Hot fire rises quickly. Cooler smoke loses lift and drifts.
+                vel.y += T * mix(uBuoyancy * 0.05, uBuoyancy, hot) * uDt;
+                // World wind, projected onto this shell's tangent at theta.
+                float th = (c.x + 0.5) / NT * TAU;
+                float tangential = dot(uWind, vec2(-sin(th), cos(th)));
+                vel.x += T * tangential * uDt * mix(1.5, 1.0, hot);
+                vel.x += T * uSwirl * 120.0 * uDt;
+                vel += forceOf(fetchCell(uStrain, c)) * uDt;
+                outColor = vec4(vel, 0.0, 1.0);
+            }`;
+
+            const curlFs = `${atlasLib}
+            uniform sampler2D uVelocity;
+            void main() {
+                vec3 c = cellCoord();
+                float L = fetchCell(uVelocity, c + vec3(-1, 0, 0)).y, R = fetchCell(uVelocity, c + vec3(1, 0, 0)).y;
+                float T = fetchCell(uVelocity, c + vec3(0, 1, 0)).x, B = fetchCell(uVelocity, c + vec3(0, -1, 0)).x;
+                outColor = vec4(0.5 * (R - L - T + B), 0.0, 0.0, 1.0);
+            }`;
+
+            const spinAccumFs = `${atlasLib}
+            uniform sampler2D uVelocity; uniform sampler2D uSource; uniform sampler2D uCurl; uniform float uDissipation;
+            void main() {
+                vec3 c = cellCoord();
+                vec2 past = c.xy + 0.5 - uDt * fetchCell(uVelocity, c).xy;
+                float pastSpin = sampleSlice(uSource, past, c.z).x;
+                float mask = step(0.0, past.y) * step(past.y, NY);
+                float curlPower = smoothstep(20.0, 60.0, abs(fetchCell(uCurl, c).x)) * 1.2;
+                outColor = vec4(pastSpin * uDissipation * mask + curlPower, 0.0, 0.0, 1.0);
+            }`;
+
+            const vorticityFs = `${atlasLib}${noiseLib}
+            uniform sampler2D uVelocity; uniform sampler2D uCurl; uniform float uCurlScale;
+            void main() {
+                vec3 c = cellCoord();
+                float L = fetchCell(uCurl, c + vec3(-1, 0, 0)).x, R = fetchCell(uCurl, c + vec3(1, 0, 0)).x;
+                float T = fetchCell(uCurl, c + vec3(0, 1, 0)).x, B = fetchCell(uCurl, c + vec3(0, -1, 0)).x, C = fetchCell(uCurl, c).x;
+                vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+                force /= length(force) + 0.0001;
+                vec3 nc = cylPos(c) * 5.0 + vec3(0.0, 0.0, uTime * 0.4);
+                vec2 micro = vec2(fbm3(nc), fbm3(nc + vec3(100.0, -100.0, 50.0)));
+                force += micro * 2.0;
+                force *= uCurlScale * C;
+                force.y *= -1.0;
+                outColor = vec4(fetchCell(uVelocity, c).xy + force * uDt, 0.0, 1.0);
+            }`;
+
+            const divergenceFs = `${atlasLib}
+            uniform sampler2D uVelocity;
+            void main() {
+                vec3 c = cellCoord();
+                float L = fetchCell(uVelocity, c + vec3(-1, 0, 0)).x, R = fetchCell(uVelocity, c + vec3(1, 0, 0)).x;
+                float T = fetchCell(uVelocity, c + vec3(0, 1, 0)).y, B = fetchCell(uVelocity, c + vec3(0, -1, 0)).y;
+                outColor = vec4(0.5 * (R - L + T - B), 0.0, 0.0, 1.0);
+            }`;
+
+            const pressureFs = `${atlasLib}
+            uniform sampler2D uPressure; uniform sampler2D uDivergence;
+            void main() {
+                vec3 c = cellCoord();
+                float L = fetchCell(uPressure, c + vec3(-1, 0, 0)).x, R = fetchCell(uPressure, c + vec3(1, 0, 0)).x;
+                float T = fetchCell(uPressure, c + vec3(0, 1, 0)).x, B = fetchCell(uPressure, c + vec3(0, -1, 0)).x;
+                outColor = vec4((L + R + T + B - fetchCell(uDivergence, c).x) * 0.25, 0.0, 0.0, 1.0);
+            }`;
+
+            const gradientFs = `${atlasLib}
+            uniform sampler2D uPressure; uniform sampler2D uVelocity;
+            void main() {
+                vec3 c = cellCoord();
+                float L = fetchCell(uPressure, c + vec3(-1, 0, 0)).x, R = fetchCell(uPressure, c + vec3(1, 0, 0)).x;
+                float T = fetchCell(uPressure, c + vec3(0, 1, 0)).x, B = fetchCell(uPressure, c + vec3(0, -1, 0)).x;
+                vec2 vel = fetchCell(uVelocity, c).xy - vec2(R - L, T - B) * 0.5;
+                outColor = vec4(vel, 0.0, 1.0);
+            }`;
+
+            // Velocity advection with a weak radial coupling, so vortices correlate across shells.
+            const advectVelFs = `${atlasLib}
+            uniform sampler2D uVelocity; uniform float uDissipation; uniform float uCouple;
+            void main() {
+                vec3 c = cellCoord();
+                vec2 past = c.xy + 0.5 - uDt * fetchCell(uVelocity, c).xy;
+                float mask = step(0.0, past.y) * step(past.y, NY);
+                vec2 vel = sampleSlice(uVelocity, past, c.z).xy * uDissipation * mask;
+                vec2 vin = c.z > 0.5 ? fetchCell(uVelocity, c + vec3(0, 0, -1)).xy : vel;
+                vec2 vout = c.z < K - 1.5 ? fetchCell(uVelocity, c + vec3(0, 0, 1)).xy : vel;
+                vel = mix(vel, 0.5 * (vin + vout), uCouple);
+                outColor = vec4(vel, 0.0, 1.0);
+            }`;
+
+            // Temperature advection + radial coupling + fuel source + strain emission.
+            const advectDensFs = `${atlasLib}${noiseLib}${strainLib}
+            uniform sampler2D uVelocity; uniform sampler2D uSource; uniform float uDissipation;
+            uniform float uCouple, uExpand, uFuel, uEmit, uCool, uFireShare, uBandY, uBandW;
+            void main() {
+                vec3 c = cellCoord();
+                vec2 past = c.xy + 0.5 - uDt * fetchCell(uVelocity, c).xy;
+                float mask = step(0.0, past.y) * step(past.y, NY);
+                // Outer shells and the tip entrain cold air: cooling grows with radius and height.
+                float shellFrac = (c.z + 0.5) / K;
+                float diss = uDissipation - uCool * shellFrac * shellFrac - 0.05 * smoothstep(0.55, 1.0, (c.y + 0.5) / NY);
+                float T = sampleSlice(uSource, past, c.z).r * diss * mask;
+                // A touch of in-plane thermal diffusion: the flame softens and
+                // warmth reaches the cells beside it, not only downstream.
+                float T4 = (fetchCell(uSource, c + vec3(1, 0, 0)).r + fetchCell(uSource, c + vec3(-1, 0, 0)).r
+                          + fetchCell(uSource, c + vec3(0, 1, 0)).r + fetchCell(uSource, c + vec3(0, -1, 0)).r) * 0.25;
+                T = mix(T, T4 * diss, 0.12);
+                // Radial: diffuse across shells, and let hot inner gas push outward.
+                float Tin = c.z > 0.5 ? sampleSlice(uSource, past, c.z - 1.0).r : T;
+                float Tout = c.z < K - 1.5 ? sampleSlice(uSource, past, c.z + 1.0).r : 0.0;
+                T = mix(T, 0.5 * (Tin + Tout), uCouple);
+                T += uExpand * max(Tin - T, 0.0) * 0.5;
+                // Constant fuel at the root: a flickering ring on the inner shells.
+                vec3 np = cylPos(c);
+                float flick = 0.55 + 0.45 * (fbm3(vec3(np.x, np.z, uTime * 1.4) * 2.5 + c.z * 0.3) * 0.5 + 0.5);
+                float radial = 1.0 - smoothstep(0.0, K * 0.4, c.z + 0.5);
+                float band = exp(-pow((c.y + 0.5 - uBandY) / uBandW, 2.0));
+                // The mix is a budget: the automata sliders take their share of
+                // the base fuel and the pure flame keeps the remainder.
+                T = max(T, uFuel * uFireShare * radial * band * flick);
+                // Automata are fuel: every strain pours its own heat into the carrier.
+                vec4 S = fetchCell(uStrain, c);
+                T = max(T, emitOf(S) * uEmit);
+                T *= 1.0 - quenchOf(S);   // water puts it out
+                outColor = vec4(min(T, 2.5), 0.0, 0.0, 1.0);
+            }`;
+
+            // --- STRAIN PASSES -------------------------------------------------
+
+            // Carry the strain field with the flame. Discrete states cannot be
+            // interpolated, so the displacement is rounded stochastically
+            // (one jitter per step): the average motion is exact, patterns
+            // shear and tear where the flow does — that is the fire at work.
+            const strainDriftFs = `${atlasLib}${strainLib}
+            uniform sampler2D uVelocity; uniform float uDrift, uJitter;
+            void main() {
+                vec3 c = cellCoord();
+                vec4 here = fetchCell(uStrain, c);
+                int kh = kernelOf(here.a);
+                // Things with their own motion - falling materials, flying
+                // fireworks - are never carried by the flow, or gravity loses.
+                if (kh == 9 || kh == 10) { outColor = here; return; }
+                vec2 disp = fetchCell(uVelocity, c).xy * uDt * uDrift;
+                vec2 src = c.xy - floor(disp + uJitter);
+                if (src.y < 0.0 || src.y > NY - 1.0) { outColor = vec4(0.0); return; }
+                vec4 from = fetchCell(uStrain, vec3(src, c.z));
+                int kf = kernelOf(from.a);
+                outColor = (kf == 9 || kf == 10) ? here : from;
+            }`;
+
+            // One multiplexed step for every strain on the field.
+            const strainStepFs = `${atlasLib}${noiseLib}
+            uniform float uRnd;
+            ${strainLib}${strainRulesLib}
+            uniform sampler2D uDensity; uniform float uAggro, uSterile, uSpawn;
+            uniform float uMix[10];
+            uniform float uCoreSpawn, uBandY2, uBandW2;
+            void main() {
+                vec3 c = cellCoord();
+                vec4 s = fetchCell(uStrain, c);
+                float heat = fetchCell(uDensity, c).r;
+                float rnd = hash13(c + vec3(uRnd, uRnd * 1.7, uRnd * 0.3));
+                float rnd2 = hash13(c.zxy + vec3(uRnd * 2.3, 7.1, uRnd));
+
+                // Traces fade (or stay, in solid mode) - they are not rules.
+                if (isGhost(s)) {
+                    if (uTrail > 1.5) { outColor = s; return; }
+                    vec4 g = s; g.r *= uTrailDecay;
+                    outColor = g.r < 0.02 ? vec4(0.0) : g;
+                    // a mover may still land on a fading trace - fall through with s = ghost
+                    if (uHasFw < 0.5 && uHasMat < 0.5) return;
+                    s = outColor;
+                }
+                // Materials move first: the partition decides what sits here now.
+                if (uHasMat > 0.5) s = materialMove(c, s, rnd);
+                int kern = kernelOf(s.a);
+
+                vec4 o = s;
+                if (kern == 9) o = ruleMaterial(s, c, heat, rnd);
+                else if (kern == 10) {
+                    // a rocket at the end of its climb bursts; everything else in flight
+                    // either arrives somewhere else or leaves a trace here
+                    int ty = int(s.r + 0.5);
+                    if (ty == 1 && s.g <= 1.5) o = vec4(3.0, 2.0, s.b, s.a);
+                    else if (ty == 3 && s.g > 1.5) o = vec4(3.0, s.g - 1.0, s.b, s.a);
+                    else o = uTrail > 0.5 && ty != 3 ? ghostOf(s.a, floor(s.b / 8.0)) : vec4(0.0);
+                }
+                if (uHasFw > 0.5) {
+                    vec4 arr2 = fireworkArriving(c, rnd);
+                    if (arr2.a > 0.5 && (kern != 10 || o.r < 0.5 || o.r > 2.5)) o = arr2;
+                }
+                if (kern == 1) o = ruleLife(s, c, heat, rnd);
+                else if (kern == 2) o = ruleAnt(s, c, heat, rnd);
+                else if (kern == 3) o = ruleCyclic(s, c, heat, rnd);
+                else if (kern == 4) o = ruleEmber(s, c, heat, rnd);
+                else if (kern == 5) o = ruleGS(s, c, heat, rnd);
+                else if (kern == 6) o = ruleWolfram(s, c, heat, rnd);
+                else if (kern == 7) o = ruleForest(s, c, heat, rnd);
+                else if (kern == 8) o = ruleCrystal(s, c, heat, rnd);
+
+                // An ant walking in claims the cell, whatever lived here —
+                // unless the fire takes the walker first: past ~1.0 heat the
+                // ant burns, flaring into a briefly burning ember cell.
+                int arr = antArriving(c);
+                if (arr >= 0) {
+                    float antSlot = float(arr / 4);
+                    if (rnd2 < burnRateOf(antSlot) * 0.3 * clamp(heat - 0.95, 0.0, 1.0)) o = vec4(0.6, 0.0, 0.0, o.a);   // the walker burns
+                    else o = vec4(kern == 2 ? o.r : 0.0, 1.0, float(arr - (arr / 4) * 4), antSlot);
+                }
+
+                // Dead ground is contested, but only where the fire makes it habitable:
+                // a living neighbour of another strain may take it. Elsewhere it turns to ash.
+                if (alive(o) < 0.5 && !isGhost(o)) {
+                    if (rnd2 < uAggro && heat > 0.01 && heat < 0.95) {
+                        for (int j = 0; j < 4; j++) {
+                            vec2 d = dirVec(j);
+                            vec4 t = NS(c, d.x, d.y);
+                            if (t.a > 0.5 && !isId(t, o.a) && alive(t) > 0.5 && rnd < aggroOf(t.a)) { o = deadOf(t.a, rnd2); break; }
+                        }
+                    } else if (rnd < decayOf(o)) o = vec4(0.0);
+                }
+                // The fire's core sterilises everything.
+                if (rnd2 < 0.15 * clamp(heat - uSterile, 0.0, 1.0)) o = vec4(0.0);
+
+                // THE MIX. The base fuel births strains: empty ground at the
+                // flame's root spawns each automaton in proportion to its
+                // slider. Spawning is decided per 5x5 block, so every newborn
+                // is a viable nucleus, and the flow carries it up into the fire.
+                if (o.a < 0.5 && !isGhost(o) && heat < uSterile) {
+                    float total = 0.0;
+                    for (int i = 1; i < 10; i++) total += uMix[i];
+                    if (total > 0.0) {
+                        vec2 bc = floor(c.xy / 5.0);
+                        vec3 bkey = vec3(bc, c.z * 7.77);
+                        float rnd3 = hash13(bkey + vec3(3.7, uRnd * 1.3, uRnd));
+                        // The centre is the injector: where the pure-fire jet
+                        // used to sit, automata are born far more densely, so
+                        // the core column burns like the old fuel jet did.
+                        float coreW = 1.0 + uCoreSpawn
+                            * (1.0 - smoothstep(0.0, K * 0.45, c.z + 0.5))
+                            * exp(-pow((c.y + 0.5 - uBandY2) / (uBandW2 * 1.8), 2.0));
+                        if (rnd3 < total * 0.00001 * uSpawn * coreW) {
+                            float pickv = hash13(bkey.yxz + vec3(uRnd * 0.7, 11.3, uRnd * 2.9)) * total;
+                            float id = 9.0, acc = 0.0;
+                            for (int i = 1; i < 10; i++) { acc += uMix[i]; if (pickv < acc) { id = float(i); break; } }
+                            float yy = (c.y + 0.5) / NY;
+                            bool zone = kernelOf(id) == 9 ? (yy > 0.45 && yy < 0.85 && heat > 0.02)   // materials rain from the flame
+                                                          : (yy < 0.28 && heat > 0.05);              // everything else is born at the root
+                            // layered mode: every automaton keeps to its own shell
+                            if (uLayered > 0.5 && abs(c.z - uSlotShell[int(id + 0.5)]) > 0.6) zone = false;
+                            if (zone) {
+                                float h = hash13(c.xzy + vec3(5.1, uRnd, 1.9));
+                                float g = fbm3(cylPos(c) * 6.0 + uRnd) * 0.5 + 0.5;
+                                bool center = mod(c.x, 5.0) == 2.0 && mod(c.y, 5.0) == 2.0;
+                                o = initStrain(id, h, g, center);
+                            }
+                        }
+                    }
+                }
+                outColor = o;
+            }`;
+
+            // Seed a blob of one strain around a cell, on the chosen shells.
+            const strainSeedFs = `${atlasLib}${noiseLib}${strainLib}
+            uniform vec3 uSeedCell; uniform float uSeedRadius, uSeedId, uSeedShells, uSeedRnd;
+            void main() {
+                vec3 c = cellCoord();
+                vec4 cur = fetchCell(uStrain, c);
+                float dx = mod(c.x - uSeedCell.x + NT * 1.5, NT) - NT * 0.5;
+                float dy = c.y - uSeedCell.y;
+                float d = length(vec2(dx, dy));
+                bool inK = abs(c.z - uSeedCell.z) <= uSeedShells + 0.01;
+                if (d < uSeedRadius && inK) {
+                    float h = hash13(c + vec3(uSeedRnd * 3.1, uSeedRnd, 0.7));
+                    float g = fbm3(cylPos(c) * 6.0 + uSeedRnd) * 0.5 + 0.5;
+                    bool center = d < 0.71 && abs(c.z - uSeedCell.z) < 0.5;
+                    outColor = initStrain(uSeedId, h, g, center);
+                } else outColor = cur;
+            }`;
+
+            // --- DISPLAY: VOLUMETRIC RAYMARCH ----------------------------------
+
+            const raymarchFs = `${atlasLib}${noiseLib}${paletteLib}${strainLib}
+            uniform sampler2D uDensity; uniform sampler2D uSpin;
+            uniform vec3 uCamPos, uCamRight, uCamUp, uCamFwd; uniform vec2 uScreen;
+            uniform float uSteps, uWarp, uGlow, uCrisp, uDens, uFrame, uFlat, uDbg, uExposure, uSmoke;
+            const float H = ${H}, R0 = ${R0};
+
+            float profile(float v) { return mix(0.85, 1.0, smoothstep(0.0, 0.15, v)) * (1.0 - 0.75 * smoothstep(0.25, 1.0, v)); }
+            // World -> (x cells, y cells, continuous shell coordinate; shell centers at k + 0.5).
+            vec3 toCell(vec3 p) {
+                float v = p.y / H;
+                float th = atan(p.z, p.x);
+                float rho = length(p.xz) / (R0 * profile(clamp(v, 0.0, 1.0)));
+                return vec3((th / TAU + 0.5) * NT, v * NY, rho * (K + 0.5));
+            }
+
+            // Every strain is drawn through its own colour ramp: each kernel
+            // maps what matters about a cell (age, state, temperature,
+            // concentration, life) to a position along the ramp.
+            vec3 tintOf(vec4 s) {
+                int k = kernelOf(s.a);
+                vec4 P = paramsOf(s.a);
+                if (k == 1) {
+                    if (s.r < 0.5) return vec3(0.0);
+                    if (s.r < 1.5) return rampOf(s.a, mix(0.95, 0.55, smoothstep(0.0, 40.0, s.g))) * mix(1.6, 0.9, smoothstep(0.0, 40.0, s.g));
+                    float f = 1.0 - (s.r - 1.0) / max(P.z - 1.0, 1.0);          // Generations trail
+                    return rampOf(s.a, f * 0.75) * f * 1.2;
+                }
+                if (k == 2) return s.g > 0.5 ? vec3(3.0) : (s.r > 0.5 ? rampOf(s.a, 0.2 + 0.75 * s.r / max(P.y - 1.0, 1.0)) * 0.9 : vec3(0.0));
+                if (k == 3) return rampOf(s.a, s.r / P.x) * 0.8;
+                if (k == 4) return rampOf(s.a, s.g) * s.g * 0.9;
+                if (k == 5) return rampOf(s.a, clamp(s.g * 1.6, 0.0, 1.0)) * s.g * 1.6;
+                if (k == 6) return s.r > 0.5 ? rampOf(s.a, 0.8) * 1.4 : vec3(0.0);
+                if (k == 7) return s.r > 1.5 ? rampOf(s.a, 0.95) * 2.2 : (s.r > 0.5 ? rampOf(s.a, 0.2) * 0.55 : vec3(0.0));
+                if (k == 8) return s.r > 0.5 ? rampOf(s.a, 0.55 + 0.4 * sin(s.g * 0.4 + uTime * 2.0)) * 1.6 : vec3(0.0);
+                if (k == 9) { int m = int(s.r + 0.5); return m == 1 ? rampOf(s.a, 0.15 + 0.8 * s.g) * (0.6 + 1.4 * s.g) : m == 2 ? rampOf(s.a, 0.6) * 1.6 : m == 3 ? rampOf(s.a, 0.35) * 1.2 : vec3(0.0); }
+                if (k == 10) {
+                    int t = int(s.r + 0.5);
+                    float h16 = floor(s.b / 8.0) / 16.0;                            // each rocket sits somewhere on the ramp
+                    return t == 1 ? rampOf(s.a, 0.9) * 2.0 : t == 2 ? rampOf(s.a, h16) * 2.6 * clamp(s.g / max(P.y, 1.0), 0.15, 1.0) : t == 3 ? vec3(3.5) : vec3(0.0);
+                }
+                return vec3(0.0);
+            }
+            vec3 ghostTint(vec4 s) {
+                float slot = -s.a;
+                float t = kernelOf(slot) == 10 ? s.g / 16.0 : 0.6;
+                return rampOf(slot, t) * 1.3 * (uTrail > 1.5 ? 0.6 : s.r);
+            }
+            // Strains are read crisp in theta/height, blended across the two nearest shells.
+            vec3 strainTint(vec3 cell) {
+                vec2 xy = floor(cell.xy);
+                float kk = cell.z - 0.5; float k0 = floor(kk); float f = kk - k0;
+                vec4 sa = fetchCell(uStrain, vec3(xy, max(k0, 0.0)));
+                vec3 a = isGhost(sa) ? ghostTint(sa) : tintOf(sa);
+                if (k0 < 0.0) return a;
+                if (k0 + 1.0 > K - 1.0) return mix(a, vec3(0.0), f);
+                vec4 sb = fetchCell(uStrain, vec3(xy, k0 + 1.0));
+                vec3 b = isGhost(sb) ? ghostTint(sb) : tintOf(sb);
+                return mix(a, b, f);
+            }
+
+            vec4 shade(float T, vec3 cell, vec3 p) {
+                float smokeNoise = noise(p * 5.0 + vec3(0.0, -uTime * 0.7, 0.0));
+                vec3 smokeColor = mix(uSmokeA, uSmokeB, smokeNoise);
+                vec3 fire = firePaletteK(smoothstep(0.1, 1.0, T), cell.z);
+                float f = smoothstep(0.05, 0.24, T);   // colour takes over early; grey is a thin veil
+                if (uDbg == 2.0) smokeColor = vec3(1.0, 0.0, 1.0) * 0.2;
+                vec3 col = mix(smokeColor, fire, f);
+                float spin = uDbg == 1.0 ? 0.0 : sampleVol(uSpin, cell).r;
+                float magic = smoothstep(4.0, 12.0, spin);
+                if (magic > 0.0) {
+                    float palT = uTime * 0.5 + p.x * 3.0 + p.y * 3.0 - spin * 0.1;
+                    float tempMask = smoothstep(0.01, 0.2, T) * (1.0 - smoothstep(0.4, 0.9, T));
+                    col += rainbowPalette(palT) * magic * 1.2 * tempMask;
+                }
+                // Strains keep their OWN colour: where a strain lives, its ramp
+                // colour replaces the fire palette (keeping the fire's
+                // brightness shape); glow above 1 adds extra light on top.
+                if (uGlow > 0.0 && uDbg != 3.0) {
+                    vec3 st = strainTint(cell);
+                    float pres = smoothstep(0.02, 0.25, max(st.r, max(st.g, st.b))) * smoothstep(0.02, 0.15, T);
+                    float lum = 0.35 + 0.65 * smoothstep(0.1, 0.9, T);
+                    col = mix(col, st * lum, pres * min(uGlow, 1.0)) + st * max(uGlow - 1.0, 0.0) * pres;
+                }
+                float sigma = uDens * (smoothstep(0.08, 0.6, T) + 0.022 * uSmoke * smoothstep(0.015, 0.12, T) * (1.0 - f));
+                return vec4(col, sigma);
+            }
+
+            // Fetch + fade + shade at one cell position.
+            vec4 shadePoint(vec3 cell, vec3 p) {
+                // Fade at both ends of the axis: the tip dissolves, and the
+                // root rounds off instead of being clipped flat by the floor.
+                float T = sampleVol(uDensity, cell).r * uExposure * (1.0 - smoothstep(0.9, 1.0, p.y / H)) * smoothstep(0.0, 0.02, p.y / H);
+                if (T < 0.01) return vec4(0.0);
+                if (uFlat > 0.5) return vec4(vec3(T), uDens * smoothstep(0.01, 0.6, T));
+                return shade(T, cell, p);
+            }
+
+            void main() {
+                vec2 ndc = vUv * 2.0 - 1.0;
+                vec3 rd = normalize(uCamFwd + uCamRight * ndc.x * uScreen.x + uCamUp * ndc.y * uScreen.y);
+                vec3 ro = uCamPos;
+                vec3 bg = uPal[0];
+
+                // No ground plane: the flame floats in the dark.
+                vec3 floorCol = bg;
+
+                vec3 boxMin = vec3(-R0, 0.0, -R0), boxMax = vec3(R0, H, R0);
+                vec3 invd = 1.0 / rd;
+                vec3 t1 = (boxMin - ro) * invd, t2 = (boxMax - ro) * invd;
+                vec3 lo = min(t1, t2), hi = max(t1, t2);
+                float tNear = max(max(lo.x, lo.y), lo.z), tFar = min(min(hi.x, hi.y), hi.z);
+                if (tNear > tFar || tFar < 0.0) { outColor = vec4(floorCol, 1.0); return; }
+                tNear = max(tNear, 0.0);
+
+                float n = uSteps;
+                float ds = (tFar - tNear) / n;
+                float jitter = fract(52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y) + uFrame * 0.618034);
+                float t = tNear + ds * jitter;
+
+                vec4 acc = vec4(0.0);
+                for (int i = 0; i < 256; i++) {
+                    if (float(i) >= n) break;
+                    vec3 p = ro + rd * t; t += ds;
+                    if (p.y < 0.0 || p.y > H) continue;
+                    vec3 cell = toCell(p);
+                    if (cell.z > K + 1.5) continue;
+                    // Rising domain warp: hides the shells, gives the lick.
+                    if (uWarp > 0.0) {
+                        vec3 q = p * 2.4 + vec3(0.0, -uTime * 1.1, 0.0);
+                        vec2 w = vec2(noise(q) - 0.5, noise(q + vec3(31.7, 0.0, 12.3)) - 0.5) * 2.0;
+                        p.xz += w * uWarp * (0.35 + p.y / H);
+                        cell = toCell(p);
+                        if (cell.z > K) continue;
+                    }
+                    if (uCrisp > 0.0) cell = mix(cell, floor(cell) + 0.5, uCrisp);
+                    // Near the axis a ray degenerates to two theta values of
+                    // the ring, so its integral loses the ring's variety and a
+                    // coherent smoke column can shadow the core. Blend those
+                    // samples toward the shaded 4-point ring average - at the
+                    // manifold's centre the ring genuinely fuses into one.
+                    float w = 1.0 - smoothstep(0.045, 0.22, length(p.xz));
+                    vec4 s = shadePoint(cell, p);
+                    if (w > 0.003) {
+                        vec4 m = s;
+                        for (int j = 1; j < 4; j++) m += shadePoint(vec3(cell.x + float(j) * NT * 0.25, cell.y, cell.z), p);
+                        s = mix(s, m * 0.25, w);
+                    }
+                    if (s.a < 0.001) continue;
+                    float a = 1.0 - exp(-s.a * ds);
+                    acc.rgb += (1.0 - acc.a) * a * s.rgb;
+                    acc.a += (1.0 - acc.a) * a;
+                    if (acc.a > 0.985) break;
+                }
+                vec3 col = acc.rgb + floorCol * (1.0 - acc.a);
+                col = col / (1.0 + col * 0.12);   // soft shoulder for the hottest core
+                outColor = vec4(col, 1.0);
+            }`;
+
+            // Heat probe: a 32x32 target where every texel samples four random
+            // cells, read back every few frames to sense how hot the field runs.
+            const probeFs = `${atlasLib}${noiseLib}
+            uniform sampler2D uDensity; uniform float uRnd;
+            void main() {
+                float meanT = 0.0, hot = 0.0, warm = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    vec2 uv = vec2(hash13(vec3(gl_FragCoord.xy, float(i) * 3.1 + uRnd)), hash13(vec3(gl_FragCoord.yx, float(i) * 7.7 + uRnd * 1.3)));
+                    float Tv = texture(uDensity, uv).r;
+                    meanT += Tv; hot += step(0.7, Tv); warm += step(0.3, Tv);
+                }
+                outColor = vec4(meanT, hot, warm, 4.0) * 0.25;
+            }`;
+
+            // Atlas inspector: the raw field, one tile per shell (T key).
+            const atlasViewFs = `${atlasLib}${paletteLib}${strainLib}
+            uniform sampler2D uDensity; uniform float uMode;
+            const float H = ${H}, R0 = ${R0};
+            float profile(float v) { return mix(0.85, 1.0, smoothstep(0.0, 0.15, v)) * (1.0 - 0.75 * smoothstep(0.25, 1.0, v)); }
+            vec3 toCell(vec3 p) {
+                float v = p.y / H;
+                float th = atan(p.z, p.x);
+                float rho = length(p.xz) / (R0 * profile(clamp(v, 0.0, 1.0)));
+                return vec3((th / TAU + 0.5) * NT, v * NY, rho * (K + 0.5));
+            }
+            void main() {
+                vec2 uv = vUv;
+                if (uMode > 2.5) {
+                    // A vertical slice through the axis: world x in [-R0, R0], y in [0, H], z = 0.
+                    vec3 p = vec3((uv.x * 2.0 - 1.0) * R0, uv.y * H, 0.0);
+                    vec3 cell = toCell(p);
+                    float T = cell.z > K ? 0.0 : sampleVol(uDensity, cell).r;
+                    outColor = vec4(firePalette(smoothstep(0.0, 1.0, T)) * smoothstep(0.0, 0.02, T), 1.0);
+                    return;
+                }
+                vec4 d = texture(uDensity, uv);
+                vec4 s = texture(uStrain, uv);
+                vec3 col;
+                if (uMode < 1.5) {
+                    vec2 tile = floor(uv * ATLAS / vec2(TW, NY));
+                    col = firePaletteAt(smoothstep(0.0, 1.0, d.r), int(min(tile.y * TILES.x + tile.x, K - 1.0))) * smoothstep(0.0, 0.02, d.r);
+                }
+                else {
+                    int k = kernelOf(s.a);
+                    vec4 P = paramsOf(s.a);
+                    col = k == 1 ? (s.r < 0.5 ? vec3(0.0) : s.r < 1.5 ? rampOf(s.a, 0.9) : rampOf(s.a, 0.5) * (1.0 - (s.r - 1.0) / max(P.z - 1.0, 1.0)))
+                        : k == 2 ? (s.g > 0.5 ? vec3(1.0) : rampOf(s.a, 0.6) * s.r / max(P.y - 1.0, 1.0))
+                        : k == 3 ? rampOf(s.a, s.r / P.x)
+                        : k == 4 ? vec3(s.g, s.r * 0.35, 0.0)
+                        : k == 5 ? rampOf(s.a, s.g * 1.6) * s.g * 1.5
+                        : k == 6 ? rampOf(s.a, 0.8) * s.r
+                        : k == 7 ? (s.r > 1.5 ? rampOf(s.a, 0.95) : rampOf(s.a, 0.2) * s.r * 0.6)
+                        : k == 8 ? rampOf(s.a, 0.6) * s.r
+                        : k == 9 ? (s.r < 1.5 ? rampOf(s.a, 0.15 + 0.8 * s.g) : s.r < 2.5 ? rampOf(s.a, 0.6) : rampOf(s.a, 0.35))
+                        : k == 10 ? (s.r < 1.5 ? rampOf(s.a, 0.9) : s.r < 2.5 ? rampOf(s.a, floor(s.b / 8.0) / 16.0) : vec3(1.0)) : vec3(0.0);
+                    if (isGhost(s)) col = vec3(0.25, 0.25, 0.35) * s.r;
+                }
+                outColor = vec4(col, 1.0);
+            }`;
+
+            // --- WEBGL PLUMBING ------------------------------------------------
+
+            function createProgram(vs, fs, name) {
+                const program = gl.createProgram();
+                const v = gl.createShader(gl.VERTEX_SHADER), f = gl.createShader(gl.FRAGMENT_SHADER);
+                gl.shaderSource(v, vs); gl.shaderSource(f, fs);
+                gl.compileShader(v); gl.compileShader(f);
+                if (!gl.getShaderParameter(f, gl.COMPILE_STATUS)) throw new Error(name + ': ' + gl.getShaderInfoLog(f));
+                gl.attachShader(program, v); gl.attachShader(program, f); gl.linkProgram(program);
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(name + ' link: ' + gl.getProgramInfoLog(program));
+                const uni = {};
+                const n = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+                for (let i = 0; i < n; i++) {
+                    const info = gl.getActiveUniform(program, i);
+                    uni[info.name] = { loc: gl.getUniformLocation(program, info.name), type: info.type };
+                }
+                return { id: program, uni };
+            }
+
+            function createFBO(w, h) {
+                const texture = gl.createTexture();
+                gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+                const fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+                gl.viewport(0, 0, w, h); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+                return { fbo, texture, width: w, height: h };
+            }
+            function createDoubleFBO(w, h) {
+                let a = createFBO(w, h), b = createFBO(w, h);
+                return { read: () => a, write: () => b, swap: () => { const t = a; a = b; b = t; }, clear: () => { for (const f of [a, b]) { gl.bindFramebuffer(gl.FRAMEBUFFER, f.fbo); gl.clear(gl.COLOR_BUFFER_BIT); } } };
+            }
+
+            const programs = {
+                buoyancy: createProgram(baseVs, buoyancyFs, 'buoyancy'),
+                curl: createProgram(baseVs, curlFs, 'curl'),
+                spinAccum: createProgram(baseVs, spinAccumFs, 'spinAccum'),
+                vorticity: createProgram(baseVs, vorticityFs, 'vorticity'),
+                divergence: createProgram(baseVs, divergenceFs, 'divergence'),
+                pressure: createProgram(baseVs, pressureFs, 'pressure'),
+                gradient: createProgram(baseVs, gradientFs, 'gradient'),
+                advectVel: createProgram(baseVs, advectVelFs, 'advectVel'),
+                advectDens: createProgram(baseVs, advectDensFs, 'advectDens'),
+                strainDrift: createProgram(baseVs, strainDriftFs, 'strainDrift'),
+                strainStep: createProgram(baseVs, strainStepFs, 'strainStep'),
+                strainSeed: createProgram(baseVs, strainSeedFs, 'strainSeed'),
+                raymarch: createProgram(baseVs, raymarchFs, 'raymarch'),
+                atlasView: createProgram(baseVs, atlasViewFs, 'atlasView'),
+                probe: createProgram(baseVs, probeFs, 'probe')
+            };
+
+            const quadVAO = gl.createVertexArray();
+            gl.bindVertexArray(quadVAO);
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(0);
+
+            function blit(dest) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, dest ? dest.fbo : null);
+                gl.viewport(0, 0, dest ? dest.width : canvas.width, dest ? dest.height : canvas.height);
+                gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+            }
+
+            // Uniforms by name; textures as { tex, unit }; ints as { int }.
+            function runProgram(p, uniforms, out) {
+                gl.useProgram(p.id);
+                for (const k in uniforms) {
+                    const u = p.uni[k]; if (!u) continue;
+                    const v = uniforms[k];
+                    if (v && v.texture !== undefined) { gl.activeTexture(gl.TEXTURE0 + v.unit); gl.bindTexture(gl.TEXTURE_2D, v.texture); gl.uniform1i(u.loc, v.unit); }
+                    else if (v && v.int !== undefined) gl.uniform1i(u.loc, v.int);
+                    else if (v && v.arr !== undefined) { if (u.type === gl.FLOAT_VEC4) gl.uniform4fv(u.loc, v.arr); else if (u.type === gl.FLOAT_VEC3) gl.uniform3fv(u.loc, v.arr); else gl.uniform1fv(u.loc, v.arr); }
+                    else if (typeof v === 'number') gl.uniform1f(u.loc, v);
+                    else if (v.length === 2) gl.uniform2fv(u.loc, v);
+                    else if (v.length === 3) gl.uniform3fv(u.loc, v);
+                    else if (v.length === 4) gl.uniform4fv(u.loc, v);
+                }
+                blit(out);
+            }
+            const T = (fbo, unit) => ({ texture: fbo.texture, unit });
+
+            const velocity = createDoubleFBO(ATLAS[0], ATLAS[1]);
+            const density = createDoubleFBO(ATLAS[0], ATLAS[1]);
+            const pressure = createDoubleFBO(ATLAS[0], ATLAS[1]);
+            const spinMemory = createDoubleFBO(ATLAS[0], ATLAS[1]);
+            const strain = createDoubleFBO(ATLAS[0], ATLAS[1]);
+            const divergence = createFBO(ATLAS[0], ATLAS[1]);
+            const probeFBO = createFBO(32, 32);
+            const probeBuf = new Float32Array(32 * 32 * 4);
+            // Field heat statistics, refreshed by the probe.
+            const HEAT = { mean: 0, hot: 0, warm: 0 };
+            function senseHeat() {
+                runProgram(programs.probe, { uDensity: T(density.read(), 0), uRnd: Math.random() * 100 }, probeFBO);
+                gl.readPixels(0, 0, 32, 32, gl.RGBA, gl.FLOAT, probeBuf);
+                let m = 0, h = 0, w = 0;
+                for (let i = 0; i < 1024; i++) { m += probeBuf[i * 4]; h += probeBuf[i * 4 + 1]; w += probeBuf[i * 4 + 2]; }
+                HEAT.mean = m / 1024; HEAT.hot = h / 1024; HEAT.warm = w / 1024;
+            }
+            // The thermostat: the flame may be hot, but never a white slab.
+            // When too much of the field burns above the palette's top, trim
+            // fuel, emission and exposure; when it cools, let them recover.
+            const BASE = { fuel: 1.5, emitG: 1.0, exposure: 1.0 };
+            const THERMO = { active: false };
+            function thermostat(dt) {
+                // What matters is not how much of the FIELD is hot but how much
+                // of the FLAME is: a white slab has most of its burning volume
+                // above the palette's top stop, however big the flame is.
+                const ratio = HEAT.warm > 0.005 ? HEAT.hot / HEAT.warm : 0;
+                const err = ratio - 0.3;
+                THERMO.active = err > 0;
+                if (err > 0) {
+                    // emission first (that is what runs away in strain-heavy
+                    // mixes), fuel second, exposure as the last resort
+                    P.emitG = Math.max(0.15, P.emitG * Math.exp(-dt * err * 5.0));
+                    P.fuel = Math.max(0.15, P.fuel * Math.exp(-dt * err * 2.5));
+                    P.exposure = Math.max(0.4, P.exposure * Math.exp(-dt * Math.max(0, err - 0.15) * 2.0));
+                } else {
+                    const r = 1 - Math.exp(-dt * 0.06);
+                    P.fuel += (BASE.fuel - P.fuel) * r; P.emitG += (BASE.emitG - P.emitG) * r; P.exposure += (BASE.exposure - P.exposure) * r;
+                }
+            }
+            const curl = createFBO(ATLAS[0], ATLAS[1]);
+
+            // --- THE CATALOG ---------------------------------------------------
+            // Every automaton is DATA on one of the kernels, per
+            // AUTOMATA_CATALOG.md: [name, kernel, params, hue, group].
+            // Kernels: 1 LIFE (B,S,C) - covers all 2^18 life-like rules and
+            // every Generations rule; 2 TURMITE (turn mask, colours);
+            // 3 CYCLIC (n, threshold); 4 EMBER; 5 GS (F,k); 6 WOLFRAM (rule);
+            // 7 FOREST (regrow, lightning); 8 CRYSTAL (stick, melt T).
+            const bs = str => str.split('').reduce((m, d) => m | (1 << +d), 0);   // "23" -> S2+S3 mask
+            const turm = str => [str.split('').reduce((m, ch, i) => m | (ch === 'R' ? 1 << i : 0), 0), str.length];
+            const CATALOG = [
+                // life-like (B/S, LifeWiki rulestrings)
+                ['Conway Life', 1, [bs('3'), bs('23'), 2], 0.52, 'life-like'],
+                ['HighLife', 1, [bs('36'), bs('23'), 2], 0.48, 'life-like'],
+                ['Seeds', 1, [bs('2'), 0, 2], 0.12, 'life-like'],
+                ['Day & Night', 1, [bs('3678'), bs('34678'), 2], 0.6, 'life-like'],
+                ['Maze', 1, [bs('3'), bs('12345'), 2], 0.33, 'life-like'],
+                ['Mazectric', 1, [bs('3'), bs('1234'), 2], 0.36, 'life-like'],
+                ['Coral', 1, [bs('3'), bs('45678'), 2], 0.02, 'life-like'],
+                ['Diamoeba', 1, [bs('35678'), bs('5678'), 2], 0.75, 'life-like'],
+                ['Vote', 1, [bs('5678'), bs('45678'), 2], 0.09, 'life-like'],
+                ['Gnarl', 1, [bs('1'), bs('1'), 2], 0.83, 'life-like'],
+                ['Morley', 1, [bs('368'), bs('245'), 2], 0.44, 'life-like'],
+                ['Replicator', 1, [bs('1357'), bs('1357'), 2], 0.68, 'life-like'],
+                ['Life w/o Death', 1, [bs('3'), bs('012345678'), 2], 0.28, 'life-like'],
+                ['2x2', 1, [bs('36'), bs('125'), 2], 0.56, 'life-like'],
+                ['Walled Cities', 1, [bs('45678'), bs('2345'), 2], 0.15, 'life-like'],
+                ['Anneal', 1, [bs('4678'), bs('35678'), 2], 0.05, 'life-like'],
+                // Generations (B/S/C - the ageing states are the fire trails)
+                ["Brian's Brain", 1, [bs('2'), 0, 3], 0.62, 'generations'],
+                ['Star Wars', 1, [bs('2'), bs('345'), 4], 0.58, 'generations'],
+                ['Fireworks', 1, [bs('13'), bs('2'), 21], 0.95, 'generations'],
+                ['Lava', 1, [bs('45678'), bs('12345'), 8], 0.03, 'generations'],
+                ['Prairie on Fire', 1, [bs('34'), bs('345'), 6], 0.08, 'generations'],
+                ['Spirals', 1, [bs('234'), bs('2'), 5], 0.7, 'generations'],
+                ['Faders', 1, [bs('2'), bs('2'), 25], 0.55, 'generations'],
+                ['BelZhab', 1, [bs('23'), bs('23'), 8], 0.78, 'generations'],
+                ['Meteor Guns', 1, [bs('3'), bs('01245678'), 8], 0.88, 'generations'],
+                ['Transers', 1, [bs('26'), bs('345'), 5], 0.42, 'generations'],
+                ['Swirl', 1, [bs('34'), bs('23'), 8], 0.5, 'generations'],
+                ['Nova', 1, [bs('2478'), bs('45678'), 25], 0.92, 'generations'],
+                // elementary 1D, climbing the flame
+                ['Rule 30', 6, [30], 0.1, 'elementary'],
+                ['Rule 90', 6, [90], 0.14, 'elementary'],
+                ['Rule 110', 6, [110], 0.18, 'elementary'],
+                ['Rule 150', 6, [150], 0.22, 'elementary'],
+                ['Rule 126', 6, [126], 0.26, 'elementary'],
+                ['Rule 184 traffic', 6, [184], 0.3, 'elementary'],
+                ['Rule 54', 6, [54], 0.34, 'elementary'],
+                ['Rule 22', 6, [22], 0.38, 'elementary'],
+                // cyclic (Fisch-Gravner-Griffeath), n / threshold
+                ['Cyclic 14', 3, [14, 1], 0.0, 'cyclic'],
+                ['Rock Paper Scissors', 3, [3, 3], 0.33, 'cyclic'],
+                ['Droplets', 3, [8, 2], 0.6, 'cyclic'],
+                ['Turbulence', 3, [6, 2], 0.15, 'cyclic'],
+                // turmites (turn string per colour)
+                ['Langton RL', 2, turm('RL'), 0.55, 'turmites'],
+                ['Turmite RLR', 2, turm('RLR'), 0.62, 'turmites'],
+                ['Turmite LLRR', 2, turm('LLRR'), 0.69, 'turmites'],
+                ['Turmite LRRRRRLLR', 2, turm('LRRRRRLLR'), 0.76, 'turmites'],
+                ['Turmite RRLLLRLLLRRR', 2, turm('RRLLLRLLLRRR'), 0.83, 'turmites'],
+                // reaction-diffusion (Gray-Scott F/k per xmorphia)
+                ['GS Mitosis', 5, [0.0367, 0.0649], 0.8, 'reaction-diffusion'],
+                ['GS Coral', 5, [0.0545, 0.062], 0.86, 'reaction-diffusion'],
+                ['GS Solitons', 5, [0.03, 0.062], 0.72, 'reaction-diffusion'],
+                ['GS Worms', 5, [0.078, 0.061], 0.92, 'reaction-diffusion'],
+                ['GS Waves', 5, [0.014, 0.054], 0.65, 'reaction-diffusion'],
+                // physics automata
+                ['Ember', 4, [0.03, 0.5], 0.05, 'physics'],
+                ['Forest Fire', 7, [0.012, 0.00006], 0.3, 'physics'],
+                ['Dry Forest', 7, [0.004, 0.0003], 0.25, 'physics'],
+                ['Crystal Frost', 8, [0.22, 0.55], 0.54, 'physics'],
+                ['Fast Ice', 8, [0.5, 0.7], 0.5, 'physics'],
+                // materials (Margolus falling sand): type, liquid spread, evaporation
+                ['Falling Sand', 9, [1, 0, 0], 0.1, 'materials'],
+                ['Water', 9, [2, 0.9, 0.12], 0.58, 'materials'],
+                ['Oil', 9, [2, 0.5, 0.02], 0.12, 'materials'],
+                ['Stone', 9, [3, 0, 0], 0.0, 'materials'],
+                // fireworks: rocket climb, spark life
+                ['Fireworks', 10, [30, 26], 0.0, 'fireworks'],
+                ['Fountain', 10, [10, 44], 0.3, 'fireworks'],
+                ['Skyrockets', 10, [70, 18], 0.6, 'fireworks']
+            ];
+            const CAT_BY_NAME = Object.fromEntries(CATALOG.map((e, i) => [e[0], i]));
+            // Each slot holds a catalog entry plus its own editable copy of the
+            // parameters and per-slot character: hue, emission, aggression,
+            // flammability. The dropdown resets the copy; the editors tune it.
+            // --- STRAIN COLOUR RAMPS ---------------------------------------
+            // Every automaton draws itself through a 4-stop ramp (dark -> hot).
+            // A slot picks a ramp and then shifts its hue, scales saturation and
+            // brightness, and sets how far its states spread along it.
+            const RAMPS = {
+                fire:    [[0.35, 0.02, 0], [1, 0.25, 0], [1, 0.75, 0.1], [1, 1, 0.8]],
+                gold:    [[0.3, 0.15, 0], [0.9, 0.6, 0.05], [1, 0.85, 0.3], [1, 1, 0.85]],
+                sunset:  [[0.3, 0, 0.3], [1, 0.2, 0.3], [1, 0.6, 0.1], [1, 0.95, 0.5]],
+                rose:    [[0.3, 0, 0.1], [0.9, 0.1, 0.4], [1, 0.5, 0.7], [1, 0.9, 0.95]],
+                violet:  [[0.15, 0, 0.3], [0.5, 0.1, 0.9], [0.8, 0.5, 1], [1, 0.9, 1]],
+                neon:    [[0.5, 0, 0.6], [1, 0.1, 0.8], [0.3, 0.9, 1], [1, 1, 1]],
+                ice:     [[0.05, 0.15, 0.4], [0.2, 0.6, 1], [0.6, 0.95, 1], [1, 1, 1]],
+                ocean:   [[0, 0.1, 0.25], [0, 0.45, 0.6], [0.2, 0.8, 0.8], [0.9, 1, 1]],
+                emerald: [[0, 0.15, 0.05], [0, 0.6, 0.25], [0.4, 1, 0.6], [0.9, 1, 0.95]],
+                acid:    [[0.05, 0.3, 0], [0.3, 0.9, 0.05], [0.8, 1, 0.2], [1, 1, 0.7]],
+                forest:  [[0.05, 0.3, 0.05], [0.1, 0.6, 0.15], [1, 0.45, 0.05], [1, 0.9, 0.4]],
+                rainbow: [[1, 0.05, 0.05], [1, 0.9, 0], [0.05, 1, 0.35], [0.25, 0.35, 1]],
+                mono:    [[0.15, 0.15, 0.18], [0.5, 0.5, 0.55], [0.85, 0.85, 0.9], [1, 1, 1]],
+                ember:   [[0.1, 0.02, 0], [0.6, 0.08, 0], [1, 0.35, 0.05], [1, 0.8, 0.4]]
+            };
+            const RAMP_NAMES = Object.keys(RAMPS);
+            const rgb2hsv = (r, g, b) => {
+                const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+                let h = 0; if (d > 0) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+                return [((h / 6) % 1 + 1) % 1, mx > 0 ? d / mx : 0, mx];
+            };
+            const RAMP_HUE = Object.fromEntries(RAMP_NAMES.map(n => [n, rgb2hsv(...RAMPS[n][2])[0]]));
+            // Kernels that have a natural ramp; everything else gets the ramp whose hot stop is nearest the catalog hue.
+            const KRAMP = { 4: 'ember', 7: 'forest', 8: 'ice', 9: 'gold', 10: 'rainbow' };
+            const NAME_RAMP = { 'Water': 'ocean', 'Oil': 'gold', 'Stone': 'mono', 'Fountain': 'neon', 'Skyrockets': 'sunset', 'Falling Sand': 'gold', 'Cyclic 14': 'rainbow', 'Rock Paper Scissors': 'rainbow', 'Droplets': 'rainbow', 'Turbulence': 'rainbow' };
+            const KSPREAD = { 2: 1.0, 3: 1.0, 10: 1.0 };
+            function nearestRamp(hue) {
+                let best = 'fire', bd = 9;
+                for (const n of ['fire', 'gold', 'sunset', 'rose', 'violet', 'neon', 'ice', 'ocean', 'emerald', 'acid']) {
+                    const d = Math.abs(((RAMP_HUE[n] - hue + 0.5) % 1 + 1) % 1 - 0.5);
+                    if (d < bd) { bd = d; best = n; }
+                }
+                return best;
+            }
+            function freshSlot(ci) {
+                const e = CATALOG[ci];
+                const ramp = NAME_RAMP[e[0]] || KRAMP[e[1]] || nearestRamp(e[3]);
+                return { cat: ci, p: e[2].slice(), ramp, hue: 0, sat: 1, bright: 1, spread: KSPREAD[e[1]] ?? 0.5, emit: 1, aggro: 1, burn: 1 };
+            }
+            // Roll a strain a new look: a ramp, a hue shift (usually small, so
+            // the ramp keeps its character), and saturation / brightness / spread.
+            function randomSlotColor(sl) {
+                sl.ramp = RAMP_NAMES[Math.floor(Math.random() * RAMP_NAMES.length)];
+                sl.hue = Math.random() < 0.6 ? (Math.random() - 0.5) * 0.16 : Math.random();
+                sl.hue = ((sl.hue % 1) + 1) % 1;
+                sl.sat = 0.6 + Math.random() * 0.8;
+                sl.bright = 0.8 + Math.random() * 0.8;
+                sl.spread = Math.random() < 0.4 ? 1.0 : 0.25 + Math.random() * 0.6;
+            }
+            // The slot's effective stops: the ramp transformed by its shift/sat/bright.
+            function slotStops(sl) {
+                return RAMPS[sl.ramp].map(c => {
+                    const [h, sa, v] = rgb2hsv(...c);
+                    return hsv2rgb(h + sl.hue, Math.min(1, sa * sl.sat), v * sl.bright);
+                });
+            }
+            const slots = ['', 'Conway Life', 'Langton RL', 'Cyclic 14', 'Ember', 'GS Coral', 'Rule 30', "Brian's Brain", 'Forest Fire', 'Crystal Frost'].map(n => freshSlot(CAT_BY_NAME[n] ?? 0));
+            function slotUniforms() {
+                const k = new Float32Array(10), ramp = new Float32Array(120), prm = new Float32Array(40), mod = new Float32Array(40);
+                for (let i = 1; i <= 9; i++) {
+                    const sl = slots[i];
+                    k[i] = CATALOG[sl.cat][1];
+                    slotStops(sl).forEach((c, j) => { ramp[(i * 4 + j) * 3] = c[0]; ramp[(i * 4 + j) * 3 + 1] = c[1]; ramp[(i * 4 + j) * 3 + 2] = c[2]; });
+                    for (let j = 0; j < sl.p.length; j++) prm[i * 4 + j] = sl.p[j];
+                    mod[i * 4] = sl.emit; mod[i * 4 + 1] = sl.aggro; mod[i * 4 + 2] = sl.burn; mod[i * 4 + 3] = sl.spread;
+                }
+                let hasMat = 0, hasFw = 0;
+                for (let i = 1; i <= 9; i++) { const kk = CATALOG[slots[i].cat][1]; if (kk === 9) hasMat = 1; if (kk === 10) hasFw = 1; }
+                const shl = new Float32Array(10);
+                for (let i = 1; i <= 9; i++) shl[i] = slotShell(i);
+                return { 'uSlotK[0]': { arr: k }, 'uSlotP[0]': { arr: prm }, 'uSlotRamp[0]': { arr: ramp }, 'uSlotMod[0]': { arr: mod },
+                         uTrail: P.trail, uTrailDecay: P.trailDecay, uHasMat: hasMat, uHasFw: hasFw, uStep: stepCount,
+                         uLayered: P.layered, 'uSlotShell[0]': { arr: shl } };
+            }
+            // Kernel-specific parameter sliders (index into the slot's p[]).
+            const KPARAMS = {
+                1: [['states', 2, 2, 32, 1]],
+                2: [['turn bits', 0, 0, 4095, 1], ['colours', 1, 2, 12, 1]],
+                3: [['states', 0, 3, 24, 1], ['threshold', 1, 1, 5, 1]],
+                4: [['regrow', 0, 0, 0.1, 0.002], ['ignition', 1, 0, 1.5, 0.05]],
+                5: [['feed F', 0, 0.005, 0.095, 0.0005], ['kill k', 1, 0.04, 0.072, 0.0005]],
+                6: [['rule', 0, 0, 255, 1]],
+                7: [['regrow', 0, 0.001, 0.05, 0.001], ['lightning', 1, 0, 0.001, 0.00002]],
+                8: [['stick', 0, 0.05, 0.8, 0.01], ['melt at', 1, 0.3, 1.2, 0.01]],
+                9: [['material', 0, 1, 3, 1], ['spread', 1, 0, 1, 0.05], ['evaporate', 2, 0, 0.5, 0.01]],
+                10: [['climb', 0, 6, 90, 1], ['spark life', 1, 6, 60, 1]]
+            };
+            let openEditor = 0, stepCount = 0;
+            // In layered mode slot i owns one shell, spread across the stack.
+            const slotShell = i => Math.round((i - 1) * (K - 1) / 8);
+            function buildSlotEditor(i) {
+                const box = $('edit' + i);
+                box.innerHTML = '';
+                if (openEditor !== i) { box.style.display = 'none'; return; }
+                box.style.display = 'block';
+                const sl = slots[i], kern = CATALOG[sl.cat][1];
+                const mk = (label, get, set, min, max, step, fmt) => {
+                    const row = document.createElement('label'); row.className = 's';
+                    const val = document.createElement('span');
+                    const inp = document.createElement('input');
+                    inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = get();
+                    const show = () => val.textContent = fmt ? fmt(get()) : get();
+                    inp.addEventListener('input', () => { set(parseFloat(inp.value)); show(); });
+                    row.append(Object.assign(document.createElement('span'), { textContent: label }), inp, val);
+                    show(); box.appendChild(row);
+                };
+                for (const [label, idx, min, max, step] of (KPARAMS[kern] || []))
+                    mk(label, () => sl.p[idx] ?? 0, v => sl.p[idx] = v, min, max, step, v => step < 0.01 ? (+v).toFixed(4) : v);
+                {
+                    const row = document.createElement('label'); row.className = 's';
+                    const sel = document.createElement('select');
+                    for (const n of RAMP_NAMES) sel.appendChild(Object.assign(document.createElement('option'), { value: n, textContent: n }));
+                    sel.value = sl.ramp;
+                    sel.addEventListener('change', () => { sl.ramp = sel.value; syncSwatch(i); });
+                    row.append(Object.assign(document.createElement('span'), { textContent: 'ramp' }), sel, document.createElement('span'));
+                    box.appendChild(row);
+                }
+                mk('hue shift', () => sl.hue, v => { sl.hue = v; syncSwatch(i); }, 0, 1, 0.01, v => (+v).toFixed(2));
+                mk('saturation', () => sl.sat, v => { sl.sat = v; syncSwatch(i); }, 0, 2, 0.02, v => (+v).toFixed(2));
+                mk('brightness', () => sl.bright, v => { sl.bright = v; syncSwatch(i); }, 0.2, 2.5, 0.05, v => (+v).toFixed(2));
+                mk('spectrum', () => sl.spread, v => sl.spread = v, 0, 1, 0.01, v => (+v).toFixed(2));
+                mk('emission', () => sl.emit, v => sl.emit = v, 0, 2, 0.05, v => (+v).toFixed(2));
+                mk('aggression', () => sl.aggro, v => sl.aggro = v, 0, 2, 0.05, v => (+v).toFixed(2));
+                mk('flammable', () => sl.burn, v => sl.burn = v, 0, 2, 0.05, v => (+v).toFixed(2));
+            }
+            const toHex = rgb => '#' + rgb.map(v => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('');
+            function syncSwatch(i) { const c = slotStops(slots[i])[2]; $('col' + i).value = toHex(c); }
+            function syncSwatches() { for (let i = 1; i <= 9; i++) syncSwatch(i); }
+            // Picking a colour in the swatch re-aims the ramp: hue shift so the
+            // hot stop lands on the pick, saturation and brightness to match.
+            function bindSwatches() {
+                for (let i = 1; i <= 9; i++) $('col' + i).addEventListener('input', e => {
+                    const v = e.target.value, sl = slots[i];
+                    const [h, sa, val] = rgb2hsv(parseInt(v.slice(1, 3), 16) / 255, parseInt(v.slice(3, 5), 16) / 255, parseInt(v.slice(5, 7), 16) / 255);
+                    const [h0, sa0, v0] = rgb2hsv(...RAMPS[sl.ramp][2]);
+                    sl.hue = ((h - h0) % 1 + 1) % 1; sl.sat = sa0 > 0.02 ? Math.min(2, sa / sa0) : 1; sl.bright = Math.max(0.2, val / Math.max(0.05, v0));
+                    if (openEditor === i) buildSlotEditor(i);
+                });
+            }
+            function buildSlotSelects() {
+                for (let i = 1; i <= 9; i++) {
+                    const sel = $('slot' + i);
+                    let group = null, og = null;
+                    for (const [ci, e] of CATALOG.entries()) {
+                        if (e[4] !== group) { group = e[4]; og = document.createElement('optgroup'); og.label = group; sel.appendChild(og); }
+                        const opt = document.createElement('option'); opt.value = ci; opt.textContent = e[0]; og.appendChild(opt);
+                    }
+                    sel.value = slots[i].cat;
+                    sel.addEventListener('change', () => { slots[i] = freshSlot(+sel.value); buildSlotEditor(i); syncSwatch(i); });
+                }
+            }
+
+            // --- COLOUR SCHEMES ------------------------------------------------
+            // Five fire stops + two smoke tones. 'classic fire' is byte-identical
+            // to the original hardcoded ramp and stays the default.
+            const PALETTES = {
+                'classic fire': { pal: [[0.02, 0, 0], [0.8, 0.05, 0], [1, 0.4, 0], [1, 0.9, 0.1], [1, 1, 1]], smoke: [[0.027, 0.027, 0.036], [0.099, 0.095, 0.108]] },
+                'blue gas':     { pal: [[0, 0.005, 0.025], [0.02, 0.1, 0.55], [0.1, 0.4, 1], [0.6, 0.85, 1], [1, 1, 1]], smoke: [[0.023, 0.027, 0.041], [0.081, 0.09, 0.117]] },
+                'violet plasma':{ pal: [[0.02, 0, 0.03], [0.3, 0.02, 0.5], [0.85, 0.15, 1], [1, 0.65, 1], [1, 1, 1]], smoke: [[0.032, 0.023, 0.041], [0.099, 0.081, 0.117]] },
+                'emerald':      { pal: [[0, 0.02, 0.008], [0.02, 0.32, 0.1], [0.2, 0.85, 0.25], [0.75, 1, 0.5], [1, 1, 1]], smoke: [[0.023, 0.032, 0.027], [0.077, 0.099, 0.086]] },
+                'toxic':        { pal: [[0.012, 0.02, 0], [0.25, 0.4, 0], [0.72, 0.92, 0.05], [1, 1, 0.4], [1, 1, 1]], smoke: [[0.027, 0.032, 0.018], [0.09, 0.104, 0.068]] },
+                'white heat':   { pal: [[0.02, 0.02, 0.025], [0.28, 0.28, 0.33], [0.7, 0.7, 0.76], [0.95, 0.95, 1], [1, 1, 1]], smoke: [[0.023, 0.023, 0.027], [0.072, 0.072, 0.081]] },
+                'ember dusk':   { pal: [[0.03, 0, 0.012], [0.5, 0.05, 0.12], [1, 0.25, 0.2], [1, 0.7, 0.35], [1, 1, 0.9]], smoke: [[0.036, 0.023, 0.027], [0.108, 0.081, 0.09]] }
+            };
+            let PAL = PALETTES['classic fire'];
+            const hsv2rgb = (h, sat, v) => { h = ((h % 1) + 1) % 1; return [5, 3, 1].map(n => { const k2 = (h * 6 + n) % 6; return v - v * sat * Math.max(0, Math.min(k2, 4 - k2, 1)); }); };
+            // --- COLOUR HARMONY --------------------------------------------
+            // Random colours are never lawless: every roll picks ONE base hue
+            // and a harmony scheme, and everything - the fire ramp, the shell
+            // strata, the strains in complementary batches - is drawn from
+            // that scheme's hues. Random, but paired well by construction.
+            const SCHEMES = {
+                analogous: h => [h, h + 0.06, h - 0.06],
+                complementary: h => [h, h + 0.5],
+                split: h => [h, h + 0.42, h + 0.58],
+                triadic: h => [h, h + 0.333, h + 0.667]
+            };
+            const HARMONY = { base: 0.05, hues: [0.05], scheme: 'analogous' };
+            function rollHarmony() {
+                HARMONY.base = Math.random();
+                const names = Object.keys(SCHEMES);
+                HARMONY.scheme = names[Math.floor(Math.random() * names.length)];
+                HARMONY.hues = SCHEMES[HARMONY.scheme](HARMONY.base).map(h => ((h % 1) + 1) % 1);
+            }
+            // A palette from the harmony: dark and mid stops on the base hue,
+            // the hot stops leaning toward one partner hue.
+            function randomPalette() {
+                rollHarmony();
+                const h = HARMONY.base, partner = HARMONY.hues[1 % HARMONY.hues.length];
+                const lean = t => h + (((partner - h + 0.5) % 1 + 1) % 1 - 0.5) * t;
+                const sat = 0.85 + Math.random() * 0.15;
+                return {
+                    pal: [hsv2rgb(h, sat, 0.025), hsv2rgb(lean(0.15), sat, 0.5), hsv2rgb(lean(0.35), sat * 0.95, 1.0),
+                          hsv2rgb(lean(0.55), sat * 0.5, 1.0), hsv2rgb(lean(0.55), 0.08, 1.0)],
+                    smoke: [hsv2rgb(h + 0.5 * Math.round(Math.random()), 0.12, 0.03), hsv2rgb(lean(0.4), 0.1, 0.1)]
+                };
+            }
+            // Assign the strains in batches: slots sharing a batch share a ramp
+            // aimed at one harmony hue; the batches sit complementary to each
+            // other (and to the fire itself).
+            function harmonizeSlots() {
+                const hues = HARMONY.hues;
+                const order = [1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+                const perBatch = hues.map(() => RAMP_NAMES[Math.floor(Math.random() * RAMP_NAMES.length)]);
+                order.forEach((i, j) => {
+                    const b = j % hues.length, sl = slots[i];
+                    sl.ramp = perBatch[b];
+                    sl.hue = ((hues[b] - RAMP_HUE[sl.ramp] + (Math.random() - 0.5) * 0.05) % 1 + 1) % 1;
+                    sl.sat = 0.75 + Math.random() * 0.35;
+                    sl.bright = 0.85 + Math.random() * 0.5;
+                    sl.spread = KSPREAD[CATALOG[sl.cat][1]] ?? (0.2 + Math.random() * 0.5);
+                });
+            }
+            // Shell strata drawn from the same scheme: each shell leans toward
+            // one of the harmony hues instead of a lawless turn.
+            function harmonizeShells() {
+                for (let k = 0; k < 16; k++) {
+                    const target = HARMONY.hues[Math.floor(Math.random() * HARMONY.hues.length)];
+                    const d = ((target - HARMONY.base + 0.5) % 1 + 1) % 1 - 0.5;
+                    SHELLSIG[k].h = d + (Math.random() - 0.5) * 0.06;
+                    SHELLSIG[k].s = (Math.random() - 0.5) * 0.6;
+                }
+            }
+            // Per-shell colour: a fixed random signature per shell (hue turn,
+            // saturation jitter), applied to the current palette scaled by the
+            // 'shell variety' slider. Variety 0 = the uniform flame.
+            const SHELLSIG = Array.from({ length: 16 }, () => ({ h: Math.random() - 0.5, s: Math.random() - 0.5 }));
+            function rollShellSignatures() { for (const g of SHELLSIG) { g.h = Math.random() - 0.5; g.s = Math.random() - 0.5; } }
+            function paletteUniforms() {
+                const ps = new Float32Array(240);
+                for (let k = 0; k < K && k < 16; k++) {
+                    const g = SHELLSIG[k], turn = g.h * 1.1 * P.shellVar, satm = 1 + g.s * 0.5 * P.shellVar;
+                    PAL.pal.forEach((c, i) => {
+                        let out = c;
+                        if (P.shellVar > 0.001) {
+                            const [h, sa, v] = rgb2hsv(...c);
+                            out = hsv2rgb(h + turn * (i === 4 ? 0.35 : 1.0), Math.min(1, sa * satm), v);
+                        }
+                        ps[(k * 5 + i) * 3] = out[0]; ps[(k * 5 + i) * 3 + 1] = out[1]; ps[(k * 5 + i) * 3 + 2] = out[2];
+                    });
+                }
+                return { 'uPal[0]': { arr: new Float32Array(PAL.pal.flat()) }, 'uPalS[0]': { arr: ps }, uSmokeA: PAL.smoke[0], uSmokeB: PAL.smoke[1] };
+            }
+            function setPalette(name) {
+                PAL = PALETTES[name] || PAL;
+                $('palSel').value = PALETTES[name] ? name : $('palSel').value;
+            }
+            function randomColors() {
+                PAL = randomPalette(); AUTO.palBase = null; AUTO.palTo = null; AUTO.palT = 1;
+                harmonizeShells();
+                harmonizeSlots();
+                $('palSel').value = 'random';
+                syncSwatches();
+                if (openEditor) buildSlotEditor(openEditor);
+            }
+            // The dice: 2-5 random systems from the catalog, random shares of
+            // the budget, a fresh burst. Colours are left alone - that is the
+            // other button.
+            function randomizeMix() {
+                const n = 2 + Math.floor(Math.random() * 4);
+                const order = CATALOG.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, n);
+                const weights = order.map(() => Math.random() + 0.15);
+                const wsum = weights.reduce((a2, b2) => a2 + b2, 0);
+                const budget = 40 + Math.random() * 55;
+                for (let i = 1; i <= 9; i++) P['mix' + i] = 0;
+                order.forEach((ci, j) => {
+                    slots[j + 1] = freshSlot(ci);
+                    if (Math.random() < 0.35) randomSlotColor(slots[j + 1]);
+                    P['mix' + (j + 1)] = Math.round(budget * weights[j] / wsum);
+                });
+                presetButtons.forEach(b2 => b2.classList.remove('on'));
+                if (openEditor) buildSlotEditor(openEditor);
+                syncUI(); burst();
+            }
+
+            // --- SEEDING -------------------------------------------------------
+
+            function seed(id, x, y, k, radius, shells) {
+                runProgram(programs.strainSeed, {
+                    uStrain: T(strain.read(), 0),
+                    uSeedCell: [x, y, k], uSeedRadius: radius, uSeedId: id, uSeedShells: shells,
+                    uSeedRnd: Math.random() * 100.0, ...slotUniforms()
+                }, strain.write());
+                strain.swap();
+            }
+            function seedRandom(id, count, kLo, kHi, radius) {
+                for (let i = 0; i < count; i++) {
+                    const k = kLo + Math.floor(Math.random() * (kHi - kLo + 1));
+                    seed(id, Math.random() * NT, NY * (0.06 + Math.random() * 0.7), k, radius, 0);
+                }
+            }
+            function clearStrains() { strain.clear(); }
+
+            // --- THE MIX: presets --------------------------------------------
+            // A preset is a recipe: what the base fuel spawns (percent per
+            // strain), plus optional rule and ecology overrides. The sliders
+            // stay live afterwards — presets are starting points for mixing.
+            // A preset is a recipe: which catalog systems burn and what share
+            // of the fuel each takes. Applying one binds them to slots 1..n
+            // and sets the sliders; everything stays remixable afterwards.
+            const PRESETS = {
+                'pure fire':  [],
+                'ember bed':  [['Ember', 65]],
+                'garden':     [['Conway Life', 35], ['Forest Fire', 15], ['Ember', 15]],
+                'seed storm': [['Seeds', 55]],
+                'colony':     [['Langton RL', 20], ['Turmite LLRR', 12], ['Ember', 10]],
+                'hypnosis':   [['Cyclic 14', 60]],
+                'alchemy':    [['GS Mitosis', 30], ['GS Waves', 18], ['Droplets', 8]],
+                'sierpinski': [['Rule 90', 55]],
+                'lightning':  [["Brian's Brain", 42], ['Rule 30', 14]],
+                'wildfire':   [['Forest Fire', 60], ['Ember', 18]],
+                'lava':       [['Lava', 45], ['Ember', 20], ['Prairie on Fire', 12]],
+                'star wars':  [['Star Wars', 40], ['Fireworks', 16], ['Nova', 12]],
+                'frost':      [['Crystal Frost', 42], ['GS Solitons', 12], ['Fast Ice', 10]],
+                'traffic':    [['Rule 184 traffic', 40], ['Rule 110', 20]],
+                'fireworks':  [['Fireworks', 35], ['Skyrockets', 15], ['Ember', 10]],
+                'sandfall':   [['Falling Sand', 40], ['Ember', 15]],
+                'flood':      [['Water', 40], ['Conway Life', 12], ['Stone', 8]],
+                'ecosystem':  [['Conway Life', 10], ['Langton RL', 7], ['Cyclic 14', 8], ['Ember', 14], ['GS Coral', 6], ['Rule 30', 6], ["Brian's Brain", 6], ['Forest Fire', 9], ['Crystal Frost', 4]],
+                'war':        [['Day & Night', 18], ['BelZhab', 18], ['GS Worms', 14], ['Star Wars', 16], ['Forest Fire', 18], ['Rock Paper Scissors', 14]]
+            };
+            // Shells where each KERNEL feels at home, as fractions of K (for bursts).
+            const HOME_KERNEL = { 1: [0.4, 0.65], 2: [0.25, 0.5], 3: [0.55, 0.8], 4: [0.0, 0.3], 5: [0.5, 0.75], 6: [0.3, 0.6], 7: [0.1, 0.45], 8: [0.6, 0.9], 9: [0.2, 0.6], 10: [0.2, 0.5] };
+            function syncUI() {
+                for (const k in P) { const el = $(k); if (el && el.tagName === 'INPUT') { el.value = P[k]; } }
+                syncMix();
+                for (let i = 1; i <= 9; i++) $('slot' + i).value = slots[i].cat;
+                syncSwatches();
+                $('trailSel').value = P.trail; $('layerSel').value = P.layered; $('fireModeSel').value = P.fireMode;
+                ['shell','brush','hz','drift','aggro','glow','fuel','swirl','wind','couple','cool','expand','burn','warp','dens','crisp','steps','spawn','buoy','curl','bandY','bandW','emitG','exposure','smoke','trailDecay'].forEach(id => { const el = $(id), o = $(id + 'V'); if (el && o) o.textContent = (''+P[id]).length > 4 ? (+P[id]).toFixed(2) : P[id]; });
+            }
+            // Instant gratification: scatter the current mix over the flame.
+            function burst() {
+                for (let i = 1; i <= 9; i++) {
+                    const pct = P['mix' + i]; if (pct <= 0) continue;
+                    const kern = CATALOG[slots[i].cat][1];
+                    const n = Math.max(1, Math.round(pct / 10));
+                    const [lo, hi] = HOME_KERNEL[kern] || [0.3, 0.7];
+                    if (P.layered) seedRandom(i, n, slotShell(i), slotShell(i), kern === 2 ? 8 : 16 + pct * 0.2);
+                    else seedRandom(i, n, Math.round(lo * (K - 1)), Math.round(hi * (K - 1)), kern === 2 ? 8 : 16 + pct * 0.2);
+                }
+            }
+            const FUEL_PRESETS = new Set(['pure fire']);
+            function applyPreset(name, withBurst) {
+                const pr = PRESETS[name]; if (!pr) return;
+                P.fireMode = FUEL_PRESETS.has(name) ? 1 : 0;
+                pr.forEach(([sys, pct], j) => { if (CAT_BY_NAME[sys] !== undefined) slots[j + 1] = freshSlot(CAT_BY_NAME[sys]); P['mix' + (j + 1)] = pct; });
+                if (openEditor) buildSlotEditor(openEditor);
+                for (let i = pr.length + 1; i <= 9; i++) P['mix' + i] = 0;
+                syncUI();
+                presetButtons.forEach(b => b.classList.toggle('on', b.textContent === name));
+                if (withBurst) burst();
+            }
+
+            // --- ORBIT CAMERA + PICKING ----------------------------------------
+
+            const TARGET = [0, H * 0.42, 0];
+            const MIN_PHI = 0.35, MAX_PHI = 1.75;
+            const MIN_RADIUS = 1.6, MAX_RADIUS = 9.0;
+            let theta = 0.6, phi = 1.25, radius = 4.6;
+            let tTheta = theta, tPhi = phi, tRadius = radius;
+            const FOV = Math.PI * 0.22;
+            let cam = { eye: [0, 0, 0], right: [1, 0, 0], up: [0, 1, 0], fwd: [0, 0, -1], screen: [1, 1] };
+
+            function updateCamera() {
+                theta += (tTheta - theta) * 0.12; phi += (tPhi - phi) * 0.12; radius += (tRadius - radius) * 0.12;
+                const eye = [TARGET[0] + radius * Math.sin(phi) * Math.sin(theta), TARGET[1] + radius * Math.cos(phi), TARGET[2] + radius * Math.sin(phi) * Math.cos(theta)];
+                let fx = TARGET[0] - eye[0], fy = TARGET[1] - eye[1], fz = TARGET[2] - eye[2];
+                const fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
+                let rx = -fz, rz = fx; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+                const ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy;
+                const tanHalf = Math.tan(FOV / 2);
+                cam = { eye, right: [rx, 0, rz], up: [ux, uy, uz], fwd: [fx, fy, fz], screen: [tanHalf * (canvas.width / canvas.height), tanHalf] };
+            }
+            const profile = v => (0.85 + 0.15 * smooth(0, 0.15, v)) * (1 - 0.75 * smooth(0.25, 1, v));
+            function smooth(a, b, x) { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+
+            // Ray from a screen point, marched until it enters the selected shell.
+            function pick(px, py) {
+                const ndcx = (px / canvas.clientWidth) * 2 - 1, ndcy = 1 - (py / canvas.clientHeight) * 2;
+                const rd = [0, 1, 2].map(i => cam.fwd[i] + cam.right[i] * ndcx * cam.screen[0] + cam.up[i] * ndcy * cam.screen[1]);
+                const l = Math.hypot(...rd); rd[0] /= l; rd[1] /= l; rd[2] /= l;
+                const ro = cam.eye;
+                const rhoSel = (P.shell + 0.5) / (K + 0.5);
+                for (let t = 0; t < 14; t += 0.008) {
+                    const x = ro[0] + rd[0] * t, y = ro[1] + rd[1] * t, z = ro[2] + rd[2] * t;
+                    if (y < 0 || y > H) continue;
+                    const v = y / H;
+                    const rho = Math.hypot(x, z) / (R0 * profile(v));
+                    if (rho <= rhoSel) {
+                        const th = Math.atan2(z, x);
+                        return { x: (th / (2 * Math.PI) + 0.5) * NT, y: v * NY };
+                    }
+                }
+                return null;
+            }
+
+            let dragging = false, moved = 0, lastX = 0, lastY = 0, downX = 0, downY = 0;
+            canvas.addEventListener('mousedown', e => { dragging = true; moved = 0; lastX = downX = e.clientX; lastY = downY = e.clientY; canvas.style.cursor = 'grabbing'; });
+            window.addEventListener('mouseup', e => {
+                if (dragging && moved < 4 && e.target === canvas) {
+                    const hit = pick(e.clientX, e.clientY);
+                    const kSeed = P.layered && P.strain > 0 ? slotShell(P.strain) : P.shell;
+                    if (hit) seed(e.shiftKey ? 0 : P.strain, hit.x, hit.y, kSeed, P.brush, P.layered ? 0 : 1);
+                }
+                dragging = false; canvas.style.cursor = 'grab';
+            });
+            window.addEventListener('mousemove', e => {
+                if (!dragging) return;
+                moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
+                tTheta -= (e.clientX - lastX) * 0.005;
+                tPhi = Math.max(MIN_PHI, Math.min(MAX_PHI, tPhi + (e.clientY - lastY) * 0.005));
+                lastX = e.clientX; lastY = e.clientY;
+            });
+            canvas.addEventListener('wheel', e => { e.preventDefault(); tRadius = Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, tRadius * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+            let pinch = 0;
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                if (e.touches.length === 1) { dragging = true; moved = 0; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+                else if (e.touches.length === 2) { dragging = false; pinch = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }
+            }, { passive: false });
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                if (e.touches.length === 1 && dragging) {
+                    moved += Math.abs(e.touches[0].clientX - lastX) + Math.abs(e.touches[0].clientY - lastY);
+                    tTheta -= (e.touches[0].clientX - lastX) * 0.005;
+                    tPhi = Math.max(MIN_PHI, Math.min(MAX_PHI, tPhi + (e.touches[0].clientY - lastY) * 0.005));
+                    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    if (pinch > 0) tRadius = Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, tRadius * pinch / d));
+                    pinch = d;
+                }
+            }, { passive: false });
+            window.addEventListener('touchend', e => {
+                if (e.touches.length === 0) {
+                    if (dragging && moved < 6) { const hit = pick(lastX, lastY); if (hit) seed(P.strain, hit.x, hit.y, P.shell, P.brush, 1); }
+                    dragging = false;
+                }
+            });
+
+            // --- UI ------------------------------------------------------------
+
+            const $ = id => document.getElementById(id);
+            function bindSlider(id, key, fmt) {
+                const el = $(id), out = $(id + 'V');
+                const show = () => { if (out) out.textContent = fmt ? fmt(P[key]) : P[key]; };
+                el.value = P[key];
+                el.addEventListener('input', () => { P[key] = parseFloat(el.value); if (BASE[key] !== undefined) BASE[key] = P[key]; show(); if (key === 'scale') resize(); });
+                show();
+            }
+            bindSlider('shell', 'shell'); bindSlider('brush', 'brush'); bindSlider('hz', 'hz');
+            // The mix is a budget. Raising one automaton's share squeezes the
+            // others proportionally so the total never passes 100%; whatever is
+            // left over stays pure fire, and the base fuel is split accordingly.
+            const mixTotal = () => { let t = 0; for (let i = 1; i <= 9; i++) t += P['mix' + i]; return t; };
+            function setMix(i, v) {
+                P['mix' + i] = v;
+                const others = mixTotal() - v;
+                if (v + others > 100 && others > 0) {
+                    const k = (100 - v) / others;
+                    for (let j = 1; j <= 9; j++) if (j !== i) P['mix' + j] = Math.floor(P['mix' + j] * k);
+                }
+                syncMix();
+            }
+            function syncMix() {
+                for (let i = 1; i <= 9; i++) { $('mix' + i).value = P['mix' + i]; $('mix' + i + 'V').textContent = P['mix' + i] + '%'; }
+                if (P.fireMode) $('fireShareLine').innerHTML = 'pure fire keeps <b>' + Math.max(0, 100 - mixTotal()) + '%</b> of the fuel';
+                else $('fireShareLine').innerHTML = 'a pilot ignites the root — <b>the automata are the fuel</b>';
+            }
+            for (let i = 1; i <= 9; i++) {
+                const el = $('mix' + i);
+                el.addEventListener('input', () => setMix(i, parseFloat(el.value)));
+            }
+            syncMix();
+            bindSlider('spawn', 'spawn', v => v.toFixed(2));
+            bindSlider('drift', 'drift', v => v.toFixed(2)); bindSlider('aggro', 'aggro', v => v.toFixed(2)); bindSlider('glow', 'glow', v => v.toFixed(2));
+            bindSlider('fuel', 'fuel', v => v.toFixed(2)); bindSlider('buoy', 'buoy', v => v.toFixed(2)); bindSlider('curl', 'curl', v => v.toFixed(2));
+            bindSlider('bandY', 'bandY'); bindSlider('bandW', 'bandW'); bindSlider('emitG', 'emitG', v => v.toFixed(2));
+            bindSlider('exposure', 'exposure', v => v.toFixed(2)); bindSlider('smoke', 'smoke', v => v.toFixed(2)); bindSlider('trailDecay', 'trailDecay', v => v.toFixed(3));
+            $('trailSel').addEventListener('change', e => { P.trail = parseInt(e.target.value); });
+            $('layerSel').addEventListener('change', e => { P.layered = parseInt(e.target.value); if (P.layered) burst(); });
+            $('fireModeSel').addEventListener('change', e => { P.fireMode = parseInt(e.target.value); syncMix(); });
+            bindSlider('shellVar', 'shellVar', v => v.toFixed(2)); bindSlider('swirl', 'swirl', v => v.toFixed(2)); bindSlider('wind', 'wind', v => v.toFixed(2));
+            bindSlider('couple', 'couple', v => v.toFixed(2)); bindSlider('cool', 'cool', v => v.toFixed(3)); bindSlider('expand', 'expand', v => v.toFixed(2)); bindSlider('burn', 'burn', v => v.toFixed(2));
+            bindSlider('warp', 'warp', v => v.toFixed(3)); bindSlider('dens', 'dens'); bindSlider('crisp', 'crisp', v => v.toFixed(2));
+            bindSlider('steps', 'steps'); bindSlider('scale', 'scale', v => v.toFixed(1));
+            $('shell').max = K - 1;
+
+            buildSlotSelects(); bindSwatches(); syncSwatches();
+
+            const strainButtons = Array.from(document.querySelectorAll('button[data-id]'));
+            function selectStrain(id) {
+                P.strain = id;
+                strainButtons.forEach(b => b.classList.toggle('on', parseInt(b.dataset.id) === id));
+            }
+            strainButtons.forEach(b => b.addEventListener('click', () => {
+                const id = parseInt(b.dataset.id);
+                if (P.strain === id && id > 0) { const was = openEditor; openEditor = was === id ? 0 : id; if (was) buildSlotEditor(was); buildSlotEditor(id); }
+                else if (id > 0) { const was = openEditor; openEditor = id; if (was) buildSlotEditor(was); buildSlotEditor(id); }
+                selectStrain(id);
+            }));
+            selectStrain(1);
+
+            const presetButtons = [];
+            for (const name in PRESETS) {
+                const b = document.createElement('button');
+                b.textContent = name;
+                const parts = PRESETS[name].map(([sys, v]) => sys + ' ' + v + '%');
+                b.title = parts.length ? 'Mix: ' + parts.join(', ') : 'Nothing but fire';
+                b.addEventListener('click', () => applyPreset(name, true));
+                $('presets').appendChild(b); presetButtons.push(b);
+            }
+            $('burger').addEventListener('click', () => { const hid = $('ui').classList.toggle('hidden'); $('burger').textContent = hid ? '☰' : '✕'; });
+            $('burger').textContent = '✕';
+            $('bRandom').addEventListener('click', randomizeMix);
+            $('bThermo').addEventListener('click', () => { P.thermo = P.thermo ? 0 : 1; $('bThermo').classList.toggle('on', !!P.thermo); });
+            $('bAuto').addEventListener('click', toggleAuto);
+            $('bRandColors').addEventListener('click', randomColors);
+            for (const name in PALETTES) $('palSel').appendChild(Object.assign(document.createElement('option'), { value: name, textContent: name }));
+            $('palSel').appendChild(Object.assign(document.createElement('option'), { value: 'random', textContent: 'random roll' }));
+            $('palSel').addEventListener('change', e => { if (e.target.value === 'random') PAL = randomPalette(); else setPalette(e.target.value); });
+            $('bSeed').addEventListener('click', () => { if (P.strain > 0) seedRandom(P.strain, 8, Math.max(0, P.shell - 1), Math.min(K - 1, P.shell + 1), P.brush); });
+            $('bBurst').addEventListener('click', burst);
+            $('bClear').addEventListener('click', clearStrains);
+            $('bPause').addEventListener('click', togglePause);
+            $('bAtlas').addEventListener('click', () => { P.view = (P.view + 1) % 5; $('bAtlas').classList.toggle('on', P.view > 0); });
+            function togglePause() { P.paused = !P.paused; $('bPause').classList.toggle('on', P.paused); }
+
+            window.addEventListener('keydown', e => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                if (e.key >= '0' && e.key <= '9') selectStrain(parseInt(e.key));
+                else if (e.key === 'r' || e.key === 'R') $('bSeed').click();
+                else if (e.key === 'd' || e.key === 'D') randomizeMix();
+                else if (e.key === 'g' || e.key === 'G') randomColors();
+                else if (e.key === 'c' || e.key === 'C') clearStrains();
+                else if (e.key === ' ') { e.preventDefault(); togglePause(); }
+                else if (e.key === 'h' || e.key === 'H') $('burger').click();
+                else if (e.key === 'x' || e.key === 'X') burst();
+                else if (e.key === 't' || e.key === 'T') $('bAtlas').click();
+                else if (e.key === 'a' || e.key === 'A') toggleAuto();
+            });
+
+            // --- SAVE / LOAD -----------------------------------------------------
+            // The whole look is data: parameters, the nine slots with their
+            // params and colour ramps, the fire palette, the camera.
+            function snapshot() {
+                const ps = {}; for (const k in P) if (typeof P[k] === 'number') ps[k] = P[k];
+                return {
+                    v: 1, when: new Date().toISOString(), P: ps,
+                    slots: slots.slice(1).map(sl => ({ name: CATALOG[sl.cat][0], p: sl.p, ramp: sl.ramp, hue: sl.hue, sat: sl.sat, bright: sl.bright, spread: sl.spread, emit: sl.emit, aggro: sl.aggro, burn: sl.burn })),
+                    pal: PAL, palName: $('palSel').value,
+                    cam: { theta: tTheta, phi: tPhi, radius: tRadius }
+                };
+            }
+            function restore(d) {
+                if (!d || !d.slots) return;
+                for (const k in d.P) if (k in P && !['view', 'dbg', 'paused', 'substeps'].includes(k)) P[k] = d.P[k];
+                d.slots.forEach((sd, j) => {
+                    const ci = CAT_BY_NAME[sd.name]; if (ci === undefined) return;
+                    const sl = freshSlot(ci);
+                    Object.assign(sl, { p: sd.p || sl.p, ramp: RAMPS[sd.ramp] ? sd.ramp : sl.ramp, hue: sd.hue ?? 0, sat: sd.sat ?? 1, bright: sd.bright ?? 1, spread: sd.spread ?? sl.spread, emit: sd.emit ?? 1, aggro: sd.aggro ?? 1, burn: sd.burn ?? 1 });
+                    slots[j + 1] = sl;
+                });
+                if (d.pal && d.pal.pal) { PAL = d.pal; $('palSel').value = PALETTES[d.palName] ? d.palName : 'random'; }
+                if (d.cam) { tTheta = d.cam.theta; tPhi = d.cam.phi; tRadius = d.cam.radius; }
+                for (const k of ['fuel', 'emitG', 'exposure']) BASE[k] = P[k];
+                syncUI(); if (openEditor) buildSlotEditor(openEditor);
+                presetButtons.forEach(b2 => b2.classList.remove('on'));
+                burst();
+            }
+            function recentSaves() { try { return JSON.parse(localStorage.getItem('flame-strains-saves') || '[]'); } catch (e) { return []; } }
+            function refreshRecent() {
+                const sel = $('recentSel'); sel.innerHTML = '<option value="">recent…</option>';
+                recentSaves().forEach((d, i) => sel.appendChild(Object.assign(document.createElement('option'), { value: i, textContent: d.label })));
+            }
+            function saveState() {
+                const d = snapshot();
+                const label = d.slots.filter((sl, i) => P['mix' + (i + 1)] > 0).map(sl => sl.name).slice(0, 3).join(' + ') || 'pure fire';
+                d.label = label + ' · ' + d.when.slice(0, 16).replace('T', ' ');
+                try { const list = [d, ...recentSaves()].slice(0, 12); localStorage.setItem('flame-strains-saves', JSON.stringify(list)); } catch (e) { }
+                refreshRecent();
+                const blob = new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' });
+                const a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = 'flame-' + d.when.slice(0, 19).replace(/[:T]/g, '-') + '.json';
+                document.body.appendChild(a2); a2.click(); a2.remove();
+            }
+            $('bSave').addEventListener('click', saveState);
+            $('bLoad').addEventListener('click', () => $('loadFile').click());
+            $('loadFile').addEventListener('change', e => {
+                const f = e.target.files[0]; if (!f) return;
+                f.text().then(t => { try { restore(JSON.parse(t)); } catch (err) { showError('Could not read that file: ' + err.message); } });
+                e.target.value = '';
+            });
+            $('recentSel').addEventListener('change', e => { const d = recentSaves()[+e.target.value]; if (d) restore(d); e.target.value = ''; });
+            refreshRecent();
+
+            // --- AUTO MODE -----------------------------------------------------
+            // Press A: the UI folds away and the flame drives itself. Every
+            // exposed parameter random-walks toward slowly re-rolled targets
+            // (fire, render, ecology, each slot's own knobs, hues, the mix);
+            // now and then a slot swaps to another catalog system or the
+            // palette morphs; the camera circles and breathes; the thermostat
+            // keeps the whole thing from whiting out. Nothing jumps - every
+            // change is a drift, so the flame is always new and never broken.
+            const AUTO = { on: false, params: [], t: 0, nextSwap: 20, nextPal: 45, nextMix: 12, palFrom: null, palTo: null, palT: 1, camDir: 1 };
+            const AUTO_SKIP = new Set(['shell', 'brush', 'scale', 'steps', 'trailDecay', 'emitG', 'exposure']);
+            function autoRegistry() {
+                const list = [];
+                for (const el of document.querySelectorAll('input[type=range]')) {
+                    const key = el.id;
+                    if (!(key in P) || AUTO_SKIP.has(key) || /^mix\d$/.test(key)) continue;
+                    const lo = +el.min, hi = +el.max, pad = (hi - lo) * 0.15;
+                    list.push({ get: () => P[key], set: v => { P[key] = v; if (BASE[key] !== undefined) BASE[key] = v; }, min: lo + pad, max: hi - pad, target: P[key], next: 0, span: 0.18 });
+                }
+                // each slot's own knobs, hue included
+                for (let i = 1; i <= 9; i++) {
+                    const sl = slots[i];
+                    list.push({ get: () => sl.hue, set: v => sl.hue = v, min: 0, max: 1, target: sl.hue, next: 0, span: 0.12, wrap: true, slot: i });
+                    list.push({ get: () => sl.sat, set: v => sl.sat = v, min: 0.5, max: 1.5, target: sl.sat, next: 0, span: 0.2, slot: i });
+                    list.push({ get: () => sl.bright, set: v => sl.bright = v, min: 0.6, max: 1.8, target: sl.bright, next: 0, span: 0.2, slot: i });
+                    list.push({ get: () => sl.spread, set: v => sl.spread = v, min: 0, max: 1, target: sl.spread, next: 0, span: 0.25, slot: i });
+                    for (const key of ['emit', 'aggro', 'burn']) list.push({ get: () => sl[key], set: v => sl[key] = v, min: 0.3, max: 1.8, target: sl[key], next: 0, span: 0.3, slot: i });
+                }
+                return list;
+            }
+            function autoSlotParams() {
+                // kernel-specific params: re-read each time because slots swap
+                const list = [];
+                for (let i = 1; i <= 9; i++) {
+                    const sl = slots[i], kern = CATALOG[sl.cat][1];
+                    for (const [label, idx, min, max, step] of (KPARAMS[kern] || [])) {
+                        if (label === 'material') continue;
+                        list.push({ get: () => sl.p[idx] ?? min, set: v => sl.p[idx] = step >= 1 ? Math.round(v) : v, min, max, target: sl.p[idx] ?? min, next: 0, span: 0.2, slot: i });
+                    }
+                }
+                return list;
+            }
+            let autoSlotList = [];
+            function toggleAuto() {
+                AUTO.on = !AUTO.on;
+                $('ui').classList.toggle('hidden', AUTO.on); $('burger').textContent = AUTO.on ? '☰' : '✕';
+                $('stat').style.display = AUTO.on ? 'none' : '';
+                $('bAuto').classList.toggle('on', AUTO.on);
+                if (AUTO.on) { AUTO.params = autoRegistry(); autoSlotList = autoSlotParams(); AUTO.t = 0; AUTO.palBase = null; AUTO.hueWalk = [0, 0, 0, 0, 0]; AUTO.palTo = null; AUTO.palT = 1; AUTO.nextSwap = 25 + Math.random() * 40; AUTO.nextPal = 40 + Math.random() * 60; AUTO.nextMix = 10; }
+                else syncUI();
+            }
+            function driftParam(q, dt) {
+                if (AUTO.t >= q.next) {
+                    const range = q.max - q.min;
+                    let t = q.get() + (Math.random() - 0.5) * 2 * q.span * range;
+                    q.target = q.wrap ? ((t % 1) + 1) % 1 : Math.min(q.max, Math.max(q.min, t));
+                    q.next = AUTO.t + 6 + Math.random() * 30;
+                }
+                const v = q.get(), r = 1 - Math.exp(-dt / 14);
+                let d = q.target - v; if (q.wrap) d = ((d + 1.5) % 1) - 0.5;
+                q.set(v + d * r);
+            }
+            function autoTick(dt) {
+                AUTO.t += dt;
+                for (const q of AUTO.params) driftParam(q, dt);
+                for (const q of autoSlotList) driftParam(q, dt);
+                // the mix breathes: shares wander, fire keeps 25-70%
+                if (AUTO.t >= AUTO.nextMix) {
+                    AUTO.nextMix = AUTO.t + 8 + Math.random() * 20;
+                    const i = 1 + Math.floor(Math.random() * 9);
+                    const cur = P['mix' + i];
+                    AUTO.mixTarget = AUTO.mixTarget || {};
+                    AUTO.mixTarget[i] = Math.max(0, Math.min(45, cur + (Math.random() - 0.45) * 30));
+                }
+                if (AUTO.mixTarget) {
+                    for (const i in AUTO.mixTarget) { const k = 'mix' + i; P[k] += (AUTO.mixTarget[i] - P[k]) * (1 - Math.exp(-dt / 12)); }
+                    let total = mixTotal();
+                    if (total > 75) { const k = 75 / total; for (let i = 1; i <= 9; i++) P['mix' + i] *= k; }
+                }
+                // a slot swaps to something else from the catalog
+                if (AUTO.t >= AUTO.nextSwap) {
+                    AUTO.nextSwap = AUTO.t + 30 + Math.random() * 70;
+                    const i = 1 + Math.floor(Math.random() * 9);
+                    const keep = { ...slots[i] };
+                    slots[i] = freshSlot(Math.floor(Math.random() * CATALOG.length));
+                    if (Math.random() < 0.5) Object.assign(slots[i], { ramp: keep.ramp, hue: keep.hue, sat: keep.sat, bright: keep.bright, spread: keep.spread });
+                    else if (Math.random() < 0.5) randomSlotColor(slots[i]);
+                    if (P['mix' + i] < 4) { AUTO.mixTarget = AUTO.mixTarget || {}; AUTO.mixTarget[i] = 8 + Math.random() * 20; }
+                    autoSlotList = autoSlotParams();
+                    AUTO.params = autoRegistry();
+                    burst();
+                }
+                // colours morph now and then, mostly gently
+                if (AUTO.t >= AUTO.nextPal) {
+                    AUTO.nextPal = AUTO.t + 45 + Math.random() * 90;
+                    const names = Object.keys(PALETTES);
+                    AUTO.palFrom = JSON.parse(JSON.stringify(PAL));
+                    AUTO.palTo = Math.random() < 0.55 ? randomPalette() : PALETTES[names[Math.floor(Math.random() * names.length)]];
+                    AUTO.palT = 0; AUTO.palBase = null; AUTO.hueWalk = [0, 0, 0, 0, 0];
+                    // strains follow the new harmony: their hue targets glide
+                    // to batch hues instead of jumping, ramps stay put
+                    if (Math.random() < 0.8) {
+                        harmonizeShells();
+                        const hues = HARMONY.hues;
+                        AUTO.params.forEach(q => {
+                            if (q.slot && q.wrap) {
+                                const b = q.slot % hues.length;
+                                q.target = ((hues[b] - RAMP_HUE[slots[q.slot].ramp]) % 1 + 1) % 1;
+                                q.next = AUTO.t + 40 + Math.random() * 30;
+                            }
+                        });
+                    }
+                }
+                // the fire palette itself breathes: every stop's hue wanders a
+                // little, saturation swells and fades, so colour never sits still
+                AUTO.hueWalk = AUTO.hueWalk || [0, 0, 0, 0, 0];
+                AUTO.hueVel = AUTO.hueVel || [0, 0, 0, 0, 0];
+                if (!(AUTO.palT < 1)) {
+                    const src = AUTO.palTo || PAL;
+                    AUTO.palBase = AUTO.palBase || JSON.parse(JSON.stringify(src));
+                    const drifted = { pal: [], smoke: src.smoke };
+                    for (let i = 0; i < 5; i++) {
+                        AUTO.hueVel[i] += (Math.random() - 0.5) * dt * 0.004;
+                        AUTO.hueVel[i] *= Math.exp(-dt * 0.15);
+                        AUTO.hueWalk[i] += AUTO.hueVel[i] * dt * 10;
+                        const [h, sa, v] = rgb2hsv(...AUTO.palBase.pal[i]);
+                        drifted.pal.push(hsv2rgb(h + AUTO.hueWalk[i] * (i === 4 ? 0.3 : 1.0), Math.min(1, sa * (1 + 0.15 * Math.sin(AUTO.t * 0.07 + i))), v));
+                    }
+                    PAL = drifted;
+                }
+                if (AUTO.palT < 1 && AUTO.palTo) {
+                    AUTO.palT = Math.min(1, AUTO.palT + dt / 12);
+                    const t = AUTO.palT * AUTO.palT * (3 - 2 * AUTO.palT);
+                    PAL = { pal: AUTO.palFrom.pal.map((c, i) => c.map((v, j) => v + (AUTO.palTo.pal[i][j] - v) * t)),
+                            smoke: AUTO.palFrom.smoke.map((c, i) => c.map((v, j) => v + (AUTO.palTo.smoke[i][j] - v) * t)) };
+                }
+                // one strain changes its ramp now and then
+                if (Math.random() < dt / 50) {
+                    const i = 1 + Math.floor(Math.random() * 9);
+                    const target = HARMONY.hues[i % HARMONY.hues.length];
+                    slots[i].ramp = nearestRamp(target);
+                    slots[i].hue = ((target - RAMP_HUE[slots[i].ramp]) % 1 + 1) % 1;
+                }
+                // traces come and go
+                if (Math.random() < dt / 90) P.trail = Math.random() < 0.5 ? 0 : (Math.random() < 0.7 ? 1 : 2);
+                // the camera circles slowly and breathes
+                if (Math.random() < dt / 60) AUTO.camDir = -AUTO.camDir;
+                tTheta += AUTO.camDir * dt * (0.045 + 0.03 * Math.sin(AUTO.t * 0.1));
+                tPhi = 1.15 + 0.35 * Math.sin(AUTO.t * 0.05);
+                tRadius = 4.2 + 1.3 * Math.sin(AUTO.t * 0.031 + 1.0);
+            }
+
+            // --- MAIN LOOP -----------------------------------------------------
+
+            function windOsc(a) { return (Math.cos(a) * 0.5 + Math.cos(a * 2.7) * 0.3 + Math.cos(a * 5.1) * 0.2) * CONFIG.WIND_STRENGTH; }
+
+            const startTime = Date.now();
+            let lastTime = Date.now(), frame = 0, strainAcc = 0;
+            let fpsT = Date.now(), fpsN = 0, fps = 0;
+
+            function simStep(dt, time) {
+                const windAnim = time * 0.4;
+                const wind = [windOsc(windAnim) * P.wind, windOsc(windAnim + 1.7) * P.wind];
+                runProgram(programs.buoyancy, { uVelocity: T(velocity.read(), 0), uDensity: T(density.read(), 1), uStrain: T(strain.read(), 2), uBuoyancy: CONFIG.BUOYANCY * P.buoy, uWind: wind, uSwirl: P.swirl, uDt: dt, ...slotUniforms() }, velocity.write()); velocity.swap();
+                runProgram(programs.curl, { uVelocity: T(velocity.read(), 0) }, curl);
+                runProgram(programs.spinAccum, { uVelocity: T(velocity.read(), 0), uSource: T(spinMemory.read(), 1), uCurl: T(curl, 2), uDt: dt, uDissipation: CONFIG.SPIN_DISSIPATION }, spinMemory.write()); spinMemory.swap();
+                runProgram(programs.vorticity, { uVelocity: T(velocity.read(), 0), uCurl: T(curl, 1), uCurlScale: CONFIG.CURL * P.curl, uDt: dt, uTime: time }, velocity.write()); velocity.swap();
+                runProgram(programs.divergence, { uVelocity: T(velocity.read(), 0) }, divergence);
+                for (let i = 0; i < CONFIG.PRESSURE_ITERATIONS; i++) {
+                    runProgram(programs.pressure, { uPressure: T(pressure.read(), 0), uDivergence: T(divergence, 1) }, pressure.write()); pressure.swap();
+                }
+                runProgram(programs.gradient, { uPressure: T(pressure.read(), 0), uVelocity: T(velocity.read(), 1) }, velocity.write()); velocity.swap();
+                runProgram(programs.advectVel, { uVelocity: T(velocity.read(), 0), uDt: dt, uDissipation: CONFIG.VELOCITY_DISSIPATION, uCouple: P.couple * 0.5 }, velocity.write()); velocity.swap();
+                runProgram(programs.advectDens, {
+                    uVelocity: T(velocity.read(), 0), uSource: T(density.read(), 1), uStrain: T(strain.read(), 2),
+                    uDt: dt, uTime: time, uDissipation: CONFIG.DENSITY_DISSIPATION,
+                    uCouple: P.couple, uExpand: P.expand, uFuel: P.fuel,
+                    // fuel is the master budget: the automata's emission burns
+                    // from the same supply, so fuel 0 starves everything
+                    uEmit: P.emitG * Math.min(1.35, P.fuel / 1.5), uCool: P.cool, uBandY: P.bandY, uBandW: P.bandW,
+                    // 'automata only': no abstract fuel column - just a faint
+                    // pilot ring at the root, enough to ignite what spawns there
+                    uFireShare: P.fireMode ? Math.max(0, 100 - mixTotal()) / 100 : 0.2,
+                    ...slotUniforms()
+                }, density.write()); density.swap();
+            }
+
+            function strainTick(dt) {
+                if (P.drift > 0) {
+                    runProgram(programs.strainDrift, { uStrain: T(strain.read(), 0), uVelocity: T(velocity.read(), 1), uDt: dt, uDrift: P.drift, uJitter: Math.random() }, strain.write()); strain.swap();
+                }
+                runProgram(programs.strainStep, {
+                    uStrain: T(strain.read(), 0), uDensity: T(density.read(), 1),
+                    uRnd: Math.random() * 1000.0, uAggro: P.aggro, uBurn: P.burn, uSterile: 1.35,
+                    uSpawn: P.spawn, 'uMix[0]': { arr: [0, P.mix1, P.mix2, P.mix3, P.mix4, P.mix5, P.mix6, P.mix7, P.mix8, P.mix9] },
+                    uCoreSpawn: P.fireMode ? 6.0 : 30.0, uBandY2: P.bandY, uBandW2: P.bandW,
+                    ...slotUniforms()
+                }, strain.write()); strain.swap();
+                stepCount++;
+            }
+
+            function update() {
+                const now = Date.now();
+                const baseDt = Math.min((now - lastTime) / 1000, 0.016);
+                lastTime = now;
+                const dt = baseDt * CONFIG.SIM_SPEED;
+                const time = ((now - startTime) / 1000.0) * CONFIG.SIM_SPEED;
+
+                gl.bindVertexArray(quadVAO);
+                gl.disable(gl.BLEND);
+
+                if (frame % 12 === 0) senseHeat();
+                if (P.thermo || AUTO.on) thermostat(baseDt);
+                // the trims are visible: sliders follow the live values and the
+                // Thermostat button shows when it is actively holding heat down
+                if (frame % 10 === 0 && !$('ui').classList.contains('hidden')) {
+                    for (const k2 of ['fuel', 'emitG', 'exposure']) { const el2 = $(k2); if (el2 && document.activeElement !== el2) { el2.value = P[k2]; const o2 = $(k2 + 'V'); if (o2) o2.textContent = (+P[k2]).toFixed(2); } }
+                    $('bThermo').textContent = THERMO.active ? 'thermostat ↓' : 'thermostat';
+                    $('bThermo').style.color = THERMO.active ? '#ff8060' : '';
+                }
+                if (AUTO.on) autoTick(baseDt);
+
+                if (!P.paused) {
+                    for (let sub = 0; sub < P.substeps; sub++) {
+                        simStep(dt, time + sub * dt);
+                        strainAcc += baseDt * P.hz;
+                        let ticks = 0;
+                        while (strainAcc >= 1 && ticks < 3) { strainTick(1 / P.hz * CONFIG.SIM_SPEED); strainAcc -= 1; ticks++; }
+                        if (strainAcc > 3) strainAcc = 0;
+                    }
+                }
+
+                updateCamera();
+                if (P.view > 0 && P.view < 4) runProgram(programs.atlasView, { uDensity: T(density.read(), 0), uStrain: T(strain.read(), 1), uMode: P.view, ...slotUniforms(), ...paletteUniforms() }, null);
+                else runProgram(programs.raymarch, {
+                    uDensity: T(density.read(), 0), uSpin: T(spinMemory.read(), 1), uStrain: T(strain.read(), 2),
+                    uTime: time, uFrame: frame,
+                    uCamPos: cam.eye, uCamRight: cam.right, uCamUp: cam.up, uCamFwd: cam.fwd, uScreen: cam.screen,
+                    uSteps: P.steps, uWarp: P.warp, uGlow: P.glow, uCrisp: P.crisp, uDens: P.dens, uFlat: P.view >= 4 ? 1 : 0, uDbg: P.dbg, uExposure: P.exposure, uSmoke: P.smoke,
+                    ...slotUniforms(), ...paletteUniforms()
+                }, null);
+
+                frame++; fpsN++;
+                if (now - fpsT > 1000) { fps = fpsN * 1000 / (now - fpsT); fpsN = 0; fpsT = now; $('stat').textContent = fps.toFixed(0) + ' fps · ' + NT + '×' + NY + '×' + K + ' cells · ' + canvas.width + '×' + canvas.height + ' · heat ' + HEAT.mean.toFixed(2) + ' / hot ' + (HEAT.warm > 0.005 ? (HEAT.hot / HEAT.warm * 100).toFixed(0) : 0) + '% of flame'; }
+                requestAnimationFrame(update);
+            }
+
+            function resize() {
+                const dpr = Math.min(window.devicePixelRatio || 1, 2) * P.scale;
+                canvas.width = Math.round(window.innerWidth * dpr);
+                canvas.height = Math.round(window.innerHeight * dpr);
+            }
+            window.addEventListener('resize', resize); resize();
+
+            // Debug probe: march the center ray and an offset ray on the CPU,
+            // reading temperatures straight from the density atlas.
+            window.__probeRays = function () {
+                const fb = density.read();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
+                const buf = new Float32Array(ATLAS[0] * ATLAS[1] * 4);
+                gl.readPixels(0, 0, ATLAS[0], ATLAS[1], gl.RGBA, gl.FLOAT, buf);
+                const fetch = (x, y, k) => {
+                    k = Math.max(0, Math.min(K - 1, Math.floor(k)));
+                    const tx = k % TILES[0], ty = Math.floor(k / TILES[0]);
+                    x = ((Math.floor(x) % NT) + NT) % NT; y = Math.max(0, Math.min(NY - 1, Math.floor(y)));
+                    return buf[((ty * NY + y) * ATLAS[0] + tx * TW + 1 + x) * 4];
+                };
+                const toCell = p2 => {
+                    const v = p2[1] / H, th = Math.atan2(p2[2], p2[0]);
+                    const rho = Math.hypot(p2[0], p2[2]) / (R0 * profile(Math.max(0, Math.min(1, v))));
+                    return [(th / (2 * Math.PI) + 0.5) * NT, v * NY, rho * (K + 0.5)];
+                };
+                const march = ndcx => {
+                    const rd = [0, 1, 2].map(i => cam.fwd[i] + cam.right[i] * ndcx * cam.screen[0] + cam.up[i] * 0.05 * cam.screen[1]);
+                    const l = Math.hypot(...rd); rd.forEach((v, i) => rd[i] = v / l);
+                    const out = [];
+                    for (let t = 3.0; t < 7.0; t += 0.04) {
+                        const p2 = [cam.eye[0] + rd[0] * t, cam.eye[1] + rd[1] * t, cam.eye[2] + rd[2] * t];
+                        if (p2[1] < 0 || p2[1] > H) continue;
+                        const c = toCell(p2);
+                        if (c[2] > K + 0.5) continue;
+                        const kk = c[2] - 0.5;
+                        const k0 = Math.floor(kk);
+                        let T;
+                        if (k0 < 0) T = fetch(c[0], c[1], 0);
+                        else { const f = kk - k0; const a2 = fetch(c[0], c[1], k0); const b2 = k0 + 1 > K - 1 ? 0 : fetch(c[0], c[1], k0 + 1); T = a2 * (1 - f) + b2 * f; }
+                        out.push([+t.toFixed(2), +c[2].toFixed(2), +T.toFixed(3)]);
+                    }
+                    return out;
+                };
+                return { center: march(0.0005), off: march(0.06) };
+            };
+            if (Q.get('preset') && PRESETS[Q.get('preset')]) applyPreset(Q.get('preset'), true);
+            else if ([1,2,3,4,5,6,7,8,9].some(i => Q.has('mix' + i))) { syncUI(); burst(); }
+            else applyPreset('ecosystem', true);
+            window.__P = P; window.__HEAT = HEAT;
+            update();
+        })();
+    </script>
+</body>
+
+</html>

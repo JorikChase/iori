@@ -19,6 +19,7 @@ redir /disphere.html https://iori.me/disphere.html permanent
 redir /dither-types.html https://iori.me/dither-types.html permanent
 redir /ember-engine.html https://iori.me/ember-engine.html permanent
 redir /flame-simulation.html https://iori.me/flame-simulation.html permanent
+redir /flame-strains.html https://iori.me/flame-strains.html permanent
 redir /flame.html https://iori.me/flame.html permanent
 redir /fluid.html https://iori.me/fluid.html permanent
 redir /fractal-dimension.html https://iori.me/fractal-dimension.html permanent

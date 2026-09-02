@@ -204,6 +204,14 @@
       "type": "experiment",
       "priority": 0.6
     },
+    "flame-strains.html": {
+      "title": "Flame Strains — Automata Burning in a Volumetric Flame",
+      "description": "Any 2D cellular automaton burns as a strain inside one volumetric flame: Life, Langton's ants, cyclic waves, Gray-Scott and fireworks composed on one fire.",
+      "category": "flames",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
     "flame.html": {
       "title": "2D Fire Simulator",
       "description": "A satisfying 2D fire simulator: cellular combustion rendered in warm, living pixels.",

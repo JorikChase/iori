@@ -130,6 +130,7 @@ sync_website_files() {
         --exclude 'sandbox.md' \
         --exclude 'blackjach-api/' \
         --exclude 'blackjach/assets-reference/' \
+        --exclude 'flame-strains-stages/' \
         "$SOURCE_DIR/" "$WEB_ROOT/"
     echo "File sync complete (excluding .git, zausi, splats, heavy assets)."
 

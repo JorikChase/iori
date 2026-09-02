@@ -244,6 +244,17 @@
       "lastmod": "2026-07-27"
     },
     {
+      "slug": "flame-strains.html",
+      "title": "Flame Strains — Automata Burning in a Volumetric Flame",
+      "description": "Any 2D cellular automaton burns as a strain inside one volumetric flame: Life, Langton's ants, cyclic waves, Gray-Scott and fireworks composed on one fire.",
+      "category": "flames",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/flame-strains.html",
+      "og_image": null,
+      "lastmod": "2026-09-02"
+    },
+    {
       "slug": "flame.html",
       "title": "2D Fire Simulator",
       "description": "A satisfying 2D fire simulator: cellular combustion rendered in warm, living pixels.",
@@ -681,7 +692,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/star.html",
       "og_image": null,
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-09-02"
     },
     {
       "slug": "start.html",
@@ -692,7 +703,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/start.html",
       "og_image": null,
-      "lastmod": "2026-08-18"
+      "lastmod": "2026-09-02"
     },
     {
       "slug": "sudoku.html",

@@ -101,6 +101,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://iori.me/flame-strains.html</loc>
+    <lastmod>2026-09-02</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://iori.me/flame.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.6</priority>
@@ -232,7 +237,7 @@
   </url>
   <url>
     <loc>https://iori.me/star.html</loc>
-    <lastmod>2026-07-27</lastmod>
+    <lastmod>2026-09-02</lastmod>
     <priority>0.5</priority>
   </url>
   <url>

@@ -54,14 +54,16 @@ pull_from_git() {
     cd "$SOURCE_DIR" || { echo "Failed to cd into $SOURCE_DIR"; exit 1; }
 
     echo "Fetching latest changes from origin..."
-    # Pinned to git protocol v0. Git 2.43 defaults to v2, and from this host the
-    # v2 request to github.com comes back as a 401 ("could not read Username")
-    # followed by "expected flush after ref listing", while plain curl to the
-    # same info/refs URL returns 200 and v0 works fine. The repo is public, so
-    # this is not a credentials problem — it is the v2 negotiation being mangled
-    # in transit. Without this the deploy fetches nothing and silently ships the
-    # previous commit.
-    git -c protocol.version=0 fetch origin
+    # Forced to HTTP/1.1. With this host's libcurl (8.5.0, Ubuntu 24.04) the
+    # HTTP/2 exchange with github.com breaks after the ref advertisement: the
+    # GET info/refs returns 200 and parses fine, but the follow-up request
+    # fails and git drops into its dumb-HTTP fallback, which ends in a 401
+    # ("could not read Username"). The repo is public, so this is not a
+    # credentials problem. Pinning the git protocol version (the earlier fix)
+    # does not help; forcing HTTP/1.1 does, with either protocol version.
+    # Without this the deploy fetches nothing and silently ships the previous
+    # commit.
+    git -c http.version=HTTP/1.1 fetch origin
 
     echo "Resetting local 'main' branch to match remote 'origin/main'..."
     # This is safer for automation than 'git pull' as it avoids merge conflicts

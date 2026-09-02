@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>blackjach</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header__brand">
+    <img class="app-header__logo" src="assets/header-logo.png" alt="blackjach" />
+  </div>
+  <nav class="app-nav" aria-label="Screens">
+    <button class="app-nav__tab is-active" data-screen="game" type="button">Play</button>
+    <button class="app-nav__tab" data-screen="editor" type="button">Deck</button>
+    <button class="app-nav__tab" data-screen="community" type="button">Community</button>
+    <button class="app-nav__tab" data-screen="stats" type="button">Stats</button>
+    <button class="app-nav__tab" data-screen="settings" type="button">Settings</button>
+  </nav>
+  <div class="deck-switcher">
+    <label for="deck-switcher-select">Deck</label>
+    <select id="deck-switcher-select"></select>
+  </div>
+  <div class="app-header__scores">
+    <div class="score-chip">
+      <span class="score-chip__label">Session</span>
+      <span class="score-chip__value" id="score-session">0</span>
+    </div>
+    <div class="score-chip score-chip--accent">
+      <span class="score-chip__label">All-time</span>
+      <span class="score-chip__value" id="score-alltime">0</span>
+    </div>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <!-- ============ GAME SCREEN ============ -->
+  <section id="screen-game" class="screen is-active">
+    <div class="table">
+      <ol class="ladder" id="ladder" aria-label="Ladder progress"></ol>
+
+      <div class="pot-display">
+        <span class="pot-display__label">Pot at risk</span>
+        <span class="pot-display__value" id="pot-value">0</span>
+      </div>
+
+      <div class="card-stage" id="card-stage">
+        <div class="playing-card" id="playing-card">
+          <div class="playing-card__inner">
+            <div class="playing-card__face playing-card__face--back"></div>
+            <div class="playing-card__face playing-card__face--front">
+              <div class="playing-card__difficulty" id="card-difficulty"></div>
+              <div class="playing-card__image" id="card-image" hidden></div>
+              <div class="playing-card__prompt" id="card-prompt"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="options" id="options" role="group" aria-label="Answer options"></div>
+
+      <div class="decision" id="decision" hidden>
+        <button class="btn btn--bank" id="btn-bank" type="button">
+          <span class="btn__icon btn__icon--bank" aria-hidden="true"></span>
+          <span class="btn__key">B</span> Bank <span id="bank-amount"></span>
+        </button>
+        <button class="btn btn--hit" id="btn-hit" type="button">
+          <span class="btn__icon btn__icon--hit" aria-hidden="true"></span>
+          <span class="btn__key">H</span> Hit — climb higher
+        </button>
+      </div>
+
+      <div class="run-result" id="run-result" hidden>
+        <h2 class="run-result__title" id="run-result-title"></h2>
+        <p class="run-result__detail" id="run-result-detail"></p>
+        <div class="run-result__note" id="run-result-note" hidden></div>
+
+        <div class="score-submit" id="score-submit" hidden>
+          <p class="score-submit__prompt">Submit this score to <strong id="score-submit-deck-name"></strong>'s public leaderboard?</p>
+          <div class="score-submit__row">
+            <input type="text" id="score-submit-nickname" maxlength="24" placeholder="Nickname" />
+            <button type="button" class="btn btn--accent" id="btn-submit-score">Submit</button>
+          </div>
+          <div class="score-submit__result" id="score-submit-result" hidden></div>
+        </div>
+
+        <button class="btn btn--primary" id="btn-continue" type="button">Continue <span class="btn__key">Space</span></button>
+      </div>
+
+      <div class="draw-prompt" id="draw-prompt">
+        <button class="btn btn--primary btn--large" id="btn-draw" type="button">
+          Draw card <span class="btn__key">Space</span>
+        </button>
+      </div>
+
+      <div class="empty-deck-notice" id="empty-deck-notice" hidden>
+        Your deck has no cards yet. Head to <strong>Deck</strong> to add some.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DECK EDITOR SCREEN ============ -->
+  <section id="screen-editor" class="screen">
+    <div class="deck-manager">
+      <div class="deck-manager__name">
+        Editing deck: <strong id="deck-manager-name">—</strong>
+      </div>
+      <div class="deck-manager__actions">
+        <button class="btn btn--ghost" id="btn-deck-new" type="button">+ New deck</button>
+        <button class="btn btn--ghost" id="btn-deck-rename" type="button">Rename</button>
+        <button class="btn btn--ghost" id="btn-deck-duplicate" type="button">Duplicate</button>
+        <button class="btn btn--danger" id="btn-deck-delete" type="button">Delete deck</button>
+      </div>
+      <div class="deck-manager__actions">
+        <button class="btn btn--ghost" id="btn-export-deck" type="button">Export this deck</button>
+        <button class="btn btn--ghost" id="btn-export-all-decks" type="button">Export all decks</button>
+        <label class="btn btn--ghost btn--file">
+          Import
+          <input type="file" id="input-import-deck" accept="application/json" hidden />
+        </label>
+      </div>
+      <div class="deck-manager__actions">
+        <button class="btn btn--accent" id="btn-deck-share" type="button">Share deck publicly</button>
+        <button class="btn btn--ghost" id="btn-deck-leaderboard" type="button" hidden>View leaderboard</button>
+        <span class="deck-manager__shared-note" id="deck-manager-shared-note" hidden></span>
+      </div>
+    </div>
+
+    <div class="editor-toolbar">
+      <div class="editor-counts" id="editor-counts"></div>
+      <div class="editor-actions">
+        <button class="btn btn--primary" id="btn-new-card" type="button">+ New card</button>
+      </div>
+    </div>
+
+    <div class="editor-thin-warning" id="editor-thin-warning" hidden></div>
+
+    <div class="editor-filters">
+      <label>Difficulty
+        <select id="filter-difficulty">
+          <option value="">All</option>
+          <option value="1">Easy</option>
+          <option value="2">Medium</option>
+          <option value="3">Hard</option>
+        </select>
+      </label>
+      <label>Tag
+        <select id="filter-tag">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label>Search
+        <input type="search" id="filter-search" placeholder="Prompt or answer…" />
+      </label>
+    </div>
+
+    <div class="card-list" id="card-list"></div>
+  </section>
+
+  <!-- ============ CARD EDIT MODAL ============ -->
+  <div class="modal" id="card-modal" hidden>
+    <div class="modal__backdrop" id="card-modal-backdrop"></div>
+    <form class="modal__panel" id="card-form">
+      <h2 class="modal__title" id="card-form-title">New card</h2>
+
+      <div class="form-row">
+        <label>Difficulty
+          <select id="field-difficulty" required>
+            <option value="1">Easy</option>
+            <option value="2">Medium</option>
+            <option value="3">Hard</option>
+          </select>
+        </label>
+        <label>Prompt type
+          <select id="field-prompt-type">
+            <option value="text">Text</option>
+            <option value="image">Image</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field-block" id="field-text-wrap">Prompt text
+        <textarea id="field-prompt-text" rows="2" placeholder="e.g. Mucha, *Gismonda*, 1894"></textarea>
+      </label>
+
+      <div class="field-block" id="field-image-wrap" hidden>
+        <span>Prompt image</span>
+        <div class="dropzone" id="dropzone">
+          <img id="image-preview" alt="" hidden />
+          <span id="dropzone-hint">Drag an image here, or click to choose a file</span>
+          <input type="file" id="field-image-file" accept="image/*" hidden />
+        </div>
+      </div>
+
+      <label class="field-block">Answer
+        <input type="text" id="field-answer" required placeholder="e.g. Art Nouveau" />
+      </label>
+
+      <div class="field-block">
+        <span>Distractors (optional — leave blank to auto-generate)</span>
+        <div class="distractor-grid">
+          <input type="text" class="field-distractor" placeholder="Wrong option 1" />
+          <input type="text" class="field-distractor" placeholder="Wrong option 2" />
+          <input type="text" class="field-distractor" placeholder="Wrong option 3" />
+          <input type="text" class="field-distractor" placeholder="Wrong option 4" />
+        </div>
+      </div>
+
+      <label class="field-block">Note (shown after answering)
+        <textarea id="field-note" rows="2" placeholder="Dates, printer, technique, why it matters…"></textarea>
+      </label>
+
+      <label class="field-block">Tags (comma separated)
+        <input type="text" id="field-tags" placeholder="art-nouveau, lithography" />
+      </label>
+
+      <div class="form-errors" id="form-errors" hidden></div>
+
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="btn-cancel-card">Cancel</button>
+        <button type="submit" class="btn btn--primary" id="btn-save-card">Save card</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ SHARE DECK MODAL ============ -->
+  <div class="modal" id="share-modal" hidden>
+    <div class="modal__backdrop" id="share-modal-backdrop"></div>
+    <form class="modal__panel" id="share-form">
+      <h2 class="modal__title">Share "<span id="share-deck-name"></span>" publicly</h2>
+      <p class="stats-subtext">
+        Anyone visiting Community will be able to browse, import, and play this deck, and post scores
+        to its public leaderboard. There's no way to unshare it later — this is a one-way publish.
+      </p>
+      <label class="field-block">Your nickname (shown as the deck's author)
+        <input type="text" id="share-nickname" required maxlength="24" placeholder="e.g. jachym" />
+      </label>
+      <div class="form-errors" id="share-form-errors" hidden></div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="btn-cancel-share">Cancel</button>
+        <button type="submit" class="btn btn--accent" id="btn-confirm-share">Share deck</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ LEADERBOARD MODAL ============ -->
+  <div class="modal" id="leaderboard-modal" hidden>
+    <div class="modal__backdrop" id="leaderboard-modal-backdrop"></div>
+    <div class="modal__panel">
+      <h2 class="modal__title">Leaderboard — <span id="leaderboard-deck-name"></span></h2>
+      <div class="table-wrap">
+        <table class="stats-table" id="leaderboard-table">
+          <thead>
+            <tr><th>#</th><th>Nickname</th><th>Points</th><th>Rungs</th><th>Outcome</th><th>When</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary" id="btn-close-leaderboard">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ COMMUNITY SCREEN ============ -->
+  <section id="screen-community" class="screen">
+    <div class="community-toolbar">
+      <label>Sort
+        <select id="community-sort">
+          <option value="new">Newest</option>
+          <option value="top">Top score</option>
+        </select>
+      </label>
+      <button class="btn btn--ghost" id="btn-community-refresh" type="button">Refresh</button>
+    </div>
+    <div class="community-notice" id="community-notice" hidden></div>
+    <div class="community-list" id="community-list"></div>
+  </section>
+
+  <!-- ============ STATS SCREEN ============ -->
+  <section id="screen-stats" class="screen">
+    <p class="stats-deck-label">Showing stats for: <strong id="stats-deck-name">—</strong></p>
+    <div class="stats-section">
+      <h2 class="stats-heading">Leaks — your worst cards</h2>
+      <p class="stats-subtext">Lowest accuracy first, minimum 2 attempts.</p>
+      <div class="table-wrap">
+        <table class="stats-table" id="leaks-table">
+          <thead>
+            <tr><th>Prompt</th><th>Difficulty</th><th>Seen</th><th>Correct</th><th>Accuracy</th><th>Last seen</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="stats-section">
+      <h2 class="stats-heading">All cards</h2>
+      <div class="table-wrap">
+        <table class="stats-table" id="all-stats-table">
+          <thead>
+            <tr><th>Prompt</th><th>Difficulty</th><th>Seen</th><th>Correct</th><th>Accuracy</th><th>Last seen</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="stats-section">
+      <h2 class="stats-heading">Recent runs</h2>
+      <div class="table-wrap">
+        <table class="stats-table" id="runs-table">
+          <thead>
+            <tr><th>When</th><th>Outcome</th><th>Rungs cleared</th><th>Points</th><th>Ended on</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS SCREEN ============ -->
+  <section id="screen-settings" class="screen">
+    <div class="settings-block">
+      <h2 class="stats-heading">Deck sharing</h2>
+      <p class="stats-subtext">
+        Set the blackjach-api server to enable sharing decks publicly, browsing the Community tab,
+        and posting scores to leaderboards. Leave blank to keep everything fully offline.
+      </p>
+      <div class="settings-api-row">
+        <input type="text" id="field-api-url" placeholder="https://blackjach-api.3die.fr" />
+        <button class="btn btn--ghost" id="btn-test-api" type="button">Test</button>
+        <button class="btn btn--primary" id="btn-save-api" type="button">Save</button>
+      </div>
+      <p class="settings-api-status" id="settings-api-status"></p>
+    </div>
+    <div class="settings-block">
+      <h2 class="stats-heading">Reset stats</h2>
+      <p class="stats-subtext">Clears session/all-time score, run history, and per-card accuracy. Your deck and images are kept.</p>
+      <button class="btn btn--ghost" id="btn-reset-stats" type="button">Reset stats</button>
+    </div>
+    <div class="settings-block settings-block--danger">
+      <h2 class="stats-heading">Wipe everything</h2>
+      <p class="stats-subtext">Deletes the entire deck, all images, all stats and all scores. This cannot be undone.</p>
+      <button class="btn btn--danger" id="btn-wipe-all" type="button">Wipe everything</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/db.js"></script>
+<script src="js/metaService.js"></script>
+<script src="js/imageService.js"></script>
+<script src="js/seedDeck.js"></script>
+<script src="js/deckService.js"></script>
+<script src="js/decksService.js"></script>
+<script src="js/apiService.js"></script>
+<script src="js/statsService.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui-deckSwitcher.js"></script>
+<script src="js/ui-leaderboard.js"></script>
+<script src="js/ui-game.js"></script>
+<script src="js/ui-editor.js"></script>
+<script src="js/ui-community.js"></script>
+<script src="js/ui-stats.js"></script>
+<script src="js/ui-settings.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

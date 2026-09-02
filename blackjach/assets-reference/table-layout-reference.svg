@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 928 1000" font-family="monospace">
+  <defs>
+    <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1a2820" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- page bg -->
+  <rect x="0" y="0" width="928" height="1000" fill="#0d1310"/>
+
+  <!-- title block -->
+  <text x="8" y="16" fill="#eef0ea" font-size="13" font-weight="bold">blackjach — table layout reference (CORRECT-CHOICE state: tallest the table gets)</text>
+  <text x="8" y="32" fill="#9db0a3" font-size="11">Canvas below = exact .table box size at a 1280px-wide desktop viewport, 1x CSS px. Card ratio is fixed at 2.5:3.5 at every width.</text>
+
+  <!-- TABLE background box, offset y=42 to leave room for title -->
+  <g transform="translate(0,42)">
+    <rect x="0" y="0" width="928" height="893" fill="url(#grid)" stroke="#00e5ff" stroke-width="2" stroke-dasharray="6 4"/>
+    <rect x="0" y="0" width="330" height="18" fill="#000" opacity="0.75"/>
+    <text x="4" y="13" fill="#00e5ff" font-size="12" font-weight="bold">TABLE (background) — 928×893px</text>
+
+    <!-- LADDER -->
+    <rect x="25" y="25" width="878" height="8" fill="#c8a24a" fill-opacity="0.25" stroke="#ff2fd1" stroke-width="2" stroke-dasharray="5 3"/>
+    <rect x="25" y="37" width="230" height="16" fill="#000" opacity="0.75"/>
+    <text x="29" y="49" fill="#ff2fd1" font-size="11">LADDER 878×8 @ 25,25</text>
+
+    <!-- POT DISPLAY -->
+    <rect x="416" y="57" width="95" height="65" fill="#c8a24a" fill-opacity="0.12" stroke="#ff2fd1" stroke-width="2" stroke-dasharray="5 3"/>
+    <rect x="416" y="37" width="245" height="16" fill="#000" opacity="0.75"/>
+    <text x="420" y="49" fill="#ff2fd1" font-size="11">POT DISPLAY 95×65 @ 416,57</text>
+
+    <!-- CARD -->
+    <rect x="304" y="146" width="320" height="448" rx="16" fill="#1f342a" stroke="#ff2fd1" stroke-width="2" stroke-dasharray="5 3"/>
+    <rect x="304" y="126" width="290" height="16" fill="#000" opacity="0.75"/>
+    <text x="308" y="138" fill="#ff2fd1" font-size="11">CARD 320×448 (2.5:3.5) @ 304,146</text>
+    <text x="464" y="375" fill="#6c8177" font-size="12" text-anchor="middle">card face content</text>
+    <text x="464" y="392" fill="#6c8177" font-size="12" text-anchor="middle">(image or prompt text)</text>
+
+    <!-- OPTIONS GRID -->
+    <rect x="208" y="618" width="512" height="151" fill="#c8a24a" fill-opacity="0.08" stroke="#ff2fd1" stroke-width="2" stroke-dasharray="5 3"/>
+    <rect x="208" y="771" width="330" height="16" fill="#000" opacity="0.75"/>
+    <text x="212" y="783" fill="#ff2fd1" font-size="11">OPTIONS GRID 512×151 @ 208,618</text>
+
+    <!-- BANK / HIT buttons -->
+    <rect x="208" y="793" width="250" height="75" rx="10" fill="#2a2515" stroke="#c8a24a" stroke-width="2" stroke-dasharray="5 3"/>
+    <text x="333" y="835" fill="#c8a24a" font-size="13" text-anchor="middle" font-weight="bold">BANK</text>
+    <rect x="470" y="793" width="250" height="75" rx="10" fill="#2c1815" stroke="#a4443a" stroke-width="2" stroke-dasharray="5 3"/>
+    <text x="595" y="835" fill="#a4443a" font-size="13" text-anchor="middle" font-weight="bold">HIT</text>
+    <rect x="208" y="871" width="440" height="16" fill="#000" opacity="0.75"/>
+    <text x="212" y="883" fill="#9db0a3" font-size="11">BANK 250×75 @ 208,793 · HIT 250×75 @ 470,793 (12px gap)</text>
+  </g>
+
+  <!-- footer notes -->
+  <text x="8" y="978" fill="#9db0a3" font-size="11">Keep the CARD zone visually calm — prompt text sits on top of it directly, no fixed color behind it.</text>
+  <text x="8" y="993" fill="#9db0a3" font-size="11">Idle/other states use a subset of this space (no options/buttons) — this is the maximum footprint the background must cover.</text>
+</svg>

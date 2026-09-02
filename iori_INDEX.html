@@ -742,8 +742,8 @@ function newGenome(parent) {
 const THREE_clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 /* ---------- growth of the tissue ---------- */
-let birthQueue = [];
 let birthClock = 0;
+let pageBirthStall = 0;
 
 function seedNucleus() {
   const n = ROOT;
@@ -754,7 +754,6 @@ function seedNucleus() {
   c.settle = 1;
   tissue.push(c);
   n.cell = c;
-  birthQueue = [...n.children];
 }
 
 function tissueColor(node) {
@@ -770,10 +769,18 @@ function tissueColor(node) {
   return hslToRgb(base + spread, 80, l);
 }
 
-function birthNext() {
-  if (!birthQueue.length) return false;
-  const node = birthQueue.shift();
-  const p = node.parent.cell;
+/* Which of this node's PAGE children have not appeared yet. Pages are no longer
+   revealed on a timer: a cell has to be fed before it puts one out, so the map
+   of the site assembles itself the same way the free growth does. */
+function pendingPages(node) {
+  const out = [];
+  for (const ch of node.children) if (!ch.grown && !ch.cell) out.push(ch);
+  return out;
+}
+
+function birthNode(node) {
+  if (!node || node.cell) return false;
+  const p = node.parent && node.parent.cell;
   if (!p) return false;
   const jitter = 0.02;
   const c = new Cell({
@@ -786,8 +793,23 @@ function birthNext() {
   node.cell = c;
   tissue.push(c);
   bonds.push({ a: p, b: c, kind: 'structural' });
-  birthQueue.push(...node.children);
+  p.pulse = 1;
+  c.flash = 1.3;
+  pageBirthStall = 0;
   return true;
+}
+
+// kept for the boot sequence and as a stall fallback: the shallowest cell that
+// still owes a page
+function nextPendingHost() {
+  let best = null, bestDepth = Infinity;
+  for (const c of tissue) {
+    if (!c.node) continue;
+    const pend = pendingPages(c.node);
+    if (!pend.length) continue;
+    if (c.node.depth < bestDepth) { bestDepth = c.node.depth; best = pend[0]; }
+  }
+  return best;
 }
 
 // curated cross-links become bonds as soon as both endpoints exist
@@ -867,8 +889,13 @@ function fuseFreeTips() {
         (a.color[1] * ma + b.color[1] * mb) / mt,
         (a.color[2] * ma + b.color[2] * mb) / mt,
       ];
-      a.node.tx = (a.node.tx + b.node.tx) * 0.5;
-      a.node.ty = (a.node.ty + b.node.ty) * 0.5;
+      // Anchor the survivor where the fusion actually happened. Averaging the
+      // two layout TARGETS looked reasonable but they are not positions: the
+      // attraction drags tips far from their targets before they meet, so two
+      // cells touching out at the rim could average to a target near the centre
+      // and the merged node would sail inward.
+      a.node.tx = a.x;
+      a.node.ty = a.y;
       a.node.radius = a.baseRadius;
       a.flash = 1.8;
       a.mergeCd = 1.2;
@@ -897,20 +924,44 @@ function isOuterCell(c) {
   return grownChildren(c.node) < SPROUTS_PER_NODE;
 }
 
+// a cell worth bringing food to: it either still owes pages, or it is a tip
+function canFeed(c) {
+  if (!c.node) return false;
+  return pendingPages(c.node).length > 0 || isOuterCell(c);
+}
+
 function sproutFrom(host, color) {
   if (grownCount >= GROWN_CAP) return null;   // growth stops; nothing is ever taken back
-  const len = Math.hypot(host.node.tx, host.node.ty) || 1;
-  // siblings fan off the parent's bearing rather than piling onto it
-  const FAN = [0, 0.40, -0.40, 0.78, -0.78];
-  const k = grownChildren(host.node);
-  const ang = Math.atan2(host.node.ty, host.node.tx)
-            + (FAN[k] || 0) + (Math.random() - 0.5) * 0.16;
-  const reach = len + 0.32 + Math.random() * 0.14;
+  /* Grow along the BRANCH's own heading, stepping out from the parent.
+     This used to take the angle from the origin and place the child on a circle
+     of radius+0.32 — so at radius 3 a 0.40rad fan threw the child 1.2 units
+     sideways against 0.32 outward, four times more tangential than radial. Every
+     generation spread around the ring faster than it reached away from it, and
+     the whole frontier collapsed into a halo. */
+  const pn = host.node;
+  const gp = pn.parent;
+  let hx = gp ? pn.tx - gp.tx : pn.tx;
+  let hy = gp ? pn.ty - gp.ty : pn.ty;
+  if (Math.hypot(hx, hy) < 1e-4) { hx = pn.tx; hy = pn.ty; }
+  let head = Math.atan2(hy, hx);
+  // lean the heading back toward straight-out, so branches keep making ground
+  // rather than curling round the colony
+  const radial = Math.atan2(pn.ty, pn.tx);
+  let off = radial - head;
+  while (off > Math.PI) off -= Math.PI * 2;
+  while (off < -Math.PI) off += Math.PI * 2;
+  head += off * 0.3;
+
+  const FAN = [0, 0.46, -0.46, 0.88, -0.88];
+  const k = grownChildren(pn);
+  const ang = head + (FAN[k] || 0) + (Math.random() - 0.5) * 0.20;
+  const step = 0.36 + Math.random() * 0.16;
   const node = {
     slug: null, label: null, title: null, grown: true,
-    depth: (host.node.depth || 3) + 1,
-    children: [], parent: host.node,
-    tx: Math.cos(ang) * reach, ty: Math.sin(ang) * reach,
+    depth: (pn.depth || 3) + 1,
+    children: [], parent: pn,
+    tx: pn.tx + Math.cos(ang) * step,
+    ty: pn.ty + Math.sin(ang) * step,
     radius: Math.max(0.046, host.radius * 0.80),
   };
   host.node.children.push(node);
@@ -1097,7 +1148,7 @@ function updateMicrobes(dt, pointerWorld) {
       if (!m.ride) {
         // a growing tip pulls harder than ordinary tissue, so nutrients gather
         // at the rim and arrive in clusters rather than singly
-        const tip = isOuterCell(nearest) ? 2.6 : 1.0;
+        const tip = canFeed(nearest) ? 2.6 : 1.0;
         const pull = 0.00055 * tip / (nd + 0.15) * g.motility;
         m.vx += (nearest.x - m.x) * pull;
         m.vy += (nearest.y - m.y) * pull;
@@ -1113,7 +1164,7 @@ function updateMicrobes(dt, pointerWorld) {
        colony runs a few hundred tips against a few dozen nutrients, so two
        never coincide. A tip instead latches whatever arrives and waits a
        moment, so a cluster accumulates and is eaten together. */
-    if (nearest && !m.dying && m.energy > 0.50 && isOuterCell(nearest) &&
+    if (nearest && !m.dying && m.energy > 0.50 && canFeed(nearest) &&
         nearest.sproutCd <= 0 && nd < (nearest.radius + m.radius) * 1.15) {
       if (!nearest.held) { nearest.held = []; nearest.holdTimer = 1.5; }
       if (nearest.held.length < SPROUTS_PER_NODE) {
@@ -1235,10 +1286,15 @@ function updateTissue(dt) {
     if (c.held) {
       c.holdTimer -= dt;
       if (c.holdTimer <= 0) {
-        const room = SPROUTS_PER_NODE - grownChildren(c.node);
+        // pages first: a cell that still owes part of the site map spends its
+        // meal revealing that, and only starts free growth once it is done
+        const pend = pendingPages(c.node);
+        const room = pend.length || (SPROUTS_PER_NODE - grownChildren(c.node));
         let made = 0;
         for (const m of c.held) {
-          if (made < room && sproutFrom(c, m.color)) { m.consumed = true; made++; }
+          const ok = made < room &&
+            (pend.length ? birthNode(pend[made]) : sproutFrom(c, m.color));
+          if (ok) { m.consumed = true; made++; }
           else m.heldBy = null;             // no room: released, not eaten
         }
         if (made) {
@@ -1791,6 +1847,12 @@ function renderHUD() {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
     if (p.x < -120 || p.x > W + 120 || p.y < -80 || p.y > H + 80) continue;
     const screenR = (c.radius / camera.zoom) * H;
+    // Once the colony fills the frame, dozens of cells are small AND near the
+    // cursor, so the card set collapses into an unreadable stack. A cell too
+    // small to point at does not get a card unless it is a lineage root or the
+    // thing you are actually looking for.
+    const pinned = c.node.depth <= 1 || c === searchHit || focusPath.has(c.id);
+    if (screenR < 5.5 && !pinned) continue;
     const d = Math.hypot(p.x - pointer.x, p.y - pointer.y);
     // label what you are pointing at, not just what is biggest -- the cursor is
     // the objective, and the readout follows it
@@ -1823,8 +1885,8 @@ function renderHUD() {
       for (let j = i + 1; j < keep.length; j++) {
         const A = keep[i], B = keep[j];
         const dx = B.bx - A.bx, dy = B.by - A.by;
-        if (Math.abs(dx) < 126 && Math.abs(dy) < 26) {
-          const py = (26 - Math.abs(dy)) * 0.55 * (dy >= 0 ? 1 : -1);
+        if (Math.abs(dx) < 126 && Math.abs(dy) < 30) {
+          const py = (30 - Math.abs(dy)) * 0.55 * (dy >= 0 ? 1 : -1);
           A.by -= py; B.by += py;
           const px = (126 - Math.abs(dx)) * 0.06 * (dx >= 0 ? 1 : -1);
           A.bx -= px; B.bx += px;
@@ -1874,8 +1936,10 @@ function renderInstrument() {
   const name = hoverCell && hoverCell.node && hoverCell.node.label ? hoverCell.node.label
              : hoverCell ? 'NEW GROWTH'
              : searchHit ? searchHit.node.label : 'IORI.ME';
+  const mapped = NODES.size ? tissue.filter((c) => c.node && c.node.slug).length : 0;
   el('live-readout').innerHTML =
-    `${name} &nbsp; POP <b>${String(microbes.length).padStart(3, '0')}</b>` +
+    `${name} &nbsp; MAPPED <b>${mapped}/${NODES.size}</b>` +
+    ` &nbsp; POP <b>${String(microbes.length).padStart(3, '0')}</b>` +
     ` &nbsp; GEN <b>${stats.generation}</b>` +
     ` &nbsp; <b>+${stats.births}</b> <span class="dead">\u2212${stats.deaths}</span>` +
     ` &nbsp; MIX <b>${stats.merges}</b>` +
@@ -2108,8 +2172,16 @@ let hintShown = false;
 
 function updateCamera(dt) {
   // the field of view opens as the specimen grows, then the wheel takes over
-  let far = 0.35;
-  for (const c of tissue) far = Math.max(far, Math.hypot(c.x, c.y) + c.radius * 2);
+  /* Frame the SITE MAP, not the whole organism. Once free growth reaches twice
+     the radius of the page ring, fitting everything shrinks the navigable part
+     to a dot in the middle and the labels pile up on top of each other. The
+     growth is allowed to spill past the edges — that is what it is for. */
+  let far = 0.35, reach = 0.35;
+  for (const c of tissue) {
+    const r = Math.hypot(c.x, c.y) + c.radius * 2;
+    reach = Math.max(reach, r);
+    if (!c.node || !c.node.grown) far = Math.max(far, r);
+  }
   const wantBase = Math.min(6.6, far * 2.25);
   // while the specimen is still growing the frame opens to fit it; once you
   // have taken the controls the base stops moving under your feet
@@ -2119,7 +2191,7 @@ function updateCamera(dt) {
   camera.targetZoom = camera.baseZoom * camera.userZoom;
 
   // you can drag the slide, but not lose the specimen off the edge of it
-  const lim = far * 0.85;
+  const lim = reach * 0.85;   // but you can still pan out over the growth
   camera.panX = Math.max(-lim, Math.min(lim, camera.panX));
   camera.panY = Math.max(-lim, Math.min(lim, camera.panY));
 
@@ -2163,12 +2235,20 @@ function frame(now) {
   if (structureReady) {
     if (!tissue.length) seedNucleus();
     // the specimen grows on its own -- nothing here waits for a click
+    /* Pages arrive by being fed. Two exceptions keep it from dead-ending:
+       the first few are free, because with one cell and no nutrients yet there
+       is nothing to feed it; and if nothing has been revealed for a long while
+       the map completes itself anyway, since this page is the site's only
+       navigation and it cannot be allowed to stall half-drawn. */
     birthClock += dt;
-    const interval = Math.max(0.035, 0.22 - tissue.length * 0.0021);
-    let guard = 4;
-    while (birthQueue.length && birthClock > interval && guard-- > 0) {
-      birthClock -= interval;
-      birthNext();
+    if (tissue.length < 5 && birthClock > 0.5) {
+      birthClock = 0;
+      birthNode(nextPendingHost());
+    }
+    pageBirthStall += dt;
+    if (pageBirthStall > 6) {
+      pageBirthStall = 0;
+      birthNode(nextPendingHost());
     }
     wireCrossBonds();
     if (pointer.isDown && pointer.seeding) {

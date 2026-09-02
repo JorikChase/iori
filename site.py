@@ -13,6 +13,11 @@ Commands:
   all       Run scan + heads + sitemap + robots + manifest + nav + check
 
 Zero dependencies — Python 3.9+ stdlib only. Safe to run anywhere (local or server).
+
+Pages normally live at the repo root (slug = filename). A self-contained app in
+its own folder is registered with the slug "<dir>/index.html"; its canonical
+URL is then "https://<domain>/<dir>/". Such slugs are never auto-added by
+`scan` — add them to pages.meta.json by hand.
 """
 
 import json
@@ -62,8 +67,24 @@ def html_files_on_disk():
     return sorted(f for f in os.listdir(ROOT) if f.endswith(".html"))
 
 
+def page_path(slug):
+    """URL path for a slug: 'foo.html' -> 'foo.html', 'app/index.html' -> 'app/'."""
+    if "/" in slug and slug.endswith("/index.html"):
+        return slug[: -len("index.html")]
+    return slug
+
+
+def page_exists(slug):
+    return os.path.isfile(os.path.join(ROOT, slug))
+
+
+def rel_prefix(slug):
+    """Relative prefix back to the repo root for root-level assets (icons, manifest)."""
+    return "../" * slug.count("/")
+
+
 def page_url(domain, slug):
-    return f"https://{domain}/{slug}"
+    return f"https://{domain}/{page_path(slug)}"
 
 
 # ---------------------------------------------------------------- git lastmod
@@ -185,15 +206,16 @@ def build_seo_block(slug, meta):
         lines.append(f'    <meta name="twitter:image" content="{og_image_url}">')
     else:
         lines.append('    <meta name="twitter:card" content="summary">')
+    up = rel_prefix(slug)
     lines += [
         f'    <meta name="twitter:title" content="{title}">',
         f'    <meta name="twitter:description" content="{desc}">',
         "",
         '    <meta name="theme-color" content="#000000">',
-        '    <link rel="manifest" href="manifest.json">',
-        '    <link rel="icon" type="image/png" sizes="32x32" href="icon/ios/32.png">',
-        '    <link rel="icon" type="image/png" sizes="16x16" href="icon/ios/16.png">',
-        '    <link rel="apple-touch-icon" href="icon/ios/180.png">',
+        f'    <link rel="manifest" href="{up}manifest.json">',
+        f'    <link rel="icon" type="image/png" sizes="32x32" href="{up}icon/ios/32.png">',
+        f'    <link rel="icon" type="image/png" sizes="16x16" href="{up}icon/ios/16.png">',
+        f'    <link rel="apple-touch-icon" href="{up}icon/ios/180.png">',
         "",
         f'    <meta name="google-site-verification" content="{GOOGLE_VERIFICATION}" />',
         "",
@@ -278,7 +300,7 @@ def cmd_scan():
             }
             added.append(slug)
     for slug in list(pages):
-        if slug not in on_disk:
+        if slug not in on_disk and not page_exists(slug):
             missing_files.append(slug)
     if added:
         save_registry(pages)
@@ -334,7 +356,7 @@ def cmd_nav():
         lines.append("            <ul>")
         for slug, meta in groups[cat]:
             title = xml_escape(meta.get("title") or slug)
-            lines.append(f'                <li><a href="{slug}">{title}</a></li>')
+            lines.append(f'                <li><a href="{page_path(slug)}">{title}</a></li>')
         lines.append("            </ul>")
     lines.append("            " + NAV_END)
     block = "\n".join(lines)
@@ -475,7 +497,12 @@ def cmd_caddy():
             f"# (pages whose canonical home is the other domain)",
         ]
         for slug, target in foreign:
-            lines.append(f"redir /{slug} {target} permanent")
+            path = page_path(slug)
+            if path.endswith("/"):
+                # whole app folder: keep the request path on the canonical host
+                lines.append(f"redir /{path}* https://{target.split('/')[2]}{{uri}} permanent")
+            else:
+                lines.append(f"redir /{path} {target} permanent")
         suffix = "iori" if domain == "iori.me" else "3die"
         out = os.path.join(ROOT, f"redirects-{suffix}.caddy")
         with open(out, "w", encoding="utf-8") as fh:
@@ -491,7 +518,7 @@ def cmd_check():
 
     titles, descs = {}, {}
     for slug, meta in pages.items():
-        if slug not in on_disk:
+        if slug not in on_disk and not page_exists(slug):
             problems.append(f"registry entry without file: {slug}")
         if meta.get("todo"):
             warnings.append(f"TODO metadata: {slug}")

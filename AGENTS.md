@@ -22,6 +22,9 @@ python3 site.py check    # must pass
   never hand-edit inside the markers. It renders its map in WebGL, so without
   this block iori.me's landing page ships with no links at all
 - Hidden/internal pages: `"hidden": true` (excluded from sitemap/hubs, noindex)
+- Self-contained apps in their own folder (e.g. `blackjach/`): register the slug
+  as `<dir>/index.html`; the canonical URL becomes `https://<domain>/<dir>/`.
+  `scan` never auto-adds these — add the entry by hand
 - New pages then appear automatically in catalog.html, web3d.html, sitemaps
 
 ## Deploy

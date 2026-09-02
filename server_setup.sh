@@ -126,6 +126,8 @@ sync_website_files() {
         --exclude '.DS_Store' \
         --exclude 'session-*.md' \
         --exclude 'sandbox.md' \
+        --exclude 'blackjach-api/' \
+        --exclude 'blackjach/assets-reference/' \
         "$SOURCE_DIR/" "$WEB_ROOT/"
     echo "File sync complete (excluding .git, zausi, splats, heavy assets)."
 
@@ -281,11 +283,11 @@ iori.me {
 
     # Cache policy: HTML/JSON always revalidate (updates show instantly),
     # fingerprinted assets cache forever, other assets short-lived
-    @revalidate path *.html / /pages.json /manifest.json /sitemap*.xml /robots*.txt
+    @revalidate path *.html / /pages.json /manifest.json /sitemap*.xml /robots*.txt /blackjach/
     header @revalidate Cache-Control "no-cache"
     @immutable path /icon/* /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
-    @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
+    @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png /blackjach/assets/* /blackjach/css/* /blackjach/js/*
     header @shortcache Cache-Control "public, max-age=3600"
 
     # Enable the static file server

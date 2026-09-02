@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-18",
+  "generated": "2026-09-02",
   "pages": [
     {
       "slug": "4cube.html",
@@ -44,6 +44,17 @@
       "url": "https://iori.me/bismuth-fluid.html",
       "og_image": null,
       "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "blackjach/index.html",
+      "title": "blackjach — Art History Flashcard Game",
+      "description": "Push-your-luck flashcards for art and design history: draw a card, answer, then bank your points or climb the ladder and risk them all.",
+      "category": "game",
+      "type": "game",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/blackjach/",
+      "og_image": null,
+      "lastmod": "2026-09-02"
     },
     {
       "slug": "bubbles.html",
@@ -98,7 +109,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/crow_archduke.html",
       "og_image": null,
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-09-01"
     },
     {
       "slug": "crystalize.html",
@@ -274,7 +285,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractals.html",
       "og_image": null,
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-08-18"
     },
     {
       "slug": "fungal-growth.html",
@@ -340,7 +351,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/index.html",
       "og_image": null,
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-08-18"
     },
     {
       "slug": "info.html",
@@ -373,7 +384,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iori_INDEX.html",
       "og_image": null,
-      "lastmod": "2026-08-18"
+      "lastmod": "2026-09-02"
     },
     {
       "slug": "iris.html",
@@ -516,7 +527,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/moises.html",
       "og_image": null,
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-09-01"
     },
     {
       "slug": "multiOS.html",
@@ -593,7 +604,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/portfolio.html",
       "og_image": null,
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-08-18"
     },
     {
       "slug": "poster.html",

@@ -42,6 +42,14 @@
       "type": "experiment",
       "priority": 0.6
     },
+    "blackjach/index.html": {
+      "title": "blackjach — Art History Flashcard Game",
+      "description": "Push-your-luck flashcards for art and design history: draw a card, answer, then bank your points or climb the ladder and risk them all.",
+      "category": "game",
+      "domain": "3die.fr",
+      "type": "game",
+      "priority": 0.6
+    },
     "bubbles.html": {
       "title": "Iridescent Bubbles",
       "description": "Ray-marched soap bubbles with thin-film interference, drifting over an HDR environment.",

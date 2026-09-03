@@ -157,7 +157,7 @@ AHB.uiEditor = (function () {
           <div class="card-row__prompt">${promptPreview}</div>
           <div class="card-row__meta">
             <span class="difficulty-badge difficulty-badge--${card.difficulty}">${difficultyLabel(card.difficulty)}</span>
-            ${(card.tags || []).map((t) => `<span>#${AHB.utils.escapeHtml(t)}</span>`).join('')}
+            ${(card.tags || []).map((t) => `<span class="card-row__tag">#${AHB.utils.escapeHtml(t)}</span>`).join('')}
             ${errors.length ? `<span class="card-row__warning">⚠ ${errors.join(' ')}</span>` : ''}
           </div>
         </div>

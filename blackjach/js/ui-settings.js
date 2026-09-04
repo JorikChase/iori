@@ -10,6 +10,7 @@ AHB.uiSettings = (function () {
     el.btnTestApi = document.getElementById('btn-test-api');
     el.btnSaveApi = document.getElementById('btn-save-api');
     el.apiStatus = document.getElementById('settings-api-status');
+    el.startingCredits = document.getElementById('settings-starting-credits');
   }
 
   async function loadApiSettings() {
@@ -43,24 +44,27 @@ AHB.uiSettings = (function () {
   }
 
   function bindEvents() {
-    cacheEls();
     bindApiEvents();
 
     document.getElementById('btn-reset-stats').addEventListener('click', async () => {
-      if (!confirm('Reset all stats and scores? Your deck and images will be kept.')) return;
+      if (!confirm('Reset all stats, scores and bet credits? Your deck and images will be kept.')) return;
       await AHB.metaService.resetStatsAndScores();
       await AHB.game.init();
       AHB.game.acknowledgeAndReset();
+      await AHB.betGame.init();
+      AHB.betGame.acknowledgeAndReset();
       await AHB.uiStats.refresh();
       AHB.toast?.show('Stats reset.');
     });
 
     document.getElementById('btn-wipe-all').addEventListener('click', async () => {
-      if (!confirm('Wipe EVERYTHING — every deck, all images, stats and scores? This cannot be undone.')) return;
+      if (!confirm('Wipe EVERYTHING — every deck, all images, stats, scores and bet credits? This cannot be undone.')) return;
       if (!confirm('Are you absolutely sure? There is no undo.')) return;
       await AHB.metaService.wipeEverything();
       await AHB.decksService.ensureReady(); // re-seeds the starter deck and sets it active
       await AHB.game.init();
+      await AHB.betGame.init();
+      AHB.betGame.acknowledgeAndReset();
       await AHB.uiEditor.refresh();
       await AHB.uiStats.refresh();
       await loadApiSettings(); // wipe clears apiBaseUrl too — reflect that
@@ -69,6 +73,8 @@ AHB.uiSettings = (function () {
   }
 
   function init() {
+    cacheEls();
+    el.startingCredits.textContent = AHB.CONFIG.BETTING.startingCredits;
     bindEvents();
     loadApiSettings();
   }

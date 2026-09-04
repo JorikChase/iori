@@ -11,10 +11,13 @@ AHB.uiDeckSwitcher = (function () {
     select.value = activeId;
   }
 
-  function syncLockState(gameState) {
-    const runInProgress = gameState && !['idle', 'empty-deck'].includes(gameState.phase);
+  function syncLockState() {
+    const ladderPhase = AHB.game.getState().phase;
+    const betPhase = AHB.betGame.getState().phase;
+    const runInProgress = !['idle', 'empty-deck'].includes(ladderPhase)
+      || !['idle', 'empty-deck', 'settled'].includes(betPhase);
     select.disabled = runInProgress;
-    select.title = runInProgress ? 'Finish or bank your run before switching decks.' : '';
+    select.title = runInProgress ? 'Finish your run or bet round before switching decks.' : '';
   }
 
   async function handleChange() {
@@ -27,6 +30,7 @@ AHB.uiDeckSwitcher = (function () {
     select.addEventListener('change', handleChange);
     AHB.decksService.onChange(render);
     AHB.game.onChange(syncLockState);
+    AHB.betGame.onChange(syncLockState);
     render();
   }
 

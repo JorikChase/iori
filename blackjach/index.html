@@ -59,6 +59,7 @@
   </div>
   <nav class="app-nav" aria-label="Screens">
     <button class="app-nav__tab is-active" data-screen="game" type="button">Play</button>
+    <button class="app-nav__tab" data-screen="bet" type="button">Bets</button>
     <button class="app-nav__tab" data-screen="editor" type="button">Deck</button>
     <button class="app-nav__tab" data-screen="community" type="button">Community</button>
     <button class="app-nav__tab" data-screen="stats" type="button">Stats</button>
@@ -147,6 +148,57 @@
     </div>
   </section>
 
+  <!-- ============ BET MODE SCREEN ============ -->
+  <section id="screen-bet" class="screen">
+    <div class="table">
+      <div class="bet-header">
+        <div class="score-chip score-chip--accent">
+          <span class="score-chip__label">Credits</span>
+          <span class="score-chip__value" id="bet-credits-value">0</span>
+        </div>
+        <div class="bet-progress" id="bet-progress" hidden>
+          <span id="bet-progress-text"></span>
+          <span>Correct: <span id="bet-correct-count">0</span></span>
+        </div>
+      </div>
+
+      <div class="bet-select" id="bet-select">
+        <p class="pot-display__label">Choose your bet</p>
+        <div class="bet-select__options" id="bet-select-options"></div>
+        <p class="stats-subtext bet-select__payouts">
+          0 right: lose it all &middot; 1: lose half &middot; 2: break even &middot;
+          3: win 1.5&times; &middot; 4: win 2&times; &middot; 5: win 3&times; &middot; 6: win 4&times;
+        </p>
+      </div>
+
+      <div class="card-stage" id="bet-card-stage" hidden>
+        <div class="playing-card" id="bet-playing-card">
+          <div class="playing-card__inner">
+            <div class="playing-card__face playing-card__face--back"></div>
+            <div class="playing-card__face playing-card__face--front">
+              <div class="playing-card__difficulty" id="bet-card-difficulty"></div>
+              <div class="playing-card__image" id="bet-card-image" hidden></div>
+              <div class="playing-card__prompt" id="bet-card-prompt"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="options" id="bet-options" role="group" aria-label="Answer options" hidden></div>
+
+      <div class="run-result" id="bet-result" hidden>
+        <div class="big-win" id="big-win-banner" hidden>BIG WIN!</div>
+        <h2 class="run-result__title" id="bet-result-title"></h2>
+        <p class="run-result__detail" id="bet-result-detail"></p>
+        <button class="btn btn--primary" id="btn-bet-again" type="button">Place another bet <span class="btn__key">Space</span></button>
+      </div>
+
+      <div class="empty-deck-notice" id="bet-empty-deck-notice" hidden>
+        Your deck has no cards yet. Head to <strong>Deck</strong> to add some.
+      </div>
+    </div>
+  </section>
+
   <!-- ============ DECK EDITOR SCREEN ============ -->
   <section id="screen-editor" class="screen">
     <div class="deck-manager">
@@ -227,7 +279,7 @@
         </label>
       </div>
 
-      <label class="field-block" id="field-text-wrap">Prompt text
+      <label class="field-block" id="field-text-wrap"><span id="field-text-label">Prompt text</span>
         <textarea id="field-prompt-text" rows="2" placeholder="e.g. Mucha, *Gismonda*, 1894"></textarea>
       </label>
 
@@ -383,7 +435,7 @@
     </div>
     <div class="settings-block">
       <h2 class="stats-heading">Reset stats</h2>
-      <p class="stats-subtext">Clears session/all-time score, run history, and per-card accuracy. Your deck and images are kept.</p>
+      <p class="stats-subtext">Clears session/all-time score, run history, per-card accuracy, and resets bet credits back to <span id="settings-starting-credits"></span>. Your deck and images are kept.</p>
       <button class="btn btn--ghost" id="btn-reset-stats" type="button">Reset stats</button>
     </div>
     <div class="settings-block settings-block--danger">
@@ -408,10 +460,13 @@
 <script src="js/apiService.js"></script>
 <script src="js/statsService.js"></script>
 <script src="js/draw.js"></script>
+<script src="js/cardRenderer.js"></script>
 <script src="js/game.js"></script>
+<script src="js/betGame.js"></script>
 <script src="js/ui-deckSwitcher.js"></script>
 <script src="js/ui-leaderboard.js"></script>
 <script src="js/ui-game.js"></script>
+<script src="js/ui-bet.js"></script>
 <script src="js/ui-editor.js"></script>
 <script src="js/ui-community.js"></script>
 <script src="js/ui-stats.js"></script>

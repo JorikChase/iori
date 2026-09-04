@@ -12,6 +12,8 @@ AHB.metaService = (function () {
     sessionLog: [], // recent run summaries, newest first
     apiBaseUrl: '',  // empty = deck sharing / leaderboards disabled
     lastNickname: '', // remembered so sharing/scoring doesn't re-ask every time
+    credits: AHB.CONFIG.BETTING.startingCredits, // separate currency for bet mode
+    betLog: [], // recent bet-round summaries, newest first
   };
 
   async function getValue(key) {
@@ -44,13 +46,30 @@ AHB.metaService = (function () {
     return trimmed;
   }
 
+  async function addCredits(delta) {
+    const current = await getValue('credits');
+    const next = Math.max(0, Math.round(current + delta));
+    await setValue('credits', next);
+    return next;
+  }
+
+  async function pushBetLog(entry) {
+    const log = (await getValue('betLog')) || [];
+    log.unshift({ ...entry, at: Date.now() });
+    const trimmed = log.slice(0, 25);
+    await setValue('betLog', trimmed);
+    return trimmed;
+  }
+
   async function resetStatsAndScores() {
     // "Reset stats" per the settings screen: clears scores + run history +
-    // per-card stats, but leaves the deck (cards + images) untouched.
+    // per-card stats + bet credits, but leaves the deck (cards + images) untouched.
     await AHB.db.clear(AHB.db.STORES.stats);
     await setValue('sessionScore', 0);
     await setValue('allTimeScore', 0);
     await setValue('sessionLog', []);
+    await setValue('credits', AHB.CONFIG.BETTING.startingCredits);
+    await setValue('betLog', []);
   }
 
   async function wipeEverything() {
@@ -64,5 +83,6 @@ AHB.metaService = (function () {
   return {
     getValue, setValue, addScore, resetSessionScore,
     pushSessionLog, resetStatsAndScores, wipeEverything,
+    addCredits, pushBetLog,
   };
 })();

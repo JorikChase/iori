@@ -1,19 +1,26 @@
-/* Bet mode: a separate, optional game — wager credits, answer a fixed run
-   of questions (same length + difficulty progression as the ladder, via
-   AHB.CONFIG.LADDER.rungs), get paid by how many you got right. Its own
-   currency (credits), entirely separate from points/session/all-time score
-   and the public leaderboard — reuses the ladder's card-drawing/scoring
-   plumbing (draw.js, statsService), not its points economy. */
+/* Bet mode: a separate, optional game with the same push-your-luck shape as
+   the ladder (draw, answer, then choose to cash out or press on) but paid
+   out in credits via a multiplier table instead of additive points. Wager
+   up front; each correct answer lets you either quit (settle at your
+   current tier) or hit (risk the *entire bet* on the next question — a
+   wrong answer while continuing forfeits it all, same as the ladder
+   forfeiting an unbanked pot). Reaching the last question correctly is an
+   automatic full clear (the only way to trigger BIG WIN, since it means
+   every question up to that point was answered correctly in a row).
+
+   Its own currency (credits), entirely separate from points/session/
+   all-time score and the public leaderboard — reuses the ladder's
+   card-drawing/scoring plumbing (draw.js, statsService, LADDER.rungs for
+   question count + difficulty progression), not its points economy. */
 window.AHB = window.AHB || {};
 
 AHB.betGame = (function () {
   const { rungs } = AHB.CONFIG.LADDER;
   const { betOptions, payoutMultipliers } = AHB.CONFIG.BETTING;
   const totalQuestions = rungs.length;
-  const RESOLVE_PAUSE_MS = 900; // time the correct/wrong highlight stays up before auto-advancing
 
   let state = {
-    phase: 'idle', // idle -> flipping -> question -> resolved -> (loop) -> settled | empty-deck
+    phase: 'idle', // idle -> flipping -> question -> correct-choice -> (loop) -> settled | empty-deck
     bet: 0,
     questionIndex: 0,
     correctCount: 0,
@@ -21,7 +28,7 @@ AHB.betGame = (function () {
     currentCard: null,
     currentOptions: [],
     selectedOption: null,
-    lastRoundSummary: null, // {bet, correctCount, total, multiplier, delta, newBalance, bigWin}
+    lastRoundSummary: null, // {bet, correctCount, total, multiplier, delta, newBalance, bigWin, outcome}
     credits: 0,
   };
 
@@ -29,6 +36,8 @@ AHB.betGame = (function () {
   let subscribedToDecks = false;
   function onChange(fn) { listeners.push(fn); }
   function emit() { listeners.forEach((fn) => fn(state)); }
+
+  function currentMultiplier() { return payoutMultipliers[state.correctCount] ?? 0; }
 
   async function init() {
     state.credits = await AHB.metaService.getValue('credits');
@@ -99,25 +108,39 @@ AHB.betGame = (function () {
     const correct = optionText === card.answer;
     state.selectedOption = optionText;
     await AHB.statsService.recordAnswer(card.id, correct);
-    if (correct) state.correctCount += 1;
 
-    // Unlike the ladder, a wrong answer doesn't end the round early — the
-    // player always answers all `totalQuestions`, right or wrong.
-    state.phase = 'resolved';
-    emit();
+    if (!correct) {
+      // Wrong while continuing forfeits the whole bet, regardless of how
+      // many questions were already answered correctly this round.
+      await settleRound('lost');
+      return;
+    }
 
-    setTimeout(async () => {
-      state.questionIndex += 1;
-      if (state.questionIndex >= totalQuestions) {
-        await settleRound();
-      } else {
-        await drawNext();
-      }
-    }, RESOLVE_PAUSE_MS);
+    state.correctCount += 1;
+    const clearedAll = state.correctCount === totalQuestions;
+    if (clearedAll) {
+      await settleRound('won'); // full clear — the only path to BIG WIN
+    } else {
+      state.phase = 'correct-choice';
+      emit();
+    }
   }
 
-  async function settleRound() {
-    const multiplier = payoutMultipliers[state.correctCount] ?? 0;
+  async function quit() {
+    if (state.phase !== 'correct-choice') return;
+    await settleRound('quit');
+  }
+
+  async function hit() {
+    if (state.phase !== 'correct-choice') return;
+    state.questionIndex += 1;
+    await drawNext();
+  }
+
+  async function settleRound(outcome) {
+    // A loss always forfeits the bet at the "0 correct" tier — same value
+    // whether you missed the very first question or the fourth.
+    const multiplier = outcome === 'lost' ? payoutMultipliers[0] : currentMultiplier();
     const delta = Math.round(state.bet * multiplier);
     const newBalance = await AHB.metaService.addCredits(delta);
     state.credits = newBalance;
@@ -129,7 +152,8 @@ AHB.betGame = (function () {
       multiplier,
       delta,
       newBalance,
-      bigWin: state.correctCount === totalQuestions,
+      bigWin: outcome === 'won',
+      outcome, // 'won' | 'lost' | 'quit'
     };
     await AHB.metaService.pushBetLog(state.lastRoundSummary);
 
@@ -144,9 +168,12 @@ AHB.betGame = (function () {
   function getState() { return state; }
   function getTotalQuestions() { return totalQuestions; }
   function getBetOptions() { return betOptions; }
+  function getCurrentMultiplier() { return currentMultiplier(); }
+  function getMultiplierFor(correctCount) { return payoutMultipliers[correctCount] ?? 0; }
 
   return {
     init, onChange, getState, getTotalQuestions, getBetOptions,
-    placeBet, answer, acknowledgeAndReset,
+    getCurrentMultiplier, getMultiplierFor,
+    placeBet, answer, quit, hit, acknowledgeAndReset,
   };
 })();

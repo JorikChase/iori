@@ -15,7 +15,7 @@ AHB.toast = (function () {
 })();
 
 AHB.nav = (function () {
-  let active = 'game';
+  let active = 'bet'; // "Play" — matches the is-active tab/screen already set in index.html
   const tabs = Array.from(document.querySelectorAll('.app-nav__tab'));
   const screens = Array.from(document.querySelectorAll('.screen'));
 

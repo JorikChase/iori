@@ -58,8 +58,8 @@
     <img class="app-header__logo" src="assets/header-logo.png" alt="blackjach" />
   </div>
   <nav class="app-nav" aria-label="Screens">
-    <button class="app-nav__tab is-active" data-screen="game" type="button">Play</button>
-    <button class="app-nav__tab" data-screen="bet" type="button">Bets</button>
+    <button class="app-nav__tab is-active" data-screen="bet" type="button">Play</button>
+    <button class="app-nav__tab" data-screen="game" type="button">Training</button>
     <button class="app-nav__tab" data-screen="editor" type="button">Deck</button>
     <button class="app-nav__tab" data-screen="community" type="button">Community</button>
     <button class="app-nav__tab" data-screen="stats" type="button">Stats</button>
@@ -70,13 +70,9 @@
     <select id="deck-switcher-select"></select>
   </div>
   <div class="app-header__scores">
-    <div class="score-chip">
-      <span class="score-chip__label">Session</span>
-      <span class="score-chip__value" id="score-session">0</span>
-    </div>
     <div class="score-chip score-chip--accent">
-      <span class="score-chip__label">All-time</span>
-      <span class="score-chip__value" id="score-alltime">0</span>
+      <span class="score-chip__label">Credits</span>
+      <span class="score-chip__value" id="header-credits-value">0</span>
     </div>
   </div>
 </header>
@@ -84,8 +80,19 @@
 <main class="app-main">
 
   <!-- ============ GAME SCREEN ============ -->
-  <section id="screen-game" class="screen is-active">
+  <section id="screen-game" class="screen">
     <div class="table">
+      <div class="game-header">
+        <div class="score-chip">
+          <span class="score-chip__label">Session</span>
+          <span class="score-chip__value" id="score-session">0</span>
+        </div>
+        <div class="score-chip score-chip--accent">
+          <span class="score-chip__label">All-time</span>
+          <span class="score-chip__value" id="score-alltime">0</span>
+        </div>
+      </div>
+
       <ol class="ladder" id="ladder" aria-label="Ladder progress"></ol>
 
       <div class="pot-display">
@@ -149,13 +156,9 @@
   </section>
 
   <!-- ============ BET MODE SCREEN ============ -->
-  <section id="screen-bet" class="screen">
+  <section id="screen-bet" class="screen is-active">
     <div class="table">
       <div class="bet-header">
-        <div class="score-chip score-chip--accent">
-          <span class="score-chip__label">Credits</span>
-          <span class="score-chip__value" id="bet-credits-value">0</span>
-        </div>
         <div class="bet-progress" id="bet-progress" hidden>
           <span id="bet-progress-text"></span>
           <span>Correct: <span id="bet-correct-count">0</span></span>

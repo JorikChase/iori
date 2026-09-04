@@ -1,5 +1,7 @@
-/* Renders the Play screen from AHB.game's state and wires up its controls,
-   including the keyboard shortcuts (1-5 answer, B bank, H hit, Space draw/continue). */
+/* Renders the "Training" screen (the ladder/points game, AHB.game's state —
+   not to be confused with the "Play" tab, which is bet mode) and wires up
+   its controls, including the keyboard shortcuts (1-5 answer, B bank, H
+   hit, Space draw/continue). */
 window.AHB = window.AHB || {};
 
 AHB.uiGame = (function () {

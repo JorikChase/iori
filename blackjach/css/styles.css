@@ -90,11 +90,17 @@
        table-bg.png    1600×1600  (tiled/covered behind the whole table — see
                                    assets-reference/table-layout-reference@2x.png
                                    for where the card/UI sit on top of it)
+       panel-bg.png     800×800   tileable, plain/subtle — sits behind bordered
+                                   text panels floating over table-bg.png (the
+                                   bet-select box, run-result panels) where the
+                                   photographic table texture reads as clutter
+                                   behind text; keep this one calm and low-contrast
        icon-bank.png    512×512   transparent bg — used as a CSS mask, so only
        icon-hit.png     512×512   its alpha shape matters; it auto-recolors. */
   --asset-card-back:  url('../assets/card-back.png');
   --asset-card-front: url('../assets/card-front.png');
   --asset-table-bg:   url('../assets/table-bg.png');
+  --asset-panel-bg:   url('../assets/panel-bg.png');
   --asset-icon-bank:  url('../assets/icon-bank.png');
   --asset-icon-hit:   url('../assets/icon-hit.png');
 }
@@ -565,6 +571,11 @@ img { max-width: 100%; display: block; }
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
+  background-image: var(--asset-panel-bg);
+  background-color: var(--color-felt);
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
 }
 .bet-select__options { display: flex; gap: var(--space-4); }
 .bet-select__payouts { max-width: 30rem; text-align: center; }

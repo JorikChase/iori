@@ -239,7 +239,16 @@ img { max-width: 100%; display: block; }
   background: var(--color-felt);
   background-image: var(--asset-table-bg);
   background-size: cover;
-  background-position: center;
+  /* Anchored top, not center: .table's own height varies a lot by state
+     (short on the bet-select screen, tall mid-question) and table-bg.png
+     is a deliberate composition, not a tileable pattern — its objects sit
+     near the top with empty space below, matching where the card/ladder
+     actually are. Centering re-crops a different vertical slice every time
+     the box height changes, which reads as the background "jumping"
+     between screens/states; anchoring top keeps it stable — a shorter box
+     just reveals less of the same fixed composition instead of a
+     different piece of it. */
+  background-position: top center;
   border: var(--border-hairline);
   border-radius: var(--radius-lg);
   padding: var(--space-5);

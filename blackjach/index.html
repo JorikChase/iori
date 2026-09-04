@@ -166,7 +166,10 @@
         <p class="pot-display__label">Choose your bet</p>
         <div class="bet-select__options" id="bet-select-options"></div>
         <p class="stats-subtext bet-select__payouts">
-          0 right: lose it all &middot; 1: lose half &middot; 2: break even &middot;
+          After each correct answer, cash out at your current tier or hit for more —
+          but a wrong answer forfeits the whole bet.
+          <br />
+          Cash out after: 1 right: lose half &middot; 2: break even &middot;
           3: win 1.5&times; &middot; 4: win 2&times; &middot; 5: win 3&times; &middot; 6: win 4&times;
         </p>
       </div>
@@ -185,6 +188,17 @@
       </div>
 
       <div class="options" id="bet-options" role="group" aria-label="Answer options" hidden></div>
+
+      <div class="decision" id="bet-decision" hidden>
+        <button class="btn btn--bank" id="btn-bet-quit" type="button">
+          <span class="btn__icon btn__icon--bank" aria-hidden="true"></span>
+          <span class="btn__key">B</span> Cash out <span id="bet-quit-amount"></span>
+        </button>
+        <button class="btn btn--hit" id="btn-bet-hit" type="button">
+          <span class="btn__icon btn__icon--hit" aria-hidden="true"></span>
+          <span class="btn__key">H</span> Hit — risk it all for more
+        </button>
+      </div>
 
       <div class="run-result" id="bet-result" hidden>
         <div class="big-win" id="big-win-banner" hidden>BIG WIN!</div>

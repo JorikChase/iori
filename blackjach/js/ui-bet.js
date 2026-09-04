@@ -1,6 +1,9 @@
-/* Renders the Bets screen from AHB.betGame's state — bet selection, the
-   draw/answer/quit-or-hit loop, and the round-result panel (with the BIG
-   WIN flourish on a full clear). Keyboard: 1-5 answer, B cash out, H hit,
+/* Renders the "Play" tab (bet mode, AHB.betGame's state — not to be
+   confused with the "Training" tab, which is the ladder/points game) —
+   bet selection, the draw/answer/quit-or-hit loop, and the round-result
+   panel (with the BIG WIN flourish on a full clear). Also keeps the
+   credits chip in the global app header in sync, since bet mode is the
+   only source of that number. Keyboard: 1-5 answer, B cash out, H hit,
    Space re-bets after a round settles. */
 window.AHB = window.AHB || {};
 
@@ -9,7 +12,9 @@ AHB.uiBet = (function () {
   const cardFace = AHB.cardRenderer();
 
   function cacheEls() {
-    el.creditsValue = document.getElementById('bet-credits-value');
+    // Lives in the global app header now, not on this screen — credits
+    // stay visible everywhere, not just while on the Play tab.
+    el.creditsValue = document.getElementById('header-credits-value');
     el.progress = document.getElementById('bet-progress');
     el.progressText = document.getElementById('bet-progress-text');
     el.correctCount = document.getElementById('bet-correct-count');

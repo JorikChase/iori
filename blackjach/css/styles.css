@@ -90,13 +90,39 @@
        table-bg.png    1600×1600  (tiled/covered behind the whole table — see
                                    assets-reference/table-layout-reference@2x.png
                                    for where the card/UI sit on top of it)
+       panel-bg.png     800×800   tileable, plain/subtle — sits behind bordered
+                                   text panels floating over table-bg.png (the
+                                   bet-select box, run-result panels) where the
+                                   photographic table texture reads as clutter
+                                   behind text; keep this one calm and low-contrast
        icon-bank.png    512×512   transparent bg — used as a CSS mask, so only
        icon-hit.png     512×512   its alpha shape matters; it auto-recolors. */
   --asset-card-back:  url('../assets/card-back.png');
   --asset-card-front: url('../assets/card-front.png');
   --asset-table-bg:   url('../assets/table-bg.png');
+  --asset-panel-bg:   url('../assets/panel-bg.png');
   --asset-icon-bank:  url('../assets/icon-bank.png');
   --asset-icon-hit:   url('../assets/icon-hit.png');
+}
+
+/* Self-hosted so --font-mono actually renders as JetBrains Mono everywhere
+   (score/pot numerals, ladder labels, stats tables) instead of silently
+   falling back to whatever generic monospace the OS happens to ship —
+   that fallback is where the odd-looking "0" on some devices came from.
+   OFL-licensed; see assets/fonts/OFL.txt. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../assets/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../assets/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 /* =========================================================
@@ -219,6 +245,16 @@ img { max-width: 100%; display: block; }
   background: var(--color-felt);
   background-image: var(--asset-table-bg);
   background-size: cover;
+  /* Anchored top, not center: .table's own height varies a lot by state
+     (short on the bet-select screen, tall mid-question) and table-bg.png
+     is a deliberate composition, not a tileable pattern — its objects sit
+     near the top with empty space below, matching where the card/ladder
+     actually are. Centering re-crops a different vertical slice every time
+     the box height changes, which reads as the background "jumping"
+     between screens/states; anchoring top keeps it stable — a shorter box
+     just reveals less of the same fixed composition instead of a
+     different piece of it. */
+  background-position: top center;
   border: var(--border-hairline);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
@@ -325,8 +361,11 @@ img { max-width: 100%; display: block; }
   border-radius: var(--radius-pill);
   padding: 0.15rem var(--space-2);
 }
-.playing-card__image { width: 100%; border-radius: var(--radius-md); overflow: hidden; }
-.playing-card__image img { width: 100%; height: auto; }
+/* flex: 1 so an image shares the face with an optional caption below it —
+   it fills whatever space the caption doesn't need, instead of a fixed
+   aspect ratio that could push the caption off the (fixed-height) card. */
+.playing-card__image { flex: 1; min-height: 0; width: 100%; border-radius: var(--radius-md); overflow: hidden; }
+.playing-card__image img { width: 100%; height: 100%; object-fit: contain; }
 .playing-card__prompt {
   font-size: var(--fs-lg);
   line-height: 1.4;
@@ -334,6 +373,12 @@ img { max-width: 100%; display: block; }
   color: var(--color-card-text);
 }
 .playing-card__prompt em { color: var(--color-card-accent); font-style: italic; }
+/* Smaller when it's a caption under an image rather than the sole prompt. */
+.playing-card__image:not([hidden]) + .playing-card__prompt:not(:empty) {
+  font-size: var(--fs-sm);
+  flex-shrink: 0;
+  padding-top: var(--space-1);
+}
 
 .options {
   display: grid;
@@ -493,6 +538,89 @@ img { max-width: 100%; display: block; }
 .btn--hit:hover { background: var(--color-risk); color: var(--color-risk-text); }
 
 /* =========================================================
+   BET MODE
+   ========================================================= */
+.bet-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+}
+.bet-progress {
+  background: var(--color-felt);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.game-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+/* The table background art can be busy/photographic — give these chips a
+   solid backdrop so their hairline border and text stay legible over any
+   texture, instead of the transparent default. */
+.game-header .score-chip {
+  background: var(--color-felt);
+}
+.game-header .score-chip--accent { border-color: var(--color-accent); }
+.bet-progress {
+  display: flex;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.bet-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  background-image: var(--asset-panel-bg);
+  background-color: var(--color-felt);
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+}
+.bet-select__options { display: flex; gap: var(--space-4); }
+.bet-select__payouts { max-width: 30rem; text-align: center; }
+
+.bet-option-btn {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent-dim);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-xl);
+  transition: transform var(--duration-fast) var(--ease-standard), background var(--duration-fast);
+}
+.bet-option-btn:hover:not(:disabled) { background: var(--color-accent); color: var(--color-bg); transform: scale(1.06); }
+.bet-option-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.big-win {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-accent);
+  letter-spacing: 0.08em;
+  animation: big-win-pop 0.5s var(--ease-standard) both, big-win-pulse 1.2s ease-in-out 0.5s infinite;
+}
+@keyframes big-win-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes big-win-pulse {
+  0%, 100% { text-shadow: 0 0 10px var(--color-accent-strong); }
+  50% { text-shadow: 0 0 22px var(--color-accent-strong), 0 0 40px var(--color-accent-dim); }
+}
+
+/* =========================================================
    DECK EDITOR
    ========================================================= */
 .deck-manager {
@@ -573,13 +701,16 @@ img { max-width: 100%; display: block; }
 .card-row__thumb img { width: 100%; height: 100%; object-fit: cover; }
 .card-row__body { flex: 1; min-width: 0; }
 .card-row__prompt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-row__meta { display: flex; gap: var(--space-2); font-size: var(--fs-xs); color: var(--color-text-muted); margin-top: 0.15rem; }
+.card-row__meta { display: flex; flex-wrap: wrap; gap: var(--space-2); font-size: var(--fs-xs); color: var(--color-text-muted); margin-top: 0.15rem; }
+.card-row__tag { white-space: nowrap; }
 .difficulty-badge {
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-pill);
   padding: 0 var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .difficulty-badge--1 { color: var(--color-correct); border-color: var(--color-correct); }
 .difficulty-badge--2 { color: var(--color-accent); border-color: var(--color-accent-dim); }
@@ -747,4 +878,11 @@ img { max-width: 100%; display: block; }
   .table { padding: var(--space-3); }
   .form-row { flex-direction: column; }
   .distractor-grid { grid-template-columns: 1fr; }
+
+  /* Edit/Duplicate/Delete no longer fight the prompt+badge for width —
+     they drop to their own right-aligned row instead of squeezing the
+     body down to almost nothing (which is what was distorting the
+     difficulty badge into a circle). */
+  .card-row { flex-wrap: wrap; }
+  .card-row__actions { flex-basis: 100%; justify-content: flex-end; margin-top: var(--space-2); }
 }

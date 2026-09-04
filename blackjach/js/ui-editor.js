@@ -47,6 +47,7 @@ AHB.uiEditor = (function () {
     el.fieldDifficulty = document.getElementById('field-difficulty');
     el.fieldPromptType = document.getElementById('field-prompt-type');
     el.textWrap = document.getElementById('field-text-wrap');
+    el.textLabel = document.getElementById('field-text-label');
     el.fieldPromptText = document.getElementById('field-prompt-text');
     el.imageWrap = document.getElementById('field-image-wrap');
     el.dropzone = document.getElementById('dropzone');
@@ -157,7 +158,7 @@ AHB.uiEditor = (function () {
           <div class="card-row__prompt">${promptPreview}</div>
           <div class="card-row__meta">
             <span class="difficulty-badge difficulty-badge--${card.difficulty}">${difficultyLabel(card.difficulty)}</span>
-            ${(card.tags || []).map((t) => `<span>#${AHB.utils.escapeHtml(t)}</span>`).join('')}
+            ${(card.tags || []).map((t) => `<span class="card-row__tag">#${AHB.utils.escapeHtml(t)}</span>`).join('')}
             ${errors.length ? `<span class="card-row__warning">⚠ ${errors.join(' ')}</span>` : ''}
           </div>
         </div>
@@ -284,7 +285,13 @@ AHB.uiEditor = (function () {
   function syncPromptTypeVisibility() {
     const isImage = el.fieldPromptType.value === 'image';
     el.imageWrap.hidden = !isImage;
-    el.textWrap.hidden = isImage;
+    // Text stays available either way: it's the required prompt for a text
+    // card, or an optional caption alongside an image card's picture.
+    el.fieldPromptText.required = !isImage;
+    el.textLabel.textContent = isImage ? 'Caption (optional)' : 'Prompt text';
+    el.fieldPromptText.placeholder = isImage
+      ? 'e.g. a short caption or context for the image'
+      : 'e.g. Mucha, *Gismonda*, 1894';
   }
 
   async function openModal(card) {

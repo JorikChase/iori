@@ -1,10 +1,12 @@
-/* Renders the Play screen from AHB.game's state and wires up its controls,
-   including the keyboard shortcuts (1-5 answer, B bank, H hit, Space draw/continue). */
+/* Renders the "Training" screen (the ladder/points game, AHB.game's state —
+   not to be confused with the "Play" tab, which is bet mode) and wires up
+   its controls, including the keyboard shortcuts (1-5 answer, B bank, H
+   hit, Space draw/continue). */
 window.AHB = window.AHB || {};
 
 AHB.uiGame = (function () {
   const el = {};
-  let imageCacheCardId = null;
+  const cardFace = AHB.cardRenderer();
   let pendingScoreSubmit = null; // {serverId, points, rungsCleared, outcome} for the run just finished
 
   function cacheEls() {
@@ -47,27 +49,8 @@ AHB.uiGame = (function () {
     }).join('');
   }
 
-  async function renderCardFace(card) {
-    el.cardDifficulty.textContent = AHB.CONFIG.DIFFICULTY_LABELS[card.difficulty] || '';
-    if (card.promptType === 'image' && card.promptImage) {
-      el.cardImage.hidden = false;
-      el.cardPrompt.textContent = '';
-      if (imageCacheCardId !== card.id) {
-        imageCacheCardId = card.id;
-        el.cardImage.innerHTML = '';
-        const dataUrl = await AHB.imageService.getDataUrl(card.promptImage);
-        if (imageCacheCardId === card.id && dataUrl) {
-          const img = document.createElement('img');
-          img.src = dataUrl;
-          img.alt = '';
-          el.cardImage.appendChild(img);
-        }
-      }
-    } else {
-      el.cardImage.hidden = true;
-      el.cardImage.innerHTML = '';
-      el.cardPrompt.innerHTML = AHB.utils.renderPromptText(card.promptText || '');
-    }
+  function renderCardFace(card) {
+    return cardFace.render({ difficulty: el.cardDifficulty, image: el.cardImage, prompt: el.cardPrompt }, card);
   }
 
   function renderOptions(state) {

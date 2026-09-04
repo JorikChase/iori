@@ -15,7 +15,7 @@ AHB.toast = (function () {
 })();
 
 AHB.nav = (function () {
-  let active = 'game';
+  let active = 'bet'; // "Play" — matches the is-active tab/screen already set in index.html
   const tabs = Array.from(document.querySelectorAll('.app-nav__tab'));
   const screens = Array.from(document.querySelectorAll('.screen'));
 
@@ -40,17 +40,20 @@ AHB.nav = (function () {
 async function bootstrap() {
   await AHB.decksService.ensureReady();
   await AHB.game.init();
+  await AHB.betGame.init();
 
   AHB.nav.init();
   AHB.uiDeckSwitcher.init();
   AHB.uiLeaderboard.init();
   AHB.uiGame.init();
+  AHB.uiBet.init();
   AHB.uiEditor.init();
   AHB.uiCommunity.init();
   AHB.uiStats.init();
   AHB.uiSettings.init();
 
   AHB.game.acknowledgeAndReset();
+  AHB.betGame.acknowledgeAndReset();
 }
 
 bootstrap().catch((err) => {

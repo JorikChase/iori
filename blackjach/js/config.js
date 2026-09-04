@@ -29,6 +29,20 @@ AHB.CONFIG = {
     },
   },
 
+  // A separate, optional game mode: wager credits, answer a fixed run of
+  // questions (same length + difficulty progression as LADDER.rungs, so
+  // editing the ladder above automatically reshapes bet rounds too), get
+  // paid out by how many you got right. Its own currency — entirely
+  // separate from points/session/all-time score and the public leaderboard.
+  BETTING: {
+    startingCredits: 100,
+    betOptions: [4, 10, 20],
+    // Net multiplier applied to the bet, indexed by correct-answer count
+    // (0..rungs.length). Must have exactly rungs.length + 1 entries.
+    // e.g. 3 correct out of 6 -> credits += bet * 1.5
+    payoutMultipliers: [-1, -0.5, 0, 1.5, 2, 3, 4],
+  },
+
   DIFFICULTY_LABELS: { 1: 'Easy', 2: 'Medium', 3: 'Hard' },
 
   IMAGE: {
@@ -47,3 +61,11 @@ AHB.CONFIG = {
 
 // Total pot for a full clear, derived from the ladder above (not hardcoded).
 AHB.CONFIG.LADDER.fullClearPoints = AHB.CONFIG.LADDER.rungs.reduce((sum, r) => sum + r.points, 0);
+
+if (AHB.CONFIG.BETTING.payoutMultipliers.length !== AHB.CONFIG.LADDER.rungs.length + 1) {
+  console.warn(
+    `BETTING.payoutMultipliers has ${AHB.CONFIG.BETTING.payoutMultipliers.length} entries but ` +
+    `LADDER.rungs has ${AHB.CONFIG.LADDER.rungs.length} rungs — it needs rungs.length + 1 entries ` +
+    `(one per possible correct-answer count, 0..rungs.length).`
+  );
+}

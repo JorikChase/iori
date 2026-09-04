@@ -542,22 +542,29 @@ img { max-width: 100%; display: block; }
    ========================================================= */
 .bet-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   width: 100%;
-}
-/* The table background art can be busy/photographic — give the credits
-   chip a solid backdrop so its hairline border and text stay legible
-   over any texture, instead of the transparent default. */
-.bet-header .score-chip {
-  background: var(--color-felt);
-  border-color: var(--color-accent);
 }
 .bet-progress {
   background: var(--color-felt);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-md);
 }
+
+.game-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+/* The table background art can be busy/photographic — give these chips a
+   solid backdrop so their hairline border and text stay legible over any
+   texture, instead of the transparent default. */
+.game-header .score-chip {
+  background: var(--color-felt);
+}
+.game-header .score-chip--accent { border-color: var(--color-accent); }
 .bet-progress {
   display: flex;
   gap: var(--space-4);

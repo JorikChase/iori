@@ -4,7 +4,7 @@ window.AHB = window.AHB || {};
 
 AHB.uiGame = (function () {
   const el = {};
-  let imageCacheCardId = null;
+  const cardFace = AHB.cardRenderer();
   let pendingScoreSubmit = null; // {serverId, points, rungsCleared, outcome} for the run just finished
 
   function cacheEls() {
@@ -47,27 +47,8 @@ AHB.uiGame = (function () {
     }).join('');
   }
 
-  async function renderCardFace(card) {
-    el.cardDifficulty.textContent = AHB.CONFIG.DIFFICULTY_LABELS[card.difficulty] || '';
-    if (card.promptType === 'image' && card.promptImage) {
-      el.cardImage.hidden = false;
-      el.cardPrompt.textContent = '';
-      if (imageCacheCardId !== card.id) {
-        imageCacheCardId = card.id;
-        el.cardImage.innerHTML = '';
-        const dataUrl = await AHB.imageService.getDataUrl(card.promptImage);
-        if (imageCacheCardId === card.id && dataUrl) {
-          const img = document.createElement('img');
-          img.src = dataUrl;
-          img.alt = '';
-          el.cardImage.appendChild(img);
-        }
-      }
-    } else {
-      el.cardImage.hidden = true;
-      el.cardImage.innerHTML = '';
-      el.cardPrompt.innerHTML = AHB.utils.renderPromptText(card.promptText || '');
-    }
+  function renderCardFace(card) {
+    return cardFace.render({ difficulty: el.cardDifficulty, image: el.cardImage, prompt: el.cardPrompt }, card);
   }
 
   function renderOptions(state) {

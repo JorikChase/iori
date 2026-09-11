@@ -17,6 +17,7 @@ AHB.uiBet = (function () {
     el.creditsValue = document.getElementById('header-credits-value');
     el.progress = document.getElementById('bet-progress');
     el.progressText = document.getElementById('bet-progress-text');
+    el.progressDifficulty = document.getElementById('bet-progress-difficulty');
     el.correctCount = document.getElementById('bet-correct-count');
 
     el.betSelect = document.getElementById('bet-select');
@@ -24,7 +25,6 @@ AHB.uiBet = (function () {
 
     el.cardStage = document.getElementById('bet-card-stage');
     el.card = document.getElementById('bet-playing-card');
-    el.cardDifficulty = document.getElementById('bet-card-difficulty');
     el.cardImage = document.getElementById('bet-card-image');
     el.cardPrompt = document.getElementById('bet-card-prompt');
 
@@ -45,7 +45,9 @@ AHB.uiBet = (function () {
   }
 
   function renderCardFace(card) {
-    return cardFace.render({ difficulty: el.cardDifficulty, image: el.cardImage, prompt: el.cardPrompt }, card);
+    // Difficulty renders into the top info bar (bet-progress), not onto the
+    // card face itself — see bet-progress__difficulty in styles.css.
+    return cardFace.render({ difficulty: el.progressDifficulty, image: el.cardImage, prompt: el.cardPrompt }, card);
   }
 
   function renderBetOptions(state) {

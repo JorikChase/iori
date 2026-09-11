@@ -1,3 +1,4 @@
+@charset "UTF-8";
 /* =========================================================
    THEME — blackjach
    Every color / font / radius / spacing value used anywhere
@@ -34,6 +35,17 @@
 
   --color-overlay:        rgba(6, 10, 8, 0.72);
 
+  /* --- Kitsch palette: neon marquee + red velvet, layered on top of the
+     felt/gold base above. Used for glow, chasing lights, and the ace-chip
+     buttons — never as a body-text color, or the "loud" stops working. --- */
+  --neon-pink:            #ff3fd8;
+  --neon-cyan:            #28e0ff;
+  --velvet-red:           #7a1620;
+  --velvet-red-strong:    #a4243a;
+  --glow-gold:            0 0 8px rgba(224, 187, 99, 0.85), 0 0 22px rgba(200, 162, 74, 0.55);
+  --glow-pink:            0 0 8px rgba(255, 63, 216, 0.85), 0 0 22px rgba(255, 63, 216, 0.5);
+  --glow-cyan:            0 0 8px rgba(40, 224, 255, 0.85), 0 0 22px rgba(40, 224, 255, 0.5);
+
   /* Card-front text — the face art (card-front.png) is a light parchment,
      so its text needs its own dark palette instead of the app's light-on-dark one. */
   --color-card-text:       #241a0f;
@@ -43,6 +55,11 @@
   /* --- Typography --- */
   --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, 'SFMono-Regular', monospace;
+  /* Poster/marquee display faces for the kitsch pass — short labels only
+     (headings, button text, banners). Never body copy or card prompts:
+     both are all-caps-only, illegible-at-length novelty faces by design. */
+  --font-poster: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  --font-neon:   'Monoton', 'Arial Black', sans-serif;
 
   --fs-xs:   0.75rem;
   --fs-sm:   0.875rem;
@@ -103,6 +120,36 @@
   --asset-panel-bg:   url('../assets/panel-bg.png');
   --asset-icon-bank:  url('../assets/icon-bank.png');
   --asset-icon-hit:   url('../assets/icon-hit.png');
+
+  /* Kitsch-pass additions — AI-generated with Nano Banana (Gemini),
+     background removed locally, PNGs kept flat in /assets same as every
+     other asset here so they're just as easy to swap/rework by hand.
+       chip-*.png 1024×1024 transparent, glossy casino chip, used as
+                  literal button faces for the bet amount buttons (not
+                  just decoration). */
+  --asset-chip-gold:    url('../assets/chip-gold.png');
+  --asset-chip-red:     url('../assets/chip-red.png');
+  --asset-chip-green:   url('../assets/chip-green.png');
+  /* 1376×768, transparent — a wide gilded scroll plaque with an empty
+     green center, styled after a slot machine's game-title sign. Used as
+     a background behind (not baked-in text on) a heading, so any text
+     stays real, selectable, and themeable in --color-accent-strong. */
+  --asset-plaque-gold: url('../assets/plaque-gold.png');
+}
+
+@font-face {
+  font-family: 'Luckiest Guy';
+  src: url('../assets/fonts/LuckiestGuy-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Monoton';
+  src: url('../assets/fonts/Monoton-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 /* Self-hosted so --font-mono actually renders as JetBrains Mono everywhere
@@ -147,6 +194,38 @@ img { max-width: 100%; display: block; }
 
 .mono { font-family: var(--font-mono); }
 
+/* Every themed <select> in the app (deck switcher, editor filters, community
+   sort, card-form difficulty/prompt-type) shares this: strip the native
+   control so it stops rendering as a plain OS dropdown against the felt, and
+   draw a small gold chevron instead of relying on each browser's own arrow. */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-accent-dim) 50%),
+    linear-gradient(135deg, var(--color-accent-dim) 50%, transparent 50%);
+  background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 2rem !important;
+}
+select:hover:not(:disabled) {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-accent) 50%),
+    linear-gradient(135deg, var(--color-accent) 50%, transparent 50%);
+}
+select option { background: var(--color-surface); color: var(--color-text); }
+
+/* Shared focus ring for every themed field — a soft gold glow instead of
+   each browser's own default outline, so tabbing through forms still reads
+   as this app rather than the OS. */
+select:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 3px rgba(200, 162, 74, 0.25);
+}
+
 /* =========================================================
    HEADER / NAV
    ========================================================= */
@@ -156,17 +235,48 @@ img { max-width: 100%; display: block; }
   gap: var(--space-4);
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-hairline);
+  border-bottom: 3px solid var(--color-accent-dim);
   background: var(--color-felt);
   position: sticky;
   top: 0;
   z-index: 20;
 }
+/* Marquee bulb strip along the header's bottom edge — a row of chasing
+   dots cycling gold/pink/cyan, like the incandescent trim on a casino
+   sign. Pure CSS (a repeating radial-gradient stepped via
+   background-position, hue-shifted via filter), no per-bulb DOM. */
+.app-header::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -3px;
+  height: 3px;
+  background-image: radial-gradient(circle, var(--color-accent-strong) 40%, transparent 42%);
+  background-size: 22px 3px;
+  background-repeat: repeat-x;
+  animation: marquee-chase 900ms steps(1) infinite, marquee-color-cycle 3.6s linear infinite;
+}
+@keyframes marquee-chase {
+  0% { background-position-x: 0; }
+  100% { background-position-x: 22px; }
+}
+@keyframes marquee-color-cycle {
+  0%, 100% { filter: hue-rotate(0deg); }
+  33% { filter: hue-rotate(70deg); }
+  66% { filter: hue-rotate(-60deg); }
+}
 .app-header__brand { flex-shrink: 0; }
 .app-header__logo {
   display: block;
-  height: 1.75rem;
+  height: 3.25rem;
   width: auto;
+  /* The gold logo pulses through a pink/cyan neon glow, like a sign lit
+     from behind — filter: drop-shadow follows the PNG's alpha shape
+     (unlike box-shadow, which would just glow the rectangular image box). */
+  animation: logo-neon-pulse 2.6s ease-in-out infinite;
+}
+@keyframes logo-neon-pulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(224, 187, 99, 0.75)) drop-shadow(0 0 14px rgba(255, 63, 216, 0.45)); }
+  50% { filter: drop-shadow(0 0 10px rgba(224, 187, 99, 0.9)) drop-shadow(0 0 22px rgba(40, 224, 255, 0.6)); }
 }
 .deck-switcher {
   display: flex;
@@ -189,20 +299,42 @@ img { max-width: 100%; display: block; }
   display: flex;
   gap: var(--space-3);
   margin-left: auto;
+  order: 1;
 }
+/* Below 720px the header can't fit brand + deck-switcher + credits on one
+   line. Without an explicit order, source order (brand, deck-switcher,
+   scores) wraps the Credits chip onto its own row with a large empty gap
+   before it (margin-left: auto still pushing it flush right on that line).
+   Pulling it up next to the brand and dropping the deck-switcher to its own
+   full-width row instead keeps the always-relevant balance visible with the
+   logo and avoids that dead space. */
+@media (max-width: 719px) {
+  .deck-switcher { order: 2; width: 100%; }
+}
+/* Jackpot-ticker pills — modeled on the mini-jackpot readouts along the
+   top of a slot machine (gold ring, glossy near-black glass, LED-red
+   numerals). Every score/credits/pot readout in the app uses this. */
 .score-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: var(--space-1) var(--space-3);
-  border: var(--border-hairline);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   min-width: 5.5rem;
+  background: linear-gradient(180deg, #1c1c1c 0%, #0a0a0a 60%, #050505 100%);
+  border: 2px solid var(--color-accent-dim);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -3px 6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5);
 }
-.score-chip--accent { border-color: var(--color-accent-dim); }
+.score-chip--accent { border-color: var(--color-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -3px 6px rgba(0, 0, 0, 0.6), var(--glow-gold); }
 .score-chip__label { font-size: var(--fs-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.score-chip__value { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: var(--fw-bold); }
-.score-chip--accent .score-chip__value { color: var(--color-accent); }
+.score-chip__value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--color-accent-strong);
+  text-shadow: 0 0 6px rgba(224, 187, 99, 0.7), 0 0 14px rgba(224, 187, 99, 0.35);
+}
+.score-chip--accent .score-chip__value { color: var(--color-accent-strong); }
 
 .app-nav {
   display: flex;
@@ -217,18 +349,27 @@ img { max-width: 100%; display: block; }
 }
 
 .app-nav__tab {
+  position: relative;
+  overflow: hidden;
   background: transparent;
   border: var(--border-hairline);
   border-radius: var(--radius-pill);
   color: var(--color-text-muted);
   padding: var(--space-2) var(--space-4);
-  font-weight: var(--fw-medium);
-  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  font-family: var(--font-poster);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
 }
+.app-nav__tab:hover:not(.is-active) { border-color: var(--color-accent-dim); color: var(--color-text); }
 .app-nav__tab.is-active {
   color: var(--color-bg);
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  /* Glossy gold pill — a bright highlight band across the top third
+     fading into the flat accent color, like a lit push-button cap. */
+  background: linear-gradient(180deg, var(--color-accent-strong) 0%, var(--color-accent) 45%, var(--color-accent-dim) 100%);
+  border-color: var(--color-accent-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), var(--glow-gold);
+  font-weight: var(--fw-bold);
 }
 
 /* =========================================================
@@ -238,6 +379,26 @@ img { max-width: 100%; display: block; }
 .screen { display: none; }
 .screen.is-active { display: block; }
 
+/* Deck/Community/Stats/Settings sit on the same felt table as Play/Training
+   instead of the app's plain body void. They use panel-bg (the calm,
+   tileable texture), not table-bg — table-bg is a one-off top-anchored
+   composition sized for .table's roughly viewport-height box; these screens
+   scroll to arbitrary content length (25 cards, a full stats history), and
+   "cover"-ing that with a fixed composition either stretches it huge or
+   crops the objects off-frame. A repeating tile has no such ceiling. Every
+   panel inside these screens (.deck-manager, .card-row, .settings-block,
+   .community-row, the stats tables) already renders on a solid
+   --color-surface, so they still read as raised cards over the felt, same
+   language as .option-btn over the game table. */
+#screen-editor, #screen-community, #screen-stats, #screen-settings {
+  background-color: var(--color-felt);
+  background-image: var(--asset-panel-bg);
+  background-repeat: repeat;
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
 /* =========================================================
    GAME SCREEN
    ========================================================= */
@@ -245,14 +406,33 @@ img { max-width: 100%; display: block; }
   background: var(--color-felt);
   background-image: var(--asset-table-bg);
   background-size: cover;
-  background-position: center;
-  border: var(--border-hairline);
+  /* Anchored top, not center: .table's own height varies a lot by state
+     (short on the bet-select screen, tall mid-question) and table-bg.png
+     is a deliberate composition, not a tileable pattern — its objects sit
+     near the top with empty space below, matching where the card/ladder
+     actually are. Centering re-crops a different vertical slice every time
+     the box height changes, which reads as the background "jumping"
+     between screens/states; anchoring top keeps it stable — a shorter box
+     just reveals less of the same fixed composition instead of a
+     different piece of it. */
+  background-position: top center;
+  position: relative;
+  border: 3px solid var(--color-accent-dim);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-5);
+  /* Embossed metal bevel on top of the border — a bright inset edge along
+     the top-left, a dark one along the bottom-right — so the whole table
+     frame reads like the cast-gold bezel around a slot-machine reel
+     window, not a plain rounded rectangle. */
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.25),
+    inset 2px 0 0 rgba(255, 255, 255, 0.12),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.55),
+    inset -3px 0 6px rgba(0, 0, 0, 0.4);
 }
 
 .ladder {
@@ -264,13 +444,17 @@ img { max-width: 100%; display: block; }
   width: 100%;
   justify-content: center;
 }
+/* Marquee bulb trail instead of a plain progress bar — a cleared rung is a
+   lit gold bulb, the current one pulses like it's about to flash, and
+   everything ahead is an unlit dark socket. */
 .ladder__rung {
   flex: 1;
   max-width: 3.5rem;
   height: 0.5rem;
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
+  background: radial-gradient(circle, #1c1c1c 0%, #0a0a0a 100%);
   border: 1px solid var(--color-hairline);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
   position: relative;
 }
 .ladder__rung::after {
@@ -283,9 +467,21 @@ img { max-width: 100%; display: block; }
   font-size: var(--fs-xs);
   color: var(--color-text-dim);
 }
-.ladder__rung.is-cleared { background: var(--color-accent-dim); border-color: var(--color-accent-dim); }
-.ladder__rung.is-current { background: var(--color-accent); border-color: var(--color-accent); }
-.ladder__rung.is-current::after { color: var(--color-accent); font-weight: var(--fw-bold); }
+.ladder__rung.is-cleared {
+  background: radial-gradient(circle, var(--color-accent-strong) 0%, var(--color-accent-dim) 100%);
+  border-color: var(--color-accent-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), var(--glow-gold);
+}
+.ladder__rung.is-current {
+  background: radial-gradient(circle, var(--color-accent-strong) 0%, var(--color-accent) 100%);
+  border-color: var(--color-accent-strong);
+  animation: bulb-flicker 1s ease-in-out infinite;
+}
+.ladder__rung.is-current::after { color: var(--color-accent-strong); font-weight: var(--fw-bold); text-shadow: var(--glow-gold); }
+@keyframes bulb-flicker {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), var(--glow-gold); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 10px rgba(224, 187, 99, 1), 0 0 28px rgba(224, 187, 99, 0.7); }
+}
 
 .pot-display {
   display: flex;
@@ -293,13 +489,38 @@ img { max-width: 100%; display: block; }
   align-items: center;
   gap: var(--space-1);
 }
-.pot-display__label { font-size: var(--fs-sm); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.pot-display__label { font-family: var(--font-poster); font-size: var(--fs-lg); color: var(--color-accent); text-transform: uppercase; letter-spacing: 0.06em; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+/* The bet screen's "Choose your bet" gets the full slot-machine
+   game-title-sign treatment: real text sitting on top of the gilded
+   plaque asset, sized to the plaque's own 1376:768 aspect ratio so the
+   scrollwork doesn't stretch or get cropped. Scoped to .bet-select only —
+   the in-game "Pot at risk" label reuses the same base class but stays
+   plain, since a plaque behind every small label would be exhausting. */
+.bet-select .pot-display__label {
+  background-image: var(--asset-plaque-gold);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  aspect-ratio: 1376 / 768;
+  width: min(100%, 22rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent-strong);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  margin: 0 0 var(--space-2);
+}
 .pot-display__value {
   font-family: var(--font-mono);
   font-size: var(--fs-2xl);
   font-weight: var(--fw-bold);
-  color: var(--color-accent);
+  color: var(--color-accent-strong);
   line-height: 1;
+  animation: jackpot-glow 1.8s ease-in-out infinite;
+}
+@keyframes jackpot-glow {
+  0%, 100% { text-shadow: var(--glow-gold); }
+  50% { text-shadow: 0 0 12px rgba(224, 187, 99, 1), 0 0 32px rgba(224, 187, 99, 0.6); }
 }
 
 .card-stage { perspective: 1200px; width: 100%; display: flex; justify-content: center; }
@@ -403,8 +624,13 @@ img { max-width: 100%; display: block; }
   padding: 0 0.4rem;
   flex-shrink: 0;
 }
-.option-btn.is-correct { background: var(--color-correct-bg); border-color: var(--color-correct); }
-.option-btn.is-wrong { background: var(--color-wrong-bg); border-color: var(--color-wrong); }
+.option-btn.is-correct { background: var(--color-correct-bg); border-color: var(--color-correct); box-shadow: 0 0 8px rgba(92, 143, 106, 0.7), 0 0 18px rgba(92, 143, 106, 0.4); animation: option-correct-pulse 0.5s var(--ease-standard); }
+.option-btn.is-wrong { background: var(--color-wrong-bg); border-color: var(--color-wrong); box-shadow: 0 0 8px rgba(164, 68, 58, 0.7); }
+@keyframes option-correct-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
 
 .decision {
   display: flex;
@@ -422,11 +648,12 @@ img { max-width: 100%; display: block; }
   text-align: center;
   max-width: 32rem;
 }
-.run-result__title { font-size: var(--fs-xl); }
+.run-result__title { font-family: var(--font-poster); font-size: var(--fs-xl); letter-spacing: 0.03em; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
 .run-result__detail { color: var(--color-text-muted); font-family: var(--font-mono); }
 .run-result__note {
   background: var(--color-surface);
   border: var(--border-hairline);
+  border-left: 3px solid var(--color-accent-dim);
   border-radius: var(--radius-md);
   padding: var(--space-3);
   font-size: var(--fs-sm);
@@ -440,6 +667,7 @@ img { max-width: 100%; display: block; }
   width: 100%;
   background: var(--color-surface);
   border: var(--border-hairline);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-md);
   padding: var(--space-3);
   display: flex;
@@ -465,8 +693,17 @@ img { max-width: 100%; display: block; }
    BUTTONS
    ========================================================= */
 .btn {
+  position: relative;
   border: var(--border-hairline);
-  background: var(--color-surface);
+  /* Glossy highlight band, layered as a second background-image (not a
+     ::before) specifically so it stays UNDER the button's own text/icon
+     content in painting order — a ::before is a positioned descendant and
+     paints after in-flow text regardless of z-index tricks, which would
+     wash out the label. Every .btn--variant below sets background-color
+     only (never the `background` shorthand) so this gradient layer
+     survives the cascade instead of being reset to `none`. */
+  background-color: var(--color-surface);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.08) 35%, transparent 60%);
   color: var(--color-text);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
@@ -475,9 +712,10 @@ img { max-width: 100%; display: block; }
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  transition: transform var(--duration-fast) var(--ease-standard), background var(--duration-fast);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  transition: transform var(--duration-fast) var(--ease-standard), background-color var(--duration-fast), box-shadow var(--duration-fast);
 }
-.btn:active { transform: scale(0.98); }
+.btn:active { transform: scale(0.97) translateY(1px); box-shadow: 0 0 0 rgba(0, 0, 0, 0.35); }
 .btn__key {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -500,33 +738,57 @@ img { max-width: 100%; display: block; }
 }
 .btn__icon--bank { -webkit-mask-image: var(--asset-icon-bank); mask-image: var(--asset-icon-bank); }
 .btn__icon--hit { -webkit-mask-image: var(--asset-icon-hit); mask-image: var(--asset-icon-hit); }
-.btn--primary { background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); font-weight: var(--fw-bold); }
-.btn--primary:hover { background: var(--color-accent-strong); }
+/* The main CTA (Draw card / Continue) gets a diagonal shine that sweeps
+   across every few seconds instead of the static top-highlight every
+   other .btn has — it's the single button the app most wants you to
+   notice, so it's the one place a moving effect earns its keep rather
+   than adding to the noise. Layered as a second background-image (see the
+   base .btn comment on why not a ::before), animated via
+   background-position rather than transform so the static shine layer
+   (position 0 0) stays put while only this layer's position moves. */
+.btn--primary {
+  background-color: var(--color-accent);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.08) 35%, transparent 60%),
+    linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.55) 50%, transparent 60%);
+  background-size: 100% 100%, 250% 100%;
+  background-repeat: no-repeat;
+  color: var(--color-bg);
+  border-color: var(--color-accent-strong);
+  font-weight: var(--fw-bold);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), var(--glow-gold);
+  animation: btn-primary-shine 3.5s ease-in-out infinite;
+}
+.btn--primary:hover { background-color: var(--color-accent-strong); }
+@keyframes btn-primary-shine {
+  0% { background-position: 0 0, -150% 0; }
+  35%, 100% { background-position: 0 0, 250% 0; }
+}
 .btn--large { padding: var(--space-4) var(--space-6); font-size: var(--fs-lg); }
-.btn--ghost { background: transparent; }
+.btn--ghost { background-color: transparent; }
 .btn--ghost:hover { border-color: var(--color-accent-dim); }
-.btn--danger { background: transparent; color: var(--color-risk); border-color: var(--color-risk); }
-.btn--danger:hover { background: var(--color-risk-bg); }
+.btn--danger { background-color: transparent; color: var(--color-risk); border-color: var(--color-risk); }
+.btn--danger:hover { background-color: var(--color-risk-bg); }
 .btn--file { position: relative; }
-.btn--accent { background: transparent; color: var(--color-accent); border-color: var(--color-accent); font-weight: var(--fw-bold); }
-.btn--accent:hover { background: var(--color-accent); color: var(--color-bg); }
+.btn--accent { background-color: transparent; color: var(--color-accent); border-color: var(--color-accent); font-weight: var(--fw-bold); }
+.btn--accent:hover { background-color: var(--color-accent); color: var(--color-bg); }
 
 .btn--bank {
-  background: var(--color-safe-bg);
+  background-color: var(--color-safe-bg);
   color: var(--color-safe);
   border-color: var(--color-safe);
   font-weight: var(--fw-bold);
   font-size: var(--fs-lg);
 }
-.btn--bank:hover { background: var(--color-safe); color: var(--color-safe-text); }
+.btn--bank:hover { background-color: var(--color-safe); color: var(--color-safe-text); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), var(--glow-gold); }
 .btn--hit {
-  background: var(--color-risk-bg);
+  background-color: var(--color-risk-bg);
   color: var(--color-risk);
   border-color: var(--color-risk);
   font-weight: var(--fw-bold);
   font-size: var(--fs-lg);
 }
-.btn--hit:hover { background: var(--color-risk); color: var(--color-risk-text); }
+.btn--hit:hover { background-color: var(--color-risk); color: var(--color-risk-text); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 8px rgba(164, 68, 58, 0.85), 0 0 22px rgba(164, 68, 58, 0.5); }
 
 /* =========================================================
    BET MODE
@@ -549,66 +811,129 @@ img { max-width: 100%; display: block; }
   gap: var(--space-3);
   width: 100%;
 }
-/* The table background art can be busy/photographic — give these chips a
-   solid backdrop so their hairline border and text stay legible over any
-   texture, instead of the transparent default. */
-.game-header .score-chip {
-  background: var(--color-felt);
-}
-.game-header .score-chip--accent { border-color: var(--color-accent); }
 .bet-progress {
   display: flex;
+  align-items: center;
   gap: var(--space-4);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   color: var(--color-text-muted);
 }
+/* Difficulty now lives in this info bar instead of overlaid on the card
+   itself — same pill treatment playing-card__difficulty used to have,
+   just re-themed in gold to fit sitting next to the mono progress text. */
+.bet-progress__difficulty {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent-dim);
+  border-radius: var(--radius-pill);
+  padding: 0.15rem var(--space-2);
+}
 
 .bet-select {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
   background-image: var(--asset-panel-bg);
   background-color: var(--color-felt);
-  border: var(--border-hairline);
+  border: 2px solid var(--color-accent-dim);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.4);
+  overflow: visible;
+}
+/* A couple of loose chips spilling off the panel's corners — the one bit
+   of tableside clutter this screen gets, since it's the "place your bet"
+   moment. Gentle float via CSS only; keeps going forever, costs nothing. */
+.bet-select::before, .bet-select::after {
+  content: '';
+  position: absolute;
+  width: 3.5rem;
+  height: 3.5rem;
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+  animation: chip-float 4s ease-in-out infinite;
+}
+.bet-select::before {
+  background-image: var(--asset-chip-red);
+  top: -1.2rem;
+  left: -1rem;
+  --r: -18deg;
+  animation-delay: 0s;
+}
+.bet-select::after {
+  background-image: var(--asset-chip-green);
+  bottom: -1.4rem;
+  right: -0.8rem;
+  --r: 14deg;
+  animation-delay: 1.8s;
+}
+@keyframes chip-float {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-8px) rotate(var(--r, 0deg)); }
 }
 .bet-select__options { display: flex; gap: var(--space-4); }
 .bet-select__payouts { max-width: 30rem; text-align: center; }
 
+/* The bet amounts are literal casino chips, not flat circles with a number
+   printed on — each of the 3 buttons gets one of the generated chip PNGs
+   as its actual face via :nth-child (not a data-amount value match, so
+   this keeps working if AHB.CONFIG.BETTING.betOptions ever changes to a
+   different set of numbers). The amount is overlaid in the poster font
+   with a heavy dark outline so it stays legible over the chip's own
+   printed design underneath. */
+.bet-select__options .bet-option-btn:nth-child(1) { background-image: var(--asset-chip-green); }
+.bet-select__options .bet-option-btn:nth-child(2) { background-image: var(--asset-chip-red); }
+.bet-select__options .bet-option-btn:nth-child(3) { background-image: var(--asset-chip-gold); }
 .bet-option-btn {
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 4.75rem;
+  height: 4.75rem;
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  border: 2px solid var(--color-accent-dim);
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-weight: var(--fw-bold);
+  background-color: var(--color-surface);
+  background-size: cover;
+  background-position: center;
+  border: none;
+  color: #fff;
+  font-family: var(--font-poster);
+  font-weight: 400;
   font-size: var(--fs-xl);
-  transition: transform var(--duration-fast) var(--ease-standard), background var(--duration-fast);
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.4);
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast);
 }
-.bet-option-btn:hover:not(:disabled) { background: var(--color-accent); color: var(--color-bg); transform: scale(1.06); }
-.bet-option-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.bet-option-btn:hover:not(:disabled) { transform: scale(1.08) rotate(-3deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), var(--glow-gold); }
+.bet-option-btn:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.6); }
 
+/* The neon-tube display face (Monoton) for the one moment in the app that
+   should read as an actual lit sign — everywhere else this font would be
+   illegible novelty, but three words at --fs-2xl+ reads as a marquee. */
 .big-win {
-  font-family: var(--font-mono);
+  font-family: var(--font-neon);
   font-size: var(--fs-2xl);
-  font-weight: var(--fw-bold);
-  color: var(--color-accent);
-  letter-spacing: 0.08em;
-  animation: big-win-pop 0.5s var(--ease-standard) both, big-win-pulse 1.2s ease-in-out 0.5s infinite;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  animation: big-win-pop 0.5s var(--ease-standard) both, big-win-color-cycle 1.6s linear 0.5s infinite;
 }
 @keyframes big-win-pop {
-  0% { transform: scale(0.4); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% { transform: scale(0.4) rotate(-4deg); opacity: 0; }
+  60% { transform: scale(1.15) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
-@keyframes big-win-pulse {
-  0%, 100% { text-shadow: 0 0 10px var(--color-accent-strong); }
-  50% { text-shadow: 0 0 22px var(--color-accent-strong), 0 0 40px var(--color-accent-dim); }
+/* Cycles the neon tube through gold -> pink -> cyan -> gold, like a sign
+   with a loose transformer — color + matching text-shadow glow move
+   together each frame so the glow always matches the tube color. */
+@keyframes big-win-color-cycle {
+  0%, 100% { color: var(--color-accent-strong); text-shadow: var(--glow-gold); }
+  33% { color: var(--neon-pink); text-shadow: var(--glow-pink); }
+  66% { color: var(--neon-cyan); text-shadow: var(--glow-cyan); }
 }
 
 /* =========================================================
@@ -617,6 +942,7 @@ img { max-width: 100%; display: block; }
 .deck-manager {
   background: var(--color-surface);
   border: var(--border-hairline);
+  border-left: 3px solid var(--color-accent-dim);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-4);
@@ -676,9 +1002,12 @@ img { max-width: 100%; display: block; }
   gap: var(--space-3);
   background: var(--color-surface);
   border: var(--border-hairline);
+  border-left: 3px solid var(--color-accent-dim);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+  transition: border-left-color var(--duration-fast), transform var(--duration-fast), box-shadow var(--duration-fast);
 }
+.card-row:hover { border-left-color: var(--color-accent); transform: translateX(2px); box-shadow: -2px 0 0 rgba(0, 0, 0, 0.2); }
 .card-row__thumb {
   width: 3rem; height: 3rem;
   border-radius: var(--radius-sm);
@@ -694,18 +1023,25 @@ img { max-width: 100%; display: block; }
 .card-row__prompt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-row__meta { display: flex; flex-wrap: wrap; gap: var(--space-2); font-size: var(--fs-xs); color: var(--color-text-muted); margin-top: 0.15rem; }
 .card-row__tag { white-space: nowrap; }
+/* Small glossy chip-pips instead of flat outlined pills — a highlight band
+   across the top third, same trick as the .btn shine layer, so a 1-line
+   badge still reads as "made of the same glossy material" as everything
+   else in the redesign. */
 .difficulty-badge {
-  border: 1px solid var(--color-hairline);
+  border: 1px solid rgba(0, 0, 0, 0.3);
   border-radius: var(--radius-pill);
-  padding: 0 var(--space-2);
+  padding: 0.05rem var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
   flex-shrink: 0;
+  font-weight: var(--fw-bold);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.05) 40%, transparent 70%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
-.difficulty-badge--1 { color: var(--color-correct); border-color: var(--color-correct); }
-.difficulty-badge--2 { color: var(--color-accent); border-color: var(--color-accent-dim); }
-.difficulty-badge--3 { color: var(--color-risk); border-color: var(--color-risk); }
+.difficulty-badge--1 { color: var(--color-correct-bg); background-color: var(--color-correct); }
+.difficulty-badge--2 { color: var(--color-safe-text); background-color: var(--color-accent); }
+.difficulty-badge--3 { color: var(--color-risk-text); background-color: var(--color-risk); }
 .card-row__warning { color: var(--color-risk); font-size: var(--fs-xs); }
 .card-row__actions { display: flex; gap: var(--space-1); flex-shrink: 0; }
 .card-row__actions .btn { padding: var(--space-1) var(--space-2); font-size: var(--fs-sm); }
@@ -719,7 +1055,7 @@ img { max-width: 100%; display: block; }
 .modal__panel {
   position: relative;
   background: var(--color-felt);
-  border: var(--border-hairline);
+  border: 2px solid var(--color-accent-dim);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   width: 100%;
@@ -729,8 +1065,9 @@ img { max-width: 100%; display: block; }
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 12px 32px rgba(0, 0, 0, 0.55), var(--glow-gold);
 }
-.modal__title { font-size: var(--fs-lg); }
+.modal__title { font-family: var(--font-poster); font-size: var(--fs-lg); letter-spacing: 0.02em; color: var(--color-accent-strong); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
 .form-row { display: flex; gap: var(--space-3); }
 .form-row label, .field-block { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--fs-sm); color: var(--color-text-muted); flex: 1; }
 .distractor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
@@ -786,9 +1123,12 @@ img { max-width: 100%; display: block; }
   gap: var(--space-3);
   background: var(--color-surface);
   border: var(--border-hairline);
+  border-left: 3px solid var(--color-accent-dim);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
+  transition: border-left-color var(--duration-fast), transform var(--duration-fast);
 }
+.community-row:hover { border-left-color: var(--color-accent); transform: translateX(2px); }
 .community-row__name { font-weight: var(--fw-medium); margin-bottom: var(--space-1); }
 .community-row__meta {
   display: flex;
@@ -806,7 +1146,7 @@ img { max-width: 100%; display: block; }
 .stats-deck-label { color: var(--color-text-muted); margin-bottom: var(--space-5); }
 .stats-deck-label strong { color: var(--color-accent); }
 .stats-section { margin-bottom: var(--space-6); }
-.stats-heading { font-size: var(--fs-lg); margin-bottom: var(--space-1); }
+.stats-heading { font-family: var(--font-poster); font-size: var(--fs-lg); letter-spacing: 0.02em; color: var(--color-accent-strong); margin-bottom: var(--space-1); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
 .stats-subtext { color: var(--color-text-muted); font-size: var(--fs-sm); margin-bottom: var(--space-3); }
 .table-wrap { overflow-x: auto; border: var(--border-hairline); border-radius: var(--radius-md); }
 .stats-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); white-space: nowrap; }
@@ -821,6 +1161,7 @@ img { max-width: 100%; display: block; }
 .settings-block {
   background: var(--color-surface);
   border: var(--border-hairline);
+  border-left: 3px solid var(--color-accent-dim);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
@@ -852,20 +1193,53 @@ img { max-width: 100%; display: block; }
   bottom: var(--space-4);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--color-surface-raised);
-  border: var(--border-hairline);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(180deg, var(--color-surface-raised) 0%, var(--color-felt) 100%);
+  border: 2px solid var(--color-accent-dim);
+  border-radius: var(--radius-pill);
+  padding: var(--space-3) var(--space-5);
   z-index: 60;
   font-size: var(--fs-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 6px 16px rgba(0, 0, 0, 0.5), var(--glow-gold);
+  animation: toast-pop 0.25s var(--ease-standard) both;
+}
+@keyframes toast-pop {
+  0% { transform: translateX(-50%) translateY(12px) scale(0.9); opacity: 0; }
+  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
 }
 .toast[hidden] { display: none; }
+
+/* =========================================================
+   FX — driven from js/ui-fx.js. The sparkle burst is built as detached
+   DOM (appended to <body>, self-removing) rather than a fixed set of
+   elements, so its styling lives here rather than next to any one screen.
+   ========================================================= */
+.fx-sparkle-wrap {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 70;
+}
+.fx-sparkle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--color-accent-strong);
+  font-size: 1.2rem;
+  text-shadow: var(--glow-gold);
+  animation: fx-sparkle-fly 0.8s ease-out forwards;
+}
+@keyframes fx-sparkle-fly {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.3); }
+  55% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.3); }
+}
 
 /* =========================================================
    RESPONSIVE
    ========================================================= */
 @media (max-width: 480px) {
-  .app-header__logo { height: 1.375rem; }
+  .app-header__logo { height: 2.5rem; }
   .table { padding: var(--space-3); }
   .form-row { flex-direction: column; }
   .distractor-grid { grid-template-columns: 1fr; }

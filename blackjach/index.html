@@ -160,6 +160,7 @@
     <div class="table">
       <div class="bet-header">
         <div class="bet-progress" id="bet-progress" hidden>
+          <span class="bet-progress__difficulty" id="bet-progress-difficulty"></span>
           <span id="bet-progress-text"></span>
           <span>Correct: <span id="bet-correct-count">0</span></span>
         </div>
@@ -182,7 +183,6 @@
           <div class="playing-card__inner">
             <div class="playing-card__face playing-card__face--back"></div>
             <div class="playing-card__face playing-card__face--front">
-              <div class="playing-card__difficulty" id="bet-card-difficulty"></div>
               <div class="playing-card__image" id="bet-card-image" hidden></div>
               <div class="playing-card__prompt" id="bet-card-prompt"></div>
             </div>
@@ -466,6 +466,8 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="js/vendor/gsap.min.js"></script>
+<script src="js/vendor/confetti.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/db.js"></script>
@@ -488,6 +490,7 @@
 <script src="js/ui-community.js"></script>
 <script src="js/ui-stats.js"></script>
 <script src="js/ui-settings.js"></script>
+<script src="js/ui-fx.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

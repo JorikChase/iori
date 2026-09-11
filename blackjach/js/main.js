@@ -51,6 +51,7 @@ async function bootstrap() {
   AHB.uiCommunity.init();
   AHB.uiStats.init();
   AHB.uiSettings.init();
+  AHB.fx.init();
 
   AHB.game.acknowledgeAndReset();
   AHB.betGame.acknowledgeAndReset();

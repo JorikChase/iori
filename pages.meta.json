@@ -322,7 +322,9 @@
       "category": "fractals",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.6
+      "priority": 0.6,
+      "hidden": true,
+      "todo_note": "in development — unhide when the folder is committed and deployed"
     },
     "iris.html": {
       "title": "Procedural Iris",

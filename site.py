@@ -445,7 +445,7 @@ def cmd_robots():
             "Disallow: /api/",
         ]
         for slug in hidden:
-            lines.append(f"Disallow: /{slug}")
+            lines.append(f"Disallow: /{page_path(slug)}")   # folder apps disallow the folder, not index.html
         lines += [
             "",
             f"Sitemap: https://{domain}/sitemap-{suffix}.xml",

@@ -28,7 +28,6 @@ redir /fungal-growth.html https://iori.me/fungal-growth.html permanent
 redir /game-of-life.html https://iori.me/game-of-life.html permanent
 redir /iori.html https://iori.me/iori.html permanent
 redir /iori_INDEX.html https://iori.me/ permanent
-redir /iris-engine/* https://iori.me{uri} permanent
 redir /iris.html https://iori.me/iris.html permanent
 redir /lambda_cognition.html https://iori.me/lambda_cognition.html permanent
 redir /lighter-flame.html https://iori.me/lighter-flame.html permanent

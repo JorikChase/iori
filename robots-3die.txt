@@ -4,5 +4,6 @@ Disallow: /api/
 Disallow: /404.html
 Disallow: /burger.html
 Disallow: /clip.html
+Disallow: /iris-engine/
 
 Sitemap: https://3die.fr/sitemap-3die.xml

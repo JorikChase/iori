@@ -362,7 +362,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/",
       "og_image": null,
-      "lastmod": "2026-08-18"
+      "lastmod": "2026-09-12"
     },
     {
       "slug": "info.html",
@@ -394,17 +394,6 @@
       "type": "site",
       "domain": "iori.me",
       "url": "https://iori.me/",
-      "og_image": null,
-      "lastmod": "2026-09-12"
-    },
-    {
-      "slug": "iris-engine/index.html",
-      "title": "Iris Engine — Photoreal Procedural Iris",
-      "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",
-      "category": "fractals",
-      "type": "experiment",
-      "domain": "iori.me",
-      "url": "https://iori.me/iris-engine/",
       "og_image": null,
       "lastmod": "2026-09-12"
     },

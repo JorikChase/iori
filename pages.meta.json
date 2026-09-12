@@ -622,31 +622,28 @@
       "priority": 0.6
     },
     "voxel-flame.html": {
-      "title": "Voxel Flame — TODO",
-      "description": "TODO: write a unique description for this page.",
-      "category": "TODO",
+      "title": "Voxel Flame — Single-Cell Fire Automaton",
+      "description": "The 2D fire automaton reduced to one voxel-thick slab with a pinned nozzle: constant injection, teardrop confinement, nearest-sampled voxels.",
+      "category": "flames",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5,
-      "todo": true
+      "priority": 0.5
     },
     "voxel-flames-3d.html": {
-      "title": "Voxel Flames 3D — TODO",
-      "description": "TODO: write a unique description for this page.",
-      "category": "TODO",
+      "title": "Voxel Flames 3D — Adaptive Volumetric Fire",
+      "description": "The fire automaton in three dimensions: a tiled 3D texture stepped in one pass, ray-cast with a DDA voxel marcher, and a grid that grows to follow the flame.",
+      "category": "flames",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5,
-      "todo": true
+      "priority": 0.6
     },
     "voxel-flames.html": {
-      "title": "Voxel Flames — TODO",
-      "description": "TODO: write a unique description for this page.",
-      "category": "TODO",
+      "title": "Voxel Flames — Two Crossed Slices",
+      "description": "Two orthogonal slices of the fire automaton, each a voxel grid, orbited in 3D: the flat simulation seen edge-on and face-on at once.",
+      "category": "flames",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5,
-      "todo": true
+      "priority": 0.5
     },
     "voxel-sandbox.html": {
       "title": "WebGPU Interactive Voxel Sandbox",

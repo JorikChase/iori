@@ -6,9 +6,10 @@ required.md
 # Files remain on disk locally; restore anytime from Backup A tarball (see RESTORE.md).
 splats/
 
-# Session logs / sandboxes — not part of the site
+# Session logs / sandboxes / personal notes — not part of the site
 session-*.md
 sandbox.md
+.readme
 
 # Legacy dev leftovers
 clippy_dev_backup_1764260457/Cargo.toml

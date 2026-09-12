@@ -84,6 +84,10 @@ def rel_prefix(slug):
 
 
 def page_url(domain, slug):
+    """Canonical URL. Each domain's landing page is canonical at the root; its
+    filename is only how Caddy finds it (and the server 301s the filename to /)."""
+    if LANDING_PAGES.get(domain) == slug:
+        return f"https://{domain}/"
     return f"https://{domain}/{page_path(slug)}"
 
 
@@ -356,7 +360,10 @@ def cmd_nav():
         lines.append("            <ul>")
         for slug, meta in groups[cat]:
             title = xml_escape(meta.get("title") or slug)
-            lines.append(f'                <li><a href="{page_path(slug)}">{title}</a></li>')
+            # same-domain pages link relatively; the other domain's pages get their
+            # canonical URL directly instead of bouncing through a cross-domain 301
+            href = page_path(slug) if meta["domain"] == "iori.me" else page_url(meta["domain"], slug)
+            lines.append(f'                <li><a href="{href}">{title}</a></li>')
         lines.append("            </ul>")
     lines.append("            " + NAV_END)
     block = "\n".join(lines)

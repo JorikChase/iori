@@ -117,7 +117,10 @@ sync_website_files() {
     #           stay in the local repo), OS junk, session logs.
     # TODO: git history rewrite pending for large binaries (see BACKLOG.md)
     echo "Syncing files from $SOURCE_DIR/ to $WEB_ROOT/..."
-    rsync -a --delete \
+    # --delete-excluded: excluded paths are removed from the webroot too, not
+    # merely skipped — otherwise anything copied before an exclude was added
+    # stays public forever (this is how repo notes leaked until 2026-09-12).
+    rsync -a --delete --delete-excluded \
         --exclude '.git' \
         --exclude 'zausi' \
         --exclude 'splats/' \

@@ -46,3 +46,4 @@ assets/fantasy_plague_doctor_mask/
 # Splat engine working files (converted scenes, captures) — regenerate with tools/splat-rig
 splat-work/
 splats_luma/
+__pycache__/

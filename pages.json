@@ -54,7 +54,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/blackjach/",
       "og_image": null,
-      "lastmod": "2026-09-10"
+      "lastmod": "2026-09-12"
     },
     {
       "slug": "bubbles.html",
@@ -396,6 +396,17 @@
       "url": "https://iori.me/iori_INDEX.html",
       "og_image": null,
       "lastmod": "2026-09-02"
+    },
+    {
+      "slug": "iris-engine/index.html",
+      "title": "Iris Engine — Photoreal Procedural Iris",
+      "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/iris-engine/",
+      "og_image": null,
+      "lastmod": "2026-09-12"
     },
     {
       "slug": "iris.html",
@@ -803,6 +814,39 @@
       "url": "https://3die.fr/univerzum.html",
       "og_image": null,
       "lastmod": "2026-07-27"
+    },
+    {
+      "slug": "voxel-flame.html",
+      "title": "Voxel Flame — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/voxel-flame.html",
+      "og_image": null,
+      "lastmod": "2026-09-12"
+    },
+    {
+      "slug": "voxel-flames-3d.html",
+      "title": "Voxel Flames 3D — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/voxel-flames-3d.html",
+      "og_image": null,
+      "lastmod": "2026-09-12"
+    },
+    {
+      "slug": "voxel-flames.html",
+      "title": "Voxel Flames — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/voxel-flames.html",
+      "og_image": null,
+      "lastmod": "2026-09-12"
     },
     {
       "slug": "voxel-sandbox.html",

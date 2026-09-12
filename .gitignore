@@ -41,3 +41,7 @@ sp33d/
 # tools/build_mask_glb.py regenerates it from this.
 assets/plague_doctor.glb
 assets/fantasy_plague_doctor_mask/
+
+# Splat engine working files (converted scenes, captures) — regenerate with tools/splat-rig
+splat-work/
+splats_luma/

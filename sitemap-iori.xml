@@ -141,6 +141,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://iori.me/iris-engine/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://iori.me/iris.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.5</priority>
@@ -264,6 +269,21 @@
     <loc>https://iori.me/universe.html</loc>
     <lastmod>2026-07-27</lastmod>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/voxel-flame.html</loc>
+    <lastmod>2026-09-12</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/voxel-flames-3d.html</loc>
+    <lastmod>2026-09-12</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/voxel-flames.html</loc>
+    <lastmod>2026-09-12</lastmod>
+    <priority>0.5</priority>
   </url>
   <url>
     <loc>https://iori.me/voxel-sandbox.html</loc>

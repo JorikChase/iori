@@ -316,6 +316,14 @@
       "type": "site",
       "priority": 1.0
     },
+    "iris-engine/index.html": {
+      "title": "Iris Engine — Photoreal Procedural Iris",
+      "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6
+    },
     "iris.html": {
       "title": "Procedural Iris",
       "description": "A procedurally generated iris: infinite eyes grown from shader mathematics.",
@@ -612,6 +620,33 @@
       "domain": "3die.fr",
       "type": "client",
       "priority": 0.6
+    },
+    "voxel-flame.html": {
+      "title": "Voxel Flame — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "todo": true
+    },
+    "voxel-flames-3d.html": {
+      "title": "Voxel Flames 3D — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "todo": true
+    },
+    "voxel-flames.html": {
+      "title": "Voxel Flames — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "todo": true
     },
     "voxel-sandbox.html": {
       "title": "WebGPU Interactive Voxel Sandbox",

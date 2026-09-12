@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="dark light">
 <title>3DIE — DASH</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -26,28 +27,39 @@
     <header class="topbar">
       <div class="brand">3DIE<span class="blink">_</span>DASH</div>
       <nav class="tabs">
-        <button class="tab active" data-tab="board">BOARD</button>
-        <button class="tab" data-tab="inbox">INBOX<span id="inbox-badge" class="badge hidden"></span></button>
-        <button class="tab" data-tab="chat">CHAT<span id="chat-badge" class="badge hidden"></span></button>
-        <button class="tab" data-tab="blog">BLOG</button>
-        <button class="tab" data-tab="canvas">CANVAS</button>
+        <button class="tab active" data-tab="board" data-i18n="tab.board">BOARD</button>
+        <button class="tab" data-tab="inbox"><span data-i18n="tab.inbox">INBOX</span><span id="inbox-badge" class="badge hidden"></span></button>
+        <button class="tab" data-tab="chat"><span data-i18n="tab.chat">CHAT</span><span id="chat-badge" class="badge hidden"></span></button>
+        <button class="tab" data-tab="blog" data-i18n="tab.blog">BLOG</button>
+        <button class="tab" data-tab="canvas" data-i18n="tab.canvas">CANVAS</button>
       </nav>
       <div class="userbox">
-        <button id="profile-btn" class="ghost-btn" title="profile">⚙</button>
-        <span id="whoami"></span>
-        <button id="logout-btn" class="ghost-btn">OUT</button>
+        <button id="profile-btn" class="ghost-btn userchip" title="preferences">
+          <span id="me-avatar" class="avatar"></span><span id="whoami"></span>
+        </button>
+        <button id="logout-btn" class="ghost-btn" data-i18n="out">OUT</button>
       </div>
     </header>
 
     <!-- BOARD -->
     <div id="tab-board" class="tabpanel">
       <div class="board-toolbar">
-        <button id="add-task-btn" class="ghost-btn">+ TASK</button>
-        <button id="add-lane-btn" class="ghost-btn">+ LANE</button>
-        <button id="add-phase-btn" class="ghost-btn">+ PHASE</button>
+        <div class="tool-row">
+          <button id="add-task-btn" class="ghost-btn primary" title="n"><span data-i18n="task.new">+ TASK</span></button>
+          <button id="add-lane-btn" class="ghost-btn" data-i18n="lane.new">+ LANE</button>
+          <button id="add-phase-btn" class="ghost-btn" data-i18n="phase.new">+ PHASE</button>
+          <span class="tool-gap"></span>
+          <label class="search"><span>/</span><input id="board-search" type="search" data-i18n-ph="search.ph" placeholder="search tasks" autocomplete="off"></label>
+          <button id="archive-done-btn" class="ghost-btn" data-i18n="archive.done">ARCHIVE DONE</button>
+          <button id="export-btn" class="ghost-btn" data-i18n="export">EXPORT .MD</button>
+        </div>
+        <div id="filter-row" class="chip-row"></div>
       </div>
+      <div id="phase-tabs" class="phase-tabs hidden"></div>
       <div id="board-scroll">
         <table id="board-table"></table>
+        <div id="board-mobile" class="hidden"></div>
+        <div id="board-empty" class="empty hidden" data-i18n="board.empty">nothing matches these filters.</div>
       </div>
     </div>
 
@@ -60,71 +72,154 @@
     <div id="tab-chat" class="tabpanel hidden">
       <div id="chat-list" class="listcol chatcol"></div>
       <form id="chat-form" class="chat-form">
-        <input id="chat-input" type="text" placeholder="message the crew…" autocomplete="off">
-        <button type="submit">SEND</button>
+        <input id="chat-input" type="text" data-i18n-ph="chat.ph" placeholder="message the crew…" autocomplete="off">
+        <button type="submit" data-i18n="send">SEND</button>
       </form>
     </div>
 
     <!-- CANVAS (freeform layout editor) -->
     <div id="tab-canvas" class="tabpanel hidden">
       <div class="board-toolbar">
-        <span class="canvas-hint">drag to place &bull; corner to resize &bull; layout saves automatically</span>
+        <span class="canvas-hint" data-i18n="canvas.hint">drag to place &bull; corner to resize &bull; layout saves automatically</span>
       </div>
       <div id="canvas-scroll">
         <div id="canvas-area"></div>
       </div>
     </div>
 
-    <!-- PROFILE -->
+    <!-- PROFILE / PREFERENCES -->
     <div id="tab-profile" class="tabpanel hidden">
-      <form id="pw-form" class="post-card">
-        <div class="post-title">CHANGE PASSWORD</div>
-        <input id="pw-old" type="password" placeholder="current password" required>
-        <input id="pw-new" type="password" placeholder="new password (min 8 chars)" required minlength="8">
-        <input id="pw-new2" type="password" placeholder="repeat new password" required>
-        <button type="submit">CHANGE</button>
-        <div id="pw-status" class="error-line"></div>
-      </form>
+      <div class="prefs-grid">
+        <form id="prefs-form" class="post-card">
+          <div class="post-title" data-i18n="prefs.title">PREFERENCES</div>
+          <div class="prefs-identity">
+            <label class="avatar-pick" title="avatar">
+              <span id="prefs-avatar" class="avatar big"></span>
+              <input id="prefs-avatar-file" type="file" accept="image/*" hidden>
+              <span class="avatar-hint" data-i18n="prefs.avatar">change avatar</span>
+            </label>
+            <div class="prefs-identity-fields">
+              <label><span data-i18n="prefs.display">display name</span><input id="pref-display" type="text" maxlength="80" data-i18n-ph="prefs.display.ph" placeholder="shown instead of the username"></label>
+              <label><span data-i18n="prefs.color">your colour</span><div id="pref-color" class="swatches"></div></label>
+            </div>
+          </div>
+          <div class="modal-grid">
+            <label><span data-i18n="prefs.lane">default lane for new tasks</span><select id="pref-lane"></select></label>
+            <label><span data-i18n="prefs.view">board opens as</span><select id="pref-view">
+              <option value="board" data-i18n="prefs.view.board">everything</option>
+              <option value="mine" data-i18n="prefs.view.mine">my tasks only</option></select></label>
+            <label><span data-i18n="prefs.density">density</span><select id="pref-density">
+              <option value="comfortable" data-i18n="prefs.density.c">comfortable</option>
+              <option value="compact" data-i18n="prefs.density.k">compact</option></select></label>
+            <label><span data-i18n="prefs.theme">theme</span><select id="pref-theme">
+              <option value="dark" data-i18n="prefs.theme.dark">dark</option>
+              <option value="light" data-i18n="prefs.theme.light">light</option>
+              <option value="system" data-i18n="prefs.theme.system">follow system</option></select></label>
+            <label><span data-i18n="prefs.poll">check for new messages</span><select id="pref-poll">
+              <option value="0" data-i18n="prefs.poll.off">never (manual refresh)</option>
+              <option value="25" data-i18n="prefs.poll.25">every 25 seconds</option>
+              <option value="60" data-i18n="prefs.poll.60">every minute</option>
+              <option value="300" data-i18n="prefs.poll.300">every 5 minutes</option></select></label>
+            <label><span data-i18n="prefs.lang">language</span><select id="pref-lang">
+              <option value="en">english</option>
+              <option value="cs">česky</option></select></label>
+          </div>
+          <div class="modal-actions">
+            <button type="submit" data-i18n="save">SAVE</button>
+            <span id="prefs-status" class="status-line"></span>
+          </div>
+        </form>
+
+        <form id="pw-form" class="post-card">
+          <div class="post-title" data-i18n="pw.title">CHANGE PASSWORD</div>
+          <input id="pw-old" type="password" data-i18n-ph="pw.old" placeholder="current password" required>
+          <input id="pw-new" type="password" data-i18n-ph="pw.new" placeholder="new password (min 8 chars)" required minlength="8">
+          <input id="pw-new2" type="password" data-i18n-ph="pw.new2" placeholder="repeat new password" required>
+          <button type="submit" data-i18n="pw.change">CHANGE</button>
+          <div id="pw-status" class="error-line"></div>
+        </form>
+      </div>
     </div>
 
     <!-- BLOG -->
     <div id="tab-blog" class="tabpanel hidden">
       <form id="post-form" class="post-card">
-        <div class="post-title">NEW POST</div>
-        <input id="post-caption" type="text" placeholder="caption / text">
+        <div class="post-title" data-i18n="post.new">NEW POST</div>
+        <input id="post-caption" type="text" data-i18n-ph="post.caption" placeholder="caption / text">
         <label class="file-drop" id="file-drop">
           <input id="post-files" type="file" accept="image/*,video/*" multiple hidden>
-          <span id="file-drop-label">drop images here or click to choose</span>
+          <span id="file-drop-label" data-i18n="post.drop">drop images here or click to choose</span>
         </label>
         <div id="post-preview" class="preview-row"></div>
-        <button type="submit" id="post-submit">PUBLISH</button>
+        <button type="submit" id="post-submit" data-i18n="publish">PUBLISH</button>
         <div id="post-status" class="error-line"></div>
       </form>
       <div id="feed-list" class="listcol"></div>
     </div>
   </section>
 
-  <!-- TASK MODAL -->
-  <div id="task-modal" class="modal-backdrop hidden">
-    <div class="modal-card">
-      <input id="task-title" type="text" placeholder="title">
-      <textarea id="task-body" placeholder="notes / description" rows="4"></textarea>
-      <div class="modal-grid">
-        <label>lane<input id="task-lane" list="lane-list"></label>
-        <label>phase<input id="task-phase" list="phase-list"></label>
-        <label>assignee<input id="task-assignee" placeholder=""></label>
-        <label>due<input id="task-due" type="date"></label>
-      </div>
-      <datalist id="lane-list"></datalist>
-      <datalist id="phase-list"></datalist>
-      <label class="pin-row"><input id="task-pinned" type="checkbox"> pinned</label>
-      <div class="modal-actions">
-        <button id="task-save">SAVE</button>
-        <button id="task-delete" class="danger">DELETE</button>
-        <button id="task-cancel" class="ghost-btn">CANCEL</button>
-      </div>
+  <!-- TASK PANEL (side sheet; the board stays visible behind it) -->
+  <div id="task-backdrop" class="panel-backdrop hidden"></div>
+  <aside id="task-panel" class="task-panel hidden" aria-label="task">
+    <div class="panel-head">
+      <span id="panel-kicker" class="panel-kicker"></span>
+      <span class="tool-gap"></span>
+      <button id="task-close" class="ghost-btn icon" title="esc">×</button>
     </div>
-  </div>
+    <div class="panel-body">
+      <input id="task-title" class="title-input" type="text" data-i18n-ph="task.title.ph" placeholder="title" maxlength="200">
+      <textarea id="task-body" data-i18n-ph="task.body.ph" placeholder="notes / description" rows="5"></textarea>
+
+      <div class="field-row">
+        <label><span data-i18n="f.lane">lane</span><select id="task-lane"></select></label>
+        <label><span data-i18n="f.phase">phase</span><select id="task-phase"></select></label>
+        <label><span data-i18n="f.assignee">assignee</span><select id="task-assignee"></select></label>
+        <label><span data-i18n="f.priority">priority</span><select id="task-priority">
+          <option value="none" data-i18n="p.none">none</option>
+          <option value="low" data-i18n="p.low">· low</option>
+          <option value="medium" data-i18n="p.medium">! medium</option>
+          <option value="high" data-i18n="p.high">!! high</option>
+          <option value="urgent" data-i18n="p.urgent">!!! urgent</option></select></label>
+        <label><span data-i18n="f.due">due</span><input id="task-due" type="date"></label>
+        <label><span data-i18n="f.estimate">estimate</span><input id="task-estimate" type="text" placeholder="2h · 3d" maxlength="20"></label>
+      </div>
+
+      <div class="field">
+        <span class="field-label" data-i18n="f.color">colour</span>
+        <div id="task-color" class="swatches"></div>
+      </div>
+
+      <div class="field">
+        <span class="field-label" data-i18n="f.labels">labels</span>
+        <div id="task-labels" class="chip-editor">
+          <input id="task-label-input" type="text" data-i18n-ph="f.labels.ph" placeholder="type, press enter" maxlength="40" autocomplete="off" list="label-list">
+        </div>
+        <datalist id="label-list"></datalist>
+      </div>
+
+      <div class="field">
+        <span class="field-label"><span data-i18n="f.checklist">checklist</span> <span id="checklist-progress" class="dim"></span></span>
+        <ul id="task-checklist" class="checklist"></ul>
+        <input id="task-check-input" type="text" data-i18n-ph="f.checklist.ph" placeholder="add an item, press enter" maxlength="300" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <span class="field-label" data-i18n="f.links">links</span>
+        <ul id="task-links" class="links"></ul>
+        <input id="task-link-input" type="text" data-i18n-ph="f.links.ph" placeholder="https://… or page.html, press enter" maxlength="500" autocomplete="off">
+      </div>
+
+      <label class="pin-row"><input id="task-pinned" type="checkbox"> <span data-i18n="f.pinned">pinned</span></label>
+      <div id="task-meta" class="task-meta"></div>
+    </div>
+    <div class="panel-foot">
+      <button id="task-save" data-i18n="save" title="⌘↵">SAVE</button>
+      <button id="task-archive" class="ghost-btn" data-i18n="archive">ARCHIVE</button>
+      <button id="task-delete" class="danger" data-i18n="delete">DELETE</button>
+      <span class="tool-gap"></span>
+      <span id="task-status" class="status-line"></span>
+    </div>
+  </aside>
 
 </div>
 <script src="app.js"></script>

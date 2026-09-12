@@ -87,6 +87,19 @@ CREATE TABLE IF NOT EXISTS tasks (
     due TEXT NOT NULL DEFAULT '',
     created_by TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '',
+    priority TEXT NOT NULL DEFAULT 'none',
+    labels TEXT NOT NULL DEFAULT '[]',
+    checklist TEXT NOT NULL DEFAULT '[]',
+    links TEXT NOT NULL DEFAULT '[]',
+    estimate TEXT NOT NULL DEFAULT '',
+    archived INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS user_prefs (
+    username TEXT PRIMARY KEY,
+    prefs TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -113,6 +126,31 @@ CREATE INDEX IF NOT EXISTS idx_messages_kind ON messages(kind, read);
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
 """
 
+# columns added to `tasks` after the first release — applied to existing databases in init_db()
+TASK_MIGRATIONS = [
+    ("updated_by", "TEXT NOT NULL DEFAULT ''"),
+    ("color", "TEXT NOT NULL DEFAULT ''"),
+    ("priority", "TEXT NOT NULL DEFAULT 'none'"),
+    ("labels", "TEXT NOT NULL DEFAULT '[]'"),
+    ("checklist", "TEXT NOT NULL DEFAULT '[]'"),
+    ("links", "TEXT NOT NULL DEFAULT '[]'"),
+    ("estimate", "TEXT NOT NULL DEFAULT ''"),
+    ("archived", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+TASK_COLORS = {"", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "pink"}
+TASK_PRIORITIES = ["none", "low", "medium", "high", "urgent"]
+TASK_JSON_FIELDS = ("labels", "checklist", "links")
+
+PREF_DEFAULTS = {
+    "display_name": "", "color": "", "avatar": "",
+    "default_lane": "", "default_view": "board",       # board | mine
+    "density": "comfortable",                          # comfortable | compact
+    "theme": "dark",                                   # dark | light | system
+    "poll": 25,                                        # seconds; 0 = off
+    "lang": "en",                                      # en | cs
+}
+
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -138,6 +176,10 @@ def init_db():
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(posts)").fetchall()]
         if "layout" not in cols:
             conn.execute("ALTER TABLE posts ADD COLUMN layout TEXT")
+        tcols = [r["name"] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()]
+        for col, decl in TASK_MIGRATIONS:
+            if col not in tcols:
+                conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {decl}")
         if conn.execute("SELECT COUNT(*) c FROM lanes").fetchone()["c"] == 0:
             conn.executemany("INSERT INTO lanes(name, position) VALUES (?, ?)", DEFAULT_LANES)
         if conn.execute("SELECT COUNT(*) c FROM phases").fetchone()["c"] == 0:
@@ -274,20 +316,124 @@ def change_password(body: PasswordBody, request: Request, user=Depends(require_u
     return {"ok": True}
 
 
+# ---- users + preferences
+
+def load_prefs(conn, username):
+    row = conn.execute("SELECT prefs FROM user_prefs WHERE username = ?", (username,)).fetchone()
+    prefs = dict(PREF_DEFAULTS)
+    if row:
+        try:
+            prefs.update({k: v for k, v in json.loads(row["prefs"]).items() if k in PREF_DEFAULTS})
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return prefs
+
+
+def public_users(conn):
+    """Everyone on the dashboard, with the parts of their prefs other people see."""
+    out = []
+    for r in conn.execute("SELECT username, role FROM users ORDER BY id").fetchall():
+        p = load_prefs(conn, r["username"])
+        out.append({"username": r["username"], "role": r["role"],
+                    "display_name": p["display_name"], "color": p["color"], "avatar": p["avatar"]})
+    return out
+
+
+@app.get("/users")
+def list_users(user=Depends(require_user)):
+    with db() as conn:
+        return {"users": public_users(conn)}
+
+
+@app.get("/prefs")
+def get_prefs(user=Depends(require_user)):
+    with db() as conn:
+        return load_prefs(conn, user["username"])
+
+
+def clean_prefs(body: dict):
+    p = {}
+    for k in PREF_DEFAULTS:
+        if k not in body:
+            continue
+        v = body[k]
+        if k == "poll":
+            try:
+                v = max(0, min(3600, int(v)))
+            except (TypeError, ValueError):
+                raise HTTPException(400, "poll must be seconds")
+        elif k == "default_view" and v not in ("board", "mine"):
+            raise HTTPException(400, "default_view must be board or mine")
+        elif k == "density" and v not in ("comfortable", "compact"):
+            raise HTTPException(400, "density must be comfortable or compact")
+        elif k == "theme" and v not in ("dark", "light", "system"):
+            raise HTTPException(400, "theme must be dark, light or system")
+        elif k == "lang" and v not in ("en", "cs"):
+            raise HTTPException(400, "lang must be en or cs")
+        elif k == "color" and v not in TASK_COLORS:
+            raise HTTPException(400, "unknown colour")
+        elif k in ("display_name", "default_lane", "avatar"):
+            v = str(v or "")[:80]
+        p[k] = v
+    return p
+
+
+@app.put("/prefs")
+def put_prefs(body: dict, user=Depends(require_user)):
+    incoming = clean_prefs(body)
+    with db() as conn:
+        prefs = load_prefs(conn, user["username"])
+        prefs.update(incoming)
+        conn.execute(
+            "INSERT INTO user_prefs(username, prefs, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(username) DO UPDATE SET prefs = excluded.prefs, updated_at = excluded.updated_at",
+            (user["username"], json.dumps(prefs), now()),
+        )
+        return prefs
+
+
+@app.post("/prefs/avatar")
+async def put_avatar(file: UploadFile = File(...), user=Depends(require_user)):
+    ctype = (file.content_type or "").lower()
+    if not ctype.startswith("image/"):
+        raise HTTPException(400, "avatar must be an image")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "avatar too large (>5MB)")
+    ext = Path(file.filename or "").suffix.lower()[:10] or ".png"
+    name = f"avatar-{user['username']}-{uuid.uuid4().hex[:8]}{ext}"
+    (MEDIA_DIR / name).write_bytes(data)
+    url = f"{MEDIA_BASEURL}/{name}"
+    return put_prefs({"avatar": url}, user)
+
+
 # ---- kanban
 
-def full_board(conn):
+def task_dict(row):
+    d = dict(row)
+    for k in TASK_JSON_FIELDS:
+        try:
+            d[k] = json.loads(d.get(k) or "[]")
+        except (json.JSONDecodeError, TypeError):
+            d[k] = []
+    d["pinned"] = bool(d.get("pinned"))
+    d["archived"] = bool(d.get("archived"))
+    return d
+
+
+def full_board(conn, archived=False):
     lanes = [dict(r) for r in conn.execute("SELECT * FROM lanes ORDER BY pinned DESC, position").fetchall()]
     phases = [dict(r) for r in conn.execute("SELECT * FROM phases ORDER BY position").fetchall()]
-    tasks = [dict(r) for r in conn.execute(
-        "SELECT * FROM tasks ORDER BY pinned DESC, position, id").fetchall()]
-    return {"lanes": lanes, "phases": phases, "tasks": tasks}
+    where = "" if archived else "WHERE archived = 0"
+    tasks = [task_dict(r) for r in conn.execute(
+        f"SELECT * FROM tasks {where} ORDER BY pinned DESC, position, id").fetchall()]
+    return {"lanes": lanes, "phases": phases, "tasks": tasks, "users": public_users(conn)}
 
 
 @app.get("/board")
-def get_board(user=Depends(require_user)):
+def get_board(archived: bool = False, user=Depends(require_user)):
     with db() as conn:
-        return full_board(conn)
+        return full_board(conn, archived)
 
 
 class TaskBody(BaseModel):
@@ -298,6 +444,12 @@ class TaskBody(BaseModel):
     assignee: str = ""
     due: str = ""
     pinned: bool = False
+    color: str = ""
+    priority: str = "none"
+    labels: list = []
+    checklist: list = []
+    links: list = []
+    estimate: str = ""
 
 
 def task_row(conn, task_id):
@@ -307,39 +459,104 @@ def task_row(conn, task_id):
     return row
 
 
+def clean_task_fields(fields: dict):
+    """Validate + serialise the enriched fields. Mutates and returns `fields`."""
+    if "pinned" in fields:
+        fields["pinned"] = int(bool(fields["pinned"]))
+    if "archived" in fields:
+        fields["archived"] = int(bool(fields["archived"]))
+    if "title" in fields and not str(fields["title"]).strip():
+        raise HTTPException(400, "title cannot be empty")
+    if "color" in fields and fields["color"] not in TASK_COLORS:
+        raise HTTPException(400, "unknown colour")
+    if "priority" in fields and fields["priority"] not in TASK_PRIORITIES:
+        raise HTTPException(400, "priority must be one of " + ", ".join(TASK_PRIORITIES))
+    if "labels" in fields:
+        if not isinstance(fields["labels"], list):
+            raise HTTPException(400, "labels must be a list")
+        seen, labels = set(), []
+        for x in fields["labels"]:
+            s = str(x).strip().lower()[:40]
+            if s and s not in seen:
+                seen.add(s); labels.append(s)
+        fields["labels"] = json.dumps(labels[:20])
+    if "checklist" in fields:
+        if not isinstance(fields["checklist"], list):
+            raise HTTPException(400, "checklist must be a list")
+        items = []
+        for x in fields["checklist"]:
+            if isinstance(x, dict) and str(x.get("text", "")).strip():
+                items.append({"text": str(x["text"]).strip()[:300], "done": bool(x.get("done"))})
+        fields["checklist"] = json.dumps(items[:100])
+    if "links" in fields:
+        if not isinstance(fields["links"], list):
+            raise HTTPException(400, "links must be a list")
+        links = []
+        for x in fields["links"]:
+            s = str(x).strip()[:500]
+            if s and re.match(r"^(https?://|/|\.\./|[a-z0-9_./-]+\.html)", s, re.I):
+                links.append(s)
+        fields["links"] = json.dumps(links[:30])
+    if "estimate" in fields:
+        fields["estimate"] = str(fields["estimate"] or "").strip()[:20]
+    if "due" in fields:
+        fields["due"] = str(fields["due"] or "").strip()[:10]
+    if "assignee" in fields:
+        fields["assignee"] = str(fields["assignee"] or "").strip().lower()[:40]
+    return fields
+
+
 @app.post("/tasks")
 def create_task(body: TaskBody, user=Depends(require_user)):
     title = body.title.strip()
     if not title:
         raise HTTPException(400, "title required")
+    f = clean_task_fields(body.dict())
     with db() as conn:
         pos = (conn.execute("SELECT COALESCE(MAX(position), 0) + 1 p FROM tasks WHERE lane = ? AND phase = ?",
                             (body.lane, body.phase)).fetchone())["p"]
         cur = conn.execute(
-            """INSERT INTO tasks(title, body, lane, phase, position, pinned, assignee, due, created_by, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (title, body.body, body.lane, body.phase, pos, int(body.pinned),
-             body.assignee, body.due, user["username"], now(), now()),
+            """INSERT INTO tasks(title, body, lane, phase, position, pinned, assignee, due,
+                                 color, priority, labels, checklist, links, estimate,
+                                 created_by, created_at, updated_at, updated_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title, body.body, body.lane, body.phase, pos, f["pinned"], f["assignee"], f["due"],
+             f["color"], f["priority"], f["labels"], f["checklist"], f["links"], f["estimate"],
+             user["username"], now(), now(), user["username"]),
         )
-        return dict(task_row(conn, cur.lastrowid))
+        return task_dict(task_row(conn, cur.lastrowid))
 
 
 @app.patch("/tasks/{task_id}")
 def update_task(task_id: int, body: dict, user=Depends(require_user)):
-    allowed = {"title", "body", "lane", "phase", "position", "pinned", "assignee", "due"}
+    allowed = {"title", "body", "lane", "phase", "position", "pinned", "assignee", "due",
+               "color", "priority", "labels", "checklist", "links", "estimate", "archived"}
     fields = {k: v for k, v in body.items() if k in allowed}
     if not fields:
         raise HTTPException(400, "nothing to update")
-    if "pinned" in fields:
-        fields["pinned"] = int(bool(fields["pinned"]))
-    if "title" in fields and not str(fields["title"]).strip():
-        raise HTTPException(400, "title cannot be empty")
+    clean_task_fields(fields)
     fields["updated_at"] = now()
+    fields["updated_by"] = user["username"]
     with db() as conn:
         task_row(conn, task_id)
         sets = ", ".join(f"{k} = ?" for k in fields)
         conn.execute(f"UPDATE tasks SET {sets} WHERE id = ?", (*fields.values(), task_id))
-        return dict(task_row(conn, task_id))
+        return task_dict(task_row(conn, task_id))
+
+
+class ArchiveBody(BaseModel):
+    phase: str
+
+
+@app.post("/tasks/archive")
+def archive_phase(body: ArchiveBody, user=Depends(require_user)):
+    """Archive every visible task in a phase (typically 'done'). Archived tasks
+    stay in the database and come back with GET /board?archived=1."""
+    with db() as conn:
+        cur = conn.execute(
+            "UPDATE tasks SET archived = 1, updated_at = ?, updated_by = ? WHERE phase = ? AND archived = 0",
+            (now(), user["username"], body.phase))
+        return {"ok": True, "archived": cur.rowcount}
 
 
 @app.delete("/tasks/{task_id}")
@@ -367,16 +584,30 @@ def create_lane(body: LaneBody, user=Depends(require_user)):
 
 @app.patch("/lanes/{name}")
 def update_lane(name: str, body: dict, user=Depends(require_user)):
-    allowed = {"position", "pinned"}
+    allowed = {"position", "pinned", "name"}
     fields = {k: v for k, v in body.items() if k in allowed}
     if "pinned" in fields:
         fields["pinned"] = int(bool(fields["pinned"]))
     if not fields:
         raise HTTPException(400, "nothing to update")
     with db() as conn:
-        sets = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE lanes SET {sets} WHERE name = ?", (*fields.values(), name))
-    return {"ok": True}
+        if not conn.execute("SELECT 1 FROM lanes WHERE name = ?", (name,)).fetchone():
+            raise HTTPException(404, "lane not found")
+        new_name = name
+        if "name" in fields:
+            new_name = str(fields.pop("name")).strip().lower()
+            if not new_name or not re.match(r"^[a-z0-9 _-]+$", new_name):
+                raise HTTPException(400, "invalid lane name")
+            if new_name != name:
+                if conn.execute("SELECT 1 FROM lanes WHERE name = ?", (new_name,)).fetchone():
+                    raise HTTPException(400, "a lane with that name already exists")
+                # rename in place: the lane row and every task that points at it
+                conn.execute("UPDATE lanes SET name = ? WHERE name = ?", (new_name, name))
+                conn.execute("UPDATE tasks SET lane = ? WHERE lane = ?", (new_name, name))
+        if fields:
+            sets = ", ".join(f"{k} = ?" for k in fields)
+            conn.execute(f"UPDATE lanes SET {sets} WHERE name = ?", (*fields.values(), new_name))
+    return {"ok": True, "name": new_name}
 
 
 @app.delete("/lanes/{name}")

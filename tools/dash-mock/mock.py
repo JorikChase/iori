@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Same-origin mock of api.3die.fr + static dash/ so the dashboard can be
-rendered with representative data and no real login.
+rendered with representative data and no real login. Every task title is
+prefixed "sample ·" so the mock is never mistaken for the live board.
 
     python3 tools/dash-mock/mock.py dash 8766
     then in the browser console once: localStorage.setItem('dash_api', 'http://localhost:8766')
@@ -20,7 +21,7 @@ prefs = {"display_name": "", "color": "yellow", "avatar": "", "default_lane": "i
          "density": "comfortable", "theme": "dark", "poll": 25, "lang": "en"}
 T = "2026-09-02T10:00:00Z"
 def task(i, title, lane, phase, **kw):
-    d = {"id": i, "title": title, "body": "", "lane": lane, "phase": phase, "position": i, "pinned": False,
+    d = {"id": i, "title": "sample · " + title, "body": "", "lane": lane, "phase": phase, "position": i, "pinned": False,
          "assignee": "", "due": "", "created_by": "iori", "created_at": T, "updated_at": T, "updated_by": "",
          "color": "", "priority": "none", "labels": [], "checklist": [], "links": [], "estimate": "", "archived": False}
     d.update(kw); return d

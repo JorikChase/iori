@@ -680,8 +680,15 @@ $("#add-phase-btn").addEventListener("click", async () => {
   loadBoard();
 });
 
+/* the "done" phase is the one literally named done; only if there is none does
+   the last column count (boards can carry extra phases after it, e.g. "music") */
+function donePhase() {
+  const { phases } = state.board;
+  return (phases.find((p) => p.name === "done") || phases[phases.length - 1] || {}).name;
+}
+
 $("#archive-done-btn").addEventListener("click", async () => {
-  const phase = state.board.phases[state.board.phases.length - 1]?.name;
+  const phase = donePhase();
   if (!phase) return;
   const n = state.board.tasks.filter((tk) => tk.phase === phase && !tk.archived).length;
   if (!n) { alert(t("nothing", "nothing to archive")); return; }
@@ -713,7 +720,7 @@ function boardMarkdown() {
         if (tk.due) bits.push("due " + tk.due);
         if (tk.estimate) bits.push(tk.estimate);
         if ((tk.labels || []).length) bits.push(tk.labels.map((l) => "#" + l).join(" "));
-        const done = ph.name === phases[phases.length - 1]?.name;
+        const done = ph.name === donePhase() || ph.name.endsWith(" done");
         lines.push(`- [${done ? "x" : " "}] ${tk.pinned ? "◉ " : ""}${tk.title}${bits.length ? " — " + bits.join(", ") : ""}`);
         if (tk.body) tk.body.split("\n").forEach((l) => lines.push("  " + l));
         (tk.checklist || []).forEach((c) => lines.push(`  - [${c.done ? "x" : " "}] ${c.text}`));

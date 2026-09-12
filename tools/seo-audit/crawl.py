@@ -24,14 +24,19 @@ OUT = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else os.path.
 
 
 def fetch(url, timeout=30):
-    req = Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*"})
+    # ask for gzip like a browser does, otherwise "no compression" is our own fault
+    req = Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*", "Accept-Encoding": "gzip"})
     t0 = time.time()
     try:
         with urlopen(req, timeout=timeout, context=CTX) as r:
             ttfb = time.time() - t0
             body = r.read()
+            wire = len(body)
+            if (r.headers.get("Content-Encoding") or "").lower() == "gzip":
+                import gzip
+                body = gzip.decompress(body)
             return {"status": r.status, "final_url": r.geturl(), "ttfb": round(ttfb, 3),
-                    "bytes": len(body), "headers": dict(r.headers), "body": body.decode("utf-8", "replace")}
+                    "bytes": len(body), "wire_bytes": wire, "headers": dict(r.headers), "body": body.decode("utf-8", "replace")}
     except Exception as e:  # HTTPError has .code
         code = getattr(e, "code", None)
         return {"status": code or 0, "final_url": getattr(e, "url", url), "ttfb": round(time.time() - t0, 3),
@@ -84,7 +89,7 @@ def meta(p, **kw):
 def audit(url):
     r = fetch(url)
     row = {"url": url, "status": r["status"], "final_url": r["final_url"], "ttfb_s": r["ttfb"],
-           "bytes": r["bytes"], "cache_control": r["headers"].get("Cache-Control"),
+           "bytes": r["bytes"], "wire_bytes": r.get("wire_bytes"), "cache_control": r["headers"].get("Cache-Control"),
            "content_encoding": r["headers"].get("Content-Encoding"), "issues": []}
     if r.get("error"): row["error"] = r["error"]
     if r["status"] != 200:
@@ -160,7 +165,7 @@ def main():
     for sm in SITEMAPS:
         urls = sitemap_urls(sm)
         print(f"{sm}: {len(urls)} urls", file=sys.stderr)
-        with cf.ThreadPoolExecutor(8) as ex:
+        with cf.ThreadPoolExecutor(4) as ex:
             rows = list(ex.map(audit, [u for u, _ in urls]))
         for (u, lm), row in zip(urls, rows):
             row["sitemap"] = sm; row["lastmod"] = lm

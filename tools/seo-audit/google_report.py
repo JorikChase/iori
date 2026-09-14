@@ -54,7 +54,61 @@ API_HINTS = {
 
 # ---------------------------------------------------------------- transport
 
+SA_KEY = os.environ.get("IORI_SEO_SA_KEY", os.path.expanduser("~/.config/iori-seo/sa-key.json"))
+SCOPES = ("https://www.googleapis.com/auth/analytics.readonly "
+          "https://www.googleapis.com/auth/webmasters.readonly")
+
+
+def _b64(raw):
+    import base64
+    return base64.urlsafe_b64encode(raw).rstrip(b"=")
+
+
+def service_account_token(key_path):
+    """Mint an access token from a service-account key.
+
+    Signing is done by the openssl binary, so this stays dependency-free —
+    Google's own client libraries are a pip install we do not need for two
+    read-only endpoints.
+    """
+    import time
+    key = json.load(open(key_path))
+    now = int(time.time())
+    header = _b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+    claims = _b64(json.dumps({
+        "iss": key["client_email"], "scope": SCOPES, "aud": key["token_uri"],
+        "iat": now, "exp": now + 3600,
+    }).encode())
+    signing_input = header + b"." + claims
+    # openssl reads the data on stdin, so the key has to be a file; write it
+    # 0600 in a temp path and remove it as soon as the signature is made
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as fh:
+        fh.write(key["private_key"])
+        pem = fh.name
+    try:
+        os.chmod(pem, 0o600)
+        proc = subprocess.run(["openssl", "dgst", "-sha256", "-sign", pem],
+                              input=signing_input, capture_output=True, check=True)
+        sig = proc.stdout
+    finally:
+        os.unlink(pem)
+    assertion = (signing_input + b"." + _b64(sig)).decode()
+    body = urllib.parse.urlencode({
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": assertion}).encode()
+    req = urllib.request.Request(key["token_uri"], data=body,
+                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)["access_token"]
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Service account token request failed: {e.read().decode()[:300]}")
+
+
 def token():
+    if os.path.exists(SA_KEY):
+        return service_account_token(SA_KEY)
     try:
         return subprocess.run(
             ["gcloud", "auth", "application-default", "print-access-token"],
@@ -63,8 +117,17 @@ def token():
     except FileNotFoundError:
         sys.exit("gcloud is not installed. Install it, then run tools/seo-audit/setup_google_auth.sh")
     except subprocess.CalledProcessError:
-        sys.exit("No Google credentials on this machine.\n"
+        sys.exit(f"No Google credentials.\nExpected a service-account key at {SA_KEY}\n"
                  "Run:  bash tools/seo-audit/setup_google_auth.sh")
+
+
+def service_account_email():
+    if os.path.exists(SA_KEY):
+        try:
+            return json.load(open(SA_KEY))["client_email"]
+        except Exception:
+            return None
+    return None
 
 
 def call(url, tok, body=None):

@@ -53,3 +53,8 @@ __pycache__/
 # the licence and the author for each file (see also iris-engine/ref/ATTRIBUTION.md).
 # Everything else under ref/ (refs.json, align.json, cases.json, bench-*.json) IS tracked.
 iris-engine/ref/*.jpg
+
+# Google service-account keys (real credentials) — never commit
+*sa-key.json
+*service-account*.json
+client_secret*.json

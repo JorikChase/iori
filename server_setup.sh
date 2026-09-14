@@ -128,6 +128,7 @@ sync_website_files() {
         --exclude 'images/autoportrait copy.mp4' \
         --exclude 'IMG.png' \
         --exclude 'moses_car_cursor.png' \
+        --exclude 'LOGO.PNG' \
         --exclude '.DS_Store' \
         --exclude 'session-*.md' \
         --exclude 'sandbox.md' \

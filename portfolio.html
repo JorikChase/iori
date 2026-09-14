@@ -48,11 +48,12 @@
 
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg:#000; --fg:#fff; --dim:#555; --fast:140ms; }
+  :root { --bg:#000; --fg:#fff; --dim:#9a9a9a; --line:#333; --fast:140ms; }
   html, body { height: 100%; }
   body {
     background: var(--bg); color: var(--fg);
     font-family: "Courier New", ui-monospace, monospace;
+    font-size: 16px; line-height: 1.45;
     overflow-x: hidden;
   }
   ::selection { background: var(--fg); color: var(--bg); }
@@ -66,28 +67,28 @@
   .logo { font-size: 1.1rem; letter-spacing: .3em; font-weight: bold; }
   .logo span { animation: blink 1.2s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  header nav { display: flex; gap: 1rem; margin-left: auto; font-size: .8rem; }
+  header nav { display: flex; gap: 1.2rem; margin-left: auto; font-size: .85rem; }
   header a { color: var(--dim); text-decoration: none; text-transform: uppercase; letter-spacing: .15em; }
   header a:hover { color: var(--fg); }
 
   /* artists strip */
   .section-title {
-    padding: 2.2rem 1.2rem .8rem; font-size: .75rem;
+    padding: 2.2rem 1.2rem .8rem; font-size: .8rem;
     letter-spacing: .35em; color: var(--dim); text-transform: uppercase;
   }
   #artists {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    border-top: 1px solid var(--dim);
+    border-top: 1px solid var(--line);
   }
   .artist-card {
     position: relative; display: block; padding: 2rem 1.4rem 1.6rem;
-    border-right: 1px solid var(--dim); border-bottom: 1px solid var(--dim);
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
     text-decoration: none; color: var(--fg); overflow: hidden;
     min-height: 150px;
   }
   .artist-card .name { font-size: 1.5rem; letter-spacing: .1em; text-transform: uppercase; }
-  .artist-card .role { margin-top: .6rem; color: var(--dim); font-size: .75rem; letter-spacing: .2em; }
+  .artist-card .role { margin-top: .6rem; color: var(--dim); font-size: .8rem; letter-spacing: .2em; }
   .artist-card::after {
     content: ""; position: absolute; inset: 0; background: var(--fg);
     transform: translateY(101%); transition: transform var(--fast) cubic-bezier(.2,.9,.2,1);
@@ -107,23 +108,24 @@
     padding: 0 1.2rem 1rem;
   }
   .chip {
-    font: inherit; font-size: .75rem; letter-spacing: .15em; text-transform: uppercase;
-    background: transparent; color: var(--dim); border: 1px solid var(--dim);
-    padding: .35em .9em; cursor: pointer;
+    font: inherit; font-size: .8rem; letter-spacing: .15em; text-transform: uppercase;
+    background: transparent; color: var(--dim); border: 1px solid var(--line);
+    padding: .4em 1em; cursor: pointer;
     transition: all var(--fast) ease;
   }
   .chip:hover { border-color: var(--fg); color: var(--fg); }
   .chip.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
   /* experiments list */
-  #experiments { border-top: 1px solid var(--dim); }
-  .cat-row { border-bottom: 1px solid var(--dim); }
+  #experiments { border-top: 1px solid var(--line); }
+  .cat-row { border-bottom: 1px solid var(--line); }
   .cat-head {
     display: flex; align-items: baseline; gap: 1rem;
     padding: 1rem 1.2rem; cursor: pointer; user-select: none;
   }
-  .cat-head .cat-name { text-transform: uppercase; letter-spacing: .25em; font-size: .9rem; }
-  .cat-head .cat-count { color: var(--dim); font-size: .75rem; }
+  .cat-head:hover .cat-name { text-decoration: underline; text-underline-offset: .3em; }
+  .cat-head .cat-name { text-transform: uppercase; letter-spacing: .25em; font-size: 1rem; }
+  .cat-head .cat-count { color: var(--dim); font-size: .8rem; }
   .cat-head .cat-toggle { margin-left: auto; color: var(--dim); transition: transform var(--fast); }
   .cat-row.open .cat-toggle { transform: rotate(90deg); }
   .cat-items {
@@ -133,15 +135,16 @@
   .cat-row.open .cat-items { grid-template-rows: 1fr; }
   .cat-items-inner { overflow: hidden; }
   .exp-link {
-    display: flex; align-items: baseline; gap: 1rem;
-    padding: .65rem 1.2rem .65rem 2.4rem;
+    display: grid; grid-template-columns: minmax(16rem, 24rem) 1fr; align-items: baseline; gap: 1.5rem;
+    padding: .8rem 1.2rem .8rem 2.4rem;
     text-decoration: none; color: var(--fg);
-    border-top: 1px solid #1a1a1a;
+    border-top: 1px solid #1c1c1c;
     transition: background var(--fast), color var(--fast), padding-left var(--fast);
   }
   .exp-link:hover { background: var(--fg); color: var(--bg); padding-left: 2.8rem; }
-  .exp-link .t { font-size: .9rem; }
-  .exp-link .d { color: var(--dim); font-size: .72rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exp-link .t { font-size: 1rem; }
+  .exp-link .d { color: var(--dim); font-size: .8rem; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .exp-link:hover .d { color: #333; }
 
   /* page-leave wipe */
@@ -154,14 +157,14 @@
   body.leaving { animation: fadeout 200ms 60ms forwards; }
   @keyframes fadeout { to { opacity: 0; } }
 
-  footer { padding: 3rem 1.2rem; color: var(--dim); font-size: .75rem; letter-spacing: .15em; }
+  footer { padding: 3rem 1.2rem; color: var(--dim); font-size: .8rem; letter-spacing: .15em; }
   footer a { color: var(--fg); }
 
   #loading { padding: 4rem 1.2rem; color: var(--dim); letter-spacing: .3em; }
 
   @media (max-width: 640px) {
-    .exp-link { padding-left: 1.2rem; }
-    .exp-link .d { display: none; }
+    .exp-link { padding-left: 1.2rem; grid-template-columns: 1fr; gap: .2rem; }
+    .exp-link .d { -webkit-line-clamp: 1; }
     header { flex-wrap: wrap; }
   }
 </style>
@@ -197,13 +200,14 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&
 
 // Artist presentation order + blurbs (pages themselves live in the registry)
 const ARTIST_META = {
-  "iori":           { role: "procedural / shaders / 3d", url: "/umprum.html" },
+  "iori":           { role: "procedural / shaders / 3d", url: "/" },
   "jáchym":         { role: "artist",                    url: "https://3die.fr/jachym.html" },
   "moises":         { role: "photography",               url: "https://3die.fr/moises.html" },
 };
 
-const CATEGORY_ORDER = ["fluids","flames","automata","voxels","dispheres","fractals","organisms",
-                        "gravity","dimensions","materials","game","hub","essay","site","client"];
+const CATEGORY_ORDER = ["fractals","automata","flames","fluids","organisms","gravity","voxels",
+                        "dispheres","dimensions","materials","game","experiment","hub","essay","site","client"];
+const catRank = (c) => { const i = CATEGORY_ORDER.indexOf(c); return i === -1 ? 999 : i; };
 
 let pages = [];
 let activeCat = null;
@@ -242,8 +246,7 @@ function renderArtists() {
 }
 
 function renderChips() {
-  const cats = [...new Set(pages.map(p => p.category))].sort(
-    (a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b));
+  const cats = [...new Set(pages.map(p => p.category))].sort((a, b) => catRank(a) - catRank(b));
   const wrap = $("#chips");
   wrap.innerHTML = "";
   const all = document.createElement("button");
@@ -271,8 +274,7 @@ function $$ (s) { return [...document.querySelectorAll(s)]; }
 function renderExperiments() {
   const wrap = $("#experiments");
   wrap.innerHTML = "";
-  const cats = [...new Set(pages.map(p => p.category))].sort(
-    (a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b));
+  const cats = [...new Set(pages.map(p => p.category))].sort((a, b) => catRank(a) - catRank(b));
   for (const cat of cats) {
     if (activeCat && cat !== activeCat) continue;
     const items = pages.filter(p => p.category === cat)

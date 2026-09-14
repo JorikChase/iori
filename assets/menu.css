@@ -1,0 +1,72 @@
+/* site menu — injected into every page by `site.py menu`.
+   This is the original burger (assets/burger.css) verbatim in look and motion:
+   three triangles, no box, fold on open, translucent blurred list, tomato hover.
+   Scoped under #site-menu so it never restyles the host page, plus the four
+   corner variants the generator can pick per page. */
+@font-face { font-family: Milksea; src: url(/assets/Milksea.ttf); }
+
+#site-menu { position: fixed; z-index: 2147483000; top: 0; right: 0; pointer-events: none;
+  font-family: "Milksea", "Tilt Neon", sans-serif; }
+#site-menu * { box-sizing: border-box; }
+#site-menu .menuToggle { display: block; position: fixed; top: 0; right: 0; z-index: 1;
+  -webkit-user-select: none; user-select: none; pointer-events: auto; }
+#site-menu .menuToggle a { text-decoration: none; color: #ffffff; transition: all 0.3s ease; padding: 5px 20px; }
+#site-menu .menuToggle a:hover { color: tomato; }
+#site-menu .menuToggle input { display: block; width: 40px; height: 40px; position: absolute;
+  right: 50px; top: 50px; margin: 0; cursor: pointer; opacity: 0; z-index: 2; -webkit-touch-callout: none; }
+#site-menu .menuToggle input:focus-visible ~ span { filter: drop-shadow(0 0 4px #fff); }
+#site-menu .menuToggle span { position: relative; display: block; width: 0; height: 0; right: 50px; top: 50px;
+  border: 15px solid transparent; border-top: 0; border-bottom: 15px solid rgb(55, 202, 255);
+  border-radius: 3px; z-index: 1; transform-origin: 4px 0px;
+  transition: transform 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), background 0.5s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.55s ease; }
+#site-menu .menuToggle span:nth-child(2) { transform-origin: 0% 0%; border-bottom: 15px solid rgb(55, 255, 115); }
+#site-menu .menuToggle span:nth-last-child(2) { transform-origin: 0% 100%; border-bottom: 15px solid rgb(255, 186, 23); }
+#site-menu .menuToggle input:checked ~ span { opacity: 1; transform: rotate(45deg) translate(-2px, -1px); }
+#site-menu .menuToggle input:checked ~ span:nth-last-child(3) { opacity: 1; transform: rotate(0deg) translate(-2px, 2px); }
+#site-menu .menuToggle input:checked ~ span:nth-last-child(2) { transform: rotate(-45deg) translate(0, -1px); }
+
+#site-menu .menuItem { position: absolute; top: 0; right: 0; margin: 0; width: 300px; padding: 50px; padding-top: 125px;
+  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); list-style-type: none;
+  -webkit-font-smoothing: antialiased; transform-origin: top right; transform: scale(0);
+  transition: transform 0.3s, visibility 0s 0s; }
+#site-menu .menuToggle input:checked ~ .menuItem { transform: scale(1); }
+#site-menu .menuItem li { padding: 10px 0; font-size: 22px; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+#site-menu .menuItem li a { display: inline-block; }
+#site-menu .menuItem li a:hover { padding: 7px 22px; background: rgba(0, 0, 0, 1); border-radius: 5px; }
+#site-menu .menuItem li a[aria-current="page"] { color: tomato; }
+#site-menu .menuToggle input:checked ~ .menuItem li:nth-child(1) { animation: site-menu-slide 0.2s; }
+#site-menu .menuToggle input:checked ~ .menuItem li:nth-child(2) { animation: site-menu-slide 0.3s; }
+#site-menu .menuToggle input:checked ~ .menuItem li:nth-child(3) { animation: site-menu-slide 0.4s; }
+#site-menu .menuToggle input:checked ~ .menuItem li:nth-child(4) { animation: site-menu-slide 0.5s; }
+#site-menu .menuToggle input:checked ~ .menuItem li:nth-child(5) { animation: site-menu-slide 0.6s; }
+@keyframes site-menu-slide { 0% { transform: translateX(100px); } 100% { transform: translateY(0); } }
+
+/* category neighbours: same list, smaller */
+#site-menu .menuItem li.site-menu__section { padding: 18px 0 2px; font-size: 12px; letter-spacing: .25em;
+  text-transform: uppercase; color: rgba(255, 255, 255, .55); font-family: "Courier New", ui-monospace, monospace; }
+#site-menu .menuItem li.site-menu__nb { padding: 4px 0; font-size: 16px; }
+#site-menu .menuItem li.site-menu__nb small { font-family: "Courier New", ui-monospace, monospace; font-size: 11px;
+  letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .55); margin-right: .5em; }
+
+/* corner variants (top-right is the original) */
+#site-menu.site-menu--tl .menuToggle { right: auto; left: 0; }
+#site-menu.site-menu--tl .menuToggle input, #site-menu.site-menu--tl .menuToggle span { right: auto; left: 50px; }
+#site-menu.site-menu--tl .menuItem { right: auto; left: 0; transform-origin: top left; }
+#site-menu.site-menu--tl .menuToggle span { transform-origin: 26px 0px; }
+#site-menu.site-menu--tl .menuToggle input:checked ~ span { transform: rotate(-45deg) translate(2px, -1px); }
+#site-menu.site-menu--tl .menuToggle input:checked ~ span:nth-last-child(3) { transform: rotate(0deg) translate(2px, 2px); }
+#site-menu.site-menu--tl .menuToggle input:checked ~ span:nth-last-child(2) { transform: rotate(45deg) translate(0, -1px); }
+#site-menu.site-menu--br .menuToggle, #site-menu.site-menu--bl .menuToggle { top: auto; bottom: 0; }
+#site-menu.site-menu--br .menuToggle input, #site-menu.site-menu--bl .menuToggle input { top: auto; bottom: 50px; }
+#site-menu.site-menu--br .menuToggle span, #site-menu.site-menu--bl .menuToggle span { top: auto; bottom: 50px; }
+#site-menu.site-menu--br .menuItem, #site-menu.site-menu--bl .menuItem { top: auto; bottom: 0; padding: 50px; padding-bottom: 125px; }
+#site-menu.site-menu--br .menuItem { transform-origin: bottom right; }
+#site-menu.site-menu--bl .menuToggle { right: auto; left: 0; }
+#site-menu.site-menu--bl .menuToggle input, #site-menu.site-menu--bl .menuToggle span { right: auto; left: 50px; }
+#site-menu.site-menu--bl .menuItem { right: auto; left: 0; transform-origin: bottom left; }
+#site-menu.site-menu--bl .menuToggle span { transform-origin: 26px 0px; }
+#site-menu.site-menu--bl .menuToggle input:checked ~ span { transform: rotate(-45deg) translate(2px, -1px); }
+#site-menu.site-menu--bl .menuToggle input:checked ~ span:nth-last-child(3) { transform: rotate(0deg) translate(2px, 2px); }
+#site-menu.site-menu--bl .menuToggle input:checked ~ span:nth-last-child(2) { transform: rotate(45deg) translate(0, -1px); }
+
+@media (prefers-reduced-motion: reduce) { #site-menu * { animation: none !important; transition: none !important; } }

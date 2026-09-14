@@ -48,7 +48,8 @@
       "category": "game",
       "domain": "3die.fr",
       "type": "game",
-      "priority": 0.6
+      "priority": 0.6,
+      "menu_pos": "bl"
     },
     "bubbles.html": {
       "title": "Iridescent Bubbles",
@@ -290,7 +291,8 @@
       "category": "site",
       "domain": "3die.fr",
       "type": "site",
-      "priority": 1.0
+      "priority": 1.0,
+      "menu_pos": "bl"
     },
     "info.html": {
       "title": "About & Contact — 3DIE",
@@ -314,7 +316,8 @@
       "category": "hub",
       "domain": "iori.me",
       "type": "site",
-      "priority": 1.0
+      "priority": 1.0,
+      "menu_pos": "tl"
     },
     "iris-engine/index.html": {
       "title": "Iris Engine — Photoreal Procedural Iris",
@@ -356,7 +359,18 @@
       "category": "flames",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5
+      "priority": 0.5,
+      "menu_pos": "tl"
+    },
+    "lili-web.html": {
+      "title": "Lili Web — Spiderweb Toy",
+      "description": "A spiderweb you can spin, tear and flood: Verlet silk, cellular-automata water and one glass material for both.",
+      "category": "experiment",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "hidden": true,
+      "todo_note": "in development — unhide when the water rebuild lands"
     },
     "lili.html": {
       "title": "lili — Animated Portrait Study",
@@ -388,7 +402,8 @@
       "category": "materials",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5
+      "priority": 0.5,
+      "menu_pos": "tl"
     },
     "meta-iris.html": {
       "title": "Procedural Iris — Alien",
@@ -396,7 +411,8 @@
       "category": "fractals",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5
+      "priority": 0.5,
+      "menu_pos": "tl"
     },
     "metyou.html": {
       "title": "MetYou.ai — Design Engineering Case Study",
@@ -479,12 +495,13 @@
       "priority": 0.5
     },
     "portfolio.html": {
-      "title": "iori — Portfolio: Artists & Experiments",
+      "title": "3DIE — Portfolio: Artists & Experiments",
       "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.",
       "category": "hub",
       "domain": "iori.me",
       "type": "site",
-      "priority": 0.9
+      "priority": 0.9,
+      "menu_pos": "br"
     },
     "poster.html": {
       "title": "Gyro Labyrinth — Optimized",
@@ -524,7 +541,8 @@
       "category": "organisms",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.6
+      "priority": 0.6,
+      "menu_pos": "tl"
     },
     "socci.html": {
       "title": "Socci Project — Generative Island",
@@ -541,7 +559,8 @@
       "category": "hub",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5
+      "priority": 0.5,
+      "menu_pos": "tl"
     },
     "start.html": {
       "title": "Start — GPU Flocking Birds",
@@ -549,7 +568,8 @@
       "category": "materials",
       "domain": "3die.fr",
       "type": "experiment",
-      "priority": 0.6
+      "priority": 0.6,
+      "menu_pos": "tl"
     },
     "sudoku.html": {
       "title": "SUDOKU Minimal",
@@ -557,7 +577,8 @@
       "category": "game",
       "domain": "3die.fr",
       "type": "game",
-      "priority": 0.5
+      "priority": 0.5,
+      "menu_pos": "tl"
     },
     "tboi2.html": {
       "title": "TBOI: Repentance+ Advanced Ballistics",

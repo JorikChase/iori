@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-14",
+  "generated": "2026-09-15",
   "pages": [
     {
       "slug": "4cube.html",
@@ -442,17 +442,6 @@
       "lastmod": "2026-07-27"
     },
     {
-      "slug": "lili-web.html",
-      "title": "Lili Web — TODO",
-      "description": "TODO: write a unique description for this page.",
-      "category": "TODO",
-      "type": "experiment",
-      "domain": "iori.me",
-      "url": "https://iori.me/lili-web.html",
-      "og_image": null,
-      "lastmod": "2026-09-14"
-    },
-    {
       "slug": "lili.html",
       "title": "lili — Animated Portrait Study",
       "description": "An interactive animated portrait by iori: drag to scrub through painted frames of lili.",
@@ -619,7 +608,7 @@
     },
     {
       "slug": "portfolio.html",
-      "title": "iori — Portfolio: Artists & Experiments",
+      "title": "3DIE — Portfolio: Artists & Experiments",
       "description": "The whole iori catalogue in one brutal list: artists first, every experiment one tap away. Automatically updated with each new page.",
       "category": "hub",
       "type": "site",

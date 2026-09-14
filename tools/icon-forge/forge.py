@@ -12,6 +12,7 @@ the icons shipping today skip (they carry no profile at all).
 
 Run:  uv run --with pillow,numpy,scipy tools/icon-forge/forge.py board
       uv run --with pillow,numpy,scipy tools/icon-forge/forge.py build
+      ... --source LOGO.PNG build      # the light sheet
 """
 
 import argparse
@@ -28,11 +29,22 @@ Image.MAX_IMAGE_PIXELS = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-SOURCE = os.path.join(ROOT, "LOGO.PNG")
 
-# A clean paper square found in the source sheet (y, x, size), used to extend
-# the background out to the icon's aspect without a visible seam.
-PAPER_PATCH = (750, 2150, 800)
+# Each source sheet needs its own way to tell paint from ground, and its own
+# clean patch of ground to extend the frame with (y, x, size).
+#
+#   light: paint is darker than the sheet, or coloured. Needed because the
+#          paper's own grain reaches 0.078 saturation — as high as the sage
+#          green — so saturation alone cannot carry it.
+#   dark:  the ground is *exactly* neutral (60% of pixels sit at sat 0.000)
+#          while every paint carries chroma, so saturation alone is decisive.
+#          Luminance is useless here: the bright top-left corner of the ground
+#          (0.369) outranks the red paint (0.234).
+SOURCES = {
+    "logo_dark.png": dict(mode="dark", patch=(900, 2050, 900)),
+    "LOGO.PNG": dict(mode="light", patch=(750, 2150, 800)),
+}
+DEFAULT_SOURCE = "logo_dark.png"
 
 MARK_SCALE = 0.74      # mark bbox as a fraction of the icon, for the iOS squircle
 MASKABLE_SCALE = 0.54  # Android maskable keeps content inside an 80%-diameter circle
@@ -75,7 +87,9 @@ def load_source():
     if "src" in _cache:
         return _cache["src"]
 
-    im = Image.open(SOURCE)
+    name = _cache["source"]
+    prof = SOURCES[name]
+    im = Image.open(os.path.join(ROOT, name))
     icc = im.info.get("icc_profile")
     im = im.convert("RGB")
     if icc:
@@ -87,18 +101,21 @@ def load_source():
     mn = a.min(-1)
     sat = a.max(-1) - mn
 
-    # Where the paint is: darker than the sheet, or coloured. Both, because the
-    # sage green is only 0.11 saturated and the red is nearly neutral-dark.
-    solid = (mn < 0.78) | (sat > 0.14)
+    if prof["mode"] == "dark":
+        solid = sat > 0.025
+        matte = smoothstep(0.018, 0.070, sat)
+    else:
+        solid = (mn < 0.78) | (sat > 0.14)
+        matte = np.maximum(smoothstep(0.76, 0.58, mn), smoothstep(0.05, 0.15, sat))
+
     solid = binary_closing(binary_opening(solid, np.ones((11, 11))), np.ones((21, 21)))
     lab, _ = label(solid)
     sz = np.bincount(lab.ravel())
     sz[0] = 0
     region = np.isin(lab, np.where(sz > 0.0015 * solid.size)[0])
 
-    # Soft matte, gated to the mark's own region so paper grain can't leak in
-    # and print a seam where the sheet gets extended.
-    matte = np.maximum(smoothstep(0.76, 0.58, mn), smoothstep(0.05, 0.15, sat))
+    # Gate the matte to the mark's own region so ground grain can't leak in and
+    # print a seam where the sheet gets extended.
     gate = gaussian_filter(binary_dilation(region, np.ones((25, 25))).astype(np.float32), 8.0)
     matte = np.clip(matte * np.clip(gate * 1.15, 0.0, 1.0), 0.0, 1.0)
 
@@ -108,13 +125,13 @@ def load_source():
     return _cache["src"]
 
 
-def paper_field(w, h, seed=3):
-    """The sheet, extended to any size from a clean patch of the original."""
-    key = ("paper", w, h)
+def ground_field(w, h, seed=3):
+    """The sheet's ground, extended to any size from a clean patch of it."""
+    key = ("ground", w, h)
     if key in _cache:
         return _cache[key]
     lin, _, _ = load_source()
-    y, x, s = PAPER_PATCH
+    y, x, s = SOURCES[_cache["source"]]["patch"]
     patch = lin[y:y + s, x:x + s]
 
     # Scaled up, not tiled: repeating the patch prints a regular grain pattern
@@ -122,19 +139,21 @@ def paper_field(w, h, seed=3):
     field = resize_linear(patch, (w, h))
     res = (h, w)
 
-    # Upscaling magnifies the patch's pencil streaks into heavy banding, so pull
-    # the texture contrast back toward the sheet's mean tone. Keeps the paper,
+    # Upscaling magnifies the patch's strokes into heavy banding, so pull the
+    # texture contrast back toward the sheet's mean tone. Keeps the ground,
     # drops the noise that would only muddy a 60px icon.
-    field = field.mean((0, 1), keepdims=True) + (field - field.mean((0, 1), keepdims=True)) * 0.32
+    mean = field.mean((0, 1), keepdims=True)
+    field = mean + (field - mean) * 0.32
 
-    # Re-grain at the icon's own scale so it doesn't go plasticky, and put back
-    # the gentle large-scale falloff of the original sheet.
+    # Dither, multiplicative so it tracks the local level. Additive noise sized
+    # for the light sheet is ~12% modulation against this dark ground, which
+    # reads as static.
     rng = np.random.default_rng(seed)
     n = gaussian_filter(rng.standard_normal(res + (1,)).astype(np.float32), (1.1, 1.1, 0))
     yy, xx = np.mgrid[0:res[0], 0:res[1]].astype(np.float32)
     yy, xx = yy / res[0], xx / res[1]
     shade = 1.0 - 0.050 * np.clip((xx * 0.45 + yy * 0.85) - 0.18, 0.0, 1.4)
-    field = np.clip(field * shade[..., None] + n * 0.004, 0.0, 1.0)
+    field = np.clip(field * shade[..., None] * (1.0 + n * 0.030), 0.0, 1.0)
     _cache[key] = field.astype(np.float32)
     return _cache[key]
 
@@ -156,7 +175,7 @@ def compose(w, h=None, scale=MARK_SCALE):
     mark = resize_linear(crop, (tw, th))
     mmat = resize_linear(crop_m[..., None], (tw, th))[..., 0]
 
-    base = paper_field(W, H).copy()
+    base = ground_field(W, H).copy()
     ox, oy = (W - tw) // 2, (H - th) // 2
     a = mmat[..., None]
     base[oy:oy + th, ox:ox + tw] = base[oy:oy + th, ox:ox + tw] * (1.0 - a) + mark * a
@@ -251,17 +270,23 @@ def cmd_build(args):
     save(compose(1200, 630, scale=0.62), os.path.join(icon, "og.png"))
     n += 1
 
-    print(f"[build] wrote {n} files from LOGO.PNG")
+    print(f"[build] wrote {n} files from {_cache['source']}")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--source", choices=sorted(SOURCES), default=DEFAULT_SOURCE,
+                    help=f"source sheet to build from (default: {DEFAULT_SOURCE})")
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("board", help="contact sheet at real icon sizes")
     b.set_defaults(fn=cmd_board)
     bd = sub.add_parser("build", help="write every icon the sites reference")
     bd.set_defaults(fn=cmd_build)
     args = ap.parse_args()
+    if not os.path.isfile(os.path.join(ROOT, args.source)):
+        raise SystemExit(f"source not found: {args.source}")
+    _cache["source"] = args.source
+    print(f"[forge] source: {args.source} ({SOURCES[args.source]['mode']} ground)")
     args.fn(args)
 
 

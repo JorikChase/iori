@@ -30,10 +30,11 @@ import urllib.request
 from datetime import date, timedelta
 
 MEASUREMENT_IDS = {"iori.me": "G-GKKJ5VX340", "3die.fr": "G-ERECDMYSNT"}
-# Explicit GA4 property ids win over measurement-id discovery. Use these when a
-# domain has more than one property and you want a specific one (iori picked the
-# "3die" property, id 530756051, in the Analytics interface).
-PROPERTY_IDS = {"3die.fr": "530756051"}
+# iori.me and 3die.fr are two DATA STREAMS inside one GA4 property (530756051,
+# "3die"), not two properties — so every per-site report here filters the
+# property by hostName. Pinning is kept so a recreated stream cannot silently
+# repoint the report at the wrong property.
+PROPERTY_IDS = {"3die.fr": "530756051", "iori.me": "530756051"}
 # Search Console properties can be registered either way; we use whichever exists
 GSC_CANDIDATES = {
     "iori.me": ["sc-domain:iori.me", "https://iori.me/"],
@@ -194,15 +195,27 @@ def gsc_sites(tok):
 
 # ---------------------------------------------------------------- reports
 
-def ga4(tok, prop, start, end):
+def ga4(tok, prop, start, end, domain=None):
+    """Reports for one site.
+
+    iori.me and 3die.fr are two data streams inside a SINGLE GA4 property, so a
+    per-site report is the property filtered by hostName — without the filter
+    every number is the two sites added together (which is what the default
+    reports in the Analytics interface show).
+    """
     base = f"{DATA}/{prop}:runReport"
     rng = [{"startDate": start, "endDate": end}]
+    host = ({"filter": {"fieldName": "hostName",
+                        "stringFilter": {"matchType": "ENDS_WITH", "value": domain}}}
+            if domain else None)
 
     def report(dims, mets, limit=25, order=None):
         body = {"dateRanges": rng,
                 "dimensions": [{"name": d} for d in dims],
                 "metrics": [{"name": m} for m in mets],
                 "limit": limit}
+        if host:
+            body["dimensionFilter"] = host
         if order:
             body["orderBys"] = [{"metric": {"metricName": order}, "desc": True}]
         elif dims == ["date"]:
@@ -219,6 +232,16 @@ def ga4(tok, prop, start, end):
         "devices": report(["deviceCategory"], ["sessions"], 10, "sessions"),
         "daily": report(["date"], ["sessions", "totalUsers"], 400),
     }
+
+
+def ga4_hosts(tok, prop, start, end):
+    """Every hostname the property recorded — unfiltered, so localhost and any
+    other stray origin shows up instead of silently inflating the totals."""
+    return call(f"{DATA}/{prop}:runReport", tok, {
+        "dateRanges": [{"startDate": start, "endDate": end}],
+        "dimensions": [{"name": "hostName"}],
+        "metrics": [{"name": "sessions"}, {"name": "totalUsers"}, {"name": "screenPageViews"}],
+        "orderBys": [{"metric": {"metricName": "sessions"}, "desc": True}], "limit": 50})
 
 
 def gsc(tok, site, start, end):
@@ -324,6 +347,24 @@ def render(report):
         rows = ga_rows(r["countries"])[:8]
         if rows:
             L.append("\n**Countries**: " + ", ".join(f"{d[0]} {num(m[0])}" for d, m in rows))
+
+    hosts = report.get("ga4_hosts")
+    if hosts and not failed(hosts):
+        rows = ga_rows(hosts)
+        if rows:
+            L.append("\n## Analytics · traffic by hostname\n")
+            if report.get("ga4_shared_property"):
+                L.append("_Both sites are data streams in one property, so the per-site figures "
+                         "above are that property filtered by hostname._\n")
+            L.append("| hostname | sessions | users | views |")
+            L.append("|---|---:|---:|---:|")
+            for d, m in rows:
+                L.append(f"| {d[0]} | {num(m[0])} | {num(m[1])} | {num(m[2])} |")
+            stray = [d[0] for d, _ in rows
+                     if not any(d[0].endswith(dom) for dom in MEASUREMENT_IDS)]
+            if stray:
+                L.append(f"\n**Not a real site**: {', '.join(stray)} — development traffic "
+                         "is being recorded in the property.")
 
     for site, r in report["gsc"].items():
         L.append(f"\n## Search Console · {site}\n")
@@ -439,9 +480,13 @@ def main():
             prop = props[mid]["property"]
         if prop:
             report["ga4_used"][dom] = prop
-            report["ga4"][dom] = ga4(tok, prop, s, e)
+            report["ga4"][dom] = ga4(tok, prop, s, e, domain=dom)
         else:
             report["ga4"][dom] = {"_skipped": f"measurement id {mid} not visible to this account"}
+    used = set(report["ga4_used"].values())
+    report["ga4_shared_property"] = len(used) == 1 and len(report["ga4_used"]) > 1
+    if used:
+        report["ga4_hosts"] = ga4_hosts(tok, sorted(used)[0], s, e)
 
     for dom, cands in GSC_CANDIDATES.items():
         site = next((c for c in cands if c in sites), None)

@@ -4,57 +4,3499 @@
   "2026-09-12"
  ],
  "days": 90,
- "ga4_properties": {},
+ "ga4_properties": {
+  "G-GKKJ5VX340": {
+   "property": "properties/530756051",
+   "name": "3die",
+   "uri": "https://www.iori.me"
+  },
+  "G-ERECDMYSNT": {
+   "property": "properties/530756051",
+   "name": "3die",
+   "uri": "https://www.3die.fr"
+  }
+ },
  "gsc_sites": {
-  "sc-domain:iori.me": "siteFullUser",
-  "sc-domain:3die.fr": "siteFullUser"
+  "sc-domain:3die.fr": "siteFullUser",
+  "sc-domain:iori.me": "siteFullUser"
  },
  "ga4": {
   "iori.me": {
-   "_skipped": "measurement id G-GKKJ5VX340 not visible to this account"
+   "totals": {
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "newUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     },
+     {
+      "name": "averageSessionDuration",
+      "type": "TYPE_SECONDS"
+     },
+     {
+      "name": "bounceRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "metricValues": [
+       {
+        "value": "107"
+       },
+       {
+        "value": "74"
+       },
+       {
+        "value": "73"
+       },
+       {
+        "value": "318"
+       },
+       {
+        "value": "0.37383177570093457"
+       },
+       {
+        "value": "189.56617204672898"
+       },
+       {
+        "value": "0.62616822429906538"
+       }
+      ]
+     }
+    ],
+    "rowCount": 1,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "pages": {
+    "dimensionHeaders": [
+     {
+      "name": "pagePath"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "107"
+       },
+       {
+        "value": "60"
+       },
+       {
+        "value": "0.37037037037037035"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/portfolio.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "47"
+       },
+       {
+        "value": "13"
+       },
+       {
+        "value": "0.73076923076923073"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/umprum.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "16"
+       },
+       {
+        "value": "9"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame-strains.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "12"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "0.72727272727272729"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fractals.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "0.8571428571428571"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/civilisation-builder.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/death.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/meta-iris.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame-simulation.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "7"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "7"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "0.6"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/lambda_cognition.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "0.6"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/bismuth-fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/ember-engine.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web3d.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/4cube_volume.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/aquarium.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/crystalize.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/dandelion-cycle.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/diffusion-fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/liquid-automata.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/slime-mold.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/star.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/three-body.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/univerzum.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fungal-growth.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/lighter-flame.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/mandelbrot-gs.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/mycelium.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/procedural-flame.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/voxel-sandbox.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/webgl.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/bubbles.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/cracks.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/disphere.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fractal-dimension.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/game-of-life.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/iori.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/lili.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 51,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "channels": {
+    "dimensionHeaders": [
+     {
+      "name": "sessionDefaultChannelGroup"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Direct"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "67"
+       },
+       {
+        "value": "50"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Referral"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "27"
+       },
+       {
+        "value": "14"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Organic Social"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
+       },
+       {
+        "value": "11"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Organic Search"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     }
+    ],
+    "rowCount": 4,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "sources": {
+    "dimensionHeaders": [
+     {
+      "name": "sessionSource"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "(direct)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "67"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "3die.fr"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "21"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "m.facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "ig"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "google"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "blog2026.online"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "compfight.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "incogna.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "l.instagram.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "osdzc.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "sunblog.asia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "yummly.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 12,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "countries": {
+    "dimensionHeaders": [
+     {
+      "name": "country"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Czechia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "64"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Germany"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "14"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United States"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United Kingdom"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "China"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "France"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Singapore"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Sweden"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "(not set)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Argentina"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Brazil"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Canada"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Vietnam"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 13,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "devices": {
+    "dimensionHeaders": [
+     {
+      "name": "deviceCategory"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "desktop"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "61"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "mobile"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "47"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "tablet"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     }
+    ],
+    "rowCount": 3,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "daily": {
+    "dimensionHeaders": [
+     {
+      "name": "date"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "20260615"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260625"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260626"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260627"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260701"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260703"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260713"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260715"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260716"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260720"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260726"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260728"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260729"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260801"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260802"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260804"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260805"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260806"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260808"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260812"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260815"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260820"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260821"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260822"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260824"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260825"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260827"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260828"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "15"
+       },
+       {
+        "value": "15"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260831"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260901"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260902"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260903"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "8"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260904"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260906"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260907"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260908"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       },
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260909"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260910"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260911"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260912"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     }
+    ],
+    "rowCount": 40,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   }
   },
   "3die.fr": {
    "totals": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "newUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     },
+     {
+      "name": "averageSessionDuration",
+      "type": "TYPE_SECONDS"
+     },
+     {
+      "name": "bounceRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "metricValues": [
+       {
+        "value": "105"
+       },
+       {
+        "value": "71"
+       },
+       {
+        "value": "70"
+       },
+       {
+        "value": "212"
+       },
+       {
+        "value": "0.42857142857142855"
+       },
+       {
+        "value": "131.31892808571428"
+       },
+       {
+        "value": "0.5714285714285714"
+       }
+      ]
+     }
+    ],
+    "rowCount": 1,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    },
    "pages": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "dimensionHeaders": [
+     {
+      "name": "pagePath"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "92"
+       },
+       {
+        "value": "50"
+       },
+       {
+        "value": "0.49230769230769234"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/blackjach/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "33"
+       },
+       {
+        "value": "17"
+       },
+       {
+        "value": "0.38461538461538464"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/info.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "13"
+       },
+       {
+        "value": "9"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/crow_archduke.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "12"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "0.72727272727272729"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/shop.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "12"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/jachym.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/moises.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "7"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "0.77777777777777779"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/portfolio.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "7"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "0.83333333333333337"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/pi.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "0.5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/start.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "0.75"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fractals.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/game.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "0.5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/sudoku.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/darkwood.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fr/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/tboi2.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/umprum.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/webgl.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 20,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    },
    "channels": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "dimensionHeaders": [
+     {
+      "name": "sessionDefaultChannelGroup"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Direct"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "66"
+       },
+       {
+        "value": "50"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Referral"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "26"
+       },
+       {
+        "value": "12"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Organic Social"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "12"
+       },
+       {
+        "value": "11"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Unassigned"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 4,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    },
    "sources": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "dimensionHeaders": [
+     {
+      "name": "sessionSource"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "(direct)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "66"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "iori.me"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "23"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "l.instagram.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "m.facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "ig"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "(not set)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "blog2026.online"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "instagram.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "readlife.net"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "sunblog.asia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 11,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    },
    "countries": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "dimensionHeaders": [
+     {
+      "name": "country"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Czechia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "70"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United States"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "12"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Germany"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "France"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United Kingdom"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "China"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Canada"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Montenegro"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Türkiye"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 9,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    },
    "devices": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "dimensionHeaders": [
+     {
+      "name": "deviceCategory"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "desktop"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "66"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "mobile"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "41"
+       }
+      ]
+     }
+    ],
+    "rowCount": 2,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    },
    "daily": {
-    "_error": 403,
-    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
-    "_api": "Google Analytics Data API",
-    "_fix": "this Google account cannot see that property — sign in as the owner"
+    "dimensionHeaders": [
+     {
+      "name": "date"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "20260615"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260616"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260618"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260620"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260621"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260624"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260627"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260701"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260703"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260706"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260708"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260712"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260718"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260722"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260725"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260729"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260730"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260801"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260802"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260806"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260807"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260811"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260812"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260813"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260814"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260815"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260818"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260820"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260821"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260822"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260823"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260824"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260825"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260827"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260828"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260831"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260901"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260902"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       },
+       {
+        "value": "7"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260903"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "14"
+       },
+       {
+        "value": "13"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260904"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260908"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260910"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260911"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260912"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     }
+    ],
+    "rowCount": 44,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
    }
   }
  },
@@ -1315,17 +4757,34 @@
     "sitemap": [
      {
       "path": "https://iori.me/sitemap.xml",
-      "lastSubmitted": "2026-06-29T11:24:39.284Z",
+      "lastSubmitted": "2026-09-14T22:51:56.841Z",
       "isPending": false,
       "isSitemapsIndex": false,
       "type": "sitemap",
-      "lastDownloaded": "2026-06-30T11:31:42.647Z",
+      "lastDownloaded": "2026-09-14T22:51:59.716Z",
       "warnings": "0",
       "errors": "0",
       "contents": [
        {
         "type": "web",
-        "submitted": "47",
+        "submitted": "63",
+        "indexed": "0"
+       }
+      ]
+     },
+     {
+      "path": "https://iori.me/sitemap-iori.xml",
+      "lastSubmitted": "2026-09-14T22:51:56.535Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-09-14T22:51:58.930Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "63",
         "indexed": "0"
        }
       ]
@@ -2714,17 +6173,9 @@
    "sitemaps": {
     "sitemap": [
      {
-      "path": "https://3die.fr/3die-sitemap.xml",
-      "lastSubmitted": "2026-07-03T18:09:28.864Z",
-      "isPending": true,
-      "isSitemapsIndex": false,
-      "warnings": "0",
-      "errors": "1"
-     },
-     {
       "path": "https://3die.fr/sitemap.xml",
-      "lastSubmitted": "2026-07-03T18:09:03.163Z",
-      "isPending": false,
+      "lastSubmitted": "2026-09-14T22:51:55.892Z",
+      "isPending": true,
       "isSitemapsIndex": false,
       "type": "sitemap",
       "lastDownloaded": "2026-09-14T20:18:13.482Z",
@@ -2740,17 +6191,17 @@
      },
      {
       "path": "https://3die.fr/sitemap-3die.xml",
-      "lastSubmitted": "2026-04-12T21:53:54.337Z",
+      "lastSubmitted": "2026-09-14T22:51:55.631Z",
       "isPending": false,
       "isSitemapsIndex": false,
       "type": "sitemap",
-      "lastDownloaded": "2026-04-18T06:54:59.410Z",
+      "lastDownloaded": "2026-09-14T22:51:58.499Z",
       "warnings": "0",
       "errors": "0",
       "contents": [
        {
         "type": "web",
-        "submitted": "47",
+        "submitted": "21",
         "indexed": "0"
        }
       ]
@@ -2760,6 +6211,91 @@
   }
  },
  "ga4_used": {
+  "iori.me": "properties/530756051",
   "3die.fr": "properties/530756051"
+ },
+ "ga4_shared_property": true,
+ "ga4_hosts": {
+  "dimensionHeaders": [
+   {
+    "name": "hostName"
+   }
+  ],
+  "metricHeaders": [
+   {
+    "name": "sessions",
+    "type": "TYPE_INTEGER"
+   },
+   {
+    "name": "totalUsers",
+    "type": "TYPE_INTEGER"
+   },
+   {
+    "name": "screenPageViews",
+    "type": "TYPE_INTEGER"
+   }
+  ],
+  "rows": [
+   {
+    "dimensionValues": [
+     {
+      "value": "iori.me"
+     }
+    ],
+    "metricValues": [
+     {
+      "value": "107"
+     },
+     {
+      "value": "74"
+     },
+     {
+      "value": "318"
+     }
+    ]
+   },
+   {
+    "dimensionValues": [
+     {
+      "value": "3die.fr"
+     }
+    ],
+    "metricValues": [
+     {
+      "value": "105"
+     },
+     {
+      "value": "71"
+     },
+     {
+      "value": "212"
+     }
+    ]
+   },
+   {
+    "dimensionValues": [
+     {
+      "value": "localhost"
+     }
+    ],
+    "metricValues": [
+     {
+      "value": "33"
+     },
+     {
+      "value": "6"
+     },
+     {
+      "value": "277"
+     }
+    ]
+   }
+  ],
+  "rowCount": 3,
+  "metadata": {
+   "currencyCode": "CZK",
+   "timeZone": "Europe/Prague"
+  },
+  "kind": "analyticsData#runReport"
  }
 }

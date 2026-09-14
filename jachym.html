@@ -39,7 +39,15 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-ERECDMYSNT');
+      // local previews are not visitors: without this every dev server and
+      // file:// open lands in the property as a real session
+      var h = location.hostname;
+      var isLocal = !h || h === 'localhost' || h === '::1' || h === '[::1]'
+        || h.indexOf('127.') === 0 || h.indexOf('192.168.') === 0 || h.indexOf('10.') === 0
+        || h.slice(-6) === '.local' || location.protocol === 'file:';
+      if (!isLocal) {
+        gtag('config', 'G-ERECDMYSNT');
+      }
     </script>
 
     <script type="application/ld+json">

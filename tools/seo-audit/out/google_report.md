@@ -3,12 +3,105 @@
 
 ## Analytics · iori.me
 
-- not available: measurement id G-GKKJ5VX340 not visible to this account
+| metric | value |
+|---|---|
+| sessions | 107 |
+| users | 74 |
+| new users | 73 |
+| page views | 318 |
+| engagement rate | 37.4% |
+| avg session | 3m 09s |
+| bounce rate | 62.6% |
+
+**Top pages**
+
+| page | views | users |
+|---|---:|---:|
+| / | 107 | 60 |
+| /portfolio.html | 47 | 13 |
+| /umprum.html | 16 | 9 |
+| /flame-strains.html | 12 | 7 |
+| /fractals.html | 10 | 7 |
+| /civilisation-builder.html | 9 | 2 |
+| /death.html | 8 | 7 |
+| /meta-iris.html | 8 | 5 |
+| /flame-simulation.html | 7 | 4 |
+| /web.html | 7 | 4 |
+| /fluid.html | 5 | 5 |
+| /lambda_cognition.html | 5 | 5 |
+| /bismuth-fluid.html | 4 | 4 |
+| /ember-engine.html | 4 | 2 |
+| /web3d.html | 4 | 2 |
+
+**Channels**
+
+| channel | sessions |
+|---|---:|
+| Direct | 67 |
+| Referral | 27 |
+| Organic Social | 11 |
+| Organic Search | 2 |
+
+**Devices**: desktop 61, mobile 47, tablet 2
+
+**Countries**: Czechia 64, Germany 14, United States 11, United Kingdom 5, China 4, France 2, Singapore 2, Sweden 2
 
 ## Analytics · 3die.fr
 
-- error: User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.
-- fix: this Google account cannot see that property — sign in as the owner
+| metric | value |
+|---|---|
+| sessions | 105 |
+| users | 71 |
+| new users | 70 |
+| page views | 212 |
+| engagement rate | 42.9% |
+| avg session | 2m 11s |
+| bounce rate | 57.1% |
+
+**Top pages**
+
+| page | views | users |
+|---|---:|---:|
+| / | 92 | 50 |
+| /blackjach/ | 33 | 17 |
+| /info.html | 13 | 9 |
+| /crow_archduke.html | 12 | 7 |
+| /shop.html | 12 | 6 |
+| /jachym.html | 8 | 5 |
+| /moises.html | 7 | 5 |
+| /portfolio.html | 7 | 6 |
+| /pi.html | 6 | 5 |
+| /start.html | 5 | 2 |
+| /web.html | 5 | 4 |
+| /fractals.html | 2 | 2 |
+| /game.html | 2 | 2 |
+| /sudoku.html | 2 | 2 |
+| /darkwood.html | 1 | 1 |
+
+**Channels**
+
+| channel | sessions |
+|---|---:|
+| Direct | 66 |
+| Referral | 26 |
+| Organic Social | 12 |
+| Unassigned | 1 |
+
+**Devices**: desktop 66, mobile 41
+
+**Countries**: Czechia 70, United States 12, Germany 9, France 5, United Kingdom 4, China 3, Canada 1, Montenegro 1
+
+## Analytics · traffic by hostname
+
+_Both sites are data streams in one property, so the per-site figures above are that property filtered by hostname._
+
+| hostname | sessions | users | views |
+|---|---:|---:|---:|
+| iori.me | 107 | 74 | 318 |
+| 3die.fr | 105 | 71 | 212 |
+| localhost | 33 | 6 | 277 |
+
+**Not a real site**: localhost — development traffic is being recorded in the property.
 
 ## Search Console · sc-domain:iori.me
 
@@ -50,7 +143,8 @@
 
 **Sitemaps**
 
-- https://iori.me/sitemap.xml — errors 0, warnings 0, last downloaded 2026-06-30T11:31:42.647Z (web: 47 submitted, 0 indexed)
+- https://iori.me/sitemap.xml — errors 0, warnings 0, last downloaded 2026-09-14T22:51:59.716Z (web: 63 submitted, 0 indexed)
+- https://iori.me/sitemap-iori.xml — errors 0, warnings 0, last downloaded 2026-09-14T22:51:58.930Z (web: 63 submitted, 0 indexed)
 
 ## Search Console · sc-domain:3die.fr
 
@@ -105,6 +199,5 @@
 
 **Sitemaps**
 
-- https://3die.fr/3die-sitemap.xml — errors 1, warnings 0, last downloaded —
 - https://3die.fr/sitemap.xml — errors 0, warnings 0, last downloaded 2026-09-14T20:18:13.482Z (web: 21 submitted, 0 indexed)
-- https://3die.fr/sitemap-3die.xml — errors 0, warnings 0, last downloaded 2026-04-18T06:54:59.410Z (web: 47 submitted, 0 indexed)
+- https://3die.fr/sitemap-3die.xml — errors 0, warnings 0, last downloaded 2026-09-14T22:51:58.499Z (web: 21 submitted, 0 indexed)

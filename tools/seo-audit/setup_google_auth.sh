@@ -20,6 +20,17 @@ say() { printf "\n\033[1m==> %s\033[0m\n" "$*"; }
 
 command -v gcloud >/dev/null || { echo "gcloud not found. Install: brew install --cask google-cloud-sdk"; exit 1; }
 
+if [ "${1:-}" = "--adc-only" ]; then
+  PROJECT="${2:-iori-seo-audit}"
+  say "Granting application credentials (browser sign-in)"
+  echo "Sign in as the account that owns the Analytics and Search Console properties."
+  gcloud auth application-default login --scopes="$SCOPES"
+  gcloud auth application-default set-quota-project "$PROJECT"
+  say "Verifying access"
+  python3 "$(dirname "$0")/google_report.py" --check
+  exit 0
+fi
+
 say "1/5  Sign in to the gcloud CLI"
 echo "A browser window will open. Choose the account that owns the Analytics and"
 echo "Search Console properties for iori.me and 3die.fr."

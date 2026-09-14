@@ -30,6 +30,10 @@ import urllib.request
 from datetime import date, timedelta
 
 MEASUREMENT_IDS = {"iori.me": "G-GKKJ5VX340", "3die.fr": "G-ERECDMYSNT"}
+# Explicit GA4 property ids win over measurement-id discovery. Use these when a
+# domain has more than one property and you want a specific one (iori picked the
+# "3die" property, id 530756051, in the Analytics interface).
+PROPERTY_IDS = {"3die.fr": "530756051"}
 # Search Console properties can be registered either way; we use whichever exists
 GSC_CANDIDATES = {
     "iori.me": ["sc-domain:iori.me", "https://iori.me/"],
@@ -319,6 +323,8 @@ def main():
 
     if "--check" in args:
         print("Analytics properties visible to this account:")
+        for dom, pid in PROPERTY_IDS.items():
+            print(f"  [pinned] {dom} -> properties/{pid}")
         if failed(props) or "_error" in props:
             e = props.get("_error", props)
             print(f"  ERROR {e.get('_message')}")
@@ -329,8 +335,16 @@ def main():
                 mine = next((d for d, m in MEASUREMENT_IDS.items() if m == mid), None)
                 print(f"  {mid}  {p['name']}  {p['uri'] or ''}" + (f"   <-- {mine}" if mine else ""))
             for dom, mid in MEASUREMENT_IDS.items():
-                if mid not in props:
+                if mid not in props and dom not in PROPERTY_IDS:
                     print(f"  MISSING {dom} ({mid}) — this account cannot see that property")
+        # a pinned property must actually answer, or the pin is wrong
+        for dom, pid in PROPERTY_IDS.items():
+            meta = call(f"{ADMIN}/properties/{pid}", tok)
+            if failed(meta):
+                print(f"  PINNED {dom} properties/{pid} NOT READABLE: {meta.get('_message')}")
+            else:
+                print(f"  pinned {dom} properties/{pid} = {meta.get('displayName')} "
+                      f"(tz {meta.get('timeZone')}, currency {meta.get('currencyCode')})")
         print("\nSearch Console properties visible to this account:")
         if "_error" in sites:
             e = sites["_error"]
@@ -351,9 +365,16 @@ def main():
     report = {"range": [s, e], "days": days, "ga4_properties": props,
               "gsc_sites": sites, "ga4": {}, "gsc": {}}
 
+    report["ga4_used"] = {}
     for dom, mid in MEASUREMENT_IDS.items():
-        if isinstance(props, dict) and mid in props:
-            report["ga4"][dom] = ga4(tok, props[mid]["property"], s, e)
+        prop = None
+        if dom in PROPERTY_IDS:
+            prop = f"properties/{PROPERTY_IDS[dom]}"
+        elif isinstance(props, dict) and mid in props:
+            prop = props[mid]["property"]
+        if prop:
+            report["ga4_used"][dom] = prop
+            report["ga4"][dom] = ga4(tok, prop, s, e)
         else:
             report["ga4"][dom] = {"_skipped": f"measurement id {mid} not visible to this account"}
 

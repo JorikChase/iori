@@ -47,3 +47,9 @@ assets/fantasy_plague_doctor_mask/
 splat-work/
 splats_luma/
 __pycache__/
+
+# Iris Engine reference photographs — 75 MB of CC-licensed macros, kept local.
+# Fully refetchable: iris-engine/ref/refs.json carries the Commons page, the original URL,
+# the licence and the author for each file (see also iris-engine/ref/ATTRIBUTION.md).
+# Everything else under ref/ (refs.json, align.json, cases.json, bench-*.json) IS tracked.
+iris-engine/ref/*.jpg

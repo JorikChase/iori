@@ -1,0 +1,207 @@
+{
+ "id": "v62-e1e2",
+ "date": "2026-09-13T19:10:54",
+ "engine": "0.7-fields",
+ "note": "E1 layered strands + E2 MATCH2; baseline before the detail work (spec 21.1)",
+ "features": {
+  "layers": "2",
+  "licScales": "3",
+  "fineScale": "0.055mm",
+  "fittedFlowFields": "flowDir,coherence,strandBright",
+  "specular": "corneal+KajiyaKay"
+ },
+ "src": {
+  "index.html": {
+   "sha256": "1043c1dd2dbb2219",
+   "bytes": 183259
+  },
+  "fit.js": {
+   "sha256": "ee912c5ca073edc5",
+   "bytes": 133399
+  },
+  "ui.js": {
+   "sha256": "fab29a22391757cf",
+   "bytes": 20923
+  },
+  "design.js": {
+   "sha256": "655149eb34de98f3",
+   "bytes": 26444
+  },
+  "serve.py": {
+   "sha256": "a81a593345efb03c",
+   "bytes": 1399
+  }
+ },
+ "bench": {
+  "bench-iso-v62.json": {
+   "n": 4,
+   "mean": {
+    "match2": 58.75,
+    "match": 67.45,
+    "ssim": 0.555,
+    "grad": 0.5125,
+    "hcorr": 0.8438,
+    "psnr": 19.495,
+    "dL": 3.175,
+    "dab": 6.8,
+    "match0": 25.75,
+    "alignPx": 0.1925,
+    "secs": 19.975,
+    "splats": 1855.0,
+    "ridges": 3.75,
+    "crypts": 0.0
+   },
+   "cases": {
+    "09": {
+     "match2": 51.3,
+     "match": 58.9,
+     "ssim": 0.516,
+     "grad": 0.452,
+     "hcorr": 0.824,
+     "psnr": 19.03,
+     "dL": 2.7,
+     "dab": 12.7,
+     "match0": 19.4,
+     "alignPx": 0.08,
+     "secs": 19.8,
+     "splats": 1689,
+     "ridges": 3,
+     "crypts": 0
+    },
+    "25": {
+     "match2": 55.8,
+     "match": 65.2,
+     "ssim": 0.457,
+     "grad": 0.481,
+     "hcorr": 0.833,
+     "psnr": 19.72,
+     "dL": 2.3,
+     "dab": 5.1,
+     "match0": 21.6,
+     "alignPx": 0.1,
+     "secs": 20,
+     "splats": 2000,
+     "ridges": 5,
+     "crypts": 0
+    },
+    "26": {
+     "match2": 66,
+     "match": 73.8,
+     "ssim": 0.637,
+     "grad": 0.595,
+     "hcorr": 0.875,
+     "psnr": 20.48,
+     "dL": 2.3,
+     "dab": 5.7,
+     "match0": 41.1,
+     "alignPx": 0.12,
+     "secs": 21.4,
+     "splats": 2000,
+     "ridges": 5,
+     "crypts": 0
+    },
+    "35": {
+     "match2": 61.9,
+     "match": 71.9,
+     "ssim": 0.61,
+     "grad": 0.522,
+     "hcorr": 0.843,
+     "psnr": 18.75,
+     "dL": 5.4,
+     "dab": 3.7,
+     "match0": 20.9,
+     "alignPx": 0.47,
+     "secs": 18.7,
+     "splats": 1731,
+     "ridges": 2,
+     "crypts": 0
+    }
+   }
+  }
+ },
+ "summary": {
+  "n": 4,
+  "mean": {
+   "match2": 58.75,
+   "match": 67.45,
+   "ssim": 0.555,
+   "grad": 0.5125,
+   "hcorr": 0.8438,
+   "psnr": 19.495,
+   "dL": 3.175,
+   "dab": 6.8,
+   "match0": 25.75,
+   "alignPx": 0.1925,
+   "secs": 19.975,
+   "splats": 1855.0,
+   "ridges": 3.75,
+   "crypts": 0.0
+  },
+  "cases": {
+   "09": {
+    "match2": 51.3,
+    "match": 58.9,
+    "ssim": 0.516,
+    "grad": 0.452,
+    "hcorr": 0.824,
+    "psnr": 19.03,
+    "dL": 2.7,
+    "dab": 12.7,
+    "match0": 19.4,
+    "alignPx": 0.08,
+    "secs": 19.8,
+    "splats": 1689,
+    "ridges": 3,
+    "crypts": 0
+   },
+   "25": {
+    "match2": 55.8,
+    "match": 65.2,
+    "ssim": 0.457,
+    "grad": 0.481,
+    "hcorr": 0.833,
+    "psnr": 19.72,
+    "dL": 2.3,
+    "dab": 5.1,
+    "match0": 21.6,
+    "alignPx": 0.1,
+    "secs": 20,
+    "splats": 2000,
+    "ridges": 5,
+    "crypts": 0
+   },
+   "26": {
+    "match2": 66,
+    "match": 73.8,
+    "ssim": 0.637,
+    "grad": 0.595,
+    "hcorr": 0.875,
+    "psnr": 20.48,
+    "dL": 2.3,
+    "dab": 5.7,
+    "match0": 41.1,
+    "alignPx": 0.12,
+    "secs": 21.4,
+    "splats": 2000,
+    "ridges": 5,
+    "crypts": 0
+   },
+   "35": {
+    "match2": 61.9,
+    "match": 71.9,
+    "ssim": 0.61,
+    "grad": 0.522,
+    "hcorr": 0.843,
+    "psnr": 18.75,
+    "dL": 5.4,
+    "dab": 3.7,
+    "match0": 20.9,
+    "alignPx": 0.47,
+    "secs": 18.7,
+    "splats": 1731,
+    "ridges": 2,
+    "crypts": 0
+   }
+  }
+ }
+}

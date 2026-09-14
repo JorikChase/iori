@@ -55,8 +55,10 @@ API_HINTS = {
 # ---------------------------------------------------------------- transport
 
 SA_KEY = os.environ.get("IORI_SEO_SA_KEY", os.path.expanduser("~/.config/iori-seo/sa-key.json"))
+# read-only by default; the sitemap tool asks for WRITE_SCOPES explicitly
 SCOPES = ("https://www.googleapis.com/auth/analytics.readonly "
           "https://www.googleapis.com/auth/webmasters.readonly")
+WRITE_SCOPES = "https://www.googleapis.com/auth/webmasters"
 
 
 def _b64(raw):
@@ -64,7 +66,7 @@ def _b64(raw):
     return base64.urlsafe_b64encode(raw).rstrip(b"=")
 
 
-def service_account_token(key_path):
+def service_account_token(key_path, scopes=None):
     """Mint an access token from a service-account key.
 
     Signing is done by the openssl binary, so this stays dependency-free —
@@ -76,7 +78,7 @@ def service_account_token(key_path):
     now = int(time.time())
     header = _b64(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
     claims = _b64(json.dumps({
-        "iss": key["client_email"], "scope": SCOPES, "aud": key["token_uri"],
+        "iss": key["client_email"], "scope": scopes or SCOPES, "aud": key["token_uri"],
         "iat": now, "exp": now + 3600,
     }).encode())
     signing_input = header + b"." + claims
@@ -106,9 +108,9 @@ def service_account_token(key_path):
         sys.exit(f"Service account token request failed: {e.read().decode()[:300]}")
 
 
-def token():
+def token(scopes=None):
     if os.path.exists(SA_KEY):
-        return service_account_token(SA_KEY)
+        return service_account_token(SA_KEY, scopes)
     try:
         return subprocess.run(
             ["gcloud", "auth", "application-default", "print-access-token"],

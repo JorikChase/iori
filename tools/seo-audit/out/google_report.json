@@ -1,0 +1,2765 @@
+{
+ "range": [
+  "2026-06-15",
+  "2026-09-12"
+ ],
+ "days": 90,
+ "ga4_properties": {},
+ "gsc_sites": {
+  "sc-domain:iori.me": "siteFullUser",
+  "sc-domain:3die.fr": "siteFullUser"
+ },
+ "ga4": {
+  "iori.me": {
+   "_skipped": "measurement id G-GKKJ5VX340 not visible to this account"
+  },
+  "3die.fr": {
+   "totals": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   },
+   "pages": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   },
+   "channels": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   },
+   "sources": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   },
+   "countries": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   },
+   "devices": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   },
+   "daily": {
+    "_error": 403,
+    "_message": "User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.",
+    "_api": "Google Analytics Data API",
+    "_fix": "this Google account cannot see that property — sign in as the owner"
+   }
+  }
+ },
+ "gsc": {
+  "sc-domain:iori.me": {
+   "totals": {
+    "rows": [
+     {
+      "clicks": 1,
+      "impressions": 42,
+      "ctr": 0.023809523809523808,
+      "position": 44.07142857142857
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "queries": {
+    "rows": [
+     {
+      "keys": [
+       "flame simulation"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 66
+     },
+     {
+      "keys": [
+       "physarum simulation"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 55.5
+     },
+     {
+      "keys": [
+       "physarum: slime mold simulator"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 62
+     },
+     {
+      "keys": [
+       "volume of a tesseract"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "pages": {
+    "rows": [
+     {
+      "keys": [
+       "https://iori.me/portfolio.html"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 4.666666666666666
+     },
+     {
+      "keys": [
+       "https://iori.me/"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "https://iori.me/4cube.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+     },
+     {
+      "keys": [
+       "https://iori.me/4cube_volume.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "https://iori.me/aquarium.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "https://iori.me/cracks.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "https://iori.me/disphere-inverse.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "https://iori.me/disphere.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 38.75
+     },
+     {
+      "keys": [
+       "https://iori.me/dither-types.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "https://iori.me/flame-strains.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+     },
+     {
+      "keys": [
+       "https://iori.me/flame.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 71.33333333333333
+     },
+     {
+      "keys": [
+       "https://iori.me/fluid.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://iori.me/fractals.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 76
+     },
+     {
+      "keys": [
+       "https://iori.me/index.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "https://iori.me/info.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "https://iori.me/lambda_cognition.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "https://iori.me/meta-iris.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "https://iori.me/procedural-flame.html"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 39.6
+     },
+     {
+      "keys": [
+       "https://iori.me/slime-mold.html"
+      ],
+      "clicks": 0,
+      "impressions": 11,
+      "ctr": 0,
+      "position": 55.54545454545455
+     },
+     {
+      "keys": [
+       "https://iori.me/start.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://iori.me/three-body.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 64.5
+     },
+     {
+      "keys": [
+       "https://iori.me/universe.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     }
+    ],
+    "responseAggregationType": "byPage"
+   },
+   "countries": {
+    "rows": [
+     {
+      "keys": [
+       "arg"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 6
+     },
+     {
+      "keys": [
+       "bra"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "cze"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "dza"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 68
+     },
+     {
+      "keys": [
+       "gbr"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "idn"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 71
+     },
+     {
+      "keys": [
+       "ind"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 70
+     },
+     {
+      "keys": [
+       "mar"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 74.5
+     },
+     {
+      "keys": [
+       "mex"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 36.5
+     },
+     {
+      "keys": [
+       "mys"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+     },
+     {
+      "keys": [
+       "phl"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 40
+     },
+     {
+      "keys": [
+       "rus"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "tha"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+     },
+     {
+      "keys": [
+       "tur"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 41
+     },
+     {
+      "keys": [
+       "ukr"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 63.5
+     },
+     {
+      "keys": [
+       "usa"
+      ],
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 29
+     },
+     {
+      "keys": [
+       "vnm"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 43.25
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "devices": {
+    "rows": [
+     {
+      "keys": [
+       "DESKTOP"
+      ],
+      "clicks": 1,
+      "impressions": 37,
+      "ctr": 0.02702702702702703,
+      "position": 49.027027027027025
+     },
+     {
+      "keys": [
+       "MOBILE"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 7.4
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "daily": {
+    "rows": [
+     {
+      "keys": [
+       "2026-06-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-22"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-23"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-24"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-25"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-26"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-27"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-28"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-29"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "2026-06-30"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-01"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-02"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-03"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-07-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-07"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-08"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-09"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-10"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-11"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-12"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-22"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-23"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-24"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-25"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-26"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-27"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-07-28"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-07-29"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-30"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-31"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-01"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-02"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-03"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-07"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-08"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-09"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-10"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 38.5
+     },
+     {
+      "keys": [
+       "2026-08-11"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-12"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-15"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 74
+     },
+     {
+      "keys": [
+       "2026-08-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-19"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 77
+     },
+     {
+      "keys": [
+       "2026-08-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-21"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 36.5
+     },
+     {
+      "keys": [
+       "2026-08-22"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 53
+     },
+     {
+      "keys": [
+       "2026-08-23"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+     },
+     {
+      "keys": [
+       "2026-08-24"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 68.33333333333333
+     },
+     {
+      "keys": [
+       "2026-08-25"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 70.75
+     },
+     {
+      "keys": [
+       "2026-08-26"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 65
+     },
+     {
+      "keys": [
+       "2026-08-27"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 71
+     },
+     {
+      "keys": [
+       "2026-08-28"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-29"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 48.666666666666664
+     },
+     {
+      "keys": [
+       "2026-08-30"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 53.25
+     },
+     {
+      "keys": [
+       "2026-08-31"
+      ],
+      "clicks": 1,
+      "impressions": 7,
+      "ctr": 0.14285714285714285,
+      "position": 42
+     },
+     {
+      "keys": [
+       "2026-09-01"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-02"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-03"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 55
+     },
+     {
+      "keys": [
+       "2026-09-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-07"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "2026-09-08"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-09-09"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-10"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 27
+     },
+     {
+      "keys": [
+       "2026-09-11"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-12"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "sitemaps": {
+    "sitemap": [
+     {
+      "path": "https://iori.me/sitemap.xml",
+      "lastSubmitted": "2026-06-29T11:24:39.284Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-06-30T11:31:42.647Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "47",
+        "indexed": "0"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "sc-domain:3die.fr": {
+   "totals": {
+    "rows": [
+     {
+      "clicks": 0,
+      "impressions": 206,
+      "ctr": 0,
+      "position": 22.854368932038835
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "queries": {
+    "rows": [
+     {
+      "keys": [
+       "3 die"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "3 dinge"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 87
+     },
+     {
+      "keys": [
+       "3ddie"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+     },
+     {
+      "keys": [
+       "3die"
+      ],
+      "clicks": 0,
+      "impressions": 45,
+      "ctr": 0,
+      "position": 6.777777777777778
+     },
+     {
+      "keys": [
+       "3ideco"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "agence die drei"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 71
+     },
+     {
+      "keys": [
+       "did 3d"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+     },
+     {
+      "keys": [
+       "did3d"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 51
+     },
+     {
+      "keys": [
+       "die v3"
+      ],
+      "clicks": 0,
+      "impressions": 21,
+      "ctr": 0,
+      "position": 51.904761904761905
+     },
+     {
+      "keys": [
+       "fractal processing"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 61
+     },
+     {
+      "keys": [
+       "petrosian fractal dimension"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 34
+     },
+     {
+      "keys": [
+       "pi trainer"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 19
+     },
+     {
+      "keys": [
+       "thirdie"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 31
+     },
+     {
+      "keys": [
+       "three or die"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 66
+     },
+     {
+      "keys": [
+       "tri d"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 12
+     },
+     {
+      "keys": [
+       "zs universum"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+     },
+     {
+      "keys": [
+       "zš univerzum"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 34.5
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "pages": {
+    "rows": [
+     {
+      "keys": [
+       "https://3die.fr/"
+      ],
+      "clicks": 0,
+      "impressions": 128,
+      "ctr": 0,
+      "position": 17.3359375
+     },
+     {
+      "keys": [
+       "https://3die.fr/aquarium.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 24
+     },
+     {
+      "keys": [
+       "https://3die.fr/burger.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "https://3die.fr/clip.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://3die.fr/crow_archduke.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://3die.fr/dither-types.html"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 80.2
+     },
+     {
+      "keys": [
+       "https://3die.fr/fractal-dimension.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 33.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/fractals.html"
+      ],
+      "clicks": 0,
+      "impressions": 46,
+      "ctr": 0,
+      "position": 24.282608695652176
+     },
+     {
+      "keys": [
+       "https://3die.fr/info.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "https://3die.fr/lambda_cognition.html"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 7.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/lili.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "https://3die.fr/moises.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "https://3die.fr/orbitals.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+     },
+     {
+      "keys": [
+       "https://3die.fr/pi.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 11
+     },
+     {
+      "keys": [
+       "https://3die.fr/portfolio.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 5.666666666666667
+     },
+     {
+      "keys": [
+       "https://3die.fr/shop.html"
+      ],
+      "clicks": 0,
+      "impressions": 12,
+      "ctr": 0,
+      "position": 29.833333333333332
+     },
+     {
+      "keys": [
+       "https://3die.fr/start.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 39
+     },
+     {
+      "keys": [
+       "https://3die.fr/two-body.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 54.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/univerzum.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 31.25
+     }
+    ],
+    "responseAggregationType": "byPage"
+   },
+   "countries": {
+    "rows": [
+     {
+      "keys": [
+       "arg"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "bgd"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 76.5
+     },
+     {
+      "keys": [
+       "bhr"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "bra"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 16
+     },
+     {
+      "keys": [
+       "can"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 6.666666666666667
+     },
+     {
+      "keys": [
+       "cze"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 20
+     },
+     {
+      "keys": [
+       "deu"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "dza"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 25.5
+     },
+     {
+      "keys": [
+       "egy"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "fra"
+      ],
+      "clicks": 0,
+      "impressions": 21,
+      "ctr": 0,
+      "position": 20.904761904761905
+     },
+     {
+      "keys": [
+       "gbr"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 16.8
+     },
+     {
+      "keys": [
+       "gha"
+      ],
+      "clicks": 0,
+      "impressions": 12,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "idn"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 16.5
+     },
+     {
+      "keys": [
+       "ind"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 44.333333333333336
+     },
+     {
+      "keys": [
+       "ita"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 12.166666666666666
+     },
+     {
+      "keys": [
+       "jor"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 36
+     },
+     {
+      "keys": [
+       "jpn"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "ken"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.666666666666667
+     },
+     {
+      "keys": [
+       "kor"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 3.5
+     },
+     {
+      "keys": [
+       "mar"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 44.4
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "devices": {
+    "rows": [
+     {
+      "keys": [
+       "DESKTOP"
+      ],
+      "clicks": 0,
+      "impressions": 160,
+      "ctr": 0,
+      "position": 27.55625
+     },
+     {
+      "keys": [
+       "MOBILE"
+      ],
+      "clicks": 0,
+      "impressions": 44,
+      "ctr": 0,
+      "position": 6.454545454545454
+     },
+     {
+      "keys": [
+       "TABLET"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 7.5
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "daily": {
+    "rows": [
+     {
+      "keys": [
+       "2026-06-15"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 57
+     },
+     {
+      "keys": [
+       "2026-06-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-17"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-06-18"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 15.5
+     },
+     {
+      "keys": [
+       "2026-06-19"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-06-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-22"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-23"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 14.2
+     },
+     {
+      "keys": [
+       "2026-06-24"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-06-25"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "2026-06-26"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-27"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-28"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "2026-06-29"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 36
+     },
+     {
+      "keys": [
+       "2026-06-30"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-07-01"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "2026-07-02"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "2026-07-03"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-06"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.333333333333333
+     },
+     {
+      "keys": [
+       "2026-07-07"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.333333333333333
+     },
+     {
+      "keys": [
+       "2026-07-08"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 11.5
+     },
+     {
+      "keys": [
+       "2026-07-09"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 58.5
+     },
+     {
+      "keys": [
+       "2026-07-10"
+      ],
+      "clicks": 0,
+      "impressions": 14,
+      "ctr": 0,
+      "position": 30.714285714285715
+     },
+     {
+      "keys": [
+       "2026-07-11"
+      ],
+      "clicks": 0,
+      "impressions": 22,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-07-12"
+      ],
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 15.777777777777779
+     },
+     {
+      "keys": [
+       "2026-07-13"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-07-14"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 28.333333333333332
+     },
+     {
+      "keys": [
+       "2026-07-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-16"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-07-17"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 30.5
+     },
+     {
+      "keys": [
+       "2026-07-18"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 23.333333333333332
+     },
+     {
+      "keys": [
+       "2026-07-19"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 35.333333333333336
+     },
+     {
+      "keys": [
+       "2026-07-20"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 41.333333333333336
+     },
+     {
+      "keys": [
+       "2026-07-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-22"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "2026-07-23"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "2026-07-24"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "2026-07-25"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 42
+     },
+     {
+      "keys": [
+       "2026-07-26"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 48
+     },
+     {
+      "keys": [
+       "2026-07-27"
+      ],
+      "clicks": 0,
+      "impressions": 12,
+      "ctr": 0,
+      "position": 26.5
+     },
+     {
+      "keys": [
+       "2026-07-28"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 18.4
+     },
+     {
+      "keys": [
+       "2026-07-29"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 35.75
+     },
+     {
+      "keys": [
+       "2026-07-30"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 27
+     },
+     {
+      "keys": [
+       "2026-07-31"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 25.375
+     },
+     {
+      "keys": [
+       "2026-08-01"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.666666666666667
+     },
+     {
+      "keys": [
+       "2026-08-02"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 43.5
+     },
+     {
+      "keys": [
+       "2026-08-03"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 26.5
+     },
+     {
+      "keys": [
+       "2026-08-04"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-08-05"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 46
+     },
+     {
+      "keys": [
+       "2026-08-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-07"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-08"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-09"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "2026-08-10"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+     },
+     {
+      "keys": [
+       "2026-08-11"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "2026-08-12"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 36
+     },
+     {
+      "keys": [
+       "2026-08-13"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 46.666666666666664
+     },
+     {
+      "keys": [
+       "2026-08-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-16"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 24
+     },
+     {
+      "keys": [
+       "2026-08-17"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-08-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-21"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 50.5
+     },
+     {
+      "keys": [
+       "2026-08-22"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 32.66666666666667
+     },
+     {
+      "keys": [
+       "2026-08-23"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 41
+     },
+     {
+      "keys": [
+       "2026-08-24"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "2026-08-25"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 87
+     },
+     {
+      "keys": [
+       "2026-08-26"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 49.5
+     },
+     {
+      "keys": [
+       "2026-08-27"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+     },
+     {
+      "keys": [
+       "2026-08-28"
+      ],
+      "clicks": 0,
+      "impressions": 10,
+      "ctr": 0,
+      "position": 16.4
+     },
+     {
+      "keys": [
+       "2026-08-29"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 54.666666666666664
+     },
+     {
+      "keys": [
+       "2026-08-30"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-08-31"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 18
+     },
+     {
+      "keys": [
+       "2026-09-01"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-09-02"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 25
+     },
+     {
+      "keys": [
+       "2026-09-03"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-09-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-05"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+     },
+     {
+      "keys": [
+       "2026-09-06"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "2026-09-07"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 45
+     },
+     {
+      "keys": [
+       "2026-09-08"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 6.5
+     },
+     {
+      "keys": [
+       "2026-09-09"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-09-10"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-09-11"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+     },
+     {
+      "keys": [
+       "2026-09-12"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "sitemaps": {
+    "sitemap": [
+     {
+      "path": "https://3die.fr/3die-sitemap.xml",
+      "lastSubmitted": "2026-07-03T18:09:28.864Z",
+      "isPending": true,
+      "isSitemapsIndex": false,
+      "warnings": "0",
+      "errors": "1"
+     },
+     {
+      "path": "https://3die.fr/sitemap.xml",
+      "lastSubmitted": "2026-07-03T18:09:03.163Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-09-14T20:18:13.482Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "21",
+        "indexed": "0"
+       }
+      ]
+     },
+     {
+      "path": "https://3die.fr/sitemap-3die.xml",
+      "lastSubmitted": "2026-04-12T21:53:54.337Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-04-18T06:54:59.410Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "47",
+        "indexed": "0"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ "ga4_used": {
+  "3die.fr": "properties/530756051"
+ }
+}

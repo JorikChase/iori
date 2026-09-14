@@ -1,0 +1,104 @@
+/* star menu — the astroid navigator shared by iori.me/star.html and
+   3die.fr/start.html. Both pages used to carry their own copy inline, which
+   is how they drifted apart; edit this file and both stay in step. */
+html, body { margin: 0; padding: 0; }
+
+/* ---------- the star menu: one astroid, four inside it, sixteen inside
+   those, sixty-four inside those. Every level counter-rotates its
+   parent by 45°, so the layered silhouette reads as an 8-point star. */
+.center-nav-wrap {
+    position: absolute; inset: 0;
+    display: flex; justify-content: center; align-items: center;
+    pointer-events: none;
+}
+.center-nav {
+    --s: min(440px, 80vmin);
+    --star: url(/assets/star.svg);
+    position: relative; width: var(--s); height: var(--s);
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    background: var(--star) center / cover no-repeat;
+    opacity: .8; pointer-events: auto; cursor: pointer;
+    transform: scale(.12);
+    transition: transform .6s cubic-bezier(.2, .9, .25, 1), opacity .4s ease;
+    filter: drop-shadow(0 0 24px rgba(255, 255, 255, .25));
+}
+.center-nav:hover, .center-nav:focus-within, .center-nav.open {
+    opacity: .96; transform: rotate(45deg) scale(1);
+}
+.quad {
+    position: relative; display: flex; justify-content: center; align-items: center;
+    background: var(--star) center / cover no-repeat;
+    opacity: 0; transform: rotate(-45deg) scale(.6);
+    transition: opacity .35s ease .08s, transform .55s cubic-bezier(.2, .9, .25, 1) .08s;
+}
+.center-nav:hover .quad, .center-nav:focus-within .quad, .center-nav.open .quad {
+    opacity: .82; transform: rotate(-45deg) scale(1);
+}
+.quad:hover, .quad:focus-within { opacity: 1 !important; z-index: 3; }
+
+/* fractal repetitions (decorative, never catch the pointer) */
+.sub {
+    position: absolute; inset: 0; pointer-events: none;
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+}
+.star {
+    position: relative; background: var(--star) center / cover no-repeat;
+    opacity: 0; transform: rotate(45deg) scale(.4);
+    transition: opacity .4s ease var(--d), transform .6s cubic-bezier(.2, .9, .25, 1) var(--d);
+    --d: .22s;
+}
+.star .star { transform: rotate(-45deg) scale(.4); --d: .38s; }
+.center-nav:hover .star, .center-nav:focus-within .star, .center-nav.open .star {
+    opacity: .55; transform: rotate(45deg) scale(1);
+}
+.center-nav:hover .star .star, .center-nav:focus-within .star .star, .center-nav.open .star .star {
+    opacity: .42; transform: rotate(-45deg) scale(1);
+}
+
+/* labels sit above every repetition */
+.quad > .label, .quad > .dropdown { position: relative; z-index: 4; }
+.label {
+    font-family: "Milksea", "Tilt Neon", sans-serif;
+    font-size: clamp(1.05rem, 3.4vmin, 1.5rem);
+    letter-spacing: .06em; color: #0c0c0c; text-decoration: none; text-align: center;
+    text-shadow: 0 0 10px rgba(255, 255, 255, .95), 0 0 2px rgba(255, 255, 255, 1);
+    padding: .15em .1em; border-bottom: 2px solid transparent;
+    transition: border-color .2s ease, letter-spacing .2s ease;
+    white-space: nowrap;
+}
+.label:hover, .dropdown:hover > .label, .label:focus-visible {
+    border-color: #0c0c0c; letter-spacing: .1em; outline: none;
+}
+.label small {
+    display: block; font-family: "Courier New", ui-monospace, monospace;
+    font-size: .55em; letter-spacing: .25em; text-transform: uppercase;
+    color: #444; margin-top: .15em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .center-nav, .quad, .star, .label { transition: none; }
+}
+
+.dropdown { position: relative; display: inline-block; }
+.dropdown > .label { display: inline-block; }
+.dropdown-nav {
+    position: absolute; left: 50%; top: calc(100% + .5em); z-index: 5;
+    list-style: none; margin: 0; padding: .35em;
+    display: flex; flex-direction: column; gap: .3em; width: max-content; min-width: 11em;
+    background: rgba(6, 6, 6, .92); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; pointer-events: none;
+    transform: translate(-50%, -.6em);
+    transition: opacity .25s ease, transform .3s cubic-bezier(.2, .9, .25, 1);
+}
+.dropdown:hover .dropdown-nav, .dropdown:focus-within .dropdown-nav {
+    opacity: 1; pointer-events: auto; transform: translate(-50%, 0);
+}
+.dropdown-nav a {
+    display: block; padding: .4em 1em;
+    font-family: "Milksea", "Tilt Neon", sans-serif; font-size: 1rem; letter-spacing: .05em;
+    color: #f4f4f4; text-decoration: none;
+    transition: background .2s ease, color .2s ease, padding-left .2s ease;
+}
+.dropdown-nav a:hover, .dropdown-nav a:focus-visible {
+    background: rgb(255, 251, 0); color: #000; padding-left: 1.3em; outline: none;
+}

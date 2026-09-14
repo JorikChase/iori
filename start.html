@@ -66,72 +66,7 @@
             rel="stylesheet"
             href="/assets/main.css"
         />
-        <style>
-            html,
-            body {
-                margin: 0;
-                padding: 0;
-            }
-            .center-nav-wrap {
-                position: absolute;
-                top: 0;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-            .center-nav {
-                opacity: 0.8;
-                background-image: url(/assets/star.svg);
-                background-size: cover;
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                grid-template-rows: 1fr 1fr;
-                width: 400px;
-                height: 400px;
-                margin: 0;
-                padding: 0;
-                transition: all 0.5s ease-in-out;
-                transform: scale(0.1);
-            }
-            .center-nav > div {
-                opacity: 0;
-                width: 100%;
-                height: 100%;
-                background-image: url(/assets/star.svg);
-                background-size: cover;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-            .center-nav:hover {
-                opacity: 0.9;
-                transform: rotate(45deg);
-            }
-            .center-nav:hover > div {
-                opacity: 0.7;
-                transform: rotate(-45deg);
-            }
-            .center-nav:hover > div:hover {
-                opacity: 1;
-                transform: rotate(-45deg);
-            }
-            .center-nav > div > a {
-                color: black;
-                text-decoration: none;
-            }
-            .center-nav > div > a:hover {
-                transform: scale(1.1);
-            }
-            @media (orientation: portrait) {
-                .center-nav {
-                    width: 280px;
-                    height: 280px;
-                }
-            }
-        </style>
+        <link type="text/css" rel="stylesheet" href="/assets/star-menu.css" />
 </head>
     <body>
         <!-- shader for bird's position -->
@@ -929,107 +864,56 @@
             }
         </script>
 
-        <style>
-            .dropdown > a {
-                display: flex;
-                align-items: center;
-                gap: 15px;
-                text-decoration: none;
-                color: black;
-            }
-            .dropdown:hover .dropdown-nav {
-                opacity: 1;
-                transform: translateY(0);
-                box-shadow:
-                    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-                    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            }
-            .dropdown-nav {
-                opacity: 0;
-                transition:
-                    transform 0.3s cubic-bezier(0.88, -0.72, 0, 1),
-                    opacity 0.3s ease-in-out;
-                transform: translateY(2rem);
-                list-style: none;
-                margin: 0;
-                padding: 5px;
-                position: absolute;
-                z-index: 1;
-                width: 250px;
-                line-height: 36px;
-            }
-            .dropdown-nav a {
-                text-decoration: none;
-                color: #ffffff;
-                transition: all 0.3s ease;
-                padding: 5px 20px;
-                background: rgba(0, 0, 0, 0.8);
-                border-radius: 3px;
-            }
-            .dropdown-nav a:hover {
-                padding: 7px 22px;
-                color: tomato;
-                background: rgba(0, 0, 0, 1);
-            }
-        </style>
-        <div class="center-nav-wrap">
-            <div class="center-nav">
-                <div>
-                    <a href="/fluid.html">fluid test</a>
-                </div>
-                <div>
-                    <span class="dropdown">
-                        <a class="center-nav-item">interactive</a>
-                        <ul class="dropdown-nav">
-                            <li>
-                                <a href="/game.html"
-                                    >RPG Tennis</a
-                                >
-                            </li>
-                            <li>
-                                <a href="/webgl.html"
-                                    >Webgl</a
-                                >
-                            </li>
-                            <li>
-                                <a href="/tboi2.html"
-                                    >tboi 2</a
-                                >
-                            </li>
-                            <li>
-                                <a href="/blackjach/"
-                                    >blackjach</a
-                                >
-                            </li>
-                        </ul>
-                    </span>
-                </div>
-                <div>
-                    <a
-                        href="/web.html"
-                        class="center-nav-item"
-                        >websites</a
-                    >
-                </div>
-                <div>
-                    <span class="dropdown">
-                        <a class="center-nav-item">works</a>
-                        <ul class="dropdown-nav">
-                            <li>
-                                <a href="/disphere-ray.html"
-                                    >disphere raycast</a
-                                >
-                            </li>
-                            <li>
-                                <a href="/disphere.html"
-                                    >sphere</a
-                                >
-                            </li>
-                        </ul>
-                    </span>
-                </div>
+    <div class="center-nav-wrap">
+        <div class="center-nav" id="center-nav" aria-label="Site menu">
+            <div class="quad">
+                <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
+                <a class="label" href="/fluid.html">fluid test<small>simulation</small></a>
+            </div>
+            <div class="quad">
+                <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
+                <span class="dropdown">
+                    <a class="label" href="/game.html" aria-haspopup="true">interactive<small>4 games</small></a>
+                    <ul class="dropdown-nav">
+                        <li><a href="/game.html">RPG Tennis</a></li>
+                        <li><a href="/webgl.html">Webgl</a></li>
+                        <li><a href="/tboi2.html">tboi 2</a></li>
+                        <li><a href="/blackjach/">blackjach</a></li>
+                    </ul>
+                </span>
+            </div>
+            <div class="quad">
+                <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
+                <a class="label" href="/web.html">websites<small>node web</small></a>
+            </div>
+            <div class="quad">
+                <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
+                <span class="dropdown">
+                    <a class="label" href="/disphere-ray.html" aria-haspopup="true">works<small>dispheres</small></a>
+                    <ul class="dropdown-nav">
+                        <li><a href="/disphere-ray.html">disphere raycast</a></li>
+                        <li><a href="/disphere.html">sphere</a></li>
+                    </ul>
+                </span>
             </div>
         </div>
+    </div>
+    <script>
+        /* touch has no hover: the first tap blooms the star, the second follows a
+           link; tapping anywhere else folds it again */
+        (function () {
+            const nav = document.getElementById("center-nav");
+            if (!nav) return;
+            nav.addEventListener("pointerdown", (e) => {
+                if (e.pointerType === "mouse" || nav.classList.contains("open")) return;
+                e.preventDefault();
+                nav.classList.add("open");
+            }, { passive: false });
+            document.addEventListener("pointerdown", (e) => {
+                if (!nav.contains(e.target)) nav.classList.remove("open");
+            });
+        })();
+    </script>
     <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
 <link rel="stylesheet" href="assets/menu.css">
 <nav id="site-menu" class="site-menu site-menu--tl" aria-label="Site menu">

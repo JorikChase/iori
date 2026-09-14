@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-12",
+  "generated": "2026-09-14",
   "pages": [
     {
       "slug": "4cube.html",
@@ -442,6 +442,17 @@
       "lastmod": "2026-07-27"
     },
     {
+      "slug": "lili-web.html",
+      "title": "Lili Web — TODO",
+      "description": "TODO: write a unique description for this page.",
+      "category": "TODO",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/lili-web.html",
+      "og_image": null,
+      "lastmod": "2026-09-14"
+    },
+    {
       "slug": "lili.html",
       "title": "lili — Animated Portrait Study",
       "description": "An interactive animated portrait by iori: drag to scrub through painted frames of lili.",
@@ -615,7 +626,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/portfolio.html",
       "og_image": null,
-      "lastmod": "2026-08-18"
+      "lastmod": "2026-09-14"
     },
     {
       "slug": "poster.html",
@@ -681,7 +692,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/socci.html",
       "og_image": "images/socci-base-island.avif",
-      "lastmod": "2026-07-27"
+      "lastmod": "2026-09-14"
     },
     {
       "slug": "star.html",
@@ -692,7 +703,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/star.html",
       "og_image": null,
-      "lastmod": "2026-09-02"
+      "lastmod": "2026-09-14"
     },
     {
       "slug": "start.html",

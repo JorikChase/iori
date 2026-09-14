@@ -207,6 +207,7 @@ def build_seo_block(slug, meta):
     # previews stop rendering as bare text.
     og_image = meta.get("og_image") or "icon/og.png"
     og_image_url = f"https://{domain}/{og_image}"
+    ga_id = GA_ID_3DIE if domain == "3die.fr" else GA_ID_IORI
 
     lines = [
         SEO_BEGIN,
@@ -248,18 +249,16 @@ def build_seo_block(slug, meta):
         "",
         f'    <meta name="google-site-verification" content="{GOOGLE_VERIFICATION}" />',
         "",
-        "    <!-- Google Analytics (per-domain property chosen by hostname) -->",
-        f'    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_ID_IORI}"></script>',
-        f'    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_ID_3DIE}"></script>',
+        # Every page has exactly one canonical domain (the other domain 301s to
+        # it), so it only ever needs that domain's property. Loading both meant
+        # two tag requests on every page and split nothing usefully.
+        "    <!-- Google Analytics -->",
+        f'    <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>',
         "    <script>",
         "      window.dataLayer = window.dataLayer || [];",
         "      function gtag(){dataLayer.push(arguments);}",
         "      gtag('js', new Date());",
-        "      if (window.location.hostname.includes('3die.fr')) {",
-        f"          gtag('config', '{GA_ID_3DIE}');",
-        "      } else {",
-        f"          gtag('config', '{GA_ID_IORI}');",
-        "      }",
+        f"      gtag('config', '{ga_id}');",
         "    </script>",
         "",
     ]

@@ -75,47 +75,121 @@
 
     <!-- FIX 6: Updated Twitter Image path to root domain -->
 
-    <!-- FIX 1: Use RELATIVE path for live server -->
-    <!-- FIX 1: Use RELATIVE path for live server -->
+    <!-- Nothing in this scene is lit by a light: every photon comes from the HDRI,
+         so the page is literally black until it arrives. Start it here, at the top
+         of the parse, rather than letting the loader ask for it after the module
+         graph has settled — that was costing 1.35s of dead time.
+         A <link rel=preload as=fetch> would not do: its credentials mode does not
+         match the one three's FileLoader uses, so the browser downloads it twice. -->
+    <script>
+        window.__sky = fetch("assets/3dieMainBckg.hdr").then(function (r) {
+            if (!r.ok) throw new Error("sky " + r.status);
+            return r.arrayBuffer();
+        });
+    </script>
+    <link rel="modulepreload" href="assets/three-index.min.js" />
+
     <link type="text/css" rel="stylesheet" href="assets/main.css" />
 
-        <style>
-            body {
-                touch-action: none;
+    <style>
+        body {
+            touch-action: none;
+        }
+
+        /* The backdrop index.html paints before WebGL has a context, so the
+           canvas fades up over the right colours rather than out of black.
+           MEASURED, not modelled — run tools/index_backdrop.html to regenerate.
+           The page draws through an EffectComposer that writes its linear render
+           target straight to the canvas, so it shows up about 40% darker than the
+           same scene through a plain render; a gradient derived from the HDRI
+           alone opens washed out and visibly darkens as the canvas takes over. */
+        :root {
+            --backdrop: linear-gradient(180deg, rgb(50,61,100) 0%, rgb(52,64,106) 17%, rgb(65,77,116) 33%, rgb(78,82,102) 50%, rgb(43,51,74) 67%, rgb(27,33,53) 83%, rgb(25,29,46) 100%);
+        }
+
+        /* On both: body's copy rides inside the blur, html's is what the blur
+           bleeds into at the viewport edge. Without the second one the soft edge
+           fades to the black in main.css and rims the page with a dark vignette. */
+        html,
+        body {
+            background: var(--backdrop);
+        }
+
+        /* The reveal. One continuous transition from soft to sharp, run when the
+           full-resolution sky has landed and actually been drawn — not a crossfade
+           between two states. */
+        body {
+            filter: blur(var(--reveal-blur, 26px));
+            transition: filter 900ms cubic-bezier(0.22, 0.61, 0.36, 1);
+            /* A filtered element is the containing block for its fixed children,
+               so body has to fill the viewport or the nav and the menu would
+               anchor to a zero-height box. dvh tracks the mobile toolbar. */
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        body.revealed {
+            --reveal-blur: 0px;
+        }
+
+        /* Only for a sky that arrives after the failsafe already sharpened the
+           page: a short dip back out of focus, so the jump from the 32x16
+           environment to the real one reads as the image settling. */
+        body.refocus {
+            --reveal-blur: 9px;
+            transition-duration: 220ms;
+        }
+
+        /* Blur samples past the viewport edge, which would otherwise let the
+           backdrop bleed in as a soft frame. Overscanning hides it, and the scale
+           relaxes on the same curve so it reads as the image settling. */
+        canvas {
+            opacity: 0;
+            transform: scale(1.06);
+            transition:
+                opacity 400ms linear,
+                transform 900ms cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+
+        /* The gradient above is a seven-stop approximation, so it lands a few
+           percent off the real frame. Fading rather than cutting keeps that
+           margin of error from reading as a flash. */
+        body.lit canvas {
+            opacity: 1;
+        }
+
+        body.revealed canvas {
+            transform: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            body,
+            canvas {
+                transition-duration: 1ms;
             }
-        </style>
+        }
+    </style>
 </head>
 
     <body>
-        <!-- Import maps polyfill -->
-        <script
-            async
-            src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"
-        ></script>
-
-        <script type="importmap">
-            {
-                "imports": {
-                    "three": "https://threejs.org/build/three.module.js",
-                    "three/addons/": "https://threejs.org/examples/jsm/"
-                }
-            }
-        </script>
-
         <script type="module">
-            import * as THREE from "three";
+            // One pinned, same-origin file: three plus the four addons this page
+            // uses. Rebuild with tools/build_three_bundle.sh.
+            import {
+                THREE,
+                HDRLoader,
+                EffectComposer,
+                RenderPass,
+                ShaderPass,
+                RGBShiftShader,
+            } from "./assets/three-index.min.js";
 
-            // FIX 2: Use HDRLoader instead of deprecated RGBELoader
-            import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
-
-            import { GUI } from "three/addons/libs/lil-gui.module.min.js";
-
-            import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-            import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-            import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-            import { FilmPass } from "three/addons/postprocessing/FilmPass.js";
-            import { RGBShiftShader } from "three/addons/shaders/RGBShiftShader.js";
-            import { AsciiEffect } from "three/addons/effects/AsciiEffect.js";
+            // A 32x16 mip of 3dieMainBckg.hdr, ~2 KB, inlined so it costs no
+            // round trip. Enough to light the scene correctly on frame one while
+            // the 1.4 MB original streams in. Regenerate with:
+            //   python3 tools/build_hdr_preview.py assets/3dieMainBckg.hdr \
+            //     --width 32 --base64
+            const HDR_PREVIEW = "Iz9SQURJQU5DRQpGT1JNQVQ9MzItYml0X3JsZV9yZ2JlCgotWSAxNiArWCAzMgqxtdWApq3NgKqy04Cyut2AuMDjgK212YCzu92Ar7fZgISQtIB/jLOAp7PbgMHM9IC1weqAeoi0gIKj+39xkeh/VHTLf4qn/X9baZKAlaDHgJymzIB6hauAanaagGdyl4BRXICAVm62fzdPln81TZN/N0+Vfz5WnH9iaYqArrLSgJan43+fr+l/tMP7f6a1739dZIGAZ2+NgFpkg4BWYIGAXWiLgKy33oCChpyBa3CIgXeIu4A8U4uARF2agEBanIBkfcCAo6vJgYyTr4GMkaqBh4yjgXF2jYFscIaBdYKtgH2IsYB8luZ/P1mlfzxUnX85UJV/P1WYf1phgYCtvPt/rLr9f19miIB3hcN/najmf6Kt6n9uc5KAV1+CgHV+o4CSm8OATViBgFVyx39ZetZ/WoLpfzFJhoA5Vp+ARGjBgFWB7YBJX5uBrbvsgYCJrIFiaYaBb3WRgYGHoYGrtd2Ae4OjgG92k4BocI+Ak5m8gHqBooBeb7B/TXHvfk5w635SYqR/Vmaof2x6un9WZaZ/Slmaf4mY3H+hsfp/kpi/gLW644BXYYqAO1Wof0Vhu39RdNt/LkaEgDhVo4BWfuWALkeIgT5Zp4HLyteDr7ChiLbC8YFLWIKBZYLTgGNukIGKmc2AgY25gHN8pIBtdpqAnqvmf4eV1X9AYNx+RGTifkJk6H4/YeR+O1zffj1e4X5DZe5+P1KZf2V4wX+Roux/fJLif2d+0H85UqV/RGK8fz5QhIBWhP5/M0+ZgD9hvYBOeeuAMUqPgZei4oFcZIeCQlymgU947IA+X7eANE+VgC9FgIBJbdR/NlKqfypBj39LcP9+O17kfjha2349XuF+JTqJfyQ5h38kOYh/JTqJfyY8i39EWaV/s7//f3B1lYCPoex/OVOqf0Bas3+Am/F/hZK6gISUzoBGYauAQmXAgFB454Bab66BMUyTgVNrrYFbapuBZIv0gERow4A6Vp+AMUeFgG6S/X99mfN/kKHufz1TpH8kOol/KDyHf1Jhpn99j9F/cYXMf1Zuv39SbcR/ZX3Nf2uC0H9of89/XHjNf669/X9jf9Z/TW3Mf2qM6384ToSAS2OhgE1rsoCZtPiAaJP4gFttnYFDX5+BXXOngX2g9IBliN6AaInYgEZkroBSZ6KAaHaggFlmjoCJpPV/aYPUf05qvn+Ck9R/U2y6f4SSxH99jsV/hJPIf4yZz3+lrNV/pqrQf76+4n/Gxeh/o7Dif5Kl33+freR/kq3wf2VwjoBvfqSAdIi0gIyn24Cjwf6AYm+LgWp6moFkc5KBZHCHgbTF6oCar9eAfZG7gHWDpoBlcI6Aorr2f7bB8H+ttt5/rLHRf5mgxn+Jk75/bHWcf2dznX9sdqB/cXqlf3+FqH+Chqd/kJGxf5WWtn+DjbV/dYSyf32JtX94jMF/obLkf1llg4BgbpGAdIixgIadzICdsuCApL/1gKC56oCesdiAjJq6gHuMrYBmdZaAX2mFgKO05H+GmMZ/jJa9f4aOsH+EiKV/fIKgf251l3+Bl+Z+d5DjfmN+2X5ffd1+eZHofoad8H6YrP9+SlaCf19pj393lvh+ZIbwfj1Rh39UaqR/ZX/Df11+z39IWoSAQFeRgGR6tIBYdbyAbYbDgFZpmYBDV4aAfKD5f1Z4y39ed7l/anuvf15unX9UYo9/gJz2fmiE3X6NoOp+bIbbfjdJjX40Rot+MEOKfjNGjX43S5J+TF+lfn+P0X6bqu1+iZvgflJpuH5KY7V+bYfaflhnk39bbaR/RF2if1Nxwn9eg+V/TmGXgFFno4BmebCAUmGQgGiJ5H9Mart/P1ibfzpOhn99nPp+fZbnfniL0n5KXqZ+M0eOfjdJjH5EVJV+Y3/sfWWB7n1mgu99aob0fTtKgX5RYJl+dIG7foyZ1H6Bkc9+Y3W3fk5jqH5Xb7h+cYzefnKU9n44Tol/RF6lf1t6zH9JWYiAhZLCgJ6o1oBmcp2AdY7Zf1JpqX9HWpB/f576fnKM235me8B+WWupfkhYkn5xj/19YX7pfWF9532DnPt9RlKBfkhUhH5LV4d+Ul6PfmFtn350gLR+hJDHfoSSy35xgb1+XXCvfllvs35fecV+aIfffjtOgX9KYJt/Zn7Cf1BcgoCFjbKAmJ2/gG10k4COntZ/a3qsf1tolH9PW4B/i5/hfn2OyX5wfrV+YG2gfk5ai36Bmvl9e5TzfVNfjH5XYo9+WmWSfl5pln5jbpx+analfnN/r355hrl+e4m+fnaGvn5wgr5+boPDfnCIzn54lOF+h6b8flBhkX9ld6t/g5TKf6Ox5n+tuep/m6bUf4KNt39ueJ9/XmiLf6W39n6Sotx+g5LHfnaEtn5pdqd+XWmYflRgjn5RXYp+aHShfmp1on5seKV+bnqofnJ+rH51grF+eYa2fn2KvH5/jsJ+gZDHfoKTzH6El9N+h5zbfo2j5n6XrvV+Ul6Df1pmjH9jbpV/aXSaf2x2m39qc5d/ZG2Pf11mhn+rvPl+na3mfpCf1X6Fk8d+e4m7fnSBsX5ueqp+analfmh0on6BjsB+gY7AfoGPwH6CkMF+g5HDfoSSxX6GlMd+h5bJfomYzH6Kms9+jJzSfo2e1X6QoNl+kqPdfpWm4H6XqeN+mqvmfp2u6X6er+p+nq/pfp6u6H6crOV+manhfpal3H6Sodh+j57Tfouazn6Il8p+hpTHfoOSxH6CkMJ+gY/Afg==";
 
             // declarations
             let camera, scene, renderer, composer;
@@ -132,7 +206,8 @@
                 effect;
 
             let environmentLoaded = false;
-            let cubeCamera, cubeRenderTarget;
+            let cubeCamera, cubeRenderTarget, cubeFrame = 0;
+            let drawn = false;
             let mouseX = 0,
                 mouseY = 0;
             let windowHalfX = window.innerWidth / 2;
@@ -145,7 +220,6 @@
                 renderer.setPixelRatio(window.devicePixelRatio);
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 renderer.setAnimationLoop(animation);
-                renderer.outputEncoding = THREE.sRGBEncoding;
                 renderer.toneMapping = THREE.ACESFilmicToneMapping;
                 renderer.toneMappingExposure = 1.3;
                 document.body.appendChild(renderer.domElement);
@@ -164,19 +238,37 @@
                 scene = new THREE.Scene();
                 scene.rotation.y = 0.5; // avoid flying objects occluding the sun
 
-                // hdri
-                // FIX 2: Use HDRLoader
-                new HDRLoader()
-                    // FIX 1: Use RELATIVE path for live server
-                    .setPath("assets/")
-                    .load("3dieMainBckg.hdr", function (texture) {
+                // hdri — the inlined preview first, synchronously, so the very
+                // first frame this renderer draws is already lit and in colour
+                const hdrLoader = new HDRLoader();
+                const preview = hdrLoader.createDataTexture(
+                    Uint8Array.from(atob(HDR_PREVIEW), (c) => c.charCodeAt(0))
+                        .buffer,
+                );
+                preview.mapping = THREE.EquirectangularReflectionMapping;
+                scene.background = preview;
+                scene.environment = preview;
+                environmentLoaded = true;
+
+                // ...then the real thing, already in flight since the <head>
+                window.__sky
+                    .then(function (buffer) {
+                        const texture = hdrLoader.createDataTexture(buffer);
                         texture.mapping =
                             THREE.EquirectangularReflectionMapping;
 
                         scene.background = texture;
                         scene.environment = texture;
-                        environmentLoaded = true;
-                    });
+                        preview.dispose();
+                        if (revealed) refocus();
+                        else reveal();
+                    })
+                    // A sky that never arrives must not leave the page blurred
+                    // forever — the 32x16 one is a perfectly good fallback.
+                    .catch(reveal);
+
+                // ...and neither must a slow one. Whatever happens, focus by 8s.
+                setTimeout(reveal, 8000);
 
                 // cubeRenderCamera
                 cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
@@ -257,9 +349,32 @@
                 const effect2 = new ShaderPass(RGBShiftShader);
                 effect2.uniforms["amount"].value = 0.001;
                 composer.addPass(effect2);
+            }
 
-                const effect3 = new FilmPass(0.15, 0.025, 50, false);
-                // composer.addPass(effect3);
+            // The canvas is transparent until it has something to show; without
+            // this it would cut over the CSS backdrop with a visible seam.
+            function lit() {
+                document.body.classList.add("lit");
+            }
+
+            // Sharpen once, and only once the full-resolution sky has actually
+            // been drawn. Two frames: the first submits it, the second is on
+            // screen by the time the transition starts, so the blur never lifts
+            // off a stale frame.
+            let revealed = false;
+            function reveal() {
+                if (revealed) return;
+                revealed = true;
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() =>
+                        document.body.classList.add("revealed"),
+                    ),
+                );
+            }
+
+            function refocus() {
+                document.body.classList.add("refocus");
+                setTimeout(() => document.body.classList.remove("refocus"), 240);
             }
 
             function onWindowResized() {
@@ -352,17 +467,29 @@
                 camera.position.y += (-mouseY / 5 - camera.position.y) * 0.02;
                 camera.lookAt(scene.position);
 
-                if (environmentLoaded) {
+                // The environment is static, so the only thing that changes in
+                // the cube map is the handful of small objects reflected in the
+                // ball. Refreshing it every frame costs six extra scene renders
+                // for a difference nobody can see.
+                cubeFrame += 1;
+                if (environmentLoaded && cubeFrame % 2 === 0) {
                     cubeCamera.update(renderer, scene);
                 }
 
-                renderer.render(scene, camera);
+                // composer's RenderPass draws the scene; rendering it directly
+                // first only produced a frame that was immediately overwritten.
                 composer.render();
+
+                if (!drawn) {
+                    drawn = true;
+                    requestAnimationFrame(lit);
+                }
             }
         </script>
-        <!-- FIX 3: Removed 'autoplay' attribute -->
-        <audio id="backgroundMusic">
-            <!-- FIX 1: Use RELATIVE path for live server -->
+        <!-- preload="none": the browser otherwise opens a range request for all
+             7.3 MB of this during the window where the HDRI needs the bandwidth.
+             Nothing plays before the first mousemove anyway. -->
+        <audio id="backgroundMusic" preload="none">
             <source src="assets/main-theme.mp3" />
         </audio>
 

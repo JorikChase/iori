@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>index.html backdrop — measure the CSS gradient</title>
+<style>
+  body { margin: 0; font: 13px/1.5 ui-monospace, Menlo, monospace; background: #14161c; color: #d8dbe2; padding: 24px; }
+  h1 { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+  p { margin: 0 0 18px; color: #9aa1ad; max-width: 62ch; }
+  #out { width: 100%; box-sizing: border-box; background: #0d0f14; color: #b9e6a0; border: 1px solid #2a2f3a; border-radius: 6px; padding: 12px; font: inherit; }
+  #swatch { height: 90px; border-radius: 6px; margin: 14px 0; border: 1px solid #2a2f3a; }
+  canvas { border-radius: 6px; border: 1px solid #2a2f3a; }
+</style>
+</head>
+<body>
+<h1>index.html backdrop</h1>
+<p>
+  Prints the <code>linear-gradient</code> that index.html paints before WebGL has a
+  context. Run it whenever <code>assets/3dieMainBckg.hdr</code>, the camera, or the
+  post-processing chain changes, and paste the result into the <code>--backdrop</code>
+  custom property.
+</p>
+<p>
+  It has to measure rather than model. index.html draws through an EffectComposer whose
+  final pass writes its linear render target straight to the canvas, so the page shows up
+  roughly 40% darker than the same scene through a plain <code>renderer.render()</code>.
+  Any gradient derived from the HDRI alone comes out far too bright, which is glaring in
+  the moment before the canvas fades in. So this page reproduces index.html's exact
+  renderer, camera and pass chain, and reads back what the user will actually see.
+</p>
+<textarea id="out" rows="4" readonly>rendering…</textarea>
+<div id="swatch"></div>
+<canvas id="ref" width="320" height="240"></canvas>
+
+<script type="module">
+import { THREE, HDRLoader, EffectComposer, RenderPass, ShaderPass, RGBShiftShader }
+  from "../assets/three-index.min.js";
+
+const STOPS = 7;
+const W = 320, H = 240;
+
+// Mirrors index.html's init(), minus the objects: the backdrop is what shows
+// through behind them, and they orbit, so including them would bake one arbitrary
+// moment of the animation into a constant.
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.3;
+document.getElementById("ref").replaceWith(renderer.domElement);
+renderer.domElement.id = "ref";
+
+const camera = new THREE.PerspectiveCamera(90, W / H, 1, 1000);
+camera.position.z = 70;
+
+const scene = new THREE.Scene();
+scene.rotation.y = 0.5;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const shift = new ShaderPass(RGBShiftShader);
+shift.uniforms["amount"].value = 0.001;
+composer.addPass(shift);
+
+new HDRLoader().setPath("../assets/").load("3dieMainBckg.hdr", (texture) => {
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = texture;
+  scene.environment = texture;
+  camera.lookAt(scene.position);
+  composer.render();
+
+  const gl = renderer.getContext();
+  const px = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+
+  const parts = [];
+  for (let s = 0; s < STOPS; s++) {
+    // readPixels is bottom-up; stop 0 has to be the top of the screen
+    const y0 = Math.round((STOPS - 1 - s) * H / STOPS);
+    const y1 = Math.round((STOPS - s) * H / STOPS);
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let y = y0; y < y1; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
+      }
+    }
+    const pos = Math.round(s * 100 / (STOPS - 1));
+    parts.push(`rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)}) ${pos}%`);
+  }
+
+  const css = `linear-gradient(180deg, ${parts.join(", ")})`;
+  document.getElementById("out").value = css;
+  document.getElementById("swatch").style.background = css;
+});
+</script>
+</body>
+</html>

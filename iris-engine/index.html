@@ -35,22 +35,25 @@
 
     <meta name="google-site-verification" content="O-GQKbbUV2rUhRtOneHoURp-Q-v7lIbcdP6nfdkrlug" />
 
-    <!-- Google Analytics (per-domain property chosen by hostname) -->
+    <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-GKKJ5VX340"></script>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ERECDMYSNT"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      if (window.location.hostname.includes('3die.fr')) {
-          gtag('config', 'G-ERECDMYSNT');
-      } else {
-          gtag('config', 'G-GKKJ5VX340');
+      // local previews are not visitors: without this every dev server and
+      // file:// open lands in the property as a real session
+      var h = location.hostname;
+      var isLocal = !h || h === 'localhost' || h === '::1' || h === '[::1]'
+        || h.indexOf('127.') === 0 || h.indexOf('192.168.') === 0 || h.indexOf('10.') === 0
+        || h.slice(-6) === '.local' || location.protocol === 'file:';
+      if (!isLocal) {
+        gtag('config', 'G-GKKJ5VX340');
       }
     </script>
 
     <script type="application/ld+json">
-      {"@context": "https://schema.org", "@type": "Organization", "name": "3DIE", "url": "https://3die.fr/", "sameAs": ["https://iori.me/"]}
+      {"@context": "https://schema.org", "@type": "Person", "name": "iori", "alternateName": "Jorik Jonathan Chase", "url": "https://iori.me/", "description": "Artist working in procedural graphics, shaders and real-time 3D: cellular automata, fractals, fluids and volumetric rendering on the web.", "sameAs": ["https://soundcloud.com/ioriori", "https://instagram.com/jorikjonathan"], "memberOf": {"@type": "Organization", "name": "3DIE", "url": "https://3die.fr/"}}
     </script>
     <script type="application/ld+json">
       {"@context": "https://schema.org", "@type": "CreativeWork", "name": "Iris Engine — Photoreal Procedural Iris", "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.", "url": "https://iori.me/iris-engine/", "author": {"@type": "Person", "name": "iori", "url": "https://iori.me/"}}

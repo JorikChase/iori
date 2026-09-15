@@ -59,6 +59,11 @@ MENU_LEGACY_PATTERNS = [
 ]
 
 LANDING_PAGES = {"iori.me": "iori_INDEX.html", "3die.fr": "index.html"}
+# page language: registry "lang" wins, else English. Pages that are written in
+# Czech must say so — a wrong lang tells search engines and screen readers to
+# read Czech as English.
+DEFAULT_LANG = "en"
+OG_LOCALE = {"en": "en_US", "cs": "cs_CZ"}
 PRIORITY_DEFAULT = 0.5
 
 
@@ -208,6 +213,7 @@ def build_seo_block(slug, meta):
     og_image = meta.get("og_image") or "icon/og.png"
     og_image_url = f"https://{domain}/{og_image}"
     ga_id = GA_ID_3DIE if domain == "3die.fr" else GA_ID_IORI
+    lang = meta.get("lang", DEFAULT_LANG)
 
     lines = [
         SEO_BEGIN,
@@ -221,7 +227,7 @@ def build_seo_block(slug, meta):
         f'    <meta property="og:description" content="{desc}">',
         f'    <meta property="og:url" content="{url}">',
         f'    <meta property="og:site_name" content="{"3DIE" if domain == "3die.fr" else "iori"}">',
-        f'    <meta property="og:locale" content="en_US">',
+        f'    <meta property="og:locale" content="{OG_LOCALE.get(lang, "en_US")}">',
     ]
     if og_image_url:
         lines.append(f'    <meta property="og:image" content="{og_image_url}">')
@@ -289,9 +295,24 @@ def ensure_viewport(head_html):
     return head_html
 
 
+def ensure_html_lang(content, lang):
+    """Every page declares its language on <html>. Ten pages shipped with a bare
+    <html>, which leaves search engines and screen readers guessing."""
+    m = re.search(r"<html\b([^>]*)>", content, flags=re.I)
+    if not m:
+        return content
+    attrs = m.group(1)
+    if re.search(r'\blang\s*=', attrs, flags=re.I):
+        new_attrs = re.sub(r'\blang\s*=\s*"[^"]*"', f'lang="{lang}"', attrs, count=1, flags=re.I)
+    else:
+        new_attrs = f' lang="{lang}"' + attrs
+    return content[: m.start()] + f"<html{new_attrs}>" + content[m.end():]
+
+
 def rewrite_head(path, slug, meta):
     with open(path, encoding="utf-8", errors="ignore") as fh:
         content = fh.read()
+    content = ensure_html_lang(content, meta.get("lang", DEFAULT_LANG))
 
     head_match = re.search(r"(<head[^>]*>)(.*?)(</head>)", content, flags=re.S | re.I)
     if not head_match:
@@ -638,6 +659,8 @@ def cmd_check():
         if d in descs:
             problems.append(f"duplicate description: {slug} == {descs[d]}")
         descs[d] = slug
+        if meta.get("lang", DEFAULT_LANG) not in OG_LOCALE:
+            problems.append(f"unknown lang {meta.get('lang')!r}: {slug}")
         if len(d) < 50:
             warnings.append(f"short description ({len(d)} chars): {slug}")
         if len(d) > 170:

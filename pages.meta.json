@@ -95,7 +95,7 @@
     },
     "cracks.html": {
       "title": "Grayscale Shatter Simulator",
-      "description": "Shatter the screen: grayscale crack propagation driven by your input.",
+      "description": "A grayscale shatter simulator: strike the surface and watch fracture lines propagate through glass in real time.",
       "category": "materials",
       "domain": "iori.me",
       "type": "experiment",
@@ -127,7 +127,7 @@
     },
     "darkwood.html": {
       "title": "Unction — Darkwood Game",
-      "description": "Unction: a dark atmospheric browser game built with three.js.",
+      "description": "Unction, a darkwood game made with 3DIE: sound design by Sinjin Hawke, in a forest that closes in as you move.",
       "category": "game",
       "domain": "3die.fr",
       "type": "game",
@@ -159,7 +159,7 @@
     },
     "disphere-ray.html": {
       "title": "Disphere Ray",
-      "description": "Disphere under the ray: ray-marched spheres deformed in real time.",
+      "description": "A raycast disphere: two intersecting spheres traced per pixel, with the surface normal driving the shading.",
       "category": "dispheres",
       "domain": "iori.me",
       "type": "experiment",
@@ -420,7 +420,8 @@
       "category": "client",
       "domain": "3die.fr",
       "type": "client",
-      "priority": 0.6
+      "priority": 0.6,
+      "lang": "cs"
     },
     "mirrorbrot-16k.html": {
       "title": "Mirrorbrot — 16K Deep Edition",
@@ -573,7 +574,7 @@
     },
     "sudoku.html": {
       "title": "SUDOKU Minimal",
-      "description": "A brutally minimal sudoku: nothing but the grid, the numbers and you.",
+      "description": "A minimal sudoku: no chrome, no timers, just the grid, keyboard entry and a solver that checks as you go.",
       "category": "game",
       "domain": "3die.fr",
       "type": "game",
@@ -694,7 +695,7 @@
     },
     "watercolor.html": {
       "title": "Realistic Ink Water Engine",
-      "description": "Ink bleeding into water: a realistic watercolor engine in WebGL.",
+      "description": "A realistic ink-in-water engine: pigment blooms, bleeds and settles across a wet page as you paint into it.",
       "category": "materials",
       "domain": "iori.me",
       "type": "experiment",

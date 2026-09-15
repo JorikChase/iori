@@ -64,6 +64,43 @@ LANDING_PAGES = {"iori.me": "iori_INDEX.html", "3die.fr": "index.html"}
 # read Czech as English.
 DEFAULT_LANG = "en"
 OG_LOCALE = {"en": "en_US", "cs": "cs_CZ"}
+
+# Who each domain IS, in machine-readable form. Every page used to declare the
+# 3DIE organization as its primary entity, including all 63 iori.me pages, which
+# told search engines that iori.me is 3DIE. They are different entities: iori is
+# a person, 3DIE is the label he publishes under.
+#
+# "sameAs" is the corroboration list — the profiles that prove the identity — so
+# a profile belongs to whichever entity actually owns it.
+IDENTITY = {
+    "iori.me": {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "iori",
+        "alternateName": "Jorik Jonathan Chase",
+        "url": "https://iori.me/",
+        "description": "Artist working in procedural graphics, shaders and real-time 3D: "
+                       "cellular automata, fractals, fluids and volumetric rendering on the web.",
+        "sameAs": [
+            "https://soundcloud.com/ioriori",
+            "https://instagram.com/jorikjonathan",
+        ],
+        "memberOf": {"@type": "Organization", "name": "3DIE", "url": "https://3die.fr/"},
+    },
+    "3die.fr": {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "3DIE",
+        "alternateName": ["3die", "3DIE.FR"],
+        "url": "https://3die.fr/",
+        "logo": "https://3die.fr/icon/android/launchericon-512x512.png",
+        "description": "Independent label fusing design, art and technology: games, "
+                       "3D-printed objects, music and the artists behind them.",
+        # 3DIE's own profiles go here as they exist; iori's personal accounts
+        # belong to the iori.me entity above, not to the label
+        "sameAs": ["https://iori.me/"],
+    },
+}
 PRIORITY_DEFAULT = 0.5
 
 
@@ -168,15 +205,7 @@ def strip_old_seo(head_html):
 def json_ld_for(slug, meta):
     domain, title, desc = meta["domain"], meta["title"], meta["description"]
     url = page_url(domain, slug)
-    blocks = [
-        {
-            "@context": "https://schema.org",
-            "@type": "Organization",
-            "name": "3DIE",
-            "url": "https://3die.fr/",
-            "sameAs": ["https://iori.me/"],
-        }
-    ]
+    blocks = [IDENTITY[domain]]
     ptype = meta.get("type", "experiment")
     if ptype == "game":
         blocks.append({

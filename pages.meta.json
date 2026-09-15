@@ -317,7 +317,8 @@
       "domain": "iori.me",
       "type": "site",
       "priority": 1.0,
-      "menu_pos": "tl"
+      "menu_pos": "tl",
+      "menu": false
     },
     "iris-engine/index.html": {
       "title": "Iris Engine — Photoreal Procedural Iris",
@@ -502,7 +503,8 @@
       "domain": "iori.me",
       "type": "site",
       "priority": 0.9,
-      "menu_pos": "br"
+      "menu_pos": "br",
+      "menu": false
     },
     "poster.html": {
       "title": "Gyro Labyrinth — Optimized",

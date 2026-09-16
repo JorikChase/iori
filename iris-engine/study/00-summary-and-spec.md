@@ -737,3 +737,38 @@ genes against the term.
 **Consequence for the plan: F2 moves ahead of the F0 amplitude gain.** Raising strand contrast before the
 layout is fitted is measurably worse than leaving it alone. F0's floors-and-contrast half stands (it came
 with the map fix); its strand-amplitude half waits for fitted spacing and phase.
+
+### 22.4 Log (2026-09-16): the F0 ablation — the genes were right, the term was wrong
+
+v65 fitted the four strand-contrast genes *and* added the strand-energy term, and lost 10 MATCH2 points.
+**v66-genes-only** repeats it with the genes fitted and the term off (`benchIsolated({ f0: true, f0term:
+false })`), which separates the two halves:
+
+| | v64-mapfix | v65-f0 (genes + term) | **v66 (genes only)** |
+|---|---|---|---|
+| MATCH | 65.0 | 58.8 | **69.3** |
+| MATCH2 | 57.3 | 46.9 | **59.2** |
+| SSIM₄ / SSIM₂ | 0.543 / 0.482 | 0.467 / 0.368 | **0.593 / 0.493** |
+| grad | 0.510 | 0.332 | 0.491 |
+| hfRatio | 0.160 | 0.665 | 0.221 |
+| spacingRatio | 0.941 | 0.988 | **1.010** |
+| darkErr | +11.3 | +10.6 | +14.6 |
+
+The genes alone are the **best version so far on every headline number**, ahead of v62-e1e2 (67.5 / 58.8)
+which had the old, contaminated coordinate map. Per case, MATCH: 09 58.9 → 60.8, 25 65.2 → 66.6,
+26 74.0 → 75.2, 35 61.9 → **74.5**. The strand-band energy rises honestly to 0.221 (not the 0.665 the
+term extracted by putting noise in the band), and `spacingRatio` lands at 1.010.
+
+So `strandMed`, `strandFine`, `strandSharp` and `gapShadow` are now **on by default** and the
+strand-energy term is **off** (`fit.strandGenes = true`, `fit.strandTerm = false`), which is also what a
+plain `benchIsolated()` now reproduces. The term stays in the code, correlation-led, for F2 to switch on
+once there is a layout to align to.
+
+**The number F2 has to move.** Fitted `strandCorr` — the normalised cross-correlation of the tangential
+band-pass responses — is **0.064–0.106** across the four macros. Structure at strand scale is essentially
+uncorrelated with the photograph even in the best version; every point of MATCH2 so far comes from colour,
+relief and bundle-scale layout. That is the acceptance number for fitted spacing and phase.
+
+**Process note.** A stale default nearly cost a day: `fit.strandGenes` / `fit.strandTerm` were left
+undefined, so interactive FIT GLOBAL and FIT HQ silently ran the v65 configuration. Any switch that
+changes what the fitter optimises must have an explicit default set where it is declared.

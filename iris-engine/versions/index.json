@@ -144,5 +144,48 @@
    "ridges": 3.5,
    "crypts": 0.0
   }
+ },
+ {
+  "id": "v66-genes-only",
+  "date": "2026-09-16T12:16:36",
+  "engine": "0.7-fields",
+  "note": "ABLATION: the four strand-contrast genes fitted, strand-energy term OFF. Best version so far on both scores \u2014 the genes were good, the phase-blind term was the whole problem. This is now the default (fit.strandGenes true, fit.strandTerm false).",
+  "mean": {
+   "match2": 59.225,
+   "match": 69.275,
+   "ssim": 0.5933,
+   "ssim2": 0.4932,
+   "grad": 0.491,
+   "hcorr": 0.8413,
+   "sigmaRatio": 0.6852,
+   "sigmaPhoto": 15.1325,
+   "sigmaRender": 10.2275,
+   "specAgree": 0.7222,
+   "hfRatio": 0.221,
+   "hfPhoto": 0.0255,
+   "hfRender": 0.006,
+   "hfLap": 0.3332,
+   "strandCorr": 0.088,
+   "resolvedMm": 0.0742,
+   "spacingRatio": 1.0105,
+   "coverage": 0.898,
+   "vmaxMin": 0.7668,
+   "darkErr": 14.6175,
+   "darkThr": 31.1,
+   "bandWorst": 9.7625,
+   "contrastRender": 0.2035,
+   "contrastPhoto": 0.2893,
+   "ridgeGapRender": 1.4975,
+   "ridgeGapPhoto": 1.7025,
+   "psnr": 19.7925,
+   "dL": 3.4,
+   "dab": 6.8,
+   "match0": 27.05,
+   "alignPx": 0.1925,
+   "secs": 20.625,
+   "splats": 1855.75,
+   "ridges": 3.75,
+   "crypts": 0.0
+  }
  }
 ]

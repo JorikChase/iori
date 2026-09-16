@@ -113,10 +113,18 @@
         document.body.appendChild(bar);
         bar.querySelectorAll('.w98-mode').forEach(b => b.onclick = () => { const key = b.dataset.mode; showWindow(key, windows[key].style.display === 'none'); });
         const acts = $('w98-actions');
-        for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn']) { const el = $(id); if (el) { el.classList.add('w98-btn'); acts.appendChild(el); } }
-        // presets menu (colour) and fitted menu (every case in ref/cases.json, best first)
-        const presets = [['ice', 'Ice'], ['blue', 'Blue'], ['grey', 'Grey'], ['bluegreen', 'Blue-green'], ['green', 'Green'], ['hazel', 'Hazel'], ['amber', 'Amber'], ['lightbrown', 'Light brown'], ['brown', 'Brown'], ['darkbrown', 'Dark brown']];
-        menu($('w98-presets'), () => presets.map(([k, l]) => ({ label: l, run: () => window.loadEyePreset(k) })));
+        for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn', 'cam-btn']) { const el = $(id); if (el) { el.classList.add('w98-btn'); acts.appendChild(el); } }
+        // Presets are the isolated macros baked at CAPTURE quality (ref/cases.json, tag preset-*): a
+        // whole fitted iris — fields, splats, ridges, materials — not a procedural colour start. The ten
+        // procedural EYE_PRESETS stay in the engine because the fitter's bestPresetStart() evaluates them
+        // all; reach them with loadEyePreset('green') or put them back in this list.
+        const presets = [
+            ['09-blue-green-isolated.jpg', 'Blue-green  ·  09'],
+            ['25-green-amber-ring-isolated.jpg', 'Green, amber ring  ·  25'],
+            ['26-green-crypts-isolated.jpg', 'Green, crypts  ·  26'],
+            ['35-grey-green-isolated.jpg', 'Grey-green  ·  35'],
+        ];
+        menu($('w98-presets'), () => presets.map(([f, l]) => ({ label: l, run: () => window.__irisEngine.loadFittedPreset(f) })));
         menu($('w98-fitted'), async () => {
             let cases = {}; try { cases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) {}
             const items = Object.entries(cases).map(([file, c]) => ({ file, m: c.scores ? c.scores.match : 0, h: c.scores && c.scores.hcorr !== undefined ? c.scores.hcorr : null, tag: c.tag })).sort((a, b) => b.m - a.m);

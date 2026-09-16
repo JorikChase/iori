@@ -1688,11 +1688,7 @@
                     sigmaRatio: dg.sigmaRatio, sigmaPhoto: dg.sigmaPhoto, sigmaRender: dg.sigmaRender, vmaxMin: dg.vmaxMin, coverage: dg.coverage, darkErr: dg.darkErr, darkThr: dg.darkThr, darkFrac: dg.darkFrac, hfRatio: dg.hfRatio, hfPhoto: dg.hfPhoto, hfRender: dg.hfRender, resolvedMm: dg.resolvedMm, hfLap: s1.hfLap, hfLapPhoto: s1.hfLapPhoto, hfLapRender: s1.hfLapRender, strandCorr: s1.strandCorr, bandDL: dg.bandDL, bandWorst: dg.bandWorst, specAgree: dg.specAgree, spacingRatio: dg.spacingRatio, zones: dg.zones,
                     contrastPhoto: s1.contrastPhoto, contrastRender: s1.contrastRender, ridgeGapPhoto: s1.ridgeGapPhoto, ridgeGapRender: s1.ridgeGapRender,
                     engine: E.ENGINE_VERSION, alignPx: fit.pose && fit.pose.align ? fit.pose.align.max : null, secs: +((performance.now() - t0) / 1000).toFixed(1) });
-                const W = fit.W, H = fit.H, P = fit.pupil, L = fit.limbus, C = fit.catch;
-                E.applySlidersToGenome();
-                cases[file] = { tag, align: { pupil: [P.x / W, P.y / H, P.r / H], limbus: [L.x / W, L.y / H, L.rx / H, L.ry / H, L.ang], catch: [C.x / W, C.y / H] },
-                    view: { pupil: state.pupil, lightAngle: state.lightAngle, lightElev: state.lightElev, srcType: state.srcType, srcSize: state.srcSize, ambient: state.ambient, lid: state.lid, ev: state.ev, fstop: state.fstop, focus: state.focus, kelvin: state.kelvin, sat: state.sat, zoom: state.zoomPhoto, rot: state.camRot.slice(), viewRect: state.view.slice(), pupilOff: state.pupilOff.slice(), align: fit.pose && fit.pose.align || null },
-                    genome: (() => { const g = JSON.parse(JSON.stringify(Object.assign({}, E.genome, { fields: undefined }))); delete g.fields; return g; })(), fieldsEnc: E.encodeFields(E.genome), scores: s1, texture: textureStats(fit.photo) };
+                cases[file] = makeCase(file, tag, s1);
                 say(`bench ${rows.length}/${files.length} · ${file} · MATCH ${s1.match.toFixed(0)} %`);
             } catch (e) { rows.push({ tag, file, error: String(e) }); say('bench error ' + file + ': ' + e); }
             await new Promise(r => setTimeout(r, 0));
@@ -1717,6 +1713,41 @@
         if (ver && opts.save !== false) await saveRef(`versions/${ver}/bench-${(opts.tag || 'run')}.json`, rows);
         if (opts.download) { const a = document.createElement('a'); a.download = `iris-bench-${tag.replace(/[: ]/g, '-')}.csv`; a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.click(); }
         return { rows, mean, above, csv, cases };
+    }
+    // one fitted eye as a stored case: alignment, view, genome, fields, scores and texture statistics
+    function makeCase(file, tag, scores) {
+        const W = fit.W, H = fit.H, P = fit.pupil, L = fit.limbus, C = fit.catch;
+        E.applySlidersToGenome();
+        return { tag, align: { pupil: [P.x / W, P.y / H, P.r / H], limbus: [L.x / W, L.y / H, L.rx / H, L.ry / H, L.ang], catch: [C.x / W, C.y / H] },
+            view: { pupil: state.pupil, lightAngle: state.lightAngle, lightElev: state.lightElev, srcType: state.srcType, srcSize: state.srcSize, ambient: state.ambient, lid: state.lid, ev: state.ev, fstop: state.fstop, focus: state.focus, kelvin: state.kelvin, sat: state.sat, zoom: state.zoomPhoto, rot: state.camRot.slice(), viewRect: state.view.slice(), pupilOff: state.pupilOff.slice(), align: fit.pose && fit.pose.align || null },
+            genome: (() => { const g = JSON.parse(JSON.stringify(Object.assign({}, E.genome, { fields: undefined }))); delete g.fields; return g; })(),
+            fieldsEnc: E.encodeFields(E.genome), scores, texture: textureStats(fit.photo), quality: E.quality };
+    }
+    // Bake the isolated macros as the shipped presets: FIT HQ (CAPTURE quality — 4096×1024 atlas, 8000
+    // splats, 32 LIC steps, 3 strand layers, 1280 px fit) on each, stored in ref/cases.json so the
+    // Presets menu loads a whole fitted iris rather than a procedural colour start.
+    async function bakePresets(files = ISOLATED) {
+        const t0 = performance.now(), tag = 'preset-' + new Date().toISOString().slice(0, 10);
+        // CAPTURE *before* the first loadImage: loadImage scales the photo to the current Q.fitPx, and
+        // fitHQ only switches quality afterwards — so the first eye would be fitted at 640 px while the
+        // rest got 1280. (Found the hard way: 22 097 strand samples on eye 1 against 97 138 on eye 2.)
+        if (E.quality !== 'capture') { E.setQuality('capture'); fit.map = null; fit.proxy = null; }
+        fit.benchRunning = true;
+        for (const file of files) {
+            if (!fit.benchRunning) break;
+            try {
+                await loadImage('ref/' + file, file);
+                await fitHQ();
+                const s1 = score(); diagnostics();
+                cases[file] = makeCase(file, tag, s1);
+                say(`baked ${file} · MATCH2 ${s1.match2.toFixed(0)} % (M1 ${s1.match.toFixed(0)}) at ${E.quality}`);
+            } catch (e) { say('bake failed ' + file + ': ' + e); }
+            await new Promise(r => setTimeout(r, 0));
+        }
+        fit.benchRunning = false;
+        await saveRef('cases.json', Object.assign({}, bundledCases || {}, cases));
+        say(`presets baked · ${files.length} eyes in ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+        return cases;
     }
     function exportCases() { return saveRef('cases.json', Object.assign({}, bundledCases || {}, cases)); }
     // bulk test of the user's own photos: pick many files, fit each, report the success rate
@@ -1819,5 +1850,5 @@
         for (const r of list) { const o = document.createElement('option'); o.value = r.file; o.textContent = r.file.replace('.jpg', ''); sel.appendChild(o); }
         sel.onchange = () => { if (sel.value) loadImage('ref/' + sel.value, sel.value).catch(() => {}); };
     }).catch(() => {});
-    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
+    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
 })();

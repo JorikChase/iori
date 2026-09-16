@@ -680,6 +680,7 @@
                 <button class="action-btn active" id="tone-btn">FILMIC</button>
                 <button class="action-btn" id="ref-btn">REF</button>
                 <button class="action-btn" id="shot-btn">CAP 4K</button>
+                <button class="action-btn" id="cam-btn" title="FREE: the eye turns toward the cursor. FIXED: the camera is locked to the pose the fitter or the designer set (solvePose locks it; this is how to get back)">CAM FREE</button>
             </div>
 
             <div id="accum-bar"></div>
@@ -2689,6 +2690,26 @@
 
         document.getElementById('debug-btn').onclick = (e) => { state.debug = 1 - state.debug; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('refr-btn').onclick = (e) => { state.refract = 1 - state.refract; e.target.classList.toggle('active'); resetAccumulation(); };
+        // camera: FREE = the eye turns toward the cursor (u_useRot 0), FIXED = locked to state.camRot.
+        // solvePose() locks it and only closing the fit panel used to unlock it, so the eye would stop
+        // tracking with no way back; this is that way back. Switching to FREE seeds the cursor position
+        // from the fixed pose, so the eye eases out of it instead of snapping.
+        function setCamFixed(v) {
+            v = !!v;
+            if (!v && state.useRot) {
+                const W = canvas.width, H = canvas.height;
+                target.mouseX = state.mouseX = W * (state.camRot[1] + 0.5);
+                target.mouseY = state.mouseY = H * (0.5 - state.camRot[0] / 0.75);
+            }
+            state.useRot = v; syncCamBtn(); resetAccumulation();
+        }
+        function syncCamBtn() {
+            const b = document.getElementById('cam-btn'); if (!b) return;
+            b.textContent = state.useRot ? 'CAM FIXED' : 'CAM FREE';
+            b.classList.toggle('active', !!state.useRot);
+        }
+        document.getElementById('cam-btn').onclick = () => setCamFixed(!state.useRot);
+        syncCamBtn();
         document.getElementById('anim2-btn').onclick = (e) => { state.hippus = !state.hippus; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('tone-btn').onclick = (e) => { state.tone = 1 - state.tone; e.target.classList.toggle('active'); };
         document.getElementById('fieldw-btn').classList.add('active');
@@ -2750,7 +2771,7 @@
         window.__irisEngine = { state, target, programs, gl, canvas, captureTiled, exportID, importID, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
             FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
             drawPhotoFrame, drawPost, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
-            sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
+            setCamFixed, syncCamBtn, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
 
         // draw one frame of the photo shader into `fb` (w×h), accumulating from `readTex` when frame > 0
         function drawPhotoFrame(fb, w, h, frame, readTex, opts = {}) {
@@ -2815,7 +2836,9 @@
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }
 
+        let camBtnState = null;
         function render(time, forceCapture = false) {
+            if (camBtnState !== state.useRot) { camBtnState = state.useRot; syncCamBtn(); }
             // while the fitter or a capture drives the engine, the interactive loop must not touch state
             if ((state.capturing || state.fitting) && !forceCapture) { requestAnimationFrame(render); return; }
             let t = time * 0.001;

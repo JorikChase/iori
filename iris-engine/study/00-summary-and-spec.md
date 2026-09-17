@@ -955,3 +955,28 @@ exists.
 benches belongs to the last one. Benches with `ver` now write their own fits to `versions/<ver>/bench/cases.json`,
 the snapshot archives those, and the manifest records `casesSource`. v73 and v75 were sealed without cases; v72
 was rerun (identical) to archive its fits; v74's fits come from the rerun (the leak made them differ).
+
+### 24.2 Log (2026-09-17): order independence, three more leaks
+
+The canonical genome (§24.1) was not enough: the same bench forwards and reversed still differed by up to
+3.8 MATCH2 on one eye, while each order reproduced itself exactly. A stage fingerprint (`fit.trace`, checksums of
+state, genes, fields, splats and objects after each fit stage) put the divergence *before* the first fit stage,
+and a full diff of state, targets, genes and photo markers found three more leaks:
+
+1. **An incomplete reset.** Keys that were `null` at page load were never restored (`state.preset`), keys added
+   since were never removed (a leftover `target.ringR` pulled `state.ringR` through the smoothing loop while the
+   next photo loaded), and genes live twice — in `state` and `genome.globals` — synced only at the next bake.
+   `resetForFreshFit` now restores every key, deletes new ones, aligns targets to state and syncs the genome.
+2. **Unseeded randomness** in the whole-eye limbus RANSAC (not used on the isolated set) — now an xorshift seeded
+   from the pupil.
+3. **History-dependent image resampling — the operative one.** `loadImage` downscaled through
+   `canvas.drawImage` on the fit panel's canvas, which is repainted constantly; Chrome picks the resampling path
+   from the canvas's history (first draw or cached image, CPU or GPU acceleration), so the same photograph came out
+   slightly different (pupil x 320.298 vs 320.326) and that cascaded through the pose into the fit. Photos are
+   now decoded at native size (an exact copy, kept as `fit.native` for F2) and area-averaged in JS.
+
+After the third fix the forward and reversed benches match on every metric of every eye. The area-averaged fit
+images also score better than the canvas-resampled ones: NORMAL MATCH2 **61.5** (v72: 60.0), MATCH 68.3.
+
+**Rule for every future change:** the forward/reversed bench is the reproducibility test; run it after anything
+that touches loading, alignment or the start of a fit.

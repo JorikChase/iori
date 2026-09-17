@@ -59,3 +59,4 @@ iris-engine/ref/*.jpg
 *service-account*.json
 client_secret*.json
 iris-engine/ref/survey-isolated.json
+iris-engine/ref-staging/*.jpg

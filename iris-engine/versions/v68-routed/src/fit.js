@@ -847,36 +847,13 @@
     }
     // the experts. E0 takes every NM gene no other expert claims (tone, light, limbal tone, and the material
     // genes when the photo inversion was not used); E1 / E2 are the pose solver and the material inversion.
-    // v70: an expert is either *fitted* (its layout comes from the photo — pixel losses are meaningful) or
-    // *seeded* (its layout is procedural noise — only statistics can be matched; any pixel-wise term prefers less
-    // of a texture sitting in the wrong places, which pinned these genes to their bounds in v68 and v69). F2 moves
-    // the strands from seeded to fitted. Seeded genes are matched jointly by moments: global contrast and the
-    // energy of every open band, each band weighted by its evidence (Portilla–Simoncelli, in spirit).
-    //
-    // The two treatments of seeded texture sit on the perception–distortion trade-off (Blau & Michaeli 2018):
-    //   'pixel' (v69) — per-band correlation + amplitude; best MATCH2, but the render is flatter than reality
-    //   'stats' (v70) — moments only; realistic contrast and band energy, lower MATCH2 / SSIM / grad
-    // Until F2 fits the placement, neither is "right"; fit.seededLoss picks the purpose (fidelity or look).
-    const EXPERTS_BY_MODE = {
-        pixel: [
-            { key: 'E3', band: 'B1', layout: 'fitted', genes: ['collr', 'fibreContrast'], iters: 20 },
-            { key: 'E4', band: 'B2', layout: 'fitted', genes: ['strandGain', 'strandMed'], iters: 30, grad: true },
-            { key: 'E5', band: 'B3', layout: 'fitted', genes: ['strandFine', 'strandSharp'], iters: 20, minEvidence: 0.2 },
-        ],
-        stats: [
-            { key: 'E3', band: 'B1', layout: 'fitted', genes: ['collr'], iters: 20 },
-            { key: 'S', layout: 'seeded', genes: ['gapShadow', 'fibreContrast', 'strandGain', 'strandMed', 'strandFine', 'strandSharp'], iters: 50 },
-        ],
-    };
-    function lumSigma(pix) {                            // spread of luminance inside the iris mask
-        const m = fit.mask || (fit.mask = irisMask());
-        let s1 = 0, s2 = 0, n = 0;
-        for (let k = 0; k < m.length; k += 2) { if (!m[k]) continue; const o = k * 4, l = 0.299 * pix[o] + 0.587 * pix[o + 1] + 0.114 * pix[o + 2]; s1 += l; s2 += l * l; n++; }
-        return n ? Math.sqrt(Math.max(1e-6, s2 / n - (s1 / n) ** 2)) : 1;
-    }
+    const EXPERTS = [
+        { key: 'E3', band: 'B1', genes: ['collr', 'fibreContrast'], iters: 20 },
+        { key: 'E4', band: 'B2', genes: ['strandGain', 'strandMed'], iters: 30 },
+        { key: 'E5', band: 'B3', genes: ['strandFine', 'strandSharp'], iters: 20, minEvidence: 0.15 },
+    ];
     async function routedFit(ps, pp, iters) {
-        const rt = photoRoute(), log = [], sigP = lumSigma(fit.photo);
-        const EXPERTS = EXPERTS_BY_MODE[fit.seededLoss] || EXPERTS_BY_MODE.pixel;
+        const rt = photoRoute(), log = [];
         const claimed = new Set(EXPERTS.flatMap(e => e.genes));
         const blocks = [{ key: 'E0', genes: ps.filter(p => !claimed.has(p.key)).map(p => p.key), iters: Math.round(iters * 40 / 110) }]
             .concat(EXPERTS.map(e => Object.assign({}, e, { genes: e.genes.filter(k => ps.some(p => p.key === k)), iters: Math.round(iters * e.iters / 110) })));
@@ -889,36 +866,18 @@
                 bp.forEach((p, i) => p.set(x[i]));
                 renderFit(); evals++;
                 if (blk.key === 'E0') {
-                    // v68: mean profiles alone cannot see contrast, so gapShadow drifted to 1 and exposure fell to
-                    // compensate. The global luminance spread inside the mask anchors it.
-                    const sr = lumSigma(fit.render);
-                    return profileError(pp, profiles(fit.render)) + 4 * (40 - psnr(fit.photo, fit.render, fit.mask, 3)) + 30 * Math.abs(Math.log(sr / sigP));
-                }
-                if (blk.layout === 'seeded') {
-                    const R = bandsOf(fit.render, ['B1', 'B2', 'B3'], rt.ppm);
-                    let loss = 40 * Math.abs(Math.log(lumSigma(fit.render) / sigP));
-                    for (const nm of ['B1', 'B2', 'B3']) {
-                        if (!rt.bands[nm] || !R[nm] || !rt.evidence[nm]) continue;
-                        loss += 40 * rt.evidence[nm] * Math.abs(Math.log(bandCompare(rt.bands[nm], R[nm], rt.gates[nm]).ratio));
-                    }
-                    return loss;
+                    return profileError(pp, profiles(fit.render)) + 4 * (40 - psnr(fit.photo, fit.render, fit.mask, 3));
                 }
                 const R = bandsOf(fit.render, [blk.band], rt.ppm)[blk.band];
                 const c = R ? bandCompare(rt.bands[blk.band], R, rt.gates[blk.band]) : { corr: 0, ratio: 1 };
-                // v68: correlation alone is maximised by suppressing the uncorrelated (seeded) share of a band. A
-                // two-sided amplitude anchor of equal weight holds the band's energy at the photo's level, so the
-                // only way left to raise the correlation is to put structure in the right place.
-                const band = 40 * (1 - Math.max(0, c.corr)) + 40 * Math.abs(Math.log(c.ratio));
-                if (blk.key === 'E3') return 60 * (1 - Math.max(0, heightCorrelation())) + band;
-                if (blk.grad) return 60 * (1 - gradAgree(fit.photo, fit.render, fit.mask)) + band;
-                return band;
+                if (blk.key === 'E3') return 60 * (1 - Math.max(0, heightCorrelation())) + 40 * (1 - c.corr);
+                if (blk.key === 'E4') return 60 * (1 - gradAgree(fit.photo, fit.render, fit.mask)) + 40 * (1 - c.corr) + 20 * Math.abs(Math.log(c.ratio));
+                return 60 * (1 - Math.max(0, c.corr)) + 20 * Math.max(0, -Math.log(c.ratio));   // E5: correlation, deficit only
             };
             const x0 = bp.map(p => p.get()), f0 = await f(x0);
             const res = await nelderMead(x0, bp.map(p => p.lo), bp.map(p => p.hi), f, blk.iters, (it, best) => { if (it % 5 === 0) say(`route ${blk.key} it ${it} · ${best.toFixed(1)} · ${evals} renders`); });
             bp.forEach((p, i) => p.set(res.x[i]));
-            // a gene that ends on its bound is a symptom (v68): the loss wanted to go further than the model allows
-            const atBound = bp.filter((p, i) => Math.abs(res.x[i] - p.lo) < 1e-3 * (p.hi - p.lo) || Math.abs(res.x[i] - p.hi) < 1e-3 * (p.hi - p.lo)).map(p => p.key);
-            log.push({ key: blk.key, evidence: ev, loss0: +f0.toFixed(2), loss1: +res.f.toFixed(2), genes: Object.fromEntries(bp.map((p, i) => [p.key, +res.x[i].toFixed(4)])), atBound });
+            log.push({ key: blk.key, evidence: ev, loss0: +f0.toFixed(2), loss1: +res.f.toFixed(2), genes: Object.fromEntries(bp.map((p, i) => [p.key, +res.x[i].toFixed(4)])) });
             say(`route ${blk.key}: ${f0.toFixed(1)} → ${res.f.toFixed(1)} (evidence ${ev})`);
         }
         fit.routeLog = log;
@@ -1596,10 +1555,8 @@
     // costs 10 MATCH2 points because it is phase-blind and the optimiser pays for band energy with
     // misaligned noise. So: genes on, term off, until F2 gives the fitter a layout to align.
     fit.strandGenes = true; fit.strandTerm = false;
-    // §23: routed (mixture-of-experts) fitting — the default since v71 (MATCH2 59.7 against the joint fit's 59.2).
-    // benchIsolated({ routed: false }) reproduces v66.
-    fit.routed = true;
-    fit.seededLoss = 'pixel';   // §23: 'pixel' (fidelity, v69) or 'stats' (look, v70)
+    // §23: routed (mixture-of-experts) fitting. Off until benched; benchIsolated({ routed: true }) opts in.
+    fit.routed = false;
     async function fitGlobal(iters = 120) {
         if (!fit.photo) { say('load a photo first'); return; }
         if (!fit.pose) solvePose();
@@ -1641,7 +1598,7 @@
             return e + 4 * pix + 60 * (1 - gr) + 60 * (1 - Math.max(0, hc)) + strandPen;
         };
         if (fit.routed) {
-            say(`routed fit (${fit.seededLoss}): E0 tone → experts coarse to fine (§23)`);
+            say('routed fit: E0 tone → E3 relief → E4 bundles → E5 strands (§23)');
             fit.route = null; photoRoute();
             say(`route evidence ${JSON.stringify(fit.route.evidence)} · band open ${JSON.stringify(fit.route.open)}`);
             evals += await routedFit(ps, pp, iters);
@@ -1868,7 +1825,6 @@
         if (opts.f0term !== undefined) fit.strandTerm = !!opts.f0term;
         if (opts.f0weight !== undefined) fit.strandWeight = opts.f0weight;
         if (opts.routed !== undefined) fit.routed = !!opts.routed;
-        if (opts.seededLoss !== undefined) fit.seededLoss = opts.seededLoss;
         const tag = opts.tag || new Date().toISOString().slice(0, 16);
         const rows = [];
         fit.benchRunning = true; state.fitting = true;
@@ -1887,7 +1843,7 @@
                 const dg = diagnostics() || {};
                 rows.push({ tag, file, quality: E.quality, match2: +s1.match2.toFixed(1), grad: +s1.grad.toFixed(3), match0: +s0.match.toFixed(1), match: +s1.match.toFixed(1), ssim: +s1.ssim.toFixed(3), ssim2: +s1.ssim2.toFixed(3), psnr: +s1.psnr.toFixed(2), dL: +s1.dL.toFixed(1), dab: +s1.dab.toFixed(1), crypts: E.genome.crypts.length, ridges: 1 + (E.genome.ridges || []).length, splats: (E.genome.splats || []).length, hcorr: +s1.hcorr.toFixed(3),
                     // §22 diagnostics: contrast deficit, floor error, radial profile, strand-scale spectrum
-                    sigmaRatio: dg.sigmaRatio, sigmaPhoto: dg.sigmaPhoto, sigmaRender: dg.sigmaRender, vmaxMin: dg.vmaxMin, coverage: dg.coverage, darkErr: dg.darkErr, darkThr: dg.darkThr, darkFrac: dg.darkFrac, hfRatio: dg.hfRatio, hfPhoto: dg.hfPhoto, hfRender: dg.hfRender, resolvedMm: dg.resolvedMm, hfLap: s1.hfLap, hfLapPhoto: s1.hfLapPhoto, hfLapRender: s1.hfLapRender, strandCorr: s1.strandCorr, bandCorr: s1.bandCorr, bandRatio: s1.bandRatio, evidence: s1.evidence, routed: !!fit.routed, seededLoss: fit.routed ? fit.seededLoss : null, route: fit.routed ? fit.routeLog : null, bandDL: dg.bandDL, bandWorst: dg.bandWorst, specAgree: dg.specAgree, spacingRatio: dg.spacingRatio, zones: dg.zones,
+                    sigmaRatio: dg.sigmaRatio, sigmaPhoto: dg.sigmaPhoto, sigmaRender: dg.sigmaRender, vmaxMin: dg.vmaxMin, coverage: dg.coverage, darkErr: dg.darkErr, darkThr: dg.darkThr, darkFrac: dg.darkFrac, hfRatio: dg.hfRatio, hfPhoto: dg.hfPhoto, hfRender: dg.hfRender, resolvedMm: dg.resolvedMm, hfLap: s1.hfLap, hfLapPhoto: s1.hfLapPhoto, hfLapRender: s1.hfLapRender, strandCorr: s1.strandCorr, bandCorr: s1.bandCorr, bandRatio: s1.bandRatio, evidence: s1.evidence, routed: !!fit.routed, route: fit.routed ? fit.routeLog : null, bandDL: dg.bandDL, bandWorst: dg.bandWorst, specAgree: dg.specAgree, spacingRatio: dg.spacingRatio, zones: dg.zones,
                     contrastPhoto: s1.contrastPhoto, contrastRender: s1.contrastRender, ridgeGapPhoto: s1.ridgeGapPhoto, ridgeGapRender: s1.ridgeGapRender,
                     engine: E.ENGINE_VERSION, alignPx: fit.pose && fit.pose.align ? fit.pose.align.max : null, secs: +((performance.now() - t0) / 1000).toFixed(1) });
                 cases[file] = makeCase(file, tag, s1);

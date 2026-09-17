@@ -772,3 +772,101 @@ relief and bundle-scale layout. That is the acceptance number for fitted spacing
 **Process note.** A stale default nearly cost a day: `fit.strandGenes` / `fit.strandTerm` were left
 undefined, so interactive FIT GLOBAL and FIT HQ silently ran the v65 configuration. Any switch that
 changes what the fitter optimises must have an explicit default set where it is declared.
+
+## 23. Phase G plan: routed fitting — a mixture of experts over bands, zones and samples (decided 2026-09-17)
+
+**Why.** Three failures this month were one failure: parameters that cannot explain part of an image absorb
+its error anyway. v65 bought strand-band energy with noise; v67 (CAPTURE presets) flattened contrast to escape
+a strand-misplacement penalty it had no way to fix; the handoff's degeneracy gotcha (a shading field against a
+per-cell material) is the same thing inside the material loop. In mixture-of-experts terms: no router, so every
+expert is trained on every token. Routing makes the fit *trustworthy*; it does not make the generator more
+*expressive* — strand placement still needs F2.
+
+**The mapping.** Experts = the parameter blocks the engine already has, each owning one frequency band and one
+kind of structure. Tokens = pixels of a sample. Router = an analytic gate per pixel × expert (no learned network
+until a photo → fields model exists). Each expert's loss is computed only on its own band of a Laplacian pyramid,
+normalised by the local low-pass so a tone change does not read as band energy. The forward pass (bake + shade)
+is unchanged. Load balancing = an evidence map per expert: an expert without evidence keeps its prior.
+
+| expert | owns | band / signal | genes (NM) |
+|---|---|---|---|
+| E0 tone | exposure, light, limbal tone, gap floor | profiles (L\*, a\*, b\*) + pixel term | ev, ambient, lid, limbalDark, limbalWidth, limbalMilk, gapShadow |
+| E1 geometry | pupil, limbus, pose, dilation | edges, masks | solvePose / alignLoop (unchanged) |
+| E2 material | per-cell strand / gap material | ≥ 0.3 mm, chroma | materialFromPhoto (unchanged) |
+| E3 relief | splats, ridges, strand-layer relief | B1 0.3–1 mm + height r | collr, fibreContrast |
+| E4 bundles | flow, bundle contrast, 0.16 mm scale | B2 0.09–0.3 mm + gradient agreement | strandGain, strandMed |
+| E5 strands | fine scale, transfer sharpness | B3 0.03–0.09 mm | strandFine, strandSharp (F2: spacing, phase) |
+| E6 sub-strand | fibril grouping, ABL speckle | 5–30 µm | F3 |
+| E7 optics | specular, roughness, wetness | specular pixels | F1 / F6 |
+
+**The gate.** `g_e(p) = mask(p) · zone_e(v) · resolvable_e · focus_e(p) · trust(sample)`.
+`resolvable` is the share of the band (in log wavelength) that lies above 2.5 px per cycle at the sample's
+µm/px — at NORMAL (≈ 27 µm/px) B3 is only partly open and E6 is closed, which is why v65's strand-energy term
+at NORMAL measured mostly unresolvable structure. `focus` is the local band energy over the next coarser band's
+in the photograph, relative to the image's own 90th percentile. `trust` is 1 for verified samples and **0 for
+unverified ones** (iori, 2026-09-17).
+
+**Schedule.** Coarse to fine — E0 → E3 → E4 → E5 — each block a small Nelder–Mead run on its gated loss, then
+frozen. Coarse experts define the frame the finer ones live in, which is also the standard cure for local
+minima in image fitting. A block whose evidence is below 0.15 is skipped and its genes stay at the prior. No
+joint polish in the first version: it would reintroduce the compensation routing exists to stop.
+
+**Two modes.** *Identity fit* — one eye; experts combine partial samples of the same eye (a whole-eye photo for
+E0–E4, a macro sector for E5); never mix people. *Population prior* — the database; each expert learns a
+distribution from every sample whose gate is open for it, so partial samples of different people are fine.
+Together they deliver the "ten times" of §22: fit a 12 µm/px photograph with E0–E4 and draw E5–E6 from the prior
+the super-macros taught — a render more detailed than its photograph, still procedural, every weight diffable.
+
+**Guard metrics per expert.** E0 `sigmaRatio`, ΔL\*; E2 Δab; E3 height r, `bandCorr[B1]`; E4 SSIM₂, grad,
+`bandCorr[B2]`; E5 `strandCorr`, `hfRatio`, `bandCorr[B3]`; E6 needs its own.
+
+**Data.** Verified partial samples live in `ref-staging/` (quarantine, §22). Masks for them come from the
+detection phase, not by hand (iori): detection is validated against SBVPI's hand-drawn masks, and only once it
+is correct does it mask the staging images. So the router is built and benched on the four ISO macros first,
+whose masks are the fitted alignment.
+
+**Order (iori: as proposed).** (1) band pyramid, gates, routed objective, evidence map — bench against
+v66-genes-only, which it must hold while the guard metrics stop sliding; (2) F2 inside E5; (3) population
+priors for E5/E6; (4) detection phase on SBVPI (E1 evidence) → automatic masks → the staging samples enter.
+
+**Risks.** The router is analytic, not learned. Bands are not independent (nonlinear shading and the
+two-material mix leak energy across them); mean normalisation reduces the leak, it does not remove it. Sectors
+need their own registration (pupil circle from a visible arc, scale from a pupil-radius prior). E6 evidence will
+come from three super-macros by one photographer on one camera until there is more.
+
+### 23.1 Log (2026-09-17): the router, four versions, and the perception–distortion wall
+
+| version | what changed | MATCH2 | MATCH | SSIM₂ | grad | note |
+|---|---|---|---|---|---|---|
+| v66 | joint NM, strand genes | 59.2 | **69.3** | 0.493 | 0.491 | previous best |
+| v68 | router v1: correlation-led band losses | 57.7 | 68.1 | 0.478 | 0.470 | `gapShadow`, `fibreContrast`, `strandGain` pinned to bounds on every eye |
+| v69 | router v2: two-sided band anchors, E0 contrast term | **59.7** | 67.8 | **0.504** | **0.530** | same genes still pinned; losses flat |
+| v70 | router v3: seeded texture matched by statistics | 49.2 | 63.6 | 0.367 | 0.327 | statistics right (band ratios ≈ 1, σ 0.85), pixels wrong |
+| v71 | v69 through the `seededLoss` switch | **59.7** | 67.8 | **0.504** | **0.530** | bit-for-bit identical to v69 |
+
+**What the router showed.** (1) A correlation-led band loss has a trivial way out: a render band is fitted
+structure plus seeded texture, and suppressing the uncorrelated seeded share raises the correlation — so the
+seeded-amplitude genes pinned to their "flatten" bounds (v68). (2) A two-sided amplitude anchor did not free them
+(v69): any pixel-wise term prefers less of a texture that sits in the wrong places. (3) Matching seeded texture by
+statistics (Portilla–Simoncelli in spirit) gets contrast and band energy right and loses 10 MATCH2 points (v70).
+This is the **perception–distortion trade-off** (Blau & Michaeli 2018): with placement unfitted, the
+distortion-optimal render is flatter than reality and the realistic one scores worse. v65, v67, v68/69 and v70 all
+hit the same wall; only F2 removes it. Both treatments stay available: `fit.seededLoss = 'pixel'` (fidelity,
+default) or `'stats'` (look).
+
+**Experts now declare their layout.** *Fitted* (placement comes from the photo) → pixel losses. *Seeded*
+(placement is procedural) → statistical losses, or pixel losses when fidelity is the purpose. F2 moves the strands
+from seeded to fitted, which is what should let the stats-level detail and the pixel scores agree.
+
+**Determinism.** v71 reproduces v69 exactly, so run-to-run noise is zero and every version delta in the archive is
+real. The ~2-point v62 → v63-base gap was a real change, not noise. The noise that matters is sensitivity to the
+start; multi-start measures it (next guard to build).
+
+**Hidden-tab throttling, found and fixed.** `nelderMead` yielded with `setTimeout(0)` once per iteration. In a
+hidden tab Chrome clamps timers, and after five minutes hidden its intensive throttling runs chained timers about
+once a minute — a 120-iteration fit took ~2 h. That was the eleven-hour CAPTURE bake. `fit.js` now yields through a
+`MessageChannel` (`yieldNow`), as the Flame Strains rig does; the CAP 4K tile loop too. A routed fit takes 15–45 s
+per eye in a hidden pane.
+
+**Default.** Routed, pixel mode (v71). Next: F2 inside E5 (fitted spacing and phase), then a multi-start
+sensitivity guard.

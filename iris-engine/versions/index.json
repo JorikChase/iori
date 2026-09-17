@@ -187,5 +187,20 @@
    "ridges": 3.75,
    "crypts": 0.0
   }
+ },
+ {
+  "id": "v67-capture-presets",
+  "date": "2026-09-17T10:03:11",
+  "engine": "0.7-fields",
+  "note": "REJECTED: FIT HQ at CAPTURE as presets. Re-scored at NORMAL beside the v66 fits: MATCH2 09 38.5 vs 51.5, 25 50.5 vs 56.2, 26 45.8 vs 66.9; grad 0.16-0.24 vs 0.42-0.59, sigmaRatio lower. Only height r improved (0.83-0.95). The CAPTURE fits went flat. Presets restored to the v66 fits.",
+  "mean": {
+   "match2": 51.5667,
+   "match": 64.9833,
+   "ssim2": 0.4142,
+   "grad": 0.3498,
+   "hcorr": 0.8668,
+   "sigmaRatio": 0.6498,
+   "strandCorr": 0.0617
+  }
  }
 ]

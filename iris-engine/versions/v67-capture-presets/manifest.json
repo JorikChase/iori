@@ -1,0 +1,117 @@
+{
+ "id": "v67-capture-presets",
+ "date": "2026-09-17T10:03:11",
+ "engine": "0.7-fields",
+ "note": "REJECTED: FIT HQ at CAPTURE as presets. Re-scored at NORMAL beside the v66 fits: MATCH2 09 38.5 vs 51.5, 25 50.5 vs 56.2, 26 45.8 vs 66.9; grad 0.16-0.24 vs 0.42-0.59, sigmaRatio lower. Only height r improved (0.83-0.95). The CAPTURE fits went flat. Presets restored to the v66 fits.",
+ "features": {
+  "quality": "capture",
+  "f0genes": "on",
+  "f0term": "off"
+ },
+ "src": {
+  "index.html": {
+   "sha256": "7895e59e381f62f9",
+   "bytes": 188529
+  },
+  "fit.js": {
+   "sha256": "37ee19d4ef164571",
+   "bytes": 160371
+  },
+  "ui.js": {
+   "sha256": "5406c1dce2ba8e86",
+   "bytes": 21335
+  },
+  "design.js": {
+   "sha256": "655149eb34de98f3",
+   "bytes": 26444
+  },
+  "serve.py": {
+   "sha256": "10b322506748374f",
+   "bytes": 1909
+  }
+ },
+ "bench": {
+  "xeval-normal.json": {
+   "n": 6,
+   "mean": {
+    "match2": 51.5667,
+    "match": 64.9833,
+    "ssim2": 0.4142,
+    "grad": 0.3498,
+    "hcorr": 0.8668,
+    "sigmaRatio": 0.6498,
+    "strandCorr": 0.0617
+   },
+   "cases": {
+    "09": {
+     "match2": 51.5,
+     "match": 60.8,
+     "ssim2": 0.424,
+     "grad": 0.422,
+     "hcorr": 0.81,
+     "sigmaRatio": 0.637,
+     "strandCorr": 0.064
+    },
+    "25": {
+     "match2": 56.2,
+     "match": 66.7,
+     "ssim2": 0.452,
+     "grad": 0.463,
+     "hcorr": 0.823,
+     "sigmaRatio": 0.858,
+     "strandCorr": 0.111
+    },
+    "26": {
+     "match2": 66.9,
+     "match": 75.2,
+     "ssim2": 0.582,
+     "grad": 0.589,
+     "hcorr": 0.876,
+     "sigmaRatio": 0.689,
+     "strandCorr": 0.094
+    }
+   }
+  }
+ },
+ "summary": {
+  "n": 6,
+  "mean": {
+   "match2": 51.5667,
+   "match": 64.9833,
+   "ssim2": 0.4142,
+   "grad": 0.3498,
+   "hcorr": 0.8668,
+   "sigmaRatio": 0.6498,
+   "strandCorr": 0.0617
+  },
+  "cases": {
+   "09": {
+    "match2": 51.5,
+    "match": 60.8,
+    "ssim2": 0.424,
+    "grad": 0.422,
+    "hcorr": 0.81,
+    "sigmaRatio": 0.637,
+    "strandCorr": 0.064
+   },
+   "25": {
+    "match2": 56.2,
+    "match": 66.7,
+    "ssim2": 0.452,
+    "grad": 0.463,
+    "hcorr": 0.823,
+    "sigmaRatio": 0.858,
+    "strandCorr": 0.111
+   },
+   "26": {
+    "match2": 66.9,
+    "match": 75.2,
+    "ssim2": 0.582,
+    "grad": 0.589,
+    "hcorr": 0.876,
+    "sigmaRatio": 0.689,
+    "strandCorr": 0.094
+   }
+  }
+ }
+}

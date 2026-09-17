@@ -58,3 +58,4 @@ iris-engine/ref/*.jpg
 *sa-key.json
 *service-account*.json
 client_secret*.json
+iris-engine/ref/survey-isolated.json

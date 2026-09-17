@@ -64,8 +64,10 @@ def main():
     a = ap.parse_args()
 
     out = os.path.join(VDIR, a.id)
-    if os.path.exists(out) and not a.force:
-        sys.exit(f'{out} exists — pass --force to overwrite')
+    # a folder holding only bench/ is the normal case: benchIsolated({ ver }) writes there first.
+    # Refuse only to overwrite a version that has already been sealed.
+    if os.path.exists(os.path.join(out, 'manifest.json')) and not a.force:
+        sys.exit(f'{a.id} is already sealed — pass --force to overwrite')
     os.makedirs(os.path.join(out, 'src'), exist_ok=True)
     os.makedirs(os.path.join(out, 'bench'), exist_ok=True)
 

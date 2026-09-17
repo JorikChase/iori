@@ -2810,7 +2810,7 @@
             'warp', 'collr', 'furrow', 'pigment', 'stroma', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom', 'zoomPhoto', 'blColour', 'blRelief', 'blFlow'];
 
         // ---- test hook: expose a paraxial magnification check for the harness ----
-        window.__irisEngine = { state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
+        window.__irisEngine = { state, target, programs, gl, canvas, captureTiled, exportID, importID, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
             FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
             drawPhotoFrame, drawPost, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
             setCamFixed, syncCamBtn, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };

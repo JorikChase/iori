@@ -61,6 +61,7 @@ def main():
     ap.add_argument('--bench', nargs='*', help='bench json paths (default: the newest ref/bench-*.json)')
     ap.add_argument('--features', nargs='*', default=[], help='feature flags active in this version, key=value')
     ap.add_argument('--force', action='store_true', help='overwrite an existing snapshot')
+    ap.add_argument('--no-cases', dest='no_cases', action='store_true', help='do not archive fitted cases (they are not available for this bench)')
     a = ap.parse_args()
 
     out = os.path.join(VDIR, a.id)
@@ -83,7 +84,7 @@ def main():
     # own bench/ directory (benchIsolated({ ver }) posts there through serve.py)
     sources = list(a.bench) if a.bench else []
     own = os.path.join(out, 'bench')
-    sources += [os.path.join(own, f) for f in sorted(os.listdir(own)) if f.endswith('.json')]
+    sources += [os.path.join(own, f) for f in sorted(os.listdir(own)) if f.endswith('.json') and f != 'cases.json']
     if not sources:
         sources = latest_bench()
     benches, rows, seen = {}, [], set()
@@ -102,10 +103,16 @@ def main():
         benches[name] = summarise(r)
         rows += r
 
-    cases = os.path.join(ENG, 'ref', 'cases.json')
-    if os.path.exists(cases):
+    # the fits of *this* version: the bench writes them next to its rows (bench/cases.json). ref/cases.json is
+    # rewritten by every bench, so it is only a fallback, and the manifest says so.
+    own_cases = os.path.join(out, 'bench', 'cases.json')
+    cases = own_cases if os.path.exists(own_cases) else os.path.join(ENG, 'ref', 'cases.json')
+    cases_source = 'bench' if cases == own_cases else ('none' if a.no_cases else 'ref/cases.json at snapshot time (may belong to a later bench)')
+    if os.path.exists(cases) and not a.no_cases:
         with open(cases, 'rb') as fi, gzip.open(os.path.join(out, 'cases.json.gz'), 'wb') as fo:
             shutil.copyfileobj(fi, fo)
+        if cases == own_cases:
+            os.remove(own_cases)
 
     man = {
         'id': a.id,
@@ -113,6 +120,7 @@ def main():
         'engine': engine_version(),
         'note': a.note,
         'features': dict(kv.split('=', 1) for kv in a.features) if a.features else {},
+        'casesSource': cases_source,
         'src': files,
         'bench': benches,
         'summary': summarise(rows) if rows else None,

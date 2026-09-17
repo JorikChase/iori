@@ -11,7 +11,7 @@ versions/
     manifest.json       id, date, engine version, note, feature flags, src sha256s, per-case summary
     src/                index.html fit.js ui.js design.js serve.py — verbatim copies
     bench/*.json        the bench rows, exactly as BENCH ISO wrote them
-    cases.json.gz       the fitted IDs (fields, splats, ridges, materials) for every case
+    cases.json.gz       the fitted IDs of *this* version's bench (fields, splats, ridges, materials)
 ```
 
 ## Workflow per version
@@ -25,7 +25,10 @@ versions/
    python3 iris-engine/versions/snapshot.py v63-contrast --note "E3: hemispheric AO at bake, floor to ABL, gapShadow fitted" \
        --features gapShadow=fitted ao=hemispheric layers=2
    ```
-   With no `--bench` it takes the newest `ref/bench-*.json`.
+   With no `--bench` it takes the bench files already in `versions/<id>/bench/`, else the newest
+   `ref/bench-*.json`. Fitted cases come from `versions/<id>/bench/cases.json`, which a bench with `ver`
+   writes next to its rows; `ref/cases.json` is only a fallback (every bench rewrites it) and the manifest's
+   `casesSource` says which was used. `--no-cases` seals a version without fits.
 4. Review:
    ```bash
    python3 iris-engine/versions/compare.py              # mean table, arrows vs the previous version
@@ -70,3 +73,11 @@ phases (F2–F4).
 `versions/<id>/src/` is a complete engine (it needs `ref/` and `study/`, which are not copied — they are
 inputs, not outputs). To run an old version: copy its `src/*` over `iris-engine/`, or serve that
 directory. `manifest.json` carries the sha256 of every source file, so a snapshot can be verified.
+
+## Reproducibility
+
+A fit is deterministic, and since §24.1 it is also independent of what ran before it: every bench case
+restores the page-load state and a canonical genome (seed 42, `FIT_START`) before loading its photo. Check it
+by running the same bench forwards and with the eyes reversed — every row must match. The single-eye start
+sensitivity measured before that fix was up to ±4 MATCH2, so treat smaller single-eye differences with care
+until the multi-start guard exists.

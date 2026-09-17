@@ -1331,37 +1331,11 @@
         return e / pp.length;
     }
     // evaluate the ten presets (and the current genes) at the solved pose and keep the best as the start
-    // A fresh fit must not depend on what ran before it (v74 rerun: the same bench after a different previous
-    // bench moved one eye by 4 MATCH2). So every fresh fit starts from one canonical genome — seed 42, the page's
-    // default — and one canonical set of gene values; 'current' is a start candidate only when asked for.
-    const FIT_START = { ev: 0, ambient: 0.35, lid: 6, mie: 0.25, ring: 0, ringR: 0.38, limbalDark: 0.65, limbalWidth: 0.12,
-        limbalMilk: 0.6, gapMelMul: 1.2, gapStromaMul: 0.35, strandGain: 3.2, pupZoneMel: 1.4, collr: 0.33, fibreContrast: 0.8,
-        rimSharp: 0.6, strandMed: 0.28, strandFine: 0.17, strandSharp: 0, gapShadow: 0.8 };
-    // ... and state must not leak either (v76 reversed: 25 moved 3.8 MATCH2 with only the genome reset). The
-    // page-load state is the canonical one; every bench case restores it before loading its photo. Runtime flags
-    // and the pointer are not part of it.
-    const RUNTIME_KEYS = new Set(['fitting', 'capturing', 'design', 'paused', 'frameCount', 'mouseX', 'mouseY']);
-    const snapKeys = obj => Object.fromEntries(Object.keys(obj).filter(k => !RUNTIME_KEYS.has(k)).map(k => [k, obj[k]])
-        .filter(([, v]) => ['number', 'boolean', 'string'].includes(typeof v) || (Array.isArray(v) && v.every(x => typeof x === 'number')))
-        .map(([k, v]) => [k, Array.isArray(v) ? v.slice() : v]));
-    const STATE0 = snapKeys(state), TARGET0 = snapKeys(target);
-    function resetForFreshFit() {
-        for (const [k, v] of Object.entries(STATE0)) state[k] = Array.isArray(v) ? v.slice() : v;
-        for (const [k, v] of Object.entries(TARGET0)) target[k] = Array.isArray(v) ? v.slice() : v;
-        canonicalStart();
-        fit.map = null; fit.proxy = null; fit.route = null; fit.mask = null; fit.pose = null;
-    }
-    function canonicalStart() {
-        E.genome = E.genomeFromSeed(42);
-        state.seed = target.seed = 42;
-        for (const p of GLOBAL_PARAMS) if (FIT_START[p.key] !== undefined) p.set(FIT_START[p.key]);
-        E.atlas.dirty = true;
-    }
-    function bestPresetStart(pp, fromCurrent = false) {
+    function bestPresetStart(pp) {
         const snapshot = GLOBAL_PARAMS.map(p => p.get());
         let best = { err: Infinity, name: 'current', x: snapshot };
         const evalNow = (name) => { renderFit(); const err = profileError(pp, profiles(fit.render)); if (err < best.err) best = { err, name, x: GLOBAL_PARAMS.map(p => p.get()) }; };
-        if (fromCurrent) evalNow('current'); else canonicalStart();
+        evalNow('current');
         for (const name of Object.keys(E.EYE_PRESETS)) { E.loadEyePreset(name); state.ev = target.ev = 0; state.lid = target.lid = 6; evalNow(name); }
         GLOBAL_PARAMS.forEach((p, i) => p.set(best.x[i]));
         say('start from ' + best.name + ' (profile err ' + best.err.toFixed(1) + ')');
@@ -1807,13 +1781,13 @@
     fit.routed = true;
     fit.seededLoss = 'pixel';   // §23: 'pixel' (fidelity, v69) or 'stats' (look, v70)
     fit.placement = true;       // §24 F2: strand placement from the photo — default since v72/v74; benchIsolated({ f2: false }) turns it off
-    async function fitGlobal(iters = 120, opts = {}) {
+    async function fitGlobal(iters = 120) {
         if (!fit.photo) { say('load a photo first'); return; }
         if (!fit.pose) solvePose();
         fit.running = true; state.fitting = true;
         const pp = profiles(fit.photo); let evals = 0;
         fit.mask = irisMask();
-        bestPresetStart(pp, !!opts.fromCurrent);
+        bestPresetStart(pp);
         heightFromPhoto(); flowFromPhoto(); structuresFromHeight(); fitSplats(fit.splatBudget || E.Q.splats);
         if (fit.placement) placementFromPhoto(); else clearPlacement();
         E.genome.globals.pupZoneMel = 1.0; state.ring = target.ring = 0;
@@ -2087,7 +2061,6 @@
             const src = typeof entry === 'string' ? 'ref/' + entry : entry.src;
             const t0 = performance.now();
             try {
-                resetForFreshFit();                          // every case starts from the same place, whatever ran before
                 await loadImage(src, file);
                 solvePose();
                 const s0 = score();
@@ -2151,7 +2124,6 @@
         for (const file of files) {
             if (!fit.benchRunning) break;
             try {
-                resetForFreshFit();
                 await loadImage('ref/' + file, file);
                 await fitHQ();
                 const s1 = score(); diagnostics();
@@ -2258,7 +2230,7 @@
     $('fit-study').onclick = async () => { const list = await fetch('ref/refs.json').then(r => r.json()); studyAll(list.map(r => r.file)); };
     $('fit-cases').onclick = exportCases;
     $('fit-casebook').onclick = openCasebook;
-    $('fit-global').onclick = () => fitGlobal(120, { fromCurrent: true });   // the button refines what is loaded; benches start canonical
+    $('fit-global').onclick = () => fitGlobal(120);
     $('fit-detect').onclick = () => { if (!fit.pose) solvePose(); heightFromPhoto(); structuresFromHeight(); fitSplats(fit.splatBudget || E.Q.splats); renderFit(); score(); draw(); };
     $('fit-refine').onclick = refineObjects;
     $('fit-stop').onclick = () => { fit.running = false; fit.benchRunning = false; };
@@ -2267,5 +2239,5 @@
         for (const r of list) { const o = document.createElement('option'); o.value = r.file; o.textContent = r.file.replace('.jpg', ''); sel.appendChild(o); }
         sel.onchange = () => { if (sel.value) loadImage('ref/' + sel.value, sel.value).catch(() => {}); };
     }).catch(() => {});
-    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
+    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
 })();

@@ -870,3 +870,88 @@ per eye in a hidden pane.
 
 **Default.** Routed, pixel mode (v71). Next: F2 inside E5 (fitted spacing and phase), then a multi-start
 sensitivity guard.
+
+## 24. F2: strand placement from the photograph (built 2026-09-17)
+
+**What was missing.** The fitter filled `flowDir`, `coherence` and `strandBright`; `spacing` stayed at one global
+0.055 mm and `phase` at 0, so strands ran the right way but sat where the seed put them (`strandCorr` 0.06–0.11).
+That is the root of the perception–distortion wall of §23.1.
+
+**Why the noise scales cannot be placed.** Shifting value noise re-rolls the pattern instead of moving it, and a
+lattice whose scale varies per texel slides and decorrelates. So the noise path is left exactly as it was (every
+unplaced iris renders bit for bit as before — verified on the four presets) and F2 adds a separate, addressable
+strand basis.
+
+**The carrier (bake, `strandCarrier`).** Gabor-noise style: every flow cell carries its own plane wave
+`cos(2π·x'/spacing + phase)`, with `x' = Δa·cos θ − Δv·sin θ` measured *from that cell's centre* across that cell's
+flow angle θ, and the four nearest cells' waves are blended bilinearly; a weak breakup noise lets strands swell and
+end. It replaces part of the top layer's fine scale: `licF = mix(licF, carrier, place)`. New flow-grid fields:
+`placeSpacing`, `phaseC`, `phaseS` (phase stored as cos/sin — a wrapped angle interpolates through π and draws
+seams; the ranges put the defaults exactly on u8 steps), `place` (carrier weight), in a new pack `f2` on texture
+unit 14. The old `phase` field is gone; the old `spacing` field still drives the noise scales.
+
+**The estimator (fit.js, `placementFromPhoto`).** Works on the full-resolution photograph (4.8 µm/px on the ISO
+macros — the fit image is far too coarse), unwrapped into a 4096 × 512 tissue grid through the coordinate map
+upsampled with circular interpolation of u. A high-pass at ≈ 110 µm normalised by the local mean keeps the strands
+and drops zones and tone. Spacing per 4 × 4-cell block by a matched filter over eleven candidates (28–92 µm), each
+candidate's response divided by its mean over all blocks (removes the spectral tilt), then a 3 × 3 median. Phase
+and placement weight per flow cell by demodulating the cell ± one cell in *that cell's own frame* with the
+u8-quantised θ and spacing the bake will see. `place` = stripe coherence (|Σ L·e^{iΦ}| / Σ|L|) mapped 0.12…0.42 →
+0…1, times the block's peak prominence. `clearPlacement()` resets the fields when F2 is off. Switch:
+`fit.placement` (bench option `f2`).
+
+**Two bugs found on the way, both mine.** (1) The first carrier measured x' from u = 0: a lever arm of up to 25 mm
+turns the 0.008 rad step of a u8 flow angle into four strand periods, so stripes were scrambled even in the atlas
+(atlas-vs-formula correlation 0.065). Per-cell frames fixed it (0.42; the rest is the breakup noise and the
+coverage transfer). (2) `demod` summed L·e^{+iΦ}, which returns −φ: the fitted phase correlated 0.014 with the
+photo and its conjugate 0.452. After the sign fix the prediction matches the photograph at 0.473.
+
+**First measurement (ref 26, CAPTURE, before the material fit).**
+
+| | placement off | placement fitted | phase flipped by π |
+|---|---|---|---|
+| strandCorr | 0.028 | **0.247** | −0.211 |
+| fine band B3 corr | 0.015 | **0.119** | −0.091 |
+| bundle band B2 corr | 0.065 | **0.198** | −0.073 |
+| SSIM₂ | 0.112 | **0.222** | 0.050 |
+| gradient agreement | 0.051 | **0.223** | 0.000 |
+
+Spacing median 46 µm (06 measured 35–70), 69 % of cells placed, estimator 1.6 s. The π-flip turning every
+correlation negative is the proof that the rendered strands are registered to the photograph's.
+
+**Presets decoupled from benches.** Presets now load from `ref/presets.json`, which only `bakePresets` (or a
+deliberate promotion) writes; `ref/cases.json` stays the casebook that every bench rewrites.
+
+### 24.1 Log (2026-09-17): F2 benched — the wall breaks at CAPTURE; an order leak found and closed
+
+| version | quality | configuration | MATCH2 | MATCH | SSIM₂ | grad | strandCorr |
+|---|---|---|---|---|---|---|---|
+| v71 | NORMAL | routed pixel, no F2 | 59.7 | 67.8 | 0.504 | 0.530 | 0.06–0.11 |
+| v72 | NORMAL | routed pixel + F2 | **60.0** | 67.9 | **0.509** | **0.536** | **0.18–0.25** |
+| v73 | CAPTURE | routed pixel, no F2 | 44.6 | 61.5 | 0.334 | 0.220 | 0.10 |
+| v74 | CAPTURE | routed pixel + F2 | **54.7** | **65.3** | **0.451** | **0.431** | **0.40** |
+| v75 | CAPTURE | routed stats + F2 | 49.3 | 61.6 | 0.389 | 0.350 | 0.29 |
+
+- **NORMAL:** no regression, every structure metric up on every eye, although the strands are barely resolvable
+  at 27 µm/px.
+- **CAPTURE:** placement lifts MATCH2 by ten points. Before F2, higher resolution made fits worse (v67); with it,
+  resolution starts to pay.
+- **The wall** (§23.1): the statistics-mode penalty halves (−10.5 at NORMAL without F2 → −5.5 at CAPTURE with it)
+  but does not vanish. In stats mode the seeded genes now pin at the *high* bounds, because the coarse band B1 holds
+  only 0.53–0.72 of the photo's energy at CAPTURE — a 0.3–1 mm deficit no seeded-texture gene can fill (relief and
+  bundle territory). Pixel mode overshoots the strand band instead (`hfRatio` ≈ 1.8): the carrier is strong relative
+  to the coarse structure. Both point at the same next item: coarse-band energy at CAPTURE.
+- **F2 is the default** (`fit.placement = true`).
+
+**Order leak.** A rerun of v74 after a different preceding bench moved one eye by 4 MATCH2 (25: 53.9 → 58.0).
+`bestPresetStart` evaluated `'current'` — the genome left by the previous fit — as a start candidate, and genes the
+presets never set (`strandMed`, `gapShadow`, `ambient`, …) carried over anyway. Every fresh fit now starts from a
+canonical genome (seed 42) and canonical gene values (`FIT_START`); `'current'` is a candidate only for the FIT
+GLOBAL button (`fitGlobal(iters, { fromCurrent: true })`). The rerun gap is also the first measurement of start
+sensitivity: up to ±4 MATCH2 on a single eye, so single-eye deltas below that are not evidence until multi-start
+exists.
+
+**Archive fix.** `snapshot.py` used to copy whatever `ref/cases.json` held when it ran, which after a sequence of
+benches belongs to the last one. Benches with `ver` now write their own fits to `versions/<ver>/bench/cases.json`,
+the snapshot archives those, and the manifest records `casesSource`. v73 and v75 were sealed without cases; v72
+was rerun (identical) to archive its fits; v74's fits come from the rerun (the leak made them differ).

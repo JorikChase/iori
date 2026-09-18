@@ -1031,3 +1031,95 @@ since the engine renders that coarse structure differently, the subtraction land
 E5 runs only at CAPTURE (evidence ≥ 0.2) and ends with both genes at their upper bounds on every eye
 (`strandFine` 0.6, `strandSharp` 1). B3 ratio goes 0.26–0.31 → 0.59–0.85 while B3 corr stays 0.25–0.35: energy
 added out of phase, which is where `hfRatio` ≈ 1.6–1.9 comes from. The `place` inflation of 25.1 feeds it.
+
+### 25.5 v79: relief fitted through the renderer — REJECTED
+
+`fitSplats` against the engine's own baked relief (base = relief with the fitted splats and crypt objects removed,
+read through view 15; splats entering × u_relief × blend × ruff fade, through the opening nonlinearity φ with
+openDepth). At the splat stage it does exactly what it was built for — the baked relief matches the height proxy at
+**r 0.95–0.96** at both qualities (v78: 0.64–0.78) — and the image gets worse at *both* qualities:
+
+| | NORMAL MATCH2 | grad | B1 corr | CAPTURE MATCH2 | hfRatio |
+|---|---|---|---|---|---|
+| v76 / v78c | 61.5 | 0.56 | 0.42–0.67 | 53.9 | 1.66 |
+| v79 / v79c | 48.4 | 0.33 | 0.28–0.34 | 49.4 | 2.21 |
+
+**What it means.** The height proxy is brightness band-passed and read as "bright = raised". The engine does not
+form the image that way: a bump changes only the shading (weak), an opening darkens the material, stroma and
+occlusion (strong). The v78 linear fit was wrong about the relief but put dark openings where the photograph is
+dark, and that is where its image correlation came from. **Height r measures agreement with a heuristic, not with the
+eye**; E3 optimises it (60·(1 − r)), so it deserves a smaller role until the proxy is calibrated against the
+engine's own image formation. `fit.reliefLoop` stays (default off) for that work.
+
+## 26. Phase R plan: relief from the image, through the renderer (proposed 2026-09-18)
+
+**Decided (iori, after v79):** stop fitting relief to the height proxy; fit it to the photograph's image through
+the engine's own image formation. E3's height term is ablated first (v80a weight 0, v80b weight 20).
+
+**Why a probed transfer, not a derivative.** An opening moves the image through five nonlinear paths in the bake
+(strand coverage × (1 − 0.85·openMask), stroma thickness, stroma and melanin × 0.45 on the floor, analytic AO scaled
+by openDepth, the floor-shadow channel T0.a) and a bump only through the shading. None of it is differentiable
+from JS, but all of it is *local*: the image at a point depends on the splat field there. So the engine can be
+measured once per fit as a transfer curve and the splats fitted to the photo through that curve.
+
+- **R0 — transfer probe (measurement only).** `fit.reliefTransfer()`: render the current genome with the fitted
+  splat field replaced by uniform offsets s ∈ {+0.04, +0.02, 0, −0.006, −0.012, −0.02, −0.03, −0.05, −0.08} mm and
+  record, per polar cell, luminance vs s. Answers how far openings and bumps can move the image, where, and at
+  which band — before any fitting is changed.
+- **R1 — calibrated forward model.** I_pred(u, v) = I_base(u, v) · τ(S(u, v); u, v), I_base = render without the
+  fitted splats, τ = the probed curve. Adam fits the splats to the photo's polar luminance, band-limited (owner
+  scales below), with one verification render; a second outer pass re-probes around the solution if the verified
+  band correlation falls short of the predicted.
+- **R2 — ownership against material.** Per-cell material and openings both explain dark regions at B1. Order and
+  split decided with iori before building.
+- **R3 — bumps.** Fitted from the image only if R0 shows they move it measurably; otherwise they come from a prior.
+- **R4 — height r recalibrated** from the engine's own relief → image transfer; until then it is a diagnostic.
+
+Each step: bench NORMAL and CAPTURE, CAPTURE leads, one change per version.
+
+### 25.6 v80: E3's height term, ablated
+
+| E3 height weight | NORMAL MATCH2 | CAPTURE MATCH2 | CAPTURE height r |
+|---|---|---|---|
+| 60 (v76 / v78c) | 61.5 | 53.9 | 0.79 |
+| 20 (v80b) | 61.5 | 53.9 | 0.79 |
+| 0 (v80a) | 61.0 | **49.8** | **0.45** |
+
+Height r is a good *regulariser* of E3's two genes (collr, fibreContrast — without it CAPTURE loses 4 MATCH2) and a
+bad *target* for the splat field (v79). The fit is flat between 20 and 60; the weight stays 60
+(`fit.e3HeightWeight` / `runBench({ e3HeightWeight })` for later ablations).
+
+### 26.1 R0 measured (2026-09-18): the engine's relief → image transfer
+
+`fit.reliefTransferBench()` (after a normal fit of each eye; the splat field replaced by a uniform offset s; data
+`study/audit-25/relief-transfer-{normal,capture}.json`). Luminance relative to s = 0, pupil zone → limbus:
+
+| s (mm) | +0.04 | +0.02 | −0.006 | −0.012 | −0.02 | −0.03 | −0.05 | −0.08 |
+|---|---|---|---|---|---|---|---|---|
+| NORMAL, zones 0–4 | 0.99–1.00 | 1.00 | 1.00 | 0.99–1.00 | 0.67–0.90 | 0.46–0.78 | 0.42–0.72 | 0.39–0.69 |
+| CAPTURE, zones 0–4 | 0.99–1.00 | 1.00 | 1.00 | 0.99–1.00 | 0.64–0.86 | 0.36–0.72 | 0.32–0.67 | 0.30–0.64 |
+| limbal zone 5 | 1.00 | 1.00 | 1.00 | 1.00 | 0.88–0.95 | 0.79–0.93 | 0.76–0.92 | 0.76–0.92 |
+
+1. **Bumps are invisible** under the ring flash: a +0.04 mm field changes the image by ≤ 1 %. Positive splats serve
+   the relief view and other lighting, never the photo match.
+2. **Openings are a switch**: nothing above −kOpen, then a drop to ≈ 0.4–0.6 of the level within 0.02 mm, saturating
+   by −0.05. An image fit of the field is a placement problem (where are the openings), not an amplitude problem —
+   gradients through amplitudes see a step.
+3. **The switch is quality-dependent**: the same opening is darker at CAPTURE by 0.10–0.15 (e.g. 26 mid zone at
+   −0.03: 0.42 vs 0.57) — a renderer leak (three strand layers and the coverage product vs two), in the same class
+   as §25.1.
+4. Per-pixel spread at −0.03 is ± 0.05–0.14: the response is local and nearly uniform within a zone, so a per-zone
+   curve is an adequate forward model.
+
+### 26.2 Decisions after R0 (iori, 2026-09-18)
+
+- **R1 method: soft surrogate + Adam.** Continuous splats fitted to the photo's image through a smoothed version of
+  the probed transfer curve, sharpened over the iterations toward the real one.
+- **Ownership: split by shape.** Openings own compact dark blobs (≤ ≈ 1 mm) that darken against their surroundings
+  by at least what the R0 curve can deliver; per-cell material owns smooth variation and is re-inverted after the
+  openings are placed.
+- **Bumps from the proxy.** The field is split: negative (openings) from the image, positive (bumps) from the height
+  proxy as in v78 — invisible to the photo match, kept for the relief view and other lighting.
+- **The opening-darkness leak is fixed first** (its own version, checked with the probe), before R1.
+
+Order: v81 opening darkness independent of quality → v82 F2 on a fixed-mm grid (§25, decided) → R1.

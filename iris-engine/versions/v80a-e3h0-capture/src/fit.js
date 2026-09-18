@@ -2309,44 +2309,6 @@
         return { meanN: +mean(a).toFixed(4), meanC: +mean(d).toFixed(4), corr: +corr(A.z, B.z).toFixed(3), corrCoarse: +corr(A.lo, B.lo).toFixed(3),
             rmsRatio: +(rms(B.z) / Math.max(1e-9, rms(A.z))).toFixed(3), coarseRatio: +(rms(B.lo) / Math.max(1e-9, rms(A.lo))).toFixed(3), detailRatio: +(rms(B.hi) / Math.max(1e-9, rms(A.hi))).toFixed(3) };
     }
-    // §26 R0: the engine's relief → image transfer. The fitted splat field is replaced by a uniform offset s (one
-    // splat far wider than the iris: its three wrap copies each cover the atlas, hence a = s / 3) and the current
-    // genome is rendered at each s. Per radial zone: luminance relative to s = 0 (no splats), and the B1/B2 energy of
-    // the image at that s relative to s = 0 — how far an opening or a bump can move the picture, and at which scale.
-    const TRANSFER_S = [0.04, 0.02, 0, -0.006, -0.012, -0.02, -0.03, -0.05, -0.08];
-    function reliefTransfer() {
-        const g = E.genome, keep = g.splats, U = 720, V = 96, NZ = 6;
-        const zoneOf = j => Math.min(NZ - 1, Math.floor(j / V * NZ));
-        const lumPolar = () => { renderFit(); return unwrap(fit.render, U, V).data; };
-        const out = { s: TRANSFER_S, zones: [], bands: {} };
-        let L0 = null; const curves = [];
-        for (const s of TRANSFER_S) {
-            g.splats = s ? [{ u: 0.5, v: 0.5, sa: 500, sb: 500, th: 0, a: s / 3 }] : [];
-            E.atlas.dirty = true;
-            const L = lumPolar(); if (s === 0) L0 = L;
-            curves.push(L);
-            const rt = photoRoute(), b = bandsOf(fit.render, ['B1', 'B2'], rt.ppm);
-            const e = n => { if (!b[n]) return 0; let q = 0, c = 0; for (let k = 0; k < b[n].length; k++) if (fit.mask[k]) { q += b[n][k] * b[n][k]; c++; } return Math.sqrt(q / Math.max(1, c)); };
-            out.bands[s] = { B1: +e('B1').toFixed(4), B2: +e('B2').toFixed(4) };
-        }
-        g.splats = keep; E.atlas.dirty = true;
-        for (let z = 0; z < NZ; z++) {
-            const row = TRANSFER_S.map((s, si) => { let a = 0, b = 0, n = 0; for (let j = 0; j < V; j++) { if (zoneOf(j) !== z) continue; for (let i = 0; i < U; i++) { const k = j * U + i, l0 = L0[k], l = curves[si][k]; if (!(l0 > 0.01)) continue; a += l / l0; b += (l / l0) * (l / l0); n++; } }
-                const m = n ? a / n : NaN; return { ratio: +m.toFixed(3), sd: n ? +Math.sqrt(Math.max(0, b / n - m * m)).toFixed(3) : null }; });
-            out.zones.push(row);
-        }
-        return out;
-    }
-    async function reliefTransferBench(files = ISOLATED, opts = {}) {
-        const res = { when: new Date().toISOString(), quality: E.quality, eyes: {} };
-        for (const file of files) {
-            await runBench([file], { iters: opts.iters || 120, save: false });
-            res.eyes[file] = reliefTransfer();
-            await yieldNow();
-        }
-        if (opts.save !== false) await saveRef(opts.name || `relief-transfer-${E.quality}.json`, res);
-        return res;
-    }
     async function scaleAudit(files = ISOLATED, opts = {}) {
         const t0 = performance.now(), q0 = E.quality, out = { when: new Date().toISOString(), eyes: {} };
         const FIELDS = ['height', 'strandBright', 'coherence', 'placeSpacing', 'place'];
@@ -2479,5 +2441,5 @@
         for (const r of list) { const o = document.createElement('option'); o.value = r.file; o.textContent = r.file.replace('.jpg', ''); sel.appendChild(o); }
         sel.onchange = () => { if (sel.value) loadImage('ref/' + sel.value, sel.value).catch(() => {}); };
     }).catch(() => {});
-    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
+    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, scaleAudit, fieldConsistency, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
 })();

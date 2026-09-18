@@ -4,6 +4,7 @@ Start here if you are a new Claude Code session taking this over. Read in this o
 `HANDOFF.md` (this) → `README.md` (run / panel) → `study/00-summary-and-spec.md` **§25–§26** (the current work: the CAPTURE audit and Phase R;
 §22–§24 the routed fitter and F2; §1–§21 the history) → `versions/README.md` (the archive and what every metric tests) → `study/07-fields-and-editing.md`.
 Project memory: `iris-engine-project.md` in the Claude memory dir.
+Round reports: `handoffs/` — the latest is `handoffs/2026-09-18-capture-audit.md` (v78 → v82, and where R1 starts).
 
 ## What this is
 

@@ -1962,9 +1962,7 @@
             coherence:    { grid: 'f', pack: ['f1', 1], range: [0, 1],       def: () => 1 },
             strandBright: { grid: 'f', pack: ['f1', 2], range: [0, 2],       def: () => 1 },
         };
-        // c, f reassigned by setQuality (the object identity is shared with the fitter); p, the F2 placement grid, never
-        // changes (§25): 512 × 128 ≈ 0.05 mm cells — v81's 256 × 64 lost 3.8 MATCH2 at CAPTURE (the finer phase is real)
-        const GRIDS = { c: [128, 32], f: [256, 64], p: [512, 128] };
+        const GRIDS = { c: [128, 32], f: [256, 64], p: [256, 64] };   // c, f reassigned by setQuality (the object identity is shared with the fitter); p never changes (§25)
         const PACKS = ['c0', 'c1', 'c2', 'f0', 'f1', 'f2'];
         const PACK_GRID = { c0: 'c', c1: 'c', c2: 'c', f0: 'f', f1: 'f', f2: 'p' };
         const PACK_UNIT = { c0: 7, c1: 8, c2: 9, f0: 10, f1: 11, f2: 14 };   // 12 and 13 are the splat and paint textures

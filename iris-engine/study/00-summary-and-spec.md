@@ -1105,9 +1105,10 @@ bad *target* for the splat field (v79). The fit is flat between 20 and 60; the w
 2. **Openings are a switch**: nothing above −kOpen, then a drop to ≈ 0.4–0.6 of the level within 0.02 mm, saturating
    by −0.05. An image fit of the field is a placement problem (where are the openings), not an amplitude problem —
    gradients through amplitudes see a step.
-3. **The switch is quality-dependent**: the same opening is darker at CAPTURE by 0.10–0.15 (e.g. 26 mid zone at
-   −0.03: 0.42 vs 0.57) — a renderer leak (three strand layers and the coverage product vs two), in the same class
-   as §25.1.
+3. ~~The switch is quality-dependent by 0.10–0.15~~ — **corrected**: those curves came from *different* fits (each
+   eye fitted at its own quality). With one genome fitted at NORMAL and probed at both (`leak-probe2.json`), CAPTURE
+   with two strand layers equals NORMAL exactly, and the third layer darkens openings by only 0.02–0.06. The rest of
+   the gap is the CAPTURE fit itself (E5's pinned strand genes, §25.4).
 4. Per-pixel spread at −0.03 is ± 0.05–0.14: the response is local and nearly uniform within a zone, so a per-zone
    curve is an adequate forward model.
 
@@ -1123,3 +1124,22 @@ bad *target* for the splat field (v79). The fit is flat between 20 and 60; the w
 - **The opening-darkness leak is fixed first** (its own version, checked with the probe), before R1.
 
 Order: v81 opening darkness independent of quality → v82 F2 on a fixed-mm grid (§25, decided) → R1.
+
+### 25.7 v81–v82: F2 on a fixed placement grid
+
+The four placement fields moved to their own grid `p` (pack f2: place, placeSpacing, phaseC, phaseS), which no
+quality change touches; the carrier reads each cell's frame angle bilinearly from the flow grid at the cell centre,
+and `placementFromPhoto` / `carrierPredict` reproduce that exactly (a texel centre when the grids agree, clamped in v
+like the GL sampler). NaN guard on the block confidence.
+
+| version | p grid | NORMAL MATCH2 | NORMAL strandCorr | CAPTURE MATCH2 | CAPTURE strandCorr |
+|---|---|---|---|---|---|
+| v76 / v78c | (= flow grid) | 61.5 | 0.24 | 53.9 | 0.44 |
+| v81 / v81c | 256 × 64 | 61.5 (bit-identical) | 0.24 | **50.1** | 0.35 |
+| **v82 / v82c** | **512 × 128** | 61.4 | **0.29** | 53.9 (bit-identical to v78c) | 0.44 |
+
+**Correction to §25.1.** The larger `place` at CAPTURE was not only coherence bias from a short window: the finer
+cells carry real local phase, and v81's coarser grid lost 3.8 MATCH2. What *was* a leak is the resampling, and a
+fixed grid removes it (v81 audit: `place` consistent across qualities, RMS ratio 1.00–1.04; the same ID keeps its B3
+correlation at CAPTURE). The estimator reads the full-resolution photo at every quality, so the fine grid costs
+nothing at NORMAL. **v82 is the default.**

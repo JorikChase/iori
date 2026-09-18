@@ -980,3 +980,54 @@ images also score better than the canvas-resampled ones: NORMAL MATCH2 **61.5** 
 
 **Rule for every future change:** the forward/reversed bench is the reproducibility test; run it after anything
 that touches loading, alignment or the start of a fit.
+
+## 25. The CAPTURE audit: scale leaks and the relief model mismatch (2026-09-18)
+
+**Decided with iori:** both qualities are benched every version and CAPTURE leads (presets are promoted from
+CAPTURE once it beats NORMAL); leaks are fixed only after `scaleAudit` has measured them, one version each; the
+multi-start guard comes before F2b. Probe data: `study/audit-25/`.
+
+**Tools added.** `fit.scaleAudit(files)` runs every estimator at NORMAL and at CAPTURE on the same 1280 px photo
+(only grids, proxies and atlas differ), box-averages the CAPTURE field onto the NORMAL grid and reports corr and
+coarse/detail RMS ratios; it also renders the NORMAL-estimated genome at both qualities. `fit.traceBands = true`
+(with `fit.trace`) adds B1–B3 ratio/corr and height r to every fit stage, including each routed expert.
+
+### 25.1 What the audit measured (v76 code)
+
+| stage | NORMAL → CAPTURE | verdict |
+|---|---|---|
+| height proxy | corr 0.99, ratios 1.0 | scale-consistent (control) |
+| `heightFromPhoto` | coarse RMS 0.57–0.92 | **leak**: blur radii in texels (4/1, 40/24 on the proxy) |
+| splats | median σ 0.075–0.084 → 0.050–0.064 mm, amplitude −10–25 % | see 25.3: not a scale leak |
+| `placementFromPhoto` | mean `place` 0.17–0.31 → 0.38–0.48 | **leak**: the demodulation window is ±1 flow cell; half the cell = noise looks coherent |
+| F2 fields across qualities | B3 corr of the same ID 0.06–0.10 → ≈ 0 | **leak**: `setQuality` bilinearly resamples phases that are relative to the old cell centres |
+| renderer, B1 | same genome, same photo: identical at both qualities | clean |
+| renderer, strands | spacingRatio 0.73–0.90 → 0.54–0.89 | the F2 resample above, plus a third strand layer |
+| `place` confidence | 16 NaN cells on 25 at CAPTURE | bug: 0/0 when a block's matched-filter sum is 0 |
+
+### 25.2 v78: height radii in mm
+
+`heightFromPhoto` radii scale with the proxy. NORMAL is bit-identical to v76 on every eye (the factor is 1).
+CAPTURE (v78c) against v77: MATCH2 54.7 → 53.9, B1 ratio +0.02–0.13, **height r 0.91 → 0.79**, B1 corr on 25
+0.46 → 0.22. The leak was real but not what drives the coarse-band deficit, and it exposed the problem below.
+
+### 25.3 The relief model mismatch (the actual B1 driver)
+
+The staged trace puts the CAPTURE loss at the **splat stage**: at NORMAL fitting the splats raises B1 corr on
+every eye (26: 0.19 → 0.41) and height r to 0.76–0.78; at CAPTURE it lowers B1 corr on every eye (25: 0.26 → 0.01)
+and height r only reaches 0.49–0.65. It does not depend on the splat budget (2000 vs 8000) or the proxy size
+(1024 vs 2048), nor on the fit resolution (640 vs 1280 px at either quality) — only on the quality's grids.
+
+The cause: the splats are fitted to `proxy − coarseModelOnGrid` (height field + ridges, splats added linearly),
+and on that model they reach r = 0.995 against the proxy. The engine's baked relief is something else: strand
+layer relief, seeded crypts and furrows, radial furrows, nodules, and a *nonlinear* splat term (openings below
+−kOpen deepened by `g_openDepth` = 3, §19.8). Model vs engine relief, eye 25: **r 0.77 at NORMAL, 0.65 at
+CAPTURE**; the coarse part alone matches the engine at r 0.40–0.43. At CAPTURE the coarse model also carries
+1.40× the proxy's amplitude (1.16× at NORMAL), so the splats are fitted to *subtract* coarse structure — and
+since the engine renders that coarse structure differently, the subtraction lands as anti-correlated B1.
+
+### 25.4 The strand overshoot
+
+E5 runs only at CAPTURE (evidence ≥ 0.2) and ends with both genes at their upper bounds on every eye
+(`strandFine` 0.6, `strandSharp` 1). B3 ratio goes 0.26–0.31 → 0.59–0.85 while B3 corr stays 0.25–0.35: energy
+added out of phase, which is where `hfRatio` ≈ 1.6–1.9 comes from. The `place` inflation of 25.1 feeds it.

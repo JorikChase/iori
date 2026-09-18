@@ -1133,7 +1133,6 @@
             // a gene that ends on its bound is a symptom (v68): the loss wanted to go further than the model allows
             const atBound = bp.filter((p, i) => Math.abs(res.x[i] - p.lo) < 1e-3 * (p.hi - p.lo) || Math.abs(res.x[i] - p.hi) < 1e-3 * (p.hi - p.lo)).map(p => p.key);
             log.push({ key: blk.key, evidence: ev, loss0: +f0.toFixed(2), loss1: +res.f.toFixed(2), genes: Object.fromEntries(bp.map((p, i) => [p.key, +res.x[i].toFixed(4)])), atBound });
-            trace('route-' + blk.key);
             say(`route ${blk.key}: ${f0.toFixed(1)} → ${res.f.toFixed(1)} (evidence ${ev})`);
         }
         fit.routeLog = log;
@@ -1866,11 +1865,6 @@
         if (!fit.trace) return;
         const rec = Object.assign({ stage }, fingerprint());
         if (fit.traceFull) { rec.stateRaw = Object.fromEntries(Object.keys(state).filter(k => !RUNTIME_KEYS.has(k)).map(k => [k, state[k]]).filter(([, v]) => typeof v !== 'object' || Array.isArray(v))); rec.globalsRaw = JSON.parse(JSON.stringify(E.genome.globals)); }
-        if (fit.traceBands) {                            // §25: where does a band's energy go, stage by stage
-            renderFit(); const b = bandScores(fit.render);
-            rec.bands = Object.fromEntries(['B1', 'B2', 'B3'].map(n => [n, [+b[n].ratio.toFixed(3), +b[n].corr.toFixed(3)]]));
-            rec.hcorr = +heightCorrelation().toFixed(3);
-        }
         (fit.traceLog = fit.traceLog || []).push(rec);
     };
     async function fitGlobal(iters = 120, opts = {}) {

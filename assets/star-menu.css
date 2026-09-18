@@ -1,6 +1,6 @@
-/* star menu — the astroid navigator shared by iori.me/star.html and
-   3die.fr/start.html. Both pages used to carry their own copy inline, which
-   is how they drifted apart; edit this file and both stay in step. */
+/* star menu — the astroid navigator on 3die.fr/start.html. iori.me/star.html
+   was a second copy of the same page and has been merged into it (the old URL
+   301s there); keep the menu styles here, not inline. */
 html, body { margin: 0; padding: 0; }
 
 /* ---------- the star menu: one astroid, four inside it, sixteen inside

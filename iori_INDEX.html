@@ -368,6 +368,12 @@
                 <li><a href="lili.html">lili — Animated Portrait Study</a></li>
                 <li><a href="socci.html">Socci Project — Generative Island</a></li>
             </ul>
+            <h2>eyes</h2>
+            <ul>
+                <li><a href="iris.html">Procedural Iris</a></li>
+                <li><a href="meta-iris.html">Procedural Iris — Alien</a></li>
+                <li><a href="iris-engine/">Iris Engine — Photoreal Procedural Iris</a></li>
+            </ul>
             <h2>flames</h2>
             <ul>
                 <li><a href="flame-strains.html">Flame Strains — Automata Burning in a Volumetric Flame</a></li>
@@ -388,9 +394,7 @@
             <ul>
                 <li><a href="fractal-dimension.html">N-Dimensional Viewer</a></li>
                 <li><a href="fractals.html">Fractal Optimization Through a Procedural Lens</a></li>
-                <li><a href="iris.html">Procedural Iris</a></li>
                 <li><a href="mandelbrot-gs.html">Image-GS Nebulabrot</a></li>
-                <li><a href="meta-iris.html">Procedural Iris — Alien</a></li>
                 <li><a href="mirrorbrot-16k.html">Mirrorbrot — 16K Deep Edition</a></li>
                 <li><a href="mirrorbrot.html">Mirrorbrot — Mirror-Fold Deep Zoom</a></li>
             </ul>
@@ -418,7 +422,6 @@
             <h2>hub</h2>
             <ul>
                 <li><a href="portfolio.html">3DIE — Portfolio: Artists &amp; Experiments</a></li>
-                <li><a href="star.html">Star Topology — Interactive Visualization</a></li>
                 <li><a href="web.html">iori — Node Web: Interactive Site Map</a></li>
                 <li><a href="web3d.html">iori — 3D Node Web: Gravity &amp; Orbits</a></li>
             </ul>
@@ -489,7 +492,7 @@ const BRANCH_LABEL = 'portfolio.html';  // the label/site lineage
 // which categories descend from which primordial cell
 const LINEAGES = {
   'fractals.html':         ['fractals', 'dispheres', 'dimensions', 'essay'],
-  'meta-iris.html':        ['materials', 'voxels', 'organisms', 'gravity', 'experiment'],
+  'meta-iris.html':        ['eyes', 'materials', 'voxels', 'organisms', 'gravity', 'experiment'],
   'flame-simulation.html': ['flames', 'fluids', 'automata'],
   'portfolio.html':        ['hub', 'site', 'game', 'artist', 'client'],
 };
@@ -499,7 +502,8 @@ const LINEAGES = {
 // the map navigable by meaning rather than only by category.
 const CURATED = [
   ['fractals.html', 'webgl.html'], ['orbitals.html', 'webgl.html'],
-  ['iris.html', 'meta-iris.html'], ['meta-iris.html', 'fractals.html'],
+  ['iris.html', 'meta-iris.html'], ['meta-iris.html', 'iris-engine/index.html'],
+  ['meta-iris.html', 'fractals.html'],
   ['orbitals.html', 'fractals.html'], ['fractals.html', 'lambda_cognition.html'],
   ['three-body.html', 'lambda_cognition.html'], ['sudoku.html', 'pi.html'],
   ['pi.html', 'game.html'], ['liquid-automata.html', 'cracks.html'],
@@ -1995,7 +1999,7 @@ function buildCrawlableNav(pages) {
     h.textContent = cat;
     frag.appendChild(h);
     const ul = document.createElement('ul');
-    for (const p of groups.get(cat).sort((a, b) => a.slug.localeCompare(b.slug))) {
+    for (const p of groups.get(cat).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.slug.localeCompare(b.slug))) {
       const li = document.createElement('li');
       const a = document.createElement('a');
       a.href = p.slug;

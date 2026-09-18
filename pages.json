@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-15",
+  "generated": "2026-09-18",
   "pages": [
     {
       "slug": "4cube.html",
@@ -398,15 +398,28 @@
       "lastmod": "2026-09-15"
     },
     {
+      "slug": "iris-engine/index.html",
+      "title": "Iris Engine — Photoreal Procedural Iris",
+      "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",
+      "category": "eyes",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/iris-engine/",
+      "og_image": null,
+      "lastmod": "2026-09-17",
+      "order": 3
+    },
+    {
       "slug": "iris.html",
       "title": "Procedural Iris",
       "description": "A procedurally generated iris: infinite eyes grown from shader mathematics.",
-      "category": "fractals",
+      "category": "eyes",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/iris.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-15",
+      "order": 1
     },
     {
       "slug": "jachym.html",
@@ -489,12 +502,13 @@
       "slug": "meta-iris.html",
       "title": "Procedural Iris — Alien",
       "description": "The alien variant of the procedural iris: stranger eyes from the same mathematics.",
-      "category": "fractals",
+      "category": "eyes",
       "type": "experiment",
       "domain": "iori.me",
       "url": "https://iori.me/meta-iris.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-15",
+      "order": 2
     },
     {
       "slug": "metyou.html",
@@ -681,17 +695,6 @@
       "domain": "iori.me",
       "url": "https://iori.me/socci.html",
       "og_image": "images/socci-base-island.avif",
-      "lastmod": "2026-09-15"
-    },
-    {
-      "slug": "star.html",
-      "title": "Star Topology — Interactive Visualization",
-      "description": "The website itself as a star topology: an interactive visualization of how pages connect.",
-      "category": "hub",
-      "type": "experiment",
-      "domain": "iori.me",
-      "url": "https://iori.me/star.html",
-      "og_image": null,
       "lastmod": "2026-09-15"
     },
     {

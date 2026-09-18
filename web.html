@@ -102,7 +102,7 @@
     <canvas id="node-canvas"></canvas>
     <!-- Import D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script>
+    <script type="module">
         // --- 1. CONFIGURATION & STATE ---
         const config = {
             tapDistanceThreshold: 15, // Max pixels moved to count as a tap
@@ -138,29 +138,13 @@
         resizeCanvas();
 
         // --- 3. DATA & SIMULATION ---
-        const allNodeIds = [
-            "webgl.html", "star.html", "shop.html", "portfolio.html",
-            "maska.html", "info.html", "indent.html", "index.html",
-            "game.html", "fractals.html", "darkwood.html",
-            "three-body.html", "two-body.html", "sudoku.html", "class-action.html",
-            "umprum.html"
-        ];
-
-        const linksList = [];
-        allNodeIds.forEach(id => {
-            // Avoid auto-linking hub nodes or specific satellites to portfolio
-            if (![...hubNodes, "class-action.html", "two-body.html", "three-body.html"].includes(id)) {
-                linksList.push({ source: "portfolio.html", target: id });
-            }
-        });
-
         // Manual connections
         const connections = [
             ["index.html", "info.html"], ["index.html", "shop.html"],
             ["shop.html", "info.html"], ["index.html", "portfolio.html"],
             ["index.html", "indent.html"], ["websites.html", "metyou.html"], ["websites.html", "zsprodeti.html"], ["metyou.html", "univerzum.html"], ["websites.html", "univerzum.html"],
             ["game.html", "darkwood.html"], ["tboi2.html", "darkwood.html"], ["game.html", "tboi2.html"], ["game.html", "game_multiplayer.html"],
-            ["fractals.html", "webgl.html"], ["orbitals.html", "webgl.html"], ["iris.html", "meta-iris.html"], ["meta-iris.html", "fractals.html"],
+            ["fractals.html", "webgl.html"], ["orbitals.html", "webgl.html"], ["iris.html", "meta-iris.html"], ["meta-iris.html", "iris-engine/index.html"], ["meta-iris.html", "fractals.html"],
             ["orbitals.html", "fractals.html"], ["fractals.html", "lambda_cognition.html"], ["index.html", "iori.html"],
             ["three-body.html", "lambda_cognition.html"], ["game.html", "aquarium.html"], ["sudoku.html", "pi.html"], ["pi.html", "game.html"],
             ["liquid-automata.html", "cracks.html"], ["cracks.html", "cracks-aberration.html"], ["dandelion-cycle.html", "dither-types.html"], ["aquarium.html", "dandelion-cycle.html"], ["fractals.html", "fractal-dimension.html"], ["diffusion-fluid.html", "lighter-flame.html"],
@@ -169,9 +153,31 @@
             ["two-body.html", "three-body.html"], ["bismuth-fluid.html", "fluid.html"], ["bismuth-fluid.html", "watercolor.html"], ["lighter-flame.html", "procedural-flame.html"], ["flame.html", "procedural-flame.html"], ["flame.html", "bismuth-fluid.html"], ["flame-simulation.html", "flame.html"],
             ["diffusion-fluid.html", "fluid.html"], ["diffusion-fluid.html", "disphere-symmetry.html"], ["disphere-ray.html", "liquid-automata.html"], ["liquid-automata.html", "ember-engine.html"],
             ["sudoku.html", "game.html"], ["class-action.html", "index.html"], ["orbitals.html", "crystalize.html"], ["fractals.html", "crystalize.html"], ["sigmoid-helix.html", "death.html"], ["sigmoid-helix.html", "universe.html"],
+            ["websites.html", "portfolio.html"], ["start.html", "index.html"], ["start.html", "websites.html"],
             ["umprum.html", "portfolio.html"], ["umprum.html", "death.html"], ["umprum.html", "universe.html"], ["liquid-automata.html", "voxel-scale-less.html"], ["voxel-scale-less.html", "voxel-sandbox.html"], ["voxel-sandbox.html", "voxel-terrain.html"]
         ];
-        connections.forEach(p => linksList.push({ source: p[0], target: p[1] }));
+        // every public page comes from the registry feed (site.py manifest); a
+        // hardcoded node list here went stale and pointed at pages that are gone
+        const feed = await fetch('/pages.json', { cache: 'no-store' }).then(r => r.json());
+        const bySlug = new Map(feed.pages.map(p => [p.slug, p]));
+        const linksList = [];
+        const linked = new Set();
+        const addLink = (a, b) => {
+            if (a === b || !bySlug.has(a) || !bySlug.has(b)) return;
+            linksList.push({ source: a, target: b });
+            linked.add(a); linked.add(b);
+        };
+        connections.forEach(p => addLink(p[0], p[1]));
+        // pages without a curated edge join the first page of their category,
+        // and that one joins the portfolio
+        const firstOfCat = {};
+        feed.pages.forEach(p => { firstOfCat[p.category] ??= p.slug; });
+        feed.pages.forEach(p => {
+            if (linked.has(p.slug)) return;
+            const head = firstOfCat[p.category];
+            addLink(p.slug, head !== p.slug ? head : 'portfolio.html');
+        });
+        const nodeLabel = id => id.replace(/\/index\.html$/, '').replace(/\.html$/, '');
 
         // Process Graph
         const nodeDegrees = new Map();
@@ -231,7 +237,7 @@
                 const isHub = hubNodes.includes(n.id);
                 context.fillStyle = isHub ? "white" : "rgba(200,200,200,0.6)";
                 context.font = isHub ? "bold 11px Inter" : "10px Inter";
-                context.fillText(n.id.replace('.html', ''), n.x + n.radius + 4, n.y + 3);
+                context.fillText(nodeLabel(n.id), n.x + n.radius + 4, n.y + 3);
             });
             context.restore();
         }
@@ -268,7 +274,7 @@
                     context.fill();
                     context.restore();
 
-                    window.location.href = node.id;
+                    window.location.href = bySlug.get(node.id).url;
                 }
             }
         }, { passive: false });
@@ -328,8 +334,8 @@
       <li><a href="https://iori.me/portfolio.html">portfolio</a></li>
       <li><a href="https://3die.fr/">3die</a></li>
       <li class="site-menu__section">more in hub</li>
-      <li class="site-menu__nb"><a href="https://iori.me/star.html"><small>prev</small>Star Topology</a></li>
-      <li class="site-menu__nb"><a href="https://iori.me/web3d.html"><small>next</small>iori</a></li>
+      <li class="site-menu__nb"><a href="https://iori.me/portfolio.html"><small>prev</small>3DIE</a></li>
+      <li class="site-menu__nb"><a href="https://iori.me/web3d.html"><small>next</small>iori — 3D Node Web: Gravity &amp; Orbits</a></li>
       <li class="site-menu__nb"><a href="https://iori.me/portfolio.html?cat=hub"><small>all</small>hub</a></li>
     </ul>
   </div>

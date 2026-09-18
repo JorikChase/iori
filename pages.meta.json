@@ -323,20 +323,21 @@
     "iris-engine/index.html": {
       "title": "Iris Engine — Photoreal Procedural Iris",
       "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",
-      "category": "fractals",
+      "category": "eyes",
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.6,
-      "hidden": true,
-      "todo_note": "in development — unhide when the folder is committed and deployed"
+      "order": 3,
+      "menu_pos": "bl"
     },
     "iris.html": {
       "title": "Procedural Iris",
       "description": "A procedurally generated iris: infinite eyes grown from shader mathematics.",
-      "category": "fractals",
+      "category": "eyes",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5
+      "priority": 0.5,
+      "order": 1
     },
     "jachym.html": {
       "title": "jáchym — 3DIE Artist",
@@ -409,11 +410,12 @@
     "meta-iris.html": {
       "title": "Procedural Iris — Alien",
       "description": "The alien variant of the procedural iris: stranger eyes from the same mathematics.",
-      "category": "fractals",
+      "category": "eyes",
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.5,
-      "menu_pos": "tl"
+      "menu_pos": "tl",
+      "order": 2
     },
     "metyou.html": {
       "title": "MetYou.ai — Design Engineering Case Study",
@@ -555,15 +557,6 @@
       "type": "experiment",
       "priority": 0.5,
       "og_image": "images/socci-base-island.avif"
-    },
-    "star.html": {
-      "title": "Star Topology — Interactive Visualization",
-      "description": "The website itself as a star topology: an interactive visualization of how pages connect.",
-      "category": "hub",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.5,
-      "menu_pos": "tl"
     },
     "start.html": {
       "title": "Start — GPU Flocking Birds",

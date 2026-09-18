@@ -4,7 +4,6 @@ Disallow: /api/
 Disallow: /404.html
 Disallow: /burger.html
 Disallow: /clip.html
-Disallow: /iris-engine/
 Disallow: /lili-web.html
 
 Sitemap: https://iori.me/sitemap-iori.xml

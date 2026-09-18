@@ -28,6 +28,7 @@ redir /fungal-growth.html https://iori.me/fungal-growth.html permanent
 redir /game-of-life.html https://iori.me/game-of-life.html permanent
 redir /iori.html https://iori.me/iori.html permanent
 redir /iori_INDEX.html https://iori.me/ permanent
+redir /iris-engine/* https://iori.me{uri} permanent
 redir /iris.html https://iori.me/iris.html permanent
 redir /lambda_cognition.html https://iori.me/lambda_cognition.html permanent
 redir /lighter-flame.html https://iori.me/lighter-flame.html permanent
@@ -47,7 +48,6 @@ redir /procedural-flame.html https://iori.me/procedural-flame.html permanent
 redir /sigmoid-helix.html https://iori.me/sigmoid-helix.html permanent
 redir /slime-mold.html https://iori.me/slime-mold.html permanent
 redir /socci.html https://iori.me/socci.html permanent
-redir /star.html https://iori.me/star.html permanent
 redir /three-body-shaded.html https://iori.me/three-body-shaded.html permanent
 redir /three-body.html https://iori.me/three-body.html permanent
 redir /two-body.html https://iori.me/two-body.html permanent
@@ -63,3 +63,4 @@ redir /watercolor.html https://iori.me/watercolor.html permanent
 redir /web.html https://iori.me/web.html permanent
 redir /web3d.html https://iori.me/web3d.html permanent
 redir /webgl.html https://iori.me/webgl.html permanent
+redir /star.html https://3die.fr/start.html permanent

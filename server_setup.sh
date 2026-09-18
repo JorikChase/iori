@@ -136,7 +136,10 @@ sync_website_files() {
         --exclude 'blackjach-api/' \
         --exclude 'blackjach/assets-reference/' \
         --exclude 'flame-strains-stages/' \
-        --exclude 'iris-engine/' \
+        --exclude 'iris-engine/study/' \
+        --exclude 'iris-engine/versions/' \
+        --exclude 'iris-engine/ref-staging/' \
+        --exclude 'iris-engine/tools/' \
         --exclude 'tools/' \
         --exclude 'dash/' \
         --exclude 'api/' \

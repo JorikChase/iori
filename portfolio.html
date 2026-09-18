@@ -215,7 +215,7 @@ const ARTIST_META = {
   "moises":         { role: "photography",               url: "https://3die.fr/moises.html" },
 };
 
-const CATEGORY_ORDER = ["fractals","automata","flames","fluids","organisms","gravity","voxels",
+const CATEGORY_ORDER = ["eyes","fractals","automata","flames","fluids","organisms","gravity","voxels",
                         "dispheres","dimensions","materials","game","experiment","hub","essay","site","client"];
 const catRank = (c) => { const i = CATEGORY_ORDER.indexOf(c); return i === -1 ? 999 : i; };
 
@@ -292,7 +292,7 @@ function renderExperiments() {
   for (const cat of cats) {
     if (activeCat && cat !== activeCat) continue;
     const items = pages.filter(p => p.category === cat)
-                       .sort((a, b) => a.title.localeCompare(b.title));
+                       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title));
     if (!items.length) continue;
     const row = document.createElement("div");
     row.className = "cat-row";

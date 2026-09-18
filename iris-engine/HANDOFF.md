@@ -1,8 +1,8 @@
-# Iris Engine — handoff (2026-09-18, engine 0.7-fields, v76 / v77)
+# Iris Engine — handoff (2026-09-18 evening, engine 0.7-fields, v82 / v82c)
 
 Start here if you are a new Claude Code session taking this over. Read in this order:
-`HANDOFF.md` (this) → `README.md` (run / panel) → `study/00-summary-and-spec.md` **§22–§24.2** (the current work;
-§1–§21 are the history) → `versions/README.md` (the archive and what every metric tests) → `study/07-fields-and-editing.md`.
+`HANDOFF.md` (this) → `README.md` (run / panel) → `study/00-summary-and-spec.md` **§25–§26** (the current work: the CAPTURE audit and Phase R;
+§22–§24 the routed fitter and F2; §1–§21 the history) → `versions/README.md` (the archive and what every metric tests) → `study/07-fields-and-editing.md`.
 Project memory: `iris-engine-project.md` in the Claude memory dir.
 
 ## What this is
@@ -33,49 +33,58 @@ Fits are deterministic and order-independent since v76 (§24.2).
 
 ## Where it stands
 
-| | NORMAL (v76) | CAPTURE (v77) |
+| | NORMAL (v82) | CAPTURE (v82c) |
 |---|---|---|
-| MATCH2 mean | **61.5** (best) | 54.7 |
-| MATCH | 68.3 | 63.5 |
-| strandCorr | 0.20–0.28 | 0.37–0.51 |
-| height r | 0.83–0.87 | 0.84–0.96 |
+| MATCH2 mean | **61.4** (v76 61.5, same within noise) | 53.9 |
+| MATCH | 67.7 | 61.8 |
+| strandCorr | 0.25–0.32 | 0.35–0.51 |
+| height r | 0.83–0.87 | 0.74–0.83 |
 
-Presets (`Presets ▾` menu) = the v76 fits in `ref/presets.json` (only `bakePresets` or a deliberate promotion writes
-it; benches rewrite `ref/cases.json`, the casebook).
+Presets (`Presets ▾` menu) = the v76 NORMAL fits in `ref/presets.json`. iori decided CAPTURE *leads* from now on:
+bench both qualities every version, promote presets from CAPTURE once it beats NORMAL.
 
 **Defaults in fit.js** (declared explicitly, §22.4 lesson): `fit.strandGenes = true`, `fit.strandTerm = false`,
-`fit.routed = true`, `fit.seededLoss = 'pixel'`, `fit.placement = true`.
+`fit.routed = true`, `fit.seededLoss = 'pixel'`, `fit.placement = true`, `fit.reliefLoop` off (v79, rejected),
+`fit.e3HeightWeight` 60 (v80 ablation).
 
 **Architecture now (details in the spec):**
 - **Routed fitting (§23)** — mixture of experts over an image-space band pyramid (B1 0.3–1 mm, B2 0.09–0.3, B3 0.03–0.09;
   σ = λ/5.3), per-pixel gates `mask × resolvable × focus × trust`, coarse-to-fine blocks E0 tone → E3 relief → E4 bundles
-  → E5 strands, evidence map (a block with too little evidence keeps its prior). Experts declare *fitted* vs *seeded*
-  layout; `seededLoss` 'pixel' (fidelity) or 'stats' (look) — the perception–distortion trade-off (§23.1).
-- **F2 strand placement (§24)** — a Gabor-style carrier in the bake: each flow cell a plane wave
-  `cos(2π·x'/spacing + phase)` in its own local frame, four cells blended; `placementFromPhoto` demodulates the
-  full-resolution photo (`fit.native`) in the same frames. Fields `placeSpacing`, `phaseC`, `phaseS`, `place`
-  (pack `f2`, texture unit 14). The noise path is untouched.
-- **Diagnostics (§22.2)** in every bench row: sigmaRatio, darkErr, bandDL, specAgree, hfRatio, strandCorr,
-  bandCorr/bandRatio, evidence, coverage.
+  → E5 strands, evidence map. `seededLoss` 'pixel' (fidelity) or 'stats' (look) (§23.1).
+- **F2 strand placement (§24, §25.7)** — a Gabor-style carrier in the bake; `placementFromPhoto` demodulates the
+  full-resolution photo. The placement fields (`place`, `placeSpacing`, `phaseC`, `phaseS`, pack `f2`) live on their
+  own grid **`p` = 512 × 128, fixed at every quality** (phases are cell-relative; a quality-dependent grid scrambled
+  them); the carrier's frame angle is read bilinearly from the flow grid at the cell centre, and the fitter matches it.
+- **Diagnostics (§22.2)** in every bench row, plus two audit tools (§25): `fit.scaleAudit()` (every estimator at
+  NORMAL vs CAPTURE on one photo, plus the renderer on one genome) and `fit.trace = fit.traceBands = true` (B1–B3
+  ratio/corr and height r after every fit stage and routed expert). `fit.reliefTransferBench()` (§26.1) probes the
+  engine's relief → image transfer.
 
-## Next, in order (iori agreed: router → F2 → population priors → detection)
+**What the audit established (§25–26, read before touching relief):**
+- The CAPTURE coarse-band deficit comes from the **splat stage**: splats are fitted to the height proxy through a
+  linear model, and the engine forms the image differently. Fitting the proxy through the renderer (v79) raised
+  height r to 0.95 and *lost 13 MATCH2* — **height r is a heuristic, a good regulariser for E3 (v80) and a bad target
+  for the splat field**.
+- Under the ring flash **bumps are invisible** (≤ 1 % image change at +0.04 mm) and **openings are a switch**
+  (nothing above −12 µm, ≈ 0.4–0.6× darker below −30 µm).
+- The strand overshoot at CAPTURE (hfRatio ≈ 1.6) is E5 pinning `strandFine` and `strandSharp` at their upper bounds.
 
-1. **Coarse-band deficit at CAPTURE.** B1 holds only 0.51–0.66 of the photo's energy at CAPTURE (0.78–0.95 at NORMAL),
-   while the strand band overshoots (hfRatio ≈ 1.8). It is why 'stats' mode still trails 'pixel' by ≈ 5 MATCH2, and
-   why CAPTURE < NORMAL. Suspects: relief (splats / height proxy) and bundles estimated at a scale that does not carry to
-   CAPTURE; carrier amplitude not normalised against coarse structure. Check B1/B2 ratios per stage with `fit.trace`.
-2. **F2b: per-cell crispness** (the third part of F2, not built): a field narrowing the fine coverage transfer from the
-   photo's stripe profile.
-3. **Multi-start sensitivity guard** — the one uncertainty left now that runs are deterministic (a start change moved one
-   eye by up to 4 MATCH2 before §24.2).
-4. **Population priors for E5/E6** from the super-macro sectors in `ref-staging/` (the "more than reality" step: fit a
-   coarse photo with E0–E4, draw fine detail from the prior).
-5. **Detection phase** on SBVPI (E1 evidence): an index of the dataset + masks → ground-truth landmarks → a detection
-   bench scoring the whole-eye aligner. Only when detection is right does it mask the staging images (iori: no hand masks).
+## Next, in order (agreed with iori 2026-09-18)
 
-Also open from before: F1 (specular-aware filtering, tangent + normal-variance channel), sub-strand decade (F3, per-pixel
-with footprint fade — iori has not yet decided per-pixel vs baked), ID v3 (quantisation, pyramids, per-layer hashes),
-09's hue, whole-eye photos.
+1. **Phase R — relief from the image (§26).** R1: openings (negative splats) fitted to the photo's polar luminance,
+   band-limited to compact structure (≤ ≈ 1 mm), through the probed transfer curve with a **soft surrogate + Adam**
+   (the curve smoothed in s, sharpened over the iterations); I_base = render without the fitted openings; one
+   verification render. **Ownership split by shape**: openings own compact dark blobs, per-cell material owns smooth
+   variation and is re-inverted afterwards. **Bumps (positive splats) still come from the height proxy** (v78 target).
+   Then R2 ownership check, R4 height r recalibrated. The opening-darkness quality leak was measured at only 0.02–0.06
+   (third strand layer) and iori decided not to fix it separately — R1 probes per quality.
+2. **E5 at CAPTURE** — both genes on their upper bounds on every eye; energy added out of phase.
+3. **Multi-start sensitivity guard** (before F2b, iori) — a start change moved one eye by up to 4 MATCH2.
+4. **F2b: per-cell crispness.**
+5. **Population priors for E5/E6** from the super-macro sectors in `ref-staging/`.
+6. **Detection phase** on SBVPI (E1 evidence) → masks for the staging images (no hand masks).
+
+Also open from before: F1 (specular-aware filtering), sub-strand decade (F3), ID v3, 09's hue, whole-eye photos.
 
 ## Data
 
@@ -93,6 +102,9 @@ with footprint fade — iori has not yet decided per-pixel vs baked), ID v3 (qua
 ## Gotchas (do not rediscover)
 
 **Fitting / reproducibility**
+- **Any estimator radius must be in mm, not texels.** Proxies, grids and atlases double at FINE and above; a texel
+  radius halves in mm (v78: `heightFromPhoto`). `fit.scaleAudit()` finds these. Compare qualities on *one* genome —
+  comparing two fits confounds the renderer with the fit (the §26.1 correction).
 - Photos: decode at native size and area-average in JS (`decodeNative`, `areaResize`). `canvas.drawImage` resampling
   depends on the canvas's history and made fits order-dependent.
 - Every bench case calls `resetForFreshFit()` (state, targets, genome, caches). A fresh fit never starts from `'current'`

@@ -2208,6 +2208,7 @@
                     sigmaRatio: dg.sigmaRatio, sigmaPhoto: dg.sigmaPhoto, sigmaRender: dg.sigmaRender, vmaxMin: dg.vmaxMin, coverage: dg.coverage, darkErr: dg.darkErr, darkThr: dg.darkThr, darkFrac: dg.darkFrac, hfRatio: dg.hfRatio, hfPhoto: dg.hfPhoto, hfRender: dg.hfRender, resolvedMm: dg.resolvedMm, hfLap: s1.hfLap, hfLapPhoto: s1.hfLapPhoto, hfLapRender: s1.hfLapRender, strandCorr: s1.strandCorr, bandCorr: s1.bandCorr, bandRatio: s1.bandRatio, evidence: s1.evidence, placement: fit.placement ? fit.f2 : null, routed: !!fit.routed, seededLoss: fit.routed ? fit.seededLoss : null, route: fit.routed ? fit.routeLog : null, bandDL: dg.bandDL, bandWorst: dg.bandWorst, specAgree: dg.specAgree, spacingRatio: dg.spacingRatio, zones: dg.zones,
                     contrastPhoto: s1.contrastPhoto, contrastRender: s1.contrastRender, ridgeGapPhoto: s1.ridgeGapPhoto, ridgeGapRender: s1.ridgeGapRender,
                     engine: E.ENGINE_VERSION, alignPx: fit.pose && fit.pose.align ? fit.pose.align.max : null, secs: +((performance.now() - t0) / 1000).toFixed(1) });
+                if (opts.oracle) rows[rows.length - 1].oracle = bandOracle();   // §27: measurement only, after the row is scored
                 cases[file] = makeCase(file, tag, s1);
                 say(`bench ${rows.length}/${files.length} · ${file} · MATCH ${s1.match.toFixed(0)} %`);
             } catch (e) { rows.push({ tag, file, error: String(e) }); say('bench error ' + file + ': ' + e); }
@@ -2237,6 +2238,83 @@
         if (opts.download) { const a = document.createElement('a'); a.download = `iris-bench-${tag.replace(/[: ]/g, '-')}.csv`; a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.click(); }
         return { rows, mean, above, csv, cases };
     }
+    // ---------------- §27 band-swap oracle (measurement only) ----------------
+    // What would perfect placement of one band be worth? The fitted render and the photo share the pixel grid, so
+    // luminance is split into LOW (> 1 mm) + B1 + B2 + B3 + TOP (< 0.03 mm) with mask-normalised Gaussians (the
+    // parts sum to the image exactly), and a hybrid is scored with MATCH2's own terms. Forward: the render with
+    // the photo's part swapped in (what a perfect fitter of that band would gain, everything else as it is).
+    // Reverse: the photo with the render's part swapped in (what that band costs when everything else is right).
+    // No engine state is touched. At ≥ 1000 px the whole table is repeated on 2× area-reduced images, which is
+    // the score NORMAL sees (fixed-resolution comparison of the qualities).
+    const ORACLE_CUTS = [1.0, 0.30, 0.09, 0.03], ORACLE_PARTS = ['LOW', 'B1', 'B2', 'B3', 'TOP'];
+    function oracleParts(pix, M) {
+        const W = fit.W, H = fit.H, n = W * H, ppm = pxPerMmNow(), L = lumOf(pix);
+        const LM = new Float32Array(n); for (let k = 0; k < n; k++) LM[k] = L[k] * M[k];
+        const G = ORACLE_CUTS.map(mm => { const s = mm * ppm / 5.3, a = blurF(LM, W, H, s), w = blurF(M, W, H, s), o = new Float32Array(n); for (let k = 0; k < n; k++) o[k] = M[k] ? a[k] / Math.max(w[k], 1e-3) : 0; return o; });
+        const P = { LOW: G[0], B1: new Float32Array(n), B2: new Float32Array(n), B3: new Float32Array(n), TOP: new Float32Array(n) };
+        for (let k = 0; k < n; k++) { if (!M[k]) continue; P.B1[k] = G[1][k] - G[0][k]; P.B2[k] = G[2][k] - G[1][k]; P.B3[k] = G[3][k] - G[2][k]; P.TOP[k] = L[k] - G[3][k]; }
+        return { L, P };
+    }
+    function oracleCompose(lumParts, chromaPix, chromaL, M) {     // luminance = Σ parts, chroma from chromaPix
+        const n = fit.W * fit.H, out = Uint8ClampedArray.from(chromaPix);
+        for (let k = 0; k < n; k++) {
+            if (!M[k]) continue;
+            let l = 0; for (const p of lumParts) l += p[k];
+            const o = k * 4, ls = chromaL[k];
+            if (ls < 0.02) { const d = (l - ls) * 255; out[o] = chromaPix[o] + d; out[o + 1] = chromaPix[o + 1] + d; out[o + 2] = chromaPix[o + 2] + d; }
+            else { const g = Math.max(0, l) / ls; out[o] = chromaPix[o] * g; out[o + 1] = chromaPix[o + 1] * g; out[o + 2] = chromaPix[o + 2] * g; }
+        }
+        return out;
+    }
+    function oracleScore(cand, ppPhoto) {
+        const pr = profiles(cand); let dE = 0;
+        for (let i = 0; i < ppPhoto.length; i++) dE += Math.hypot(ppPhoto[i][0] - pr[i][0], ppPhoto[i][1] - pr[i][1], ppPhoto[i][2] - pr[i][2]);
+        dE /= ppPhoto.length;
+        const ss4 = ssimAt(fit.photo, cand, fit.mask, 4), ss2 = ssimAt(fit.photo, cand, fit.mask, 2), gr = gradAgree(fit.photo, cand, fit.mask);
+        return { match2: +match2Percent(ss4, ss2, gr, dE).toFixed(2), ss4: +ss4.toFixed(3), ss2: +ss2.toFixed(3), grad: +gr.toFixed(3), dE: +dE.toFixed(2) };
+    }
+    function oracleTable() {
+        const n = fit.W * fit.H, mask = fit.mask || (fit.mask = irisMask());
+        const M = new Float32Array(n); for (let k = 0; k < n; k++) M[k] = mask[k] ? 1 : 0;
+        const ph = oracleParts(fit.photo, M), rn = oracleParts(fit.render, M), pp = profiles(fit.photo);
+        const parts = {};                                           // the two decompositions compared, part by part
+        for (const nm of ORACLE_PARTS) {
+            let sa = 0, sb = 0, c = 0; for (let k = 0; k < n; k++) if (M[k]) { sa += ph.P[nm][k]; sb += rn.P[nm][k]; c++; }
+            const ma = sa / c, mb = sb / c; let va = 0, vb = 0, cv = 0;
+            for (let k = 0; k < n; k++) if (M[k]) { const a = ph.P[nm][k] - ma, b = rn.P[nm][k] - mb; va += a * a; vb += b * b; cv += a * b; }
+            parts[nm] = { corr: +(va > 0 && vb > 0 ? cv / Math.sqrt(va * vb) : 0).toFixed(3), sigmaPhoto: +Math.sqrt(va / c).toFixed(4), sigmaRender: +Math.sqrt(vb / c).toFixed(4) };
+        }
+        const hybrid = (base, other, swap, chroma) => oracleCompose(ORACLE_PARTS.map(nm => (swap.includes(nm) ? other : base).P[nm]), chroma === 'photo' ? fit.photo : fit.render, chroma === 'photo' ? ph.L : rn.L, M);
+        const fwdSets = [[], ['LOW'], ['B1'], ['B2'], ['B3'], ['TOP'], ['B1', 'B2'], ['B2', 'B3'], ['B1', 'B2', 'B3'], ['B1', 'B2', 'B3', 'TOP'], ['LOW', 'B1'], ['LOW', 'B1', 'B2'], ORACLE_PARTS];
+        const forward = {}, reverse = {};
+        for (const s of fwdSets) forward[s.length ? s.join('+') : 'render'] = oracleScore(hybrid(rn, ph, s, 'render'), pp);
+        // amplitude-only control: the render's own part scaled to the photo's σ — statistics right, placement as fitted
+        const rg = { L: rn.L, P: {} };
+        for (const nm of ORACLE_PARTS) { const g = nm === 'LOW' || !parts[nm].sigmaRender ? 1 : parts[nm].sigmaPhoto / parts[nm].sigmaRender; rg.P[nm] = rn.P[nm].map(x => x * g); }
+        for (const st of [['B1'], ['B2'], ['B3'], ['B1', 'B2', 'B3']]) forward['gain:' + st.join('+')] = oracleScore(hybrid(rn, rg, st, 'render'), pp);
+        forward['chroma'] = oracleScore(hybrid(rn, ph, [], 'photo'), pp);                 // the render's luminance under the photo's chroma
+        forward['all+chroma'] = oracleScore(hybrid(rn, ph, ORACLE_PARTS, 'photo'), pp);    // sanity: the photo itself → 100
+        for (const s of [['LOW'], ['B1'], ['B2'], ['B3'], ['TOP'], ['B1', 'B2', 'B3', 'TOP']]) reverse[s.join('+')] = oracleScore(hybrid(ph, rn, s, 'photo'), pp);
+        reverse['chroma'] = oracleScore(hybrid(ph, rn, [], 'render'), pp);
+        return { px: [fit.W, fit.H], ppm: +pxPerMmNow().toFixed(2), sigmasPx: ORACLE_CUTS.map(mm => +(mm * pxPerMmNow() / 5.3).toFixed(2)), parts, forward, reverse };
+    }
+    function bandOracle() {
+        if (!fit.photo || !fit.render) return null;
+        const out = { full: oracleTable() };
+        if (fit.W >= 1000) {                                         // the same fit, scored at the resolution NORMAL is scored at
+            const keep = { W: fit.W, H: fit.H, photo: fit.photo, render: fit.render, mask: fit.mask, limbus: fit.limbus, pupil: fit.pupil };
+            const w = Math.round(fit.W / 2), h = Math.round(fit.H / 2), kx = w / fit.W, ky = h / fit.H;
+            try {
+                fit.photo = areaResize(keep.photo, keep.W, keep.H, w, h); fit.render = areaResize(keep.render, keep.W, keep.H, w, h);
+                fit.W = w; fit.H = h; fit.mask = null;
+                fit.limbus = Object.assign({}, keep.limbus, { x: keep.limbus.x * kx, y: keep.limbus.y * ky, rx: keep.limbus.rx * kx, ry: keep.limbus.ry * ky });
+                fit.pupil = Object.assign({}, keep.pupil, { x: keep.pupil.x * kx, y: keep.pupil.y * ky, r: keep.pupil.r * kx });
+                out.half = oracleTable();
+            } finally { Object.assign(fit, keep); }
+        }
+        return out;
+    }
+
     // one fitted eye as a stored case: alignment, view, genome, fields, scores and texture statistics
     function makeCase(file, tag, scores) {
         const W = fit.W, H = fit.H, P = fit.pupil, L = fit.limbus, C = fit.catch;
@@ -2288,6 +2366,13 @@
     // the isolated-on-black macros: no lids, no sclera, no perspective — the engine's own errors only
     const ISOLATED = ['09-blue-green-isolated.jpg', '25-green-amber-ring-isolated.jpg', '26-green-crypts-isolated.jpg', '35-grey-green-isolated.jpg'];
     async function benchIsolated(opts) { return runBench(ISOLATED, Object.assign({ tag: 'iso' }, opts || {})); }
+    // §27: the isolated bench with the band-swap oracle, fits not saved; writes ref/oracle-<quality>.json
+    async function oracleBench(opts = {}) {
+        const r = await runBench(ISOLATED, Object.assign({ tag: 'oracle', iters: 120, save: false, oracle: true }, opts));
+        const out = { quality: E.quality, engine: E.ENGINE_VERSION, rows: r.rows.map(x => ({ file: x.file, match2: x.match2, error: x.error, oracle: x.oracle })) };
+        await saveRef(`oracle-${E.quality}.json`, out);
+        return out;
+    }
 
     // §25 scale audit: does every stage measure the same thing in mm at every quality? The photo is loaded once
     // at CAPTURE's fit size, so between the two passes only the grids, proxies and atlas change. Estimators: each
@@ -2485,5 +2570,5 @@
         for (const r of list) { const o = document.createElement('option'); o.value = r.file; o.textContent = r.file.replace('.jpg', ''); sel.appendChild(o); }
         sel.onchange = () => { if (sel.value) loadImage('ref/' + sel.value, sel.value).catch(() => {}); };
     }).catch(() => {});
-    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
+    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, oracleBench, bandOracle, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
 })();

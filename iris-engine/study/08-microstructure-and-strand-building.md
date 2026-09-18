@@ -139,8 +139,18 @@ procedural, resolution-independent, diffable and usable as a dataset.
 - **Children** (generated, not stored): fine strands grown deterministically from `seed` by evenly-spaced streamlines
   over the existing `flowDir` / `spacing` fields, attracted to guides by a clump parameter, with noise / frizz /
   taper / break-up genes. Stored: the grower's genes. ≈ 1,500–5,000 strands, 50–150 k points, one instanced draw.
-- **Overrides** (stored sparsely): a child touched by a brush becomes explicit (its id, its points); deletions are a
-  list of ids. Untouched children regenerate identically.
+- **Ownership**: every child is assigned to a guide at birth (its clump parent), so a guide *has* children.
+- **Actualize** (iori, 2026-09-18 — the fallback if fitting and guides fail): per guide, `children` is either
+  `'grown'` or a list of explicit splines. ACTUALIZE freezes a guide's grown children into editable splines with the
+  same spline controls as the guide (points, width, deck, pigment), stored in the guide's local frame (arc length s,
+  offset n) so moving the guide still carries them; RE-GROW discards them and returns to the genes. Only actualized
+  guides cost bytes (≈ 20 children × 16 points ≈ 1 KB each); S6 (strands from the photo) can write actualized
+  children directly.
+- **Overrides** (stored sparsely): a single child touched by a brush becomes explicit (its id, its points); deletions
+  are a list of ids. Untouched children regenerate identically.
+
+Decided by iori 2026-09-18: guides + children + actualize; LIC and curves coexist behind `strandModel`, A/B by bench;
+strand brushes before displacement brushes. Sequencing against R1 open (see the round discussion).
 - **Decks**: posterior arcs (Rohen/Wyatt two-handed lattice, ≈ 100° sweep), anterior near-radial trabeculae, and the
   **ABL as a translucent sheet with holes** on top (melanin lives here: brown = dense sheet, blue = almost none —
   Bérard 2016's and TexturingXYZ's rule). Crypts are no longer dents: they are where the sheet has a hole *and* the

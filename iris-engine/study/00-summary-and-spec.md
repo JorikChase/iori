@@ -1143,3 +1143,57 @@ cells carry real local phase, and v81's coarser grid lost 3.8 MATCH2. What *was*
 fixed grid removes it (v81 audit: `place` consistent across qualities, RMS ratio 1.00–1.04; the same ID keeps its B3
 correlation at CAPTURE). The estimator reads the full-resolution photo at every quality, so the fine grid costs
 nothing at NORMAL. **v82 is the default.**
+
+## 27. The band-swap oracle: what placement is worth (2026-09-18, v82 code, measurement only)
+
+**Question.** Twenty versions since v62 moved NORMAL MATCH2 58.8 → 61.4. Before another fitter round: what could
+this representation score with a perfect fitter, and in which band are the points? `fit.bandOracle()` /
+`fit.oracleBench()` (→ `ref/oracle-<quality>.json`; data `study/audit-27/`). After each deterministic v82 fit the
+luminance of photo and render is split, on the shared pixel grid and with mask-normalised Gaussians, into
+LOW (> 1 mm) + B1 (0.3–1) + B2 (0.09–0.3) + B3 (< 0.09 mm, down to the pixel) — parts that sum to the image — and
+hybrids are scored with MATCH2's own terms. *Forward* = the render with the photo's part swapped in. *Gain* = the
+render's own part scaled to the photo's σ (statistics right, placement as fitted). Sanity: the untouched render
+reproduces the bench score on every eye; all parts + chroma = 100.0.
+
+Mean MATCH2 over the four isolated eyes (Δ against the fitted render):
+
+| swap | NORMAL fit @ 640 px | CAPTURE fit @ 1280 px | CAPTURE fit @ 640 px |
+|---|---|---|---|
+| fitted render | 61.4 | 53.9 | 54.8 |
+| gain B1 / B2 / B3 / all three | −0.1 / +0.2 / +0.2 / −0.2 | −0.3 / −0.1 / −0.2 / −0.6 | 0.0 / −0.1 / −0.1 / −0.3 |
+| LOW (tone > 1 mm) | +8.9 | +4.7 | +9.4 |
+| chroma | +4.1 | +3.7 | +3.8 |
+| B1 | **+16.7** | +13.5 | **+19.3** |
+| B2 | +10.5 | **+22.4** | +13.6 |
+| B3 | +14.1 | +16.1 | +17.0 |
+| B1 + B2 | +23.5 (84.9) | +31.2 (85.1) | +28.6 (83.4) |
+| B1 + B2 + B3 | +29.4 (90.8) | +38.4 (92.2) | +35.8 (90.6) |
+| LOW + B1 + B2 + B3 | +33.3 (94.7) | +40.9 (94.8) | +40.0 (94.8) |
+
+Part correlation render ↔ photo (range over eyes): NORMAL fit LOW 0.80–0.90, B1 0.47–0.69, B2 0.57–0.66,
+B3 0.31–0.41; CAPTURE fit (at 640 px) B1 **0.20–0.59**, B2 **0.34–0.46**, B3 0.38–0.49.
+
+**Findings.**
+1. **Amplitude is worth nothing; placement is worth everything.** Giving every band exactly the photo's energy moves
+   MATCH2 by −0.6…+0.2. Putting the same energy in the right place is worth +29…+38. Every gene that sets how
+   *much* structure there is (strandGain, strandFine, strandSharp, fibreContrast, gapShadow, openDepth, the 'stats'
+   loss) is outside where the score is; this is §23.1's wall, measured.
+2. **No single band reaches 80.** Perfect B1 alone gives 78 (NORMAL) / 67 (CAPTURE); B1 + B2 gives 83–85. The ≥ 80
+   target needs fitted placement in at least two bands, and tone (LOW +5…+9) and chroma (+4) besides.
+3. **The bands are worth about the same, and which one leads depends on the exam.** MATCH2's windows are in pixels
+   (SSIM 7×7 at ¼ and ½ resolution, gradient at ½): at 640 px they span 0.8 / 0.4 mm and B1 leads, at 1280 px they
+   span 0.4 / 0.2 mm and B2 leads. NORMAL and CAPTURE MATCH2 are different exams (the archive already said "not
+   comparable"; this is by how much).
+4. **The CAPTURE fit really is worse — it is not the exam.** The same CAPTURE fit scored at 640 px: 54.8 against
+   NORMAL's 61.4 (the resolution accounts for 0.9 of the 7.5). It trades coarse and mid placement (B1, B2 corr down
+   0.1–0.25) for fine (B3 corr up ≈ 0.1) — consistent with §25.3 (the splat stage) and §25.4 (E5).
+   *(My earlier statement that NORMAL's score was mostly flattered by its resolution was wrong.)*
+5. **Reading for the plan.** R1 (openings from the image, B1) addresses up to +13…+19 — worth doing, not sufficient.
+   B2 + B3 (bundles and strands, up to +20…+31) have no fitted position in the engine beyond F2's per-cell phase
+   (B3 corr 0.31–0.49). Positions for structure at 0.09–1 mm are what guides and clumps carry in study/08's strand
+   model: the oracle puts photo-placed guides (S6 at guide level) next to R1 in value, ahead of any work on
+   amplitudes, relief bumps or statistics.
+
+**Proposed protocol change (not decided):** score every version at one fixed resolution (640 px area-reduced, which
+costs nothing — `bandOracle` already does it) beside the native one, and carry the four part correlations in the
+bench row; they are the placement scores the fitter should be judged on.

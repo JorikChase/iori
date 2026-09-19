@@ -17,7 +17,7 @@ VDIR = os.path.dirname(os.path.abspath(__file__))
 COLS = [('match2', 7, 1, True), ('match', 6, 1, True), ('ssim', 6, 3, True), ('ssim2', 6, 3, True),
         ('grad', 6, 3, True), ('hcorr', 6, 3, True), ('sigmaRatio', 7, 3, None), ('specAgree', 7, 3, True),
         ('hfRatio', 7, 3, None), ('strandCorr', 10, 3, True), ('spacingRatio', 7, 3, None), ('darkErr', 7, 1, False),
-        ('dab', 5, 1, False), ('secs', 6, 1, False)]
+        ('dab', 5, 1, False), ('cellDab', 8, 2, False), ('secs', 6, 1, False)]
 
 
 def load():

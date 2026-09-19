@@ -779,6 +779,7 @@
         const s = score(), d = diagnostics();
         if (!d) { say('load a photo and render first'); return null; }
         say(`σ render/photo ${d.sigmaRender}/${d.sigmaPhoto} = ${d.sigmaRatio} · floors ${d.darkErr > 0 ? '+' : ''}${d.darkErr} L* (photo's darkest 15 %, below L* ${d.darkThr}) · bands ΔL* [${d.bandDL.join(', ')}]`);
+        say(`colour (§28): cell Δab ${d.cellDab} (p90 ${d.cellDabP90}) · cell ΔL* ${d.cellDL} · Δab by band pupil→root [${d.bandDab.join(', ')}]`);
         say(`spectrum agree ${d.specAgree} · strand energy R/P ${d.hfRatio} (${d.hfRender}/${d.hfPhoto}) · spacing mm P/R ` + d.zones.map(z => `${z.spacingPhotoMm.toFixed(3)}/${z.spacingRenderMm.toFixed(3)}`).join(' · '));
         return { score: s, diag: d };
     }
@@ -1295,8 +1296,28 @@
         });
         const zOK = zones.filter(z => !z.unphotographed);
         const mean = (f2) => zOK.length ? zOK.reduce((s2, z) => s2 + f2(z), 0) / zOK.length : null;
+        // §28 K0: colour error at the scale the material fields live on. A fixed 128 × 32 grid in tissue coordinates
+        // (the same at every quality), Lab averaged over each cell's photographed texels; cells less than 90 %
+        // photographed are left out. cellDab is the gate metric: a version may not worsen its mean.
+        const CU = 128, CV = 32, cuT = U / CU, cvT = V / CV;
+        let cdab = 0, cdL = 0, cN = 0; const cAll = [], bDab = new Array(6).fill(0), bCnt = new Array(6).fill(0);
+        for (let cj = 0; cj < CV; cj++) for (let ci = 0; ci < CU; ci++) {
+            const j0 = Math.floor(cj * cvT), j1 = Math.max(j0 + 1, Math.floor((cj + 1) * cvT)), i0 = Math.floor(ci * cuT), i1 = Math.floor((ci + 1) * cuT);
+            const P3 = [0, 0, 0], R3 = [0, 0, 0]; let m = 0, tot = 0;
+            for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+                tot++; const k = j * U + i; if (!rp.valid[k]) continue; const q = k * 3;
+                const lp = srgbToLab(rp[q], rp[q + 1], rp[q + 2]), lr = srgbToLab(rr[q], rr[q + 1], rr[q + 2]);
+                for (let t = 0; t < 3; t++) { P3[t] += lp[t]; R3[t] += lr[t]; } m++;
+            }
+            if (m < 0.9 * tot) continue;
+            const e = Math.hypot((P3[1] - R3[1]) / m, (P3[2] - R3[2]) / m), b = Math.min(5, Math.floor(cj * 6 / CV));
+            cdab += e; cdL += Math.abs(P3[0] - R3[0]) / m; cN++; cAll.push(e); bDab[b] += e; bCnt[b]++;
+        }
+        cAll.sort((x, y) => x - y);
         const d = {
             sigmaPhoto: +sp.toFixed(2), sigmaRender: +sr.toFixed(2), sigmaRatio: +(sr / Math.max(1e-6, sp)).toFixed(3),
+            cellDab: cN ? +(cdab / cN).toFixed(2) : null, cellDabP90: cN ? +cAll[Math.floor(0.9 * (cN - 1))].toFixed(2) : null, cellDL: cN ? +(cdL / cN).toFixed(2) : null, cellN: cN,
+            bandDab: bDab.map((x, i) => bCnt[i] ? +(x / bCnt[i]).toFixed(1) : null),
             darkErr: dn ? +(de / dn).toFixed(2) : 0, darkThr: +thrDark.toFixed(1), darkFrac: +(dabs / n).toFixed(3),
             bandDL, bandN, bandWorst: +Math.max(...bandDL.filter(x => x !== null).map(Math.abs)).toFixed(2),
             // how much of the tissue the photograph actually shows (1.0 = out to the limbus everywhere)
@@ -2365,7 +2386,7 @@
                 const dg = diagnostics() || {};
                 rows.push({ tag, file, quality: E.quality, match2: +s1.match2.toFixed(1), grad: +s1.grad.toFixed(3), match0: +s0.match.toFixed(1), match: +s1.match.toFixed(1), ssim: +s1.ssim.toFixed(3), ssim2: +s1.ssim2.toFixed(3), psnr: +s1.psnr.toFixed(2), dL: +s1.dL.toFixed(1), dab: +s1.dab.toFixed(1), crypts: E.genome.crypts.length, ridges: 1 + (E.genome.ridges || []).length, splats: (E.genome.splats || []).length, hcorr: +s1.hcorr.toFixed(3),
                     // §22 diagnostics: contrast deficit, floor error, radial profile, strand-scale spectrum
-                    sigmaRatio: dg.sigmaRatio, sigmaPhoto: dg.sigmaPhoto, sigmaRender: dg.sigmaRender, vmaxMin: dg.vmaxMin, coverage: dg.coverage, darkErr: dg.darkErr, darkThr: dg.darkThr, darkFrac: dg.darkFrac, hfRatio: dg.hfRatio, hfPhoto: dg.hfPhoto, hfRender: dg.hfRender, resolvedMm: dg.resolvedMm, hfLap: s1.hfLap, hfLapPhoto: s1.hfLapPhoto, hfLapRender: s1.hfLapRender, strandCorr: s1.strandCorr, bandCorr: s1.bandCorr, bandRatio: s1.bandRatio, evidence: s1.evidence, placement: fit.placement ? fit.f2 : null, routed: !!fit.routed, seededLoss: fit.routed ? fit.seededLoss : null, route: fit.routed ? fit.routeLog : null, bandDL: dg.bandDL, bandWorst: dg.bandWorst, specAgree: dg.specAgree, spacingRatio: dg.spacingRatio, zones: dg.zones,
+                    cellDab: dg.cellDab, cellDabP90: dg.cellDabP90, cellDL: dg.cellDL, bandDab: dg.bandDab, sigmaRatio: dg.sigmaRatio, sigmaPhoto: dg.sigmaPhoto, sigmaRender: dg.sigmaRender, vmaxMin: dg.vmaxMin, coverage: dg.coverage, darkErr: dg.darkErr, darkThr: dg.darkThr, darkFrac: dg.darkFrac, hfRatio: dg.hfRatio, hfPhoto: dg.hfPhoto, hfRender: dg.hfRender, resolvedMm: dg.resolvedMm, hfLap: s1.hfLap, hfLapPhoto: s1.hfLapPhoto, hfLapRender: s1.hfLapRender, strandCorr: s1.strandCorr, bandCorr: s1.bandCorr, bandRatio: s1.bandRatio, evidence: s1.evidence, placement: fit.placement ? fit.f2 : null, routed: !!fit.routed, seededLoss: fit.routed ? fit.seededLoss : null, route: fit.routed ? fit.routeLog : null, bandDL: dg.bandDL, bandWorst: dg.bandWorst, specAgree: dg.specAgree, spacingRatio: dg.spacingRatio, zones: dg.zones,
                     contrastPhoto: s1.contrastPhoto, contrastRender: s1.contrastRender, ridgeGapPhoto: s1.ridgeGapPhoto, ridgeGapRender: s1.ridgeGapRender,
                     engine: E.ENGINE_VERSION, alignPx: fit.pose && fit.pose.align ? fit.pose.align.max : null, secs: +((performance.now() - t0) / 1000).toFixed(1) });
                 if (opts.oracle) rows[rows.length - 1].oracle = bandOracle();   // §27: measurement only, after the row is scored

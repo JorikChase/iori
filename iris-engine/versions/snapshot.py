@@ -17,7 +17,7 @@ SRC = ['index.html', 'fit.js', 'ui.js', 'design.js', 'serve.py']
 METRICS = ['match2', 'match', 'ssim', 'ssim2', 'grad', 'hcorr', 'sigmaRatio', 'sigmaPhoto', 'sigmaRender',
            'specAgree', 'hfRatio', 'hfPhoto', 'hfRender', 'hfLap', 'strandCorr', 'resolvedMm', 'spacingRatio', 'coverage', 'vmaxMin', 'darkErr', 'darkThr', 'bandWorst',
            'contrastRender', 'contrastPhoto', 'ridgeGapRender', 'ridgeGapPhoto',
-           'psnr', 'dL', 'dab', 'match0', 'alignPx', 'secs', 'splats', 'ridges', 'crypts']
+           'psnr', 'dL', 'dab', 'cellDab', 'cellDabP90', 'cellDL', 'match0', 'alignPx', 'secs', 'splats', 'ridges', 'crypts']
 
 
 def sha(path):

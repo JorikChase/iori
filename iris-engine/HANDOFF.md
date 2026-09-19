@@ -1,10 +1,20 @@
 # Iris Engine — handoff (2026-09-19, engine 0.7-fields, v83 / v83c)
 
+**Two tracks are running in the same working tree** (different files, no conflicts so far — if one ever needs
+`index.html`/`fit.js` at the same time as the other, give one its own git worktree):
+1. **Relief/fitting** (R1 → …): the CAPTURE audit, openings fitted to the image. This file's §§ below.
+2. **Strand building**: explicit strand geometry, from a literature survey and a "what's the ceiling" methodology.
+   Read `handoffs/2026-09-19-strand-building.md` and `study/08-microstructure-and-strand-building.md` for it. Its
+   headline result changes what the *next* round of relief/fitting work should prioritise (below).
+
 Start here if you are a new Claude Code session taking this over. Read in this order:
-`HANDOFF.md` (this) → `README.md` (run / panel) → `study/00-summary-and-spec.md` **§25–§26** (the current work: the CAPTURE audit and Phase R;
-§22–§24 the routed fitter and F2; §1–§21 the history) → `versions/README.md` (the archive and what every metric tests) → `study/07-fields-and-editing.md`.
+`HANDOFF.md` (this) → `README.md` (run / panel) → `study/00-summary-and-spec.md` **§25–§27** (the current relief/
+fitting work — the CAPTURE audit, Phase R, the band-swap oracle; §22–§24 the routed fitter and F2; §1–§21 the
+history) → `study/08-microstructure-and-strand-building.md` (the strand-building work, §1–§7) →
+`versions/README.md` (the archive) → `study/07-fields-and-editing.md`.
 Project memory: `iris-engine-project.md` in the Claude memory dir.
-Round reports: `handoffs/` — the latest is `handoffs/2026-09-18-capture-audit.md` (v78 → v82, and where R1 starts).
+Round reports: `handoffs/` — `2026-09-18-capture-audit.md` (v78 → v82, where R1 starts) and
+`2026-09-19-strand-building.md` (oracle → S0 → S1 → S6-lite → the guide-ceiling test).
 
 ## What this is
 
@@ -49,6 +59,8 @@ CAPTURE leads, presets come from CAPTURE once it beats NORMAL). Bench both quali
 **Defaults in fit.js** (declared explicitly, §22.4 lesson): `fit.strandGenes = true`, `fit.strandTerm = false`,
 `fit.routed = true`, `fit.seededLoss = 'pixel'`, `fit.placement = true`, `fit.reliefLoop` off (v79, rejected),
 `fit.e3HeightWeight` 60 (v80 ablation), `fit.openings` on (R1, v83).
+`genome.globals.strandModel` (index.html) defaults to LIC (0): explicit-strand curves (study/08 S1/S6-lite) exist
+behind it, are bit-identical-safe when off, and are neutral against LIC when on (not yet worth switching on).
 
 **Architecture now (details in the spec):**
 - **Routed fitting (§23)** — mixture of experts over an image-space band pyramid (B1 0.3–1 mm, B2 0.09–0.3, B3 0.03–0.09;
@@ -72,21 +84,32 @@ CAPTURE leads, presets come from CAPTURE once it beats NORMAL). Bench both quali
   (nothing above −12 µm, ≈ 0.4–0.6× darker below −30 µm).
 - The strand overshoot at CAPTURE (hfRatio ≈ 1.6) is E5 pinning `strandFine` and `strandSharp` at their upper bounds.
 
-## Next, in order (agreed with iori 2026-09-18)
+## Next: two tracks, and what should change between them
+
+**The strand-building track's headline result (study/08 §7, guide-scale ceiling test) bears directly on where to
+spend the next round of relief/fitting effort:** traced ridge *geometry* alone (real photo pixels kept only inside
+a traced ridge's footprint, ≈ 10–15 % of the area, everything else flat) already matches or beats the current
+LIC + F2 render on B1/B2 correlation and far exceeds it on B3. The gap is not placement, it is per-pixel brightness
+fidelity inside a strand's footprint — which is also why the oracle (§27) finds amplitude worth ~0 and placement
+worth +29…+38. Read both before picking the next relief/fitting item below; some of them (E5, F2b) are exactly the
+"amplitude, not placement" kind of work the oracle says is not where the points are.
 
 1. **Phase R follow-ups (§26.3), R1 is built.** (a) contrast overshoot (σ ratio 1.10, B1/B2 1.3–1.8×): openings are
    a switch and match contrast shape, the level is not pulled back; (b) colour Δab +3: `materialFromPhoto` now
    inverts cells darkened by openings — settle who owns colour inside an opening; (c) strandCorr −0.1: openings part
    and cover the strands. Then R2 ownership check and R4 height r recalibrated.
-   **Parallel work:** another session added spec §27 (the band-swap oracle: placement is worth +29…+38, amplitude
-   0; guides in study/08) — read it; it ranks photo-placed guides next to R1.
 2. **E5 at CAPTURE** — pinned at its upper bounds before v83; re-check (hfRatio is now 0.59, the overshoot is gone).
+   Note the oracle: E5's genes are amplitude, not placement — low expected value versus the items below.
 3. **Multi-start sensitivity guard** (before F2b, iori) — a start change moved one eye by up to 4 MATCH2.
 4. **F2b: per-cell crispness.**
 5. **Population priors for E5/E6** from the super-macro sectors in `ref-staging/`.
 6. **Detection phase** on SBVPI (E1 evidence) → masks for the staging images (no hand masks).
+7. **Strand track, next up (study/08 §9): S1b** — per-texel brightness modulation inside the strand tube (reuse
+   `strandNoise`/the LIC noise field), bench curves vs LIC alone; **then S3** — guides from `tools/guide_trace.py`
+   as fitted objects through the (now-textured) strand pass, and re-run the §7 ceiling test with the real render.
 
-Also open from before: F1 (specular-aware filtering), sub-strand decade (F3), ID v3, 09's hue, whole-eye photos.
+Also open from before: F1 (specular-aware filtering), sub-strand decade (F3), ID v3, 09's hue (also shows up as a
+weak LOW correlation in §7, independent of strands), whole-eye photos.
 
 ## Data
 
@@ -127,6 +150,19 @@ Also open from before: F1 (specular-aware filtering), sub-strand decade (F3), ID
 - `snapshot.py` archives `versions/<id>/bench/cases.json` (written by the bench with `ver`); `ref/cases.json` belongs to
   whichever bench ran last.
 
+**Strand building (study/08)**
+- **Any code added to `fs-bake`, even behind an inert uniform, shifts its compiled float arithmetic and moves the
+  bench** (±0.3 MATCH2 on two eyes, observed). A new rendering path must be a **separately compiled shader
+  variant** (see `bakeCurvesProgram`), not a branch inside the existing bake shader.
+- A shader-variant marker (`//STRAND_DECL//` etc.) must be **alone on its own line** — a trailing comment on the
+  same line turned into shader code once, the variant failed to link, and the bench silently scored a stale atlas
+  (three eyes at 7–22 before it was caught).
+- `resetForFreshFit()` deletes unknown `state` keys, so a bench-only override (which model, which grower genes)
+  cannot live in `state` — it needs its own module-level variable (`E.strandModelOverride`, `E.growOverride`).
+- When a measurement surprises you, build a control before writing the conclusion (§7: a naive reconstruction
+  scored worse than the engine; a sanity control and a coverage-only control found the real cause before it went
+  into the spec as "ridges don't help").
+
 **Engine (from earlier phases, still true)**
 - GLSL macro parameters must not be named `x`/`y`; a GLSL use-before-declare fails the link silently (the eye vanishes).
 - Every photo ↔ render comparison goes through the engine's coordinate map (`getMap`, view 14).
@@ -142,13 +178,14 @@ Also open from before: F1 (specular-aware filtering), sub-strand decade (F3), ID
 
 | path | what |
 |---|---|
-| `index.html` | engine: shaders (`fs-bake` with LIC strands, layers and `strandCarrier`; `fs-photo`; post), genome, presets, spectral LUT, fields (`FIELD_DEFS`, packs c0–c2, f0–f2), ID v2, UI, `CAM` toggle |
-| `fit.js` | alignment, pose, scores, diagnostics, estimators (height, flow, structures, splats, material, rim, **placement**), routed fitter, benches, casebook, `bakePresets`, reset/trace helpers |
+| `index.html` | engine: shaders (`fs-bake` with LIC strands, layers and `strandCarrier`; `fs-strand`/`vs-strand` the explicit-strand ribbon pass, §08 S1; `fs-photo`; post), `bakeCurvesProgram` (separately compiled curves variant), genome, presets, spectral LUT, fields (`FIELD_DEFS`, packs c0–c2, f0–f2), ID v2, UI, `CAM` toggle, `LIC/CURVES` toggle |
+| `strands.js` | `IrisStrands.grow` — the deterministic streamline grower (S1), place-aware (S6-lite) |
+| `fit.js` | alignment, pose, scores, diagnostics, estimators (height, flow, structures, splats, material, rim, **placement**), routed fitter, benches, casebook, `bakePresets`, reset/trace helpers, §27 band-swap oracle (`bandOracle`/`oracleBench`), §28 guide-ceiling tools (`bandCorrOf`, `dumpForGuideTrace`, `guideCeilingBench`) |
 | `ui.js` | Windows 98 shell; `Presets ▾` = `ref/presets.json`, `Fitted ▾` = casebook |
 | `design.js` | the designer (DESIGN mode, brushes, stamps) |
 | `versions/` | archive: `snapshot.py`, `compare.py`, one folder per version (src + bench + cases + manifest) |
-| `tools/` | `commons_survey.py`, `commons_isolated.py`, `iris_sharpness.py` |
-| `ref/`, `ref-staging/`, `study/` | data, quarantine, study chapters + spec |
+| `tools/` | `commons_survey.py`, `commons_isolated.py`, `iris_sharpness.py`, `strand_stats.py` (S0), `guide_trace.py` (§7) |
+| `ref/`, `ref-staging/`, `study/` | data, quarantine, study chapters + spec; `study/08-microstructure-and-strand-building.md` is the strand track's log; `study/audit-27`, `study/s0-strands`, `study/audit-s1`, `study/audit-s6` are its probe data |
 
 ## How iori likes to work
 

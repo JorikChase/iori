@@ -1244,3 +1244,73 @@ splats and fields — was 2.0 MB). The §27 oracle put perfect B1 at +13…+19; 
 3. **Strands** — strandCorr down 0.1: F2 placement runs after the openings, but the openings part the strands
    (`g_openWarp`) and cover them (coverage × (1 − 0.85·openMask)).
 4. Height r falls, as expected — the proxy no longer drives the openings (§25.5: a heuristic).
+
+## 28. Colour, aperture and the causes of dark: audit and Phase K (2026-09-19/20)
+
+Asked by iori from a POLAR view of ref 35 ("colour, hue and detail are broken in the render; do not clip it").
+Read-only audit of the four v83c presets re-rendered at CAPTURE (`renderCaseThumb`, no bench, no `/save`); evidence
+in `study/audit-28-colour/` (`*-pair.jpg` photo | render, `*-crop.jpg` native photo | fit photo | render at 1:1,
+`*-info.json` scores + globals, `gamut.py` + `cells.json` the offline gamut test).
+
+### 28.1 Findings
+
+1. **Colour regressed while MATCH2 rose.** Δab mean 6.8 (v62–71) → 8.1 (v76–82; ref 35 3.4 → 9.7 at v75/76) →
+   11.9 (v83c; ref 26 5.9 → 14.0). MATCH2 +5…+13 over the same span: its colour share is too small to notice.
+2. **The photos contain no blue.** b\* ≥ +2 on every iris pixel of 25/26/35 (09: min −10). What reads as blue-grey
+   is olive-grey (a\* −7, b\* +10…+25) beside amber. The render puts b\* −7…−22, a\* +2 (lavender) there; band
+   v 0.42–0.58 Δab 19–33, cell-scale (128 × 32) Δab 12.5–15.7.
+   Mechanism (`fs-bake`): inside an opening `mel × 0.45`, `stroma × 0.45`, `thickL × 0.5`, `ridge × 0.15` → a thin
+   Rayleigh layer over the black IPE = violet. **The floor colour is owned by the prior, not by the photo.** On 35
+   the strand material itself sits on the LUT edge (stroma / gapStroma at the 0.5 bound, melanin ≈ 0, yellow 1.8 / 2.5).
+3. **Gamut is the minority of the error** (`gamut.py`, a Python port of `buildSpectralLut`; best reachable ΔE per
+   photo cell, shading scale free in 0.35–1.2):
+
+   | LUT | 35 | 26 | 09 | 25 |
+   |---|---|---|---|---|
+   | current (rayExp 5, mie 0.08 fixed) | 5.2 | 3.6 | 9.9 | 2.3 |
+   | + mie as a per-cell axis | 3.2 | 2.9 | 8.9 | 1.6 |
+   | rayExp 4 / 2.5 + mie axis | 3.7 / 5.0 | 4.0 / 6.0 | 10.7 / 13.8 | 2.2 / 3.6 |
+   | mie axis + one per-photo grade (chroma × 1.6–2.0, hue +0…20°) | 2.6 | 1.2 | 4.0 | 1.1 |
+   | what the engine achieves (cell Δab) | 13.4 | 15.7 | 14.2 | 12.5 |
+
+   Two thirds of the error is ownership / fitting. 09 is out of gamut (90 % of cells > 5). A softer scattering
+   exponent makes it **worse** (hypothesis refuted). The photos are vibrance-boosted studio products: a per-photo
+   camera grade (a `view` parameter, not tissue) brings all four inside.
+4. **The cutout is an ellipse and it clips.** `LIMB_X 5.85 / LIMB_Y 5.40` are constants (`index.html`, fs-photo) →
+   render 1.075 : 1. Photos 09/25/26 are exact circles (1.000), cut *inside* the limbus by the photographer. At
+   1280 px the render is 30 px wider and 31 px shorter than the photo; tissue is compared only to v 0.74–0.89 on
+   **all four** eyes (16–19 % of the polar strip unsampled — the grey wavy band in POLAR; §22 had this as a ref-35
+   peculiarity); the render paints a limbal dark ring the photos do not have.
+5. **Detail.** Native 3840 px is grain-limited; the 1280 px fit image loses almost nothing → fit resolution is not
+   the bottleneck. A photo crypt = a dark opening with **parallel deeper-layer fibres across it**, in a granular
+   matte border layer. The render = glossy swirling marble with embossed rims; on 35 every soft dark spot became a
+   hard-walled hole with a bright halo and the thin orange collarette line is gone. R1 explains all darkness as
+   holes; the photo has four causes: openings, inter-strand gaps, pigment (dark **and** saturated), shading.
+
+Why it looks this far off at v83: the objective is led by luminance-structure placement (§27 rated colour +4,
+placement +29…+38), every new mechanism (openings, gaps, layers) brought its own prior colour, and no gate watched
+colour. Missing from the model: a deeper fibre deck, pigment as an object, matte grain.
+
+### 28.2 Phase K (agreed 2026-09-20: start with K0 + K1; one change per version, BENCH ISO both qualities)
+
+- **K0 measurement.** Bench rows gain per-band Δab and cell-scale Δab (`cellDab`, 128 × 32 in tissue
+  coordinates); `compare.py` shows them; **colour gate: a version may not worsen mean cellDab**. MATCH2 stays
+  unchanged (comparability) until iori decides a reweighting.
+- **K1 aperture.** For isolated photos the visible cutout is a fitted image-space crop (the photo's own boundary),
+  separate from the anatomical limbus; limbus axes become per-eye pose/ID parameters instead of constants; no
+  limbal darkening, milk or shadow unless the photo shows one. Expect the unsampled share to fall to ≈ 0 and a
+  gain on all four eyes.
+- **K2 colour ownership.** Floor and gap material fitted from photo pixels of that class (no × 0.45 prior); mie as
+  a per-cell field; per-photo camera grade in `view` (needs iori's OK under the procedural rule). Target cellDab ≤ 5
+  on 25/26/35.
+- **K3 causes of dark.** Classify dark pixels by chroma (dark + saturated = pigment, dark + grey = opening);
+  pigment spots and lines as fitted objects (the orange collarette line); soft walls, no sheen on rims.
+- **K4 deeper deck.** A second fibre layer visible through openings + matte ABL grain — the same idea as study/08's
+  decks; to be built as the strand track's next phase after K3.
+- **Z zoom.** Quick: raise the clamps (camera wheel `zoomPhoto` 40–400, designer view s ≥ 0.125; the overlay's
+  3 px / photo px clamp lives in `overlay.js` and belongs to the UI session). Proper: a windowed re-bake of the
+  visible atlas region at full resolution (the bake is procedural → unlimited zoom). iori to choose.
+
+Track rules while K runs: strand **code** work pauses (K1 changes the compared pixels and K2 the colour of
+everything — any strand A/B finished now is measured on a moving baseline; it also edits `index.html`); the UI
+shell continues (it regenerates its contract baseline after each K version).

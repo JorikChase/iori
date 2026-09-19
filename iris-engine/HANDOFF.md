@@ -86,6 +86,20 @@ behind it, are bit-identical-safe when off, and are neutral against LIC when on 
 
 ## Next: two tracks, and what should change between them
 
+> **2026-09-20 — read first: spec §28 (colour / aperture audit, Phase K) is now the priority of the relief/fitting
+> track.** Colour error Δab rose 6.8 → 11.9 while MATCH2 rose (R1's opening floors are violet by prior; the photos
+> contain no blue), the iris cutout is a fixed 5.85 × 5.40 ellipse against circular photo cutouts (16–19 % of the
+> tissue strip is never compared, on all four eyes), and every dark spot is explained as a hole. Order: K0 colour
+> metrics + gate → K1 aperture → K2 colour ownership → K3 causes of dark → K4 deeper deck (= the strand track's
+> decks). Evidence `study/audit-28-colour/`.
+> **Strand code work pauses while K1–K2 run** (they move the baseline every strand A/B is measured on, and both edit
+> `index.html`). **Do not build S1b as written in item 7:** the offline controls in `tools/guide_ceiling_mocks.py`
+> → `study/audit-s1b/ceiling-mocks.json` (not yet written up in study/08) show seeded noise inside the tube *loses*
+> (B2 0.31–0.44 → 0.07–0.13), and that §7's "real pixels inside the footprint" ceiling is mostly coverage — the
+> footprint is 36–47 % of the iris mask, not 10–15 %, and the same photo pixels kept in the *complement* of the
+> ridges or in a footprint rotated by 180° score almost the same (B1 0.90 / 0.81–0.85, B3 0.65–0.70 / 0.56–0.64).
+> The strand session owns writing that up as study/08 §8.
+
 **The strand-building track's headline result (study/08 §7, guide-scale ceiling test) bears directly on where to
 spend the next round of relief/fitting effort:** traced ridge *geometry* alone (real photo pixels kept only inside
 a traced ridge's footprint, ≈ 10–15 % of the area, everything else flat) already matches or beats the current

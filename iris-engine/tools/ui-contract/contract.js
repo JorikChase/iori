@@ -31,6 +31,40 @@
         for (const k of ['dom', 'panel', 'bench', 'after']) walk(base[k], cur[k], k); if (base.api.hash !== cur.api.hash) diffs.push(['api.hash', base.api.hash, cur.api.hash]);
         return diffs;
     };
+    // ---- full fit equality between shells: every isolated reference at bench settings, nothing saved. Run once per
+    // shell (?ui=98, ?ui=31); each run is kept in localStorage under its shell's name; T.benchCompare() diffs them.
+    T.bench = async (opts = {}) => {
+        const E = window.__irisEngine, F = E.fit, fit = F.fit, files = opts.files || [...F.ISOLATED], iters = opts.iters || 120, shell = document.body.classList.contains('w31-shell') ? '31' : '98', out = { shell, quality: E.quality, iters, cases: {} };
+        T.stage = 'bench 0/' + files.length; T.error = null;
+        try { for (let i = 0; i < files.length; i++) { const file = files[i]; await F.runBench([file], { save: false, iters, tag: 'ui-contract-full' });
+                const row = Object.assign({}, JSON.parse(localStorage.getItem('irisBench') || '[]').filter(r => r.tag === 'ui-contract-full').pop());
+                out.cases[file] = { row: num(row), fingerprint: F.fingerprint(), render: fit.render ? hashBytes(fit.render) : null, id: hash([Object.assign({}, E.genome, { fields: undefined }), E.encodeFields(E.genome)]) }; delete out.cases[file].row.tag;
+                T.stage = `bench ${i + 1}/${files.length}`; }
+            localStorage.setItem('uiContractFull:' + shell + ':' + E.quality, JSON.stringify(out)); T.benchResult = out; T.stage = 'bench done';
+        } catch (e) { T.error = String(e && e.stack || e); T.stage = 'error'; }
+        return out;
+    };
+    T.benchCompare = (quality = 'normal') => { const a = JSON.parse(localStorage.getItem('uiContractFull:98:' + quality) || 'null'), b = JSON.parse(localStorage.getItem('uiContractFull:31:' + quality) || 'null'); if (!a || !b) return { error: 'need both runs', have: [!!a, !!b] };
+        const diffs = [], walk = (x, y, path) => { if (x && y && typeof x === 'object' && typeof y === 'object') { for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) walk(x[k], y[k], path + '.' + k); } else if (JSON.stringify(x) !== JSON.stringify(y)) diffs.push([path, x, y]); };
+        walk(a.cases, b.cases, 'cases'); return { iters: [a.iters, b.iters], files: Object.keys(a.cases).length, diffs, summary: Object.fromEntries(Object.entries(b.cases).map(([f, c]) => [f.slice(0, 2), [c.row.match2, c.row.match, c.render]])) }; };
+
+    // ---- overlay registration: is the photo layer exactly where the engine draws the same frame? The iris outline
+    // (outermost non-white pixel of every row, so the catchlight cannot bias it) is circle-fitted on the scored
+    // off-screen render and on the LIVE canvas mapped back through the overlay's rectangle; both in fit pixels.
+    const circleFit = pts => { let sx = 0, sy = 0, n = pts.length; for (const [x, y] of pts) { sx += x; sy += y; } const mx = sx / n, my = sy / n; let suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0;
+        for (const [x, y] of pts) { const u = x - mx, v = y - my; suu += u * u; svv += v * v; suv += u * v; suuu += u * u * u; svvv += v * v * v; suvv += u * v * v; svuu += v * u * u; }
+        const d = suu * svv - suv * suv, uc = ((suuu + suvv) / 2 * svv - (svvv + svuu) / 2 * suv) / d, vc = ((svvv + svuu) / 2 * suu - (suuu + suvv) / 2 * suv) / d; return { x: mx + uc, y: my + vc, r: Math.sqrt(uc * uc + vc * vc + (suu + svv) / n), n }; };
+    const outline = (px, w, hh, toXY, thr = 215) => { const pts = []; for (let y = 0; y < hh; y++) { let l = -1, r = -1; for (let x = 0; x < w; x++) { const o = (y * w + x) * 4; if ((px[o] + px[o + 1] + px[o + 2]) / 3 < thr) { if (l < 0) l = x; r = x; } } if (l > 0 && r < w - 1 && r - l > 8) { pts.push(toXY(l, y), toXY(r + 1, y)); } } return pts; };
+    T.registration = async (label = '') => {
+        const E = window.__irisEngine, F = E.fit, fit = F.fit, gl = E.gl, cv = E.canvas, O = window.__irisOverlay, box = document.getElementById('w31-ov');
+        const wait = async ms => { const t0 = performance.now(); while (performance.now() - t0 < ms) await new Promise(r => requestAnimationFrame(r)); };
+        await wait(900);                                                                                         // let the engine redraw the current view
+        const W = cv.width, H = cv.height, px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        const L = parseFloat(box.style.left), Tp = parseFloat(box.style.top), bw = parseFloat(box.style.width), bh = parseFloat(box.style.height), kx = innerWidth / W, ky = innerHeight / H;
+        const live = circleFit(outline(px, W, H, (x, y) => [((x * kx) - L) / bw * fit.W, (((H - y - 0.5) * ky) - Tp) / bh * fit.H]));      // GL rows run bottom-up; rows by their centres, columns by their edges
+        const view = E.state.view.slice(); O.restoreView(); F.renderFit(); const ref = circleFit(outline(fit.render, fit.W, fit.H, (x, y) => [x, y + 0.5])); E.state.view = view; E.resetAccumulation();
+        const cssPerFit = bw / fit.W; return { label, viewport: [innerWidth, innerHeight], s: +O.s.toFixed(3), dx: +(live.x - ref.x).toFixed(3), dy: +(live.y - ref.y).toFixed(3), dCentreFitPx: +Math.hypot(live.x - ref.x, live.y - ref.y).toFixed(3), dCentreCssPx: +(Math.hypot(live.x - ref.x, live.y - ref.y) * cssPerFit).toFixed(3), dRadiusPct: +((live.r / ref.r - 1) * 100).toFixed(2), pts: [live.n, ref.n] };
+    };
     T.start = async (opts = {}) => {
         const E = window.__irisEngine, F = E.fit, fit = F.fit, file = opts.file || '26-green-crypts-isolated.jpg', out = {};
         try {

@@ -244,6 +244,26 @@ Limits, stated: the live render shows the catchlight and the soft limbus edge th
 isolated photo omits (`specular 0`, `edgeFade 0` are fit-render options the page cannot set from outside), so
 DIFF is a visual aid, not the score; DESIGN switches the overlay off (its own photo layer is D3).
 
+### 7.4 Acceptance run (2026-09-19, git c329611)
+
+**Fits, old shell vs new shell** (`__uiContract.bench` per shell, then `benchCompare`; nothing saved):
+
+| quality | photos | iterations | differences | MATCH2 |
+|---|---|---|---|---|
+| NORMAL | 09, 25, 26, 35 | 120 | **0** — every row metric, genome fingerprint, render hash and ID | 60.4 / 68.1 / 69.5 / 66.8, mean 66.2 = the published v83 |
+| CAPTURE | 26 | 120 | **0** | 68.2 |
+
+The 3.11 run had gaze.js and overlay.js loaded. ≈ 145 s per NORMAL run, ≈ 237 s per CAPTURE photo.
+
+**Overlay registration** (`__uiContract.registration`): the iris outline is circle-fitted on the scored
+off-screen render and on the live canvas mapped back through the overlay's rectangle. On the engine's flat
+alignment mask (debug view 13, no shading) the two agree to **≤ 0.08 fit px, ≤ 0.17 CSS px** in all 40 cases:
+four photos × {home, zoomed out + panned, s = 1, zoomed in} in a portrait window (692 × 1044) and a landscape one
+(1280 × 800), and two photos on a phone (375 × 812) with a sheet open, where canvas and layer carry the same
+`translateY(−283px)`. On the shaded live render the outline sits a constant 0.3 fit px higher at every zoom —
+the lid shadow and the faded limbus edge, which the scored render of an isolated photo does not have; it is
+not a mapping error (a mapping error would scale with the zoom and would show on the mask).
+
 ## 8. Layout managers
 
 - **Desktop (fine pointer or width ≥ 900 px)**: MDI. Windows clamp into the viewport on resize, snap to edges

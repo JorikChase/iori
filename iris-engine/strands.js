@@ -36,7 +36,13 @@
     }
 
     // opts: { seed, flow(u,v) → angle from radial (rad), spacing(u,v) → mm, sep, dTest, run, wander, wave, waveLen,
-    //         width, step, vMin, vMax, maxStrands }
+    //         width, step, vMin, vMax, maxStrands,
+    //         place(u,v) → { w, off, sp } | undefined, placeSeeds: [[u, v, w], …] }
+    // S6-lite (study/08 §6): `place` is the photo-fitted F2 carrier seen from the grower — w its confidence (0 = none),
+    // sp its local period (mm) and off the signed across-flow distance (mm, along (cos θ, −sin θ) in (tangential,
+    // radial)) from (u, v) to the nearest crest. Where w is high the strands start on the crests (placeSeeds, most
+    // confident first), are pulled onto them while they grow, take the photo's period as their separation, and lose
+    // the seeded wander and wave — so a strand sits where the photograph's is. Without `place` nothing changes.
     function grow(opts) {
         const R = mulberry32((opts.seed | 0) * 2654435761 + 97);
         const sepMul = opts.sep === undefined ? 1.6 : opts.sep, dTest = opts.dTest === undefined ? 0.8 : opts.dTest;
@@ -45,8 +51,16 @@
         const vMin = opts.vMin === undefined ? 0.015 : opts.vMin, vMax = opts.vMax === undefined ? 0.985 : opts.vMax;
         const maxStrands = opts.maxStrands || 20000;
         const noise = wanderNoise(R, 96, 9);
-        const dSep = (u, v) => Math.min(0.30, Math.max(0.03, sepMul * opts.spacing(u, v)));
-        const dirAt = (u, v) => opts.flow(u, v) + wander * noise(u, v);
+        const place = opts.place || null, trust = p => (p ? Math.min(1, Math.max(0, 2 * p.w)) : 0), placeSep = opts.placeSep === undefined ? 0.92 : opts.placeSep;
+        const dSep = (u, v) => { const base = sepMul * opts.spacing(u, v), p = place && place(u, v), t = trust(p); return Math.min(0.30, Math.max(0.022, t > 0 ? base + (placeSep * p.sp - base) * t : base)); };
+        const dirAt = (u, v) => opts.flow(u, v) + wander * noise(u, v) * (place ? 1 - trust(place(u, v)) : 1);
+        // pull a point onto the nearest fitted crest (a fraction k of the way, never further than `cap` mm)
+        function snap(u, v, k, cap) {
+            if (!place) return [u, v, 0];
+            const p = place(u, v), t = trust(p); if (t <= 0.2) return [u, v, t];
+            const d = Math.max(-cap, Math.min(cap, k * t * p.off)), th = opts.flow(u, v), r = rMM(v);
+            return [u + d * Math.cos(th) / (TAU * r), v - d * Math.sin(th) / 4, t];
+        }
 
         // spatial hash in (u, v); cells sized for the largest separation at the pupil edge (wider in mm further out)
         const CELL = 0.30, NV = Math.ceil(4 / CELL), NU = Math.floor(TAU * rMM(0) / CELL);
@@ -67,7 +81,7 @@
         const step = opts.step || 0.03;
         function integrate(u0, v0, sid) {
             const want = Math.max(0.15, -Math.log(1 - R() * 0.999) * runMean);      // run length ~ exponential (S0: short runs)
-            const halves = [];
+            const halves = []; let tSum = 0, tN = 0;
             for (const sgn of [1, -1]) {
                 const pts = []; let u = u0, v = v0, len = 0;
                 while (len < want / 2) {
@@ -75,25 +89,29 @@
                     const t0 = dirAt(u, v), r0 = rMM(v);
                     const um = u + sgn * 0.5 * step * Math.sin(t0) / (TAU * r0), vm = v + sgn * 0.5 * step * Math.cos(t0) / 4;
                     const t1 = dirAt(um, vm), r1 = rMM(vm);
-                    const un = u + sgn * step * Math.sin(t1) / (TAU * r1), vn = v + sgn * step * Math.cos(t1) / 4;
+                    let un = u + sgn * step * Math.sin(t1) / (TAU * r1), vn = v + sgn * step * Math.cos(t1) / 4;
+                    { const q = snap(un, vn, 0.6, 0.5 * step); un = q[0]; vn = q[1]; tSum += q[2]; tN++; }   // track the fitted crest
                     if (vn < vMin || vn > vMax) break;
                     if (tooClose(un, vn, dTest * dSep(un, vn), sid)) break;
                     u = un; v = vn; len += step; pts.push([u, v]);
                 }
                 halves.push(pts);
             }
+            lastTrust = tN ? tSum / tN : 0;
             return halves[1].reverse().concat([[u0, v0]], halves[0]);
         }
-        const strands = [], queue = [];
+        const strands = [], queue = []; let lastTrust = 0;
         function tryStrand(u, v) {
             if (v < vMin || v > vMax || strands.length >= maxStrands) return;
+            { const q = snap(u, v, 1.0, 0.06); u = q[0]; v = q[1]; }                       // a seed starts on a crest
             if (tooClose(u, v, dSep(u, v), -1)) return;
             const sid = strands.length, pts = integrate(u, v, sid);
             if (pts.length < 4) return;
             for (const p of pts) add(p[0], p[1], sid);
-            strands.push({ id: sid, pts }); queue.push(sid);
+            strands.push({ id: sid, pts, placed: lastTrust }); queue.push(sid);
         }
         // first seeds: a jittered ring in the mid ciliary zone, then every strand offers seeds d_sep to both sides
+        for (const ps of (opts.placeSeeds || [])) tryStrand(ps[0], ps[1]);                  // photo-placed strands first, most confident first
         for (let i = 0; i < 48; i++) tryStrand((i + R()) / 48, 0.35 + 0.3 * R());
         while (queue.length) {
             const s = strands[queue.shift()], P = s.pts;
@@ -104,7 +122,7 @@
         }
         // finish: a gentle wave across each strand, its width and brightness
         for (const s of strands) {
-            const P = s.pts, ph = R() * TAU, amp = waveAmp * (0.5 + R()), wl = waveLen * (0.7 + 0.6 * R());
+            const P = s.pts, ph = R() * TAU, amp = waveAmp * (0.5 + R()) * (1 - Math.min(1, s.placed || 0)), wl = waveLen * (0.7 + 0.6 * R());   // a placed strand keeps the photo's path
             let arc = 0; const out = [];
             for (let k = 0; k < P.length; k++) {
                 const a = P[Math.max(0, k - 1)], b = P[Math.min(P.length - 1, k + 1)], r = rMM(P[k][1]);

@@ -2507,7 +2507,7 @@
         gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, strandTex, 0);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        const strandVAO = gl.createVertexArray(), strandVBO = gl.createBuffer(); let strandVerts = 0, strandCache = { key: null, strands: [] }, strandModelOverride = null, strandGeomKey = null;
+        const strandVAO = gl.createVertexArray(), strandVBO = gl.createBuffer(); let strandVerts = 0, strandCache = { key: null, strands: [] }, strandModelOverride = null, strandGeomKey = null, growOverride = {};   // growOverride: grower genes forced for A/B benches (like strandModelOverride)
         // the curves variant of the bake shader, compiled on first use: the top layer's fine scale reads the strand texture
         function bakeCurvesProgram() {
             if (!programs.bakeCurves) programs.bakeCurves = createProgram(vsSrc, document.getElementById('fs-bake').text.trim().replace('//FIELD_DECODE//', fieldDecodeGLSL())
@@ -2515,19 +2515,45 @@
                 .replace('//STRAND_FINE//', 'if (L == 0) { vec4 sc = texture(u_strands, uv); cF = sc.r * mix(0.8, 1.0, sc.b / max(sc.r, 1e-3)); }'), 'bakeCurves');
             return programs.bakeCurves;
         }
-        const GROW_DEFAULTS = { growSep: 1.6, growTest: 0.8, growRun: 0.7, growWander: 0.25, growWave: 0.014, growWidth: 0.53 };
+        const GROW_DEFAULTS = { growSep: 1.6, growTest: 0.8, growRun: 0.7, growWander: 0.25, growWave: 0.014, growWidth: 0.53, growPlace: 1 };   // growPlace 0 ignores the F2 placement (ablation)
         function effectiveField(g, n) {                       // what uploadFields sends for this field (blend included), as a sampler
             const d = FIELD_DEFS[n], [w, h] = GRIDS[d.grid], f = g.fields[n], def = d.def(g.globals);
             const bl = f.custom ? ((g.blend || {}).flow === undefined ? 1 : g.blend.flow) : 0;
             const data = new Float32Array(w * h); let sum = 0;
             for (let i = 0; i < w * h; i++) { data[i] = f.custom ? def + (f.data[i] - def) * bl : def; sum += data[i] * (1 + (i % 97)); }
-            return { at: IrisStrands.sampler(data, w, h), sum };
+            return { at: IrisStrands.sampler(data, w, h), sum, data, w, h };
         }
         function growStrands(g) {
-            const G = g.globals, P = {}; for (const k in GROW_DEFAULTS) P[k] = G[k] === undefined ? GROW_DEFAULTS[k] : G[k];
+            const G = g.globals, P = {}; for (const k in GROW_DEFAULTS) P[k] = growOverride[k] !== undefined ? growOverride[k] : (G[k] === undefined ? GROW_DEFAULTS[k] : G[k]);
             const flow = effectiveField(g, 'flowDir'), spacing = effectiveField(g, 'spacing');
-            const key = [g.seed, JSON.stringify(P), flow.sum.toFixed(4), spacing.sum.toFixed(4)].join('|');
-            if (strandCache.key !== key) strandCache = { key, strands: IrisStrands.grow({ seed: g.seed, flow: flow.at, spacing: spacing.at, sep: P.growSep, dTest: P.growTest, run: P.growRun, wander: P.growWander, wave: P.growWave, width: P.growWidth }) };
+            // S6-lite: the F2 placement fields as the grower sees them — the same per-cell plane waves strandCarrier blends
+            // (cell-local frames, the flow angle at the cell centre), reduced to the phase of the blended wave at a point
+            const pl = effectiveField(g, 'place'), pc = effectiveField(g, 'phaseC'), ps = effectiveField(g, 'phaseS'), psp = effectiveField(g, 'placeSpacing');
+            let placed = false; if (P.growPlace > 0) for (let i = 0; i < pl.data.length; i++) if (pl.data[i] > 0.02) { placed = true; break; }
+            const key = [g.seed, JSON.stringify(P), flow.sum.toFixed(4), spacing.sum.toFixed(4), placed ? [pl.sum, pc.sum, ps.sum, psp.sum].map(x => x.toFixed(4)).join(',') : '-'].join('|');
+            if (strandCache.key === key) return strandCache.strands;
+            const TAU = 6.2831853, W = pl.w, H = pl.h;
+            const cellWave = (ci, cj, u, v, r) => {             // phase of cell (ci, cj)'s wave at (u, v)
+                const k = cj * W + ci, cu = (ci + 0.5) / W, cv = (cj + 0.5) / H, th = flow.at(cu, cv);
+                let du = u - cu; du -= Math.round(du);
+                return TAU * (du * TAU * r * Math.cos(th) - (v - cv) * 4.0 * Math.sin(th)) / psp.data[k] + Math.atan2(ps.data[k], pc.data[k]);
+            };
+            const place = !placed ? undefined : (u, v) => {
+                const gx = u * W - 0.5, gy = v * H - 0.5, x0 = Math.floor(gx), y0 = Math.floor(gy), tx = gx - x0, ty = gy - y0, r = 2.0 + 4.0 * v;
+                let re = 0, im = 0, sp = 0, w = 0;
+                for (let dj = 0; dj <= 1; dj++) for (let di = 0; di <= 1; di++) {
+                    const wg = (di ? tx : 1 - tx) * (dj ? ty : 1 - ty); if (wg <= 0) continue;
+                    const ci = ((x0 + di) % W + W) % W, cj = Math.min(H - 1, Math.max(0, y0 + dj)), k = cj * W + ci, a = cellWave(ci, cj, u, v, r);
+                    re += wg * Math.cos(a); im += wg * Math.sin(a); sp += wg * psp.data[k]; w += wg * pl.data[k];
+                }
+                return { w: w * Math.hypot(re, im), off: -Math.atan2(im, re) / TAU * sp, sp };
+            };
+            let placeSeeds = [];
+            if (placed) {                                        // one seed per confident cell, on the crest nearest its centre
+                for (let cj = 0; cj < H; cj++) for (let ci = 0; ci < W; ci++) { const k = cj * W + ci; if (pl.data[k] > 0.12) placeSeeds.push([(ci + 0.5) / W, (cj + 0.5) / H, pl.data[k]]); }
+                placeSeeds.sort((a, b) => b[2] - a[2] || a[1] - b[1] || a[0] - b[0]);
+            }
+            strandCache = { key, strands: IrisStrands.grow({ seed: g.seed, flow: flow.at, spacing: spacing.at, sep: P.growSep, dTest: P.growTest, run: P.growRun, wander: P.growWander, wave: P.growWave, width: P.growWidth, place, placeSeeds }) };
             return strandCache.strands;
         }
         function buildStrandGeometry(strands) {
@@ -2942,7 +2968,7 @@
         // ---- test hook: expose a paraxial magnification check for the harness ----
         // debug: a window of the strand texture (r coverage, g tube, b brightness) as floats, rows bottom-up
         function readStrandTex(x, y, w, h) { const px = new Float32Array(w * h * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB); gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return px; }
-        window.__irisEngine = { setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
+        window.__irisEngine = { setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, get growOverride() { return growOverride; }, set growOverride(o) { growOverride = o || {}; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
             FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
             drawPhotoFrame, drawPost, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
             setCamFixed, syncCamBtn, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };

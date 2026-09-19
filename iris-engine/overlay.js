@@ -52,7 +52,7 @@
     O.set = mode => {
         if (!MODES.includes(mode)) return;
         if (mode !== 'off') {
-            if (!fit.photo) { U.say('Overlay: load a photo first (Fit · Photo ▸ Photo… or a reference)'); U.showWindow('photo', true); mode = 'off'; }
+            if (!fit.photo) { U.say('Overlay: load a photo first (Fit ▸ Photo… or a reference)'); U.showWindow('fit', true); mode = 'off'; }
             else if (!state.useRot) $('fit-solve').click();          // lock the camera to the fitted pose: that is what makes the two frames one
         }
         const was = O.mode; O.mode = mode;
@@ -81,7 +81,7 @@
             if (d.w === 'catch') { fit.catch.x = x; fit.catch.y = y; } else if (d.w === 'pupil') { P.x = x + d.dx; P.y = y + d.dy; } else if (d.w === 'pupilR') P.r = Math.max(4, Math.hypot(x - P.x, y - P.y));
             else if (d.w === 'limbus') { L.x = x + d.dx; L.y = y + d.dy; } else if (d.w === 'limbusRx') { L.rx = Math.max(8, Math.hypot(x - L.x, y - L.y)); L.ang = Math.atan2(y - L.y, x - L.x); } else if (d.w === 'limbusRy') L.ry = Math.max(8, Math.hypot(x - L.x, y - L.y));
             drawMarks(); });
-        const end = () => { if (d) { d = null; F.draw(); U.say('markers moved · Solve pose to re-lock the camera'); } }; svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end); }
+        const end = () => { if (d) { d = null; F.draw(); if (!busy()) $('fit-solve').click(); } };   /* moved markers re-solve the pose at once: the render follows the handles */ svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end); }
     { let d = false; wipe.addEventListener('pointerdown', e => { d = true; try { wipe.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
         wipe.addEventListener('pointermove', e => { if (!d) return; const r = box.getBoundingClientRect(); O.wipe = clamp((e.clientX - r.left) / r.width, 0, 1); apply(); }); const end = () => { d = false; }; wipe.addEventListener('pointerup', end); wipe.addEventListener('pointercancel', end); }
 
@@ -101,7 +101,13 @@
     const up = e => { if (!pts.delete(e.pointerId)) return; e.stopPropagation(); pinch = null; }; document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
     document.addEventListener('dblclick', e => { if (!onScene(e)) return; home(); writeView(); layout(); }, true);
     // any fit control (a button in the panel, or the menu clicking one) sees the pose's own view, not the zoomed one
-    document.addEventListener('click', e => { if (O.mode !== 'off' && e.target.closest && e.target.closest('#fit-panel button, #fit-panel select')) O.restoreView(); }, true);
+    document.addEventListener('click', e => { if (O.mode !== 'off' && e.target.closest && e.target.closest('#fit-panel button, #fit-panel select, #idout-btn, #shot-btn')) O.restoreView(); }, true);
+    // … and so does anything driven through the API (benches, the console, other scripts): every function of
+    // __irisEngine.fit, and the two engine calls that read the view, put the pose's view back before they run.
+    const guard = f => function (...a) { O.restoreView(); return f.apply(this, a); };
+    for (const k of Object.keys(F)) if (typeof F[k] === 'function') F[k] = guard(F[k]);
+    for (const k of ['exportID', 'captureTiled']) if (typeof E[k] === 'function') E[k] = guard(E[k]);
+    $('fit-close').addEventListener('click', () => O.set('off'));
 
     // ---- the controls, in the Fit window --------------------------------------------------------------------
     { const W = U.WINS.find(w => w.key === 'fit'), g = h('div', 'w31-grp', '<b>Overlay on the iris</b>'), row = h('div', 'w31-brow');
@@ -109,21 +115,27 @@
         const inp = document.createElement('input'); inp.type = 'range'; inp.min = 0; inp.max = 1; inp.step = 0.01; inp.value = O.onion; const val = h('span'); val.textContent = O.onion.toFixed(2);
         inp.addEventListener('input', () => { O.onion = +inp.value; val.textContent = O.onion.toFixed(2); if (O.mode === 'onion') apply(); }); g.appendChild(U.makeScrubber(inp, 'ONION', val));
         const r2 = h('div', 'w31-brow'), mk = h('button', 'w31-b on', 'Markers'), one = h('button', 'w31-b', 'Reset zoom'); mk.id = 'w31-ov-mk'; mk.onclick = () => { O.marks = !O.marks; apply(); }; one.onclick = () => { home(); writeView(); layout(); }; r2.appendChild(mk); r2.appendChild(one); g.appendChild(r2);
-        W.body.insertBefore(g, W.body.querySelector('.w31-brow')); }
+        W.body.insertBefore(g, W.body.firstChild); }
 
     // ---- follow the fitter: a new photo, moved markers (AUTO ALIGN), a closed panel, a resized window -----------
-    let lastImg = null, lastKey = '', t0 = performance.now();
+    // A photo the user loads appears on the iris by itself (not during a fit or a bench: those load photos too), and
+    // the panel's PHOTO | RENDER | DIFF | SPLIT button drives the layer. POLAR and HEIGHT are strip views, not
+    // images of the eye: only they bring the panel's own 2-D canvas back, inside the Fit window.
+    const FROM_FIT = ['photo', 'render', 'diff', 'wipe'];
+    let lastImg = null, lastKey = '', lastFitMode = fit.mode || 0, t0 = performance.now();
     (function tick(now) {
         if (O.mode !== 'off' && state.design) { O.mode = 'off'; apply(); }   // DESIGN owns the view while it is on (its own photo layer is phase D3)
+        if (fit.img !== lastImg && !busy() && !fit.benchRunning) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; if (fit.photo && !state.design) { U.showWindow('fit', true); O.set(O.mode === 'off' ? 'wipe' : O.mode); } }
+        if ((fit.mode || 0) !== lastFitMode) { lastFitMode = fit.mode || 0; if (O.mode !== 'off' && lastFitMode < 4) O.set(FROM_FIT[lastFitMode]); }
         if (O.mode !== 'off') {
-            if (!fit.photo || $('fit-panel').classList.contains('hidden') && !state.useRot) O.set('off');
-            else { if (fit.img !== lastImg) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; }
-                const c = state.view || [0, 0, 1, 1]; if (!busy() && c[2] === 1 && c[3] === 1 && (c[0] !== O.pose[0] || c[1] !== O.pose[1])) O.pose = [c[0], c[1]];   // the fitter moved the pose (SOLVE POSE, the alignment loop)
+            if (!fit.photo) O.set('off');
+            else { const c = state.view || [0, 0, 1, 1]; if (!busy() && c[2] === 1 && c[3] === 1 && (c[0] !== O.pose[0] || c[1] !== O.pose[1])) O.pose = [c[0], c[1]];   // the fitter moved the pose (SOLVE POSE, the alignment loop)
+                if (!busy() && !state.useRot) $('fit-solve').click();                                                    // something freed the camera (a preset, CAM FREE): lock it to the pose again
                 writeView(); const key = [innerWidth, innerHeight, fit.W, fit.H, O.pose[0], O.pose[1], O.s, O.cx, O.cy].join(); if (key !== lastKey) { lastKey = key; layout(); }
                 if (O.mode === 'blink') img.style.opacity = Math.floor((now - t0) / 260) % 2 ? 0 : 1;
                 drawMarks(); }
         }
-        document.body.classList.toggle('w31-ovhide', O.mode !== 'off' && (fit.mode || 0) < 4);   // POLAR and HEIGHT still need the panel's own canvas
+        document.body.classList.toggle('w31-ovhide', O.mode !== 'off' && (fit.mode || 0) < 4);
         requestAnimationFrame(tick);
     })(t0);
     window.addEventListener('resize', () => { lastKey = ''; layout(); });

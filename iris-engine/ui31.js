@@ -117,9 +117,8 @@
         { key: 'material', title: 'Material', sliders: ['pigment', 'stroma', 'pheo', 'yellow', 'mie', 'ring'] },
         { key: 'relief', title: 'Relief', sliders: ['crypt', 'furrow', 'relief', 'collr'] },
         { key: 'flow', title: 'Flow', sliders: ['warp', 'seed'], buttons: ['seed-btn', 'fieldw-btn', 'strand-btn'], buttons2: ['atlas-btn', 'maps-btn'] },
-        { key: 'fit', title: 'Fit', sliders: ['blcol', 'blrel', 'blflow'], buttons: ['fit-open'] },
+        { key: 'fit', title: 'Fit', width: 340 },   // the photo itself lies on the iris (overlay.js); this is the palette
         { key: 'design', title: 'Design', pane: 'DESIGN' },
-        { key: 'photo', title: 'Fit · Photo', width: 680 },
         { key: 'control', title: 'Control Panel' },
     ];
     const byKey = k => WINS.find(W => W.key === k);
@@ -163,10 +162,8 @@
             else if (Math.abs(W.tx - W.x) > 0.4 || Math.abs(W.ty - W.y) > 0.4) { const a = 1 - Math.exp(-dt * 16); W.x += (W.tx - W.x) * a; W.y += (W.ty - W.y) * a; put(W); }
             else if (W.x !== W.tx || W.y !== W.ty) { W.x = W.tx; W.y = W.ty; put(W); } } }
     function activate(W) { if (active && active !== W) active.el.classList.remove('active'); active = W; W.el.classList.add('active'); W.el.style.zIndex = ++zTop; }
-    let syncing = false;
     function show(W, on, quiet) {
         if (on && phone) WINS.forEach(O => { if (O !== W && O.open) show(O, false, true); });
-        if (W.key === 'photo' && !syncing) { const p = $('fit-panel'), hidden = p.classList.contains('hidden'); if (on === hidden) { syncing = true; $(on ? 'fit-open' : 'fit-close').click(); syncing = false; } }   // fit.js owns the panel's open state (closing also unlocks the camera)
         W.open = on; W.el.classList.toggle('open', on);
         if (on) { activate(W); if (W.width && !phone) W.el.style.width = Math.min(W.width, innerWidth - 12) + 'px'; if (!phone) place(W, ...spawnPos(W)); W.el.querySelectorAll('.w31-scrub').forEach(r => r._draw()); }
         else if (active === W) { W.el.classList.remove('active'); active = null; const n = WINS.filter(O => O.open).sort((a, b) => b.el.style.zIndex - a.el.style.zIndex)[0]; if (n) activate(n); }
@@ -174,7 +171,7 @@
     }
     const nextWin = () => { const o = WINS.filter(W => W.open); if (o.length) activate(o[(o.indexOf(active) + 1) % o.length]); };
     function icons() { const box = $('w31-icons'); box.innerHTML = '';
-        for (const W of WINS) { const b = h('button', 'w31-dicon' + (W.open ? ' on' : ''), `<img src="${W.ico}" alt=""><span>${W.title.replace('Fit · ', '').replace(' Panel', '')}</span>`); b.title = W.title;
+        for (const W of WINS) { const b = h('button', 'w31-dicon' + (W.open ? ' on' : ''), `<img src="${W.ico}" alt=""><span>${W.title.replace(' Panel', '')}</span>`); b.title = W.title;
             b.onclick = () => { if (!W.open) show(W, true); else if (!phone && active !== W) activate(W); else show(W, false); }; box.appendChild(b); } }   // closed → open · open behind → front · front → minimise
     function tile() { let x = innerWidth - 6, y = top0() + 6, colW = 0; for (const W of WINS.filter(W => W.open)) { const el = W.el; if (y + el.offsetHeight > innerHeight - DOCK && y > top0() + 6) { x -= colW + 6; y = top0() + 6; colW = 0; } place(W, x - el.offsetWidth, y, true); y += el.offsetHeight + 6; colW = Math.max(colW, el.offsetWidth); } save(); }
     function cascade() { const n = cssN(); WINS.filter(W => W.open).forEach((W, i) => { place(W, 6 + i * n, top0() + 6 + i * n, true); activate(W); }); save(); }
@@ -208,7 +205,7 @@
         ['&Eye', () => [{ l: '&Presets', sub: FITTED.map(([f, l]) => ({ l, run: () => E.loadFittedPreset(f) })) }, { l: 'P&rocedural', sub: Object.keys(E.EYE_PRESETS || {}).map(k => ({ l: k, run: () => window.loadEyePreset(k) })) },
             { l: '&Fitted', sub: async () => { let cases = {}; try { cases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) {}
                 const its = Object.entries(cases).map(([file, c]) => ({ file, m: c.scores ? c.scores.match : 0, tag: c.tag })).sort((a, b) => b.m - a.m); return its.length ? its.map(it => ({ l: `${it.file.replace('.jpg', '')}  —  ${it.m.toFixed(0)} %  (${it.tag})`, run: () => E.loadFittedPreset(it.file) })) : [{ l: '(no cases)', dis: 1 }]; } }, '-', { l: '&New seed', run: click('seed-btn') }]],
-        ['Fi&t', () => [{ l: '&Photo window', chk: () => byKey('photo').open, run: () => show(byKey('photo'), !byKey('photo').open) }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('photo'), true); $('fit-hq').click(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Overlay on the iris', sub: () => { const ov = window.__irisOverlay; return ov ? ov.MODES.map(m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => ov.mode === m, run: () => ov.set(m) })) : [{ l: '(loading)', dis: 1 }]; } }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
+        ['Fi&t', () => [{ l: '&Photo…', run: () => { show(byKey('fit'), true); $('fit-load').click(); } }, { l: '&Reference', sub: () => [...$('fit-ref').options].filter(o => o.value).map(o => ({ text: o.textContent, run: () => { show(byKey('fit'), true); const r = $('fit-ref'); r.value = o.value; r.dispatchEvent(new Event('change', { bubbles: true })); } })) }, { l: '&Close photo', run: click('fit-close') }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('fit'), true); $('fit-hq').click(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Overlay on the iris', sub: () => { const ov = window.__irisOverlay; return ov ? ov.MODES.map(m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => ov.mode === m, run: () => ov.set(m) })) : [{ l: '(loading)', dis: 1 }]; } }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
         ['&Help', () => [{ l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
     ];
@@ -223,7 +220,7 @@
         const veil = h('div', '', `<div class="w31 active" id="w31-about"><div class="w31-in"><div class="w31-cap"><button class="w31-ctl" data-close></button><span class="w31-capt">About Iris Engine</span></div><div class="w31-body"><img width="32" height="32" style="image-rendering:pixelated" alt="" src="${icon('eye')}"><div><b>Iris Engine</b> ${E.ENGINE_VERSION || ''}<br>A photoreal, fully procedural human iris.<br>Shell drawn in the Windows 3.11 idiom — own icons, nothing copied.<br>Reference photographs: see ref/ATTRIBUTION.md.</div><span></span><div style="text-align:right"><button class="w31-b def" data-close style="min-width:70px">OK</button></div></div></div></div>`);
         veil.id = 'w31-veil'; veil.dataset.ui = '1'; document.body.appendChild(veil); veil.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === veil) veil.classList.remove('on'); });
         const hold = h('div'); hold.id = 'w31-holder'; hold.style.display = 'none'; document.body.appendChild(hold);   // controls that now live in the menus keep their place in the DOM
-        for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn', 'cam-btn']) { const el = $(id); if (el) hold.appendChild(el); }
+        for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn', 'cam-btn', 'fit-open']) { const el = $(id); if (el) hold.appendChild(el); }
         const strip = h('div'); strip.id = 'tab-strip'; strip.style.display = 'none'; document.body.appendChild(strip);   // tells design.js the layout is ours
         const bar2 = $('accum-bar'); if (bar2) document.body.appendChild(bar2);
     }
@@ -272,19 +269,21 @@
         for (const [id, label] of [['design-size', 'SIZE'], ['design-weight', 'WEIGHT'], ['design-hard', 'HARD'], ['design-value', 'VALUE']]) { const inp = $(id); if (!inp) continue; const old = inp.closest('.slider-row'), v = $(id + '-v'); right.appendChild(scrubber(inp, label, v)); if (old) old.remove(); }
         const fl = $('design-flow'); if (fl) fl.classList.add('w31-b'); pane.querySelectorAll('select').forEach(s => s.classList.remove('action-btn'));
     }
-    function dressPhoto() {
-        const W = byKey('photo'), fp = $('fit-panel'); if (!fp) return; W.body.appendChild(fp);
+    function dressFit() {
+        const W = byKey('fit'), fp = $('fit-panel'); if (!fp) return; W.body.appendChild(fp); fp.classList.remove('hidden');
         const score = $('fit-score'); if (score) { score.className = 'w31-score'; fp.insertBefore(score, $('fitcv').nextSibling); }
         const keep = {}; fp.querySelectorAll('.fit-row button, .fit-row select').forEach(el => { keep[el.id] = el; }); fp.querySelectorAll('.fit-row').forEach(r => r.remove());
-        const hq = h('button', '', '★ Fit HQ'); hq.id = 'fit-hq'; hq.title = 'one button: CAPTURE quality, alignment loop, the whole fit chain and a relief refinement'; hq.onclick = () => E.fit.fitHQ(); keep['fit-hq'] = hq;
-        const names = { 'fit-refine': 'Refine relief', 'fit-detect': 'Detect', 'fit-files': 'Bulk…', 'fit-solve': 'Solve pose', 'fit-global': 'Fit global', 'fit-stop': 'Stop', 'fit-load': 'Photo…', 'fit-auto': 'Auto align', 'fit-save': 'Save align', 'fit-alignout': 'Align ↓', 'fit-benchiso': 'Bench ISO', 'fit-bench': 'Bench all', 'fit-study': 'Study', 'fit-cases': 'Cases ↓', 'fit-casebook': 'Casebook', 'fit-diag': 'Diag' };
-        for (const [name, ids] of [['FIT', ['fit-hq', 'fit-solve', 'fit-global', 'fit-detect', 'fit-refine', 'fit-stop']], ['SOURCE', ['fit-load', 'fit-ref', 'fit-view', 'fit-files']], ['ALIGN', ['fit-auto', 'fit-save', 'fit-alignout']], ['TEST', ['fit-diag', 'fit-benchiso', 'fit-bench', 'fit-study', 'fit-cases', 'fit-casebook']]]) {
+        const hq = h('button', '', '★ Fit HQ'); hq.id = 'fit-hq'; hq.title = 'one button: CAPTURE quality, alignment loop, the whole fit chain and a relief refinement'; hq.onclick = () => E.fit.fitHQ(); keep['fit-hq'] = hq; keep['fit-close'] = $('fit-close');
+        const names = { 'fit-refine': 'Refine relief', 'fit-detect': 'Detect', 'fit-files': 'Bulk…', 'fit-solve': 'Solve pose', 'fit-global': 'Fit global', 'fit-stop': 'Stop', 'fit-load': 'Photo…', 'fit-auto': 'Auto align', 'fit-save': 'Save align', 'fit-alignout': 'Align ↓', 'fit-benchiso': 'Bench ISO', 'fit-bench': 'Bench all', 'fit-study': 'Study', 'fit-cases': 'Cases ↓', 'fit-casebook': 'Casebook', 'fit-diag': 'Diag', 'fit-close': 'Close photo' };
+        for (const [name, ids] of [['FIT', ['fit-hq', 'fit-solve', 'fit-global', 'fit-detect', 'fit-refine', 'fit-stop']], ['SOURCE', ['fit-load', 'fit-ref', 'fit-view', 'fit-files', 'fit-close']], ['ALIGN', ['fit-auto', 'fit-save', 'fit-alignout']], ['TEST', ['fit-diag', 'fit-benchiso', 'fit-bench', 'fit-study', 'fit-cases', 'fit-casebook']]]) {
             const row = h('div', 'w31-fitrow', `<span>${name}</span>`), br = h('div', 'w31-brow');
-            for (const id of ids) { const el = keep[id]; if (!el) continue; if (el.tagName === 'SELECT') el.classList.remove('action-btn'); else { el.classList.add('w31-b'); if (id === 'fit-hq') el.classList.add('def'); if (names[id]) el.textContent = names[id]; } br.appendChild(el); }
+            for (const id of ids) { const el = keep[id]; if (!el) continue; if (el.tagName === 'SELECT') { el.classList.remove('action-btn'); el.style.flex = '1 0 100%'; } else { el.className = 'w31-b'; el.removeAttribute('style'); el.style.flex = '1 0 30%'; if (id === 'fit-hq') el.classList.add('def'); if (names[id]) el.textContent = names[id]; } br.appendChild(el); }
             row.appendChild(br); fp.insertBefore(row, $('fit-log')); }
-        $('fit-open').addEventListener('click', () => { if (!syncing && !W.open) { syncing = true; show(W, true); syncing = false; } });   // same tick as fit.js's own handler
-        // fit.js opens and closes the panel through its `hidden` class (FIT PHOTO, ×, the casebook): follow it
-        new MutationObserver(() => { if (syncing) return; const on = !fp.classList.contains('hidden'); if (on !== !!W.open) { syncing = true; show(W, on); syncing = false; } }).observe(fp, { attributes: true, attributeFilter: ['class'] });
+        const g = h('div', 'w31-grp', '<b>Fitted ↔ procedural</b>'); for (const id of ['blcol', 'blrel', 'blflow']) { const r = scrubberFor(id); if (r) g.appendChild(r); } W.body.appendChild(g);
+        // fit.js shows and hides the panel through its `hidden` class. In this shell the panel is the Fit window's
+        // body and stays; FIT PHOTO and the casebook bring the window up, "Close photo" (fit-close) ends the session.
+        $('fit-open').addEventListener('click', () => show(W, true));
+        new MutationObserver(() => { if (fp.classList.contains('hidden')) fp.classList.remove('hidden'); }).observe(fp, { attributes: true, attributeFilter: ['class'] });
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -311,8 +310,8 @@
     const panel = $('ui-panel'); if (panel) panel.style.display = 'none';
     { const l = document.createElement('link'); l.rel = 'icon'; l.href = icon('eye'); document.head.appendChild(l); }
     window.addEventListener('load', () => {
-        dressDesign(); dressPhoto(); relayout();
-        const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen && W.key !== 'photo') show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
+        dressDesign(); dressFit(); relayout();
+        const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen) show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
         const g = document.createElement('script'); g.src = 'gaze.js'; g.onload = () => gaze(G => { G.hold = S.hold; G.ret = S.ret; }); document.head.appendChild(g);   // study/09 U0: controls never move the eye
         const o = document.createElement('script'); o.src = 'overlay.js'; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris
     });

@@ -92,6 +92,7 @@
             await F.runBench([file], { save: false, iters: opts.iters || 20, tag: 'ui-contract' });   // returns nothing; the row lands in localStorage (this origin only)
             const row = Object.assign({}, JSON.parse(localStorage.getItem('irisBench') || '[]').filter(r => r.tag === 'ui-contract').pop()); delete row.secs; delete row.tag;
             out.meta.canvas = [E.canvas.width, E.canvas.height, innerWidth, innerHeight, devicePixelRatio];
+            if (window.__irisOverlay) window.__irisOverlay.restoreView();   // the overlay re-applies its zoom between fits; every reader of the view goes through this guard, so the snapshot does too
             out.bench = { row: num(row), state: num(Object.fromEntries(Object.entries(E.state).filter(([k, v]) => typeof v !== 'object' || Array.isArray(v)))), fingerprint: F.fingerprint(), render: fit.render ? hashBytes(fit.render) : null, id: hash([Object.assign({}, E.genome, { fields: undefined }), E.encodeFields(E.genome)]) };   // NOT E.exportID(): that one sets location.hash, writes the clipboard and downloads a file
             // keys the interactive loop will still move after the fit (state ≠ target): the exported ID changes once frames run
             out.bench.drift = Object.keys(E.target).filter(k => k in E.state && !['mouseX', 'mouseY', 'frameCount'].includes(k) && JSON.stringify(E.target[k]) !== JSON.stringify(E.state[k])).map(k => [k, E.state[k], E.target[k]]);

@@ -264,6 +264,26 @@ four photos × {home, zoomed out + panned, s = 1, zoomed in} in a portrait windo
 the lid shadow and the faded limbus edge, which the scored render of an isolated photo does not have; it is
 not a mapping error (a mapping error would scale with the zoom and would show on the mask).
 
+### 7.5 The photo is on the workspace by default (2026-09-19, after iori's review)
+
+U3 had left the fit panel as its own *Fit · Photo* window with the 2-D canvas, and the overlay as something to
+switch on — a conservative choice that missed the brief ("the photo should be overlaid on the iris natively, so
+we don't render the images elsewhere"). Now:
+
+- **One Fit window**, a palette: *Overlay on the iris*, score, FIT / SOURCE / ALIGN / TEST, the log, and the
+  fitted ↔ procedural blends. The Photo window and its shortcut are gone. "Close photo" (`fit-close`) ends the
+  session; minimising the window does not.
+- **A photo the user loads appears on the iris by itself** (wipe), the camera locks to its pose, and the panel's
+  PHOTO | RENDER | DIFF | SPLIT button drives the layer (SPLIT = wipe). Photos loaded by a fit or a bench do
+  not trigger it (`state.fitting`, `fit.benchRunning`).
+- The panel's own canvas is drawn as before (fit.js needs it) but shown only for **POLAR and HEIGHT**, which are
+  strip views and not pictures of the eye; it then sits inside the Fit window while the photo stays on the iris.
+- **Moved markers re-solve the pose at once**, so the render follows the handles.
+- **The zoom guard covers the API too**: every function of `__irisEngine.fit`, plus `exportID` and
+  `captureTiled`, puts the pose's view back before it runs (the click guard covers the buttons). Proof: the
+  four-photo bench at 120 iterations, started from the console **with the overlay on and zoomed**, is identical
+  to the old shell's — 0 differences.
+
 ## 8. Layout managers
 
 - **Desktop (fine pointer or width ≥ 900 px)**: MDI. Windows clamp into the viewport on resize, snap to edges

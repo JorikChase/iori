@@ -2433,17 +2433,31 @@
         const ss4 = ssimAt(fit.photo, cand, fit.mask, 4), ss2 = ssimAt(fit.photo, cand, fit.mask, 2), gr = gradAgree(fit.photo, cand, fit.mask);
         return { match2: +match2Percent(ss4, ss2, gr, dE).toFixed(2), ss4: +ss4.toFixed(3), ss2: +ss2.toFixed(3), grad: +gr.toFixed(3), dE: +dE.toFixed(2) };
     }
-    function oracleTable() {
-        const n = fit.W * fit.H, mask = fit.mask || (fit.mask = irisMask());
-        const M = new Float32Array(n); for (let k = 0; k < n; k++) M[k] = mask[k] ? 1 : 0;
-        const ph = oracleParts(fit.photo, M), rn = oracleParts(fit.render, M), pp = profiles(fit.photo);
-        const parts = {};                                           // the two decompositions compared, part by part
+    // per-band correlation between two already-decomposed images (oracleParts output), part by part
+    function partCorrOf(ph, rn, M, n) {
+        const out = {};
         for (const nm of ORACLE_PARTS) {
             let sa = 0, sb = 0, c = 0; for (let k = 0; k < n; k++) if (M[k]) { sa += ph.P[nm][k]; sb += rn.P[nm][k]; c++; }
             const ma = sa / c, mb = sb / c; let va = 0, vb = 0, cv = 0;
             for (let k = 0; k < n; k++) if (M[k]) { const a = ph.P[nm][k] - ma, b = rn.P[nm][k] - mb; va += a * a; vb += b * b; cv += a * b; }
-            parts[nm] = { corr: +(va > 0 && vb > 0 ? cv / Math.sqrt(va * vb) : 0).toFixed(3), sigmaPhoto: +Math.sqrt(va / c).toFixed(4), sigmaRender: +Math.sqrt(vb / c).toFixed(4) };
+            out[nm] = { corr: +(va > 0 && vb > 0 ? cv / Math.sqrt(va * vb) : 0).toFixed(3), sigmaPhoto: +Math.sqrt(va / c).toFixed(4), sigmaRender: +Math.sqrt(vb / c).toFixed(4) };
         }
+        return out;
+    }
+    // §28: per-band correlation of an arbitrary image (e.g. a synthetic guide-only reconstruction) against
+    // fit.photo, reusing the oracle's own decomposition — the ceiling test for "can a traced/placed representation
+    // reproduce this band", independent of the full render pipeline. No fit.render required.
+    function bandCorrOf(pix) {
+        if (!fit.photo) return null;
+        const n = fit.W * fit.H, mask = fit.mask || (fit.mask = irisMask());
+        const M = new Float32Array(n); for (let k = 0; k < n; k++) M[k] = mask[k] ? 1 : 0;
+        return partCorrOf(oracleParts(fit.photo, M), oracleParts(pix, M), M, n);
+    }
+    function oracleTable() {
+        const n = fit.W * fit.H, mask = fit.mask || (fit.mask = irisMask());
+        const M = new Float32Array(n); for (let k = 0; k < n; k++) M[k] = mask[k] ? 1 : 0;
+        const ph = oracleParts(fit.photo, M), rn = oracleParts(fit.render, M), pp = profiles(fit.photo);
+        const parts = partCorrOf(ph, rn, M, n);                     // the two decompositions compared, part by part
         const hybrid = (base, other, swap, chroma) => oracleCompose(ORACLE_PARTS.map(nm => (swap.includes(nm) ? other : base).P[nm]), chroma === 'photo' ? fit.photo : fit.render, chroma === 'photo' ? ph.L : rn.L, M);
         const fwdSets = [[], ['LOW'], ['B1'], ['B2'], ['B3'], ['TOP'], ['B1', 'B2'], ['B2', 'B3'], ['B1', 'B2', 'B3'], ['B1', 'B2', 'B3', 'TOP'], ['LOW', 'B1'], ['LOW', 'B1', 'B2'], ORACLE_PARTS];
         const forward = {}, reverse = {};
@@ -2598,6 +2612,64 @@
         if (opts.save !== false) await saveRef(opts.name || `relief-transfer-${E.quality}.json`, res);
         return res;
     }
+    // §28: dump the aligned photo + iris mask + exact scale for one eye, for the guide-ridge-tracing ceiling test
+    // (tools/guide_trace.py). Unlike S0 these photos are already pose-solved, so ppm is exact, not assumed.
+    async function dumpForGuideTrace(file) {
+        await loadImage('ref/' + file, file); solvePose();
+        if (!E.genome.provenance) await loadFittedPresetSafe(file);           // any genome; only geometry (mask) matters
+        renderFit(); score();                                                 // populates fit.mask via irisMask()
+        const W = fit.W, H = fit.H, mask = fit.mask, ppm = pxPerMmNow();
+        const toPNG = (rgba, alphaFromMask) => {
+            const c = document.createElement('canvas'); c.width = W; c.height = H;
+            const id = new ImageData(W, H);
+            for (let k = 0; k < W * H; k++) { const o = k * 4; id.data[o] = rgba[o]; id.data[o + 1] = rgba[o + 1]; id.data[o + 2] = rgba[o + 2]; id.data[o + 3] = alphaFromMask ? (mask[k] ? 255 : 0) : 255; }
+            c.getContext('2d').putImageData(id, 0, 0); return c.toDataURL('image/png');
+        };
+        return { file, W, H, ppm: +ppm.toFixed(4), pupil: fit.pupil, limbus: fit.limbus, photoPNG: toPNG(fit.photo, false), maskPNG: toPNG(fit.photo, true) };
+    }
+    async function loadFittedPresetSafe(file) { try { await E.loadFittedPreset(file); } catch (e) {} }
+    // §28: rasterise tools/guide_trace.py's traced ridges onto a 1 mm low-pass base (canvas strokes: one flat
+    // colour and width per ridge — a box profile, not the strand pass's tapered tube, so this slightly
+    // over-states a ridge's width-averaged energy) and score the result's B1/B2/B3 correlation against the real
+    // photo via bandCorrOf. The ceiling a *fitted, placed* guide representation could reach, with no renderer.
+    async function guideCeilingBench(files = ISOLATED) {
+        const out = {};
+        if (E.quality !== 'capture') { E.setQuality('capture'); fit.map = null; fit.proxy = null; }
+        for (const file of files) {
+            const eye = file.slice(0, 2);
+            const trace = await fetch('study/audit-s6/guide-trace-' + eye + '.json').then(r => r.json());
+            await dumpForGuideTrace(file);                       // loads, poses, scores — fit.photo/mask/W/H now match the trace exactly
+            const W = fit.W, H = fit.H, ppm = pxPerMmNow();
+            if (W !== trace.W || H !== trace.H) { say(`guide ceiling ${eye}: size mismatch ${W}×${H} vs traced ${trace.W}×${trace.H}`); continue; }
+            const lum = new Float32Array(W * H);
+            for (let k = 0; k < W * H; k++) { const o = k * 4; lum[k] = (0.299 * fit.photo[o] + 0.587 * fit.photo[o + 1] + 0.114 * fit.photo[o + 2]) / 255; }
+            const low = blurF(lum, W, H, 1.0 * ppm / 5.3);       // matches bandsOf's LOW_MM = 1.0
+            const c = document.createElement('canvas'); c.width = W; c.height = H;
+            const ctx = c.getContext('2d');
+            const base = ctx.createImageData(W, H);
+            for (let k = 0; k < W * H; k++) { const v = Math.max(0, Math.min(255, Math.round(255 * low[k]))), o = k * 4; base.data[o] = base.data[o + 1] = base.data[o + 2] = v; base.data[o + 3] = 255; }
+            ctx.putImageData(base, 0, 0);
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            for (const r of trace.ridges) {
+                if (r.pts.length < 2) continue;
+                const width = Math.max(1, r.width_mm * ppm), vals = r.vals || null;
+                // per-point brightness (real strands modulate along their length): a short stroke per segment,
+                // coloured by the endpoints' sampled luminance — a box cross-profile, but the along-length
+                // modulation that matters most for B1/B2 correlation is kept
+                for (let i = 0; i < r.pts.length - 1; i++) {
+                    const v0 = vals ? vals[i] : r.val, v1 = vals ? vals[i + 1] : r.val, v = Math.max(0, Math.min(255, Math.round(255 * (v0 + v1) / 2)));
+                    ctx.beginPath(); ctx.moveTo(r.pts[i][0], r.pts[i][1]); ctx.lineTo(r.pts[i + 1][0], r.pts[i + 1][1]);
+                    ctx.lineWidth = width; ctx.strokeStyle = `rgb(${v},${v},${v})`; ctx.stroke();
+                }
+            }
+            const synth = ctx.getImageData(0, 0, W, H).data;
+            const corr = bandCorrOf(synth);
+            out[eye] = { ridges: trace.ridges.length, sigmasPx: trace.sigmas_px, ppm, corr,
+                png: c.toDataURL('image/jpeg', 0.9) };
+            say(`guide ceiling ${eye}: B1 ${corr.B1.corr} B2 ${corr.B2.corr} B3 ${corr.B3.corr} (${trace.ridges.length} ridges)`);
+        }
+        return out;
+    }
     async function scaleAudit(files = ISOLATED, opts = {}) {
         const t0 = performance.now(), q0 = E.quality, out = { when: new Date().toISOString(), eyes: {} };
         const FIELDS = ['height', 'strandBright', 'coherence', 'placeSpacing', 'place'];
@@ -2730,5 +2802,5 @@
         for (const r of list) { const o = document.createElement('option'); o.value = r.file; o.textContent = r.file.replace('.jpg', ''); sel.appendChild(o); }
         sel.onchange = () => { if (sel.value) loadImage('ref/' + sel.value, sel.value).catch(() => {}); };
     }).catch(() => {});
-    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, oracleBench, bandOracle, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, fitOpenings, probeOpeningTransfer, blurPolarMm, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
+    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, oracleBench, bandOracle, bandCorrOf, dumpForGuideTrace, guideCeilingBench, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, fitOpenings, probeOpeningTransfer, blurPolarMm, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
 })();

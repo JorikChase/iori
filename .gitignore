@@ -62,6 +62,8 @@ iris-engine/ref/survey-isolated.json
 iris-engine/ref-staging/*.jpg
 # derived previews of the staging photographs (regenerate with iris-engine/tools/strand_stats.py)
 iris-engine/study/s0-strands/*.jpg
+# raw photo/mask pixel dumps for the guide-tracing ceiling test (regenerate with fit.dumpForGuideTrace)
+iris-engine/study/audit-s6/guide-dump-*.json
 
 # Petri engine reference datasets (large, licence-bound) — see petri/ref/DATA-PLAN.md
 petri/ref-data/

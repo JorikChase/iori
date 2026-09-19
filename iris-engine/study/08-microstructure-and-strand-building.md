@@ -324,3 +324,70 @@ scale (ridges σ ≈ 30–85 µm, NMS centrelines, widths), rasterise the traced
 image's B1/B2 part correlation against the photo — the ceiling of a guide representation, before any renderer
 work. If it clears ≈ 0.85 on B2, guides become a fitted object list (splines + width + brightness, the S3
 representation) rendered through the strand pass as a second, coarser deck.
+
+## 7. Guide-scale ceiling test (2026-09-19): geometry is already worth it — brightness fidelity is the gap
+
+**Method.** `tools/guide_trace.py` ports the S0 tracer to the engine's own bench photos, aligned by the fitter
+(so ppm is exact, not assumed as in S0). `fit.dumpForGuideTrace(file)` loads, poses and scores an eye and exports
+its photo + iris mask as PNGs at exact scale (`study/audit-s6/guide-dump-*.json`, gitignored — regenerable). The
+tracer runs the same Hessian-ridge + NMS-centreline method as S0 at guide σ (30/42/60/85 µm) on a 1 mm-flattened
+luminance field, and outputs centrelines with a per-point width and **per-point brightness** (sampled directly from
+the photo along the ridge — an early version used one brightness value per whole ridge and understated the ceiling,
+corrected below). `fit.bandCorrOf(pix)` (new, factored out of the §27 oracle) scores any image's B1/B2/B3
+correlation against `fit.photo` directly, no render required — the reusable form of this ceiling test.
+
+**Trace, all at CAPTURE (exact ppm 60–71 px/mm):**
+
+| eye | ridges | centreline | median width | mask area |
+|---|---|---|---|---|
+| 09 | 509 | 268 mm | 102 µm | 74.8 mm² |
+| 25 | 523 | 188 mm | 107 µm | 78.7 mm² |
+| 26 | 416 | 215 mm | 112 µm | 71.0 mm² |
+| 35 | 406 | 187 mm | 116 µm | 60.7 mm² |
+
+Widths land inside S0's guide range (111–130 µm) — this method transfers cleanly from super-macro sectors to the
+whole-iris bench photos. Overlays (`study/audit-s6/guide-trace-*-overlay.jpg`) confirm by eye: the traced lines
+follow the real bundles, including the collarette zigzag and the dark radial rifts.
+
+**Three reconstructions, scored against the real photo by `bandCorrOf` (data `study/audit-s6/`):**
+
+| reconstruction | what it keeps outside the traced ridges | B1 corr | B2 corr | B3 corr |
+|---|---|---|---|---|
+| box, one flat colour per ridge | 1 mm low-pass (flat) | 0.55–0.70 | 0.35–0.48 | 0.04–0.08 |
+| box, per-point colour along each ridge | 1 mm low-pass (flat) | 0.56–0.70 | 0.37–0.46 | 0.04–0.08 |
+| **real photo pixels inside the traced footprint** (10–15 % of the area) | 1 mm low-pass (flat) | **0.88–0.91** | **0.75–0.79** | **0.66–0.70** |
+| current engine, LIC + F2 (v83, §26–27) | — (the actual render) | 0.62–0.91 | 0.73–0.80 | 0.17–0.31 |
+
+A control on `bandCorrOf` itself rules out a scoring artefact: identical image → 1.000 on every band; a 1 px shift
+or a 2 px blur of the real photo barely moves B1/B2 (0.94–1.00) and only costs B3, as expected of honest
+degradation — the drop above is real, not a measurement bug.
+
+**Reading it.**
+1. **Geometry alone, with truthful brightness, already matches or beats the fitted engine.** The coverage-only
+   control keeps only 10–15 % of the pixels (the traced footprint) — everything else is flat — and still reaches
+   or exceeds the current LIC + F2 render's B1/B2 on three of four eyes, and is far ahead on B3 (0.66–0.70 vs
+   0.17–0.31, because it carries the true fine detail, LIC's does not). **The traced ridge positions are correct
+   enough to be worth building on.**
+2. **The gap in the two box reconstructions is not geometry — it is brightness fidelity within the footprint.**
+   Per-point colour along the ridge (fixing "flat per whole ridge") moved almost nothing (B1 0.698 → 0.697 on
+   eye 26). What the box rasteriser is missing is fine detail *across* the ridge width and at sub-sample
+   resolution along it — exactly the texture a real strand carries, which S0 already measured (local contrast
+   std/mean 0.31–0.37, §06).
+3. **S1's strand pass has the same flaw as the box rasteriser.** `strands.js:138` writes one brightness scalar
+   `s.b` per strand at birth; `fs-strand` (`index.html`) writes it flat across the whole tube (`v_par.y * cov`, no
+   per-pixel term). That is the mechanism gap S6-lite (§6) actually ran into: not "curves can't be placed", but
+   "a placed curve with flat brightness is still a flat curve" — LIC's per-texel noise (`strandNoise`) is a cruder
+   version of the texture this test shows is necessary, which is why LIC narrowly beat unplaced curves.
+4. **09's weak LOW correlation (0.617, vs 0.92–1.0 in every control) is a separate, pre-existing finding**: the
+   engine's coarse tone is comparatively worse on eye 09 independent of strands — consistent with the standing
+   "09 hue" open item (§25.7, §24.1).
+
+**What this changes in the plan.** Guides are not just a placement device; a guide without per-pixel texture is no
+better than what LIC already has. The next integration is not "trace guides, render them" alone but **"trace
+guides, and keep (or re-derive) a per-pixel noise/material modulation inside each guide's footprint"** — i.e. S1's
+strand pass needs a per-texel term (reuse `strandNoise`/the LIC noise field as the within-strand modulation, sampled
+in the strand's own local frame) before guide positions from tracing are worth wiring into the renderer. Proposed
+order: **S1b** (add per-texel noise inside the strand tube, bench against LIC alone — a renderer change, no
+placement yet) → **S3** (guides as fitted objects from this tracer, rendered through the now-textured strand pass,
+replacing the coarse/medium LIC scales) → re-run this ceiling test with the *actual render* in place of the
+box mock to confirm the integration reaches the coverage-control's numbers.

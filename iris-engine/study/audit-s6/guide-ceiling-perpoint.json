@@ -1,0 +1,150 @@
+{
+ "25": {
+  "ridges": 523,
+  "sigmasPx": [
+   2.11,
+   2.95,
+   4.22,
+   5.97
+  ],
+  "ppm": 70.28738167148197,
+  "corr": {
+   "LOW": {
+    "corr": 0.974,
+    "sigmaPhoto": 0.1052,
+    "sigmaRender": 0.0913
+   },
+   "B1": {
+    "corr": 0.663,
+    "sigmaPhoto": 0.0316,
+    "sigmaRender": 0.0228
+   },
+   "B2": {
+    "corr": 0.399,
+    "sigmaPhoto": 0.0264,
+    "sigmaRender": 0.0166
+   },
+   "B3": {
+    "corr": 0.039,
+    "sigmaPhoto": 0.0372,
+    "sigmaRender": 0.0117
+   },
+   "TOP": {
+    "corr": 0,
+    "sigmaPhoto": 0,
+    "sigmaRender": 0
+   }
+  }
+ },
+ "26": {
+  "ridges": 416,
+  "sigmasPx": [
+   2.14,
+   3,
+   4.29,
+   6.08
+  ],
+  "ppm": 71.47513396290245,
+  "corr": {
+   "LOW": {
+    "corr": 0.923,
+    "sigmaPhoto": 0.0822,
+    "sigmaRender": 0.0765
+   },
+   "B1": {
+    "corr": 0.697,
+    "sigmaPhoto": 0.043,
+    "sigmaRender": 0.0275
+   },
+   "B2": {
+    "corr": 0.458,
+    "sigmaPhoto": 0.0347,
+    "sigmaRender": 0.0202
+   },
+   "B3": {
+    "corr": 0.045,
+    "sigmaPhoto": 0.0434,
+    "sigmaRender": 0.0138
+   },
+   "TOP": {
+    "corr": 0,
+    "sigmaPhoto": 0,
+    "sigmaRender": 0
+   }
+  }
+ },
+ "35": {
+  "ridges": 406,
+  "sigmasPx": [
+   1.8,
+   2.53,
+   3.61,
+   5.11
+  ],
+  "ppm": 60.12884777824314,
+  "corr": {
+   "LOW": {
+    "corr": 0.974,
+    "sigmaPhoto": 0.1338,
+    "sigmaRender": 0.116
+   },
+   "B1": {
+    "corr": 0.556,
+    "sigmaPhoto": 0.0383,
+    "sigmaRender": 0.0347
+   },
+   "B2": {
+    "corr": 0.365,
+    "sigmaPhoto": 0.0278,
+    "sigmaRender": 0.0219
+   },
+   "B3": {
+    "corr": 0.044,
+    "sigmaPhoto": 0.0453,
+    "sigmaRender": 0.0195
+   },
+   "TOP": {
+    "corr": 0,
+    "sigmaPhoto": 0,
+    "sigmaRender": 0
+   }
+  }
+ },
+ "09": {
+  "ridges": 509,
+  "sigmasPx": [
+   2.06,
+   2.88,
+   4.12,
+   5.84
+  ],
+  "ppm": 68.66631371926833,
+  "corr": {
+   "LOW": {
+    "corr": 0.915,
+    "sigmaPhoto": 0.0689,
+    "sigmaRender": 0.0594
+   },
+   "B1": {
+    "corr": 0.592,
+    "sigmaPhoto": 0.0363,
+    "sigmaRender": 0.0235
+   },
+   "B2": {
+    "corr": 0.479,
+    "sigmaPhoto": 0.0388,
+    "sigmaRender": 0.0236
+   },
+   "B3": {
+    "corr": 0.076,
+    "sigmaPhoto": 0.0447,
+    "sigmaRender": 0.0168
+   },
+   "TOP": {
+    "corr": 0,
+    "sigmaPhoto": 0,
+    "sigmaRender": 0
+   }
+  }
+ }
+}

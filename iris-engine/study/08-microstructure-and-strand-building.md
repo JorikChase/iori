@@ -281,3 +281,46 @@ until placement exists).
 seed streamlines on the carrier's crests (x′ = (k − φ/2π) · placeSpacing in the cell's local frame), most confident
 cells first, generic seeding afterwards; bench against LIC + F2 at both qualities, judged on the B3 part
 correlation. Then guides from B1/B2 ridge tracing (the oracle's larger prize).
+
+## 6. S6-lite benched (2026-09-19): strands placed from the F2 carrier — neutral; kept behind the switch
+
+**Built.** The grower takes the photo-fitted F2 fields (`place`, `placeSpacing`, `phaseC/S`) as `opts.place(u, v) →
+{ w, off, sp }`: the phase of the four-cell blended plane wave exactly as `strandCarrier` forms it (cell-local
+frames, the flow angle at the cell centre). Confident cells (place > 0.12) seed first, most confident first, each
+seed snapped onto the nearest crest; while a strand grows it is pulled 60 % of the way onto the crest every step
+(≤ half a step), its separation goes to 0.92 × the photo's period, and wander and wave fade with the confidence.
+`growPlace` 0 switches it off; `E.growOverride` forces grower genes for benches. On a synthetic stripe field the
+strands land on the crests to < 0.01 µm; unplaced growth is unchanged (2,133 strands, as S1).
+
+**Bench (v83 code, data `study/audit-s6/`).** Run integrity: the LIC block reproduces v83c exactly (65.2 / 65.2 /
+68.2 / 69.7) — another session working on the UI at the same time did not disturb it.
+
+| | NORMAL MATCH2 | CAPTURE MATCH2 | CAPTURE strandCorr | CAPTURE B3 part corr | strands |
+|---|---|---|---|---|---|
+| LIC + F2 (v83 / v83c) | **66.20** | **67.08** | 0.22–0.38 | 0.17–0.31 | — |
+| curves, unplaced (S1) | 65.98 | 65.47 | 0.18–0.30 | 0.12–0.25 | ≈ 2,330 |
+| curves, placed (S6-lite) | 65.75 | 65.58 | 0.19–0.34 | 0.13–0.27 | ≈ 2,950 |
+
+Placement moves the curves the right way on every eye (strandCorr + 0.01…0.035, B3 corr + 0.01…0.02) and is worth
++ 0.1 MATCH2 at CAPTURE — and the placed curves still trail LIC + F2 by 1.5.
+
+**Why (probe on eye 35 after its fit).** 54 % of the placement cells are confident (> 0.25), period median 0.048 mm —
+but (1) the mean carrier value under the grown strand points is only **0.60** (1 = on the crest, 0 = unrelated):
+the per-cell plane waves disagree with their neighbours (blend coherence 0.76), so a continuous line cannot stay on
+"the" crest — F2 describes a *texture* (local period and phase), not strand *positions*; (2) only ≈ 650 strands were
+added where the photo's period would call for ≈ 1,500–2,000: crest-snapped seeds collide with strands already
+grown on a slightly different phase; (3) the comparison is asymmetric by construction: LIC + F2 adds the carrier
+*softly*, weighted by its confidence (≈ 0.4), while a curve commits fully to a position that is ≈ 60 % right —
+under pixel scores a soft half-right stripe beats a hard one (§23.1 again).
+
+**Verdict.** S6-lite stays in the code, default on *within* curves mode (it never hurts them), curves stay off by
+default. Fine strands cannot be placed from F2; they need positions measured as positions. And per the oracle the
+fine band is not where the points are now: after R1 the part correlations at CAPTURE are B1 0.81–0.91, **B2
+0.73–0.80**, B3 0.17–0.31 — B2 (0.09–0.3 mm: bundles, thick strands, rims) is resolved by the photographs at both
+qualities and has no fitted position in the engine at all.
+
+**Next (proposed): S6 at guide scale, measurement first.** Port the S0 tracer to the unwrapped polar photo at B2/B1
+scale (ridges σ ≈ 30–85 µm, NMS centrelines, widths), rasterise the traced ridges alone as ribbons, and score that
+image's B1/B2 part correlation against the photo — the ceiling of a guide representation, before any renderer
+work. If it clears ≈ 0.85 on B2, guides become a fitted object list (splines + width + brightness, the S3
+representation) rendered through the strand pass as a second, coarser deck.

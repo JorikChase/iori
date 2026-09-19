@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-18",
+  "generated": "2026-09-19",
   "pages": [
     {
       "slug": "4cube.html",
@@ -285,7 +285,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-dimension.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "fractals.html",
@@ -296,7 +296,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractals.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "fungal-growth.html",
@@ -384,7 +384,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iori.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "iori_INDEX.html",
@@ -395,7 +395,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "iris-engine/index.html",
@@ -406,7 +406,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris-engine/",
       "og_image": null,
-      "lastmod": "2026-09-17",
+      "lastmod": "2026-09-19",
       "order": 3
     },
     {
@@ -418,7 +418,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris.html",
       "og_image": null,
-      "lastmod": "2026-09-15",
+      "lastmod": "2026-09-18",
       "order": 1
     },
     {
@@ -485,7 +485,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mandelbrot-gs.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "maska.html",
@@ -507,7 +507,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/meta-iris.html",
       "og_image": null,
-      "lastmod": "2026-09-15",
+      "lastmod": "2026-09-18",
       "order": 2
     },
     {
@@ -530,7 +530,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mirrorbrot-16k.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "mirrorbrot.html",
@@ -541,7 +541,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mirrorbrot.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "moises.html",
@@ -629,7 +629,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/portfolio.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "poster.html",
@@ -706,7 +706,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/start.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "sudoku.html",
@@ -783,7 +783,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/umprum.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "universe.html",
@@ -893,7 +893,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/web.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "web3d.html",
@@ -904,7 +904,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/web3d.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     },
     {
       "slug": "webgl.html",
@@ -926,7 +926,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/websites.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-18"
     }
   ]
 }

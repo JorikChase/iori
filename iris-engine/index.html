@@ -674,6 +674,7 @@
                 <button class="action-btn" id="idout-btn" title="download the iris ID (JSON), copy it, and put it in the URL">ID ↓</button>
                 <button class="action-btn" id="idin-btn" title="load an iris ID file">ID ↑</button>
                 <button class="action-btn" id="fieldw-btn" title="toggle the seeded background fibre field">FIELD</button>
+                <button class="action-btn" id="strand-btn" title="strand model: LIC (texture) or CURVES (explicit strands grown over the flow field — study/08 S1)">LIC</button>
                 <select id="quality-sel" class="action-btn" title="quality mode: atlas, fields, fit resolution, splats, shader steps, accumulation"><option value="draft">DRAFT</option><option value="normal">NORMAL</option><option value="fine">FINE</option><option value="ultra">ULTRA</option><option value="capture">CAPTURE</option></select>
             </div>
             <div class="action-row">
@@ -727,6 +728,7 @@
     </div>
 
     <!-- SHADERS -->
+    <script src="strands.js"></script>
     <script id="vs" type="x-shader/x-vertex">
         #version 300 es
         in vec4 position;
@@ -759,6 +761,9 @@
         // row 2 furrows, row 3 spots, row 4 nodules. Bundles come pre-rasterised in u_bundles.
         uniform sampler2D u_objs;
         uniform sampler2D u_bundles;
+        // study/08 S1: the curves variant of this shader is compiled separately (bakeCurvesProgram fills the two STRAND markers),
+        // so the LIC shader's code — and its float arithmetic — stays exactly v83's
+        //STRAND_DECL//
         uniform sampler2D u_splats;      // §19.5: the fitted relief field (r, mm), additive Gaussians
         uniform sampler2D u_paint;       // §20 D2: painted material deltas (Δmelanin, Δstroma, Δyellow, Δpheo)
         uniform float g_rimSharp;        // 0 soft openings … 1 hard rims
@@ -976,6 +981,7 @@
                 float cC = smoothstep(0.50 - swC, 0.50 + swC, (licC - 0.5) * g_strandGain * 1.1 + 0.5) * seg;
                 float cM = smoothstep(0.51 - swM, 0.51 + swM, (licM - 0.5) * g_strandGain + 0.5);
                 float cF = smoothstep(0.52 - swF, 0.52 + swF, (licF - 0.5) * g_strandGain + 0.5);
+                //STRAND_FINE//
                 float wM = g_strandMed, wF = g_strandFine, wC = max(0.10, 1.0 - wM - wF);
                 float cov = clamp((wC * cC + wM * cM + wF * cF) / (wC + wM + wF), 0.0, 1.0);
                 float vis = cov * openAbove;                                   // what this layer shows
@@ -1154,6 +1160,30 @@
         void main() {
             float prof = pow(max(1.0 - abs(v_side), 0.0), 1.3);
             fragColor = vec4(v_bh.x * prof, v_bh.y * prof, 0.0, 1.0);
+        }
+    </script>
+
+    <!-- STRAND PASS (study/08 S1): explicit strands from strands.js as ribbons with a soft-edged tube profile.
+         r coverage, g tube height (0..1), b per-strand brightness × coverage; MAX-blended (one deck in S1). -->
+    <script id="vs-strand" type="x-shader/x-vertex">
+        #version 300 es
+        in vec2 a_pos;        // atlas uv, already offset across the ribbon (half width + an antialiasing margin)
+        in float a_side;      // signed distance across the ribbon, mm
+        in vec2 a_par;        // half width (mm), brightness
+        out float v_side; out vec2 v_par;
+        void main() { v_side = a_side; v_par = a_par; gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }
+    </script>
+    <script id="fs-strand" type="x-shader/x-fragment">
+        #version 300 es
+        precision highp float;
+        uniform float u_texelMM;
+        in float v_side; in vec2 v_par;
+        out vec4 fragColor;
+        void main() {
+            float d = abs(v_side), hw = v_par.x, e = max(0.3 * hw, u_texelMM);
+            float cov = 1.0 - smoothstep(hw - e, hw + e, d);
+            float tube = sqrt(max(0.0, 1.0 - (d * d) / (hw * hw)));
+            fragColor = vec4(cov, tube * cov, v_par.y * cov, 1.0);
         }
     </script>
 
@@ -2034,6 +2064,7 @@
             blit: createProgram(vsSrc, document.getElementById('fs-blit').text.trim(), 'blit'),
             post: createProgram(vsSrc, document.getElementById('fs-post').text.trim(), 'post'),
             bundle: createProgram(document.getElementById('vs-bundle').text.trim(), document.getElementById('fs-bundle').text.trim(), 'bundle'),
+            strand: createProgram(document.getElementById('vs-strand').text.trim(), document.getElementById('fs-strand').text.trim(), 'strand'),
             splat: createProgram(document.getElementById('vs-splat').text.trim(), document.getElementById('fs-splat').text.trim(), 'splat'),
             splat4: createProgram(document.getElementById('vs-splat4').text.trim(), document.getElementById('fs-splat4').text.trim(), 'splat4'),
         };
@@ -2403,7 +2434,7 @@
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, OBJ_W, OBJ_ROWS, 0, gl.RGBA, gl.FLOAT, d);
         }
         const bundleTex = gl.createTexture(), bundleFB = gl.createFramebuffer();
-        function resizeAtlasSizedTextures() { for (const t of [bundleTex, typeof splatTex !== 'undefined' ? splatTex : null, typeof paintTex !== 'undefined' ? paintTex : null]) { if (!t) continue; gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, ATLAS_W, ATLAS_H, 0, gl.RGBA, gl.HALF_FLOAT, null); } }
+        function resizeAtlasSizedTextures() { for (const t of [bundleTex, typeof strandTex !== 'undefined' ? strandTex : null, typeof splatTex !== 'undefined' ? splatTex : null, typeof paintTex !== 'undefined' ? paintTex : null]) { if (!t) continue; gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, ATLAS_W, ATLAS_H, 0, gl.RGBA, gl.HALF_FLOAT, null); } }
         gl.bindTexture(gl.TEXTURE_2D, bundleTex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, ATLAS_W, ATLAS_H, 0, gl.RGBA, gl.HALF_FLOAT, null);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -2459,6 +2490,89 @@
             gl.disable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             // restore the full-screen quad attribute state for the other programs
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            for (const p of [programs.photo, programs.bake, programs.blit, programs.post]) {
+                const posLoc = gl.getAttribLocation(p, 'position'); if (posLoc >= 0) { gl.enableVertexAttribArray(posLoc); gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0); }
+            }
+        }
+
+        // ---- strand pass (study/08 S1): explicit strands grown by strands.js over the flow and spacing fields ----
+        // genome.globals.strandModel 1 switches the top layer's fine scale from LIC to these curves; 0 (default) never
+        // runs any of this. Growth is cached on (seed, grower genes, the two effective fields).
+        const strandTex = gl.createTexture(), strandFB = gl.createFramebuffer();
+        gl.bindTexture(gl.TEXTURE_2D, strandTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, ATLAS_W, ATLAS_H, 0, gl.RGBA, gl.HALF_FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, strandTex, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        const strandVAO = gl.createVertexArray(), strandVBO = gl.createBuffer(); let strandVerts = 0, strandCache = { key: null, strands: [] }, strandModelOverride = null, strandGeomKey = null;
+        // the curves variant of the bake shader, compiled on first use: the top layer's fine scale reads the strand texture
+        function bakeCurvesProgram() {
+            if (!programs.bakeCurves) programs.bakeCurves = createProgram(vsSrc, document.getElementById('fs-bake').text.trim().replace('//FIELD_DECODE//', fieldDecodeGLSL())
+                .replace('//STRAND_DECL//', 'uniform sampler2D u_strands;')
+                .replace('//STRAND_FINE//', 'if (L == 0) { vec4 sc = texture(u_strands, uv); cF = sc.r * mix(0.8, 1.0, sc.b / max(sc.r, 1e-3)); }'), 'bakeCurves');
+            return programs.bakeCurves;
+        }
+        const GROW_DEFAULTS = { growSep: 1.6, growTest: 0.8, growRun: 0.7, growWander: 0.25, growWave: 0.014, growWidth: 0.53 };
+        function effectiveField(g, n) {                       // what uploadFields sends for this field (blend included), as a sampler
+            const d = FIELD_DEFS[n], [w, h] = GRIDS[d.grid], f = g.fields[n], def = d.def(g.globals);
+            const bl = f.custom ? ((g.blend || {}).flow === undefined ? 1 : g.blend.flow) : 0;
+            const data = new Float32Array(w * h); let sum = 0;
+            for (let i = 0; i < w * h; i++) { data[i] = f.custom ? def + (f.data[i] - def) * bl : def; sum += data[i] * (1 + (i % 97)); }
+            return { at: IrisStrands.sampler(data, w, h), sum };
+        }
+        function growStrands(g) {
+            const G = g.globals, P = {}; for (const k in GROW_DEFAULTS) P[k] = G[k] === undefined ? GROW_DEFAULTS[k] : G[k];
+            const flow = effectiveField(g, 'flowDir'), spacing = effectiveField(g, 'spacing');
+            const key = [g.seed, JSON.stringify(P), flow.sum.toFixed(4), spacing.sum.toFixed(4)].join('|');
+            if (strandCache.key !== key) strandCache = { key, strands: IrisStrands.grow({ seed: g.seed, flow: flow.at, spacing: spacing.at, sep: P.growSep, dTest: P.growTest, run: P.growRun, wander: P.growWander, wave: P.growWave, width: P.growWidth }) };
+            return strandCache.strands;
+        }
+        function buildStrandGeometry(strands) {
+            const verts = [], margin = 1.5 * 4.0 / ATLAS_H;                          // antialiasing margin, mm
+            for (const s of strands) {
+                const pts = s.pts, n = pts.length; if (n < 2) continue;
+                let uMin = 1e9, uMax = -1e9; for (const p of pts) { if (p[0] < uMin) uMin = p[0]; if (p[0] > uMax) uMax = p[0]; }
+                const base = -Math.floor((uMin + uMax) / 2), shifts = [base]; if (uMin + base < 0.01) shifts.push(base + 1); if (uMax + base > 0.99) shifts.push(base - 1);
+                const L = [], Rr = [];
+                for (let k = 0; k < n; k++) {
+                    const p = pts[k], q = pts[Math.min(k + 1, n - 1)], o = pts[Math.max(k - 1, 0)], r = 2.0 + 4.0 * p[1];
+                    const dx = (q[0] - o[0]) * 6.2831853 * r, dy = (q[1] - o[1]) * 4.0, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+                    const t = Math.min(k, n - 1 - k) / 3, hw = 0.5 * s.w * (0.35 + 0.65 * Math.min(1, t)), ext = hw + margin;   // strands taper into their neighbours
+                    L.push([p[0] + nx * ext / (6.2831853 * r), p[1] + ny * ext / 4.0, ext, hw]); Rr.push([p[0] - nx * ext / (6.2831853 * r), p[1] - ny * ext / 4.0, -ext, hw]);
+                }
+                for (const sh of shifts) for (let k = 0; k < n - 1; k++) {
+                    const a0 = L[k], a1 = Rr[k], b0 = L[k + 1], b1 = Rr[k + 1];
+                    for (const c of [a0, a1, b0, a1, b1, b0]) verts.push(c[0] + sh, c[1], c[2], c[3], s.b);
+                }
+            }
+            gl.bindVertexArray(strandVAO);
+            gl.bindBuffer(gl.ARRAY_BUFFER, strandVBO);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+            const prog = programs.strand, stride = 5 * 4;
+            const aPos = gl.getAttribLocation(prog, 'a_pos'), aSide = gl.getAttribLocation(prog, 'a_side'), aPar = gl.getAttribLocation(prog, 'a_par');
+            gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, stride, 0);
+            gl.enableVertexAttribArray(aSide); gl.vertexAttribPointer(aSide, 1, gl.FLOAT, false, stride, 8);
+            gl.enableVertexAttribArray(aPar); gl.vertexAttribPointer(aPar, 2, gl.FLOAT, false, stride, 12);
+            gl.bindVertexArray(null);
+            strandVerts = verts.length / 5;
+        }
+        function drawStrands() {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB);
+            gl.viewport(0, 0, ATLAS_W, ATLAS_H);
+            gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+            if (strandVerts) {
+                gl.useProgram(programs.strand);
+                u1f(programs.strand, 'u_texelMM', 4.0 / ATLAS_H);
+                gl.enable(gl.BLEND); gl.blendEquation(gl.MAX); gl.blendFunc(gl.ONE, gl.ONE);
+                gl.bindVertexArray(strandVAO);
+                gl.drawArrays(gl.TRIANGLES, 0, strandVerts);
+                gl.bindVertexArray(null);
+                gl.disable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
+            }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
             for (const p of [programs.photo, programs.bake, programs.blit, programs.post]) {
                 const posLoc = gl.getAttribLocation(p, 'position'); if (posLoc >= 0) { gl.enableVertexAttribArray(posLoc); gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0); }
@@ -2570,8 +2684,13 @@
         function bakeAtlas() {
             applySlidersToGenome();
             const g = genome, G = g.globals;
-            uploadObjects(g); uploadFields(g); buildBundleGeometry(g); drawBundles(); buildSplatGeometry(g); drawSplats(); buildPaintGeometry(g); drawPaint();
-            const prog = programs.bake;
+            uploadObjects(g); uploadFields(g); buildBundleGeometry(g); drawBundles();
+            // E.strandModelOverride (0 | 1 | null) forces the model whatever the genome says — for A/B benches, where every case
+            // starts from a fresh genome and a fresh state (resetForFreshFit deletes unknown state keys)
+            const curves = (strandModelOverride === null ? G.strandModel : strandModelOverride) === 1 && typeof IrisStrands !== 'undefined';
+            if (curves) { const st = growStrands(g), gk = strandCache.key + '|' + ATLAS_H; if (strandGeomKey !== gk) { buildStrandGeometry(st); strandGeomKey = gk; } drawStrands(); }   // a fit re-bakes on every evaluation: grow and mesh only when the strands change
+            buildSplatGeometry(g); drawSplats(); buildPaintGeometry(g); drawPaint();
+            const prog = curves ? bakeCurvesProgram() : programs.bake;
             gl.bindFramebuffer(gl.FRAMEBUFFER, atlas.fb);
             gl.viewport(0, 0, ATLAS_W, ATLAS_H);
             gl.useProgram(prog);
@@ -2581,6 +2700,7 @@
             gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, objTex); u1i(prog, 'u_objs', 3);
             gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, bundleTex); u1i(prog, 'u_bundles', 4);
             gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, splatTex); u1i(prog, 'u_splats', 12);
+            if (curves) { gl.activeTexture(gl.TEXTURE15); gl.bindTexture(gl.TEXTURE_2D, strandTex); u1i(prog, 'u_strands', 15); }
             gl.activeTexture(gl.TEXTURE13); gl.bindTexture(gl.TEXTURE_2D, paintTex); u1i(prog, 'u_paint', 13);
             u1f(prog, 'g_rimSharp', G.rimSharp === undefined ? 0.6 : G.rimSharp);
             u1f(prog, 'g_openWarp', G.openWarp === undefined ? 0.3 : G.openWarp);
@@ -2758,6 +2878,9 @@
             b.classList.toggle('active', !!state.useRot);
         }
         document.getElementById('cam-btn').onclick = () => setCamFixed(!state.useRot);
+        function syncStrandBtn() { const b = document.getElementById('strand-btn'); if (!b) return; const on = genome.globals.strandModel === 1; b.textContent = on ? 'CURVES' : 'LIC'; b.classList.toggle('active', on); }
+        function setStrandModel(m) { genome.globals.strandModel = (m === 'curves' || m === 1) ? 1 : 0; syncStrandBtn(); atlas.dirty = true; resetAccumulation(); }
+        document.getElementById('strand-btn').onclick = () => setStrandModel(genome.globals.strandModel === 1 ? 0 : 1);
         syncCamBtn();
         document.getElementById('anim2-btn').onclick = (e) => { state.hippus = !state.hippus; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('tone-btn').onclick = (e) => { state.tone = 1 - state.tone; e.target.classList.toggle('active'); };
@@ -2817,7 +2940,9 @@
             'warp', 'collr', 'furrow', 'pigment', 'stroma', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom', 'zoomPhoto', 'blColour', 'blRelief', 'blFlow'];
 
         // ---- test hook: expose a paraxial magnification check for the harness ----
-        window.__irisEngine = { state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
+        // debug: a window of the strand texture (r coverage, g tube, b brightness) as floats, rows bottom-up
+        function readStrandTex(x, y, w, h) { const px = new Float32Array(w * h * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB); gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return px; }
+        window.__irisEngine = { setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
             FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
             drawPhotoFrame, drawPost, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
             setCamFixed, syncCamBtn, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };

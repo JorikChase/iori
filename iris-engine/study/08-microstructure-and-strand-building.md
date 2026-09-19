@@ -184,3 +184,100 @@ other lighting; the photo match is carried by strands, the sheet and openings.
 
 Interaction with the agreed order (v81 opening darkness → v82 F2 on a fixed-mm grid → R1): none of it is wasted —
 R1's opening placement becomes S2's obstacle field, v82's grid becomes S6's seeds.
+
+## 4. S0 measured (2026-09-18): strand statistics from the super-macro sectors
+
+`tools/strand_stats.py` (run with `/usr/bin/python3`; output `study/s0-strands/<id>.json`, `summary.json`, overlays).
+Four eyes from `ref-staging/` (three super-macro sectors at 0.7–0.9 µm/px, one sector at 1.8 µm/px), in-focus
+28–36 % of each frame (3.6–24.7 mm² of tissue). Two ridge populations by scale-normalised Hessian ridges with
+non-maximum-suppressed centrelines: **child** (σ 6–18 µm) and **guide** (σ 30–85 µm). Overlays checked by eye: child
+centrelines follow the visible strands; guides follow the cream bundles.
+
+**Scale caveat.** No frame shows the whole iris, so µm/px comes from a circle fitted to the pupil edge and an
+*assumed* 3.0 mm pupil: every length below carries ≈ ±30 %. Ratios do not. (roy7A0y8ZyQ shows the limbus too — a
+two-circle calibration is the obvious refinement.) Widths are FWHM on defocus-limited images: upper bounds.
+
+| | child (4 eyes, medians) | guide (4 eyes, medians) | scale-free |
+|---|---|---|---|
+| width (FWHM) | 49–64 µm (p10 27–37, p90 105–123) | 111–130 µm (p90 250–350) | guide / child ≈ 2.2 |
+| spacing, centre to centre across the flow | 91–117 µm (p10 51–62) | 203–235 µm | width / spacing ≈ 0.53 for both |
+| visible run length | 123–182 µm (p90 350–675) | 237–336 µm (p90 540–880) | run / spacing ≈ 1.5 |
+| tortuosity (arc / chord) | 1.03–1.05 | 1.03–1.06 | |
+| waviness: RMS / wavelength | ≈ 10–14 µm / 230–340 µm | ≈ 9–17 µm / 160–340 µm | amplitude / wavelength ≈ 0.05 |
+| angle to radial (unsigned) | median 12–24°, p90 45–71° | median 9–23°, p90 32–78° | |
+| endpoints lying next to another strand (< 0.6 spacing) | **76–80 %** | 66–72 % | |
+| centreline length per area | 8.0–11.6 mm/mm² | 4.3–4.5 mm/mm² | |
+| ridge area coverage | 0.34–0.36 | 0.37–0.39 | |
+| L* on ridge / in gaps | ΔL* 8–14 | ΔL* 9–18; guides 2–3.5 L* brighter than children | a*, b* differ by < 2.5 |
+
+Not measured reliably: junction density and arm counts (NMS centrelines break at junctions — the endpoint statistic
+above is the usable substitute), deck count, widths below ≈ 25 µm.
+
+**What it says about the grower.**
+1. **Two populations at a factor ≈ 2.2 in both width and spacing, each filling about half of its spacing** — a
+   self-similar hierarchy, which is what guides + clumped children produce. It also matches the engine's LIC ladder
+   (spacing × 3 × 9) less well than a ×2 ladder would.
+2. **Strands end beside other strands** (three in four endpoints). That is the termination rule of evenly-spaced
+   streamlines (stop when closer than `d_test` to a neighbour), so that grower produces the right kind of ending by
+   construction; free-floating ends should be rare (≈ 20–25 %).
+3. **Runs are short: ≈ 1.5 spacings between interruptions** (median; p90 ≈ 4–6). Even allowing for broken tracing,
+   the tissue is a mesh of short overlapping runs, not long combed fibres — `d_test / d_sep` should be high (≈ 0.8)
+   and seeding dense, and a guide is a chain of such runs rather than one 4 mm line.
+4. **Near-radial with a broad oblique tail**: a median of 10–25° off radial with a tenth of the strands beyond 45–70°.
+   A purely radial flow field cannot produce that tail; an oblique second deck (the Rohen/Wyatt arcs of §1.3) or
+   arcades can. The sign of the angle was not measured — that is the test for two-handed arcs.
+5. **Waviness is gentle**: amplitude ≈ 5 % of a ≈ 0.3 mm wavelength (tortuosity 1.03–1.06). One low-amplitude
+   sinusoidal gene per strand with a random phase; more would overdo it at this pupil size (it must grow as the
+   pupil dilates and the strands slacken).
+6. **Budget.** Iris area ≈ 100 mm² → ≈ 1,000 mm of child centreline and ≈ 450 mm of guide centreline: 2,000–5,000
+   child runs and 150–300 guides of 2–4 mm (chains of runs) — the counts assumed in §3.1 hold; ≈ 80 k points.
+7. **Material**: ridge ↔ gap is a luminance split (ΔL* 8–18) with almost no chroma difference, and guides are only
+   slightly brighter than children — per-strand *pigment* should be a small luminance-side variation, the colour
+   stays with the per-cell material fields.
+
+**Grower priors for S1** (mm; from the medians, to be scaled by the `spacing` field): child `d_sep` 0.10, width 0.05,
+`d_test/d_sep` 0.8, run length ~ exponential with mean ≈ 0.2; guide spacing 0.22, width 0.12; wave amplitude 0.014,
+wavelength 0.3; direction = flow field ± a deviation with median ≈ 15°.
+
+## 5. S1 built (2026-09-19): the grower and the strand pass, behind `strandModel`
+
+**Code.** `strands.js` — `IrisStrands.grow(opts)`: evenly-spaced streamlines over the engine's *effective* `flowDir`
+and `spacing` fields (the same values `uploadFields` sends, FIT·FLOW blend included), in the polar domain with a
+local-mm metric, periodic in u; spatial hash; `d_sep` = `growSep` × spacing (1.6 → ≈ 0.09 mm), stop at `growTest`
+(0.8) × `d_sep` from a neighbour, run length ~ exponential (`growRun` 0.7 mm), seeded wander off the flow
+(`growWander` 0.25 rad), a wave per strand (`growWave` 0.014 mm at ≈ 0.3 mm), width `growWidth` (0.53) × `d_sep`.
+Pure function of (seed, genes, fields): deterministic (checked), ≈ 45 ms for ≈ 2,100–2,300 strands / 28 k points,
+7.9 mm of centreline per mm² (S0: 8.0–11.6), coverage in the strand texture 0.34 (S0: 0.34–0.36).
+`index.html` — strand pass (`vs/fs-strand`: tapered ribbons with a soft-edged tube profile into an RGBA16F target,
+MAX-blended: r coverage, g tube height, b brightness), `growStrands` (cached on seed + genes + field checksums; the
+mesh is rebuilt only when the strands or the atlas size change), `bakeCurvesProgram` (below), `LIC / CURVES` button
+in the Flow window, `E.setStrandModel`, `E.strands`, `E.readStrandTex`, `E.strandModelOverride` (0 | 1 | null — forces
+the model for A/B benches, where every case starts from a fresh genome *and* a fresh state). `genome.globals.
+strandModel` 1 = curves; absent = LIC. S1 replaces only the **top layer's fine scale** (`cF`); coarse and medium
+LIC, lower layers, bundles and openings are untouched (guides = S3, decks = S2).
+
+**Two lessons.**
+1. *Any* code added to `fs-bake` — even a branch a uniform switches off — changes the compiled shader's float
+   arithmetic: the LIC bench drifted by ± 0.3 MATCH2 on two eyes (25: 68.1 → 68.4, 26: 69.5 → 69.1). The curves code
+   is therefore a **separately compiled variant** (`//STRAND_DECL//` and `//STRAND_FINE//` markers filled by
+   `bakeCurvesProgram`, compiled on first use); the LIC shader differs from v83's only in comments. A marker must be
+   alone on its line (a trailing explanation became code and the variant failed to link — the stale atlas then
+   scored 7–22 on three eyes).
+2. `resetForFreshFit` deletes unknown `state` keys, so a bench switch cannot live in `state`.
+
+**A/B at NORMAL on v83 code (data `study/audit-s1/ab-normal-v83.json`).**
+
+| | 09 | 25 | 26 | 35 | mean MATCH2 | strandCorr | B3 part corr |
+|---|---|---|---|---|---|---|---|
+| LIC | 60.4 | 68.1 | 69.5 | 66.8 | **66.20** — bit-identical to v83 | 0.15–0.22 | 0.29–0.40 |
+| CURVES | 60.6 | 67.7 | 68.9 | 66.7 | 65.98 | 0.10–0.20 | 0.25–0.39 |
+
+Neutral, as the oracle (§27) predicts: these curves are *unplaced* — and in curves mode the fine scale no longer
+carries F2's fitted phase, which the LIC path does. A strand model earns points only when the photo places the
+strands. Not yet benched at CAPTURE (where the fine scale is resolved and F2 matters more — expect a larger deficit
+until placement exists).
+
+**Next: S6-lite before S2–S5** — seed the grower from the photo: in cells where F2's `place` confidence is high,
+seed streamlines on the carrier's crests (x′ = (k − φ/2π) · placeSpacing in the cell's local frame), most confident
+cells first, generic seeding afterwards; bench against LIC + F2 at both qualities, judged on the B3 part
+correlation. Then guides from B1/B2 ridge tracing (the oracle's larger prize).

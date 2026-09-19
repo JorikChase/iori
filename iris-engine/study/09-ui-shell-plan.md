@@ -1,6 +1,6 @@
 # 09 — UI shell: Windows 3.11 Program Manager, gaze rules, native photo overlay
 
-Status: **PLAN, agreed 2026-09-19. Built so far: U0 (`gaze.js`, §5), the fit contract test (§7.1), U2 (`ui31.js` behind `?ui=31`, §7.2).** A parallel session works on the renderer; this plan is
+Status: **PLAN, agreed 2026-09-19. Built so far: U0 (`gaze.js`, §5), the fit contract test (§7.1), U2 (`ui31.js` behind `?ui=31`, §7.2), U3 (`overlay.js`, §7.3).** A parallel session works on the renderer; this plan is
 written so the UI work cannot move a bench number (§7).
 
 ## 1. Diagnosis of the current shell (ui.js "Win98", spec §20.2)
@@ -209,6 +209,40 @@ old shell it moves the page's controls and never rebuilds them.
 
 Open before the default flips: keyboard (Alt menus, F6), the hourglass during fits, casebook window in 3.11
 chrome, U3 overlay.
+
+### 7.3 U3 built (2026-09-19): the fit photo lies on the iris
+
+`overlay.js`, loaded by ui31.js. It turned out simpler and safer than the `fs-overlay` GL program planned in §6:
+the live engine canvas *is* the render, and the photograph is a DOM layer (the native-resolution `fit.img`)
+positioned exactly over it; the blends are CSS — opacity (ONION), `clip-path` with a draggable divider (WIPE),
+`mix-blend-mode: difference` (DIFF), a 2 Hz toggle (BLINK). No shader, no GL state and no part of the scored
+off-screen render is involved, so there is nothing to collide with the renderer work.
+
+- **Registration is exact by construction**: for the same pose the engine's image space is
+  `sensor = (view.xy + frag/res − 0.5)·(aspect, 1)·24 mm`, so the photo frame spans the canvas height and
+  `width = height · photoAspect`; with a view `[x, y, s, s]` the rectangle follows in closed form. Checked on
+  ref 26: the limbus and pupil markers sit on the photo's and the render's boundaries on both sides of the wipe.
+- **Camera locked to the fitted pose**: switching the overlay on solves the pose if the camera is free
+  (`state.useRot`); gaze.js already leaves a fixed camera alone.
+- **Zoom and pan go through the engine's view crop** (`state.view = [x, y, s, s]`, as DESIGN and the tiled capture
+  do): wheel, pinch, drag, double-click = home. The render is re-rendered at true resolution at any zoom — up to
+  three screen pixels per photo pixel — and zooming *out* works, which a portrait window needs (the pose fills
+  the height and would cut the sides off; "home" shows the whole photo frame). The engine's own wheel (camera
+  distance) and press (pupil) handlers are stopped while the overlay is on: they would break the locked pose.
+- **The fitter never sees the zoom**: the pose's own view `[x, y, 1, 1]` is restored in the capture phase of any
+  click on a fit control (verified: the SOLVE POSE handler saw `[…, 1, 1]` while the scene was zoomed 15×), when
+  the overlay goes off, and the view is never written while a fit, a capture or DESIGN runs.
+- **Markers are handles on the scene**: pupil (cyan: centre, radius), limbus (orange: centre, major axis with
+  rotation, minor axis), catchlight (yellow); 44 px hit areas; they edit `fit.pupil / limbus / catch` and
+  redraw the panel's canvas, exactly what dragging on the 2-D canvas did.
+- Controls: Fit window ▸ *Overlay on the iris* (Off · Photo · Render · Diff · Wipe · Onion · Blink, ONION amount,
+  Markers, Reset zoom) and Fit ▸ Overlay in the menu bar. While the overlay shows photo / render / diff the
+  panel's own 2-D canvas is hidden (it is still drawn — fit.js needs it); POLAR and HEIGHT bring it back.
+- Contract test with overlay.js loaded: unchanged (`fit-diag` is the only difference, as in §7.2).
+
+Limits, stated: the live render shows the catchlight and the soft limbus edge that the scored render of an
+isolated photo omits (`specular 0`, `edgeFade 0` are fit-render options the page cannot set from outside), so
+DIFF is a visual aid, not the score; DESIGN switches the overlay off (its own photo layer is D3).
 
 ## 8. Layout managers
 

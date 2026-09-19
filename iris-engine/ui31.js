@@ -208,7 +208,7 @@
         ['&Eye', () => [{ l: '&Presets', sub: FITTED.map(([f, l]) => ({ l, run: () => E.loadFittedPreset(f) })) }, { l: 'P&rocedural', sub: Object.keys(E.EYE_PRESETS || {}).map(k => ({ l: k, run: () => window.loadEyePreset(k) })) },
             { l: '&Fitted', sub: async () => { let cases = {}; try { cases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) {}
                 const its = Object.entries(cases).map(([file, c]) => ({ file, m: c.scores ? c.scores.match : 0, tag: c.tag })).sort((a, b) => b.m - a.m); return its.length ? its.map(it => ({ l: `${it.file.replace('.jpg', '')}  —  ${it.m.toFixed(0)} %  (${it.tag})`, run: () => E.loadFittedPreset(it.file) })) : [{ l: '(no cases)', dis: 1 }]; } }, '-', { l: '&New seed', run: click('seed-btn') }]],
-        ['Fi&t', () => [{ l: '&Photo window', chk: () => byKey('photo').open, run: () => show(byKey('photo'), !byKey('photo').open) }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('photo'), true); E.fit.fitHQ(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
+        ['Fi&t', () => [{ l: '&Photo window', chk: () => byKey('photo').open, run: () => show(byKey('photo'), !byKey('photo').open) }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('photo'), true); $('fit-hq').click(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Overlay on the iris', sub: () => { const ov = window.__irisOverlay; return ov ? ov.MODES.map(m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => ov.mode === m, run: () => ov.set(m) })) : [{ l: '(loading)', dis: 1 }]; } }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
         ['&Help', () => [{ l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
     ];
@@ -294,8 +294,9 @@
     // engine's `state.view` is never touched (study/09 §7.1).
     // ---------------------------------------------------------------------------------------------------------
     const q = location.search;
-    function layoutScene() { const cv = $('gl'); if (!cv) return; if (!phone) { cv.style.transform = ''; return; } const sheet = WINS.find(W => W.open), capB = $('w31-cap').getBoundingClientRect().bottom;
-        const free = (capB + (innerHeight - 69 - (sheet ? sheet.el.offsetHeight : 0))) / 2; cv.style.transform = `translateY(${Math.round(free - innerHeight / 2)}px)`; }
+    function sceneShift() { if (!phone) return 0; const sheet = WINS.find(W => W.open), capB = $('w31-cap').getBoundingClientRect().bottom; return Math.round((capB + (innerHeight - 69 - (sheet ? sheet.el.offsetHeight : 0))) / 2 - innerHeight / 2); }
+    function layoutScene() { const cv = $('gl'); if (!cv) return; const ov = window.__irisOverlay; if (ov && ov.layout) return ov.layout();   // overlay.js owns the canvas transform (shift + its zoom / pan)
+        const s = sceneShift(); cv.style.transform = s ? `translateY(${s}px)` : ''; }
     function relayout() { const was = phone; phone = /[?&]phone\b/.test(q) || Math.min(innerWidth, innerHeight) < 600; const touch = S.touch === 'on' || (S.touch === 'auto' && (phone || matchMedia('(pointer: coarse)').matches));
         document.body.classList.toggle('w31-phone', phone); document.body.classList.toggle('w31-touch', touch); applyFont(S.font);
         if (phone) { const o = WINS.filter(W => W.open); o.slice(0, -1).forEach(W => show(W, false, true)); WINS.forEach(W => { W.el.style.width = ''; }); }
@@ -313,11 +314,12 @@
         dressDesign(); dressPhoto(); relayout();
         const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen && W.key !== 'photo') show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
         const g = document.createElement('script'); g.src = 'gaze.js'; g.onload = () => gaze(G => { G.hold = S.hold; G.ret = S.ret; }); document.head.appendChild(g);   // study/09 U0: controls never move the eye
+        const o = document.createElement('script'); o.src = 'overlay.js'; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris
     });
     window.addEventListener('resize', relayout);
     let last = performance.now(), fT = last, fN = 0, fps = 0;
     (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
         const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     const up = k => byKey(String(k).toLowerCase());
-    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label) => scrubber(input, label), WINS, show, tile, cascade, say, settings: S };
+    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), sceneShift, WINS, show, tile, cascade, say, settings: S };
 })();

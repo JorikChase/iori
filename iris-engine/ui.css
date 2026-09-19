@@ -113,3 +113,13 @@ body.w31-phone .w31 .w31-capt { cursor: default; }
 /* touch sizing: wider label and value columns for the larger type */
 body.w31-touch .w31-scrub, body.w31-touch .w31 .slider-row { grid-template-columns: 74px 1fr 66px; }
 body.w31-touch .w31-line, body.w31-touch .w31-fitrow { grid-template-columns: 74px 1fr; }
+
+/* ---- U3: the fit photo on the iris (overlay.js) ---- */
+body.w31-overlay #gl { cursor: grab; }
+#w31-ov { position: fixed; z-index: 40; pointer-events: none; display: none; transition: transform .25s ease-out; }
+#w31-ov-photo { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-select: none; pointer-events: none; }
+#w31-ov-marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#w31-ov-marks g { pointer-events: auto; cursor: move; touch-action: none; }
+#w31-ov-wipe { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #ff0; outline: 1px solid #000; cursor: ew-resize; pointer-events: auto; touch-action: none; display: none; }
+#w31-ov-wipe::after { content: ""; position: absolute; left: -21px; top: 50%; width: 44px; height: 44px; margin-top: -22px; background: radial-gradient(circle, var(--grey, #c0c0c0) 0 7px, #000 7px 8px, transparent 8px); }
+body.w31-ovhide #fitcv { display: none; }   /* the photo is on the iris now; POLAR and HEIGHT bring the panel's canvas back */

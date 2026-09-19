@@ -1,4 +1,4 @@
-# Iris Engine — handoff (2026-09-18 evening, engine 0.7-fields, v82 / v82c)
+# Iris Engine — handoff (2026-09-19, engine 0.7-fields, v83 / v83c)
 
 Start here if you are a new Claude Code session taking this over. Read in this order:
 `HANDOFF.md` (this) → `README.md` (run / panel) → `study/00-summary-and-spec.md` **§25–§26** (the current work: the CAPTURE audit and Phase R;
@@ -34,19 +34,21 @@ Fits are deterministic and order-independent since v76 (§24.2).
 
 ## Where it stands
 
-| | NORMAL (v82) | CAPTURE (v82c) |
+| | NORMAL (v83) | CAPTURE (v83c) |
 |---|---|---|
-| MATCH2 mean | **61.4** (v76 61.5, same within noise) | 53.9 |
-| MATCH | 67.7 | 61.8 |
-| strandCorr | 0.25–0.32 | 0.35–0.51 |
-| height r | 0.83–0.87 | 0.74–0.83 |
+| MATCH2 mean | 66.2 (v82 61.4) | **67.1** (v82c 53.9) — best at any quality |
+| MATCH | 67.7 | 69.6 |
+| B1 corr | 0.75–0.87 | 0.82–0.91 |
+| strandCorr | 0.15–0.22 | 0.22–0.38 |
+| height r | 0.61–0.81 | 0.63–0.73 |
 
-Presets (`Presets ▾` menu) = the v76 NORMAL fits in `ref/presets.json`. iori decided CAPTURE *leads* from now on:
-bench both qualities every version, promote presets from CAPTURE once it beats NORMAL.
+v83 = **R1: openings fitted to the photo's image** (spec §26.3). It closed the CAPTURE coarse-band deficit.
+Presets (`Presets ▾` menu) = the **v83c CAPTURE fits** in `ref/presets.json` (promoted 2026-09-19 under iori's rule:
+CAPTURE leads, presets come from CAPTURE once it beats NORMAL). Bench both qualities every version.
 
 **Defaults in fit.js** (declared explicitly, §22.4 lesson): `fit.strandGenes = true`, `fit.strandTerm = false`,
 `fit.routed = true`, `fit.seededLoss = 'pixel'`, `fit.placement = true`, `fit.reliefLoop` off (v79, rejected),
-`fit.e3HeightWeight` 60 (v80 ablation).
+`fit.e3HeightWeight` 60 (v80 ablation), `fit.openings` on (R1, v83).
 
 **Architecture now (details in the spec):**
 - **Routed fitting (§23)** — mixture of experts over an image-space band pyramid (B1 0.3–1 mm, B2 0.09–0.3, B3 0.03–0.09;
@@ -72,14 +74,13 @@ bench both qualities every version, promote presets from CAPTURE once it beats N
 
 ## Next, in order (agreed with iori 2026-09-18)
 
-1. **Phase R — relief from the image (§26).** R1: openings (negative splats) fitted to the photo's polar luminance,
-   band-limited to compact structure (≤ ≈ 1 mm), through the probed transfer curve with a **soft surrogate + Adam**
-   (the curve smoothed in s, sharpened over the iterations); I_base = render without the fitted openings; one
-   verification render. **Ownership split by shape**: openings own compact dark blobs, per-cell material owns smooth
-   variation and is re-inverted afterwards. **Bumps (positive splats) still come from the height proxy** (v78 target).
-   Then R2 ownership check, R4 height r recalibrated. The opening-darkness quality leak was measured at only 0.02–0.06
-   (third strand layer) and iori decided not to fix it separately — R1 probes per quality.
-2. **E5 at CAPTURE** — both genes on their upper bounds on every eye; energy added out of phase.
+1. **Phase R follow-ups (§26.3), R1 is built.** (a) contrast overshoot (σ ratio 1.10, B1/B2 1.3–1.8×): openings are
+   a switch and match contrast shape, the level is not pulled back; (b) colour Δab +3: `materialFromPhoto` now
+   inverts cells darkened by openings — settle who owns colour inside an opening; (c) strandCorr −0.1: openings part
+   and cover the strands. Then R2 ownership check and R4 height r recalibrated.
+   **Parallel work:** another session added spec §27 (the band-swap oracle: placement is worth +29…+38, amplitude
+   0; guides in study/08) — read it; it ranks photo-placed guides next to R1.
+2. **E5 at CAPTURE** — pinned at its upper bounds before v83; re-check (hfRatio is now 0.59, the overshoot is gone).
 3. **Multi-start sensitivity guard** (before F2b, iori) — a start change moved one eye by up to 4 MATCH2.
 4. **F2b: per-cell crispness.**
 5. **Population priors for E5/E6** from the super-macro sectors in `ref-staging/`.

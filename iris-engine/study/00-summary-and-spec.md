@@ -1197,3 +1197,50 @@ B3 0.31–0.41; CAPTURE fit (at 640 px) B1 **0.20–0.59**, B2 **0.34–0.46**, 
 **Proposed protocol change (not decided):** score every version at one fixed resolution (640 px area-reduced, which
 costs nothing — `bandOracle` already does it) beside the native one, and carry the four part correlations in the
 bench row; they are the placement scores the fitter should be judged on.
+
+### 26.3 v83: R1 built — openings fitted to the image (2026-09-19)
+
+`fitOpenings` (fit.js, after `fitSplats` in `fitGlobal`; `fit.openings = false` / `runBench({ openings: false })`
+turns it off). The v78 proxy fit runs first and supplies the **bumps** (its positive splats); then:
+
+- **Transfer**: `probeOpeningTransfer` renders the current genome at 12 uniform field offsets (dense around the
+  −12 µm knee) → a curve per 12 radial zones, interpolated per row. Mid-zone curve: 1.00 down to −0.010, 0.94 at
+  −0.015, 0.78 at −0.025, 0.66 at −0.05 (NORMAL); 0.74 / 0.58 at CAPTURE.
+- **Loss**: contrast-normalised band 0.09–1 mm (`blurPolarMm`, radii in mm per row), I_pred = I_base · τ(bumps +
+  openings) against the photo; gradient = the band operator applied to the residual × I_base × τ′ × blend share.
+- **Surrogate**: τ Gaussian-smoothed in s, width 15 → 9 → 5 → 3 µm over four stages of 30 Adam steps. Openings are
+  negative splats only, σ ≤ 0.3 mm, initialised at compact dark extrema of (photo − base) contrast with the depth the
+  sharp curve needs; N = splat budget / 2. 5 s at NORMAL, 36 s at CAPTURE.
+- **Tags**: openings carry `tag: 'open'`; a proxy (re)fit (REFINE RELIEF, FIT HQ's warm pass) keeps them and adds
+  bumps only.
+
+Surrogate faithfulness (splat stage, eyes 25/26): band corr of the base 0.01–0.06 → predicted 0.64–0.75 → verified
+render 0.62–0.71.
+
+| | NORMAL v82 | **NORMAL v83** | CAPTURE v82c | **CAPTURE v83c** |
+|---|---|---|---|---|
+| MATCH2 | 61.4 | **66.2** | 53.9 | **67.1** |
+| MATCH | 67.7 | 67.7 | 61.8 | 69.6 |
+| SSIM₂ / grad | 0.53 / 0.57 | 0.61 / 0.68 | 0.46 / 0.46 | 0.64 / 0.65 |
+| B1 corr | 0.42–0.67 | 0.75–0.87 | 0.22–0.43 | **0.82–0.91** |
+| B2 corr | 0.54–0.64 | 0.74–0.77 | 0.40–0.47 | 0.78–0.81 |
+| darkErr (L*) | 10.4 | 2.8 | 13.0 | 0.5 |
+| hfRatio | 0.20 | 0.26 | 1.66 | 0.59 |
+| σ ratio | 0.73 | **1.10** | 0.72 | **1.10** |
+| Δab | 8.4 | **11.2** | 8.2 | **11.9** |
+| strandCorr | 0.29 | 0.18 | 0.44 | 0.30 |
+| height r | 0.85 | 0.73 | 0.79 | 0.68 |
+
+Every eye up at both qualities. **The CAPTURE coarse-band deficit (§25) is closed**, and CAPTURE now leads
+(67.1 vs 66.2): per iori's rule the presets are promoted from **v83c** (`ref/presets.json`, 5.1 MB with CAPTURE's
+splats and fields — was 2.0 MB). The §27 oracle put perfect B1 at +13…+19; R1 took +4.8 (NORMAL) and +13.2
+(CAPTURE).
+
+**What it costs, and the next items it points at:**
+1. **Contrast overshoot** — B1/B2 energy 1.3–1.8× the photo's, σ ratio 1.10. The fit matches contrast *shape*, and
+   openings are a switch that cannot be half-dark; the per-cell material then does not pull the level back.
+2. **Colour** — Δab +3 at both qualities: `materialFromPhoto` runs after the openings and its per-cell inversion now
+   sees darkened cells (floors at 0.45 stroma/melanin) — ownership of colour in openings is unsettled.
+3. **Strands** — strandCorr down 0.1: F2 placement runs after the openings, but the openings part the strands
+   (`g_openWarp`) and cover them (coverage × (1 − 0.85·openMask)).
+4. Height r falls, as expected — the proxy no longer drives the openings (§25.5: a heuristic).

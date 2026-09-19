@@ -26,7 +26,8 @@
     // diff a finished run against the stored baseline (tools/ui-contract/baseline.json): [] = the UI change is harmless
     T.compare = async (url = '/iris-engine/tools/ui-contract/baseline.json') => {
         const base = await fetch(url, { cache: 'no-store' }).then(r => r.json()), cur = JSON.parse(JSON.stringify(T.result)), diffs = [];
-        const walk = (a, b, path) => { if (a && b && typeof a === 'object' && typeof b === 'object') { for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) walk(a[k], b[k], path + '.' + k); } else if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push([path, a, b]); };
+        const SKIP = new Set(['hash', 'mouseX', 'mouseY', 'frameCount']);   // runtime keys (viewport- and time-dependent) and the summary hashes, which the field-wise diff makes redundant
+        const walk = (a, b, path) => { if (a && b && typeof a === 'object' && typeof b === 'object') { for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (!SKIP.has(k)) walk(a[k], b[k], path + '.' + k); } else if (JSON.stringify(a) !== JSON.stringify(b)) diffs.push([path, a, b]); };
         for (const k of ['dom', 'panel', 'bench', 'after']) walk(base[k], cur[k], k); if (base.api.hash !== cur.api.hash) diffs.push(['api.hash', base.api.hash, cur.api.hash]);
         return diffs;
     };

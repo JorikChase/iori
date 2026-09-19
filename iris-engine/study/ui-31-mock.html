@@ -302,7 +302,7 @@
     // magnetic snapping: the snap rule is unchanged (8 px to edges and neighbours); what changes is how the
     // window gets there. 'hard' jumps; 'pull' keeps the drag 1:1 and eases only the magnet's offset in and out;
     // 'window' eases the whole window toward the snapped position (it trails the pointer a little).
-    let snapMode = 'pull', snapK = 22, snapRange = 12;   // range: 8 px was the first mock; iori asked for slightly more
+    let snapMode = 'pull', snapK = 22, snapRange = 8;   // iori tried 8 / 12 / 16 / 24 and kept 8
     function stepWins(dt) { if (phone) return; for (const W of WINS) { if (!W.open || W.tx === undefined) continue;
             if (W.drag) { const d = W.drag, [sx, sy] = snap(W, d.rx, d.ry);
                 if (snapMode === 'hard') { W.x = sx; W.y = sy; }

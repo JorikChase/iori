@@ -291,10 +291,7 @@
    "ambient": 0.33330078125,
    "lid": 6.6591796875,
    "hippus": false,
-   "mouseX": 0,
-   "mouseY": 0,
    "paused": false,
-   "frameCount": 1,
    "ev": -0.794313407632,
    "sat": 1.16773483453,
    "fstop": 11,
@@ -380,13 +377,11 @@
     true,
     false
    ]
-  ],
-  "hash": "2878d60c"
+  ]
  },
  "after": {
   "fitting": false,
   "capturing": false
  },
- "hash": "aec9d2f6",
- "_note": "UI contract baseline, 2026-09-19, git 9f6320e, Win98 shell (ui.js), NORMAL, ref 26, 20 iters, save:false. Identical on 5 runs: two fresh loads, a repeat in the same page, and viewports 692x1044 / 1280x720. bench.id = hash of genome + encoded fields (exportID is avoided: it sets location.hash, writes the clipboard and downloads a file)."
+ "_note": "UI contract baseline, 2026-09-19, git 9f6320e, Win98 shell (ui.js), NORMAL, ref 26, 20 iters, save:false. Identical on 5 runs: two fresh loads, a repeat in the same page, and viewports 692x1044 / 1280x720. bench.id = hash of genome + encoded fields (exportID is avoided: it sets location.hash, writes the clipboard and downloads a file). Runtime keys (mouseX, mouseY, frameCount) and summary hashes are not compared."
 }

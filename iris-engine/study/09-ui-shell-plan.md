@@ -1,6 +1,6 @@
 # 09 — UI shell: Windows 3.11 Program Manager, gaze rules, native photo overlay
 
-Status: **PLAN, agreed 2026-09-19. Nothing built.** A parallel session works on the renderer; this plan is
+Status: **PLAN, agreed 2026-09-19. Built so far: U0 (`gaze.js`, §5) and the fit contract test (§7.1).** A parallel session works on the renderer; this plan is
 written so the UI work cannot move a bench number (§7).
 
 ## 1. Diagnosis of the current shell (ui.js "Win98", spec §20.2)
@@ -107,6 +107,16 @@ tree. U0 can be done entirely from a new `gaze.js` loaded after ui.js:
 - One `<script src="gaze.js">` tag is the only edit to index.html, and it can wait: for testing, `?ui=31` style
   loading from ui.js (`document.createElement('script')`) needs no edit at all.
 
+**U0 built 2026-09-19** as described: `gaze.js` (loaded by ui.js), plus design.js's stale `#ui-panel` guard
+replaced by an `onUI` test on the shell's selectors (its listeners are capture-phase on `window`, which a
+document-level guard cannot reach). Scripted check on the running app: pointer move over a window leaves the
+gaze target alone and enters HOLD; wheel on a scrubber changes the value and not the zoom (wheel on the iris
+still zooms); a control held for 3 s keeps the clock at 0; after release RETURN starts at 1 s and REST is
+reached at the canvas centre by 4.5 s; a press on the iris constricts the pupil and releasing it over a window
+still releases; in DESIGN a press on a window paints nothing, a press on the iris paints. The eye now starts
+centred instead of looking into the top-left corner until the first pointer event. Timers run on wall-clock
+time (a throttled tab renders ≈ 1 frame/s). Contract test with gaze.js loaded: `compare()` = `[]`.
+
 When index.html is quiet again the guards can move into the listeners themselves (the cleaner form); behaviour
 stays the same, and the contract test covers both.
 
@@ -204,7 +214,7 @@ window); phone 375×812 and desktop 1024×768 screenshots; all existing element 
 caption + menu bar, the six tool windows with 3.11 frames, minimise-to-icon, Tile / Cascade, edge and window
 snapping, scrubbers dressed as scroll bars (end arrows, double-click = default, tap the value to type), Design
 as a Paintbrush tool box, the phone sheet, the gaze state machine (state shown in the status text) and the
-overlay modes with marker handles on a drawn stand-in iris. Choices made in the mock, to confirm:
+overlay modes with marker handles on a drawn stand-in iris. Choices made in the mock, **agreed by iori 2026-09-19**:
 
 - "Close" = "Minimise": a tool window is always either open or an icon on the desktop, never gone. One tap on
   an icon restores it (3.1 needs a double-click; a single tap is better on touch).
@@ -221,7 +231,7 @@ Amendments from iori's review of the mock (2026-09-19):
 - **Spawn cascade.** A window that would open on top of another steps one cascade unit left and down
   (unit = caption + frame = `--n`, 23 px desktop / 35 px touch, so the caption below stays fully readable),
   wrapping inside the bounds rather than leaving the viewport.
-- **Magnetic snap, eased.** The snap rule is unchanged (to edges and neighbours); range 12 px (was 8; iori asked for slightly more — the mock offers 8 / 12 / 16 / 24 to feel it). Three behaviours are in
+- **Magnetic snap, eased.** The snap rule is unchanged (to edges and neighbours); **range 8 px** (iori compared 8 / 12 / 16 / 24 in the mock and kept 8). Three behaviours are in
   the mock under Window ▸ Magnetic snap for comparison: *Hard* (jump), *Eased pull* (default: the drag stays
   1:1 and only the magnet's offset eases in and out, exponential, k = 22 s⁻¹), *Eased window* (the whole window
   eases to the snapped position and trails the pointer). Speeds 10 / 22 / 40 s⁻¹. Tile, Cascade and the drop

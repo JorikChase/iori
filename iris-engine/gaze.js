@@ -50,7 +50,7 @@
 
     let last = performance.now(), primed = false;
     function frame(now) {
-        const dt = Math.min(0.1, (now - last) / 1000); last = now;
+        const dt = Math.min(1, (now - last) / 1000); last = now;   // wall-clock timers: a throttled tab (≈ 1 frame/s) must still reach REST on time
         if (G.enabled && canvas.width > 0) {
             const [cx, cy] = centre();
             if (!primed) { primed = true; if (!target.mouseX && !target.mouseY) { target.mouseX = state.mouseX = cx; target.mouseY = state.mouseY = cy; } }   // no look into the corner before the first pointer event

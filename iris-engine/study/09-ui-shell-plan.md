@@ -284,6 +284,14 @@ we don't render the images elsewhere"). Now:
   four-photo bench at 120 iterations, started from the console **with the overlay on and zoomed**, is identical
   to the old shell's — 0 differences.
 
+- **During a fit the workspace shows the fitter's render** (found by iori on a FIT HQ run: the render half of
+  the wipe was blank). The engine pauses its interactive loop while `state.fitting`, and FIT HQ's switch to
+  CAPTURE re-allocates and clears the canvas, so nothing was drawn under the photo for the whole fit — the old
+  panel had shown progress in its 2-D canvas. Now `fit.render`, the scored off-screen render itself (in the
+  photo's frame by construction), is painted into a layer under the photo while a fit runs, so wipe / onion /
+  diff / blink show the fit converging; DIFF is then the true scored difference. Zoom and pan stay available
+  during a fit (both layers are DOM then; the view is only written once the engine is idle again).
+
 ## 8. Layout managers
 
 - **Desktop (fine pointer or width ≥ 900 px)**: MDI. Windows clamp into the viewport on resize, snap to edges

@@ -117,6 +117,7 @@ body.w31-touch .w31-line, body.w31-touch .w31-fitrow { grid-template-columns: 74
 /* ---- U3: the fit photo on the iris (overlay.js) ---- */
 body.w31-overlay #gl { cursor: grab; }
 #w31-ov { position: fixed; z-index: 40; pointer-events: none; display: none; transition: transform .25s ease-out; }
+#w31-ov-render { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
 #w31-ov-photo { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-select: none; pointer-events: none; }
 #w31-ov-marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 #w31-ov-marks g { pointer-events: auto; cursor: move; touch-action: none; }

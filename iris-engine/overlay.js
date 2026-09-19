@@ -20,9 +20,9 @@
     const MODES = ['off', 'photo', 'render', 'diff', 'wipe', 'onion', 'blink'];
     const O = window.__irisOverlay = { mode: 'off', onion: 0.5, wipe: 0.5, marks: true, s: 1, cx: 0.5, cy: 0.5, pose: [0, 0], MODES };   // s = view scale (< 1 in, > 1 out), (cx, cy) = the view's centre in the pose's image space
 
-    const box = h('div'); box.id = 'w31-ov'; box.innerHTML = '<img id="w31-ov-photo" alt="" draggable="false"><svg id="w31-ov-marks" preserveAspectRatio="none"></svg><div id="w31-ov-wipe" data-ui="1"></div>';
+    const box = h('div'); box.id = 'w31-ov'; box.innerHTML = '<canvas id="w31-ov-render"></canvas><img id="w31-ov-photo" alt="" draggable="false"><svg id="w31-ov-marks" preserveAspectRatio="none"></svg><div id="w31-ov-wipe" data-ui="1"></div>';
     document.body.appendChild(box);
-    const img = $('w31-ov-photo'), svg = $('w31-ov-marks'), wipe = $('w31-ov-wipe');
+    const img = $('w31-ov-photo'), svg = $('w31-ov-marks'), wipe = $('w31-ov-wipe'), live = $('w31-ov-render');
 
     // ---- geometry: where the photo's frame lies on the canvas, and the shared zoom / pan transform -------------
     let rect = null;
@@ -89,9 +89,9 @@
     // (camera distance) and press (pupil constriction) handlers must not run — they would break the locked pose.
     const pts = new Map(); let pinch = null;
     const onScene = e => O.mode !== 'off' && e.target === cv;
-    function zoomAt(f, sx, sy) { if (busy()) return; const shift = U.sceneShift ? U.sceneShift() : 0, fx = sx / innerWidth, fy = 1 - (sy - shift) / innerHeight, v = viewOf(), ix = v[0] + fx * v[2], iy = v[1] + fy * v[2];   // f > 1 zooms in; the image point under the pointer stays put
+    function zoomAt(f, sx, sy) { if (state.design || state.capturing) return; const shift = U.sceneShift ? U.sceneShift() : 0, fx = sx / innerWidth, fy = 1 - (sy - shift) / innerHeight, v = viewOf(), ix = v[0] + fx * v[2], iy = v[1] + fy * v[2];   // f > 1 zooms in; the image point under the pointer stays put
         const nat = fit.img && fit.img.naturalHeight ? fit.img.naturalHeight : fit.H, s2 = clamp(O.s / f, clamp(innerHeight / (nat * 3), 0.04, 1), Math.max(1, ratio() * 1.04));   /* in: to 3 screen px per photo px · out: the whole frame */ O.cx = ix - fx * s2 + 0.5 * s2 - O.pose[0]; O.cy = iy - fy * s2 + 0.5 * s2 - O.pose[1]; O.s = s2; writeView(); layout(); }
-    function panBy(dx, dy) { if (busy()) return; O.cx = clamp(O.cx - dx / innerWidth * O.s, -0.5, 1.5); O.cy = clamp(O.cy + dy / innerHeight * O.s, -0.5, 1.5); writeView(); layout(); }
+    function panBy(dx, dy) { if (state.design || state.capturing) return; O.cx = clamp(O.cx - dx / innerWidth * O.s, -0.5, 1.5); O.cy = clamp(O.cy + dy / innerHeight * O.s, -0.5, 1.5); writeView(); layout(); }
     document.addEventListener('wheel', e => { if (!onScene(e)) return; e.stopPropagation(); e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { capture: true, passive: false });
     document.addEventListener('pointerdown', e => { if (!onScene(e)) return; e.stopPropagation(); pts.set(e.pointerId, [e.clientX, e.clientY]); try { cv.setPointerCapture(e.pointerId); } catch (err) {}
         if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) }; } }, true);
@@ -121,6 +121,13 @@
     // A photo the user loads appears on the iris by itself (not during a fit or a bench: those load photos too), and
     // the panel's PHOTO | RENDER | DIFF | SPLIT button drives the layer. POLAR and HEIGHT are strip views, not
     // images of the eye: only they bring the panel's own 2-D canvas back, inside the Fit window.
+    // While a fit runs the engine's interactive loop is paused (and FIT HQ's switch to CAPTURE clears the canvas), so
+    // the workspace would show no render at all. The fitter's own scored render — the very image the score is
+    // computed from, in the photo's frame by construction — is painted under the photo for as long as it runs.
+    let lastRender = null, lastPaint = 0;
+    function paintFitRender(now) { const on = O.mode !== 'off' && (state.fitting || fit.running) && fit.render && fit.W; live.style.display = on ? 'block' : 'none'; if (!on || fit.render === lastRender || now - lastPaint < 150) return;
+        lastRender = fit.render; lastPaint = now; if (live.width !== fit.W || live.height !== fit.H) { live.width = fit.W; live.height = fit.H; }
+        if (fit.render.length === fit.W * fit.H * 4) live.getContext('2d').putImageData(new ImageData(fit.render, fit.W, fit.H), 0, 0); }
     const FROM_FIT = ['photo', 'render', 'diff', 'wipe'];
     let lastImg = null, lastKey = '', lastFitMode = fit.mode || 0, t0 = performance.now();
     (function tick(now) {
@@ -135,6 +142,7 @@
                 if (O.mode === 'blink') img.style.opacity = Math.floor((now - t0) / 260) % 2 ? 0 : 1;
                 drawMarks(); }
         }
+        paintFitRender(now);
         document.body.classList.toggle('w31-ovhide', O.mode !== 'off' && (fit.mode || 0) < 4);
         requestAnimationFrame(tick);
     })(t0);

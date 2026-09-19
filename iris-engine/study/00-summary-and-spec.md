@@ -1276,11 +1276,14 @@ in `study/audit-28-colour/` (`*-pair.jpg` photo | render, `*-crop.jpg` native ph
    Two thirds of the error is ownership / fitting. 09 is out of gamut (90 % of cells > 5). A softer scattering
    exponent makes it **worse** (hypothesis refuted). The photos are vibrance-boosted studio products: a per-photo
    camera grade (a `view` parameter, not tissue) brings all four inside.
-4. **The cutout is an ellipse and it clips.** `LIMB_X 5.85 / LIMB_Y 5.40` are constants (`index.html`, fs-photo) →
-   render 1.075 : 1. Photos 09/25/26 are exact circles (1.000), cut *inside* the limbus by the photographer. At
-   1280 px the render is 30 px wider and 31 px shorter than the photo; tissue is compared only to v 0.74–0.89 on
-   **all four** eyes (16–19 % of the polar strip unsampled — the grey wavy band in POLAR; §22 had this as a ref-35
-   peculiarity); the render paints a limbal dark ring the photos do not have.
+4. **The cutout is an ellipse; the photos' cutouts are circles.** `LIMB_X 5.85 / LIMB_Y 5.40` are constants
+   (`index.html`, fs-photo) → render 1.075 : 1. Photos 09/25/26 are exact circles (1.000), cut by the photographer.
+   At 1280 px the render is 30 px wider and 31 px shorter than the photo. Measured cost (pupil excluded):
+   **2.5–3.9 % of the photo's iris pixels are never compared** (top/bottom, outside the render) and **1.9–5.8 % of
+   the render's iris is compared against the black background** (left/right) — the pressure behind the fitted dark
+   limbal ring the photos do not have. *Correction of the first reading:* the 16–19 % "unsampled" band at the top of
+   POLAR is not lost photo — it is tissue the engine places behind the limbus by design (root at 6 mm, visible to
+   5.4–5.85 mm); the mismatch only makes its edge wavy (v_max 0.74–0.89 around the iris).
 5. **Detail.** Native 3840 px is grain-limited; the 1280 px fit image loses almost nothing → fit resolution is not
    the bottleneck. A photo crypt = a dark opening with **parallel deeper-layer fibres across it**, in a granular
    matte border layer. The render = glossy swirling marble with embossed rims; on 35 every soft dark spot became a
@@ -1298,8 +1301,8 @@ colour. Missing from the model: a deeper fibre deck, pigment as an object, matte
   unchanged (comparability) until iori decides a reweighting.
 - **K1 aperture.** For isolated photos the visible cutout is a fitted image-space crop (the photo's own boundary),
   separate from the anatomical limbus; limbus axes become per-eye pose/ID parameters instead of constants; no
-  limbal darkening, milk or shadow unless the photo shows one. Expect the unsampled share to fall to ≈ 0 and a
-  gain on all four eyes.
+  limbal darkening, milk or shadow unless the photo shows one (left to the fitted limbal genes once the black-rim
+  pressure is gone — not hard-coded). Expect lost + background-compared pixels to halve and v_max to become uniform.
 - **K2 colour ownership.** Floor and gap material fitted from photo pixels of that class (no × 0.45 prior); mie as
   a per-cell field; per-photo camera grade in `view` (needs iori's OK under the procedural rule). Target cellDab ≤ 5
   on 25/26/35.
@@ -1314,3 +1317,32 @@ colour. Missing from the model: a deeper fibre deck, pigment as an object, matte
 Track rules while K runs: strand **code** work pauses (K1 changes the compared pixels and K2 the colour of
 everything — any strand A/B finished now is measured on a moving baseline; it also edits `index.html`); the UI
 shell continues (it regenerates its contract baseline after each K version).
+
+### 28.3 Log (2026-09-20): K0 and K1 built — v84 / v84c
+
+**K0** (commit d90a46a): `diagnostics()` gains `cellDab`, `cellDabP90`, `cellDL`, `bandDab[6]` on a fixed 128 × 32
+tissue grid (cells ≥ 90 % photographed); they are in every bench row, in `snapshot.py`'s METRICS and `compare.py`'s
+table; DIAG prints them. Diagnostic only. Reproduces the offline audit on the v83c presets (26: 15.74, 35: 13.40).
+
+**K1**: `u_limb` (vec3: semi-axes mm, rotation) replaces `LIMB_X / LIMB_Y` in fs-photo; `state.limb` (default
+5.85, 5.40, 0) travels in the ID `view.limb` and the casebook; `solvePose` on an isolated photo sets the axes from the
+photo's own outline (mean kept at 5.625 mm, so the fit's mm scale is unchanged; rotation = −image angle, sign checked
+on ref 35: lost + background 5.62 % against 6.47 % flipped) and keeps the pose frontal; whole-eye photos keep the
+anatomical ellipse + tilt. `fit.aperture` (default on), `benchIsolated({ aperture: false })` = v83.
+
+| | v83 → v84 NORMAL | v83c → v84c CAPTURE |
+|---|---|---|
+| integrity (`aperture: false`) | 66.20, every eye identical to v83 | — |
+| MATCH2 mean | 66.20 → **66.70** | 67.08 → 66.92 |
+| per eye 09 / 25 / 26 / 35 | +1.2 / +0.2 / +1.0 / −0.4 | +0.8 / −0.2 / −0.7 / −0.5 |
+| coverage (compared tissue) | 0.90 → 0.96 (35: 0.86) | 0.90 → 0.96 (35: 0.86) |
+| v_max around the iris | 0.74–0.89 → uniform 0.82–0.84 (35: 0.71–0.91) | same |
+| lost photo px / render over background (pose only, CAPTURE) | 26: 3.9 → 1.9 % / 3.7 → 1.8 %; 09: 3.7 → 1.8 % / 1.9 → 0.1 % | |
+| cellDab mean | 13.36 → 13.59 (larger domain) | — → 13.88 |
+
+Reading: a geometry correction, score-neutral (+0.5 NORMAL, −0.2 CAPTURE) while 6–7 % more tissue — the rim, the
+hardest part — enters the comparison. **My "gain on all four eyes" expectation was wrong**; the rim pressure was
+worth less than the audit suggested. Presets stay v83c under iori's rule (CAPTURE must beat it), so the preset eyes
+still show the ellipse until a later K version is promoted. Open from K1: ref 35's outline is a soft vignette, not
+an edge (coverage fell 0.885 → 0.86, darkErr +2.7) — a fitted aperture *feather* in `view` would own it (K1b,
+proposed). Colour is untouched, as expected: that is K2.

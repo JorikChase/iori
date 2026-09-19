@@ -3,6 +3,10 @@
 // range sliders; presets and fitted cases as menus; icon toolbars for the designer's tools. The old panel's
 // elements are moved, not rebuilt, so every binding in index.html / fit.js / design.js keeps working.
 (() => {
+    // shell switch (study/09 §7.1): ?ui=31 loads the Windows 3.11 shell (ui31.js + ui.css) instead of this one and
+    // remembers it; ?ui=98 comes back. document.write keeps the script order — after fit.js, before design.js.
+    { let sh = null; try { const m = /[?&]ui=(31|98)\b/.exec(location.search); if (m) { sh = m[1]; localStorage.setItem('irisShell', sh); } else sh = localStorage.getItem('irisShell'); } catch (e) {}
+      if (sh === '31') { document.write('<link rel="stylesheet" href="ui.css"><script src="ui31.js"><\/script>'); return; } }
     const $ = id => document.getElementById(id);
     const I = {   // 16 px monochrome glyphs (Win98 palette: black on grey)
         camera: '<path d="M2 5h3l1-2h4l1 2h3v8H2z" fill="none" stroke="#000"/><circle cx="8" cy="9" r="2.5" fill="none" stroke="#000"/>',

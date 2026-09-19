@@ -206,7 +206,7 @@
     }
 
     // ---------------- pointer / keyboard ----------------
-    const onUI = e => !!(e.target.closest && e.target.closest('#ui-panel, .w98, #w98-top, .w98-menu, #site-menu, #casebook'));   // the shell's windows live on body, not in #ui-panel (study/09 U0)
+    const onUI = e => !!(e.target.closest && e.target.closest('#ui-panel, .w98, #w98-top, .w98-menu, .w31, [data-ui], #site-menu, #casebook'));   // the shell's windows live on body, not in #ui-panel (study/09 U0)
     function beginStroke(e) {
         const g = E.genome;
         if (['dent', 'bump', 'streak'].includes(D.tool)) pushUndo({ type: 'splats', len: (g.splats || []).length });

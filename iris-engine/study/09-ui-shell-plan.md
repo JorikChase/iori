@@ -1,6 +1,6 @@
 # 09 — UI shell: Windows 3.11 Program Manager, gaze rules, native photo overlay
 
-Status: **PLAN, agreed 2026-09-19. Built so far: U0 (`gaze.js`, §5) and the fit contract test (§7.1).** A parallel session works on the renderer; this plan is
+Status: **PLAN, agreed 2026-09-19. Built so far: U0 (`gaze.js`, §5), the fit contract test (§7.1), U2 (`ui31.js` behind `?ui=31`, §7.2).** A parallel session works on the renderer; this plan is
 written so the UI work cannot move a bench number (§7).
 
 ## 1. Diagnosis of the current shell (ui.js "Win98", spec §20.2)
@@ -181,6 +181,34 @@ What the test found, and what it means for the new shell:
   test showed a different state hash and ID with an identical render and genome; this drift is the likely cause.)
 - The 2-D `fitcv` canvas is part of the contract (fit.js draws into it and reads pointer positions from it). U3
   keeps the element (hidden, still drawn on demand) while the overlay takes over the display.
+
+### 7.2 U2 built (2026-09-19): the 3.11 shell in the app, behind the switch
+
+`ui31.js` + `ui.css`. `?ui=31` selects it and is remembered (`localStorage.irisShell`), `?ui=98` goes back; the
+default is still the Win98 shell. ui.js `document.write`s the stylesheet and the script, so the new shell runs
+exactly where the old one did — after fit.js, before design.js (which needs the DESIGN pane to exist). Like the
+old shell it moves the page's controls and never rebuilds them.
+
+- Application caption + menu bar (File / View / Eye / Fit / Window / Help; status at the right), eight windows —
+  Camera, Material, Relief, Flow, Fit, Design (Paintbrush layout), **Fit · Photo** (the fit panel with its 2-D
+  canvas, until the native overlay of U3 replaces the display; DIAG is back) and **Control Panel** (font, touch
+  sizing, magnetic snap mode and speed, gaze hold / return times, back to the Win98 shell).
+- Window manager as in the mock: shortcuts always present, cascade spawn, 8 px magnetic snap with the eased pull,
+  Tile / Cascade, bounds between the menu bar and the shortcut row, layout remembered (`localStorage.irisW31`).
+- Phone: one bottom sheet + icon strip; the eye is re-centred above the sheet by translating the canvas element
+  (page and render surround are both white, so there is no seam) — `state.view` is never touched.
+- **The site burger is part of the frame** (iori, 2026-09-19): the application's control-menu box, top-left,
+  shows the site favicon (the three 3die triangles) as a 16-colour bitmap rendered at the box's exact pixel
+  size; it opens the site's links as a 3.11 menu, read from the generated `#site-menu` markup (so `site.py menu`
+  stays the single source). The floating burger is hidden in this shell and the shortcut row starts at the left
+  edge. On a phone the same menu also carries File … Help.
+- Fonts load from Google Fonts on first use (Urbanist by default). Self-hosting woff2 subsets is still to do
+  and needs iori's go-ahead to download the files.
+- Contract test on the new shell: `compare()` returns one difference, `fit-diag` no longer missing — the fit
+  through the panel, the bench row, the render hash, the fingerprint and the ID are identical to the baseline.
+
+Open before the default flips: keyboard (Alt menus, F6), the hourglass during fits, casebook window in 3.11
+chrome, U3 overlay.
 
 ## 8. Layout managers
 

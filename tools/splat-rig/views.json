@@ -1,0 +1,8 @@
+{
+  "_doc": "Shared test views. pos/look/up are in the raw Luma PLY frame; fov is vertical degrees; aspect 16:9. Every renderer (web rig pages, Octane script) reads this so frames are comparable.",
+  "views": [
+    {"id": "ruh_a",  "scene": "gs_ruh",  "pos": [-1.6, -4.2, 2.6], "look": [-1.6, -1.7, 0.2], "up": [0, 0, 1],            "fov": 50},
+    {"id": "lili_a", "scene": "gs_lili", "pos": [3.2, 0.6, 3.5],   "look": [1.3, 1.5, 0.1],   "up": [0.47, -0.25, 0.85],  "fov": 50}
+  ],
+  "resolution": [2560, 1440]
+}

@@ -1,0 +1,392 @@
+{
+ "meta": {
+  "engine": "0.7-fields",
+  "quality": "normal",
+  "file": "26-green-crypts-isolated.jpg",
+  "iters": 20,
+  "shell": [
+   "w98-shell"
+  ],
+  "scripts": [
+   "js?id=G-GKKJ5VX340",
+   "strands.js",
+   "fit.js",
+   "ui.js",
+   "design.js",
+   "menu.js"
+  ],
+  "canvas": [
+   1038,
+   1566,
+   692,
+   1044,
+   2
+  ]
+ },
+ "dom": {
+  "missing": {
+   "fit.js": [
+    "casebook",
+    "cb-close",
+    "cb-grid",
+    "cb-stat",
+    "fit-diag"
+   ],
+   "design.js": [
+    "brush-cursor"
+   ],
+   "index.html": []
+  },
+  "fitcvIs2d": true
+ },
+ "api": {
+  "hash": "5b1d3ce5",
+  "engine": 54,
+  "fit": 92
+ },
+ "panel": {
+  "opens": true,
+  "refOptions": 44,
+  "W": 640,
+  "H": 462,
+  "photo": "a973ad4c",
+  "pupil": {
+   "x": 320.311407509,
+   "y": 231.098282665,
+   "r": 83.2911164569
+  },
+  "limbus": {
+   "x": 319.1246168,
+   "y": 230.623827596,
+   "rx": 209.285598364,
+   "ry": 208.843322128,
+   "ang": 0.160687352583
+  },
+  "catch": {
+   "x": 319.1246168,
+   "y": 226.446961153
+  },
+  "pose": {
+   "zoom": 49.0630441794
+  },
+  "score": {
+   "match": 20.5591969661,
+   "match2": 12.7281900799,
+   "ssim": 0.0663214718016,
+   "dL": 16.2771030903,
+   "dab": 19.0001701161
+  },
+  "render": "5f0d68e2",
+  "log": true,
+  "viewCycle": [
+   "RENDER",
+   "DIFF",
+   "SPLIT",
+   "POLAR",
+   "HEIGHT",
+   "PHOTO"
+  ]
+ },
+ "bench": {
+  "row": {
+   "file": "26-green-crypts-isolated.jpg",
+   "quality": "normal",
+   "match2": 68,
+   "grad": 0.718,
+   "match0": 20.6,
+   "match": 67.5,
+   "ssim": 0.713,
+   "ssim2": 0.652,
+   "psnr": 17.66,
+   "dL": 3.8,
+   "dab": 12.6,
+   "crypts": 0,
+   "ridges": 5,
+   "splats": 1942,
+   "hcorr": 0.806,
+   "sigmaRatio": 1.08,
+   "sigmaPhoto": 14,
+   "sigmaRender": 15.12,
+   "vmaxMin": 0.765,
+   "coverage": 0.899,
+   "darkErr": 3.84,
+   "darkThr": 25.7,
+   "darkFrac": 0.139,
+   "hfRatio": 0.245,
+   "hfPhoto": 0.0255,
+   "hfRender": 0.0066,
+   "resolvedMm": 0.0699,
+   "hfLap": 0.737,
+   "hfLapPhoto": 17.48,
+   "hfLapRender": 12.88,
+   "strandCorr": 0.148,
+   "bandCorr": [
+    0.874,
+    0.78,
+    0.288
+   ],
+   "bandRatio": [
+    1.525,
+    1.515,
+    0.923
+   ],
+   "evidence": [
+    1,
+    0.617,
+    0.153
+   ],
+   "placement": {
+    "umPerPx": 4.78,
+    "size": [
+     3840,
+     2774
+    ],
+    "placedFrac": 0.691,
+    "meanPlace": 0.428,
+    "spacingMedian": 0.046
+   },
+   "routed": true,
+   "seededLoss": "pixel",
+   "route": [
+    {
+     "key": "E0",
+     "evidence": 1,
+     "loss0": 346.69,
+     "loss1": 290.4,
+     "genes": {
+      "mie": 0.1599,
+      "limbalDark": 0.1099,
+      "limbalWidth": 0.1541,
+      "limbalMilk": 0.3536,
+      "gapShadow": 0.7686,
+      "ev": -0.7943,
+      "ambient": 0.3333,
+      "lid": 6.6592
+     },
+     "atBound": []
+    },
+    {
+     "key": "E3",
+     "evidence": 1,
+     "loss0": 33.76,
+     "loss1": 33.59,
+     "genes": {
+      "collr": 0.2172,
+      "fibreContrast": 0.68
+     },
+     "atBound": []
+    },
+    {
+     "key": "E4",
+     "evidence": 0.617,
+     "loss0": 42.37,
+     "loss1": 42.35,
+     "genes": {
+      "strandGain": 3.2,
+      "strandMed": 0.355
+     },
+     "atBound": []
+    },
+    {
+     "key": "E5",
+     "evidence": 0.153,
+     "skipped": true,
+     "genes": [
+      "strandFine",
+      "strandSharp"
+     ]
+    }
+   ],
+   "bandDL": [
+    5.33,
+    -1.26,
+    2.19,
+    0.58,
+    -3.52,
+    1.9
+   ],
+   "bandWorst": 5.33,
+   "specAgree": 0.781,
+   "spacingRatio": 0.952,
+   "zones": [
+    {
+     "zone": [
+      0.05,
+      0.35
+     ],
+     "agree": 0.795,
+     "resolvedMm": 0.0699,
+     "resolved": true,
+     "fPhoto": 229,
+     "fRender": 230,
+     "spacingPhotoMm": 0.0768,
+     "spacingRenderMm": 0.0765,
+     "hfPhoto": 0.0361,
+     "hfRender": 0.0101,
+     "hfRatio": 0.281
+    },
+    {
+     "zone": [
+      0.35,
+      0.74192348361
+     ],
+     "agree": 0.767,
+     "resolvedMm": 0.0699,
+     "resolved": true,
+     "fPhoto": 296.9,
+     "fRender": 327,
+     "spacingPhotoMm": 0.0885,
+     "spacingRenderMm": 0.0804,
+     "hfPhoto": 0.0149,
+     "hfRender": 0.0031,
+     "hfRatio": 0.209
+    },
+    {
+     "zone": [
+      0.8,
+      0.95
+     ],
+     "unphotographed": true,
+     "agree": null,
+     "hfRatio": null,
+     "spacingPhotoMm": null,
+     "spacingRenderMm": null,
+     "resolvedMm": null
+    }
+   ],
+   "contrastPhoto": 0.355,
+   "contrastRender": 0.384,
+   "ridgeGapPhoto": 1.97,
+   "ridgeGapRender": 2.32,
+   "engine": "0.7-fields",
+   "alignPx": 0.08
+  },
+  "state": {
+   "relief": 1,
+   "lightAngle": 1.57079632679,
+   "pupil": 4.06,
+   "pupilOff": [
+    0.0282983697613,
+    -0.0128534675956
+   ],
+   "lightElev": 1.42925685347,
+   "zoomPhoto": 49.506470668,
+   "debug": 0,
+   "refract": 1,
+   "atlasView": false,
+   "seed": 42,
+   "warp": 0.0224408395286,
+   "collr": 0.217239610948,
+   "crypt": 0.262548364489,
+   "furrow": 0.660439142841,
+   "pigment": 0.000651041666667,
+   "stroma": 0.2734375,
+   "pheo": 0,
+   "mie": 0.15986328125,
+   "ring": 0,
+   "ringR": 0.3448,
+   "yellow": 1.07142857143,
+   "srcType": 2,
+   "srcSize": 0.12,
+   "ambient": 0.33330078125,
+   "lid": 6.6591796875,
+   "hippus": false,
+   "mouseX": 0,
+   "mouseY": 0,
+   "paused": false,
+   "frameCount": 1,
+   "ev": -0.794313407632,
+   "sat": 1.16773483453,
+   "fstop": 11,
+   "focus": 0,
+   "kelvin": 5600,
+   "grain": 0.02,
+   "bloom": 0,
+   "tone": 1,
+   "ref": 0,
+   "blColour": 1,
+   "blRelief": 1,
+   "blFlow": 1,
+   "view": [
+    0.000577351398472,
+    0.000299191960077,
+    1,
+    1
+   ],
+   "capturing": false,
+   "fitting": false,
+   "useRot": true,
+   "camRot": [
+    0,
+    0
+   ],
+   "limbalDark": 0.10986328125,
+   "preset": "darkbrown"
+  },
+  "fingerprint": {
+   "state": -1667131177,
+   "globals": 1634986026,
+   "fields": 120972688,
+   "splats": -1923254203,
+   "objects": -185522783,
+   "extra": 1359876673
+  },
+  "render": "9dfe2ee6",
+  "id": "9eab048",
+  "drift": [
+   [
+    "pupilOff",
+    [
+     0.028298369761251163,
+     -0.012853467595576623
+    ],
+    [
+     0.25,
+     0.15
+    ]
+   ],
+   [
+    "ringR",
+    0.3448,
+    0.38
+   ],
+   [
+    "srcType",
+    2,
+    1
+   ],
+   [
+    "sat",
+    1.1677348345346195,
+    1
+   ],
+   [
+    "view",
+    [
+     0.0005773513984722696,
+     0.00029919196007699813,
+     1,
+     1
+    ],
+    [
+     0,
+     0,
+     1,
+     1
+    ]
+   ],
+   [
+    "useRot",
+    true,
+    false
+   ]
+  ],
+  "hash": "2878d60c"
+ },
+ "after": {
+  "fitting": false,
+  "capturing": false
+ },
+ "hash": "aec9d2f6",
+ "_note": "UI contract baseline, 2026-09-19, git 9f6320e, Win98 shell (ui.js), NORMAL, ref 26, 20 iters, save:false. Identical on 5 runs: two fresh loads, a repeat in the same page, and viewports 692x1044 / 1280x720. bench.id = hash of genome + encoded fields (exportID is avoided: it sets location.hash, writes the clipboard and downloads a file)."
+}

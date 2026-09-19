@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>rig: playcanvas 2.22</title>
+<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}canvas{width:100%;height:100%;display:block}#hud{position:fixed;left:8px;top:8px;color:#0f0;font:12px monospace;white-space:pre;background:#0008;padding:4px}</style>
+<canvas id="c"></canvas><div id="hud">loading…</div>
+<script src="./shot.js"></script>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.0/build/playcanvas.mjs","playcanvas/":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.0/"}}</script>
+<script type="module">
+import * as pc from 'playcanvas';
+import { q, scene, pos, look, up, fov, hud, fpsLoop, sync } from './common.js';
+const canvas = document.getElementById('c');
+const want = q.get('gl') ? [pc.DEVICETYPE_WEBGL2] : [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2];
+const device = await pc.createGraphicsDevice(canvas, { deviceTypes: want, antialias: false });
+const o = new pc.AppOptions(); o.graphicsDevice = device;
+o.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem, pc.GSplatComponentSystem];
+o.resourceHandlers = [pc.TextureHandler, pc.GSplatHandler];
+const app = new pc.AppBase(canvas); app.init(o);
+device.maxPixelRatio = devicePixelRatio;
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW); app.setCanvasResolution(pc.RESOLUTION_AUTO);
+app.scene.gsplat.useTonemap = false;
+const file = q.get('file') || `./out/${scene}_sh0.sog`;
+const t0 = performance.now(); let tLoad = 0, count = 0;
+const asset = new pc.Asset('splat', 'gsplat', { url: file }); app.assets.add(asset);
+asset.ready(() => {
+  tLoad = (performance.now() - t0) / 1000;
+  const e = new pc.Entity(); e.addComponent('gsplat', { asset }); app.root.addChild(e);
+  count = asset.resource?.numSplats ?? asset.resource?.gsplatData?.numSplats ?? 0;
+  window.__rig = { app, ready: true };
+});
+app.assets.load(asset);
+const cam = new pc.Entity();
+cam.addComponent('camera', { clearColor: new pc.Color(0,0,0), fov, nearClip: 0.05, farClip: 1000, toneMapping: pc.TONEMAP_LINEAR, gammaCorrection: pc.GAMMA_SRGB });
+cam.setLocalPosition(pos[0], pos[1], pos[2]);
+cam.lookAt(new pc.Vec3(look[0], look[1], look[2]), new pc.Vec3(up[0], up[1], up[2]));
+app.root.addChild(cam);
+app.start();
+const frame = (dt) => { device.frameStart(); app.update(dt); app.render(); device.frameEnd(); if (sync) { if (device.isWebGPU) return device.wgpu.queue.onSubmittedWorkDone(); device.gl.finish(); } };
+window.__render = () => frame(1/60);
+fpsLoop(`playcanvas 2.22.0 [${device.deviceType}]  ${file.split('/').pop()}`, () => `load ${tLoad.toFixed(1)}s  splats ${count.toLocaleString()}`, q.get('drive') ? frame : null);
+</script>

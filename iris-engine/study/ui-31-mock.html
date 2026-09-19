@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex">
+<title>Iris Engine — 3.11 shell mock (study/09)</title>
+<!-- Static mock for study/09-ui-shell-plan.md. No engine, no WebGL: a drawn stand-in iris, the 3.11 window
+     manager, the gaze rules and the native photo overlay, so the design can be judged before the app is touched.
+     ?phone forces the phone layout, ?touch forces touch sizing. -->
+<style>
+    :root { --row: 22px; --cap: 18px; --fs: 12px; --grey: #c0c0c0; --dk: #808080; --navy: #000080; --n: 23px; --menuh: 20px; }
+    body.touch { --row: 40px; --cap: 30px; --fs: 15px; --n: 35px; --menuh: 34px; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
+    body { --font: Arial, Helvetica, sans-serif; --fw: 700; font: var(--fw) var(--fs)/1 var(--font); -webkit-font-smoothing: none; font-smooth: never; color: #000; user-select: none; -webkit-user-select: none; touch-action: none; }
+    button { font: inherit; color: inherit; margin: 0; }
+    svg { display: block; }
+
+    /* ---- application frame: caption + menu bar ---- */
+    #app-cap, .cap { height: var(--cap); display: flex; align-items: stretch; background: #fff; color: #000; border-bottom: 1px solid #000; }
+    #app-cap, .win.active .cap { background: var(--navy); color: #fff; }
+    b, .grp > b { font-weight: var(--fw); } .cap-t { flex: 1; text-align: center; line-height: var(--cap); white-space: nowrap; overflow: hidden; cursor: default; }
+    .ctl { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-right: 1px solid #000; position: relative; }
+    .ctl::after { content: ""; position: absolute; left: 3px; right: 4px; top: 50%; height: 3px; margin-top: -2px; background: #fff; border: 1px solid #000; box-shadow: 1px 1px 0 var(--dk); box-sizing: border-box; }
+    .capb { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-left: 1px solid #000; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); display: grid; place-items: center; }
+    .capb:active { box-shadow: inset 1px 1px 0 var(--dk); }
+    #menubar { height: var(--menuh); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; position: relative; z-index: 50; }
+    .m-top { padding: 0 8px; line-height: var(--menuh); cursor: default; }
+    .m-top.open { background: var(--navy); color: #fff; }
+    #status { margin-left: auto; padding: 0 8px; line-height: var(--menuh); font-weight: normal; white-space: nowrap; overflow: hidden; }
+    .menu { position: fixed; background: #fff; border: 1px solid #000; z-index: 9000; min-width: 170px; max-height: 80vh; overflow-y: auto; }
+    .mi { padding: 0 24px; line-height: calc(var(--row) - 2px); white-space: nowrap; position: relative; cursor: default; }
+    .mi:hover, .mi.hot { background: var(--navy); color: #fff; }
+    .mi.dis { color: var(--dk); } .mi.dis:hover { background: #fff; color: var(--dk); }
+    .mi.chk::before { content: "\2713"; position: absolute; left: 7px; }
+    .mi.sub::after { content: ""; position: absolute; right: 7px; top: 50%; margin-top: -4px; border: 4px solid transparent; border-left-color: currentColor; border-right: 0; }
+    .sep { border-top: 1px solid #000; margin: 2px 0; }
+
+    /* ---- scene ---- */
+    #scene { position: fixed; left: 0; right: 0; top: calc(var(--cap) + var(--menuh) + 2px); bottom: 0; perspective: 900px; overflow: hidden; }
+    #eye { position: absolute; left: 50%; top: 50%; will-change: transform; }
+    #eye canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #pupil { position: absolute; left: 50%; top: 50%; width: 33.12%; height: 33.12%; border-radius: 50%; background: radial-gradient(closest-side, #000 90%, rgba(0,0,0,0)); }
+    #photo, #marks, #wipe { display: none; }
+    #marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    #marks .hnd { fill: #fff; stroke: #000; stroke-width: 1; cursor: move; } #marks .hit { fill: transparent; cursor: move; }
+    #wipe { position: absolute; top: -4%; bottom: -4%; width: 2px; margin-left: -1px; background: #ff0; outline: 1px solid #000; cursor: ew-resize; }
+    #wipe::after { content: ""; position: absolute; left: -21px; top: 50%; width: 44px; height: 44px; margin-top: -22px; background: radial-gradient(circle, var(--grey) 0 7px, #000 7px 8px, transparent 8px); }
+
+    /* ---- windows ---- */
+    .win { position: fixed; width: 286px; background: var(--grey); border: 1px solid #000; padding: 3px; box-sizing: border-box; z-index: 100; display: none; }
+    .win.open { display: block; }
+    .win::before { content: ""; position: absolute; inset: 0; pointer-events: none; background:
+        linear-gradient(#000,#000) var(--n) 0 / 1px 4px no-repeat, linear-gradient(#000,#000) calc(100% - var(--n)) 0 / 1px 4px no-repeat,
+        linear-gradient(#000,#000) var(--n) 100% / 1px 4px no-repeat, linear-gradient(#000,#000) calc(100% - var(--n)) 100% / 1px 4px no-repeat,
+        linear-gradient(#000,#000) 0 var(--n) / 4px 1px no-repeat, linear-gradient(#000,#000) 0 calc(100% - var(--n)) / 4px 1px no-repeat,
+        linear-gradient(#000,#000) 100% var(--n) / 4px 1px no-repeat, linear-gradient(#000,#000) 100% calc(100% - var(--n)) / 4px 1px no-repeat; }
+    .win-in { border: 1px solid #000; background: var(--grey); }
+    .win .cap-t { cursor: move; }
+    .win-body { padding: 6px 7px 7px; }
+    .b { background: var(--grey); border: 1px solid #000; border-radius: 3px; height: var(--row); padding: 0 8px; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk); display: inline-grid; place-items: center; white-space: nowrap; }
+    .b:active, .b.on { box-shadow: inset 1px 1px 0 var(--dk), inset 2px 2px 0 var(--dk); padding: 1px 7px 0 9px; }
+    .b.on { background: #dcdcdc; }
+    .b.def { box-shadow: 0 0 0 1px #000, inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk); }
+    .brow { display: flex; gap: 4px; margin: 6px 0 0; flex-wrap: wrap; } .brow .b { flex: 1; padding: 0 3px; } .brow .b:active, .brow .b.on { padding: 1px 2px 0 4px; }
+    .grp { border: 1px solid var(--dk); box-shadow: 1px 1px 0 #fff, inset 1px 1px 0 #fff; padding: 9px 6px 6px; margin: 10px 0 0; position: relative; }
+    .grp > b { position: absolute; top: -6px; left: 8px; background: var(--grey); padding: 0 3px; }
+    .grp .brow:first-of-type { margin-top: 0; }
+    .log { background: #fff; border: 1px solid #000; box-shadow: inset 1px 1px 0 var(--dk); margin-top: 8px; padding: 4px 5px; font-weight: normal; line-height: 1.35; min-height: 2.7em; }
+
+    /* scrubber = Apple-Photos ruler dressed as a 3.1 scroll bar */
+    .scrub { display: grid; grid-template-columns: 54px 1fr 50px; align-items: center; gap: 5px; height: calc(var(--row) + 2px); }
+    .s-bar { display: flex; height: calc(var(--row) - 4px); border: 1px solid #000; }
+    .s-a { width: calc(var(--row) - 6px); min-width: 16px; padding: 0; background: var(--grey); border: 0; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); display: grid; place-items: center; }
+    .s-a:active { box-shadow: inset 1px 1px 0 var(--dk); }
+    .s-r { flex: 1; position: relative; overflow: hidden; background: #fff; border-left: 1px solid #000; border-right: 1px solid #000; cursor: ew-resize; touch-action: none; }
+    .s-r canvas { position: absolute; left: 0; top: 0; }
+    .s-r i { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--navy); pointer-events: none; }
+    .s-v { text-align: right; font-weight: normal; font-variant-numeric: tabular-nums; cursor: text; white-space: nowrap; }
+    .s-v input { width: 100%; box-sizing: border-box; font: inherit; border: 1px solid #000; padding: 0 2px; text-align: right; }
+
+    /* Design = Paintbrush: two-column tool box, settings beside it, palette strip below */
+    .pb { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+    .tools { display: grid; grid-template-columns: repeat(2, calc(var(--row) + 6px)); border: 1px solid #000; background: #000; gap: 1px; align-self: start; }
+    .tool { height: calc(var(--row) + 6px); padding: 0; border: 0; background: #fff; display: grid; place-items: center; }
+    .tool.on { background: #000; } .tool.on svg { filter: invert(1); }
+    .pal { display: grid; grid-template-columns: calc(var(--row) * 2) repeat(8, 1fr); gap: 0; margin-top: 8px; border: 1px solid #000; background: #000; }
+    .pal span { height: calc(var(--row) / 2 + 3px); box-shadow: inset 0 0 0 1px #000; }
+    .pal .cur { grid-row: 1 / 3; height: auto; display: grid; place-items: center; background: var(--grey); }
+    .pal .cur em { width: 55%; height: 55%; border: 1px solid #000; }
+
+    /* ---- desktop icons ---- */
+    #icons { position: fixed; left: 64px; bottom: 6px; display: flex; gap: 6px; align-items: flex-end; z-index: 60; }
+    .dicon { width: 66px; padding: 4px 0; background: none; border: 0; display: grid; justify-items: center; gap: 3px; }
+    .dicon img { width: 32px; height: 32px; image-rendering: pixelated; }
+    .dicon span { padding: 1px 3px; background: #fff; } .dicon:active span, .dicon.on span { background: var(--navy); color: #fff; }
+    #burger { position: fixed; left: 14px; bottom: 12px; width: 36px; height: 44px; display: grid; place-items: center; z-index: 61; opacity: .9; }
+
+    /* ---- modal dialog ---- */
+    #veil { position: fixed; inset: 0; z-index: 9500; display: none; place-items: center; } #veil.on { display: grid; }
+    #about { position: static; display: block; width: 300px; }
+    #about .win-body { display: grid; grid-template-columns: 40px 1fr; gap: 8px 10px; padding: 12px; font-weight: normal; line-height: 1.4; }
+
+    /* ---- phone: one bottom sheet + icon strip ---- */
+    body.phone #menubar, body.phone #app-cap .capb { display: none; }
+    body.phone #scene { top: calc(var(--cap) + 1px); }
+    body.phone #icons { left: 56px; right: 0; bottom: 0; height: 68px; gap: 0; overflow-x: auto; touch-action: pan-x; background: #fff; border-top: 1px solid #000; align-items: center; }
+    body.phone .dicon { flex: 1 0 50px; width: auto; font-size: 11px; } body.phone .dicon span { padding: 1px 1px; }
+    body.phone .win { left: 0 !important; right: 0; top: auto !important; bottom: 69px; width: auto; padding: 0; border-left: 0; border-right: 0; }
+    body.phone .win::before { display: none; } body.phone .win-in { border-left: 0; border-right: 0; border-bottom: 0; }
+    body.phone .win-body { max-height: calc(40vh - var(--cap)); overflow-y: auto; touch-action: pan-y; }
+    body.phone .win .cap-t { cursor: default; }
+    body.phone #burger { bottom: 12px; }
+</style>
+</head>
+<body>
+<div id="app-cap"><button class="ctl" id="app-ctl" aria-label="Control menu"></button><span class="cap-t">Iris Engine</span><button class="capb" aria-label="Minimize"><svg width="9" height="5"><path d="M0 0h9L4.5 5z"/></svg></button><button class="capb" aria-label="Maximize"><svg width="9" height="5"><path d="M0 5h9L4.5 0z"/></svg></button></div>
+<div id="menubar"></div>
+<div id="scene">
+    <div id="eye">
+        <canvas id="render" width="768" height="768"></canvas>
+        <div id="pupil"></div>
+        <canvas id="photo" width="768" height="768"></canvas>
+        <svg id="marks" viewBox="0 0 512 512"></svg>
+        <div id="wipe" class="ui"></div>
+    </div>
+</div>
+<div id="icons"></div>
+<div id="burger" title="the site burger stays here (menu_pos: bl)"><svg width="24" height="34" viewBox="0 0 24 34"><path d="M12 0l11 10H1z" fill="#7be07b"/><path d="M12 11l11 10H1z" fill="#6cc4f5"/><path d="M12 22l11 10H1z" fill="#f5b942"/></svg></div>
+<div id="veil"><div class="win active" id="about"><div class="win-in"><div class="cap"><button class="ctl" data-close></button><span class="cap-t">About Iris Engine</span></div>
+    <div class="win-body"><img id="about-ico" width="32" height="32" style="image-rendering:pixelated" alt=""><div><b>Iris Engine</b><br>3.11 shell mock · study/09<br>Own icons and chrome, drawn in the idiom — nothing copied from Microsoft.</div><span></span><div style="text-align:right"><button class="b def" data-close style="min-width:70px">OK</button></div></div></div></div></div>
+
+<script>
+(() => {
+    const $ = s => document.querySelector(s);
+    const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const tri = d => `<svg width="5" height="9"><path d="${d < 0 ? 'M5 0v9L0 4.5z' : 'M0 0v9L5 4.5z'}"/></svg>`;
+    const q = location.search;
+    let phone = false, overlay = 'off', zTop = 100, active = null;
+    const say = t => { flash = t; flashT = 2.5; };
+    let flash = '', flashT = 0;
+
+    // =====================================================================================================
+    // icons: drawn with canvas commands on a 32 × 32 grid, then quantised to the 16-colour VGA palette with a
+    // 4 × 4 Bayer dither (the 3.1 look: black outline, flat colour, dithered shading). Our own drawings.
+    // =====================================================================================================
+    const VGA = [[0,0,0],[128,0,0],[0,128,0],[128,128,0],[0,0,128],[128,0,128],[0,128,128],[192,192,192],[128,128,128],[255,0,0],[0,255,0],[255,255,0],[0,0,255],[255,0,255],[0,255,255],[255,255,255]];
+    const B4 = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+    const ICON = {
+        eye(c) { c.beginPath(); c.moveTo(1.5, 16.5); c.quadraticCurveTo(16, 1, 30.5, 16.5); c.quadraticCurveTo(16, 32, 1.5, 16.5); c.fillStyle = '#fff'; c.fill(); c.stroke();
+            const g = c.createRadialGradient(16, 16.5, 3, 16, 16.5, 8); g.addColorStop(0, '#0ff'); g.addColorStop(1, '#008080'); disc(c, 16, 16.5, 7.5, g); disc(c, 16, 16.5, 3, '#000', 0); c.fillStyle = '#fff'; c.fillRect(18, 12, 2, 2); },
+        camera(c) { box(c, 11, 5, 10, 5, '#808080'); box(c, 2, 9, 28, 18, '#c0c0c0'); c.fillStyle = '#fff'; c.fillRect(3, 10, 26, 1); c.fillRect(3, 10, 1, 16); c.fillStyle = '#808080'; c.fillRect(3, 25, 26, 1); c.fillRect(28, 10, 1, 16);
+            const g = c.createRadialGradient(14, 16, 1, 16, 18, 7); g.addColorStop(0, '#0ff'); g.addColorStop(.5, '#00f'); g.addColorStop(1, '#000080'); disc(c, 16, 18, 6.5, g); box(c, 4, 12, 5, 3, '#ff0'); c.fillStyle = '#f00'; c.fillRect(25, 12, 2, 2); },
+        material(c) { c.beginPath(); c.ellipse(16, 16.5, 14, 11, -0.2, 0, 6.2832); const g = c.createLinearGradient(4, 6, 28, 28); g.addColorStop(0, '#fff'); g.addColorStop(1, '#c0c0c0'); c.fillStyle = g; c.fill(); c.stroke();
+            disc(c, 23, 21, 2.6, '#808080'); [[8, 15, '#f00'], [12, 10, '#ff0'], [18, 8, '#0f0'], [24, 11, '#00f'], [9, 21, '#f0f'], [15, 24, '#808000']].forEach(([x, y, col]) => disc(c, x, y, 2.4, col, 0)); },
+        relief(c) { box(c, 2, 26, 28, 4, '#008000'); c.beginPath(); c.moveTo(2.5, 26.5); c.lineTo(11.5, 7.5); c.lineTo(16.5, 17.5); c.lineTo(21.5, 11.5); c.lineTo(29.5, 26.5); c.closePath(); const g = c.createLinearGradient(4, 0, 28, 0); g.addColorStop(0, '#fff'); g.addColorStop(.45, '#c0c0c0'); g.addColorStop(1, '#404040'); c.fillStyle = g; c.fill(); c.stroke();
+            c.beginPath(); c.moveTo(11.5, 7.5); c.lineTo(9, 14); c.lineTo(11.5, 12.5); c.lineTo(13, 15); c.lineTo(14.5, 13.5); c.closePath(); c.fillStyle = '#fff'; c.fill(); },
+        flow(c) { for (const [y, col] of [[8, '#00f'], [16, '#008080'], [24, '#00f']]) { c.beginPath(); for (let x = 2; x <= 26; x++) { const yy = y + Math.sin(x * 0.55) * 2.6; x === 2 ? c.moveTo(x, yy) : c.lineTo(x, yy); } c.lineWidth = 4; c.strokeStyle = '#000'; c.stroke(); c.lineWidth = 2; c.strokeStyle = col; c.stroke(); c.lineWidth = 1; c.strokeStyle = '#000';
+                const ye = y + Math.sin(26 * 0.55) * 2.6; c.beginPath(); c.moveTo(25, ye - 4); c.lineTo(31, ye); c.lineTo(25, ye + 4); c.closePath(); c.fillStyle = col; c.fill(); c.stroke(); } },
+        fit(c) { box(c, 2, 4, 28, 24, '#fff'); c.fillStyle = '#000'; c.fillRect(4, 6, 24, 20); disc(c, 16, 16, 7.5, '#808000', 0); disc(c, 16, 16, 2.8, '#000', 0);
+            c.strokeStyle = '#ff0'; c.beginPath(); c.arc(16, 16, 8.5, 0, 6.2832); c.stroke(); c.strokeStyle = '#0ff'; c.beginPath(); c.arc(16, 16, 3.5, 0, 6.2832); c.moveTo(16, 11); c.lineTo(16, 21); c.moveTo(11, 16); c.lineTo(21, 16); c.stroke(); c.strokeStyle = '#000'; },
+        design(c) { c.save(); c.translate(16, 16); c.rotate(Math.PI / 4); box(c, -4, -15, 7, 5, '#f00'); box(c, -4, -10, 7, 3, '#c0c0c0'); box(c, -4, -7, 7, 14, '#ff0'); c.fillStyle = '#808000'; c.fillRect(0, -6, 2, 13);
+            c.beginPath(); c.moveTo(-3.5, 7.5); c.lineTo(3.5, 7.5); c.lineTo(0, 15); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.stroke(); c.beginPath(); c.moveTo(-1.5, 12); c.lineTo(1.5, 12); c.lineTo(0, 15); c.closePath(); c.fillStyle = '#000'; c.fill(); c.restore(); },
+    };
+    function box(c, x, y, w, hh, col) { c.fillStyle = col; c.fillRect(x, y, w, hh); c.strokeRect(x + .5, y + .5, w - 1, hh - 1); }
+    function disc(c, x, y, r, col, line = 1) { c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fillStyle = col; c.fill(); if (line) c.stroke(); }
+    function icon(name) {
+        const cv = document.createElement('canvas'); cv.width = cv.height = 32; const c = cv.getContext('2d'); c.lineWidth = 1; c.strokeStyle = '#000'; ICON[name](c);
+        const im = c.getImageData(0, 0, 32, 32), d = im.data;
+        for (let i = 0; i < 1024; i++) { const o = i * 4; if (d[o + 3] < 128) { d[o + 3] = 0; continue; } const t = (B4[((i >> 5) & 3) * 4 + (i & 3)] / 16 - 0.47) * 56; let best = 0, bd = 1e9;
+            for (let k = 0; k < 16; k++) { const p = VGA[k], e = (d[o] + t - p[0]) ** 2 + (d[o + 1] + t - p[1]) ** 2 + (d[o + 2] + t - p[2]) ** 2; if (e < bd) { bd = e; best = k; } }
+            d[o] = VGA[best][0]; d[o + 1] = VGA[best][1]; d[o + 2] = VGA[best][2]; d[o + 3] = 255; }
+        c.putImageData(im, 0, 0); return cv.toDataURL();
+    }
+    const GLYPH = {   // 16 px monochrome tool-box glyphs (from ui.js)
+        paint: '<path d="M2 14c0-3 2-3 3-5l6-6 2 2-6 6c-2 1-2 3-5 3z" fill="none" stroke="#000"/>', add: '<path d="M8 3v10M3 8h10" stroke="#000" stroke-width="2"/>', sub: '<path d="M3 8h10" stroke="#000" stroke-width="2"/>',
+        smooth: '<path d="M8 2c3 4 5 6 5 8a5 5 0 0 1-10 0c0-2 2-4 5-8z" fill="none" stroke="#000"/>', smear: '<path d="M6 14V7a2 2 0 0 1 4 0v3l3-1v3l-3 2z" fill="none" stroke="#000"/>',
+        dent: '<path d="M2 6c0 6 12 6 12 0" fill="none" stroke="#000"/><path d="M2 6h12" stroke="#000" stroke-dasharray="1 2"/>', bump: '<path d="M2 10c0-6 12-6 12 0" fill="none" stroke="#000"/><path d="M2 10h12" stroke="#000" stroke-dasharray="1 2"/>',
+        streak: '<path d="M3 13L13 3" stroke="#000" stroke-width="2"/>', color: '<path d="M8 2c2 3 4 5 4 8a4 4 0 0 1-8 0c0-3 2-5 4-8z" fill="#000"/>', pick: '<path d="M12 2l2 2-3 3-1-1-5 5-2 1 1-2 5-5-1-1z" fill="none" stroke="#000"/>',
+    };
+
+    // =====================================================================================================
+    // the stand-in iris (canvas 2-D). The render has no pupil (a DOM disc, so it can constrict) and a white
+    // surround; the "photo" is an isolated macro on black with its own seed, so DIFF / WIPE / BLINK show work.
+    // =====================================================================================================
+    const PRESETS = {
+        '09': { name: 'Blue-green · 09', inner: '#b08a3c', mid: '#5f8f8a', outer: '#2f5f6e', fibre: '190,225,225' },
+        '25': { name: 'Green, amber ring · 25', inner: '#c8892a', mid: '#7f8f3c', outer: '#3f5a2c', fibre: '225,225,160' },
+        '26': { name: 'Green, crypts · 26', inner: '#a88a3a', mid: '#6f8a4a', outer: '#34502f', fibre: '215,230,170' },
+        '35': { name: 'Grey-green · 35', inner: '#9a8a5a', mid: '#7a8a80', outer: '#44564f', fibre: '220,228,220' },
+        brown: { name: 'Brown (procedural)', inner: '#a8601c', mid: '#7a4312', outer: '#3a1d08', fibre: '235,180,110' },
+    };
+    let preset = 'brown', seed = 42;
+    function drawIris(cv, P, sd, photo) {
+        const c = cv.getContext('2d'), S = cv.width, m = S / 2, R = S * 0.46, rp = R * 0.36; let s = sd >>> 0; const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+        c.clearRect(0, 0, S, S); if (photo) { c.fillStyle = '#000'; c.fillRect(0, 0, S, S); }
+        const g = c.createRadialGradient(m, m, rp * 0.7, m, m, R); g.addColorStop(0, P.inner); g.addColorStop(0.42, P.mid); g.addColorStop(0.88, P.outer); g.addColorStop(1, '#0a0a0a');
+        c.save(); c.beginPath(); c.arc(m, m, R, 0, 6.2832); c.clip(); c.fillStyle = g; c.fillRect(0, 0, S, S);
+        for (let i = 0; i < 1500; i++) { const a = rnd() * 6.2832, r0 = rp * (0.6 + rnd() * 0.7), r1 = R * (0.5 + rnd() * 0.5), w = (rnd() - 0.5) * 0.09, dark = rnd() < 0.35;
+            c.beginPath(); c.moveTo(m + Math.cos(a) * r0, m + Math.sin(a) * r0); const am = a + w, rm = (r0 + r1) / 2; c.quadraticCurveTo(m + Math.cos(am) * rm, m + Math.sin(am) * rm, m + Math.cos(a + w * 0.4) * r1, m + Math.sin(a + w * 0.4) * r1);
+            c.strokeStyle = dark ? `rgba(10,8,4,${0.10 + rnd() * 0.25})` : `rgba(${P.fibre},${0.06 + rnd() * 0.22})`; c.lineWidth = (0.5 + rnd() * 1.6) * S / 512; c.stroke(); }
+        for (let i = 0; i < 34; i++) { const a = rnd() * 6.2832, r = R * (0.46 + rnd() * 0.36), l = R * (0.03 + rnd() * 0.06); c.save(); c.translate(m + Math.cos(a) * r, m + Math.sin(a) * r); c.rotate(a); c.beginPath(); c.ellipse(0, 0, l, l * 0.42, 0, 0, 6.2832); c.fillStyle = `rgba(8,6,3,${0.35 + rnd() * 0.4})`; c.fill(); c.restore(); }
+        for (let i = 0; i < 260; i++) { const a = i / 260 * 6.2832, r = R * (0.43 + 0.035 * Math.sin(a * 7 + sd) + 0.02 * rnd()); c.beginPath(); c.moveTo(m + Math.cos(a) * r, m + Math.sin(a) * r); c.lineTo(m + Math.cos(a + 0.03) * (r + R * 0.03 * rnd()), m + Math.sin(a + 0.03) * (r + R * 0.03 * rnd())); c.strokeStyle = `rgba(${P.fibre},${0.25 + rnd() * 0.3})`; c.lineWidth = 1.6 * S / 512; c.stroke(); }
+        const lg = c.createRadialGradient(m, m, R * 0.8, m, m, R); lg.addColorStop(0, 'rgba(0,0,0,0)'); lg.addColorStop(1, 'rgba(0,0,0,0.75)'); c.fillStyle = lg; c.fillRect(0, 0, S, S); c.restore();
+        if (photo) { disc(c, m, m, rp * 1.04, '#000', 0); return; }
+        c.globalCompositeOperation = 'destination-out'; const eg = c.createRadialGradient(m, m, R * 0.95, m, m, R); eg.addColorStop(0, 'rgba(0,0,0,0)'); eg.addColorStop(1, 'rgba(0,0,0,1)'); c.fillStyle = eg; c.fillRect(0, 0, S, S); c.globalCompositeOperation = 'source-over';   // the limbus dissolves into the white page
+        c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath(); c.roundRect(m + R * 0.30, m - R * 0.52, R * 0.2, R * 0.13, R * 0.03); c.fill();
+    }
+    function redraw() { drawIris($('#render'), PRESETS[preset], seed, false); drawIris($('#photo'), PRESETS[preset === 'brown' ? '26' : preset], seed + 7, true); }
+
+    // =====================================================================================================
+    // scrubber
+    // =====================================================================================================
+    function scrubber(label, min, max, val, fmt, onChange) {
+        const row = h('div', 'scrub', `<span>${label}</span><span class="s-bar"><button class="s-a" data-d="-1">${tri(-1)}</button><span class="s-r"><canvas></canvas><i></i></span><button class="s-a" data-d="1">${tri(1)}</button></span><span class="s-v"></span>`);
+        const ruler = row.querySelector('.s-r'), cv = row.querySelector('canvas'), out = row.querySelector('.s-v'), def = val, step = (max - min) / 200; let v = val;
+        const ppu = () => (ruler.clientWidth || 150) / (max - min);
+        function set(x, quiet) { v = clamp(quiet ? x : min + Math.round((x - min) / step) * step, min, max); out.textContent = fmt(v); draw(); if (!quiet && onChange) onChange(v); }
+        function draw() { const w = ruler.clientWidth, hh = ruler.clientHeight, dpr = devicePixelRatio || 1; if (!w) return; if (cv.width !== w * dpr || cv.height !== hh * dpr) { cv.width = w * dpr; cv.height = hh * dpr; cv.style.width = w + 'px'; cv.style.height = hh + 'px'; }
+            const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); const p = ppu(), tick = (max - min) / 40;
+            const x0 = w / 2 + (def - v) * p; c.fillStyle = 'rgba(0,0,128,.2)'; c.fillRect(Math.min(x0, w / 2), 0, Math.abs(x0 - w / 2), hh);
+            const k0 = Math.ceil((Math.max(min, v - w / 2 / p)) / tick - 1e-9), k1 = Math.floor(Math.min(max, v + w / 2 / p) / tick + 1e-9);
+            for (let k = k0; k <= k1; k++) { const x = Math.round(w / 2 + (k * tick - v) * p); c.fillStyle = k % 5 === 0 ? '#000' : '#808080'; c.fillRect(x, k % 5 === 0 ? 3 : hh * 0.5, 1, hh); } }
+        let drag = null;
+        ruler.addEventListener('pointerdown', e => { drag = { x: e.clientX, v }; ruler.setPointerCapture(e.pointerId); e.preventDefault(); });
+        ruler.addEventListener('pointermove', e => { if (drag) set(drag.v - (e.clientX - drag.x) / ppu()); });
+        ruler.addEventListener('pointerup', () => drag = null); ruler.addEventListener('pointercancel', () => drag = null);
+        ruler.addEventListener('dblclick', () => set(def));
+        ruler.addEventListener('wheel', e => { set(v + (e.deltaY > 0 ? -2 : 2) * step); e.preventDefault(); e.stopPropagation(); }, { passive: false });
+        row.querySelectorAll('.s-a').forEach(b => { let t = null; const go = () => set(v + step * +b.dataset.d); b.addEventListener('pointerdown', () => { go(); t = setTimeout(() => t = setInterval(go, 40), 350); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { clearTimeout(t); clearInterval(t); }); });
+        out.addEventListener('click', () => { if (out.firstChild && out.firstChild.tagName) return; const inp = h('input'); inp.value = +v.toFixed(3); out.textContent = ''; out.appendChild(inp); inp.focus(); inp.select();
+            const done = ok => { const x = parseFloat(inp.value); set(ok && isFinite(x) ? x : v); }; inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); }); inp.addEventListener('blur', () => done(true)); });
+        row._draw = draw; set(val, true); return row;
+    }
+
+    // =====================================================================================================
+    // windows
+    // =====================================================================================================
+    const f2 = x => x.toFixed(2), S = (l, a, b, v, f, cb) => ({ l, a, b, v, f: f || f2, cb });
+    let pupilMM = 4, ev = 0, onion = 0.5;
+    const WINS = [
+        { key: 'camera', title: 'Camera', rows: [S('PUPIL', 1.5, 8, 4, x => f2(x) + 'mm', x => pupilMM = x), S('ELEV', 0, 1.4, 0.6, x => (x * 57.3).toFixed(0) + '°'), S('LIGHT', -3.14, 3.14, 1), S('SIZE', 0.02, 0.6, 0.18, x => (x * 114.6).toFixed(0) + '°'), S('ROOM', 0, 1, 0.35), S('LID', 0, 8, 5, x => x.toFixed(1) + 'mm'),
+            S('EV', -3, 3, 0, x => (x >= 0 ? '+' : '') + x.toFixed(1), x => { ev = x; $('#render').style.filter = `brightness(${Math.pow(2, x * 0.5)})`; }), S('F-STOP', 1.4, 32, 11, x => 'f/' + x.toFixed(1)), S('FOCUS', -2, 2, 0, x => (x >= 0 ? '+' : '') + f2(x) + 'mm'), S('KELVIN', 2500, 9000, 5600, x => x.toFixed(0) + 'K'), S('GRAIN', 0, 0.1, 0.02, x => x.toFixed(3)), S('BLOOM', 0, 1, 0.35)],
+          groups: [['Source', ['SUN', 'SOFT', 'RING', 'TWIN'], 'radio', 1], ['', ['GRID', 'REFRACT', 'HIPPUS', 'FILMIC', 'REF'], 'toggle', [1, 3]]] },
+        { key: 'material', title: 'Material', rows: [S('PIGM', 0, 3, 1.48), S('STROMA', 0, 0.6, 0.175, x => x.toFixed(3)), S('PHEO', 0, 1, 0.19), S('YELLOW', 0, 2, 0.3), S('MIE', 0, 1, 0.2), S('RING', 0, 1, 0)] },
+        { key: 'relief', title: 'Relief', rows: [S('CRYPT', 0, 1, 0.26), S('FURROW', 0, 1.5, 0.66), S('RELIEF', 0, 2, 1), S('COLL R', 0.2, 0.5, 0.33)] },
+        { key: 'flow', title: 'Flow', rows: [S('WARP', 0, 0.1, 0.022, x => x.toFixed(3)), S('SEED', 0, 999, 42, x => x.toFixed(0), x => { seed = Math.round(x); redraw(); })], groups: [['', ['NEW SEED', 'FIELDS'], 'push'], ['Strands', ['LIC', 'CURVES'], 'radio', 0], ['', ['ATLAS', 'MAPS'], 'toggle', []]] },
+        { key: 'fit', title: 'Fit', build: buildFit },
+        { key: 'design', title: 'Design', build: buildDesign },
+    ];
+    function buttons(body, [name, labels, kind, on]) {
+        const wrap = name ? h('div', 'grp', `<b>${name}</b>`) : body, row = h('div', 'brow');
+        labels.forEach((l, i) => { const b = h('button', 'b', l); if (kind === 'radio' && on === i) b.classList.add('on'); if (kind === 'toggle' && on.includes(i)) b.classList.add('on');
+            b.onclick = () => { if (kind === 'radio') row.querySelectorAll('.b').forEach(x => x.classList.toggle('on', x === b)); else if (kind === 'toggle') b.classList.toggle('on'); else if (l === 'NEW SEED') { seed = Math.floor(Math.random() * 999); redraw(); } else say('(mock) ' + l); };
+            row.appendChild(b); });
+        wrap.appendChild(row); if (name) body.appendChild(wrap);
+    }
+    function buildFit(body) {
+        const r1 = h('div', 'brow'); r1.style.marginTop = '0'; const hq = h('button', 'b def', '★ Fit HQ'); hq.onclick = () => say('(mock) fit chain'); r1.appendChild(hq); for (const l of ['Photo…', 'Auto align']) { const b = h('button', 'b', l); b.onclick = () => { if (l === 'Photo…') setOverlay('photo'); else say('(mock) ' + l); }; r1.appendChild(b); } body.appendChild(r1);
+        const g = h('div', 'grp', '<b>Overlay on the iris</b>'), row = h('div', 'brow');
+        for (const m of ['off', 'photo', 'render', 'diff', 'wipe', 'onion', 'blink']) { const b = h('button', 'b', m[0].toUpperCase() + m.slice(1)); b.dataset.ov = m; b.style.flex = '1 0 22%'; b.onclick = () => setOverlay(m); row.appendChild(b); } g.appendChild(row);
+        g.appendChild(scrubber('ONION', 0, 1, 0.5, f2, x => { onion = x; applyOverlay(); })); body.appendChild(g);
+        buttons(body, ['', ['FIT·COL', 'FIT·REL', 'FIT·FLOW'], 'toggle', [0, 1, 2]]);
+        body.appendChild(h('div', 'log', 'MATCH2 67.1 % · SSIM 0.52 · Δab 4.1<br>drag the square handles: pupil (cyan), limbus (orange), catchlight (yellow)'));
+    }
+    function buildDesign(body) {
+        const pb = h('div', 'pb'), tools = h('div', 'tools'), right = h('div');
+        Object.keys(GLYPH).forEach((k, i) => { const b = h('button', 'tool' + (i === 0 ? ' on' : ''), `<svg width="16" height="16" viewBox="0 0 16 16">${GLYPH[k]}</svg>`); b.title = k; b.onclick = () => tools.querySelectorAll('.tool').forEach(x => x.classList.toggle('on', x === b)); tools.appendChild(b); });
+        for (const s of [S('SIZE', 0.05, 2, 0.5, x => f2(x) + 'mm'), S('WEIGHT', 0, 1, 0.6), S('HARD', 0, 1, 0.5), S('VALUE', 0, 2, 1)]) right.appendChild(scrubber(s.l, s.a, s.b, s.v, s.f));
+        pb.appendChild(tools); pb.appendChild(right); body.appendChild(pb);
+        buttons(body, ['Layer', ['MELANIN', 'STROMA', 'HEIGHT', 'FLOW'], 'radio', 0]);
+        const pal = h('div', 'pal', '<span class="cur"><em style="background:#8a8a3c"></em></span>'); for (const col of ['#2f5f6e', '#5f8f8a', '#7f8f3c', '#8a8a3c', '#b08a3c', '#c8892a', '#a8601c', '#7a4312', '#3a1d08', '#44564f', '#7a8a80', '#9a8a5a', '#c8c8b0', '#34502f', '#101010', '#ffffff']) { const sp = h('span'); sp.style.background = col; sp.onclick = () => pal.querySelector('em').style.background = col; pal.appendChild(sp); } body.appendChild(pal);
+        buttons(body, ['', ['Undo', 'Clear stamps'], 'push']);
+    }
+    function makeWin(W) {
+        const el = h('div', 'win', `<div class="win-in"><div class="cap"><button class="ctl" aria-label="Control menu"></button><span class="cap-t">${W.title}</span><button class="capb" aria-label="Minimize"><svg width="9" height="5"><path d="M0 0h9L4.5 5z"/></svg></button></div><div class="win-body"></div></div>`);
+        const body = el.querySelector('.win-body'); W.el = el; W.ico = icon(W.key);
+        if (W.build) W.build(body); else { W.rows.forEach(s => body.appendChild(scrubber(s.l, s.a, s.b, s.v, s.f, s.cb))); (W.groups || []).forEach(g => buttons(body, g)); }
+        document.body.appendChild(el);
+        el.addEventListener('pointerdown', () => activate(W), true);
+        el.querySelector('.capb').onclick = () => show(W, false);
+        const ctl = el.querySelector('.ctl'); ctl.ondblclick = () => show(W, false);
+        ctl.onclick = () => { const r = ctl.getBoundingClientRect(); showMenu([{ l: '&Restore', dis: 1 }, { l: '&Move', dis: 1 }, { l: 'Mi&nimize', run: () => show(W, false) }, '-', { l: '&Close', run: () => show(W, false) }, '-', { l: 'Ne&xt window', run: nextWin }], r.left, r.bottom, 0); };
+        const cap = el.querySelector('.cap-t'); let drag = null;
+        cap.addEventListener('pointerdown', e => { if (phone) return; drag = { x: e.clientX - W.x, y: e.clientY - W.y }; W.drag = { rx: W.x, ry: W.y, ox: 0, oy: 0 }; cap.setPointerCapture(e.pointerId); });
+        cap.addEventListener('pointermove', e => { if (!drag || !W.drag) return; const [mx, my] = bounds(el); W.drag.rx = clamp(e.clientX - drag.x, 0, mx); W.drag.ry = clamp(e.clientY - drag.y, top0(), my); });
+        const drop = () => { if (W.drag) { const [sx, sy] = snap(W, W.drag.rx, W.drag.ry); W.drag = null; place(W, sx, sy, true); } drag = null; save(); };
+        cap.addEventListener('pointerup', drop); cap.addEventListener('pointercancel', drop);
+    }
+    const top0 = () => $('#scene').getBoundingClientRect().top;
+    // Windows live between the menu bar and the icon row (the shortcuts are never covered), fully inside the viewport.
+    const DOCK = 62, cssN = () => parseFloat(getComputedStyle(document.body).getPropertyValue('--n')) || 23;
+    const bounds = el => [Math.max(0, innerWidth - el.offsetWidth), Math.max(top0(), innerHeight - DOCK - el.offsetHeight)];
+    const put = W => { W.el.style.left = Math.round(W.x) + 'px'; W.el.style.top = Math.round(W.y) + 'px'; };
+    function place(W, x, y, glide) { const [mx, my] = bounds(W.el); W.tx = clamp(x, 0, mx); W.ty = clamp(y, top0(), my); if (!glide || W.x === undefined) { W.x = W.tx; W.y = W.ty; } put(W); }
+    // A window that would open on another one steps aside by one cascade unit (caption + frame = --n) to the
+    // left and down, so both captions stay readable; it wraps inside the bounds instead of leaving them.
+    function spawnPos(W) { const [mx, my] = bounds(W.el), n = cssN(); let x = W.tx === undefined ? mx - 6 : W.tx, y = W.ty === undefined ? top0() + 6 : W.ty;
+        for (let i = 0; i < 60; i++) { if (!WINS.some(O => O !== W && O.open && O.tx !== undefined && Math.abs(O.tx - x) < n && Math.abs(O.ty - y) < n)) break; x -= n; y += n; if (y > my) y = top0() + 6; if (x < 0) x = mx - 6; }
+        return [x, y]; }
+    // magnetic snapping: the snap rule is unchanged (8 px to edges and neighbours); what changes is how the
+    // window gets there. 'hard' jumps; 'pull' keeps the drag 1:1 and eases only the magnet's offset in and out;
+    // 'window' eases the whole window toward the snapped position (it trails the pointer a little).
+    let snapMode = 'pull', snapK = 22, snapRange = 12;   // range: 8 px was the first mock; iori asked for slightly more
+    function stepWins(dt) { if (phone) return; for (const W of WINS) { if (!W.open || W.tx === undefined) continue;
+            if (W.drag) { const d = W.drag, [sx, sy] = snap(W, d.rx, d.ry);
+                if (snapMode === 'hard') { W.x = sx; W.y = sy; }
+                else if (snapMode === 'pull') { const a = 1 - Math.exp(-dt * snapK); d.ox += (sx - d.rx - d.ox) * a; d.oy += (sy - d.ry - d.oy) * a; W.x = d.rx + d.ox; W.y = d.ry + d.oy; }
+                else { const a = 1 - Math.exp(-dt * snapK * 1.3); W.x += (sx - W.x) * a; W.y += (sy - W.y) * a; }
+                W.tx = sx; W.ty = sy; put(W); }
+            else if (Math.abs(W.tx - W.x) > 0.4 || Math.abs(W.ty - W.y) > 0.4) { const a = 1 - Math.exp(-dt * 16); W.x += (W.tx - W.x) * a; W.y += (W.ty - W.y) * a; put(W); }
+            else if (W.x !== W.tx || W.y !== W.ty) { W.x = W.tx; W.y = W.ty; put(W); } } }
+    function snap(W, x, y) { const el = W.el, w = el.offsetWidth, hh = el.offsetHeight, T = snapRange; const xs = [0, innerWidth - w], ys = [top0(), innerHeight - DOCK - hh];
+        for (const O of WINS) if (O !== W && O.open) { const o = O.el, l = o.offsetLeft, t = o.offsetTop, r = l + o.offsetWidth, b = t + o.offsetHeight; xs.push(l - w + 1, r - 1, l, r - w); ys.push(t - hh + 1, b - 1, t, b - hh); }
+        for (const c of xs) if (Math.abs(x - c) < T) { x = c; break; } for (const c of ys) if (Math.abs(y - c) < T) { y = c; break; } return [x, y]; }
+    function activate(W) { if (active && active !== W) active.el.classList.remove('active'); active = W; W.el.classList.add('active'); W.el.style.zIndex = ++zTop; }
+    function show(W, on) {
+        if (on && phone) WINS.forEach(O => { if (O !== W && O.open) { O.open = false; O.el.classList.remove('open'); } });
+        W.open = on; W.el.classList.toggle('open', on);
+        if (on) { activate(W); if (!phone) place(W, ...spawnPos(W)); W.el.querySelectorAll('.scrub').forEach(r => r._draw()); }
+        else if (active === W) { W.el.classList.remove('active'); active = null; const n = WINS.filter(O => O.open).sort((a, b) => b.el.style.zIndex - a.el.style.zIndex)[0]; if (n) activate(n); }
+        icons(); layoutScene(); save();
+    }
+    function nextWin() { const o = WINS.filter(W => W.open); if (o.length) activate(o[(o.indexOf(active) + 1) % o.length]); }
+    function icons() { const box = $('#icons'); box.innerHTML = '';
+        for (const W of WINS) { const b = h('button', 'dicon' + (W.open ? ' on' : ''), `<img src="${W.ico}" alt=""><span>${W.title}</span>`);
+            b.onclick = () => { if (!W.open) show(W, true); else if (!phone && active !== W) activate(W); else show(W, false); }; box.appendChild(b); } }   // closed → open · open behind → front · front → minimise
+    function tile() { let x = innerWidth - 6, y = top0() + 6, colW = 0; for (const W of WINS.filter(W => W.open)) { const el = W.el; if (y + el.offsetHeight > innerHeight - DOCK && y > top0() + 6) { x -= colW + 6; y = top0() + 6; colW = 0; } place(W, x - el.offsetWidth, y, true); y += el.offsetHeight + 6; colW = Math.max(colW, el.offsetWidth); } save(); }
+    function cascade() { const n = cssN(); WINS.filter(W => W.open).forEach((W, i) => { place(W, 6 + i * n, top0() + 6 + i * n, true); activate(W); }); save(); }
+    function save() { try { localStorage.setItem('irisW31mock', JSON.stringify(WINS.map(W => [W.key, W.open, W.tx, W.ty]))); } catch (e) {} }
+    function load() { try { for (const [k, o, x, y] of JSON.parse(localStorage.getItem('irisW31mock') || '[]')) { const W = WINS.find(W => W.key === k); if (W) { W.open = o; if (x !== null && x !== undefined) { W.tx = x; W.ty = y; } } } return !!localStorage.getItem('irisW31mock'); } catch (e) { return false; } }
+
+    // =====================================================================================================
+    // menus
+    // =====================================================================================================
+    const lab = l => l.replace(/&(.)/, '<u>$1</u>'); let menus = [];
+    function closeMenus(from = 0, keepTop) { while (menus.length > from) menus.pop().remove(); if (!from && !keepTop) document.querySelectorAll('.m-top.open').forEach(e => e.classList.remove('open')); }
+    function showMenu(items, x, y, level) {
+        closeMenus(level, true); const m = h('div', 'menu'); if (typeof items === 'function') items = items();
+        for (const it of items) { if (it === '-') { m.appendChild(h('div', 'sep')); continue; }
+            const d = h('div', 'mi' + (it.dis ? ' dis' : '') + (it.sub ? ' sub' : '') + (it.chk && it.chk() ? ' chk' : ''), lab(it.l));
+            const openSub = () => { const r = d.getBoundingClientRect(); m.querySelectorAll('.hot').forEach(e => e.classList.remove('hot')); d.classList.add('hot'); showMenu(it.sub, phone ? r.left + 24 : r.right - 2, phone ? r.bottom : r.top - 1, level + 1); };
+            d.addEventListener('click', e => { e.stopPropagation(); if (it.dis) return; if (it.sub) return openSub(); closeMenus(); it.run ? it.run() : say('(mock) ' + it.l.replace('&', '')); });
+            d.addEventListener('pointerenter', e => { if (e.pointerType !== 'mouse') return; if (it.sub && !it.dis) openSub(); else { closeMenus(level + 1); m.querySelectorAll('.hot').forEach(e => e.classList.remove('hot')); } });
+            m.appendChild(d); }
+        document.body.appendChild(m); menus.push(m);
+        const r = m.getBoundingClientRect(); m.style.left = clamp(x, 0, innerWidth - r.width) + 'px'; m.style.top = clamp(y, 0, Math.max(0, innerHeight - r.height)) + 'px';
+    }
+    document.addEventListener('pointerdown', e => { if (!e.target.closest('.menu, .m-top, .ctl')) closeMenus(); }, true);
+    const flags = { grid: false, refract: true, filmic: true, ref: false, hippus: false, free: true }; let quality = 'Normal';
+    const tog = (l, k) => ({ l, chk: () => flags[k], run: () => flags[k] = !flags[k] });
+    const ovItem = m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => overlay === m, run: () => setOverlay(m) });
+    const MENUS = [
+        ['&File', [{ l: '&Open ID…' }, { l: '&Save ID' }, '-', { l: 'S&creenshot' }, { l: 'Capture &4K…' }, '-', { l: 'E&xit to META IRIS' }]],
+        ['&View', () => [{ l: '&Quality', sub: ['Draft', 'Normal', 'Fine', 'Ultra', 'Capture'].map(n => ({ l: n, chk: () => quality === n, run: () => quality = n })) }, tog('&Camera follows the pointer', 'free'), '-', tog('&Grid', 'grid'), tog('&Refraction', 'refract'), tog('&Filmic', 'filmic'), tog('RE&F pose', 'ref'), tog('&Hippus', 'hippus'), '-', { l: '&Atlas' }, { l: '&Maps' }, '-',
+            { l: 'F&ont', sub: fontMenu }, { l: '&Touch sizing', chk: () => document.body.classList.contains('touch'), run: () => { forceTouch = !document.body.classList.contains('touch'); relayout(); } }]],
+        ['&Eye', () => [{ l: '&Presets', sub: Object.entries(PRESETS).map(([k, p]) => ({ l: p.name, chk: () => preset === k, run: () => { preset = k; redraw(); } })) }, { l: '&Fitted', sub: [['26-green-crypts', 67], ['35-grey-green', 66], ['25-green-amber-ring', 64], ['09-blue-green', 59]].map(([n, m]) => ({ l: `${n}  —  ${m} %` })) }, '-', { l: '&New seed', run: () => { seed = Math.floor(Math.random() * 999); redraw(); } }]],
+        ['Fi&t', () => [{ l: '&Photo…', run: () => setOverlay('photo') }, { l: '&Reference', sub: [{ l: '09-blue-green-isolated' }, { l: '25-green-amber-ring-isolated' }, { l: '26-green-crypts-isolated' }, { l: '35-grey-green-isolated' }] }, '-', { l: '★ Fit &HQ' }, { l: '&Auto align' }, { l: '&Save align' }, '-', { l: '&Overlay', sub: ['off', 'photo', 'render', 'diff', 'wipe', 'onion', 'blink'].map(ovItem) }, '-', { l: 'Bench &ISO' }, { l: 'Bench a&ll' }, { l: '&Casebook' }]],
+        ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, { l: '&Arrange Icons', dis: 1 }, '-',
+            { l: '&Magnetic snap', sub: [['hard', 'Hard (jump)'], ['pull', 'Eased pull (drag stays 1:1)'], ['window', 'Eased window (trails the pointer)']].map(([k, l]) => ({ l, chk: () => snapMode === k, run: () => snapMode = k })).concat(['-'], [[10, 'Slow'], [22, 'Medium'], [40, 'Fast']].map(([k, l]) => ({ l, chk: () => snapK === k, run: () => snapK = k })), ['-'], [8, 12, 16, 24].map(k => ({ l: `Range ${k} px`, chk: () => snapRange === k, run: () => snapRange = k }))) }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
+        ['&Help', [{ l: '&About Iris Engine…', run: () => $('#veil').classList.add('on') }]],
+    ];
+    function buildMenuBar() { const bar = $('#menubar'); for (const [l, items] of MENUS) { const t = h('div', 'm-top', lab(l));
+            const open = () => { const r = t.getBoundingClientRect(); closeMenus(); t.classList.add('open'); showMenu(items, r.left, r.bottom, 0); };
+            t.addEventListener('click', () => t.classList.contains('open') ? closeMenus() : open()); t.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && menus.length && !t.classList.contains('open')) open(); }); bar.appendChild(t); }
+        bar.appendChild(h('span', '', '')).id = 'status';
+        $('#app-ctl').onclick = () => { const r = $('#app-ctl').getBoundingClientRect(); showMenu(phone ? MENUS.map(([l, items]) => ({ l, sub: items })) : [{ l: '&Restore', dis: 1 }, { l: 'Mi&nimize', dis: 1 }, { l: 'Ma&ximize', dis: 1 }, '-', { l: '&Close' }], r.left, r.bottom, 0); };
+        $('#veil').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target.id === 'veil') $('#veil').classList.remove('on'); });
+    }
+
+    // =====================================================================================================
+    // overlay: the photo lies on the iris in the scene; camera locked; modes are blends; markers are handles
+    // =====================================================================================================
+    const marks = { pupil: { x: 256, y: 256, r: 87, col: '#00e8ff' }, limbus: { x: 256, y: 256, r: 236, col: '#ff9a00' }, catch: { x: 345, y: 140, r: 0, col: '#ffe600' } };
+    let wipeX = 0.5, blinkOn = true;
+    function drawMarks() { const hs = phone || document.body.classList.contains('touch') ? 9 : 6; let s = '';
+        for (const [k, m] of Object.entries(marks)) { if (m.r) s += `<circle cx="${m.x}" cy="${m.y}" r="${m.r}" fill="none" stroke="#000" stroke-width="3" opacity=".55"/><circle cx="${m.x}" cy="${m.y}" r="${m.r}" fill="none" stroke="${m.col}" stroke-width="1.5"/>`;
+            const pts = m.r ? [['c', m.x, m.y], ['r', m.x + m.r, m.y]] : [['c', m.x, m.y]]; for (const [what, x, y] of pts) s += `<g class="ui" data-k="${k}" data-w="${what}"><circle class="hit" cx="${x}" cy="${y}" r="22"/><rect class="hnd" x="${x - hs / 2}" y="${y - hs / 2}" width="${hs}" height="${hs}" style="fill:${m.col}"/></g>`; }
+        $('#marks').innerHTML = s; }
+    { const svg = $('#marks'); let d = null; const pos = e => { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 512, (e.clientY - r.top) / r.height * 512]; };
+        svg.addEventListener('pointerdown', e => { const g = e.target.closest('g'); if (!g) return; d = { k: g.dataset.k, w: g.dataset.w }; svg.setPointerCapture(e.pointerId); e.stopPropagation(); });
+        svg.addEventListener('pointermove', e => { if (!d) return; const [x, y] = pos(e), m = marks[d.k]; if (d.w === 'c') { m.x = x; m.y = y; } else m.r = Math.max(10, Math.hypot(x - m.x, y - m.y)); drawMarks(); });
+        svg.addEventListener('pointerup', () => d = null); svg.addEventListener('pointercancel', () => d = null); }
+    { const w = $('#wipe'); let d = false; w.addEventListener('pointerdown', e => { d = true; w.setPointerCapture(e.pointerId); e.stopPropagation(); });
+        w.addEventListener('pointermove', e => { if (!d) return; const r = $('#eye').getBoundingClientRect(); wipeX = clamp((e.clientX - r.left) / r.width, 0, 1); applyOverlay(); }); w.addEventListener('pointerup', () => d = false); }
+    function setOverlay(m) { overlay = m; if (m !== 'off') { const W = WINS.find(W => W.key === 'fit'); if (!W.open && !phone) show(W, true); } applyOverlay(); }
+    function applyOverlay() { const p = $('#photo'), on = overlay !== 'off'; $('#marks').style.display = on ? 'block' : 'none'; $('#wipe').style.display = overlay === 'wipe' ? 'block' : 'none'; $('#wipe').style.left = wipeX * 100 + '%';
+        p.style.display = on && overlay !== 'render' ? 'block' : 'none'; p.style.mixBlendMode = overlay === 'diff' ? 'difference' : 'normal'; p.style.clipPath = overlay === 'wipe' ? `inset(0 ${100 - wipeX * 100}% 0 0)` : 'none';
+        p.style.opacity = overlay === 'onion' ? onion : overlay === 'blink' ? (blinkOn ? 1 : 0) : 1;
+        document.querySelectorAll('[data-ov]').forEach(b => b.classList.toggle('on', b.dataset.ov === overlay)); if (on) drawMarks(); }
+    setInterval(() => { if (overlay === 'blink') { blinkOn = !blinkOn; applyOverlay(); } }, 260);
+
+    // =====================================================================================================
+    // gaze (study/09 §5): TRACK in the scene → HOLD on leaving → RETURN after 1 s idle (finite 3.5 s ease) →
+    // REST. The clock stops while any control is held. Overlay on = LOCKED to the fitted (frontal) pose.
+    // =====================================================================================================
+    const G = { st: 'REST', tx: 0, ty: 0, x: 0, y: 0, idle: 0, rt: 0, fx: 0, fy: 0, gain: 1, held: false, down: false, zoom: 1, pupil: 4 };
+    const scene = $('#scene'), eye = $('#eye');
+    const inScene = e => !e.target.closest('.ui');
+    function track(e) { if (overlay !== 'off' || !flags.free) return; const r = scene.getBoundingClientRect(); if (G.st !== 'TRACK') { G.st = 'TRACK'; G.gain = 0; } G.tx = clamp((e.clientX - r.left - r.width / 2) / (r.width / 2), -1, 1); G.ty = clamp((e.clientY - r.top - r.height / 2) / (r.height / 2), -1, 1); }
+    const leave = () => { if (G.st === 'TRACK') { G.st = 'HOLD'; G.idle = 0; } };
+    scene.addEventListener('pointermove', e => { if (inScene(e)) track(e); });
+    scene.addEventListener('pointerdown', e => { if (!inScene(e)) return; G.down = true; track(e); });
+    scene.addEventListener('pointerleave', leave);
+    window.addEventListener('pointerup', e => { G.down = false; G.held = false; if (e.pointerType === 'touch') leave(); }); window.addEventListener('pointercancel', () => { G.down = false; G.held = false; leave(); });
+    document.addEventListener('pointerdown', e => { if (!scene.contains(e.target) || e.target.closest('.ui')) G.held = true; }, true);
+    scene.addEventListener('wheel', e => { G.zoom = clamp(G.zoom * (1 - e.deltaY * 0.001), 0.6, 5); e.preventDefault(); }, { passive: false });
+    let eyeSize = 300, last = performance.now(), fps = 60;
+    function layoutScene() { const sheet = phone && WINS.find(W => W.open); scene.style.bottom = phone ? ((sheet ? sheet.el.offsetHeight : 0) + 69) + 'px' : '0';
+        const r = scene.getBoundingClientRect(); eyeSize = Math.round(Math.min(r.width, r.height) * (phone ? 0.78 : 0.6)); eye.style.width = eye.style.height = eyeSize + 'px'; eye.style.margin = `${-eyeSize / 2}px 0 0 ${-eyeSize / 2}px`; }
+    function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
+        if (overlay !== 'off') { G.st = 'LOCKED'; G.tx = G.ty = 0; } else if (G.st === 'LOCKED') G.st = 'REST';
+        if (G.st === 'HOLD' && !G.held) { G.idle += dt; if (G.idle > 1) { G.st = 'RETURN'; G.rt = 0; G.fx = G.tx; G.fy = G.ty; } }
+        if (G.st === 'RETURN' && !G.held) { G.rt += dt; const u = Math.min(1, G.rt / 3.5), k = u * u * (3 - 2 * u); G.tx = G.fx * (1 - k); G.ty = G.fy * (1 - k); if (u >= 1) G.st = 'REST'; }
+        G.gain = Math.min(1, G.gain + dt / 0.3); const a = (1 - Math.exp(-dt * 6)) * G.gain; G.x += (G.tx - G.x) * a; G.y += (G.ty - G.y) * a;
+        const tp = G.down && overlay === 'off' ? 2.5 : pupilMM; G.pupil += (tp - G.pupil) * (1 - Math.exp(-dt * (G.down ? 9 : 3)));
+        eye.style.transform = `translate(${G.x * eyeSize * 0.22}px, ${G.y * eyeSize * 0.16}px) scale(${G.zoom}) rotateY(${G.x * 30}deg) rotateX(${-G.y * 30}deg)`;
+        $('#pupil').style.transform = `translate(-50%,-50%) scale(${G.pupil / 4})`;
+        if (flashT > 0) flashT -= dt; const st = G.held && (G.st === 'HOLD' || G.st === 'RETURN') ? 'FROZEN (control held)' : G.st;
+        const s = $('#status'); if (s) s.textContent = flashT > 0 ? flash : `${quality.toUpperCase()} · ${fps.toFixed(0)} fps · gaze ${st}`;
+        requestAnimationFrame(frame); }
+
+    // =====================================================================================================
+    // layout: phone = short side < 600 px (one bottom sheet + icon strip); everything else = MDI, tablets in
+    // portrait included. Touch sizing follows the pointer type, not the layout.
+    // =====================================================================================================
+    // Fonts are a user setting (View ▸ Font). [key, label, family, Google Fonts spec or null (system font), weight of
+    // the 'bold' role, smoothing, desktop size px]. Web fonts load on first use. The real app self-hosts subsets.
+    const FONTS = [
+        ['3.11 idiom', [['system', 'System stack, aliased (3.11 look on macOS)', 'Arial, Helvetica, sans-serif', null, 700, false, 12], ['pixelify', 'Pixelify Sans', '"Pixelify Sans"', 'Pixelify+Sans:wght@400;600', 600, false, 13], ['vt323', 'VT323 (terminal)', 'VT323', 'VT323', 400, false, 16]]],
+        ['Geometric, circular', [['jost', 'Jost (Futura-like)', 'Jost', 'Jost:wght@400;600', 600, true, 13], ['poppins', 'Poppins', 'Poppins', 'Poppins:wght@400;600', 600, true, 12], ['outfit', 'Outfit', 'Outfit', 'Outfit:wght@400;600', 600, true, 13], ['questrial', 'Questrial', 'Questrial', 'Questrial', 400, true, 13], ['urbanist', 'Urbanist', 'Urbanist', 'Urbanist:wght@400;700', 700, true, 13],
+            ['quicksand', 'Quicksand (rounded)', 'Quicksand', 'Quicksand:wght@500;700', 700, true, 13], ['comfortaa', 'Comfortaa (rounded)', 'Comfortaa', 'Comfortaa:wght@400;700', 700, true, 12], ['varela', 'Varela Round', '"Varela Round"', 'Varela+Round', 400, true, 13], ['nunito', 'Nunito', 'Nunito', 'Nunito:wght@400;700', 700, true, 13]]],
+        ['DIN and Roboto', [['barlow', 'Barlow (DIN-like)', 'Barlow', 'Barlow:wght@400;600', 600, true, 13], ['barlowsc', 'Barlow Semi Condensed', '"Barlow Semi Condensed"', 'Barlow+Semi+Condensed:wght@400;600', 600, true, 13], ['dinsys', 'DIN Alternate / Bahnschrift (installed)', '"DIN Alternate", Bahnschrift, "Barlow", sans-serif', null, 700, true, 13],
+            ['roboto', 'Roboto', 'Roboto', 'Roboto:wght@400;500;700', 500, true, 12], ['robotoc', 'Roboto Condensed', '"Roboto Condensed"', 'Roboto+Condensed:wght@400;600', 600, true, 13], ['robotoflex', 'Roboto Flex', '"Roboto Flex"', 'Roboto+Flex:wght@400;600', 600, true, 12], ['robotomono', 'Roboto Mono', '"Roboto Mono"', 'Roboto+Mono:wght@400;600', 600, true, 11], ['robotoslab', 'Roboto Slab', '"Roboto Slab"', 'Roboto+Slab:wght@400;600', 600, true, 12]]],
+    ];
+    let fontKey = 'urbanist'; try { fontKey = localStorage.getItem('irisFontMock') || 'urbanist'; } catch (e) {}   // iori's default: Urbanist
+    function applyFont(key) { const f = FONTS.flatMap(g => g[1]).find(f => f[0] === key) || FONTS[0][1][0]; fontKey = f[0]; try { localStorage.setItem('irisFontMock', fontKey); } catch (e) {}
+        if (f[3] && !document.getElementById('gf-' + f[0])) { const l = document.createElement('link'); l.id = 'gf-' + f[0]; l.rel = 'stylesheet'; l.href = `https://fonts.googleapis.com/css2?family=${f[3]}&display=swap`; document.head.appendChild(l); }
+        const b = document.body.style, touch = document.body.classList.contains('touch'); b.setProperty('--font', f[2] + ', Arial, sans-serif'); b.setProperty('--fw', f[4]); b.setProperty('--fs', Math.round(f[6] * (touch ? 1.25 : 1)) + 'px');
+        b.webkitFontSmoothing = f[5] ? 'auto' : 'none'; if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { document.querySelectorAll('.win.open .scrub').forEach(r => r._draw()); icons(); }); }
+    const fontMenu = () => FONTS.flatMap(([group, list], i) => (i ? ['-'] : []).concat([{ l: group, dis: 1 }], list.map(f => ({ l: f[1], chk: () => fontKey === f[0], run: () => applyFont(f[0]) }))));
+    let forceTouch = null;
+    function relayout() { const was = phone; phone = /[?&]phone/.test(q) || Math.min(innerWidth, innerHeight) < 600; const touch = forceTouch !== null ? forceTouch : (phone || /[?&]touch/.test(q) || matchMedia('(pointer: coarse)').matches);
+        document.body.classList.toggle('phone', phone); document.body.classList.toggle('touch', touch);
+        if (phone) { const o = WINS.filter(W => W.open); o.slice(1).forEach(W => { W.open = false; W.el.classList.remove('open'); }); } else WINS.forEach(W => { if (W.open) place(W, W.tx === undefined ? innerWidth : W.tx, W.ty === undefined ? top0() + 6 : W.ty); });
+        applyFont(fontKey); if (was && !phone) tile(); icons(); layoutScene(); document.querySelectorAll('.win.open .scrub').forEach(r => r._draw()); if (overlay !== 'off') drawMarks(); }
+
+    buildMenuBar(); WINS.forEach(makeWin); $('#about-ico').src = icon('eye');
+    { const l = document.createElement('link'); l.rel = 'icon'; l.href = icon('eye'); document.head.appendChild(l); }
+    const had = load(); redraw(); relayout();
+    if (!had) { show(WINS[0], true); if (!phone) tile(); } else WINS.forEach(W => { if (W.open) show(W, true); });
+    window.addEventListener('resize', relayout); requestAnimationFrame(frame);
+    window.__mock = { WINS, G, show, tile, cascade, setOverlay, get snapMode() { return snapMode; }, set snapMode(v) { snapMode = v; } };
+})();
+</script>
+</body>
+</html>

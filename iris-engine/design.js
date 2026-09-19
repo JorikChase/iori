@@ -206,6 +206,7 @@
     }
 
     // ---------------- pointer / keyboard ----------------
+    const onUI = e => !!(e.target.closest && e.target.closest('#ui-panel, .w98, #w98-top, .w98-menu, #site-menu, #casebook'));   // the shell's windows live on body, not in #ui-panel (study/09 U0)
     function beginStroke(e) {
         const g = E.genome;
         if (['dent', 'bump', 'streak'].includes(D.tool)) pushUndo({ type: 'splats', len: (g.splats || []).length });
@@ -225,7 +226,7 @@
     }
     function endStroke() { if (!D.stroke) return; D.stroke = null; state.painting = false; E.atlas.draftBake = false; E.atlas.dirty = true; E.resetAccumulation(); }
     window.addEventListener('pointerdown', e => {
-        if (!D.on || e.button !== 0 || (e.target.closest && e.target.closest('#ui-panel'))) return;
+        if (!D.on || e.button !== 0 || onUI(e)) return;
         if (D.space) { D.pan = { x: e.clientX, y: e.clientY, view: state.view.slice() }; return; }
         if (D.tool === 'pick' || e.altKey) { pick(e.clientX, e.clientY); return; }
         beginStroke(e);
@@ -235,10 +236,10 @@
         const c = cursorEl(), r = canvas.getBoundingClientRect(), pxR = D.size / 2 / mmPerPx() / E.dpr;
         c.style.left = (e.clientX - pxR) + 'px'; c.style.top = (e.clientY - pxR) + 'px'; c.style.width = c.style.height = (2 * pxR) + 'px';
         if (D.pan) { const v = D.pan.view, s = v[2]; state.view = [v[0] - (e.clientX - D.pan.x) / r.width * s, v[1] + (e.clientY - D.pan.y) / r.height * s, s, s]; D.map = null; E.resetAccumulation(); return; }
-        if (D.stroke) strokeMove(e); else if (!(e.target.closest && e.target.closest('#ui-panel'))) { const h = hit(e.clientX, e.clientY); if (h) { const v = E.genome.fields[D.layer]; const [w, hh] = E.GRIDS[E.FIELD_DEFS[D.layer].grid]; const val = v ? v.data[Math.min(hh - 1, Math.floor(h.v * hh)) * w + (Math.floor(h.u * w) % w)] : 0; hud(`${D.layer} ${val.toFixed(3)} · u ${h.u.toFixed(3)} v ${h.v.toFixed(3)} · r ${rMM(h.v).toFixed(2)} mm · size ${D.size.toFixed(2)} mm`); } }
+        if (D.stroke) strokeMove(e); else if (!onUI(e)) { const h = hit(e.clientX, e.clientY); if (h) { const v = E.genome.fields[D.layer]; const [w, hh] = E.GRIDS[E.FIELD_DEFS[D.layer].grid]; const val = v ? v.data[Math.min(hh - 1, Math.floor(h.v * hh)) * w + (Math.floor(h.u * w) % w)] : 0; hud(`${D.layer} ${val.toFixed(3)} · u ${h.u.toFixed(3)} v ${h.v.toFixed(3)} · r ${rMM(h.v).toFixed(2)} mm · size ${D.size.toFixed(2)} mm`); } }
     }, true);
     window.addEventListener('pointerup', e => { if (D.pan) { D.pan = null; return; } endStroke(); }, true);
-    window.addEventListener('wheel', e => { if (!D.on || (e.target.closest && e.target.closest('#ui-panel'))) return; const r = canvas.getBoundingClientRect(); zoomView(1 + e.deltaY * 0.0015, (e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height); }, { passive: true });
+    window.addEventListener('wheel', e => { if (!D.on || onUI(e)) return; const r = canvas.getBoundingClientRect(); zoomView(1 + e.deltaY * 0.0015, (e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height); }, { passive: true });
     window.addEventListener('keydown', e => {
         if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.key !== 'Escape') return;
         if (e.code === 'Space') { D.space = true; if (D.on) e.preventDefault(); }

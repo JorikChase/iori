@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>rig: spark 2.1</title>
+<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}canvas{display:block}#hud{position:fixed;left:8px;top:8px;color:#0f0;font:12px monospace;white-space:pre;background:#0008;padding:4px}</style>
+<div id="hud">loading…</div>
+<script src="./shot.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@sparkjsdev/spark":"https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+import { q, scene, pos, look, up, fov, hud, fpsLoop, sync } from './common.js';
+const sceneT = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(fov, innerWidth/innerHeight, 0.05, 1000);
+camera.up.set(up[0], up[1], up[2]); camera.position.set(pos[0], pos[1], pos[2]); camera.lookAt(look[0], look[1], look[2]);
+const renderer = new THREE.WebGLRenderer({ antialias:false, preserveDrawingBuffer:true });
+renderer.setPixelRatio(devicePixelRatio); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+const spark = new SparkRenderer({ renderer, enableLod: false }); sceneT.add(spark);
+const file = q.get('file') || `./out/${scene}_sh0.sog`;
+const t0 = performance.now(); let tLoad = 0, count = 0;
+const mesh = new SplatMesh({ url: file, onLoad: m => { tLoad = (performance.now()-t0)/1000; count = m.numSplats; window.__rig = { mesh, ready:true }; } });
+sceneT.add(mesh);
+const frame = () => { renderer.render(sceneT, camera); if (sync) renderer.getContext().finish(); };
+window.__render = frame;
+fpsLoop(`spark 2.1.0 [webgl2]  ${file.split('/').pop()}`, () => `load ${tLoad.toFixed(1)}s  splats ${count.toLocaleString()}`, frame);
+</script>

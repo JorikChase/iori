@@ -201,5 +201,6 @@
         let last = performance.now(), frames = 0; (function tick() { frames++; const now = performance.now(); if (now - last > 1000) { const E = window.__irisEngine; $('w98-status').textContent = `${E.quality.toUpperCase()} · ${(frames * 1000 / (now - last)).toFixed(0)} fps · ${E.ATLAS.join('×')}`; frames = 0; last = now; } requestAnimationFrame(tick); })();
     }
     build();
+    { const g = document.createElement('script'); g.src = 'gaze.js'; document.head.appendChild(g); }   // study/09 U0: controls never move the eye (loaded from here so index.html stays untouched)
     window.__irisUI = { showWindow, windows, makeScrubber, svg };
 })();

@@ -1,0 +1,234 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>petri — WebGPU probe</title>
+<style>body{background:#0b0b0a;color:#d8c9a0;font:12px/1.5 ui-monospace,Menlo,monospace;padding:16px;white-space:pre-wrap}</style>
+<body>running…
+<script type="module">
+// Measures what the petri engine's budgets depend on: adapter limits, big allocations,
+// stencil throughput (flat vs bricked with a neighbour table), agent step + atomic deposit.
+// Results: window.__probe (object) and window.__probeDone (promise). Query string: ?quick=1
+const quick = new URLSearchParams(location.search).has('quick');
+const coherent = new URLSearchParams(location.search).has('coherent');   // agents stored in spatial order
+const R = { ua: navigator.userAgent, when: new Date().toISOString(), tests: {} };
+const log = (s) => { document.body.textContent += '\n' + s; };
+
+async function main() {
+  if (!navigator.gpu) { R.error = 'no navigator.gpu'; return; }
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) { R.error = 'no adapter'; return; }
+  R.info = adapter.info ? { vendor: adapter.info.vendor, architecture: adapter.info.architecture } : null;
+  R.features = [...adapter.features];
+  R.limits = {}; for (const k in adapter.limits) R.limits[k] = adapter.limits[k];
+  const hasTs = adapter.features.has('timestamp-query');
+  const device = await adapter.requestDevice({
+    requiredFeatures: hasTs ? ['timestamp-query'] : [],
+    requiredLimits: {
+      maxBufferSize: adapter.limits.maxBufferSize,
+      maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      maxStorageBuffersPerShaderStage: Math.min(10, adapter.limits.maxStorageBuffersPerShaderStage),
+      maxComputeInvocationsPerWorkgroup: adapter.limits.maxComputeInvocationsPerWorkgroup,
+    },
+  });
+  device.addEventListener('uncapturederror', (e) => { (R.gpuErrors ||= []).push(String(e.error.message).slice(0, 300)); });
+
+  // one compute pass, GPU-timed (timestamp query) and wall-timed
+  async function timed(record) {
+    const qs = hasTs ? device.createQuerySet({ type: 'timestamp', count: 2 }) : null;
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginComputePass(hasTs ? { timestampWrites: { querySet: qs, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } } : {});
+    record(pass); pass.end();
+    let rb, mb;
+    if (hasTs) {
+      rb = device.createBuffer({ size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+      mb = device.createBuffer({ size: 16, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      enc.resolveQuerySet(qs, 0, 2, rb, 0); enc.copyBufferToBuffer(rb, 0, mb, 0, 16);
+    }
+    const t0 = performance.now();
+    device.queue.submit([enc.finish()]);
+    await device.queue.onSubmittedWorkDone();
+    const wall = performance.now() - t0;
+    let gpu = null;
+    if (hasTs) { await mb.mapAsync(GPUMapMode.READ); const t = new BigUint64Array(mb.getMappedRange()); gpu = Number(t[1] - t[0]) / 1e6; mb.unmap(); rb.destroy(); mb.destroy(); qs.destroy(); }
+    return { wallMs: +wall.toFixed(2), gpuMs: gpu === null ? null : +gpu.toFixed(2) };
+  }
+  const sbuf = (bytes, extra = 0) => device.createBuffer({ size: bytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | extra });
+  const ubuf = (arr) => { const b = device.createBuffer({ size: Math.max(16, arr.byteLength), usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, arr); return b; };
+  const pipe = (code) => device.createComputePipelineAsync({ layout: 'auto', compute: { module: device.createShaderModule({ code }), entryPoint: 'main' } });
+  const bg = (p, entries) => device.createBindGroup({ layout: p.getBindGroupLayout(0), entries: entries.map((b, i) => ({ binding: i, resource: { buffer: b } })) });
+
+  // ---- 1. allocations ----
+  R.tests.alloc = {};
+  for (const gib of quick ? [1] : [1, 2, 3]) {
+    const size = gib * 1024 ** 3;
+    if (size > adapter.limits.maxBufferSize) { R.tests.alloc[gib + 'GiB'] = 'over maxBufferSize'; continue; }
+    device.pushErrorScope('out-of-memory'); device.pushErrorScope('validation');
+    const b = device.createBuffer({ size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    const enc = device.createCommandEncoder(); enc.clearBuffer(b); device.queue.submit([enc.finish()]);
+    await device.queue.onSubmittedWorkDone();
+    const v = await device.popErrorScope(), o = await device.popErrorScope();
+    R.tests.alloc[gib + 'GiB'] = v ? 'validation: ' + v.message.slice(0, 120) : o ? 'OOM' : 'ok';
+    b.destroy();
+    log('alloc ' + gib + ' GiB: ' + R.tests.alloc[gib + 'GiB']);
+  }
+
+  // ---- 2. flat 7-point Jacobi, 1024 x 1024 x 32 f32 (33.5 M voxels) ----
+  {
+    const nx = 1024, ny = 1024, nz = quick ? 8 : 32, n = nx * ny * nz, K = 20;
+    const p = await pipe(`
+struct P { nx:u32, ny:u32, nz:u32, pad:u32 };
+@group(0) @binding(0) var<uniform> p:P;
+@group(0) @binding(1) var<storage,read> a: array<f32>;
+@group(0) @binding(2) var<storage,read_write> b: array<f32>;
+@compute @workgroup_size(8,8,4) fn main(@builtin(global_invocation_id) g: vec3u){
+  if (g.x>=p.nx||g.y>=p.ny||g.z>=p.nz){return;}
+  let sx = 1u; let sy = p.nx; let sz = p.nx*p.ny;
+  let i = g.x + sy*g.y + sz*g.z;
+  let xm = select(i, i-sx, g.x>0u); let xp = select(i, i+sx, g.x<p.nx-1u);
+  let ym = select(i, i-sy, g.y>0u); let yp = select(i, i+sy, g.y<p.ny-1u);
+  let zm = select(i, i-sz, g.z>0u); let zp = select(i, i+sz, g.z<p.nz-1u);
+  b[i] = (a[xm]+a[xp]+a[ym]+a[yp]+a[zm]+a[zp]) * (0.999/6.0);
+}`);
+    const U = ubuf(new Uint32Array([nx, ny, nz, 0])), A = sbuf(n * 4), B = sbuf(n * 4);
+    const g0 = bg(p, [U, A, B]), g1 = bg(p, [U, B, A]);
+    const run = (k) => timed((pass) => { pass.setPipeline(p); for (let i = 0; i < k; i++) { pass.setBindGroup(0, i & 1 ? g1 : g0); pass.dispatchWorkgroups(nx / 8, ny / 8, nz / 4); } });
+    await run(2); const t = await run(K);
+    R.tests.stencilFlat = { voxels: n, iters: K, ...t, msPerIter: +((t.gpuMs ?? t.wallMs) / K).toFixed(3), MvoxPerSec: Math.round(n * K / ((t.gpuMs ?? t.wallMs) / 1000) / 1e6) };
+    log('stencilFlat ' + JSON.stringify(R.tests.stencilFlat));
+    A.destroy(); B.destroy();
+  }
+
+  // ---- 3. bricked 7-point Jacobi: 32x32x8 bricks + 6-neighbour table ----
+  {
+    const side = quick ? 32 : 64, nb = side * side, vox = 32 * 32 * 8, n = nb * vox, K = 20;
+    const p = await pipe(`
+struct P { nb:u32, pad0:u32, pad1:u32, pad2:u32 };
+@group(0) @binding(0) var<uniform> p:P;
+@group(0) @binding(1) var<storage,read> nbr: array<i32>;   // 6 per brick: -x +x -y +y -z +z, -1 = none
+@group(0) @binding(2) var<storage,read> a: array<f32>;
+@group(0) @binding(3) var<storage,read_write> b: array<f32>;
+fn at(brick:i32, x:u32, y:u32, z:u32) -> f32 {
+  if (brick < 0) { return 0.0; }
+  return a[u32(brick)*8192u + x + 32u*y + 1024u*z];
+}
+@compute @workgroup_size(8,8,8) fn main(@builtin(global_invocation_id) g: vec3u){
+  let br = g.z / 8u; if (br >= p.nb) { return; }
+  let x = g.x; let y = g.y; let z = g.z % 8u; let me = i32(br); let o = br*6u;
+  var s = 0.0;
+  if (x>0u)  { s += at(me,x-1u,y,z); } else { s += at(nbr[o],31u,y,z); }
+  if (x<31u) { s += at(me,x+1u,y,z); } else { s += at(nbr[o+1u],0u,y,z); }
+  if (y>0u)  { s += at(me,x,y-1u,z); } else { s += at(nbr[o+2u],x,31u,z); }
+  if (y<31u) { s += at(me,x,y+1u,z); } else { s += at(nbr[o+3u],x,0u,z); }
+  if (z>0u)  { s += at(me,x,y,z-1u); } else { s += at(nbr[o+4u],x,y,7u); }
+  if (z<7u)  { s += at(me,x,y,z+1u); } else { s += at(nbr[o+5u],x,y,0u); }
+  b[br*8192u + x + 32u*y + 1024u*z] = s * (0.999/6.0);
+}`);
+    const N = new Int32Array(nb * 6).fill(-1);
+    // bricks laid out on a side x side sheet but stored in shuffled order (pool order != spatial order)
+    const slot = new Int32Array(nb); for (let i = 0; i < nb; i++) slot[i] = i;
+    for (let i = nb - 1; i > 0; i--) { const j = (i * 2654435761 >>> 0) % (i + 1); const t = slot[i]; slot[i] = slot[j]; slot[j] = t; }
+    for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) {
+      const s = slot[y * side + x] * 6;
+      if (x > 0) N[s] = slot[y * side + x - 1]; if (x < side - 1) N[s + 1] = slot[y * side + x + 1];
+      if (y > 0) N[s + 2] = slot[(y - 1) * side + x]; if (y < side - 1) N[s + 3] = slot[(y + 1) * side + x];
+    }
+    const U = ubuf(new Uint32Array([nb, 0, 0, 0])), NB = sbuf(N.byteLength), A = sbuf(n * 4), B = sbuf(n * 4);
+    device.queue.writeBuffer(NB, 0, N);
+    const g0 = bg(p, [U, NB, A, B]), g1 = bg(p, [U, NB, B, A]);
+    const run = (k) => timed((pass) => { pass.setPipeline(p); for (let i = 0; i < k; i++) { pass.setBindGroup(0, i & 1 ? g1 : g0); pass.dispatchWorkgroups(4, 4, nb); } });
+    await run(2); const t = await run(K);
+    R.tests.stencilBricked = { bricks: nb, voxels: n, iters: K, ...t, msPerIter: +((t.gpuMs ?? t.wallMs) / K).toFixed(3), MvoxPerSec: Math.round(n * K / ((t.gpuMs ?? t.wallMs) / 1000) / 1e6) };
+    log('stencilBricked ' + JSON.stringify(R.tests.stencilBricked));
+    A.destroy(); B.destroy(); NB.destroy();
+  }
+
+  // ---- 3b. 2-D variable-coefficient pressure Jacobi (div(D grad p) = s), 4096^2 ----
+  {
+    const W = quick ? 2048 : 4096, n = W * W, K = 20;
+    const p = await pipe(`
+struct P { w:u32, pad0:u32, pad1:u32, pad2:u32 };
+@group(0) @binding(0) var<uniform> p:P;
+@group(0) @binding(1) var<storage,read> D: array<f32>;
+@group(0) @binding(2) var<storage,read> a: array<f32>;
+@group(0) @binding(3) var<storage,read_write> b: array<f32>;
+@compute @workgroup_size(16,16) fn main(@builtin(global_invocation_id) g: vec3u){
+  if (g.x>=p.w||g.y>=p.w){return;}
+  let i=g.y*p.w+g.x;
+  let xm=select(i,i-1u,g.x>0u); let xp=select(i,i+1u,g.x<p.w-1u);
+  let ym=select(i,i-p.w,g.y>0u); let yp=select(i,i+p.w,g.y<p.w-1u);
+  let d=D[i]+1e-6;
+  let wxm=2.0*d*D[xm]/(d+D[xm]+1e-6); let wxp=2.0*d*D[xp]/(d+D[xp]+1e-6);   // harmonic face means
+  let wym=2.0*d*D[ym]/(d+D[ym]+1e-6); let wyp=2.0*d*D[yp]/(d+D[yp]+1e-6);
+  b[i]=(wxm*a[xm]+wxp*a[xp]+wym*a[ym]+wyp*a[yp])/(wxm+wxp+wym+wyp+1e-6);
+}`);
+    const U = ubuf(new Uint32Array([W, 0, 0, 0])), Dc = sbuf(n * 4), A = sbuf(n * 4), B = sbuf(n * 4);
+    const g0 = bg(p, [U, Dc, A, B]), g1 = bg(p, [U, Dc, B, A]);
+    const run = (k) => timed((pass) => { pass.setPipeline(p); for (let i = 0; i < k; i++) { pass.setBindGroup(0, i & 1 ? g1 : g0); pass.dispatchWorkgroups(W / 16, W / 16); } });
+    await run(2); const t = await run(K);
+    R.tests.pressure2D = { grid: W, iters: K, ...t, msPerIter: +((t.gpuMs ?? t.wallMs) / K).toFixed(3) };
+    log('pressure2D ' + JSON.stringify(R.tests.pressure2D));
+    Dc.destroy(); A.destroy(); B.destroy();
+  }
+
+  // ---- 4. agents: sense x3 / turn / move / atomic deposit, then 3x3 diffuse+decay ----
+  {
+    const W = quick ? 2048 : 4096, cells = W * W, K = 10;
+    const pa = await pipe(`
+struct P { w:u32, n:u32, stride:u32, step:u32 };
+struct A { x:f32, y:f32, h:f32, pad:f32 };
+@group(0) @binding(0) var<uniform> p:P;
+@group(0) @binding(1) var<storage,read_write> ag: array<A>;
+@group(0) @binding(2) var<storage,read> trail: array<f32>;
+@group(0) @binding(3) var<storage,read_write> dep: array<atomic<u32>>;
+fn pcg(v:u32)->u32{ let s = v*747796405u+2891336453u; let w = ((s>>((s>>28u)+4u))^s)*277803737u; return (w>>22u)^w; }
+fn smp(x:f32,y:f32)->f32{ let w=f32(p.w); let xi=u32((x+w)%w); let yi=u32((y+w)%w); return trail[yi*p.w+xi]; }
+@compute @workgroup_size(256) fn main(@builtin(global_invocation_id) g: vec3u){
+  let i = g.x + g.y*p.stride; if (i>=p.n){return;}
+  var a = ag[i];
+  if (p.step==0u){ let r=pcg(i); a.x=f32(r%p.w); a.y=f32(pcg(r)%p.w); a.h=f32(pcg(r+1u)%6283u)*0.001;
+    if (${coherent ? 'true' : 'false'}) { a.x=f32(i%p.w); a.y=f32(((i/p.w)*(p.w/max(1u,p.n/p.w)))%p.w); } }  // memory order == spatial order
+  let SA=0.39; let SO=9.0; let RA=0.78;
+  let f=smp(a.x+cos(a.h)*SO,a.y+sin(a.h)*SO);
+  let l=smp(a.x+cos(a.h+SA)*SO,a.y+sin(a.h+SA)*SO);
+  let r=smp(a.x+cos(a.h-SA)*SO,a.y+sin(a.h-SA)*SO);
+  let rnd = f32(pcg(i*31u+p.step)&1u)*2.0-1.0;
+  if (f<l && f<r){ a.h += rnd*RA; } else if (l>r){ a.h += RA; } else if (r>l){ a.h -= RA; }
+  let w=f32(p.w); a.x=(a.x+cos(a.h)+w)%w; a.y=(a.y+sin(a.h)+w)%w;
+  ag[i]=a;
+  atomicAdd(&dep[u32(a.y)*p.w+u32(a.x)], 1u);
+}`);
+    const pd = await pipe(`
+struct P { w:u32, n:u32, stride:u32, step:u32 };
+@group(0) @binding(0) var<uniform> p:P;
+@group(0) @binding(1) var<storage,read> a: array<f32>;
+@group(0) @binding(2) var<storage,read_write> b: array<f32>;
+@group(0) @binding(3) var<storage,read_write> dep: array<atomic<u32>>;
+@compute @workgroup_size(16,16) fn main(@builtin(global_invocation_id) g: vec3u){
+  if (g.x>=p.w||g.y>=p.w){return;}
+  var s=0.0;
+  for (var dy=-1; dy<=1; dy++){ for (var dx=-1; dx<=1; dx++){
+    let x=u32((i32(g.x)+dx+i32(p.w))%i32(p.w)); let y=u32((i32(g.y)+dy+i32(p.w))%i32(p.w)); s+=a[y*p.w+x]; } }
+  let i=g.y*p.w+g.x; let d=f32(atomicExchange(&dep[i],0u));
+  b[i]=(s/9.0)*0.9 + sqrt(d)*0.5;
+}`);
+    const T0 = sbuf(cells * 4), T1 = sbuf(cells * 4), D = sbuf(cells * 4);
+    R.tests.agents = [];
+    for (const n of quick ? [1 << 20] : [1 << 10, 1 << 22, 1 << 24]) {
+      const AG = sbuf(n * 16);
+      const groups = Math.ceil(n / 256), gx = Math.min(groups, 32768), gy = Math.ceil(groups / gx);
+      const mkU = (step) => ubuf(new Uint32Array([W, n, gx * 256, step]));
+      const Us = []; for (let s = 0; s < K + 2; s++) Us.push(mkU(s));
+      const run = (s0, k) => timed((pass) => { for (let s = s0; s < s0 + k; s++) {
+        const tr = s & 1 ? T1 : T0, tw = s & 1 ? T0 : T1;
+        pass.setPipeline(pa); pass.setBindGroup(0, bg(pa, [Us[s], AG, tr, D])); pass.dispatchWorkgroups(gx, gy);
+        pass.setPipeline(pd); pass.setBindGroup(0, bg(pd, [Us[s], tr, tw, D])); pass.dispatchWorkgroups(W / 16, W / 16);
+      } });
+      await run(0, 2); const t = await run(2, K);
+      const row = { grid: W, agents: n, steps: K, ...t, msPerStep: +((t.gpuMs ?? t.wallMs) / K).toFixed(3) };
+      R.tests.agents.push(row); log('agents ' + JSON.stringify(row));
+      AG.destroy(); Us.forEach((u) => u.destroy());
+    }
+    T0.destroy(); T1.destroy(); D.destroy();
+  }
+}
+window.__probeDone = main().catch((e) => { R.error = String(e && e.stack || e); }).then(() => { window.__probe = R; log('\nDONE\n' + JSON.stringify(R.tests, null, 1)); return R; });
+</script>

@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>rig: three dev GaussianSplat</title>
+<style>html,body{margin:0;background:#000;height:100%;overflow:hidden}canvas{display:block}#hud{position:fixed;left:8px;top:8px;color:#0f0;font:12px monospace;white-space:pre;background:#0008;padding:4px}</style>
+<div id="hud">loading…</div>
+<script src="./shot.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three/webgpu';
+import { SPZLoader } from 'three/addons/loaders/SPZLoader.js';
+import { GaussianSplatPLYLoader } from 'three/addons/loaders/GaussianSplatPLYLoader.js';
+import { GaussianSplat } from 'three/addons/objects/GaussianSplat.js';
+import { q, scene, pos, look, up, fov, hud, fpsLoop, sync } from './common.js';
+const sceneT = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(fov, innerWidth/innerHeight, 0.05, 1000);
+camera.up.set(up[0], up[1], up[2]); camera.position.set(pos[0], pos[1], pos[2]); camera.lookAt(look[0], look[1], look[2]);
+const renderer = new THREE.WebGPURenderer({ antialias:false, forceWebGL: !!q.get('gl') });
+renderer.setPixelRatio(devicePixelRatio); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+await renderer.init();
+const backend = renderer.backend.isWebGPUBackend ? 'webgpu' : 'webgl2';
+const file = q.get('file') || `./out/${scene}_sh0.spz`;
+const t0 = performance.now(); let tLoad = 0, count = 0;
+const loader = file.endsWith('.ply') ? new GaussianSplatPLYLoader() : new SPZLoader();
+const geometry = await loader.loadAsync(file);
+tLoad = (performance.now()-t0)/1000;
+const splats = new GaussianSplat(geometry, { autoSort: true });
+count = geometry.attributes.position ? geometry.attributes.position.count : (geometry.instanceCount || 0);
+sceneT.add(splats); window.__rig = { splats, ready:true };
+const frame = () => { renderer.render(sceneT, camera); if (sync) { if (renderer.backend.isWebGPUBackend) return renderer.backend.device.queue.onSubmittedWorkDone(); renderer.backend.gl.finish(); } };
+window.__render = frame;
+fpsLoop(`three ${THREE.REVISION} [${backend}]  ${file.split('/').pop()}`, () => `load ${tLoad.toFixed(1)}s  splats ${count.toLocaleString()}`, frame);
+</script>

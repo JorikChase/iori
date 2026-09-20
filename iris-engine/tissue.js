@@ -73,7 +73,7 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_outA, u_outB, u_cellS, u_cellG, u_fill;
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -92,7 +92,7 @@
             for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); fib += w * texture(u_fibA, c + vec2(float(i), float(j)) * px * 2.5).rgb; wsum += w; }
             fib /= wsum;
             vec4 fB = texture(u_fibB, c), vB = texture(u_veinB, c);
-            float roundness = 0.78 + 0.22 * sqrt(clamp(1.0 - pow(fB.r / max(1.4 * fB.g, 0.014), 2.0), 0.0, 1.0));
+            float roundness = 0.78 + 0.22 * sqrt(clamp(1.0 - pow(fB.r / max(u_fibRK * fB.g, 0.014), 2.0), 0.0, 1.0));
             float vein = (1.0 - texture(u_veinA, c).r) * exp(-0.5 * pow(vB.r / max(vB.g, 0.0056), 2.0)) * vB.a;
             float prof = (1.0 - sstep(u_pit0, u_pit1, fB.r)) * fB.a;        // no fibre within ≈ 0.1 mm: a true pit, the ground shows
             vec3 hole = mix(cg.rgb, fib * roundness * (1.0 - vein), prof);
@@ -110,7 +110,14 @@
             vec3 lin = mix(hole, sheet, cover);
             if (u_grey > 0.0) lin = vec3(u_grey);                           // calibration: flat grey albedo, the relief stays
             o_alb = vec4(lin, mask);
-            o_aux = vec4(-u_depth * (1.0 - cover), 0.0, 0.0, mask);
+            // Z1 (§32): the deck has height. Every fibre is a tube of radius rK·w whose centre sits z above the floor
+            // of its hole (radius measured, weave inferred — tools/layer_proof.py), so the surface inside a hole is
+            // the floor plus the dome of the nearest tube. The floor drops by the deck's own thickness so the tallest
+            // tubes come up level with the underside of the sheet instead of standing proud of it.
+            float rr = u_fibRK * fB.g;
+            float dome = sqrt(max(0.0, rr * rr - fB.r * fB.r));
+            float zDeck = (texture(u_fibA, c).a + dome) * u_deckZ * prof;
+            o_aux = vec4(mix(-u_depth - u_deckH + zDeck, 0.0, cover), 0.0, 0.0, mask);
         }`;
 
     // K1 (§32): the origin — the fitted atlas's material, packed the moment the layer model is switched on. The knobs
@@ -300,7 +307,7 @@
         T.lodBias = Math.log2((4 / AH) / tau);                     // the photo shader's lod counts atlas texels (4 mm / ATLAS_H out here)
         // outlines: counter-clockwise in tissue mm = hole on the left; islands the other way round
         for (const o of sets.outlines) { const ccw = mmArea(o.uv) > 0; if (ccw === !!o.island) { o.uv.reverse(); o.rim = o.rim.slice().reverse(); o.xy = o.xy.slice().reverse(); } }
-        T.sets = sets; T.cells = cells;
+        T.sets = sets; T.cells = cells; T.deckH = undefined;
         say(`loaded ${json.ref}: ${tot - lost}/${tot} points on the iris · region u ${T.rect[0].toFixed(4)}+${T.rect[2].toFixed(4)} v ${T.rect[1].toFixed(3)}+${T.rect[3].toFixed(3)} → ${T.size[0]}×${T.size[1]} texels (τ ${(T.tauUsed * 1000).toFixed(1)} µm${T.full ? ', full circle' : ''})`);
         return T;
     };
@@ -326,10 +333,32 @@
         return texture(gw, gh, false, out);
     }
 
+    // the deck's thickness: how far the tallest tubes stand above the floor (p98 of centre + radius over every fibre
+    // sample). The hole's floor is dropped by this, so the deck fills the hole instead of standing out of it.
+    // How much of the anatomical height the front view renders. The geometry is stored anatomical — the probe,
+    // grazing light and the bridges need all of it — but the head-on picture cannot simply take it, because the layer
+    // model's albedo was MEASURED FROM THIS PHOTO and already contains the shading the photo shows; geometric shading
+    // on top of it double-counts. Measured on the whole iris of ref 26 at NORMAL, deckZ 0 / 0.35 / 1:
+    //   MATCH2 79.56 / 81.69 / 81.13 · MATCH 84.19 / 86.49 / 87.44 · grad 0.715 / 0.737 / 0.708
+    //   cellDab 4.63 / 4.39 / 4.35 · strandCorr 0.519 / 0.458 / 0.350
+    // So relief helps the picture — +2.1 MATCH2 — up to about a third of the anatomical height, and past that the
+    // shading starts fighting the albedo's own (grad falls, and strandCorr falls throughout: shading across a fibre
+    // competes with the strand pattern). A single 1 mm crypt window says the opposite, which is why it is the whole
+    // eye that decides. De-lighting the albedo with the inferred geometry, so the reference light reproduces the
+    // photo and any other light is then correct, is what lets this go to 1.0 — Z3.
+    T.deckZ = 0.35;
+    function deckThickness() {
+        if (T.deckH !== undefined) return T.deckH;
+        const rK = (T.src.z || {}).rK || 1.4, top = [];
+        for (const c of (T.sets.fibres || [])) if (c.z) for (let i = 0; i < c.z.length; i++) top.push(c.z[i] + rK * c.w[i]);
+        top.sort((a, b) => a - b);
+        return (T.deckH = top.length ? top[Math.floor(0.98 * (top.length - 1))] : 0);
+    }
+
     // ---------------------------------------------------------------- bake the region
     T.bake = function (opts = {}) {
         const pr = programs(), [w, h] = T.size, mm = T.src.mm, grey = opts.grey || 0;
-        const alb = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], 1]; };
+        const alb = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], c.z ? c.z[i] : 0]; };   // .a = Z1: the tube's centre height above its floor, mm
         const chroma = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i].map(q => q * 0.25), c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], rel(c, i)]; };
         // a relative payload is converted through the camera: albedo(base × ratio) / albedo(base), in luminance
         const lumA = (Y, c, i) => { const a = toAlbedo([Y, Y, Y], c.xy[i][0], c.xy[i][1]); return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2]; };
@@ -387,6 +416,8 @@
         const rim = grey ? [grey, grey, grey] : toAlbedo(T.src.rimRGB, T.cells.xy[0][0], T.cells.xy[0][1]); gl.uniform3f(c.loc('u_rimRGB'), rim[0], rim[1], rim[2]);
         gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
         gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? mm.depth : opts.depth);
+        const zm = T.src.z || {}, dz = T.deckZ === undefined ? 1 : T.deckZ;
+        gl.uniform1f(c.loc('u_fibRK'), zm.rK || 1.4); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         for (const t of [T.albedo, T.aux]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.generateMipmap(gl.TEXTURE_2D); }

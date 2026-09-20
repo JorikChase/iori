@@ -1750,3 +1750,51 @@ relief), not more shading. Two implementation lessons worth keeping:
   irradiance calibration and cost 25 cellDab before it was found.
 - The ratio needs **the same small offset on both sides**, `(n + 2e-3) / (o + 2e-3)`: at the limbal rim the LUT clamps
   to black and a bare ratio reads 0/ε = 0, painting the rim black — 1 674 pixels, up to 129 code values.
+
+### 32.2 Log (2026-09-20): Z1 — the deck has height
+
+**Z1a, the inference** (`tools/layer_proof.py`). The tube's **radius is measured** — the traced ridge width, the same
+`1.4 w` the compose pass already draws a fibre out to. The **height is inferred** and says so: a fibre with no crossing
+rests on the floor at `z = r`, and where two fibres cross, the one whose own brightness and width hold up at the
+crossing is in front. Exported per sample as `r` / `z` / `zc` (confidence), provenance `{r: measured, z: inferred}`,
+so G can correct it by hand. Three things the data insisted on, each of which cost a run:
+
+- A fibre that crosses over one neighbour and under the next **cannot be at one height**. Smoothing the lift along the
+  curve turns a weave into a stack: 125 µm mean lift, everything against the cap. Each crossing now contributes a bump
+  as wide as the bend a tube of that size would make.
+- **A weave has cycles** — A over B over C over A is what weaving *is* — so no single-valued height field can satisfy
+  every crossing. Chaining each lift off the other fibre's current height diverges on every cycle (184 µm, all
+  capped); measuring it off the resting heights keeps it local and bounded (`2 r_low + r_high`).
+- Below **45°** two fibres running together are far more likely to be one fibre the tracer split than a genuine
+  over/under. At 23° the proof window gave 799 crossings for 117 fibres, so every fibre was lifted everywhere.
+
+Whole iris of ref 26: **2025 crossings over 695 fibres, 92 % decided with confidence > 0.5, lift mean 61 µm / p95
+159 µm, and the order comes out right at 86 % of crossings** — the residual is the cycles, reported, not hidden.
+`study/proof-layers/proof-26-heights.jpg` draws every fibre by height with the decisions marked.
+
+**Z1b, the render** (`tissue.js`). The fibre payload's unused alpha now carries `z`, and the compose pass builds the
+hole's surface as *floor + the dome of the nearest tube*, `sqrt(r² − d²)`, with the floor dropped by the deck's own
+thickness (p98 of `z + r` = 278 µm here) so the tallest tubes come up level with the underside of the sheet instead of
+standing proud of it. `IrisTissue.deckZ` is the dial; **0 is bit-identical to v0.8**.
+
+Measured on the whole iris at NORMAL — deckZ **0 / 0.35 / 1**:
+
+| | MATCH2 | MATCH | grad | cellDab | strandCorr |
+|---|---:|---:|---:|---:|---:|
+| 0 — flat, v0.8 | 79.56 | 84.19 | 0.715 | 4.63 | 0.519 |
+| **0.35 — default** | **81.69** | 86.49 | **0.737** | 4.39 | 0.458 |
+| 1 — anatomical | 81.13 | **87.44** | 0.708 | 4.35 | 0.350 |
+
+**Relief helps the picture — +2.1 MATCH2 — up to about a third of the anatomical height, and fights it past that.**
+The reason is worth keeping: the layer model's albedo was *measured from this photo*, so it already contains the
+shading the photo shows, and geometric shading on top of it **double-counts**. That is also why `strandCorr` falls
+throughout (shading across a fibre competes with the strand pattern it was measured from), and why the fix is not a
+smaller number but **de-lighting the albedo with the inferred geometry** — divide out the shading the reference light
+would have produced — so the reference light reproduces the photo and any other light is then correct. That is Z3's
+first job, and it is what lets deckZ go to 1.0.
+
+A methodological note: a single 1 mm crypt window said the *opposite* (gradient agreement falling 0.375 → 0.323 with
+relief). The whole eye decides; one window does not.
+
+K1 is untouched by this: at deckZ 0 the origin is still bit-identical, and at 0.35 exactly **one channel of one pixel**
+differs by 1 (the parallax march crossing a texel boundary) — render repeatability itself is exact.

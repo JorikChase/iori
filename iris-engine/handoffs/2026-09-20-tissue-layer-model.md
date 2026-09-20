@@ -99,6 +99,21 @@ working tree (UI shell: `ui31.js`, `overlay.js`, `gaze.js`, `ui.css`; strand bui
 | T8 | tools: vector handles, transplant / retarget / style fills, strand brushes = fitter ops, consent toggle, library | |
 | T9 | enhancement (statistical, then learned proposer of curves) and mammals (§29) | |
 
+**Done since (2026-09-20): K0 + K1.** `study/k0-knob-liveness.md` holds the knob-liveness table and the method;
+spec §32.1 is the log. K0 measured the report (13 knobs killed by the layer model, 5 more already dead in the legacy
+model, and the fit render is blind to the stochastic knobs — `u_ref = 1` gates DOF / bloom / grain, so the harness
+also measures 32 accumulated frames). K1 (`tissue.js` only, ablation `IrisTissue.k1`) scales the measured albedo by
+the ratio of the texel's material now to its material at the origin through the spectral LUT: **bit-identical at the
+origin (0 of 295 680 px)**, 7 of the 13 live again, 4 flat because the model has no primitive for them (crypt,
+furrow, blflow → G) and no relief to scale (relief → Z1: the whole height field is 10 µm hole floors).
+Harness: `const K = await import('./tools/knob_probe.js'); await K.run({})` — 8 s, both models.
+
+**Next stretch (spec §32, agreed 2026-09-20, supersedes the order below):** K0 knob-liveness test → K1 knobs as offsets from the
+fit → K2 material payloads → Z1 height on every primitive, depth-peeled layer stack → Z2 inspection API (panel = UI
+session) → T2a → Z3 layered march → T3 probe (**the depth test**) → T1 → T2b → G (paint / edit strands, one op
+vocabulary with the fitter) → T6. Why: the tissue variant *replaces* colour and relief, so every procedural knob is dead
+under it, and the height field is one number (holes −10 µm).
+
 Order agreed with iori: T1–T3 are the new asks; T6 is the centre of the timeline; T7 gates any non-isolated photo.
 iori's standing rules: diagnosis first, phased plans with real scoping questions, one change per version with an
 ablation when it has two parts, seal every bench in `versions/`, write each checkpoint into the spec, **correct colour

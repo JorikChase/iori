@@ -1629,3 +1629,124 @@ Beyond T2 the external camera runs out: the cornea's refraction and the chamber 
   painted masks, strand brushes emitting the same ops as the fitter; consent toggle on imported irises; library.
 - **T9 Enhancement and mammals** (§29): statistical generator first, learned proposer of curves later (primitives,
   never pixels; provenance `inferred`); species boundary functions.
+
+## 32. The next stretch: live knobs, real depth, probes as the test (agreed with iori, 2026-09-20)
+
+Two faults reported on v0.8-tissue, both read out of the source (nothing was run):
+
+- **The procedural knobs are dead under the layer model.** The legacy model stores a fit as a delta on the knob
+  (`FD(texel, R_x)`), so sliders stay live. The tissue variant *replaces* the result: `col = mix(col, tsA.rgb, tsA.a)`,
+  `t1 → 0`, `t3.r → 1`, and relief is divided by `u_relief` before the shader multiplies it back. With the mask over the
+  whole iris, pigment, stroma, pheo, yellow, mie, ring, crypt, furrow, relief, blcol / blrel / blflow, warp, collr and
+  seed have no path to a pixel; only pupil, light, camera and post act. `layer_proof.py` already finds a spectral-LUT
+  material per sample (`invert`) and then exports only the graded RGB — the material is thrown away at export.
+- **There is no elevation to inspect.** The whole height field is `o_aux = -u_depth * (1 - cover)`: holes 10 µm down,
+  everything else flat at 0. Fibres have no height, contraction furrows do not exist in the model, and the renderer
+  marches one heightfield, which cannot hold a strand above a strand.
+
+iori's decisions: **knobs offset the fit**; details must be **procedurally paintable and the strands editable**; depth
+is **tested with the camera probes** of T3; **as many depth layers as possible** (real depth information, strand
+bridges); the **inspection panel belongs to the UI session** — this line delivers the engine API only.
+
+Standing gates for every step: `IrisTissue.on === false` → the integrity bench stays 61.6 / 68.3 / 70.5 / 66.4; layer
+model on with every knob at its origin → mean cellDab ≤ 2.75 (colour is never traded for structure); one change per
+version, sealed in `versions/`.
+
+### K — the knobs offset the fit
+
+- **K0 Knob liveness test.** Wiggle each of the 27 sliders (± a fixed fraction of its range) in both models, record the
+  mean |Δ| of the render per knob. Sealed table; from then on a gate: a version may not kill a knob.
+- **K1 Offsets, cheaply.** The tissue stores the knob values at fit time (the *origin*). Colour = baked albedo ×
+  `irisAlbedoLut(knobs now) / irisAlbedoLut(origin)` per texel; relief and crypt scale the aux height about the origin;
+  blcol / blrel / blflow drive sheet colour, wall and rim; warp re-bakes with displaced curve points. The slider shows
+  a tick at the origin. Accept: bit-identical at the origin; every knob ≥ half its legacy-model delta.
+- **K2 Payloads as materials.** Export the LUT material per sample (mel, stroma, pheo, yellow, mie, brightness scale)
+  instead of RGB; the compose pass writes material channels; the photo variant runs `irisAlbedoLut` on them with the
+  knob deltas — the legacy `FD` idiom. This is also the payload format of T5 (`genome.tissue`). Accept: cellDab ≤ 2.75.
+
+### Z — depth as data, as many layers as the quality allows
+
+- **Z1 Height on every primitive.** No fixed tiers: every curve vertex carries a centre height z and a radius, the
+  sheet a thickness, holes their wall and floor, furrows and ruff beads (T1) their own profile. z is *inferred* —
+  anatomy priors, crossing order (the fibre that runs unbroken across a crossing is on top), width and sharpness — with
+  a confidence, provenance `inferred`, and editable (G). Tubes are rasterised topmost-wins (depth = −top height) and
+  **depth-peeled into a layer stack**: a `TEXTURE_2D_ARRAY` of (top z, bottom z, material, id) per layer, the layer
+  count from the quality preset (draft 2 · normal 4 · fine 6 · capture 8, raised until memory or frame time says
+  stop). Accept: a polar read-back per layer shows tubes, bridges and what lies beneath them.
+- **Z2 Inspection API (no panel).** `E.elevationAt(x, y)` → µm, layer, primitive id; `E.section(p0, p1)` → the stack
+  along a line (tubes as circles, sheet as slab, gaps); debug views: elevation with 10 µm contours, layer solo, layer
+  count. The UI session builds the panel on these.
+- **Z3 Layered march.** The view ray and the shadow ray test the slabs of the stack, so sight and light pass under a
+  bridging strand. Step length near the surface tied to the local tube radius (a 30–60 µm tube must not fall between
+  steps); a min–max mip of the stack for skipping. Accept: the probe test below.
+
+### Order
+
+K0 → K1 → K2 → Z1 → Z2 → **T2a** (windowed re-bake + continuous zoom: the probe needs the texels) → Z3 → **T3 probe**
+→ T1 (ruff beads on real relief) → T2b (70° tilt, orbit about the cursor point) → **G** → T6 → T7 …
+
+**The probe is the depth test** (iori): a fly-over of a crypt of ref 26 at 0.2 mm, grazing look, probe light on — a
+bridging strand shows the floor *under* it and drops a separate shadow; `E.section` through the same crossing shows
+the gap. T3's own acceptance stays.
+
+### G — paint details procedurally, edit the strands (T8 pulled forward, before T6)
+
+One op vocabulary for brush, generator and fitter — curves, outlines, furrows, beads, material cells, with z:
+
+- **Edit:** a strand is an object — move / add / delete vertices, width, z (lift into a bridge, push under), material;
+  cut, join, delete, duplicate. D5 handles.
+- **Paint:** brushes that *generate* primitives along the stroke from the local flow field — strand bundles (density,
+  width, waviness, tier spread), crypts / holes, contraction furrows, pigment spots, ruff beads — seeded, so a stroke is
+  re-rollable. Provenance `painted` / `seeded`.
+- **Generator:** the same brushes run over the whole iris from the knobs give a layer-model eye with no photo; this is
+  what makes seed, furrow, collr and warp live in the new model, and it is the statistical generator of T9 in embryo.
+- Every op is journaled in the format T6 will use, so the fitter later emits exactly what the brushes emit.
+
+Risks: z from a coaxial-flash photo is mostly prior (relief under a ring flash is symmetric — §30.1), so it has to be
+honest about confidence and cheap to correct by hand; the stack costs layers × march steps reads — the windowed bake
+(T2a) is what pays for it; K2 changes the export format, so `tissue-26-whole.json` is regenerated (≈ 11 min).
+
+### 32.1 Log (2026-09-20): K0 and K1 — the knob liveness table, and the knobs as offsets from the fit
+
+Full table and method: `study/k0-knob-liveness.md`. Harness: `tools/knob_probe.js`, loaded on demand, touching no
+engine file; each slider driven by 20 % of its range the way a hand drives it (DOM `input`, so `regenerateCrypts` and
+`loadSeedIntoSliders` run), measured as mean |ΔY| inside the engine's own iris mask, on case 26 at NORMAL.
+
+**K0** measured iori's report: **13 knobs killed** by the layer model — every one whose effect reaches a pixel through
+the baked atlas (seed, pigment, stroma, pheo, yellow, ring, collr, crypt, furrow, relief, blcol, blrel, blflow), all
+sitting at 0.000–0.010 against 0.14–45 in the legacy model. Two more weakened (`light` 0.10, `elev` 0.46: the model's
+albedo is flat, so moving the key only re-lights the 10 µm hole floors). Two findings beyond the report:
+
+- The **fit render is blind to the stochastic knobs**. `u_ref = 1` gates jitter, depth of field, CA, bloom and grain
+  behind `hq`, so fstop / focus / grain read 0 in every bench however far they move. The harness therefore measures a
+  second path: 32 accumulated frames of the interactive pipeline. Any future knob test needs both.
+- **Five knobs were already dead in the legacy model** and have nothing to do with the layer model: `srcSize`
+  (isolated cases render with `specular: 0`), `kelvin` (the per-photo camera grade absorbs the key colour), `bloom`
+  (0 even unmasked — the post pass's bloom term never reaches the image), `mie` and `warp` (the fitted per-cell
+  material and the fitted flow pack override them). Their own fix is **K1b**, not scheduled yet.
+
+**K1** (`tissue.js` only, ablation switch `IrisTissue.k1`) gives the layer model the origin the legacy model already
+has in `genome.fitted`: `setOrigin()` packs the fitted atlas's material into two mipped textures, and the photo
+variant scales the measured albedo by the ratio of the texel's material **now** to its material **at the origin**,
+both through the same spectral LUT; relief divides by the origin's `relief × blRelief` instead of the live one. At the
+origin the ratio is 1 and the render is **bit-identical — 0 of 295 680 pixels differ** (MATCH2 79.653 / MATCH 84.784 /
+cellDab 4.47 at NORMAL with the switch either way).
+
+Result: **7 of the 13 return live** (seed 1.16, pigment 1.34, stroma 1.27, pheo 1.39, yellow 1.59, ring 1.47, blcol
+1.19 — ratios above 1 because the model's albedo is brighter and flatter than the legacy one, so a multiplicative tint
+moves more), 2 weakened (collr 0.29, blrel 0.27), and **4 stay flat for a reason the tint cannot fix**:
+
+- `relief` is wired and proportional (1 → 1.4 / 2 / 5 moves the picture 0.096 / 0.219 / 0.772; re-baking the holes
+  from 10 µm to 100 µm moves it 0.992) — **the model owns 10 µm of height and nothing else**. That is Z1, measured.
+- `crypt` reaches 0.2 at full swing against 9.4: the tint carries a crypt's material, not its floor shadow, depth or
+  occlusion, and the holes are the measured ones. `furrow` has no primitive at all. `blflow` turns a flow field the
+  deck no longer has.
+
+So the four survivors are exactly the structural knobs, and they need **G** (primitives that respond) and **Z1** (real
+relief), not more shading. Two implementation lessons worth keeping:
+
+- `setOrigin` can be reached from inside `drawPhotoFrame`, between its `useProgram` and its draw: it must save and
+  restore program, framebuffer and viewport, or that frame is drawn with the snapshot pass's state. This corrupted the
+  irradiance calibration and cost 25 cellDab before it was found.
+- The ratio needs **the same small offset on both sides**, `(n + 2e-3) / (o + 2e-3)`: at the limbal rim the LUT clamps
+  to black and a bare ratio reads 0/ε = 0, painting the rim black — 1 674 pixels, up to 129 code values.

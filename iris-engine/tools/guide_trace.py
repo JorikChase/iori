@@ -92,7 +92,9 @@ def order_path(ys, xs):
     return np.array(path, np.float64)
 
 
-def trace(path):
+def trace(path, sigmas_um=None, invert=False, tag='guide-trace', out_dir=None):
+    # sigmas_um / invert / tag / out_dir (study/08 §8): the same tracer at another scale, or on the valleys (dark gaps)
+    # instead of the ridges. The defaults reproduce §7's traces exactly.
     d = json.load(open(path))
     ident, ppm, W, H = d['file'][:2], d['ppm'], d['W'], d['H']
     photo = cv2.imdecode(np.frombuffer(base64.b64decode(d['photoPNG'].split(',')[1]), np.uint8), cv2.IMREAD_COLOR)
@@ -102,7 +104,8 @@ def trace(path):
     L = (0.114 * photo[..., 0] + 0.587 * photo[..., 1] + 0.299 * photo[..., 2]).astype(np.float32) / 255.0
     low = cv2.GaussianBlur(L, (0, 0), 1.0 * ppm / 5.3)                 # 1 mm low-pass, matches fit.js LOW_MM
     flat = (L - low) / (low + 0.02) + 0.5                              # a flattened field, ridge-detector friendly
-    sig = [max(0.9, um / 1000 * ppm) for um in GUIDE_UM]
+    if invert: flat = 1.0 - flat
+    sig = [max(0.9, um / 1000 * ppm) for um in (sigmas_um or GUIDE_UM)]
     R, nx, ny = ridge(flat, sig)
     H0, W0 = flat.shape
     gy, gx = np.mgrid[0:H0, 0:W0].astype(np.float32)
@@ -162,12 +165,13 @@ def trace(path):
                         'vals': [round(float(x), 4) for x in vpt], 'len_mm': round((len(p) - 1) / ppm, 3)})
         for (yy0, xx0) in p.astype(int):
             if 0 <= yy0 < H0 and 0 <= xx0 < W0: overlay[yy0, xx0] = (0, 255, 255)
-    os.makedirs(OUT, exist_ok=True)
-    cv2.imwrite(os.path.join(OUT, 'guide-trace-%s-overlay.jpg' % ident), overlay, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    out_dir = out_dir or OUT
+    os.makedirs(out_dir, exist_ok=True)
+    cv2.imwrite(os.path.join(out_dir, '%s-%s-overlay.jpg' % (tag, ident)), overlay, [cv2.IMWRITE_JPEG_QUALITY, 90])
     out = {'eye': d['file'], 'ppm': ppm, 'W': W, 'H': H, 'sigmas_px': [round(x, 2) for x in sig],
            'gapVal': round(float(L[mask].mean() - L[mask].std() * 0.3), 4), 'ridges': ridges}
-    json.dump(out, open(os.path.join(OUT, 'guide-trace-%s.json' % ident), 'w'))
-    print(ident, 'ridges', len(ridges), 'total mm', round(sum(r['len_mm'] for r in ridges), 1),
+    json.dump(out, open(os.path.join(out_dir, '%s-%s.json' % (tag, ident)), 'w'))
+    print(ident, tag, 'ridges', len(ridges), 'total mm', round(sum(r['len_mm'] for r in ridges), 1),
           'median width um', round(1000 * np.median([r['width_mm'] for r in ridges]), 1) if ridges else None,
           'mask mm2', round(mask.sum() / ppm ** 2, 1))
     return out

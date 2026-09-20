@@ -68,11 +68,17 @@ def grade(lab, g, rot):                    # the per-photo camera grade: chroma 
 SCALES = np.array([.25, .35, .5, .7, .85, 1.0, 1.2, 1.5], np.float32)      # brightness multiplier on the albedo (the engine's brightness field)
 
 
-_BASE = {}
+_BASE = {}; _TREE = {}
 def invert(targets, LUT, g, rot):
     """nearest graded LUT colour × brightness multiplier for each target Lab; returns (index, scale, achieved Lab, ΔE)"""
     if id(LUT) not in _BASE: _BASE[id(LUT)] = np.concatenate([lin2lab(LUT * s) for s in SCALES])
     cand = grade(_BASE[id(LUT)], g, rot); n = len(LUT)
+    if len(targets) > 400:                                                   # many targets: a KD-tree on the graded cloud (cached per grade)
+        from scipy.spatial import cKDTree
+        key = (id(LUT), g, rot)
+        if key not in _TREE: _TREE.clear(); _TREE[key] = cKDTree(cand)
+        dist, j = _TREE[key].query(np.asarray(targets, np.float32), k=1, workers=-1)
+        return j % n, SCALES[j // n], cand[j], dist.astype(np.float32)
     idx = np.zeros(len(targets), int); sc = np.zeros(len(targets), np.float32); got = np.zeros((len(targets), 3), np.float32); dE = np.zeros(len(targets), np.float32)
     for k in range(0, len(targets), 40):
         t = targets[k:k + 40]; e = ((t[:, None, :] - cand[None]) ** 2).sum(2); j = e.argmin(1)
@@ -209,8 +215,13 @@ sstep = lambda a, b, x: (lambda t: t * t * (3 - 2 * t))(np.clip((x - a) / (b - a
 
 def main():
     nat = cv2.imread(os.path.join(ENG, 'ref', '26-green-crypts-isolated.jpg')); k = nat.shape[1] / 1280.0
-    cx, cy, w = WIN; y0, x0, n = int((cy - w / 2) * k), int((cx - w / 2) * k), int(w * k)
-    photo = nat[y0:y0 + n, x0:x0 + n].copy(); UM = 1000.0 / (PPM_FIT * k); H = W = n
+    WHOLE = '--whole' in sys.argv; TAG = 'whole-26' if WHOLE else 'proof-26'
+    PUP = (641.0511, 463.2756, 166.7331); LIMB = (638.7877, 462.2253, 418.13)                           # ref 26 at the 1280 px fit image (fit.dumpForGuideTrace)
+    if WHOLE: cx, cy = LIMB[0], LIMB[1]; w = 2 * (LIMB[2] + 12)
+    else: cx, cy, w = WIN
+    y0, x0, n = int((cy - w / 2) * k), int((cx - w / 2) * k), int(w * k)
+    y0, x0 = max(0, y0), max(0, x0)
+    photo = nat[y0:y0 + n, x0:x0 + n].copy(); UM = 1000.0 / (PPM_FIT * k); H, W = photo.shape[:2]
     plin = srgb2lin(photo); pY = plin @ LUMA; plab = cv2.cvtColor(photo.astype(np.float32) / 255, cv2.COLOR_BGR2Lab)
     print(f'window {n} px = {n * UM / 1000:.2f} mm · {UM:.2f} µm/px')
 
@@ -218,19 +229,29 @@ def main():
     iris = (cv2.GaussianBlur(plab[..., 0], (0, 0), 3) > 8).astype(np.uint8)
     ic, _ = cv2.findContours(iris, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)                           # black pits inside crypts are tissue, not background
     iris = np.zeros_like(iris); cv2.drawContours(iris, [max(ic, key=cv2.contourArea)], -1, 1, -1)
+    pupil_px = np.hypot(*(np.mgrid[0:H, 0:W][::-1] - np.array([PUP[0] * k - x0, PUP[1] * k - y0])[:, None, None])) < 1.07 * PUP[2] * k
+    iris[pupil_px] = 0                                                                                   # the pupil and its ruff are not this model's tissue
     aper = cv2.GaussianBlur(iris.astype(np.float32), (0, 0), 7)
     inner = cv2.erode(iris, np.ones((41, 41), np.uint8)) > 0
 
     # ---- 1. sheet coverage: hole outlines (dark AND low b* — a hole in the pigmented sheet, not a shadow)
     s4 = cv2.GaussianBlur(plab, (0, 0), 2.5)
     near = cv2.erode(iris, np.ones((21, 21), np.uint8)) > 0
-    Hm = ((((s4[..., 2] < 14) & (s4[..., 0] < 46)) | (s4[..., 0] < 24)) & near).astype(np.uint8)
+    # a hole is dark AND grey; dark and SATURATED is pigment lying on the sheet (the brown spots of ref 26 read as pits otherwise)
+    # …and "grey" is relative to the sheet AROUND it: on the amber side of an iris the deck seen through a hole is browner than on
+    # the green side, and a fixed b* threshold keeps only the darkest cores (ragged masks). Local sheet b* = a wide upper envelope.
+    kk = int(round(0.35 * 1000 / UM)) | 1
+    b_loc = cv2.GaussianBlur(cv2.dilate(np.where(near, s4[..., 2], 0).astype(np.float32), np.ones((kk, kk), np.uint8)), (0, 0), kk / 2.5)
+    L_loc = cv2.GaussianBlur(cv2.dilate(np.where(near, s4[..., 0], 0).astype(np.float32), np.ones((kk, kk), np.uint8)), (0, 0), kk / 2.5)
+    grey = s4[..., 2] < np.maximum(14.0, 0.42 * b_loc)
+    Hm = (((grey & (s4[..., 0] < np.maximum(46.0, 0.85 * L_loc))) | ((s4[..., 0] < 24) & (s4[..., 2] < np.maximum(16.0, 0.45 * b_loc)) & (s4[..., 1] < 3))) & near).astype(np.uint8)
     Hm = cv2.morphologyEx(cv2.morphologyEx(Hm, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
     cnts, hier = cv2.findContours(Hm, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     amin = (0.12 * 1000 / UM) ** 2                                                                       # ≥ 0.12 mm across
     outer = [i for i, c in enumerate(cnts) if hier[0][i][3] < 0 and cv2.contourArea(c) >= amin]
     isl = [i for i, c in enumerate(cnts) if hier[0][i][3] in outer and cv2.contourArea(c) >= 0.35 * amin]  # sheet islands and septa inside a hole
-    outlines = [fourier_smooth(cnts[i], 32) for i in outer]; islands = [fourier_smooth(cnts[i], 12, 256) for i in isl]
+    harm = lambda c_, lo: int(np.clip(cv2.arcLength(c_, True) / 40.0, lo, 160))                          # harmonics with the perimeter: one per ≈ 0.19 mm of outline
+    outlines = [fourier_smooth(cnts[i], harm(cnts[i], 16), 1024 if cv2.arcLength(cnts[i], True) > 1500 else 512) for i in outer]; islands = [fourier_smooth(cnts[i], harm(cnts[i], 8), 256) for i in isl]
     holes = np.zeros((H, W), np.uint8); cv2.fillPoly(holes, [o.round().astype(np.int32) for o in outlines], 1)
     cv2.fillPoly(holes, [o.round().astype(np.int32) for o in islands], 0); outlines = outlines + islands
     sd = cv2.distanceTransform(holes, cv2.DIST_L2, 5) - cv2.distanceTransform(1 - holes, cv2.DIST_L2, 5)  # + inside a hole, px
@@ -270,7 +291,7 @@ def main():
     # …but at this scale the flat sheet is mostly SENSOR GRAIN, and tracing grain would be fitting noise (it did: short worms in
     # every direction, and a flattering B3). Tissue streaks are long, straight and run with the radial flow; grain is none of these.
     Ls = (cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 2.2) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 14), 0.004)).astype(np.float32)
-    ctr = np.array([(641.05 - (cx - w / 2)) * k, (463.28 - (cy - w / 2)) * k])                           # pupil centre of ref 26 in window px (x, y)
+    ctr = np.array([PUP[0] * k - x0, PUP[1] * k - y0])                           # pupil centre of ref 26 in window px (x, y)
     def tissue_like(path):
         q = path[:, ::-1].astype(np.float64); L_ = np.hypot(*np.diff(q, axis=0).T).sum(); chord = q[-1] - q[0]; c = np.hypot(*chord)
         if L_ < 26 or c / max(L_, 1e-6) < 0.8: return False                                              # ≥ 0.12 mm and straight
@@ -291,7 +312,8 @@ def main():
         d = np.roll(o, -1, 0) - np.roll(o, 1, 0); nrm = np.stack([d[:, 1], -d[:, 0]], 1); nrm /= np.maximum(np.hypot(*nrm.T)[:, None], 1e-6)
         if cv2.pointPolygonTest(o.astype(np.float32), tuple((o[0] + 6 * nrm[0]).astype(np.float32)), False) > 0: nrm = -nrm   # outward
         q = (o + 7 * nrm).astype(np.float32); samp = cv2.remap(cv2.GaussianBlur(plab, (0, 0), 2.5), q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0]
-        amber = np.clip(((samp[:, 1] - sheet_lab[1]) + 0.5 * (sheet_lab[0] - samp[:, 0])) / 22.0, 0, 1)   # redder and darker than the sheet
+        far = (o + 30 * nrm).astype(np.float32); ref_ = cv2.remap(cv2.GaussianBlur(plab, (0, 0), 6.0), far[None, :, 0], far[None, :, 1], cv2.INTER_LINEAR)[0]   # the sheet 0.14 mm further out: the LOCAL reference
+        amber = np.clip(((samp[:, 1] - ref_[:, 1]) + 0.5 * (ref_[:, 0] - samp[:, 0])) / 18.0, 0, 1)      # redder and darker than the sheet beside it
         kk = 9; amber = np.convolve(np.r_[amber[-kk:], amber, amber[:kk]], np.ones(kk) / kk, 'same')[kk:-kk]
         rim_strength.append(amber.astype(np.float32))
     rim_curves = [{'xy': np.r_[o, o[:1]].astype(np.float32), 'val': np.r_[a, a[:1]], 'w': np.full(len(o) + 1, 1, np.float32)} for o, a in zip(outlines, rim_strength)]
@@ -410,12 +432,13 @@ def main():
         gch = mats['ground'][0] / max(float(mats['ground'][0] @ LUMA), 1e-5)
         ex['cells'] = {'xy': r3(fitxy(cpos)[inwin]), 'sheet': r3(graded(LUT[ci] * csc[:, None])[inwin]), 'ground': r3(graded(gch[None, :] * np.maximum(gcell, 1e-4)[:, None])[inwin])}
         ex['rimRGB'] = r1(graded((mats['rim'][0] * mats['rim'][1])[None, :])[0])
-        json.dump(ex, open(os.path.join(OUT, 'tissue-26.json'), 'w'), separators=(',', ':'))
-        print('exported tissue-26.json', round(os.path.getsize(os.path.join(OUT, 'tissue-26.json')) / 1024), 'KB')
+        json.dump(ex, open(os.path.join(OUT, ('tissue-26-whole.json' if WHOLE else 'tissue-26.json')), 'w'), separators=(',', ':'))
+        print('exported', 'tissue-26-whole.json' if WHOLE else 'tissue-26.json', round(os.path.getsize(os.path.join(OUT, ('tissue-26-whole.json' if WHOLE else 'tissue-26.json'))) / 1024), 'KB')
 
     # ---- 6. judge: same window of the engine's current fit (v84c), and numbers
     eng = cv2.imread(os.path.join(OUT, 'engine-v84c-26-render.png'))
-    eng_w = cv2.resize(eng[cy - w // 2:cy + w // 2, cx - w // 2:cx + w // 2], (W, H), interpolation=cv2.INTER_CUBIC) if eng is not None else np.zeros_like(photo)
+    ex0, ey0 = int(round(x0 / k)), int(round(y0 / (nat.shape[0] / 925.0)))
+    eng_w = cv2.resize(eng[ey0:ey0 + int(round(H / (nat.shape[0] / 925.0))), ex0:ex0 + int(round(W / k))], (W, H), interpolation=cv2.INTER_CUBIC) if eng is not None else np.zeros_like(photo)
 
     def metrics(img):
         lab = cv2.cvtColor(img.astype(np.float32) / 255, cv2.COLOR_BGR2Lab); m = inner
@@ -437,21 +460,21 @@ def main():
         return {k2: round(v, 3) for k2, v in out.items()}
     report['metrics'] = {'engine_v84c': metrics(eng_w), 'layers_clean': metrics(clean), 'layers_with_camera_grain': metrics(noisy)}
     report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng, 'veins': len(veins), 'vein_samples': int(sum(len(c['xy']) for c in veins)), 'sheet_fibres': len(sfib), 'sheet_fibre_samples': int(sum(len(c['xy']) for c in sfib)), 'sheet_veins': len(svein), 'sheet_vein_samples': int(sum(len(c['xy']) for c in svein)),
-                            'rim_samples': int(sum(len(a) for a in rim_strength)), 'sheet_cells': int(gx * gy), 'window_mm2': round((n * UM / 1000) ** 2, 2)}
+                            'rim_samples': int(sum(len(a) for a in rim_strength)), 'sheet_cells': int(gx * gy), 'window_mm2': round(float(iris.sum()) * (UM / 1000) ** 2, 2)}
     for kx, v in report['metrics'].items(): print(kx, v)
     print(report['primitives'])
-    json.dump(report, open(os.path.join(OUT, 'proof-26.json'), 'w'), indent=1)
+    json.dump(report, open(os.path.join(OUT, TAG + '.json'), 'w'), indent=1)
 
     def tag(img, t):
         img = img.copy(); cv2.rectangle(img, (0, 0), (W, 30), (0, 0, 0), -1); cv2.putText(img, t, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 1, cv2.LINE_AA); return img
-    cv2.imwrite(os.path.join(OUT, 'proof-26.jpg'), np.hstack([tag(photo, 'photo (native, 4.7 um/px)'), tag(noisy, 'layer model: primitives only'), tag(eng_w, 'engine today (v84c)')]), [cv2.IMWRITE_JPEG_QUALITY, 93])
-    cv2.imwrite(os.path.join(OUT, 'proof-26-clean.jpg'), np.hstack([tag(photo, 'photo'), tag(clean, 'layer model, no camera grain')]), [cv2.IMWRITE_JPEG_QUALITY, 93])
+    cv2.imwrite(os.path.join(OUT, TAG + '.jpg'), np.hstack([tag(photo, 'photo (native, 4.7 um/px)'), tag(noisy, 'layer model: primitives only'), tag(eng_w, 'engine today (v84c)')]), [cv2.IMWRITE_JPEG_QUALITY, 93])
+    cv2.imwrite(os.path.join(OUT, TAG + '-clean.jpg'), np.hstack([tag(photo, 'photo'), tag(clean, 'layer model, no camera grain')]), [cv2.IMWRITE_JPEG_QUALITY, 93])
     ov = photo.copy()
     for o in outlines: cv2.polylines(ov, [o.round().astype(np.int32)], True, (0, 200, 255), 1, cv2.LINE_AA)
     for c in fibres: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 255, 0), 1, cv2.LINE_AA)
     for c in guides: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 0, 255), 1, cv2.LINE_AA)
     for c in veins: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (0, 0, 255), 1, cv2.LINE_AA)
-    cv2.imwrite(os.path.join(OUT, 'proof-26-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) veins (red) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    cv2.imwrite(os.path.join(OUT, TAG + '-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) veins (red) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
 
 
 if __name__ == '__main__':

@@ -1495,3 +1495,53 @@ Next: (1) whole-iris primitives — the extraction of §30 run on the polar phot
 budget check (≈ 110–220 KB); (2) grade + neutral-scatter field in the engine's colour path, per-eye palette through
 the engine's own spectral function; (3) the journaled closed-loop fitter that *finds* these primitives through the
 renderer (the growing eye); (4) contrast: lens / light ownership audit.
+
+### 30.2 P2 (2026-09-20): the whole iris of ref 26 through the layer model, in the engine
+
+`tools/layer_proof.py --whole --export` runs the §30 extraction on the whole iris at native resolution (2,580 px,
+12 mm, ≈ 11 min; colour inversion by KD-tree) → `study/proof-layers/tissue-26-whole.json` (4.6 MB, regenerable,
+gitignored): **84 outlines, 695 deck fibres, 1,657 veins, 1,552 guides, 1,241 fine sheet curves, 15 k sheet cells —
+≈ 123 k numbers + 32 k colour indices for 88 mm²** (the rim payload, 41 k samples at 512–1,024 per outline, is the
+fattest part and the easiest to thin). Grade chroma × 1.6, hue +20°. `tissue.js` renders it as a full-circle region
+(6,144 × 629 texels, τ 5.7 µm; 96,677 / 96,754 points on the iris; load + light calibration + bake **≈ 9 s**).
+
+Ref 26, fit pose, CAPTURE, the fitter's own `score()` and `diagnostics()`:
+
+| | engine v84c (fitted) | tissue layer model |
+|---|---|---|
+| MATCH2 | 67.5 | **78.4** |
+| MATCH (iori's 80 % target) | 72.1 | **87.2** |
+| SSIM ¼ / ½ · grad | 0.77 / 0.64 · 0.62 | 0.83 / 0.73 · 0.67 |
+| Δab profile · cell Δab (p90) | 11.7 · 14.4 (30.3) | **2.0 · 2.75 (6.1)** |
+| Δab by band, pupil → root | 5.6 13.4 29.7 11.7 13.6 | 2.8 2.2 3.1 2.8 2.8 |
+| B1 / B2 / B3 correlation | 0.91 / 0.79 / 0.14 | 0.89 / 0.71 / **0.37** |
+| strandCorr | 0.25 | **0.55** |
+| darkErr (floors) · σ ratio | +1.0 · 1.03 | **+6.4** · 0.94 |
+
+What had to change on the way, each a finding:
+- **Inside / outside needs a fill, not the nearest segment's side.** Beyond the outline pass's radius the middle of a
+  large exposed-deck area fell back to "sheet". A winding fill (every outline as a triangle fan, ±1 by facing, added)
+  gives the sign for any shape; holes are wound one way, islands the other; outline orientation must be computed with
+  u unwrapped (one outline crosses the seam).
+- **The engine cannot go darker than its own constant glint.** `lit += 0.05 · pow(N·h, 24)` is ≈ 1 everywhere under a
+  coaxial flash: an additive 0.06 that lifted every floor and, subtracted per channel, turned dark colours orange. In
+  the tissue region the payloads own it (term × (1 − mask)); the measured additive light fell to 0.002 and cell Δab
+  from 6.9 to 3.5. The old fit's milky limbus is switched off for a whole-iris region (it answered a rim this model
+  draws itself).
+- **Thresholds must be local.** On the amber side a fixed b\* < 14 kept only the darkest cores (ragged masks) and a rim
+  strength measured against the *global* sheet colour ringed every hole in orange. Holes are now grey relative to a
+  local upper envelope of the sheet (b\* < max(14, 0.42 · b_local)), rims relative to the sheet 0.14 mm further out,
+  **dark and saturated is pigment, not a pit** (the brown spots read as holes), and outline harmonics scale with the
+  perimeter (one per ≈ 0.19 mm).
+- **The softness is not the mip level** (bias 0 / −1 / −2: B3 ratio 0.40 / 0.44 / 0.44, MATCH2 ± 0.1). B1 / B2 energy is
+  right (0.88 / 0.89); the B3 deficit (0.37) is coverage — the sheet's strand-scale detail was dropped as grain, by
+  design.
+
+Open, in order of what the picture shows: (1) **floors +6.4 L\*** — the mock is already +4 in the darks at native
+(payloads are blurred bodies, veins clipped, pits only where no fibre lies within 0.1 mm), the engine adds ≈ +3;
+(2) **B2 0.71 below the old fit's 0.79**: guides on the sheet are found by a fixed-σ ridge filter and miss the broad
+bundles; the old fit's strandBright field carried them — it should become the sheet's brightness cells; (3) crypts on
+the amber side still fragment; (4) the pupillary ruff and the 1.07 r_p inner margin are still the old model; (5) the
+aperture edge is hard (K1b feather); (6) budget: thin the rim payload, palette-index the colours, quantise → target
+≤ 150 KB; (7) the grade still lives in the converted albedo. Then the journaled closed-loop fitter (the growing eye),
+which also owns the residual tone error by construction.

@@ -1,61 +1,61 @@
 {
  "grade": {
-  "chroma": 2.0,
+  "chroma": 2.4,
   "hue": 20
  },
  "classes": {
   "sheet": {
    "photo_Lab": [
-    57.3,
-    -13.6,
-    42.2
+    58.3,
+    -13.7,
+    42.8
    ],
    "model_Lab": [
-    56.9,
-    -13.9,
-    41.4
+    58.6,
+    -14.1,
+    43.0
    ],
-   "dE": 0.84,
+   "dE": 0.54,
    "material": {
-    "melanin": 0.315,
-    "stroma": 0.391,
-    "pheo": 1.0,
-    "yellow": 0.0,
-    "mie": 0.08
+    "melanin": 0.065,
+    "stroma": 0.359,
+    "pheo": 0.25,
+    "yellow": 0.357,
+    "mie": 0.5
    }
   },
   "deck": {
    "photo_Lab": [
-    33.8,
-    -10.0,
-    7.1
+    35.1,
+    -10.4,
+    7.7
    ],
    "model_Lab": [
-    34.8,
-    -10.1,
-    7.0
+    34.7,
+    -10.0,
+    8.2
    ],
-   "dE": 0.95,
+   "dE": 0.79,
    "material": {
     "melanin": 0.023,
     "stroma": 0.359,
-    "pheo": 1.0,
+    "pheo": 0.0,
     "yellow": 0.357,
-    "mie": 0.0
+    "mie": 0.08
    }
   },
   "ground": {
    "photo_Lab": [
-    17.0,
-    -4.9,
-    4.9
+    18.2,
+    -5.2,
+    5.5
    ],
    "model_Lab": [
     19.5,
-    -3.9,
-    5.6
+    -4.6,
+    6.7
    ],
-   "dE": 2.76,
+   "dE": 1.82,
    "material": {
     "melanin": 0.065,
     "stroma": 0.141,
@@ -66,22 +66,22 @@
   },
   "rim": {
    "photo_Lab": [
-    36.9,
-    -7.4,
-    26.0
+    43.1,
+    -6.8,
+    36.7
    ],
    "model_Lab": [
-    37.0,
-    -7.4,
-    26.2
+    42.9,
+    -7.0,
+    36.6
    ],
-   "dE": 0.18,
+   "dE": 0.35,
    "material": {
-    "melanin": 0.023,
-    "stroma": 0.422,
-    "pheo": 0.0,
-    "yellow": 0.357,
-    "mie": 0.7
+    "melanin": 0.44,
+    "stroma": 0.234,
+    "pheo": 0.25,
+    "yellow": 0.0,
+    "mie": 0.0
    }
   }
  },
@@ -90,11 +90,11 @@
    "cellDab": 16.888,
    "cellDL": 5.944,
    "dab50": 17.167,
-   "dab50_hole": 17.485,
-   "dab50_sheet": 16.928,
-   "dab_hole": 16.433,
-   "dab_sheet": 12.254,
-   "dab_rim": 18.353,
+   "dab50_hole": 18.842,
+   "dab50_sheet": 16.75,
+   "dab_hole": 17.123,
+   "dab_sheet": 11.798,
+   "dab_rim": 21.749,
    "B1_corr": 0.756,
    "B1_ratio": 1.015,
    "B2_corr": 0.741,
@@ -103,53 +103,53 @@
    "B3_ratio": 0.796
   },
   "layers_clean": {
-   "cellDab": 2.35,
-   "cellDL": 2.434,
-   "dab50": 2.975,
-   "dab50_hole": 2.662,
-   "dab50_sheet": 2.791,
-   "dab_hole": 0.548,
-   "dab_sheet": 0.566,
-   "dab_rim": 2.248,
-   "B1_corr": 0.964,
-   "B1_ratio": 0.874,
-   "B2_corr": 0.837,
-   "B2_ratio": 0.778,
-   "B3_corr": 0.503,
-   "B3_ratio": 0.413
+   "cellDab": 2.334,
+   "cellDL": 2.574,
+   "dab50": 2.941,
+   "dab50_hole": 2.447,
+   "dab50_sheet": 2.812,
+   "dab_hole": 0.564,
+   "dab_sheet": 0.651,
+   "dab_rim": 2.986,
+   "B1_corr": 0.959,
+   "B1_ratio": 0.89,
+   "B2_corr": 0.819,
+   "B2_ratio": 0.803,
+   "B3_corr": 0.501,
+   "B3_ratio": 0.428
   },
   "layers_with_camera_grain": {
-   "cellDab": 2.436,
-   "cellDL": 2.44,
-   "dab50": 3.194,
-   "dab50_hole": 3.107,
+   "cellDab": 2.382,
+   "cellDL": 2.573,
+   "dab50": 3.123,
+   "dab50_hole": 2.815,
    "dab50_sheet": 2.97,
-   "dab_hole": 1.123,
-   "dab_sheet": 0.769,
-   "dab_rim": 3.407,
-   "B1_corr": 0.964,
-   "B1_ratio": 0.869,
-   "B2_corr": 0.835,
-   "B2_ratio": 0.776,
-   "B3_corr": 0.298,
-   "B3_ratio": 0.71
+   "dab_hole": 1.005,
+   "dab_sheet": 0.721,
+   "dab_rim": 2.744,
+   "B1_corr": 0.959,
+   "B1_ratio": 0.885,
+   "B2_corr": 0.816,
+   "B2_ratio": 0.801,
+   "B3_corr": 0.304,
+   "B3_ratio": 0.719
   }
  },
  "primitives": {
   "outlines": 8,
   "outline_coeffs": 1040,
-  "fibres": 107,
-  "fibre_samples": 1509,
-  "guides": 114,
-  "guide_samples": 1866,
-  "veins": 259,
-  "vein_samples": 1569,
-  "sheet_fibres": 46,
-  "sheet_fibre_samples": 599,
-  "sheet_veins": 58,
-  "sheet_vein_samples": 658,
-  "rim_samples": 3584,
+  "fibres": 117,
+  "fibre_samples": 1762,
+  "guides": 110,
+  "guide_samples": 1782,
+  "veins": 294,
+  "vein_samples": 1733,
+  "sheet_fibres": 49,
+  "sheet_fibre_samples": 585,
+  "sheet_veins": 55,
+  "sheet_vein_samples": 590,
+  "rim_samples": 4096,
   "sheet_cells": 1024,
-  "window_mm2": 9.47
+  "window_mm2": 7.82
  }
 }

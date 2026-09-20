@@ -1,0 +1,155 @@
+{
+ "grade": {
+  "chroma": 1.6,
+  "hue": 20
+ },
+ "classes": {
+  "sheet": {
+   "photo_Lab": [
+    42.7,
+    -6.4,
+    36.7
+   ],
+   "model_Lab": [
+    42.1,
+    -6.6,
+    36.6
+   ],
+   "dE": 0.61,
+   "material": {
+    "melanin": 0.128,
+    "stroma": 0.141,
+    "pheo": 0.25,
+    "yellow": 0.357,
+    "mie": 0.7
+   }
+  },
+  "deck": {
+   "photo_Lab": [
+    31.4,
+    -9.1,
+    9.4
+   ],
+   "model_Lab": [
+    31.3,
+    -9.0,
+    9.6
+   ],
+   "dE": 0.25,
+   "material": {
+    "melanin": 0.065,
+    "stroma": 0.297,
+    "pheo": 0.75,
+    "yellow": 0.357,
+    "mie": 0.0
+   }
+  },
+  "ground": {
+   "photo_Lab": [
+    14.8,
+    -3.7,
+    6.5
+   ],
+   "model_Lab": [
+    15.8,
+    -2.3,
+    7.5
+   ],
+   "dE": 1.99,
+   "material": {
+    "melanin": 0.065,
+    "stroma": 0.078,
+    "pheo": 0.5,
+    "yellow": 0.357,
+    "mie": 0.0
+   }
+  },
+  "rim": {
+   "photo_Lab": [
+    36.4,
+    -5.0,
+    31.5
+   ],
+   "model_Lab": [
+    36.2,
+    -5.0,
+    31.7
+   ],
+   "dE": 0.27,
+   "material": {
+    "melanin": 0.586,
+    "stroma": 0.203,
+    "pheo": 1.0,
+    "yellow": 0.0,
+    "mie": 0.0
+   }
+  }
+ },
+ "metrics": {
+  "engine_v84c": {
+   "cellDab": 15.368,
+   "cellDL": 6.144,
+   "dab50": 15.635,
+   "dab50_hole": 16.394,
+   "dab50_sheet": 15.475,
+   "dab_hole": 13.914,
+   "dab_sheet": 7.829,
+   "dab_rim": 20.525,
+   "B1_corr": 0.702,
+   "B1_ratio": 1.194,
+   "B2_corr": 0.698,
+   "B2_ratio": 1.319,
+   "B3_corr": 0.138,
+   "B3_ratio": 0.801
+  },
+  "layers_clean": {
+   "cellDab": 2.038,
+   "cellDL": 2.144,
+   "dab50": 2.575,
+   "dab50_hole": 3.475,
+   "dab50_sheet": 2.322,
+   "dab_hole": 0.234,
+   "dab_sheet": 0.641,
+   "dab_rim": 1.768,
+   "B1_corr": 0.957,
+   "B1_ratio": 0.945,
+   "B2_corr": 0.811,
+   "B2_ratio": 0.854,
+   "B3_corr": 0.416,
+   "B3_ratio": 0.376
+  },
+  "layers_with_camera_grain": {
+   "cellDab": 2.071,
+   "cellDL": 2.147,
+   "dab50": 2.735,
+   "dab50_hole": 3.749,
+   "dab50_sheet": 2.485,
+   "dab_hole": 0.904,
+   "dab_sheet": 1.05,
+   "dab_rim": 2.207,
+   "B1_corr": 0.957,
+   "B1_ratio": 0.938,
+   "B2_corr": 0.807,
+   "B2_ratio": 0.852,
+   "B3_corr": 0.226,
+   "B3_ratio": 0.687
+  }
+ },
+ "primitives": {
+  "outlines": 84,
+  "outline_coeffs": 10920,
+  "fibres": 695,
+  "fibre_samples": 7993,
+  "guides": 1552,
+  "guide_samples": 23836,
+  "veins": 1657,
+  "vein_samples": 9183,
+  "sheet_fibres": 618,
+  "sheet_fibre_samples": 7103,
+  "sheet_veins": 623,
+  "sheet_vein_samples": 7167,
+  "rim_samples": 41472,
+  "sheet_cells": 15129,
+  "window_mm2": 87.79
+ }
+}

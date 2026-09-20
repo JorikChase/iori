@@ -1346,3 +1346,27 @@ worth less than the audit suggested. Presets stay v83c under iori's rule (CAPTUR
 still show the ellipse until a later K version is promoted. Open from K1: ref 35's outline is a soft vignette, not
 an edge (coverage fell 0.885 → 0.86, darkErr +2.7) — a fitted aperture *feather* in `view` would own it (K1b,
 proposed). Colour is untouched, as expected: that is K2.
+
+## 29. Afterthought for the whole roadmap: all mammals (iori, 2026-09-20 — not scheduled)
+
+From iori's note "Procedural Iris — Conversation Notes" (one system for all mammal eyes; layers back to front:
+pigment epithelium, stroma, collarette, anterior border layer on a shallow cone under a refracting cornea). The
+engine's architecture already is that document's recommendation (flow-field fibres, openings with parallax,
+collarette boundary, nonlinear dilation remap in polar space, two-surface cornea); the human work stays first.
+The mammal phase comes **after** the roadmap above and needs, as inputs rather than assumptions:
+
+| input | today | what the phase adds |
+|---|---|---|
+| pupil boundary | a circle (radius + decentration `u_pupilOff`) | a boundary *function*: round, vertical slit, horizontal rectangle; tissue v = normalised distance between that boundary and the root, not a radius; the dilation remap becomes anisotropic (slits close sideways) |
+| muscle layout | circular sphincter + radial dilator → radial flow prior | species flow priors (slit pupils: scissoring bundles above/below the slit); granula iridica / corpora nigra (horse, goat) as objects on the pupil margin |
+| what the pupil shows | flat near-black | a fundus term: tapetum lucidum reflectance and tint (eyeshine), light-angle dependent |
+| pigment logic | two-layer melanin/scatter LUT tuned on light human eyes | dense, flat ABL pigment; little Rayleigh contribution; species palettes |
+| aperture | per-eye limbus axes (`u_limb`, K1) | near-circular to strongly oval apertures, almost no visible sclera — K1 already carries this |
+| structures | collarette, crypts of Fuchs, furrows, human statistics | per-species presence (many mammals have no crypts), own statistics |
+| references / fitter | isolated human macros; pupil detector = roundest blob | licensed macro references per species; detector for non-round pupils |
+
+Order inside the phase: primates (closest to the human model) → round-pupil carnivores (dog) → slit (cat) →
+horizontal (goat, horse). **Rule until then ("keep the doors open"):** new code should not deepen the round-pupil
+assumption — take v from the engine's coordinate map rather than recomputing it from a radius, keep the pupil
+interior a separate shading hook, keep species-level constants (limbus, root radius, collarette position) as
+parameters in the ID rather than literals.

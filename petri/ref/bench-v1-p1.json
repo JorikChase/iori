@@ -1,0 +1,724 @@
+{
+ "tag": "v1-p1",
+ "when": "2026-09-20T18:01:14.912Z",
+ "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.110.0 Chrome/152.0.7977.76 Safari/537.36",
+ "quality": "normal",
+ "n": 2048,
+ "T0": {
+  "replay": {
+   "pass": true,
+   "hashes": [
+    "a2653d8e",
+    "a2653d8e"
+   ],
+   "secs": 2.7
+  },
+  "exportRoundTrip": {
+   "pass": true,
+   "live": "2a3082aa",
+   "replayed": "2a3082aa",
+   "ops": 6,
+   "secs": 2.5
+  },
+  "nutrientConserved": {
+   "pass": true,
+   "before": 1500873.6705607176,
+   "after": 1500873.6575900912,
+   "rel": -8.642050699291553e-9,
+   "secs": 1.2
+  },
+  "bareStaysBare": {
+   "pass": true,
+   "owned": 0,
+   "secs": 0.6
+  },
+  "contained": {
+   "pass": true,
+   "outside": 0,
+   "nan": 0,
+   "secs": 1.2
+  },
+  "catalogSmoke": {
+   "pass": true,
+   "organisms": 93,
+   "dead": [],
+   "rows": [
+    {
+     "id": "physarum-polycephalum-forager",
+     "area": 229.16,
+     "nan": 0
+    },
+    {
+     "id": "physarum-polycephalum-starved-network",
+     "area": 183.77,
+     "nan": 0
+    },
+    {
+     "id": "physarum-polycephalum-rich-sheet",
+     "area": 109.73,
+     "nan": 0
+    },
+    {
+     "id": "physarum-polycephalum-islands",
+     "area": 53.33,
+     "nan": 0
+    },
+    {
+     "id": "fuligo-septica",
+     "area": 129.79,
+     "nan": 0
+    },
+    {
+     "id": "badhamia-utricularis",
+     "area": 312.17,
+     "nan": 0
+    },
+    {
+     "id": "physarum-rigidum",
+     "area": 371.5,
+     "nan": 0
+    },
+    {
+     "id": "didymium-iridis",
+     "area": 143.7,
+     "nan": 0
+    },
+    {
+     "id": "bacillus-subtilis-dla-like",
+     "area": 49.89,
+     "nan": 0
+    },
+    {
+     "id": "bacillus-subtilis-eden-like",
+     "area": 21.27,
+     "nan": 0
+    },
+    {
+     "id": "bacillus-subtilis-dense-branching",
+     "area": 47.32,
+     "nan": 0
+    },
+    {
+     "id": "bacillus-subtilis-concentric-rings",
+     "area": 16.28,
+     "nan": 0
+    },
+    {
+     "id": "bacillus-subtilis-homogeneous-disk",
+     "area": 19.78,
+     "nan": 0
+    },
+    {
+     "id": "escherichia-coli-k-12",
+     "area": 17.44,
+     "nan": 0
+    },
+    {
+     "id": "serratia-marcescens",
+     "area": 20.63,
+     "nan": 0
+    },
+    {
+     "id": "chromobacterium-violaceum",
+     "area": 15.54,
+     "nan": 0
+    },
+    {
+     "id": "pseudomonas-aeruginosa",
+     "area": 31.88,
+     "nan": 0
+    },
+    {
+     "id": "micrococcus-luteus",
+     "area": 10.15,
+     "nan": 0
+    },
+    {
+     "id": "staphylococcus-aureus",
+     "area": 10.14,
+     "nan": 0
+    },
+    {
+     "id": "streptomyces-coelicolor",
+     "area": 9.08,
+     "nan": 0
+    },
+    {
+     "id": "paenibacillus-dendritiformis-tip-splitting",
+     "area": 40.71,
+     "nan": 0
+    },
+    {
+     "id": "paenibacillus-vortex",
+     "area": 47.75,
+     "nan": 0
+    },
+    {
+     "id": "proteus-mirabilis-swarm-rings",
+     "area": 15.9,
+     "nan": 0
+    },
+    {
+     "id": "eden-cluster",
+     "area": 13.79,
+     "nan": 0
+    },
+    {
+     "id": "diffusion-limited-dendrite",
+     "area": 7.78,
+     "nan": 0
+    },
+    {
+     "id": "dense-branching-aggregate",
+     "area": 10.95,
+     "nan": 0
+    },
+    {
+     "id": "needle-frost",
+     "area": 7.98,
+     "nan": 0
+    },
+    {
+     "id": "rhizocarpon-geographicum-map-lichen",
+     "area": 15.33,
+     "nan": 0
+    },
+    {
+     "id": "xanthoria-parietina",
+     "area": 26.08,
+     "nan": 0
+    },
+    {
+     "id": "manganese-dendrite",
+     "area": 7.69,
+     "nan": 0
+    },
+    {
+     "id": "penicillium-chrysogenum",
+     "area": 15.55,
+     "nan": 0
+    },
+    {
+     "id": "aspergillus-niger",
+     "area": 15.89,
+     "nan": 0
+    },
+    {
+     "id": "aspergillus-flavus",
+     "area": 17.46,
+     "nan": 0
+    },
+    {
+     "id": "rhizopus-stolonifer",
+     "area": 17.82,
+     "nan": 0
+    },
+    {
+     "id": "neurospora-crassa",
+     "area": 20.89,
+     "nan": 0
+    },
+    {
+     "id": "trichoderma-viride",
+     "area": 21.11,
+     "nan": 0
+    },
+    {
+     "id": "mucor-mucedo",
+     "area": 18.2,
+     "nan": 0
+    },
+    {
+     "id": "fusarium-oxysporum",
+     "area": 16.52,
+     "nan": 0
+    },
+    {
+     "id": "botrytis-cinerea",
+     "area": 14.29,
+     "nan": 0
+    },
+    {
+     "id": "armillaria-rhizomorph-cords",
+     "area": 15.13,
+     "nan": 0
+    },
+    {
+     "id": "pleurotus-ostreatus",
+     "area": 17.86,
+     "nan": 0
+    },
+    {
+     "id": "dictyostelium-discoideum-spirals",
+     "area": 58.56,
+     "nan": 0
+    },
+    {
+     "id": "dictyostelium-discoideum-target-waves",
+     "area": 58.61,
+     "nan": 0
+    },
+    {
+     "id": "polysphondylium-violaceum",
+     "area": 57.09,
+     "nan": 0
+    },
+    {
+     "id": "belousov-zhabotinsky-dish",
+     "area": 112.44,
+     "nan": 0
+    },
+    {
+     "id": "gs-mitosis",
+     "area": 8.82,
+     "nan": 0
+    },
+    {
+     "id": "gs-coral",
+     "area": 8.39,
+     "nan": 0
+    },
+    {
+     "id": "gs-solitons",
+     "area": 10.28,
+     "nan": 0
+    },
+    {
+     "id": "gs-worms",
+     "area": 4.83,
+     "nan": 0
+    },
+    {
+     "id": "gs-waves",
+     "area": 12.95,
+     "nan": 0
+    },
+    {
+     "id": "gs-fingerprint",
+     "area": 11.02,
+     "nan": 0
+    },
+    {
+     "id": "conway-life",
+     "area": 4.43,
+     "nan": 0
+    },
+    {
+     "id": "highlife",
+     "area": 5.5,
+     "nan": 0
+    },
+    {
+     "id": "seeds",
+     "area": 11.29,
+     "nan": 0
+    },
+    {
+     "id": "day-night",
+     "area": 11.81,
+     "nan": 0
+    },
+    {
+     "id": "maze",
+     "area": 21.42,
+     "nan": 0
+    },
+    {
+     "id": "mazectric",
+     "area": 20.24,
+     "nan": 0
+    },
+    {
+     "id": "coral",
+     "area": 3.82,
+     "nan": 0
+    },
+    {
+     "id": "diamoeba",
+     "area": 0.15,
+     "nan": 0
+    },
+    {
+     "id": "vote",
+     "area": 3.25,
+     "nan": 0
+    },
+    {
+     "id": "gnarl",
+     "area": 18.93,
+     "nan": 0
+    },
+    {
+     "id": "morley",
+     "area": 7.16,
+     "nan": 0
+    },
+    {
+     "id": "replicator",
+     "area": 41.88,
+     "nan": 0
+    },
+    {
+     "id": "life-w-o-death",
+     "area": 26.17,
+     "nan": 0
+    },
+    {
+     "id": "2x2",
+     "area": 8.36,
+     "nan": 0
+    },
+    {
+     "id": "walled-cities",
+     "area": 15.64,
+     "nan": 0
+    },
+    {
+     "id": "anneal",
+     "area": 2.04,
+     "nan": 0
+    },
+    {
+     "id": "brian-s-brain",
+     "area": 3.29,
+     "nan": 0
+    },
+    {
+     "id": "star-wars",
+     "area": 6.65,
+     "nan": 0
+    },
+    {
+     "id": "fireworks",
+     "area": 45.62,
+     "nan": 0
+    },
+    {
+     "id": "lava",
+     "area": 25.05,
+     "nan": 0
+    },
+    {
+     "id": "prairie-on-fire",
+     "area": 14.25,
+     "nan": 0
+    },
+    {
+     "id": "spirals",
+     "area": 13,
+     "nan": 0
+    },
+    {
+     "id": "faders",
+     "area": 13.41,
+     "nan": 0
+    },
+    {
+     "id": "belzhab",
+     "area": 37.22,
+     "nan": 0
+    },
+    {
+     "id": "meteor-guns",
+     "area": 17.61,
+     "nan": 0
+    },
+    {
+     "id": "transers",
+     "area": 2.69,
+     "nan": 0
+    },
+    {
+     "id": "swirl",
+     "area": 1.84,
+     "nan": 0
+    },
+    {
+     "id": "nova",
+     "area": 7.87,
+     "nan": 0
+    },
+    {
+     "id": "cyclic-14",
+     "area": 32.92,
+     "nan": 0
+    },
+    {
+     "id": "colicin-rock-paper-scissors-e-coli",
+     "area": 31.44,
+     "nan": 0
+    },
+    {
+     "id": "droplets",
+     "area": 33.1,
+     "nan": 0
+    },
+    {
+     "id": "turbulence",
+     "area": 33.16,
+     "nan": 0
+    },
+    {
+     "id": "escherichia-coli-cfp-yfp-drift-sectors",
+     "area": 33.66,
+     "nan": 0
+    },
+    {
+     "id": "saccharomyces-cerevisiae-sectored",
+     "area": 21.46,
+     "nan": 0
+    },
+    {
+     "id": "rainbow-drift",
+     "area": 31.59,
+     "nan": 0
+    },
+    {
+     "id": "rhodotorula-mucilaginosa",
+     "area": 18.28,
+     "nan": 0
+    },
+    {
+     "id": "candida-albicans-white-opaque-switching",
+     "area": 19.75,
+     "nan": 0
+    },
+    {
+     "id": "bacillus-subtilis-ncib-3610-wrinkled-biofilm",
+     "area": 13.79,
+     "nan": 0
+    },
+    {
+     "id": "vibrio-cholerae-rugose",
+     "area": 13.06,
+     "nan": 0
+    },
+    {
+     "id": "pseudomonas-fluorescens-wrinkly-spreader",
+     "area": 16.08,
+     "nan": 0
+    },
+    {
+     "id": "mycobacterium-smegmatis-cording",
+     "area": 12.34,
+     "nan": 0
+    },
+    {
+     "id": "klebsiella-pneumoniae-mucoid",
+     "area": 17.06,
+     "nan": 0
+    }
+   ],
+   "secs": 8.4
+  }
+ },
+ "T1": {
+  "diffusion": {
+   "pass": true,
+   "isotropy": 3.855570151854274e-9,
+   "linearity": 2.731187065269473e-7,
+   "massKept": 2.659508506169935e-7,
+   "D_cells2_per_step": 0.15000003313660634,
+   "secs": 2.3
+  },
+  "fisherSpeed": {
+   "pass": true,
+   "base_mm_per_step": 0.008479615845032588,
+   "ratio_motility_x4": 1.8632356782337893,
+   "ratio_growth_x4": 1.7619598224818018,
+   "target": 2,
+   "secs": 17
+  },
+  "edenRoughness": {
+   "pass": false,
+   "beta": 0.07329231944963412,
+   "r2": 0.195713865666366,
+   "target": 0.333,
+   "tol": 0.1,
+   "samples": 9,
+   "note": "KPZ on a lattice",
+   "secs": 13.4
+  },
+  "dlaDimension": {
+   "pass": true,
+   "boxD": 1.7712462191690956,
+   "massD": 2.083890459147227,
+   "r2": 0.998262411659119,
+   "target": 1.71,
+   "tol": 0.1,
+   "radius_mm": 14.780079388534539,
+   "lac": 12.847057203259212,
+   "secs": 40.6
+  },
+  "etaSweep": {
+   "pass": true,
+   "monotonic": true,
+   "span": 0.118,
+   "fillSpan": 0.687,
+   "measured": 5,
+   "rows": [
+    {
+     "eta": 0,
+     "boxD": 1.917,
+     "fill": 0.969,
+     "radius_mm": 12.4,
+     "reachedExtent": true
+    },
+    {
+     "eta": 0.5,
+     "boxD": 1.91,
+     "fill": 0.57,
+     "radius_mm": 12.5,
+     "reachedExtent": true
+    },
+    {
+     "eta": 1,
+     "boxD": 1.874,
+     "fill": 0.409,
+     "radius_mm": 13.1,
+     "reachedExtent": true
+    },
+    {
+     "eta": 1.5,
+     "boxD": 1.847,
+     "fill": 0.321,
+     "radius_mm": 14.6,
+     "reachedExtent": true
+    },
+    {
+     "eta": 2,
+     "boxD": 1.799,
+     "fill": 0.282,
+     "radius_mm": 12.8,
+     "reachedExtent": true
+    }
+   ],
+   "note": "eta/stick coupled - see comment",
+   "secs": 51.4
+  },
+  "morphologyDiagram": {
+   "pass": true,
+   "regions": [
+    "DLA-like",
+    "Eden-like",
+    "homogeneous disk",
+    "dense branching"
+   ],
+   "poorHard": "DLA-like",
+   "richSoft": "homogeneous disk",
+   "rows": [
+    {
+     "nutrient": 0.3,
+     "agar": 0.85,
+     "id": "bacillus-subtilis-dla-like",
+     "morphotype": "DLA-like",
+     "densityRings": 0.035,
+     "boxD": 1.091,
+     "lac": 46.41,
+     "fill": 0.022,
+     "ringiness": 1.562,
+     "ringOcc": 0.003,
+     "roughness": 0.1404,
+     "radius_mm": 15.8
+    },
+    {
+     "nutrient": 1,
+     "agar": 0.85,
+     "id": "bacillus-subtilis-eden-like",
+     "morphotype": "Eden-like",
+     "densityRings": 0.002,
+     "boxD": 1.934,
+     "lac": 10.19,
+     "fill": 0.997,
+     "ringiness": 0,
+     "ringOcc": 1,
+     "roughness": 0.0208,
+     "radius_mm": 16.5
+    },
+    {
+     "nutrient": 1,
+     "agar": 0.55,
+     "id": "bacillus-subtilis-concentric-rings",
+     "morphotype": "Eden-like",
+     "densityRings": 0.015,
+     "boxD": 1.933,
+     "lac": 10.64,
+     "fill": 0.992,
+     "ringiness": 0.001,
+     "ringOcc": 0.997,
+     "roughness": 0.0411,
+     "radius_mm": 16.1
+    },
+    {
+     "nutrient": 1,
+     "agar": 0.15,
+     "id": "bacillus-subtilis-homogeneous-disk",
+     "morphotype": "homogeneous disk",
+     "densityRings": 0,
+     "boxD": 1.967,
+     "lac": 6.32,
+     "fill": 1,
+     "ringiness": 0,
+     "ringOcc": 1,
+     "roughness": 0.0004,
+     "radius_mm": 21
+    },
+    {
+     "nutrient": 0.3,
+     "agar": 0.3,
+     "id": "bacillus-subtilis-dense-branching",
+     "morphotype": "dense branching",
+     "densityRings": 0.004,
+     "boxD": 1.58,
+     "lac": 42.17,
+     "fill": 0.135,
+     "ringiness": 1.998,
+     "ringOcc": 0,
+     "roughness": 0.0194,
+     "radius_mm": 16.3
+    }
+   ],
+   "secs": 140.4
+  },
+  "resolutionInvariance": {
+   "pass": true,
+   "boxDDiff": 0.005,
+   "tol": 0.06,
+   "diagnostics": {
+    "fillRelDiff": 0.356,
+    "frontSpeedRelDiff": 0.588,
+    "note": "not asserted - unresolved absorbing layer, see HANDOFF"
+   },
+   "draft": {
+    "n": 1024,
+    "dn": 0.0375,
+    "steps": 6000,
+    "radius_mm": 11.23,
+    "boxD": 1.774,
+    "fill": 0.354
+   },
+   "normal": {
+    "n": 2048,
+    "dn": 0.15,
+    "steps": 12000,
+    "radius_mm": 14.14,
+    "boxD": 1.769,
+    "fill": 0.261
+   },
+   "secs": 57.4
+  }
+ },
+ "T4": {
+  "stepCost": {
+   "msPerStep": 3.196,
+   "gpuMsPerStep": 2.97,
+   "timestamps": true,
+   "n": 2048,
+   "agents": 86787,
+   "quality": "normal",
+   "secs": 2.1
+  }
+ },
+ "gpuErrors": [],
+ "pass": false
+}

@@ -1,0 +1,48 @@
+{
+ "versions": [
+  {
+   "id": "v1-p1",
+   "when": "2026-09-20T20:07:11",
+   "note": "P1a+P1b: 10 kernels, 93 organisms, T0+T1+T4, physical substrate diffusion",
+   "features": {
+    "kernels": "10",
+    "organisms": "93",
+    "agents": "1",
+    "bricks": "0",
+    "hybrid": "0"
+   },
+   "src_sha256": "8832ac7af6d796f2",
+   "bench": "bench-v1-p1.json",
+   "summary": {
+    "pass": false,
+    "quality": "normal",
+    "n": 2048,
+    "T0": {
+     "replay": true,
+     "exportRoundTrip": true,
+     "nutrientConserved": true,
+     "bareStaysBare": true,
+     "contained": true,
+     "catalogSmoke": true
+    },
+    "T0_passed": 6,
+    "T0_total": 6,
+    "T1": {
+     "diffusion": true,
+     "fisherSpeed": true,
+     "edenRoughness": false,
+     "dlaDimension": true,
+     "etaSweep": true,
+     "morphologyDiagram": true,
+     "resolutionInvariance": true
+    },
+    "T1_passed": 6,
+    "T1_total": 7,
+    "boxD_dla": 1.7712462191690956,
+    "beta_eden": 0.07329231944963412,
+    "ms_per_step": 3.196,
+    "agents": 86787
+   }
+  }
+ ]
+}

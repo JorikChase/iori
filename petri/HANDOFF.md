@@ -35,7 +35,18 @@ A long call blocks `javascript_tool` for at most 45 s: start it un-awaited, stor
 
 Model in one paragraph: a cell is `vec4f` — rgb state (meaning per kernel), a = slot id. The substrate is a second `vec4f` field: nutrient, attractant, toxin, sheath. One compute pass per step reads A and writes B for both; a kernel sees only neighbours of its own slot; bare agar is claimed by whoever deposits there (agents) or by the strongest neighbour. Kernel 1 (Physarum) adds an agent buffer: sense / turn / move / `atomicAdd` deposit, feeding, and division in a separate pass into a power-of-two range each founder owns. Everything that touches the dish is an **operation** `{t, tool, at|path, r, …}`; tools are stamps; the Dish ID is `{seed, dish, ops}` and replays to the same bits.
 
-Measured (M3 Pro, Chrome 152, normal = 2048²): **2.7 ms per step** with ≈ 57 k agents; replay and export round trip bit-exact; nutrient conserved to 2 × 10⁻⁹ over 400 steps.
+**Sealed scorecard — `v1-p1`** (M3 Pro, Chrome 152, normal = 2048²; `python3 petri/versions/compare.py`):
+
+| tier | result |
+|---|---|
+| T0 | **6/6** — replay and export round trip bit-exact, nutrient conserved to 9 × 10⁻⁹, bare agar bare, nothing outside the wall, all 93 organisms alive |
+| T1 | **6/7** — diffusion (isotropy 4 × 10⁻⁹), Fisher speed ratios, DLA D **1.771** (target 1.71 ± 0.10), η sweep monotonic, all five morphology-diagram regions, resolution invariance ΔD **0.005**. Fails: `edenRoughness` (below) |
+| T4 | **3.20 ms/step** wall, **2.97 ms** GPU by timestamp query, 86 787 agents |
+
+The one failure is honest and left in place: `edenRoughness` gives β 0.073 at normal where it gives
+0.334 at draft. The curvature coupling that makes the front KPZ counts *lattice* neighbours, so it is
+inherently tier-dependent; it needs a curvature measured over a fixed physical radius. Widening the
+band until it passed would defeat the point of the scorecard.
 
 ## P1b — the coupling-B gate came back NEGATIVE
 

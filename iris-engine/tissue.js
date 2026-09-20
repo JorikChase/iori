@@ -428,6 +428,115 @@
         return T;
     };
 
+    // ---------------------------------------------------------------- Z2 (§32): inspection — the engine's side
+    // No panel here: this is the API the UI session's panel is built on. The section reads the PRIMITIVES, not the
+    // baked surface, so it sees a tube that lies under another tube — which a height field cannot tell you.
+    const MMU = v => 6.2831853 * (2 + 4 * v), MMV = 4;          // mm per unit u at radius v · mm per unit v
+    // the floor the renderer actually draws, mm below the sheet: the hole's own wall plus as much of the deck's
+    // thickness as deckZ is currently rendering (the anatomy is always the full T.deckH)
+    const floorMm = () => -((T.src.mm.depth || 0) + (T.deckH || 0) * (T.deckZ === undefined ? 1 : T.deckZ));
+    const renderedMm = zMm => floorMm() + zMm * (T.deckZ === undefined ? 1 : T.deckZ);
+    function fibreIndex() {                                      // fibre samples bucketed in uv, built once per eye
+        if (T.fidx && T.fidx.sets === T.sets) return T.fidx;
+        const cell = 0.02, grid = new Map();                     // 0.02 in v ≈ 80 µm
+        const put = (u, v, rec) => { const k = Math.floor(u / cell) + ':' + Math.floor(v / cell); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(rec); };
+        const fib = T.sets.fibres || [];
+        for (let i = 0; i < fib.length; i++) { const c = fib[i], uv = c.uv;
+            for (let j = 0; j < uv.length - 1; j++) { const a = uv[j], b = uv[j + 1]; if (!a || !b) continue;
+                const rec = [i, j]; put(a[0], a[1], rec); if (Math.floor(b[0] / cell) !== Math.floor(a[0] / cell) || Math.floor(b[1] / cell) !== Math.floor(a[1] / cell)) put(b[0], b[1], rec); } }
+        return (T.fidx = { sets: T.sets, cell, grid });
+    }
+    /** every tube covering (u, v): distance to the centreline in mm, and the tube's section there. Anatomical mm. */
+    T.tubesAt = function (u, v) {
+        const ix = fibreIndex(), cell = ix.cell, rK = (T.src.z || {}).rK || 1.4, fib = T.sets.fibres || [], out = [];
+        const su = MMU(v), seen = new Set();
+        for (let du = -1; du <= 1; du++) for (let dv = -1; dv <= 1; dv++) {
+            const a = ix.grid.get((Math.floor(u / cell) + du) + ':' + (Math.floor(v / cell) + dv)); if (!a) continue;
+            for (const [i, j] of a) {
+                const key = i * 65536 + j; if (seen.has(key)) continue; seen.add(key);
+                const c = fib[i], p = c.uv[j], q = c.uv[j + 1]; if (!p || !q) continue;
+                let qu = q[0]; while (qu - p[0] > 0.5) qu -= 1; while (p[0] - qu > 0.5) qu += 1;
+                let pu = u; while (pu - p[0] > 0.5) pu -= 1; while (p[0] - pu > 0.5) pu += 1;
+                const ax = 0, ay = 0, bx = (qu - p[0]) * su, by = (q[1] - p[1]) * MMV, px = (pu - p[0]) * su, py = (v - p[1]) * MMV;
+                const L2 = bx * bx + by * by, t = L2 > 1e-12 ? Math.max(0, Math.min(1, (px * bx + py * by) / L2)) : 0;
+                const d = Math.hypot(px - bx * t, py - by * t);
+                const r = (c.r ? c.r[j] + t * (c.r[j + 1] - c.r[j]) : rK * (c.w[j] + t * (c.w[j + 1] - c.w[j])));
+                if (d >= r) continue;
+                const z = c.z ? c.z[j] + t * (c.z[j + 1] - c.z[j]) : r, dome = Math.sqrt(Math.max(0, r * r - d * d));
+                out.push({ fibre: i, seg: j, t: +t.toFixed(3), dMm: d, rMm: r, zMm: z, topMm: z + dome, bottomMm: z - dome,
+                           conf: c.zc ? +(c.zc[j] + t * (c.zc[j + 1] - c.zc[j])).toFixed(3) : null });
+            }
+        }
+        // one entry per FIBRE, not per segment: a tube is wide enough that several of its own segments cover the
+        // same texel, and reporting each of them would call one strand six layers
+        const byFibre = new Map();
+        for (const q of out) { const p = byFibre.get(q.fibre); if (!p || q.dMm < p.dMm) byFibre.set(q.fibre, q); }
+        return [...byFibre.values()].sort((a, b) => b.topMm - a.topMm);   // nearest the camera first
+    };
+    // the baked surface (mm relative to the sheet, negative = below) over a rect of the region, read back once
+    function auxRead(u0, v0, u1, v1) {
+        const [w, h] = T.size, R = T.rect;
+        const px = q => Math.max(0, Math.min(w - 1, Math.round((q - R[0]) / R[2] * w))), py = q => Math.max(0, Math.min(h - 1, Math.round((q - R[1]) / R[3] * h)));
+        const x0 = px(Math.min(u0, u1)), x1 = px(Math.max(u0, u1)), y0 = py(Math.min(v0, v1)), y1 = py(Math.max(v0, v1));
+        const bw = Math.max(1, x1 - x0 + 1), bh = Math.max(1, y1 - y0 + 1);
+        if (!T.rfb) T.rfb = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, T.rfb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.aux, 0);
+        const buf = new Float32Array(bw * bh * 4); gl.readPixels(x0, y0, bw, bh, gl.RGBA, gl.FLOAT, buf);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return { buf, x0, y0, bw, bh, at: (u, v) => { const x = px(u) - x0, y = py(v) - y0; if (x < 0 || y < 0 || x >= bw || y >= bh) return null; const o = (y * bw + x) * 4; return { surfaceMm: buf[o], maskA: buf[o + 3] }; } };
+    };
+    /** Everything under one point of the fit image. x, y in fit pixels (fit.W × fit.H). */
+    T.elevationAt = function (x, y) {
+        const fit = F.fit, map = F.getMap(), uv = uvAt(map, fit.W, fit.H, x, y);
+        if (!uv) return { inside: false };
+        const inRegion = uv[0] > T.rect[0] && uv[0] < T.rect[0] + T.rect[2] && uv[1] > T.rect[1] && uv[1] < T.rect[1] + T.rect[3];
+        const a = inRegion && T.aux ? auxRead(uv[0], uv[1], uv[0], uv[1]).at(uv[0], uv[1]) : null;
+        const tubes = inRegion ? T.tubesAt(uv[0], uv[1]) : [];
+        return { inside: true, inRegion, uv, rMm: 2 + 4 * uv[1],
+                 surfaceUm: a ? +(a.surfaceMm * 1000).toFixed(1) : null, tissue: a ? +a.maskA.toFixed(3) : 0,
+                 floorUm: inRegion ? +(floorMm() * 1000).toFixed(1) : null, deckThicknessUm: +((T.deckH || 0) * 1000).toFixed(1),
+                 deckZ: T.deckZ, layers: tubes.length,
+                 tubes: tubes.map(t => ({ fibre: t.fibre, zUm: +(t.zMm * 1000).toFixed(1), rUm: +(t.rMm * 1000).toFixed(1),
+                                          topUm: +(t.topMm * 1000).toFixed(1), bottomUm: +(t.bottomMm * 1000).toFixed(1),
+                                          offAxisUm: +(t.dMm * 1000).toFixed(1), conf: t.conf,
+                                          renderedTopUm: +(renderedMm(t.topMm) * 1000).toFixed(1) })) };
+    };
+    /** A cross-section along a line in fit pixels: the surface, and every tube cut through, as circles. */
+    T.section = function (p0, p1, n) {
+        const fit = F.fit, map = F.getMap(); n = n || 200;
+        const pts = [], uvs = [];
+        for (let i = 0; i < n; i++) { const t = i / (n - 1), x = p0[0] + t * (p1[0] - p0[0]), y = p0[1] + t * (p1[1] - p0[1]);
+            const uv = uvAt(map, fit.W, fit.H, x, y); pts.push({ t, x, y, uv }); if (uv) uvs.push(uv); }
+        if (!uvs.length || !T.aux) return { samples: [], mm: 0 };
+        const u0 = Math.min(...uvs.map(q => q[0])), u1 = Math.max(...uvs.map(q => q[0]));
+        const v0 = Math.min(...uvs.map(q => q[1])), v1 = Math.max(...uvs.map(q => q[1]));
+        const A = auxRead(u0, v0, u1, v1);
+        // arclength in tissue mm along the cut
+        let s = 0; const samples = [];
+        for (let i = 0; i < pts.length; i++) {
+            const p = pts[i], prev = i ? pts[i - 1] : null;
+            if (prev && p.uv && prev.uv) { let du = p.uv[0] - prev.uv[0]; if (du > 0.5) du -= 1; if (du < -0.5) du += 1;
+                s += Math.hypot(du * MMU(p.uv[1]), (p.uv[1] - prev.uv[1]) * MMV); }
+            if (!p.uv) { samples.push({ sMm: +s.toFixed(4), off: true }); continue; }
+            const a = A.at(p.uv[0], p.uv[1]), tubes = T.tubesAt(p.uv[0], p.uv[1]);
+            samples.push({ sMm: +s.toFixed(4), xy: [Math.round(p.x), Math.round(p.y)], uv: p.uv,
+                           surfaceUm: a ? +(a.surfaceMm * 1000).toFixed(1) : null, tissue: a ? +a.maskA.toFixed(3) : 0,
+                           tubes: tubes.map(q => ({ fibre: q.fibre, zUm: +(q.zMm * 1000).toFixed(1), rUm: +(q.rMm * 1000).toFixed(1),
+                                                    topUm: +(q.topMm * 1000).toFixed(1), bottomUm: +(q.bottomMm * 1000).toFixed(1),
+                                                    offAxisUm: +(q.dMm * 1000).toFixed(1), renderedTopUm: +(renderedMm(q.topMm) * 1000).toFixed(1) })) });
+        }
+        const deep = samples.filter(q => q.tubes && q.tubes.length > 1).length;
+        return { mm: +s.toFixed(4), n, floorUm: +(floorMm() * 1000).toFixed(1), deckThicknessUm: +((T.deckH || 0) * 1000).toFixed(1),
+                 deckZ: T.deckZ, overlapped: deep, samples };
+    };
+    /** The baked surface over a rect of the region as a Float32Array in µm — for contour drawing. */
+    T.heightField = function (opts = {}) {
+        const R = opts.rect || T.rect, A = auxRead(R[0], R[1], R[0] + R[2], R[1] + R[3]);
+        const out = new Float32Array(A.bw * A.bh);
+        for (let i = 0; i < out.length; i++) out[i] = A.buf[i * 4] * 1000;
+        return { um: out, w: A.bw, h: A.bh, rect: R, tauUm: (T.tauUsed || 0) * 1000 };
+    };
+
     // ---------------------------------------------------------------- irradiance: what the engine's light does to a flat grey region
     T.calibrate = function () {
         // The renderer is affine in the albedo at a pixel: X = k(x)·A + s(x) — k the light (key, caustic, lid, ambient), s what it

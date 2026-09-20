@@ -1812,3 +1812,25 @@ differs by 1 (the parallax march crossing a texel boundary) — render repeatabi
 legacy model's 6.4 for a reason that names the next piece of work: **the sheet has no height at all**. The layer
 model's relief lives entirely inside the holes, which are ~30 % of the iris; the border layer is flat, with no
 furrows and no micro-relief. That is T1 (the ruff) and G (furrows as primitives), not Z1.
+
+### 32.3 Log (2026-09-20): Z2 — inspection, the engine's half
+
+No panel here, by agreement: this is the API the UI session's panel is built on (`tissue.js`).
+
+- **`IrisTissue.elevationAt(x, y)`** — x, y in fit pixels. Returns the baked surface in µm (relative to the sheet, so
+  0 is the sheet and negative is below), the hole floor the renderer is currently drawing, the deck's anatomical
+  thickness, and **every tube under that point**: fibre id, centre height, radius, top, bottom, how far off its axis
+  the point is, the crossing confidence, and the height the renderer is drawing it at.
+- **`IrisTissue.section(p0, p1, n)`** — a cut in fit pixels. Arclength in tissue mm, the surface along it, and every
+  tube it passes through, as circles. It reads the **primitives, not the baked surface**, so it sees a tube that lies
+  *under* another tube — which a height field cannot tell you. This is what makes a bridge visible.
+- **`IrisTissue.tubesAt(u, v)`** — the same query in tissue coordinates, one entry per fibre.
+- **`IrisTissue.heightField({rect})`** — the baked surface over a rect as a Float32Array in µm, for contour drawing.
+
+Measured on the whole iris of ref 26 (20 785 sampled points inside the region): **1 484 points have one tube under
+them, 746 have two, 316 three, and it goes to seven.** The largest clear air gap found is **160 µm** — fibre 92 at
+z 250 µm, its underside at 236 µm, bridging over fibre 82 whose top is at 76 µm. `study/proof-layers/z2-section.png`
+is a 1.88 mm cut through it: 68 of 260 samples have a strand over a strand.
+
+One trap: a tube is wide enough that **several of its own segments cover the same texel**, so the first version
+reported one strand as 26 layers. The query keeps one entry per fibre — its closest approach — not one per segment.

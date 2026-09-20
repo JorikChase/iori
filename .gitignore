@@ -67,3 +67,4 @@ iris-engine/study/audit-s6/guide-dump-*.json
 
 # Petri engine reference datasets (large, licence-bound) — see petri/ref/DATA-PLAN.md
 petri/ref-data/
+petri/proto/out/

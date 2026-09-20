@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-19",
+  "generated": "2026-09-20",
   "pages": [
     {
       "slug": "4cube.html",
@@ -406,7 +406,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris-engine/",
       "og_image": null,
-      "lastmod": "2026-09-19",
+      "lastmod": "2026-09-20",
       "order": 3
     },
     {
@@ -608,6 +608,17 @@
       "url": "https://iori.me/orbitals.html",
       "og_image": null,
       "lastmod": "2026-09-15"
+    },
+    {
+      "slug": "petri/index.html",
+      "title": "Petri — Slime Mold and Colony Growth Engine",
+      "description": "A WebGPU petri dish: inoculate agar with millimetre precision and grow slime molds, bacteria, molds and biofilms from ninety organisms on ten growth kernels.",
+      "category": "organisms",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/petri/",
+      "og_image": null,
+      "lastmod": "2026-09-20"
     },
     {
       "slug": "pi.html",

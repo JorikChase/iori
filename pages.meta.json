@@ -727,6 +727,15 @@
       "domain": "3die.fr",
       "type": "client",
       "priority": 0.7
+    },
+    "petri/index.html": {
+      "title": "Petri — Slime Mold and Colony Growth Engine",
+      "description": "A WebGPU petri dish: inoculate agar with millimetre precision and grow slime molds, bacteria, molds and biofilms from ninety organisms on ten growth kernels.",
+      "category": "organisms",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6,
+      "menu_pos": "br"
     }
   }
 }

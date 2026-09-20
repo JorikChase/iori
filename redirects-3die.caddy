@@ -43,6 +43,7 @@ redir /multiOS.html https://iori.me/multiOS.html permanent
 redir /mycelium.html https://iori.me/mycelium.html permanent
 redir /nasal-wave.html https://iori.me/nasal-wave.html permanent
 redir /orbitals.html https://iori.me/orbitals.html permanent
+redir /petri/* https://iori.me{uri} permanent
 redir /portfolio.html https://iori.me/portfolio.html permanent
 redir /procedural-flame.html https://iori.me/procedural-flame.html permanent
 redir /sigmoid-helix.html https://iori.me/sigmoid-helix.html permanent

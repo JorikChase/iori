@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""Spec §30 P0 — hand-built proof of the tissue LAYER model on one crypt window of ref 26. No fitter, no engine.
+
+Question: if the engine drew the iris as   cornea · border-layer SHEET with holes (+ rim pigment) · fibre DECK of
+explicit curves · dark ground,   and a fitter found these primitives, would the render look like the photograph
+at 1:1 — in structure AND colour?
+
+The render below uses ONLY primitives measured from the photo (never photo pixels):
+  · hole outlines        closed curves, 24 Fourier harmonics each                        (the sheet's coverage)
+  · fibre curves         centrelines + width + a 1-D brightness payload every ~20 µm     (deck inside the holes,
+                                                                                          guides on the sheet)
+  · rim pigment          a 1-D strength payload along each outline
+  · materials            sheet = a 0.1 mm colour/brightness cell field owned by sheet pixels only; deck, ground,
+                         rim = one material each.  EVERY colour goes through the engine's spectral LUT
+                         (port of buildSpectralLut, + a neutral-scatter axis) and one per-photo camera grade.
+  · seeded               matte tissue grain; camera blur and sensor grain (camera, not tissue)
+
+Run:  /usr/bin/python3 iris-engine/tools/layer_proof.py      → iris-engine/study/proof-layers/
+"""
+import os, sys, json
+import cv2
+import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from strand_stats import zhang_suen, ridge, prune, order_path   # the S0 tracer (study/08 §4)
+
+ENG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+OUT = os.path.join(ENG, 'study', 'proof-layers'); os.makedirs(OUT, exist_ok=True)
+PPM_FIT = 71.4751                     # px/mm of ref 26 at the 1280 px fit image (fit.dumpForGuideTrace)
+WIN = (330, 620, 220)                 # window centre (fit px) and size (fit px)
+CELL_MM = 0.10                        # the sheet's material cells
+PAYLOAD_UM = 20.0                     # sampling of the 1-D payloads along curves
+
+# ---------------------------------------------------------------- colour: the engine's spectral LUT, ported
+lam = np.array([400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700.])
+xb = np.array([0.0143, 0.1344, 0.3483, 0.2908, 0.0956, 0.0049, 0.0633, 0.2904, 0.5945, 0.9163, 1.0622, 0.8544, 0.4479, 0.1649, 0.0468, 0.0114])
+yb = np.array([0.0004, 0.0040, 0.0230, 0.0600, 0.1390, 0.3230, 0.7100, 0.9540, 0.9950, 0.8700, 0.6310, 0.3810, 0.1750, 0.0610, 0.0170, 0.0041])
+zb = np.array([0.0679, 0.6456, 1.7471, 1.6692, 0.8130, 0.2720, 0.0782, 0.0203, 0.0039, 0.0017, 0.0008, 0.0002, 0, 0, 0, 0])
+d65 = np.array([82.75, 93.43, 104.86, 117.81, 115.92, 109.35, 104.79, 104.41, 100.0, 95.79, 90.01, 87.70, 83.70, 80.21, 78.28, 71.61])
+_ip = lambda pts: np.interp(lam, [p[0] for p in pts], [p[1] for p in pts])
+aEu, aPh = (lam / 550) ** -3.33, (lam / 550) ** -4.75
+Ripe, rhoEu, rhoPh = _ip([[464, .020], [549, .030], [611, .045]]), _ip([[464, .022], [549, .038], [611, .065]]), _ip([[464, .055], [549, .15], [611, .26]])
+yel = 1 - 1 / (1 + np.exp(-(lam - 500) / 14))
+XYZ2RGB = np.array([[3.2406, -1.5372, -0.4986], [-0.9689, 1.8758, 0.0415], [0.0557, -0.2040, 1.0570]])
+
+
+def build_lut(rayExp=5.0, mies=(0, .08, .2, .35, .5, .7, 1.0)):
+    ray = (550 / lam) ** rayExp
+    ax = [6 * ((np.arange(24) + .5) / 24) ** 2, 0.5 * (np.arange(16) + .5) / 16, np.linspace(0, 1, 5), np.linspace(0, 2.5, 8), np.array(mies)]
+    G = np.meshgrid(*ax, indexing='ij'); Ma, Ds, ph, yl, mi = [g.reshape(-1, 1) for g in G]
+    melS = aEu + (aPh - aEu) * ph; sigS = np.maximum(Ds, .005) * (ray + (1 - ray) * mi); sigA = 0.7 * Ma * melS + 1e-4
+    a = 1 + sigA / sigS; b = np.sqrt(np.maximum(a * a - 1, 1e-6)); x = np.minimum(b * sigS, 30); coth = np.cosh(x) / np.sinh(x)
+    Rs = (1 - Ripe * (a - b * coth)) / (a - Ripe + b * coth); T = np.exp(-Ma * melS); rho = rhoEu + (rhoPh - rhoEu) * ph; Ty = np.exp(-yl * yel)
+    r = ((1 - T) * rho + T * T * Rs) * Ty * Ty
+    w = np.stack([xb * d65, yb * d65, zb * d65]); XYZ = r @ w.T / w.sum(1)
+    params = np.hstack([Ma, Ds, ph, yl, mi])
+    return np.maximum(XYZ @ XYZ2RGB.T, 0).astype(np.float32), params.astype(np.float32)     # linear sRGB (R, G, B), parameters
+
+
+def lin2lab(lin):                          # lin: (N, 3) linear sRGB, RGB order
+    s = np.where(lin <= .0031308, 12.92 * lin, 1.055 * np.clip(lin, 1e-9, None) ** (1 / 2.4) - .055).astype(np.float32)
+    return cv2.cvtColor(np.clip(s, 0, 1)[None, :, ::-1].copy(), cv2.COLOR_BGR2Lab)[0]
+def lab2lin(lab):                          # (N, 3) Lab → linear sRGB RGB
+    bgr = cv2.cvtColor(lab.astype(np.float32)[None], cv2.COLOR_Lab2BGR)[0]; s = np.clip(bgr[:, ::-1], 0, 1)
+    return np.where(s <= .04045, s / 12.92, ((s + .055) / 1.055) ** 2.4)
+def grade(lab, g, rot):                    # the per-photo camera grade: chroma gain + hue rotation (view parameter, not tissue)
+    t = np.radians(rot); out = lab.copy(); a, b = lab[:, 1] * g, lab[:, 2] * g
+    out[:, 1] = a * np.cos(t) - b * np.sin(t); out[:, 2] = a * np.sin(t) + b * np.cos(t); return out
+SCALES = np.array([.25, .35, .5, .7, .85, 1.0, 1.2, 1.5], np.float32)      # brightness multiplier on the albedo (the engine's brightness field)
+
+
+def invert(targets, LUT, g, rot):
+    """nearest graded LUT colour × brightness multiplier for each target Lab; returns (index, scale, achieved Lab, ΔE)"""
+    cand = np.concatenate([grade(lin2lab(LUT * s), g, rot) for s in SCALES]); n = len(LUT)
+    idx = np.zeros(len(targets), int); sc = np.zeros(len(targets), np.float32); got = np.zeros((len(targets), 3), np.float32); dE = np.zeros(len(targets), np.float32)
+    for k in range(0, len(targets), 40):
+        t = targets[k:k + 40]; e = ((t[:, None, :] - cand[None]) ** 2).sum(2); j = e.argmin(1)
+        idx[k:k + 40] = j % n; sc[k:k + 40] = SCALES[j // n]; got[k:k + 40] = cand[j]; dE[k:k + 40] = np.sqrt(e[np.arange(len(t)), j])
+    return idx, sc, got, dE
+
+
+# ---------------------------------------------------------------- primitives from the photo (the "hand")
+def fourier_smooth(cnt, M=24, n=512):
+    p = cnt[:, 0, :].astype(np.float64); d = np.r_[0, np.cumsum(np.hypot(*np.diff(np.r_[p, p[:1]], axis=0).T))]
+    t = np.linspace(0, d[-1], n, endpoint=False); q = np.r_[p, p[:1]]
+    z = np.interp(t, d, q[:, 0]) + 1j * np.interp(t, d, q[:, 1]); Z = np.fft.fft(z); keep = np.zeros(n, bool); keep[:M + 1] = True; keep[-M:] = True
+    z = np.fft.ifft(np.where(keep, Z, 0)); return np.stack([z.real, z.imag], 1)
+
+
+def centrelines(Lf, focus, sig_px, min_len):
+    """S0 recipe: multi-scale bright-ridge strength, NMS across the ridge, hysteresis, thinning, pruning → ordered paths"""
+    R, S, nx, ny = ridge(Lf, sig_px)
+    H, W = Lf.shape; gy, gx = np.mgrid[0:H, 0:W].astype(np.float32); st = max(1.0, 0.5 * sig_px[0])
+    Rs = cv2.GaussianBlur(R, (0, 0), max(0.8, 0.35 * sig_px[0]))
+    Ra = cv2.remap(Rs, gx + st * nx, gy + st * ny, cv2.INTER_LINEAR); Rb = cv2.remap(Rs, gx - st * nx, gy - st * ny, cv2.INTER_LINEAR)
+    vals = R[focus & (R > 0)]; hi, lo = np.percentile(vals, 45), np.percentile(vals, 15)
+    cand = cv2.dilate(((Rs >= Ra) & (Rs >= Rb) & (R > lo) & focus).astype(np.uint8), np.ones((2, 2), np.uint8))
+    n0, l0 = cv2.connectedComponents(cand, connectivity=8)
+    strong = np.zeros(n0, bool); strong[np.unique(l0[(R > hi) & (cand > 0)])] = True; strong[0] = False
+    sk = prune(zhang_suen(strong[l0].astype(np.uint8)), min_len)
+    # split at junctions, order each open segment
+    p = np.pad(sk, 1); P = [p[:-2, 1:-1], p[:-2, 2:], p[1:-1, 2:], p[2:, 2:], p[2:, 1:-1], p[2:, :-2], p[1:-1, :-2], p[:-2, :-2]]
+    deg = sum(((P[i] == 0) & (P[(i + 1) % 8] == 1)).astype(np.int32) for i in range(8)) * (sk > 0)
+    seg = ((sk > 0) & (cv2.dilate(((deg >= 3)).astype(np.uint8), np.ones((3, 3), np.uint8)) == 0)).astype(np.uint8)
+    n, lab = cv2.connectedComponents(seg, connectivity=8); paths = []
+    for i in range(1, n):
+        ys, xs = np.nonzero(lab == i)
+        if len(ys) >= min_len: paths.append(order_path(ys, xs))           # (row, col)
+    return paths, S
+
+
+def payload_curve(path, step_px, sample, width_map):
+    """resample a pixel path every step_px, smooth it, and read the 1-D payloads there"""
+    p = path[:, ::-1].astype(np.float64)                                   # (x, y)
+    k = max(3, int(round(step_px)) | 1); pad = np.pad(p, ((k // 2, k // 2), (0, 0)), mode='edge')
+    p = np.stack([np.convolve(pad[:, c], np.ones(k) / k, mode='valid') for c in (0, 1)], 1)
+    d = np.r_[0, np.cumsum(np.hypot(*np.diff(p, axis=0).T))]; m = max(2, int(d[-1] / step_px) + 1); t = np.linspace(0, d[-1], m)
+    q = np.stack([np.interp(t, d, p[:, 0]), np.interp(t, d, p[:, 1])], 1).astype(np.float32)
+    rd = lambda img: cv2.remap(img, q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0]
+    return {'xy': q, 'val': rd(sample), 'w': rd(width_map)}
+
+
+def raster_curves(curves, shape, key='val'):
+    """nearest-curve fields: distance to the nearest centreline and that curve's payload / width there (Voronoi of the curves).
+    Per-pixel distance to polylines with interpolated payload = what a distance-field bake (smooth union of tubes) evaluates."""
+    H, W = shape; ink = np.ones((H, W), np.uint8); val = np.zeros((H, W), np.float32); wid = np.zeros((H, W), np.float32)
+    for c in curves:
+        q = c['xy']; n = len(q)
+        for i in range(n - 1):                                             # dense sub-steps so every centreline pixel carries interpolated payload
+            m = int(max(2, np.ceil(np.hypot(*(q[i + 1] - q[i])) * 2)))
+            for s in np.linspace(0, 1, m):
+                x, y = q[i] * (1 - s) + q[i + 1] * s; xi, yi = int(round(x)), int(round(y))
+                if 0 <= xi < W and 0 <= yi < H: ink[yi, xi] = 0; val[yi, xi] = c[key][i] * (1 - s) + c[key][i + 1] * s; wid[yi, xi] = c['w'][i] * (1 - s) + c['w'][i + 1] * s
+    dist, lab = cv2.distanceTransformWithLabels(ink, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+    ys, xs = np.nonzero(ink == 0); lut_v = np.zeros(lab.max() + 1, np.float32); lut_w = np.zeros(lab.max() + 1, np.float32)
+    lut_v[lab[ys, xs]] = val[ys, xs]; lut_w[lab[ys, xs]] = wid[ys, xs]
+    return dist, lut_v[lab], lut_w[lab]
+
+
+def srgb2lin(bgr8):
+    s = bgr8[..., ::-1].astype(np.float32) / 255; return np.where(s <= .04045, s / 12.92, ((s + .055) / 1.055) ** 2.4)
+def lin2bgr8(lin):
+    s = np.where(lin <= .0031308, 12.92 * lin, 1.055 * np.clip(lin, 1e-9, None) ** (1 / 2.4) - .055); return (np.clip(s[..., ::-1], 0, 1) * 255 + .5).astype(np.uint8)
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
+sstep = lambda a, b, x: (lambda t: t * t * (3 - 2 * t))(np.clip((x - a) / (b - a), 0, 1))
+
+
+def main():
+    nat = cv2.imread(os.path.join(ENG, 'ref', '26-green-crypts-isolated.jpg')); k = nat.shape[1] / 1280.0
+    cx, cy, w = WIN; y0, x0, n = int((cy - w / 2) * k), int((cx - w / 2) * k), int(w * k)
+    photo = nat[y0:y0 + n, x0:x0 + n].copy(); UM = 1000.0 / (PPM_FIT * k); H = W = n
+    plin = srgb2lin(photo); pY = plin @ LUMA; plab = cv2.cvtColor(photo.astype(np.float32) / 255, cv2.COLOR_BGR2Lab)
+    print(f'window {n} px = {n * UM / 1000:.2f} mm · {UM:.2f} µm/px')
+
+    # ---- aperture (the photographer's cutout; K1's parameter + a feather)
+    iris = (cv2.GaussianBlur(plab[..., 0], (0, 0), 3) > 8).astype(np.uint8)
+    ic, _ = cv2.findContours(iris, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)                           # black pits inside crypts are tissue, not background
+    iris = np.zeros_like(iris); cv2.drawContours(iris, [max(ic, key=cv2.contourArea)], -1, 1, -1)
+    aper = cv2.GaussianBlur(iris.astype(np.float32), (0, 0), 7)
+    inner = cv2.erode(iris, np.ones((41, 41), np.uint8)) > 0
+
+    # ---- 1. sheet coverage: hole outlines (dark AND low b* — a hole in the pigmented sheet, not a shadow)
+    s4 = cv2.GaussianBlur(plab, (0, 0), 2.5)
+    near = cv2.erode(iris, np.ones((21, 21), np.uint8)) > 0
+    Hm = ((((s4[..., 2] < 14) & (s4[..., 0] < 46)) | (s4[..., 0] < 24)) & near).astype(np.uint8)
+    Hm = cv2.morphologyEx(cv2.morphologyEx(Hm, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+    cnts, hier = cv2.findContours(Hm, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    amin = (0.12 * 1000 / UM) ** 2                                                                       # ≥ 0.12 mm across
+    outer = [i for i, c in enumerate(cnts) if hier[0][i][3] < 0 and cv2.contourArea(c) >= amin]
+    isl = [i for i, c in enumerate(cnts) if hier[0][i][3] in outer and cv2.contourArea(c) >= 0.35 * amin]  # sheet islands and septa inside a hole
+    outlines = [fourier_smooth(cnts[i], 32) for i in outer]; islands = [fourier_smooth(cnts[i], 12, 256) for i in isl]
+    holes = np.zeros((H, W), np.uint8); cv2.fillPoly(holes, [o.round().astype(np.int32) for o in outlines], 1)
+    cv2.fillPoly(holes, [o.round().astype(np.int32) for o in islands], 0); outlines = outlines + islands
+    sd = cv2.distanceTransform(holes, cv2.DIST_L2, 5) - cv2.distanceTransform(1 - holes, cv2.DIST_L2, 5)  # + inside a hole, px
+    WALL = 5.0                                                                                           # px ≈ 23 µm soft wall
+    cover = 1 - sstep(-WALL, WALL, sd)                                                                   # 1 = sheet, 0 = hole
+    sheet_px = (sd < -14) & inner; hole_px = sd > 5; rim_px = (sd > -12) & (sd < -3) & inner
+    print(f'{len(outlines)} hole outlines · holes {100 * holes[inner].mean():.1f} % of the window')
+
+    # ---- 2. deck fibres inside the holes, guides on the sheet: curves + width + 1-D payload
+    Lf = cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 1.0)
+    step = PAYLOAD_UM / UM
+    base_h = cv2.GaussianBlur(np.where(hole_px, pY, 0).astype(np.float32), (0, 0), 14) / np.maximum(cv2.GaussianBlur(hole_px.astype(np.float32), (0, 0), 14), 1e-3)
+    fpaths, fS = centrelines(Lf, sd > 1, [2.0, 3.0, 4.5], 6)
+    fibres = [payload_curve(p, step, Lf, fS * 2.0) for p in fpaths]
+    base_s = cv2.GaussianBlur(np.where(sheet_px, pY, 0).astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM) / np.maximum(cv2.GaussianBlur(sheet_px.astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM), 1e-3)
+    gpaths, gS = centrelines(cv2.GaussianBlur(Lf, (0, 0), 2.0), sd < -6, [4.0, 6.0, 9.0], 14)
+    den_s = cv2.GaussianBlur(sheet_px.astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM)
+    base_s = np.where(den_s > 0.1, base_s, float(np.median(pY[sheet_px])))                                # islands inside a hole have no sheet field of their own
+    ratio = np.clip(cv2.GaussianBlur(Lf, (0, 0), 2.0) / np.maximum(base_s, 1e-3), 0.4, 1.8).astype(np.float32)             # guides carry brightness RELATIVE to the sheet field
+    guides = [payload_curve(p, step, ratio, gS * 1.6) for p in gpaths]
+    nf, ng = sum(len(c['xy']) for c in fibres), sum(len(c['xy']) for c in guides)
+    print(f'{len(fibres)} deck fibres ({nf} payload samples) · {len(guides)} sheet guides ({ng} samples)')
+
+    # ---- 3. rim pigment: 1-D strength along each outline (how much more amber than the sheet next to it)
+    LUT, PRM = build_lut()
+    sheet_lab = np.array([np.median(plab[..., c][sheet_px]) for c in range(3)], np.float32)
+    rim_strength = []
+    for o in outlines:
+        d = np.roll(o, -1, 0) - np.roll(o, 1, 0); nrm = np.stack([d[:, 1], -d[:, 0]], 1); nrm /= np.maximum(np.hypot(*nrm.T)[:, None], 1e-6)
+        if cv2.pointPolygonTest(o.astype(np.float32), tuple((o[0] + 6 * nrm[0]).astype(np.float32)), False) > 0: nrm = -nrm   # outward
+        q = (o + 7 * nrm).astype(np.float32); samp = cv2.remap(cv2.GaussianBlur(plab, (0, 0), 2.5), q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0]
+        amber = np.clip(((samp[:, 1] - sheet_lab[1]) + 0.5 * (sheet_lab[0] - samp[:, 0])) / 22.0, 0, 1)   # redder and darker than the sheet
+        kk = 9; amber = np.convolve(np.r_[amber[-kk:], amber, amber[:kk]], np.ones(kk) / kk, 'same')[kk:-kk]
+        rim_strength.append(amber.astype(np.float32))
+    rim_curves = [{'xy': np.r_[o, o[:1]].astype(np.float32), 'val': np.r_[a, a[:1]], 'w': np.full(len(o) + 1, 1, np.float32)} for o, a in zip(outlines, rim_strength)]
+    _, rim_val, _ = raster_curves(rim_curves, (H, W)); RIM_W = 9.0                                        # px ≈ 42 µm
+    rim = rim_val * np.exp(-((sd + 5.0) / RIM_W) ** 2) * (sd < 2)
+
+    # ---- 4. materials, class-owned, through the spectral LUT + one camera grade
+    strong_rim = rim_px & (rim > 0.45)
+    fib_d, fib_v, fib_w = raster_curves(fibres, (H, W))
+    on_fibre = hole_px & (fib_d < 0.5 * np.maximum(fib_w, 2)); off_fibre = hole_px & (fib_d > 0.9 * np.maximum(fib_w, 2))
+    cls = {'sheet': sheet_px, 'deck': on_fibre, 'ground': off_fibre, 'rim': strong_rim}
+    tgt = {kx: np.array([np.median(plab[..., c][m]) for c in range(3)], np.float32) for kx, m in cls.items()}
+    best = None
+    for g in (1.0, 1.3, 1.6, 2.0):
+        for rot in (0, 10, 20, 30):
+            _, _, _, dE = invert(np.stack(list(tgt.values())), LUT, g, rot); e = float(dE.mean())
+            if best is None or e < best[0]: best = (e, g, rot)
+    _, G, ROT = best; print(f'camera grade: chroma ×{G}, hue {ROT:+d}° (class ΔE {best[0]:.2f})')
+    # sheet cell field (colour + brightness), owned by sheet pixels only
+    cs = int(round(CELL_MM * 1000 / UM)); gy, gx = H // cs + 1, W // cs + 1
+    wsum = cv2.resize(sheet_px.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA)
+    cell_lab = np.stack([cv2.resize(np.where(sheet_px, plab[..., c], 0).astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA) for c in range(3)], 2) / np.maximum(wsum[..., None], 1e-4)
+    known = (wsum > 0.08).astype(np.uint8)
+    _, nearest = cv2.distanceTransformWithLabels(1 - known, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)   # a cell with no sheet pixels (inside a hole) takes the nearest sheet cell's material
+    src = np.zeros(nearest.max() + 1, int); ky, kx_ = np.nonzero(known); src[nearest[ky, kx_]] = ky * gx + kx_
+    cell_lab = np.where(known[..., None] > 0, cell_lab, cell_lab.reshape(-1, 3)[src[nearest]])
+    ci, csc, cgot, cdE = invert(cell_lab.reshape(-1, 3), LUT, G, ROT)
+    report = {'grade': {'chroma': G, 'hue': ROT}, 'classes': {}}
+    mats = {}
+    for kx in cls:
+        i, s_, got, dE = invert(tgt[kx][None], LUT, G, ROT); mats[kx] = (LUT[i[0]], float(s_[0]))
+        report['classes'][kx] = {'photo_Lab': [round(float(v), 1) for v in tgt[kx]], 'model_Lab': [round(float(v), 1) for v in got[0]], 'dE': round(float(dE[0]), 2),
+                                 'material': dict(zip(['melanin', 'stroma', 'pheo', 'yellow', 'mie'], [round(float(v), 3) for v in PRM[i[0]]]))}
+        print(f"  {kx:7s} photo Lab {report['classes'][kx]['photo_Lab']} → model {report['classes'][kx]['model_Lab']}  ΔE {dE[0]:.2f}  {report['classes'][kx]['material']}")
+    print(f'  sheet cells: {gx}×{gy}, LUT ΔE mean {cdE[known.reshape(-1) > 0].mean():.2f}')
+    up = lambda a: cv2.resize(a.astype(np.float32), (W, H), interpolation=cv2.INTER_CUBIC)
+    sheet_alb = np.stack([up((LUT[ci][:, c] * csc).reshape(gy, gx)) for c in range(3)], 2)                 # linear RGB albedo × cell brightness
+
+    # ---- 5. compose the layers (linear light)
+    rs = np.random.RandomState(26)
+    # deck: tubes under a frontal ring flash — brightness payload × round cross-profile, over the dark ground
+    prof = np.sqrt(np.clip(1 - (fib_d / np.maximum(fib_w, 1.5)) ** 2, 0, 1))
+    deckY = fib_v * prof
+    deck_rgb = mats['deck'][0][None, None, :] / max(float(mats['deck'][0] @ LUMA), 1e-4) * deckY[..., None]
+    gY = cv2.GaussianBlur(np.where(off_fibre, pY, 0).astype(np.float32), (0, 0), 20) / np.maximum(cv2.GaussianBlur(off_fibre.astype(np.float32), (0, 0), 20), 1e-3)   # ground level, 0.1 mm scale
+    ground_rgb = mats['ground'][0][None, None, :] / max(float(mats['ground'][0] @ LUMA), 1e-4) * gY[..., None]
+    hole_rgb = ground_rgb * (1 - prof[..., None]) + np.maximum(deck_rgb, ground_rgb * 0) * prof[..., None]
+    # sheet: cell material × guides (relative brightness along traced bundles) × seeded matte grain
+    g_d, g_v, g_w = raster_curves(guides, (H, W))
+    gprof = np.exp(-0.5 * (g_d / np.maximum(0.55 * g_w, 2.0)) ** 2)
+    sheet_mod = 1 + (g_v - 1) * gprof
+    grain_t = cv2.GaussianBlur(rs.randn(H, W).astype(np.float32), (0, 0), 1.6); grain_t /= grain_t.std()
+    sheet_rgb = sheet_alb * (sheet_mod * (1 + 0.055 * grain_t))[..., None]
+    rim_alb = mats['rim'][0] * mats['rim'][1]
+    sheet_rgb = sheet_rgb * (1 - rim[..., None]) + rim_alb[None, None, :] * (sheet_mod * (1 + 0.055 * grain_t))[..., None] * rim[..., None]
+    lin = hole_rgb * (1 - cover[..., None]) + sheet_rgb * cover[..., None]
+    # camera: grade, lens blur, sensor grain, the aperture
+    lab_img = grade(lin2lab(lin.reshape(-1, 3)), G, ROT); lin = lab2lin(lab_img).reshape(H, W, 3).astype(np.float32)
+    lin = cv2.GaussianBlur(lin, (0, 0), 1.3) * aper[..., None]
+    clean = lin2bgr8(lin)
+    hp = lambda img: img.astype(np.float32) - cv2.GaussianBlur(img.astype(np.float32), (0, 0), 3.0)
+    flat = sheet_px & (g_d > 12)                                                                         # sensor grain measured on flat sheet, away from guides
+    sig_cam = np.sqrt(np.maximum(hp(photo)[flat].var(0) - hp(clean)[flat].var(0), 0))                     # what the clean render lacks there, per channel
+    nz = cv2.GaussianBlur(rs.randn(H, W, 3).astype(np.float32), (0, 0), 0.8); nz = hp(nz); nz /= nz[flat].std(0)[None, None, :]   # demosaic-sized grain, not white noise
+    noisy = np.clip(clean.astype(np.float32) + nz * sig_cam[None, None, :] * (aper[..., None] > 0.5), 0, 255).astype(np.uint8)
+
+    # ---- 6. judge: same window of the engine's current fit (v84c), and numbers
+    eng = cv2.imread(os.path.join(OUT, 'engine-v84c-26-render.png'))
+    eng_w = cv2.resize(eng[cy - w // 2:cy + w // 2, cx - w // 2:cx + w // 2], (W, H), interpolation=cv2.INTER_CUBIC) if eng is not None else np.zeros_like(photo)
+
+    def metrics(img):
+        lab = cv2.cvtColor(img.astype(np.float32) / 255, cv2.COLOR_BGR2Lab); m = inner
+        A = lambda x: cv2.resize(np.where(m[..., None], x, 0).astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA)
+        wt = cv2.resize(m.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA); ok = wt > 0.9
+        P, R = A(plab) / np.maximum(wt[..., None], 1e-4), A(lab) / np.maximum(wt[..., None], 1e-4)
+        out = {'cellDab': float(np.hypot(P[..., 1] - R[..., 1], P[..., 2] - R[..., 2])[ok].mean()), 'cellDL': float(np.abs(P[..., 0] - R[..., 0])[ok].mean())}
+        for kx, mk in (('hole', hole_px), ('sheet', sheet_px), ('rim', strong_rim)):
+            out['dab_' + kx] = float(np.hypot(np.median(plab[..., 1][mk]) - np.median(lab[..., 1][mk]), np.median(plab[..., 2][mk]) - np.median(lab[..., 2][mk])))
+        ppm = 1000.0 / UM                                                       # bands as in the engine (§23): σ = λ / 5.3
+        for nm, lo_mm, hi_mm in (('B1', 0.3, 1.0), ('B2', 0.09, 0.3), ('B3', 0.03, 0.09)):
+            bp = lambda x: cv2.GaussianBlur(x, (0, 0), lo_mm * ppm / 5.3) - cv2.GaussianBlur(x, (0, 0), hi_mm * ppm / 5.3)
+            a, b = bp(plab[..., 0])[m], bp(lab[..., 0])[m]; out[nm + '_corr'] = float(np.corrcoef(a, b)[0, 1]); out[nm + '_ratio'] = float(b.std() / a.std())
+        return {k2: round(v, 3) for k2, v in out.items()}
+    report['metrics'] = {'engine_v84c': metrics(eng_w), 'layers_clean': metrics(clean), 'layers_with_camera_grain': metrics(noisy)}
+    report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng,
+                            'rim_samples': int(sum(len(a) for a in rim_strength)), 'sheet_cells': int(gx * gy), 'window_mm2': round((n * UM / 1000) ** 2, 2)}
+    for kx, v in report['metrics'].items(): print(kx, v)
+    print(report['primitives'])
+    json.dump(report, open(os.path.join(OUT, 'proof-26.json'), 'w'), indent=1)
+
+    def tag(img, t):
+        img = img.copy(); cv2.rectangle(img, (0, 0), (W, 30), (0, 0, 0), -1); cv2.putText(img, t, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 1, cv2.LINE_AA); return img
+    cv2.imwrite(os.path.join(OUT, 'proof-26.jpg'), np.hstack([tag(photo, 'photo (native, 4.7 um/px)'), tag(noisy, 'layer model: primitives only'), tag(eng_w, 'engine today (v84c)')]), [cv2.IMWRITE_JPEG_QUALITY, 93])
+    cv2.imwrite(os.path.join(OUT, 'proof-26-clean.jpg'), np.hstack([tag(photo, 'photo'), tag(clean, 'layer model, no camera grain')]), [cv2.IMWRITE_JPEG_QUALITY, 93])
+    ov = photo.copy()
+    for o in outlines: cv2.polylines(ov, [o.round().astype(np.int32)], True, (0, 200, 255), 1, cv2.LINE_AA)
+    for c in fibres: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 255, 0), 1, cv2.LINE_AA)
+    for c in guides: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 0, 255), 1, cv2.LINE_AA)
+    cv2.imwrite(os.path.join(OUT, 'proof-26-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
+
+
+if __name__ == '__main__':
+    main()

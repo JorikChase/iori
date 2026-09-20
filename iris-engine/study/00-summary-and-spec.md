@@ -1370,3 +1370,45 @@ horizontal (goat, horse). **Rule until then ("keep the doors open"):** new code 
 assumption — take v from the engine's coordinate map rather than recomputing it from a radius, keep the pupil
 interior a separate shading hook, keep species-level constants (limbus, root radius, collarette position) as
 parameters in the ID rather than literals.
+
+## 30. The tissue layer model — P0 hand-built proof on ref 26 (2026-09-20)
+
+Context (discussion with iori, 2026-09-20): a fitter can only set parameters that exist. Today the bake deletes 85 %
+of strand coverage inside openings (`ridge *= 1 − 0.85·openMask`) and colours the floor by prior; colour lives on
+0.1 mm cells; no parameter says "this fibre, here". On the 2048 × 512 CAPTURE polars the render has *more*
+strand-band energy than the photo (σ L\* 5.1–6.0 vs 2.9–4.3) with the same radial share — detail is unplaced and of
+the wrong morphology, not missing. Proposed model, from iori's anatomy notes taken literally: **cornea · border-layer
+SHEET with holes and rim pigment · DECK of explicit fibre curves · dark ground**; dense voxels rejected (≈ 4·10⁸ at
+5 µm; the view shows 2–3 depth layers; curves + a distance-field bake + windowed re-bake scale to any zoom).
+iori's rules for this phase: isolated set first, other photos only after success; **correct colour is a big step**;
+fits may run tens of minutes if every pass is visible and the fit can be stopped and resumed; eyes are iori's and
+friends', consent toggle on import.
+
+**P0** (`tools/layer_proof.py`, output `study/proof-layers/`; offline, no engine, no fitter): one 3.08 mm window of
+ref 26 at native 4.66 µm/px rendered from primitives only — 8 outlines (Fourier, incl. 2 islands), 130 deck fibres
+(806 payload samples at 20 µm), 114 sheet guides (1,866 samples, brightness *relative* to the sheet field), rim
+strength along the outlines (3,584 samples), a 32 × 32 sheet cell field owned by sheet pixels only, one material each
+for deck / ground / rim, seeded grain. **Every colour goes through a port of `buildSpectralLut`** (+ a neutral-scatter
+axis) and one camera grade (chroma × 1.6, hue +30°).
+
+| same window, against the photo | engine v84c | layer model (clean) | + camera grain |
+|---|---|---|---|
+| cell Δab (0.1 mm cells) | 16.9 | **3.0** | 3.0 |
+| Δab holes / sheet / rims | 16.4 / 12.3 / 18.4 | **0.9 / 1.2 / 2.2** | 1.4 / 0.9 / 3.5 |
+| B1 / B2 / B3 correlation | 0.76 / 0.74 / 0.14 | **0.97 / 0.81 / 0.43** | 0.97 / 0.81 / 0.27 |
+| B3 energy ratio | 0.80 | 0.45 | 0.73 |
+| class materials through the LUT | — | ΔE 0.6–1.5 | |
+
+Reading: the model looks like the photograph at 1:1 where the engine does not — grey-teal fibres inside dark lens
+shaped holes in a yellow sheet, amber at the rims, no blue anywhere — and colour is right *because each class owns
+its material*. Budget ≈ 8.3 k numbers for 9.5 mm² → ≈ 60–120 KB for a whole iris.
+Honest limits: (1) the primitives and their brightness payloads were read from this photo, so luminance agreement is
+partly by construction — that is the representation's purpose, but a fitter still has to find them through the
+renderer; (2) a 2-D mock: no cornea, parallax, relief lighting; (3) still wrong: walls too soft and round (no
+overhang shadow on the lit side, septa weak), fibres a little thin and pale, the sheet too smooth (its crisp streaks
+and stipple are under-modelled, B3 ratio 0.45 clean), the grade is strong and global; (4) two bugs worth remembering
+— black pits inside crypts read as "outside the iris" (fill the mask), and a relative payload explodes where its base
+field has no support (clamp + fall back).
+Next (P1, to be agreed): the same model as a separately compiled bake variant behind `tissueModel`, fed by these
+primitives for the same window, judged against this mock and the photo; then the camera grade + neutral-scatter
+field in the engine's colour path; then the journaled closed-loop fitter.

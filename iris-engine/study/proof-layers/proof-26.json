@@ -1,0 +1,140 @@
+{
+ "grade": {
+  "chroma": 1.6,
+  "hue": 30
+ },
+ "classes": {
+  "sheet": {
+   "photo_Lab": [
+    57.3,
+    -13.6,
+    42.2
+   ],
+   "model_Lab": [
+    57.6,
+    -13.6,
+    41.7
+   ],
+   "dE": 0.56,
+   "material": {
+    "melanin": 0.315,
+    "stroma": 0.391,
+    "pheo": 1.0,
+    "yellow": 0.0,
+    "mie": 0.5
+   }
+  },
+  "deck": {
+   "photo_Lab": [
+    37.1,
+    -10.8,
+    7.0
+   ],
+   "model_Lab": [
+    37.0,
+    -10.1,
+    7.0
+   ],
+   "dE": 0.72,
+   "material": {
+    "melanin": 0.065,
+    "stroma": 0.297,
+    "pheo": 0.25,
+    "yellow": 0.357,
+    "mie": 0.0
+   }
+  },
+  "ground": {
+   "photo_Lab": [
+    16.6,
+    -4.6,
+    5.4
+   ],
+   "model_Lab": [
+    18.0,
+    -4.3,
+    6.0
+   ],
+   "dE": 1.53,
+   "material": {
+    "melanin": 0.065,
+    "stroma": 0.109,
+    "pheo": 0.5,
+    "yellow": 0.357,
+    "mie": 0.0
+   }
+  },
+  "rim": {
+   "photo_Lab": [
+    36.9,
+    -7.4,
+    26.0
+   ],
+   "model_Lab": [
+    36.7,
+    -7.1,
+    25.5
+   ],
+   "dE": 0.65,
+   "material": {
+    "melanin": 0.315,
+    "stroma": 0.297,
+    "pheo": 0.5,
+    "yellow": 0.0,
+    "mie": 0.5
+   }
+  }
+ },
+ "metrics": {
+  "engine_v84c": {
+   "cellDab": 16.888,
+   "cellDL": 5.944,
+   "dab_hole": 16.433,
+   "dab_sheet": 12.254,
+   "dab_rim": 18.353,
+   "B1_corr": 0.756,
+   "B1_ratio": 1.015,
+   "B2_corr": 0.741,
+   "B2_ratio": 1.233,
+   "B3_corr": 0.141,
+   "B3_ratio": 0.796
+  },
+  "layers_clean": {
+   "cellDab": 2.999,
+   "cellDL": 2.331,
+   "dab_hole": 0.869,
+   "dab_sheet": 1.209,
+   "dab_rim": 2.198,
+   "B1_corr": 0.967,
+   "B1_ratio": 0.855,
+   "B2_corr": 0.813,
+   "B2_ratio": 0.738,
+   "B3_corr": 0.434,
+   "B3_ratio": 0.445
+  },
+  "layers_with_camera_grain": {
+   "cellDab": 3.041,
+   "cellDL": 2.337,
+   "dab_hole": 1.364,
+   "dab_sheet": 0.906,
+   "dab_rim": 3.471,
+   "B1_corr": 0.967,
+   "B1_ratio": 0.85,
+   "B2_corr": 0.809,
+   "B2_ratio": 0.737,
+   "B3_corr": 0.27,
+   "B3_ratio": 0.73
+  }
+ },
+ "primitives": {
+  "outlines": 8,
+  "outline_coeffs": 1040,
+  "fibres": 130,
+  "fibre_samples": 806,
+  "guides": 114,
+  "guide_samples": 1866,
+  "rim_samples": 3584,
+  "sheet_cells": 1024,
+  "window_mm2": 9.47
+ }
+}

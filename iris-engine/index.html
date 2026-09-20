@@ -729,6 +729,7 @@
 
     <!-- SHADERS -->
     <script src="strands.js"></script>
+    <script src="tissue.js"></script>
     <script id="vs" type="x-shader/x-vertex">
         #version 300 es
         in vec4 position;
@@ -2976,7 +2977,7 @@
 
         // draw one frame of the photo shader into `fb` (w×h), accumulating from `readTex` when frame > 0
         function drawPhotoFrame(fb, w, h, frame, readTex, opts = {}) {
-            const prog = programs.photo;
+            const prog = (window.IrisTissue && window.IrisTissue.on) ? window.IrisTissue.photoProgram() : programs.photo;   // §30: the tissue layer model is a separately compiled variant
             gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
             gl.viewport(0, 0, w, h);
             gl.useProgram(prog);
@@ -3022,6 +3023,7 @@
             u1f(prog, 'u_stromaMax', g.stroma);
             gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_3D, lutTex); u1i(prog, 'u_lut', 5);
             u1f(prog, 'u_useLut', 1.0); u1f(prog, 'u_yellow', state.yellow); u1f(prog, 'u_limbalMilk', genome.globals.limbalMilk === undefined ? 0.6 : genome.globals.limbalMilk);
+            if (prog !== programs.photo) window.IrisTissue.bind(prog);
             gl.activeTexture(gl.TEXTURE0);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }

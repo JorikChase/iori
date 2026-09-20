@@ -378,6 +378,41 @@ def main():
     nz = cv2.GaussianBlur(rs.randn(H, W, 3).astype(np.float32), (0, 0), 0.8); nz = hp(nz); nz /= nz[flat].std(0)[None, None, :]   # demosaic-sized grain, not white noise
     noisy = np.clip(clean.astype(np.float32) + nz * sig_cam[None, None, :] * (aper[..., None] > 0.5), 0, 255).astype(np.uint8)
 
+    # ---- 5b. export the primitives for the engine's tissueModel variant (spec §30 P1): positions in FIT pixels of the 1280 px fit
+    # image (the engine maps them to tissue (u, v) through its own coordinate map), sizes in mm, colours as linear sRGB in PHOTO
+    # space (graded LUT colours × payload) — the engine converts them to albedo by inverting its own camera and lighting
+    if '--export' in sys.argv:
+        kx_, ky_ = nat.shape[1] / 1280.0, nat.shape[0] / 925.0; MM = UM / 1000.0
+        def fitxy(q): return np.stack([(x0 + q[:, 0] + 0.5) / kx_ - 0.5, (y0 + q[:, 1] + 0.5) / ky_ - 0.5], 1)
+        def graded(lin): return lab2lin(grade(lin2lab(np.clip(lin, 1e-5, None).astype(np.float32)), G, ROT))
+        r3 = lambda a_: [[round(float(v), 4) for v in row] for row in a_]; r1 = lambda a_, d=4: [round(float(v), d) for v in a_]
+        def curve(c, **kw): return dict(xy=r3(fitxy(c['xy'])), w=r1(c['w'] * MM, 5), **kw)
+        ex = {'ref': '26-green-crypts-isolated.jpg', 'fit': [1280, 925], 'grade': {'chroma': G, 'hue': ROT},
+              'mm': {'wall': WALL * MM, 'rimW': RIM_W * MM, 'rimOff': 5.0 * MM, 'pit': [14 * MM, 26 * MM], 'bodyBlur': 2.5 * MM, 'guideColBlur': 3.0 * MM, 'depth': 0.01},
+              'outlines': [], 'fibres': [], 'veins': [], 'guides': [], 'sfib': [], 'svein': []}
+        for i_, (o, a_) in enumerate(zip(outlines, rim_strength)):
+            ex['outlines'].append({'xy': r3(fitxy(o)), 'rim': r1(a_), 'island': i_ >= len(outlines) - len(islands)})
+        for c in fibres:
+            ch = np.stack([c['cr'], c['cg'], c['cb']], 1); ex['fibres'].append(curve(c, rgb=r3(graded(ch * c['val'][:, None]))))
+        # relative payloads also carry the photo-space luminance they are relative TO: the engine's camera is not linear, so a
+        # ratio has to be converted through it (albedo(base × ratio) / albedo(base)), not copied
+        def rdl(c, img): q = c['xy']; return r1(cv2.remap(img.astype(np.float32), q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0], 5)
+        b5, b6 = cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 5.0), cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 6.0)
+        for c in veins: ex['veins'].append(curve(c, val=r1(c['val']), base=rdl(c, b5)))
+        for c in guides:
+            ch = np.stack([c['cr'], c['cg'], c['cb']], 1); yl = np.maximum(lab2lin(np.stack([c['L'], 0 * c['L'], 0 * c['L']], 1)) @ LUMA, 1e-4)
+            gcol = graded(ch * yl[:, None]); ex['guides'].append(curve(c, val=r1(c['val']), base=rdl(c, base_s), rgb=r3(gcol / np.maximum(gcol @ LUMA, 1e-5)[:, None])))
+        for c in sfib: ex['sfib'].append(curve(c, val=r1(c['val']), base=rdl(c, b6)))
+        for c in svein: ex['svein'].append(curve(c, val=r1(c['val']), base=rdl(c, b6)))
+        cyy, cxx = np.mgrid[0:gy, 0:gx]; cpos = np.stack([(cxx.ravel() + 0.5) * W / gx - 0.5, (cyy.ravel() + 0.5) * H / gy - 0.5], 1)
+        inwin = cv2.resize(iris.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA).ravel() > 0.5
+        gcell = cv2.resize(gY.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA).ravel()
+        gch = mats['ground'][0] / max(float(mats['ground'][0] @ LUMA), 1e-5)
+        ex['cells'] = {'xy': r3(fitxy(cpos)[inwin]), 'sheet': r3(graded(LUT[ci] * csc[:, None])[inwin]), 'ground': r3(graded(gch[None, :] * np.maximum(gcell, 1e-4)[:, None])[inwin])}
+        ex['rimRGB'] = r1(graded((mats['rim'][0] * mats['rim'][1])[None, :])[0])
+        json.dump(ex, open(os.path.join(OUT, 'tissue-26.json'), 'w'), separators=(',', ':'))
+        print('exported tissue-26.json', round(os.path.getsize(os.path.join(OUT, 'tissue-26.json')) / 1024), 'KB')
+
     # ---- 6. judge: same window of the engine's current fit (v84c), and numbers
     eng = cv2.imread(os.path.join(OUT, 'engine-v84c-26-render.png'))
     eng_w = cv2.resize(eng[cy - w // 2:cy + w // 2, cx - w // 2:cx + w // 2], (W, H), interpolation=cv2.INTER_CUBIC) if eng is not None else np.zeros_like(photo)

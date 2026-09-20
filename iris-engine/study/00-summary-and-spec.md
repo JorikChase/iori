@@ -1443,6 +1443,55 @@ clean), septa. Budget now ≈ 9.9 k numbers per 9.5 mm².
 - Still open in the mock: walls too soft (no asymmetric overhang shadow), local contrast a little low (B2 ratio 0.78),
   septa between neighbouring crypts weak, grain more chromatic than the photo's.
 
-Next (P1, to be agreed): the same model as a separately compiled bake variant behind `tissueModel`, fed by these
-primitives for the same window, judged against this mock and the photo; then the camera grade + neutral-scatter
-field in the engine's colour path; then the journaled closed-loop fitter.
+### 30.1 P1 (2026-09-20): the layer model inside the engine — `tissue.js`, the `tissueModel` variant
+
+iori: "yes, let's move it into the engine". Built as a module so the engine's shaders stay untouched:
+
+- **`tissue.js`** (`window.IrisTissue`). The primitives of `tools/layer_proof.py --export` (`study/proof-layers/
+  tissue-26.json`, 471 KB: positions in fit pixels, sizes in mm, colours in photo space) are mapped to tissue (u, v)
+  through the engine's own coordinate map (9,785 / 9,785 points on the iris) and **rasterised on the GPU**: each curve
+  set is drawn as quads around its segments with `gl_FragDepth` = distance, so the depth test keeps the *nearest curve
+  per texel* — a Voronoi diagram of the curves with the payload interpolated along the segment, i.e. the mock's
+  distance-field bake, exact within the radius (fibres 0.20 mm, guides 0.12, veins / fine curves 0.05, outlines 0.55;
+  the outline's side gives the sign, islands wound the other way). Six sets × two RGBA16F targets, then one compose
+  pass → the region's albedo (linear RGB + mask) and relief. Region texels are **square in tissue mm (3 µm)**: the
+  atlas' own texels are ≈ 8 × 4 µm out there and an isotropic mip chain on them blurs twice as much across the fibres.
+- **The photo shader variant** is built by string replacement on the untouched `fs-photo` source (anchors:
+  `uniform sampler2D u_atlas0;`, every `textureLod(u_atlas0, …).r * u_relief` height read → `tissueH`, `float occ =
+  t3.r;`, the brightness-field line). In the region the layer model owns albedo, relief and darkness: no crypt, furrow,
+  spot, gap-shadow, occlusion or strand-sheen terms of the old model. `index.html` gained two JS lines in
+  `drawPhotoFrame` (program choice, `IrisTissue.bind`) and a script tag; nothing runs unless `IrisTissue.on`.
+- **Photo colour → albedo.** The engine owns light and camera, so primitives must hold albedo. The post pass is
+  inverted analytically (γ 2.2, ACES, sat, EV); the light is *measured through the real renderer*: two flat-grey
+  renders of the region give, per pixel, X = k·A + s — gain **k ≈ 0.74** and an additive **s ≈ 0.10 / 0.10 / 0.07**
+  (speculars). The first attempt assumed s = 0 and the region came out washed and grey: a tenth of full scale added to
+  every pixel is most of a crypt's darkness. Only the smooth part (≈ 0.2 mm) of k and s is used. *Relative* payloads
+  (guides, fine streaks, veins) carry their base luminance and are converted as albedo(base × ratio) / albedo(base) —
+  the camera is not linear, a ratio cannot be copied.
+- **Relief.** A 30 µm floor makes the coaxial ring flash draw a dark line round every hole (the photo has none); 10 µm
+  reads right and is the default. The wall shading the photo does show is one-sided — not reproducible with a coaxial
+  source; it stays in the payloads.
+
+Same window of ref 26 at the fit pose, CAPTURE, scored at the 1280 px fit image, 16 px inside the patch:
+
+| | engine v84c | engine, tissue region |
+|---|---|---|
+| cell Δab (0.1 mm) | 17.1 | **3.8** |
+| cell ΔL\* | 6.0 | **2.9** |
+| B1 / B2 / B3 correlation | 0.77 / 0.76 / 0.14 | 0.76 / **0.79** / **0.50** |
+| B1 / B2 / B3 energy ratio | 1.00 / 1.22 / 0.87 | 0.74 / 0.70 / 0.42 |
+
+Reading: **the layer model survives the engine** — cornea refraction, relief march, lighting, lens and post — with
+the mock's colour (3.8 against 17.1) and its strand-scale placement (B3 0.50 against 0.14). Not yet there: contrast
+(energy ratios 0.4–0.7 — the render is softer than the photo at every band; suspects: the lens model at the fit
+aperture, the smooth-light division flattening real coarse shading, body blur), and B1 does not move (0.76): at the
+0.3–1 mm scale the window is ruled by light / dark of whole crypts, which P1 takes from the same photo cells as
+before. The patch border is ragged (cell mask). The grade lives inside the converted albedo for now; its place is the
+post pass (sat exists, a hue rotation does not). With the variant off, the fit render's hash is unchanged by loading
+and baking the region. **Integrity: the NORMAL isolated bench with the new hooks reproduces v84 exactly** (61.6 / 68.3 /
+70.5 / 66.4 = 66.70, cellDab identical on every eye).
+
+Next: (1) whole-iris primitives — the extraction of §30 run on the polar photo instead of one window, seam handling,
+budget check (≈ 110–220 KB); (2) grade + neutral-scatter field in the engine's colour path, per-eye palette through
+the engine's own spectral function; (3) the journaled closed-loop fitter that *finds* these primitives through the
+renderer (the growing eye); (4) contrast: lens / light ownership audit.

@@ -1545,3 +1545,87 @@ the amber side still fragment; (4) the pupillary ruff and the 1.07 r_p inner mar
 aperture edge is hard (K1b feather); (6) budget: thin the rim payload, palette-index the colours, quantise → target
 ≤ 150 KB; (7) the grade still lives in the converted albedo. Then the journaled closed-loop fitter (the growing eye),
 which also owns the residual tone error by construction.
+
+## 31. Task list after v0.8-tissue (iori, 2026-09-20) — the rest of the timeline
+
+Status: the tissue layer model renders the whole of ref 26 inside the engine (§30.2). The tasks below are the agreed
+continuation; each has its own acceptance test. T1–T3 are iori's additions of 2026-09-20; T4–T9 are §30.2's open list
+and the plan agreed in discussion. Worker handoff: `handoffs/2026-09-20-tissue-layer-model.md`.
+
+### T1 — The inner edge of the iris must be built like the natural one (not a circle)
+
+What iori saw zoomed in on the v0.8 render: a hard circular cut, a grey ring with painted spokes (the `RUFF_W` /
+`u_ruffScallop` term: two sines, `sin(70 a)` + `sin(23 a)`), and smeared tissue leading up to it (the layer model stops
+at 1.07 r_p — `pupil_px` in `tools/layer_proof.py` — and its cells are extrapolated inward). Anatomy to build (01 §3,
+table rows "pupillary ruff", "pupillary zone", "sphincter", "posterior pigment epithelium"; 01 §4 dilation):
+- **The margin is where the layers END, each in its own way.** The posterior pigment epithelium curls forward round
+  the margin and shows as the **pupillary ruff**: a very dark brown-black beaded frill 0.05–0.10 mm wide, crenated by
+  ≈ 70 radial contraction folds (Schwalbe), beads individually visible when dilated, a fine even bead when constricted.
+  It is a rolled lip with thickness (iris ≈ 0.2 mm at the margin), not a flat ring: it catches light on its crest and
+  shadows the pupil side.
+- **The stroma / fibre deck stops short of the ruff**: fine radial fibres of the pupillary zone run margin → collarette,
+  thin and close-set, and end as a ragged fringe over the ruff — fibre ends at different radii, some overlapping the
+  frill, none ending on a common circle. The border-layer sheet ends earlier still and unevenly (in light eyes the
+  sphincter shows through as a paler ring 0.75–1 mm wide).
+- **The outline is not a circle**: slightly polygonal, decentred (0.1–0.3 mm drift with dilation), with notches where
+  folds meet the margin; the ruff's inner edge is the real pupil boundary.
+- Build: (a) a **margin object** — closed curve r_m(θ) (low harmonics + per-fold notches) replacing `rp` as the boundary
+  of each layer, with separate end-radii for ruff, deck and sheet; (b) the ruff as **bead primitives** along that
+  curve (position, width, height, darkness; ≈ 70, seeded + fitted), with relief in the tissue aux channel so the
+  renderer lights the lip; (c) deck fibres in the pupillary zone **terminate individually** (end-radius payload per
+  fibre; extraction: trace to the ruff instead of masking 1.07 r_p); (d) dilation drives bead spacing / scallop as in
+  01 §4; (e) keep the doors open for §29: the margin is a boundary *function*, not a radius.
+- Accept: at 4× the fit resolution the pupil edge of ref 26 shows beads, a ragged fibre fringe and no ring artefact;
+  side by side with the native photo crop of the margin; the pupillary-band cell Δab and B2/B3 corr do not regress.
+
+### T2 — Much closer zoom, and much more rotation when close to the surface
+
+Today: the camera is an external 100 mm lens at `u_zoom` mm from the apex (wheel clamp 40–400, `index.html` wheel
+handler), orbiting a pivot 13 mm behind the apex by at most ≈ ±0.375 / ±0.5 rad from the cursor; the designer crops to
+s ≥ 0.125 (`design.js`), the overlay to 3 screen px per photo px (`overlay.js`). Detail is limited by the bake (atlas
+≈ 8 × 4 µm, whole-iris tissue region τ 5.7 µm).
+- **Windowed re-bake** (the enabling piece): `IrisTissue.bake` already renders any `rect` at any τ from the same
+  primitives — bake the *visible window* at τ = (screen mm per px) / 2 whenever the view settles (the engine's
+  accumulation reset is the hook), keep the whole-iris bake as the fallback level. Same for the legacy atlas later.
+- **Zoom**: one continuous zoom that first moves the camera, then narrows the view crop (`state.view` scale), to
+  ≈ 1–2 µm per screen px; clamps raised in the three places above.
+- **Orbit grows with proximity**: allowed tilt as a function of the framed width — ±0.5 rad at whole-eye framing,
+  rising to ≈ ±1.2 rad (≈ 70°) when the frame is < 2 mm wide; orbit about the *point under the cursor on the iris
+  surface*, not the eye's centre of rotation, so close-ups pivot around what is being looked at.
+- Accept: from the whole eye to a single crypt filling the screen without visible texel blur; tilt to ≥ 60° at close
+  range with correct parallax between sheet, deck and ground; REF accumulation still converges; fits unaffected
+  (fit pose path untouched — verify with the NORMAL bench = sealed version).
+
+### T3 — Probes: a camera just above the iris surface
+
+Beyond T2 the external camera runs out: the cornea's refraction and the chamber depth (≈ 3 mm) limit grazing views.
+- A **probe camera** placed *inside* the anterior chamber, 0.05–1 mm above the surface point under the cursor: rays
+  start in the aqueous (no corneal refraction on the way in; the cornea is only the ceiling for light), wide field
+  (60–90°), free look direction to grazing (≥ 80° from the normal), its own small light (ring / point at the probe) in
+  addition to the key through the cornea.
+- Needs real near-field relief: the deck as tubes with height (fibre roundness → aux height, veins as grooves), sheet
+  thickness at hole walls, ruff beads (T1), ground depth; relief march step and self-shadow tuned for grazing rays;
+  windowed re-bake at the probe's footprint (T2).
+- Interaction: probe mode toggles from the close-up; drag = look, wheel = height, shift-drag = fly along the surface;
+  a small inset shows where the probe is on the whole eye.
+- Accept: a fly-over of a crypt of ref 26 at 0.2 mm height shows fibres as raised strands with the wall above them and
+  no flat-texture look; frame time stays interactive at NORMAL.
+
+### T4–T9 (from §30.2 and the agreed plan)
+
+- **T4 Picture debts of v0.8**: floors +6.4 L\* (payload body blur, vein clipping, pit rule; then the engine's +3);
+  B2 0.71 < 0.79 (broad bundles: make the old fit's strandBright a sheet brightness cell field, multi-scale guides);
+  amber-side crypt fragmentation; aperture feather (K1b); grade into the post pass (hue rotation beside `u_sat`).
+- **T5 Budget / ID v3**: thin the rim payload (41 k → ≈ 5 k), per-eye colour palette, quantise, tiers; target ≤ 150 KB;
+  `genome.tissue` in the iris ID with provenance per element (measured / inferred / painted / seeded).
+- **T6 The journaled closed-loop fitter — the growing eye**: the extraction of `layer_proof.py` moved into the page as
+  ops (tone → colour cells → outlines → deck fibres + veins → guides → rims → margin), each rendered as it lands,
+  checkpoints with optimiser state, resume = bit-identical to an uninterrupted run; closed loop through the real
+  renderer (checkerboard finite differences on cells, payload re-reads after each pass) owns the residual tone error;
+  the mildest-grade prior (§30 P0c) inside the fitter.
+- **T7 The other three isolated eyes** (09, 25, 35) through the same pipeline; BENCH ISO with `tissueModel` as a
+  sealed version; only then whole-eye photos (iori: other data only after the isolated set succeeds).
+- **T8 Tools**: vectors as editable objects (D5 handles), transplant / retarget / style fills from a scanned iris into
+  painted masks, strand brushes emitting the same ops as the fitter; consent toggle on imported irises; library.
+- **T9 Enhancement and mammals** (§29): statistical generator first, learned proposer of curves later (primitives,
+  never pixels; provenance `inferred`); species boundary functions.

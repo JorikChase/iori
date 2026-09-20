@@ -1,4 +1,14 @@
-# Iris Engine — handoff (2026-09-19, engine 0.7-fields, v83 / v83c)
+# Iris Engine — handoff (2026-09-20, engine 0.8-tissue, v85-tissue-p2 · legacy line v84 / v84c)
+
+> **START HERE (2026-09-20): `handoffs/2026-09-20-tissue-layer-model.md`.** The main line is now the **tissue layer
+> model** (spec §30–§31): sheet with holes + rim pigment over a deck of explicit fibre curves with veins, rendered by
+> `tissue.js` as a separately compiled variant, fed by primitives that `tools/layer_proof.py` extracts from the photo.
+> Whole iris of ref 26 in the engine: MATCH2 67.5 → 78.4, MATCH 72.1 → 87.2, colour Δab 11.7 → 2.0. The task list
+> (T1 pupil margin built like the natural one · T2 much closer zoom and more rotation near the surface · T3 probe camera
+> above the surface · T4 picture debts · T5 ID v3 budget · **T6 the journaled closed-loop fitter — the growing eye** ·
+> T7 the other isolated eyes · T8 tools · T9 enhancement and mammals) is spec §31. Everything below this block is the
+> legacy line (LIC strands, splat openings, `fit.js`), still the default renderer and still bit-identical (NORMAL bench
+> = v84, 66.70); read it for the fitter, the benches, the archive and the gotchas.
 
 **Two tracks are running in the same working tree** (different files, no conflicts so far — if one ever needs
 `index.html`/`fit.js` at the same time as the other, give one its own git worktree):

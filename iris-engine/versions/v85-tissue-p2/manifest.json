@@ -1,0 +1,134 @@
+{
+ "id": "v85-tissue-p2",
+ "date": "2026-09-20T19:59:38",
+ "engine": "0.8-tissue",
+ "note": "0.8-tissue: the tissue LAYER model (sheet with holes + rim pigment over a deck of explicit fibre curves with veins) in the engine as a separately compiled variant (tissue.js), whole iris of ref 26 from offline-extracted primitives: MATCH2 67.5 -> 78.4, MATCH 72.1 -> 87.2, profile dab 11.7 -> 2.0, cellDab 14.4 -> 2.75, strandCorr 0.25 -> 0.55 (CAPTURE, fit pose; one eye, not a fitted bench). Legacy line unchanged: NORMAL bench = v84 (66.70). Spec 28-31, handoffs/2026-09-20-tissue-layer-model.md.",
+ "features": {},
+ "casesSource": "none",
+ "src": {
+  "index.html": {
+   "sha256": "bf3e345de81e8bb1",
+   "bytes": 208190
+  },
+  "fit.js": {
+   "sha256": "d3f26f975ab5acce",
+   "bytes": 241725
+  },
+  "tissue.js": {
+   "sha256": "934cb0d0319746bd",
+   "bytes": 34542
+  },
+  "strands.js": {
+   "sha256": "7853adea5fb4c8ed",
+   "bytes": 10281
+  },
+  "ui.js": {
+   "sha256": "8a1e78f31708beb5",
+   "bytes": 22113
+  },
+  "ui31.js": {
+   "sha256": "c92c38b456ddd4e1",
+   "bytes": 47215
+  },
+  "ui.css": {
+   "sha256": "fe4deb7e9e872f5e",
+   "bytes": 14413
+  },
+  "overlay.js": {
+   "sha256": "0049b5cd26405d4c",
+   "bytes": 17005
+  },
+  "gaze.js": {
+   "sha256": "1d73e814e9cf9a49",
+   "bytes": 4639
+  },
+  "design.js": {
+   "sha256": "059ae2f26a77af2c",
+   "bytes": 26556
+  },
+  "serve.py": {
+   "sha256": "10b322506748374f",
+   "bytes": 1909
+  },
+  "tools/layer_proof.py": {
+   "sha256": "deb6ebf94f472177",
+   "bytes": 42946
+  }
+ },
+ "bench": {
+  "bench-tissue-proof.json": {
+   "n": 1,
+   "mean": {
+    "match2": 78.4,
+    "match": 87.2,
+    "ssim": 0.832,
+    "ssim2": 0.728,
+    "grad": 0.665,
+    "sigmaRatio": 0.94,
+    "strandCorr": 0.551,
+    "darkErr": 6.41,
+    "psnr": 23.33,
+    "dL": 2.8,
+    "dab": 2.0,
+    "cellDab": 2.75,
+    "cellDabP90": 6.09,
+    "cellDL": 3.46
+   },
+   "cases": {
+    "26": {
+     "match2": 78.4,
+     "match": 87.2,
+     "ssim": 0.832,
+     "ssim2": 0.728,
+     "grad": 0.665,
+     "sigmaRatio": 0.94,
+     "strandCorr": 0.551,
+     "darkErr": 6.41,
+     "psnr": 23.33,
+     "dL": 2.8,
+     "dab": 2.0,
+     "cellDab": 2.75,
+     "cellDabP90": 6.09,
+     "cellDL": 3.46
+    }
+   }
+  }
+ },
+ "summary": {
+  "n": 1,
+  "mean": {
+   "match2": 78.4,
+   "match": 87.2,
+   "ssim": 0.832,
+   "ssim2": 0.728,
+   "grad": 0.665,
+   "sigmaRatio": 0.94,
+   "strandCorr": 0.551,
+   "darkErr": 6.41,
+   "psnr": 23.33,
+   "dL": 2.8,
+   "dab": 2.0,
+   "cellDab": 2.75,
+   "cellDabP90": 6.09,
+   "cellDL": 3.46
+  },
+  "cases": {
+   "26": {
+    "match2": 78.4,
+    "match": 87.2,
+    "ssim": 0.832,
+    "ssim2": 0.728,
+    "grad": 0.665,
+    "sigmaRatio": 0.94,
+    "strandCorr": 0.551,
+    "darkErr": 6.41,
+    "psnr": 23.33,
+    "dL": 2.8,
+    "dab": 2.0,
+    "cellDab": 2.75,
+    "cellDabP90": 6.09,
+    "cellDL": 3.46
+   }
+  }
+ }
+}

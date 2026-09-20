@@ -12,7 +12,7 @@ import argparse, gzip, hashlib, json, os, re, shutil, sys, datetime
 
 ENG = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # iris-engine/
 VDIR = os.path.join(ENG, 'versions')
-SRC = ['index.html', 'fit.js', 'ui.js', 'design.js', 'serve.py']
+SRC = ['index.html', 'fit.js', 'tissue.js', 'strands.js', 'ui.js', 'ui31.js', 'ui.css', 'overlay.js', 'gaze.js', 'design.js', 'serve.py', 'tools/layer_proof.py']
 # every numeric column a bench row may carry; the mean is taken over the rows that have it
 METRICS = ['match2', 'match', 'ssim', 'ssim2', 'grad', 'hcorr', 'sigmaRatio', 'sigmaPhoto', 'sigmaRender',
            'specAgree', 'hfRatio', 'hfPhoto', 'hfRender', 'hfLap', 'strandCorr', 'resolvedMm', 'spacingRatio', 'coverage', 'vmaxMin', 'darkErr', 'darkThr', 'bandWorst',
@@ -77,6 +77,7 @@ def main():
         p = os.path.join(ENG, f)
         if not os.path.exists(p):
             continue
+        os.makedirs(os.path.dirname(os.path.join(out, 'src', f)), exist_ok=True)
         shutil.copy2(p, os.path.join(out, 'src', f))
         files[f] = {'sha256': sha(p), 'bytes': os.path.getsize(p)}
 

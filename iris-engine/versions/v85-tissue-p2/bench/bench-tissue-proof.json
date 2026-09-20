@@ -1,0 +1,41 @@
+[
+ {
+  "tag": "tissue-proof",
+  "file": "26-green-crypts-isolated.jpg",
+  "quality": "capture",
+  "engine": "0.8-tissue",
+  "match2": 78.4,
+  "match": 87.2,
+  "ssim": 0.832,
+  "ssim2": 0.728,
+  "grad": 0.665,
+  "psnr": 23.33,
+  "dL": 2.8,
+  "dab": 2.0,
+  "cellDab": 2.75,
+  "cellDabP90": 6.09,
+  "cellDL": 3.46,
+  "bandDab": [
+   2.8,
+   2.2,
+   3.1,
+   2.8,
+   2.8,
+   null
+  ],
+  "bandCorr": [
+   0.886,
+   0.713,
+   0.374
+  ],
+  "bandRatio": [
+   0.883,
+   0.888,
+   0.37
+  ],
+  "strandCorr": 0.551,
+  "sigmaRatio": 0.94,
+  "darkErr": 6.41,
+  "note": "primitives extracted offline by tools/layer_proof.py --whole --export; rendered by tissue.js at the v84c pose of ref 26"
+ }
+]

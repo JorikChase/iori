@@ -126,7 +126,12 @@
             // tubes come up level with the underside of the sheet instead of standing proud of it.
             float rr = u_fibRK * fB.g;
             float dome = sqrt(max(0.0, rr * rr - fB.r * fB.r));
-            float zDeck = (texture(u_fibA, c).a + dome) * u_deckZ * prof;
+            // Beyond the tube the ground has to come back DOWN. Without this the height is the nearest fibre's centre
+            // height right across its Voronoi cell, so the deck renders as mesas with cliffs along the cell walls —
+            // invisible head-on, glaring the moment the probe stands on it. The tube keeps its dome; a tube-width out,
+            // the surface is the floor again.
+            float fall = 1.0 - sstep(rr, 2.0 * rr, fB.r);
+            float zDeck = (texture(u_fibA, c).a + dome) * fall * u_deckZ * prof;
             // the RELIEF's wall may be wider than the colour's: the colour edge of a hole is sharp in the photo, but
             // a 100 µm drop over a 23 µm wall is an 80° cliff, and §30.1 warns what a cliff does under a coaxial key
             float coverZ = 1.0 - sstep(-u_wallZ, u_wallZ, sd);
@@ -149,7 +154,7 @@
 
     function programs() {
         if (P) return P;
-        P = { curve: program(CURVE_VS, CURVE_FS, 'tissue-curve'), compose: program(QUAD_VS, COMPOSE_FS, 'tissue-compose'), fill: program(FILL_VS, FILL_FS, 'tissue-fill'), origin: program(QUAD_VS, ORIGIN_FS, 'tissue-origin') };
+        P = { curve: program(CURVE_VS, CURVE_FS, 'tissue-curve'), compose: program(QUAD_VS, COMPOSE_FS, 'tissue-compose'), fill: program(FILL_VS, FILL_FS, 'tissue-fill'), origin: program(QUAD_VS, ORIGIN_FS, 'tissue-origin'), probe: program(QUAD_VS, PROBE_FS, 'tissue-probe') };
         // the photo shader variant: string replacement on the untouched fs-photo source
         let src = document.getElementById('fs-photo').text.trim(); const need = (a, b) => { if (!src.includes(a)) throw new Error('tissue: fs-photo anchor missing: ' + a.slice(0, 40)); src = src.replace(a, b); };
         // every height read goes through tissueH (done first, so the helper below keeps its own raw read)
@@ -466,6 +471,145 @@
         T.depthUsed = opts.depth === undefined ? mm.depth : opts.depth;
         E.resetAccumulation && E.resetAccumulation();
         return T;
+    };
+
+    // ---------------------------------------------------------------- T3 (§32): the probe camera
+    // A camera inside the anterior chamber, down among the tissue, for reading the SHAPE of the landscape: how deep a
+    // crypt is, how its walls run, which fibre bridges over which. It does not share fs-photo's camera: that march is
+    // built for looking nearly straight down with ten steps, and a grazing look along a canyon floor needs hundreds
+    // and a different formulation. A pass of its own also means the probe cannot move any bench.
+    //
+    // The world here is the tissue's own height field, in millimetres, over a local tangent plane: x along u at the
+    // probe's radius, y along v, z up from the sheet's surface (so z = 0 is the sheet and the canyon floors are
+    // negative). Over the sub-millimetre neighbourhood a probe sees, treating the iris as flat is right to well under
+    // a texel, and the radius is taken at the probe's own v.
+    const PROBE_FS = `#version 300 es
+        precision highp float;
+        in vec2 v_c;
+        uniform sampler2D u_alb, u_aux;
+        uniform vec4 u_rect; uniform vec2 u_uv0; uniform float u_r0;
+        uniform vec3 u_pos, u_fwd, u_right, u_up;
+        uniform float u_tanHalf, u_aspect, u_far, u_mode, u_contour, u_lightUp, u_ambient, u_zLo, u_zHi;
+        out vec4 o;
+        vec2 toUV(vec2 p) { return u_uv0 + vec2(p.x / (6.2831853 * u_r0), p.y / 4.0); }
+        bool inR(vec2 uv, out vec2 c) { c = (vec2(fract(uv.x), uv.y) - u_rect.xy) / u_rect.zw; return c.x > 0.0 && c.x < 1.0 && c.y > 0.0 && c.y < 1.0; }
+        float H(vec2 p) { vec2 c; if (!inR(toUV(p), c)) return 0.0; return textureLod(u_aux, c, 0.0).r; }
+        vec3 ALB(vec2 p) { vec2 c; if (!inR(toUV(p), c)) return vec3(0.22, 0.20, 0.18); return textureLod(u_alb, c, 0.0).rgb; }
+        vec3 turbo(float t) {   // enough of a turbo for reading elevation
+            t = clamp(t, 0.0, 1.0);
+            return clamp(vec3(34.61 + t * (1172.33 + t * (-10793.56 + t * (33300.12 + t * (-38394.49 + t * 14825.05)))),
+                              23.31 + t * (557.33 + t * (1225.33 + t * (-3574.96 + t * (1073.77 + t * 707.56)))),
+                              27.2 + t * (3211.1 + t * (-15327.97 + t * (27814.0 + t * (-22569.18 + t * 6838.66))))) / 255.0, 0.0, 1.0);
+        }
+        void main() {
+            vec2 s = v_c * 2.0 - 1.0;
+            vec3 rd = normalize(u_fwd + s.x * u_aspect * u_tanHalf * u_right + s.y * u_tanHalf * u_up);
+            // march the height field: step by a fraction of the gap, never past a texel, then bisect the crossing
+            float t = 0.0, hit = -1.0;
+            vec3 p = u_pos;
+            float gap = p.z - H(p.xy), prevT = 0.0, prevGap = gap;
+            if (gap < 0.0) { o = vec4(0.02, 0.02, 0.03, 1.0); return; }        // started inside the tissue
+            for (int i = 0; i < 320; i++) {
+                float dt = clamp(abs(gap) * 0.45, 0.0008, 0.02 + 0.05 * t);
+                prevT = t; prevGap = gap; t += dt;
+                if (t > u_far) break;
+                p = u_pos + rd * t; gap = p.z - H(p.xy);
+                if (gap < 0.0) { hit = t; break; }
+            }
+            if (hit < 0.0) {                                                    // the sky of the anterior chamber
+                float k = clamp(rd.z * 2.0, 0.0, 1.0);
+                o = vec4(mix(vec3(0.05, 0.06, 0.08), vec3(0.10, 0.12, 0.16), k), 1.0); return;
+            }
+            for (int i = 0; i < 24; i++) {                                      // bisect onto the surface
+                float m = 0.5 * (prevT + hit); vec3 q = u_pos + rd * m;
+                if (q.z - H(q.xy) < 0.0) hit = m; else prevT = m;
+            }
+            vec3 P = u_pos + rd * hit;
+            float e = 0.0015;                                                   // 1.5 µm: the finest the bake resolves
+            vec3 N = normalize(vec3(-(H(P.xy + vec2(e, 0.0)) - H(P.xy - vec2(e, 0.0))) / (2.0 * e),
+                                    -(H(P.xy + vec2(0.0, e)) - H(P.xy - vec2(0.0, e))) / (2.0 * e), 1.0));
+            vec3 toL = u_pos + vec3(0.0, 0.0, u_lightUp) - P;                   // the probe's own lamp, liftable
+            float dist = length(toL); toL /= max(dist, 1e-6);
+            float lam = max(dot(N, toL), 0.0) / (1.0 + 6.0 * dist * dist);       // close light, so it falls off fast
+            // is the lamp's path to this point blocked? one cheap march back toward it
+            float sh = 1.0;
+            for (int i = 1; i <= 24; i++) {
+                float ts = dist * float(i) / 25.0; vec3 q = P + toL * ts;
+                if (q.z < H(q.xy) - 0.0004) { sh = 0.0; break; }
+            }
+            vec3 base = u_mode > 1.5 ? turbo((P.z - u_zLo) / max(u_zHi - u_zLo, 1e-5))
+                      : (u_mode > 0.5 ? vec3(0.55) : ALB(P.xy) * 1.6);
+            vec3 col = base * (u_ambient + (1.0 - u_ambient) * lam * mix(0.25, 1.0, sh));
+            if (u_contour > 0.0) {                                              // height contours, every u_contour mm
+                float f = abs(fract(P.z / u_contour + 0.5) - 0.5) / max(fwidth(P.z / u_contour), 1e-4);
+                col = mix(col, vec3(0.95, 0.98, 1.0), 0.35 * (1.0 - smoothstep(0.0, 1.2, f)));
+            }
+            col *= exp(-hit * 0.35);                                             // a little depth haze so distance reads
+            o = vec4(pow(clamp(col, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);
+        }`;
+
+    /**
+     * Render the probe's view. Everything is where you would say it in words:
+     *   at        [x, y] in fit pixels — the place on the iris to stand
+     *   heightUm  how far above the LOCAL surface to float (negative goes below it, down in the canyon)
+     *   yaw       degrees, 0 looks along +u (round the iris), 90 looks outward along +v
+     *   pitch     degrees, negative looks down at the floor, 0 is level — a grazing look
+     *   mode      'albedo' (as lit) · 'clay' (neutral, for reading shape) · 'elevation' (turbo by height)
+     */
+    T.probe = function (opts = {}) {
+        if (!T.albedo) throw new Error('tissue: bake first');
+        const pr = programs(), w = opts.w || 640, h = opts.h || 420;
+        const src = (opts.window === false || !T.win) ? { alb: T.albedo, aux: T.aux, rect: T.rect } : { alb: T.win.albedo, aux: T.win.aux, rect: T.win.rect };
+        // where to stand
+        let uv = opts.uv;
+        if (!uv) { const at = opts.at || [E.fit.fit.W / 2, E.fit.fit.H / 2]; uv = uvAt(F.getMap(), F.fit.W, F.fit.H, at[0], at[1]); }
+        if (!uv) throw new Error('tissue: that point is not on the iris');
+        const r0 = 2 + 4 * uv[1];
+        const ground = (() => { const a = auxRead(uv[0], uv[1], uv[0], uv[1]).at(uv[0], uv[1]); return a ? a.surfaceMm : 0; })();
+        const hUp = (opts.heightUm === undefined ? 120 : opts.heightUm) / 1000;
+        const yaw = (opts.yaw || 0) * Math.PI / 180, pitch = (opts.pitch === undefined ? -8 : opts.pitch) * Math.PI / 180;
+        const fwd = [Math.cos(yaw) * Math.cos(pitch), Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch)];
+        const right = [-Math.sin(yaw), Math.cos(yaw), 0];
+        const up = [-Math.sin(pitch) * Math.cos(yaw), -Math.sin(pitch) * Math.sin(yaw), Math.cos(pitch)];   // cross(fwd, right)
+        if (!T.pfb) { T.pfb = gl.createFramebuffer(); }
+        if (!T.ptex || T.ptexSize !== w + 'x' + h) {
+            if (T.ptex) gl.deleteTexture(T.ptex);
+            T.ptex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, T.ptex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            T.ptexSize = w + 'x' + h;
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, T.pfb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.ptex, 0);
+        gl.drawBuffers([gl.COLOR_ATTACHMENT0]); gl.viewport(0, 0, w, h);
+        gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+        const P = pr.probe, u = n => P.loc(n); gl.useProgram(P);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, src.alb); gl.uniform1i(u('u_alb'), 0);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.aux); gl.uniform1i(u('u_aux'), 1);
+        gl.uniform4f(u('u_rect'), src.rect[0], src.rect[1], src.rect[2], src.rect[3]);
+        gl.uniform2f(u('u_uv0'), uv[0], uv[1]); gl.uniform1f(u('u_r0'), r0);
+        gl.uniform3f(u('u_pos'), 0, 0, ground + hUp);
+        gl.uniform3f(u('u_fwd'), fwd[0], fwd[1], fwd[2]);
+        gl.uniform3f(u('u_right'), right[0], right[1], right[2]);
+        gl.uniform3f(u('u_up'), up[0], up[1], up[2]);
+        gl.uniform1f(u('u_tanHalf'), Math.tan((opts.fov === undefined ? 75 : opts.fov) * Math.PI / 360));
+        gl.uniform1f(u('u_aspect'), w / h);
+        gl.uniform1f(u('u_far'), opts.farMm || 2.5);
+        gl.uniform1f(u('u_mode'), { albedo: 0, clay: 1, elevation: 2 }[opts.mode || 'albedo']);
+        gl.uniform1f(u('u_contour'), (opts.contourUm === undefined ? 0 : opts.contourUm) / 1000);
+        gl.uniform1f(u('u_lightUp'), (opts.lampUm === undefined ? 60 : opts.lampUm) / 1000);
+        gl.uniform1f(u('u_ambient'), opts.ambient === undefined ? 0.18 : opts.ambient);
+        const dh = T.deckH || 0.1, floor = -( (T.src.mm.depth || 0) + dh * (T.deckZ === undefined ? 1 : T.deckZ));
+        gl.uniform1f(u('u_zLo'), opts.zLoMm === undefined ? floor : opts.zLoMm);
+        gl.uniform1f(u('u_zHi'), opts.zHiMm === undefined ? 0.02 : opts.zHiMm);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        const px = new Uint8Array(w * h * 4);
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.drawBuffers([gl.BACK]); gl.viewport(0, 0, E.canvas.width, E.canvas.height);
+        const out = new Uint8ClampedArray(w * h * 4);
+        for (let y = 0; y < h; y++) out.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);   // GL is bottom-up
+        return { data: new ImageData(out, w, h), uv, r0, groundUm: +(ground * 1000).toFixed(1),
+                 standingAtUm: +((ground + hUp) * 1000).toFixed(1), fineWindow: src !== T.albedo && !!T.win };
     };
 
     // ---------------------------------------------------------------- Z2 (§32): inspection — the engine's side

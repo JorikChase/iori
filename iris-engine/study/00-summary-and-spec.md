@@ -1918,3 +1918,34 @@ nothing else about the close-up will change until they exist.
 
 The clamps are opened anyway, since they cost nothing: the wheel now reaches 20 mm instead of 40, and the designer's
 crop 0.01 of the frame instead of 0.125 — about 0.8 µm per screen pixel. Neither touches any fit path.
+
+### 32.7 Log (2026-09-21): T3 — the probe, and what it found
+
+iori: *"I need the probe to look around for height on the surface and canyons — the completely crisp micro detail
+isn't connected with this necessity. We need to inspect the height of the landscape from the bottom."* So the probe is
+a **shape instrument**, and the content limit of §32.6 does not block it.
+
+**It does not share `fs-photo`'s camera.** That march is built for looking nearly straight down with ten steps; a
+grazing look along a canyon floor needs hundreds and a different formulation, and a pass of its own cannot move any
+bench. `IrisTissue.probe(opts)` ray-marches the tissue's own height field over a local tangent plane — x along u at
+the probe's radius, y along v, z up from the sheet, so z = 0 is the sheet and canyon floors are negative. Over the
+sub-millimetre neighbourhood a probe sees, treating the iris as flat is right to well under a texel.
+
+Arguments read as words: `at` (a point in fit pixels), `heightUm` **above the local surface — negative goes below it,
+down in the canyon**, `yaw` / `pitch` in degrees (pitch 0 is a level, grazing look), `fov`, `farMm`, and `mode`:
+`clay` (neutral, for reading shape), `elevation` (coloured by height), `albedo` (as the tissue is lit). `contourUm`
+draws height contours; the lamp rides with the probe and casts its own shadows. **4 ms for a 470 × 320 view**, so it
+is interactive, and it returns an `ImageData` for the UI session's panel to blit.
+
+**What it found immediately.** The deck rendered as *mesas*: flat tables at a fibre's centre height with cliffs along
+the walls of its Voronoi cell. The height between two tubes was taking the nearest fibre's centre height right across
+its cell, because the dome term vanishes at the tube's edge but the centre height did not. Invisible head-on, glaring
+the moment you stand on it. The surface now falls back to the floor a tube-width out from each tube. Cost, head-on:
+MATCH2 85.34 → 85.25, MATCH 91.58 → 91.66, cellDab 2.65 → 2.63 — neutral, and the geometry is right.
+
+**And what it shows.** A flat plain cut by canyons. That is the model told truly: the border-layer sheet has *no
+height at all* — no furrows, no micro-relief — so about 70 % of the iris is a featureless table, and every bit of
+landscape is inside the crypts. The probe makes the case for T1 and G better than any number has.
+
+A note for T2a's account: the windowed re-bake does **not** fix the terracing either (a 1.2 µm window is the same
+picture as the 5.7 µm base). That was the last hypothesis that blamed resolution; the answer was the model.

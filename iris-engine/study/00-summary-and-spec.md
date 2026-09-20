@@ -1880,3 +1880,14 @@ What *is* right, and is what shipped, is smaller and has two parts:
   without it, deckZ 1 scores below deckZ 0.5.
 
 `strandCorr` falls with relief throughout (0.527 → 0.414) and no configuration recovers it. That is the open thread.
+
+
+### 32.5 Decision (iori, 2026-09-20): the cornea does not mirror the scene light by default
+
+`u_specular` — "corneal reflection of the studio" — now follows `state.specular`, which starts at **0**, with a
+`CORNEA REFL` toggle beside `REFRACT`. The reasoning is the same one that made the sclera pure white: the subject is
+the iris, and a studio catchlight floating on the cornea is the photograph's furniture, not the eye's.
+
+Nothing in the fit or the benches moves: every fit path passes `specular` explicitly (`renderFit` sends
+`fit.isolated ? 0 : 1`), so only the interactive view and captures see the new default. Verified: MATCH2 85.34 and
+cellDab 2.65 on ref 26 either way. `state.specular` is in `STATE0`, so `resetForFreshFit` keeps it.

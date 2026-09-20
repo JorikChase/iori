@@ -658,6 +658,7 @@
             <div class="action-row" style="margin-bottom:6px">
                 <button class="action-btn" id="debug-btn">GRID</button>
                 <button class="action-btn active" id="refr-btn">REFRACT</button>
+                <button class="action-btn" id="spec-btn">CORNEA REFL</button>
                 <button class="action-btn" id="anim2-btn">HIPPUS</button>
             </div>
             <div class="action-row" style="margin-bottom:6px">
@@ -2807,7 +2808,7 @@
         const state = {
             relief: 1.0, lightAngle: 1.0,
             // mm / rad
-            pupil: 4.0, pupilOff: [0.25, 0.15], limb: [5.85, 5.40, 0], lightElev: 0.6, zoomPhoto: 110.0, debug: 0, refract: 1, atlasView: false,
+            pupil: 4.0, pupilOff: [0.25, 0.15], limb: [5.85, 5.40, 0], lightElev: 0.6, zoomPhoto: 110.0, debug: 0, refract: 1, specular: 0, atlasView: false,   // specular 0: the cornea does not mirror the scene light unless asked (iori, 2026-09-20)
             seed: 42, warp: 0.03, collr: 0.33, crypt: 0.5, furrow: 0.8, pigment: 0.3, stroma: 0.24,
             pheo: 0.5, mie: 0.2, ring: 0.0, ringR: 0.4, yellow: 0.3,
             srcType: 1, srcSize: 0.18, ambient: 0.35, lid: 5.0, hippus: false,
@@ -2887,6 +2888,7 @@
 
         document.getElementById('debug-btn').onclick = (e) => { state.debug = 1 - state.debug; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('refr-btn').onclick = (e) => { state.refract = 1 - state.refract; e.target.classList.toggle('active'); resetAccumulation(); };
+        document.getElementById('spec-btn').onclick = (e) => { state.specular = 1 - state.specular; e.target.classList.toggle('active', !!state.specular); resetAccumulation(); };
         // camera: FREE = the eye turns toward the cursor (u_useRot 0), FIXED = locked to state.camRot.
         // solvePose() locks it and only closing the fit panel used to unlock it, so the eye would stop
         // tracking with no way back; this is that way back. Switching to FREE seeds the cursor position
@@ -3001,7 +3003,7 @@
             u1f(prog, 'u_ambient', state.ambient); u1f(prog, 'u_lid', state.lid);
             u1f(prog, 'u_debug', opts.debug !== undefined ? opts.debug : state.debug);
             u1f(prog, 'u_refract', state.refract);
-            u1f(prog, 'u_specular', opts.specular !== undefined ? opts.specular : 1.0);
+            u1f(prog, 'u_specular', opts.specular !== undefined ? opts.specular : state.specular);
             u1f(prog, 'u_edgeFade', opts.edgeFade !== undefined ? opts.edgeFade : 1.0);
             u1f(prog, 'u_marchSteps', Q.marchSteps); u1f(prog, 'u_shadowSteps', Q.shadowSteps);
             { const po = opts.pupilOff || state.pupilOff || [0.25, 0.15]; u2f(prog, 'u_pupilOff', po[0], po[1]); }

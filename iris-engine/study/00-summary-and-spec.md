@@ -1409,6 +1409,18 @@ overhang shadow on the lit side, septa weak), fibres a little thin and pale, the
 and stipple are under-modelled, B3 ratio 0.45 clean), the grade is strong and global; (4) two bugs worth remembering
 — black pits inside crypts read as "outside the iris" (fill the mask), and a relative payload explodes where its base
 field has no support (clamp + fall back).
+**P0b (same day, iori: "the shadows still miss the veins").** A shadow-lifted zoom showed the first deck was the
+inverse of the tissue: thin bright ribbons on a flat dark floor, where the photo has **broad fibres packed side by
+side with thin dark gaps — the veins — as the detail**, continuing dimly under the wall shadows. Changes: fibres are
+*found* on local contrast (L / 65 µm local mean, thresholds per crypt) and their payload is *read* from true
+luminance, so a fibre in shadow is drawn as dim as it is; fibres run on to the wall (geometry inferred, payload
+measured — provenance); the floor takes the body brightness of its nearest fibre (the curves' Voronoi cells, so wall
+shadows arrive with the payload); the **veins are traced as curves of their own** (259 curves, 1,569 samples, payload
+= darkness relative to the fibre bodies beside them); ground shows only where no fibre lies within ≈ 0.1 mm. Window
+numbers (clean): cell Δab 3.0, holes/sheet/rim 1.4 / 1.2 / 1.7, B1/B2/B3 corr 0.97 / 0.81 / 0.45 (engine 0.76 / 0.74 /
+0.14). Still open: per-fibre *colour* payload (teal vs grey fibres), the sheet's stipple and streaks (B3 ratio 0.36
+clean), septa. Budget now ≈ 9.9 k numbers per 9.5 mm².
+
 Next (P1, to be agreed): the same model as a separately compiled bake variant behind `tissueModel`, fed by these
 primitives for the same window, judged against this mock and the photo; then the camera grade + neutral-scatter
 field in the engine's colour path; then the journaled closed-loop fitter.

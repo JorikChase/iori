@@ -86,13 +86,18 @@ def fourier_smooth(cnt, M=24, n=512):
     z = np.fft.ifft(np.where(keep, Z, 0)); return np.stack([z.real, z.imag], 1)
 
 
-def centrelines(Lf, focus, sig_px, min_len):
+def centrelines(Lf, focus, sig_px, min_len, regions=None):
     """S0 recipe: multi-scale bright-ridge strength, NMS across the ridge, hysteresis, thinning, pruning → ordered paths"""
     R, S, nx, ny = ridge(Lf, sig_px)
     H, W = Lf.shape; gy, gx = np.mgrid[0:H, 0:W].astype(np.float32); st = max(1.0, 0.5 * sig_px[0])
     Rs = cv2.GaussianBlur(R, (0, 0), max(0.8, 0.35 * sig_px[0]))
     Ra = cv2.remap(Rs, gx + st * nx, gy + st * ny, cv2.INTER_LINEAR); Rb = cv2.remap(Rs, gx - st * nx, gy - st * ny, cv2.INTER_LINEAR)
     vals = R[focus & (R > 0)]; hi, lo = np.percentile(vals, 45), np.percentile(vals, 15)
+    if regions is not None:                                                  # thresholds per hole: a dark crypt is judged against itself
+        hi, lo = np.full(R.shape, hi, np.float32), np.full(R.shape, lo, np.float32)
+        for r in range(1, int(regions.max()) + 1):
+            m = (regions == r) & (R > 0)
+            if m.sum() > 200: hi[regions == r], lo[regions == r] = np.percentile(R[m], 45), np.percentile(R[m], 15)
     cand = cv2.dilate(((Rs >= Ra) & (Rs >= Rb) & (R > lo) & focus).astype(np.uint8), np.ones((2, 2), np.uint8))
     n0, l0 = cv2.connectedComponents(cand, connectivity=8)
     strong = np.zeros(n0, bool); strong[np.unique(l0[(R > hi) & (cand > 0)])] = True; strong[0] = False
@@ -106,6 +111,29 @@ def centrelines(Lf, focus, sig_px, min_len):
         ys, xs = np.nonzero(lab == i)
         if len(ys) >= min_len: paths.append(order_path(ys, xs))           # (row, col)
     return paths, S
+
+
+def extend_to_walls(paths, sd, max_px=70):
+    """Model prior: a deck fibre does not end in mid-air — it runs on under the shadow until it meets the wall (or another
+    fibre). Geometry of the extension is INFERRED (provenance), its brightness payload is still read from the photo."""
+    H, W = sd.shape; ink = np.ones((H, W), np.uint8)
+    for p in paths: ink[p[:, 0].astype(int), p[:, 1].astype(int)] = 0
+    near = cv2.distanceTransform(ink, cv2.DIST_L2, 5); out = []
+    for p in paths:
+        p = p.astype(np.float64)
+        for end in (0, 1):
+            q = p[::-1] if end == 0 else p
+            if len(q) < 5 or sd[int(q[-1, 0]), int(q[-1, 1])] < 6: continue        # already at a wall
+            t = q[-1] - q[-min(len(q), 8)]; t /= max(np.hypot(*t), 1e-6); add = []; pos = q[-1].copy()
+            for k in range(max_px):
+                pos = pos + t; y, x = int(round(pos[0])), int(round(pos[1]))
+                if not (0 <= y < H and 0 <= x < W) or sd[y, x] < 1.5: break
+                if k > 8 and near[y, x] < 2.5: break
+                add.append(pos.copy())
+            if add: q = np.vstack([q, np.array(add)])
+            p = q[::-1] if end == 0 else q
+        out.append(p)
+    return out
 
 
 def payload_curve(path, step_px, sample, width_map):
@@ -171,7 +199,7 @@ def main():
     holes = np.zeros((H, W), np.uint8); cv2.fillPoly(holes, [o.round().astype(np.int32) for o in outlines], 1)
     cv2.fillPoly(holes, [o.round().astype(np.int32) for o in islands], 0); outlines = outlines + islands
     sd = cv2.distanceTransform(holes, cv2.DIST_L2, 5) - cv2.distanceTransform(1 - holes, cv2.DIST_L2, 5)  # + inside a hole, px
-    WALL = 5.0                                                                                           # px ≈ 23 µm soft wall
+    WALL = 8.0                                                                                           # px ≈ 23 µm soft wall
     cover = 1 - sstep(-WALL, WALL, sd)                                                                   # 1 = sheet, 0 = hole
     sheet_px = (sd < -14) & inner; hole_px = sd > 5; rim_px = (sd > -12) & (sd < -3) & inner
     print(f'{len(outlines)} hole outlines · holes {100 * holes[inner].mean():.1f} % of the window')
@@ -180,8 +208,19 @@ def main():
     Lf = cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 1.0)
     step = PAYLOAD_UM / UM
     base_h = cv2.GaussianBlur(np.where(hole_px, pY, 0).astype(np.float32), (0, 0), 14) / np.maximum(cv2.GaussianBlur(hole_px.astype(np.float32), (0, 0), 14), 1e-3)
-    fpaths, fS = centrelines(Lf, sd > 1, [2.0, 3.0, 4.5], 6)
-    fibres = [payload_curve(p, step, Lf, fS * 2.0) for p in fpaths]
+    # fibres are FOUND on local contrast (a fibre in a crypt's shadow is as real as one in the light — the eye normalises,
+    # an absolute threshold does not) and their payload is READ from the true luminance, so they render as dim as they are
+    Ln = (cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 1.5) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 14), 0.004)).astype(np.float32)
+    _, hole_lab = cv2.connectedComponents((sd > 1).astype(np.uint8), connectivity=8)
+    fpaths, fS = centrelines(Ln, sd > 1, [2.0, 3.0, 4.5], 6, hole_lab)
+    fpaths = extend_to_walls(fpaths, sd)
+    Lbody = cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 2.5)                                          # a fibre's BODY brightness, not its peak
+    fibres = [payload_curve(p, step, Lbody, fS * 2.0) for p in fpaths]
+    # the dark VEINS between fibres: valleys of the same local-contrast image, traced as curves of their own; their payload is
+    # how dark the gap is RELATIVE to the fibre bodies beside it (so a vein in a shadow is a vein, not a second shadow)
+    vpaths, vS = centrelines(-Ln, sd > 0, [1.5, 2.5], 6, hole_lab)
+    vrel = np.clip(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 0.8) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 5.0), 1e-4), 0.15, 1.0).astype(np.float32)
+    veins = [payload_curve(p, step, vrel, vS * 1.1) for p in vpaths]
     base_s = cv2.GaussianBlur(np.where(sheet_px, pY, 0).astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM) / np.maximum(cv2.GaussianBlur(sheet_px.astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM), 1e-3)
     gpaths, gS = centrelines(cv2.GaussianBlur(Lf, (0, 0), 2.0), sd < -6, [4.0, 6.0, 9.0], 14)
     den_s = cv2.GaussianBlur(sheet_px.astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM)
@@ -241,8 +280,13 @@ def main():
     # ---- 5. compose the layers (linear light)
     rs = np.random.RandomState(26)
     # deck: tubes under a frontal ring flash — brightness payload × round cross-profile, over the dark ground
-    prof = np.sqrt(np.clip(1 - (fib_d / np.maximum(fib_w, 1.5)) ** 2, 0, 1))
-    deckY = fib_v * prof
+    # deck: broad fibres packed side by side — every floor point takes the body brightness of its nearest fibre (the curves'
+    # Voronoi cells; wall shadows arrive with the payload), a little roundness, and the traced veins cut the dark gaps
+    v_d, v_v, v_w = raster_curves(veins, (H, W))
+    vein = (1 - v_v) * np.exp(-0.5 * (v_d / np.maximum(v_w, 1.2)) ** 2)
+    roundness = 0.78 + 0.22 * np.sqrt(np.clip(1 - (fib_d / np.maximum(1.4 * fib_w, 3.0)) ** 2, 0, 1))
+    deckY = cv2.GaussianBlur(fib_v, (0, 0), 2.5) * roundness * (1 - vein)
+    prof = 1 - sstep(14.0, 26.0, fib_d)                                                                   # no fibre within ≈ 0.1 mm: a true pit, the ground shows
     deck_rgb = mats['deck'][0][None, None, :] / max(float(mats['deck'][0] @ LUMA), 1e-4) * deckY[..., None]
     gY = cv2.GaussianBlur(np.where(off_fibre, pY, 0).astype(np.float32), (0, 0), 20) / np.maximum(cv2.GaussianBlur(off_fibre.astype(np.float32), (0, 0), 20), 1e-3)   # ground level, 0.1 mm scale
     ground_rgb = mats['ground'][0][None, None, :] / max(float(mats['ground'][0] @ LUMA), 1e-4) * gY[..., None]
@@ -284,7 +328,7 @@ def main():
             a, b = bp(plab[..., 0])[m], bp(lab[..., 0])[m]; out[nm + '_corr'] = float(np.corrcoef(a, b)[0, 1]); out[nm + '_ratio'] = float(b.std() / a.std())
         return {k2: round(v, 3) for k2, v in out.items()}
     report['metrics'] = {'engine_v84c': metrics(eng_w), 'layers_clean': metrics(clean), 'layers_with_camera_grain': metrics(noisy)}
-    report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng,
+    report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng, 'veins': len(veins), 'vein_samples': int(sum(len(c['xy']) for c in veins)),
                             'rim_samples': int(sum(len(a) for a in rim_strength)), 'sheet_cells': int(gx * gy), 'window_mm2': round((n * UM / 1000) ** 2, 2)}
     for kx, v in report['metrics'].items(): print(kx, v)
     print(report['primitives'])
@@ -298,7 +342,8 @@ def main():
     for o in outlines: cv2.polylines(ov, [o.round().astype(np.int32)], True, (0, 200, 255), 1, cv2.LINE_AA)
     for c in fibres: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 255, 0), 1, cv2.LINE_AA)
     for c in guides: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 0, 255), 1, cv2.LINE_AA)
-    cv2.imwrite(os.path.join(OUT, 'proof-26-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    for c in veins: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (0, 0, 255), 1, cv2.LINE_AA)
+    cv2.imwrite(os.path.join(OUT, 'proof-26-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) veins (red) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
 
 
 if __name__ == '__main__':

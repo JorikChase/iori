@@ -68,9 +68,11 @@ def grade(lab, g, rot):                    # the per-photo camera grade: chroma 
 SCALES = np.array([.25, .35, .5, .7, .85, 1.0, 1.2, 1.5], np.float32)      # brightness multiplier on the albedo (the engine's brightness field)
 
 
+_BASE = {}
 def invert(targets, LUT, g, rot):
     """nearest graded LUT colour × brightness multiplier for each target Lab; returns (index, scale, achieved Lab, ΔE)"""
-    cand = np.concatenate([grade(lin2lab(LUT * s), g, rot) for s in SCALES]); n = len(LUT)
+    if id(LUT) not in _BASE: _BASE[id(LUT)] = np.concatenate([lin2lab(LUT * s) for s in SCALES])
+    cand = grade(_BASE[id(LUT)], g, rot); n = len(LUT)
     idx = np.zeros(len(targets), int); sc = np.zeros(len(targets), np.float32); got = np.zeros((len(targets), 3), np.float32); dE = np.zeros(len(targets), np.float32)
     for k in range(0, len(targets), 40):
         t = targets[k:k + 40]; e = ((t[:, None, :] - cand[None]) ** 2).sum(2); j = e.argmin(1)
@@ -136,7 +138,7 @@ def extend_to_walls(paths, sd, max_px=70):
     return out
 
 
-def payload_curve(path, step_px, sample, width_map):
+def payload_curve(path, step_px, sample, width_map, extra=None):
     """resample a pixel path every step_px, smooth it, and read the 1-D payloads there"""
     p = path[:, ::-1].astype(np.float64)                                   # (x, y)
     k = max(3, int(round(step_px)) | 1); pad = np.pad(p, ((k // 2, k // 2), (0, 0)), mode='edge')
@@ -144,7 +146,40 @@ def payload_curve(path, step_px, sample, width_map):
     d = np.r_[0, np.cumsum(np.hypot(*np.diff(p, axis=0).T))]; m = max(2, int(d[-1] / step_px) + 1); t = np.linspace(0, d[-1], m)
     q = np.stack([np.interp(t, d, p[:, 0]), np.interp(t, d, p[:, 1])], 1).astype(np.float32)
     rd = lambda img: cv2.remap(img, q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0]
-    return {'xy': q, 'val': rd(sample), 'w': rd(width_map)}
+    out = {'xy': q, 'val': rd(sample), 'w': rd(width_map)}
+    for kx, img in (extra or {}).items(): out[kx] = rd(img)
+    return out
+
+
+def raster_multi(curves, shape, keys):
+    """distance to the nearest centreline + several payload channels of that nearest curve point"""
+    H, W = shape; ink = np.ones((H, W), np.uint8); vals = {kx: np.zeros((H, W), np.float32) for kx in keys}
+    for c in curves:
+        q = c['xy']
+        for i in range(len(q) - 1):
+            m = int(max(2, np.ceil(np.hypot(*(q[i + 1] - q[i])) * 2)))
+            for s_ in np.linspace(0, 1, m):
+                x, y = q[i] * (1 - s_) + q[i + 1] * s_; xi, yi = int(round(x)), int(round(y))
+                if 0 <= xi < W and 0 <= yi < H:
+                    ink[yi, xi] = 0
+                    for kx in keys: vals[kx][yi, xi] = c[kx][i] * (1 - s_) + c[kx][i + 1] * s_
+    dist, lab = cv2.distanceTransformWithLabels(ink, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+    ys, xs = np.nonzero(ink == 0); out = {}
+    for kx in keys:
+        t = np.zeros(lab.max() + 1, np.float32); t[lab[ys, xs]] = vals[kx][ys, xs]; out[kx] = t[lab]
+    return dist, out
+
+
+def curve_colours(curves, LUT, G, ROT):
+    """each payload sample's colour goes through the spectral LUT: photo Lab at the sample → nearest graded LUT material →
+    that material's chromaticity (linear RGB at unit luminance), stored on the curve as cr / cg / cb"""
+    T = np.concatenate([np.stack([c['L'], c['a'], c['b']], 1) for c in curves]).astype(np.float32)
+    idx, _, _, dE = invert(T, LUT, G, ROT); chroma = LUT[idx] / np.maximum(LUT[idx] @ LUMA, 1e-5)[:, None]; k = 0
+    lit = sstep(12.0, 28.0, T[:, 0])[:, None]; ok = T[:, 0] > 28                                        # a sample in deep shadow has no measurable chromaticity:
+    if ok.any(): chroma = chroma * lit + np.median(chroma[ok], 0)[None, :] * (1 - lit)                   # it takes the curves' typical colour instead of noise
+    for c in curves:
+        n = len(c['xy']); c['cr'], c['cg'], c['cb'] = chroma[k:k + n, 0].copy(), chroma[k:k + n, 1].copy(), chroma[k:k + n, 2].copy(); k += n
+    return float(dE.mean()), len(np.unique(idx))
 
 
 def raster_curves(curves, shape, key='val'):
@@ -215,7 +250,9 @@ def main():
     fpaths, fS = centrelines(Ln, sd > 1, [2.0, 3.0, 4.5], 6, hole_lab)
     fpaths = extend_to_walls(fpaths, sd)
     Lbody = cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 2.5)                                          # a fibre's BODY brightness, not its peak
-    fibres = [payload_curve(p, step, Lbody, fS * 2.0) for p in fpaths]
+    lab_f = cv2.GaussianBlur(plab, (0, 0), 2.5); lab_g = cv2.GaussianBlur(plab, (0, 0), 3.5)             # colour is read at the body scale (finer = chroma noise)
+    chan = lambda L3: {'L': np.ascontiguousarray(L3[..., 0]), 'a': np.ascontiguousarray(L3[..., 1]), 'b': np.ascontiguousarray(L3[..., 2])}
+    fibres = [payload_curve(p, step, Lbody, fS * 2.0, chan(lab_f)) for p in fpaths]
     # the dark VEINS between fibres: valleys of the same local-contrast image, traced as curves of their own; their payload is
     # how dark the gap is RELATIVE to the fibre bodies beside it (so a vein in a shadow is a vein, not a second shadow)
     vpaths, vS = centrelines(-Ln, sd > 0, [1.5, 2.5], 6, hole_lab)
@@ -226,7 +263,23 @@ def main():
     den_s = cv2.GaussianBlur(sheet_px.astype(np.float32), (0, 0), 0.5 * CELL_MM * 1000 / UM)
     base_s = np.where(den_s > 0.1, base_s, float(np.median(pY[sheet_px])))                                # islands inside a hole have no sheet field of their own
     ratio = np.clip(cv2.GaussianBlur(Lf, (0, 0), 2.0) / np.maximum(base_s, 1e-3), 0.4, 1.8).astype(np.float32)             # guides carry brightness RELATIVE to the sheet field
-    guides = [payload_curve(p, step, ratio, gS * 1.6) for p in gpaths]
+    guides = [payload_curve(p, step, ratio, gS * 1.6, chan(lab_g)) for p in gpaths]
+    # the sheet's own fine texture: faint fibres and veins showing on / through the border layer, below the guide scale —
+    # found on local contrast, payload = brightness relative to the 28 µm neighbourhood (so they ride on cells × guides)
+    fine = np.clip(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 1.2) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 6.0), 1e-4), 0.5, 1.6).astype(np.float32)
+    # …but at this scale the flat sheet is mostly SENSOR GRAIN, and tracing grain would be fitting noise (it did: short worms in
+    # every direction, and a flattering B3). Tissue streaks are long, straight and run with the radial flow; grain is none of these.
+    Ls = (cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 2.2) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 14), 0.004)).astype(np.float32)
+    ctr = np.array([(641.05 - (cx - w / 2)) * k, (463.28 - (cy - w / 2)) * k])                           # pupil centre of ref 26 in window px (x, y)
+    def tissue_like(path):
+        q = path[:, ::-1].astype(np.float64); L_ = np.hypot(*np.diff(q, axis=0).T).sum(); chord = q[-1] - q[0]; c = np.hypot(*chord)
+        if L_ < 26 or c / max(L_, 1e-6) < 0.8: return False                                              # ≥ 0.12 mm and straight
+        rad = q.mean(0) - ctr; cosang = abs(chord @ rad) / max(c * np.hypot(*rad), 1e-6)
+        return cosang > np.cos(np.radians(40)) or L_ > 64                                                # with the flow, or long enough to be structure anyway
+    sfp, sfS = centrelines(Ls, (sd < -4) & near, [2.0, 3.0], 12); svp, svS = centrelines(-Ls, (sd < -4) & near, [2.0, 3.0], 12)
+    n_raw = (len(sfp), len(svp)); sfp = [q for q in sfp if tissue_like(q)]; svp = [q for q in svp if tissue_like(q)]
+    print(f'sheet fine curves kept {len(sfp)}/{n_raw[0]} fibres, {len(svp)}/{n_raw[1]} veins (the rest reads as grain)')
+    sfib = [payload_curve(p, step, fine, sfS * 1.3) for p in sfp]; svein = [payload_curve(p, step, fine, svS * 1.2) for p in svp]
     nf, ng = sum(len(c['xy']) for c in fibres), sum(len(c['xy']) for c in guides)
     print(f'{len(fibres)} deck fibres ({nf} payload samples) · {len(guides)} sheet guides ({ng} samples)')
 
@@ -251,12 +304,20 @@ def main():
     on_fibre = hole_px & (fib_d < 0.5 * np.maximum(fib_w, 2)); off_fibre = hole_px & (fib_d > 0.9 * np.maximum(fib_w, 2))
     cls = {'sheet': sheet_px, 'deck': on_fibre, 'ground': off_fibre, 'rim': strong_rim}
     tgt = {kx: np.array([np.median(plab[..., c][m]) for c in range(3)], np.float32) for kx, m in cls.items()}
-    best = None
-    for g in (1.0, 1.3, 1.6, 2.0):
-        for rot in (0, 10, 20, 30):
-            _, _, _, dE = invert(np.stack(list(tgt.values())), LUT, g, rot); e = float(dE.mean())
-            if best is None or e < best[0]: best = (e, g, rot)
-    _, G, ROT = best; print(f'camera grade: chroma ×{G}, hue {ROT:+d}° (class ΔE {best[0]:.2f})')
+    # one camera grade for the photo: classes + a sample of fibre and guide colours decide it (colour is judged where it is owned)
+    samp = np.concatenate([np.stack([c['L'], c['a'], c['b']], 1) for c in fibres + guides])[::9].astype(np.float32)
+    samp = samp[samp[:, 0] > 22][::3]                                                                    # dark samples have no usable chromaticity
+    gt = np.concatenate([np.repeat(np.stack(list(tgt.values())), 6, 0), samp]); tried = []
+    for g in (1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.4, 2.8):
+        for rot in (0, 10, 20, 30, 40):
+            _, _, _, dE = invert(gt, LUT, g, rot); tried.append((float(dE.mean()), g, rot))
+    # grade and pigment trade off (more gain + a paler material ≈ less gain + a richer one): the error surface is flat along
+    # that valley, so take the MILDEST grade within 10 % of the best — the materials stay physical, the camera stays a camera
+    emin = min(t[0] for t in tried); best = min((t for t in tried if t[0] <= 1.10 * emin + 0.05), key=lambda t: (t[1], abs(t[2])))
+    print('  grade valley: ' + ' · '.join(f'×{g} {min(t[0] for t in tried if t[1] == g):.2f}' for g in sorted({t[1] for t in tried})))
+    _, G, ROT = best; print(f'camera grade: chroma ×{G}, hue {ROT:+d}° (ΔE {best[0]:.2f} over {len(gt)} colour targets)')
+    dEf, nmf = curve_colours(fibres, LUT, G, ROT); dEg, nmg = curve_colours(guides, LUT, G, ROT)
+    print(f'  per-sample colour through the LUT: fibres ΔE {dEf:.2f} ({nmf} materials) · guides ΔE {dEg:.2f} ({nmg} materials)')
     # sheet cell field (colour + brightness), owned by sheet pixels only
     cs = int(round(CELL_MM * 1000 / UM)); gy, gx = H // cs + 1, W // cs + 1
     wsum = cv2.resize(sheet_px.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA)
@@ -287,7 +348,9 @@ def main():
     roundness = 0.78 + 0.22 * np.sqrt(np.clip(1 - (fib_d / np.maximum(1.4 * fib_w, 3.0)) ** 2, 0, 1))
     deckY = cv2.GaussianBlur(fib_v, (0, 0), 2.5) * roundness * (1 - vein)
     prof = 1 - sstep(14.0, 26.0, fib_d)                                                                   # no fibre within ≈ 0.1 mm: a true pit, the ground shows
-    deck_rgb = mats['deck'][0][None, None, :] / max(float(mats['deck'][0] @ LUMA), 1e-4) * deckY[..., None]
+    _, fc = raster_multi(fibres, (H, W), ['cr', 'cg', 'cb'])                                              # each fibre's own LUT colour, spread over its Voronoi cell
+    deck_chroma = cv2.GaussianBlur(np.stack([fc['cr'], fc['cg'], fc['cb']], 2), (0, 0), 2.5)
+    deck_rgb = deck_chroma / np.maximum(deck_chroma @ LUMA, 1e-5)[..., None] * deckY[..., None]
     gY = cv2.GaussianBlur(np.where(off_fibre, pY, 0).astype(np.float32), (0, 0), 20) / np.maximum(cv2.GaussianBlur(off_fibre.astype(np.float32), (0, 0), 20), 1e-3)   # ground level, 0.1 mm scale
     ground_rgb = mats['ground'][0][None, None, :] / max(float(mats['ground'][0] @ LUMA), 1e-4) * gY[..., None]
     hole_rgb = ground_rgb * (1 - prof[..., None]) + np.maximum(deck_rgb, ground_rgb * 0) * prof[..., None]
@@ -295,6 +358,11 @@ def main():
     g_d, g_v, g_w = raster_curves(guides, (H, W))
     gprof = np.exp(-0.5 * (g_d / np.maximum(0.55 * g_w, 2.0)) ** 2)
     sheet_mod = 1 + (g_v - 1) * gprof
+    sf_d, sf_v, sf_w = raster_curves(sfib, (H, W)); sv_d, sv_v, sv_w = raster_curves(svein, (H, W))
+    sheet_mod = sheet_mod * (1 + (np.maximum(sf_v, 1) - 1) * np.exp(-0.5 * (sf_d / np.maximum(sf_w, 1.2)) ** 2)) * (1 - (1 - np.minimum(sv_v, 1)) * np.exp(-0.5 * (sv_d / np.maximum(sv_w, 1.2)) ** 2))
+    _, gc = raster_multi(guides, (H, W), ['cr', 'cg', 'cb'])                                               # colour finer than the 0.1 mm cells rides on the guides
+    gch = cv2.GaussianBlur(np.stack([gc['cr'], gc['cg'], gc['cb']], 2), (0, 0), 3.0); gmix = (0.85 * np.exp(-0.5 * (g_d / np.maximum(0.9 * g_w, 3.0)) ** 2))[..., None]
+    sY = sheet_alb @ LUMA; sheet_alb = (sheet_alb / np.maximum(sY, 1e-5)[..., None] * (1 - gmix) + gch / np.maximum(gch @ LUMA, 1e-5)[..., None] * gmix) * sY[..., None]
     grain_t = cv2.GaussianBlur(rs.randn(H, W).astype(np.float32), (0, 0), 1.6); grain_t /= grain_t.std()
     sheet_rgb = sheet_alb * (sheet_mod * (1 + 0.055 * grain_t))[..., None]
     rim_alb = mats['rim'][0] * mats['rim'][1]
@@ -320,6 +388,11 @@ def main():
         wt = cv2.resize(m.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA); ok = wt > 0.9
         P, R = A(plab) / np.maximum(wt[..., None], 1e-4), A(lab) / np.maximum(wt[..., None], 1e-4)
         out = {'cellDab': float(np.hypot(P[..., 1] - R[..., 1], P[..., 2] - R[..., 2])[ok].mean()), 'cellDL': float(np.abs(P[..., 0] - R[..., 0])[ok].mean())}
+        c50 = int(round(50.0 / UM)); g50 = (W // c50, H // c50); m3 = m[..., None]
+        A50 = lambda x: cv2.resize(np.where(m3, cv2.GaussianBlur(x, (0, 0), 1.5), 0).astype(np.float32), g50, interpolation=cv2.INTER_AREA)
+        w50 = cv2.resize(m.astype(np.float32), g50, interpolation=cv2.INTER_AREA); h50 = cv2.resize((hole_px & m).astype(np.float32), g50, interpolation=cv2.INTER_AREA)
+        P5, R5 = A50(plab) / np.maximum(w50[..., None], 1e-4), A50(lab) / np.maximum(w50[..., None], 1e-4); d5 = np.hypot(P5[..., 1] - R5[..., 1], P5[..., 2] - R5[..., 2])
+        out['dab50'] = float(d5[w50 > 0.9].mean()); out['dab50_hole'] = float(d5[h50 > 0.9].mean()); out['dab50_sheet'] = float(d5[(w50 > 0.9) & (h50 < 0.05)].mean())
         for kx, mk in (('hole', hole_px), ('sheet', sheet_px), ('rim', strong_rim)):
             out['dab_' + kx] = float(np.hypot(np.median(plab[..., 1][mk]) - np.median(lab[..., 1][mk]), np.median(plab[..., 2][mk]) - np.median(lab[..., 2][mk])))
         ppm = 1000.0 / UM                                                       # bands as in the engine (§23): σ = λ / 5.3
@@ -328,7 +401,7 @@ def main():
             a, b = bp(plab[..., 0])[m], bp(lab[..., 0])[m]; out[nm + '_corr'] = float(np.corrcoef(a, b)[0, 1]); out[nm + '_ratio'] = float(b.std() / a.std())
         return {k2: round(v, 3) for k2, v in out.items()}
     report['metrics'] = {'engine_v84c': metrics(eng_w), 'layers_clean': metrics(clean), 'layers_with_camera_grain': metrics(noisy)}
-    report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng, 'veins': len(veins), 'vein_samples': int(sum(len(c['xy']) for c in veins)),
+    report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng, 'veins': len(veins), 'vein_samples': int(sum(len(c['xy']) for c in veins)), 'sheet_fibres': len(sfib), 'sheet_fibre_samples': int(sum(len(c['xy']) for c in sfib)), 'sheet_veins': len(svein), 'sheet_vein_samples': int(sum(len(c['xy']) for c in svein)),
                             'rim_samples': int(sum(len(a) for a in rim_strength)), 'sheet_cells': int(gx * gy), 'window_mm2': round((n * UM / 1000) ** 2, 2)}
     for kx, v in report['metrics'].items(): print(kx, v)
     print(report['primitives'])

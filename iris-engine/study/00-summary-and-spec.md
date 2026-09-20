@@ -1421,6 +1421,28 @@ numbers (clean): cell Δab 3.0, holes/sheet/rim 1.4 / 1.2 / 1.7, B1/B2/B3 corr 0
 0.14). Still open: per-fibre *colour* payload (teal vs grey fibres), the sheet's stipple and streaks (B3 ratio 0.36
 clean), septa. Budget now ≈ 9.9 k numbers per 9.5 mm².
 
+**P0c (same day, iori: "per-fibre and sheet texture with correct colours first").**
+- *Per-fibre colour through the LUT.* Every payload sample of a deck fibre and of a sheet guide carries the photo's Lab
+  at the body scale (σ 12–16 µm; finer is chroma noise); each sample is inverted through the graded spectral LUT to a
+  material, and the curve draws that material's chromaticity (fibres ΔE 1.9 over 334 materials, guides ΔE 1.6 over 502
+  — a per-eye palette index per sample). Teal and grey fibres now differ as in the photo. A sample in deep shadow
+  (L\* < 12–28) has no measurable chromaticity — it takes the curves' typical colour; left alone it painted the pits
+  brown.
+- *Sheet texture, and a trap.* Fine sheet fibres and veins traced at 7–12 µm σ looked like worms in every direction
+  and raised B3 corr to 0.62 — **that was tracing sensor grain, i.e. fitting noise.** Tissue streaks are long (≥ 0.12 mm),
+  straight (chord / length > 0.8) and run with the radial flow; with that test only 46 of 327 bright and 58 of 339 dark
+  curves survive, B3 corr (clean) 0.50. On the flat sheet this photo carries no more tissue detail at that band: the
+  stipple there is camera grain (seeded, measured per channel), a limit of the reference, not of the model.
+- *The camera grade is a valley, not a point.* Colour error falls monotonically with chroma gain (ΔE 2.36 at × 1.0 …
+  1.33 at × 2.8) because gain and pigment trade off (more gain + a paler material ≈ less gain + a richer one). Rule:
+  **the mildest grade within 10 % of the best** → chroma × 2.0, hue +20°; with no grade at all this eye is still within
+  ΔE 2.4. The fitter needs the same prior or the grade will swallow the materials.
+- Window numbers (clean | with camera grain), engine v84c in brackets: cell Δab 2.35 | 2.44 [16.9]; **Δab at 50 µm
+  3.0 | 3.2 [17.2]**; holes / sheet / rim 0.5 / 0.6 / 2.2; B1 / B2 / B3 corr 0.96 / 0.84 / 0.50 | 0.96 / 0.84 / 0.30
+  [0.76 / 0.74 / 0.14]. Budget ≈ 12 k payload numbers + 3.4 k colour indices per 9.5 mm² → ≈ 110–220 KB per iris.
+- Still open in the mock: walls too soft (no asymmetric overhang shadow), local contrast a little low (B2 ratio 0.78),
+  septa between neighbouring crypts weak, grain more chromatic than the photo's.
+
 Next (P1, to be agreed): the same model as a separately compiled bake variant behind `tissueModel`, fed by these
 primitives for the same window, judged against this mock and the photo; then the camera grade + neutral-scatter
 field in the engine's colour path; then the journaled closed-loop fitter.

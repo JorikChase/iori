@@ -1798,3 +1798,17 @@ relief). The whole eye decides; one window does not.
 
 K1 is untouched by this: at deckZ 0 the origin is still bit-identical, and at 0.35 exactly **one channel of one pixel**
 differs by 1 (the parallax march crossing a texel boundary) — render repeatability itself is exact.
+
+**What Z1 did to the knobs K1 could not reach** (same harness, whole iris, mean |ΔY| in the iris mask):
+
+| knob | deckZ 0 | deckZ 0.35 | deckZ 1 | legacy |
+|---|---:|---:|---:|---:|
+| relief | 0.069 | 1.231 | 1.600 | 6.402 |
+| blrel | 2.589 | 3.215 | 3.530 | 9.620 |
+| elev | 4.081 | 4.563 | 5.099 | 8.446 |
+| light | 0.465 | 0.936 | 1.372 | 4.264 |
+
+`relief` was dead at 0.069 and is now 1.6 — 23× — and the key-light knobs roughly double. It is still short of the
+legacy model's 6.4 for a reason that names the next piece of work: **the sheet has no height at all**. The layer
+model's relief lives entirely inside the holes, which are ~30 % of the iris; the border layer is flat, with no
+furrows and no micro-relief. That is T1 (the ruff) and G (furrows as primitives), not Z1.

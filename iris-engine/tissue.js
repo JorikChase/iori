@@ -156,13 +156,18 @@
         src = src.replace(/textureLod\(u_atlas0, (.+?), lod\)\.r \* u_relief/g, (m, uv) => `tissueH(${uv}, lod)`);
         need('uniform sampler2D u_atlas0;', `uniform sampler2D u_atlas0;
         uniform sampler2D u_tissue, u_tissueAux; uniform vec4 u_tissueRect; uniform float u_tissueLod;
+        uniform sampler2D u_tisW, u_tisWAux; uniform vec4 u_tisWRect; uniform float u_tisWLod, u_tisWOn;   // T2a: the re-baked window, finer than the base
         uniform sampler2D u_tisO0, u_tisO1;                                          // K1: the material of the fitted eye at the knob origin
         uniform float u_tisReliefK, u_oRingStr, u_oRingR, u_oRingPheo, u_oStromaMax, u_tisK1;
-        vec4 tissueAt(sampler2D s, vec2 uv, float lod) { vec2 c = (vec2(fract(uv.x), uv.y) - u_tissueRect.xy) / u_tissueRect.zw; if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0) return vec4(0.0); return textureLod(s, c, max(0.0, lod + u_tissueLod)); }
-        float tissueH(vec2 uv, float lod) { vec4 a = tissueAt(u_tissueAux, uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
-        need('float occ = t3.r;', `vec4 tsA = tissueAt(u_tissue, uv, lod);
+        bool tisIn(vec4 R, vec2 uv, out vec2 c) { c = (vec2(fract(uv.x), uv.y) - R.xy) / R.zw; return c.x > 0.0 && c.x < 1.0 && c.y > 0.0 && c.y < 1.0; }
+        vec4 tissueAt(sampler2D s, vec2 uv, float lod) { vec2 c; if (!tisIn(u_tissueRect, uv, c)) return vec4(0.0); return textureLod(s, c, max(0.0, lod + u_tissueLod)); }
+        // T2a: inside the window the finer bake wins; everywhere else the base region answers, so the eye stays whole
+        vec4 tisAlb(vec2 uv, float lod) { vec2 c; if (u_tisWOn > 0.5 && tisIn(u_tisWRect, uv, c)) return textureLod(u_tisW, c, max(0.0, lod + u_tisWLod)); return tissueAt(u_tissue, uv, lod); }
+        vec4 tisAux(vec2 uv, float lod) { vec2 c; if (u_tisWOn > 0.5 && tisIn(u_tisWRect, uv, c)) return textureLod(u_tisWAux, c, max(0.0, lod + u_tisWLod)); return tissueAt(u_tissueAux, uv, lod); }
+        float tissueH(vec2 uv, float lod) { vec4 a = tisAux(uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
+        need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
             float tisRidge0 = t1.a;                                                                // K1: the fitted strand coverage, before the line below zeroes it
-            t0.r = mix(t0.r, tissueAt(u_tissueAux, uv, lod).r * u_tisReliefK / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here:
+            t0.r = mix(t0.r, tisAux(uv, lod).r * u_tisReliefK / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here:
             t1 = mix(t1, vec4(0.0), tsA.a); t3.r = mix(t3.r, 1.0, tsA.a);                          // no crypt / furrow / spot / strand-sheen / occlusion terms of the old model
             float occ = t3.r;`);
         need('lit += 0.05 * pow(clamp(dot(N, hv), 0.0, 1.0), 24.0);', 'lit += 0.05 * (1.0 - tsA.a) * pow(clamp(dot(N, hv), 0.0, 1.0), 24.0);   // the coaxial flash glints off every texel: a constant the tissue cannot go below — the payloads own it here');
@@ -227,6 +232,12 @@
         gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_tissueAux'), 11);
         gl.uniform4f(gl.getUniformLocation(prog, 'u_tissueRect'), T.rect[0], T.rect[1], T.rect[2], T.rect[3]);
         gl.uniform1f(gl.getUniformLocation(prog, 'u_tissueLod'), T.lodBias);
+        const Wn = T.win;                                   // T2a: the finer window, if one is baked
+        gl.activeTexture(gl.TEXTURE17); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.albedo) || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisW'), 17);
+        gl.activeTexture(gl.TEXTURE18); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.aux) || T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisWAux'), 18);
+        gl.uniform4f(gl.getUniformLocation(prog, 'u_tisWRect'), Wn ? Wn.rect[0] : 0, Wn ? Wn.rect[1] : 0, Wn ? Wn.rect[2] : 1, Wn ? Wn.rect[3] : 1);
+        gl.uniform1f(gl.getUniformLocation(prog, 'u_tisWLod'), Wn ? Wn.lodBias : 0);
+        gl.uniform1f(gl.getUniformLocation(prog, 'u_tisWOn'), Wn ? 1 : 0);
         // K1: the origin and the knobs' distance from it. NEVER capture it here — bind() runs inside drawPhotoFrame,
         // between its useProgram and its draw, and setOrigin bakes the atlas, which walks over far more GL state than
         // a caller can save. Doing it here quietly corrupted the FIRST render after every load, and since calibrate()
@@ -564,6 +575,81 @@
         const out = new Float32Array(A.bw * A.bh);
         for (let i = 0; i < out.length; i++) out[i] = A.buf[i * 4] * 1000;
         return { um: out, w: A.bw, h: A.bh, rect: R, tauUm: (T.tauUsed || 0) * 1000 };
+    };
+
+    // ---------------------------------------------------------------- T2a (§32): the windowed re-bake
+    // The base bake spreads one texel budget over the whole iris: a full circle at 3 µm would be 12 k texels wide, so
+    // τ grows to ≈ 5.7 µm and that is the finest the model can be seen at. Zooming past it magnifies texels, not
+    // tissue. The same primitives can be re-baked over just the part of the eye on screen, at whatever τ that part
+    // deserves — the window is a DETAIL layer, the base still answers everywhere outside it, so the eye stays whole.
+    const MAXW = 4096;
+    /** Re-bake `rect` (tissue u, v) at `tau` mm per texel. Leaves the base bake alone. */
+    T.bakeWindow = function (rect, opts = {}) {
+        if (!T.sets) throw new Error('tissue: nothing loaded');
+        const r = [Math.max(0, rect[0]), Math.max(0, rect[1]), rect[2], rect[3]];
+        r[2] = Math.min(1 - r[0], r[2]); r[3] = Math.min(1 - r[1], r[3]);
+        const rOut = 2 + 4 * (r[1] + r[3]);
+        const wantTau = opts.tau || Math.max(0.0012, T.tauUsed / 4);
+        const tau = Math.max(wantTau, r[2] * 6.2831853 * rOut / MAXW, r[3] * 4 / MAXW);
+        const size = [Math.ceil(r[2] * 6.2831853 * rOut / tau), Math.ceil(r[3] * 4 / tau)];
+        const [AW, AH] = E.ATLAS;
+        const keep = { rect: T.rect, size: T.size, albedo: T.albedo, aux: T.aux, cellS: T.cellS, cellG: T.cellG,
+                       fill: T.fill, lodBias: T.lodBias, tauUsed: T.tauUsed, full: T.full, fb: T.fb, depth: T.depth };
+        const prev = T.win;
+        T.albedo = T.aux = T.cellS = T.cellG = T.fill = null;   // bake() frees what it finds here; the base must not be in reach
+        T.fb = null; T.depth = null;
+        T.rect = r; T.size = size; T.full = false; T.tauUsed = tau;
+        T.lodBias = Math.log2((4 / AH) / tau);
+        let win = null;
+        try {
+            T.bake(opts);
+            win = { albedo: T.albedo, aux: T.aux, rect: r, size, tau, lodBias: T.lodBias, cellS: T.cellS, cellG: T.cellG, fill: T.fill, fb: T.fb, depth: T.depth };
+        } finally {
+            Object.assign(T, keep);                             // the base is back, whatever happened
+        }
+        if (prev) for (const k of ['albedo', 'aux', 'cellS', 'cellG', 'fill']) if (prev[k]) gl.deleteTexture(prev[k]);
+        if (prev && prev.fb) gl.deleteFramebuffer(prev.fb);
+        if (prev && prev.depth) gl.deleteRenderbuffer(prev.depth);
+        T.win = win;
+        say(`window ${r[0].toFixed(4)}+${r[2].toFixed(4)} × ${r[1].toFixed(3)}+${r[3].toFixed(3)} → ${size[0]}×${size[1]} texels (τ ${(tau * 1000).toFixed(1)} µm, ${(T.tauUsed / tau).toFixed(1)}× the base)`);
+        E.resetAccumulation && E.resetAccumulation();
+        return win;
+    };
+    T.clearWindow = function () {
+        const w = T.win; if (!w) return;
+        for (const k of ['albedo', 'aux', 'cellS', 'cellG', 'fill']) if (w[k]) gl.deleteTexture(w[k]);
+        if (w.fb) gl.deleteFramebuffer(w.fb); if (w.depth) gl.deleteRenderbuffer(w.depth);
+        T.win = null; E.resetAccumulation && E.resetAccumulation();
+    };
+    /** The tissue rect the camera can currently see, from the engine's own coordinate map, padded. */
+    T.viewRect = function (pad) {
+        const fit = F.fit, map = F.getMap(), W = fit.W, H = fit.H;
+        let u0 = 2, u1 = -1, v0 = 2, v1 = -1, n = 0, cs = 0, sn = 0;
+        for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+            const k = y * W + x; if (!map.inside[k]) continue;
+            const u = map.u[k], v = map.v[k]; n++;
+            cs += Math.cos(6.2831853 * u); sn += Math.sin(6.2831853 * u);
+            v0 = Math.min(v0, v); v1 = Math.max(v1, v);
+        }
+        if (!n) return null;
+        const uc = (Math.atan2(sn, cs) / 6.2831853 + 1) % 1;    // the mean angle, so a window across the seam still makes sense
+        let du = 0;
+        for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+            const k = y * W + x; if (!map.inside[k]) continue;
+            let d = map.u[k] - uc; while (d > 0.5) d -= 1; while (d < -0.5) d += 1;
+            du = Math.max(du, Math.abs(d));
+        }
+        const p = pad === undefined ? 0.15 : pad;
+        const w = Math.min(1, 2 * du * (1 + p)), h = Math.min(1, (v1 - v0) * (1 + p));
+        return [uc - w / 2, Math.max(0, v0 - (v1 - v0) * p / 2), w, h];
+    };
+    /** Re-bake whatever the camera is looking at, if that is worth doing. Call it when the view settles. */
+    T.refocus = function (opts = {}) {
+        const r = T.viewRect(opts.pad);
+        if (!r || r[2] >= 0.9) { T.clearWindow(); return null; }      // the whole circle: the base bake already is the window
+        const gain = (T.win && Math.abs(T.win.rect[0] - r[0]) < 0.02 * r[2] && Math.abs(T.win.rect[2] - r[2]) < 0.05 * r[2]) ? 1 : 0;
+        if (gain && !opts.force) return T.win;                         // already looking at it
+        return T.bakeWindow(r, opts);
     };
 
     // ---------------------------------------------------------------- irradiance: what the engine's light does to a flat grey region

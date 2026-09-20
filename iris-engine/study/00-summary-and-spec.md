@@ -1891,3 +1891,30 @@ the iris, and a studio catchlight floating on the cornea is the photograph's fur
 Nothing in the fit or the benches moves: every fit path passes `specular` explicitly (`renderFit` sends
 `fit.isolated ? 0 : 1`), so only the interactive view and captures see the new default. Verified: MATCH2 85.34 and
 cellDab 2.65 on ref 26 either way. `state.specular` is in `STATE0`, so `resetForFreshFit` keeps it.
+
+### 32.6 Log (2026-09-20): T2a — the windowed re-bake, and what the zoom is really limited by
+
+**The mechanism** (`tissue.js`). The base bake spends one texel budget on the whole iris: a full circle at 3 µm would
+be 12 k texels wide, so τ grows to ≈ 5.7 µm. `IrisTissue.bakeWindow(rect, {tau})` re-bakes the same primitives over
+just a part of the eye at whatever τ that part deserves, and the window is a **detail layer** — the shader takes the
+window where the texel falls inside it and the base everywhere else, so the eye stays whole. `viewRect()` gives the
+tissue rect the camera can see (mean-angle based, so a window across the u seam still makes sense) and `refocus()`
+re-bakes it, declining when the whole circle is in view. A 1338 × 1058 window at **1.43 µm — 4× the base — bakes in
+0.15 s**, so this is cheap enough to do whenever the view settles.
+
+**And it does not sharpen the picture at all.** At a 0.8 µm/px zoom, a 0.8 µm window and the 5.7 µm base are the same
+image (whole-frame Laplacian 0.699 vs 0.710 — the window is a shade *softer*). The reason is that **the model has no
+content below about 10 µm**: every feature in the compose pass is defined in millimetres and smooth at that scale —
+the hole wall is 37 µm, the pit rule 65–120 µm, a fibre's dome is ~60 µm across, the body blur is 14 µm, the matte
+grain 8–17 µm — and the payloads themselves are read every 20 µm along a curve. Magnifying past that shows the same
+mush at more texels. This is the same lesson as §30.1's "the softness is not the mip level, it is dropped detail",
+now measured at the other end.
+
+So T2a ships as the **mechanism**, which the probe needs (T3 re-bakes its footprint) and which the de-lighting needs
+(§32.4: the renderer's response can only be measured with region and render at one scale). What it does not do is
+deliver the zoom of T2's acceptance test. That needs **content at 1–10 µm**, which is T4's dropped sheet detail, the
+sheet's own micro-relief (T1/G), and a finer payload than 20 µm — and those should be the next thing measured, since
+nothing else about the close-up will change until they exist.
+
+The clamps are opened anyway, since they cost nothing: the wheel now reaches 20 mm instead of 40, and the designer's
+crop 0.01 of the frame instead of 0.125 — about 0.8 µm per screen pixel. Neither touches any fit path.

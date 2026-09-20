@@ -2835,7 +2835,7 @@
         window.addEventListener('pointerup', e => { if (e.button === 0) { isPointerDown = false; resetAccumulation(); } });
         window.addEventListener('wheel', e => {
             if (state.design) return;                                // the designer zooms through the view crop
-            target.zoomPhoto = Math.max(40.0, Math.min(400.0, (target.zoomPhoto || state.zoomPhoto) * (1.0 + e.deltaY * 0.001)));
+            target.zoomPhoto = Math.max(20.0, Math.min(400.0, (target.zoomPhoto || state.zoomPhoto) * (1.0 + e.deltaY * 0.001)));   // T2a: the camera may come twice as close as it could
         });
 
         function bind(id, key, fmt) {

@@ -103,7 +103,7 @@
     // mm on the iris per canvas pixel at the current camera and view crop (the same formula the shader's mip level uses)
     function mmPerPx() { return (24 * state.view[3] / canvas.height) / 100 * (state.zoomPhoto + 3.5) / 1.1; }
     function zoomView(factor, cx, cy) {   // scale the view crop about a canvas point (fractions), clamped to 8×
-        const v = state.view, s0 = v[2], s1 = Math.max(0.125, Math.min(1, s0 * factor));
+        const v = state.view, s0 = v[2], s1 = Math.max(0.01, Math.min(1, s0 * factor));   // T2a (§32): one continuous zoom — 0.01 of the frame is ≈ 0.8 µm per screen pixel
         const fx = v[0] + cx * s0, fy = v[1] + cy * s0;              // image point under the cursor
         state.view = [fx - cx * s1, fy - cy * s1, s1, s1]; D.map = null; E.resetAccumulation();
     }

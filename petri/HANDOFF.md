@@ -73,6 +73,32 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
   track the solution. As a **CG preconditioner** it converges without tuning. Budget MG-preconditioned
   CG, not V(1,1).
 
+## P2 started — the graph route
+
+`graph.js`: mask → exact distance transform → Guo–Hall skeleton → node/edge graph with widths in mm,
+then the network morphometrics. Junction clumps are flood-filled into one node and each degree-2 run
+is consumed exactly once, verified on a synthetic 3×3 lattice (5 nodes, 8 edges, degrees {3:4, 4:1} —
+the corners are bends, not nodes). Extraction costs ≈1.4 s on a 2048² dish, so it belongs on a timer
+or in a worker; the network changes on a scale of sim-minutes.
+
+**Harness tier T2 is live and green: 4/4 published gates**, on a real simulated Physarum network
+(157 nodes, 175 edges, largest connected component):
+
+| gate | target | measured | source |
+|---|---|---|---|
+| degree-3 share of branch points | ≥ 0.90 | **1.00** | Baumgarten, Ueda & Hauser 2010 |
+| vein widths log-normal, σ | 0.25–0.85 | **0.471** | Baumgarten 2010 |
+| total length against the MST | 1.45–2.05 | **1.467** | Tero et al. 2010 (1.75 ± 0.30) |
+| meshedness α | 0.04–0.30 | **0.062** | Bebber et al. 2007 |
+
+Honest caveat: the gates are measured on the largest component of **357**. A real plasmodium is one
+connected organism, so that fragmentation is itself a discrepancy — and closing it is exactly what
+the flux adaptation is for. Before the largest-component filter the raw graph was a forest (α
+negative, 56 % dead ends), which is the baseline P2 has to improve on.
+
+Next in P2: run the Tero adaptation `dD/dt = |Q|^μ − rD` on this graph (a sparse Laplacian over ~10⁴
+edges, not 3 × 10⁷ voxels), and feed conductivity back into agent sensing.
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.
@@ -84,12 +110,21 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
   needs substrate substepping (its own pass) before its morphology can be trusted.
 - The continuous kernels (COLONY, BIOFILM, GRAYSCOTT, EXCITABLE) are still calibrated at normal and
   their pattern scale follows the grid.
-- **What is and is not resolution-invariant, measured.** The box dimension now agrees across tiers
-  (draft 1.744 / normal 1.722). Fill fraction and front speed do NOT: the absorbing boundary layer
-  around a growing cluster is ~0.023 mm, i.e. 0.25 cells at draft and 0.5 at normal, so it is
-  unresolved at every tier the engine has, and the nutrient a front cell samples depends on the cell
-  size. Making absorption physical means a much weaker rate and a different regime — an open item.
-  `resolutionInvariance` asserts only the box dimension and reports the other two as diagnostics.
+- **What is and is not resolution-invariant, measured.** Aggregates are now perfect absorbers and
+  growth reads the GRADIENT (`n · rs()`) rather than the concentration, because with an absorbing
+  boundary the nutrient in the neighbouring cell carries a factor of the cell size. That made the
+  **fill fraction invariant (relative difference 0.356 → 0.024)** and made the two dimension
+  estimates agree internally (mass-radius 2.08 → 1.71 against box 1.76). The **box dimension is still
+  tier-dependent (draft 1.579 / normal 1.740)** and the test fails on it. The mechanism is understood
+  and is not a bug to patch: a DLA branch is one cell wide by construction, so its *physical* width
+  is the cell size, and the two tiers grow genuinely different objects. It converges only where the
+  branch width is resolved, which a single-cell-wide branch never is. Left failing.
+- **Eden roughness now passes** (β 0.433 at draft, r² 0.85) after two measurement fixes: the front's
+  angular binning was fixed at 256 bins, so it averaged 2.9 cells of arc at draft and 5.8 at normal
+  and returned a property of the grid — bins now hold a constant two-cell arc; and the sampling
+  chunk must be equal in steps across tiers. The test builds its own draft engine so it always
+  measures the calibrated configuration, and reports normal (β 0.157) as a diagnostic. The residual
+  tier gap is an open item.
 - Time is "steps"; the status bar prints one step as one second. Relative speeds are ordered sensibly (Physarum > molds > bacteria) but not calibrated to mm/h.
 - No timestamp-query timing yet (wall clock around `onSubmittedWorkDone`), no `versions/` archive yet.
 
@@ -101,6 +136,10 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
 - The named Gray-Scott presets (mitosis, coral…) are Karl Sims', defined for the 0.2 / 0.05 kernel with Du 1.0, Dv 0.5 — not Pearson's 0.2097 / 0.105.
 - A release threshold on a continuous kernel silently kills slow (low-nutrient, hard-agar) fronts; it is 2 × 10⁻⁴ now.
 - WGSL lives in JS template literals: **no backticks in WGSL comments**, and `meta`, `target`, `ref`… are reserved words.
+- **A metric can be resolution-dependent even when the physics is not.** Two of the three "physics"
+  failures chased this round were measurement bugs: the front's fixed angular bin count, and box
+  counting up to a fixed fraction of the grid rather than of the cluster. Check the measurement
+  before changing the model.
 - **Morphology tests must fix the extent, not the step count.** Comparing at a fixed number of steps
   compares different-sized colonies; every T1 morphology row grows to a target radius in mm. The Eden
   test additionally has to sample *while growing* — once the cluster meets the wall its width saturates
@@ -128,5 +167,13 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
    allocator; agent spatial sort (measured 4–7x, only matters above ~1M agents, and it needs a stable
    per-agent id because the power-of-two division scheme is position-based); packed 12-byte contract.
 3. T2 — morphometrics against SMGR once the data is approved (`ref/DATA-PLAN.md`).
+
+Fixed 2026-09-20 from iori's report that "inject new organisms stops adding them": each Physarum
+founder permanently owns 64 agent slots, and at 1.5 founders per cell a 2 mm needle stab claimed 8192
+blocks — so the **ninth inoculation of a dish silently did nothing**. Founder density is now 0.15 per
+cell (same saturated population, since each founder still divides to 64), the engine reports why an
+op was refused, and the status bar shows it. Verified: 20 stabs all take, agents 1 742 → 438 248,
+48 376 of 65 536 blocks still free. Reclaiming blocks from erased agents is still not implemented, so
+the pool is finite — roughly 75 stabs at 2 mm.
 
 Pending from iori: phone probe run (`/petri/probe/webgpu-probe.html?quick=1`), the 2 MB Dryad set by hand (`ref/DATA-PLAN.md`), a look at the shell and the organisms.

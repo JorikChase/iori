@@ -1,0 +1,44 @@
+{
+ "id": "v2-graph",
+ "when": "2026-09-20T20:39:08",
+ "note": "Eden+absorption fixed, agent pool fixed, graph extraction + T2 4/4",
+ "features": {
+  "kernels": "10",
+  "organisms": "93",
+  "graph": "1",
+  "T2": "1",
+  "hybrid": "0"
+ },
+ "src_sha256": "7c79e384d4b95529",
+ "bench": "bench-v2-p1fix.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 6,
+  "T0_total": 6,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 2.595,
+  "agents": 43898
+ }
+}

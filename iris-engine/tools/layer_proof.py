@@ -144,6 +144,95 @@ def extend_to_walls(paths, sd, max_px=70):
     return out
 
 
+# ---------------------------------------------------------------- Z1: height on the primitives (spec §32)
+# A photo under a coaxial flash carries almost no depth (§30.1: the relief it does show is symmetric). Height is
+# therefore INFERRED, and the inference is written down here so it can be argued with and corrected by hand (G):
+#   · the tube's RADIUS is measured — the traced ridge width, the one honest number;
+#   · the WEAVE is read off the crossings — where two fibres cross, the one whose own brightness and width hold up
+#     at the crossing is the one in front, and the other passes under it;
+#   · everything else is the resting prior: a fibre with no crossing lies on the floor, z = its own radius.
+# Every sample carries a confidence, and the provenance is `inferred`.
+FIB_R_K = 1.4          # tube radius / traced ridge width: compose reads the fibre out to 1.4 w (its roundness term)
+Z_MAX_MM = 0.25        # nothing in the deck stands higher than this above its floor
+def crossings(curves, radii, min_cos=0.70):
+    """every place two centrelines cross: KD-tree on all samples, kept when they are within the two radii and they
+    really cross — min_cos 0.70 is 45°, below which two fibres running together are far more likely to be one fibre
+    the tracer split than a genuine over/under (at 23° the window gave 799 crossings for 117 fibres, so every fibre
+    was lifted everywhere and nothing cleared anything)."""
+    from scipy.spatial import cKDTree
+    P = np.concatenate([c['xy'] for c in curves]).astype(np.float64)
+    own = np.concatenate([np.full(len(c['xy']), i, np.int32) for i, c in enumerate(curves)])
+    loc = np.concatenate([np.arange(len(c['xy']), dtype=np.int32) for c in curves])
+    rad = np.concatenate(radii)
+    tan = []
+    for c in curves:
+        q = c['xy'].astype(np.float64); d = np.gradient(q, axis=0) if len(q) > 2 else np.tile(q[-1] - q[0], (len(q), 1))
+        tan.append(d / np.maximum(np.hypot(*d.T)[:, None], 1e-9))
+    tan = np.concatenate(tan)
+    if len(P) < 2: return []
+    pr = cKDTree(P).query_pairs(r=float(np.percentile(rad, 98) * 2 + 2), output_type='ndarray')
+    if not len(pr): return []
+    a, b = pr[:, 0], pr[:, 1]
+    keep = (own[a] != own[b]) & (np.hypot(*(P[a] - P[b]).T) <= rad[a] + rad[b] + 1.0) & (np.abs(np.sum(tan[a] * tan[b], 1)) < min_cos)
+    a, b = a[keep], b[keep]
+    best = {}                                                    # one crossing per fibre pair per place: keep the closest sample pair
+    for k in range(len(a)):
+        i, j = own[a[k]], own[b[k]]
+        key = (i, j, loc[a[k]] // 6, loc[b[k]] // 6)
+        d = float(np.hypot(*(P[a[k]] - P[b[k]])))
+        if key not in best or d < best[key][0]: best[key] = (d, int(loc[a[k]]), int(loc[b[k]]))
+    return [(i, si, j, sj) for (i, j, _, __), (d, si, sj) in best.items()]
+
+
+def weave_heights(curves, radii, zmax_px, step_px=1.0):
+    """z (px, up from the floor) per sample: the resting prior, lifted LOCALLY where the fibre passes over another.
+
+    Two things a real weave will not allow, both learned the hard way here:
+      · a fibre that crosses over one neighbour and under the next cannot be at ONE height — carrying the lift along
+        the whole curve turns a weave into a stack (125 µm mean lift, everything against the cap). Each crossing
+        therefore contributes a BUMP centred on it, as wide as the bend a tube of that size would make.
+      · a weave has CYCLES (A over B over C over A) — that is what weaving is — so no globally consistent height
+        exists at all. Chaining the lift off the other fibre's current height diverges on every cycle (184 µm, all
+        capped). Each lift is measured off the lower fibre's RESTING height instead, so it stays local and bounded:
+        the highest a tube can go is 2 r_low + r_high, and every crossing reads correctly on its own.
+    """
+    med = lambda v: float(np.median(v)) if len(v) else 1.0
+    rel = [c['val'] / max(med(c['val']), 1e-6) for c in curves]          # brightness against the fibre's own body
+    wrel = [r / max(med(r), 1e-6) for r in radii]
+    base = [r.astype(np.float64) for r in radii]                         # resting: the tube sits on the floor
+    z = [b.copy() for b in base]
+    conf = [np.zeros(len(r)) for r in radii]
+    order = []
+    for (i, si, j, sj) in crossings(curves, radii):
+        sc = (rel[i][si] - rel[j][sj]) + 0.5 * (wrel[i][si] - wrel[j][sj])
+        hi, lo, shi, slo = (i, j, si, sj) if sc >= 0 else (j, i, sj, si)
+        c = float(np.tanh(abs(sc) / 0.15))
+        order.append((hi, shi, lo, slo, c))
+        conf[hi][shi] = max(conf[hi][shi], c); conf[lo][slo] = max(conf[lo][slo], c)
+    order = sorted(order, key=lambda o: -o[4])
+    arc = [np.arange(len(b), dtype=np.float64) * step_px for b in base]
+    bump = []                                                            # (fibre, sample, gaussian over its arclength)
+    for (hi, shi, lo, slo, c) in order:
+        w = max(1.0 * (radii[hi][shi] + radii[lo][slo]), 1.5 * step_px)
+        bump.append((np.exp(-0.5 * ((arc[hi] - arc[hi][shi]) / w) ** 2),
+                     np.exp(-0.5 * ((arc[lo] - arc[lo][slo]) / w) ** 2)))
+    # The lift is measured off the RESTING heights and weighted by how sure the crossing was, so a confident
+    # crossing wins the texel from an unsure one; six damped rounds let a tube that is itself ridden over settle
+    # under its neighbour. A weave has cycles — A over B over C over A is what weaving IS — so no single-valued
+    # height field can satisfy every crossing, and the residual is reported rather than hidden.
+    for _ in range(6):
+        nz = [b.copy() for b in base]
+        for (hi, shi, lo, slo, c), (ghi, glo) in zip(order, bump):
+            gap = z[hi][shi] - z[lo][slo] - radii[lo][slo] - radii[hi][shi]
+            up = (max(0.0, -gap) * 0.6 + max(0.0, base[lo][slo] + radii[lo][slo] + radii[hi][shi] - base[hi][shi])) * c
+            if up > 0: np.maximum(nz[hi], base[hi] + up * ghi, out=nz[hi])
+        z = [np.minimum(q, zmax_px) for q in nz]
+    z = [np.minimum(q, zmax_px) for q in z]
+    clear = [z[hi][shi] - z[lo][slo] - radii[lo][slo] - radii[hi][shi] for (hi, shi, lo, slo, _) in order]
+    above = [z[hi][shi] > z[lo][slo] for (hi, shi, lo, slo, _) in order]
+    return z, conf, order, (np.array(clear) if clear else np.zeros(0)), (np.array(above) if above else np.zeros(0, bool))
+
+
 def payload_curve(path, step_px, sample, width_map, extra=None):
     """resample a pixel path every step_px, smooth it, and read the 1-D payloads there"""
     p = path[:, ::-1].astype(np.float64)                                   # (x, y)
@@ -301,6 +390,14 @@ def main():
     n_raw = (len(sfp), len(svp)); sfp = [q for q in sfp if tissue_like(q)]; svp = [q for q in svp if tissue_like(q)]
     print(f'sheet fine curves kept {len(sfp)}/{n_raw[0]} fibres, {len(svp)}/{n_raw[1]} veins (the rest reads as grain)')
     sfib = [payload_curve(p, step, fine, sfS * 1.3) for p in sfp]; svein = [payload_curve(p, step, fine, svS * 1.2) for p in svp]
+    # ---- 2b. Z1 (§32): the deck's weave — tube radius from the traced width, height from the crossing order
+    fib_r = [np.maximum(c['w'] * FIB_R_K, 0.6) for c in fibres]                     # px; the traced ridge width is the measurement
+    fib_z, fib_zc, weave, clr, abv = weave_heights(fibres, fib_r, Z_MAX_MM * 1000.0 / UM, step_px=step)
+    if weave:
+        lift = np.concatenate([(z - r) for z, r in zip(fib_z, fib_r)]) * UM
+        print(f'weave: {len(weave)} crossings over {len(fibres)} fibres · lift mean {lift.mean():.1f} µm, p95 {np.percentile(lift, 95):.1f} µm, '
+              f'max {lift.max():.1f} µm · decided with confidence > 0.5 at {100 * np.mean([c > 0.5 for *_, c in weave]):.0f} % of them · '
+              f'order right at {100 * abv.mean():.0f} % of crossings, fully clear at {100 * np.mean(clr >= 0):.0f} %')
     nf, ng = sum(len(c['xy']) for c in fibres), sum(len(c['xy']) for c in guides)
     print(f'{len(fibres)} deck fibres ({nf} payload samples) · {len(guides)} sheet guides ({ng} samples)')
 
@@ -410,12 +507,17 @@ def main():
         r3 = lambda a_: [[round(float(v), 4) for v in row] for row in a_]; r1 = lambda a_, d=4: [round(float(v), d) for v in a_]
         def curve(c, **kw): return dict(xy=r3(fitxy(c['xy'])), w=r1(c['w'] * MM, 5), **kw)
         ex = {'ref': '26-green-crypts-isolated.jpg', 'fit': [1280, 925], 'grade': {'chroma': G, 'hue': ROT},
+              'z': {'model': 'weave', 'rK': FIB_R_K, 'zMaxMm': Z_MAX_MM, 'provenance': {'r': 'measured', 'z': 'inferred'}},
               'mm': {'wall': WALL * MM, 'rimW': RIM_W * MM, 'rimOff': 5.0 * MM, 'pit': [14 * MM, 26 * MM], 'bodyBlur': 2.5 * MM, 'guideColBlur': 3.0 * MM, 'depth': 0.01},
               'outlines': [], 'fibres': [], 'veins': [], 'guides': [], 'sfib': [], 'svein': []}
         for i_, (o, a_) in enumerate(zip(outlines, rim_strength)):
             ex['outlines'].append({'xy': r3(fitxy(o)), 'rim': r1(a_), 'island': i_ >= len(outlines) - len(islands)})
-        for c in fibres:
-            ch = np.stack([c['cr'], c['cg'], c['cb']], 1); ex['fibres'].append(curve(c, rgb=r3(graded(ch * c['val'][:, None]))))
+        for i_, c in enumerate(fibres):
+            ch = np.stack([c['cr'], c['cg'], c['cb']], 1)
+            # Z1 (§32): r = the measured tube radius, z = its centre above the floor of its hole, zc = how sure the
+            # crossing order was there. Provenance: r measured, z inferred.
+            ex['fibres'].append(curve(c, rgb=r3(graded(ch * c['val'][:, None])),
+                                      r=r1(fib_r[i_] * MM, 5), z=r1(fib_z[i_] * MM, 5), zc=r1(fib_zc[i_], 3)))
         # relative payloads also carry the photo-space luminance they are relative TO: the engine's camera is not linear, so a
         # ratio has to be converted through it (albedo(base × ratio) / albedo(base)), not copied
         def rdl(c, img): q = c['xy']; return r1(cv2.remap(img.astype(np.float32), q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0], 5)
@@ -475,6 +577,27 @@ def main():
     for c in guides: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 0, 255), 1, cv2.LINE_AA)
     for c in veins: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (0, 0, 255), 1, cv2.LINE_AA)
     cv2.imwrite(os.path.join(OUT, TAG + '-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) veins (red) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
+
+    # ---- Z1 (§32): the weave, drawn — every fibre coloured by the height of its centre above the floor, every
+    # crossing marked with the side the evidence came down on (a filled dot on the fibre in front)
+    zv = np.concatenate(fib_z) * UM
+    zlo, zhi = float(np.percentile(zv, 2)), float(max(np.percentile(zv, 98), np.percentile(zv, 2) + 1))
+    hv = (0.5 * photo).astype(np.uint8)
+    seg = sorted(((float(z.mean()), i) for i, z in enumerate(fib_z)))                     # deepest drawn first
+    for _, i in seg:
+        q, z = fibres[i]['xy'], fib_z[i] * UM
+        for a_ in range(len(q) - 1):
+            t = float(np.clip((0.5 * (z[a_] + z[a_ + 1]) - zlo) / (zhi - zlo), 0, 1))
+            col = cv2.applyColorMap(np.uint8([[t * 255]]), cv2.COLORMAP_TURBO)[0, 0]
+            cv2.line(hv, tuple(q[a_].round().astype(int)), tuple(q[a_ + 1].round().astype(int)),
+                     (int(col[0]), int(col[1]), int(col[2])), max(1, int(round(fib_r[i][a_] * 1.2))), cv2.LINE_AA)
+    for (hi, shi, lo, slo, c) in weave:
+        if c < 0.35: continue
+        cv2.circle(hv, tuple(fibres[hi]['xy'][shi].round().astype(int)), 2, (255, 255, 255), -1, cv2.LINE_AA)
+    bar = np.zeros((16, hv.shape[1], 3), np.uint8)
+    bar[:] = cv2.applyColorMap(np.tile(np.linspace(0, 255, hv.shape[1]).astype(np.uint8), (16, 1)), cv2.COLORMAP_TURBO)
+    hv = np.vstack([tag(hv, f'Z1 weave: fibre centre height {zlo:.0f}-{zhi:.0f} um above the floor (turbo); white dot = the fibre in front at a crossing'), bar])
+    cv2.imwrite(os.path.join(OUT, TAG + '-heights.jpg'), hv, [cv2.IMWRITE_JPEG_QUALITY, 92])
 
 
 if __name__ == '__main__':

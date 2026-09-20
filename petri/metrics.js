@@ -41,12 +41,15 @@ export function centroid(m, n) {
   return c ? [x / c + 0.5, y / c + 0.5, c] : [n / 2, n / 2, 0];
 }
 
-/** Box-counting dimension. Protocol: boxes of 2,4,8,… up to n/8 (the largest scale where a cluster
- *  spanning half the dish still has several boxes across); least squares on log N vs log(1/s); R²
- *  returned so a bad fit can be rejected instead of quoted. */
-export function boxDimension(m, n) {
+/** Box-counting dimension. Protocol: boxes from 2 cells up to a QUARTER of the cluster's own radius.
+ *  The upper limit matters: letting boxes approach the cluster size drags the slope toward the
+ *  embedding dimension and flattens away the very differences being measured (measured — with boxes
+ *  up to n/8 an eta sweep whose fill fell 0.97 -> 0.28 read a box dimension of 1.84 throughout).
+ *  Least squares on log N vs log(1/s); R² returned so a bad fit can be rejected instead of quoted. */
+export function boxDimension(m, n, maxBox = 0) {
+  const cap = maxBox > 0 ? Math.max(4, maxBox) : n / 8;
   const xs = [], ys = [];
-  for (let s = 2; s <= n / 8; s *= 2) {
+  for (let s = 2; s <= cap; s *= 2) {
     const g = n / s;
     const hit = new Uint8Array(g * g);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (m[j * n + i]) hit[((j / s) | 0) * g + ((i / s) | 0)] = 1;
@@ -205,7 +208,7 @@ export function describe(cells, n, slot = 0, cellMm = 1, densChans = null) {
   if (!a) return { area: 0 };
   const f = front(m, n);
   const rp = radialProfile(m, n);
-  const box = boxDimension(m, n), mr = massRadiusDimension(m, n);
+  const box = boxDimension(m, n, Math.floor(f.mean / 4)), mr = massRadiusDimension(m, n);
   const disc = Math.PI * f.mean * f.mean;
   const out = {
     area: a, area_mm2: a * cellMm * cellMm,

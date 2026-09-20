@@ -73,6 +73,12 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
   needs substrate substepping (its own pass) before its morphology can be trusted.
 - The continuous kernels (COLONY, BIOFILM, GRAYSCOTT, EXCITABLE) are still calibrated at normal and
   their pattern scale follows the grid.
+- **What is and is not resolution-invariant, measured.** The box dimension now agrees across tiers
+  (draft 1.744 / normal 1.722). Fill fraction and front speed do NOT: the absorbing boundary layer
+  around a growing cluster is ~0.023 mm, i.e. 0.25 cells at draft and 0.5 at normal, so it is
+  unresolved at every tier the engine has, and the nutrient a front cell samples depends on the cell
+  size. Making absorption physical means a much weaker rate and a different regime — an open item.
+  `resolutionInvariance` asserts only the box dimension and reports the other two as diagnostics.
 - Time is "steps"; the status bar prints one step as one second. Relative speeds are ordered sensibly (Physarum > molds > bacteria) but not calibrated to mm/h.
 - No timestamp-query timing yet (wall clock around `onSubmittedWorkDone`), no `versions/` archive yet.
 
@@ -106,7 +112,8 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
 
 1. **P2, on the revised plan** — the vein graph G route (see the gate above), not the continuum hybrid.
    Start with skeleton→graph extraction in a worker, since T2 needs the same code.
-2. P1 remainder, still open: **substrate substepping** so `fine` is trustworthy (top item); brick pool +
+2. P1 remainder, still open: **substrate substepping** so `fine` is trustworthy, and **physical
+   absorption** so fill and front speed become tier-invariant too (both top items); brick pool +
    allocator; agent spatial sort (measured 4–7x, only matters above ~1M agents, and it needs a stable
    per-agent id because the power-of-two division scheme is position-based); packed 12-byte contract.
 3. T2 — morphometrics against SMGR once the data is approved (`ref/DATA-PLAN.md`).

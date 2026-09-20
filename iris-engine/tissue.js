@@ -73,7 +73,7 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_outA, u_outB, u_cellS, u_cellG, u_fill;
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -92,7 +92,17 @@
             for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); fib += w * texture(u_fibA, c + vec2(float(i), float(j)) * px * 2.5).rgb; wsum += w; }
             fib /= wsum;
             vec4 fB = texture(u_fibB, c), vB = texture(u_veinB, c);
-            float roundness = 0.78 + 0.22 * sqrt(clamp(1.0 - pow(fB.r / max(u_fibRK * fB.g, 0.014), 2.0), 0.0, 1.0));
+            // Z3 (§32) de-lighting. The roundness term is SYNTHETIC cross-fibre shading: the payload is 1-D, read along the
+            // centreline, so the fall-off across a tube was never measured and the old model painted it on. Now that
+            // the deck has real height the renderer shades the dome itself, from the normals of the baked surface —
+            // two copies of the same cosine. u_delight fades the painted one out so the geometric one is the only
+            // one left: the same picture head-on, but one that re-lights, because it is geometry and not paint.
+            // Dividing by the dome's ANALYTIC cosine as well — the textbook de-lighting — was tried and is badly
+            // wrong here: −6.2 MATCH2 at deckZ 0.35, strandCorr halved. The renderer's real response to this relief
+            // is far weaker than the analytic cosine (a coaxial key hardly cares about tilt, §30.1, and the normal is
+            // taken from a mipped height field), so the division over-brightens every tube edge into a halo. Measuring
+            // that response instead of assuming it needs the region and the render at one scale — that is T2a.
+            float roundness = mix(0.78 + 0.22 * sqrt(clamp(1.0 - pow(fB.r / max(u_fibRK * fB.g, 0.014), 2.0), 0.0, 1.0)), 1.0, u_delight);
             float vein = (1.0 - texture(u_veinA, c).r) * exp(-0.5 * pow(vB.r / max(vB.g, 0.0056), 2.0)) * vB.a;
             float prof = (1.0 - sstep(u_pit0, u_pit1, fB.r)) * fB.a;        // no fibre within ≈ 0.1 mm: a true pit, the ground shows
             vec3 hole = mix(cg.rgb, fib * roundness * (1.0 - vein), prof);
@@ -117,7 +127,10 @@
             float rr = u_fibRK * fB.g;
             float dome = sqrt(max(0.0, rr * rr - fB.r * fB.r));
             float zDeck = (texture(u_fibA, c).a + dome) * u_deckZ * prof;
-            o_aux = vec4(mix(-u_depth - u_deckH + zDeck, 0.0, cover), 0.0, 0.0, mask);
+            // the RELIEF's wall may be wider than the colour's: the colour edge of a hole is sharp in the photo, but
+            // a 100 µm drop over a 23 µm wall is an 80° cliff, and §30.1 warns what a cliff does under a coaxial key
+            float coverZ = 1.0 - sstep(-u_wallZ, u_wallZ, sd);
+            o_aux = vec4(mix(-u_depth - u_deckH + zDeck, 0.0, coverZ), 0.0, 0.0, mask);
         }`;
 
     // K1 (§32): the origin — the fitted atlas's material, packed the moment the layer model is switched on. The knobs
@@ -214,16 +227,22 @@
         gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_tissueAux'), 11);
         gl.uniform4f(gl.getUniformLocation(prog, 'u_tissueRect'), T.rect[0], T.rect[1], T.rect[2], T.rect[3]);
         gl.uniform1f(gl.getUniformLocation(prog, 'u_tissueLod'), T.lodBias);
-        // K1: the origin and the knobs' distance from it
+        // K1: the origin and the knobs' distance from it. NEVER capture it here — bind() runs inside drawPhotoFrame,
+        // between its useProgram and its draw, and setOrigin bakes the atlas, which walks over far more GL state than
+        // a caller can save. Doing it here quietly corrupted the FIRST render after every load, and since calibrate()
+        // measures the light from exactly that render, the whole eye came out mis-lit: 79.65 MATCH2 against 82.92 for
+        // the same configuration baked a second time. The capture belongs to bake()/calibrate(), outside any draw.
         const [aw, ah] = E.ATLAS;
-        if (!T.origin || T.origin.atlas[0] !== aw || T.origin.atlas[1] !== ah) T.setOrigin();
-        const o = T.origin, S = E.state, u = n => gl.getUniformLocation(prog, n), q = (a, b) => a / Math.max(b, 1e-4);
-        gl.activeTexture(gl.TEXTURE15); gl.bindTexture(gl.TEXTURE_2D, T.o0); gl.uniform1i(u('u_tisO0'), 15);
-        gl.activeTexture(gl.TEXTURE16); gl.bindTexture(gl.TEXTURE_2D, T.o1); gl.uniform1i(u('u_tisO1'), 16);
+        const haveOrigin = !!(T.origin && T.origin.atlas[0] === aw && T.origin.atlas[1] === ah);
+        if (!haveOrigin) T.origin = null;                 // bake() picks this up and captures it properly
+        const o = T.origin || { relief: 1, blRelief: 1, ring: 0, ringR: 0, ringPheo: 0, stromaMax: 1 };
+        const S = E.state, u = n => gl.getUniformLocation(prog, n), q = (a, b) => a / Math.max(b, 1e-4);
+        gl.activeTexture(gl.TEXTURE15); gl.bindTexture(gl.TEXTURE_2D, T.o0 || T.albedo); gl.uniform1i(u('u_tisO0'), 15);
+        gl.activeTexture(gl.TEXTURE16); gl.bindTexture(gl.TEXTURE_2D, T.o1 || T.albedo); gl.uniform1i(u('u_tisO1'), 16);
         gl.uniform1f(u('u_tisReliefK'), q(S.relief, o.relief) * q(S.blRelief === undefined ? 1 : S.blRelief, o.blRelief));
         gl.uniform1f(u('u_oRingStr'), o.ring); gl.uniform1f(u('u_oRingR'), o.ringR);
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
-        gl.uniform1f(u('u_tisK1'), T.k1 === false ? 0 : 1);   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
+        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin) ? 0 : 1);   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
         if (T.full) gl.uniform1f(gl.getUniformLocation(prog, 'u_limbalMilk'), 0.0);   // the old fit's milky limbus answered a rim this model draws itself gl.activeTexture(gl.TEXTURE0);
     };
 
@@ -307,7 +326,7 @@
         T.lodBias = Math.log2((4 / AH) / tau);                     // the photo shader's lod counts atlas texels (4 mm / ATLAS_H out here)
         // outlines: counter-clockwise in tissue mm = hole on the left; islands the other way round
         for (const o of sets.outlines) { const ccw = mmArea(o.uv) > 0; if (ccw === !!o.island) { o.uv.reverse(); o.rim = o.rim.slice().reverse(); o.xy = o.xy.slice().reverse(); } }
-        T.sets = sets; T.cells = cells; T.deckH = undefined;
+        T.sets = sets; T.cells = cells; T.deckH = undefined; T.origin = null;   // a new eye is a new origin
         say(`loaded ${json.ref}: ${tot - lost}/${tot} points on the iris · region u ${T.rect[0].toFixed(4)}+${T.rect[2].toFixed(4)} v ${T.rect[1].toFixed(3)}+${T.rect[3].toFixed(3)} → ${T.size[0]}×${T.size[1]} texels (τ ${(T.tauUsed * 1000).toFixed(1)} µm${T.full ? ', full circle' : ''})`);
         return T;
     };
@@ -335,18 +354,22 @@
 
     // the deck's thickness: how far the tallest tubes stand above the floor (p98 of centre + radius over every fibre
     // sample). The hole's floor is dropped by this, so the deck fills the hole instead of standing out of it.
-    // How much of the anatomical height the front view renders. The geometry is stored anatomical — the probe,
-    // grazing light and the bridges need all of it — but the head-on picture cannot simply take it, because the layer
-    // model's albedo was MEASURED FROM THIS PHOTO and already contains the shading the photo shows; geometric shading
-    // on top of it double-counts. Measured on the whole iris of ref 26 at NORMAL, deckZ 0 / 0.35 / 1:
-    //   MATCH2 79.56 / 81.69 / 81.13 · MATCH 84.19 / 86.49 / 87.44 · grad 0.715 / 0.737 / 0.708
-    //   cellDab 4.63 / 4.39 / 4.35 · strandCorr 0.519 / 0.458 / 0.350
-    // So relief helps the picture — +2.1 MATCH2 — up to about a third of the anatomical height, and past that the
-    // shading starts fighting the albedo's own (grad falls, and strandCorr falls throughout: shading across a fibre
-    // competes with the strand pattern). A single 1 mm crypt window says the opposite, which is why it is the whole
-    // eye that decides. De-lighting the albedo with the inferred geometry, so the reference light reproduces the
-    // photo and any other light is then correct, is what lets this go to 1.0 — Z3.
-    T.deckZ = 0.35;
+    // Z1/Z3 (§32). The deck's height is anatomical and fully rendered, its cross-fibre shading comes from that
+    // geometry rather than from paint, and the RELIEF's hole wall is 2.5× the colour's. The three go together.
+    // Whole iris of ref 26 at NORMAL, each row calibrated with its own geometry — MATCH2 / MATCH / grad / cellDab / strandCorr:
+    //   deckZ 0                     (v0.8 flat)  82.92 / 89.72 / 0.717 / 2.83 / 0.527
+    //   deckZ 0.5, geometric, 2.5×               84.63 / 90.68 / 0.748 / 2.75 / 0.484
+    //   deckZ 1,   geometric, 1×    (sharp wall) 83.72 / 90.98 / 0.722 / 2.65 / 0.358
+    //   deckZ 1,   geometric, 2.5×               85.34 / 91.58 / 0.753 / 2.65 / 0.414   ← here
+    //   deckZ 1,   painted,   2.5×               85.69 / 91.80 / 0.759 / 2.63 / 0.429
+    //   deckZ 1.5, geometric, 2.5×               84.55 / 91.72 / 0.729 / 2.60 / 0.365
+    // Full anatomical height is the best setting, but only once the wall is soft: a 278 µm drop over a 37 µm wall is
+    // an 82° cliff, and §30.1 says what a cliff does under a coaxial key (1× costs 1.6 MATCH2). Keeping the PAINTED
+    // cross-fibre shading is worth a further 0.35 MATCH2, and it is deliberately not taken: paint does not re-light,
+    // and a probe looking along the surface would carry a cosine baked for a camera that is no longer there.
+    // strandCorr is what relief costs (0.527 → 0.414) and it is still open. Dials: deckZ 0 is exactly v0.8 (calibrate
+    // with it set, not after), delight 0 restores the paint, wallZ overrides the relief wall.
+        T.wallZ = undefined;                          // default: 2.5 × the colour wall (set in bake)
     function deckThickness() {
         if (T.deckH !== undefined) return T.deckH;
         const rK = (T.src.z || {}).rK || 1.4, top = [];
@@ -358,6 +381,8 @@
     // ---------------------------------------------------------------- bake the region
     T.bake = function (opts = {}) {
         const pr = programs(), [w, h] = T.size, mm = T.src.mm, grey = opts.grey || 0;
+        const [AW0, AH0] = E.ATLAS;
+        if (!T.origin || T.origin.atlas[0] !== AW0 || T.origin.atlas[1] !== AH0) T.setOrigin();   // outside any draw, where it is safe
         const alb = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], c.z ? c.z[i] : 0]; };   // .a = Z1: the tube's centre height above its floor, mm
         const chroma = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i].map(q => q * 0.25), c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], rel(c, i)]; };
         // a relative payload is converted through the camera: albedo(base × ratio) / albedo(base), in luminance
@@ -418,6 +443,8 @@
         gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? mm.depth : opts.depth);
         const zm = T.src.z || {}, dz = T.deckZ === undefined ? 1 : T.deckZ;
         gl.uniform1f(c.loc('u_fibRK'), zm.rK || 1.4); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
+        gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
+        gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         for (const t of [T.albedo, T.aux]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.generateMipmap(gl.TEXTURE_2D); }

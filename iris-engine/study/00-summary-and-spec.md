@@ -1834,3 +1834,49 @@ is a 1.88 mm cut through it: 68 of 260 samples have a strand over a strand.
 
 One trap: a tube is wide enough that **several of its own segments cover the same texel**, so the first version
 reported one strand as 26 layers. The query keeps one entry per fibre — its closest approach — not one per segment.
+
+### 32.4 Log (2026-09-20): Z3a — de-lighting, a measurement bug, and the corrected Z1 numbers
+
+**The bug first, because it invalidates the two tables above.** K1's `setOrigin()` was being called lazily from
+`IrisTissue.bind()` — which runs *inside* `drawPhotoFrame`, between its `useProgram` and its draw. It saved and
+restored the program, the framebuffer and the viewport, but it also calls `bakeAtlas()`, which walks over far more GL
+state than that. So the **first render after every load was corrupted**, and since `calibrate()` measures the light
+from exactly that render, the whole eye came out mis-lit for the rest of the session. The tell was that the same
+configuration scored 79.65 on a first run and **82.92** baked a second time. The capture now happens at the top of
+`bake()`, outside any draw, and first run and repeat agree exactly.
+
+Every whole-eye number in §32.1 and §32.2 was measured through that bug and is too low. The relative claims survive
+(both sides of each ablation were equally affected, and K1's bit-identity at the origin is unchanged — it is still
+exact), but the **conclusion of §32.2 does not**: on clean data, full anatomical relief is the *best* setting, not a
+third of it. Corrected, whole iris of ref 26 at NORMAL, each row calibrated with its own geometry:
+
+| | MATCH2 | MATCH | grad | cellDab | strandCorr |
+|---|---:|---:|---:|---:|---:|
+| deckZ 0 — v0.8 flat | 82.92 | 89.72 | 0.717 | 2.83 | 0.527 |
+| deckZ 0.5, geometric, wall 2.5× | 84.63 | 90.68 | 0.748 | 2.75 | 0.484 |
+| deckZ 1, geometric, wall 1× | 83.72 | 90.98 | 0.722 | 2.65 | 0.358 |
+| **deckZ 1, geometric, wall 2.5× — shipped** | **85.34** | **91.58** | **0.753** | **2.65** | 0.414 |
+| deckZ 1, painted, wall 2.5× | 85.69 | 91.80 | 0.759 | 2.63 | 0.429 |
+| deckZ 1.5, geometric, wall 2.5× | 84.55 | 91.72 | 0.729 | 2.60 | 0.365 |
+
+**+2.42 MATCH2 and +1.86 MATCH over v0.8, with cellDab improving 2.83 → 2.65** — colour is not being traded.
+
+**What de-lighting turned out to be.** The textbook version — divide the measured albedo by the cosine the renderer is
+about to multiply by — was implemented and is **badly wrong here**: −6.2 MATCH2 at deckZ 0.35, `strandCorr` halved,
+every tube edge blown into a halo. The renderer's real response to this relief is far weaker than the analytic
+cosine, because a coaxial key hardly cares about tilt (§30.1 again) and the normal comes from a mipped height field.
+Assuming the shading instead of measuring it is the mistake; measuring it needs the region and the render at one
+scale, which is **T2a**.
+
+What *is* right, and is what shipped, is smaller and has two parts:
+
+- **The painted cross-fibre shading gives way to the geometry's.** The `roundness` term was synthetic — the payload is
+  1-D, read along the centreline, so the fall-off across a tube was never measured and the old model painted it on.
+  With the deck at full height the renderer shades the dome from the surface itself. Keeping the paint as well is
+  worth 0.35 MATCH2 and is deliberately declined: paint does not re-light, and a probe looking along the surface
+  would carry a cosine baked for a camera that is no longer there.
+- **The relief's hole wall is 2.5× the colour's.** The colour edge of a crypt is sharp in the photo, but a 278 µm drop
+  over a 37 µm wall is an 82° cliff. Softening it is worth **1.6 MATCH2** and is what lets full height pay at all —
+  without it, deckZ 1 scores below deckZ 0.5.
+
+`strandCorr` falls with relief throughout (0.527 → 0.414) and no configuration recovers it. That is the open thread.

@@ -113,6 +113,12 @@ so the fitted eye is exactly the picture it was (MATCH2 79.653, MATCH 84.784, ce
 
 Unchanged rows (pupil, ambient, lid, ev, fstop, focus, grain and the five dead-in-both) stay as the K0 table has them.
 
+> **Correction (same day, §32.4):** the absolute whole-eye numbers quoted here (MATCH2 79.653, MATCH 84.784,
+> cellDab 4.47) were measured through a bug this very change introduced — `setOrigin()` ran inside `drawPhotoFrame`
+> and corrupted the first render after each load, which is the render `calibrate()` measures the light from. The
+> clean value for the same model is **82.92 / 89.72 / 2.83**. The knob ratios and the bit-identity at the origin are
+> unaffected: both sides of every ablation were equally mis-lit, and the origin is still exact.
+
 ## How it works
 
 `uploadFields` in `index.html` already treats every colour gene as a **gain or offset on `genome.fitted`** — that is

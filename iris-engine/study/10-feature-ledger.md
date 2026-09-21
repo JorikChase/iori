@@ -57,7 +57,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | FIELD, LIC / CURVES | `fieldw-btn`, `strand-btn` | ok | ok | ok |
 | ATLAS, MAPS | `atlas-btn`, `maps-btn` | ok | ok + View menu | ok |
 | FIT·COL / FIT·REL / FIT·FLOW blends | `param-blcol/blrel/blflow` | Fit window | Fit window ▸ Fitted ↔ procedural | ok |
-| **Knob origin** — a slider's tick, blue fill and double-click sit at the *fit*, not at the page default (iori, §32 K1) | scrubber `def` | **WRONG** | **WRONG** | `def` is captured once at build time → **P2**: scrubbers re-read their origin on `loadFittedPreset`, `importID`, end of a fit, `IrisTissue.setOrigin` |
+| Knob origin — a slider's notch, blue fill and double-click sit at the *fit*, not at the page default (iori, §32 K1) | scrubber `origin` | **WRONG** (frozen shell, not fixed) | ok (2026-09-21) | the origin is the last value the **engine** wrote without an input event — preset, procedural preset, imported ID, new seed, every `setSlider` of a fit; the hand's own moves are offsets from it. The ruler also redraws after such writes (it used to stay stale until touched). Verified: preset 26 → PIGMENT origin 0, drag to 1.2, double-click → 0; hazel → 0.5. `__irisUI.origins()` reads them |
 
 ## 4. Eye — presets, IDs, capture
 
@@ -90,6 +90,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Marker drag (pupil, limbus, catchlight) | `fitcv` pointer / overlay handles | ok on the canvas | handles on the iris, re-solve on release | changed |
 | Marker resize by **wheel** over a ring | `fitcv` wheel | ok | only while POLAR/HEIGHT shows the canvas; on the iris the wheel zooms | changed — radius handles replace it; study/09 §6 "pinch on a ring" never built → **todo**, low |
 | The scored render shown while a fit runs | overlay `#w31-ov-render` | panel canvas | ok | ok |
+| Empty black 2-D canvas in the Fit window when no photo is loaded | `fitcv` | — | fixed 2026-09-21: shown only for POLAR / HEIGHT, as §7.5 intended (the rule had required the overlay to be on) | ok |
 | Casebook (grid, stats, open a case) | `fit-casebook` → `#casebook`, `cb-*` | ok, old chrome | ok, **old chrome** | **P5**: 3.11 frame for the casebook |
 | Hourglass / busy state during fits | — | — | — | **P5** todo |
 | Audits and oracles (`scaleAudit`, `traceBands`, `bandOracle`, `oracleBench`, `guideCeilingBench`, `reliefTransferBench`, `dumpForGuideTrace`, `bakePresets` …) | `E.fit.*` | console | console | **console** by verdict: research instruments, not features |
@@ -143,7 +144,7 @@ says so in words, and its Load control names the eye it loads — no pretence th
 | Control Panel: font, touch sizing, snap, gaze times, shell switch | — | ok | ok (gained) |
 | About box | — | ok | ok |
 | Keyboard: Alt-menus, F6 next window, arrows on a focused scrubber, Esc closes menus | — | — | **P5** todo |
-| Self-hosted Urbanist (today: Google Fonts on every page view) | — | — | **P5** todo — needs iori's OK to download the woff2 |
+| Self-hosted Urbanist | — | `fonts/urbanist-latin(-ext).woff2` (one variable face 400–700, 28 + 16 KB, SIL OFL in `fonts/OFL.txt`), `@font-face` in ui.css | ok (2026-09-21, iori's OK): no request to Google on a default page view; the other Control Panel fonts still load from Google only when chosen |
 | Real-device pass (phone, tablet) | — | — | **P5** todo |
 | Placeholders `fit-blank1`, `fit-blank2` | left in the hidden panel (design.js removes them only in its own tab layout) | removed by ui31.js (2026-09-21) | **drop** from index.html at the flip |
 | Tab layout of the bare page (`layoutTabs`, `irisTab`) | dead under a shell | dead under a shell | keep: it is the no-shell fallback |
@@ -185,10 +186,10 @@ cornea default: **re-baseline at v91 under the Win98 shell first**, then compare
 |---|---|---|
 | **P0** | `controls.json` + `reach()` — **done 2026-09-21**: first run found `spec-btn`, `fit-blank1/2`; after the fixes `reach()` = `[]` at 1280 × 800 and on a 375 × 812 phone. Re-baseline of `compare()` at v91 — see §9.1 | small |
 | **P1** | CORNEA REFL into the Camera window and the View menu — **done 2026-09-21** (also one word in the frozen `ui.js`) | trivial |
-| **P2** | Scrubber origin follows the fit (tick, fill, double-click) | small |
+| **P2** | Scrubber origin follows the fit (notch, fill, double-click) — **done 2026-09-21** | small |
 | **P3** | hcorr + MATCH2 in Eye ▸ Fitted — **done 2026-09-21** | trivial |
 | **P4** | View ▸ Debug view ▸ named list | small |
-| **P5** | U5: keyboard, hourglass, casebook frame, self-hosted font (after iori's OK), device pass | medium |
+| **P5** | U5: keyboard, hourglass, casebook frame, device pass (self-hosted font **done 2026-09-21**) | medium |
 | **P6** | Brush + knob liveness under the layer model, and the windows saying what is dead | small, measured |
 | **FLIP** | default = 3.11, `?ui=98` remains one version, drop `fit-blank*`; acceptance = `compare()` [] · `reach()` [] · isolated bench 61.6 / 68.3 / 70.5 / 66.4 | — |
 

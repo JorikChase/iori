@@ -75,38 +75,44 @@
 
     // ---------------------------------------------------------------------------------------------------------
     // scrubber around a real <input type=range>: drag the ruler (one ruler width = the whole range), end arrows
-    // step, double-click = the value at build time, tap the number to type. The input stays in the DOM, hidden.
+    // step, double-click = the ORIGIN, tap the number to type. The input stays in the DOM, hidden.
+    // The origin is the last value the ENGINE wrote (spec §32 K1: knobs offset the fit, the tick sits at the fit):
+    // a preset, an imported ID, a new seed, the end of a fit all write sliders without an input event, and every such
+    // write becomes the new origin; only the hand's own moves are offsets from it. sync() notices those writes (the
+    // ruler used to stay stale until touched), so no engine code has to call the shell.
     // ---------------------------------------------------------------------------------------------------------
     const scrubs = [];
     function scrubber(input, label, valEl) {
         const row = h('div', 'w31-scrub', `<span>${label}</span><span class="w31-sbar"><button class="w31-sa" data-d="-1" tabindex="-1">${tri(-1)}</button><span class="w31-sr"><canvas></canvas><i></i></span><button class="w31-sa" data-d="1" tabindex="-1">${tri(1)}</button></span>`);
         const val = valEl || h('span'); val.classList.add('w31-sv'); row.appendChild(val);
         const ruler = row.querySelector('.w31-sr'), cv = row.querySelector('canvas');
-        const min = parseFloat(input.min), max = parseFloat(input.max), step = parseFloat(input.step) || (max - min) / 200, def = parseFloat(input.value);
+        const min = parseFloat(input.min), max = parseFloat(input.max), step = parseFloat(input.step) || (max - min) / 200; let origin = parseFloat(input.value), seen = input.value;
         const ppu = () => (ruler.clientWidth || 150) / Math.max(1e-9, max - min), get = () => parseFloat(input.value);
-        const set = x => { input.value = clamp(Math.round(x / step) * step, min, max); input.dispatchEvent(new Event('input', { bubbles: true })); draw(); };
+        const set = x => { input.value = clamp(Math.round(x / step) * step, min, max); seen = input.value; input.dispatchEvent(new Event('input', { bubbles: true })); draw(); };
+        const sync = () => { if (input.value === seen) return; seen = input.value; origin = parseFloat(seen); draw(); };   // written by the engine, not by this scrubber → the new origin
         function draw() { const w = ruler.clientWidth, hh = ruler.clientHeight, dpr = window.devicePixelRatio || 1; if (!w || !hh) return;   // hidden window: nothing to draw
             if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(hh * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr); cv.style.width = w + 'px'; cv.style.height = hh + 'px'; }
             const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hh); const v = get(), p = ppu(), tick = (max - min) / 40; if (!(p > 0) || !isFinite(p) || !isFinite(v)) return;
-            const x0 = w / 2 + (def - v) * p; c.fillStyle = 'rgba(0,0,128,.2)'; c.fillRect(Math.min(x0, w / 2), 0, Math.abs(x0 - w / 2), hh);
+            const x0 = w / 2 + (origin - v) * p; c.fillStyle = 'rgba(0,0,128,.2)'; c.fillRect(Math.min(x0, w / 2), 0, Math.abs(x0 - w / 2), hh);
             const k0 = Math.ceil((Math.max(min, v - w / 2 / p) - min) / tick - 1e-9), k1 = Math.floor((Math.min(max, v + w / 2 / p) - min) / tick + 1e-9);
-            for (let k = k0; k <= k1; k++) { const x = Math.round(w / 2 + (min + k * tick - v) * p); c.fillStyle = k % 5 === 0 ? '#000' : '#808080'; c.fillRect(x, k % 5 === 0 ? 3 : hh * 0.5, 1, hh); } }
+            for (let k = k0; k <= k1; k++) { const x = Math.round(w / 2 + (min + k * tick - v) * p); c.fillStyle = k % 5 === 0 ? '#000' : '#808080'; c.fillRect(x, k % 5 === 0 ? 3 : hh * 0.5, 1, hh); }
+            if (x0 > -3 && x0 < w + 3) { const xo = Math.round(x0); c.fillStyle = '#000080'; c.beginPath(); c.moveTo(xo - 3, 0); c.lineTo(xo + 4, 0); c.lineTo(xo + 0.5, 4); c.closePath(); c.fill(); c.fillRect(xo, 0, 1, hh); } }   // the origin: a navy notch and line
         let drag = null;
-        ruler.addEventListener('pointerdown', e => { drag = { x: e.clientX, v: get() }; try { ruler.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
+        ruler.addEventListener('pointerdown', e => { sync(); drag = { x: e.clientX, v: get() }; try { ruler.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
         ruler.addEventListener('pointermove', e => { if (drag) set(drag.v - (e.clientX - drag.x) / ppu()); });
         ruler.addEventListener('pointerup', () => drag = null); ruler.addEventListener('pointercancel', () => drag = null);
-        ruler.addEventListener('dblclick', () => set(def));
-        ruler.addEventListener('wheel', e => { set(get() + (e.deltaY > 0 ? -2 : 2) * step); e.preventDefault(); }, { passive: false });
+        ruler.addEventListener('dblclick', () => { sync(); set(origin); });
+        ruler.addEventListener('wheel', e => { sync(); set(get() + (e.deltaY > 0 ? -2 : 2) * step); e.preventDefault(); }, { passive: false });
         row.querySelectorAll('.w31-sa').forEach(b => { let t = null; const go = () => set(get() + step * +b.dataset.d), stop = () => { clearTimeout(t); clearInterval(t); };
-            b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t = setTimeout(() => { t = setInterval(go, 40); }, 350); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop); });
-        val.addEventListener('click', () => { if (row.querySelector('.w31-type')) return; const inp = h('input', 'w31-type'); inp.value = +get().toFixed(4); row.appendChild(inp); inp.focus(); inp.select();   // an overlay: the page rewrites the value span every frame
+            b.addEventListener('pointerdown', e => { e.preventDefault(); sync(); go(); t = setTimeout(() => { t = setInterval(go, 40); }, 350); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop); });
+        val.addEventListener('click', () => { if (row.querySelector('.w31-type')) return; sync(); const inp = h('input', 'w31-type'); inp.value = +get().toFixed(4); row.appendChild(inp); inp.focus(); inp.select();   // an overlay: the page rewrites the value span every frame
             const done = ok => { const x = parseFloat(inp.value); inp.remove(); if (ok && isFinite(x)) set(x); }; inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); }); inp.addEventListener('blur', () => done(true)); });
         input.addEventListener('input', draw); input.style.display = 'none'; row.appendChild(input);
-        row._draw = draw; scrubs.push(row); return row;
+        row._draw = draw; row._sync = sync; Object.defineProperty(row, 'origin', { get: () => origin }); if (input.id) row.dataset.for = input.id; scrubs.push(row); return row;
     }
     function scrubberFor(id) { const input = $('param-' + id); if (!input) return null; const old = input.closest('.slider-row'), label = old ? old.querySelector('.lbl').textContent : id.toUpperCase(), val = old ? old.querySelector('.val') : null;
         const row = scrubber(input, label, val); if (old) { if (old.title) row.title = old.title; old.remove(); } return row; }
-    const drawScrubs = () => scrubs.forEach(r => r._draw());
+    const drawScrubs = () => scrubs.forEach(r => r._draw()), syncScrubs = () => { for (const r of scrubs) r._sync(); };
     const btnRow = ids => { const row = h('div', 'w31-brow'); ids.forEach(id => { const b = typeof id === 'string' ? $(id) : id; if (b) { b.classList.add('w31-b'); b.removeAttribute('style'); row.appendChild(b); } }); return row; };
 
     // ---------------------------------------------------------------------------------------------------------
@@ -229,9 +235,9 @@
     // ---------------------------------------------------------------------------------------------------------
     // fonts (a user setting; Urbanist is iori's default) and the Control Panel
     // ---------------------------------------------------------------------------------------------------------
-    const FONTS = [   // [key, label, family, Google Fonts spec | null = installed, weight of the bold role, smoothed, px]
+    const FONTS = [   // [key, label, family, Google Fonts spec | null = installed or self-hosted (Urbanist: ui.css + fonts/), weight of the bold role, smoothed, px]
         ['3.11 idiom', [['system', 'System stack, aliased', 'Arial, Helvetica, sans-serif', null, 700, false, 12], ['pixelify', 'Pixelify Sans', '"Pixelify Sans"', 'Pixelify+Sans:wght@400;600', 600, false, 13], ['vt323', 'VT323', 'VT323', 'VT323', 400, false, 16]]],
-        ['Geometric, circular', [['urbanist', 'Urbanist', 'Urbanist', 'Urbanist:wght@400;700', 700, true, 13], ['jost', 'Jost', 'Jost', 'Jost:wght@400;600', 600, true, 13], ['poppins', 'Poppins', 'Poppins', 'Poppins:wght@400;600', 600, true, 12], ['outfit', 'Outfit', 'Outfit', 'Outfit:wght@400;600', 600, true, 13], ['questrial', 'Questrial', 'Questrial', 'Questrial', 400, true, 13],
+        ['Geometric, circular', [['urbanist', 'Urbanist', 'Urbanist', null, 700, true, 13], ['jost', 'Jost', 'Jost', 'Jost:wght@400;600', 600, true, 13], ['poppins', 'Poppins', 'Poppins', 'Poppins:wght@400;600', 600, true, 12], ['outfit', 'Outfit', 'Outfit', 'Outfit:wght@400;600', 600, true, 13], ['questrial', 'Questrial', 'Questrial', 'Questrial', 400, true, 13],
             ['quicksand', 'Quicksand', 'Quicksand', 'Quicksand:wght@500;700', 700, true, 13], ['comfortaa', 'Comfortaa', 'Comfortaa', 'Comfortaa:wght@400;700', 700, true, 12], ['varela', 'Varela Round', '"Varela Round"', 'Varela+Round', 400, true, 13], ['nunito', 'Nunito', 'Nunito', 'Nunito:wght@400;700', 700, true, 13]]],
         ['DIN and Roboto', [['barlow', 'Barlow', 'Barlow', 'Barlow:wght@400;600', 600, true, 13], ['barlowsc', 'Barlow Semi Condensed', '"Barlow Semi Condensed"', 'Barlow+Semi+Condensed:wght@400;600', 600, true, 13], ['dinsys', 'DIN Alternate / Bahnschrift (installed)', '"DIN Alternate", Bahnschrift, Barlow, sans-serif', null, 700, true, 13],
             ['roboto', 'Roboto', 'Roboto', 'Roboto:wght@400;500;700', 500, true, 12], ['robotoc', 'Roboto Condensed', '"Roboto Condensed"', 'Roboto+Condensed:wght@400;600', 600, true, 13], ['robotoflex', 'Roboto Flex', '"Roboto Flex"', 'Roboto+Flex:wght@400;600', 600, true, 12], ['robotomono', 'Roboto Mono', '"Roboto Mono"', 'Roboto+Mono:wght@400;600', 600, true, 11], ['robotoslab', 'Roboto Slab', '"Roboto Slab"', 'Roboto+Slab:wght@400;600', 600, true, 12]]],
@@ -318,11 +324,11 @@
     });
     window.addEventListener('resize', relayout);
     let last = performance.now(), fT = last, fN = 0, fps = 0;
-    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
+    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
         const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }
     const up = k => byKey(String(k).toLowerCase());
-    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), sceneShift, WINS, show, tile, cascade, say, menuIds, settings: S };
+    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, settings: S };
 })();

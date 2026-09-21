@@ -143,7 +143,7 @@
                 drawMarks(); }
         }
         paintFitRender(now);
-        document.body.classList.toggle('w31-ovhide', O.mode !== 'off' && (fit.mode || 0) < 4);
+        document.body.classList.toggle('w31-ovhide', (fit.mode || 0) < 4);   // the panel's 2-D canvas is only for the strip views (POLAR, HEIGHT): photo / render / diff live on the iris, and with no photo it was an empty black box
         requestAnimationFrame(tick);
     })(t0);
     window.addEventListener('resize', () => { lastKey = ''; layout(); });

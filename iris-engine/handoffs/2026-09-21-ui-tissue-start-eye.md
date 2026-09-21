@@ -77,6 +77,10 @@ curl -sI https://iori.me/iris-engine/ | grep -i cache-control      # → no-cach
 
 ## 5. Where to pick it up
 
+**Superseded the same evening by `study/11-plan-every-eye-a-layer-model.md`** — iori's decisions (the Load button
+always measures, T7 moves up for variation, Cmd + S session files, every eye a layer model, the fitter on the site) and
+the detailed order: S3 → T7 / S5 → SAVE → G1 → G4 → G2 → G3 → S4 → T8 → T6. The table below is the state before it.
+
 | # | next | first step |
 |---|---|---|
 | **S0** | the phone's Help ▸ Load timing screenshot (iPad done: 11.9 s at CAPTURE) | ask iori |

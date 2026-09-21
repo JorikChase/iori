@@ -2,7 +2,8 @@
 // so that a UI change can be proved harmless — run it before and after, the two results must be identical
 // (compare.py). It never saves: runBench runs with { save: false } and nothing is POSTed.
 //
-// Run it in the page (Browser pane console / javascript_tool), on a dev server of your own:
+// Open the page with ?start=off (study/10 S1: otherwise the start eye loads eye 26's layer model in the background and
+// the page is not the baseline's). Run it in the page (Browser pane console / javascript_tool), on a dev server of your own:
 //     await import('/iris-engine/tools/ui-contract/contract.js'); __uiContract.start({ iters: 20 });
 //     __uiContract.stage      // progress        __uiContract.result   // the JSON when stage === 'done'
 // It reports: (1) every element id fit.js / design.js / index.html look up, (2) the __irisEngine and .fit API

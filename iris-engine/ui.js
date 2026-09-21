@@ -7,7 +7,7 @@
     // This Win98 shell is frozen as a one-version fallback: ?ui=98 selects it and is remembered, ?ui=31 comes back.
     // Nothing new is added here. document.write keeps the script order — after fit.js, before design.js.
     { let sh = null; try { const m = /[?&]ui=(31|98)\b/.exec(location.search); if (m) { sh = m[1]; localStorage.setItem('irisShell', sh); } else sh = localStorage.getItem('irisShell'); } catch (e) {}
-      if (sh !== '98') { document.write('<link rel="stylesheet" href="ui.css"><script src="ui31.js"><\/script>'); return; } }
+      if (sh !== '98') { document.write('<link rel="stylesheet" href="ui.css"><script src="start-eye.js"><\/script><script src="ui31.js"><\/script>'); return; } }
     const $ = id => document.getElementById(id);
     const I = {   // 16 px monochrome glyphs (Win98 palette: black on grey)
         camera: '<path d="M2 5h3l1-2h4l1 2h3v8H2z" fill="none" stroke="#000"/><circle cx="8" cy="9" r="2.5" fill="none" stroke="#000"/>',

@@ -98,16 +98,22 @@
     X.loadLabel = () => X.st === 'loaded' ? 'Re-load eye &26' : X.st === 'other' ? 'Switch to eye &26 and load' : 'Load eye &26';
     X.load = async () => {
         if (X.loading) return; if (!(await available())) { X.st = 'unavailable'; sync(); return; }
-        X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye 26']; U.showWindow('tissue', true); sync();
+        X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye 26']; if (!X.quietOpen) U.showWindow('tissue', true); sync();
+        // study/10 S0: every load records where its time goes (Help ▸ Load timing shows it, on any device)
+        const t0 = performance.now(), tm = { at: new Date().toISOString(), steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
         try {
-            if (!cases) cases = await fetch('ref/cases.json').then(r => r.json());
+            if (!cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
             T.on = false;
             // the case's pose, genome and photo: the layer model is measured on exactly this frame (calibrate reads it)
             await (O ? O.quietly : (f => f()))(async () => {
-                await F.renderCaseThumb(CASE, cases[CASE], document.createElement('canvas'));
-                await T.proof(SRC, { json: T.json, onStage: (i, n, label) => { prog = [i + 1, n + 1, label]; sync(); } });
+                await F.renderCaseThumb(CASE, cases[CASE], document.createElement('canvas')); mark('eye 26: photo + import + first fit render');
+                let st = null; await T.proof(SRC, { json: T.json, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
             });
-            eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); frame(); U.say('Layer model on — eye 26');
+            eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye 26'); }
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); mark('first frames on screen');
+            tm.total = Math.round(performance.now() - t0); delete tm.last;
+            tm.bytes = performance.getEntriesByType('resource').filter(e => /cases\.json|tissue-26|26-green-crypts/.test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
+            X.timing = tm; try { localStorage.setItem('irisLoadTiming', JSON.stringify(tm)); } catch (e) {}
         } catch (e) { X.st = 'error'; q('#w31t-err').textContent = 'The layer model could not be loaded: ' + (e && e.message || e); console.error(e); }
         X.loading = false; mapSig = ''; heights = null; contourKey = ''; sync(); secDraw(); probeDraw(); marks();
     };
@@ -121,6 +127,21 @@
     function frame() {
         if (!fit.W) return; const v = state.view || [0, 0, 1, 1], r = (fit.W / fit.H) / (innerWidth / innerHeight); if (O) O.pose = [v[0], v[1]];
         if (r <= 1) return; const s2 = r * 1.04; state.view = [v[0] + 0.5 - 0.5 * s2, v[1] + 0.5 - 0.5 * s2, s2, s2]; E.resetAccumulation(); }
+    // study/10 §11 S1: the start eye's background load. The display holds the stand-in (the engine pauses its interactive
+    // loop while state.fitting, so the case import — the legacy preset, lavender — is never seen); the window stays
+    // closed; the camera, view and zoom the visitor had are given back, so the eye keeps following the pointer. Skipped
+    // without float render targets (the layer model needs them) or when the browser asks to save data.
+    X.startEye = async () => {
+        const P = window.__irisStartPending; window.__irisStartPending = null; if (!P) return;
+        const conn = navigator.connection; if ((conn && conn.saveData) || !gl.getExtension('EXT_color_buffer_float')) return;
+        if (!(await available())) return;
+        const keep = { useRot: state.useRot, view: (state.view || [0, 0, 1, 1]).slice(), zoom: state.zoomPhoto, camRot: (state.camRot || [0, 0]).slice() };
+        X.quietOpen = true; state.fitting = true;
+        try { await X.load(); }
+        finally { state.fitting = false; X.quietOpen = false; }
+        if (X.st !== 'loaded') return;
+        state.useRot = keep.useRot; state.view = keep.view; state.zoomPhoto = E.target.zoomPhoto = keep.zoom; state.camRot = keep.camRot; state.preset = 'fit-26';
+        E.resetAccumulation(); sync(); marks(); U.say('Eye 26 — its measured tissue'); };
     X.toggle = () => { if (X.st !== 'loaded') return X.load(); T.on = !T.on; E.resetAccumulation(); sync(); marks(); };
     function stats() {
         const S = T.sets || {}, n = k => (S[k] ? (Array.isArray(S[k]) ? S[k].length : 0) : 0);
@@ -289,5 +310,9 @@
     (function tick() { step(); requestAnimationFrame(tick); })(); setInterval(step, 250);
     addEventListener('resize', () => { lastSig = ''; requestAnimationFrame(() => { secDraw(); probeDraw(); }); });
 
+    for (const k of ['fitHQ', 'fitGlobal', 'routedFit', 'runBench', 'benchAll', 'benchIsolated', 'oracleBench', 'bakePresets', 'studyAll', 'fitSplats', 'fitOpenings', 'refineObjects', 'detectStructures']) {
+        const f = F[k]; if (typeof f !== 'function') continue;
+        F[k] = function (...a) { if (T.on && !X.loading) { T.on = false; if (X.st === 'loaded') { X.st = 'other'; sync(); marks(); } U.say('Layer model off — fits run on the procedural model'); } return f.apply(this, a); }; }
     X.st = 'none'; sync(); available().then(ok => { if (!ok && X.st === 'none') { X.st = 'unavailable'; sync(); } });
+    if (window.__irisStartPending) setTimeout(() => X.startEye(), 0);
 })();

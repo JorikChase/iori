@@ -244,5 +244,23 @@ Proposed phases (S = start eye), each measured before the next:
 | S4 | compact primitives (T5): quantised binary, streamed by class | wire size, identical picture (pixel diff) |
 | S5 | 09, 25, 35 through the layer model (T7) → four layer-model start eyes, maybe a random one per visit | per-eye MATCH2 / Δab |
 
+**Decided (iori, 2026-09-21):** eye 26 greets visitors; the growing (S2) only if loading is not instant; S0 and S1 now.
+
+**S0 built** — every layer-model load records its steps and bytes; *Help ▸ Load timing…* shows them with the device's
+facts (screen, DPR, GPU, float targets, threads / memory, network, page timings), for iori to read on the tablet and the
+phone. Dev machine, first measurement: 4.1 s — measuring the shading 2.16 s, the light 0.51 s, case import + first fit
+render 0.26 s, bake 0.12 s; the whole 5 MB `ref/cases.json` is fetched for one case, and the photo is fetched twice.
+Device numbers: pending (after deploy).
+
+**S1 built** — `start-eye.js` (≈ 5 KB, eye 26's globals, collarette and view from the case the model is measured on) is
+applied by ui31.js before the first frame: the instant eye is an olive-green procedural eye in 26's colours, never the
+seed-42 brown (the legacy preset was rejected as the stand-in: 1.3 MB and the lavender cast). tissue-ui.js then loads
+the layer model quietly: display held on the stand-in (`state.fitting` pauses the interactive loop, so the lavender case
+import is never seen), no window, no hourglass, a status line; afterwards the visitor's camera, view and zoom come back
+and the eye follows the pointer. Skipped with `#id=` / `#seed=` links, `?start=off`, data saver, or no float render
+targets. Every fit / bench entry point switches the layer model off first (verified: `fitGlobal` → off before its first
+render). Gates with `?start=off`: isolated bench 61.6 / 68.3 / 70.5 / 66.4, contract `[]`, `reach()` `[]` — **tests
+must open the page with `?start=off` from now on.**
+
 Distinction to keep honest: S2 shows the *loading* of a finished eye in stages; the eye truly growing from a
 photograph under the fitter is T6. Both use the same op journal (G4), so S2's stages can later be T6's replay.

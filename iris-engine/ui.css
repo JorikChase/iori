@@ -195,3 +195,8 @@ body.w31-phone #w31-credit { bottom: auto; top: calc(var(--cap) + 4px); right: 6
 #w31-credits .w31-body { font-weight: 400; line-height: 1.45; } #w31-credits p { margin: 0 0 8px; }
 .w31-cred { border-top: 1px solid var(--dk); padding: 6px 0; } .w31-cred b { font-weight: var(--fw); }
 #w31-credits a, #w31-about a { color: var(--navy); }
+
+/* Help ▸ Load timing (study/10 S0) */
+#w31-timing { position: fixed; inset: 0; z-index: 9500; display: none; place-items: center; } #w31-timing.on { display: grid; }
+#w31-timing-w { position: static; display: block; width: min(460px, calc(100vw - 16px)); } #w31-timing .w31-body { font-weight: 400; line-height: 1.4; max-height: 80vh; overflow-y: auto; } #w31-timing p { margin: 8px 0 4px; } #w31-timing b { font-weight: var(--fw); }
+.w31-tm { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; } .w31-tm th { text-align: left; font-weight: 400; color: #404040; padding: 1px 8px 1px 0; vertical-align: top; white-space: nowrap; } .w31-tm td { padding: 1px 0; word-break: break-word; }

@@ -234,7 +234,7 @@
                 { l: '&Point', run: () => X.go('inspect', 'point'), dis: !X.ready() }, { l: '&Section', run: () => X.go('inspect', 'section'), dis: !X.ready() }, { l: '&Contours', run: () => X.go('inspect', 'contours'), dis: !X.ready() },
                 { l: 'P&robe', run: () => X.go('probe'), dis: !X.ready() }, '-', { l: '&Dials…', run: () => X.go('dials'), dis: !X.ready() }, { l: 'Re-&load', run: () => X.reload(), dis: !X.ready() }]; }],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
-        ['&Help', () => [{ l: '&Photo credits…', run: () => credits() }, '-', { l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
+        ['&Help', () => [{ l: '&Photo credits…', run: () => credits() }, { l: '&Load timing…', run: () => timing() }, '-', { l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
     ];
     function buildChrome() {
         const cap = h('div', '', `<button class="w31-ctl" id="w31-ctl" aria-label="Site menu" title="iori.me · site menu"></button><span class="w31-capt">Iris Engine</span><button class="w31-capb" tabindex="-1" aria-label="Minimize">${DOWN}</button><button class="w31-capb" tabindex="-1" aria-label="Maximize">${UP}</button>`); cap.id = 'w31-cap'; cap.dataset.ui = '1'; document.body.appendChild(cap);
@@ -331,6 +331,19 @@
             refs.map(r => `<div class="w31-cred"><b>Eye ${r.file.slice(0, 2)}</b> · ${esc(r.colour)} — ${esc(r.note.replace(/^isolated iris on black,\s*/i, ''))}<br><a href="${esc(r.source)}" target="_blank" rel="noopener">${esc(title(r))}</a> by ${esc(r.author)}, ${lic(r)}, via Wikimedia Commons · resized</div>`).join('') +
             `<div style="text-align:right;margin-top:8px"><button class="w31-b def" data-close style="min-width:70px">OK</button></div>`;
         d.classList.add('on'); }
+    // study/10 S0: what this device is and where the last load's time went — the numbers the start eye is designed from.
+    // Opened on the tablet / phone after a Tissue load (or the start eye's own load) and sent back as a screenshot.
+    function timing() {
+        const gl = E.gl, dbg = gl.getExtension('WEBGL_debug_renderer_info'), ext = n => !!gl.getExtension(n), nav = performance.getEntriesByType('navigation')[0] || {};
+        let tm = window.__irisTissueUI && window.__irisTissueUI.timing; if (!tm) try { tm = JSON.parse(localStorage.getItem('irisLoadTiming') || 'null'); } catch (e) {}
+        const dev = [['screen', `${innerWidth} × ${innerHeight} css px · DPR ${devicePixelRatio} · canvas ${E.canvas.width} × ${E.canvas.height}`], ['GPU', dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)],
+            ['float targets', `${ext('EXT_color_buffer_float') ? 'yes' : 'NO'} · float linear ${ext('OES_texture_float_linear') ? 'yes' : 'no'} · max texture ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}`],
+            ['CPU / memory', `${navigator.hardwareConcurrency || '?'} threads · ${navigator.deviceMemory ? navigator.deviceMemory + ' GB' : '? GB'}${navigator.connection ? ' · net ' + navigator.connection.effectiveType : ''}`],
+            ['page', `HTML ${Math.round(nav.responseEnd || 0)} ms · ready ${Math.round(nav.domContentLoadedEventEnd || 0)} ms · loaded ${Math.round(nav.loadEventEnd || 0)} ms · quality ${E.quality}`]];
+        const kb = b => b ? (b / 1024 >= 1024 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB') : 'cache';
+        const body = `<table class="w31-tm">${dev.map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join('')}</table>` + (tm ? `<p><b>Last layer-model load</b> · ${esc(tm.at.replace('T', ' ').slice(0, 19))} · <b>${(tm.total / 1000).toFixed(1)} s</b></p><table class="w31-tm">${tm.steps.map(([k, ms]) => `<tr><th>${esc(k)}</th><td>${ms} ms</td></tr>`).join('')}${(tm.bytes || []).map(b => `<tr><th>↓ ${esc(b[0])}</th><td>${kb(b[1])} over the wire · ${kb(b[3])} · ${b[4]} ms</td></tr>`).join('')}</table>` : '<p>No layer-model load yet on this device — Tissue ▸ Load eye 26, then open this again.</p>');
+        let d = $('w31-timing'); if (!d) { d = h('div', '', `<div class="w31 active" id="w31-timing-w"><div class="w31-in"><div class="w31-cap"><button class="w31-ctl" data-close></button><span class="w31-capt">Load timing</span></div><div class="w31-body"></div></div></div>`); d.id = 'w31-timing'; d.dataset.ui = '1'; document.body.appendChild(d); d.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === d) d.classList.remove('on'); }); }
+        d.querySelector('.w31-body').innerHTML = body + `<div style="text-align:right;margin-top:8px"><button class="w31-b def" data-close style="min-width:70px">OK</button></div>`; d.classList.add('on'); }
     const credit = h('a', '', ''); credit.id = 'w31-credit'; credit.href = '#'; credit.dataset.ui = '1'; document.body.appendChild(credit); credit.onclick = e => { e.preventDefault(); credits(); };
     let creditKey = null;
     function markCredit() {
@@ -377,7 +390,7 @@
         c.beginPath(); c.moveTo(9.5, 5); c.lineTo(9.5, 9); c.lineTo(15, 16); c.lineTo(9.5, 23); c.lineTo(9.5, 27); c.lineTo(22.5, 27); c.lineTo(22.5, 23); c.lineTo(17, 16); c.lineTo(22.5, 9); c.lineTo(22.5, 5); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.stroke();
         c.fillStyle = '#808000'; c.beginPath(); c.moveTo(12, 9); c.lineTo(20, 9); c.lineTo(16, 14); c.closePath(); c.fill(); c.beginPath(); c.moveTo(11, 26); c.lineTo(21, 26); c.lineTo(16, 20); c.closePath(); c.fill(); c.fillRect(15.5, 14, 1, 7);
         quantise(c, n); return `url(${cv.toDataURL()}) 16 16, wait`; }
-    function markBusy() { const F = E.fit, f = F && F.fit, st = E.state, busy = !!(st.fitting || st.capturing || (f && (f.running || f.benchRunning)) || (window.__irisTissueUI && window.__irisTissueUI.loading));
+    function markBusy() { const F = E.fit, f = F && F.fit, st = E.state, busy = !!(st.fitting || st.capturing || (f && (f.running || f.benchRunning)) || (window.__irisTissueUI && window.__irisTissueUI.loading && !window.__irisTissueUI.quietOpen));
         if (busy === busyWas) return busy; busyWas = busy; if (!hourglass) hourglass = hourglassCursor();
         document.body.style.setProperty('--busy-cursor', hourglass); document.body.classList.toggle('w31-busy', busy); return busy; }
 
@@ -430,6 +443,13 @@
     // ---------------------------------------------------------------------------------------------------------
     // build (synchronously, where ui.js used to), then finish on load
     // ---------------------------------------------------------------------------------------------------------
+    // study/10 §11 S1 — the start eye: before the first frame, the procedural engine takes eye 26's own colours,
+    // collarette and pose (start-eye.js, ≈ 5 KB), so nobody meets the plain seed-42 brown; tissue-ui.js then loads the
+    // layer model in the background. Not when the URL carries an eye, not with ?start=off (tests and benches use it).
+    const START = window.__irisStartEye, startOn = !!START && !/[?&]start=off\b/.test(location.search) && !/(^|[#&])(id|seed)=/.test(location.hash.slice(1));
+    if (startOn) { try { const g = E.genomeFromSeed(START.seed); Object.assign(g.globals, START.globals); g.coll = START.coll; delete g.fitted;
+        E.importID({ v: 2, genome: g, fields: {}, view: START.view }); E.state.useRot = false; E.state.view = [0, 0, 1, 1]; E.state.preset = 'start-26'; E.atlas.dirty = true; E.resetAccumulation();
+        window.__irisStartPending = { file: START.file, zoom: E.state.zoomPhoto }; } catch (e) { console.warn('start eye', e); } }
     document.body.classList.add('w31-shell');
     buildChrome(); WINS.forEach(makeWin); buildControl(byKey('control'));
     const panel = $('ui-panel'); if (panel) panel.style.display = 'none';
@@ -444,10 +464,10 @@
     setInterval(() => { markBusy(); markLiveness(); markCredit(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return
     let last = performance.now(), fT = last, fN = 0, fps = 0;
     (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); markCredit(); const busy = markBusy(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
-        const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : window.__irisTissueUI && window.__irisTissueUI.loading ? 'Loading the layer model' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
+        const st = $('w31-status'); if (st) { const TX = window.__irisTissueUI, t = flashT > 0 ? flash : TX && TX.loading && TX.quietOpen ? `Eye 26 · growing its tissue…  ·  ${String(E.quality).toUpperCase()}` : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : window.__irisTissueUI && window.__irisTissueUI.loading ? 'Loading the layer model' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }
     const up = k => byKey(String(k).toLowerCase());
-    window.__irisUI = { shell: '3.11', credits: () => credits(), showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, setDebug, DEBUG_VIEWS, TISSUE_LIVE, markLiveness, settings: S };
+    window.__irisUI = { shell: '3.11', credits: () => credits(), timing: () => timing(), showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, setDebug, DEBUG_VIEWS, TISSUE_LIVE, markLiveness, settings: S };
 })();

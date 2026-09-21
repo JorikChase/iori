@@ -57,6 +57,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | FIELD, LIC / CURVES | `fieldw-btn`, `strand-btn` | ok | ok | ok |
 | ATLAS, MAPS | `atlas-btn`, `maps-btn` | ok | ok + View menu | ok |
 | FIT·COL / FIT·REL / FIT·FLOW blends | `param-blcol/blrel/blflow` | Fit window | Fit window ▸ Fitted ↔ procedural | ok |
+| Slider drag and layout (iori, 2026-09-21) | `scrubber()` in ui31.js | — | the whole range is always 200 px of drag, on any window (the ruler drawn at that scale, so the ticks follow the finger); pulling away from the ruler slows it to ½ · ¼ · ⅛ with a hint, desktop and touch alike; with touch sizing the slider is two lines — label + value above, the ruler with its big arrows across the row — so the ruler went from 42 px to 192 px in the Material window | ok — measured: 50 px of drag = 25 % of the range, 12.6 / 6.2 / 3.2 % slowed |
 | Knob origin — a slider's notch, blue fill and double-click sit at the *fit*, not at the page default (iori, §32 K1) | scrubber `origin` | **WRONG** (frozen shell, not fixed) | ok (2026-09-21) | the origin is the last value the **engine** wrote without an input event — preset, procedural preset, imported ID, new seed, every `setSlider` of a fit; the hand's own moves are offsets from it. The ruler also redraws after such writes (it used to stay stale until touched). Verified: preset 26 → PIGMENT origin 0, drag to 1.2, double-click → 0; hazel → 0.5. `__irisUI.origins()` reads them |
 
 ## 4. Eye — presets, IDs, capture

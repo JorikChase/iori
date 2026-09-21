@@ -92,7 +92,11 @@
         const val = valEl || h('span'); val.classList.add('w31-sv'); row.appendChild(val);
         const ruler = row.querySelector('.w31-sr'), cv = row.querySelector('canvas');
         const min = parseFloat(input.min), max = parseFloat(input.max), step = parseFloat(input.step) || (max - min) / 200; let origin = parseFloat(input.value), seen = input.value;
-        const ppu = () => (ruler.clientWidth || 150) / Math.max(1e-9, max - min), get = () => parseFloat(input.value);
+        // the drag's sensitivity no longer depends on how long the ruler is (iori, 2026-09-21): the whole range is always
+        // FULL_PX of drag, on any window and any device, and the ruler is drawn at the same scale, so the ticks move exactly
+        // with the finger — a short ruler shows a window onto the range and scrolls. Pulling away from the ruler while
+        // dragging slows it: ½ · ¼ · ⅛ (the ticks then move at that fraction of the finger), as Apple's scrubbing does.
+        const FULL_PX = 200, ppu = () => FULL_PX / Math.max(1e-9, max - min), get = () => parseFloat(input.value);
         const set = x => { input.value = clamp(Math.round(x / step) * step, min, max); seen = input.value; input.dispatchEvent(new Event('input', { bubbles: true })); draw(); };
         const sync = () => { if (input.value === seen) return; seen = input.value; origin = parseFloat(seen); draw(); };   // written by the engine, not by this scrubber → the new origin
         function draw() { const w = ruler.clientWidth, hh = ruler.clientHeight, dpr = window.devicePixelRatio || 1; if (!w || !hh) return;   // hidden window: nothing to draw
@@ -103,9 +107,15 @@
             for (let k = k0; k <= k1; k++) { const x = Math.round(w / 2 + (min + k * tick - v) * p); c.fillStyle = k % 5 === 0 ? '#000' : '#808080'; c.fillRect(x, k % 5 === 0 ? 3 : hh * 0.5, 1, hh); }
             if (x0 > -3 && x0 < w + 3) { const xo = Math.round(x0); c.fillStyle = '#000080'; c.beginPath(); c.moveTo(xo - 3, 0); c.lineTo(xo + 4, 0); c.lineTo(xo + 0.5, 4); c.closePath(); c.fill(); c.fillRect(xo, 0, 1, hh); } }   // the origin: a navy notch and line
         let drag = null;
-        ruler.addEventListener('pointerdown', e => { sync(); drag = { x: e.clientX, v: get() }; try { ruler.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
-        ruler.addEventListener('pointermove', e => { if (drag) set(drag.v - (e.clientX - drag.x) / ppu()); });
-        ruler.addEventListener('pointerup', () => drag = null); ruler.addEventListener('pointercancel', () => drag = null);
+        const SPEEDS = [[0, 1, ''], [40, 2, '½ speed'], [90, 4, '¼ speed'], [150, 8, '⅛ speed']];   // [distance from the ruler in px, divisor, hint]
+        const speedAt = y => { const r = ruler.getBoundingClientRect(), d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0; let s = SPEEDS[0]; for (const q of SPEEDS) if (d >= q[0]) s = q; return s; };
+        const hint = h('span', 'w31-shint'); row.appendChild(hint);
+        const endDrag = () => { drag = null; hint.classList.remove('on'); };
+        ruler.addEventListener('pointerdown', e => { sync(); drag = { x: e.clientX, v: get(), k: 1 }; try { ruler.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
+        ruler.addEventListener('pointermove', e => { if (!drag) return; const [, k, label] = speedAt(e.clientY);
+            if (k !== drag.k) { drag.v = drag.v - (e.clientX - drag.x) / (ppu() * drag.k); drag.x = e.clientX; drag.k = k; hint.textContent = label; hint.classList.toggle('on', k > 1); }   // re-anchor, so changing speed never jumps the value
+            set(drag.v - (e.clientX - drag.x) / (ppu() * drag.k)); });
+        ruler.addEventListener('pointerup', endDrag); ruler.addEventListener('pointercancel', endDrag);
         ruler.addEventListener('dblclick', () => { sync(); set(origin); });
         ruler.addEventListener('wheel', e => { sync(); set(get() + (e.deltaY > 0 ? -2 : 2) * step); e.preventDefault(); }, { passive: false });
         row.querySelectorAll('.w31-sa').forEach(b => { let t = null; const go = () => set(get() + step * +b.dataset.d), stop = () => { clearTimeout(t); clearInterval(t); };

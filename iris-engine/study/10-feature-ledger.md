@@ -45,7 +45,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | REF pose | `ref-btn` | ok | ok + View menu | ok |
 | CAM FREE / FIXED | `cam-btn` | top bar | View ▸ Camera follows the pointer | changed |
 | Quality draft…capture | `quality-sel` | top bar | View ▸ Quality | changed |
-| Debug views 2–4, 7–15 (alignment mask 13, coordinate map 14, height 15 …) | `state.debug = n` | console | console | **CONSOLE** → **P4**: View ▸ Debug view ▸ (named list) |
+| Debug views 1–15 by name (grid, height, material, limbus shadow, N·L, self-shadow, key irradiance, refraction exit, caustic gain / area / cosine, light z, alignment mask, coordinate map, height view) | `state.debug = n` | GRID + MAPS only | View ▸ Debug view (2026-09-21), grouped; GRID / MAPS buttons kept in step; the status bar names the view | ok — all 16 entries render with no GL error (the one 1281 at load predates this) |
 
 ## 3. Material · Relief · Flow — the knobs
 
@@ -188,7 +188,7 @@ cornea default: **re-baseline at v91 under the Win98 shell first**, then compare
 | **P1** | CORNEA REFL into the Camera window and the View menu — **done 2026-09-21** (also one word in the frozen `ui.js`) | trivial |
 | **P2** | Scrubber origin follows the fit (notch, fill, double-click) — **done 2026-09-21** | small |
 | **P3** | hcorr + MATCH2 in Eye ▸ Fitted — **done 2026-09-21** | trivial |
-| **P4** | View ▸ Debug view ▸ named list | small |
+| **P4** | View ▸ Debug view ▸ named list — **done 2026-09-21** | small |
 | **P5** | U5: keyboard, hourglass, casebook frame, device pass (self-hosted font **done 2026-09-21**) | medium |
 | **P6** | Brush + knob liveness under the layer model, and the windows saying what is dead | small, measured |
 | **FLIP** | default = 3.11, `?ui=98` remains one version, drop `fit-blank*`; acceptance = `compare()` [] · `reach()` [] · isolated bench 61.6 / 68.3 / 70.5 / 66.4 | — |

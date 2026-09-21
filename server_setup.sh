@@ -264,6 +264,15 @@ iori.me {
     # fingerprinted assets cache forever, other assets short-lived
     @revalidate path *.html / /pages.json /manifest.json /sitemap*.xml /robots*.txt
     header @revalidate Cache-Control "no-cache"
+    # Folder apps (iris-engine/, petri/ …): their index pages (*/), code, styles, data and fonts are not
+    # fingerprinted, so without a header browsers cached them by heuristic and a deploy did not show up until a
+    # manual refresh. no-cache = revalidate every load (a cheap 304 when nothing changed). The asset folders
+    # below keep their own policies, so they are excluded here.
+    @appcode {
+        path */ *.js *.mjs *.css *.json *.wasm *.woff2
+        not path /assets/* /images/* /js/* /icon/* /media/*
+    }
+    header @appcode Cache-Control "no-cache"
     @immutable path /icon/* /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
@@ -320,6 +329,12 @@ iori.me {
     # fingerprinted assets cache forever, other assets short-lived
     @revalidate path *.html / /pages.json /manifest.json /sitemap*.xml /robots*.txt /blackjach/
     header @revalidate Cache-Control "no-cache"
+    # folder apps: see the iori.me block
+    @appcode {
+        path */ *.js *.mjs *.css *.json *.wasm *.woff2
+        not path /assets/* /images/* /js/* /icon/* /media/* /blackjach/assets/* /blackjach/css/* /blackjach/js/*
+    }
+    header @appcode Cache-Control "no-cache"
     @immutable path /icon/* /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png /blackjach/assets/* /blackjach/css/* /blackjach/js/*

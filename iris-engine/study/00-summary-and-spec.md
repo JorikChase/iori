@@ -1986,3 +1986,33 @@ overshoots — the legacy field brings its own crypt depths, which fight the lay
 This is a stand-in and should be said so: the sheet's real relief is furrows and micro-texture **as primitives**,
 which is T1 and G. What it buys now is a landscape the probe can walk on outside the crypts, and a height field that
 is no longer a lie over three quarters of the eye.
+
+### 32.9 Diagnosis (2026-09-21): why `strandCorr` falls with relief — it is the shading, not the displacement
+
+`strandCorr` is a Pearson correlation of the strand-scale signal between photo and render, so it falls if the
+structure **moves** or if its **profile changes** — different faults with different fixes. The parallax march is what
+would move it, and it can be switched off by rendering at `marchSteps` 1, which leaves the relief in the normals but
+takes the displacement out. Whole iris of ref 26 at NORMAL:
+
+| | strandCorr | MATCH2 | grad | hfLap |
+|---|---:|---:|---:|---:|
+| flat, march 10 | 0.516 | 82.39 | 0.709 | 0.546 |
+| flat, **march 1** | 0.516 | 82.39 | 0.709 | 0.546 |
+| shipped, march 10 | 0.359 | 86.10 | 0.770 | 0.819 |
+| shipped, **march 1** | 0.359 | 86.11 | 0.770 | 0.819 |
+
+**Identical.** At this framing the parallax march contributes nothing at all, so displacement is not the cause and
+`strandCorr` is falling on the **cross-fibre brightness profile**. Decomposed, the two reliefs cost about additively:
+deck only 0.392 (−0.124), sheet only 0.450 (−0.066), both 0.359 (−0.157).
+
+What makes this worth stating carefully is that everything else moves the other way at the same time: `hfLap` goes
+0.546 → 0.819 against the photo's 1.0, `grad` 0.709 → 0.770, MATCH2 82.39 → 86.10, `hcorr` 0.574 → 0.738. The model
+is gaining high-frequency energy of about the right amount, and the height field is markedly more like the photo's —
+but each fibre's profile across its width is now modulated more than the photo's is, because the measured albedo
+already carries the shading the photo shows and the geometry adds its own on top (§32.4).
+
+So `strandCorr` is measuring the one thing relief makes worse, and the fix is not to take the relief away. It is the
+**proper de-lighting** — dividing the albedo by the renderer's *measured* response rather than an assumed cosine,
+which was tried and is far too strong. §32.4 said that needs the region and the render at one scale; **T2a's windowed
+re-bake is exactly that**, so the route is now open. That is the first thing to try when this thread is picked up:
+bake a window at the render's own scale, render it flat-grey with the relief on and off, and divide by the ratio.

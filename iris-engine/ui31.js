@@ -301,6 +301,36 @@
     }
 
     // ---------------------------------------------------------------------------------------------------------
+    // what still works under the tissue layer model (study/10 P6, measured with tools/knob_probe.js and
+    // tools/brush_probe.js on ref 26 at v91-edge). While IrisTissue.on the windows say so: a dead control is greyed with
+    // the reason in its tooltip, a weak one is marked. Nothing is disabled — the legacy model still reads those values
+    // the moment the layer model is off. Re-measure and edit this table when G2 / G3 revive them.
+    // ---------------------------------------------------------------------------------------------------------
+    const TISSUE_LIVE = {
+        knobs: { dead: ['crypt', 'furrow', 'blflow'], weak: ['collr'] },
+        tools: { dead: [], weak: ['dent', 'bump', 'streak'] },
+        layers: { dead: ['height', 'strandBright', 'coherence', 'collarette', 'crypt', 'furrow'], weak: ['flowDir', 'warpU', 'warpV', 'spacing'] },
+    };
+    const WHY_DEAD = 'no effect while the layer model is on — it owns relief, crypts, furrows and strands here (brushes and generator: G2, G3)', WHY_WEAK = 'weak while the layer model is on (a tenth to a half of its legacy effect)';
+    let tissueWas = null;
+    function markLiveness() {
+        const on = !!(window.IrisTissue && window.IrisTissue.on); if (on === tissueWas) return; tissueWas = on;
+        const mark = (el, kind) => { if (!el) return; if (el._title === undefined) el._title = el.title || ''; el.classList.toggle('w31-dead', on && kind === 'dead'); el.classList.toggle('w31-weak', on && kind === 'weak'); el.title = on && kind ? (el._title ? el._title + ' — ' : '') + (kind === 'dead' ? WHY_DEAD : WHY_WEAK) : el._title; };
+        const kindOf = (T, k) => T.dead.includes(k) ? 'dead' : T.weak.includes(k) ? 'weak' : null;
+        for (const r of scrubs) { const id = (r.dataset.for || '').replace('param-', ''); if (id) mark(r, kindOf(TISSUE_LIVE.knobs, id)); }
+        document.querySelectorAll('.tool-btn').forEach(b => mark(b, kindOf(TISSUE_LIVE.tools, b.dataset.tool)));
+        const sel = $('design-layer'); if (sel) for (const o of sel.options) { if (o._text === undefined) o._text = o.textContent; const k = on && kindOf(TISSUE_LIVE.layers, o.value); o.textContent = o._text + (k === 'dead' ? '  — no effect (layer model)' : k === 'weak' ? '  — weak (layer model)' : ''); }
+        document.querySelectorAll('.w31-tisnote').forEach(n => { n.style.display = on ? '' : 'none'; });
+        if (tissueWas !== null) say(on ? 'Layer model on — greyed controls have no effect on it' : 'Layer model off');
+    }
+    function tissueNotes() {
+        const note = (key, html) => { const W = byKey(key); if (!W) return; const n = h('div', 'w31-tisnote', html); n.style.display = 'none'; W.body.insertBefore(n, W.body.firstChild); };
+        note('relief', '<b>Layer model on.</b> CRYPT and FURROW have no effect on it yet (brushes G2, generator G3); COLLAR is weak. RELIEF scales its height.');
+        note('flow', '<b>Layer model on.</b> SEED re-rolls the procedural share only; the measured fibres stay.');
+        note('design', '<b>Layer model on.</b> Colour tools and the material layers work; DENT, BUMP, STREAK are weak; HEIGHT, BRIGHT and the structure layers have no effect. Its own strand brush is not in this toolbox yet.');
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
     // layout: phone = short side < 600 px → one bottom sheet + icon strip; everything else (tablets in portrait
     // too) = MDI. Touch sizing follows the pointer type. The eye is re-centred above a phone sheet by moving the
     // canvas element: the page and the render's surround are both white, so the seam is invisible and the
@@ -324,18 +354,18 @@
     const panel = $('ui-panel'); if (panel) panel.style.display = 'none';
     { const l = document.createElement('link'); l.rel = 'icon'; l.href = icon('eye'); document.head.appendChild(l); }
     window.addEventListener('load', () => {
-        dressDesign(); dressFit(); relayout();
+        dressDesign(); dressFit(); tissueNotes(); relayout();
         const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen) show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
         const g = document.createElement('script'); g.src = 'gaze.js'; g.onload = () => gaze(G => { G.hold = S.hold; G.ret = S.ret; }); document.head.appendChild(g);   // study/09 U0: controls never move the eye
         const o = document.createElement('script'); o.src = 'overlay.js'; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris
     });
     window.addEventListener('resize', relayout);
     let last = performance.now(), fT = last, fN = 0, fps = 0;
-    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
+    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
         const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }
     const up = k => byKey(String(k).toLowerCase());
-    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, setDebug, DEBUG_VIEWS, settings: S };
+    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, setDebug, DEBUG_VIEWS, TISSUE_LIVE, markLiveness, settings: S };
 })();

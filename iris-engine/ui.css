@@ -130,3 +130,8 @@ body.w31-overlay #gl { cursor: grab; }
 #w31-ov-wipe { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #ff0; outline: 1px solid #000; cursor: ew-resize; pointer-events: auto; touch-action: none; display: none; }
 #w31-ov-wipe::after { content: ""; position: absolute; left: -21px; top: 50%; width: 44px; height: 44px; margin-top: -22px; background: radial-gradient(circle, var(--grey, #c0c0c0) 0 7px, #000 7px 8px, transparent 8px); }
 body.w31-ovhide #fitcv { display: none; }   /* the photo is on the iris now; POLAR and HEIGHT bring the panel's canvas back */
+/* study/10 P6: controls the tissue layer model does not read (dead) or barely reads (weak), while it is on */
+body.w31-shell .w31-dead { opacity: .42; } body.w31-shell .w31-dead > span:first-child { text-decoration: line-through; }
+body.w31-shell .w31-weak > span:first-child { font-style: italic; } body.w31-shell .w31-weak > span:first-child::after { content: ' ~'; color: var(--dk); }
+body.w31-shell .w31-tool.w31-weak { background: repeating-linear-gradient(45deg, #fff 0 3px, #e4e4e4 3px 5px) !important; }
+.w31-tisnote { font-size: calc(var(--fs) - 1px); background: #ffffe0; border: 1px solid #000; padding: 3px 5px; margin: 0 0 5px; line-height: 1.3; }

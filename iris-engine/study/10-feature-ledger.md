@@ -52,7 +52,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Control | id | Win98 | 3.11 | Status |
 |---|---|---|---|---|
 | PIGMENT, STROMA, PHEO, YELLOW, MIE, RING | `param-*` | ok | ok | ok |
-| CRYPT, FURROW, RELIEF, COLLAR | `param-*` | ok | ok | ok — but **dead under the layer model** until G2/G3 (k0-knob-liveness.md); the window must say so while `IrisTissue.on` → **P6** |
+| CRYPT, FURROW, RELIEF, COLLAR | `param-*` | ok | ok | under the layer model (measured, `p6-liveness.md`): CRYPT, FURROW **dead** until G2/G3, COLLAR weak, RELIEF live (0.72). The Relief window greys / marks them and shows a note while `IrisTissue.on` |
 | WARP, SEED, NEW SEED | `param-warp`, `param-seed`, `seed-btn` | ok | ok (+ Eye ▸ New seed) | ok; `seed` dead under the layer model until G3 |
 | FIELD, LIC / CURVES | `fieldw-btn`, `strand-btn` | ok | ok | ok |
 | ATLAS, MAPS | `atlas-btn`, `maps-btn` | ok | ok + View menu | ok |
@@ -106,7 +106,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Undo (40 levels), Clear | `design-undo` / Ctrl-Z, `design-clear` | ok | ok | ok |
 | Zoom (wheel), pan (Space-drag), reset (Esc), size `[` `]` | window listeners | ok | ok | ok |
 | Brush cursor, HUD readout | `#brush-cursor`, `#design-hud` | ok | ok | ok |
-| **Which of these still change the picture when `IrisTissue.on`** | — | ? | ? | **UNMEASURED** → **P6**: a brush-liveness run in the manner of `knob_probe.js`; the toolbox then switches tool sets with the model |
+| Which of these still change the picture when `IrisTissue.on` | `tools/brush_probe.js` | — | measured 2026-09-21 (`p6-liveness.md`): COLOR + every material layer live; DENT / BUMP / STREAK weak; HEIGHT, BRIGHT, coherence, collarette dead; flow / warp / spacing weak. Marked in the toolbox and the LAYER list while the model is on | ok — the tissue tool set arrives with the Tissue window and G1 |
 | Photo overlay + clone source (D3), alignment controls (D4), object handles (D5) | spec §20 | — | — | todo, superseded in part by the overlay and by G |
 
 ## 7. The tissue layer model — **no UI at all today**
@@ -190,7 +190,7 @@ cornea default: **re-baseline at v91 under the Win98 shell first**, then compare
 | **P3** | hcorr + MATCH2 in Eye ▸ Fitted — **done 2026-09-21** | trivial |
 | **P4** | View ▸ Debug view ▸ named list — **done 2026-09-21** | small |
 | **P5** | U5: keyboard, hourglass, casebook frame, device pass (self-hosted font **done 2026-09-21**) | medium |
-| **P6** | Brush + knob liveness under the layer model, and the windows saying what is dead | small, measured |
+| **P6** | Brush + knob liveness under the layer model, and the windows saying what is dead — **done 2026-09-21** (`p6-liveness.md`, `TISSUE_LIVE` in ui31.js) | small, measured |
 | **FLIP** | default = 3.11, `?ui=98` remains one version, drop `fit-blank*`; acceptance = `compare()` [] · `reach()` [] · isolated bench 61.6 / 68.3 / 70.5 / 66.4 | — |
 
 Then: **Tissue window** (§7, rows 1–6) → **G1** guide brush → **G4** journal serialisation → **G2** crypt /

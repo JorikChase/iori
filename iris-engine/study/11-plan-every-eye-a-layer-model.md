@@ -60,6 +60,59 @@ no pixel further than 2 / 255, isolated bench unchanged (everything stays in `ti
 after on the dev machine; iori reads Help ▸ Load timing on the iPad and the phone for the device rows.
 Expected: iPad 11.9 s → ≈ 3–4 s at CAPTURE (2.2 s of that is the 2064 × 2580 canvas's first frames); dev 4.1 s → ≈ 1 s.
 
+### 2.1 S3 built (2026-09-21) — what was found and what shipped
+
+- **S3.0 — the "fit.js first-load GL 1281" was not fit.js.** The fullscreen-quad setup in `index.html` asked every
+  program for a `position` attribute, and the four atlas passes (bundle, strand, splat, splat4) have none: −1 went
+  into `enableVertexAttribArray` — 4 × 2 warnings on every load. Guarded; the console is clean.
+- **A measured load was not reproducible, and the published 84.6 was an artefact.** `importID`, `loadSeedIntoSliders`
+  and `loadEyePreset` wrote `state.ringR` but not `target.ringR`; ringR is a SMOOTH_KEY, so the render loop eased every
+  imported eye's ring radius back to the default 0.4 — on screen for every seed / preset / ID, and *during* a staged
+  load (the stages yield to the loop), which measured whatever point of the drift it reached. The same bug class as the
+  fitter's ringR setter (previous handoff §4), through another door. Fixed in all three; the measured load of eye 26 is
+  now deterministic — **MATCH2 84.243** (MATCH 90.18, Δab 2.16, strandCorr 0.369), staged or direct, pixel-identical
+  load to load. The drifted ring (towards 0.4) scored 84.6: a lead for the ring radius, not changed here.
+- **The light cannot be coarsened.** At the pupil margin the measured light falls from ≈ 1 to ≈ 0 within a pixel or
+  two, and toAlbedo divides by it: any interpolation (step 2: max 8 / 255; step 4: max 20 / 255) moves the ruff. It
+  ships at the fit's own 640 × 462, looked up nearest-pixel exactly as `calibrate`'s `irrAt`, with the mask per pixel.
+  The shading grid (1588 × 239 cells of 15 µm) ships whole.
+- **Precision, measured** (shipped vs measured, NORMAL; every variant max 1 / 255, none > 2):
+
+  | light bits · shading bits | gzipped | MATCH2 | mean \|Δ\| |
+  |---|---|---|---|
+  | 16 · 16 | 1187 KB | 84.243 | 0.0002 |
+  | 12 · 12 | 782 KB | 84.242 | 0.0024 |
+  | **10 · 11 (shipped)** | **629 KB** | **84.249** | **0.0057** |
+  | 9 · 9 | 483 KB | 84.256 | 0.0091 |
+  | 8 · 10 | 504 KB | 84.224 | 0.0150 |
+
+  11 bits is what the RGBA16F texture keeps of the shading near 1.0 anyway; the light's g and b planes are stored as
+  differences from r (the light is near-white).
+- **The arrival path** (`data/case-26.json` → `frameFromCase` → `proof({ shipped })`) renders identically to the
+  shipped load in the photo's frame (max 1 / 255, same mean) — the photoless frame is exact. cellDab 2.65 = 2.65
+  (p90 5.34, ΔL 3.36 both). Side-by-side: `study/proof-layers/s3-side-by-side.png` (measured · shipped · |Δ| × 16).
+- **Fallback verified**: with a non-default dial the arrival refuses the file on its key and measures in the photoless
+  frame (3.8 s on the dev machine), no error.
+- **Gates**: isolated bench 61.6 / 68.3 / 70.5 / 66.4 (unchanged, after the ringR fix); contract `compare()` = `[]`
+  after taking the API block into the baseline (the only difference: `E.fit.frameFromCase` added); `reach()` = `[]`.
+
+**Time saved** — the start eye's load, step by step (dev machine, NORMAL; "first frames" left out, it is the canvas and
+a hidden pane throttles it):
+
+| step | before (measured) | after (shipped) |
+|---|---|---|
+| case file | `ref/cases.json` 42 ms | `data/case-26.json` 37 ms |
+| photo + import + first fit render | 350 ms | frame + import + first fit render, no photo: 64 ms |
+| primitives + mapping | 180 ms | 116 ms |
+| measuring the light | 835 ms | — (installing the shipped file: 31 ms) |
+| bake + origin | 144 ms | 159 ms |
+| measuring the shading | 2823 ms | — |
+| **total** | **4.37 s** | **0.41 s** |
+| over the wire (gzip) | case file 2.26 MB + photo 1.48 MB (twice on a cold cache) + primitives 1.55 MB = **5.3–6.8 MB** | case 0.57 MB + measurements 0.64 MB + primitives 1.55 MB = **2.8 MB** |
+
+The iPad measured 11.9 s before (7.1 s of it the two measurements, 1.5 s the photo + import at CAPTURE); its after
+number comes from Help ▸ Load timing once this is deployed (the record now says `path: arrival (shipped)`).
+
 ## 3. T7 → S5 — the other eyes, then a different eye per visit
 
 `tools/layer_proof.py` (704 lines, OpenCV + numpy + the S0 tracer in `strand_stats.py`). What is tied to ref 26:

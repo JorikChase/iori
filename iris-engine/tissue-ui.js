@@ -12,6 +12,8 @@
     const F = E.fit, fit = F.fit, state = E.state, gl = E.gl, cv = E.canvas, $ = id => document.getElementById(id);
     const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
     const CASE = '26-green-crypts-isolated.jpg', SRC = 'data/tissue-26.json';
+    // study/11 S3: the arrival's files — the eye's own case (no photo, not the 5 MB ref/cases.json) and its measurements
+    const CASE1 = 'data/case-26.json', CAL = 'data/tissue-26.cal.bin';
     const X = window.__irisTissueUI = { loading: false, st: 'none', page: 'inspect', tool: 'point', probe: { uv: null, heightUm: 150, yaw: 20, pitch: -14, fov: 75, contourUm: 25, mode: 'clay' } };
     let eyeAt = null, avail = null, cases = null, prog = [0, 1, ''];
 
@@ -96,23 +98,30 @@
     X.canLoad = () => !X.loading && avail !== false;
     X.canToggle = () => X.st === 'loaded' && !X.loading;
     X.loadLabel = () => X.st === 'loaded' ? 'Re-load eye &26' : X.st === 'other' ? 'Switch to eye &26 and load' : 'Load eye &26';
-    X.load = async () => {
+    // opts.arrival (the start eye): the eye's case file, its frame without the photograph, the shipped measurements —
+    // anything that does not apply falls back to measuring inside proof(). Without it (the Load button, a dial, iori D2):
+    // the photograph, and the light and shading measured on this device, as before.
+    X.load = async (opts = {}) => {
         if (X.loading) return; if (!(await available())) { X.st = 'unavailable'; sync(); return; }
         X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye 26']; if (!X.quietOpen) U.showWindow('tissue', true); sync();
         // study/10 S0: every load records where its time goes (Help ▸ Load timing shows it, on any device)
         const t0 = performance.now(), tm = { at: new Date().toISOString(), steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
         try {
-            if (!cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
+            const arrival = !!opts.arrival; tm.path = arrival ? 'arrival (shipped)' : 'measured';
+            let c1 = null; if (arrival) { try { c1 = await fetch(CASE1).then(r => r.ok ? r.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1 + ')'); }
+            if (!c1 && !cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
             T.on = false;
             // the case's pose, genome and photo: the layer model is measured on exactly this frame (calibrate reads it)
             await (O ? O.quietly : (f => f()))(async () => {
-                await F.renderCaseThumb(CASE, cases[CASE], document.createElement('canvas')); mark('eye 26: photo + import + first fit render');
-                let st = null; await T.proof(SRC, { json: T.json, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                if (c1) { F.frameFromCase(CASE, c1); mark('eye 26: frame + import + first fit render (no photo)'); }
+                else { await F.renderCaseThumb(CASE, cases[CASE], document.createElement('canvas')); mark('eye 26: photo + import + first fit render'); }
+                let st = null; await T.proof(SRC, { json: T.json, shipped: c1 ? CAL : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                tm.shipped = !!(T.shipped && T.shipped.light);
             });
             eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye 26'); }
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); mark('first frames on screen');
             tm.total = Math.round(performance.now() - t0); delete tm.last;
-            tm.bytes = performance.getEntriesByType('resource').filter(e => /cases\.json|tissue-26|26-green-crypts/.test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
+            tm.bytes = performance.getEntriesByType('resource').filter(e => /cases\.json|case-26|tissue-26|26-green-crypts/.test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
             X.timing = tm; try { localStorage.setItem('irisLoadTiming', JSON.stringify(tm)); } catch (e) {}
         } catch (e) { X.st = 'error'; q('#w31t-err').textContent = 'The layer model could not be loaded: ' + (e && e.message || e); console.error(e); }
         X.loading = false; mapSig = ''; heights = null; contourKey = ''; sync(); secDraw(); probeDraw(); marks();
@@ -137,7 +146,7 @@
         if (!(await available())) return;
         const keep = { useRot: state.useRot, view: (state.view || [0, 0, 1, 1]).slice(), zoom: state.zoomPhoto, camRot: (state.camRot || [0, 0]).slice() };
         X.quietOpen = true; state.fitting = true;
-        try { await X.load(); }
+        try { await X.load({ arrival: true }); }
         finally { state.fitting = false; X.quietOpen = false; }
         if (X.st !== 'loaded') return;
         state.useRot = keep.useRot; state.view = keep.view; state.zoomPhoto = E.target.zoomPhoto = keep.zoom; state.camRot = keep.camRot; state.preset = 'fit-26';

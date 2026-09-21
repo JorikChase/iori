@@ -35,7 +35,7 @@
     function layout() {
         const shift = U.sceneShift ? U.sceneShift() : 0, on = O.mode !== 'off', tf = shift ? `translateY(${shift}px)` : '';
         cv.style.transform = tf;
-        if (!on || !fit.photo || !fit.W) { box.style.display = 'none'; return; }
+        if (!on || !(fit.photo && !fit.photoless) || !fit.W) { box.style.display = 'none'; return; }
         const W = innerWidth, H = innerHeight, r = ratio(), v = viewOf(), p = O.pose;
         const left = ((p[0] - 0.5) * r + 0.5 - v[0]) / v[2] * W, w = r / v[2] * W, top = (1 - (p[1] + 1 - v[1]) / v[3]) * H, hh = H / v[3];
         rect = { left, w, h: hh };
@@ -52,7 +52,7 @@
     O.set = mode => {
         if (!MODES.includes(mode)) return;
         if (mode !== 'off') {
-            if (!fit.photo) { U.say('Overlay: load a photo first (Fit ▸ Photo… or a reference)'); U.showWindow('fit', true); mode = 'off'; }
+            if (!(fit.photo && !fit.photoless)) { U.say('Overlay: load a photo first (Fit ▸ Photo… or a reference)'); U.showWindow('fit', true); mode = 'off'; }
             else if (!state.useRot) $('fit-solve').click();          // lock the camera to the fitted pose: that is what makes the two frames one
         }
         const was = O.mode; O.mode = mode;
@@ -143,7 +143,7 @@
         else if (fit.img !== lastImg && !busy() && !fit.benchRunning && !quiet) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; if (fit.photo && !state.design) { U.showWindow('fit', true); O.set(O.mode === 'off' ? 'wipe' : O.mode); } }
         if ((fit.mode || 0) !== lastFitMode) { lastFitMode = fit.mode || 0; if (O.mode !== 'off' && lastFitMode < 4) O.set(FROM_FIT[lastFitMode]); }
         if (O.mode !== 'off') {
-            if (!fit.photo) O.set('off');
+            if (!(fit.photo && !fit.photoless)) O.set('off');
             else { const c = state.view || [0, 0, 1, 1]; if (!busy() && c[2] === 1 && c[3] === 1 && (c[0] !== O.pose[0] || c[1] !== O.pose[1])) O.pose = [c[0], c[1]];   // the fitter moved the pose (SOLVE POSE, the alignment loop)
                 if (!busy() && !state.useRot) $('fit-solve').click();                                                    // something freed the camera (a preset, CAM FREE): lock it to the pose again
                 writeView(); const key = [innerWidth, innerHeight, fit.W, fit.H, O.pose[0], O.pose[1], O.s, O.cx, O.cy].join(); if (key !== lastKey) { lastKey = key; layout(); }

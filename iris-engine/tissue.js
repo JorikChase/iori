@@ -1093,7 +1093,7 @@
                 for (let i = -rad; i < n1 + rad; i++) { const add = i + rad, sub = i - rad - 1; if (add >= 0 && add < n1) { const o = at(add); for (let t = 0; t < 7; t++) sum[t] += a[o + t]; } if (sub >= 0 && sub < n1) { const o = at(sub); for (let t = 0; t < 7; t++) sum[t] -= a[o + t]; } if (i >= 0 && i < n1) { const o = at(i); for (let t = 0; t < 7; t++) b[o + t] = sum[t]; } } }
             [a, b] = [b, a];
         }
-        T.irr = a; const m = new Float64Array(6); let n = 0;
+        T.irr = a; T.irrDims = [W, H]; T.shipped = null; const m = new Float64Array(6); let n = 0;
         for (let k = 0; k < W * H; k++) if (a[k * 7 + 6] > 1e-3 && inR(k)) { for (let t = 0; t < 6; t++) m[t] += a[k * 7 + t] / a[k * 7 + 6]; n++; }
         T.irrMean = Array.from(m, q => q / Math.max(1, n));
         T.irrAt = (x, y) => { const k = (Math.min(H - 1, Math.max(0, Math.round(y * H / T.src.fit[1]))) * W + Math.min(W - 1, Math.max(0, Math.round(x * W / T.src.fit[0])))) * 7, wgt = a[k + 6]; return wgt > 1e-3 ? [0, 1, 2, 3, 4, 5].map(t => a[k + t] / wgt) : T.irrMean; };
@@ -1186,12 +1186,81 @@
         for (let i = 0; i < gw * gh; i++) { data[i * 4] = grid[i]; data[i * 4 + 3] = 1; }
         if (T.srel) gl.deleteTexture(T.srel);
         T.srel = texture(gw, gh, false, data);
+        T.srelGrid = { w: gw, h: gh, data: grid };                   // kept for exportMeasurements (study/11 S3)
         let mn = 9, mx = 0, sum = 0; for (let i = 0; i < gw * gh; i++) { mn = Math.min(mn, grid[i]); mx = Math.max(mx, grid[i]); sum += grid[i]; }
         T.srelStats = { grid: [gw, gh], cellUm: +(cell * 1000).toFixed(0), tiles: n, pixels: nIn, min: +mn.toFixed(3), max: +mx.toFixed(3), mean: +(sum / (gw * gh)).toFixed(3) };
         T.on = was.on; T.srelAmt = was.srelAmt;
         T.bake();                                                    // the albedo, now divided by what was measured
         say(`de-light measured: ${gw}×${gh} cells of ${(cell * 1000).toFixed(0)} µm · relief multiplies the light by ${T.srelStats.min}–${T.srelStats.max} (mean ${T.srelStats.mean})`);
         return T.srelStats;
+    };
+
+    // ---------------------------------------------------------------- study/11 S3: the measurements, shipped with the eye
+    // calibrate() and measureDelight() render flat-grey frames through the engine; they never read the photograph, so they
+    // give the same answer on every visit — 60 % of the iPad's 11.9 s. Measured once (the Tissue window's Load button
+    // always measures, iori D2), exported here, and the arrival load installs them instead of measuring.
+    // Valid only for what they were measured with: the engine, the eye and the dials that reach calibrate / bake. srelAmt
+    // and k1 are not in the key — neither reaches a grey bake. A mismatch = measure, as before.
+    T.dialKey = () => JSON.stringify({ engine: E.ENGINE_VERSION, eye: T.src && T.src.ref, n: T.src && T.src.fit,
+        deckZ: T.deckZ, sheetZ: T.sheetZ, wallZ: T.wallZ === undefined ? 2.5 : T.wallZ, delight: T.delight, margin: T.margin !== false,
+        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade });
+    const q16 = (v, lo, hi, L = 65535) => Math.max(0, Math.min(L, Math.round((v - lo) / Math.max(hi - lo, 1e-12) * L)));
+    const gz = async (bytes, dir) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(dir ? new CompressionStream('gzip') : new DecompressionStream('gzip'))).arrayBuffer());
+    // → gzipped bytes: 'IRC1' · u32 header length · header JSON · light (6 planes u16) · shading (u16) · light mask (u8, one
+    // per FIT pixel). Every u16 plane is delta-coded along its rows; the light's g and b planes are stored as their
+    // difference from r (the light is near-white, so they are almost all zeros). The light is looked up exactly as
+    // calibrate's irrAt does — the nearest fit pixel, the mean where the mask is off — because at the pupil margin it
+    // falls from ≈ 1 to ≈ 0 within a pixel or two and any interpolation across that edge moves the ruff's albedo.
+    // `step` > 1 keeps the light every step fit pixels (the mask stays per pixel).
+    T.exportMeasurements = async function (opts = {}) {
+        if (!T.irr || !T.irrDims || !T.srelGrid) throw new Error('measure first: the Load button (T.proof without shipped)');
+        const [W, H] = T.irrDims, f = opts.step || 1, Li = 2 ** (opts.lightBits || 16) - 1, Ls = 2 ** (opts.shadeBits || 16) - 1, gw = Math.ceil(W / f), gh = Math.ceil(H / f), a = T.irr;
+        const cell = new Float64Array(gw * gh * 6), cnt = new Float64Array(gw * gh), mask = new Uint8Array(W * H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = (y * W + x) * 7, wgt = a[k + 6]; if (wgt <= 1e-3) continue; mask[y * W + x] = 1;
+            const c = ((y / f) | 0) * gw + ((x / f) | 0); for (let t = 0; t < 6; t++) cell[c * 6 + t] += a[k + t] / wgt; cnt[c]++; }
+        const lo = [9, 9], hi = [-9, -9];                            // one range for k (rgb), one for s (rgb)
+        for (let c = 0; c < gw * gh; c++) if (cnt[c]) for (let t = 0; t < 6; t++) { const v = cell[c * 6 + t] /= cnt[c], g = t < 3 ? 0 : 1; lo[g] = Math.min(lo[g], v); hi[g] = Math.max(hi[g], v); }
+        const S = T.srelGrid; let slo = 9, shi = -9; for (const v of S.data) { slo = Math.min(slo, v); shi = Math.max(shi, v); }
+        const head = { v: 2, key: T.dialKey(), measured: new Date().toISOString(), quality: E.quality,
+            irr: { w: gw, h: gh, step: f, fit: [W, H], lo, hi, L: Li, mean: T.irrMean }, srel: { w: S.w, h: S.h, lo: slo, hi: shi, L: Ls, stats: T.srelStats } };
+        const hb = new TextEncoder().encode(JSON.stringify(head)), hpad = (4 - (8 + hb.length) % 4) % 4;
+        const u16 = new Uint16Array(6 * gw * gh + S.w * S.h); let o = 0;
+        const rows = (w, h, val) => { for (let y = 0; y < h; y++) { let prev = 0; for (let x = 0; x < w; x++) { const q = val(y * w + x); u16[o++] = (q - prev) & 65535; prev = q; } } };
+        const qc = (c, t) => cnt[c] ? q16(cell[c * 6 + t], lo[t < 3 ? 0 : 1], hi[t < 3 ? 0 : 1], Li) : 0;
+        for (const b of [0, 3]) { rows(gw, gh, c => qc(c, b)); for (const t of [b + 1, b + 2]) rows(gw, gh, c => (qc(c, t) - qc(c, b)) & 65535); }
+        rows(S.w, S.h, i => q16(S.data[i], slo, shi, Ls));
+        const out = new Uint8Array(8 + hb.length + hpad + u16.byteLength + mask.length), dv = new DataView(out.buffer);
+        out.set([73, 82, 67, 49]); dv.setUint32(4, hb.length + hpad, true); out.set(hb, 8); out.fill(32, 8 + hb.length, 8 + hb.length + hpad);
+        out.set(new Uint8Array(u16.buffer), 8 + hb.length + hpad); out.set(mask, 8 + hb.length + hpad + u16.byteLength);
+        const packed = await gz(out, true);
+        say(`measurements exported: light ${gw}×${gh} (every ${f} px), shading ${S.w}×${S.h} · ${(out.length / 1024).toFixed(0)} KB → ${(packed.length / 1024).toFixed(0)} KB gzipped`);
+        return { bytes: packed, raw: out.length, head };
+    };
+    // install shipped measurements; false (and nothing changed) when they do not apply here — the caller then measures
+    T.installMeasurements = async function (buf) {
+        let b = new Uint8Array(buf);
+        if (b[0] === 0x1f && b[1] === 0x8b) { if (typeof DecompressionStream === 'undefined') return false; b = await gz(b, false); }
+        if (b[0] !== 73 || b[1] !== 82 || b[2] !== 67 || b[3] !== 49) return false;
+        const dv = new DataView(b.buffer, b.byteOffset, b.byteLength), hl = dv.getUint32(4, true);
+        const head = JSON.parse(new TextDecoder().decode(b.subarray(8, 8 + hl)));
+        if (head.v !== 2 || head.key !== T.dialKey()) { say('shipped measurements do not match these dials — measuring'); T.shipped = { skipped: 'key' }; return false; }
+        const { w: gw, h: gh, lo, hi, step: f, fit: [W0, H0], mean, L: Li } = head.irr, S = head.srel, n16 = 6 * gw * gh + S.w * S.h;
+        const u16 = new Uint16Array(b.buffer.slice(b.byteOffset + 8 + hl, b.byteOffset + 8 + hl + 2 * n16)), mask = b.slice(8 + hl + 2 * n16, 8 + hl + 2 * n16 + W0 * H0);
+        let o = 0; const rows = (w, h, put) => { for (let y = 0; y < h; y++) { let q = 0; for (let x = 0; x < w; x++) { q = (q + u16[o++]) & 65535; put(y * w + x, q); } } };
+        const qv = new Uint16Array(gw * gh * 6);
+        for (const bb of [0, 3]) { rows(gw, gh, (c, q) => { qv[c * 6 + bb] = q; }); for (const t of [bb + 1, bb + 2]) rows(gw, gh, (c, q) => { qv[c * 6 + t] = (q + qv[c * 6 + bb]) & 65535; }); }
+        const irr = new Float32Array(gw * gh * 6); for (let i = 0; i < gw * gh * 6; i++) { const g = (i % 6) < 3 ? 0 : 1; irr[i] = lo[g] + qv[i] / Li * (hi[g] - lo[g]); }
+        const grid = new Float32Array(S.w * S.h); rows(S.w, S.h, (i, q) => { grid[i] = S.lo + q / S.L * (S.hi - S.lo); });
+        T.irr = true; T.irrDims = null; T.irrMean = mean;
+        T.irrAt = (x, y) => {                                        // calibrate's irrAt: the nearest fit pixel of the measured frame
+            const px = Math.min(W0 - 1, Math.max(0, Math.round(x * W0 / T.src.fit[0]))), py = Math.min(H0 - 1, Math.max(0, Math.round(y * H0 / T.src.fit[1])));
+            if (!mask[py * W0 + px]) return mean;
+            const c = (Math.min(gh - 1, (py / f) | 0) * gw + Math.min(gw - 1, (px / f) | 0)) * 6; return [irr[c], irr[c + 1], irr[c + 2], irr[c + 3], irr[c + 4], irr[c + 5]]; };
+        const data = new Float32Array(S.w * S.h * 4); for (let i = 0; i < S.w * S.h; i++) { data[i * 4] = grid[i]; data[i * 4 + 3] = 1; }
+        if (T.srel) gl.deleteTexture(T.srel);
+        T.srel = texture(S.w, S.h, false, data); T.srelGrid = { w: S.w, h: S.h, data: grid }; T.srelStats = S.stats;
+        T.shipped = { measured: head.measured, quality: head.quality, light: [gw, gh], step: f, shading: [S.w, S.h] };
+        say(`shipped measurements installed (measured ${head.measured.slice(0, 10)} at ${head.quality})`); return true;
     };
 
     // the whole proof: primitives → region → calibrated albedo → on
@@ -1202,6 +1271,13 @@
         await stage(0, 'reading the primitives');
         const json = opts.json || await fetch(url).then(r => r.json()); T.json = json;
         await stage(1, 'mapping them onto the eye'); T.load(json);
+        // study/11 S3: opts.shipped = the eye's measurements (a URL or bytes). Installed → bake + origin, done; they do
+        // not apply (dials, engine, no DecompressionStream) → the measured path below, unchanged.
+        if (opts.shipped) {
+            await stage(2, 'the measured light and shading');
+            let ok = false; try { const buf = typeof opts.shipped === 'string' ? await fetch(opts.shipped).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }) : opts.shipped; ok = await T.installMeasurements(buf); } catch (e) { say('shipped measurements unavailable (' + (e && e.message || e) + ') — measuring'); }
+            if (ok) { T.on = true; await stage(3, 'baking the tissue'); T.bake(); await stage(4, 'the knob origin'); T.setOrigin(); if (st) st(n, n, 'done'); say('tissue model on (shipped measurements)'); return T.log; }
+        }
         await stage(2, 'measuring the light'); T.calibrate();
         await stage(3, 'baking the tissue'); T.bake();
         await stage(4, 'the knob origin'); T.setOrigin();

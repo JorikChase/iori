@@ -2086,6 +2086,7 @@
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
         for (const p of Object.values(programs)) {
             const posLoc = gl.getAttribLocation(p, "position");
+            if (posLoc < 0) continue;                                // the atlas passes (bundle, strand, splat, splat4) have their own VAOs, no "position"
             gl.enableVertexAttribArray(posLoc);
             gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
         }
@@ -2376,7 +2377,7 @@
             setSlider('crypt', 'crypt', genome.cryptDensityUsed); setSlider('furrow', 'furrow', G.furrowDepth);
             setSlider('pigment', 'pigment', G.melanin); setSlider('stroma', 'stroma', G.stroma, 3);
             setSlider('pheo', 'pheo', G.pheo); setSlider('mie', 'mie', G.mie); setSlider('ring', 'ring', G.ringStrength); setSlider('yellow', 'yellow', G.yellow || 0);
-            state.ringR = G.ringR; state.limbalDark = G.limbalDark; state.presetSpots = undefined; state.preset = undefined;
+            state.ringR = target.ringR = G.ringR; state.limbalDark = G.limbalDark; state.presetSpots = undefined; state.preset = undefined;
             atlas.dirty = true; resetAccumulation();
         }
         // CRYPT slider regenerates the crypt list from the seed at the requested density (deterministic)
@@ -2398,7 +2399,7 @@
         window.loadEyePreset = (name) => {
             const p = EYE_PRESETS[name]; if (!p) return;
             setSlider('pigment', 'pigment', p.Ma); setSlider('stroma', 'stroma', p.Ds, 3); setSlider('pheo', 'pheo', p.pheo); setSlider('mie', 'mie', p.mie); setSlider('ring', 'ring', p.ring); setSlider('yellow', 'yellow', p.yellow || 0);
-            state.ringR = p.ringR; state.limbalDark = p.limbal; state.preset = name;
+            state.ringR = target.ringR = p.ringR; state.limbalDark = p.limbal; state.preset = name;
             // spots / nodules: re-roll the lists from the seed with the preset's counts
             const R = mulberry32(genome.seed * 31 + 7); const u = (a, b) => a + (b - a) * R();
             genome.spots = []; for (let i = 0; i < p.spots; i++) { const lower = R() < 0.78; genome.spots.push({ th: lower ? u(0.5, 1.0) : u(0.0, 0.5), v: u(0.2, 0.85), size: u(0.15, 0.45), mel: u(1.2, 2.0), height: 0, seed: R() }); }
@@ -2772,7 +2773,7 @@
             setSlider('crypt', 'crypt', genome.cryptDensityUsed || 0); setSlider('furrow', 'furrow', G.furrowDepth);
             setSlider('pigment', 'pigment', G.melanin); setSlider('stroma', 'stroma', G.stroma, 3);
             setSlider('pheo', 'pheo', G.pheo); setSlider('mie', 'mie', G.mie); setSlider('ring', 'ring', G.ringStrength); setSlider('yellow', 'yellow', G.yellow || 0);
-            state.ringR = G.ringR; state.limbalDark = G.limbalDark;
+            state.ringR = target.ringR = G.ringR; state.limbalDark = G.limbalDark;   // target too: ringR is a SMOOTH_KEY, the loop eased it back to 0.4
             if (id.view) { const v = id.view; setSlider('pupil', 'pupil', v.pupil); setSlider('light', 'lightAngle', v.lightAngle); setSlider('elev', 'lightElev', v.lightElev); state.srcType = v.srcType; setSlider('srcsize', 'srcSize', v.srcSize, 3); setSlider('ambient', 'ambient', v.ambient); setSlider('lid', 'lid', v.lid, 1); setSlider('ev', 'ev', v.ev, 1); setSlider('fstop', 'fstop', v.fstop, 1); setSlider('focus', 'focus', v.focus); setSlider('kelvin', 'kelvin', v.kelvin, 0); state.zoomPhoto = target.zoomPhoto = v.zoom; state.pupilOff = v.pupilOff ? v.pupilOff.slice() : [0.25, 0.15]; state.limb = v.limb ? v.limb.slice() : [5.85, 5.40, 0]; state.sat = v.sat === undefined ? 1.0 : v.sat; document.querySelectorAll('.src-btn').forEach(x => x.classList.toggle('active', +x.dataset.src === v.srcType)); }
             atlas.dirty = true; resetAccumulation();
         }

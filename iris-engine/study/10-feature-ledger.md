@@ -124,6 +124,19 @@ two fresh loads and after Defaults (reproducible — a dial re-load is a FULL lo
 pose is zoomed out to the whole frame (the pose is handed to the overlay so its guards restore exactly it). Engine
 additions, API only: `IrisTissue.atUV`, `sectionUV`, `proof({ onStage, json })`; `elevationAt` / `section` unchanged.
 
+**S3 (study/11, 2026-09-21) — two load paths.** *Measured* (the Load button, a dial re-load, iori D2): the photograph,
+`ref/cases.json`, calibrate + de-light on this device — unchanged. *Arrival* (the start eye only): `data/case-26.json`,
+`F.frameFromCase` (the case's frame without its photograph, `fit.photoless`), `proof({ shipped: 'data/tissue-26.cal.bin' })`.
+The shipped file is valid only for the dials it was measured with (`T.dialKey()`); anything else — dials, engine
+version, no `DecompressionStream` — measures instead, inside `proof`. While photoless, `score()` returns null and the
+overlay treats the frame as "no photo". Help ▸ Load timing records `path` and `shipped`.
+
+| Feature | API | Home |
+|---|---|---|
+| Export the measurements of the current (measured) load | `IrisTissue.exportMeasurements({ lightBits: 10, shadeBits: 11 })` → gzipped bytes | internal — an author's step after a measured load at NORMAL; the dev server writes it with `POST /save/data/tissue-26.cal.bin`; re-export whenever the engine version or a default dial changes (the key refuses a stale file, so a stale file costs speed, never correctness) |
+| Install shipped measurements | `IrisTissue.installMeasurements(buf)`, `proof({ shipped })` | internal — the arrival path |
+| Bench: shipped vs measured, the side-by-side | `tools/s3/bench.js` (`__s3.measured / sweep / arrival / sideBySide`) | internal — not deployed |
+
 Earlier state of this section (all console-only) for the record:
 
 

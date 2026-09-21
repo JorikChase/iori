@@ -58,7 +58,7 @@
             fit.photo = (nat.w === fit.W && nat.h === fit.H) ? Uint8ClampedArray.from(nat.px) : areaResize(nat.px, nat.w, nat.h, fit.W, fit.H);
             cv.width = fit.W; cv.height = fit.H;
             ctx.putImageData(new ImageData(new Uint8ClampedArray(fit.photo), fit.W, fit.H), 0, 0);
-            fit.img = im; fit.render = null; fit.map = null;
+            fit.img = im; fit.render = null; fit.map = null; fit.photoless = false;
             // default markers: centre, iris 40 % of the height
             fit.limbus = { x: fit.W / 2, y: fit.H / 2, rx: 0.4 * fit.H / 2 * 1.08, ry: 0.4 * fit.H / 2, ang: 0 };
             fit.pupil = { x: fit.W / 2, y: fit.H / 2, r: 0.4 * fit.H / 2 * 0.36 };
@@ -758,6 +758,7 @@
         return n ? 10 * Math.log10(255 * 255 / (se / n)) : 0;
     }
     function score() {
+        if (fit.photoless) return null;                                  // S3: a frame without its photograph has nothing to compare
         if (!fit.photo || !fit.render) return null;
         fit.mask = fit.mask || irisMask();
         const pp = profiles(fit.photo), pr = profiles(fit.render);
@@ -2828,6 +2829,29 @@
             put(d, 2);
         } catch (e) { octx.fillStyle = '#400'; octx.fillRect(0, 0, 300, 110); }
     }
+    // study/11 S3: the case's FRAME without its photograph — the layer model's arrival path never reads the photo's
+    // pixels (calibrate and de-light ship with the eye), only its size, markers and pose. c.natural = the photo's size.
+    // fit.photo is a blank of the right size so the guards of alignLoop / renderFit pass; fit.photoless says so, and
+    // the overlay and score() treat a photoless frame as "no photo". Everything else is renderCaseThumb's order.
+    function frameFromCase(file, c) {
+        const [nw, nh] = c.natural, long = Math.max(nw, nh), sc = Math.min(1, (E.Q ? E.Q.fitPx : 640) / long);
+        fit.W = Math.round(nw * sc); fit.H = Math.round(nh * sc);
+        fit.native = null; fit.photo = new Uint8ClampedArray(fit.W * fit.H * 4); fit.photoless = true;
+        cv.width = fit.W; cv.height = fit.H;
+        fit.img = null; fit.render = null; fit.map = null; fit.name = file; fit.route = null; fit.isolated = !!c.isolated;
+        const a = c.align, W = fit.W, H = fit.H;
+        fit.pupil = { x: a.pupil[0] * W, y: a.pupil[1] * H, r: a.pupil[2] * H };
+        fit.limbus = { x: a.limbus[0] * W, y: a.limbus[1] * H, rx: a.limbus[2] * H, ry: a.limbus[3] * H, ang: a.limbus[4] || 0 };
+        fit.catch = { x: a.catch[0] * W, y: a.catch[1] * H };
+        E.importID({ v: 2, genome: c.genome, fields: c.fieldsEnc || {}, view: c.view });
+        state.camRot = c.view.rot || [0, 0]; state.useRot = true; state.view = c.view.viewRect || [0, 0, 1, 1]; state.zoomPhoto = target.zoomPhoto = c.view.zoom; state.pupilOff = c.view.pupilOff ? c.view.pupilOff.slice() : [0.25, 0.15]; state.limb = c.view.limb ? c.view.limb.slice() : [5.85, 5.40, 0];
+        state.sat = 1.0;
+        for (const k of ['pupil', 'lightAngle', 'lightElev', 'srcSize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'sat']) if (c.view[k] !== undefined) { state[k] = c.view[k]; target[k] = c.view[k]; }
+        state.srcType = c.view.srcType;
+        fit.mask = null; fit.pose = { restored: true };
+        alignLoop();
+        renderFit();
+    }
     function openCase(file, c) { panel.classList.remove('hidden'); renderCaseThumb(file, c, document.createElement('canvas')).then(() => { score(); fit.mode = 3; $('fit-view').textContent = 'SPLIT'; draw(); }); }
 
     // ---------------- wiring ----------------
@@ -2855,5 +2879,5 @@
         for (const r of list) { const o = document.createElement('option'); o.value = r.file; o.textContent = r.file.replace('.jpg', ''); sel.appendChild(o); }
         sel.onchange = () => { if (sel.value) loadImage('ref/' + sel.value, sel.value).catch(() => {}); };
     }).catch(() => {});
-    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, oracleBench, bandOracle, bandCorrOf, dumpForGuideTrace, guideCeilingBench, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, fitOpenings, probeOpeningTransfer, blurPolarMm, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
+    E.fit = { fit, solvePose, renderFit, score, diagnostics, sayDiagnostics, angularSpectrum, whiten, peakIn, bandPower, fftInPlace, strandEnergy, strandBand, strandCorr, strandTaps, placementFromPhoto, clearPlacement, carrierPredict, canonicalStart, resetForFreshFit, fingerprint, hiResPolar, photoRoute, bandScores, bandsOf, routedFit, blurF, fitGlobal, detectStructures, refineObjects, unwrap, profiles, loadImage, autoAlign, saveAlignment, exportAlignments, runBench, benchAll, benchIsolated, oracleBench, bandOracle, bandCorrOf, dumpForGuideTrace, guideCeilingBench, scaleAudit, fieldConsistency, reliefTransfer, reliefTransferBench, fitOpenings, probeOpeningTransfer, blurPolarMm, ISOLATED, alignStore, ssimQuarter, draw, textureStats, studyAll, cases, exportCases, bakePresets, makeCase, renderCaseThumb, frameFromCase, openCasebook, unwrapRGB, isIsolated, alignIsolated, materialFromPhoto, heightFromPhoto, flowFromPhoto, structuresFromHeight, fitHQ, ssimAt, gradAgree, bandStats, cellStats, projectPoint, alignLoop, getMap, heightProxy, renderHeight, heightCorrelation, ridgesFromProxy, dpClosedPath, fitSplats, initSplats, coarseModelOnGrid, rimFromPhoto, rimStat, renderMask, fitCircle, fitEllipse, boundariesFromClasses };
 })();

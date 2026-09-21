@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tissue window — layout mock</title>
+<link rel="stylesheet" href="../ui.css">
+<style>
+  html, body { margin: 0; background: #fff; overflow: hidden; height: 100%; }
+  #scene { position: fixed; inset: 0; }
+  #scene canvas { position: absolute; }
+  #scene svg { position: absolute; overflow: visible; }
+  /* the mock's own switcher — not part of the design */
+  #mockbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 76px; z-index: 9999; background: #ffffe0; border: 1px dashed #808000; padding: 4px 6px; font: 12px/1.3 Urbanist, Arial, sans-serif; display: flex; gap: 6px; align-items: center; }
+  #mockbar b { font-weight: 700; } #mockbar button { font: inherit; padding: 1px 6px; border: 1px solid #808000; background: #fff; cursor: pointer; } #mockbar button.on { background: #808000; color: #fff; }
+  body.w31-phone #mockbar { bottom: auto; top: 44px; left: 4px; right: 4px; transform: none; flex-wrap: wrap; }
+  /* the Tissue window's own pieces (would move to ui.css) */
+  .t-note { font-size: calc(var(--fs) - 1px); background: #fff; border: 1px solid #000; padding: 4px 6px; line-height: 1.35; margin: 0 0 6px; }
+  .t-note.warn { background: #ffffe0; }
+  .t-row { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; }
+  .t-chk { display: inline-flex; align-items: center; gap: 5px; font-weight: 400; }
+  .t-chk i { width: 11px; height: 11px; border: 1px solid #000; background: #fff; position: relative; box-shadow: inset 1px 1px 0 var(--dk); }
+  .t-chk.on i::after { content: ""; position: absolute; inset: 1px; background: linear-gradient(45deg, transparent 43%, #000 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, #000 43% 57%, transparent 57%); }
+  .t-score { font-weight: 400; font-variant-numeric: tabular-nums; margin-left: auto; white-space: nowrap; }
+  .t-prog { height: 14px; border: 1px solid #000; background: #fff; position: relative; margin: 6px 0 2px; box-shadow: inset 1px 1px 0 var(--dk); }
+  .t-prog b { position: absolute; left: 2px; top: 2px; bottom: 2px; background: repeating-linear-gradient(90deg, var(--navy) 0 8px, transparent 8px 10px); }
+  .t-stage { font-weight: 400; font-size: calc(var(--fs) - 1px); }
+  .t-pages { display: flex; gap: 0; margin: 8px 0 0; }
+  .t-pages .w31-b { flex: 1; }
+  .t-page { display: none; margin-top: 6px; } .t-page.on { display: block; }
+  .t-sunk { background: #fff; border: 1px solid #000; box-shadow: inset 1px 1px 0 var(--dk); display: block; width: 100%; box-sizing: border-box; }
+  .t-read { font-weight: 400; font-size: calc(var(--fs) - 1px); line-height: 1.4; padding: 4px 6px; font-variant-numeric: tabular-nums; min-height: 58px; }
+  .t-read table { border-collapse: collapse; width: 100%; margin-top: 3px; } .t-read td, .t-read th { padding: 0 6px 0 0; text-align: right; font-weight: 400; } .t-read th { font-weight: var(--fw); border-bottom: 1px solid #000; } .t-read td:first-child, .t-read th:first-child { text-align: left; }
+  .t-hint { font-weight: 400; font-size: calc(var(--fs) - 1px); color: #000; margin: 4px 0 0; }
+  .t-legend { display: flex; gap: 10px; flex-wrap: wrap; font-weight: 400; font-size: calc(var(--fs) - 2px); margin: 3px 0 0; }
+  .t-legend span::before { content: ""; display: inline-block; width: 10px; height: 8px; margin-right: 4px; border: 1px solid #000; vertical-align: -1px; background: var(--c); }
+  .reload > span:first-child::after { content: " \21BB"; color: var(--navy); }
+  .t-tip { position: absolute; background: #ffffe0; border: 1px solid #000; padding: 2px 5px; font: 400 11px/1.3 var(--font); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+  .w31[data-key="tissue"] .w31-scrub { grid-template-columns: 64px 1fr 62px; }
+  body.w31-phone .w31[data-key="tissue"] .w31-body { max-height: calc(52vh - var(--cap)); }
+</style></head>
+<body class="w31-shell">
+<div id="scene"><canvas id="iris"></canvas><svg id="ov"></svg><div id="tip" class="t-tip"></div></div>
+
+<div id="w31-cap" data-ui="1"><button class="w31-ctl" id="w31-ctl" aria-label="Site menu"></button><span class="w31-capt">Iris Engine</span><button class="w31-capb" tabindex="-1"><svg width="9" height="5"><path d="M0 0h9L4.5 5z"/></svg></button><button class="w31-capb" tabindex="-1"><svg width="9" height="5"><path d="M0 5h9L4.5 0z"/></svg></button></div>
+<div id="w31-menubar" data-ui="1"><div class="w31-mtop"><u>F</u>ile</div><div class="w31-mtop"><u>V</u>iew</div><div class="w31-mtop"><u>E</u>ye</div><div class="w31-mtop">Fi<u>t</u></div><div class="w31-mtop" id="m-tissue">T<u>i</u>ssue</div><div class="w31-mtop"><u>W</u>indow</div><div class="w31-mtop"><u>H</u>elp</div><span id="w31-status">NORMAL · 60 fps · layer model · eye 26</span></div>
+<div id="w31-icons"></div>
+
+<!-- ============================ the Tissue window ============================ -->
+<div class="w31 open active" data-key="tissue" id="win" style="width:392px">
+ <div class="w31-in">
+  <div class="w31-cap"><button class="w31-ctl"></button><span class="w31-capt">Tissue</span><button class="w31-capb"><svg width="9" height="5"><path d="M0 0h9L4.5 5z"/></svg></button></div>
+  <div class="w31-body">
+
+   <!-- model: always visible, three states -->
+   <div id="st-loaded">
+    <div class="t-row" style="margin-top:0"><span class="t-chk on" id="onchk"><i></i>Layer model</span><span class="t-score" id="score"></span></div>
+    <div class="t-note">Measured from the photograph of <b>eye 26</b> — the only eye with a layer model so far (09, 25 and 35 follow in T7). <span id="stats"></span></div>
+   </div>
+   <div id="st-loading" style="display:none">
+    <div class="t-note">Loading the layer model of <b>eye 26</b>…</div>
+    <div class="t-prog"><b style="width:58%"></b></div><div class="t-stage">3 / 5 · baking the tissue (6 s in all) · the eye stays usable</div>
+   </div>
+   <div id="st-none" style="display:none">
+    <div class="t-note">The layer model is the measured tissue of one photographed eye: holes, fibres with their veins, the sheet's guides, the ruff. <b>Only eye 26 has one so far</b> (09, 25, 35 in T7).</div>
+    <div class="w31-brow" style="margin:0"><button class="w31-b def">Load eye 26</button></div>
+   </div>
+   <div id="st-other" style="display:none">
+    <div class="t-note warn">This eye (<b>procedural · hazel</b>) has no layer model. Only <b>eye 26</b> has one so far — measured from its photograph; 09, 25, 35 follow in T7.</div>
+    <div class="w31-brow" style="margin:0"><button class="w31-b">Switch to eye 26 and load</button></div>
+   </div>
+
+   <div id="pages-wrap">
+    <div class="t-pages"><button class="w31-b on" data-p="inspect">Inspect</button><button class="w31-b" data-p="probe">Probe</button><button class="w31-b" data-p="dials">Dials</button></div>
+
+    <!-- INSPECT -->
+    <div class="t-page on" data-p="inspect">
+     <div class="w31-brow" style="margin:0"><button class="w31-b on" data-tool="point">Point</button><button class="w31-b" data-tool="section">Section</button><button class="w31-b" data-tool="contours">Contours</button></div>
+     <div class="t-sunk t-read" id="read" style="margin-top:6px"></div>
+     <canvas class="t-sunk" id="sec" style="margin-top:6px;height:150px"></canvas>
+     <div class="t-legend"><span style="--c:#c0c0c0">tissue</span><span style="--c:#fff">tube (fibre)</span><span style="--c:#000080">tube under a tube</span><span style="--c:#ffff00">you are here</span></div>
+     <div class="t-hint">Point: the height under the pointer. Section: drag a line across the iris — the cut shows every fibre it passes, also those lying under others. Height ×4.</div>
+    </div>
+
+    <!-- PROBE -->
+    <div class="t-page" data-p="probe">
+     <canvas class="t-sunk" id="probe" style="height:auto;aspect-ratio:470/320"></canvas>
+     <div class="w31-brow"><button class="w31-b on" data-m="clay">Clay</button><button class="w31-b" data-m="elevation">Elevation</button><button class="w31-b" data-m="albedo">Albedo</button><button class="w31-b" data-m="height">Height</button></div>
+     <div id="probe-scrubs"></div>
+     <div class="t-hint">Tap the iris to put the camera there · drag the view to look around · HEIGHT below 0 goes down into a canyon.</div>
+    </div>
+
+    <!-- DIALS -->
+    <div class="t-page" data-p="dials">
+     <div class="w31-grp" style="margin-top:4px"><b>Height</b><div id="d-height"></div></div>
+     <div class="w31-grp"><b>Shading</b><div class="t-row"><span class="t-chk on"><i></i>Knobs offset the fit (K1)</span></div><div class="t-row"><span class="t-chk on"><i></i>Measured shading (de-light)</span></div><div id="d-shade"></div></div>
+     <div class="w31-grp"><b>Pupil margin</b><div class="t-row" style="margin-top:0"><span class="t-chk on"><i></i>Traced margin</span></div><div id="d-margin"></div></div>
+     <div class="t-hint">&#8635; reaches the coordinate system: applied when you let go, by re-loading the model (≈ 6 s).</div>
+     <div class="w31-brow"><button class="w31-b">Defaults</button><button class="w31-b">Re-load</button></div>
+    </div>
+   </div>
+  </div>
+ </div>
+</div>
+
+<div id="mockbar"><b>MOCK</b> state:<button class="on" data-s="loaded">loaded</button><button data-s="loading">loading</button><button data-s="none">not loaded</button><button data-s="other">other eye</button></div>
+
+<script src="tissue-mock/data.js"></script>
+<script>
+(() => {
+const M = window.MOCK, $ = id => document.getElementById(id), phone = /[?&]phone\b/.test(location.search) || Math.min(innerWidth, innerHeight) < 600;
+document.body.classList.toggle('w31-phone', phone); document.body.classList.toggle('w31-touch', phone || matchMedia('(pointer: coarse)').matches);
+// ---- icons: verbatim from ui31.js, plus the new one ----
+    const VGA = [[0,0,0],[128,0,0],[0,128,0],[128,128,0],[0,0,128],[128,0,128],[0,128,128],[192,192,192],[128,128,128],[255,0,0],[0,255,0],[255,255,0],[0,0,255],[255,0,255],[0,255,255],[255,255,255]];
+    const B4 = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+    function box(c, x, y, w, hh, col) { c.fillStyle = col; c.fillRect(x, y, w, hh); c.strokeRect(x + .5, y + .5, w - 1, hh - 1); }
+    function disc(c, x, y, r, col, line = 1) { c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fillStyle = col; c.fill(); if (line) c.stroke(); }
+    const ICON = {
+        eye(c) { c.beginPath(); c.moveTo(1.5, 16.5); c.quadraticCurveTo(16, 1, 30.5, 16.5); c.quadraticCurveTo(16, 32, 1.5, 16.5); c.fillStyle = '#fff'; c.fill(); c.stroke();
+            const g = c.createRadialGradient(16, 16.5, 3, 16, 16.5, 8); g.addColorStop(0, '#0ff'); g.addColorStop(1, '#008080'); disc(c, 16, 16.5, 7.5, g); disc(c, 16, 16.5, 3, '#000', 0); c.fillStyle = '#fff'; c.fillRect(18, 12, 2, 2); },
+        camera(c) { box(c, 11, 5, 10, 5, '#808080'); box(c, 2, 9, 28, 18, '#c0c0c0'); c.fillStyle = '#fff'; c.fillRect(3, 10, 26, 1); c.fillRect(3, 10, 1, 16); c.fillStyle = '#808080'; c.fillRect(3, 25, 26, 1); c.fillRect(28, 10, 1, 16);
+            const g = c.createRadialGradient(14, 16, 1, 16, 18, 7); g.addColorStop(0, '#0ff'); g.addColorStop(.5, '#00f'); g.addColorStop(1, '#000080'); disc(c, 16, 18, 6.5, g); box(c, 4, 12, 5, 3, '#ff0'); c.fillStyle = '#f00'; c.fillRect(25, 12, 2, 2); },
+        material(c) { c.beginPath(); c.ellipse(16, 16.5, 14, 11, -0.2, 0, 6.2832); const g = c.createLinearGradient(4, 6, 28, 28); g.addColorStop(0, '#fff'); g.addColorStop(1, '#c0c0c0'); c.fillStyle = g; c.fill(); c.stroke();
+            disc(c, 23, 21, 2.6, '#808080'); [[8, 15, '#f00'], [12, 10, '#ff0'], [18, 8, '#0f0'], [24, 11, '#00f'], [9, 21, '#f0f'], [15, 24, '#808000']].forEach(([x, y, col]) => disc(c, x, y, 2.4, col, 0)); },
+        relief(c) { box(c, 2, 26, 28, 4, '#008000'); c.beginPath(); c.moveTo(2.5, 26.5); c.lineTo(11.5, 7.5); c.lineTo(16.5, 17.5); c.lineTo(21.5, 11.5); c.lineTo(29.5, 26.5); c.closePath(); const g = c.createLinearGradient(4, 0, 28, 0); g.addColorStop(0, '#fff'); g.addColorStop(.45, '#c0c0c0'); g.addColorStop(1, '#404040'); c.fillStyle = g; c.fill(); c.stroke();
+            c.beginPath(); c.moveTo(11.5, 7.5); c.lineTo(9, 14); c.lineTo(11.5, 12.5); c.lineTo(13, 15); c.lineTo(14.5, 13.5); c.closePath(); c.fillStyle = '#fff'; c.fill(); },
+        flow(c) { for (const [y, col] of [[8, '#00f'], [16, '#008080'], [24, '#00f']]) { c.beginPath(); for (let x = 2; x <= 26; x++) { const yy = y + Math.sin(x * 0.55) * 2.6; x === 2 ? c.moveTo(x, yy) : c.lineTo(x, yy); } c.lineWidth = 4; c.strokeStyle = '#000'; c.stroke(); c.lineWidth = 2; c.strokeStyle = col; c.stroke(); c.lineWidth = 1; c.strokeStyle = '#000';
+                const ye = y + Math.sin(26 * 0.55) * 2.6; c.beginPath(); c.moveTo(25, ye - 4); c.lineTo(31, ye); c.lineTo(25, ye + 4); c.closePath(); c.fillStyle = col; c.fill(); c.stroke(); } },
+        fit(c) { disc(c, 16, 16, 13.5, '#fff'); disc(c, 16, 16, 9.5, '#f00'); disc(c, 16, 16, 5.5, '#fff'); disc(c, 16, 16, 2, '#f00'); c.beginPath(); c.moveTo(16, 0); c.lineTo(16, 9); c.moveTo(16, 23); c.lineTo(16, 32); c.moveTo(0, 16); c.lineTo(9, 16); c.moveTo(23, 16); c.lineTo(32, 16); c.stroke(); },
+        photo(c) { box(c, 2, 4, 28, 24, '#fff'); c.fillStyle = '#000'; c.fillRect(4, 6, 24, 20); disc(c, 16, 16, 7.5, '#808000', 0); disc(c, 16, 16, 2.8, '#000', 0);
+            c.strokeStyle = '#ff0'; c.beginPath(); c.arc(16, 16, 8.5, 0, 6.2832); c.stroke(); c.strokeStyle = '#0ff'; c.beginPath(); c.arc(16, 16, 3.5, 0, 6.2832); c.moveTo(16, 11); c.lineTo(16, 21); c.moveTo(11, 16); c.lineTo(21, 16); c.stroke(); c.strokeStyle = '#000'; },
+        design(c) { c.save(); c.translate(16, 16); c.rotate(Math.PI / 4); box(c, -4, -15, 7, 5, '#f00'); box(c, -4, -10, 7, 3, '#c0c0c0'); box(c, -4, -7, 7, 14, '#ff0'); c.fillStyle = '#808000'; c.fillRect(0, -6, 2, 13);
+            c.beginPath(); c.moveTo(-3.5, 7.5); c.lineTo(3.5, 7.5); c.lineTo(0, 15); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.stroke(); c.beginPath(); c.moveTo(-1.5, 12); c.lineTo(1.5, 12); c.lineTo(0, 15); c.closePath(); c.fillStyle = '#000'; c.fill(); c.restore(); },
+        control(c) { box(c, 2, 5, 28, 22, '#c0c0c0'); c.fillStyle = '#fff'; c.fillRect(3, 6, 26, 1); c.fillRect(3, 6, 1, 20); for (const [y, x, col] of [[10, 9, '#f00'], [16, 19, '#00f'], [22, 13, '#008000']]) { c.fillStyle = '#000'; c.fillRect(6, y, 20, 2); box(c, x, y - 3, 5, 8, col); } },
+    };
+    function icon(name) {
+        const cv = document.createElement('canvas'); cv.width = cv.height = 32; const c = cv.getContext('2d'); c.lineWidth = 1; c.strokeStyle = '#000'; ICON[name](c);
+        quantise(c, 32); return cv.toDataURL();
+    }
+    function quantise(c, n) { const im = c.getImageData(0, 0, n, n), d = im.data;
+        for (let i = 0; i < n * n; i++) { const o = i * 4; if (d[o + 3] < 128) { d[o + 3] = 0; continue; } const t = (B4[(Math.floor(i / n) & 3) * 4 + ((i % n) & 3)] / 16 - 0.47) * 56; let best = 0, bd = 1e9;
+            for (let k = 0; k < 16; k++) { const p = VGA[k], e = (d[o] + t - p[0]) ** 2 + (d[o + 1] + t - p[1]) ** 2 + (d[o + 2] + t - p[2]) ** 2; if (e < bd) { bd = e; best = k; } }
+            d[o] = VGA[best][0]; d[o + 1] = VGA[best][1]; d[o + 2] = VGA[best][2]; d[o + 3] = 255; }
+        c.putImageData(im, 0, 0); }
+
+ICON.tissue = c => {   // strata: the sheet with a hole over the fibre deck over the dark epithelium
+  box(c, 2, 24, 28, 5, '#000080');
+  for (let i = 0; i < 6; i++) { c.beginPath(); c.ellipse(5 + i * 4.4, 20, 2.6, 3, 0, 0, 6.2832); c.fillStyle = i % 2 ? '#808000' : '#ffff00'; c.fill(); c.stroke(); }
+  c.beginPath(); c.moveTo(2.5, 16.5); c.lineTo(11.5, 16.5); c.quadraticCurveTo(15, 11, 18.5, 16.5); c.lineTo(29.5, 16.5); c.lineTo(29.5, 9.5); c.lineTo(2.5, 9.5); c.closePath(); c.fillStyle = '#c0c0c0'; c.fill(); c.stroke();
+  c.fillStyle = '#fff'; c.fillRect(3, 10, 26, 1); c.fillStyle = '#808080'; c.fillRect(20, 14, 9, 2); };
+function icon(name) { const cv = document.createElement('canvas'); cv.width = cv.height = 32; const c = cv.getContext('2d'); c.lineWidth = 1; c.strokeStyle = '#000'; ICON[name](c); quantise(c, 32); return cv.toDataURL(); }
+[['camera', 'Camera'], ['material', 'Material'], ['relief', 'Relief'], ['flow', 'Flow'], ['fit', 'Fit'], ['tissue', 'Tissue'], ['design', 'Design'], ['control', 'Control']].forEach(([k, l]) => {
+  const b = document.createElement('button'); b.className = 'w31-dicon' + (k === 'tissue' ? ' on' : ''); b.innerHTML = `<img src="${icon(k)}" alt=""><span>${l}</span>`; $('w31-icons').appendChild(b); });
+$('win').querySelector('.w31-ctl').style.cssText = ''; document.body.style.setProperty('--font', 'Urbanist, Arial, sans-serif'); document.body.style.setProperty('--fw', 700); document.body.style.setProperty('--fs', (phone ? 16 : 13) + 'px');
+
+// ---- scrubbers: the shell's markup, a static ruler with the origin notch ----
+const tri = d => `<svg width="5" height="9"><path d="${d < 0 ? 'M5 0v9L0 4.5z' : 'M0 0v9L5 4.5z'}"/></svg>`;
+function scrub(label, min, max, v, origin, fmt, reload) {
+  const r = document.createElement('div'); r.className = 'w31-scrub' + (reload ? ' reload' : '');
+  r.innerHTML = `<span>${label}</span><span class="w31-sbar"><button class="w31-sa">${tri(-1)}</button><span class="w31-sr"><canvas></canvas><i></i></span><button class="w31-sa">${tri(1)}</button></span><span class="w31-sv">${fmt(v)}</span>`;
+  r._draw = () => { const sr = r.querySelector('.w31-sr'), cv = r.querySelector('canvas'), w = sr.clientWidth, hh = sr.clientHeight, dpr = devicePixelRatio || 1; if (!w) return; cv.width = w * dpr; cv.height = hh * dpr; cv.style.width = w + 'px'; cv.style.height = hh + 'px';
+    const c = cv.getContext('2d'); c.scale(dpr, dpr); const p = w / (max - min), tick = (max - min) / 40, x0 = w / 2 + (origin - v) * p;
+    c.fillStyle = 'rgba(0,0,128,.2)'; c.fillRect(Math.min(x0, w / 2), 0, Math.abs(x0 - w / 2), hh);
+    for (let k = 0; k <= 40; k++) { const x = Math.round(w / 2 + (min + k * tick - v) * p); if (x < 0 || x > w) continue; c.fillStyle = k % 5 === 0 ? '#000' : '#808080'; c.fillRect(x, k % 5 === 0 ? 3 : hh * 0.5, 1, hh); }
+    if (x0 > -3 && x0 < w + 3) { const xo = Math.round(x0); c.fillStyle = '#000080'; c.beginPath(); c.moveTo(xo - 3, 0); c.lineTo(xo + 4, 0); c.lineTo(xo + .5, 4); c.closePath(); c.fill(); c.fillRect(xo, 0, 1, hh); } };
+  SCR.push(r); return r; }
+const SCR = [];
+const um = x => (x >= 0 ? '+' : '') + Math.round(x) + ' µm', deg = x => Math.round(x) + '°', f2 = x => x.toFixed(2);
+[['HEIGHT', -300, 800, 150, 120, um], ['YAW', -180, 180, 20, 0, deg], ['PITCH', -80, 30, -14, -8, deg], ['FOV', 30, 110, 75, 75, deg], ['LINES', 0, 100, 25, 0, x => x ? Math.round(x) + ' µm' : 'off']].forEach(a => $('probe-scrubs').appendChild(scrub(...a)));
+[['DECK Z', 0, 2, 1, 1, f2], ['SHEET Z', 0, 1, .5, .5, f2], ['WALL Z', 1, 4, 2.5, 2.5, x => x.toFixed(1) + '×']].forEach(a => $('d-height').appendChild(scrub(...a)));
+[['AMOUNT', 0, 1, .5, .5, f2]].forEach(a => $('d-shade').appendChild(scrub(...a)));
+[['KEEP', 0, 8, 3, 3, x => Math.round(x) + ' harm.', 1], ['ROUND', 0, 1, .25, .25, f2, 1], ['FADE', 0, .2, .04, .04, f2, 1]].forEach(a => $('d-margin').appendChild(scrub(...a)));
+
+// ---- the model's numbers ----
+const S = M.stats.sets; $('stats').textContent = `${S.outlines} holes · ${S.fibres + S.sfib} fibres · ${S.veins + S.svein} veins · ${S.guides} guides · 67 ruff beads.`;
+$('score').textContent = `MATCH2 ${M.score.match2.toFixed(1)} · MATCH ${M.score.match.toFixed(1)}`;
+
+// ---- the scene: the iris (the real render, cut at the limbus onto the white page), the section cut, the probe ----
+const iris = $('iris'), ov = $('ov'), img = new Image(); img.src = 'tissue-mock/front.png';
+let K = 1, OX = 0, OY = 0;
+function layout() {
+  const top = phone ? 30 : 42, bottom = phone ? innerHeight * 0.55 + 69 : 70, right = phone ? 0 : 392 + 24, availW = innerWidth - right, availH = innerHeight - top - bottom;
+  K = Math.min(availW / (M.limbus.rx * 2.3), availH / (M.limbus.ry * 2.3)); OX = right ? availW / 2 - M.limbus.x * K : innerWidth / 2 - M.limbus.x * K; OY = top + availH / 2 - M.limbus.y * K;
+  const dpr = devicePixelRatio || 1; iris.width = innerWidth * dpr; iris.height = innerHeight * dpr; iris.style.width = innerWidth + 'px'; iris.style.height = innerHeight + 'px';
+  const c = iris.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, innerWidth, innerHeight);
+  const L = M.limbus; c.save(); c.beginPath(); c.ellipse(OX + L.x * K, OY + L.y * K, L.rx * K * 1.0, L.ry * K * 1.0, L.ang, 0, 6.2832); c.clip(); c.drawImage(img, OX, OY, M.W * K, M.H * K); c.restore();
+  ov.setAttribute('width', innerWidth); ov.setAttribute('height', innerHeight); ov.style.left = 0; ov.style.top = 0; overlay(); }
+img.onload = layout; addEventListener('resize', layout);
+
+const FL = M.section.floorUm, abs = z => FL + z;   // tube heights come from the API measured up from the floor
+const smp = M.section.samples, hot = smp.reduce((b, s, i) => (s.t.length > (smp[b].t.length) ? i : b), 0);   // the point readout sits where the cut crosses the most stacked tubes
+let page = 'inspect', tool = 'point', mode = 'clay';
+function P(xy) { return [OX + xy[0] * K, OY + xy[1] * K]; }
+function overlay() {
+  const [a, b] = M.secP.map(P), h = smp[hot], hp = P(h.xy), pr = P(M.probeAt), yaw = (20 - 90) * Math.PI / 180, fov = 75 * Math.PI / 360, R = 46;
+  let s = '';
+  if (page === 'inspect' && tool === 'section') s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#000" stroke-width="4" opacity=".55"/><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#ffff00" stroke-width="2"/>` +
+    [a, b].map(p => `<rect x="${p[0] - 4}" y="${p[1] - 4}" width="8" height="8" fill="#ffff00" stroke="#000"/>`).join('') + `<circle cx="${hp[0]}" cy="${hp[1]}" r="4" fill="#ffff00" stroke="#000"/>`;
+  if (page === 'inspect' && tool === 'point') s += `<path d="M${hp[0] - 12} ${hp[1]}h8M${hp[0] + 4} ${hp[1]}h8M${hp[0]} ${hp[1] - 12}v8M${hp[0]} ${hp[1] + 4}v8" stroke="#000" stroke-width="3"/><path d="M${hp[0] - 12} ${hp[1]}h8M${hp[0] + 4} ${hp[1]}h8M${hp[0]} ${hp[1] - 12}v8M${hp[0]} ${hp[1] + 4}v8" stroke="#ffff00" stroke-width="1.5"/>`;
+  if (page === 'probe') { const p1 = [pr[0] + R * Math.cos(yaw - fov), pr[1] + R * Math.sin(yaw - fov)], p2 = [pr[0] + R * Math.cos(yaw + fov), pr[1] + R * Math.sin(yaw + fov)];
+    s += `<path d="M${pr[0]} ${pr[1]}L${p1[0]} ${p1[1]}A${R} ${R} 0 0 1 ${p2[0]} ${p2[1]}Z" fill="rgba(0,255,255,.22)" stroke="#00ffff" stroke-width="1.5"/><circle cx="${pr[0]}" cy="${pr[1]}" r="5" fill="#00ffff" stroke="#000"/>`; }
+  if (page === 'inspect' && tool === 'contours') { const L = M.limbus, P0 = M.pupil; for (let k = 1; k <= 6; k++) { const t = k / 7, rx = (P0.r + (L.rx - P0.r) * t) * K, ry = (P0.r + (L.ry - P0.r) * t) * K; s += `<ellipse cx="${OX + L.x * K}" cy="${OY + L.y * K}" rx="${rx * (1 + 0.03 * Math.sin(k * 3))}" ry="${ry}" fill="none" stroke="#fff" stroke-width="1" opacity=".55" stroke-dasharray="${k % 2 ? '' : '3 3'}"/>`; } }
+  ov.innerHTML = s;
+  const tip = $('tip'); if (page === 'inspect' && tool !== 'contours') { tip.style.display = 'block'; tip.textContent = `${Math.round(h.z)} µm · ${h.t.length} fibres stacked`; tip.style.left = (hp[0] + 14 + tip.offsetWidth > innerWidth - 4 ? hp[0] - 14 - tip.offsetWidth : hp[0] + 14) + 'px'; tip.style.top = (hp[1] + 10) + 'px'; } else tip.style.display = 'none';
+}
+
+// ---- the point readout (a real sample of the section) ----
+function readout() { const h = smp[hot], rMm = 2 + 4 * (M.section.samples[hot].xy ? 0 : 0);
+  $('read').innerHTML = tool === 'contours' ? `Contours every <b>25 µm</b> drawn on the iris — the relief of the whole eye at a glance.<br>Deepest ${Math.round(Math.min(...smp.filter(s => s.z !== null).map(s => s.z)))} µm on this cut · floor ${Math.round(M.section.floorUm)} µm · deck ${Math.round(M.section.deckThicknessUm)} µm thick.`
+    : `<b>${tool === 'section' ? 'At ' + h.s.toFixed(2) + ' mm along the cut' : 'Under the pointer'}</b> · surface <b>${Math.round(h.z)} µm</b> · floor ${Math.round(M.section.floorUm)} µm · deck ${Math.round(M.section.deckThicknessUm)} µm
+      <table><tr><th>fibre, top down</th><th>top</th><th>centre</th><th>thickness</th></tr>${h.t.slice().sort((p, q) => q[3] - p[3]).map(t => `<tr><td>#${t[0]}</td><td>${Math.round(abs(t[3]))} µm</td><td>${Math.round(abs(t[1]))} µm</td><td>${Math.round(2 * t[2])} µm</td></tr>`).join('')}</table>`; }
+
+// ---- the section plot, drawn from the real section ----
+function section() { const cv = $('sec'), w = cv.clientWidth, hh = cv.clientHeight, dpr = devicePixelRatio || 1; if (!w) return; cv.width = w * dpr; cv.height = hh * dpr; const c = cv.getContext('2d'); c.scale(dpr, dpr);
+  const pad = [34, 8, 16, 16], mm = M.section.mm, zTop = 60, zBot = M.section.floorUm - 20, X = s => pad[0] + s / mm * (w - pad[0] - pad[1]), Y = z => pad[2] + (zTop - z) / (zTop - zBot) * (hh - pad[2] - pad[3]);
+  const ex = (w - pad[0] - pad[1]) / (mm * 1000) * 1, eyv = (hh - pad[2] - pad[3]) / (zTop - zBot);   // px per µm horizontally / vertically
+  c.fillStyle = '#fff'; c.fillRect(0, 0, w, hh);
+  c.fillStyle = '#c0c0c0'; c.beginPath(); c.moveTo(X(0), Y(zBot)); smp.forEach(s => { if (s.z !== null && !s.off) c.lineTo(X(s.s), Y(s.z)); }); c.lineTo(X(mm), Y(zBot)); c.closePath(); c.fill();
+  c.fillStyle = '#000'; c.fillRect(X(0), Y(M.section.floorUm), X(mm) - X(0), 1);
+  const seen = new Set(); smp.forEach((s, i) => s.t.forEach((t, j) => { const key = t[0] + ':' + Math.round(s.s * 20); if (seen.has(key) || i % 4) return; seen.add(key);
+    c.beginPath(); c.ellipse(X(s.s), Y(abs(t[1])), Math.max(1.5, t[2] * ex), Math.max(1.5, t[2] * eyv), 0, 0, 6.2832); c.fillStyle = j > 0 ? '#000080' : '#fff'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); }));
+  c.strokeStyle = '#000'; c.lineWidth = 1.5; c.beginPath(); let first = true; smp.forEach(s => { if (s.z === null || s.off) { first = true; return; } first ? c.moveTo(X(s.s), Y(s.z)) : c.lineTo(X(s.s), Y(s.z)); first = false; }); c.stroke();
+  const h = smp[hot]; c.fillStyle = '#ffff00'; c.strokeStyle = '#000'; c.lineWidth = 1; c.fillRect(X(h.s) - 1, pad[2], 3, hh - pad[2] - pad[3]); c.strokeRect(X(h.s) - 1.5, pad[2] - .5, 3, hh - pad[2] - pad[3]);
+  c.fillStyle = '#000'; c.font = `400 10px Urbanist, Arial`; c.textAlign = 'right'; [0, -100, -200].forEach(z => { c.fillText(z + ' µm', pad[0] - 3, Y(z) + 3); c.fillRect(pad[0] - 2, Y(z), 2, 1); });
+  c.textAlign = 'center'; for (let s = 0; s <= mm; s += 0.5) { c.fillText(s.toFixed(1), X(s), hh - 4); c.fillRect(X(s), hh - pad[3], 1, 3); } c.textAlign = 'left'; c.fillText('mm along the cut · pupil side → limbus side', pad[0], 11);
+  c.strokeStyle = '#000'; c.strokeRect(pad[0] + .5, pad[2] + .5, w - pad[0] - pad[1] - 1, hh - pad[2] - pad[3] - 1); }
+function probe() { const cv = $('probe'), w = cv.clientWidth, hh = cv.clientHeight, dpr = devicePixelRatio || 1; if (!w) return; cv.width = w * dpr; cv.height = hh * dpr; const im = new Image(); im.onload = () => { const c = cv.getContext('2d'); c.drawImage(im, 0, 0, cv.width, cv.height);
+  c.scale(dpr, dpr); c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, hh - 18, w, 18); c.fillStyle = '#fff'; c.font = '400 11px Urbanist, Arial'; c.fillText(`standing ${M.probeInfo.standingAtUm} µm · ground ${M.probeInfo.groundUm} µm · looking 20° · 14° down`, 6, hh - 5); }; im.src = 'tissue-mock/probe-' + mode + '.png'; }
+
+// ---- switching ----
+function refresh() { document.querySelectorAll('[data-p].w31-b').forEach(b => b.classList.toggle('on', b.dataset.p === page)); document.querySelectorAll('.t-page').forEach(p => p.classList.toggle('on', p.dataset.p === page));
+  document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === tool)); document.querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+  $('sec').style.display = tool === 'contours' ? 'none' : 'block'; readout(); overlay(); requestAnimationFrame(() => { section(); probe(); SCR.forEach(r => r._draw()); }); }
+document.querySelectorAll('[data-p].w31-b').forEach(b => b.onclick = () => { page = b.dataset.p; refresh(); });
+document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { tool = b.dataset.tool; refresh(); });
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { mode = b.dataset.m; refresh(); });
+document.querySelectorAll('#mockbar [data-s]').forEach(b => b.onclick = () => { document.querySelectorAll('#mockbar [data-s]').forEach(x => x.classList.toggle('on', x === b)); const s = b.dataset.s;
+  for (const k of ['loaded', 'loading', 'none', 'other']) $('st-' + k).style.display = k === s ? '' : 'none'; $('pages-wrap').style.display = s === 'loaded' ? '' : 'none';
+  $('w31-status').textContent = s === 'loaded' ? 'NORMAL · 60 fps · layer model · eye 26' : s === 'loading' ? 'Loading layer model…  ·  NORMAL' : 'NORMAL · 60 fps · 2048×512'; iris.style.opacity = s === 'loaded' ? 1 : 0.35; ov.style.display = s === 'loaded' ? '' : 'none'; $('tip').style.display = s === 'loaded' ? '' : 'none'; });
+// window placement: right edge on a desktop, the sheet on a phone (ui.css does the phone part)
+if (!phone) { const W = $('win'); W.style.left = (innerWidth - 392 - 8) + 'px'; W.style.top = '46px'; }
+refresh();
+})();
+</script></body></html>

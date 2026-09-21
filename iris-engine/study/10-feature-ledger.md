@@ -212,3 +212,37 @@ cornea default: **re-baseline at v91 under the Win98 shell first**, then compare
 Then: **Tissue window** (§7, rows 1–6) → **G1** guide brush → **G4** journal serialisation → **G2** crypt /
 furrow / spot → **G3** generator → T6. Each G tool lands in the Design toolbox, with its ledger row, in the commit
 that builds it.
+
+## 11. Proposed (2026-09-21, under discussion): the start eye — a beautiful eye on arrival, growing while it loads
+
+iori: users should start with a beautiful, fully fitted eye instead of the plain brown seed-42 default; if the full eye
+takes too long, the viewport should build it procedurally in real time so people watch it grow instead of waiting.
+
+Facts that shape it (measured 2026-09-21):
+
+| | size (wire) | time to on-screen | quality |
+|---|---|---|---|
+| today's default: seed 42, procedural | 0 | instant | plain brown, not fitted |
+| legacy fitted presets (v83c) — `ref/presets.json` holds all four | 5.0 MB (one file for all four) | fetch + import | MATCH2 65–70; the known colour cast (lavender Δab ≈ 12, audit-28) |
+| layer model of eye 26 | 1.6 MB primitives + 1.5 MB photo today | 3.8 s dev · 7.4 s live (download + calibrate + bake + de-light) | MATCH2 84.6, cell Δab ≈ 2.6 — the best eye we have |
+
+- Only **eye 26** has a layer model; 09, 25, 35 need T7 (layer_proof has ref-26 constants hard-coded).
+- `calibrate()` never reads the photo's pixels — it renders two flat-grey frames through the renderer — it needs only the
+  photo's *frame* (size, markers, pose). So the 1.5 MB photo download can go, and the calibration itself could ship with
+  the eye (a few numbers per region cell) instead of being measured on every visit.
+- The primitives are 4.9 MB of JSON (1.6 MB compressed). T5's budget idea (quantised binary) should bring them to a few
+  hundred KB.
+
+Proposed phases (S = start eye), each measured before the next:
+
+| # | step | first measurement |
+|---|---|---|
+| S0 | cold-load timeline of the three options above on desktop, the tablet and the phone; WebGL float-target support on the tablet / phone | where the 7.4 s goes |
+| S1 | the eye opens as eye 26: the instant frame is the procedural engine *with eye 26's own globals, pose and palette* (a few KB inline), never seed-42 brown | first paint time, and how close the instant frame looks |
+| S2 | the growing eye: the layer model arrives in visible stages — holes → fibres → veins → sheet guides → ruff → measured shading — each a re-bake of what has arrived, the page usable throughout, a quiet status line | time per stage on the phone |
+| S3 | ship calibration with the eye (no photo, no calibrate on arrival); per-eye files instead of one 5 MB presets.json | bytes and seconds saved |
+| S4 | compact primitives (T5): quantised binary, streamed by class | wire size, identical picture (pixel diff) |
+| S5 | 09, 25, 35 through the layer model (T7) → four layer-model start eyes, maybe a random one per visit | per-eye MATCH2 / Δab |
+
+Distinction to keep honest: S2 shows the *loading* of a finished eye in stages; the eye truly growing from a
+photograph under the fitter is T6. Both use the same op journal (G4), so S2's stages can later be T6's replay.

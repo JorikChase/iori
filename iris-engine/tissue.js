@@ -195,6 +195,8 @@
             t0.r = mix(t0.r, tisAux(uv, lod).r * u_tisReliefK / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here:
             t1 = mix(t1, vec4(0.0), tsA.a); t3.r = mix(t3.r, 1.0, tsA.a);                          // no crypt / furrow / spot / strand-sheen / occlusion terms of the old model
             float occ = t3.r;`);
+        need('float ruff = 1.0 - smoothstep(RUFF_W * 0.6 * scallop, RUFF_W * 1.4 * scallop, (r - rp));',
+            'float ruff = (1.0 - smoothstep(RUFF_W * 0.6 * scallop, RUFF_W * 1.4 * scallop, (r - rp))) * (1.0 - tsA.a);   // T1: the painted ruff is drawn after the layer model, so it landed ON TOP of it — a grey ring with two sine waves for scallops. Where the tissue owns the texel it owns the margin, beads and all.');
         need('lit += 0.05 * pow(clamp(dot(N, hv), 0.0, 1.0), 24.0);', 'lit += 0.05 * (1.0 - tsA.a) * pow(clamp(dot(N, hv), 0.0, 1.0), 24.0);   // the coaxial flash glints off every texel: a constant the tissue cannot go below — the payloads own it here');
         need('col *= clamp(mix(0.0, 2.0, texture(u_f1, uv).b), 0.4, 1.6);', `col *= clamp(mix(0.0, 2.0, texture(u_f1, uv).b), 0.4, 1.6);
             // K1 (§32): the knobs offset the fit. The material this texel has now (\`mel\`, \`stroma\`, \`pheo\`, ring and all,
@@ -348,6 +350,7 @@
         const fit = F.fit, W = fit.W, H = fit.H, map = F.getMap(), sx = W / json.fit[0], sy = H / json.fit[1];
         const conv = xy => xy.map(p => uvAt(map, W, H, p[0] * sx, p[1] * sy));
         const sets = {}; let u0 = 1, u1 = 0, v0 = 1, v1 = 0, lost = 0, tot = 0;
+        if (json.beads && json.beads.length) json.fibres = json.fibres.concat(json.beads);   // T1: the ruff's lobes are short tubes lying on the margin — the deck's own rasteriser domes them
         for (const k of ['outlines', 'fibres', 'veins', 'guides', 'sfib', 'svein']) sets[k] = json[k].map(c => { const uv = conv(c.xy); for (const p of uv) { tot++; if (!p) { lost++; continue; } u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); } return Object.assign({}, c, { uv }); });
         T.full = u1 - u0 > 0.5;                                          // the whole iris: the region is the full circle, u wraps
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };

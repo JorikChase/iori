@@ -6,8 +6,8 @@
  "classes": {
   "sheet": {
    "photo_Lab": [
-    42.7,
-    -6.4,
+    42.5,
+    -6.3,
     36.7
    ],
    "model_Lab": [
@@ -15,7 +15,7 @@
     -6.6,
     36.6
    ],
-   "dE": 0.61,
+   "dE": 0.55,
    "material": {
     "melanin": 0.128,
     "stroma": 0.141,
@@ -87,51 +87,51 @@
  },
  "metrics": {
   "engine_v84c": {
-   "cellDab": 15.368,
-   "cellDL": 6.144,
-   "dab50": 15.635,
+   "cellDab": 15.282,
+   "cellDL": 6.159,
+   "dab50": 15.546,
    "dab50_hole": 16.394,
-   "dab50_sheet": 15.475,
+   "dab50_sheet": 15.373,
    "dab_hole": 13.914,
-   "dab_sheet": 7.829,
+   "dab_sheet": 7.67,
    "dab_rim": 20.525,
    "B1_corr": 0.702,
-   "B1_ratio": 1.194,
+   "B1_ratio": 1.2,
    "B2_corr": 0.698,
-   "B2_ratio": 1.319,
+   "B2_ratio": 1.321,
    "B3_corr": 0.138,
-   "B3_ratio": 0.801
+   "B3_ratio": 0.802
   },
   "layers_clean": {
-   "cellDab": 2.038,
-   "cellDL": 2.144,
-   "dab50": 2.575,
+   "cellDab": 2.034,
+   "cellDL": 2.139,
+   "dab50": 2.57,
    "dab50_hole": 3.475,
-   "dab50_sheet": 2.322,
+   "dab50_sheet": 2.318,
    "dab_hole": 0.234,
-   "dab_sheet": 0.641,
+   "dab_sheet": 0.622,
    "dab_rim": 1.768,
-   "B1_corr": 0.957,
-   "B1_ratio": 0.945,
+   "B1_corr": 0.959,
+   "B1_ratio": 0.943,
    "B2_corr": 0.811,
    "B2_ratio": 0.854,
    "B3_corr": 0.416,
-   "B3_ratio": 0.376
+   "B3_ratio": 0.375
   },
   "layers_with_camera_grain": {
-   "cellDab": 2.071,
-   "cellDL": 2.147,
-   "dab50": 2.735,
-   "dab50_hole": 3.749,
-   "dab50_sheet": 2.485,
+   "cellDab": 2.066,
+   "cellDL": 2.143,
+   "dab50": 2.729,
+   "dab50_hole": 3.748,
+   "dab50_sheet": 2.481,
    "dab_hole": 0.904,
-   "dab_sheet": 1.05,
+   "dab_sheet": 1.039,
    "dab_rim": 2.207,
-   "B1_corr": 0.957,
-   "B1_ratio": 0.938,
+   "B1_corr": 0.959,
+   "B1_ratio": 0.936,
    "B2_corr": 0.807,
-   "B2_ratio": 0.852,
-   "B3_corr": 0.226,
+   "B2_ratio": 0.853,
+   "B3_corr": 0.225,
    "B3_ratio": 0.687
   }
  },
@@ -144,12 +144,12 @@
   "guide_samples": 23836,
   "veins": 1657,
   "vein_samples": 9183,
-  "sheet_fibres": 618,
-  "sheet_fibre_samples": 7103,
-  "sheet_veins": 623,
-  "sheet_vein_samples": 7167,
+  "sheet_fibres": 620,
+  "sheet_fibre_samples": 7123,
+  "sheet_veins": 635,
+  "sheet_vein_samples": 7289,
   "rim_samples": 41472,
   "sheet_cells": 15129,
-  "window_mm2": 87.79
+  "window_mm2": 88.41
  }
 }

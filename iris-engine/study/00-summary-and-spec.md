@@ -2055,3 +2055,47 @@ is still open and is *not* explained by the double-count.
 `proof()` now measures the de-light as part of loading an eye (≈ 2 s of its 14 s); pass `{delight: false}` to skip it.
 Compose was at WebGL's 16-sampler limit, so the legacy height field and the measured de-light are packed into one
 region-sized texture first. K1 is still bit-identical at the origin.
+
+### 32.11 Log (2026-09-21): T1 — the inner edge, read from the photo instead of painted
+
+iori's first task, and the one from the screenshot that started this stretch: the inner edge showed *a hard circle, a
+grey ring with painted spokes, and smeared tissue*. All three were in the code, exactly as diagnosed:
+
+- `layer_proof.py` cut the mask at **1.07 r_p** — "the pupil and its ruff are not this model's tissue" — so the whole
+  pupillary zone was thrown away and the colour cells smeared inward to fill it;
+- `index.html` painted the ruff as `sin(a·70)` and `sin(a·23 + 1.7)` over a fixed 0.08 mm band of flat dark colour —
+  the spokes and the grey ring;
+- and that paint is applied **after** the layer model's colour, so it landed *on top of* the tissue.
+
+**The margin is traced from the photo.** Polar sampling round the fitted centre, the half-way climb out of the pupil
+found to sub-pixel per angle, then fourteen harmonics — enough to be polygonal and decentred, not enough to be noisy.
+On ref 26 it runs **2.339–2.590 mm against a fitted circle of 2.333 mm: 251 µm out of round.** The mask now follows
+that curve, so the pupillary zone and its ruff are tissue like everything else.
+
+**The ruff is read from what the smoothing throws away.** The scallops crenellate the edge about seventy times round,
+so the *residual* of the raw trace, band-limited to 30–110 cycles a revolution, is the lip's own shape. That gives
+**67 beads, 168 µm wide, bulging 49 µm (p90 103)**, with the pigment's own colour at L\* 19. Hunting bumps in a
+brightness profile instead finds the pupillary zone's radial streaks and returns 37 lobes of 316 µm — tried first,
+and wrong. Each bead exports as a short tube lying along the margin, so the deck's own rasteriser domes it and gives
+it relief with no new machinery; its height (0.6 × its radius, a rolled lip standing proud) is **inferred**, and its
+`zc` says so.
+
+The painted ruff is now multiplied by `(1 − tsA.a)`: where the layer model owns the texel it owns the margin too.
+
+**What T1 delivers, and what it does not.** On ref 26 the whole eye is unchanged where it should be and better where
+the margin is: MATCH2 86.76, MATCH 92.17, grad 0.783, strandCorr 0.376, and **cellDab 2.62 → 2.56** — 67 beads in a
+thin ring cannot move a 12 mm eye's averages, and the edge is where to look. There, the **grey ring and the painted
+spokes are gone** and the pupillary zone carries real radial structure for the first time, because it is tissue now
+instead of colour smeared inward from 1.07 r_p.
+
+Two defects stay open and should not be glossed:
+
+- **The pupil edge is still a hard circle.** The margin curve drives the *extraction's* mask and the ruff, but the
+  engine still draws its own aperture at a circular `rp`; `r_m(θ)` is exported and loaded but not yet wired into the
+  coordinate map. That is the rest of T1 and it reaches into `index.html`, not just the layer model.
+- **A few beads render as pale pips** on the margin. Not relief — the radial profile is identical with `deckZ` 0 and
+  1 — and not their albedo, which is *darker* than the fibres' (median luminance 0.0275 against 0.0684). Cause not
+  yet found; it wants the baked albedo read back in that ring.
+
+The bead radius is 0.35 × the lobe's half-width: the colour spreads over the lobe's own Voronoi cell whatever the
+radius, so the radius is free to encode height instead, and at the full half-width they render as 150 µm hemispheres.

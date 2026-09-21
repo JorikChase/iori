@@ -144,6 +144,70 @@ def extend_to_walls(paths, sd, max_px=70):
     return out
 
 
+# ---------------------------------------------------------------- T1: the pupil margin and the ruff (spec §32)
+# The inner edge of an iris is not a circle with a grey ring painted on it. The MARGIN is a slightly polygonal,
+# decentred curve, and the RUFF is the posterior pigment epithelium curling forward over it — a rolled lip in about
+# seventy scallops, each with real relief. Both are read from the photo here, where the old model had two sine waves.
+def pupil_margin(plab, pc, rp, um, nth=720, harm=14):
+    """r_m(theta) for the margin, and a bead per scallop of the ruff. Angles are image angles; radii in window px."""
+    th = np.arange(nth) / nth * 2 * np.pi
+    rr = np.linspace(0.70 * rp, 1.50 * rp, 260)
+    xs = (pc[0] + np.cos(th)[:, None] * rr[None, :]).astype(np.float32)
+    ys = (pc[1] + np.sin(th)[:, None] * rr[None, :]).astype(np.float32)
+    pol = lambda img: cv2.remap(np.ascontiguousarray(img.astype(np.float32)), xs, ys, cv2.INTER_LINEAR)
+    L, A, B = pol(plab[..., 0]), pol(plab[..., 1]), pol(plab[..., 2])
+    Ls = cv2.GaussianBlur(L, (0, 0), 1.2)
+    dark = np.median(Ls[:, :40], 1)                       # 0.70–0.82 rp: inside the pupil
+    lit = np.median(Ls[:, -70:], 1)                       # 1.29–1.50 rp: the iris proper
+    # the margin: the first climb out of the pupil, half way up, to sub-pixel
+    rm = np.full(nth, np.nan)
+    thr = dark + 0.5 * (lit - dark)
+    for i in range(nth):
+        c = np.nonzero(Ls[i] > thr[i])[0]
+        if not len(c) or c[0] == 0: continue
+        j = c[0]; a_, b_ = Ls[i, j - 1], Ls[i, j]
+        t = 0.5 if b_ == a_ else (thr[i] - a_) / (b_ - a_)
+        rm[i] = rr[j - 1] + t * (rr[j] - rr[j - 1])
+    ok = ~np.isnan(rm)
+    if ok.sum() < nth // 2: return None
+    raw = np.interp(th, th[ok], rm[ok], period=2 * np.pi)
+    f = np.fft.rfft(raw); f[harm + 1:] = 0                # the margin proper: polygonal and decentred, not noisy
+    rm = np.fft.irfft(f, nth)
+    # The SCALLOPS are what that smoothing throws away. The ruff crenellates the edge about seventy times round, so
+    # the residual of the raw trace, band-limited to 30–110 cycles a revolution, is the lip's own shape — far better
+    # evidence than hunting bumps in a brightness profile, which finds the pupillary zone's streaks instead.
+    g = np.fft.rfft(raw - rm); g[:30] = 0; g[111:] = 0
+    scal = np.fft.irfft(g, nth)
+    # the lip's radial reach, against a LOCAL reference just beyond it rather than the far iris
+    ref_j = int(np.searchsorted(rr, 0.0))
+    reach = np.zeros(nth)
+    for i in range(nth):
+        j0 = int(np.searchsorted(rr, rm[i]))
+        jr = int(np.searchsorted(rr, rm[i] + 300.0 / um))  # 300 µm out: past the lip, still in the pupillary zone
+        loc = float(np.median(Ls[i, j0:max(j0 + 2, jr)]))
+        lim = dark[i] + 0.6 * (loc - dark[i])
+        j = j0
+        while j < len(rr) - 1 and rr[j] < rm[i] + 400.0 / um and Ls[i, j] < lim: j += 1
+        reach[i] = max(rr[j] - rm[i], 0.0)
+    k = 5; reach = np.convolve(np.r_[reach[-k:], reach, reach[:k]], np.ones(k) / k, 'same')[k:-k]
+    beads = []
+    for i in range(nth):
+        w = 3
+        nb = [scal[(i + d) % nth] for d in range(-w, w + 1)]
+        if scal[i] < max(nb) - 1e-12 or scal[i] <= 0: continue
+        if beads and min(abs(th[i] - beads[-1]['th']), 2 * np.pi - abs(th[i] - beads[-1]['th'])) < 0.030: continue
+        j0 = int(np.searchsorted(rr, rm[i])); j1 = int(np.searchsorted(rr, rm[i] + max(reach[i], 20.0 / um)))
+        beads.append({'th': float(th[i]), 'r': float(rm[i] + 0.5 * reach[i]), 'depth': float(reach[i]),
+                      'out': float(scal[i]),
+                      'lab': [float(np.median(L[i, j0:max(j0 + 2, j1)])), float(np.median(A[i, j0:max(j0 + 2, j1)])),
+                              float(np.median(B[i, j0:max(j0 + 2, j1)]))]})
+    for i, b in enumerate(beads):                         # each bead is as wide as the gap to its neighbours
+        prev, nxt = beads[i - 1], beads[(i + 1) % len(beads)]
+        d0 = (b['th'] - prev['th']) % (2 * np.pi); d1 = (nxt['th'] - b['th']) % (2 * np.pi)
+        b['halfw'] = float(0.5 * min(d0, d1) * b['r'])
+    return {'th': th, 'rm': rm, 'reach': reach, 'beads': beads}
+
+
 # ---------------------------------------------------------------- Z1: height on the primitives (spec §32)
 # A photo under a coaxial flash carries almost no depth (§30.1: the relief it does show is symmetric). Height is
 # therefore INFERRED, and the inference is written down here so it can be argued with and corrected by hand (G):
@@ -318,8 +382,23 @@ def main():
     iris = (cv2.GaussianBlur(plab[..., 0], (0, 0), 3) > 8).astype(np.uint8)
     ic, _ = cv2.findContours(iris, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)                           # black pits inside crypts are tissue, not background
     iris = np.zeros_like(iris); cv2.drawContours(iris, [max(ic, key=cv2.contourArea)], -1, 1, -1)
-    pupil_px = np.hypot(*(np.mgrid[0:H, 0:W][::-1] - np.array([PUP[0] * k - x0, PUP[1] * k - y0])[:, None, None])) < 1.07 * PUP[2] * k
-    iris[pupil_px] = 0                                                                                   # the pupil and its ruff are not this model's tissue
+    # ---- T1 (§32): the margin as a curve and the ruff as beads, both read from the photo. The mask follows the
+    # traced margin, so the pupillary zone and its ruff ARE this model's tissue now — they were cut off at 1.07 r_p.
+    PC = np.array([PUP[0] * k - x0, PUP[1] * k - y0])
+    MARG = pupil_margin(plab, PC, PUP[2] * k, UM)
+    yy_, xx_ = np.mgrid[0:H, 0:W]
+    rad_ = np.hypot(xx_ - PC[0], yy_ - PC[1])
+    if MARG is None:
+        pupil_px = rad_ < 1.07 * PUP[2] * k                       # no margin in view (the 3 mm proof window): as before
+    else:
+        ang_ = np.arctan2(yy_ - PC[1], xx_ - PC[0]) % (2 * np.pi)
+        pupil_px = rad_ < np.interp(ang_, MARG['th'], MARG['rm'], period=2 * np.pi)
+        rm_, bd_ = MARG['rm'], MARG['beads']
+        print(f'pupil margin: r {rm_.min() * UM / 1000:.3f}–{rm_.max() * UM / 1000:.3f} mm '
+              f'(the fitted circle is {PUP[2] * k * UM / 1000:.3f} mm; out of round by {(rm_.max() - rm_.min()) * UM:.0f} µm) · '
+              f'ruff {len(bd_)} beads, {2 * np.median([b["halfw"] for b in bd_]) * UM:.0f} µm wide, '
+              f'bulging {np.median([b["out"] for b in bd_]) * UM:.0f} µm (p90 {np.percentile([b["out"] for b in bd_], 90) * UM:.0f})')
+    iris[pupil_px] = 0                                                                                   # the pupil itself is not tissue
     aper = cv2.GaussianBlur(iris.astype(np.float32), (0, 0), 7)
     inner = cv2.erode(iris, np.ones((41, 41), np.uint8)) > 0
 
@@ -509,7 +588,7 @@ def main():
         ex = {'ref': '26-green-crypts-isolated.jpg', 'fit': [1280, 925], 'grade': {'chroma': G, 'hue': ROT},
               'z': {'model': 'weave', 'rK': FIB_R_K, 'zMaxMm': Z_MAX_MM, 'provenance': {'r': 'measured', 'z': 'inferred'}},
               'mm': {'wall': WALL * MM, 'rimW': RIM_W * MM, 'rimOff': 5.0 * MM, 'pit': [14 * MM, 26 * MM], 'bodyBlur': 2.5 * MM, 'guideColBlur': 3.0 * MM, 'depth': 0.01},
-              'outlines': [], 'fibres': [], 'veins': [], 'guides': [], 'sfib': [], 'svein': []}
+              'outlines': [], 'fibres': [], 'veins': [], 'guides': [], 'sfib': [], 'svein': [], 'beads': []}
         for i_, (o, a_) in enumerate(zip(outlines, rim_strength)):
             ex['outlines'].append({'xy': r3(fitxy(o)), 'rim': r1(a_), 'island': i_ >= len(outlines) - len(islands)})
         for i_, c in enumerate(fibres):
@@ -528,6 +607,27 @@ def main():
             gcol = graded(ch * yl[:, None]); ex['guides'].append(curve(c, val=r1(c['val']), base=rdl(c, base_s), rgb=r3(gcol / np.maximum(gcol @ LUMA, 1e-5)[:, None])))
         for c in sfib: ex['sfib'].append(curve(c, val=r1(c['val']), base=rdl(c, b6)))
         for c in svein: ex['svein'].append(curve(c, val=r1(c['val']), base=rdl(c, b6)))
+        if MARG is not None:
+            ex['margin'] = {'xy': r3(fitxy(np.stack([PC[0] + np.cos(MARG['th']) * MARG['rm'],
+                                                     PC[1] + np.sin(MARG['th']) * MARG['rm']], 1))),
+                            'circle': [float(PUP[0]), float(PUP[1]), float(PUP[2])]}
+            ex['beads'] = []
+            for b in MARG['beads']:
+                t_, rc = b['th'], b['r'] + 0.5 * b['out']
+                tang = np.array([-np.sin(t_), np.cos(t_)])
+                c_ = np.array([PC[0] + np.cos(t_) * rc, PC[1] + np.sin(t_) * rc])
+                q = np.stack([c_ - tang * 0.45 * b['halfw'], c_ + tang * 0.45 * b['halfw']])
+                rgb = lab2lin(np.array([b['lab']], np.float32))[0]
+                # The lobe is ~170 µm WIDE but it is a low mound, not a hemisphere: its colour spreads over its own
+                # Voronoi cell whatever the radius, so the radius is free to encode the HEIGHT instead. At the full
+                # half-width the beads render as 150 µm domes that catch the key as bright pips; a third of it reads.
+                hw = 0.35 * b['halfw'] * MM
+                ex['beads'].append({'xy': r3(fitxy(q.astype(np.float32))),
+                                    'w': [round(hw / FIB_R_K, 5)] * 2,          # so the engine's r = rK·w is the mound's radius
+                                    'r': [round(hw, 5)] * 2,
+                                    'z': [round(0.5 * hw, 5)] * 2,              # a rolled lip standing proud: inferred
+                                    'zc': [0.0, 0.0],                            # the height is prior, not measurement
+                                    'rgb': r3(graded(np.maximum(rgb, 1e-5)[None, :]) .repeat(2, 0))})
         cyy, cxx = np.mgrid[0:gy, 0:gx]; cpos = np.stack([(cxx.ravel() + 0.5) * W / gx - 0.5, (cyy.ravel() + 0.5) * H / gy - 0.5], 1)
         inwin = cv2.resize(iris.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA).ravel() > 0.5
         gcell = cv2.resize(gY.astype(np.float32), (gx, gy), interpolation=cv2.INTER_AREA).ravel()

@@ -11,7 +11,7 @@
     const W = U.WINS.find(w => w.key === 'tissue'); if (!W) return;
     const F = E.fit, fit = F.fit, state = E.state, gl = E.gl, cv = E.canvas, $ = id => document.getElementById(id);
     const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
-    const CASE = '26-green-crypts-isolated.jpg', SRC = 'study/proof-layers/tissue-26-whole.json';
+    const CASE = '26-green-crypts-isolated.jpg', SRC = 'data/tissue-26.json';
     const X = window.__irisTissueUI = { loading: false, st: 'none', page: 'inspect', tool: 'point', probe: { uv: null, heightUm: 150, yaw: 20, pitch: -14, fov: 75, contourUm: 25, mode: 'clay' } };
     let eyeAt = null, avail = null, cases = null, prog = [0, 1, ''];
 

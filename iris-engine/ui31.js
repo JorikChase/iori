@@ -234,7 +234,7 @@
                 { l: '&Point', run: () => X.go('inspect', 'point'), dis: !X.ready() }, { l: '&Section', run: () => X.go('inspect', 'section'), dis: !X.ready() }, { l: '&Contours', run: () => X.go('inspect', 'contours'), dis: !X.ready() },
                 { l: 'P&robe', run: () => X.go('probe'), dis: !X.ready() }, '-', { l: '&Dials…', run: () => X.go('dials'), dis: !X.ready() }, { l: 'Re-&load', run: () => X.reload(), dis: !X.ready() }]; }],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
-        ['&Help', () => [{ l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
+        ['&Help', () => [{ l: '&Photo credits…', run: () => credits() }, '-', { l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
     ];
     function buildChrome() {
         const cap = h('div', '', `<button class="w31-ctl" id="w31-ctl" aria-label="Site menu" title="iori.me · site menu"></button><span class="w31-capt">Iris Engine</span><button class="w31-capb" tabindex="-1" aria-label="Minimize">${DOWN}</button><button class="w31-capb" tabindex="-1" aria-label="Maximize">${UP}</button>`); cap.id = 'w31-cap'; cap.dataset.ui = '1'; document.body.appendChild(cap);
@@ -244,8 +244,8 @@
         const st = h('span'); st.id = 'w31-status'; bar.appendChild(st);
         $('w31-ctl').onclick = () => { const r = $('w31-ctl').getBoundingClientRect(); showMenu([...(phone ? MENUS.map(([l, items]) => ({ l, sub: items })).concat(['-']) : []), ...siteItems(), '-', { l: '&Windows 98 shell', run: () => { location.search = '?ui=98'; } }], r.left, r.bottom, 0); };
         const ic = h('div'); ic.id = 'w31-icons'; ic.dataset.ui = '1'; document.body.appendChild(ic);
-        const veil = h('div', '', `<div class="w31 active" id="w31-about"><div class="w31-in"><div class="w31-cap"><button class="w31-ctl" data-close></button><span class="w31-capt">About Iris Engine</span></div><div class="w31-body"><img width="32" height="32" style="image-rendering:pixelated" alt="" src="${icon('eye')}"><div><b>Iris Engine</b> ${E.ENGINE_VERSION || ''}<br>A photoreal, fully procedural human iris.<br>Shell drawn in the Windows 3.11 idiom — own icons, nothing copied.<br>Reference photographs: see ref/ATTRIBUTION.md.</div><span></span><div style="text-align:right"><button class="w31-b def" data-close style="min-width:70px">OK</button></div></div></div></div>`);
-        veil.id = 'w31-veil'; veil.dataset.ui = '1'; document.body.appendChild(veil); veil.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === veil) veil.classList.remove('on'); });
+        const veil = h('div', '', `<div class="w31 active" id="w31-about"><div class="w31-in"><div class="w31-cap"><button class="w31-ctl" data-close></button><span class="w31-capt">About Iris Engine</span></div><div class="w31-body"><img width="32" height="32" style="image-rendering:pixelated" alt="" src="${icon('eye')}"><div><b>Iris Engine</b> ${E.ENGINE_VERSION || ''}<br>A photoreal, fully procedural human iris.<br>Shell drawn in the Windows 3.11 idiom — own icons, nothing copied.<br>The fitted eyes are measured from four photographs on Wikimedia Commons — <a href="#" data-credits>photo credits</a>.</div><span></span><div style="text-align:right"><button class="w31-b def" data-close style="min-width:70px">OK</button></div></div></div></div>`);
+        veil.id = 'w31-veil'; veil.dataset.ui = '1'; document.body.appendChild(veil); veil.addEventListener('click', e => { if (e.target.closest('[data-credits]')) { e.preventDefault(); veil.classList.remove('on'); credits(); return; } if (e.target.closest('[data-close]') || e.target === veil) veil.classList.remove('on'); });
         const hold = h('div'); hold.id = 'w31-holder'; hold.style.display = 'none'; document.body.appendChild(hold);   // controls that now live in the menus keep their place in the DOM
         for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn', 'cam-btn', 'fit-open']) { const el = $(id); if (el) hold.appendChild(el); }
         const strip = h('div'); strip.id = 'tab-strip'; strip.style.display = 'none'; document.body.appendChild(strip);   // tells design.js the layout is ours
@@ -312,6 +312,32 @@
         $('fit-open').addEventListener('click', () => show(W, true));
         new MutationObserver(() => { if (fp.classList.contains('hidden')) fp.classList.remove('hidden'); }).observe(fp, { attributes: true, attributeFilter: ['class'] });
     }
+
+    // ---------------------------------------------------------------------------------------------------------
+    // photo credits. The fitted eyes (Eye ▸ Presets, the layer model) are measured from four photographs on Wikimedia
+    // Commons; ref/refs.json is the single source (title, author, licence, page). While the eye on the screen comes from
+    // one of them, one quiet line sits on the scene; a click opens the list. Nothing else is added to the page.
+    // ---------------------------------------------------------------------------------------------------------
+    const ISO = ['09-blue-green-isolated.jpg', '25-green-amber-ring-isolated.jpg', '26-green-crypts-isolated.jpg', '35-grey-green-isolated.jpg'];
+    const LIC = { 'CC BY 4.0': 'https://creativecommons.org/licenses/by/4.0/', 'CC BY-SA 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/' };
+    let refs = null; const refsP = fetch('ref/refs.json').then(r => r.ok ? r.json() : []).then(r => { refs = r.filter(x => ISO.includes(x.file)); return refs; }).catch(() => (refs = []));
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const title = r => r.commons.replace(/\.(jpe?g|png)$/i, '');
+    const lic = r => LIC[r.license] ? `<a href="${LIC[r.license]}" target="_blank" rel="noopener">${esc(r.license)}</a>` : esc(r.license);
+    async function credits() { await refsP; let d = $('w31-credits');
+        if (!d) { d = h('div', '', `<div class="w31 active" id="w31-credits-w"><div class="w31-in"><div class="w31-cap"><button class="w31-ctl" data-close></button><span class="w31-capt">Photo credits</span></div><div class="w31-body"></div></div></div>`); d.id = 'w31-credits'; d.dataset.ui = '1'; document.body.appendChild(d);
+            d.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === d) d.classList.remove('on'); }); }
+        d.querySelector('.w31-body').innerHTML = `<p>The fitted eyes are measured from these photographs. The engine draws every iris itself — the photographs are what it is compared with and fitted to, and they are shown when you open them in the Fit window.</p>` +
+            refs.map(r => `<div class="w31-cred"><b>Eye ${r.file.slice(0, 2)}</b> · ${esc(r.colour)} — ${esc(r.note.replace(/^isolated iris on black,\s*/i, ''))}<br><a href="${esc(r.source)}" target="_blank" rel="noopener">${esc(title(r))}</a> by ${esc(r.author)}, ${lic(r)}, via Wikimedia Commons · resized</div>`).join('') +
+            `<div style="text-align:right;margin-top:8px"><button class="w31-b def" data-close style="min-width:70px">OK</button></div>`;
+        d.classList.add('on'); }
+    const credit = h('a', '', ''); credit.id = 'w31-credit'; credit.href = '#'; credit.dataset.ui = '1'; document.body.appendChild(credit); credit.onclick = e => { e.preventDefault(); credits(); };
+    let creditKey = null;
+    function markCredit() {
+        if (!refs) return; const f = E.fit && E.fit.fit, X = window.__irisTissueUI, m = /^fit-(\d\d)/.exec(E.state.preset || '');
+        const file = X && X.st === 'loaded' && window.IrisTissue && window.IrisTissue.on ? ISO[2] : f && f.img && ISO.includes(f.name) ? f.name : m ? ISO.find(x => x.startsWith(m[1])) : null;
+        if (file === creditKey) return; creditKey = file; const r = file && refs.find(x => x.file === file);
+        credit.style.display = r ? '' : 'none'; if (r) credit.textContent = `Eye ${r.file.slice(0, 2)} · fitted to “${title(r)}” by ${r.author} · ${r.license}`; }
 
     // ---------------------------------------------------------------------------------------------------------
     // keyboard (study/09 U5): Alt+letter or F10 opens a menu; in a menu ↑ ↓ move, → opens a submenu or the next menu,
@@ -415,13 +441,13 @@
         const o = document.createElement('script'); o.src = 'overlay.js'; o.onload = () => { const t = document.createElement('script'); t.src = 'tissue-ui.js'; document.head.appendChild(t); }; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris; study/10 §7: the Tissue window needs the overlay's API
     });
     window.addEventListener('resize', relayout);
-    setInterval(() => { markBusy(); markLiveness(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return
+    setInterval(() => { markBusy(); markLiveness(); markCredit(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return
     let last = performance.now(), fT = last, fN = 0, fps = 0;
-    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); const busy = markBusy(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
+    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); markCredit(); const busy = markBusy(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
         const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : window.__irisTissueUI && window.__irisTissueUI.loading ? 'Loading the layer model' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }
     const up = k => byKey(String(k).toLowerCase());
-    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, setDebug, DEBUG_VIEWS, TISSUE_LIVE, markLiveness, settings: S };
+    window.__irisUI = { shell: '3.11', credits: () => credits(), showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), origins: () => (syncScrubs(), Object.fromEntries(scrubs.filter(r => r.dataset.for).map(r => [r.dataset.for, r.origin]))), sceneShift, WINS, show, tile, cascade, say, menuIds, setDebug, DEBUG_VIEWS, TISSUE_LIVE, markLiveness, settings: S };
 })();

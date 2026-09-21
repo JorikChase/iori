@@ -53,6 +53,12 @@ __pycache__/
 # the licence and the author for each file (see also iris-engine/ref/ATTRIBUTION.md).
 # Everything else under ref/ (refs.json, align.json, cases.json, bench-*.json) IS tracked.
 iris-engine/ref/*.jpg
+# …except the four isolated macros the published presets and the layer model are fitted to (credited in the app:
+# Help ▸ Photo credits, read from ref/refs.json)
+!iris-engine/ref/09-blue-green-isolated.jpg
+!iris-engine/ref/25-green-amber-ring-isolated.jpg
+!iris-engine/ref/26-green-crypts-isolated.jpg
+!iris-engine/ref/35-grey-green-isolated.jpg
 
 # Google service-account keys (real credentials) — never commit
 *sa-key.json

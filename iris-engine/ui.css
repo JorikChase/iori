@@ -135,3 +135,25 @@ body.w31-shell .w31-dead { opacity: .42; } body.w31-shell .w31-dead > span:first
 body.w31-shell .w31-weak > span:first-child { font-style: italic; } body.w31-shell .w31-weak > span:first-child::after { content: ' ~'; color: var(--dk); }
 body.w31-shell .w31-tool.w31-weak { background: repeating-linear-gradient(45deg, #fff 0 3px, #e4e4e4 3px 5px) !important; }
 .w31-tisnote { font-size: calc(var(--fs) - 1px); background: #ffffe0; border: 1px solid #000; padding: 3px 5px; margin: 0 0 5px; line-height: 1.3; }
+/* study/09 U5: the hourglass while a fit, a bench or a capture runs (Stop stays a normal pointer) */
+body.w31-busy, body.w31-busy * { cursor: var(--busy-cursor, wait) !important; } body.w31-busy #fit-stop { cursor: default !important; }
+/* keyboard focus: the 3.1 dotted rectangle */
+body.w31-shell .w31-scrub:focus { outline: none; } body.w31-shell .w31-scrub:focus > span:first-child { outline: 1px dotted #000; outline-offset: 1px; }
+body.w31-shell .w31-b:focus-visible, body.w31-shell .w31-tool:focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+/* the casebook in 3.11 chrome: a grey MDI window with a navy caption; cb-close keeps its id (fit.js binds it) and is the ▼ box */
+body.w31-shell #casebook { inset: calc(var(--cap) + var(--menuh) + 8px) 10px 70px 10px; z-index: 8500; background: var(--grey); backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid #000; box-shadow: inset 0 0 0 3px var(--grey), inset 0 0 0 4px #000; padding: 0 8px 8px; color: #000; font-family: var(--font); font-size: var(--fs); }
+body.w31-shell #casebook .cb-head { position: sticky; top: 4px; z-index: 1; display: grid; grid-template-columns: 1fr auto var(--cap); align-items: stretch; height: var(--cap); margin: 4px -4px 8px; padding: 0; background: var(--navy); color: #fff; letter-spacing: 0; font-weight: var(--fw); border: 1px solid #000; }
+body.w31-shell #casebook .cb-head > span:first-child { align-self: center; text-align: center; }
+body.w31-shell #casebook #cb-stat { align-self: center; padding: 0 8px; font-weight: 400; }
+body.w31-shell #casebook #cb-close { font-size: 0; width: var(--cap); padding: 0; margin: 0; background: var(--grey); border: 0; border-left: 1px solid #000; border-radius: 0; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); position: relative; }
+body.w31-shell #casebook #cb-close::after { content: ""; position: absolute; left: 50%; top: 50%; margin: -2px 0 0 -4.5px; border: 4.5px solid transparent; border-top: 5px solid #000; border-bottom: 0; }
+body.w31-shell #casebook .cb-card { background: #fff; border: 1px solid #000; }
+body.w31-shell #casebook .cb-card canvas { background: #000; }
+body.w31-shell #casebook .cb-cap, body.w31-shell #casebook .cb-cap b { color: #000; font-weight: 400; padding: 3px 5px; } body.w31-shell #casebook .cb-cap b { font-weight: var(--fw); padding: 0; }
+body.w31-shell #casebook .cb-issues { color: var(--navy); }
+/* phone: the shortcut labels were meant to be 11 px, but `#w31-icons button { font: inherit }` outranked the rule and
+   they came out at the 16 px touch size — seven labels no longer fit 375 px and "Control" was cut at the edge */
+body.w31-phone #w31-icons .w31-dicon { font-size: 11px; min-width: 0; flex: 1 1 0; }
+/* the casebook caption on one line: title and stat shrink with an ellipsis instead of wrapping into the caption */
+body.w31-shell #casebook .cb-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+body.w31-phone #casebook .cb-head { grid-template-columns: auto 1fr var(--cap); } body.w31-phone #casebook .cb-head > span:first-child { padding-left: 6px; }

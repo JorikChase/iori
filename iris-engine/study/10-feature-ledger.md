@@ -91,8 +91,10 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Marker resize by **wheel** over a ring | `fitcv` wheel | ok | only while POLAR/HEIGHT shows the canvas; on the iris the wheel zooms | changed — radius handles replace it; study/09 §6 "pinch on a ring" never built → **todo**, low |
 | The scored render shown while a fit runs | overlay `#w31-ov-render` | panel canvas | ok | ok |
 | Empty black 2-D canvas in the Fit window when no photo is loaded | `fitcv` | — | fixed 2026-09-21: shown only for POLAR / HEIGHT, as §7.5 intended (the rule had required the overlay to be on) | ok |
-| Casebook (grid, stats, open a case) | `fit-casebook` → `#casebook`, `cb-*` | ok, old chrome | ok, **old chrome** | **P5**: 3.11 frame for the casebook |
-| Hourglass / busy state during fits | — | — | — | **P5** todo |
+| Casebook (grid, stats, open a case) | `fit-casebook` → `#casebook`, `cb-*` | ok, old chrome | ok, 3.11 frame (grey window, navy caption, ▼ = `cb-close`), one-line caption on a phone (2026-09-21) | ok |
+| Casebook must not hijack the workspace | overlay.js | — | fixed 2026-09-21: while it is open the overlay is off and adopts none of the photos its thumbnails load; a card click still puts that case on the iris | ok |
+| **Casebook swaps the loaded eye** — rendering the thumbnails imports each case's ID, photo and pose, so closing it leaves the *last* case (35) loaded instead of the eye you had | fit.js `renderCaseThumb` | same | same | **todo**: snapshot genome + encoded fields + state/target + fit photo & markers on open, restore on close without a pick |
+| Hourglass / busy state during fits | `w31-busy` | — | our own 16-colour hourglass cursor while `state.fitting`, `state.capturing`, `fit.running` or `fit.benchRunning` (Stop keeps a normal pointer); the status bar says Fitting… / Bench running… / Capturing…; checked on a timer as well as rAF, so a fit started in a background tab shows it on return (2026-09-21) | ok |
 | Audits and oracles (`scaleAudit`, `traceBands`, `bandOracle`, `oracleBench`, `guideCeilingBench`, `reliefTransferBench`, `dumpForGuideTrace`, `bakePresets` …) | `E.fit.*` | console | console | **console** by verdict: research instruments, not features |
 | Knob liveness harness | `tools/knob_probe.js` | console | console | **console** by verdict |
 
@@ -143,9 +145,9 @@ says so in words, and its Load control names the eye it loads — no pretence th
 | Status: quality · fps · atlas | ok | ok, + flash messages | ok |
 | Control Panel: font, touch sizing, snap, gaze times, shell switch | — | ok | ok (gained) |
 | About box | — | ok | ok |
-| Keyboard: Alt-menus, F6 next window, arrows on a focused scrubber, Esc closes menus | — | — | **P5** todo |
+| Keyboard | — | — | Alt+letter / F10 open a menu; ↑ ↓ → ← Enter, item accelerators, Esc; F6 / Shift+F6 cycle open windows and focus the first control; Ctrl+F4 minimises; a focused scrubber takes ← → (Shift ×10), Home = origin, Enter = type a value; dotted 3.1 focus ring. Capture phase, so design.js's letter shortcuts never see a menu key (2026-09-21) | ok |
 | Self-hosted Urbanist | — | `fonts/urbanist-latin(-ext).woff2` (one variable face 400–700, 28 + 16 KB, SIL OFL in `fonts/OFL.txt`), `@font-face` in ui.css | ok (2026-09-21, iori's OK): no request to Google on a default page view; the other Control Panel fonts still load from Google only when chosen |
-| Real-device pass (phone, tablet) | — | — | **P5** todo |
+| Device pass | — | — | emulated 375 × 812: `reach()` = [], no horizontal scroll, casebook fits; found and fixed the shortcut labels rendering at 16 px ("Control" cut at the edge). A pass on a real phone / tablet needs iori's hands | emulated ok; real device open |
 | Placeholders `fit-blank1`, `fit-blank2` | left in the hidden panel (design.js removes them only in its own tab layout) | removed by ui31.js (2026-09-21) | **drop** from index.html at the flip |
 | Tab layout of the bare page (`layoutTabs`, `irisTab`) | dead under a shell | dead under a shell | keep: it is the no-shell fallback |
 
@@ -189,7 +191,7 @@ cornea default: **re-baseline at v91 under the Win98 shell first**, then compare
 | **P2** | Scrubber origin follows the fit (notch, fill, double-click) — **done 2026-09-21** | small |
 | **P3** | hcorr + MATCH2 in Eye ▸ Fitted — **done 2026-09-21** | trivial |
 | **P4** | View ▸ Debug view ▸ named list — **done 2026-09-21** | small |
-| **P5** | U5: keyboard, hourglass, casebook frame, device pass (self-hosted font **done 2026-09-21**) | medium |
+| **P5** | U5: keyboard, hourglass, casebook frame, self-hosted font, emulated device pass — **done 2026-09-21**; real-device pass and the casebook's eye swap remain | medium |
 | **P6** | Brush + knob liveness under the layer model, and the windows saying what is dead — **done 2026-09-21** (`p6-liveness.md`, `TISSUE_LIVE` in ui31.js) | small, measured |
 | **FLIP** | default = 3.11, `?ui=98` remains one version, drop `fit-blank*`; acceptance = `compare()` [] · `reach()` [] · isolated bench 61.6 / 68.3 / 70.5 / 66.4 | — |
 

@@ -132,7 +132,11 @@
     let lastImg = null, lastKey = '', lastFitMode = fit.mode || 0, t0 = performance.now();
     (function tick(now) {
         if (O.mode !== 'off' && state.design) { O.mode = 'off'; apply(); }   // DESIGN owns the view while it is on (its own photo layer is phase D3)
-        if (fit.img !== lastImg && !busy() && !fit.benchRunning) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; if (fit.photo && !state.design) { U.showWindow('fit', true); O.set(O.mode === 'off' ? 'wipe' : O.mode); } }
+        // the casebook renders every case's thumbnail through the fitter, loading each photo in turn: those are not a
+        // photo the user chose, so while it is open the overlay is off and adopts nothing (a card click loads the case
+        // again after the casebook hides, and that one is adopted)
+        const cb = document.getElementById('casebook'); if (cb && !cb.classList.contains('hidden')) { if (O.mode !== 'off') O.set('off'); lastImg = fit.img; }
+        else if (fit.img !== lastImg && !busy() && !fit.benchRunning) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; if (fit.photo && !state.design) { U.showWindow('fit', true); O.set(O.mode === 'off' ? 'wipe' : O.mode); } }
         if ((fit.mode || 0) !== lastFitMode) { lastFitMode = fit.mode || 0; if (O.mode !== 'off' && lastFitMode < 4) O.set(FROM_FIT[lastFitMode]); }
         if (O.mode !== 'off') {
             if (!fit.photo) O.set('off');

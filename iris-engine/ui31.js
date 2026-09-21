@@ -107,6 +107,10 @@
             b.addEventListener('pointerdown', e => { e.preventDefault(); sync(); go(); t = setTimeout(() => { t = setInterval(go, 40); }, 350); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop); });
         val.addEventListener('click', () => { if (row.querySelector('.w31-type')) return; sync(); const inp = h('input', 'w31-type'); inp.value = +get().toFixed(4); row.appendChild(inp); inp.focus(); inp.select();   // an overlay: the page rewrites the value span every frame
             const done = ok => { const x = parseFloat(inp.value); inp.remove(); if (ok && isFinite(x)) set(x); }; inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); }); inp.addEventListener('blur', () => done(true)); });
+        row.tabIndex = 0; row.addEventListener('keydown', e => { const k = e.key; if (e.target !== row) return;
+            if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowDown' || k === 'ArrowUp') { sync(); set(get() + (k === 'ArrowLeft' || k === 'ArrowDown' ? -1 : 1) * step * (e.shiftKey ? 10 : 1)); }
+            else if (k === 'Home') { sync(); set(origin); } else if (k === 'Enter') val.click(); else return;
+            e.preventDefault(); e.stopPropagation(); });   // study/09 U5: a focused scrubber owns the arrow keys (design.js's letter shortcuts still work)
         input.addEventListener('input', draw); input.style.display = 'none'; row.appendChild(input);
         row._draw = draw; row._sync = sync; Object.defineProperty(row, 'origin', { get: () => origin }); if (input.id) row.dataset.for = input.id; scrubs.push(row); return row;
     }
@@ -185,7 +189,7 @@
     // ---------------------------------------------------------------------------------------------------------
     // menus
     // ---------------------------------------------------------------------------------------------------------
-    const lab = l => l.replace(/&(.)/, '<u>$1</u>'); let menus = [];
+    const lab = l => l.replace(/&(.)/, '<u>$1</u>'), acc = l => { const m = /&(.)/.exec(l || ''); return m ? m[1].toLowerCase() : ''; }; let menus = [];
     function closeMenus(from = 0, keepTop) { while (menus.length > from) menus.pop().remove(); if (!from && !keepTop) document.querySelectorAll('.w31-mtop.open').forEach(e => e.classList.remove('open')); }
     async function showMenu(items, x, y, level) {
         closeMenus(level, true); if (typeof items === 'function') items = await items();
@@ -195,7 +199,7 @@
             const openSub = () => { const r = d.getBoundingClientRect(); m.querySelectorAll('.hot').forEach(e => e.classList.remove('hot')); d.classList.add('hot'); showMenu(it.sub, phone ? r.left + 24 : r.right - 2, phone ? r.bottom : r.top - 1, level + 1); };
             d.addEventListener('click', e => { e.stopPropagation(); if (it.dis) return; if (it.sub) return openSub(); closeMenus(); if (it.run) it.run(); });
             d.addEventListener('pointerenter', e => { if (e.pointerType !== 'mouse') return; if (it.sub && !it.dis) openSub(); else { closeMenus(level + 1, true); m.querySelectorAll('.hot').forEach(e => e.classList.remove('hot')); } });
-            m.appendChild(d); }
+            d._it = it; d.dataset.acc = it.text !== undefined ? '' : acc(typeof it.l === 'function' ? it.l() : it.l); m.appendChild(d); }
         document.body.appendChild(m); menus.push(m);
         const r = m.getBoundingClientRect(); m.style.left = clamp(x, 0, Math.max(0, innerWidth - r.width)) + 'px'; m.style.top = clamp(y, 0, Math.max(0, innerHeight - r.height)) + 'px';
     }
@@ -226,7 +230,7 @@
         const cap = h('div', '', `<button class="w31-ctl" id="w31-ctl" aria-label="Site menu" title="iori.me · site menu"></button><span class="w31-capt">Iris Engine</span><button class="w31-capb" tabindex="-1" aria-label="Minimize">${DOWN}</button><button class="w31-capb" tabindex="-1" aria-label="Maximize">${UP}</button>`); cap.id = 'w31-cap'; cap.dataset.ui = '1'; document.body.appendChild(cap);
         const bar = h('div'); bar.id = 'w31-menubar'; bar.dataset.ui = '1'; document.body.appendChild(bar);
         for (const [l, items] of MENUS) { const t = h('div', 'w31-mtop', lab(l)); const open = () => { const r = t.getBoundingClientRect(); closeMenus(); t.classList.add('open'); showMenu(items, r.left, r.bottom, 0); };
-            t.addEventListener('click', () => t.classList.contains('open') ? closeMenus() : open()); t.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && menus.length && !t.classList.contains('open')) open(); }); bar.appendChild(t); }
+            t.addEventListener('click', () => t.classList.contains('open') ? closeMenus() : open()); t.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && menus.length && !t.classList.contains('open')) open(); }); t.dataset.acc = acc(l); t._open = open; bar.appendChild(t); }
         const st = h('span'); st.id = 'w31-status'; bar.appendChild(st);
         $('w31-ctl').onclick = () => { const r = $('w31-ctl').getBoundingClientRect(); showMenu([...(phone ? MENUS.map(([l, items]) => ({ l, sub: items })).concat(['-']) : []), ...siteItems(), '-', { l: '&Windows 98 shell', run: () => { location.search = '?ui=98'; } }], r.left, r.bottom, 0); };
         const ic = h('div'); ic.id = 'w31-icons'; ic.dataset.ui = '1'; document.body.appendChild(ic);
@@ -301,6 +305,48 @@
     }
 
     // ---------------------------------------------------------------------------------------------------------
+    // keyboard (study/09 U5): Alt+letter or F10 opens a menu; in a menu ↑ ↓ move, → opens a submenu or the next menu,
+    // ← closes one or goes to the previous menu, Enter runs, a letter runs its accelerator, Esc closes. F6 / Shift+F6
+    // step through the open windows, Ctrl+F4 minimises the active one. Capture phase and stopPropagation, so none of
+    // these reach design.js's shortcuts (on Windows Alt+D would otherwise toggle DESIGN as well).
+    // ---------------------------------------------------------------------------------------------------------
+    const tops = () => [...document.querySelectorAll('#w31-menubar .w31-mtop')];
+    const live = m => [...m.querySelectorAll('.w31-mi:not(.dis)')];
+    function openTop(i) { const T = tops(); if (!T.length) return; const t = T[(i + T.length) % T.length]; closeMenus(); t._open(); setTimeout(() => { const m = menus[0]; if (m) { const it = live(m)[0]; if (it) it.classList.add('hot'); } }, 0); }
+    const topIndex = () => tops().findIndex(t => t.classList.contains('open'));
+    document.addEventListener('keydown', e => {
+        const k = e.key, inField = e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
+        if (menus.length) {
+            const m = menus[menus.length - 1], items = live(m), cur = items.findIndex(d => d.classList.contains('hot'));
+            const hot = i => { items.forEach(d => d.classList.remove('hot')); if (items.length) items[(i + items.length) % items.length].classList.add('hot'); };
+            if (k === 'Escape') closeMenus(menus.length - 1 ? menus.length - 1 : 0);
+            else if (k === 'ArrowDown') hot(cur + 1); else if (k === 'ArrowUp') hot(cur < 0 ? -1 : cur - 1);
+            else if (k === 'Enter' || k === ' ') { if (cur >= 0) items[cur].click(); }
+            else if (k === 'ArrowRight') { if (cur >= 0 && items[cur]._it && items[cur]._it.sub) { items[cur].click(); setTimeout(() => { const n = menus[menus.length - 1]; if (n !== m) { const f = live(n)[0]; if (f) f.classList.add('hot'); } }, 30); } else if (topIndex() >= 0) openTop(topIndex() + 1); }
+            else if (k === 'ArrowLeft') { if (menus.length > 1) closeMenus(menus.length - 1, true); else if (topIndex() >= 0) openTop(topIndex() - 1); }
+            else if (k.length === 1 && !e.metaKey && !e.ctrlKey) { const d = items.find(x => x.dataset.acc === k.toLowerCase()); if (d) d.click(); else return; }
+            else return;
+            e.preventDefault(); e.stopPropagation(); return; }
+        if (e.altKey && !e.ctrlKey && !e.metaKey && /^Key[A-Z]$/.test(e.code) && !phone) { const L = e.code.slice(3).toLowerCase(), i = tops().findIndex(t => t.dataset.acc === L); if (i >= 0) { openTop(i); e.preventDefault(); e.stopPropagation(); } return; }
+        if (k === 'F10' && !phone) { openTop(0); e.preventDefault(); e.stopPropagation(); return; }
+        if (inField) return;
+        if (k === 'F6') { const o = WINS.filter(W => W.open); if (o.length) { const W = o[(o.indexOf(active) + (e.shiftKey ? -1 : 1) + o.length) % o.length]; activate(W); const f = W.body.querySelector('.w31-scrub, button:not([disabled]), select'); if (f) f.focus({ preventScroll: true }); } e.preventDefault(); e.stopPropagation(); return; }
+        if (k === 'F4' && e.ctrlKey && active) { show(active, false); e.preventDefault(); e.stopPropagation(); }
+    }, true);
+
+    // the hourglass (study/09 U5): while the fitter, a bench or a capture runs, the pointer is a 16-colour hourglass —
+    // our own bitmap, drawn like the icons — over everything but the Stop button, and the status bar says what runs
+    let busyWas = false, hourglass = '';
+    function hourglassCursor() { const n = 32, cv = document.createElement('canvas'); cv.width = cv.height = n; const c = cv.getContext('2d'); c.lineWidth = 1; c.strokeStyle = '#000';
+        c.fillStyle = '#000'; c.fillRect(7, 2, 18, 3); c.fillRect(7, 27, 18, 3);
+        c.beginPath(); c.moveTo(9.5, 5); c.lineTo(9.5, 9); c.lineTo(15, 16); c.lineTo(9.5, 23); c.lineTo(9.5, 27); c.lineTo(22.5, 27); c.lineTo(22.5, 23); c.lineTo(17, 16); c.lineTo(22.5, 9); c.lineTo(22.5, 5); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.stroke();
+        c.fillStyle = '#808000'; c.beginPath(); c.moveTo(12, 9); c.lineTo(20, 9); c.lineTo(16, 14); c.closePath(); c.fill(); c.beginPath(); c.moveTo(11, 26); c.lineTo(21, 26); c.lineTo(16, 20); c.closePath(); c.fill(); c.fillRect(15.5, 14, 1, 7);
+        quantise(c, n); return `url(${cv.toDataURL()}) 16 16, wait`; }
+    function markBusy() { const F = E.fit, f = F && F.fit, st = E.state, busy = !!(st.fitting || st.capturing || (f && (f.running || f.benchRunning)));
+        if (busy === busyWas) return busy; busyWas = busy; if (!hourglass) hourglass = hourglassCursor();
+        document.body.style.setProperty('--busy-cursor', hourglass); document.body.classList.toggle('w31-busy', busy); return busy; }
+
+    // ---------------------------------------------------------------------------------------------------------
     // what still works under the tissue layer model (study/10 P6, measured with tools/knob_probe.js and
     // tools/brush_probe.js on ref 26 at v91-edge). While IrisTissue.on the windows say so: a dead control is greyed with
     // the reason in its tooltip, a weak one is marked. Nothing is disabled — the legacy model still reads those values
@@ -314,14 +360,14 @@
     const WHY_DEAD = 'no effect while the layer model is on — it owns relief, crypts, furrows and strands here (brushes and generator: G2, G3)', WHY_WEAK = 'weak while the layer model is on (a tenth to a half of its legacy effect)';
     let tissueWas = null;
     function markLiveness() {
-        const on = !!(window.IrisTissue && window.IrisTissue.on); if (on === tissueWas) return; tissueWas = on;
+        const on = !!(window.IrisTissue && window.IrisTissue.on); if (on === tissueWas) return; const first = tissueWas === null; tissueWas = on;
         const mark = (el, kind) => { if (!el) return; if (el._title === undefined) el._title = el.title || ''; el.classList.toggle('w31-dead', on && kind === 'dead'); el.classList.toggle('w31-weak', on && kind === 'weak'); el.title = on && kind ? (el._title ? el._title + ' — ' : '') + (kind === 'dead' ? WHY_DEAD : WHY_WEAK) : el._title; };
         const kindOf = (T, k) => T.dead.includes(k) ? 'dead' : T.weak.includes(k) ? 'weak' : null;
         for (const r of scrubs) { const id = (r.dataset.for || '').replace('param-', ''); if (id) mark(r, kindOf(TISSUE_LIVE.knobs, id)); }
         document.querySelectorAll('.tool-btn').forEach(b => mark(b, kindOf(TISSUE_LIVE.tools, b.dataset.tool)));
         const sel = $('design-layer'); if (sel) for (const o of sel.options) { if (o._text === undefined) o._text = o.textContent; const k = on && kindOf(TISSUE_LIVE.layers, o.value); o.textContent = o._text + (k === 'dead' ? '  — no effect (layer model)' : k === 'weak' ? '  — weak (layer model)' : ''); }
         document.querySelectorAll('.w31-tisnote').forEach(n => { n.style.display = on ? '' : 'none'; });
-        if (tissueWas !== null) say(on ? 'Layer model on — greyed controls have no effect on it' : 'Layer model off');
+        if (!first) say(on ? 'Layer model on — greyed controls have no effect on it' : 'Layer model off');
     }
     function tissueNotes() {
         const note = (key, html) => { const W = byKey(key); if (!W) return; const n = h('div', 'w31-tisnote', html); n.style.display = 'none'; W.body.insertBefore(n, W.body.firstChild); };
@@ -360,9 +406,10 @@
         const o = document.createElement('script'); o.src = 'overlay.js'; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris
     });
     window.addEventListener('resize', relayout);
+    setInterval(() => { markBusy(); markLiveness(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return
     let last = performance.now(), fT = last, fN = 0, fps = 0;
-    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
-        const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
+    (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); const busy = markBusy(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
+        const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }

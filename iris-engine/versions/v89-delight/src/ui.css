@@ -1,0 +1,126 @@
+/* ui.css — the Windows 3.11 Program Manager shell (study/09). Loaded only with ui31.js (?ui=31).
+   Everything is prefixed w31 so nothing collides with the page or the old Win98 shell. */
+body.w31-shell { --row: 22px; --cap: 18px; --fs: 12px; --grey: #c0c0c0; --dk: #808080; --navy: #000080; --n: 23px; --menuh: 20px; --font: Arial, Helvetica, sans-serif; --fw: 700; }
+body.w31-shell.w31-touch { --row: 40px; --cap: 30px; --n: 35px; --menuh: 34px; }
+body.w31-shell #toggle-icon, body.w31-shell #ui-container, body.w31-shell #site-menu { display: none !important; }   /* the site burger is the frame's corner box in this shell */
+body.w31-shell #gl { transition: transform .25s ease-out; }
+body.w31-shell #accum-bar { position: fixed; left: 0; top: calc(var(--cap) + var(--menuh) + 2px); height: 2px; margin: 0; background: var(--navy); box-shadow: none; z-index: 55; pointer-events: none; }
+body.w31-shell.w31-phone #accum-bar { top: calc(var(--cap) + 1px); }
+
+#w31-cap, #w31-menubar, .w31, .w31-menu, #w31-icons, #w31-veil { font: var(--fw) var(--fs)/1 var(--font); color: #000; cursor: default; user-select: none; -webkit-user-select: none; letter-spacing: 0; text-transform: none; text-shadow: none; }
+body.w31-aliased #w31-cap, body.w31-aliased #w31-menubar, body.w31-aliased .w31, body.w31-aliased .w31-menu, body.w31-aliased #w31-icons { -webkit-font-smoothing: none; }
+.w31 button, .w31 select, #w31-cap button, #w31-icons button { font: inherit; color: inherit; margin: 0; }
+.w31 svg, #w31-cap svg { display: block; }
+
+/* ---- application caption + menu bar ---- */
+#w31-cap, .w31-cap { height: var(--cap); display: flex; align-items: stretch; background: #fff; color: #000; border-bottom: 1px solid #000; }
+#w31-cap { position: fixed; left: 0; right: 0; top: 0; z-index: 200; background: var(--navy); color: #fff; }
+.w31.active .w31-cap { background: var(--navy); color: #fff; }
+.w31-capt { flex: 1; text-align: center; line-height: var(--cap); white-space: nowrap; overflow: hidden; }
+.w31-ctl { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-right: 1px solid #000; position: relative; border-radius: 0; }
+.w31-ctl::after { content: ""; position: absolute; left: 3px; right: 4px; top: 50%; height: 3px; margin-top: -2px; background: #fff; border: 1px solid #000; box-shadow: 1px 1px 0 var(--dk); box-sizing: border-box; }
+.w31-ctl.w31-site { background: #000 center / 100% 100% no-repeat; image-rendering: pixelated; cursor: pointer; } .w31-ctl.w31-site::after { display: none; }
+.w31-capb { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-left: 1px solid #000; border-radius: 0; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); display: grid; place-items: center; }
+.w31-capb:active { box-shadow: inset 1px 1px 0 var(--dk); }
+#w31-menubar { position: fixed; left: 0; right: 0; top: calc(var(--cap) + 1px); height: var(--menuh); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; z-index: 200; }
+.w31-mtop { padding: 0 8px; line-height: var(--menuh); }
+.w31-mtop.open { background: var(--navy); color: #fff; }
+#w31-status { margin-left: auto; padding: 0 8px; line-height: var(--menuh); font-weight: 400; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.w31-menu { position: fixed; background: #fff; border: 1px solid #000; z-index: 9000; min-width: 170px; max-height: 80vh; overflow-y: auto; }
+.w31-mi { padding: 0 24px; line-height: calc(var(--row) - 2px); white-space: nowrap; position: relative; }
+.w31-mi:hover, .w31-mi.hot { background: var(--navy); color: #fff; }
+.w31-mi.dis, .w31-mi.dis:hover { color: var(--dk); background: #fff; }
+.w31-mi.chk::before { content: "\2713"; position: absolute; left: 7px; }
+.w31-mi.sub::after { content: ""; position: absolute; right: 7px; top: 50%; margin-top: -4px; border: 4px solid transparent; border-left-color: currentColor; border-right: 0; }
+.w31-sep { border-top: 1px solid #000; margin: 2px 0; }
+
+/* ---- windows ---- */
+.w31 { position: fixed; width: 286px; background: var(--grey); border: 1px solid #000; padding: 3px; box-sizing: border-box; z-index: 100; display: none; pointer-events: auto; }
+.w31.open { display: block; }
+.w31::before { content: ""; position: absolute; inset: 0; pointer-events: none; background:
+    linear-gradient(#000,#000) var(--n) 0 / 1px 4px no-repeat, linear-gradient(#000,#000) calc(100% - var(--n)) 0 / 1px 4px no-repeat,
+    linear-gradient(#000,#000) var(--n) 100% / 1px 4px no-repeat, linear-gradient(#000,#000) calc(100% - var(--n)) 100% / 1px 4px no-repeat,
+    linear-gradient(#000,#000) 0 var(--n) / 4px 1px no-repeat, linear-gradient(#000,#000) 0 calc(100% - var(--n)) / 4px 1px no-repeat,
+    linear-gradient(#000,#000) 100% var(--n) / 4px 1px no-repeat, linear-gradient(#000,#000) 100% calc(100% - var(--n)) / 4px 1px no-repeat; }
+.w31-in { border: 1px solid #000; background: var(--grey); }
+.w31 .w31-capt { cursor: move; touch-action: none; }
+.w31-body { padding: 6px 7px 7px; }
+.w31 .tab-pane { display: block; }
+
+body.w31-shell .w31-b, body.w31-shell select.w31-b { background: var(--grey) !important; border: 1px solid #000 !important; border-radius: 3px !important; height: var(--row); min-height: 0; padding: 0 8px !important; color: #000 !important; font: inherit !important; letter-spacing: 0 !important; text-transform: none !important; text-shadow: none !important; transition: none !important; opacity: 1;
+    box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk) !important; display: inline-grid; place-items: center; white-space: nowrap; cursor: default; }
+body.w31-shell .w31-b:active, body.w31-shell .w31-b.active, body.w31-shell .w31-b.on { box-shadow: inset 1px 1px 0 var(--dk), inset 2px 2px 0 var(--dk) !important; background: #dcdcdc !important; }
+body.w31-shell .w31-b.def { box-shadow: 0 0 0 1px #000, inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk) !important; }
+body.w31-shell .w31-b:disabled { color: var(--dk) !important; }
+body.w31-shell select.w31-b, .w31 select { background: #fff !important; border-radius: 0 !important; box-shadow: none !important; display: block; width: 100%; height: var(--row); border: 1px solid #000; font: inherit; font-weight: 400 !important; color: #000; padding: 0 2px !important; }
+.w31-brow { display: flex; gap: 4px; margin: 6px 0 0; flex-wrap: wrap; } .w31-brow > * { flex: 1; } body.w31-shell .w31-brow .w31-b { padding: 0 3px !important; }
+.w31-grp { border: 1px solid var(--dk); box-shadow: 1px 1px 0 #fff, inset 1px 1px 0 #fff; padding: 9px 6px 6px; margin: 10px 0 0; position: relative; }
+.w31-grp > b { position: absolute; top: -6px; left: 8px; background: var(--grey); padding: 0 3px; font-weight: var(--fw); }
+.w31-grp .w31-brow:first-of-type { margin-top: 0; }
+.w31-line { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 5px; margin: 5px 0 0; }
+
+/* scrubber: the Apple-Photos ruler dressed as a 3.1 scroll bar */
+.w31-scrub { display: grid; grid-template-columns: 52px 1fr 60px; align-items: center; gap: 5px; height: calc(var(--row) + 2px); position: relative; }
+.w31-sbar { display: flex; height: calc(var(--row) - 4px); border: 1px solid #000; }
+.w31-sa { width: calc(var(--row) - 6px); min-width: 16px; padding: 0; background: var(--grey); border: 0; border-radius: 0; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); display: grid; place-items: center; touch-action: none; }
+.w31-sa:active { box-shadow: inset 1px 1px 0 var(--dk); }
+.w31-sr { flex: 1; position: relative; overflow: hidden; background: #fff; border-left: 1px solid #000; border-right: 1px solid #000; cursor: ew-resize; touch-action: none; }
+.w31-sr canvas { position: absolute; left: 0; top: 0; }
+.w31-sr i { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--navy); pointer-events: none; }
+body.w31-shell .w31-sv, body.w31-shell .w31 .val { text-align: right; font: 400 var(--fs)/1 var(--font) !important; font-variant-numeric: tabular-nums; color: #000 !important; text-shadow: none !important; letter-spacing: 0; cursor: text; white-space: nowrap; overflow: hidden; }
+.w31-type { position: absolute; right: 0; top: 1px; bottom: 1px; width: 58px; box-sizing: border-box; font: 400 var(--fs)/1 var(--font); border: 1px solid #000; padding: 0 2px; text-align: right; background: #fff; color: #000; }
+
+/* Design = Paintbrush */
+.w31-pb { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 6px; }
+.w31-tools { display: grid !important; grid-template-columns: repeat(2, calc(var(--row) + 6px)) !important; border: 1px solid #000; background: #000; gap: 1px; align-self: start; margin: 0 !important; }
+body.w31-shell .w31-tool { height: calc(var(--row) + 6px); padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: #fff !important; display: grid; place-items: center; box-shadow: none !important; transition: none !important; }
+body.w31-shell .w31-tool.active { background: #000 !important; } body.w31-shell .w31-tool.active svg { filter: invert(1); }
+.w31 .slider-row { display: grid; grid-template-columns: 52px 1fr 60px; gap: 5px; align-items: center; margin: 5px 0 0 !important; font: inherit; letter-spacing: 0; }
+.w31 .slider-row .lbl, .w31 .slider-row:hover .lbl { color: #000; text-shadow: none; }
+.w31 .slider-row select { grid-column: 2 / 4; }
+.w31 .slider-row select#design-repeat { grid-column: 2 / 3; }
+body.w31-shell #design-hud { color: var(--navy); font: 400 11px/1.3 var(--font); letter-spacing: 0; min-height: 2.6em; }
+.w31 input[type=color] { border: 1px solid #000 !important; height: var(--row) !important; padding: 0; background: #fff !important; }
+
+/* the fit panel lives inside the Photo window until the native overlay (U3) replaces its canvas */
+body.w31-shell #fit-panel { position: static !important; width: auto !important; max-width: none !important; transform: none !important; background: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; font: inherit !important; letter-spacing: 0 !important; }
+body.w31-shell #fit-panel .fit-head { display: none; }
+body.w31-shell #fitcv { display: block; width: 100%; height: auto; border: 1px solid #000; box-sizing: border-box; background: #000; touch-action: none; }
+body.w31-shell #fit-log { background: #fff; border: 1px solid #000; box-shadow: inset 1px 1px 0 var(--dk); margin: 8px 0 0; padding: 4px 5px; font: 400 11px/1.35 var(--font); letter-spacing: 0; color: #000; max-height: 96px; overflow-y: auto; white-space: pre-wrap; user-select: text; -webkit-user-select: text; }
+.w31-fitrow { display: grid; grid-template-columns: 50px 1fr; gap: 5px; align-items: center; margin: 6px 0 0; } .w31-fitrow .w31-brow { margin: 0; }
+body.w31-shell .w31-score { color: #000 !important; font: 400 11px/1.3 var(--font); letter-spacing: 0; margin: 5px 0 0; font-variant-numeric: tabular-nums; min-height: 1em; }
+
+/* ---- desktop shortcuts ---- */
+#w31-icons { position: fixed; left: 6px; bottom: 4px; display: flex; gap: 2px; align-items: flex-end; z-index: 60; pointer-events: auto; }
+.w31-dicon { width: 62px; padding: 3px 0; background: none; border: 0; display: grid; justify-items: center; gap: 3px; }
+.w31-dicon img { width: 32px; height: 32px; image-rendering: pixelated; }
+.w31-dicon span { padding: 1px 3px; background: #fff; white-space: nowrap; } .w31-dicon:active span, .w31-dicon.on span { background: var(--navy); color: #fff; }
+
+/* ---- modal ---- */
+#w31-veil { position: fixed; inset: 0; z-index: 9500; display: none; place-items: center; } #w31-veil.on { display: grid; }
+#w31-about { position: static; display: block; width: 320px; }
+#w31-about .w31-body { display: grid; grid-template-columns: 40px 1fr; gap: 8px 10px; padding: 12px; font-weight: 400; line-height: 1.4; }
+
+/* ---- phone: one bottom sheet + icon strip ---- */
+body.w31-phone #w31-menubar, body.w31-phone #w31-cap .w31-capb { display: none; }
+body.w31-phone #w31-icons { left: 0; right: 0; bottom: 0; height: 68px; gap: 0; overflow-x: auto; touch-action: pan-x; background: #fff; border-top: 1px solid #000; align-items: center; }
+body.w31-phone .w31-dicon { flex: 1 0 52px; width: auto; font-size: 11px; } body.w31-phone .w31-dicon span { padding: 1px; }
+body.w31-phone .w31 { left: 0 !important; right: 0; top: auto !important; bottom: 69px; width: auto !important; padding: 0; border-left: 0; border-right: 0; }
+body.w31-phone .w31::before { display: none; } body.w31-phone .w31-in { border-left: 0; border-right: 0; border-bottom: 0; }
+body.w31-phone .w31-body { max-height: calc(40vh - var(--cap)); overflow-y: auto; touch-action: pan-y; }
+body.w31-phone .w31[data-key="fit"] .w31-body { max-height: calc(46vh - var(--cap)); }
+body.w31-phone .w31 .w31-capt { cursor: default; }
+/* touch sizing: wider label and value columns for the larger type */
+body.w31-touch .w31-scrub, body.w31-touch .w31 .slider-row { grid-template-columns: 74px 1fr 66px; }
+body.w31-touch .w31-line, body.w31-touch .w31-fitrow { grid-template-columns: 74px 1fr; }
+
+/* ---- U3: the fit photo on the iris (overlay.js) ---- */
+body.w31-overlay #gl { cursor: grab; }
+#w31-ov { position: fixed; z-index: 40; pointer-events: none; display: none; transition: transform .25s ease-out; }
+#w31-ov-render { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+#w31-ov-photo { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-select: none; pointer-events: none; }
+#w31-ov-marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#w31-ov-marks g { pointer-events: auto; cursor: move; touch-action: none; }
+#w31-ov-wipe { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #ff0; outline: 1px solid #000; cursor: ew-resize; pointer-events: auto; touch-action: none; display: none; }
+#w31-ov-wipe::after { content: ""; position: absolute; left: -21px; top: 50%; width: 44px; height: 44px; margin-top: -22px; background: radial-gradient(circle, var(--grey, #c0c0c0) 0 7px, #000 7px 8px, transparent 8px); }
+body.w31-ovhide #fitcv { display: none; }   /* the photo is on the iris now; POLAR and HEIGHT bring the panel's canvas back */

@@ -2016,3 +2016,42 @@ So `strandCorr` is measuring the one thing relief makes worse, and the fix is no
 which was tried and is far too strong. §32.4 said that needs the region and the render at one scale; **T2a's windowed
 re-bake is exactly that**, so the route is now open. That is the first thing to try when this thread is picked up:
 bake a window at the render's own scale, render it flat-grey with the relief on and off, and divide by the ratio.
+
+### 32.10 Log (2026-09-21): Z3b — de-lighting by measurement
+
+§32.4 tried the textbook de-lighting, dividing the albedo by the cosine the renderer is about to multiply by, and it
+was 3× too strong. The fix is to stop assuming and ask: `calibrate()` already asks the renderer what its **light**
+does to a flat grey region; `IrisTissue.measureDelight()` asks the same of its **relief**. Render the region flat-grey
+with the geometry on, then with it off, and the ratio is what the geometry does to the light — normals, self-shadow,
+occlusion and all, as the renderer actually computes them. Two grey levels each, so the additive term cancels and only
+the gain is compared.
+
+Two things had to be right for it to work at all:
+
+- **Only the fine part belongs.** `calibrate()` measured the light *with* this geometry in place and `toAlbedo`
+  divided it out, so leaving the smooth part in counts it twice. The raw ratio had mean 0.865 and cost **7.5 MATCH2**.
+  Dividing the grid by its own 0.2 mm blur — calibrate's own scale — leaves exactly what the smoothing threw away, and
+  the mean returns to 0.997.
+- **The measurement must be at the render's scale.** The whole eye in one 640 px frame is 28 µm a pixel and a tube is
+  60–120 µm across: too coarse to see the profile that is being double-counted. So the eye is measured in **tiles**,
+  each a view crop rendered at the same 640 px.
+
+Whole iris of ref 26 at NORMAL — MATCH2 / grad / cellDab / strandCorr:
+
+| | MATCH2 | grad | cellDab | strandCorr |
+|---|---:|---:|---:|---:|
+| none | 86.10 | 0.770 | 2.64 | 0.359 |
+| 1 tile, 30 µm, amt 0.5 | 86.64 | 0.780 | 2.61 | 0.358 |
+| **3 tiles, 15 µm, amt 0.5 — shipped** | **86.76** | **0.783** | 2.62 | 0.375 |
+| 3 tiles, 15 µm, amt 1 | 85.63 | 0.763 | 2.68 | 0.381 |
+| 5 tiles, 10 µm, amt 1 | 85.15 | 0.754 | 2.70 | 0.394 |
+
+**`strandCorr` climbs as the measurement gets finer** — 0.358 at 30 µm, 0.375 at 15 µm, 0.394 at 10 µm — which is the
+double-count of §32.4 coming out, exactly where §32.9 said to look. But **only part of it**: the flat model scores
+0.516 and no setting comes near, while pushing the amount to 1 buys strandCorr at the cost of MATCH2 because the ratio
+gets noisy at those cells. The shipped setting is where every metric improves at once; the rest of the strandCorr gap
+is still open and is *not* explained by the double-count.
+
+`proof()` now measures the de-light as part of loading an eye (≈ 2 s of its 14 s); pass `{delight: false}` to skip it.
+Compose was at WebGL's 16-sampler limit, so the legacy height field and the measured de-light are packed into one
+region-sized texture first. K1 is still bit-identical at the origin.

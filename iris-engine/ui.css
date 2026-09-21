@@ -157,3 +157,31 @@ body.w31-phone #w31-icons .w31-dicon { font-size: 11px; min-width: 0; flex: 1 1 
 /* the casebook caption on one line: title and stat shrink with an ellipsis instead of wrapping into the caption */
 body.w31-shell #casebook .cb-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 body.w31-phone #casebook .cb-head { grid-template-columns: auto 1fr var(--cap); } body.w31-phone #casebook .cb-head > span:first-child { padding-left: 6px; }
+
+/* ---- the Tissue window (tissue-ui.js, study/10 §7; approved mock: study/tissue-window-mock.html) ---- */
+.w31[data-key="tissue"] .t-note { font-size: calc(var(--fs) - 1px); font-weight: 400; background: #fff; border: 1px solid #000; padding: 4px 6px; line-height: 1.35; margin: 0 0 6px; } .w31[data-key="tissue"] .t-note b { font-weight: var(--fw); }
+.w31[data-key="tissue"] .t-note.warn { background: #ffffe0; }
+.w31[data-key="tissue"] .t-row { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; } .w31[data-key="tissue"] .t-top { margin: 0 0 6px; }
+.w31[data-key="tissue"] .t-chk { display: inline-flex; align-items: center; gap: 5px; font-weight: 400; background: none; border: 0; padding: 0; cursor: default; }
+.w31[data-key="tissue"] .t-chk i { width: 11px; height: 11px; border: 1px solid #000; background: #fff; position: relative; box-shadow: inset 1px 1px 0 var(--dk); flex: none; }
+.w31[data-key="tissue"] .t-chk.on i::after { content: ""; position: absolute; inset: 1px; background: linear-gradient(45deg, transparent 43%, #000 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, #000 43% 57%, transparent 57%); }
+.w31[data-key="tissue"] .t-chk.reload::after, .w31[data-key="tissue"] .w31-scrub.reload > span:first-child::after { content: " \21BB"; color: var(--navy); }
+.w31[data-key="tissue"] .t-score { font-weight: 400; font-variant-numeric: tabular-nums; margin-left: auto; white-space: nowrap; }
+.w31[data-key="tissue"] .t-prog { height: 14px; border: 1px solid #000; background: #fff; position: relative; margin: 6px 0 2px; box-shadow: inset 1px 1px 0 var(--dk); }
+.w31[data-key="tissue"] .t-prog b { position: absolute; left: 2px; top: 2px; bottom: 2px; max-width: calc(100% - 4px); background: repeating-linear-gradient(90deg, var(--navy) 0 8px, transparent 8px 10px); transition: width .25s; }
+.w31[data-key="tissue"] .t-stage, .w31[data-key="tissue"] .t-hint { font-weight: 400; font-size: calc(var(--fs) - 1px); margin: 4px 0 0; line-height: 1.3; }
+.w31[data-key="tissue"] .t-pages { display: flex; margin: 8px 0 0; } .w31[data-key="tissue"] .t-pages .w31-b { flex: 1; }
+.w31[data-key="tissue"] .t-page { display: none; margin-top: 6px; } .w31[data-key="tissue"] .t-page.on { display: block; }
+.w31[data-key="tissue"] .t-sunk { background: #fff; border: 1px solid #000; box-shadow: inset 1px 1px 0 var(--dk); display: block; width: 100%; box-sizing: border-box; }
+.w31[data-key="tissue"] .t-read { font-weight: 400; font-size: calc(var(--fs) - 1px); line-height: 1.4; padding: 4px 6px; font-variant-numeric: tabular-nums; min-height: 58px; margin-top: 6px; } .w31[data-key="tissue"] .t-read b { font-weight: var(--fw); }
+.w31[data-key="tissue"] .t-read table { border-collapse: collapse; width: 100%; margin-top: 3px; } .w31[data-key="tissue"] .t-read td, .w31[data-key="tissue"] .t-read th { padding: 0 6px 0 0; text-align: right; font-weight: 400; }
+.w31[data-key="tissue"] .t-read th { font-weight: var(--fw); border-bottom: 1px solid #000; } .w31[data-key="tissue"] .t-read td:first-child, .w31[data-key="tissue"] .t-read th:first-child { text-align: left; }
+.w31[data-key="tissue"] #w31t-sec { height: 150px; margin-top: 6px; cursor: crosshair; } .w31[data-key="tissue"] #w31t-probe { aspect-ratio: 470 / 320; height: auto; cursor: grab; touch-action: none; }
+.w31[data-key="tissue"] .t-legend { display: flex; gap: 10px; flex-wrap: wrap; font-weight: 400; font-size: calc(var(--fs) - 2px); margin: 3px 0 0; }
+.w31[data-key="tissue"] .t-legend span::before { content: ""; display: inline-block; width: 10px; height: 8px; margin-right: 4px; border: 1px solid #000; vertical-align: -1px; background: var(--c); }
+.w31[data-key="tissue"] .w31-scrub { grid-template-columns: 64px 1fr 62px; }
+body.w31-touch .w31[data-key="tissue"] .w31-scrub { grid-template-columns: 80px 1fr 70px; }
+body.w31-phone .w31[data-key="tissue"] .w31-body { max-height: calc(52vh - var(--cap)); }
+#w31t-ov { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 41; overflow: visible; }
+#w31t-contours { position: fixed; pointer-events: none; z-index: 40; display: none; image-rendering: pixelated; }
+.t-tip { position: fixed; z-index: 42; display: none; color: #000; background: #ffffe0; border: 1px solid #000; padding: 2px 5px; font: 400 11px/1.3 var(--font); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }

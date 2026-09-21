@@ -28,7 +28,7 @@
     let rect = null;
     const busy = () => state.fitting || state.capturing || state.design;
     const ratio = () => (fit.W / fit.H) / (innerWidth / innerHeight);
-    const viewOf = () => [O.pose[0] + O.cx - 0.5 * O.s, O.pose[1] + O.cy - 0.5 * O.s, O.s, O.s];
+    const viewOf = () => [O.pose[0] + (O.cx - 0.5 * O.s), O.pose[1] + (O.cy - 0.5 * O.s), O.s, O.s];   // offset first: at home (cx 0.5, s 1) it is exactly 0 and the view is the pose bit for bit — (pose + 0.5) − 0.5 was not, and the contract saw the last digit flip with timing
     function writeView() { if (busy()) return; const v = viewOf(), c = state.view || []; if (c[0] !== v[0] || c[1] !== v[1] || c[2] !== v[2] || c[3] !== v[3]) { state.view = v; E.resetAccumulation(); } }
     O.restoreView = () => { const c = state.view; if (c && (c[2] !== 1 || c[3] !== 1)) { state.view = [O.pose[0], O.pose[1], 1, 1]; E.resetAccumulation(); } };
     function home() { const r = fit.W ? ratio() : 1; O.s = r > 1 ? r * 1.04 : 1; O.cx = O.cy = 0.5; }   // the whole photo frame in view
@@ -60,6 +60,10 @@
         apply();
     };
     O.layout = layout;
+    // O.quietly(fn): photos loaded while fn runs are not the user's choice (the Tissue window loads eye 26's case to
+    // measure its light): nothing is adopted, and afterwards the current photo counts as seen, so the overlay stays off
+    let quiet = 0;
+    O.quietly = async fn => { quiet++; try { return await fn(); } finally { quiet--; if (!quiet) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; } } };
 
     // ---- markers: pupil (cyan), limbus (orange), catchlight (yellow) as handles on the scene --------------------
     let marksKey = '';
@@ -136,7 +140,7 @@
         // photo the user chose, so while it is open the overlay is off and adopts nothing (a card click loads the case
         // again after the casebook hides, and that one is adopted)
         const cb = document.getElementById('casebook'); if (cb && !cb.classList.contains('hidden')) { if (O.mode !== 'off') O.set('off'); lastImg = fit.img; }
-        else if (fit.img !== lastImg && !busy() && !fit.benchRunning) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; if (fit.photo && !state.design) { U.showWindow('fit', true); O.set(O.mode === 'off' ? 'wipe' : O.mode); } }
+        else if (fit.img !== lastImg && !busy() && !fit.benchRunning && !quiet) { lastImg = fit.img; img.src = fit.img ? fit.img.src : ''; lastFitMode = fit.mode || 0; if (fit.photo && !state.design) { U.showWindow('fit', true); O.set(O.mode === 'off' ? 'wipe' : O.mode); } }
         if ((fit.mode || 0) !== lastFitMode) { lastFitMode = fit.mode || 0; if (O.mode !== 'off' && lastFitMode < 4) O.set(FROM_FIT[lastFitMode]); }
         if (O.mode !== 'off') {
             if (!fit.photo) O.set('off');

@@ -40,6 +40,11 @@
             c.strokeStyle = '#ff0'; c.beginPath(); c.arc(16, 16, 8.5, 0, 6.2832); c.stroke(); c.strokeStyle = '#0ff'; c.beginPath(); c.arc(16, 16, 3.5, 0, 6.2832); c.moveTo(16, 11); c.lineTo(16, 21); c.moveTo(11, 16); c.lineTo(21, 16); c.stroke(); c.strokeStyle = '#000'; },
         design(c) { c.save(); c.translate(16, 16); c.rotate(Math.PI / 4); box(c, -4, -15, 7, 5, '#f00'); box(c, -4, -10, 7, 3, '#c0c0c0'); box(c, -4, -7, 7, 14, '#ff0'); c.fillStyle = '#808000'; c.fillRect(0, -6, 2, 13);
             c.beginPath(); c.moveTo(-3.5, 7.5); c.lineTo(3.5, 7.5); c.lineTo(0, 15); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.stroke(); c.beginPath(); c.moveTo(-1.5, 12); c.lineTo(1.5, 12); c.lineTo(0, 15); c.closePath(); c.fillStyle = '#000'; c.fill(); c.restore(); },
+        tissue(c) {   // strata: the sheet with a hole, over the fibre deck, over the dark epithelium
+            box(c, 2, 24, 28, 5, '#000080');
+            for (let i = 0; i < 6; i++) { c.beginPath(); c.ellipse(5 + i * 4.4, 20, 2.6, 3, 0, 0, 6.2832); c.fillStyle = i % 2 ? '#808000' : '#ffff00'; c.fill(); c.stroke(); }
+            c.beginPath(); c.moveTo(2.5, 16.5); c.lineTo(11.5, 16.5); c.quadraticCurveTo(15, 11, 18.5, 16.5); c.lineTo(29.5, 16.5); c.lineTo(29.5, 9.5); c.lineTo(2.5, 9.5); c.closePath(); c.fillStyle = '#c0c0c0'; c.fill(); c.stroke();
+            c.fillStyle = '#fff'; c.fillRect(3, 10, 26, 1); c.fillStyle = '#808080'; c.fillRect(20, 14, 9, 2); },
         control(c) { box(c, 2, 5, 28, 22, '#c0c0c0'); c.fillStyle = '#fff'; c.fillRect(3, 6, 26, 1); c.fillRect(3, 6, 1, 20); for (const [y, x, col] of [[10, 9, '#f00'], [16, 19, '#00f'], [22, 13, '#008000']]) { c.fillStyle = '#000'; c.fillRect(6, y, 20, 2); box(c, x, y - 3, 5, 8, col); } },
     };
     function icon(name) {
@@ -128,6 +133,7 @@
         { key: 'relief', title: 'Relief', sliders: ['crypt', 'furrow', 'relief', 'collr'] },
         { key: 'flow', title: 'Flow', sliders: ['warp', 'seed'], buttons: ['seed-btn', 'fieldw-btn', 'strand-btn'], buttons2: ['atlas-btn', 'maps-btn'] },
         { key: 'fit', title: 'Fit', width: 340 },   // the photo itself lies on the iris (overlay.js); this is the palette
+        { key: 'tissue', title: 'Tissue', width: 392 },   // the layer model: tissue-ui.js fills it (study/10 §7)
         { key: 'design', title: 'Design', pane: 'DESIGN' },
         { key: 'control', title: 'Control Panel' },
     ];
@@ -223,6 +229,10 @@
             { l: '&Fitted', sub: async () => { let cases = {}; try { cases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) {}
                 const its = Object.entries(cases).map(([file, c]) => ({ file, m: c.scores ? c.scores.match : 0, m2: c.scores && c.scores.match2, h: c.scores && c.scores.hcorr, tag: c.tag })).sort((a, b) => b.m - a.m); return its.length ? its.map(it => ({ text: `${it.file.replace('.jpg', '')}  —  ${it.m.toFixed(0)} %${it.m2 !== undefined ? ' · M2 ' + it.m2.toFixed(0) : ''}${it.h !== undefined && it.h !== null ? ' · h ' + it.h.toFixed(2) : ''}  (${it.tag})`, run: () => E.loadFittedPreset(it.file) })) : [{ l: '(no cases)', dis: 1 }]; } }, '-', { l: '&New seed', run: click('seed-btn') }]],
         ['Fi&t', () => [{ l: '&Photo…', run: () => { show(byKey('fit'), true); $('fit-load').click(); } }, { l: '&Reference', sub: () => [...$('fit-ref').options].filter(o => o.value).map(o => ({ text: o.textContent, run: () => { show(byKey('fit'), true); const r = $('fit-ref'); r.value = o.value; r.dispatchEvent(new Event('change', { bubbles: true })); } })) }, { l: '&Close photo', run: click('fit-close') }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('fit'), true); $('fit-hq').click(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Overlay on the iris', sub: () => { const ov = window.__irisOverlay; return ov ? ov.MODES.map(m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => ov.mode === m, run: () => ov.set(m) })) : [{ l: '(loading)', dis: 1 }]; } }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
+        ['T&issue', () => { const X = window.__irisTissueUI, T = window.IrisTissue; if (!X) return [{ l: '(loading)', dis: 1 }];
+            return [{ l: '&Layer model', chk: () => !!(T && T.on), dis: !X.canToggle(), run: () => X.toggle() }, { l: X.loadLabel(), dis: !X.canLoad(), run: () => X.load() }, '-',
+                { l: '&Point', run: () => X.go('inspect', 'point'), dis: !X.ready() }, { l: '&Section', run: () => X.go('inspect', 'section'), dis: !X.ready() }, { l: '&Contours', run: () => X.go('inspect', 'contours'), dis: !X.ready() },
+                { l: 'P&robe', run: () => X.go('probe'), dis: !X.ready() }, '-', { l: '&Dials…', run: () => X.go('dials'), dis: !X.ready() }, { l: 'Re-&load', run: () => X.reload(), dis: !X.ready() }]; }],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
         ['&Help', () => [{ l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
     ];
@@ -341,7 +351,7 @@
         c.beginPath(); c.moveTo(9.5, 5); c.lineTo(9.5, 9); c.lineTo(15, 16); c.lineTo(9.5, 23); c.lineTo(9.5, 27); c.lineTo(22.5, 27); c.lineTo(22.5, 23); c.lineTo(17, 16); c.lineTo(22.5, 9); c.lineTo(22.5, 5); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.stroke();
         c.fillStyle = '#808000'; c.beginPath(); c.moveTo(12, 9); c.lineTo(20, 9); c.lineTo(16, 14); c.closePath(); c.fill(); c.beginPath(); c.moveTo(11, 26); c.lineTo(21, 26); c.lineTo(16, 20); c.closePath(); c.fill(); c.fillRect(15.5, 14, 1, 7);
         quantise(c, n); return `url(${cv.toDataURL()}) 16 16, wait`; }
-    function markBusy() { const F = E.fit, f = F && F.fit, st = E.state, busy = !!(st.fitting || st.capturing || (f && (f.running || f.benchRunning)));
+    function markBusy() { const F = E.fit, f = F && F.fit, st = E.state, busy = !!(st.fitting || st.capturing || (f && (f.running || f.benchRunning)) || (window.__irisTissueUI && window.__irisTissueUI.loading));
         if (busy === busyWas) return busy; busyWas = busy; if (!hourglass) hourglass = hourglassCursor();
         document.body.style.setProperty('--busy-cursor', hourglass); document.body.classList.toggle('w31-busy', busy); return busy; }
 
@@ -402,13 +412,13 @@
         dressDesign(); dressFit(); tissueNotes(); relayout();
         const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen) show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
         const g = document.createElement('script'); g.src = 'gaze.js'; g.onload = () => gaze(G => { G.hold = S.hold; G.ret = S.ret; }); document.head.appendChild(g);   // study/09 U0: controls never move the eye
-        const o = document.createElement('script'); o.src = 'overlay.js'; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris
+        const o = document.createElement('script'); o.src = 'overlay.js'; o.onload = () => { const t = document.createElement('script'); t.src = 'tissue-ui.js'; document.head.appendChild(t); }; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris; study/10 §7: the Tissue window needs the overlay's API
     });
     window.addEventListener('resize', relayout);
     setInterval(() => { markBusy(); markLiveness(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return
     let last = performance.now(), fT = last, fN = 0, fps = 0;
     (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); const busy = markBusy(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
-        const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
+        const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : window.__irisTissueUI && window.__irisTissueUI.loading ? 'Loading the layer model' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }

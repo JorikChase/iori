@@ -111,7 +111,21 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Which of these still change the picture when `IrisTissue.on` | `tools/brush_probe.js` | — | measured 2026-09-21 (`p6-liveness.md`): COLOR + every material layer live; DENT / BUMP / STREAK weak; HEIGHT, BRIGHT, coherence, collarette dead; flow / warp / spacing weak. Marked in the toolbox and the LAYER list while the model is on | ok — the tissue tool set arrives with the Tissue window and G1 |
 | Photo overlay + clone source (D3), alignment controls (D4), object handles (D5) | spec §20 | — | — | todo, superseded in part by the overlay and by G |
 
-## 7. The tissue layer model — **no UI at all today**
+## 7. The tissue layer model — the **Tissue window** (built 2026-09-21, `tissue-ui.js`)
+
+Built from the approved mock (`study/tissue-window-mock.html`; iori: one window, drag to look, dials collapsed). Shortcut
+icon *Tissue*, menu *Tissue* (Layer model · Load / Re-load eye 26 · Point · Section · Contours · Probe · Dials…). States:
+not loaded · loading (staged progress, the hourglass, the page stays usable) · loaded · **other eye** (a preset, an ID
+or a fit replaces eye 26 → the model switches itself off and says why) · **unavailable** (the published site has
+neither the 4.9 MB primitives nor the reference photo — said in words) · error. Measured: load 3.8 s; MATCH2 84.6 on
+two fresh loads and after Defaults (reproducible — a dial re-load is a FULL load: re-loading on the drifted state gave
+85.2 for the same dials); Point / Section / Probe do not move the pupil or the gaze; on a portrait screen the case's
+pose is zoomed out to the whole frame (the pose is handed to the overlay so its guards restore exactly it). Engine
+additions, API only: `IrisTissue.atUV`, `sectionUV`, `proof({ onStage, json })`; `elevationAt` / `section` unchanged.
+
+Earlier state of this section (all console-only) for the record:
+
+
 
 Everything below is console-only and is the engine's main line since 2026-09-20. Home: a new **Tissue** window
 (`tissue-ui.js`) and, for the brushes, the Design toolbox. **Only ref 26 has a layer-model export**
@@ -120,7 +134,7 @@ says so in words, and its Load control names the eye it loads — no pretence th
 
 | Feature | API | Status | Home |
 |---|---|---|---|
-| Load + calibrate + bake + origin + de-light, with progress | `IrisTissue.proof(url, opts)` | CONSOLE | Tissue ▸ Load layer model (ref 26) — staged progress in the status bar |
+| Load + calibrate + bake + origin + de-light, with progress | `IrisTissue.proof(url, opts)` | **ok** — Tissue window | Tissue ▸ Load layer model (ref 26) — staged progress in the status bar |
 | Model on / off | `IrisTissue.on` | CONSOLE | Tissue ▸ checkbox; View ▸ Layer model |
 | Dials with their ablation defaults: `k1`, `deckZ` 1, `delight` 1, `wallZ` 2.5×, `sheetZ` 0.5, `srelAmt` 0.5, `margin`, `marginKeep` 3, `marginRound` 0.25, `margFade` 0.04 | properties; several need a full `load` + `calibrate` per change (handoff §4) | CONSOLE | Tissue ▸ Dials; the ones that reach the coordinate system re-load on release, not on drag, and say so |
 | Probe camera (clay / elevation / albedo / height, contours) | `IrisTissue.probe(opts)` → ImageData | CONSOLE | Tissue ▸ Inspect: probe view, placed by clicking the iris; height, yaw, pitch scrubbers |

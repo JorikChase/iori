@@ -940,6 +940,13 @@
     T.elevationAt = function (x, y) {
         const fit = F.fit, map = F.getMap(), uv = uvAt(map, fit.W, fit.H, x, y);
         if (!uv) return { inside: false };
+        return T.atUV(uv[0], uv[1]);
+    };
+    /** elevationAt by tissue coordinates — what the Tissue window reads under the pointer (it maps the LIVE view to (u, v)
+     *  itself, so it does not depend on the fit frame). Tube heights: z / top / bottom from the floor up, as tubesAt
+     *  gives them; renderedTopUm / renderedZUm absolute, on the same scale as surfaceUm and floorUm. */
+    T.atUV = function (u, v) {
+        const uv = [u, v];
         const inRegion = uv[0] > T.rect[0] && uv[0] < T.rect[0] + T.rect[2] && uv[1] > T.rect[1] && uv[1] < T.rect[1] + T.rect[3];
         const a = inRegion && T.aux ? auxRead(uv[0], uv[1], uv[0], uv[1]).at(uv[0], uv[1]) : null;
         const tubes = inRegion ? T.tubesAt(uv[0], uv[1]) : [];
@@ -950,14 +957,20 @@
                  tubes: tubes.map(t => ({ fibre: t.fibre, zUm: +(t.zMm * 1000).toFixed(1), rUm: +(t.rMm * 1000).toFixed(1),
                                           topUm: +(t.topMm * 1000).toFixed(1), bottomUm: +(t.bottomMm * 1000).toFixed(1),
                                           offAxisUm: +(t.dMm * 1000).toFixed(1), conf: t.conf,
-                                          renderedTopUm: +(renderedMm(t.topMm) * 1000).toFixed(1) })) };
+                                          renderedTopUm: +(renderedMm(t.topMm) * 1000).toFixed(1), renderedZUm: +(renderedMm(t.zMm) * 1000).toFixed(1) })) };
     };
     /** A cross-section along a line in fit pixels: the surface, and every tube cut through, as circles. */
     T.section = function (p0, p1, n) {
         const fit = F.fit, map = F.getMap(); n = n || 200;
-        const pts = [], uvs = [];
+        const pts = [];
         for (let i = 0; i < n; i++) { const t = i / (n - 1), x = p0[0] + t * (p1[0] - p0[0]), y = p0[1] + t * (p1[1] - p0[1]);
-            const uv = uvAt(map, fit.W, fit.H, x, y); pts.push({ t, x, y, uv }); if (uv) uvs.push(uv); }
+            pts.push({ t, x, y, uv: uvAt(map, fit.W, fit.H, x, y) }); }
+        return T.sectionUV(pts);
+    };
+    /** section() by a list of points that already carry their (u, v) (null = off the iris); x / y are whatever frame the
+     *  caller drew the cut in — the Tissue window passes screen points of the live view. */
+    T.sectionUV = function (pts) {
+        const n = pts.length, uvs = pts.filter(p => p.uv).map(p => p.uv);
         if (!uvs.length || !T.aux) return { samples: [], mm: 0 };
         const u0 = Math.min(...uvs.map(q => q[0])), u1 = Math.max(...uvs.map(q => q[0]));
         const v0 = Math.min(...uvs.map(q => q[1])), v1 = Math.max(...uvs.map(q => q[1]));
@@ -974,7 +987,7 @@
                            surfaceUm: a ? +(a.surfaceMm * 1000).toFixed(1) : null, tissue: a ? +a.maskA.toFixed(3) : 0,
                            tubes: tubes.map(q => ({ fibre: q.fibre, zUm: +(q.zMm * 1000).toFixed(1), rUm: +(q.rMm * 1000).toFixed(1),
                                                     topUm: +(q.topMm * 1000).toFixed(1), bottomUm: +(q.bottomMm * 1000).toFixed(1),
-                                                    offAxisUm: +(q.dMm * 1000).toFixed(1), renderedTopUm: +(renderedMm(q.topMm) * 1000).toFixed(1) })) });
+                                                    offAxisUm: +(q.dMm * 1000).toFixed(1), renderedTopUm: +(renderedMm(q.topMm) * 1000).toFixed(1), renderedZUm: +(renderedMm(q.zMm) * 1000).toFixed(1) })) });
         }
         const deep = samples.filter(q => q.tubes && q.tubes.length > 1).length;
         return { mm: +s.toFixed(4), n, floorUm: +(floorMm() * 1000).toFixed(1), deckThicknessUm: +((T.deckH || 0) * 1000).toFixed(1),
@@ -1183,8 +1196,16 @@
 
     // the whole proof: primitives → region → calibrated albedo → on
     T.proof = async function (url, opts = {}) {
-        const json = await fetch(url).then(r => r.json()); T.load(json); T.calibrate(); T.bake(); T.setOrigin();
-        if (opts.delight !== false) T.measureDelight(opts);      // ≈ 2 s: what the relief does to the light, measured
-        T.on = true; say('tissue model on'); return T.log;
+        // opts.onStage(i, n, label): the Tissue window's progress. With it, the page gets a frame between stages (the
+        // computation is the same, in the same order); opts.json: primitives already fetched (a re-load after a dial).
+        const st = opts.onStage, n = opts.delight !== false ? 6 : 5, stage = async (i, label) => { if (st) { st(i, n, label); await new Promise(r => setTimeout(r, 0)); } };
+        await stage(0, 'reading the primitives');
+        const json = opts.json || await fetch(url).then(r => r.json()); T.json = json;
+        await stage(1, 'mapping them onto the eye'); T.load(json);
+        await stage(2, 'measuring the light'); T.calibrate();
+        await stage(3, 'baking the tissue'); T.bake();
+        await stage(4, 'the knob origin'); T.setOrigin();
+        if (opts.delight !== false) { await stage(5, 'measuring the shading'); T.measureDelight(opts); }      // ≈ 2 s: what the relief does to the light, measured
+        T.on = true; if (st) st(n, n, 'done'); say('tissue model on'); return T.log;
     };
 })();

@@ -79,5 +79,14 @@
  "fit-open": "internal — the Fit shortcut and Fit ▸ Photo… open the window; fit.js still binds the id",
  "site-menu-check": "internal — the site links open from the frame's control-menu box in this shell",
  "#ui-panel .p-btn": "internal — Eye ▸ Procedural and Eye ▸ Presets call the same functions",
- "cb-close": "lazy"
+ "cb-close": "lazy",
+ "w31t-on": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-load": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-switch": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-retry": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-p-inspect": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-p-probe": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-p-dials": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-defaults": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-reload": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page"
 }

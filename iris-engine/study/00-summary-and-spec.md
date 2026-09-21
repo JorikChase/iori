@@ -1949,3 +1949,40 @@ landscape is inside the crypts. The probe makes the case for T1 and G better tha
 
 A note for T2a's account: the windowed re-bake does **not** fix the terracing either (a 1.2 µm window is the same
 picture as the 5.7 µm base). That was the last hypothesis that blamed resolution; the answer was the model.
+
+### 32.8 Log (2026-09-21): the flat table was real, and it was a regression — the sheet gets its relief back
+
+iori, on seeing the probe: *"is it possible the different camera angle just broke the height somehow? because before
+it looked pretty parallax and such from the top view and even the side rotation — or is it true that the top is just
+the plateau?"* Both halves of that deserved an answer, so both were measured.
+
+**The probe is not lying.** Pointed straight down from 14 mm with a 2.4° field — near-orthographic, so perspective is
+2 % over the depth in frame — its height readout was compared against the baked height field over the same 0.6 mm
+patch: **mean error 1.86 µm, p95 8.1 µm**, against a readout that quantises at 1.57 µm. The distributions agree too
+(p05 −152.4 against −152.3 µm; flat fraction 64.3 % against 64.8 %). A `height` mode was added to the probe for this,
+which writes the hit's z linearly, and it stays as the numeric readout Z2 wanted.
+
+**And the plateau was real — and a regression.** In the layer model **75.6 % of the height texels were exactly
+0.000 µm**; in the legacy atlas *no* texel is exactly zero and the spread is 109 µm. The old model had relief across
+the whole surface, the layer model wrote 0 on every sheet texel, and iori's memory of parallax from the top view and
+under rotation was a memory of something genuinely lost.
+
+The region's own (u, v) *is* the atlas's, so the compose pass can read the old height field straight off `atlas0` and
+put it back on the sheet, in the bake — which matters, because then the front view, the probe, `section` and
+`elevationAt` are all looking at **one surface**. (It was first done in the photo shader, where the front view got the
+relief and the probe did not: an instrument that disagrees with the picture is worse than either.) `IrisTissue.sheetZ`
+is how much to keep; whole iris of ref 26 at NORMAL:
+
+| sheetZ | MATCH2 | MATCH | hcorr | cellDab | strandCorr | aux exactly 0 |
+|---|---:|---:|---:|---:|---:|---:|
+| 0 — the flat table | 85.25 | 91.66 | 0.574 | 2.63 | 0.392 | 75.6 % |
+| **0.5 — shipped** | **86.10** | **92.02** | **0.738** | 2.64 | 0.359 | 0 % |
+| 1 | 84.90 | 91.54 | 0.735 | 2.79 | 0.313 | 0 % |
+
+Half of it is the best the picture has been, and **the height correlation with the photo rises 0.574 → 0.738**: the
+flat table was not only visibly wrong under the probe, it was measurably wrong in the front view too. Full strength
+overshoots — the legacy field brings its own crypt depths, which fight the layer model's.
+
+This is a stand-in and should be said so: the sheet's real relief is furrows and micro-texture **as primitives**,
+which is T1 and G. What it buys now is a landscape the probe can walk on outside the crypts, and a height field that
+is no longer a lie over three quarters of the eye.

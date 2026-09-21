@@ -71,9 +71,9 @@
     const COMPOSE_FS = `#version 300 es
         precision highp float;
         in vec2 v_c;
-        uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_outA, u_outB, u_cellS, u_cellG, u_fill;
+        uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_outA, u_outB, u_cellS, u_cellG, u_fill, u_atlasH;
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -135,7 +135,13 @@
             // the RELIEF's wall may be wider than the colour's: the colour edge of a hole is sharp in the photo, but
             // a 100 µm drop over a 23 µm wall is an 80° cliff, and §30.1 warns what a cliff does under a coaxial key
             float coverZ = 1.0 - sstep(-u_wallZ, u_wallZ, sd);
-            o_aux = vec4(mix(-u_depth - u_deckH + zDeck, 0.0, coverZ), 0.0, 0.0, mask);
+            // On the SHEET the layer model has nothing to say about height: it carries no furrows and no micro-relief,
+            // and writing 0 there left 75.6 % of the iris at exactly 0.000 µm — a flat table, where the legacy atlas
+            // has no texel at exactly zero and a 109 µm spread. The region's own (u, v) is the atlas's, so the old
+            // height field can be read straight off it here, and then EVERY reader — the front view, the probe, the
+            // section — is looking at one surface. A stand-in until the sheet's relief is primitives (T1, G).
+            float sheetH = texture(u_atlasH, u_rect.xy + c * u_rect.zw).r * u_sheetZ;
+            o_aux = vec4(mix(-u_depth - u_deckH + zDeck, sheetH, coverZ), coverZ, 0.0, mask);
         }`;
 
     // K1 (§32): the origin — the fitted atlas's material, packed the moment the layer model is switched on. The knobs
@@ -258,7 +264,8 @@
         gl.uniform1f(u('u_tisReliefK'), q(S.relief, o.relief) * q(S.blRelief === undefined ? 1 : S.blRelief, o.blRelief));
         gl.uniform1f(u('u_oRingStr'), o.ring); gl.uniform1f(u('u_oRingR'), o.ringR);
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
-        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin) ? 0 : 1);   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
+        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin) ? 0 : 1);
+        gl.uniform1f(u('u_tisSheetZ'), T.sheetZ === undefined ? 1 : T.sheetZ);   // the sheet keeps the legacy relief   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
         if (T.full) gl.uniform1f(gl.getUniformLocation(prog, 'u_limbalMilk'), 0.0);   // the old fit's milky limbus answered a rim this model draws itself gl.activeTexture(gl.TEXTURE0);
     };
 
@@ -386,7 +393,15 @@
     // strandCorr is what relief costs (0.527 → 0.414) and it is still open. Dials: deckZ 0 is exactly v0.8 (calibrate
     // with it set, not after), delight 0 restores the paint, wallZ overrides the relief wall.
     T.deckZ = 1;                                  // 0 = the flat v0.8 relief · 1 = the anatomy as inferred
-    T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one
+    T.delight = 1;
+    // How much of the old model's sheet relief to keep. The layer model carries no furrows and no micro-relief, so
+    // writing 0 on the sheet left 75.6 % of the iris at exactly 0.000 µm — a flat table, where the legacy atlas has
+    // no texel at exactly zero and a 109 µm spread. Measured on the whole iris of ref 26 at NORMAL,
+    // sheetZ 0 / 0.5 / 1 / 1.5 — MATCH2 85.25 / 85.69 / 84.42 / 82.92 · hcorr 0.574 / 0.738 / 0.741 / 0.705 ·
+    // cellDab 2.63 / 2.64 / 2.79 / 2.92. Half of it is the best the picture has been, and the height correlation with
+    // the photo jumps by 0.16 — the flat table was not only visibly wrong under the probe, it was measurably wrong.
+    // This is a stand-in: the sheet's real relief is furrows and micro-texture as primitives, which is T1 and G.
+    T.sheetZ = 0.5;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one
     T.wallZ = undefined;                          // the relief's hole wall; default 2.5 × the colour wall (set in bake)
     function deckThickness() {
         if (T.deckH !== undefined) return T.deckH;
@@ -454,7 +469,7 @@
         bindT('u_fibA', T.tex.fibres[0]); bindT('u_fibB', T.tex.fibres[1]); bindT('u_veinA', T.tex.veins[0]); bindT('u_veinB', T.tex.veins[1]);
         bindT('u_guideA', T.tex.guides[0]); bindT('u_guideB', T.tex.guides[1]); bindT('u_sfA', T.tex.sfib[0]); bindT('u_sfB', T.tex.sfib[1]);
         bindT('u_svA', T.tex.svein[0]); bindT('u_svB', T.tex.svein[1]); bindT('u_outA', T.tex.outlines[0]); bindT('u_outB', T.tex.outlines[1]);
-        bindT('u_cellS', T.cellS); bindT('u_cellG', T.cellG); bindT('u_fill', T.fill);
+        bindT('u_cellS', T.cellS); bindT('u_cellG', T.cellG); bindT('u_fill', T.fill); bindT('u_atlasH', E.atlas.tex[0]);
         gl.uniform4f(c.loc('u_rect'), T.rect[0], T.rect[1], T.rect[2], T.rect[3]); gl.uniform2f(c.loc('u_size'), w, h);
         const rim = grey ? [grey, grey, grey] : toAlbedo(T.src.rimRGB, T.cells.xy[0][0], T.cells.xy[0][1]); gl.uniform3f(c.loc('u_rimRGB'), rim[0], rim[1], rim[2]);
         gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
@@ -463,6 +478,7 @@
         gl.uniform1f(c.loc('u_fibRK'), zm.rK || 1.4); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
+        gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         for (const t of [T.albedo, T.aux]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.generateMipmap(gl.TEXTURE_2D); }
@@ -517,6 +533,7 @@
                 if (gap < 0.0) { hit = t; break; }
             }
             if (hit < 0.0) {                                                    // the sky of the anterior chamber
+                if (u_mode > 2.5) { o = vec4(0.0, 0.0, 0.0, 0.0); return; }      // 'height': nothing was hit
                 float k = clamp(rd.z * 2.0, 0.0, 1.0);
                 o = vec4(mix(vec3(0.05, 0.06, 0.08), vec3(0.10, 0.12, 0.16), k), 1.0); return;
             }
@@ -536,6 +553,9 @@
             for (int i = 1; i <= 24; i++) {
                 float ts = dist * float(i) / 25.0; vec3 q = P + toL * ts;
                 if (q.z < H(q.xy) - 0.0004) { sh = 0.0; break; }
+            }
+            if (u_mode > 2.5) {                                                  // 'height': the hit's z, linear, for reading back
+                o = vec4(vec3(clamp((P.z - u_zLo) / max(u_zHi - u_zLo, 1e-5), 0.0, 1.0)), 1.0); return;
             }
             vec3 base = u_mode > 1.5 ? turbo((P.z - u_zLo) / max(u_zHi - u_zLo, 1e-5))
                       : (u_mode > 0.5 ? vec3(0.55) : ALB(P.xy) * 1.6);
@@ -595,7 +615,7 @@
         gl.uniform1f(u('u_tanHalf'), Math.tan((opts.fov === undefined ? 75 : opts.fov) * Math.PI / 360));
         gl.uniform1f(u('u_aspect'), w / h);
         gl.uniform1f(u('u_far'), opts.farMm || 2.5);
-        gl.uniform1f(u('u_mode'), { albedo: 0, clay: 1, elevation: 2 }[opts.mode || 'albedo']);
+        gl.uniform1f(u('u_mode'), { albedo: 0, clay: 1, elevation: 2, height: 3 }[opts.mode || 'albedo']);
         gl.uniform1f(u('u_contour'), (opts.contourUm === undefined ? 0 : opts.contourUm) / 1000);
         gl.uniform1f(u('u_lightUp'), (opts.lampUm === undefined ? 60 : opts.lampUm) / 1000);
         gl.uniform1f(u('u_ambient'), opts.ambient === undefined ? 0.18 : opts.ambient);

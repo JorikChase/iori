@@ -12,7 +12,7 @@ import argparse, gzip, hashlib, json, os, shutil, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SRC = ['index.html', 'engine.js', 'kernels.js', 'catalog.js', 'render.js', 'ui.js', 'ui.css',
-       'harness.js', 'metrics.js', 'serve.py']
+       'harness.js', 'metrics.js', 'graph.js', 'tero.js', 'graphworker.js', 'serve.py']
 INDEX = os.path.join(HERE, 'index.json')
 
 
@@ -30,10 +30,11 @@ def summarise(bench):
     out['T0'] = {k: bool(v.get('pass')) for k, v in t0.items()}
     out['T0_passed'] = sum(1 for v in out['T0'].values() if v)
     out['T0_total'] = len(out['T0'])
-    t1 = bench.get('T1', {})
-    out['T1'] = {k: bool(v.get('pass')) for k, v in t1.items()}
-    out['T1_passed'] = sum(1 for v in out['T1'].values() if v)
-    out['T1_total'] = len(out['T1'])
+    for tier in ('T1', 'T2'):
+        t = bench.get(tier, {})
+        out[tier] = {k: bool(v.get('pass')) for k, v in t.items()}
+        out[tier + '_passed'] = sum(1 for v in out[tier].values() if v)
+        out[tier + '_total'] = len(out[tier])
     for key, path in (('boxD_dla', ('T1', 'dlaDimension', 'boxD')),
                       ('beta_eden', ('T1', 'edenRoughness', 'beta')),
                       ('ms_per_step', ('T4', 'stepCost', 'msPerStep')),

@@ -73,31 +73,56 @@ Three solver results that stand on their own for P2 (study/02 §6 was optimistic
   track the solution. As a **CG preconditioner** it converges without tuning. Budget MG-preconditioned
   CG, not V(1,1).
 
-## P2 started — the graph route
+## P2 — Tero adaptation on the vein graph (live)
 
-`graph.js`: mask → exact distance transform → Guo–Hall skeleton → node/edge graph with widths in mm,
-then the network morphometrics. Junction clumps are flood-filled into one node and each degree-2 run
-is consumed exactly once, verified on a synthetic 3×3 lattice (5 nodes, 8 edges, degrees {3:4, 4:1} —
-the corners are bends, not nodes). Extraction costs ≈1.4 s on a 2048² dish, so it belongs on a timer
-or in a worker; the network changes on a scale of sim-minutes.
+The route the P1b gate pointed at: on a continuum sheet the competition between paths never starts, on
+a graph it works by construction. Pieces:
 
-**Harness tier T2 is live and green: 4/4 published gates**, on a real simulated Physarum network
-(157 nodes, 175 edges, largest connected component):
+| File | What |
+|---|---|
+| `graph.js` | mask → exact distance transform → Guo–Hall skeleton → node/edge graph with widths (mm); junction clumps are one node, each degree-2 run is consumed once; `close()` bridges one-cell gaps; `extractValues()` is the engine path (histogram threshold, OR-downsampled by 2 at normal); `networkStats` + `t2Gates` are the scorecard |
+| `tero.js` | Kirchhoff solve by Jacobi-preconditioned CG with the mean projected out per component; adaptation `dD/dt = f(\|Q\|) − rD`, sigmoid f with a random terminal pair per iteration (Tero 2010) or the power law; rasterise to / sample from the conductivity field |
+| `graphworker.js` | one update off the main thread: adaptive slot's density → graph → terminals → adaptation → field |
+| `tests/*.test.mjs` | `node petri/tests/tero.test.mjs` and `graph.test.mjs` — known answers, no GPU |
 
-| gate | target | measured | source |
-|---|---|---|---|
-| degree-3 share of branch points | ≥ 0.90 | **1.00** | Baumgarten, Ueda & Hauser 2010 |
-| vein widths log-normal, σ | 0.25–0.85 | **0.471** | Baumgarten 2010 |
-| total length against the MST | 1.45–2.05 | **1.467** | Tero et al. 2010 (1.75 ± 0.30) |
-| meshedness α | 0.04–0.30 | **0.062** | Bebber et al. 2007 |
+**How it runs.** An organism row with a ninth field (the adaptation genome) makes its slot adaptive —
+`Physarum polycephalum — adaptive network` is the first. Every `every` steps (300) the stepping
+**stops at that exact step**, the worker updates, the result is uploaded, and stepping resumes. Waiting
+at a fixed step on a deterministic input is what keeps replay bit-exact with an asynchronous worker.
+The field (gn = n/4) is read in three places: agents add `betaD · D` to what they sense (they prefer
+veins that transport, not merely ones that exist); the trail persists longer where D is high (idle
+veins fade); and View ▸ Debug: conductivity shows it. The field is also the memory between updates:
+a re-extracted edge starts from the field sampled along it, so no edge ids have to be tracked.
 
-Honest caveat: the gates are measured on the largest component of **357**. A real plasmodium is one
-connected organism, so that fragmentation is itself a discrepancy — and closing it is exactly what
-the flux adaptation is for. Before the largest-component filter the raw graph was a forest (α
-negative, 56 % dead ends), which is the baseline P2 has to improve on.
+**Terminals** — where current enters and leaves a component — come from the op log: every food flake
+placed (nutrient op above the poured level) and every inoculation point. The first version detected
+food by the nutrient under a node; agents graze a flake below any threshold within a few hundred
+steps, terminals dropped to 0–1, no current flowed and every vein decayed. With two or more terminals
+a component runs Tero 2010's random pairs; with one it pumps toward its own tips (the front sink);
+with none it carries no current and fades — which is what dissolves stray fragments.
 
-Next in P2: run the Tero adaptation `dD/dt = |Q|^μ − rD` on this graph (a sparse Laplacian over ~10⁴
-edges, not 3 × 10⁷ voxels), and feed conductivity back into agent sensing.
+**Measured** (normal, six food flakes at 22 mm, 6000 steps, same seed):
+
+| | forager (coupling A) | adaptive (P2) |
+|---|---|---|
+| largest component, share of all graph nodes | 27 % (415) | **58 % (836)** |
+| components at the last updates | — | 109 → 91, falling |
+| T2 gates on the largest component | 4/4 | 4/4 |
+
+The extraction threshold for the engine is 1 % of p99 with a closing radius of 1 (components 259 →
+153, largest share 16 % → 46 % on the same trail). T2 keeps its fixed 5 % protocol so past scores stay
+comparable. An update costs 90–560 ms and grows with the network — about 10 % overhead at 60 steps/s;
+warm-starting the CG from the previous pressure is the obvious next saving.
+
+Known answers (`tests/tero.test.mjs`): μ = 1 with one fixed pair converges to the shortest route and
+the longer one decays to 1e-4 (Bonifaci, Mehlhorn & Varma); Kirchhoff splits current exactly; a
+fragment with no terminal decays; sigmoid with random pairs keeps a cycle — on a ring-with-hub the
+ring survives and the spokes are pruned. My first version of that test asserted every edge must
+survive, which is wrong: keeping a loop is the claim, not keeping everything.
+
+Open in P2: food not yet reached is not a terminal (the organism must grow there first — correct, but
+it means the network consolidates only as fast as it explores); only one adaptive slot per dish; the
+wandering exploratory filaments are never retracted (real Physarum withdraws from explored ground).
 
 ## Deviations from the spec, deliberate for P1a
 
@@ -160,8 +185,10 @@ edges, not 3 × 10⁷ voxels), and feed conductivity back into agent sensing.
 
 ## Next (spec §11)
 
-1. **P2, on the revised plan** — the vein graph G route (see the gate above), not the continuum hybrid.
-   Start with skeleton→graph extraction in a worker, since T2 needs the same code.
+1. **P2 remainder** — CG warm start; retraction of explored, unconnected ground; peristaltic phase on the
+   graph (the oscillator the continuum prototype could not carry — on a graph the pressure solve is
+   cheap enough to run per contraction); then the T1 Tero fixture (36 food sources, TL/MST, fault
+   tolerance against Tero 2010) as a scored test.
 2. P1 remainder, still open: **substrate substepping** so `fine` is trustworthy, and **physical
    absorption** so fill and front speed become tier-invariant too (both top items); brick pool +
    allocator; agent spatial sort (measured 4–7x, only matters above ~1M agents, and it needs a stable

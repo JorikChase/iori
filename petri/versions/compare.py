@@ -12,6 +12,7 @@ UP, DOWN, SAME = '↑', '↓', ' '
 METRICS = [
     ('T0_passed', 'T0', +1, 0),
     ('T1_passed', 'T1', +1, 0),
+    ('T2_passed', 'T2', +1, 0),
     ('boxD_dla', 'DLA D', 0, 0.02),          # 0 = closer to target is better
     ('beta_eden', 'Eden b', 0, 0.02),
     ('ms_per_step', 'ms/step', -1, 0.05),
@@ -66,7 +67,7 @@ def table(vs):
                 continue
             a = arrow(key, (prev or {}).get(key), cur) if prev else SAME
             txt = f'{cur:.3f}' if isinstance(cur, float) and abs(cur) < 100 else f'{cur:g}'
-            if key in ('T0_passed', 'T1_passed'):
+            if key in ('T0_passed', 'T1_passed', 'T2_passed'):
                 txt = f"{cur}/{s.get(key.replace('passed', 'total'), '?')}"
             cells.append(f'{txt + a:>9}')
         print(f"{v['id']:<24} {v['when'][:16]:<17} " + ' '.join(cells) + '  ' + v.get('note', ''))
@@ -84,7 +85,7 @@ def diff(a, b):
         if x is None and y is None:
             continue
         print(f'  {label:<10} {x!s:>10}  ->  {y!s:<10} {arrow(key, x, y)}')
-    for tier in ('T0', 'T1'):
+    for tier in ('T0', 'T1', 'T2'):
         ta, tb = va['summary'].get(tier, {}), vb['summary'].get(tier, {})
         for k in sorted(set(ta) | set(tb)):
             if ta.get(k) != tb.get(k):

@@ -87,6 +87,55 @@
     "ms_per_step": 2.595,
     "agents": 43898
    }
+  },
+  {
+   "id": "v3-tero",
+   "when": "2026-09-21T21:46:52",
+   "note": "P2: Tero adaptation on the vein graph, worker, conductivity feedback",
+   "features": {
+    "graph": "1",
+    "tero": "1",
+    "adaptiveSlots": "1"
+   },
+   "src_sha256": "047e0b0011545799",
+   "bench": "bench-v3-tero.json",
+   "summary": {
+    "pass": false,
+    "quality": "normal",
+    "n": 2048,
+    "T0": {
+     "replay": true,
+     "replayAdaptive": true,
+     "exportRoundTrip": true,
+     "nutrientConserved": true,
+     "bareStaysBare": true,
+     "contained": true,
+     "catalogSmoke": true
+    },
+    "T0_passed": 7,
+    "T0_total": 7,
+    "T1": {
+     "diffusion": true,
+     "fisherSpeed": true,
+     "edenRoughness": true,
+     "dlaDimension": true,
+     "etaSweep": true,
+     "morphologyDiagram": true,
+     "resolutionInvariance": false
+    },
+    "T1_passed": 6,
+    "T1_total": 7,
+    "T2": {
+     "adaptationConsolidates": true,
+     "physarumNetwork": true
+    },
+    "T2_passed": 2,
+    "T2_total": 2,
+    "boxD_dla": 1.7596020228833158,
+    "beta_eden": 0.433,
+    "ms_per_step": 2.391,
+    "agents": 45935
+   }
   }
  ]
 }

@@ -587,6 +587,124 @@
         return T;
     };
 
+    // ---------------------------------------------------------------- G (§32): ops, the journal, and the brushes
+    // One vocabulary for three callers. A brush emits ops, the generator emits ops, and the fitter of T6 will emit
+    // the same ops as it grows an eye — so an edit by hand and a step of the fit are the same kind of thing, and the
+    // journal that records one records the other. Every op carries what it needs to be undone, and every primitive
+    // it makes carries its provenance, so `measured`, `inferred`, `painted` and `seeded` stay told apart forever.
+    const rng = seed => { let a = (seed >>> 0) || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0;
+        let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+    const SETS = ['fibres', 'guides', 'veins', 'sfib', 'svein', 'outlines'];
+    T.ops = [];                                   // the journal: what was done, in order
+    T.dirty = false;
+    function curvesOf(set) { if (!T.sets || !T.sets[set]) throw new Error('tissue: no set ' + set); return T.sets[set]; }
+    function clone(c) { return JSON.parse(JSON.stringify(c)); }
+
+    /** Apply one op. Returns the op, with an `undo` record attached, and leaves the bake stale. */
+    T.apply = function (op) {
+        const set = op.set || 'fibres', list = curvesOf(set);
+        switch (op.t) {
+            case 'add': {
+                const c = op.curve;
+                if (!c.uv) c.uv = c.xy.map(q => uvAt(F.getMap(), F.fit.W, F.fit.H, q[0] * F.fit.W / T.src.fit[0], q[1] * F.fit.H / T.src.fit[1]));
+                list.push(c); op.undo = { at: list.length - 1 };
+                break;
+            }
+            case 'delete': { op.undo = { at: op.at, curve: list[op.at] }; list.splice(op.at, 1); break; }
+            case 'move': {                        // one vertex, in json-fit pixels
+                const c = list[op.at]; op.undo = { xy: c.xy[op.i].slice(), uv: c.uv[op.i] && c.uv[op.i].slice() };
+                c.xy[op.i] = op.xy.slice();
+                c.uv[op.i] = uvAt(F.getMap(), F.fit.W, F.fit.H, op.xy[0] * F.fit.W / T.src.fit[0], op.xy[1] * F.fit.H / T.src.fit[1]);
+                break;
+            }
+            case 'set': {                         // a payload along a curve: w, z, r, zc, rgb
+                const c = list[op.at]; op.undo = { key: op.key, was: clone(c[op.key]) };
+                if (Array.isArray(op.value)) c[op.key] = op.value.slice();
+                else c[op.key] = c[op.key].map(() => op.value);
+                if (op.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || 1.4) * w);
+                break;
+            }
+            case 'split': {                       // cut a curve at vertex i into two
+                const c = list[op.at], i = op.i, keys = ['xy', 'uv', 'w', 'z', 'r', 'zc', 'val', 'rgb', 'base'];
+                op.undo = { at: op.at, curve: clone(c) };
+                const b = {}; for (const k of keys) if (Array.isArray(c[k])) b[k] = c[k].slice(i);
+                for (const k of keys) if (Array.isArray(c[k])) c[k] = c[k].slice(0, i + 1);
+                b.provenance = c.provenance; list.splice(op.at + 1, 0, b);
+                break;
+            }
+            case 'join': {                        // append curve `b` onto curve `at`
+                const c = list[op.at], b = list[op.b], keys = ['xy', 'uv', 'w', 'z', 'r', 'zc', 'val', 'rgb', 'base'];
+                op.undo = { at: op.at, curve: clone(c), b: op.b, bCurve: clone(b) };
+                for (const k of keys) if (Array.isArray(c[k]) && Array.isArray(b[k])) c[k] = c[k].concat(b[k]);
+                list.splice(op.b, 1);
+                break;
+            }
+            default: throw new Error('tissue: unknown op ' + op.t);
+        }
+        op.set = set; T.ops.push(op); T.dirty = true; T.deckH = undefined;
+        return op;
+    };
+    /** Undo the last op (or `n` of them). */
+    T.undo = function (n) {
+        for (let k = 0; k < (n || 1); k++) {
+            const op = T.ops.pop(); if (!op) break;
+            const list = curvesOf(op.set);
+            if (op.t === 'add') list.splice(op.undo.at, 1);
+            else if (op.t === 'delete') list.splice(op.undo.at, 0, op.undo.curve);
+            else if (op.t === 'move') { const c = list[op.at]; c.xy[op.i] = op.undo.xy; c.uv[op.i] = op.undo.uv; }
+            else if (op.t === 'set') { const c = list[op.at]; c[op.undo.key] = op.undo.was; if (op.undo.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || 1.4) * w); }
+            else if (op.t === 'split') { list.splice(op.at, 2, op.undo.curve); }
+            else if (op.t === 'join') { list[op.at] = op.undo.curve; list.splice(op.undo.b, 0, op.undo.bCurve); }
+        }
+        T.dirty = true; T.deckH = undefined;
+        return T.ops.length;
+    };
+    /** Re-bake after edits. */
+    T.commit = function () { if (!T.dirty) return T; T.bake(); T.dirty = false; return T; };
+
+    // ---- brushes: they do not draw pixels, they emit the ops above
+    T.brush = {
+        /**
+         * A bundle of deck fibres along `path` (fit pixels). Seeded, so the same stroke re-rolls the same bundle.
+         * Direction comes from the stroke; width, spacing and waviness from the local tissue unless given.
+         */
+        strands(path, opts = {}) {
+            if (!T.sets) throw new Error('tissue: nothing loaded');
+            const R = rng(opts.seed === undefined ? 1 : opts.seed), n = opts.count || 8;
+            const kx = T.src.fit[0] / F.fit.W, ky = T.src.fit[1] / F.fit.H;     // fit px → the json's own pixels
+            const P = path.map(q => [q[0] * kx, q[1] * ky]);
+            // the local look: median width and colour of the fibres nearest the stroke's middle
+            const mid = P[P.length >> 1];
+            let near = null, nd = 1e18;
+            for (const c of T.sets.fibres) { if (!c.xy) continue; const q = c.xy[c.xy.length >> 1];
+                const d = (q[0] - mid[0]) ** 2 + (q[1] - mid[1]) ** 2; if (d < nd) { nd = d; near = c; } }
+            const wMed = opts.widthMm !== undefined ? opts.widthMm / 1.4 : (near ? near.w[near.w.length >> 1] : 0.014);
+            const rgb0 = opts.rgb || (near ? near.rgb[near.rgb.length >> 1] : [0.02, 0.02, 0.015]);
+            const spread = (opts.spreadMm === undefined ? 0.12 : opts.spreadMm), wav = opts.wavinessMm === undefined ? 0.02 : opts.wavinessMm;
+            const pxPerMm = (F.fit.limbus.rx / 5.85) * kx;                        // json px per mm
+            const made = [];
+            for (let i = 0; i < n; i++) {
+                const off = (R() - 0.5) * 2 * spread * pxPerMm, ph = R() * 6.2831853, amp = wav * pxPerMm * (0.4 + R());
+                const xy = [], w = [], z = [], zc = [], rgb = [];
+                for (let j = 0; j < P.length; j++) {
+                    const a = P[Math.max(0, j - 1)], b = P[Math.min(P.length - 1, j + 1)];
+                    let tx = b[0] - a[0], ty = b[1] - a[1]; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+                    const s = j / Math.max(1, P.length - 1);
+                    const d = off + amp * Math.sin(ph + s * 6.2831853);
+                    xy.push([P[j][0] - ty * d, P[j][1] + tx * d]);
+                    const ww = wMed * (0.7 + 0.6 * R());
+                    w.push(ww); z.push(1.4 * ww * (0.9 + 0.3 * R())); zc.push(0);
+                    const k = 0.75 + 0.5 * R();
+                    rgb.push([rgb0[0] * k, rgb0[1] * k, rgb0[2] * k]);
+                }
+                const c = { xy, w, z, zc, rgb, r: w.map(q => 1.4 * q), provenance: 'painted' };
+                made.push(T.apply({ t: 'add', set: 'fibres', curve: c, brush: 'strands', seed: opts.seed }));
+            }
+            say(`brush: ${n} strands painted, ${(wMed * 2.8 * 1000).toFixed(0)} µm wide, over ${(P.length)} points`);
+            return made;
+        },
+    };
+
     // ---------------------------------------------------------------- T3 (§32): the probe camera
     // A camera inside the anterior chamber, down among the tissue, for reading the SHAPE of the landscape: how deep a
     // crypt is, how its walls run, which fibre bridges over which. It does not share fs-photo's camera: that march is

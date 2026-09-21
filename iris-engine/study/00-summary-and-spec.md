@@ -2140,3 +2140,30 @@ amplified it. `HANDOFF.md` has said this since v83 — *any code added to `fs-ba
 compiled variants only* — and it is just as true of `fs-photo`. The correction moved into `tissue.js`'s string
 replacement, `index.html` went back to byte-identical, and the bench returned to **61.6 / 68.3 / 70.5 / 66.4**
 with the margin doing exactly the same 245 µm of work in the variant.
+
+### 32.13 Log (2026-09-21): G0 — the op vocabulary, the journal, and the first brush
+
+G's premise is that **a brush, the generator and the fitter are the same machine**. So the first piece is not a brush
+at all: it is the vocabulary all three speak, and the journal that records it. An edit by hand and a step of T6's
+fitter are then the same kind of thing, and every primitive keeps its provenance — `measured`, `inferred`, `painted`,
+`seeded` — so what was read off a photograph never quietly becomes what somebody drew.
+
+**Ops** (`IrisTissue.apply`, journalled in `IrisTissue.ops`): `add`, `delete`, `move` (one vertex), `set` (any payload
+along a curve — width, height, radius, colour, confidence), `split` (cut a curve at a vertex) and `join`. Each op
+records what it needs to be undone, `IrisTissue.undo(n)` walks back, and `commit()` re-bakes. A painted curve gets its
+`uv` through the same coordinate map as every other primitive, so it lands in the margin-corrected system and the bake
+treats it exactly like a measured one.
+
+**The first brush**, `IrisTissue.brush.strands(path, opts)`, lays a bundle of deck fibres along a stroke in fit
+pixels: count, width, spread, waviness, and a **seed**, so the same stroke re-rolls the same bundle. Width and colour
+default to the nearest existing fibre's, so a stroke matches the tissue it is drawn into. It emits nothing but `add`
+ops — the journal is the only record it keeps.
+
+Measured on ref 26: twelve strands painted across a crypt change **83 763 pixels**, lifting them 120 µm with a single
+`set` op puts them over their neighbours, and `undo` returns the render **pixel-identical** — 0 of 1 182 720 channels
+differ. Painting the same bundle onto the *sheet* changes nothing visible, which is right and worth knowing: deck
+fibres live under the border layer, and a stroke there needs a guide brush, not this one.
+
+One trap for whoever picks this up: a point whose baked surface is deep is **not** necessarily a hole. With `sheetZ`
+giving the sheet the legacy relief, the sheet dips to −700 µm in places, far below the deck's 278 µm. The test for
+"am I in a crypt" is `elevationAt(x, y).layers > 0` — are there tubes under this point — not the surface height.

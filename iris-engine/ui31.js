@@ -113,7 +113,7 @@
     // windows
     // ---------------------------------------------------------------------------------------------------------
     const WINS = [
-        { key: 'camera', title: 'Camera', sliders: ['pupil', 'elev', 'light', 'srcsize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom'], src: true, buttons: ['debug-btn', 'refr-btn', 'anim2-btn', 'tone-btn', 'ref-btn'] },
+        { key: 'camera', title: 'Camera', sliders: ['pupil', 'elev', 'light', 'srcsize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom'], src: true, buttons: ['debug-btn', 'refr-btn', 'spec-btn'], buttons2: ['anim2-btn', 'tone-btn', 'ref-btn'] },
         { key: 'material', title: 'Material', sliders: ['pigment', 'stroma', 'pheo', 'yellow', 'mie', 'ring'] },
         { key: 'relief', title: 'Relief', sliders: ['crypt', 'furrow', 'relief', 'collr'] },
         { key: 'flow', title: 'Flow', sliders: ['warp', 'seed'], buttons: ['seed-btn', 'fieldw-btn', 'strand-btn'], buttons2: ['atlas-btn', 'maps-btn'] },
@@ -194,17 +194,17 @@
         const r = m.getBoundingClientRect(); m.style.left = clamp(x, 0, Math.max(0, innerWidth - r.width)) + 'px'; m.style.top = clamp(y, 0, Math.max(0, innerHeight - r.height)) + 'px';
     }
     document.addEventListener('pointerdown', e => { if (!e.target.closest('.w31-menu, .w31-mtop, .w31-ctl')) closeMenus(); }, true);
-    const click = id => () => { const el = $(id); if (el) el.click(); }, isOn = id => () => { const el = $(id); return !!el && el.classList.contains('active'); };
+    const click = id => Object.assign(() => { const el = $(id); if (el) el.click(); }, { ctl: id }), isOn = id => () => { const el = $(id); return !!el && el.classList.contains('active'); };
     const tog = (l, id) => ({ l, chk: isOn(id), run: click(id) });
     const FITTED = [['09-blue-green-isolated.jpg', 'Blue-green  ·  09'], ['25-green-amber-ring-isolated.jpg', 'Green, amber ring  ·  25'], ['26-green-crypts-isolated.jpg', 'Green, crypts  ·  26'], ['35-grey-green-isolated.jpg', 'Grey-green  ·  35']];
     const MENUS = [
         ['&File', () => [{ l: '&Open ID…', run: click('idin-btn') }, { l: '&Save ID', run: click('idout-btn') }, '-', { l: 'Capture &4K', run: click('shot-btn') }, '-', { l: '&META IRIS', run: () => { location.href = '../meta-iris.html'; } }]],
-        ['&View', () => [{ l: '&Quality', sub: [...$('quality-sel').options].map(o => ({ l: o.textContent, chk: () => E.quality === o.value, run: () => { const s = $('quality-sel'); s.value = o.value; s.dispatchEvent(new Event('change')); } })) },
-            { l: '&Camera follows the pointer', chk: () => !E.state.useRot, run: () => E.setCamFixed(!E.state.useRot) }, '-', tog('&Grid', 'debug-btn'), tog('&Refraction', 'refr-btn'), tog('&Filmic', 'tone-btn'), tog('RE&F pose', 'ref-btn'), tog('&Hippus', 'anim2-btn'), '-',
+        ['&View', () => [{ l: '&Quality', ctl: 'quality-sel', sub: [...$('quality-sel').options].map(o => ({ l: o.textContent, chk: () => E.quality === o.value, run: () => { const s = $('quality-sel'); s.value = o.value; s.dispatchEvent(new Event('change')); } })) },
+            { l: '&Camera follows the pointer', ctl: 'cam-btn', chk: () => !E.state.useRot, run: () => E.setCamFixed(!E.state.useRot) }, '-', tog('&Grid', 'debug-btn'), tog('&Refraction', 'refr-btn'), tog('Corneal re&flection', 'spec-btn'), tog('F&ilmic', 'tone-btn'), tog('R&EF pose', 'ref-btn'), tog('&Hippus', 'anim2-btn'), '-',
             tog('&Atlas', 'atlas-btn'), tog('&Maps', 'maps-btn'), { l: () => 'Strands: ' + ($('strand-btn') ? $('strand-btn').textContent : ''), run: click('strand-btn') }, '-', { l: 'Control &Panel…', run: () => show(byKey('control'), true) }]],
         ['&Eye', () => [{ l: '&Presets', sub: FITTED.map(([f, l]) => ({ l, run: () => E.loadFittedPreset(f) })) }, { l: 'P&rocedural', sub: Object.keys(E.EYE_PRESETS || {}).map(k => ({ l: k, run: () => window.loadEyePreset(k) })) },
             { l: '&Fitted', sub: async () => { let cases = {}; try { cases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) {}
-                const its = Object.entries(cases).map(([file, c]) => ({ file, m: c.scores ? c.scores.match : 0, tag: c.tag })).sort((a, b) => b.m - a.m); return its.length ? its.map(it => ({ l: `${it.file.replace('.jpg', '')}  —  ${it.m.toFixed(0)} %  (${it.tag})`, run: () => E.loadFittedPreset(it.file) })) : [{ l: '(no cases)', dis: 1 }]; } }, '-', { l: '&New seed', run: click('seed-btn') }]],
+                const its = Object.entries(cases).map(([file, c]) => ({ file, m: c.scores ? c.scores.match : 0, m2: c.scores && c.scores.match2, h: c.scores && c.scores.hcorr, tag: c.tag })).sort((a, b) => b.m - a.m); return its.length ? its.map(it => ({ text: `${it.file.replace('.jpg', '')}  —  ${it.m.toFixed(0)} %${it.m2 !== undefined ? ' · M2 ' + it.m2.toFixed(0) : ''}${it.h !== undefined && it.h !== null ? ' · h ' + it.h.toFixed(2) : ''}  (${it.tag})`, run: () => E.loadFittedPreset(it.file) })) : [{ l: '(no cases)', dis: 1 }]; } }, '-', { l: '&New seed', run: click('seed-btn') }]],
         ['Fi&t', () => [{ l: '&Photo…', run: () => { show(byKey('fit'), true); $('fit-load').click(); } }, { l: '&Reference', sub: () => [...$('fit-ref').options].filter(o => o.value).map(o => ({ text: o.textContent, run: () => { show(byKey('fit'), true); const r = $('fit-ref'); r.value = o.value; r.dispatchEvent(new Event('change', { bubbles: true })); } })) }, { l: '&Close photo', run: click('fit-close') }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('fit'), true); $('fit-hq').click(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Overlay on the iris', sub: () => { const ov = window.__irisOverlay; return ov ? ov.MODES.map(m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => ov.mode === m, run: () => ov.set(m) })) : [{ l: '(loading)', dis: 1 }]; } }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
         ['&Help', () => [{ l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
@@ -221,6 +221,7 @@
         veil.id = 'w31-veil'; veil.dataset.ui = '1'; document.body.appendChild(veil); veil.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === veil) veil.classList.remove('on'); });
         const hold = h('div'); hold.id = 'w31-holder'; hold.style.display = 'none'; document.body.appendChild(hold);   // controls that now live in the menus keep their place in the DOM
         for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn', 'cam-btn', 'fit-open']) { const el = $(id); if (el) hold.appendChild(el); }
+        for (const id of ['fit-blank1', 'fit-blank2']) { const el = $(id); if (el) el.remove(); }
         const strip = h('div'); strip.id = 'tab-strip'; strip.style.display = 'none'; document.body.appendChild(strip);   // tells design.js the layout is ours
         const bar2 = $('accum-bar'); if (bar2) document.body.appendChild(bar2);
     }
@@ -319,6 +320,9 @@
     let last = performance.now(), fT = last, fN = 0, fps = 0;
     (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
         const st = $('w31-status'); if (st) { const t = flashT > 0 ? flash : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
+    // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
+    async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
+        for (const [, items] of MENUS) await walk(items); return [...out]; }
     const up = k => byKey(String(k).toLowerCase());
-    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), sceneShift, WINS, show, tile, cascade, say, settings: S };
+    window.__irisUI = { shell: '3.11', showWindow: (k, on) => { const W = up(k); if (W) show(W, on !== false); }, get windows() { return Object.fromEntries(WINS.map(W => [W.key.toUpperCase(), W.el])); }, makeScrubber: (input, label, valEl) => scrubber(input, label, valEl), sceneShift, WINS, show, tile, cascade, say, menuIds, settings: S };
 })();

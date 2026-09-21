@@ -48,6 +48,30 @@
         const diffs = [], walk = (x, y, path) => { if (x && y && typeof x === 'object' && typeof y === 'object') { for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) walk(x[k], y[k], path + '.' + k); } else if (JSON.stringify(x) !== JSON.stringify(y)) diffs.push([path, x, y]); };
         walk(a.cases, b.cases, 'cases'); return { iters: [a.iters, b.iters], files: Object.keys(a.cases).length, diffs, summary: Object.fromEntries(Object.entries(b.cases).map(([f, c]) => [f.slice(0, 2), [c.row.match2, c.row.match, c.render]])) }; };
 
+    // ---- reachability (study/10 §9): can a hand reach every control? `compare()` only proves the ids exist — a button
+    // left inside the hidden #ui-panel passes it (CORNEA REFL did, for a day). reach() opens every 3.11 window in turn
+    // and requires each `window` control to have a client rect inside it, asks the shell which ids its menus reach,
+    // and — the inverse — fails every interactive element of the page that the manifest does not name. [] = pass.
+    T.reach = async (url = '/iris-engine/tools/ui-contract/controls.json') => {
+        const U = window.__irisUI, fails = []; if (!U || U.shell !== '3.11') return [['shell', 'reach() measures the 3.11 shell; open the page with ?ui=31']];
+        const man = await fetch(url, { cache: 'no-store' }).then(r => r.json()); delete man._note;
+        const isSel = k => /^[.#\[]/.test(k), els = k => isSel(k) ? [...document.querySelectorAll(k)] : [document.getElementById(k)].filter(Boolean);
+        const shown = (el, win) => { const t = el.getClientRects().length ? el : el.closest('.w31-scrub'); return !!t && t.getClientRects().length > 0 && win.contains(t); };   // a range input lives hidden under its scrubber row
+        const menu = new Set(await U.menuIds()), was = U.WINS.map(W => !!W.open), named = new Set();
+        for (const [k, home] of Object.entries(man)) { const kind = home.split(' ')[0], found = els(k); found.forEach(e => named.add(e));
+            if (kind === 'lazy') continue; if (!found.length) { fails.push([k, 'not in the page', home]); continue; }
+            if (kind === 'menu' && !menu.has(k)) fails.push([k, 'no menu item reaches it', home]); }
+        for (const W of U.WINS) { const mine = Object.entries(man).filter(([, home]) => home === 'window ' + W.key); if (!mine.length) continue;
+            U.show(W, true, true); await tick();
+            for (const [k] of mine) for (const el of els(k)) if (!shown(el, W.el)) fails.push([k, 'not visible in its window', W.key]);
+            U.show(W, false, true); }
+        U.WINS.forEach((W, i) => { if (was[i]) U.show(W, true, true); }); U.show(U.WINS[0], !!was[0]);   // the last call is not quiet: icons, scene and layout settle
+        for (const el of document.querySelectorAll('button, select, input, textarea')) { if (named.has(el)) continue; const inPanel = !!el.closest('#ui-panel');
+            if (!el.id && !inPanel) continue; if (/^w31-/.test(el.id) || el.closest('.w31-menu, #casebook')) continue;   // the shell's own chrome is born visible
+            fails.push([el.id || (el.className + ' "' + el.textContent.trim().slice(0, 24) + '"'), inPanel ? 'left inside the hidden #ui-panel' : 'not in controls.json', '']); }
+        return fails;
+    };
+
     // ---- overlay registration: is the photo layer exactly where the engine draws the same frame? The iris outline
     // (outermost non-white pixel of every row, so the catchlight cannot bias it) is circle-fitted on the scored
     // off-screen render and on the LIVE canvas mapped back through the overlay's rectangle; both in fit pixels.

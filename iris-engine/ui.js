@@ -25,7 +25,7 @@
     const svg = (name, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 16 16" aria-hidden="true">${I[name] || ''}</svg>`;
 
     const MODES = [
-        { key: 'CAMERA', icon: 'camera', title: 'Camera', sliders: ['pupil', 'elev', 'light', 'srcsize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom'], buttons: ['debug-btn', 'refr-btn', 'anim2-btn', 'tone-btn', 'ref-btn'], src: true },
+        { key: 'CAMERA', icon: 'camera', title: 'Camera', sliders: ['pupil', 'elev', 'light', 'srcsize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom'], buttons: ['debug-btn', 'refr-btn', 'spec-btn', 'anim2-btn', 'tone-btn', 'ref-btn'], src: true },
         { key: 'MATERIAL', icon: 'material', title: 'Material', sliders: ['pigment', 'stroma', 'pheo', 'yellow', 'mie', 'ring'] },
         { key: 'RELIEF', icon: 'relief', title: 'Relief', sliders: ['crypt', 'furrow', 'relief', 'collr'] },
         { key: 'FLOW', icon: 'flow', title: 'Flow', sliders: ['warp', 'seed'], buttons: ['seed-btn', 'fieldw-btn', 'strand-btn', 'atlas-btn', 'maps-btn'] },

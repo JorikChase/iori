@@ -238,7 +238,6 @@
         veil.id = 'w31-veil'; veil.dataset.ui = '1'; document.body.appendChild(veil); veil.addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === veil) veil.classList.remove('on'); });
         const hold = h('div'); hold.id = 'w31-holder'; hold.style.display = 'none'; document.body.appendChild(hold);   // controls that now live in the menus keep their place in the DOM
         for (const id of ['quality-sel', 'idout-btn', 'idin-btn', 'shot-btn', 'cam-btn', 'fit-open']) { const el = $(id); if (el) hold.appendChild(el); }
-        for (const id of ['fit-blank1', 'fit-blank2']) { const el = $(id); if (el) el.remove(); }
         const strip = h('div'); strip.id = 'tab-strip'; strip.style.display = 'none'; document.body.appendChild(strip);   // tells design.js the layout is ours
         const bar2 = $('accum-bar'); if (bar2) document.body.appendChild(bar2);
     }

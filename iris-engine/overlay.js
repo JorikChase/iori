@@ -130,7 +130,7 @@
         if (fit.render.length === fit.W * fit.H * 4) live.getContext('2d').putImageData(new ImageData(fit.render, fit.W, fit.H), 0, 0); }
     const FROM_FIT = ['photo', 'render', 'diff', 'wipe'];
     let lastImg = null, lastKey = '', lastFitMode = fit.mode || 0, t0 = performance.now();
-    (function tick(now) {
+    function step(now) {
         if (O.mode !== 'off' && state.design) { O.mode = 'off'; apply(); }   // DESIGN owns the view while it is on (its own photo layer is phase D3)
         // the casebook renders every case's thumbnail through the fitter, loading each photo in turn: those are not a
         // photo the user chose, so while it is open the overlay is off and adopts nothing (a card click loads the case
@@ -148,8 +148,11 @@
         }
         paintFitRender(now);
         document.body.classList.toggle('w31-ovhide', (fit.mode || 0) < 4);   // the panel's 2-D canvas is only for the strip views (POLAR, HEIGHT): photo / render / diff live on the iris, and with no photo it was an empty black box
-        requestAnimationFrame(tick);
-    })(t0);
+    }
+    // rAF drives it while the page is visible; a hidden or background tab gets no frames at all, so a timer keeps the
+    // state machine (adopting a photo, following the pose) current and the page is right the moment it is shown again
+    (function tick(now) { step(now); requestAnimationFrame(tick); })(t0);
+    setInterval(() => step(performance.now()), 250);
     window.addEventListener('resize', () => { lastKey = ''; layout(); });
     apply();
 })();

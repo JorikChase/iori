@@ -1369,7 +1369,7 @@
         { key: 'mie', lo: 0, hi: 1, get: () => state.mie, set: v => { state.mie = target.mie = v; } },
         { key: 'yellow', lo: 0, hi: 2.5, get: () => state.yellow, set: v => { state.yellow = target.yellow = v; E.atlas.dirty = true; } },
         { key: 'ring', lo: 0, hi: 2.5, get: () => state.ring, set: v => { state.ring = target.ring = v; } },
-        { key: 'ringR', lo: 0.2, hi: 0.6, get: () => state.ringR, set: v => { state.ringR = v; } },
+        { key: 'ringR', lo: 0.2, hi: 0.6, get: () => state.ringR, set: v => { state.ringR = target.ringR = v; } },   // target too, like every smoothed gene: without it the render loop pulled the fitted ringR back to the stale target after the fit, and an ID exported later differed from the one scored (study/09 §7.1)
         { key: 'limbalDark', lo: 0, hi: 1, get: () => E.genome.globals.limbalDark, set: v => { E.genome.globals.limbalDark = v; state.limbalDark = v; E.atlas.dirty = true; } },
         { key: 'limbalWidth', lo: 0.04, hi: 0.35, get: () => E.genome.globals.limbalWidth, set: v => { E.genome.globals.limbalWidth = v; E.atlas.dirty = true; } },
         { key: 'gapMelMul', lo: 0.5, hi: 3.0, get: () => (E.genome.globals.gapMelMul === undefined ? 1.2 : E.genome.globals.gapMelMul), set: v => { E.genome.globals.gapMelMul = v; E.atlas.dirty = true; } },
@@ -2746,23 +2746,48 @@
 
     // ---------------- casebook: every case rendered live from its stored alignment + ID ----------------
     let bundledCases = null;
+    // The thumbnails are rendered through the fitter itself — each one imports its case's ID, loads its photo and sets its
+    // pose — so browsing the casebook used to leave the LAST case loaded. It now puts back what was there when it is
+    // closed without a pick (study/10). loadImage and importID replace objects instead of writing into them, so the
+    // genome reference, a copy of state / target and a shallow copy of `fit` are the whole snapshot.
+    let cbSnap = null, cbGen = 0;   // cbGen: a restore still waiting for its thumbnails is cancelled when the casebook opens again (the snapshot is kept)
+    const SLIDERS = [['relief', 'relief'], ['light', 'lightAngle'], ['pupil', 'pupil'], ['elev', 'lightElev'], ['seed', 'seed', 0], ['warp', 'warp', 3], ['collr', 'collr'], ['blcol', 'blColour'], ['blrel', 'blRelief'], ['blflow', 'blFlow'],
+        ['crypt', 'crypt'], ['furrow', 'furrow'], ['pigment', 'pigment'], ['stroma', 'stroma', 3], ['pheo', 'pheo'], ['mie', 'mie'], ['ring', 'ring'], ['yellow', 'yellow'], ['srcsize', 'srcSize', 3], ['ambient', 'ambient'], ['lid', 'lid', 1],
+        ['ev', 'ev', 1], ['fstop', 'fstop', 1], ['kelvin', 'kelvin', 0], ['grain', 'grain', 3], ['bloom', 'bloom'], ['focus', 'focus']];
+    function snapCasebook() { if (cbSnap) return; cbSnap = { genome: E.genome, state: JSON.parse(JSON.stringify(state)), target: JSON.parse(JSON.stringify(target)), fit: Object.assign({}, fit, { running: false, drag: null }) }; }
+    function restoreCasebook() {
+        const s = cbSnap; cbSnap = null; if (!s) return;
+        E.genome = s.genome;
+        for (const k of Object.keys(state)) if (!(k in s.state)) delete state[k]; Object.assign(state, s.state);
+        for (const k of Object.keys(target)) if (!(k in s.target)) delete target[k]; Object.assign(target, s.target);
+        for (const [id, key, dg] of SLIDERS) if (state[key] !== undefined) { E.setSlider(id, key, state[key], dg); }   // the DOM too; setSlider writes state and target, which already hold these values
+        document.querySelectorAll('.src-btn').forEach(b => b.classList.toggle('active', +b.dataset.src === state.srcType));
+        E.setCamFixed(state.useRot);
+        Object.assign(fit, s.fit); if (fit.W) { cv.width = fit.W; cv.height = fit.H; } draw();
+        E.atlas.dirty = true; E.resetAccumulation();
+    }
     async function openCasebook() {
+        snapCasebook(); const gen = ++cbGen;
         if (!bundledCases) { try { bundledCases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) { bundledCases = {}; } }
         const all = Object.assign({}, bundledCases, cases);
         const files = Object.keys(all).sort(); if (!files.length) { say('no cases yet: run BENCH ALL first'); return; }
         let cb = $('casebook'); if (!cb) { cb = document.createElement('div'); cb.id = 'casebook'; document.body.appendChild(cb); }
         cb.innerHTML = '<div class="cb-head"><span>CASEBOOK · ' + files.length + ' cases</span><span id="cb-stat"></span><button class="action-btn" id="cb-close">×</button></div><div class="cb-grid" id="cb-grid"></div>';
         cb.classList.remove('hidden');
-        $('cb-close').onclick = () => cb.classList.add('hidden');
+        // the thumbnails render concurrently: a close (restore) or a pick (openCase) must wait until the last one has run,
+        // or a late thumbnail would import its case over the result
+        const jobs = [], settled = () => Promise.all(jobs).catch(() => {});
+        $('cb-close').onclick = () => { cb.classList.add('hidden'); settled().then(() => { if (gen === cbGen) restoreCasebook(); }); };
         const grid = $('cb-grid'); let sum = 0, n = 0, above = 0;
         for (const file of files) {
+            if (cb.classList.contains('hidden')) break;   // closed or picked while it was still filling: start no more thumbnails
             const c = all[file]; const card = document.createElement('div'); card.className = 'cb-card';
             const m = c.scores ? c.scores.match : 0; sum += m; n++; if (m >= 80) above++;
             card.innerHTML = `<canvas width="300" height="110"></canvas><div class="cb-cap"><b>${file.replace('.jpg', '')}</b><br>MATCH2 ${(c.scores && c.scores.match2 !== undefined ? c.scores.match2 : m).toFixed(0)} % · M1 ${m.toFixed(0)} · SSIM ${(c.scores ? c.scores.ssim : 0).toFixed(2)} · grad ${(c.scores && c.scores.grad !== undefined ? c.scores.grad : 0).toFixed(2)} · Δab ${(c.scores ? c.scores.dab : 0).toFixed(1)}<br><span class="cb-issues">${caseIssues(c)}</span></div>`;
             grid.appendChild(card);
-            card.querySelector('canvas').onclick = () => { openCase(file, c); cb.classList.add('hidden'); };
+            card.querySelector('canvas').onclick = () => { cbSnap = null; cb.classList.add('hidden'); settled().then(() => { if (gen === cbGen) openCase(file, c); }); };   // a pick keeps the case
             // thumbnail: photo | render | diff, rendered live from the stored case
-            renderCaseThumb(file, c, card.querySelector('canvas'));
+            jobs.push(renderCaseThumb(file, c, card.querySelector('canvas')));
             await yieldNow();
         }
         $('cb-stat').textContent = `mean MATCH ${(n ? sum / n : 0).toFixed(1)} % · ${above}/${n} ≥ 80 %`;

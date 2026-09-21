@@ -1,6 +1,6 @@
 # 10 — Feature ledger: everything the engine can do, and where a hand reaches it
 
-Status: **living document, opened 2026-09-21 at engine 0.9.4-edge (v91-edge).** One session works on the iris
+Status: **living document, opened 2026-09-21 at engine 0.9.4-edge (v91-edge). The 3.11 shell is the default since the FLIP of the same day (§10).** One session works on the iris
 engine from here (iori, 2026-09-21), the default shell flips to Windows 3.11 (`ui31.js`), and `ui.js` (Win98) is
 frozen as a one-version fallback. iori will not audit parity by hand — "I will only notice something missing if it
 looks bad when testing" — so **this table and the reachability test (§9) are the safety net.** A feature that is
@@ -93,7 +93,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Empty black 2-D canvas in the Fit window when no photo is loaded | `fitcv` | — | fixed 2026-09-21: shown only for POLAR / HEIGHT, as §7.5 intended (the rule had required the overlay to be on) | ok |
 | Casebook (grid, stats, open a case) | `fit-casebook` → `#casebook`, `cb-*` | ok, old chrome | ok, 3.11 frame (grey window, navy caption, ▼ = `cb-close`), one-line caption on a phone (2026-09-21) | ok |
 | Casebook must not hijack the workspace | overlay.js | — | fixed 2026-09-21: while it is open the overlay is off and adopts none of the photos its thumbnails load; a card click still puts that case on the iris | ok |
-| **Casebook swaps the loaded eye** — rendering the thumbnails imports each case's ID, photo and pose, so closing it leaves the *last* case (35) loaded instead of the eye you had | fit.js `renderCaseThumb` | same | same | **todo**: snapshot genome + encoded fields + state/target + fit photo & markers on open, restore on close without a pick |
+| Casebook put back the eye you had — rendering the thumbnails imports each case's ID, photo and pose, so closing it used to leave the *last* case (35) loaded | fit.js `snapCasebook` / `restoreCasebook` | fixed (engine-side) | fixed 2026-09-21: genome reference + state / target + a shallow copy of `fit` on open, restored on a close without a pick, after the last concurrent thumbnail; a reopen cancels a pending restore. Verified after a full render, an early close and a rapid close-reopen | ok |
 | Hourglass / busy state during fits | `w31-busy` | — | our own 16-colour hourglass cursor while `state.fitting`, `state.capturing`, `fit.running` or `fit.benchRunning` (Stop keeps a normal pointer); the status bar says Fitting… / Bench running… / Capturing…; checked on a timer as well as rAF, so a fit started in a background tab shows it on return (2026-09-21) | ok |
 | Audits and oracles (`scaleAudit`, `traceBands`, `bandOracle`, `oracleBench`, `guideCeilingBench`, `reliefTransferBench`, `dumpForGuideTrace`, `bakePresets` …) | `E.fit.*` | console | console | **console** by verdict: research instruments, not features |
 | Knob liveness harness | `tools/knob_probe.js` | console | console | **console** by verdict |
@@ -193,7 +193,7 @@ cornea default: **re-baseline at v91 under the Win98 shell first**, then compare
 | **P4** | View ▸ Debug view ▸ named list — **done 2026-09-21** | small |
 | **P5** | U5: keyboard, hourglass, casebook frame, self-hosted font, emulated device pass — **done 2026-09-21**; real-device pass and the casebook's eye swap remain | medium |
 | **P6** | Brush + knob liveness under the layer model, and the windows saying what is dead — **done 2026-09-21** (`p6-liveness.md`, `TISSUE_LIVE` in ui31.js) | small, measured |
-| **FLIP** | default = 3.11, `?ui=98` remains one version, drop `fit-blank*`; acceptance = `compare()` [] · `reach()` [] · isolated bench 61.6 / 68.3 / 70.5 / 66.4 | — |
+| **FLIP** | default = 3.11, `?ui=98` remains one version, drop `fit-blank*` — **done 2026-09-21**: isolated bench 61.6 / 68.3 / 70.5 / 66.4 (twice, under 3.11), contract re-baselined under 3.11 and reproduced on a fresh load: `compare()` = [] · `reach()` = []. The gate found the fitter's `ringR` setter writing `state` but not `target` (the render loop then pulled the fitted value back after a fit, so the contract depended on whether the pane was visible) — fixed, bench unchanged | — |
 
 Then: **Tissue window** (§7, rows 1–6) → **G1** guide brush → **G4** journal serialisation → **G2** crypt /
 furrow / spot → **G3** generator → T6. Each G tool lands in the Design toolbox, with its ledger row, in the commit

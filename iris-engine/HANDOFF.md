@@ -1,3 +1,5 @@
+**Start here (2026-09-21): `handoffs/2026-09-21-relief-and-edge.md`** — relief, the probe, the inner edge and the start of G, with the traps each cost. The layer model itself is `handoffs/2026-09-20-tissue-layer-model.md`.
+
 # Iris Engine — handoff (2026-09-20, engine 0.8-tissue, v85-tissue-p2 · legacy line v84 / v84c)
 
 > **START HERE (2026-09-20): `handoffs/2026-09-20-tissue-layer-model.md`.** The main line is now the **tissue layer

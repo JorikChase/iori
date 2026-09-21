@@ -251,7 +251,12 @@ Proposed phases (S = start eye), each measured before the next:
 facts (screen, DPR, GPU, float targets, threads / memory, network, page timings), for iori to read on the tablet and the
 phone. Dev machine, first measurement: 4.1 s — measuring the shading 2.16 s, the light 0.51 s, case import + first fit
 render 0.26 s, bake 0.12 s; the whole 5 MB `ref/cases.json` is fetched for one case, and the photo is fetched twice.
-Device numbers: pending (after deploy).
+**iPad (iori, 2026-09-21; Apple GPU, float targets yes, 1032 × 1290 css px, DPR 2, quality CAPTURE): 11.9 s** —
+measuring the shading 5.41 s, the light 1.73 s, photo + import + first fit render 1.53 s, first frames 2.22 s (a
+2064 × 2580 canvas at CAPTURE), primitives 0.55 s (1.6 MB over the wire → 4.7 MB), bake 0.10 s, origin 0.25 s. The two
+*measurements* are 60 % of the wait and give the same answer on every visit → S3 (ship them with the eye) is the
+biggest cut; dropping the photo and the 5 MB case file takes most of the rest. The iPad had CAPTURE stored as its
+quality (fit renders are 4× the pixels of NORMAL there). Phone: pending.
 
 **S1 built** — `start-eye.js` (≈ 5 KB, eye 26's globals, collarette and view from the case the model is measured on) is
 applied by ui31.js before the first frame: the instant eye is an olive-green procedural eye in 26's colours, never the

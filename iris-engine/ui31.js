@@ -405,6 +405,25 @@
         document.body.style.setProperty('--busy-cursor', hourglass); document.body.classList.toggle('w31-busy', busy); return busy; }
 
     // ---------------------------------------------------------------------------------------------------------
+    // pinch (iori, iPad, 2026-09-21): two fingers on the eye zoomed the whole PAGE, because the canvas never claimed the
+    // gesture. Now the app claims it — touch-action in ui.css, Safari's gesture events and a trackpad pinch (ctrl + wheel)
+    // are stopped — and two fingers on the scene move the camera's distance, as the mouse wheel does (the photo overlay,
+    // DESIGN and the Tissue tools keep their own pinch). The eye looks where the first finger landed (a tap = look there).
+    // ---------------------------------------------------------------------------------------------------------
+    { const pts = new Map(); let pinch = null; const cv = E.canvas;
+        const free = e => e.target === cv && !(window.__irisOverlay && window.__irisOverlay.mode !== 'off') && !E.state.design;
+        const spread = () => { const [a, b] = [...pts.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+        document.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch' || !free(e)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+            if (pts.size === 2) { pinch = { d: Math.max(1, spread()), z: E.target.zoomPhoto || E.state.zoomPhoto }; } if (pinch) e.stopImmediatePropagation(); }, true);
+        document.addEventListener('pointermove', e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]); if (!pinch) return; e.stopImmediatePropagation();
+            if (pts.size >= 2) { E.target.zoomPhoto = clamp(pinch.z * pinch.d / Math.max(1, spread()), 20, 400); } }, true);
+        const up = e => { if (!pts.delete(e.pointerId)) return; if (pinch) e.stopImmediatePropagation(); if (pts.size < 2) pinch = null; };
+        document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+        for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, e => e.preventDefault(), { passive: false });   // Safari's own pinch-zoom of the page
+        cv.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });   // a trackpad pinch arrives as ctrl + wheel: the engine zooms, the page must not
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
     // what still works under the tissue layer model (study/10 P6, measured with tools/knob_probe.js and
     // tools/brush_probe.js on ref 26 at v91-edge). While IrisTissue.on the windows say so: a dead control is greyed with
     // the reason in its tooltip, a weak one is marked. Nothing is disabled — the legacy model still reads those values

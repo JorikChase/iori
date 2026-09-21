@@ -26,7 +26,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | Eye looks toward the cursor | `window` pointermove → `target.mouseX/Y` | ok | ok, scene only (gaze.js TRACK/HOLD/RETURN/REST) | ok |
 | Press constricts the pupil | `isPointerDown` | ok | ok, scene only | ok |
 | Wheel = camera distance 20–400 | `target.zoomPhoto` | ok | ok, scene only | ok |
-| Pinch zoom on touch (free camera) | — | — | — | **todo**: only the overlay and DESIGN handle two pointers; the free camera has no pinch |
+| Pinch zoom on touch (free camera) | ui31.js pinch block | — | two fingers on the eye move the camera distance (20–400) like the wheel; the page no longer zooms (touch-action, Safari gesture events, ctrl + wheel) — iori found the iPad zooming the whole viewport, 2026-09-21 | ok |
 | Controls never move the eye | gaze.js guards | ok (gaze.js loads there too) | ok | ok |
 | Accumulation progress bar | `#accum-bar` | ok | ok (moved to body) | ok |
 | Closer zoom + more tilt when close, orbit about the point under the cursor | spec §31 T2 | — | — | **todo** (engine: T2b) |

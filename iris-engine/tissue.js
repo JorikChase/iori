@@ -183,13 +183,24 @@
         // same correction written into the shared source moved the isolated bench (62.2 / 68.4 / 70.4 / 66.4 against
         // 61.6 / 68.3 / 70.5 / 66.4) even with every coefficient zero and the arithmetic an identity — recompiling
         // that shader is enough to shift a 120-iteration fit. Separately compiled variants only, as HANDOFF says.
-        need('void irisCoords(vec2 xy, float rp,', `uniform float u_marg0; uniform vec2 u_marg[10];
+        need('void irisCoords(vec2 xy, float rp,', `uniform float u_marg0, u_margFade; uniform vec2 u_marg[10];
         float margDev(float a_) {
             float d = u_marg0;
             for (int i = 0; i < 10; i++) { float n = float(i + 1); d += u_marg[i].x * cos(n * a_) + u_marg[i].y * sin(n * a_); }
             return clamp(d, -0.25, 0.25);
         }
         void irisCoords(vec2 xy, float rp,`);
+        // T1 (iori): the inner edge fades into the pupil instead of cutting to it. In the photo the tissue darkens
+        // over the last tens of microns before the black — the ruff's own shadow and the margin's roll — where the
+        // model stepped straight from full tissue to pupil colour in one texel.
+        need(`                float rootL = 1.0 - smoothstep(0.0, 0.05, abs(v - 1.0) * w);
+                lit = mix(lit, vec3(1.0, 1.0, 0.0), rootL);
+            }
+            return lit;`, `                float rootL = 1.0 - smoothstep(0.0, 0.05, abs(v - 1.0) * w);
+                lit = mix(lit, vec3(1.0, 1.0, 0.0), rootL);
+            }
+            if (u_margFade > 0.0) lit = mix(vec3(0.0015, 0.0012, 0.001), lit, smoothstep(0.0, u_margFade, v));
+            return lit;`);
         need('            v = (r - rp) / annulus;\n        }', `            v = (r - rp) / annulus;
             float vm = margDev(ang);                     // where the measured margin actually lies, in v
             v = (v - vm) / max(1.0 - vm, 1e-3);          // so v = 0 is the margin, not the fitted circle
@@ -297,9 +308,17 @@
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
         gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin) ? 0 : 1);
         if (T.marg && T.margin !== false) {                     // T1: the aperture follows the measured margin
+            // iori: more circular. But "out of round" and "lumpy" are not the same thing — the low harmonics are the
+            // margin's true decentring and ovality, which the photo really has and which damping costs 3.7 MATCH2,
+            // while the high ones are the crenellation that reads as lumps. So the first `keep` harmonics stand and
+            // the rest fall away: round to look at, still the shape the eye actually has.
+            const keep = T.marginKeep === undefined ? 3 : T.marginKeep, soft = T.marginRound === undefined ? 0.25 : T.marginRound;
+            const K = T.marg.K.map((k, i) => { const n = i + 1, wgt = n <= keep ? 1 : soft / (1 + (n - keep - 1) * 0.5);
+                return [k[0] * wgt, k[1] * wgt]; });
             gl.uniform1f(u('u_marg0'), T.marg.m0);
-            gl.uniform2fv(u('u_marg'), new Float32Array(T.marg.K.flat()));
+            gl.uniform2fv(u('u_marg'), new Float32Array(K.flat()));
         } else { gl.uniform1f(u('u_marg0'), 0); gl.uniform2fv(u('u_marg'), new Float32Array(20)); }
+        gl.uniform1f(u('u_margFade'), T.margFade === undefined ? 0.04 : T.margFade);
         gl.uniform1f(u('u_tisSheetZ'), T.sheetZ === undefined ? 1 : T.sheetZ);   // the sheet keeps the legacy relief   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
         if (T.full) gl.uniform1f(gl.getUniformLocation(prog, 'u_limbalMilk'), 0.0);   // the old fit's milky limbus answered a rim this model draws itself gl.activeTexture(gl.TEXTURE0);
     };
@@ -475,6 +494,18 @@
     // cellDab 2.63 / 2.64 / 2.79 / 2.92. Half of it is the best the picture has been, and the height correlation with
     // the photo jumps by 0.16 — the flat table was not only visibly wrong under the probe, it was measurably wrong.
     // This is a stand-in: the sheet's real relief is furrows and micro-texture as primitives, which is T1 and G.
+    T.marginKeep = 3;                             // harmonics kept whole: the margin's real decentring and ovality
+    T.marginRound = 0.25;                         // how much of the crenellation above that to keep (iori: more circular)
+    // How far the tissue fades into the pupil, in v. The photo's edge rises over about 445 µm; the model stepped
+    // from full tissue to pupil colour in one texel. Whole iris of ref 26, each row loaded and calibrated with its
+    // own setting (the fade reaches calibrate(), so it cannot be swept by re-rendering) — MATCH2 / cellDab:
+    //   no fade, every harmonic   85.61 / 2.70      (what shipped before iori asked)
+    //   no fade, keep 3           85.17 / 2.73
+    //   fade 0.04, keep 3         84.57 / 2.58      ← here: the best colour of the four
+    //   fade 0.07, keep 3         84.64 / 2.70
+    // So the soft edge is not free — it costs about 1 MATCH2 with the harmonic taper — but it gives the best cellDab
+    // of any setting, and it is what the photograph shows. iori asked for it having looked at the render.
+    T.margFade = 0.04;
     T.sheetZ = 0.5;
     // How much of the measured de-light to apply. Whole iris of ref 26 at NORMAL — MATCH2 / grad / cellDab / strandCorr:
     //   none                          86.10 / 0.770 / 2.64 / 0.359

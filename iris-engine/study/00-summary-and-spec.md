@@ -2167,3 +2167,35 @@ fibres live under the border layer, and a stroke there needs a guide brush, not 
 One trap for whoever picks this up: a point whose baked surface is deep is **not** necessarily a hole. With `sheetZ`
 giving the sheet the legacy relief, the sheet dips to −700 µm in places, far below the deck's 278 µm. The test for
 "am I in a crypt" is `elevationAt(x, y).layers > 0` — are there tubes under this point — not the surface height.
+
+### 32.14 Log (2026-09-21): the inner edge, rounder and fading (iori)
+
+iori, on the T1 render: *"the inner edge must be more circular and should fade into the black."* Both were right, and
+neither was quite what the first reading of them suggested.
+
+**Rounder.** Damping the whole margin — every harmonic scaled down — costs **3.7 MATCH2**, because the margin really
+is out of round: measured on the *photograph's* own edge it varies **607 µm peak to peak, sd 130 µm**, and the render
+with every harmonic gives 600 / 106. So the eye is not too irregular; it is too *lumpy*. Out-of-round and lumpy are
+different things: the low harmonics are the margin's true decentring and ovality, the high ones its crenellation, and
+only the second reads as lumps at this scale. The first `T.marginKeep` (3) harmonics now stand whole and the rest fall
+away by `T.marginRound` (0.25). The edge reads round, the shape stays the eye's: 616 µm / sd 102.
+
+**Fading.** The photo's edge rises over about **445 µm**; the model stepped from full tissue to pupil colour in one
+texel. `u_margFade` mixes toward the pupil over the last stretch of `v`. Each row below is **loaded and calibrated
+with its own setting** — the fade reaches `calibrate()`, so it cannot be swept by re-rendering:
+
+| | MATCH2 | MATCH | cellDab |
+|---|---:|---:|---:|
+| no fade, every harmonic (what shipped before) | 85.61 | 91.82 | 2.70 |
+| no fade, keep 3 | 85.17 | 91.60 | 2.73 |
+| **fade 0.04, keep 3 — shipped** | 84.57 | 91.05 | **2.58** |
+| fade 0.07, keep 3 | 84.64 | 91.14 | 2.70 |
+
+So the soft edge is **not free**: with the harmonic taper it costs about **1 MATCH2**. It buys the best `cellDab` of
+any setting — 2.58, better than the hard cut's 2.70 — and it is what the photograph shows. (An earlier sweep of the
+fade *without* reloading said it improved MATCH2; that was the same trap as the harmonics, and it was wrong.)
+
+A measurement trap that caught me twice here: **`marginKeep` / `marginRound` change the coordinate system**, so they
+cannot be scanned by setting them and re-rendering — the primitives have to be mapped again. Scanned that way they
+gave a flattering and entirely false ordering (0.4 "better" than 1.0 by 0.8 MATCH2, when a consistent reload says the
+opposite by 1.4). Any dial that reaches `irisCoords` has to be swept with a full `load` per point.

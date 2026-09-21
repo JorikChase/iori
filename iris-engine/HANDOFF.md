@@ -1,6 +1,8 @@
 **UI (2026-09-21): the Windows 3.11 shell is the default** (`ui31.js`, `ui.css`, `overlay.js`, `gaze.js`; `?ui=98` = the frozen Win98 fallback, one version). Every feature, its home and its test: `study/10-feature-ledger.md`. Before and after any UI change: `__uiContract.reach()` and `compare()` must both be `[]` (tools/ui-contract). A new engine feature lands with its ledger row and its `controls.json` entry.
 
-**Start here (2026-09-21): `handoffs/2026-09-21-relief-and-edge.md`** — relief, the probe, the inner edge and the start of G, with the traps each cost. The layer model itself is `handoffs/2026-09-20-tissue-layer-model.md`.
+**Start here (2026-09-21, latest): `handoffs/2026-09-21-ui-tissue-start-eye.md`** — the 3.11 shell by default, the feature ledger and reachability test, the Tissue window, the published photos and layer model, the start eye and its load timing. Tests open the page with `?start=off`.
+
+**Renderer line (2026-09-21): `handoffs/2026-09-21-relief-and-edge.md`** — relief, the probe, the inner edge and the start of G, with the traps each cost. The layer model itself is `handoffs/2026-09-20-tissue-layer-model.md`.
 
 # Iris Engine — handoff (2026-09-20, engine 0.8-tissue, v85-tissue-p2 · legacy line v84 / v84c)
 

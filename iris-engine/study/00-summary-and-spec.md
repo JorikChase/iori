@@ -2099,3 +2099,44 @@ Two defects stay open and should not be glossed:
 
 The bead radius is 0.35 × the lobe's half-width: the colour spreads over the lobe's own Voronoi cell whatever the
 radius, so the radius is free to encode height instead, and at the full half-width they render as 150 µm hemispheres.
+
+
+### 32.12 Log (2026-09-21): the two T1 defects — the aperture follows the margin, and the pips were the seam
+
+**The hard circle.** `irisCoords` computed `v = (r − rp) / annulus` about a circular `rp`, so however well the margin
+was traced, the engine still cut its aperture as a circle. It now carries the measured margin as a small Fourier
+series in `v` — a mean and ten harmonics — and puts `v = 0` on the true margin: `u_marg0` / `u_marg[10]`, all zero by
+default, which leaves `v` exactly as it was. The legacy model never sets them, so nothing outside the layer model
+moves. Measured on the render, the aperture is now **245 µm out of round against 49 µm** for the circle.
+
+**And that is not a decoration on top of the coordinate system — it IS the coordinate system.** With the margin in
+place every primitive's `v` moves with it, so mapping them in the old system and drawing them in the new one shifts
+the whole texture outward by the mean offset. It did: **MATCH2 76.69**, `strandCorr` 0.183, the texture visibly
+sliding off the structure. `T.load` now runs twice — fit the margin from the plain map, switch it on, map everything
+again in it — and a `keepMargin` flag stops the second pass refitting (and the beads joining the deck twice).
+
+**The pale pips were the seam.** They needed no fix of their own: the traced margin sits up to 257 µm *outside* the
+fitted circle, so between the engine's circular aperture and the tissue's true inner edge there was a thin annulus
+belonging to neither, and it fringed. With the aperture on the margin the two boundaries coincide and the ring is
+clean — **0 pixels above luminance 150** in the margin band, where before there were bright pips, and the count is
+the same with the beads removed and with `deckZ` 0, which is what said it was never the beads.
+
+Whole iris of ref 26 at NORMAL, against the same eye with a circular aperture:
+
+| | MATCH2 | MATCH | grad | cellDab | strandCorr | hcorr |
+|---|---:|---:|---:|---:|---:|---:|
+| circular aperture | 86.76 | 92.17 | 0.783 | 2.56 | 0.376 | 0.737 |
+| **margin, shipped** | 85.93 | 91.60 | 0.773 | 2.57 | **0.387** | 0.709 |
+
+It costs **0.83 MATCH2** and buys the shape of the aperture, the end of the seam, and +0.011 `strandCorr`. Shifting
+the margin inward was tried, on the suspicion that the half-way threshold sits outside the black edge, and it is
+worse at every offset — the trace is where it should be. `IrisTissue.margin = false` is the ablation.
+
+**And it belongs to the variant, not to `fs-photo`.** Written into the shared source — with `u_marg0` and `u_marg[10]`
+all zero, `margDev` returning 0, and `v = (v − 0) / 1.0` an exact identity — the isolated bench still moved:
+**62.2 / 68.4 / 70.4 / 66.4** against 61.6 / 68.3 / 70.5 / 66.4, +0.15 on the mean. Nothing was computed differently;
+recompiling that shader was enough to shift a 120-iteration Nelder-Mead fit by a few ULPs of noise, and the fit
+amplified it. `HANDOFF.md` has said this since v83 — *any code added to `fs-bake` shifts the bench; separately
+compiled variants only* — and it is just as true of `fs-photo`. The correction moved into `tissue.js`'s string
+replacement, `index.html` went back to byte-identical, and the bench returned to **61.6 / 68.3 / 70.5 / 66.4**
+with the margin doing exactly the same 245 µm of work in the variant.

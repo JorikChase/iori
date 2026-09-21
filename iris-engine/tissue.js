@@ -179,6 +179,21 @@
         let src = document.getElementById('fs-photo').text.trim(); const need = (a, b) => { if (!src.includes(a)) throw new Error('tissue: fs-photo anchor missing: ' + a.slice(0, 40)); src = src.replace(a, b); };
         // every height read goes through tissueH (done first, so the helper below keeps its own raw read)
         src = src.replace(/textureLod\(u_atlas0, (.+?), lod\)\.r \* u_relief/g, (m, uv) => `tissueH(${uv}, lod)`);
+        // T1 (§32): the pupil margin is not a circle. This belongs to the VARIANT and not to fs-photo itself: the
+        // same correction written into the shared source moved the isolated bench (62.2 / 68.4 / 70.4 / 66.4 against
+        // 61.6 / 68.3 / 70.5 / 66.4) even with every coefficient zero and the arithmetic an identity — recompiling
+        // that shader is enough to shift a 120-iteration fit. Separately compiled variants only, as HANDOFF says.
+        need('void irisCoords(vec2 xy, float rp,', `uniform float u_marg0; uniform vec2 u_marg[10];
+        float margDev(float a_) {
+            float d = u_marg0;
+            for (int i = 0; i < 10; i++) { float n = float(i + 1); d += u_marg[i].x * cos(n * a_) + u_marg[i].y * sin(n * a_); }
+            return clamp(d, -0.25, 0.25);
+        }
+        void irisCoords(vec2 xy, float rp,`);
+        need('            v = (r - rp) / annulus;\n        }', `            v = (r - rp) / annulus;
+            float vm = margDev(ang);                     // where the measured margin actually lies, in v
+            v = (v - vm) / max(1.0 - vm, 1e-3);          // so v = 0 is the margin, not the fitted circle
+        }`);
         need('uniform sampler2D u_atlas0;', `uniform sampler2D u_atlas0;
         uniform sampler2D u_tissue, u_tissueAux; uniform vec4 u_tissueRect; uniform float u_tissueLod;
         uniform sampler2D u_tisW, u_tisWAux; uniform vec4 u_tisWRect; uniform float u_tisWLod, u_tisWOn;   // T2a: the re-baked window, finer than the base
@@ -281,6 +296,10 @@
         gl.uniform1f(u('u_oRingStr'), o.ring); gl.uniform1f(u('u_oRingR'), o.ringR);
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
         gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin) ? 0 : 1);
+        if (T.marg && T.margin !== false) {                     // T1: the aperture follows the measured margin
+            gl.uniform1f(u('u_marg0'), T.marg.m0);
+            gl.uniform2fv(u('u_marg'), new Float32Array(T.marg.K.flat()));
+        } else { gl.uniform1f(u('u_marg0'), 0); gl.uniform2fv(u('u_marg'), new Float32Array(20)); }
         gl.uniform1f(u('u_tisSheetZ'), T.sheetZ === undefined ? 1 : T.sheetZ);   // the sheet keeps the legacy relief   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
         if (T.full) gl.uniform1f(gl.getUniformLocation(prog, 'u_limbalMilk'), 0.0);   // the old fit's milky limbus answered a rim this model draws itself gl.activeTexture(gl.TEXTURE0);
     };
@@ -345,12 +364,12 @@
 
     // ---------------------------------------------------------------- load
     // `json`: tools/layer_proof.py --export. The fit photo of json.ref must be loaded and posed (fit.renderCaseThumb / solvePose).
-    T.load = function (json) {
+    T.load = function (json, opts = {}) {
         E = window.__irisEngine; gl = E.gl; F = E.fit; T.src = json;
         const fit = F.fit, W = fit.W, H = fit.H, map = F.getMap(), sx = W / json.fit[0], sy = H / json.fit[1];
         const conv = xy => xy.map(p => uvAt(map, W, H, p[0] * sx, p[1] * sy));
         const sets = {}; let u0 = 1, u1 = 0, v0 = 1, v1 = 0, lost = 0, tot = 0;
-        if (json.beads && json.beads.length) json.fibres = json.fibres.concat(json.beads);   // T1: the ruff's lobes are short tubes lying on the margin — the deck's own rasteriser domes them
+        if (json.beads && json.beads.length && !json.__beadsIn) { json.fibres = json.fibres.concat(json.beads); json.__beadsIn = 1; }   // T1: the ruff's lobes are short tubes lying on the margin — the deck's own rasteriser domes them
         for (const k of ['outlines', 'fibres', 'veins', 'guides', 'sfib', 'svein']) sets[k] = json[k].map(c => { const uv = conv(c.xy); for (const p of uv) { tot++; if (!p) { lost++; continue; } u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); } return Object.assign({}, c, { uv }); });
         T.full = u1 - u0 > 0.5;                                          // the whole iris: the region is the full circle, u wraps
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };
@@ -366,7 +385,45 @@
         T.lodBias = Math.log2((4 / AH) / tau);                     // the photo shader's lod counts atlas texels (4 mm / ATLAS_H out here)
         // outlines: counter-clockwise in tissue mm = hole on the left; islands the other way round
         for (const o of sets.outlines) { const ccw = mmArea(o.uv) > 0; if (ccw === !!o.island) { o.uv.reverse(); o.rim = o.rim.slice().reverse(); o.xy = o.xy.slice().reverse(); } }
+        // T1 (§32): the margin, as the engine's own v. Each traced point goes through the same coordinate map as
+        // every other primitive, so v_m(angle) says directly how far the true margin sits from the fitted circle;
+        // ten harmonics of that are what irisCoords needs to stop drawing a circle.
+        if (!opts.keepMargin) T.marg = null;
+        if (json.margin && json.margin.xy && !opts.keepMargin) {
+            const pts = [];
+            for (const p of conv(json.margin.xy)) if (p) pts.push([(p[0] - 0.5) * 6.2831853, p[1]]);   // u → angle
+            if (pts.length > 64) {
+                pts.sort((a, b) => a[0] - b[0]);
+                const N = 512, vs = new Float64Array(N);
+                for (let i = 0; i < N; i++) {
+                    const a = -Math.PI + (i + 0.5) / N * 6.2831853;
+                    let lo = 0, hi = pts.length - 1;
+                    while (lo < hi - 1) { const m = (lo + hi) >> 1; if (pts[m][0] <= a) lo = m; else hi = m; }
+                    const p0 = pts[lo], p1 = pts[hi], d = p1[0] - p0[0];
+                    vs[i] = d > 1e-9 ? p0[1] + (p1[1] - p0[1]) * (a - p0[0]) / d : p0[1];
+                }
+                let m0 = 0; for (let i = 0; i < N; i++) m0 += vs[i]; m0 /= N;
+                const K = [];
+                for (let n = 1; n <= 10; n++) { let c = 0, sn = 0;
+                    for (let i = 0; i < N; i++) { const a = -Math.PI + (i + 0.5) / N * 6.2831853;
+                        c += vs[i] * Math.cos(n * a); sn += vs[i] * Math.sin(n * a); }
+                    K.push([2 * c / N, 2 * sn / N]); }
+                T.marg = { m0, K };
+                let lo = 1e9, hi = -1e9; for (let i = 0; i < N; i++) { lo = Math.min(lo, vs[i]); hi = Math.max(hi, vs[i]); }
+                say(`margin: v ${lo.toFixed(4)}–${hi.toFixed(4)} (mean ${m0.toFixed(4)}) — the aperture follows it now`);
+            }
+        }
         T.sets = sets; T.cells = cells; T.deckH = undefined; T.origin = null;   // a new eye is a new origin
+        if (T.marg && !opts.keepMargin) {
+            // The margin is part of the coordinate system, not a decoration on top of it: with it in place irisCoords
+            // puts v = 0 on the true margin, so every primitive's v moves with it. Mapping them in the old system and
+            // drawing them in the new one shifts the whole texture outward by the mean offset — it cost 10 MATCH2
+            // before this second pass existed. So: fit the margin from the plain map, switch it on, map again.
+            const wasOn = T.on;
+            T.on = true; F.fit.map = null;
+            try { return T.load(json, { keepMargin: true }); }
+            finally { T.on = wasOn; F.fit.map = null; }
+        }
         say(`loaded ${json.ref}: ${tot - lost}/${tot} points on the iris · region u ${T.rect[0].toFixed(4)}+${T.rect[2].toFixed(4)} v ${T.rect[1].toFixed(3)}+${T.rect[3].toFixed(3)} → ${T.size[0]}×${T.size[1]} texels (τ ${(T.tauUsed * 1000).toFixed(1)} µm${T.full ? ', full circle' : ''})`);
         return T;
     };

@@ -39,7 +39,7 @@ export const CATALOG = [
   // P2: the same forager, with Tero flux adaptation on its extracted vein graph fed back into sensing
   // and trail persistence (tero.js, graphworker.js). The ninth field is the adaptation genome.
   ['Physarum polycephalum — adaptive network', 1, [22.5, 45, 0.42, 1], [0.5, 0.9, 5, 0.3], R.physarum, 'slime molds', 2, { nutrient: 0.35, agar: 0.5 },
-    { every: 300, betaD: 4, mu: 1.8, Qh: 0.5, iters: 48, dt: 0.05 }],   // dt x iters = 2.4 relaxation times: remembers many pairs
+    { every: 300, betaD: 8, mu: 1.8, Qh: 0.3, iters: 48, dt: 0.05 }],   // dt x iters = 2.4 relaxation times; Qh 0.3 + betaD 8 calibrated on HELD-OUT seeds 3000-3004 (tank tuneAdapt, 2026-09-23): coverage 0.82 -> 0.91, swing 0.049 -> 0.040
   ['Physarum polycephalum — starved network', 1, [60, 60, 0.42, 1], [0.5, 0.92, 9, 0.2], R.physarum, 'slime molds', 2, { nutrient: 0.12, agar: 0.5 }],
   ['Physarum polycephalum — rich sheet', 1, [45, 45, 0.2, 1], [0.8, 0.85, 2, 0.1], R.physarum, 'slime molds', 2, { nutrient: 0.9, agar: 0.5 }],
   ['Physarum polycephalum — islands', 1, [90, 45, 0.33, 1], [0.5, 0.9, 4, 0.2], R.physarum, 'slime molds', 2, { nutrient: 0.35, agar: 0.5 }],

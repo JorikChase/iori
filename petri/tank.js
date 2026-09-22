@@ -50,7 +50,7 @@ export const MEASURES = {
 /**
  * spec: { name, dish: {dishMm?, cellMm?, quality?, nutrient, agar, temp}, steps, sample, chunk?,
  *         vary: {key: [values]}, seed(v), ops(v) -> Dish ID ops (mm), medium?(v) -> dish overrides,
- *         food?(v) -> [[x, y]] mm,
+ *         food?(v) -> [[x, y]] mm, adapt?(v) -> Tero adaptation overrides,
  *         measure: [names from MEASURES], parallel? }
  * Returns { name, spec summary, rows: [{ i, v, id, samples: [{ step, <measure>: … }] }], wall_s }.
  */
@@ -70,6 +70,7 @@ export async function runTank(spec, { device, parallel = spec.parallel || 16, sa
       e.playing = false;
       const id = { petri: 1, seed: spec.seed ? spec.seed(v) : 1, dish: { nutrient: dish.nutrient ?? 0.6, agar: dish.agar ?? 0.5, temp: dish.temp ?? 1, ...(spec.medium ? spec.medium(v) : {}) }, ops: spec.ops(v) };
       e.importID(id);
+      if (spec.adapt && e.sim.adapt) Object.assign(e.sim.adapt, spec.adapt(v));   // per-variant adaptation knobs
       const d = { i, e, v, id, spec, food: spec.food ? spec.food(v) : null, next: spec.sample || spec.steps, busy: null, done: false, samples: [], refused: [] };
       if (e.lastRefusal) d.refused.push(e.lastRefusal);
       wave.push(d);

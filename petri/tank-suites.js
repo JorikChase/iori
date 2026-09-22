@@ -65,4 +65,34 @@ export const SUITES = {
       },
     };
   },
+
+  // Tuning the adaptation's MEMORY on HELD-OUT seeds (3000+), never on the 21 scored ones. The n = 21
+  // trajectories show every organism peaking at 86-100 % coverage and then swinging +/-0.1 between
+  // samples: the conducting network keeps dropping and re-finding food. Criterion, written before the
+  // run: keep a setting only if mean end-window coverage beats the baseline by >= 0.03 AND its
+  // within-run spread is no worse AND mean TL/MST stays inside the unchanged 1.45-2.05 band.
+  tuneAdapt: ({ seeds = 5, steps = 36000, dts = [0.05, 0.01], qhs = [0.5, 0.3], betas = [4, 8] } = {}) => {
+    const food = fixture36();
+    return {
+      name: 'tune-adapt', dish: { nutrient: 0.3, agar: 0.5 }, steps, sample: 3000,
+      vary: { dt: dts, Qh: qhs, betaD: betas, seed: Array.from({ length: seeds }, (_, k) => 3000 + k) },
+      seed: (v) => v.seed, food: () => food, adapt: (v) => ({ dt: v.dt, Qh: v.Qh, betaD: v.betaD }),
+      ops: () => [inoc('physarum-polycephalum-adaptive-network', food[0], 4), ...food.map((p) => ({ t: 0, tool: 'flake', at: p, r: 1.2, amount: 3 }))],
+      measure: ['tero'], parallel: 6,
+      summarise: (rows) => {
+        const key = (v) => `dt${v.dt} Qh${v.Qh} b${v.betaD}`, by = {};
+        for (const r of rows) {
+          const cov = r.samples.map((s) => (s.tero ? s.tero.coverage : 0)), tail = cov.slice(-6);
+          const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+          const m = mean(tail), sd = Math.sqrt(mean(tail.map((x) => (x - m) ** 2)));
+          const fin = r.samples.at(-1).tero || {};
+          (by[key(r.v)] ||= []).push({ cov: mean(cov.slice(-3)), sd, peak: Math.max(...cov), TL: fin.TL_MST, MD: fin.MD_MST, FT: fin.FT });
+        }
+        const mm = (a) => +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(3);
+        return Object.entries(by).map(([k, v]) => ({ setting: k, coverage: mm(v.map((x) => x.cov)), spread: mm(v.map((x) => x.sd)),
+          peak: mm(v.map((x) => x.peak)), TL: mm(v.map((x) => x.TL).filter(Number.isFinite)), MD: mm(v.map((x) => x.MD).filter(Number.isFinite)), FT: mm(v.map((x) => x.FT).filter(Number.isFinite)) }))
+          .sort((a, b) => b.coverage - a.coverage);
+      },
+    };
+  },
 };

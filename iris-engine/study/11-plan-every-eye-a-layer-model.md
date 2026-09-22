@@ -321,6 +321,26 @@ nearest measured primitive (the case's pose is not the live camera's; the light 
 0.2 mm). Proof: `study/proof-layers/g1-guides.png` (three guides at ×1.5 across eye 26's sheet; hidden over the crypts
 by design). Next: G4, the journal into the session file — until then a re-load or a dial clears painted work.
 
+### 5.1 G1b — parent splines and strand tooling (agreed with iori, 2026-09-22)
+
+Not in the first plan: G1 paints freehand polylines, strands had only the G0 console brush, and nothing could be
+edited after it was laid — while §32 asked for details "procedurally paintable and strands editable". Decided:
+
+- **Order: G4 → G1b → G2 → G3.** G4 first, so no edit is ever lost on reload.
+- **Painted and measured primitives are editable.** Selecting a measured guide or fibre fits a spline to it on demand;
+  its provenance becomes `edited` — the fitted eye itself is editable, not only what is painted on top.
+- **Parent curves drive their instances (iori).** A strand bundle is not N independent curves: it is a *parent spline*
+  plus parameters (count, spread, waviness, width, a seed per instance's offset), and its strands are generated from
+  it — reshape the parent and every strand re-flows. The same parent system drives both layers: deck strands (seen
+  through the crypts only — the UI says so) and sheet streaks (a sheet "guide" is a parent whose instance is a streak).
+- **Actualize** (iori): select a parent and actualize it, and its instances become individual splines, editable point
+  by point; they keep the parent link as a record, but the parent no longer drives them.
+- **Three ways to make strands**: grow along a selected parent; the freehand strand brush (which creates a parent with
+  its instances, so every bundle has a master); edit point by point after actualizing.
+
+The journal holds it all as ops (add parent, set parent point, set parameter, actualize, move instance point …), so
+undo and G4's session file cover every edit.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

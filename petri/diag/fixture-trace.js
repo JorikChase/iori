@@ -4,11 +4,11 @@
 // conductivity, where the agents are (on a conducting tube or not), and how much food is left.
 import { teroMetrics, fixture36 } from '../fixture.js';
 
-export async function trace({ steps = 24000, every = 1500, quality = 'draft', overrides = {} } = {}) {
+export async function trace({ steps = 24000, every = 1500, quality = 'draft', seed = 2010, overrides = {} } = {}) {
   const { createEngine } = await import('../engine.js');
-  const E = await createEngine(new OffscreenCanvas(64, 64), { quality, seed: 2010, nutrient: 0.3, agar: 0.5 });
+  const E = await createEngine(new OffscreenCanvas(64, 64), { quality, seed, nutrient: 0.3, agar: 0.5 });
   const food = fixture36();
-  E.importID({ petri: 1, seed: 2010, dish: { nutrient: 0.3, agar: 0.5, temp: 1 }, ops: [
+  E.importID({ petri: 1, seed, dish: { nutrient: 0.3, agar: 0.5, temp: 1 }, ops: [
     { t: 0, tool: 'inoculate', organism: 'physarum-polycephalum-adaptive-network', at: food[0], r: 4 },
     ...food.map((p) => ({ t: 0, tool: 'flake', at: p, r: 1.2, amount: 3 }))] });
   if (overrides.adapt) Object.assign(E.sim.adapt, overrides.adapt);
@@ -33,7 +33,7 @@ export async function trace({ steps = 24000, every = 1500, quality = 'draft', ov
     let foodLeft = 0;
     for (const [x, y] of foodGrid) { const cx = Math.floor(x / E.cellMm), cy = Math.floor(y / E.cellMm); foodLeft += sub[(cy * n + cx) * 4]; }
     rows.push({
-      step: E.sim.step, reached: m.reached, TL: m.TL_MST, MD: m.MD_MST, FT: m.FT,
+      step: E.sim.step, reached: m.reached, near: m.near, idx: m.reachedIdx, TL: m.TL_MST, MD: m.MD_MST, FT: m.FT,
       term: st.terminals, comp: st.components, edges: st.edges, alive: liveD.length,
       meanD: liveD.length ? +(liveD.reduce((a, b) => a + b, 0) / liveD.length).toFixed(3) : 0,
       agents, onTube: +(onTube / Math.max(agents, 1)).toFixed(3), foodLeft: +(foodLeft / food.length).toFixed(2),

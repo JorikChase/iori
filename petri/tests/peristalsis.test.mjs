@@ -54,4 +54,16 @@ const chain = (n, len = 1, w = 0.2) => {
   check('elastic pump: no food, no drift; stiffness alone ~no drift', Math.abs(none.drift) < 1e-6 && Math.abs(soft.drift) < 5e-3,
     `control ${none.drift.toExponential(1)}, softer at food ${soft.drift.toExponential(2)} nodes`);
 }
+// 5. Fluid uptake at food (FINDINGS §4c). Prediction written before the run: the drunk fluid pushes the
+//    RESIDENT sol away from food. The volume centre moves toward food only because the new fluid enters
+//    there; the tracer (resident sol) goes the other way, and the contraction adds nothing to it.
+{
+  const food = new Float64Array(24); food[0] = 1; food[1] = 0.6; food[2] = 0.3;
+  const ctl = pumpElastic(chain(24), new Float64Array(24), new Float64Array(24), { periods: 40, uptake: 0.002 });
+  const up = pumpElastic(chain(24), food, new Float64Array(24), { periods: 40, uptake: 0.002 });
+  const still = pumpElastic(chain(24), food, new Float64Array(24), { periods: 40, uptake: 0.002, a0: 0 });
+  check('uptake: resident sol leaves the food; contraction adds nothing',
+    Math.abs(ctl.tracerDrift) < 1e-9 && up.tracerDrift > 1 && up.drift < 0 && Math.abs(up.tracerDrift - still.tracerDrift) < 1e-3,
+    `control ${ctl.tracerDrift.toExponential(1)}, tracer ${up.tracerDrift.toFixed(2)} nodes away, volume ${up.drift.toFixed(2)} toward, no contraction ${still.tracerDrift.toFixed(2)}`);
+}
 process.exit(failed ? 1 : 0);

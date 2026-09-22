@@ -1,0 +1,46 @@
+{
+ "id": "v6-foodspur",
+ "when": "2026-09-22T13:16:35",
+ "note": "feeding branches that end on food survive spur pruning; replicated Tero fixture passes; uptake pump closes question 2",
+ "features": {},
+ "src_sha256": "ada3be69373082d3",
+ "bench": "bench-v6-foodspur.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 7,
+  "T0_total": 7,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "T2": {
+   "adaptationConsolidates": false,
+   "teroFixture": true,
+   "physarumNetwork": false
+  },
+  "T2_passed": 1,
+  "T2_total": 3,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 2.521,
+  "agents": 54912
+ }
+}

@@ -223,6 +223,44 @@ that pressurises the body. Tero's pairs stay the driver.
 caption's control box shows the favicon as a 16-colour dithered bitmap and opens the site links read
 from the generated `#site-menu` markup; the floating burger is hidden in petri (`ui.css`).
 
+### P2, fourth round (2026-09-22): the flicker was the extractor — sealed `v6-foodspur`
+
+Per-seed traces (`diag/fixture-trace.js`, now with `seed`) showed no stall: coverage swung 25–33 of 36
+and MD/MST 0.72–0.93 **between consecutive samples** of one run, so each run's final number was mostly
+noise. First suspect, adaptation memory (48 × dt 0.05 = 2.4 relaxation times per update): dt 0.01 was
+tried with the acceptance rule written first (spread must halve) — it did not (coverage SD 1.6–2.5 →
+1.3–2.1), so it was rejected and dt stays 0.05.
+
+The frame-level look found it. On seed 2011 at step 36 000, most unreached flakes had plasmodium
+density ~1 ON the flake, in the mask, on veins 0.8–1.8 mm wide — yet no graph edge within 4–7 mm.
+`buildGraph` prunes a dead end shorter than 3× its width as thinning noise; with veins this wide that
+is any branch under ~4.5 mm, and **a feeding branch to a flake is exactly such a dead end**. Pruned, the
+flake gets no terminal, no flux, and its tube fades; when the branch grows past the limit it comes
+back — the flicker. Fix: `buildGraph({keepTips, tipReach})` keeps a spur whose tip lies on a food
+source; the worker passes the flakes (`tests/graph-food-spur.test.mjs`).
+
+Pre-registered fixture test, bands unchanged — **passes**:
+
+| | seed 2010 | seed 2011 | seed 2012 | mean ± SD | v5 | Tero Physarum |
+|---|---|---|---|---|---|---|
+| food reached | 86 % | 83 % | 86 % | min 83 % | min 72 % | 100 % |
+| TL/MST | 1.65 | 1.62 | 1.74 | **1.67 ± 0.07** | 1.54 ± 0.01 | 1.75 ± 0.30 |
+| MD/MST | 0.79 | 0.78 | 0.77 | **0.78 ± 0.01** | 0.73 ± 0.12 | 0.85 ± 0.04 |
+| FT | 0.90 | 0.96 | 0.91 | **0.92 ± 0.03** | 0.93 ± 0.02 | 0.86 ± 0.04 |
+
+Honest reading: MD is inside the band but still below Tero's mean. The layout is not his: on our
+synthetic 36-source layout the Delaunay graph reaches MD/MST 0.41 at TL/MST 3.32
+(`fixture.js delaunayEdges/referenceMetrics`), so paths are cheaper to shorten here than around Tokyo
+and a lower MD at the same TL is expected. Two measurement notes left as they are, because the scorer
+was fixed before the data: the scorer serves a flake from a node within 2.0 mm while the engine
+attaches at flake radius + 1.5 = 2.7 mm (flakes 16 and 35 sat at 2.1–2.3 mm on the traced frame), and
+~2 flakes per frame lie on a live tube that is a separate component.
+
+**Pump question closed** (proto/FINDINGS.md §4c): with fluid uptake at food and a tracer for the
+resident sol, the drunk fluid pushes resident sol AWAY from food (+2.65 nodes) while the volume centre
+moves toward it only because new fluid enters there; contraction adds nothing. Migration toward food is
+growth at food, which the engine already has. No pump is wired in; peristalsis stays a P4 look item.
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.
@@ -284,10 +322,10 @@ from the generated `#site-menu` markup; the floating burger is hidden in petri (
 
 ## Next (spec §11)
 
-1. **P2 remainder** — CG warm start; retraction of explored, unconnected ground; peristaltic phase on the
-   graph (the oscillator the continuum prototype could not carry — on a graph the pressure solve is
-   cheap enough to run per contraction); then the T1 Tero fixture (36 food sources, TL/MST, fault
-   tolerance against Tero 2010) as a scored test.
+1. **P2 remainder** — the fixture passes (v6); open: the plain-forager `physarumNetwork` row (TL 1.43,
+   meshedness) and `adaptationConsolidates` (ratio 1.9, gates 3/4) since solid flakes — iori to decide
+   whether the latter is retired in favour of the fixture's coverage; step cost (fold the flake level
+   into an existing buffer to free the 8th binding); CG warm start.
 2. P1 remainder, still open: **substrate substepping** so `fine` is trustworthy, and **physical
    absorption** so fill and front speed become tier-invariant too (both top items); brick pool +
    allocator; agent spatial sort (measured 4–7x, only matters above ~1M agents, and it needs a stable

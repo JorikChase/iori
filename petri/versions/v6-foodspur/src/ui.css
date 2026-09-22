@@ -1,0 +1,68 @@
+/* ui.css — petri's shell: the iris-engine Program Manager idiom (iris-engine/ui.css), reduced.
+   One caption, one menu bar with the status at its right, four tool windows that minimise to the
+   shortcut row. Everything is prefixed pt. */
+:root { --row: 22px; --cap: 18px; --fs: 12px; --grey: #c0c0c0; --dk: #808080; --navy: #000080; --menuh: 20px; --font: 'Urbanist', Arial, Helvetica, sans-serif; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; }
+body.pt-touch { --row: 38px; --cap: 30px; --menuh: 34px; --fs: 14px; }
+#dish { position: fixed; left: 0; right: 0; top: calc(var(--cap) + var(--menuh) + 2px); bottom: 0; width: 100%; height: calc(100% - var(--cap) - var(--menuh) - 2px); display: block; touch-action: none; cursor: crosshair; }
+#dish.hand { cursor: grab; } #dish.hand.drag { cursor: grabbing; }
+#pt-fail { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; color: #c0c0c0; font: 400 14px/1.5 var(--font); text-align: center; z-index: 5; }
+#pt-fail[hidden] { display: none; }
+
+#pt-cap, #pt-menubar, .pt, .pt-menu, #pt-icons { font: 700 var(--fs)/1 var(--font); color: #000; cursor: default; user-select: none; -webkit-user-select: none; }
+#pt-cap { position: fixed; left: 0; right: 0; top: 0; height: var(--cap); z-index: 200; background: var(--navy); color: #fff; border-bottom: 1px solid #000; display: flex; align-items: stretch; line-height: var(--cap); }
+.pt-capt0 { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
+/* the site burger is the caption's control box in this shell (iris-engine idiom): the 3DIE logo as a 16-colour bitmap */
+.pt-ctl { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-right: 1px solid #000; border-radius: 0; flex: none; }
+.pt-ctl.pt-site { background: #000 center / 100% 100% no-repeat; image-rendering: pixelated; cursor: pointer; }
+.pt-ctl.open { outline: 1px solid #fff; outline-offset: -2px; }
+#site-menu { display: none !important; }
+#pt-menubar { position: fixed; left: 0; right: 0; top: calc(var(--cap) + 1px); height: var(--menuh); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; z-index: 200; }
+.pt-mtop { padding: 0 8px; line-height: var(--menuh); } .pt-mtop.open { background: var(--navy); color: #fff; }
+#pt-status { margin-left: auto; padding: 0 8px; line-height: var(--menuh); font-weight: 400; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.pt-menu { position: fixed; background: #fff; border: 1px solid #000; z-index: 9000; min-width: 190px; max-height: 80vh; overflow-y: auto; }
+.pt-mi { padding: 0 24px; line-height: calc(var(--row) - 2px); white-space: nowrap; position: relative; font-weight: 400; }
+.pt-mi:hover { background: var(--navy); color: #fff; } .pt-mi.chk::before { content: "\2713"; position: absolute; left: 7px; }
+.pt-mi.head { font-weight: 700; color: var(--dk); } .pt-mi.head:hover { background: #fff; color: var(--dk); }
+.pt-sep { border-top: 1px solid #000; margin: 2px 0; }
+
+.pt { position: fixed; width: 272px; background: var(--grey); border: 1px solid #000; padding: 3px; box-sizing: border-box; z-index: 100; display: none; }
+.pt.open { display: block; }
+.pt-in { border: 1px solid #000; }
+.pt-wcap { height: var(--cap); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; }
+.pt.active .pt-wcap { background: var(--navy); color: #fff; }
+.pt-capt { flex: 1; text-align: center; line-height: var(--cap); cursor: move; touch-action: none; white-space: nowrap; overflow: hidden; }
+.pt-min { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-left: 1px solid #000; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); display: grid; place-items: center; }
+.pt-min::after { content: ""; border: 4px solid transparent; border-top: 5px solid #000; margin-top: 4px; }
+.pt-body { padding: 6px 7px 8px; font-weight: 400; max-height: calc(100vh - 140px); overflow-y: auto; }
+.pt-b { background: var(--grey); border: 1px solid #000; border-radius: 3px; height: var(--row); padding: 0 8px; color: #000; font: 700 var(--fs)/1 var(--font); box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk); white-space: nowrap; }
+.pt-b:active, .pt-b.on { box-shadow: inset 1px 1px 0 var(--dk), inset 2px 2px 0 var(--dk); background: #dcdcdc; }
+.pt-brow { display: flex; gap: 4px; margin: 6px 0 0; flex-wrap: wrap; } .pt-brow > * { flex: 1; padding: 0 3px; }
+.pt select, .pt input[type=number], .pt input[type=text] { background: #fff; border: 1px solid #000; border-radius: 0; height: var(--row); font: 400 var(--fs)/1 var(--font); color: #000; padding: 0 3px; box-sizing: border-box; width: 100%; min-width: 0; }
+.pt-grp { border: 1px solid var(--dk); box-shadow: 1px 1px 0 #fff, inset 1px 1px 0 #fff; padding: 9px 6px 6px; margin: 10px 0 0; position: relative; }
+.pt-grp > b { position: absolute; top: -6px; left: 8px; background: var(--grey); padding: 0 3px; }
+.pt-row { display: grid; grid-template-columns: 78px 1fr 46px; align-items: center; gap: 5px; margin: 5px 0 0; }
+.pt-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.pt-row2 { display: grid; grid-template-columns: 78px 1fr; align-items: center; gap: 5px; margin: 5px 0 0; }
+.pt input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: calc(var(--row) - 6px); margin: 0; background: #fff; border: 1px solid #000; box-sizing: border-box; }
+.pt input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: calc(var(--row) - 8px); background: var(--grey); border-left: 1px solid #000; border-right: 1px solid #000; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); }
+.pt input[type=range]::-moz-range-thumb { width: 12px; height: 100%; border-radius: 0; background: var(--grey); border: 0; border-left: 1px solid #000; border-right: 1px solid #000; }
+.pt-slot { display: grid; grid-template-columns: 14px 1fr auto; gap: 6px; align-items: center; padding: 2px 3px; line-height: 1.25; }
+.pt-slot.on { background: var(--navy); color: #fff; } .pt-slot i { width: 12px; height: 12px; border: 1px solid #000; display: block; }
+.pt-slot small { font-size: 10px; opacity: .75; }
+.pt-note { font-size: 11px; line-height: 1.35; margin: 6px 0 0; color: #202020; }
+.pt label.chk { display: flex; gap: 5px; align-items: center; margin: 6px 0 0; }
+
+#pt-icons { position: fixed; left: 6px; bottom: 4px; display: flex; gap: 2px; align-items: flex-end; z-index: 60; }
+.pt-dicon { width: 62px; padding: 3px 0; background: none; border: 0; display: grid; justify-items: center; gap: 3px; font: inherit; color: inherit; }
+.pt-dicon canvas { width: 32px; height: 32px; image-rendering: pixelated; }
+.pt-dicon span { padding: 1px 3px; background: #fff; white-space: nowrap; } .pt-dicon.on span { background: var(--navy); color: #fff; }
+#pt-scale { position: fixed; right: 76px; bottom: 14px; z-index: 50; color: #f0a040; font: 400 11px/1 var(--font); text-align: center; pointer-events: none; font-variant-numeric: tabular-nums; }
+#pt-scale i { display: block; height: 5px; border: 1px solid #f0a040; border-top: 0; margin-top: 3px; }
+
+@media (max-width: 600px), (max-height: 600px) {
+  .pt { left: 0 !important; right: 0; top: auto !important; bottom: 70px; width: auto; }
+  .pt-body { max-height: 38vh; }
+  #pt-icons { left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #000; justify-content: space-around; }
+  #pt-scale { bottom: 82px; right: 70px; }
+}

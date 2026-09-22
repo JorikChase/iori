@@ -149,3 +149,32 @@ sol when the body is pressurised — by growth, uptake at food, or an osmotic lo
 model has. So the next candidate is not a better wall but a **source**: uptake of fluid at food (the
 organism drinks and grows there), which pressurises the body and lets the soft food region fill. Until
 that is tested the engine keeps Tero's pairs as the driver.
+
+### 4c. Fluid uptake at food (2026-09-22) — the question dissolves
+
+`pumpElastic({uptake})`: fluid drunk at the food nodes, removed everywhere in proportion to volume
+(growth / evaporation), and a passive tracer for the RESIDENT sol, since adding fluid at food moves the
+centre of volume toward food by itself. Prediction written before the run: the resident sol goes away.
+
+| condition (40 periods, food at node 0) | volume centre | resident sol |
+|---|---|---|
+| uptake, no food (control) | 0 | 0 |
+| food, no uptake | 0 | 0 |
+| uptake 0.002, no contraction | −1.93 (toward) | +2.65 (away) |
+| uptake 0.002 | −1.93 | +2.65 |
+| + softer cortex at food | −2.19 | +2.37 |
+| + stiffer cortex at food | −1.80 | +2.78 |
+| + faster at food | −1.92 | +2.65 |
+| uptake 0.01 + softer | −3.79 | +6.50 |
+
+Uptake is the one ingredient that finally makes stiffness matter (softer cortex at food stores more of
+the drunk fluid there, as §4b said it would), but it never reverses the resident flow: fluid entering
+at food leaves through the body — nutrient distribution, which is what the real network does. The
+organism "goes toward food" in the only way these experiments allow: material is ADDED where food is
+and the rest is exported. That is growth at food, and the engine already has it (agents grow on
+nutrient; Tero's pairs shape the tubes). **Question 2 is closed for the engine: no pump is wired in; the
+direction of migration belongs to growth, not to transport.** The contraction term contributes nothing
+to the net drift in any row — peristalsis stays a candidate for the *look* (P4), not the dynamics.
+
+(Tracer transport uses the upstream node's rest volume; exact on the uniform test chain, approximate on
+graphs with unequal node volumes.)

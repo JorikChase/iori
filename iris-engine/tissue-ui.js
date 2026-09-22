@@ -34,7 +34,7 @@
       <div data-st="unavailable"><div class="t-note warn">The layer model of eye <span class="t-eye"></span> is not published on this site yet. It runs on the development copy.</div></div>
       <div data-st="error"><div class="t-note warn" id="w31t-err"></div><div class="w31-brow" style="margin:0"><button class="w31-b" id="w31t-retry">Try again</button></div></div>
       <div data-st="loaded" id="w31t-pages">
-        <div class="t-pages"><button class="w31-b" data-p="inspect" id="w31t-p-inspect">Inspect</button><button class="w31-b" data-p="probe" id="w31t-p-probe">Probe</button><button class="w31-b" data-p="dials" id="w31t-p-dials">Dials</button></div>
+        <div class="t-pages"><button class="w31-b" data-p="inspect" id="w31t-p-inspect">Inspect</button><button class="w31-b" data-p="probe" id="w31t-p-probe">Probe</button><button class="w31-b" data-p="paint" id="w31t-p-paint">Paint</button><button class="w31-b" data-p="dials" id="w31t-p-dials">Dials</button></div>
         <div class="t-page" data-p="inspect">
           <div class="w31-brow" style="margin:0"><button class="w31-b" data-tool="point">Point</button><button class="w31-b" data-tool="section">Section</button><button class="w31-b" data-tool="contours">Contours</button></div>
           <div class="t-sunk t-read" id="w31t-read"></div>
@@ -47,6 +47,13 @@
           <div class="w31-brow"><button class="w31-b" data-m="clay">Clay</button><button class="w31-b" data-m="elevation">Elevation</button><button class="w31-b" data-m="albedo">Albedo</button><button class="w31-b" data-m="height">Height</button></div>
           <div id="w31t-pscrubs"></div>
           <div class="t-hint">Tap the iris to put the camera there · drag the view to look around · HEIGHT below 0 goes down into a canyon.</div>
+        </div>
+        <div class="t-page" data-p="paint">
+          <div class="w31-brow" style="margin:0"><button class="w31-b on" data-brush="guides">Guide</button></div>
+          <div id="w31t-bscrubs"></div>
+          <div class="w31-brow"><button class="w31-b" id="w31t-undo">Undo stroke</button><button class="w31-b" id="w31t-undoall">Undo all painted</button></div>
+          <div class="t-sunk t-read" id="w31t-pread"></div>
+          <div class="t-hint">Drag on the iris to lay a guide — a streak on the sheet. It appears when you let go. WIDTH <i>auto</i> takes the nearest measured guide's. Painted work is not saved yet, and a Re-load or a dial clears it (G4).</div>
         </div>
         <div class="t-page" data-p="dials">
           <div class="w31-grp" style="margin-top:4px"><b>Height</b><div id="w31t-dh"></div></div>
@@ -138,6 +145,7 @@
             tm.bytes = performance.getEntriesByType('resource').filter(e => new RegExp(`cases\\.json|case-${r}|tissue-${r}|/${r}-`).test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
             X.timing = tm; try { localStorage.setItem('irisLoadTiming', JSON.stringify(tm)); } catch (e) {}
         } catch (e) { X.st = 'error'; q('#w31t-err').textContent = 'The layer model could not be loaded: ' + (e && e.message || e); console.error(e); }
+        strokes.length = 0; T.ops = [];   // a load re-reads the primitives: painted work is gone (G4 will keep it)
         X.loading = false; mapSig = ''; heights = null; contourKey = ''; sync(); secDraw(); probeDraw(); marks();
     };
     // after a dial: a FULL load — the case re-imported, then the primitives (cached) through load → calibrate → bake. A
@@ -220,6 +228,7 @@
         if (on && X.page === 'probe' && probeXY) { const [x, y] = probeXY, R = 46, dir = probeDir === null ? -Math.PI / 2 : probeDir, fv = PS.fov * Math.PI / 360;
             const p1 = [x + R * Math.cos(dir - fv), y + R * Math.sin(dir - fv)], p2 = [x + R * Math.cos(dir + fv), y + R * Math.sin(dir + fv)];
             s += `<path d="M${P(x, y)}L${P(...p1)}A${R} ${R} 0 0 1 ${P(...p2)}Z" fill="rgba(0,255,255,.22)" stroke="#0ff" stroke-width="1.5"/><circle cx="${x}" cy="${y}" r="5" fill="#0ff" stroke="#000"/>`; }
+        if (on && X.page === 'paint' && stroke && stroke.length > 1) { const d = 'M' + stroke.map(p => P(p[0], p[1])).join('L'); s += `<path d="${d}" fill="none" stroke="#000" stroke-width="4" opacity=".45" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#ff0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`; }
         svg.innerHTML = s;
         if (on && X.page === 'inspect' && X.tool === 'point' && point && point.r) { const r = point.r; tip.textContent = `${Math.round(r.surfaceUm)} µm · ${r.layers} fibre${r.layers === 1 ? '' : 's'}`; tip.style.display = 'block';
             const x = point.xy[0] + 14 + tip.offsetWidth > innerWidth - 4 ? point.xy[0] - 14 - tip.offsetWidth : point.xy[0] + 14; tip.style.left = x + 'px'; tip.style.top = (point.xy[1] + 10) + 'px'; } else tip.style.display = 'none';
@@ -301,16 +310,39 @@
     // the scene's pointer, while a Tissue tool owns it (capture phase: the engine's own press / gaze handlers must not
     // run — a press would constrict the pupil). The photo overlay is switched off first: the tools read the tissue.
     // ---------------------------------------------------------------------------------------------------------
-    const owns = e => active() && e.target === cv && ((X.page === 'inspect' && X.tool !== 'contours') || X.page === 'probe');
+    // study/11 G1: the Paint page — the guide brush (T.brush.guides), a line while drawing, baked on release (iori)
+    const BS = X.brush = { widthUm: 0, brightness: 1.2, count: 1 }, strokes = [];
+    const bdial = (label, key, min, max, step, fmt) => { const inp = document.createElement('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = BS[key];
+        const v = h('span'); const show = () => { v.textContent = fmt(+inp.value); }; show(); inp.addEventListener('input', () => { BS[key] = +inp.value; show(); });
+        const row = U.makeScrubber(inp, label, v); $('w31t-bscrubs').appendChild(row); return row; };
+    bdial('WIDTH', 'widthUm', 0, 150, 5, x => x ? Math.round(x) + ' µm' : 'auto'); bdial('BRIGHTNESS', 'brightness', 0.5, 1.8, 0.05, x => '×' + x.toFixed(2)); bdial('COUNT', 'count', 1, 8, 1, x => x === 1 ? '1 guide' : x + ' guides');
+    const painted = () => T.ops.filter(o => o.brush === 'guides').length;
+    function paintRead() { const el = q('#w31t-pread'); if (el) el.innerHTML = strokes.length ? `<b>${strokes.length}</b> stroke${strokes.length === 1 ? '' : 's'} · ${painted()} painted guide${painted() === 1 ? '' : 's'} on eye ${X.eye}` : 'Nothing painted yet.'; }
+    function paintStroke(pts) {
+        const uv = pts.map(p => uvAtClient(p[0], p[1])).filter(Boolean);
+        if (uv.length < 2) { U.say('Paint on the iris'); return; }
+        const made = T.brush.guides(uv, { space: 'uv', widthMm: BS.widthUm ? BS.widthUm / 1000 : undefined, brightness: BS.brightness, count: BS.count, seed: strokes.length + 1 });
+        if (!made.length) return; strokes.push(made.length); T.commit(); E.resetAccumulation(); paintRead();
+        U.say(`Guide${made.length > 1 ? 's' : ''} painted — ${painted()} on eye ${X.eye}`); }
+    function paintUndo(all) { if (!strokes.length) return; const n = all ? strokes.reduce((a, b) => a + b, 0) : strokes[strokes.length - 1];
+        T.undo(n); if (all) strokes.length = 0; else strokes.pop(); T.commit(); E.resetAccumulation(); paintRead(); U.say(all ? 'Painted guides removed' : 'Stroke undone'); }
+    X.paintStroke = pts => paintStroke(pts); X.paintUndo = all => paintUndo(all); X.strokes = strokes;   // tests and the console
+    q('#w31t-undo').onclick = () => paintUndo(false); q('#w31t-undoall').onclick = () => paintUndo(true);
+    let stroke = null;
+    const owns = e => active() && e.target === cv && ((X.page === 'inspect' && X.tool !== 'contours') || X.page === 'probe' || X.page === 'paint');
     function lockCamera() { if (!state.useRot) E.setCamFixed(true); if (O && O.mode !== 'off') O.set('off'); }
     let drag = null;
     document.addEventListener('pointerdown', e => { if (!owns(e) || e.button > 0) return; e.stopPropagation(); lockCamera();
         if (X.page === 'probe') { placeProbe(e.clientX, e.clientY); return; }
+        if (X.page === 'paint') { stroke = [[e.clientX, e.clientY]]; try { cv.setPointerCapture(e.pointerId); } catch (err) {} marks(); return; }
         if (X.tool === 'section') { drag = { a: [e.clientX, e.clientY] }; cut = [drag.a, drag.a]; secRes = null; try { cv.setPointerCapture(e.pointerId); } catch (err) {} marks(); } }, true);
     document.addEventListener('pointermove', e => {
         if (drag) { e.stopPropagation(); cut = [drag.a, [e.clientX, e.clientY]]; marks(); return; }
+        if (stroke) { e.stopPropagation(); const l = stroke[stroke.length - 1]; if (Math.hypot(e.clientX - l[0], e.clientY - l[1]) >= 2) { stroke.push([e.clientX, e.clientY]); marks(); } return; }
         if (!owns(e)) return; e.stopPropagation();
         if (X.page === 'inspect' && X.tool === 'point') { const now = performance.now(); if (now - hoverT < 33) return; hoverT = now; readPoint(e.clientX, e.clientY); readout(); marks(); } }, true);
+    const endStroke = e => { if (!stroke) return; e.stopPropagation(); const pts = stroke; stroke = null; marks(); if (pts.length > 1) paintStroke(pts); };
+    document.addEventListener('pointerup', endStroke, true); document.addEventListener('pointercancel', e => { stroke = null; marks(); }, true);
     const end = e => { if (!drag) return; e.stopPropagation(); const a = drag.a, b = [e.clientX, e.clientY]; drag = null; if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 6) { marks(); return; } cut = [a, b]; sectionFrom(a, b); secDraw(); readout(); marks(); };
     document.addEventListener('pointerup', end, true); document.addEventListener('pointercancel', end, true);
 
@@ -327,7 +359,7 @@
         qa('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === X.tool)); qa('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === PS.mode));
         qa('[data-flag]').forEach(b => { const k = b.dataset.flag; b.classList.toggle('on', k === 'delight' ? !!T.delight : k === 'margin' ? T.margin !== false : !!T[k]); });
         if (X.loading && X.st === 'loaded') qa('[data-st="loaded"]').forEach(el => { el.style.opacity = 0.55; }); else qa('[data-st="loaded"]').forEach(el => { el.style.opacity = ''; });
-        readout(); }
+        readout(); if (X.page === 'paint') paintRead(); }
     X.go = (page, tool) => { if (X.st !== 'loaded') { U.showWindow('tissue', true); return; } X.page = page; if (tool) X.tool = tool; U.showWindow('tissue', true); if (page !== 'dials') lockCamera(); sync(); requestAnimationFrame(() => { secDraw(); probeDraw(); PDIALS.concat(DIALS).forEach(r => r._draw && r._draw()); marks(); }); };
 
     // follow the page: the eye changing under the model, the window closing, the view moving (zoom, pan, resize)

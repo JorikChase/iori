@@ -169,7 +169,7 @@ says so in words, and its Load control names the eye it loads — no pretence th
 | Windowed re-bake at the view's τ | `bakeWindow`, `viewRect`, `refocus`, `clearWindow` | CONSOLE | automatic on zoom settle; no control (content-limited today, §32) |
 | Strand brush | `IrisTissue.brush.strands(path, opts)` | CONSOLE | Design toolbox, tissue tool set (G0 → UI) |
 | Journal: apply / undo / commit, provenance | `T.apply`, `T.undo`, `T.commit`, `T.ops` | CONSOLE | Design ▸ Undo / Ctrl-Z routed to `T.undo` when the tissue tool set is active; journal list later |
-| Guide brush | — | not built (G1) | Design toolbox |
+| Guide brush | `IrisTissue.brush.guides(path, { space: 'uv', widthMm, brightness, count, spreadMm, seed })` | **ok** (G1, 2026-09-22) | Tissue window ▸ **Paint** (iori: there, not the Design toolbox) — tool Guide; WIDTH (auto = the nearest measured guide's), BRIGHTNESS (×, relative to the sheet around it), COUNT (a seeded bundle); a line follows the pointer and the guide is baked on release (iori); Undo stroke · Undo all painted; Tissue ▸ Paint… Painted guides carry provenance `painted`, are resampled every 20 µm like measured ones, and take their json position from the nearest measured sample (the light they need is smooth to 0.2 mm). Verified: a 188-sample stroke on eye 26 changes 368 fit pixels, undo pixel-identical. A re-load or a dial clears painted work until G4 |
 | Journal to JSON and back | — | not built (G4) | File ▸ Save ID carries `genome.tissue`; until then **painted work dies on reload** — stated in the HUD |
 | Crypt / furrow / spot brushes | — | not built (G2) | Design toolbox; revives `furrow` |
 | Generator from the knobs | — | not built (G3) | revives `seed`, `crypt`, `furrow`, `collr` under the model |

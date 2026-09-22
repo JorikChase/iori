@@ -734,6 +734,64 @@
             say(`brush: ${n} strands painted, ${(wMed * 2.8 * 1000).toFixed(0)} µm wide, over ${(P.length)} points`);
             return made;
         },
+        /**
+         * G1: guides — the streaks ON the sheet (deck fibres painted on the sheet are invisible by design: they lie under
+         * the border layer). A guide carries what a measured one does: width, `val` (brightness relative to the sheet
+         * around it — above 1 lighter, below 1 darker), `base` (the sheet's local level) and `rgb` (its chroma, luminance
+         * 1). Unless given, width, colour and base come from the nearest measured guide, and `brightness` defaults to 1.2
+         * (a pale streak). `count` > 1 lays a seeded bundle across `spreadMm`, like the strand brush.
+         * The stroke is in tissue (u, v) when opts.space === 'uv' (the Tissue window: the live view at any camera), else
+         * in fit pixels (the console, as the strand brush). It is resampled every 20 µm, a measured guide's payload step.
+         * A painted sample's json-pixel position — which the bake needs only to read the measured LIGHT there — is the
+         * nearest measured primitive sample's: the primitives cover the iris every ≈ 20 µm and the light is smooth to
+         * 0.2 mm, so this is exact to what the light resolves, at any camera (the live map is not the case's pose).
+         */
+        guides(path, opts = {}) {
+            if (!T.sets || !T.sets.guides) throw new Error('tissue: nothing loaded');
+            const R = rng(opts.seed === undefined ? 1 : opts.seed), n = Math.max(1, opts.count || 1);
+            const circ = v => 6.2831853 * (2 + 4 * v);                          // mm round the eye at tissue v (as the region)
+            let UV = opts.space === 'uv' ? path.map(q => q.slice())
+                : path.map(q => uvAt(F.getMap(), F.fit.W, F.fit.H, q[0], q[1])).filter(Boolean);
+            for (let j = 1; j < UV.length; j++) { let du = UV[j][0] - UV[j - 1][0]; du -= Math.round(du); UV[j][0] = UV[j - 1][0] + du; }   // unwrap u
+            const P = UV.length ? [UV[0]] : [];                                // resample every 20 µm (arc length in mm)
+            for (let j = 1; j < UV.length; j++) {
+                let a = P[P.length - 1]; const b = UV[j];
+                const mm = (p, q) => Math.hypot((q[0] - p[0]) * circ((p[1] + q[1]) / 2), (q[1] - p[1]) * 4);
+                let d = mm(a, b);
+                while (d >= 0.020) { const t = 0.020 / d; a = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; P.push(a); d = mm(a, b); }
+            }
+            if (P.length < 2) { say('brush: stroke too short for a guide'); return []; }
+            // nearest measured samples, bucketed in (u, v): for the json-pixel position, and the nearest guide's look
+            const cell = 0.004, key = (u, v) => `${Math.floor((((u % 1) + 1) % 1) / cell)},${Math.floor(v / cell)}`, grid = new Map();
+            for (const set of SETS) for (const c of (T.sets[set] || [])) if (c.uv && c.xy) c.uv.forEach((q, i) => { if (!q) return; const k = key(q[0], q[1]); let b = grid.get(k); if (!b) grid.set(k, b = []); b.push([q[0], q[1], c, i, set]); });
+            const nearest = (u, v, only) => { let best = null, bd = 1e18; const cu = Math.floor((((u % 1) + 1) % 1) / cell), cv0 = Math.floor(v / cell);
+                for (let r = 1; r <= 6 && !best; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) { const b = grid.get(`${(cu + dx + Math.round(1 / cell)) % Math.round(1 / cell)},${cv0 + dy}`); if (!b) continue;
+                    for (const e of b) { if (only && e[4] !== only) continue; let du = e[0] - u; du -= Math.round(du); const d = (du * circ(v)) ** 2 + ((e[1] - v) * 4) ** 2; if (d < bd) { bd = d; best = e; } } }
+                return best; };
+            const mid = P[P.length >> 1], ng = nearest(mid[0], mid[1], 'guides'), near = ng ? ng[2] : null, ni = ng ? ng[3] : 0;
+            const w0 = opts.widthMm !== undefined ? opts.widthMm : (near ? near.w[ni] : 0.03);
+            const rgb0 = opts.rgb || (near && near.rgb ? near.rgb[ni] : [1, 1, 1]), base0 = near && near.base ? near.base[ni] : null;
+            const val0 = opts.brightness === undefined ? 1.2 : opts.brightness, spread = opts.spreadMm === undefined ? 0.06 : opts.spreadMm;
+            const made = [];
+            for (let i = 0; i < n; i++) {
+                const off = n > 1 ? (R() - 0.5) * 2 * spread : 0, uv = [], xy = [], w = [], val = [], base = [], rgb = [];
+                for (let j = 0; j < P.length; j++) {
+                    const a = P[Math.max(0, j - 1)], b = P[Math.min(P.length - 1, j + 1)], cm = circ(P[j][1]);
+                    let tx = (b[0] - a[0]) * cm, ty = (b[1] - a[1]) * 4; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+                    const q = [P[j][0] - ty * off / cm, P[j][1] + tx * off / 4]; q[0] = ((q[0] % 1) + 1) % 1;
+                    const e = nearest(q[0], q[1]); if (!e) continue;               // off the tissue: the stroke skips it
+                    const taper = Math.min(1, 4 * Math.min(j, P.length - 1 - j) / Math.max(1, P.length - 1) + 0.25);   // the ends fade in
+                    uv.push(q); xy.push(e[2].xy[e[3]].slice());
+                    w.push(w0 * (0.85 + 0.3 * R())); val.push(1 + (val0 - 1) * taper * (0.85 + 0.3 * R()));
+                    if (base0 !== null) base.push(base0); rgb.push(rgb0.slice());
+                }
+                if (uv.length < 2) continue;
+                const c = { uv, xy, w, val, rgb, provenance: 'painted' }; if (base.length) c.base = base;
+                made.push(T.apply({ t: 'add', set: 'guides', curve: c, brush: 'guides', seed: opts.seed }));
+            }
+            say(`brush: ${made.length} guide${made.length === 1 ? '' : 's'} painted, ${(w0 * 1000).toFixed(0)} µm wide, brightness ×${val0}, ${P.length} samples`);
+            return made;
+        },
     };
 
     // ---------------------------------------------------------------- T3 (§32): the probe camera

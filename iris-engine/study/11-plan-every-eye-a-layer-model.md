@@ -315,6 +315,12 @@ state, not yet shown as pixels.
   becomes a layer-model eye with provenance `seeded`. When it holds, the legacy presets can leave the Eye menu and the
   legacy model remains only as the integrity bench's subject.
 
+**G1 built (2026-09-22).** iori chose the Tissue window's Paint page and "a line while drawing, baked on release".
+`T.brush.guides` works in tissue (u, v) — the live view at any camera — and takes each sample's json position from the
+nearest measured primitive (the case's pose is not the live camera's; the light that position indexes is smooth to
+0.2 mm). Proof: `study/proof-layers/g1-guides.png` (three guides at ×1.5 across eye 26's sheet; hidden over the crypts
+by design). Next: G4, the journal into the session file — until then a re-load or a dial clears painted work.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

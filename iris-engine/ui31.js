@@ -246,7 +246,7 @@
             return [{ l: '&Layer model', chk: () => !!(T && T.on), dis: !X.canToggle(), run: () => X.toggle() }, { l: X.loadLabel(), dis: !X.canLoad(), run: () => X.load() }, '-',
                 ...(X.eyes ? X.eyes().map(r => ({ l: 'Eye ' + r, chk: () => X.eye === r, dis: X.loading, run: () => X.pick(r) })) : []), '-',
                 { l: '&Point', run: () => X.go('inspect', 'point'), dis: !X.ready() }, { l: '&Section', run: () => X.go('inspect', 'section'), dis: !X.ready() }, { l: '&Contours', run: () => X.go('inspect', 'contours'), dis: !X.ready() },
-                { l: 'P&robe', run: () => X.go('probe'), dis: !X.ready() }, '-', { l: '&Dials…', run: () => X.go('dials'), dis: !X.ready() }, { l: 'Re-&load', run: () => X.reload(), dis: !X.ready() }]; }],
+                { l: 'P&robe', run: () => X.go('probe'), dis: !X.ready() }, { l: 'P&aint…', run: () => X.go('paint'), dis: !X.ready() }, '-', { l: '&Dials…', run: () => X.go('dials'), dis: !X.ready() }, { l: 'Re-&load', run: () => X.reload(), dis: !X.ready() }]; }],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
         ['&Help', () => [{ l: '&Photo credits…', run: () => credits() }, { l: '&Load timing…', run: () => timing() }, '-', { l: '&About Iris Engine…', run: () => $('w31-veil').classList.add('on') }]],
     ];

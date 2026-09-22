@@ -136,6 +136,57 @@
     "ms_per_step": 2.391,
     "agents": 45935
    }
+  },
+  {
+   "id": "v4-fixture",
+   "when": "2026-09-22T11:49:49",
+   "note": "Tero 36-source fixture: builds 34/36 (TL 1.90, FT 0.975) but MD 0.55 and not maintained; peristalsis answered (pumps away from food)",
+   "features": {
+    "fixture": "1",
+    "peristalsis": "test-only",
+    "tube": "1",
+    "graze": "1e-5"
+   },
+   "src_sha256": "089a011362448509",
+   "bench": "bench-v4-fixture.json",
+   "summary": {
+    "pass": false,
+    "quality": "normal",
+    "n": 2048,
+    "T0": {
+     "replay": true,
+     "replayAdaptive": true,
+     "exportRoundTrip": true,
+     "nutrientConserved": true,
+     "bareStaysBare": true,
+     "contained": true,
+     "catalogSmoke": true
+    },
+    "T0_passed": 7,
+    "T0_total": 7,
+    "T1": {
+     "diffusion": true,
+     "fisherSpeed": true,
+     "edenRoughness": true,
+     "dlaDimension": true,
+     "etaSweep": true,
+     "morphologyDiagram": true,
+     "resolutionInvariance": false
+    },
+    "T1_passed": 6,
+    "T1_total": 7,
+    "T2": {
+     "adaptationConsolidates": false,
+     "teroFixture": false,
+     "physarumNetwork": true
+    },
+    "T2_passed": 1,
+    "T2_total": 3,
+    "boxD_dla": 1.7596020228833158,
+    "beta_eden": 0.433,
+    "ms_per_step": 2.368,
+    "agents": 54912
+   }
   }
  ]
 }

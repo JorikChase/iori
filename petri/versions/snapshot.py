@@ -12,7 +12,7 @@ import argparse, gzip, hashlib, json, os, shutil, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SRC = ['index.html', 'engine.js', 'kernels.js', 'catalog.js', 'render.js', 'ui.js', 'ui.css',
-       'harness.js', 'metrics.js', 'graph.js', 'tero.js', 'graphworker.js', 'serve.py']
+       'harness.js', 'metrics.js', 'graph.js', 'tero.js', 'graphworker.js', 'fixture.js', 'peristalsis.js', 'serve.py']
 INDEX = os.path.join(HERE, 'index.json')
 
 

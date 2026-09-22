@@ -95,3 +95,35 @@ then port, or (b) accept the study's fallback and run the Tero adaptation on the
 graph** (study/00 §3 already keeps G as a first-class representation), where the competition works by
 construction, and use the grid only for the sheet and the front. (b) is the lower-risk route and
 reuses the skeleton→graph code that T2 needs anyway.
+
+## 4. Question 2 answered on the graph (P2, 2026-09-22) — the minimal pump goes the wrong way
+
+The continuum prototype never reached the transport question, because the sheet never channelled. On
+the vein graph the pressure solve is cheap enough to run inside every contraction, so `peristalsis.js`
+puts the pump where it belongs: a Kuramoto phase per tube node coupled along the tubes, a pump
+`s = −V a ω cos φ`, Kirchhoff flow, and upwind transport of a passive tracer standing for the carried
+biomass. Tests in `tests/peristalsis.test.mjs`:
+
+- two halves beating in antiphase shuttle sol back and forth with zero net flux, as they must; all
+  tubes beating in phase move nothing at all (a closed network has nowhere to put the volume);
+- coupled identical tubes synchronise (order parameter 0.97);
+- **with no food the tracer does not move (drift exactly 0). With food at one end raising the local
+  frequency, the tracer drifts about 1.7 nodes of 24 AWAY from the food, and softening the cortex at
+  the food (larger amplitude there, Kobayashi's suggestion in its simplest form) barely changes it:
+  +1.74, +1.75, +1.70 nodes.**
+
+The wave direction is right — raised frequency at food makes contraction waves run outward from it,
+as observed — and a wave that runs outward pumps outward (Shapiro peristalsis). The organism, of
+course, goes toward food. So in this formulation frequency and amplitude cannot set the sign; that
+agrees with Kobayashi, Tero & Nakagaki 2006, who put it on wall stiffness. The candidates left are the
+ones that model the wall: an elastic, rate-dependent cortex, or phase feedback from pressure (the χ_p
+term that is not in this pump yet), or growth sinks at the front.
+
+One trap on the way, worth keeping: updating the tracer edge by edge in list order let mass cross
+several edges in one step, producing a ~3-node drift in the direction the edges happen to be stored.
+It read as a physics result ("away from food, in every case") until a no-food control was added.
+
+**Consequence for the engine:** the peristaltic pump is NOT wired in as the adaptation driver. Tero's
+random terminal pairs stay: they are phenomenological, but they produce the right networks (TL/MST,
+MD/MST and FT in Tero's regime on the 36-source fixture), and the pump as it stands would teach the
+organism to flee its food.

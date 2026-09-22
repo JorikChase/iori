@@ -120,9 +120,61 @@ fragment with no terminal decays; sigmoid with random pairs keeps a cycle — on
 ring survives and the spokes are pruned. My first version of that test asserted every edge must
 survive, which is wrong: keeping a loop is the claim, not keeping everything.
 
-Open in P2: food not yet reached is not a terminal (the organism must grow there first — correct, but
-it means the network consolidates only as fast as it explores); only one adaptive slot per dish; the
-wandering exploratory filaments are never retracted (real Physarum withdraws from explored ground).
+### P2, second round (2026-09-22): Tero's 36-source benchmark
+
+`fixture.js` implements Tero 2010's metrics in food-source mode exactly as study/05 §3.2/§4.2 define
+them (TL/MST, MD/MST, FT via Tarjan bridges that isolate a food source), with known answers in
+`tests/fixture.test.mjs` (the MST scores 1/1/0; a ring 1.333/0.8/1; a food-free spur does not count
+against FT). `fixture36()` is a fixed synthetic layout at Tero's source count — his Tokyo geometry was
+never re-digitised, so the comparison is by regime, not point for point. The harness test
+`teroFixture` runs its own draft engine for 36 000 steps (~Tero's 26 h at this engine's front speed).
+
+Getting there took seven fixes, each found by measuring, each now a test:
+
+| symptom on the fixture | cause | fix |
+|---|---|---|
+| coverage jumped 5 → 1 → 2 → 3 | tubes existed only while agents painted them | a conducting vein holds a trail floor (`TUBE`) |
+| veins became bands mm wide | raster width = measured width, fed back through the floor | raster at a constant radius (`RASTER_RAD`) |
+| flakes stopped attracting within minutes | grazing 0.02/agent-step ate a flake in ~100 steps | `GRAZE` 1e-5: flakes last the run, as Tero's oat flakes did |
+| network collapsed onto a few paths | dt·iters = 6 relaxation times per update: D remembered only the last few random pairs | genome dt 0.05 × 48 (tero test #5) |
+| food beside a vein never became a terminal | attachment to the nearest *node* only | `attachPoints` splits the vein at the nearest point (#6) |
+| peripheral tubes starved as coverage grew | one random pair per iteration gives each source a 2/T share | a third of the terminals active per iteration, in random pairs (#8) — pairing ALL of them instead built Steiner trees and lost the loops (#4) |
+| weak living tubes blinked out of the graph | floor proportional to D sat at the extraction threshold | floor = smoothstep of D: existence and diameter are separate |
+
+Also: dead-end branches without a terminal carry exactly zero current and are peeled before the solve
+(exact — test #7); the update fell from 1–5 s to ~0.1–1 s.
+
+**Result, sealed run `v4-fixture` (draft, seed 2010, the configuration in the repo):** the organism
+joins **34 of 36 food sources (94 %) by step 9 000**, with **TL/MST 1.90 and FT 0.975** — inside Tero's
+Physarum range for length and at the Tokyo-rail level for fault tolerance — and then loses coverage
+(9 at 36 000). The test fails, and says why:
+- **MD/MST is 0.55 at the peak, far below Tero's Physarum 0.85 ± 0.04.** At that moment this is a
+  richly meshed, almost Delaunay-like network (104 tubes): more direct than the real organism, which
+  keeps ≈ 30 % of the possible links. The band was written before any run and was not widened.
+- **the network is built but not maintained** to the end of the run — the late decline is open.
+
+For the record, the earlier run with `RETRACT` 0.05 peaked at 31/36 with TL/MST 1.55, MD/MST 0.72,
+FT 0.79 — retraction trades coverage for a leaner network; neither setting reaches Tero's MD.
+
+**Peristalsis on the graph (`peristalsis.js`, tests/peristalsis.test.mjs)** answered the P1b gate's
+question 2 for the minimal pump: frequency raised at food makes waves run outward from it (correct), and
+outward waves pump the carried biomass **away** from food (1.7 nodes of 24; control without food: 0).
+Softening the cortex at food does not reverse it. So the pump is NOT wired as the adaptation driver;
+Tero's pairs stay. Details and the trap on the way (an edge-order transport bias that looked like
+physics) in proto/FINDINGS.md §4.
+
+**A trade-off the harness exposed, left visible on purpose.** `adaptationConsolidates` (largest
+connected share of the whole trail graph, six flakes of amount 3) passed at v3 with ratio 2.13 and
+fails now (≈1.2). Bisected: the cause is the grazing calibration, not any adaptation change — with the
+old fast grazing it passes at 1.67 on today's code. With food that persists the organism reaches out to
+all six sources at once, and a whole-trail largest-component measure reads that foraging as
+fragmentation. I kept the calibrated grazing (it is what makes the fixture work and what the
+experiment used) rather than tuning the test back to green. The fixture's coverage is the better
+consolidation measure; replacing or retiring this row is a decision for iori.
+
+Open in P2: maintenance of the full network to the end of the run; MD/MST too low; one adaptive slot per
+dish; the pump's direction (needs wall mechanics or pressure feedback on phase); `RETRACT` is off (two
+A/Bs showed no benefit).
 
 ## Deviations from the spec, deliberate for P1a
 

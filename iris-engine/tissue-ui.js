@@ -53,7 +53,7 @@
           <div id="w31t-bscrubs"></div>
           <div class="w31-brow"><button class="w31-b" id="w31t-undo">Undo stroke</button><button class="w31-b" id="w31t-undoall">Undo all painted</button></div>
           <div class="t-sunk t-read" id="w31t-pread"></div>
-          <div class="t-hint">Drag on the iris to lay a guide — a streak on the sheet. It appears when you let go. WIDTH <i>auto</i> takes the nearest measured guide's. Painted work is not saved yet, and a Re-load or a dial clears it (G4).</div>
+          <div class="t-hint">Drag on the iris to lay a guide — a streak on the sheet. It appears when you let go. WIDTH <i>auto</i> takes the nearest measured guide's. Painted work stays through a Re-load or a dial, is kept with the page, and ⌘ / Ctrl + S saves it in the session file.</div>
         </div>
         <div class="t-page" data-p="dials">
           <div class="w31-grp" style="margin-top:4px"><b>Height</b><div id="w31t-dh"></div></div>
@@ -117,6 +117,8 @@
     // the photograph, and the light and shading measured on this device, as before.
     X.load = async (opts = {}) => {
         if (X.loading) return; if (!(await available())) { X.st = 'unavailable'; sync(); return; }
+        // G4: painted work on THIS eye survives a re-load (a dial, the button); another eye's does not belong here
+        const keepJ = opts.journal || (T.src && T.src.ref === CASE(X.eye) && T.ops.length ? T.journal() : null);
         X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye ' + X.eye]; if (!X.quietOpen) U.showWindow('tissue', true); sync();
         // study/10 S0: every load records where its time goes (Help ▸ Load timing shows it, on any device)
         const r = X.eye, t0 = performance.now(), tm = { at: new Date().toISOString(), eye: r, steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
@@ -145,7 +147,9 @@
             tm.bytes = performance.getEntriesByType('resource').filter(e => new RegExp(`cases\\.json|case-${r}|tissue-${r}|/${r}-`).test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
             X.timing = tm; try { localStorage.setItem('irisLoadTiming', JSON.stringify(tm)); } catch (e) {}
         } catch (e) { X.st = 'error'; q('#w31t-err').textContent = 'The layer model could not be loaded: ' + (e && e.message || e); console.error(e); }
-        strokes.length = 0; T.ops = [];   // a load re-reads the primitives: painted work is gone (G4 will keep it)
+        strokes.length = 0; T.ops = [];   // a load re-reads the primitives: the journal is replayed onto them (G4)
+        if (keepJ && X.st === 'loaded') { const n = T.replay(keepJ); if (n === false) U.say('Painted work not restored: it was made on other primitives'); E.resetAccumulation(); }
+        rebuildStrokes();
         X.loading = false; mapSig = ''; heights = null; contourKey = ''; sync(); secDraw(); probeDraw(); marks();
     };
     // after a dial: a FULL load — the case re-imported, then the primitives (cached) through load → calibrate → bake. A
@@ -321,11 +325,15 @@
     function paintStroke(pts) {
         const uv = pts.map(p => uvAtClient(p[0], p[1])).filter(Boolean);
         if (uv.length < 2) { U.say('Paint on the iris'); return; }
-        const made = T.brush.guides(uv, { space: 'uv', widthMm: BS.widthUm ? BS.widthUm / 1000 : undefined, brightness: BS.brightness, count: BS.count, seed: strokes.length + 1 });
+        const id = strokes.length ? Math.max(...T.ops.map(o => o.stroke || 0)) + 1 : 1;
+        const made = T.brush.guides(uv, { space: 'uv', widthMm: BS.widthUm ? BS.widthUm / 1000 : undefined, brightness: BS.brightness, count: BS.count, seed: id, stroke: id });
         if (!made.length) return; strokes.push(made.length); T.commit(); E.resetAccumulation(); paintRead();
         U.say(`Guide${made.length > 1 ? 's' : ''} painted — ${painted()} on eye ${X.eye}`); }
     function paintUndo(all) { if (!strokes.length) return; const n = all ? strokes.reduce((a, b) => a + b, 0) : strokes[strokes.length - 1];
         T.undo(n); if (all) strokes.length = 0; else strokes.pop(); T.commit(); E.resetAccumulation(); paintRead(); U.say(all ? 'Painted guides removed' : 'Stroke undone'); }
+    // G4: strokes are rebuilt from the journal (ops of one stroke share its id), so Undo stroke works after a replay
+    function rebuildStrokes() { strokes.length = 0; let last = null; for (const o of T.ops) { if (o.brush !== 'guides') continue; if (o.stroke !== last) { strokes.push(0); last = o.stroke; } strokes[strokes.length - 1]++; } paintRead(); }
+    X.journal = () => (X.st === 'loaded' && T.ops.length ? T.journal() : null);
     X.paintStroke = pts => paintStroke(pts); X.paintUndo = all => paintUndo(all); X.strokes = strokes;   // tests and the console
     q('#w31t-undo').onclick = () => paintUndo(false); q('#w31t-undoall').onclick = () => paintUndo(true);
     let stroke = null;

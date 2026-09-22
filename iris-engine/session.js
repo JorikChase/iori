@@ -6,7 +6,8 @@
 // The file: { format: 'iris-session', v: 1, engine, saved, quality, camera, tissue | id, journal }
 //   tissue — the layer-model eye (its case file, its dials, on / off); then `id` is left out: the eye IS the case
 //   id     — any other eye: the engine's own ID (genome, fields, view), exactly what File ▸ Save ID writes
-//   journal — the op journal (G4); null until then: painted work is not saved yet
+//   journal — the layer model's op journal (G4): painted work, replayed onto the eye after it loads; keyed to the
+//             primitives it was painted on (a mismatch is said, never applied silently); null when nothing is painted
 (() => {
     const E = window.__irisEngine, U = window.__irisUI, T = window.IrisTissue, X = window.__irisTissueUI;
     if (!E || !U || window.__irisSession) return;
@@ -18,7 +19,7 @@
         const s = { format: 'iris-session', v: 1, engine: E.ENGINE_VERSION, saved: new Date().toISOString(), quality: E.quality,
             camera: { useRot: !!state.useRot, camRot: (state.camRot || [0, 0]).slice(), view: (state.view || [0, 0, 1, 1]).slice(), zoomPhoto: state.zoomPhoto, specular: state.specular || 0 },
             tissue: null, id: null, journal: null };
-        if (X && X.st === 'loaded' && T && T.src) s.tissue = { eye: T.src.ref, on: !!T.on, dials: Object.fromEntries(DIALS.map(k => [k, T[k] === undefined ? null : T[k]])) };
+        if (X && X.st === 'loaded' && T && T.src) { s.tissue = { eye: T.src.ref, on: !!T.on, dials: Object.fromEntries(DIALS.map(k => [k, T[k] === undefined ? null : T[k]])) }; s.journal = X.journal ? X.journal() : null; }
         else s.id = E.makeID();
         return s;
     };
@@ -32,11 +33,13 @@
         if (!s || s.format !== 'iris-session') throw new Error('not an iris session file');
         if (s.quality && s.quality !== E.quality && E.QUALITY && E.QUALITY[s.quality]) E.setQuality(s.quality);
         let note = '';
+        const sref = s.tissue && s.tissue.eye ? s.tissue.eye.slice(0, 2) : null;   // the session's eye, whatever the page arrived with
+        if (sref && X && X.eyes && X.eyes().includes(sref)) X.eye = sref;
         if (s.tissue && X && X.eyeFile && s.tissue.eye === X.eyeFile()) {
             for (const k of DIALS) if (s.tissue.dials && s.tissue.dials[k] !== null && s.tissue.dials[k] !== undefined) T[k] = s.tissue.dials[k];
             if (X.syncDials) X.syncDials();
             X.quietOpen = true; state.fitting = true;
-            try { await X.load({ arrival: true }); } finally { state.fitting = false; X.quietOpen = false; }
+            try { await X.load({ arrival: true, journal: s.journal || undefined }); } finally { state.fitting = false; X.quietOpen = false; }   // G4: the painted work replays onto the eye
             if (X.st !== 'loaded') throw new Error('the layer model could not be loaded');
             T.on = !!s.tissue.on; if (X.sync) X.sync();
         } else if (s.tissue) { note = ' — its layer-model eye is not on this site; opened without it'; if (s.id) E.importID(s.id); }

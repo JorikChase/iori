@@ -321,6 +321,12 @@ nearest measured primitive (the case's pose is not the live camera's; the light 
 0.2 mm). Proof: `study/proof-layers/g1-guides.png` (three guides at ×1.5 across eye 26's sheet; hidden over the crypts
 by design). Next: G4, the journal into the session file — until then a re-load or a dial clears painted work.
 
+**G4 built (2026-09-22).** The journal is data: `T.journal()` (ops without their undo records, numbers to 5 decimals,
+keyed to `T.primKey`) and `T.replay()`; the session file carries it, a restore replays it after the eye loads (and switches
+the window to the session's eye — a latent SAVE bug: a layer-model session only restored if the page had arrived on the
+same eye), and a re-load of the same eye keeps painted work. `add` ops now keep a snapshot of the curve as added, so a
+replay adds that state and re-applies later edits instead of adding their result. Ledger §7.
+
 ### 5.1 G1b — parent splines and strand tooling (agreed with iori, 2026-09-22)
 
 Not in the first plan: G1 paints freehand polylines, strands had only the G0 console brush, and nothing could be

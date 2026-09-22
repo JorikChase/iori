@@ -433,6 +433,8 @@
             }
         }
         T.sets = sets; T.cells = cells; T.deckH = undefined; T.origin = null;   // a new eye is a new origin
+        // G4: what a journal was painted on — the eye, its fit frame and every set's size as loaded (before any op)
+        T.primKey = JSON.stringify([json.ref, json.fit, ...['outlines', 'fibres', 'veins', 'guides', 'sfib', 'svein'].map(k => (json[k] || []).length), (json.cells && json.cells.xy || []).length]);
         if (T.marg && !opts.keepMargin) {
             // The margin is part of the coordinate system, not a decoration on top of it: with it in place irisCoords
             // puts v = 0 on the true margin, so every primitive's v moves with it. Mapping them in the old system and
@@ -639,6 +641,8 @@
                 const c = op.curve;
                 if (!c.uv) c.uv = c.xy.map(q => uvAt(F.getMap(), F.fit.W, F.fit.H, q[0] * F.fit.W / T.src.fit[0], q[1] * F.fit.H / T.src.fit[1]));
                 list.push(c); op.undo = { at: list.length - 1 };
+                op.curve = clone(c);                  // G4: the op keeps the curve AS ADDED — later ops mutate the one in the set, and a replay
+                                                      // must add this state and then re-apply them, not add their result
                 break;
             }
             case 'delete': { op.undo = { at: op.at, curve: list[op.at] }; list.splice(op.at, 1); break; }
@@ -692,6 +696,17 @@
     };
     /** Re-bake after edits. */
     T.commit = function () { if (!T.dirty) return T; T.bake(); T.dirty = false; return T; };
+    // ---- G4 (study/11): the journal as data. Every op without its undo record (re-derived on replay), numbers to 5
+    // decimals; `primitives` says what it was painted on. replay() refuses a journal made on other primitives (the
+    // caller says so; nothing is applied silently) and applies the rest in order, then re-bakes once.
+    const r5 = v => Array.isArray(v) ? v.map(r5) : (typeof v === 'number' ? Math.round(v * 1e5) / 1e5 : (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, r5(x)])) : v));
+    T.journal = () => ({ v: 1, primitives: T.primKey || null, ops: T.ops.map(op => { const o = Object.assign({}, op); delete o.undo; return r5(o); }) });
+    T.replay = function (j) {
+        if (!j || !Array.isArray(j.ops) || !j.ops.length) return 0;
+        if (j.primitives !== T.primKey) { say('journal not applied: it was painted on other primitives'); return false; }
+        for (const op of j.ops) T.apply(JSON.parse(JSON.stringify(op)));
+        T.commit(); say(`journal replayed: ${j.ops.length} op${j.ops.length === 1 ? '' : 's'}`); return j.ops.length;
+    };
 
     // ---- brushes: they do not draw pixels, they emit the ops above
     T.brush = {
@@ -787,7 +802,7 @@
                 }
                 if (uv.length < 2) continue;
                 const c = { uv, xy, w, val, rgb, provenance: 'painted' }; if (base.length) c.base = base;
-                made.push(T.apply({ t: 'add', set: 'guides', curve: c, brush: 'guides', seed: opts.seed }));
+                made.push(T.apply({ t: 'add', set: 'guides', curve: c, brush: 'guides', seed: opts.seed, stroke: opts.stroke }));
             }
             say(`brush: ${made.length} guide${made.length === 1 ? '' : 's'} painted, ${(w0 * 1000).toFixed(0)} µm wide, brightness ×${val0}, ${P.length} samples`);
             return made;

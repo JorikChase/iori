@@ -132,6 +132,47 @@ layer model. **S5** the arrival eye is one of the accepted eyes, chosen per visi
 a reload does not swap the eye under the visitor); each ships its own case file, primitives and measurements, so a
 visit still downloads one eye. An eye joins the rotation only when iori has looked at it.
 
+### 3.1 T7 so far (2026-09-22)
+
+**T7.0 — parametrised.** `layer_proof.py --ref NN` reads the eye and its geometry from `ref/cases.json` (`align`,
+normalised to the 1280 px fit image); rounded as the old constants were, ref 26's PUP, LIMB and px/mm come out
+bit-identical. **Proven**: the original script (HEAD) and the parametrised one export byte-identical JSON today. Both
+differ from the published `data/tissue-26.json` in 47 ruff-bead values, each by exactly one step of the export's
+5-decimal rounding (1e-5 mm, 10 nm): values on a rounding edge that an earlier run put on the other side.
+
+**The ring rule** (`layer_proof.py`, hole candidates): a candidate spanning more than 180° about the pupil is not a
+crypt (first 90°, which also took ref 09's 135° crypt complex — a real opening; raised). Ref 35 has a soft, dark, grey periphery, and the hole test ("dark and grey relative to the sheet within
+0.35 mm") has nothing brighter to compare it with out there: one outline ran round the whole ciliary band, 41.7 % of
+the iris, filled with deck fibres. With the rule it stays sheet — holes 39.5 % → 2.9 %. At 180° the rule leaves ref 26
+**byte-identical** and ref 25 unchanged (it does not fire on either).
+
+Whole iris at NORMAL, in the engine (measured load, `tools/t7/eyes.js`; review sheets `study/proof-layers/t7-review-NN.png`):
+
+| eye | legacy fit MATCH2 · cellΔab | layer model MATCH2 · cellΔab · grad | fitter: holes · CPU · peak memory |
+|---|---|---|---|
+| 26 | 73.97 · 14.16 | **84.24** · 2.65 · 0.750 | 14.0 % · ≈ 11 min · — |
+| 25 | 71.90 · 12.80 | **87.76** · 2.64 · 0.792 | 8.9 % · 578 s · 4.07 GB |
+| 35 | 70.27 · 13.58 | **81.39** · 2.67 · 0.654 (76.41 before the ring rule) | 2.9 % · 289 s · 2.92 GB |
+| 09 | 68.49 · 14.69 | **79.67** · 3.83 · 0.700 (80.70 with its crypt complex wrongly removed at 90°) | 21.4 % · — · — |
+
+Two defects I called by eye were wrong, and measuring showed it — worth remembering for every review sheet:
+ref 35 "looks squashed" (the photograph's tissue really is 348 × 307 fit px, the case's ellipse is right), and "the
+pupil is too big" on 25 / 35 (the dark-disc radius of render vs photo: 26 89.5 / 89.7 px, 25 71.2 / 68.5, 35 76.6 /
+81.3 — the review sheet's black photo background against the renders' white fools the eye). **Measure before
+calling a defect.**
+
+**Two open defects, both measured.** (1) Ref 09's blue: the photograph's pupillary zone is clear sky-blue, the layer
+model's grey-green — the fitter's camera grade is the weakest of the four (ΔE 3.80 with a +30° hue rotation, against
+1.0–1.7 elsewhere): the engine's spectral LUT does not reach that blue, so the colours land on the nearest grey-green.
+A gap in the material model (the structural blue — stroma scatter), not a threshold; a study of its own before 09
+joins the rotation. (2) Ref 09's pupil is 5.4 fit px (≈ 80 µm) too wide — its traced margin (2.14–2.30 mm) lies
+wholly outside the fitted circle (2.10), and the aperture follows the trace. Ref 26 matches, so the tracer's
+threshold cannot simply move; a per-eye check against the dark disc is the first step.
+
+Still to do before an eye joins the rotation: iori's look at each review sheet (25 and 35 are the candidates; 09 waits
+for its blue), then T7.3 (the Tissue window loads any accepted eye; per-eye case + measurement
+files as in S3) and S5.
+
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 
 Read as: Cmd / Ctrl + S no longer opens the browser's useless "save page as"; it downloads a session file, and

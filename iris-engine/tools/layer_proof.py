@@ -15,7 +15,9 @@ The render below uses ONLY primitives measured from the photo (never photo pixel
                          (port of buildSpectralLut, + a neutral-scatter axis) and one per-photo camera grade.
   · seeded               matte tissue grain; camera blur and sensor grain (camera, not tissue)
 
-Run:  /usr/bin/python3 iris-engine/tools/layer_proof.py      → iris-engine/study/proof-layers/
+Run:  /usr/bin/python3 iris-engine/tools/layer_proof.py [--ref NN] [--whole] [--export]   → iris-engine/study/proof-layers/
+      --ref picks the eye (default 26); its geometry — pupil, limbus, px/mm, fit size — comes from its case in ref/cases.json
+      (study/11 T7). Only ref 26 has the 3 mm proof window; the others need --whole.
 """
 import os, sys, json
 import cv2
@@ -25,8 +27,7 @@ from strand_stats import zhang_suen, ridge, prune, order_path   # the S0 tracer 
 
 ENG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 OUT = os.path.join(ENG, 'study', 'proof-layers'); os.makedirs(OUT, exist_ok=True)
-PPM_FIT = 71.4751                     # px/mm of ref 26 at the 1280 px fit image (fit.dumpForGuideTrace)
-WIN = (330, 620, 220)                 # window centre (fit px) and size (fit px)
+WIN = (330, 620, 220)                 # ref 26's 3 mm proof window: centre (fit px) and size (fit px); other eyes run --whole
 CELL_MM = 0.10                        # the sheet's material cells
 PAYLOAD_UM = 20.0                     # sampling of the 1-D payloads along curves
 
@@ -367,9 +368,20 @@ sstep = lambda a, b, x: (lambda t: t * t * (3 - 2 * t))(np.clip((x - a) / (b - a
 
 
 def main():
-    nat = cv2.imread(os.path.join(ENG, 'ref', '26-green-crypts-isolated.jpg')); k = nat.shape[1] / 1280.0
-    WHOLE = '--whole' in sys.argv; TAG = 'whole-26' if WHOLE else 'proof-26'
-    PUP = (641.0511, 463.2756, 166.7331); LIMB = (638.7877, 462.2253, 418.13)                           # ref 26 at the 1280 px fit image (fit.dumpForGuideTrace)
+    # study/11 T7: the eye and its geometry from its case (ref/cases.json `align`, normalised to the fit image's width and
+    # height). Rounded exactly as ref 26's constants were once typed in, so ref 26 exports byte-identical JSON:
+    # PUP (x, y, r) and LIMB (x, y) to 4 decimals, LIMB r (= rx) to 2, px/mm = rx / 5.85 mm to 4 (fit.dumpForGuideTrace).
+    REF = sys.argv[sys.argv.index('--ref') + 1] if '--ref' in sys.argv else '26'
+    cases = json.load(open(os.path.join(ENG, 'ref', 'cases.json')))
+    FILE = next(f for f in cases if f.startswith(REF + '-')); AL = cases[FILE]['align']
+    nat = cv2.imread(os.path.join(ENG, 'ref', FILE)); k = nat.shape[1] / 1280.0
+    FIT_H = int(round(nat.shape[0] * 1280.0 / nat.shape[1]))                                            # the fitter's 1280 px fit image
+    WHOLE = '--whole' in sys.argv; TAG = ('whole-' if WHOLE else 'proof-') + REF
+    if not WHOLE and REF != '26': sys.exit('the 3 mm proof window exists for ref 26 only: use --whole')
+    PUP = (round(AL['pupil'][0] * 1280, 4), round(AL['pupil'][1] * FIT_H, 4), round(AL['pupil'][2] * FIT_H, 4))
+    LIMB = (round(AL['limbus'][0] * 1280, 4), round(AL['limbus'][1] * FIT_H, 4), round(AL['limbus'][2] * FIT_H, 2))
+    PPM_FIT = round(AL['limbus'][2] * FIT_H / 5.85, 4)                                                 # px/mm at the fit image
+    print(f'ref {FILE} · fit 1280×{FIT_H} · pupil {PUP} · limbus {LIMB} (ry/rx {AL["limbus"][3] / AL["limbus"][2]:.3f}) · {PPM_FIT} px/mm')
     if WHOLE: cx, cy = LIMB[0], LIMB[1]; w = 2 * (LIMB[2] + 12)
     else: cx, cy, w = WIN
     y0, x0, n = int((cy - w / 2) * k), int((cx - w / 2) * k), int(w * k)
@@ -416,7 +428,18 @@ def main():
     Hm = cv2.morphologyEx(cv2.morphologyEx(Hm, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
     cnts, hier = cv2.findContours(Hm, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     amin = (0.12 * 1000 / UM) ** 2                                                                       # ≥ 0.12 mm across
-    outer = [i for i, c in enumerate(cnts) if hier[0][i][3] < 0 and cv2.contourArea(c) >= amin]
+    # study/11 T7: a hole is a compact opening in the sheet. A candidate that runs round the eye (> 180° about the pupil)
+    # is the dark, grey periphery of an eye with a soft limbus (ref 35: one outline around the whole ciliary band, 360°),
+    # not a crypt — it stays sheet. The threshold is half the eye: at 90° it also took ref 09's large crypt complex
+    # (135°, dark openings full of fibres joined by thin septa), which is a real opening. Ref 26's crypts are far below.
+    def ang_span(c_):
+        q_ = c_[:, 0, :].astype(np.float64); a_ = np.arctan2(q_[:, 1] - PC[1], q_[:, 0] - PC[0])
+        return 5 * len(np.unique((((a_ + np.pi) / (2 * np.pi)) * 72).astype(int) % 72))
+    cand = [i for i, c in enumerate(cnts) if hier[0][i][3] < 0 and cv2.contourArea(c) >= amin]
+    ring = [i for i in cand if ang_span(cnts[i]) > 180]
+    outer = [i for i in cand if i not in ring]
+    if ring: print(f'hole candidates running round the eye, kept as sheet: {len(ring)} (spans {[ang_span(cnts[i]) for i in ring]}°, '
+                   f'{100 * sum(cv2.contourArea(cnts[i]) for i in ring) / max(1, inner.sum()):.1f} % of the iris)')
     isl = [i for i, c in enumerate(cnts) if hier[0][i][3] in outer and cv2.contourArea(c) >= 0.35 * amin]  # sheet islands and septa inside a hole
     harm = lambda c_, lo: int(np.clip(cv2.arcLength(c_, True) / 40.0, lo, 160))                          # harmonics with the perimeter: one per ≈ 0.19 mm of outline
     outlines = [fourier_smooth(cnts[i], harm(cnts[i], 16), 1024 if cv2.arcLength(cnts[i], True) > 1500 else 512) for i in outer]; islands = [fourier_smooth(cnts[i], harm(cnts[i], 8), 256) for i in isl]
@@ -459,7 +482,7 @@ def main():
     # …but at this scale the flat sheet is mostly SENSOR GRAIN, and tracing grain would be fitting noise (it did: short worms in
     # every direction, and a flattering B3). Tissue streaks are long, straight and run with the radial flow; grain is none of these.
     Ls = (cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 2.2) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 14), 0.004)).astype(np.float32)
-    ctr = np.array([PUP[0] * k - x0, PUP[1] * k - y0])                           # pupil centre of ref 26 in window px (x, y)
+    ctr = np.array([PUP[0] * k - x0, PUP[1] * k - y0])                           # pupil centre in window px (x, y)
     def tissue_like(path):
         q = path[:, ::-1].astype(np.float64); L_ = np.hypot(*np.diff(q, axis=0).T).sum(); chord = q[-1] - q[0]; c = np.hypot(*chord)
         if L_ < 26 or c / max(L_, 1e-6) < 0.8: return False                                              # ≥ 0.12 mm and straight
@@ -537,7 +560,7 @@ def main():
     sheet_alb = np.stack([up((LUT[ci][:, c] * csc).reshape(gy, gx)) for c in range(3)], 2)                 # linear RGB albedo × cell brightness
 
     # ---- 5. compose the layers (linear light)
-    rs = np.random.RandomState(26)
+    rs = np.random.RandomState(int(REF))
     # deck: tubes under a frontal ring flash — brightness payload × round cross-profile, over the dark ground
     # deck: broad fibres packed side by side — every floor point takes the body brightness of its nearest fibre (the curves'
     # Voronoi cells; wall shadows arrive with the payload), a little roundness, and the traced veins cut the dark gaps
@@ -580,12 +603,12 @@ def main():
     # image (the engine maps them to tissue (u, v) through its own coordinate map), sizes in mm, colours as linear sRGB in PHOTO
     # space (graded LUT colours × payload) — the engine converts them to albedo by inverting its own camera and lighting
     if '--export' in sys.argv:
-        kx_, ky_ = nat.shape[1] / 1280.0, nat.shape[0] / 925.0; MM = UM / 1000.0
+        kx_, ky_ = nat.shape[1] / 1280.0, nat.shape[0] / float(FIT_H); MM = UM / 1000.0
         def fitxy(q): return np.stack([(x0 + q[:, 0] + 0.5) / kx_ - 0.5, (y0 + q[:, 1] + 0.5) / ky_ - 0.5], 1)
         def graded(lin): return lab2lin(grade(lin2lab(np.clip(lin, 1e-5, None).astype(np.float32)), G, ROT))
         r3 = lambda a_: [[round(float(v), 4) for v in row] for row in a_]; r1 = lambda a_, d=4: [round(float(v), d) for v in a_]
         def curve(c, **kw): return dict(xy=r3(fitxy(c['xy'])), w=r1(c['w'] * MM, 5), **kw)
-        ex = {'ref': '26-green-crypts-isolated.jpg', 'fit': [1280, 925], 'grade': {'chroma': G, 'hue': ROT},
+        ex = {'ref': FILE, 'fit': [1280, FIT_H], 'grade': {'chroma': G, 'hue': ROT},
               'z': {'model': 'weave', 'rK': FIB_R_K, 'zMaxMm': Z_MAX_MM, 'provenance': {'r': 'measured', 'z': 'inferred'}},
               'mm': {'wall': WALL * MM, 'rimW': RIM_W * MM, 'rimOff': 5.0 * MM, 'pit': [14 * MM, 26 * MM], 'bodyBlur': 2.5 * MM, 'guideColBlur': 3.0 * MM, 'depth': 0.01},
               'outlines': [], 'fibres': [], 'veins': [], 'guides': [], 'sfib': [], 'svein': [], 'beads': []}
@@ -634,13 +657,14 @@ def main():
         gch = mats['ground'][0] / max(float(mats['ground'][0] @ LUMA), 1e-5)
         ex['cells'] = {'xy': r3(fitxy(cpos)[inwin]), 'sheet': r3(graded(LUT[ci] * csc[:, None])[inwin]), 'ground': r3(graded(gch[None, :] * np.maximum(gcell, 1e-4)[:, None])[inwin])}
         ex['rimRGB'] = r1(graded((mats['rim'][0] * mats['rim'][1])[None, :])[0])
-        json.dump(ex, open(os.path.join(OUT, ('tissue-26-whole.json' if WHOLE else 'tissue-26.json')), 'w'), separators=(',', ':'))
-        print('exported', 'tissue-26-whole.json' if WHOLE else 'tissue-26.json', round(os.path.getsize(os.path.join(OUT, ('tissue-26-whole.json' if WHOLE else 'tissue-26.json'))) / 1024), 'KB')
+        XN = f'tissue-{REF}-whole.json' if WHOLE else f'tissue-{REF}.json'
+        json.dump(ex, open(os.path.join(OUT, XN), 'w'), separators=(',', ':'))
+        print('exported', XN, round(os.path.getsize(os.path.join(OUT, XN)) / 1024), 'KB')
 
     # ---- 6. judge: same window of the engine's current fit (v84c), and numbers
-    eng = cv2.imread(os.path.join(OUT, 'engine-v84c-26-render.png'))
-    ex0, ey0 = int(round(x0 / k)), int(round(y0 / (nat.shape[0] / 925.0)))
-    eng_w = cv2.resize(eng[ey0:ey0 + int(round(H / (nat.shape[0] / 925.0))), ex0:ex0 + int(round(W / k))], (W, H), interpolation=cv2.INTER_CUBIC) if eng is not None else np.zeros_like(photo)
+    eng = cv2.imread(os.path.join(OUT, f'engine-v84c-{REF}-render.png'))                              # only ref 26 has one; the panel is black otherwise
+    ex0, ey0 = int(round(x0 / k)), int(round(y0 / (nat.shape[0] / float(FIT_H))))
+    eng_w = cv2.resize(eng[ey0:ey0 + int(round(H / (nat.shape[0] / float(FIT_H)))), ex0:ex0 + int(round(W / k))], (W, H), interpolation=cv2.INTER_CUBIC) if eng is not None else np.zeros_like(photo)
 
     def metrics(img):
         lab = cv2.cvtColor(img.astype(np.float32) / 255, cv2.COLOR_BGR2Lab); m = inner

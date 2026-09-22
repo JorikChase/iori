@@ -1,4 +1,8 @@
-whole-26.jpg
-whole-26-clean.jpg
-whole-26-primitives.jpg
-tissue-26-whole.json
+whole-*.jpg
+whole-*-clean.jpg
+whole-*-primitives.jpg
+whole-*-heights.jpg
+whole-*-shadows.jpg
+whole-*-sheet.jpg
+tissue-*-whole.json
+t7/*.log

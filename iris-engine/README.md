@@ -117,6 +117,7 @@ gives the numbers the fibre generator must hit.
    furrow detection, joint refinement; unwrap through the engine's own forward path.
 7. **Tiers, compact ID, casebook as a site page** (spec §3, §12).
    **→ Since 2026-09-20 the working roadmap is spec §31 (tissue layer model, tasks T1–T9); start at
+   `handoffs/2026-09-22-every-eye-a-layer-model.md` (four eyes, sessions, 0.9.5, the brushes; plan in study/11), then
    `handoffs/2026-09-21-ui-tissue-start-eye.md` (the shell, the Tissue window, the start eye), then
    `handoffs/2026-09-21-relief-and-edge.md` (the renderer line).**
 8. **Afterthought, after everything above — all mammals** (spec §29): one system from lemur to horse with the

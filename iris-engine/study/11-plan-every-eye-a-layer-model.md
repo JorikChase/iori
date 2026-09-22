@@ -347,6 +347,29 @@ edited after it was laid — while §32 asked for details "procedurally paintabl
 The journal holds it all as ops (add parent, set parent point, set parameter, actualize, move instance point …), so
 undo and G4's session file cover every edit.
 
+**Build order (proposed 2026-09-22; iori sees step 2's look before the rest of the UI):**
+
+1. **The data, no UI.** `T.parents` — each `{ id, layer: 'deck' | 'sheet', spline: [[u, v] …] (centripetal Catmull-Rom
+   through a few control points, in tissue uv like the brushes), params: { count, spreadMm, wavinessMm, widthMm,
+   brightness, seed }, actualized: false, provenance }`. Its instances are generated into the existing sets (`fibres`
+   for the deck, `guides` for the sheet), each carrying `parent: id` and its index, resampled every 20 µm, json positions
+   from the nearest measured sample (as G1). Ops: `addParent`, `moveParentPoint`, `insertParentPoint`,
+   `removeParentPoint`, `setParams`, `actualize`, `deleteParent`; each regenerates only that parent's instances and
+   carries its undo. Measured primitives: selecting one fits a spline to its samples (≈ one control point per 0.3 mm) and
+   makes it a parent with one instance; provenance `edited`. Tests: every op undoes pixel-identically; journal round
+   trip as G4.
+2. **Select on the Paint page** — tools `Guide · Strands · Select`. Click picks the nearest instance or parent within a
+   few pixels (measured or painted); the selection is drawn over the live view (the parent's spline, its control points
+   as handles, its instances highlighted). Drag a handle to move it (re-bake on release, like G1), double-click the
+   curve to insert a point, Alt-click a handle to remove it; Delete removes the parent. The page shows the selection's
+   params as sliders. **Mock this look for iori before wiring the rest.**
+3. **Strands.** `Grow strands` on a selected parent (count, spread, waviness, width); the `Strands` tool is the freehand
+   strand brush — a stroke makes a deck parent and its instances. `Actualize` detaches a parent's instances: each becomes
+   its own parent (one instance, the same shape) that Select can edit point by point; they keep `from: parentId`. The
+   page says that deck strands show only through the crypts.
+4. **Gates as always**: ledger rows + `controls.json` for every control, `reach()` / `compare()` `[]`, the bench untouched
+   (no engine shader change), a review image of a grown bundle and an actualized edit.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

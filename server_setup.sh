@@ -269,7 +269,7 @@ iori.me {
     # manual refresh. no-cache = revalidate every load (a cheap 304 when nothing changed). The asset folders
     # below keep their own policies, so they are excluded here.
     @appcode {
-        path */ *.js *.mjs *.css *.json *.wasm *.woff2
+        path */ *.js *.mjs *.css *.json *.wasm *.woff2 *.bin
         not path /assets/* /images/* /js/* /icon/* /media/*
     }
     header @appcode Cache-Control "no-cache"
@@ -331,7 +331,7 @@ iori.me {
     header @revalidate Cache-Control "no-cache"
     # folder apps: see the iori.me block
     @appcode {
-        path */ *.js *.mjs *.css *.json *.wasm *.woff2
+        path */ *.js *.mjs *.css *.json *.wasm *.woff2 *.bin
         not path /assets/* /images/* /js/* /icon/* /media/* /blackjach/assets/* /blackjach/css/* /blackjach/js/*
     }
     header @appcode Cache-Control "no-cache"

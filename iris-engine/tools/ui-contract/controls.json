@@ -89,6 +89,7 @@
  "w31t-p-dials": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
  "w31t-defaults": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
  "w31t-reload": "internal — Tissue window (tissue-ui.js); which of these shows depends on the model's state (none / loading / loaded / other eye / unavailable), and Tissue ▸ menu reaches load, on/off and every page",
+ "w31t-eye-09": "window tissue",
  "w31t-eye-25": "window tissue",
  "w31t-eye-26": "window tissue",
  "w31t-eye-35": "window tissue"

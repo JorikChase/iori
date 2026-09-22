@@ -11,7 +11,7 @@ sheet (study/proof-layers/t7-review-NN.png).
 """
 import json, os
 ENG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
-ACCEPTED = ['25', '26', '35']            # iori, 2026-09-22: 25 and 35 look good; 09 waits for its blue
+ACCEPTED = ['09', '25', '26', '35']      # iori, 2026-09-22: 25 and 35 look good; 09 after its blue (engine 0.9.5)
 cases = json.load(open(os.path.join(ENG, 'ref', 'cases.json')))
 eyes = {}
 for ref in ACCEPTED:

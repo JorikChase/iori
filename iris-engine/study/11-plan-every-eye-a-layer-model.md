@@ -245,7 +245,9 @@ What 0.9.5 does and does not move:
 **Ref 09 under 0.9.5**, fitted with the 450 nm edge and the balanced grade (×1.6, −10°; clean cellΔab 2.37): in the
 engine MATCH2 80.32, cellΔab 3.03 (from 3.83), and the blue's error over the texture floor 3.0 (from 7.3 at 500 nm) —
 the pupillary zone and the right side render light blue-grey instead of grey-green. Review sheet
-`study/proof-layers/t7-review-09.png`; it joins the rotation when iori has looked.
+`study/proof-layers/t7-review-09.png`. **Joined the rotation (iori, 2026-09-22)**: `data/tissue-09.json` (the 0.9.5 fit),
+`case-09.json`, `tissue-09.cal.bin` (arrival 0.27 s vs 3.72 s measured, max 1 / 255, 598 KB). All four reference eyes
+now greet visitors.
 
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 

@@ -329,6 +329,54 @@
     "agents": 54912,
     "cell_ms": 1.768
    }
+  },
+  {
+   "id": "v8-tank",
+   "when": "2026-09-22T18:30:10",
+   "note": "think tank: headless runner, micro-dishes on a shared device, tank scheduler + 4 suites, batched submits (exact); Tero n=21: MD 0.74, cov min 75% - n=3 pass does not hold",
+   "features": {},
+   "src_sha256": "227bee9833eeb161",
+   "bench": "bench-v8-tank.json",
+   "summary": {
+    "pass": false,
+    "quality": "normal",
+    "n": 2048,
+    "T0": {
+     "replay": true,
+     "replayAdaptive": true,
+     "exportRoundTrip": true,
+     "nutrientConserved": true,
+     "microDish": true,
+     "batchExact": true,
+     "bareStaysBare": true,
+     "contained": true,
+     "catalogSmoke": true
+    },
+    "T0_passed": 9,
+    "T0_total": 9,
+    "T1": {
+     "diffusion": true,
+     "fisherSpeed": true,
+     "edenRoughness": true,
+     "dlaDimension": true,
+     "etaSweep": true,
+     "morphologyDiagram": true,
+     "resolutionInvariance": false
+    },
+    "T1_passed": 6,
+    "T1_total": 7,
+    "T2": {
+     "teroFixture": true,
+     "physarumNetwork": true
+    },
+    "T2_passed": 2,
+    "T2_total": 2,
+    "boxD_dla": 1.7596020228833158,
+    "beta_eden": 0.433,
+    "ms_per_step": 1.873,
+    "agents": 54912,
+    "cell_ms": 1.781
+   }
   }
  ]
 }

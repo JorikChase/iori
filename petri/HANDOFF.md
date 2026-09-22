@@ -10,7 +10,21 @@ python3 petri/serve.py 8770        # or launch config "petri"; then http://local
 
 `?q=draft|normal|fine` picks the grid (1024² / 2048² / 4096²; 94 / 47 / 23 µm cells). Canonical https://iori.me/petri/ (registered in `pages.meta.json`, site menu bottom-right). WebGPU only.
 
-Harness (T0 + T4), from the page console — no rAF or timers inside, so it runs at full speed in a hidden tab:
+**Headless (preferred, 2026-09-22):** the scorecard and the think tank run in the installed Chrome,
+headless, with no downloads and without touching the app's pane (a hidden pane throttled it ~4×):
+
+```bash
+node petri/tools/bench.mjs --tag v8                 # full scorecard -> petri/ref/bench-v8.json (~5 min)
+node petri/tools/bench.mjs --only replay,kernelCost # some rows
+node petri/tools/bench.mjs --tank catalogue         # think tank suite -> petri/ref/tank-catalogue.json
+node petri/tools/bench.mjs --expr "…JS…"            # anything, awaited, no 45 s limit
+```
+
+The think tank (`tank.js`, `tank-suites.js`, design in `study/07-think-tank.md`) runs many dishes on one
+GPU device from a declarative spec. The suites are `catalogue`, `competitions`, `sweep` and `replicates`.
+Each row carries its Dish ID and replays alone.
+
+In-page, from the console (still works):
 
 ```js
 const H = await import('/petri/harness.js'); await H.runAll({ tag: 'p1-normal' })   // -> petri/ref/bench-<tag>.json
@@ -281,6 +295,30 @@ now measures with the engine's own extraction (1 % of p99 + closing), which the 
 promised; its private 5 %/no-closing extraction cut the forager's trail into ~100 pieces. Decided on
 that principle before reading the numbers: 3/4 gates (degree-3 0.97, width σ 0.40, α 0.068 ✓), and
 **TL/MST 1.44 still misses the 1.45 floor** — the forager's largest network is a little too tree-like.
+
+### Sixth round (2026-09-22): the automata think tank — sealed `v8-tank`
+
+iori asked for a testing environment where many small dishes run in parallel at accelerated speed, as
+an "automata think tank" for the schemes after the MVP. Design and measurements are in
+`study/07-think-tank.md`. Built:
+
+- `tools/bench.mjs` runs the harness in headless Chrome: full scorecard 5.3 min against ~15 min in the
+  hidden pane, identical numbers.
+- **Micro-dishes** on a shared device (`createEngine({dishMm, cellMm, device})`).
+- `tank.js`/`tank-suites.js`: a declarative spec expands to many dishes, stepped round-robin, measured
+  on a cadence, one replayable row per dish.
+- **Batched submits**: up to 32 steps per command buffer, exact.
+
+New T0 rows `microDish` and `batchExact` pass. The catalogue suite (94 organisms × 3000 steps) runs in
+**4.2 s**, which is the GPU limit.
+
+**The tank's first real finding: Tero at n = 21.** TL 1.69 ± 0.12 and FT 0.92 ± 0.05 are in Tero's
+regime. MD/MST is 0.74 ± 0.07, under the band's 0.75, and the worst organism reached 75 % coverage.
+The scorecard's n = 3 seeds were the good ones. Proposed: score the fixture at n = 21 (stricter,
+Tero's n), which turns T2 red until MD and coverage improve.
+
+Bench hygiene, again: a VISIBLE in-app petri page renders every frame and inflated T4 by 60 %
+(2.84 against 1.78 ms). Close the pane, or at least pause it, before any benchmark.
 
 ## Deviations from the spec, deliberate for P1a
 

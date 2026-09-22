@@ -12,7 +12,7 @@ import argparse, gzip, hashlib, json, os, shutil, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SRC = ['index.html', 'engine.js', 'kernels.js', 'catalog.js', 'render.js', 'ui.js', 'ui.css',
-       'harness.js', 'metrics.js', 'graph.js', 'tero.js', 'graphworker.js', 'fixture.js', 'peristalsis.js', 'serve.py']
+       'harness.js', 'metrics.js', 'graph.js', 'tero.js', 'graphworker.js', 'fixture.js', 'peristalsis.js', 'tank.js', 'tank-suites.js', 'tools/bench.mjs', 'serve.py']
 INDEX = os.path.join(HERE, 'index.json')
 
 
@@ -81,6 +81,7 @@ def main():
         if not os.path.exists(p):
             print(f'  warn: {name} missing')
             continue
+        os.makedirs(os.path.dirname(os.path.join(dest, 'src', name)), exist_ok=True)
         shutil.copy2(p, os.path.join(dest, 'src', name))
         with open(p, 'rb') as f:
             digest.update(f.read())

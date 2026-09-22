@@ -118,5 +118,6 @@ A small dish is only a faster version of a test if the test does not measure sca
   **The scorecard's n = 3 pass does not survive n = 21.** Under the same rule, MD's mean is just under
   the 0.75 band edge and one organism reaches 75 % < 80 %. Seeds 2010–2012 happen to sit in the good
   half. The honest reading: the fixture passes on length and fault tolerance, sits at the edge on path
-  distance, and is not yet reliable on coverage. Proposed: the scored protocol becomes n = 21 via the
-  tank (the stricter one, and Tero's), which turns T2.teroFixture red until MD and coverage improve.
+  distance, and is not yet reliable on coverage. **Adopted 2026-09-23 (iori agreed):** the scored protocol is n = 21 through the tank — the stricter
+  one, and Tero's own — so `T2.teroFixture` is red until path distance and coverage improve. The row
+  costs ~7.5 min, which takes a full scorecard to ~13 min.

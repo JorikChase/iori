@@ -1,0 +1,48 @@
+{
+ "id": "v9-tero21",
+ "when": "2026-09-23T00:42:52",
+ "note": "Tero fixture scored at Tero's own n=21 through the tank (stricter; red): MD 0.739 vs band 0.75, worst organism 75% coverage",
+ "features": {},
+ "src_sha256": "8dbb8c09b82dd9ae",
+ "bench": "bench-v9-tero21.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "microDish": true,
+   "batchExact": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 9,
+  "T0_total": 9,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "T2": {
+   "teroFixture": false,
+   "physarumNetwork": true
+  },
+  "T2_passed": 1,
+  "T2_total": 2,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 1.848,
+  "agents": 54912,
+  "cell_ms": 1.883
+ }
+}

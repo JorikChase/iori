@@ -314,8 +314,8 @@ New T0 rows `microDish` and `batchExact` pass. The catalogue suite (94 organisms
 
 **The tank's first real finding: Tero at n = 21.** TL 1.69 ± 0.12 and FT 0.92 ± 0.05 are in Tero's
 regime. MD/MST is 0.74 ± 0.07, under the band's 0.75, and the worst organism reached 75 % coverage.
-The scorecard's n = 3 seeds were the good ones. Proposed: score the fixture at n = 21 (stricter,
-Tero's n), which turns T2 red until MD and coverage improve.
+The scorecard's n = 3 seeds were the good ones. Adopted 2026-09-23 (iori agreed): the fixture is scored at
+n = 21 through the tank, so T2 is red until path distance and coverage improve — bands untouched.
 
 Bench hygiene, again: a VISIBLE in-app petri page renders every frame and inflated T4 by 60 %
 (2.84 against 1.78 ms). Close the pane, or at least pause it, before any benchmark.

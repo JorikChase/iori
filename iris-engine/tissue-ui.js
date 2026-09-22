@@ -115,15 +115,19 @@
         const r = X.eye, t0 = performance.now(), tm = { at: new Date().toISOString(), eye: r, steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
         try {
             const arrival = !!opts.arrival; tm.path = arrival ? 'arrival' : 'measured';   // tm.shipped says whether the arrival's measurements applied
-            let c1 = null; if (arrival) { try { c1 = await fetch(CASE1(r)).then(q => q.ok ? q.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1(r) + ')'); }
+            // study/11 step 1: BOTH paths read the eye's PINNED case (data/case-NN.json) — the one its layer model was measured
+            // and shipped on. ref/cases.json belongs to the legacy fits (presets, casebook) and is re-fitted on its own; were the
+            // button to read it, its measured eye would drift from the shipped one. ref/cases.json only if the pinned file is missing.
+            let c1 = null; try { c1 = await fetch(CASE1(r)).then(q => q.ok ? q.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1(r) + ')');
             if (!c1 && !cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
+            const cs = c1 || cases[CASE(r)];
             T.on = false;
             // the case's pose, genome and photo: the layer model is measured on exactly this frame (calibrate reads it)
             await (O ? O.quietly : (f => f()))(async () => {
-                if (c1) { F.frameFromCase(CASE(r), c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
-                else { await F.renderCaseThumb(CASE(r), cases[CASE(r)], document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
+                if (arrival && c1) { F.frameFromCase(CASE(r), c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
+                else { await F.renderCaseThumb(CASE(r), cs, document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
                 // the cached primitives only when they are this eye's (a dial re-load); another eye fetches its own
-                let st = null; await T.proof(SRC(r), { json: T.json && T.json.ref === CASE(r) ? T.json : undefined, shipped: c1 ? CAL(r) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                let st = null; await T.proof(SRC(r), { json: T.json && T.json.ref === CASE(r) ? T.json : undefined, shipped: arrival && c1 ? CAL(r) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
                 tm.shipped = !!(T.shipped && T.shipped.light);
             });
             eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye ' + r); }

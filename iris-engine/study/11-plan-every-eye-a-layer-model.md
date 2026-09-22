@@ -249,6 +249,36 @@ the pupillary zone and the right side render light blue-grey instead of grey-gre
 `case-09.json`, `tissue-09.cal.bin` (arrival 0.27 s vs 3.72 s measured, max 1 / 255, 598 KB). All four reference eyes
 now greet visitors.
 
+### 3.4 Step 1 of the rebuild (iori, 2026-09-22: "do step 1 now, then G1")
+
+The full production rebuild waits for G2 (furrows as primitives: the layer eyes stop borrowing legacy relief from the
+cases) and S4 (the compact format). Step 1 removes only what 0.9.5 left visibly stale:
+
+- **The Load button reads the pinned case.** Both paths now read `data/case-NN.json` — the case the eye's layer model was
+  measured and shipped on; `ref/cases.json` belongs to the legacy fits. (Verified: with the freshly baked case the same
+  measured load gives 84.898, up to 83 / 255 off — the drift the pinning prevents.)
+- **Legacy cases and presets re-fitted under 0.9.5** (`F.bakePresets()`, CAPTURE, fitHQ → `ref/cases.json`,
+  `ref/presets.json`): 09 65.2 → **71.2**, 35 69.7 → **72.5**, 25 65.2 → 63.9, 26 68.2 → 66.7 (each against the old preset
+  in its own era; against the stale presets under 0.9.5 — 63.7–66.0 at NORMAL — every eye is better). The start eyes'
+  stand-ins regenerated from them.
+- **Why 25 and 26 lose ~1 point in the legacy fitter.** Not the gamut: the engine's own LUT reaches both *better* at
+  450 nm (`tools/t7/engine_gamut.py`: 25 ΔE 2.66 → 1.16, 26 3.46 → 0.84, hue error 3.6° → 0.7°). The fitted eye comes out
+  too green and not yellow enough, worst in the gaps between fibres (26, band 0.22: gap a\* −18 against the photo's −2;
+  bands 0.33–0.44: ridge b\* 16 against 31–33), with the camera saturation gain at 1.6 amplifying it. The legacy
+  fitter has no hue rotation, and its gap materials use constants tuned against the old LUT (`gapStromaMul` 0.35,
+  `gapMelMul` 1.2). Re-tuning it belongs to the production rebuild.
+
+**Open, measured, not solved: the measured load is path-dependent.** In a fresh page, eye 26's measured layer model is
+84.245 if the page's first layer load is a direct `renderCaseThumb` + `T.proof`, and 84.627 if it is the Tissue window's
+`X.load` — and whichever comes first holds for every later load in that page (max 14 / 255 between the two). Only the
+de-light measurement differs (its tile coordinate maps cover 992 421 vs 992 601 pixels); the light (`T.irr`), the
+region, the margin and the origin are identical. Ruled out: the case contents (old and pinned give the same), smoothed
+state drift, load timing (a 6 s wait changes nothing), yielding between stages (a staged direct load first gives
+84.245), `E.state` at the instant `measureDelight` starts (identical), stray texture bindings (every sampler of the photo
+pass is rebound per draw), the margin uniforms (set every draw), the deck-height cache, the window's live map.
+Consequence: the Load button can give a picture up to 14 / 255 off the shipped one. Visitors never measure (the arrival
+is deterministic), so it is a dev-side determinism bug. Next step: bisect `X.load` line by line in a fresh page.
+
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 
 Read as: Cmd / Ctrl + S no longer opens the browser's useless "save page as"; it downloads a session file, and

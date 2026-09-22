@@ -219,3 +219,7 @@ body.w31-shell #gl, body.w31-shell #w31-ov { touch-action: none; }
 /* study/11 SAVE: a menu item's shortcut, right-aligned as in 3.11 */
 .w31-mi .w31-sc { float: right; margin-left: 28px; }
 .w31-mi.hot .w31-sc, .w31-mi:hover .w31-sc { color: #fff; }
+/* study/11 T7.3: the Tissue window's eye picker — the eyes with a layer model */
+.w31[data-key="tissue"] .t-pick { display: flex; align-items: center; gap: 0; margin: 0 0 6px; }
+.w31[data-key="tissue"] .t-pick > span { margin-right: 8px; }
+.w31[data-key="tissue"] .t-pick .w31-b { min-width: 42px; }

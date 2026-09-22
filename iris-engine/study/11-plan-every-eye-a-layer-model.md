@@ -173,6 +173,12 @@ Still to do before an eye joins the rotation: iori's look at each review sheet (
 for its blue), then T7.3 (the Tissue window loads any accepted eye; per-eye case + measurement
 files as in S3) and S5.
 
+### 3.2 T7.3 + S5 built (2026-09-22) — three eyes on arrival
+
+iori looked at the review sheets: **25 and 35 look good**. Both are published with their own case and measurement files
+(25: arrival 0.24 s vs 2.87 s measured, max 1 / 255, 607 KB; 35: 0.19 s vs 2.20 s, max 1 / 255, 482 KB), the Tissue
+window picks among 25 · 26 · 35, and each visit meets one of them (ledger §7). 09 joins when its blue is fixed (§3.3).
+
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 
 Read as: Cmd / Ctrl + S no longer opens the browser's useless "save page as"; it downloads a session file, and

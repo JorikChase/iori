@@ -244,6 +244,7 @@
         ['Fi&t', () => [{ l: '&Photo…', run: () => { show(byKey('fit'), true); $('fit-load').click(); } }, { l: '&Reference', sub: () => [...$('fit-ref').options].filter(o => o.value).map(o => ({ text: o.textContent, run: () => { show(byKey('fit'), true); const r = $('fit-ref'); r.value = o.value; r.dispatchEvent(new Event('change', { bubbles: true })); } })) }, { l: '&Close photo', run: click('fit-close') }, '-', { l: '★ Fit &HQ', run: () => { show(byKey('fit'), true); $('fit-hq').click(); } }, { l: '&Auto align', run: click('fit-auto') }, { l: '&Solve pose', run: click('fit-solve') }, { l: 'Fit &global', run: click('fit-global') }, { l: 'S&top', run: click('fit-stop') }, '-', { l: '&Overlay on the iris', sub: () => { const ov = window.__irisOverlay; return ov ? ov.MODES.map(m => ({ l: m[0].toUpperCase() + m.slice(1), chk: () => ov.mode === m, run: () => ov.set(m) })) : [{ l: '(loading)', dis: 1 }]; } }, '-', { l: '&Diagnostics', run: click('fit-diag') }, { l: '&Casebook', run: click('fit-casebook') }]],
         ['T&issue', () => { const X = window.__irisTissueUI, T = window.IrisTissue; if (!X) return [{ l: '(loading)', dis: 1 }];
             return [{ l: '&Layer model', chk: () => !!(T && T.on), dis: !X.canToggle(), run: () => X.toggle() }, { l: X.loadLabel(), dis: !X.canLoad(), run: () => X.load() }, '-',
+                ...(X.eyes ? X.eyes().map(r => ({ l: 'Eye ' + r, chk: () => X.eye === r, dis: X.loading, run: () => X.pick(r) })) : []), '-',
                 { l: '&Point', run: () => X.go('inspect', 'point'), dis: !X.ready() }, { l: '&Section', run: () => X.go('inspect', 'section'), dis: !X.ready() }, { l: '&Contours', run: () => X.go('inspect', 'contours'), dis: !X.ready() },
                 { l: 'P&robe', run: () => X.go('probe'), dis: !X.ready() }, '-', { l: '&Dials…', run: () => X.go('dials'), dis: !X.ready() }, { l: 'Re-&load', run: () => X.reload(), dis: !X.ready() }]; }],
         ['&Window', () => [{ l: '&Cascade', run: cascade, dis: phone }, { l: '&Tile', run: tile, dis: phone }, '-', ...WINS.map((W, i) => ({ l: `&${i + 1} ${W.title}`, chk: () => W.open, run: () => show(W, true) }))]],
@@ -361,7 +362,7 @@
     let creditKey = null;
     function markCredit() {
         if (!refs) return; const f = E.fit && E.fit.fit, X = window.__irisTissueUI, m = /^fit-(\d\d)/.exec(E.state.preset || '');
-        const file = X && X.st === 'loaded' && window.IrisTissue && window.IrisTissue.on ? ISO[2] : f && f.img && ISO.includes(f.name) ? f.name : m ? ISO.find(x => x.startsWith(m[1])) : null;
+        const file = X && X.st === 'loaded' && window.IrisTissue && window.IrisTissue.on && window.IrisTissue.src ? window.IrisTissue.src.ref : f && f.img && ISO.includes(f.name) ? f.name : m ? ISO.find(x => x.startsWith(m[1])) : null;
         if (file === creditKey) return; creditKey = file; const r = file && refs.find(x => x.file === file);
         credit.style.display = r ? '' : 'none'; if (r) credit.textContent = `Eye ${r.file.slice(0, 2)} · fitted to “${title(r)}” by ${r.author} · ${r.license}`; }
 
@@ -485,8 +486,8 @@
     if (kept) window.__irisSessionPending = kept;
     const START = window.__irisStartEye, startOn = !!START && !urlEye && !kept;
     if (startOn) { try { const g = E.genomeFromSeed(START.seed); Object.assign(g.globals, START.globals); g.coll = START.coll; delete g.fitted;
-        E.importID({ v: 2, genome: g, fields: {}, view: START.view }); E.state.useRot = false; E.state.view = [0, 0, 1, 1]; E.state.preset = 'start-26'; E.atlas.dirty = true; E.resetAccumulation();
-        window.__irisStartPending = { file: START.file, zoom: E.state.zoomPhoto }; } catch (e) { console.warn('start eye', e); } }
+        E.importID({ v: 2, genome: g, fields: {}, view: START.view }); E.state.useRot = false; E.state.view = [0, 0, 1, 1]; E.state.preset = 'start-' + START.ref; E.atlas.dirty = true; E.resetAccumulation();
+        window.__irisStartPending = { ref: START.ref, file: START.file, zoom: E.state.zoomPhoto }; } catch (e) { console.warn('start eye', e); } }
     document.body.classList.add('w31-shell');
     buildChrome(); WINS.forEach(makeWin); buildControl(byKey('control'));
     const panel = $('ui-panel'); if (panel) panel.style.display = 'none';
@@ -501,7 +502,7 @@
     setInterval(() => { markBusy(); markLiveness(); markCredit(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return
     let last = performance.now(), fT = last, fN = 0, fps = 0;
     (function frame(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; stepWins(dt); syncScrubs(); markLiveness(); markCredit(); const busy = markBusy(); fN++; if (now - fT > 1000) { fps = fN * 1000 / (now - fT); fN = 0; fT = now; } if (flashT > 0) flashT -= dt;
-        const st = $('w31-status'); if (st) { const TX = window.__irisTissueUI, t = flashT > 0 ? flash : TX && TX.loading && TX.quietOpen ? `Eye 26 · growing its tissue…  ·  ${String(E.quality).toUpperCase()}` : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : window.__irisTissueUI && window.__irisTissueUI.loading ? 'Loading the layer model' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
+        const st = $('w31-status'); if (st) { const TX = window.__irisTissueUI, t = flashT > 0 ? flash : TX && TX.loading && TX.quietOpen ? `Eye ${TX.eye || ''} · growing its tissue…  ·  ${String(E.quality).toUpperCase()}` : busy ? `${E.state.capturing ? 'Capturing' : E.fit && E.fit.fit.benchRunning ? 'Bench running' : window.__irisTissueUI && window.__irisTissueUI.loading ? 'Loading the layer model' : 'Fitting'}…  ·  ${String(E.quality).toUpperCase()}` : `${String(E.quality).toUpperCase()} · ${fps.toFixed(0)} fps · ${E.ATLAS.join('×')}`; if (st.textContent !== t) st.textContent = t; } requestAnimationFrame(frame); })(last);
     // study/10 §9: the control ids the menus reach — items built with click(id) carry it, others name it in `ctl`
     async function menuIds() { const out = new Set(), walk = async items => { if (typeof items === 'function') { try { items = await items(); } catch (e) { items = []; } } for (const it of items || []) { if (it === '-' || !it) continue; const id = it.ctl || (it.run && it.run.ctl); if (id) out.add(id); if (it.sub) await walk(it.sub); } };
         for (const [, items] of MENUS) await walk(items); return [...out]; }

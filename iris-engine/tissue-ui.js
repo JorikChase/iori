@@ -1,6 +1,6 @@
 // tissue-ui.js — the Tissue window (study/10 §7; the layout iori approved: study/tissue-window-mock.html, 2026-09-21).
 // Loaded by ui31.js after overlay.js. It fills the shell's `tissue` window and is the only hand on the layer model:
-// load (eye 26 only, said so), on / off, Inspect (Point · Section · Contours on the live iris), Probe (a camera standing
+// the eye (any with a layer model — the arrival rotation, study/11 T7.3), load, on / off, Inspect (Point · Section · Contours on the live iris), Probe (a camera standing
 // in the tissue; tap the iris to place it, drag its view to look around), Dials (collapsed behind their page button).
 // Engine API only — IrisTissue.proof / atUV / sectionUV / heightField / probe; no shader, no fit.js. Its state lives
 // here, never in the engine's `state`. The live view is mapped to tissue (u, v) by the engine's own coordinate map
@@ -11,24 +11,27 @@
     const W = U.WINS.find(w => w.key === 'tissue'); if (!W) return;
     const F = E.fit, fit = F.fit, state = E.state, gl = E.gl, cv = E.canvas, $ = id => document.getElementById(id);
     const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
-    const CASE = '26-green-crypts-isolated.jpg', SRC = 'data/tissue-26.json';
-    // study/11 S3: the arrival's files — the eye's own case (no photo, not the 5 MB ref/cases.json) and its measurements
-    const CASE1 = 'data/case-26.json', CAL = 'data/tissue-26.cal.bin';
-    const X = window.__irisTissueUI = { loading: false, st: 'none', page: 'inspect', tool: 'point', probe: { uv: null, heightUm: 150, yaw: 20, pitch: -14, fov: 75, contourUm: 25, mode: 'clay' } };
-    let eyeAt = null, avail = null, cases = null, prog = [0, 1, ''];
+    // study/11 T7.3: every eye with a layer model (the arrival rotation, start-eye.js) — its photograph, its primitives,
+    // and (S3) the arrival's files: its own case (no photo, not the 5 MB ref/cases.json) and its shipped measurements
+    const EYES = window.__irisStartEyes ? Object.keys(window.__irisStartEyes).sort() : ['26'];
+    const CASE = r => (window.__irisStartEyes && window.__irisStartEyes[r] ? window.__irisStartEyes[r].file : '26-green-crypts-isolated.jpg');
+    const SRC = r => `data/tissue-${r}.json`, CASE1 = r => `data/case-${r}.json`, CAL = r => `data/tissue-${r}.cal.bin`;
+    const X = window.__irisTissueUI = { loading: false, st: 'none', page: 'inspect', tool: 'point', eye: (window.__irisStartPending && window.__irisStartPending.ref) || '26',   /* the arriving eye; 26 for tests (?start=off) */ probe: { uv: null, heightUm: 150, yaw: 20, pitch: -14, fov: 75, contourUm: 25, mode: 'clay' } };
+    let eyeAt = null, avail = {}, cases = null, prog = [0, 1, ''];
 
     // ---------------------------------------------------------------------------------------------------------
     // the window
     // ---------------------------------------------------------------------------------------------------------
     W.body.innerHTML = `
+      <div class="t-pick" id="w31t-pick"><span>Eye</span>${EYES.map(r => `<button class="w31-b" id="w31t-eye-${r}" data-eye="${r}">${r}</button>`).join('')}</div>
       <div data-st="loaded"><div class="t-row t-top"><button class="t-chk" id="w31t-on"><i></i>Layer model</button><span class="t-score" id="w31t-score"></span></div>
-        <div class="t-note">Measured from the photograph of <b>eye 26</b> — the only eye with a layer model so far (09, 25 and 35 follow in T7). <span id="w31t-stats"></span></div></div>
-      <div data-st="loading"><div class="t-note">Loading the layer model of <b>eye 26</b>…</div><div class="t-prog"><b id="w31t-bar"></b></div><div class="t-stage" id="w31t-stage"></div></div>
-      <div data-st="none"><div class="t-note">The layer model is the measured tissue of one photographed eye: its holes, the fibres with their veins, the sheet's guides, the ruff. <b>Only eye 26 has one so far</b> (09, 25, 35 in T7). Loading it puts eye 26 on the screen.</div>
-        <div class="w31-brow" style="margin:0"><button class="w31-b def" id="w31t-load">Load eye 26</button></div></div>
-      <div data-st="other"><div class="t-note warn">This eye has no layer model — the one loaded belongs to <b>eye 26</b>, so it is switched off. Only eye 26 has one so far (09, 25, 35 in T7).</div>
-        <div class="w31-brow" style="margin:0"><button class="w31-b" id="w31t-switch">Switch to eye 26 and load</button></div></div>
-      <div data-st="unavailable"><div class="t-note warn">The layer model of eye 26 is not published on this site yet (its primitives are 4.9 MB, and the reference photograph it is measured on is not public). It runs on the development copy.</div></div>
+        <div class="t-note">Measured from the photograph of <b>eye <span class="t-eye"></span></b>. <span id="w31t-stats"></span></div></div>
+      <div data-st="loading"><div class="t-note">Loading the layer model of <b>eye <span class="t-eye"></span></b>…</div><div class="t-prog"><b id="w31t-bar"></b></div><div class="t-stage" id="w31t-stage"></div></div>
+      <div data-st="none"><div class="t-note">The layer model is the measured tissue of one photographed eye: its holes, the fibres with their veins, the sheet's guides, the ruff. Eyes with one: <span id="w31t-eyes"></span>. Loading one puts that eye on the screen.</div>
+        <div class="w31-brow" style="margin:0"><button class="w31-b def" id="w31t-load">Load eye <span class="t-eye"></span></button></div></div>
+      <div data-st="other"><div class="t-note warn">This eye has no layer model — the one loaded belongs to <b>eye <span class="t-eye"></span></b>, so it is switched off.</div>
+        <div class="w31-brow" style="margin:0"><button class="w31-b" id="w31t-switch">Switch to eye <span class="t-eye"></span> and load</button></div></div>
+      <div data-st="unavailable"><div class="t-note warn">The layer model of eye <span class="t-eye"></span> is not published on this site yet. It runs on the development copy.</div></div>
       <div data-st="error"><div class="t-note warn" id="w31t-err"></div><div class="w31-brow" style="margin:0"><button class="w31-b" id="w31t-retry">Try again</button></div></div>
       <div data-st="loaded" id="w31t-pages">
         <div class="t-pages"><button class="w31-b" data-p="inspect" id="w31t-p-inspect">Inspect</button><button class="w31-b" data-p="probe" id="w31t-p-probe">Probe</button><button class="w31-b" data-p="dials" id="w31t-p-dials">Dials</button></div>
@@ -85,43 +88,50 @@
     qa('[data-tool]').forEach(b => b.onclick = () => X.go('inspect', b.dataset.tool));
     qa('[data-m]').forEach(b => b.onclick = () => { PS.mode = b.dataset.m; sync(); probeDraw(); });
     q('#w31t-on').onclick = () => X.toggle();
+    qa('[data-eye]').forEach(b => b.onclick = () => X.pick(b.dataset.eye));
     q('#w31t-load').onclick = () => X.load(); q('#w31t-switch').onclick = () => X.load(); q('#w31t-retry').onclick = () => X.load();
 
     // ---------------------------------------------------------------------------------------------------------
-    // the model: load (eye 26's case → the primitives, staged), on / off, the eye it belongs to
+    // the model: load (the chosen eye's case → its primitives, staged), on / off, the eye it belongs to
     // ---------------------------------------------------------------------------------------------------------
     async function available() {
-        if (avail !== null) return avail;
-        try { const [a, b] = await Promise.all([fetch(SRC, { method: 'HEAD' }), fetch('ref/' + CASE, { method: 'HEAD' })]); avail = a.ok && b.ok; } catch (e) { avail = false; }
-        return avail; }
+        const r = X.eye; if (avail[r] !== undefined) return avail[r];
+        try { const [a, b] = await Promise.all([fetch(SRC(r), { method: 'HEAD' }), fetch('ref/' + CASE(r), { method: 'HEAD' })]); avail[r] = a.ok && b.ok; } catch (e) { avail[r] = false; }
+        return avail[r]; }
     X.ready = () => X.st === 'loaded' && !X.loading;
-    X.canLoad = () => !X.loading && avail !== false;
+    X.canLoad = () => !X.loading && avail[X.eye] !== false;
     X.canToggle = () => X.st === 'loaded' && !X.loading;
-    X.loadLabel = () => X.st === 'loaded' ? 'Re-load eye &26' : X.st === 'other' ? 'Switch to eye &26 and load' : 'Load eye &26';
+    X.loadLabel = () => (X.st === 'loaded' && T.src && T.src.ref === CASE(X.eye) ? 'Re-load eye ' : X.st === 'other' ? 'Switch to eye ' : 'Load eye ') + X.eye;
+    X.eyes = () => EYES.slice();
+    // choose the eye the window loads; if a model is on screen, the chosen eye replaces it
+    X.pick = r => { if (!EYES.includes(r) || X.loading) return; const was = X.eye; X.eye = r; sync(); if (X.st === 'loaded' && was !== r) X.load(); };
     // opts.arrival (the start eye): the eye's case file, its frame without the photograph, the shipped measurements —
     // anything that does not apply falls back to measuring inside proof(). Without it (the Load button, a dial, iori D2):
     // the photograph, and the light and shading measured on this device, as before.
     X.load = async (opts = {}) => {
         if (X.loading) return; if (!(await available())) { X.st = 'unavailable'; sync(); return; }
-        X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye 26']; if (!X.quietOpen) U.showWindow('tissue', true); sync();
+        X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye ' + X.eye]; if (!X.quietOpen) U.showWindow('tissue', true); sync();
         // study/10 S0: every load records where its time goes (Help ▸ Load timing shows it, on any device)
-        const t0 = performance.now(), tm = { at: new Date().toISOString(), steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
+        const r = X.eye, t0 = performance.now(), tm = { at: new Date().toISOString(), eye: r, steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
         try {
             const arrival = !!opts.arrival; tm.path = arrival ? 'arrival' : 'measured';   // tm.shipped says whether the arrival's measurements applied
-            let c1 = null; if (arrival) { try { c1 = await fetch(CASE1).then(r => r.ok ? r.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1 + ')'); }
+            let c1 = null; if (arrival) { try { c1 = await fetch(CASE1(r)).then(q => q.ok ? q.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1(r) + ')'); }
             if (!c1 && !cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
             T.on = false;
             // the case's pose, genome and photo: the layer model is measured on exactly this frame (calibrate reads it)
             await (O ? O.quietly : (f => f()))(async () => {
-                if (c1) { F.frameFromCase(CASE, c1); mark('eye 26: frame + import + first fit render (no photo)'); }
-                else { await F.renderCaseThumb(CASE, cases[CASE], document.createElement('canvas')); mark('eye 26: photo + import + first fit render'); }
-                let st = null; await T.proof(SRC, { json: T.json, shipped: c1 ? CAL : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                if (c1) { F.frameFromCase(CASE(r), c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
+                else { await F.renderCaseThumb(CASE(r), cases[CASE(r)], document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
+                // the cached primitives only when they are this eye's (a dial re-load); another eye fetches its own
+                let st = null; await T.proof(SRC(r), { json: T.json && T.json.ref === CASE(r) ? T.json : undefined, shipped: c1 ? CAL(r) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
                 tm.shipped = !!(T.shipped && T.shipped.light);
             });
-            eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye 26'); }
-            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); mark('first frames on screen');
+            eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye ' + r); }
+            // a background tab (or a hidden test pane) delivers no frames: never let that hold the load open
+            const fr = await Promise.race([new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))), new Promise(r => setTimeout(() => r(false), 1000))]);
+            mark(fr ? 'first frames on screen' : 'first frames (the tab is hidden — not waited for)');
             tm.total = Math.round(performance.now() - t0); delete tm.last;
-            tm.bytes = performance.getEntriesByType('resource').filter(e => /cases\.json|case-26|tissue-26|26-green-crypts/.test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
+            tm.bytes = performance.getEntriesByType('resource').filter(e => new RegExp(`cases\\.json|case-${r}|tissue-${r}|/${r}-`).test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
             X.timing = tm; try { localStorage.setItem('irisLoadTiming', JSON.stringify(tm)); } catch (e) {}
         } catch (e) { X.st = 'error'; q('#w31t-err').textContent = 'The layer model could not be loaded: ' + (e && e.message || e); console.error(e); }
         X.loading = false; mapSig = ''; heights = null; contourKey = ''; sync(); secDraw(); probeDraw(); marks();
@@ -141,7 +151,7 @@
     // closed; the camera, view and zoom the visitor had are given back, so the eye keeps following the pointer. Skipped
     // without float render targets (the layer model needs them) or when the browser asks to save data.
     X.startEye = async () => {
-        const P = window.__irisStartPending; window.__irisStartPending = null; if (!P) return;
+        const P = window.__irisStartPending; window.__irisStartPending = null; if (!P) return; if (P.ref && EYES.includes(P.ref)) X.eye = P.ref;
         const conn = navigator.connection; if ((conn && conn.saveData) || !gl.getExtension('EXT_color_buffer_float')) return;
         if (!(await available())) return;
         const keep = { useRot: state.useRot, view: (state.view || [0, 0, 1, 1]).slice(), zoom: state.zoomPhoto, camRot: (state.camRot || [0, 0]).slice() };
@@ -149,21 +159,21 @@
         try { await X.load({ arrival: true }); }
         finally { state.fitting = false; X.quietOpen = false; }
         if (X.st !== 'loaded') return;
-        state.useRot = keep.useRot; state.view = keep.view; state.zoomPhoto = E.target.zoomPhoto = keep.zoom; state.camRot = keep.camRot; state.preset = 'fit-26';
-        E.resetAccumulation(); sync(); marks(); U.say('Eye 26 — its measured tissue'); };
+        state.useRot = keep.useRot; state.view = keep.view; state.zoomPhoto = E.target.zoomPhoto = keep.zoom; state.camRot = keep.camRot; state.preset = 'fit-' + X.eye;
+        E.resetAccumulation(); sync(); marks(); U.say(`Eye ${X.eye} — its measured tissue`); };
     // study/11 SAVE: what session.js needs — the eye this window loads, the dial rows redrawn after a restore, sync
-    X.eyeFile = () => CASE;
+    X.eyeFile = () => CASE(X.eye);
     X.syncDials = () => DIALS.forEach(r => { const k = r._key; r._inp.value = T[k] === undefined ? (k === 'wallZ' ? 2.5 : 0) : T[k]; r._show(); r._draw && r._draw(); });
     X.sync = () => sync();
     X.toggle = () => { if (X.st !== 'loaded') return X.load(); T.on = !T.on; E.resetAccumulation(); sync(); marks(); };
     function stats() {
         const S = T.sets || {}, n = k => (S[k] ? (Array.isArray(S[k]) ? S[k].length : 0) : 0);
-        const beads = T.marg && T.marg.beads ? T.marg.beads.length : 67;
+        const beads = T.json && T.json.beads ? T.json.beads.length : 0;   // the eye's own ruff (T.marg never held them; 67 was eye 26's, typed in)
         q('#w31t-stats').textContent = `${n('outlines')} holes · ${(n('fibres') + n('sfib')).toLocaleString('en')} fibres · ${(n('veins') + n('svein')).toLocaleString('en')} veins · ${n('guides').toLocaleString('en')} guides · ${beads} ruff beads.`;
         try { F.renderFit(); const s = F.score();   /* score() compares the LAST fit render: render the model first */ q('#w31t-score').textContent = s && isFinite(s.match2) ? `MATCH2 ${s.match2.toFixed(1)} · MATCH ${s.match.toFixed(1)}` : ''; } catch (e) { q('#w31t-score').textContent = ''; }
     }
-    // a different eye (a preset, an ID, a new fit) must not wear eye 26's tissue: the model switches itself off
-    function watchEye() { if (X.loading) return; if (X.st === 'loaded' && eyeAt && E.genome !== eyeAt) { T.on = false; X.st = 'other'; sync(); marks(); U.say('Layer model off — it belongs to eye 26'); } }
+    // a different eye (a preset, an ID, a new fit) must not wear the loaded eye's tissue: the model switches itself off
+    function watchEye() { if (X.loading) return; if (X.st === 'loaded' && eyeAt && E.genome !== eyeAt) { T.on = false; X.st = 'other'; sync(); marks(); U.say('Layer model off — it belongs to eye ' + X.eye); } }
 
     // ---------------------------------------------------------------------------------------------------------
     // the live view → tissue (u, v): the engine's coordinate map at the live camera (as design.js does for DESIGN)
@@ -307,6 +317,8 @@
         qa('[data-st]').forEach(el => { el.style.display = el.dataset.st === X.st ? '' : 'none'; });
         q('#w31t-bar').style.width = Math.round(100 * prog[0] / Math.max(1, prog[1])) + '%'; q('#w31t-stage').textContent = `${prog[0]} / ${prog[1]} · ${prog[2]} · the eye stays usable`;
         q('#w31t-on').classList.toggle('on', !!T.on);
+        qa('.t-eye').forEach(el => { el.textContent = X.eye; }); q('#w31t-eyes').textContent = EYES.join(', ');
+        qa('[data-eye]').forEach(b => { b.classList.toggle('on', b.dataset.eye === X.eye); b.disabled = !!X.loading; });
         qa('.t-pages [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === X.page)); qa('.t-page').forEach(p => p.classList.toggle('on', p.dataset.p === X.page));
         qa('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === X.tool)); qa('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === PS.mode));
         qa('[data-flag]').forEach(b => { const k = b.dataset.flag; b.classList.toggle('on', k === 'delight' ? !!T.delight : k === 'margin' ? T.margin !== false : !!T[k]); });

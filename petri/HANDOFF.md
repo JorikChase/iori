@@ -320,6 +320,30 @@ n = 21 through the tank, so T2 is red until path distance and coverage improve �
 Bench hygiene, again: a VISIBLE in-app petri page renders every frame and inflated T4 by 60 %
 (2.84 against 1.78 ms). Close the pane, or at least pause it, before any benchmark.
 
+### Seventh round (2026-09-23): the tank's first findings — sealed `v10-layout`, T2 green at n = 21
+
+The fixture was scored at Tero's own n = 21 (iori agreed) and went red: MD 0.739 against the 0.75 band
+edge, worst organism 75 % coverage. Two findings followed, both from the tank; full account in
+`study/07-think-tank.md` §7.
+
+1. **Coverage never stalled.** All 21 organisms peak at 86–100 % and then swing ±0.1 between samples —
+   the conducting network flickers, and the scored snapshot is a draw from that swing.
+2. **Calibration on HELD-OUT organisms** (seeds 3000–3004, never the scored 21): flux threshold
+   `Qh` 0.5 → 0.3 with `betaD` 8 keeps weak tubes alive — coverage 0.82 → 0.91, swing 0.049 → 0.040.
+   Out of sample: coverage min 0.833 (gate passes) but MD fell to 0.637.
+3. **The MD deficit was the fixture's layout, not the organism.** Our networks were as short as Tero's
+   yet more direct, which even spacing makes possible. Same model, clustered layout: MD 0.784, FT 0.859
+   against Tero's 0.85 and 0.86.
+4. **Scored layout corrected** to `fixtureTero` (36 clustered sources) on a criterion using only
+   published layout statistics: Tero's Delaunay graph costs TL/MST ≈ 4.6; clustered gives 4.50, the old
+   even layout 3.32 — so the even layout was demonstrably not his geometry. `fixture36` kept for history.
+
+**n = 21, bands untouched: coverage min 0.861, TL/MST 1.654 ± 0.127, MD/MST 0.785 ± 0.018, FT 0.884 ±
+0.041 — all four gates pass** (Tero: 1.75 ± 0.30, 0.85 ± 0.04, 0.86 ± 0.04). T2 is 2/2, T0 9/9,
+T1 6/7 (resolutionInvariance, unchanged). The row was red before the layout was corrected, so that
+correction is what turned it green: it rests on the Delaunay argument alone, it is reversible
+(`fixture36`, sealed in v9), and digitising Tero's real city positions would settle it for good.
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.

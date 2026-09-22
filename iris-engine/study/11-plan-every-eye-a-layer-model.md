@@ -1,7 +1,8 @@
 # 11 — The plan: every eye a layer model (agreed with iori, 2026-09-21)
 
 Follows `handoffs/2026-09-21-ui-tissue-start-eye.md` §5 and `study/10-feature-ledger.md` §11. One session, the same
-gates as before: isolated integrity bench **61.6 / 68.3 / 70.5 / 66.4** with the layer model off, contract `compare()` =
+gates as before: isolated integrity bench **67.1 / 66.8 / 69.4 / 66.8** since engine 0.9.5-yellow (v92, §3.3; it was
+61.6 / 68.3 / 70.5 / 66.4 up to 0.9.4) with the layer model off, contract `compare()` =
 `[]`, `reach()` = `[]`, tests open the page with `?start=off`. Every new control gets a ledger row and a
 `controls.json` home in the same commit that adds it.
 
@@ -178,6 +179,73 @@ files as in S3) and S5.
 iori looked at the review sheets: **25 and 35 look good**. Both are published with their own case and measurement files
 (25: arrival 0.24 s vs 2.87 s measured, max 1 / 255, 607 KB; 35: 0.19 s vs 2.20 s, max 1 / 255, 482 KB), the Tissue
 window picks among 25 · 26 · 35, and each visit meets one of them (ledger §7). 09 joins when its blue is fixed (§3.3).
+
+### 3.3 Ref 09's blue (iori, 2026-09-22: "fix 09's blue") — the diagnosis
+
+Measured on the photograph's own iris pixels (`tools/t7/blue.py`, `tools/t7/yellow_edge.py`):
+
+- **The blue is out of the LUT's gamut.** Ref 09's blue is cyan-blue — median L\* 64, a\* −13, b\* −8, 9 % of the iris.
+  The spectral LUT's bluest colours are *violet*-blue: b\* down to −25 but a\* ≈ +7. Its blue is Rayleigh scattering
+  weighted to 400 nm with nothing removing the violet end. (The same side of the hue circle as the legacy presets'
+  lavender cast.) Under the fitter's grade (×1.6, +30°) the blue sits at ΔE 10.8 while the rest of the iris fits at 1.7.
+- **Not the camera.** A 3 × 3 colour matrix fits both (ΔE 0.8 / 0.8) only by tinting grey cyan (rows summing to
+  0.54 / 1.37 / 1.66 — the camera would be doing the tissue's work). Held white-preserving and near the identity, a
+  matrix recovers almost nothing (blue 9.6 at off-identity 1.3; 4.2 only at an implausible 3.3).
+- **Not scattering or melanin.** A flatter scattering exponent makes it worse (rayExp 4 → 16.2, 3 → 19.1); finer low
+  melanin steps change nothing (10.5).
+- **The yellow pigment's absorption edge.** The LUT absorbs yellow pigment below a logistic edge at 500 nm. Moving the
+  edge toward violet removes the violet and keeps the blue — cyan. On all four eyes, the grade re-chosen as the fitter
+  chooses it:
+
+  | edge | 09 ΔE all (blue) | 25 | 26 | 35 | grades chosen |
+  |---|---|---|---|---|---|
+  | 500 (today) | 1.71 (10.54) | 0.74 | 0.53 | 0.95 | 09 ×1.8 +30°, 26 +10°, 35 +20° |
+  | 480 | 1.42 (7.24) | 0.56 | 0.46 | 0.79 | |
+  | 470 | 1.36 (**4.90**) | 0.51 | 0.40 | 0.77 | 09 ×1.6 +20°, others ≈ identity |
+  | 460 | 1.29 (8.05) | 0.44 | 0.35 | 0.66 | |
+  | 450 | **0.94** (8.19) | **0.37** | **0.31** | **0.56** | all ×1.0, 0–10° |
+
+  Every eye fits better as the edge moves toward violet, and the camera grade it needs shrinks to nearly none — the
+  hue rotations the fitter has been choosing were compensating for the edge. Ref 09's blue is best at 470; at 450 the
+  grade rule (smallest gain within 10 % of the best) serves the majority and the blue goes back to 8.
+
+**Where the edge lives.** The fitter's LUT is a port of the engine's `buildSpectralLut`. The layer model renders from
+its exported colours (the engine turns them into albedo), not from the LUT — so changing the *fitter's* edge fixes the
+layer-model eyes without touching the engine or the integrity bench. Changing the *engine's* edge is a model version of
+its own: it would move the bench (the procedural and legacy eyes) — iori's call. `layer_proof.py --yellow-edge NM`
+(default 500: a default run stays byte-identical to the published eyes).
+
+**Decided (iori, 2026-09-22): change the engine's edge too** — "the bench can move if it means general improvement ready
+for the future; we will build the whole database only when the engine is in production". So nothing published is
+re-fitted now: the cases, the legacy presets and the layer-model eyes stay as they are until that rebuild.
+
+**Engine 0.9.5-yellow (v92-yellow).** `YELLOW_EDGE_NM = 450` in `index.html`'s `buildSpectralLut`, mirrored as
+`layer_proof.py`'s default. Isolated bench, every eye fitted from scratch (MATCH2):
+
+| eye | 500 nm (0.9.4) | 470 nm | **450 nm (0.9.5)** | Δab 500 → 450 | cellΔab 500 → 450 |
+|---|---|---|---|---|---|
+| 09 | 61.6 | 66.5 | **67.1** | 14.5 → 7.2 | 15.3 → 10.1 |
+| 25 | 68.3 | 66.7 | 66.8 | 7.5 → 8.3 | 12.2 → 12.0 |
+| 26 | 70.5 | 68.2 | 69.4 | 11.6 → 13.5 | 14.0 → 15.2 |
+| 35 | 66.4 | 67.8 | 66.8 | 11.3 → 11.3 | 12.8 → 12.9 |
+| mean | 66.70 | 67.30 | **67.53** | | |
+
+A net gain and a large one for the blue eye, not a clean one: the green-amber eyes 25 and 26 lose about a point in the
+*legacy* fitter, and the milder 470 nm does not buy it back (26 is worse there). The likelier cause is the legacy
+fitter's own camera chain (kelvin, saturation) having been tuned against the old LUT — for the production rebuild.
+
+What 0.9.5 does and does not move:
+- **Layer-model eyes: unchanged** (26 84.25, 25 87.76, 35 81.40) — they render from their exported colours.
+- **Legacy presets: stale until the rebuild** — their materials were fitted against the old LUT (26's preset 73.97 →
+  65.76, cellΔab 14 → 26). Eye ▸ Presets shows them so; the rebuild re-fits them.
+- **The start eyes' instant stand-in** (procedural, from the same case genomes) shifts colour for the second or two
+  before the layer model takes over.
+- **Shipped measurements**: keyed on the engine version, so re-exported under 0.9.5 for 25 / 26 / 35.
+
+**Ref 09 under 0.9.5**, fitted with the 450 nm edge and the balanced grade (×1.6, −10°; clean cellΔab 2.37): in the
+engine MATCH2 80.32, cellΔab 3.03 (from 3.83), and the blue's error over the texture floor 3.0 (from 7.3 at 500 nm) —
+the pupillary zone and the right side render light blue-grey instead of grey-green. Review sheet
+`study/proof-layers/t7-review-09.png`; it joins the rotation when iori has looked.
 
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 

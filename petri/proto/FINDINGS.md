@@ -127,3 +127,25 @@ It read as a physics result ("away from food, in every case") until a no-food co
 random terminal pairs stay: they are phenomenological, but they produce the right networks (TL/MST,
 MD/MST and FT in Tero's regime on the 36-source fixture), and the pump as it stands would teach the
 organism to flee its food.
+
+### 4b. The elastic-tube pump (2026-09-22) — still not toward food
+
+`pumpElastic` adds what the incompressible pump lacked: a compliant wall (pressure from the stretch of
+each tube stretch against an actively oscillating rest volume), Poiseuille conductance ∝ (volume per
+length)², and no global projection — sol is simply conserved. On the same 24-node tube with food at one
+end, drift of the centre of volume over 40 periods:
+
+| condition | drift (nodes) |
+|---|---|
+| no food (control) | 0.0000 |
+| frequency raised at food | +0.0089 (away) |
+| softer cortex at food (Kobayashi's factor) | +0.0009 (≈ none) |
+| stiffer cortex at food | −0.0006 (≈ none) |
+| frequency + softer | +0.0092 (away) |
+
+Stiffness alone does almost nothing here, for a clear reason: with the total volume conserved the mean
+pressure is ≈ 0, so a stiffness contrast has nothing to redistribute. A softer region only stores more
+sol when the body is pressurised — by growth, uptake at food, or an osmotic load — none of which this
+model has. So the next candidate is not a better wall but a **source**: uptake of fluid at food (the
+organism drinks and grows there), which pressurises the body and lets the soft food region fill. Until
+that is tested the engine keeps Tero's pairs as the driver.

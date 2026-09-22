@@ -1,0 +1,50 @@
+{
+ "id": "v5-flakes",
+ "when": "2026-09-22T12:40:23",
+ "note": "solid food flakes: network maintained, one component; Tero fixture replicated n=3: TL 1.54, FT 0.93 in regime, MD 0.73 low; 3DIE logo menu",
+ "features": {
+  "flakes": "solid",
+  "fixtureSeeds": "3",
+  "logoMenu": "1"
+ },
+ "src_sha256": "02965a1e689a2fc1",
+ "bench": "bench-v5-flakes.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 7,
+  "T0_total": 7,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "T2": {
+   "adaptationConsolidates": false,
+   "teroFixture": false,
+   "physarumNetwork": false
+  },
+  "T2_passed": 0,
+  "T2_total": 3,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 3.24,
+  "agents": 54912
+ }
+}

@@ -176,6 +176,53 @@ Open in P2: maintenance of the full network to the end of the run; MD/MST too lo
 dish; the pump's direction (needs wall mechanics or pressure feedback on phase); `RETRACT` is off (two
 A/Bs showed no benefit).
 
+### P2, third round (2026-09-22): the network is maintained — food flakes are solid
+
+`diag/fixture-trace.js` traced the fixture every 1 500 steps (coverage, terminals, components, live
+veins, agents on tubes, food left). The decline of the network was neither of my suspects: the mean
+nutrient at the flake centres fell from 12 to 4.4 by step 1 500 — before most flakes were reached — so
+the "flakes" were **diffusing into the agar**, not being eaten. The attractant is only emitted above
+nutrient 1, and the flake level crossed 1 at step 10 500, exactly where coverage peaked and began to
+fall. A real oat flake is a solid that keeps releasing food: the new tool `flake` (stamp kind 7) writes
+a per-cell source buffer that pins the local level, and the Food button places one. Dissolved nutrient
+still diffuses (the conservation and diffusion tests keep using it).
+
+It fixed both open problems at once. With solid flakes the organism holds 29–33 of 36 food sources to
+the end, collapses into **one connected component**, and MD/MST sits at **0.79–0.89 — Tero's Physarum
+value** (the too-meshed networks were a product of dissolved food spreading into big attractive
+patches). A single 36 000-step run ends at 33/36, TL/MST 1.53, MD/MST 0.72, FT 0.91: MD sampled at
+one instant moves 0.72–0.95 within one run, while Tero's 0.85 ± 0.04 is a spread across 21 organisms.
+So the test was changed — before running it — to Tero's own protocol: three organisms (seeds) on the
+same layout, each must end with ≥ 80 % coverage, and the MEAN of each metric must sit in the unchanged
+bands. All food scenarios in the harness now use solid flakes.
+
+**Replicated result, sealed `v5-flakes`** (3 organisms, same layout, 36 000 steps):
+
+| | seed 2010 | seed 2011 | seed 2012 | mean ± SD | Tero Physarum (n = 21) |
+|---|---|---|---|---|---|
+| food reached | 33 (92 %) | 26 (72 %) | 30 (83 %) | — | 36 |
+| TL/MST | 1.53 | 1.54 | 1.55 | **1.54 ± 0.01** | 1.75 ± 0.30 ✓ |
+| MD/MST | 0.72 | 0.86 | 0.62 | **0.73 ± 0.12** | 0.85 ± 0.04 ✗ |
+| FT | 0.91 | 0.94 | 0.94 | **0.93 ± 0.02** | 0.86 ± 0.04 (rail 0.96) |
+
+Length and fault tolerance are in Tero's regime and remarkably consistent across organisms; mean path
+distance averages low with a wide spread, and one organism reached only 72 % of the food. The test
+fails on exactly those two claims, under the rule fixed before the runs.
+
+Solid flakes also moved the other rows: the plain forager (`physarumNetwork`, no adaptation) now misses
+TL/MST (1.43) and meshedness (0.022); `adaptationConsolidates` reaches ratio 1.86 but misses a gate.
+Step cost 2.37 → 2.74 ms isolated (the bench's 3.24 was inflated by a second tab): the cell pass now
+reads an eighth storage buffer, filling the guaranteed binding limit — recover it by folding the flake
+level into an existing buffer when a channel frees up.
+
+The elastic-tube pump (proto/FINDINGS.md §4b) does not move biomass toward food either: stiffness has
+nothing to redistribute while the body's mean pressure is zero. Next candidate: fluid uptake at food
+that pressurises the body. Tero's pairs stay the driver.
+
+**Shell: the 3DIE logo is the site menu** (iori, 2026-09-22), as in the iris engine's shell: the
+caption's control box shows the favicon as a 16-colour dithered bitmap and opens the site links read
+from the generated `#site-menu` markup; the floating burger is hidden in petri (`ui.css`).
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.

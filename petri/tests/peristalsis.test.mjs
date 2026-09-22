@@ -1,5 +1,5 @@
 // Known answers and the P1b gate's question 2, on the graph — `node petri/tests/peristalsis.test.mjs`
-import { pump } from '../peristalsis.js';
+import { pump, pumpElastic } from '../peristalsis.js';
 let failed = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'pass' : 'FAIL'}  ${name}  ${detail}`); if (!ok) failed++; };
 const chain = (n, len = 1, w = 0.2) => {
@@ -44,5 +44,14 @@ const chain = (n, len = 1, w = 0.2) => {
   const control = Math.abs(out[0].drift), definite = out.slice(1).every((o) => Math.abs(o.drift) > 10 * control + 1e-3);
   check('no food, no drift; with food, a definite sign (gate question 2)', control < 1e-3 && definite,
     out.map((o) => `chiA ${o.chiA} chiE ${o.chiE >= 0 ? '+' : ''}${o.chiE}: drift ${o.drift > 0 ? '+' : ''}${o.drift} nodes (${o.drift < 0 ? 'TOWARD' : 'away from'} food)`).join(' | '));
+}
+// 4. The elastic-tube pump conserves sol and moves nothing without food (the control every transport
+//    claim needs), and a stiffness contrast alone barely moves anything (FINDINGS §4b).
+{
+  const food = new Float64Array(24); food[0] = 1; food[1] = 0.6; food[2] = 0.3;
+  const none = pumpElastic(chain(24), new Float64Array(24), new Float64Array(24), { periods: 20 });
+  const soft = pumpElastic(chain(24), food, new Float64Array(24), { periods: 20, chiS: 0.5 });
+  check('elastic pump: no food, no drift; stiffness alone ~no drift', Math.abs(none.drift) < 1e-6 && Math.abs(soft.drift) < 5e-3,
+    `control ${none.drift.toExponential(1)}, softer at food ${soft.drift.toExponential(2)} nodes`);
 }
 process.exit(failed ? 1 : 0);

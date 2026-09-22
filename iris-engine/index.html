@@ -2749,10 +2749,14 @@
 
         // ---- iris ID: the genome as JSON (export / import / URL hash) ----
         function roundDeep(o, d = 3) { if (Array.isArray(o)) return o.map(x => roundDeep(x, d)); if (o && typeof o === 'object') { const r = {}; for (const k in o) r[k] = roundDeep(o[k], d); return r; } return typeof o === 'number' ? +o.toFixed(d) : o; }
-        function exportID() {
+        // the ID object alone — no download, no clipboard, no URL (study/11 SAVE: a session file wraps it)
+        function makeID() {
             applySlidersToGenome();
             const gcopy = Object.assign({}, genome); delete gcopy.fields;
-            const id = roundDeep({ v: 2, engine: ENGINE_VERSION, genome: gcopy, fields: encodeFields(genome), provenance: genome.provenance || null, view: { pupil: state.pupil, lightAngle: state.lightAngle, lightElev: state.lightElev, srcType: state.srcType, srcSize: state.srcSize, ambient: state.ambient, lid: state.lid, ev: state.ev, fstop: state.fstop, focus: state.focus, kelvin: state.kelvin, zoom: state.zoomPhoto, pupilOff: state.pupilOff.slice(), limb: (state.limb || [5.85, 5.40, 0]).slice(), sat: state.sat } });
+            return roundDeep({ v: 2, engine: ENGINE_VERSION, genome: gcopy, fields: encodeFields(genome), provenance: genome.provenance || null, view: { pupil: state.pupil, lightAngle: state.lightAngle, lightElev: state.lightElev, srcType: state.srcType, srcSize: state.srcSize, ambient: state.ambient, lid: state.lid, ev: state.ev, fstop: state.fstop, focus: state.focus, kelvin: state.kelvin, zoom: state.zoomPhoto, pupilOff: state.pupilOff.slice(), limb: (state.limb || [5.85, 5.40, 0]).slice(), sat: state.sat } });
+        }
+        function exportID() {
+            const id = makeID();
             const json = JSON.stringify(id);
             // the URL carries the full ID only when it is short enough to share; otherwise seed + preset
             try {
@@ -2974,7 +2978,7 @@
         window.__irisEngine = { setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, get growOverride() { return growOverride; }, set growOverride(o) { growOverride = o || {}; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
             FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
             drawPhotoFrame, drawPost, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
-            setCamFixed, syncCamBtn, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
+            setCamFixed, syncCamBtn, makeID, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
 
         // draw one frame of the photo shader into `fb` (w×h), accumulating from `readTex` when frame > 0
         function drawPhotoFrame(fb, w, h, frame, readTex, opts = {}) {

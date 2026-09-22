@@ -212,6 +212,7 @@
         const m = h('div', 'w31-menu'); m.dataset.ui = '1';
         for (const it of items) { if (it === '-') { m.appendChild(h('div', 'w31-sep')); continue; }
             const d = h('div', 'w31-mi' + (it.dis ? ' dis' : '') + (it.sub ? ' sub' : '') + (it.chk && it.chk() ? ' chk' : ''), it.text !== undefined ? '' : lab(typeof it.l === 'function' ? it.l() : it.l)); if (it.text !== undefined) d.textContent = it.text;
+            if (it.sc) d.appendChild(h('span', 'w31-sc', it.sc));
             const openSub = () => { const r = d.getBoundingClientRect(); m.querySelectorAll('.hot').forEach(e => e.classList.remove('hot')); d.classList.add('hot'); showMenu(it.sub, phone ? r.left + 24 : r.right - 2, phone ? r.bottom : r.top - 1, level + 1); };
             d.addEventListener('click', e => { e.stopPropagation(); if (it.dis) return; if (it.sub) return openSub(); closeMenus(); if (it.run) it.run(); });
             d.addEventListener('pointerenter', e => { if (e.pointerType !== 'mouse') return; if (it.sub && !it.dis) openSub(); else { closeMenus(level + 1, true); m.querySelectorAll('.hot').forEach(e => e.classList.remove('hot')); } });
@@ -229,9 +230,11 @@
         [13, 'Alignment mask (what the fitter aligns on)'], [14, 'Coordinate map (u, v)'], [15, 'Height view (what the fitter scores)']];
     function setDebug(n) { E.state.debug = n; const g = $('debug-btn'), m = $('maps-btn'); if (g) g.classList.toggle('active', n === 1); if (m) m.classList.toggle('active', n >= 5 && n <= 6); E.resetAccumulation(); const d = DEBUG_VIEWS.find(x => x[0] === n); say(n ? 'Debug view ' + n + ': ' + (d ? d[1] : '') : 'Debug view off'); }
     const debugMenu = () => DEBUG_VIEWS.map(d => d === '-' ? '-' : { text: (d[0] ? d[0] + '  ' : '') + d[1], chk: () => (E.state.debug || 0) === d[0], run: () => setDebug(d[0]) });
+    const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '\u2318' : 'Ctrl+';
+    const SES = what => { const S = window.__irisSession; if (S) S[what](); else say('The session tools are still loading'); };
     const FITTED = [['09-blue-green-isolated.jpg', 'Blue-green  ·  09'], ['25-green-amber-ring-isolated.jpg', 'Green, amber ring  ·  25'], ['26-green-crypts-isolated.jpg', 'Green, crypts  ·  26'], ['35-grey-green-isolated.jpg', 'Grey-green  ·  35']];
     const MENUS = [
-        ['&File', () => [{ l: '&Open ID…', run: click('idin-btn') }, { l: '&Save ID', run: click('idout-btn') }, '-', { l: 'Capture &4K', run: click('shot-btn') }, '-', { l: '&META IRIS', run: () => { location.href = '../meta-iris.html'; } }]],
+        ['&File', () => [{ l: '&New (the start eye)', run: () => SES('fresh') }, { l: '&Open session…', sc: MOD + 'O', run: () => SES('open') }, { l: 'Save session', sc: MOD + 'S', run: () => SES('save') }, '-', { l: 'Open &ID…', run: click('idin-btn') }, { l: 'Save I&D', run: click('idout-btn') }, '-', { l: 'Capture &4K', run: click('shot-btn') }, '-', { l: '&META IRIS', run: () => { location.href = '../meta-iris.html'; } }]],
         ['&View', () => [{ l: '&Quality', ctl: 'quality-sel', sub: [...$('quality-sel').options].map(o => ({ l: o.textContent, chk: () => E.quality === o.value, run: () => { const s = $('quality-sel'); s.value = o.value; s.dispatchEvent(new Event('change')); } })) },
             { l: '&Camera follows the pointer', ctl: 'cam-btn', chk: () => !E.state.useRot, run: () => E.setCamFixed(!E.state.useRot) }, '-', tog('&Grid', 'debug-btn'), tog('&Refraction', 'refr-btn'), tog('Corneal re&flection', 'spec-btn'), tog('F&ilmic', 'tone-btn'), tog('R&EF pose', 'ref-btn'), tog('&Hippus', 'anim2-btn'), '-',
             tog('&Atlas', 'atlas-btn'), tog('&Maps', 'maps-btn'), { l: '&Debug view', sub: debugMenu }, { l: () => 'Strands: ' + ($('strand-btn') ? $('strand-btn').textContent : ''), run: click('strand-btn') }, '-', { l: 'Control &Panel…', run: () => show(byKey('control'), true) }]],
@@ -374,6 +377,7 @@
     const topIndex = () => tops().findIndex(t => t.classList.contains('open'));
     document.addEventListener('keydown', e => {
         const k = e.key, inField = e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (k === 's' || k === 'o')) { e.preventDefault(); e.stopPropagation(); closeMenus(0); SES(k === 's' ? 'save' : 'open'); return; }   // study/11 SAVE
         if (menus.length) {
             const m = menus[menus.length - 1], items = live(m), cur = items.findIndex(d => d.classList.contains('hot'));
             const hot = i => { items.forEach(d => d.classList.remove('hot')); if (items.length) items[(i + items.length) % items.length].classList.add('hot'); };
@@ -475,7 +479,11 @@
     // study/10 §11 S1 — the start eye: before the first frame, the procedural engine takes eye 26's own colours,
     // collarette and pose (start-eye.js, ≈ 5 KB), so nobody meets the plain seed-42 brown; tissue-ui.js then loads the
     // layer model in the background. Not when the URL carries an eye, not with ?start=off (tests and benches use it).
-    const START = window.__irisStartEye, startOn = !!START && !/[?&]start=off\b/.test(location.search) && !/(^|[#&])(id|seed)=/.test(location.hash.slice(1));
+    // study/11 SAVE: a session kept from the last visit wins over the start eye (session.js restores it once loaded)
+    const urlEye = /[?&]start=off\b/.test(location.search) || /(^|[#&])(id|seed)=/.test(location.hash.slice(1));
+    let kept = null; if (!urlEye) try { kept = localStorage.getItem('irisSession'); } catch (e) {}
+    if (kept) window.__irisSessionPending = kept;
+    const START = window.__irisStartEye, startOn = !!START && !urlEye && !kept;
     if (startOn) { try { const g = E.genomeFromSeed(START.seed); Object.assign(g.globals, START.globals); g.coll = START.coll; delete g.fitted;
         E.importID({ v: 2, genome: g, fields: {}, view: START.view }); E.state.useRot = false; E.state.view = [0, 0, 1, 1]; E.state.preset = 'start-26'; E.atlas.dirty = true; E.resetAccumulation();
         window.__irisStartPending = { file: START.file, zoom: E.state.zoomPhoto }; } catch (e) { console.warn('start eye', e); } }
@@ -487,7 +495,7 @@
         dressDesign(); dressFit(); tissueNotes(); relayout();
         const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen) show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
         const g = document.createElement('script'); g.src = 'gaze.js'; g.onload = () => gaze(G => { G.hold = S.hold; G.ret = S.ret; }); document.head.appendChild(g);   // study/09 U0: controls never move the eye
-        const o = document.createElement('script'); o.src = 'overlay.js'; o.onload = () => { const t = document.createElement('script'); t.src = 'tissue-ui.js'; document.head.appendChild(t); }; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris; study/10 §7: the Tissue window needs the overlay's API
+        const o = document.createElement('script'); o.src = 'overlay.js'; o.onload = () => { const t = document.createElement('script'); t.src = 'tissue-ui.js'; t.onload = () => { const q = document.createElement('script'); q.src = 'session.js'; document.head.appendChild(q); }; document.head.appendChild(t); }; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris; study/10 §7: the Tissue window needs the overlay's API
     });
     window.addEventListener('resize', relayout);
     setInterval(() => { markBusy(); markLiveness(); markCredit(); }, 250);   // rAF stops in a hidden or background tab; a fit started from there must still show the hourglass on return

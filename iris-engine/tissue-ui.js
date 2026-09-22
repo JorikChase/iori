@@ -107,7 +107,7 @@
         // study/10 S0: every load records where its time goes (Help ▸ Load timing shows it, on any device)
         const t0 = performance.now(), tm = { at: new Date().toISOString(), steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
         try {
-            const arrival = !!opts.arrival; tm.path = arrival ? 'arrival (shipped)' : 'measured';
+            const arrival = !!opts.arrival; tm.path = arrival ? 'arrival' : 'measured';   // tm.shipped says whether the arrival's measurements applied
             let c1 = null; if (arrival) { try { c1 = await fetch(CASE1).then(r => r.ok ? r.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1 + ')'); }
             if (!c1 && !cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
             T.on = false;
@@ -151,6 +151,10 @@
         if (X.st !== 'loaded') return;
         state.useRot = keep.useRot; state.view = keep.view; state.zoomPhoto = E.target.zoomPhoto = keep.zoom; state.camRot = keep.camRot; state.preset = 'fit-26';
         E.resetAccumulation(); sync(); marks(); U.say('Eye 26 — its measured tissue'); };
+    // study/11 SAVE: what session.js needs — the eye this window loads, the dial rows redrawn after a restore, sync
+    X.eyeFile = () => CASE;
+    X.syncDials = () => DIALS.forEach(r => { const k = r._key; r._inp.value = T[k] === undefined ? (k === 'wallZ' ? 2.5 : 0) : T[k]; r._show(); r._draw && r._draw(); });
+    X.sync = () => sync();
     X.toggle = () => { if (X.st !== 'loaded') return X.load(); T.on = !T.on; E.resetAccumulation(); sync(); marks(); };
     function stats() {
         const S = T.sets || {}, n = k => (S[k] ? (Array.isArray(S[k]) ? S[k].length : 0) : 0);

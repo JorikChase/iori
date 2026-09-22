@@ -216,3 +216,6 @@ body.w31-touch .w31-shint { top: 0; }   /* on the label line, between the label 
 /* the app owns pinch: no page zoom on the scene (iPad zoomed the whole viewport); scrolling panels keep pan */
 html:has(body.w31-shell), body.w31-shell { touch-action: pan-x pan-y; }
 body.w31-shell #gl, body.w31-shell #w31-ov { touch-action: none; }
+/* study/11 SAVE: a menu item's shortcut, right-aligned as in 3.11 */
+.w31-mi .w31-sc { float: right; margin-left: 28px; }
+.w31-mi.hot .w31-sc, .w31-mi:hover .w31-sc { color: #fff; }

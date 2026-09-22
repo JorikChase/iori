@@ -150,6 +150,13 @@ a different build — say so.)
 
 Built before G1 with an empty journal; G4 then only adds the journal's serialisation and replay.
 
+**SAVE built (2026-09-22)**, ahead of T7's engine side while the fitter ran: `session.js` + `E.makeID()` (the ID
+without exportID's download / clipboard / URL). As built it differs from the table in two places: a layer-model
+session stores the eye's case + dials, not an ID (≈ 0.4 KB; the eye IS the case), and File ▸ Revert became
+File ▸ New (the start eye) — a visitor whose session is kept must always be able to get back to eye 26. Verified in
+ledger §8. Still to do: the journal (G4); pixel-identical frame after a restore at NORMAL is implied by the identical
+state, not yet shown as pixels.
+
 ## 5. G1 → G4 → G2 → G3 (previous handoff §5, with D4 added)
 
 - **G1 guide brush** — deck strokes on the sheet are invisible by design; the guide brush paints the `guides` class.

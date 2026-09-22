@@ -16,6 +16,7 @@ METRICS = [
     ('boxD_dla', 'DLA D', 0, 0.02),          # 0 = closer to target is better
     ('beta_eden', 'Eden b', 0, 0.02),
     ('ms_per_step', 'ms/step', -1, 0.05),
+    ('cell_ms', 'cell ms', -1, 0.05),
     ('agents', 'agents', +1, 1000),
 ]
 TARGET = {'boxD_dla': 1.71, 'beta_eden': 1 / 3}

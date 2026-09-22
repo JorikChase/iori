@@ -38,7 +38,8 @@ def summarise(bench):
     for key, path in (('boxD_dla', ('T1', 'dlaDimension', 'boxD')),
                       ('beta_eden', ('T1', 'edenRoughness', 'beta')),
                       ('ms_per_step', ('T4', 'stepCost', 'msPerStep')),
-                      ('agents', ('T4', 'stepCost', 'agents'))):
+                      ('agents', ('T4', 'stepCost', 'agents')),
+                      ('cell_ms', ('T4', 'kernelCost', 'cell'))):
         cur = bench
         for p in path:
             cur = cur.get(p, {}) if isinstance(cur, dict) else None

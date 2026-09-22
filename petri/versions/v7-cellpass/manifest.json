@@ -1,0 +1,46 @@
+{
+ "id": "v7-cellpass",
+ "when": "2026-09-22T15:38:55",
+ "note": "cell pass 2.77->1.77 ms bit-identical (sparse deposit clear, no writes outside dish; shared tile rejected); adaptationConsolidates retired; physarumNetwork uses the engine's extraction",
+ "features": {},
+ "src_sha256": "745e72c2f23790d7",
+ "bench": "bench-v7-cellpass.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 7,
+  "T0_total": 7,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "T2": {
+   "teroFixture": true,
+   "physarumNetwork": true
+  },
+  "T2_passed": 2,
+  "T2_total": 2,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 1.846,
+  "agents": 54912,
+  "cell_ms": 1.768
+ }
+}

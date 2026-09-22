@@ -261,6 +261,27 @@ resident sol, the drunk fluid pushes resident sol AWAY from food (+2.65 nodes) w
 moves toward it only because new fluid enters there; contraction adds nothing. Migration toward food is
 growth at food, which the engine already has. No pump is wired in; peristalsis stays a P4 look item.
 
+### Fifth round (2026-09-22): the cell pass, and two T2 rows settled — sealed `v7-cellpass`
+
+**Step cost 2.52 → 1.85 ms, bit-identical** (replay hash unchanged, fixture numbers identical). New
+`E.profile(k)` / `T4.kernelCost` times each pass separately: agent 0.04, divide 0.01, **cell 2.77 ms** —
+the cell pass is 98 % of a step, so the "8th storage binding" was never the cost (the flake read is
+~5 % of the pass's traffic; left as is). Three changes tried, each kept only if ≥ 5 % faster with the
+same hash:
+
+| change | cell pass | kept |
+|---|---|---|
+| deposits: atomicLoad, clear only non-zero (was atomicExchange ×2 on every cell) | 2.77 → 2.09 | yes |
+| no writes outside the dish (21 % of the grid; both buffers stay zero there) | 2.09 → 1.73 | yes |
+| substrate stencil from an 18×18 workgroup tile | 1.73 → 1.88–1.97 | **no** — the cache already serves it |
+
+**T2 is now 2/2.** `adaptationConsolidates` retired (iori agreed): moved to `RETIRED` in harness.js,
+still runnable; the fixture's per-organism coverage scores the same claim directly. `physarumNetwork`
+now measures with the engine's own extraction (1 % of p99 + closing), which the T2 header always
+promised; its private 5 %/no-closing extraction cut the forager's trail into ~100 pieces. Decided on
+that principle before reading the numbers: 3/4 gates (degree-3 0.97, width σ 0.40, α 0.068 ✓), and
+**TL/MST 1.44 still misses the 1.45 floor** — the forager's largest network is a little too tree-like.
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.
@@ -322,10 +343,9 @@ growth at food, which the engine already has. No pump is wired in; peristalsis s
 
 ## Next (spec §11)
 
-1. **P2 remainder** — the fixture passes (v6); open: the plain-forager `physarumNetwork` row (TL 1.43,
-   meshedness) and `adaptationConsolidates` (ratio 1.9, gates 3/4) since solid flakes — iori to decide
-   whether the latter is retired in favour of the fixture's coverage; step cost (fold the flake level
-   into an existing buffer to free the 8th binding); CG warm start.
+1. **P2 remainder** — T2 2/2 (v7). Open: forager TL/MST 1.44 (gate floor 1.45); MD/MST 0.78 below
+   Tero's mean (layout, see fourth round); CG warm start. Performance: cell pass 1.77 ms at 2048² is
+   the whole step — next levers are the neighbour-ownership scan for bare cells and fp16 substrate.
 2. P1 remainder, still open: **substrate substepping** so `fine` is trustworthy, and **physical
    absorption** so fill and front speed become tier-invariant too (both top items); brick pool +
    allocator; agent spatial sort (measured 4–7x, only matters above ~1M agents, and it needs a stable

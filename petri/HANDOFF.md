@@ -344,6 +344,32 @@ T1 6/7 (resolutionInvariance, unchanged). The row was red before the layout was 
 correction is what turned it green: it rests on the Delaunay argument alone, it is reversible
 (`fixture36`, sealed in v9), and digitising Tero's real city positions would settle it for good.
 
+### Eighth round (2026-09-23): Tero's own geometry, digitised — sealed `v11-tero-real`
+
+iori asked for the paper, so the layout question is settled with his data rather than my argument.
+The author PDF sits in the gitignored `ref-data/tero-2010/`; its figures are embedded CMYK JPEGs, read
+out with a pure-Python extractor (no poppler here, and `sips` only rasterises page 1). Fig. 1's t = 0
+frame is the plasmodium at Tokyo plus 35 oat flakes: eroding the panel drops the 1-px coastline, and
+intensity-weighted centroids give **36 blobs, the number the paper states**. Scaled isotropically to the
+same 34 mm extent the synthetic fixtures used, so only the layout's shape changed →
+`fixture.js TERO_CITIES` / `fixtureTeroReal()`, now the scored layout.
+
+Independent check, scale-free and free of anything this engine produces: the Delaunay graph over the
+digitised points costs **TL/MST 4.82** against the paper's ~4.6 (even fixture 3.32, v10's synthetic
+clustered 4.50).
+
+**Scored on his geometry, n = 21, bands untouched:**
+
+| | petri | Tero's Physarum (n = 21) |
+|---|---|---|
+| TL/MST | 1.799 ± 0.255 | 1.75 ± 0.30 |
+| MD/MST | 0.835 ± 0.040 | 0.85 ± 0.04 |
+| FT | 0.854 ± 0.050 | 0.86 ± 0.04 |
+| coverage, worst organism | 0.861 | — |
+
+Mean AND spread agree on all three, on his layout at his replicate count. T0 9/9, T1 6/7
+(resolutionInvariance), T2 2/2. Step cost 1.81 ms.
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.

@@ -159,3 +159,31 @@ inside a band. MD remains the weakest (0.785 against 0.85).
 the correction is what turned it green. It rests on the Delaunay argument alone; if that argument does
 not convince, revert to `fixture36` (sealed in v9) and the row goes red on MD again. Digitising Tero's
 actual 36 city positions from the paper figure would settle it for good.
+
+## 8. Tero's own geometry, digitised (2026-09-23)
+
+iori asked for the paper, so the layout question is settled with his data instead of an argument. The
+author PDF was fetched to the gitignored `ref-data/tero-2010/`; its figures are embedded CMYK JPEGs,
+pulled out with a pure-Python reader (no poppler on this machine, and `sips` only rasterises page 1).
+Fig. 1's t = 0 frame shows the plasmodium at Tokyo and 35 oat flakes on the Kanto map. Eroding the
+panel drops the 1-px coastline and leaves the blobs; intensity-weighted centroids gave **36 blobs, as
+the paper states**. Tokyo is the origin, y up, scaled isotropically to the same 34 mm extent the
+synthetic fixtures used, so only the layout's SHAPE changed → `fixture.js TERO_CITIES` /
+`fixtureTeroReal()`.
+
+The digitisation checks out against a published, scale-free number that involves nothing of this
+engine: the Delaunay graph over these points costs **TL/MST 4.82** against the paper's ~4.6 — where the
+old even fixture gave 3.32 and last round's synthetic clustered stand-in gave 4.50.
+
+**Scored on his geometry, n = 21, bands untouched:**
+
+| | petri | Tero's Physarum (n = 21) |
+|---|---|---|
+| TL/MST | 1.799 ± 0.255 | 1.75 ± 0.30 |
+| MD/MST | 0.835 ± 0.040 | 0.85 ± 0.04 |
+| FT | 0.854 ± 0.050 | 0.86 ± 0.04 |
+| coverage, worst organism | 0.861 | — |
+
+Every metric now matches his mean AND his spread, on his layout, at his replicate count. This replaces
+the layout argument of §7 with the thing itself; `fixtureTero` (synthetic) and `fixture36` (even) stay
+for the history that v10 and v9 scored.

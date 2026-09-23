@@ -1,0 +1,48 @@
+{
+ "id": "v11-tero-real",
+ "when": "2026-09-23T09:26:10",
+ "note": "Tero's own 36 food positions digitised from Fig.1 (Delaunay TL/MST 4.82 vs his ~4.6): n=21 gives TL 1.80+/-0.26, MD 0.835+/-0.04, FT 0.854+/-0.05 against his 1.75+/-0.30, 0.85+/-0.04, 0.86+/-0.04",
+ "features": {},
+ "src_sha256": "3ad024f5307d232e",
+ "bench": "bench-v11-tero-real.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "microDish": true,
+   "batchExact": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 9,
+  "T0_total": 9,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "T2": {
+   "teroFixture": true,
+   "physarumNetwork": true
+  },
+  "T2_passed": 2,
+  "T2_total": 2,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 1.808,
+  "agents": 54912,
+  "cell_ms": 1.775
+ }
+}

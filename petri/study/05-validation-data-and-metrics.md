@@ -37,7 +37,7 @@ Recommendation for approval: **do not take the 453 GB**. Because the S3 URL hono
 | PhysarumAI (Sakiyev 2026) | Zenodo 10.5281/zenodo.18411397 | 850 replicates, 86 food layouts, 12 × 12 cm dishes, 96 h endpoint photos + binary masks + adjacency matrices; size **[unverified]** | CC BY 4.0 | Food-source-mode T2 (MST ratio, FT) with ready graphs. Content not inspected. |
 | Cellects validation set (Boussard … Dussutour) | Dryad 10.5061/dryad.7wm37pvzp | 7.9 GB growth sequences | CC0 | Area-growth curves. |
 | Baumgarten, Ueda, Hauser 2010 (PRE 82:046113); Baumgarten & Hauser 2013 (Phys. Biol. 10:026003) | paywalled; no deposits | — | publisher | Numbers only (§3). |
-| Tero et al. 2010 (Science 327:439) | author PDF on markfricker.org | — | publisher | Numbers only (§3); the 36-city fixture geometry must be re-digitised. |
+| Tero et al. 2010 (Science 327:439) | author PDF on markfricker.org | 416 KB, in gitignored `ref-data/tero-2010/` | publisher | Numbers (§3) AND the 36 food positions, **digitised 2026-09-23** from Fig. 1's t = 0 frame into `fixture.js TERO_CITIES` (coordinates are facts; the figure stays out of the repo). |
 
 ### 1.3 Photographs and video: Wikimedia Commons, iNaturalist, GBIF
 

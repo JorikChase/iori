@@ -209,7 +209,7 @@ D ≈ 1.93**, not equality. Two consequences, neither of which is a tolerance to
 - `normal` and `fine` already agree within the row's 0.06; draft is the outlier. A criterion of
   *convergence* (successive differences shrinking by about half) would state what the scheme does, but
   changing a failing row's claim is iori's call, so the row stays red with this diagnosis attached.
-- The limit is drifting AWAY from the published DLA value 1.71 that the coarse grid happens to sit on.
+- The limit is still drifting AWAY from the published DLA value 1.71 that the coarse grid happens to sit on.
   The kernel's continuum limit is more compact than DLA, so the agreement at draft is partly luck. The
   physics item behind it is unchanged: a perfect absorber whose boundary layer is sub-cell at every
   tier. Resolving it means much weaker absorption and a slower growth regime.

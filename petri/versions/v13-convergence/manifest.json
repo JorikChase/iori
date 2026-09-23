@@ -1,0 +1,48 @@
+{
+ "id": "v13-convergence",
+ "when": "2026-09-23T10:38:38",
+ "note": "resolutionInvariance restated as CONVERGENCE (iori's decision): ratio 0.46 <= 0.7, finest pair 0.053 < 0.06, Richardson limit 1.921 \u2014 first all-green scorecard (T0 9/9, T1 7/7, T2 2/2)",
+ "features": {},
+ "src_sha256": "fb1f498dda5ed479",
+ "bench": "bench-v13-convergence.json",
+ "summary": {
+  "pass": true,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "microDish": true,
+   "batchExact": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 9,
+  "T0_total": 9,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": true
+  },
+  "T1_passed": 7,
+  "T1_total": 7,
+  "T2": {
+   "teroFixture": true,
+   "physarumNetwork": true
+  },
+  "T2_passed": 2,
+  "T2_total": 2,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 1.83,
+  "agents": 54912,
+  "cell_ms": 1.766
+ }
+}

@@ -370,6 +370,26 @@ clustered 4.50).
 Mean AND spread agree on all three, on his layout at his replicate count. T0 9/9, T1 6/7
 (resolutionInvariance), T2 2/2. Step cost 1.81 ms.
 
+### Ninth round (2026-09-23): the fine tier's diffusion, and what the red row really says — `v12-substeps`
+
+Chasing T1's last red row (`resolutionInvariance`) ruled out three explanations and fixed a fourth
+thing on the way. Full account in `study/07-think-tank.md` §9.
+
+- **Not the measurement**: coarsening the measurement of one cluster raises D, while the coarser grid
+  has the lower D. **Not the fit range**: same physical box sizes still leave 0.149. **Not the extent**:
+  compared at the same 11 mm radius, D still runs 1.708 (draft) → 1.822 (normal) → 1.875 (fine).
+- Successive differences 0.114 → 0.053 as the cell halves: **first-order convergence toward D ≈ 1.93**,
+  not equality. `normal` and `fine` already agree inside the row's 0.06; draft is the outlier. The limit
+  drifts AWAY from the published DLA 1.71 that draft happens to sit on, so the kernel's continuum limit
+  is more compact than DLA. Changing a failing row's claim to "converges" is iori's call — **the row
+  stays red** with the diagnosis attached, tolerance untouched.
+- **Fixed: `fine` diffused 3.75× too slowly.** Explicit diffusion is stable to dn ≈ 0.16; the physical
+  rate at `fine` is 0.6, so it was clamped. A step now carries `E.substeps` substeps of dn/substeps
+  (`SUB_PASS`, diffusion only; rate terms stay in the cell pass once per step), the count rounded up to
+  an ODD number so the ping-pong parity is unchanged. draft and normal are under the cap: one substep,
+  bit-identical (replay `da91426b`, whole scorecard unchanged). At `fine`, same organism and extent:
+  208 mm² in 2050 steps → 116 mm² in 4320, in line with the other tiers.
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.
@@ -434,8 +454,9 @@ Mean AND spread agree on all three, on his layout at his replicate count. T0 9/9
 1. **P2 remainder** — T2 2/2 (v7). Open: forager TL/MST 1.44 (gate floor 1.45); MD/MST 0.78 below
    Tero's mean (layout, see fourth round); CG warm start. Performance: cell pass 1.77 ms at 2048² is
    the whole step — next levers are the neighbour-ownership scan for bare cells and fp16 substrate.
-2. P1 remainder, still open: **substrate substepping** so `fine` is trustworthy, and **physical
-   absorption** so fill and front speed become tier-invariant too (both top items); brick pool +
+2. P1 remainder, still open: **physical absorption** (the absorbing layer is 0.023 mm — sub-cell at
+   every tier — which is what leaves the aggregate resolution-dependent; substrate substepping is DONE
+   in v12); brick pool +
    allocator; agent spatial sort (measured 4–7x, only matters above ~1M agents, and it needs a stable
    per-agent id because the power-of-two division scheme is position-based); packed 12-byte contract.
 3. T2 — morphometrics against SMGR once the data is approved (`ref/DATA-PLAN.md`).

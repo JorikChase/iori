@@ -187,3 +187,38 @@ old even fixture gave 3.32 and last round's synthetic clustered stand-in gave 4.
 Every metric now matches his mean AND his spread, on his layout, at his replicate count. This replaces
 the layout argument of §7 with the thing itself; `fixtureTero` (synthetic) and `fixture36` (even) stay
 for the history that v10 and v9 scored.
+
+## 9. Resolution invariance: what the aggregate actually does (2026-09-23)
+
+The last red row in T1 claims the branched aggregate's box dimension does not depend on the grid.
+Chased in three steps, each ruling something out:
+
+1. **Not the measurement's resolution.** Coarsening the measurement of one cluster RAISES D
+   (1.579 → 1.656 at draft, 1.740 → 1.800 at normal), while the coarser grid has the LOWER D.
+2. **Not the fit range.** Fitting both tiers over the same physical box sizes (0.25–3 mm) leaves a
+   0.149 gap. The counts say where it lives: at 3 mm boxes the clusters agree (76 against 82), at
+   0.25 mm they differ twofold (3850 against 8148) — the finer grid grows thinner, more numerous
+   branches, because branch width is set by the cell, not by a physical length (the absorbing layer is
+   0.023 mm, under half a cell at every tier).
+3. **Not the extent, and not the fine tier's diffusion cap.** Compared at the same 11 mm radius and
+   with the cap fixed (below), D still runs **1.708 (draft) → 1.822 (normal) → 1.875 (fine)**.
+
+Successive differences are 0.114 then 0.053 as the cell halves: **first-order convergence toward
+D ≈ 1.93**, not equality. Two consequences, neither of which is a tolerance to widen:
+
+- `normal` and `fine` already agree within the row's 0.06; draft is the outlier. A criterion of
+  *convergence* (successive differences shrinking by about half) would state what the scheme does, but
+  changing a failing row's claim is iori's call, so the row stays red with this diagnosis attached.
+- The limit is drifting AWAY from the published DLA value 1.71 that the coarse grid happens to sit on.
+  The kernel's continuum limit is more compact than DLA, so the agreement at draft is partly luck. The
+  physics item behind it is unchanged: a perfect absorber whose boundary layer is sub-cell at every
+  tier. Resolving it means much weaker absorption and a slower growth regime.
+
+**Fixed along the way — the `fine` tier's substrate was 3.75× too slow.** Explicit diffusion is stable
+to dn ≈ 0.16 a step; the physical rate at `fine` is 0.6, so it was clamped. A step now carries
+`substeps` substeps of dn/substeps (`SUB_PASS`, diffusion only; the rate terms stay in the cell pass
+once per step), with the count rounded up to an ODD number so the ping-pong parity is unchanged.
+draft and normal are under the cap, so they get one substep and are bit-identical (replay hash
+`da91426b`, unchanged). At `fine` the same organism at the same extent went from 208 mm² of cluster in
+2050 steps to 116 mm² in 4320 — in line with the other tiers, which is what a physical diffusion rate
+should give.

@@ -1,0 +1,48 @@
+{
+ "id": "v12-substeps",
+ "when": "2026-09-23T10:09:34",
+ "note": "substrate substepping: the fine tier diffused 3.75x too slowly (cap 0.16 vs physical 0.6); SUB_PASS carries dn/substeps, odd count keeps parity. draft/normal bit-identical. resolutionInvariance diagnosed: first-order convergence 1.708/1.822/1.875, not equality - stays red",
+ "features": {},
+ "src_sha256": "36eea88cc32187c5",
+ "bench": "bench-v12-substeps.json",
+ "summary": {
+  "pass": false,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "microDish": true,
+   "batchExact": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 9,
+  "T0_total": 9,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": false
+  },
+  "T1_passed": 6,
+  "T1_total": 7,
+  "T2": {
+   "teroFixture": true,
+   "physarumNetwork": true
+  },
+  "T2_passed": 2,
+  "T2_total": 2,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 1.763,
+  "agents": 54912,
+  "cell_ms": 1.682
+ }
+}

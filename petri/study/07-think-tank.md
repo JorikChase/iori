@@ -230,3 +230,27 @@ draft and normal are under the cap, so they get one substep and are bit-identica
 `da91426b`, unchanged). At `fine` the same organism at the same extent went from 208 mm² of cluster in
 2050 steps to 116 mm² in 4320 — in line with the other tiers, which is what a physical diffusion rate
 should give.
+
+## 10. Why the limit is compact: one hypothesis tested and rejected (2026-09-24)
+
+The aggregate converges to D ≈ 1.92, more compact than DLA's 1.71, and the coarse grid's agreement
+with 1.71 is partly luck (§9). A candidate cause: **the noise thins out as the grid refines.** Each
+cell rolls its own die, so a finer grid puts more independent trials along the same millimetre of
+interface, the relative fluctuation falls, and growth smooths into a compact front — which is exactly
+the direction measured.
+
+Tested by giving growth events a fixed physical size: one die per 0.1875 mm block (`blockRnd`, already
+in the kernel library) with the per-cell probability scaled by the block's cell count.
+
+| | draft | normal | fine |
+|---|---|---|---|
+| box dimension | 1.839 | 1.968 | 1.969 |
+| cluster area at the same extent | 202 mm² | 5776 mm² | 6362 mm² |
+
+**Rejected as implemented, and the numbers say why:** a block-level die makes EVERY cell in the block
+grow at once, so the growth quantum is a fat square, the probability saturates, and the dendrite turns
+into a filled disk (the dish is 5700 mm²). It does not test the hypothesis — it tests block growth.
+A fair test needs one event per block to occupy ONE cell (the site the block's roll selects), which is
+a different kernel, not a one-line change. The hypothesis stands untested; the absorption item and this
+one are the two candidates left for the compact limit. Reverted; `kernels.js` is unchanged and the row
+reads 1.708 / 1.822 / 1.875 as before.

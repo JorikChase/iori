@@ -101,10 +101,18 @@ A small dish is only a faster version of a test if the test does not measure sca
 
 ## 6. First results
 
-- **Catalogue** (6 mm dishes, 3000 steps, 4.2 s for all 94): 88 alive. Six rules die out: seeds,
-  day-night, diamoeba, anneal, brian-s-brain, transers. The full-dish smoke test keeps them alive
-  (different inoculum and extent), so this is a protocol question for the suite, not an engine fault.
-  Open.
+- **Catalogue** — the first version (6 mm dishes, area > 0 after 3000 steps) reported six rules as dead.
+  They were not: life-like and generations rules **burn down to ash by design** (Conway Life ends at
+  0.6 mm² of the 190 mm² it seeds), and a flat 1.2 mm inoculum starved rules that need a large seeded
+  patch. `T0.catalogSmoke` asks a different and fair question — is anything there after 150 steps.
+  **Rebuilt 2026-09-24 on fixed EXTENT** (study/05 §4.1, the same rule every morphology row uses): each
+  organism grows to 8 mm and the row keeps the steps it took plus its shape there; a fixed step count
+  had 28 of 94 simply filling the dish, where every difference between versions vanishes. The tank
+  gained `stopWhen` / `finalMeasure` for this, and a cheap `extent` measure for the cadence.
+  **76 of 94 reach 8 mm** (median 750 steps, range 250-4750), **7 burn out** (conway-life, highlife,
+  day-night, morley, 2x2, brian-s-brain, nova — the ash-makers), **11 are slower than the 12 000-step
+  cap** (the dendrites: DLA, needle frost, manganese; and the CA that settle: vote, walled-cities,
+  anneal, lava, transers, swirl, diamoeba, gs-worms). 11.6 s for all 94.
 - **Tero replicates, n = 21** (Tero's own n; full 45 mm dishes, 36 000 steps, 444 s, 6 at a time).
   Rows 2010–2012 reproduce the scorecard's three organisms exactly. Summary:
 

@@ -10,7 +10,7 @@
 // change results. The speed comes from two places: small dishes (GPU work is cells x steps), and one
 // dish's CPU graph update overlapping the other dishes' GPU stepping.
 import { createEngine } from './engine.js';
-import { describe } from './metrics.js';
+import { describe, maskAbove, front, area } from './metrics.js';
 import { teroMetrics } from './fixture.js';
 
 /** spec.vary {k: [..]} -> list of variant objects (cartesian product, keys in insertion order). */
@@ -44,6 +44,12 @@ export const MEASURES = {
     const span = e.n * e.cellMm, m = teroMetrics(e.graph.net, food.map(([x, y]) => [x + span / 2, y + span / 2]));
     const { reachedIdx, ...rest } = m; return rest;
   },
+  // cheap cadence measure: how far the colony has got (front radius) and how much ground it holds
+  async extent({ e }) {
+    const m = maskAbove(await e.readCells(), e.n, 0);
+    const f = front(m, e.n);
+    return { radius_mm: +(f.mean * e.cellMm).toFixed(3), area_mm2: +(area(m) * e.cellMm * e.cellMm).toFixed(2) };
+  },
   async hash({ e }) { return e.hash(); },
 };
 
@@ -51,7 +57,8 @@ export const MEASURES = {
  * spec: { name, dish: {dishMm?, cellMm?, quality?, nutrient, agar, temp}, steps, sample, chunk?,
  *         vary: {key: [values]}, seed(v), ops(v) -> Dish ID ops (mm), medium?(v) -> dish overrides,
  *         food?(v) -> [[x, y]] mm, adapt?(v) -> Tero adaptation overrides,
- *         measure: [names from MEASURES], parallel? }
+ *         measure: [names from MEASURES], stopWhen?(sample, dish) -> finish this dish early,
+ *         finalMeasure?: [names measured once when stopWhen fires], parallel? }
  * Returns { name, spec summary, rows: [{ i, v, id, samples: [{ step, <measure>: … }] }], wall_s }.
  */
 export async function runTank(spec, { device, parallel = spec.parallel || 16, save = true, log = console.log } = {}) {
@@ -93,11 +100,18 @@ export async function runTank(spec, { device, parallel = spec.parallel || 16, sa
         const sample = { step: d.e.sim.step };
         for (const m of measures) sample[m] = await MEASURES[m](d);
         d.samples.push(sample);
-        if (d.e.sim.step >= spec.steps) d.done = true; else d.next = Math.min(spec.steps, d.next + (spec.sample || spec.steps));
+        // A dish may finish on its own condition — "grow to this extent" rather than "run this many
+        // steps", which is the protocol every morphology comparison here uses (study/05 §4.1): a fixed
+        // step count compares different-sized things, and fast organisms just saturate the dish.
+        const hit = spec.stopWhen && spec.stopWhen(sample, d);
+        if (hit || d.e.sim.step >= spec.steps) {
+          if (hit) for (const m of spec.finalMeasure || []) sample[m] = await MEASURES[m](d);
+          d.reached = !!hit; d.done = true;
+        } else d.next = Math.min(spec.steps, d.next + (spec.sample || spec.steps));
       }
     }
     for (const d of wave) {
-      rows[d.i] = { i: d.i, v: d.v, id: d.id, n: d.e.n, samples: d.samples, ...(d.refused.length ? { refused: d.refused } : {}) };
+      rows[d.i] = { i: d.i, v: d.v, id: d.id, n: d.e.n, reached: !!d.reached, steps: d.e.sim.step, samples: d.samples, ...(d.refused.length ? { refused: d.refused } : {}) };
       d.e.dispose();
     }
     log(`[tank] ${spec.name}: ${Math.min(variants.length, w + parallel)}/${variants.length} dishes, ${((performance.now() - t0) / 1000).toFixed(1)} s`);

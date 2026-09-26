@@ -391,6 +391,7 @@
         if (json.beads && json.beads.length && !json.__beadsIn) { json.fibres = json.fibres.concat(json.beads); json.__beadsIn = 1; }   // T1: the ruff's lobes are short tubes lying on the margin — the deck's own rasteriser domes them
         for (const k of ['outlines', 'fibres', 'veins', 'guides', 'sfib', 'svein']) sets[k] = json[k].map(c => { const uv = conv(c.xy); for (const p of uv) { tot++; if (!p) { lost++; continue; } u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); } return Object.assign({}, c, { uv }); });
         T.full = u1 - u0 > 0.5;                                          // the whole iris: the region is the full circle, u wraps
+        T.parents = []; T.fields = null;                                // §5.2.2 / §5.1: a load starts from the measured primitives alone
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };
         for (const p of cells.uv) if (p) { u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); }
         const padV = 0.3 / 4, padU = 0.3 / (6.2831853 * (2 + 4 * 0.5 * (v0 + v1)));
@@ -798,7 +799,7 @@
                 list.splice(op.b, 1);
                 break;
             }
-            default: throw new Error('tissue: unknown op ' + op.t);
+            default: if (!applyParentOp(op)) throw new Error('tissue: unknown op ' + op.t);
         }
         op.set = set; T.ops.push(op); T.dirty = true; T.deckH = undefined;
         return op;
@@ -814,6 +815,7 @@
             else if (op.t === 'set') { const c = list[op.at]; c[op.undo.key] = op.undo.was; if (op.undo.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || 1.4) * w); }
             else if (op.t === 'split') { list.splice(op.at, 2, op.undo.curve); }
             else if (op.t === 'join') { list[op.at] = op.undo.curve; list.splice(op.undo.b, 0, op.undo.bCurve); }
+            else undoParentOp(op);
         }
         T.dirty = true; T.deckH = undefined;
         return T.ops.length;
@@ -1075,6 +1077,199 @@
         return { data: new ImageData(out, w, h), uv, r0, groundUm: +(ground * 1000).toFixed(1),
                  standingAtUm: +((ground + hUp) * 1000).toFixed(1), fineWindow: src !== T.albedo && !!T.win };
     };
+
+    // ---------------------------------------------------------------- study/11 §5.1 / §5.2.2: parents and their instances
+    // A strand bundle is not N independent curves: it is a PARENT spline plus parameters, and its instances are generated
+    // from it — reshape the parent and every instance re-flows. The same parent drives both layers: deck strands (in the
+    // fibres set, seen through the crypts) and sheet streaks (in the guides set). Instances carry `parent` and `inst`; only
+    // parents and their genes need to be stored, the instances regenerate identically from the seed. Every change is an op in
+    // the journal (G4), so undo, the session file and a replay cover it. Actualize (iori) freezes a parent's instances into
+    // parents of their own, editable point by point; they keep `from` as a record.
+    T.parents = [];
+    const PARENT_DEFAULTS = { count: 6, spreadMm: 0.10, wavinessMm: 0.014, waveLenMm: 0.30, widthMm: 0, floatMm: 0.06, sagMm: 0.02, taperMm: 0.10, brightness: 1.0, seed: 1 };
+    const circMm = v => 6.2831853 * (2 + 4 * v);                                 // mm round the eye at tissue v
+    const mmBetween = (a, b) => { let du = b[0] - a[0]; du -= Math.round(du); return Math.hypot(du * circMm(0.5 * (a[1] + b[1])), (b[1] - a[1]) * 4); };
+    /** centripetal Catmull-Rom through control points in tissue (u, v), u unwrapped, resampled every `step` mm */
+    function splineSamples(ctrl, step = 0.020) {
+        const P = ctrl.map(q => q.slice()); for (let j = 1; j < P.length; j++) { let du = P[j][0] - P[j - 1][0]; du -= Math.round(du); P[j][0] = P[j - 1][0] + du; }
+        if (P.length === 1) return [P[0]];
+        if (P.length === 2) { const out = []; const L = mmBetween(P[0], P[1]), n = Math.max(1, Math.round(L / step)); for (let i = 0; i <= n; i++) out.push([P[0][0] + (P[1][0] - P[0][0]) * i / n, P[0][1] + (P[1][1] - P[0][1]) * i / n]); return out; }
+        const pts = [P[0], ...P, P[P.length - 1]], out = [];
+        const tj = (ti, a, b) => ti + Math.sqrt(mmBetween(a, b));
+        for (let k = 1; k < pts.length - 2; k++) {
+            const p0 = pts[k - 1], p1 = pts[k], p2 = pts[k + 1], p3 = pts[k + 2];
+            const t0 = 0, t1 = tj(t0, p0, p1) || 1e-6, t2 = tj(t1, p1, p2), t3 = tj(t2, p2, p3);
+            if (t2 - t1 < 1e-9) continue;
+            const n = Math.max(1, Math.round(mmBetween(p1, p2) / step));
+            for (let i = (k === 1 ? 0 : 1); i <= n; i++) {
+                const t = t1 + (t2 - t1) * i / n, w = (ta, tb) => (tb - t) / (tb - ta || 1e-9), q = (a, b, ta, tb) => [w(ta, tb) * a[0] + (1 - w(ta, tb)) * b[0], w(ta, tb) * a[1] + (1 - w(ta, tb)) * b[1]];
+                const A1 = q(p0, p1, t0, t1), A2 = q(p1, p2, t1, t2), A3 = q(p2, p3, t2, t3), B1 = q(A1, A2, t0, t2), B2 = q(A2, A3, t1, t3);
+                out.push(q(B1, B2, t1, t2));
+            }
+        }
+        return out;
+    }
+    /** nearest measured sample of a set to (u, v): { curve, i } — bucketed once per set per load */
+    const sampleIndex = {};
+    function nearestSample(set, u, v) {
+        let ix = sampleIndex[set]; const list = T.sets[set] || [], meas = list.filter(c => c.inst === undefined);   // measured (and painted) curves only, never a generated instance
+        if (!ix || ix.list !== list || ix.n !== meas.length) { const cell = 0.004, grid = new Map(); for (const c of meas) if (c.uv && c.xy) c.uv.forEach((q, i) => { if (!q) return; const k = Math.floor((((q[0] % 1) + 1) % 1) / cell) + ',' + Math.floor(q[1] / cell); let b = grid.get(k); if (!b) grid.set(k, b = []); b.push([q[0], q[1], c, i]); }); ix = sampleIndex[set] = { list, n: meas.length, cell, grid, nu: Math.round(1 / cell) }; }
+        const cu = Math.floor((((u % 1) + 1) % 1) / ix.cell), cv = Math.floor(v / ix.cell); let best = null, bd = 1e18;
+        for (let r = 1; r <= 8 && !best; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) { const b = ix.grid.get(((cu + dx + ix.nu) % ix.nu) + ',' + (cv + dy)); if (!b) continue;
+            for (const e of b) { let du = e[0] - u; du -= Math.round(du); const d = (du * circMm(v)) ** 2 + ((e[1] - v) * 4) ** 2; if (d < bd) { bd = d; best = e; } } }
+        return best ? { curve: best[2], i: best[3], dMm: Math.sqrt(bd) } : null;
+    }
+    const seededNoise = (R, n) => { const d = []; for (let i = 0; i < n; i++) d.push(R() * 2 - 1); const s = t => t * t * (3 - 2 * t); return x => { const i = Math.floor(x), f = s(x - i); return (1 - f) * d[((i % n) + n) % n] + f * d[(((i + 1) % n) + n) % n]; }; };
+    /** the instances of a parent: `count` curves laid along its spline — the first on it, the rest spread across it, each
+     *  with its own gentle wave; width, colour and (deck) height from the params, the light's position from the nearest
+     *  measured sample (as the brushes). Deck instances taper at their ends: thinner and diving to rest on the floor. */
+    function instancesOf(par) {
+        const prm = Object.assign({}, PARENT_DEFAULTS, par.params), deck = par.layer === 'deck', set = deck ? 'fibres' : 'guides', rK = (T.src.z || {}).rK || 1.4;
+        const out = par.bridges ? bridgesOf(par) : [];
+        if (par.frozen && !par.edited) { out.push(Object.assign(clone(par.frozen), { parent: par.id, inst: 0 })); return out; }   // an actualized child, untouched: the same shape
+        if (!(prm.count > 0)) return out;
+        const P = splineSamples(par.spline); if (P.length < 2) return out;
+        const arc = [0]; for (let j = 1; j < P.length; j++) arc.push(arc[j - 1] + mmBetween(P[j - 1], P[j])); const total = arc[arc.length - 1] || 1e-6;
+        const mid = nearestSample(set, ((P[P.length >> 1][0] % 1) + 1) % 1, P[P.length >> 1][1]);
+        const wMed = prm.widthMm > 0 ? (deck ? prm.widthMm / (2 * rK) : prm.widthMm) : (mid ? mid.curve.w[mid.i] : (deck ? 0.014 : 0.03));
+        for (let k = 0; k < Math.max(1, prm.count | 0); k++) {
+            const R = rng((prm.seed | 0) * 1000003 + k * 7919 + 1), off = k === 0 ? 0 : (R() - 0.5) * 2 * prm.spreadMm, ph = R() * 6.2831853, amp = prm.wavinessMm * (0.5 + R()), wl = prm.waveLenMm * (0.7 + 0.6 * R()), bright = seededNoise(R, 64), wk = 0.8 + 0.4 * R();
+            const uv = [], xy = [], w = [], z = [], zc = [], rgb = [], val = [], base = [];
+            for (let j = 0; j < P.length; j++) {
+                const a = P[Math.max(0, j - 1)], b = P[Math.min(P.length - 1, j + 1)], cm = circMm(P[j][1]);
+                let tx = (b[0] - a[0]) * cm, ty = (b[1] - a[1]) * 4; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+                const d = off + amp * Math.sin(6.2831853 * arc[j] / wl + ph), q = [P[j][0] - ty * d / cm, P[j][1] + tx * d / 4]; q[0] = ((q[0] % 1) + 1) % 1;
+                const near = nearestSample(set, q[0], q[1]); if (!near || near.dMm > 0.6) continue;           // off the tissue (or far from anything measured): skipped
+                const s = arc[j] / total, endMm = Math.min(arc[j], total - arc[j]), taper = prm.taperMm > 0 ? Math.min(1, endMm / prm.taperMm) : 1;
+                const ww = wMed * wk * (0.85 + 0.3 * R()) * (0.4 + 0.6 * taper), mod = 1 + 0.15 * bright(arc[j] / 0.1);
+                uv.push(q); xy.push(near.curve.xy[near.i].slice()); w.push(ww);
+                const col = (near.curve.rgb && near.curve.rgb[near.i]) || [1, 1, 1];
+                if (deck) { const zz = prm.floatMm - prm.sagMm * 4 * s * (1 - s), r = rK * ww; z.push(taper < 1 ? r + (zz - r) * taper : zz); zc.push(0); rgb.push(col.map(c => c * prm.brightness * mod)); }
+                else { const nv = near.curve.val ? near.curve.val[near.i] : 1; val.push(1 + (prm.brightness * nv - 1) * taper * mod); base.push(near.curve.base ? near.curve.base[near.i] : 1); rgb.push(col.slice()); }
+            }
+            if (uv.length < 2) continue;
+            const c = deck ? { uv, xy, w, z, zc, rgb, r: w.map(q => rK * q) } : { uv, xy, w, val, base, rgb };
+            out.push(Object.assign(c, { provenance: par.provenance === 'inferred' ? 'inferred' : 'seeded', parent: par.id, inst: k }));
+        }
+        return out;
+    }
+    const parentById = id => T.parents.find(p => p.id === id);
+    function regen(par) {                          // replace a parent's instances in its set (measured fragments tagged with the parent stay)
+        const set = par.layer === 'deck' ? 'fibres' : 'guides', list = curvesOf(set);
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].parent === par.id && list[i].inst !== undefined) list.splice(i, 1);
+        if (par.fragments) for (const i of par.fragments) if (list[i]) list[i].parent = par.actualized ? undefined : par.id;
+        if (!par.actualized) for (const c of instancesOf(par)) list.push(c);
+        T.dirty = true; T.deckH = undefined;
+    }
+    /** the bridges of a roots parent: one generated curve per join, a cubic from fragment A's end along its tangent to fragment
+     *  B's end along B's, sampled every 20 µm, width / height / colour interpolated between the two ends. What the shards lacked. */
+    function bridgesOf(par) {
+        const fib = curvesOf('fibres'), rK = (T.src.z || {}).rK || 1.4, out = [];
+        par.bridges.forEach((br, bi) => {
+            const A = fib[br.a[0]], B = fib[br.b[0]], ia = br.a[1], ka = br.a[2], ib = br.b[1], kb = br.b[2]; if (!A || !B || !A.uv[ia] || !B.uv[ib] || !A.uv[ka] || !B.uv[kb]) return;
+            const pa = A.uv[ia], pb = B.uv[ib], cm = circMm(0.5 * (pa[1] + pb[1]));
+            let ta = [pa[0] - A.uv[ka][0], pa[1] - A.uv[ka][1]]; ta[0] -= Math.round(ta[0]); let tb = [B.uv[kb][0] - pb[0], B.uv[kb][1] - pb[1]]; tb[0] -= Math.round(tb[0]);
+            const nrm = t => { const x = t[0] * cm, y = t[1] * 4, L = Math.hypot(x, y) || 1; return [x / L, y / L]; }; ta = nrm(ta); tb = nrm(tb);
+            let d = [pb[0] - pa[0], pb[1] - pa[1]]; d[0] -= Math.round(d[0]); const gap = Math.hypot(d[0] * cm, d[1] * 4), n = Math.max(2, Math.round(gap / 0.02));
+            const uv = [], xy = [], w = [], z = [], zc = [], rgb = [];
+            for (let q = 0; q <= n; q++) {
+                const s = q / n, h10 = s ** 3 - 2 * s ** 2 + s, h01 = -2 * s ** 3 + 3 * s ** 2, h11 = s ** 3 - s ** 2;
+                const mx = h10 * gap * ta[0] + h01 * (d[0] * cm) + h11 * gap * tb[0], my = h10 * gap * ta[1] + h01 * (d[1] * 4) + h11 * gap * tb[1];
+                const p = [(((pa[0] + mx / cm) % 1) + 1) % 1, pa[1] + my / 4]; const near = nearestSample('fibres', p[0], p[1]); if (!near) continue;
+                uv.push(p); xy.push(near.curve.xy[near.i].slice());
+                const lerp = (x, y) => x + (y - x) * s; w.push(lerp(A.w[ia], B.w[ib])); z.push(lerp(A.z ? A.z[ia] : rK * A.w[ia], B.z ? B.z[ib] : rK * B.w[ib])); zc.push(0);
+                rgb.push([0, 1, 2].map(t => lerp(A.rgb[ia][t], B.rgb[ib][t])));
+            }
+            if (uv.length >= 2) out.push({ uv, xy, w, z, zc, rgb, r: w.map(q => rK * q), provenance: 'inferred', parent: par.id, inst: 1000 + bi, bridge: true });
+        });
+        return out;
+    }
+    let parentSeq = 1;
+    /** the parent ops: addParent · setParams · moveParentPoint · insertParentPoint · removeParentPoint · deleteParent · actualize */
+    function applyParentOp(op) {
+        switch (op.t) {
+            case 'addParent': { const par = clone(op.parent); if (!par.id) par.id = 'p' + (parentSeq++); else parentSeq = Math.max(parentSeq, parseInt(String(par.id).replace(/\D/g, '') || '0', 10) + 1);
+                if (!par.layer) par.layer = 'deck'; if (!par.params) par.params = {}; if (!par.provenance) par.provenance = 'seeded'; T.parents.push(par); op.parent = clone(par); op.undo = { id: par.id }; regen(par); return true; }
+            case 'setParams': { const par = parentById(op.id); if (!par) throw new Error('tissue: no parent ' + op.id); op.undo = { params: clone(par.params) }; Object.assign(par.params, op.params); regen(par); return true; }
+            case 'moveParentPoint': { const par = parentById(op.id); op.undo = { uv: par.spline[op.i].slice(), edited: par.edited }; par.spline[op.i] = op.uv.slice(); par.edited = true; regen(par); return true; }
+            case 'insertParentPoint': { const par = parentById(op.id); par.spline.splice(op.i, 0, op.uv.slice()); op.undo = { i: op.i, edited: par.edited }; par.edited = true; regen(par); return true; }
+            case 'removeParentPoint': { const par = parentById(op.id); if (par.spline.length <= 2) throw new Error('tissue: a parent keeps at least two points'); op.undo = { i: op.i, uv: par.spline[op.i].slice(), edited: par.edited }; par.spline.splice(op.i, 1); par.edited = true; regen(par); return true; }
+            case 'deleteParent': { const k = T.parents.findIndex(p => p.id === op.id); const par = T.parents[k]; op.undo = { at: k, parent: clone(par) }; par.actualized = true; regen(par); T.parents.splice(k, 1); return true; }
+            case 'actualize': {                    // every instance becomes a parent of its own (one instance, the same shape), the original stops driving them
+                const par = parentById(op.id); const made = [];
+                const set = par.layer === 'deck' ? 'fibres' : 'guides', list = curvesOf(set);
+                for (const c of list) if (c.parent === par.id && c.inst !== undefined) {
+                    // control points every 60 µm: five per wavelength of the instance's wave, so its shape survives the hand-over
+                    const ctrl = []; let acc = 0; for (let j = 0; j < c.uv.length; j++) { if (j === 0 || j === c.uv.length - 1 || acc >= 0.06) { ctrl.push(c.uv[j].slice()); acc = 0; } else acc += mmBetween(c.uv[j - 1], c.uv[j]); }
+                    const frozen = clone(c); delete frozen.parent; delete frozen.inst;   // the instance as it was: the child shows exactly this until a point of it is edited
+                    const child = { id: 'p' + (parentSeq++), layer: par.layer, spline: ctrl, params: Object.assign({}, par.params, { count: 1, spreadMm: 0, wavinessMm: 0, seed: (par.params.seed | 0) * 31 + c.inst }), provenance: par.provenance, from: par.id, actualized: false, frozen };
+                    made.push(child);
+                }
+                op.undo = { children: made.map(m => m.id) }; par.actualized = true; regen(par);
+                for (const m of made) { T.parents.push(m); regen(m); }
+                op.made = made.map(m => m.id); return true; }
+        }
+        return false;
+    }
+    function undoParentOp(op) {
+        switch (op.t) {
+            case 'addParent': { const k = T.parents.findIndex(p => p.id === op.undo.id); if (k >= 0) { const par = T.parents[k]; par.actualized = true; regen(par); T.parents.splice(k, 1); } break; }
+            case 'setParams': { const par = parentById(op.id); par.params = op.undo.params; regen(par); break; }
+            case 'moveParentPoint': { const par = parentById(op.id); par.spline[op.i] = op.undo.uv; par.edited = op.undo.edited; regen(par); break; }
+            case 'insertParentPoint': { const par = parentById(op.id); par.spline.splice(op.undo.i, 1); par.edited = op.undo.edited; regen(par); break; }
+            case 'removeParentPoint': { const par = parentById(op.id); par.spline.splice(op.undo.i, 0, op.undo.uv); par.edited = op.undo.edited; regen(par); break; }
+            case 'deleteParent': { const par = op.undo.parent; par.actualized = false; T.parents.splice(op.undo.at, 0, par); regen(par); break; }
+            case 'actualize': { for (const id of op.undo.children) { const k = T.parents.findIndex(p => p.id === id); if (k >= 0) { const ch = T.parents[k]; ch.actualized = true; regen(ch); T.parents.splice(k, 1); } }
+                const par = parentById(op.id); par.actualized = false; regen(par); break; }
+        }
+    }
+    /** a parent grown from a point along the field: the flow followed both ways for `lengthMm`, control points every 0.3 mm */
+    T.growParentFrom = function (u, v, lengthMm = 1.0, layer = 'deck', params = {}) {
+        const step = 0.02, halves = [];
+        for (const sgn of [1, -1]) {
+            const pts = []; let q = [u, v], t = null;
+            for (let k = 0; k < lengthMm / 2 / step; k++) {
+                const f = T.fieldAt(layer, q[0], q[1]); let th = f.flow; if (t !== null && Math.cos(th - t) < 0) th += Math.PI;   // keep going the same way
+                t = th; q = [q[0] + sgn * step * Math.sin(th) / circMm(q[1]), q[1] + sgn * step * Math.cos(th) / 4];
+                if (q[1] < 0.02 || q[1] > 0.98) break; pts.push(q);
+            }
+            halves.push(pts);
+        }
+        const all = halves[1].reverse().concat([[u, v]], halves[0]), ctrl = []; let acc = 0;
+        for (let j = 0; j < all.length; j++) { if (j === 0 || j === all.length - 1 || acc >= 0.30) { ctrl.push(all[j]); acc = 0; } else acc += mmBetween(all[j - 1], all[j]); }
+        return T.apply({ t: 'addParent', parent: { layer, spline: ctrl, params, provenance: 'seeded' } });
+    };
+    /** §5.2.1 → §5.2.2: every root of the loaded eye becomes a parent — its spline through the chained fragments' samples,
+     *  the fragments tagged as its measured instances, and a generated BRIDGE across each join (from end to end along the
+     *  join's own curve, width, height and colour interpolated between the two ends). The bridges are what the shards lacked. */
+    T.parentsFromRoots = function (opts = {}) {
+        const roots = T.src && T.src.roots; if (!roots || !roots.roots) { say('no roots in this eye'); return 0; }
+        const fib = curvesOf('fibres'), rK = (T.src.z || {}).rK || 1.4; let made = 0, bridges = 0;
+        const linkAt = {}; for (const L of roots.links) { linkAt[L.a.join(':')] = L; linkAt[L.b.join(':')] = L; }
+        for (const root of roots.roots) {
+            const ids = root.fibres.map(f => f[0]); if (ids.some(i => !fib[i] || !fib[i].uv)) continue;
+            const chain = [];                                                    // the samples in root order, fragments reversed where flagged
+            for (const [i, rev] of root.fibres) { const c = fib[i]; const uv = rev ? c.uv.slice().reverse() : c.uv; for (const q of uv) if (q) chain.push(q); }
+            if (chain.length < 4) continue;
+            const ctrl = []; let acc = 0; for (let j = 0; j < chain.length; j++) { if (j === 0 || j === chain.length - 1 || acc >= 0.30) { ctrl.push(chain[j].slice()); acc = 0; } else acc += mmBetween(chain[j - 1], chain[j]); }
+            const par = { layer: 'deck', spline: ctrl, params: { count: 0 }, provenance: 'inferred', from: { root: roots.roots.indexOf(root) }, bridges: [] };
+            // the bridges: one per join between consecutive fragments of this root
+            for (let k = 0; k + 1 < root.fibres.length; k++) {
+                const [i, ri] = root.fibres[k], [j, rj] = root.fibres[k + 1], ea = ri ? 0 : 1, eb = rj ? 1 : 0;
+                const A = fib[i], B = fib[j], ia = ea === 0 ? 0 : A.uv.length - 1, ib = eb === 0 ? 0 : B.uv.length - 1;
+                const pa = A.uv[ia], pb = B.uv[ib]; if (!pa || !pb) continue;
+                const ka = ea === 0 ? Math.min(3, A.uv.length - 1) : Math.max(0, A.uv.length - 4), kb = eb === 0 ? Math.min(3, B.uv.length - 1) : Math.max(0, B.uv.length - 4);
+                if (!A.uv[ka] || !B.uv[kb]) continue;
+                par.bridges.push({ a: [i, ia, ka], b: [j, ib, kb] });
+            }
+            par.fragments = ids; T.apply({ t: 'addParent', parent: par }); made++;
+            bridges += par.bridges.length;
+        }
+        T.dirty = true; T.deckH = undefined; say(`roots → ${made} parents, ${bridges} bridges across their joins`);
+        return { parents: made, bridges };
+    };
+    /** parents as data (for the session file): the ops already carry them; this is the current state for inspection */
+    T.parentsJSON = () => T.parents.map(p => clone(p));
 
     // ---------------------------------------------------------------- Z2 (§32): inspection — the engine's side
     // No panel here: this is the API the UI session's panel is built on. The section reads the PRIMITIVES, not the

@@ -540,6 +540,29 @@ crypts cross most. The sheet's guides at 0.07 mm are the tracer's guide scale (�
 population (0.2 mm). Review: `study/proof-layers/fields-26-deck.png` / `-sheet.png` (a stroke per cell along the flow,
 colour = spacing, dim = filled). Gates: `reach()` `[]`; the bench and the arrival untouched (nothing runs unless asked).
 
+**Built (2026-09-26) — parents and their instances, `tissue.js`.** `T.parents`; ops `addParent · setParams · moveParentPoint ·
+insertParentPoint · removeParentPoint · deleteParent · actualize`, each with its undo, in the journal like every other op;
+`T.growParentFrom(u, v, lengthMm, layer, params)` grows a parent along the field of §5.2.2 (control points every 0.3 mm);
+`T.parentsFromRoots()` turns every root of the loaded eye into a parent (spline through its chained fragments, the fragments
+tagged as its measured instances) whose instances are the **bridges** across its joins — a cubic from fragment end to
+fragment end along their tangents, width, height and colour interpolated. A laid parent's instances: `count` curves
+along the spline, the first on it, the rest spread across `spreadMm`, each with its own gentle wave (S0's 5 % of 0.3 mm),
+width from `widthMm` or the nearest measured fibre, colour from the nearest measured sample with a seeded ± 15 %
+modulation along the tube, deck height `floatMm` less a sag of `sagMm` mid-span, and a taper over the last `taperMm`
+(thinner, and diving to rest on the floor). Actualize freezes each instance into a parent of its own that shows the
+instance's exact samples until one of its points is edited, then re-flows from its control points (every 60 µm).
+
+Eye 26, measured on the arrival path (deterministic): roots → 53 parents, 58 bridges in 0.4 s (MATCH2 85.02 → 85.02,
+−0.006); a bundle of 6 grown from a fibre's sample (261 samples, z 17–74 µm with the taper); **undo and redo
+pixel-identical (max 0 / 255)**; **actualize pixel-identical**, an edit of one child's point moves 21 pixels by ≤ 4 / 255,
+its undo identical; **journal round trip**: 55 ops, 14 KB, replayed onto a fresh arrival load → the same 60 parents and
+1 027 fibres, the render within 1 / 255 (no pixel over 2). Images: `study/proof-layers/parents-26.png` (the engine at
+zoom, before / after — soft, and the crypt floor is dark: the bridges barely read from above) and `parents-26-probe.png`
+(the probe at the bundle: on ONE heightfield a floating strand is a wall with a trench beside it — exactly why §5.2.3's
+bridge layer comes next). Not yet: the per-texel brightness term in the shader (next, measured on its own); the grower's
+neighbourhood fill through `IrisStrands.grow` over the field (the laid bundle is G1b's `Grow strands`; the streamline fill
+is G3's). Gates: `reach()` / `compare()` unaffected (no engine API, no DOM); the bench untouched.
+
 #### 5.2.3 Floating in the render — two or three layers
 
 Without a second layer a floating strand is a taller lump on one heightfield and the probe shows a wall under it.

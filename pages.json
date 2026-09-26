@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-20",
+  "generated": "2026-09-26",
   "pages": [
     {
       "slug": "4cube.html",
@@ -307,7 +307,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fungal-growth.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-20"
     },
     {
       "slug": "game-of-life.html",
@@ -395,7 +395,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-20"
     },
     {
       "slug": "iris-engine/index.html",
@@ -406,7 +406,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris-engine/",
       "og_image": null,
-      "lastmod": "2026-09-20",
+      "lastmod": "2026-09-22",
       "order": 3
     },
     {
@@ -695,7 +695,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/slime-mold.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-20"
     },
     {
       "slug": "socci.html",

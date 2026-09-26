@@ -1,0 +1,1390 @@
+[
+ {
+  "url": "https://iori.me/",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-26T20:15:42Z",
+  "googleCanonical": "https://iori.me/",
+  "userCanonical": "https://iori.me/",
+  "sitemaps": null,
+  "referring": [
+   "https://www.metyouai.cz/about-us",
+   "https://seo.am.in/ls-a19d60655982ca7a691493add070abbf.html",
+   "https://jacobverghese.info/68770795396889bbf418f5774d667dbe-list.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/4cube.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T08:26:36Z",
+  "googleCanonical": "https://iori.me/4cube.html",
+  "userCanonical": "https://iori.me/4cube.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/4cube_volume.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-15T13:00:36Z",
+  "googleCanonical": "https://iori.me/4cube_volume.html",
+  "userCanonical": "https://iori.me/4cube_volume.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/aquarium.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-25T16:46:22Z",
+  "googleCanonical": "https://iori.me/aquarium.html",
+  "userCanonical": "https://iori.me/aquarium.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/bismuth-fluid.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-19T05:51:09Z",
+  "googleCanonical": "https://iori.me/bismuth-fluid.html",
+  "userCanonical": "https://iori.me/bismuth-fluid.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/bubbles.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-31T03:16:34Z",
+  "googleCanonical": "https://iori.me/bubbles.html",
+  "userCanonical": "https://iori.me/bubbles.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/civilisation-builder.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T16:48:13Z",
+  "googleCanonical": "https://iori.me/civilisation-builder.html",
+  "userCanonical": "https://iori.me/civilisation-builder.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/cracks-aberration.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T05:09:58Z",
+  "googleCanonical": "https://iori.me/cracks-aberration.html",
+  "userCanonical": "https://iori.me/cracks-aberration.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/cracks.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-19T07:30:36Z",
+  "googleCanonical": "https://iori.me/cracks.html",
+  "userCanonical": "https://iori.me/cracks.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/crystalize.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-26T02:45:30Z",
+  "googleCanonical": "https://iori.me/crystalize.html",
+  "userCanonical": "https://iori.me/crystalize.html",
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/dandelion-cycle.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Discovered - currently not indexed",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/death.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-02T15:22:53Z",
+  "googleCanonical": "https://iori.me/death.html",
+  "userCanonical": "https://iori.me/death.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/diffusion-fluid.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Discovered - currently not indexed",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/disphere-inverse.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-21T21:01:25Z",
+  "googleCanonical": "https://iori.me/disphere-inverse.html",
+  "userCanonical": "https://iori.me/disphere-inverse.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/disphere-ray.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-02T16:33:48Z",
+  "googleCanonical": "https://iori.me/disphere-ray.html",
+  "userCanonical": "https://iori.me/disphere-ray.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/disphere-symmetry.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-26T13:44:37Z",
+  "googleCanonical": "https://iori.me/disphere-symmetry.html",
+  "userCanonical": "https://iori.me/disphere-symmetry.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/disphere.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-07-24T02:44:55Z",
+  "googleCanonical": "https://iori.me/disphere.html",
+  "userCanonical": "https://iori.me/disphere.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/star.html",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/dither-types.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-21T11:46:59Z",
+  "googleCanonical": "https://iori.me/dither-types.html",
+  "userCanonical": "https://iori.me/dither-types.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/ember-engine.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T14:26:14Z",
+  "googleCanonical": "https://iori.me/ember-engine.html",
+  "userCanonical": "https://iori.me/ember-engine.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/flame-simulation.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T13:36:14Z",
+  "googleCanonical": "https://iori.me/flame-simulation.html",
+  "userCanonical": "https://iori.me/flame-simulation.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/flame-strains.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-15T03:23:32Z",
+  "googleCanonical": "https://iori.me/flame-strains.html",
+  "userCanonical": "https://iori.me/flame-strains.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/iori_INDEX.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/flame.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T14:59:34Z",
+  "googleCanonical": "https://iori.me/flame.html",
+  "userCanonical": "https://iori.me/flame.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/fluid.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-07-24T08:50:49Z",
+  "googleCanonical": "https://iori.me/fluid.html",
+  "userCanonical": "https://iori.me/fluid.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/fractal-dimension.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-18T17:57:15Z",
+  "googleCanonical": "https://iori.me/fractal-dimension.html",
+  "userCanonical": "https://iori.me/fractal-dimension.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/fractals.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-24T20:42:09Z",
+  "googleCanonical": "https://iori.me/fractals.html",
+  "userCanonical": "https://iori.me/fractals.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html",
+   "https://3die.fr/fractals.html",
+   "https://3die.fr/index.html",
+   "https://iori.me/sitemap.xml",
+   "https://3die.fr/"
+  ]
+ },
+ {
+  "url": "https://iori.me/fungal-growth.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T15:20:08Z",
+  "googleCanonical": "https://iori.me/fungal-growth.html",
+  "userCanonical": "https://iori.me/fungal-growth.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/game-of-life.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T18:19:57Z",
+  "googleCanonical": "https://iori.me/game-of-life.html",
+  "userCanonical": "https://iori.me/game-of-life.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/iori.html",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/iris-engine/",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/iris.html",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/lambda_cognition.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Crawled - currently not indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-12T02:16:30Z",
+  "googleCanonical": "https://iori.me/lambda_cognition.html",
+  "userCanonical": "https://iori.me/lambda_cognition.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/lighter-flame.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-07-31T13:36:31Z",
+  "googleCanonical": "https://iori.me/lighter-flame.html",
+  "userCanonical": "https://iori.me/lighter-flame.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/lili.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-31T18:43:06Z",
+  "googleCanonical": "https://iori.me/lili.html",
+  "userCanonical": "https://iori.me/lili.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap-iori.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/liquid-automata.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Crawled - currently not indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-29T17:52:05Z",
+  "googleCanonical": "https://iori.me/liquid-automata.html",
+  "userCanonical": "https://iori.me/liquid-automata.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/mandelbrot-gs.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T14:44:15Z",
+  "googleCanonical": "https://iori.me/mandelbrot-gs.html",
+  "userCanonical": "https://iori.me/mandelbrot-gs.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/maska.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Discovered - currently not indexed",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/dither-types.html",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/meta-iris.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-19T00:47:13Z",
+  "googleCanonical": "https://iori.me/meta-iris.html",
+  "userCanonical": "https://iori.me/meta-iris.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/mirrorbrot-16k.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T17:33:52Z",
+  "googleCanonical": "https://iori.me/mirrorbrot-16k.html",
+  "userCanonical": "https://iori.me/mirrorbrot-16k.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/mirrorbrot.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-22T17:49:29Z",
+  "googleCanonical": "https://iori.me/mirrorbrot.html",
+  "userCanonical": "https://iori.me/mirrorbrot.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/multiOS.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-26T17:45:41Z",
+  "googleCanonical": "https://iori.me/multiOS.html",
+  "userCanonical": "https://iori.me/multiOS.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html?cat=materials",
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/mycelium.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T18:03:37Z",
+  "googleCanonical": "https://iori.me/mycelium.html",
+  "userCanonical": "https://iori.me/mycelium.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/nasal-wave.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-25T08:01:21Z",
+  "googleCanonical": "https://iori.me/nasal-wave.html",
+  "userCanonical": "https://iori.me/nasal-wave.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/orbitals.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-29T05:25:43Z",
+  "googleCanonical": "https://iori.me/orbitals.html",
+  "userCanonical": "https://iori.me/orbitals.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/petri/",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/portfolio.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-22T17:44:25Z",
+  "googleCanonical": "https://iori.me/portfolio.html",
+  "userCanonical": "https://iori.me/portfolio.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/webgl.html",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/procedural-flame.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-26T16:01:54Z",
+  "googleCanonical": "https://iori.me/procedural-flame.html",
+  "userCanonical": "https://iori.me/procedural-flame.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/sigmoid-helix.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-21T16:54:24Z",
+  "googleCanonical": "https://iori.me/sigmoid-helix.html",
+  "userCanonical": "https://iori.me/sigmoid-helix.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/slime-mold.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-26T09:45:02Z",
+  "googleCanonical": "https://iori.me/slime-mold.html",
+  "userCanonical": "https://iori.me/slime-mold.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/socci.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Discovered - currently not indexed",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/three-body-shaded.html",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/three-body.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-04T17:03:29Z",
+  "googleCanonical": "https://iori.me/three-body.html",
+  "userCanonical": "https://iori.me/three-body.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml",
+   "https://iori.me/fractals.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/two-body.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-25T13:46:22Z",
+  "googleCanonical": "https://iori.me/two-body.html",
+  "userCanonical": "https://iori.me/two-body.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/umprum.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T11:19:40Z",
+  "googleCanonical": "https://iori.me/umprum.html",
+  "userCanonical": "https://iori.me/umprum.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/universe.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-06T09:00:12Z",
+  "googleCanonical": "https://iori.me/universe.html",
+  "userCanonical": "https://iori.me/universe.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://iori.me/voxel-flame.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Discovered - currently not indexed",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/iori_INDEX.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/voxel-flames-3d.html",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/voxel-flames.html",
+  "verdict": "NEUTRAL",
+  "coverage": "URL is unknown to Google",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://iori.me/voxel-sandbox.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T17:19:35Z",
+  "googleCanonical": "https://iori.me/voxel-sandbox.html",
+  "userCanonical": "https://iori.me/voxel-sandbox.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/voxel-scale-less.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-25T21:45:41Z",
+  "googleCanonical": "https://iori.me/voxel-scale-less.html",
+  "userCanonical": "https://iori.me/voxel-scale-less.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/voxel-terrain.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-25T23:38:11Z",
+  "googleCanonical": "https://iori.me/voxel-terrain.html",
+  "userCanonical": "https://iori.me/voxel-terrain.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/watercolor.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T17:48:37Z",
+  "googleCanonical": "https://iori.me/watercolor.html",
+  "userCanonical": "https://iori.me/watercolor.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/web.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-24T23:12:52Z",
+  "googleCanonical": "https://iori.me/web.html",
+  "userCanonical": "https://iori.me/web.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/web3d.html",
+   "https://iori.me/star.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/web3d.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-21T13:26:05Z",
+  "googleCanonical": "https://iori.me/web3d.html",
+  "userCanonical": "https://iori.me/web3d.html",
+  "sitemaps": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://iori.me/webgl.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-25T15:13:49Z",
+  "googleCanonical": "https://iori.me/webgl.html",
+  "userCanonical": "https://iori.me/webgl.html",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/sitemap-iori.xml",
+   "https://iori.me/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://3die.fr/",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-21T09:04:55Z",
+  "googleCanonical": "https://3die.fr/",
+  "userCanonical": "https://3die.fr/",
+  "sitemaps": null,
+  "referring": [
+   "https://iori.me/mandelbrot-gs.html",
+   "https://3die.fr/game.html",
+   "https://vouchery.kreativnicesko.cz/galerie-kreativcu/d352b239-7098-4eea-b918-898f3097e628"
+  ]
+ },
+ {
+  "url": "https://3die.fr/blackjach/",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-05T04:39:39Z",
+  "googleCanonical": "https://3die.fr/blackjach/",
+  "userCanonical": "https://3die.fr/blackjach/",
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/crow_archduke.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-01T02:24:28Z",
+  "googleCanonical": "https://3die.fr/crow_archduke.html",
+  "userCanonical": "https://3die.fr/crow_archduke.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/darkwood.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-02T12:31:36Z",
+  "googleCanonical": "https://3die.fr/darkwood.html",
+  "userCanonical": "https://3die.fr/darkwood.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": [
+   "https://3die.fr/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://3die.fr/game.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Crawled - currently not indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-07T19:47:13Z",
+  "googleCanonical": "https://3die.fr/game.html",
+  "userCanonical": "https://3die.fr/game.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": [
+   "https://iori.me/game.html",
+   "https://3die.fr/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://3die.fr/game_multiplayer.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-25T14:18:43Z",
+  "googleCanonical": "https://3die.fr/game_multiplayer.html",
+  "userCanonical": "https://3die.fr/game_multiplayer.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/indent.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-06T18:10:50Z",
+  "googleCanonical": "https://3die.fr/indent.html",
+  "userCanonical": "https://3die.fr/indent.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": [
+   "https://3die.fr/sitemap.xml",
+   "https://3die.fr/sitemap-3die.xml"
+  ]
+ },
+ {
+  "url": "https://3die.fr/info.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-19T03:30:39Z",
+  "googleCanonical": "https://3die.fr/info.html",
+  "userCanonical": "https://3die.fr/info.html",
+  "sitemaps": null,
+  "referring": [
+   "https://3die.fr/"
+  ]
+ },
+ {
+  "url": "https://3die.fr/jachym.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-25T14:08:57Z",
+  "googleCanonical": "https://3die.fr/jachym.html",
+  "userCanonical": "https://3die.fr/jachym.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/metyou.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-25T17:23:12Z",
+  "googleCanonical": "https://3die.fr/metyou.html",
+  "userCanonical": "https://3die.fr/metyou.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/moises.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-31T23:49:27Z",
+  "googleCanonical": "https://3die.fr/moises.html",
+  "userCanonical": "https://3die.fr/moises.html",
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/music.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-31T23:19:27Z",
+  "googleCanonical": "https://3die.fr/music.html",
+  "userCanonical": "https://3die.fr/music.html",
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/pi.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-20T17:38:09Z",
+  "googleCanonical": "https://3die.fr/pi.html",
+  "userCanonical": "https://3die.fr/pi.html",
+  "sitemaps": null,
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/poster.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-08-21T14:41:05Z",
+  "googleCanonical": "https://3die.fr/poster.html",
+  "userCanonical": "https://3die.fr/poster.html",
+  "sitemaps": null,
+  "referring": [
+   "https://3die.fr/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://3die.fr/shop.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-19T08:08:08Z",
+  "googleCanonical": "https://3die.fr/shop.html",
+  "userCanonical": "https://3die.fr/shop.html",
+  "sitemaps": null,
+  "referring": [
+   "https://3die.fr/"
+  ]
+ },
+ {
+  "url": "https://3die.fr/start.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-21T08:39:56Z",
+  "googleCanonical": "https://3die.fr/start.html",
+  "userCanonical": "https://3die.fr/start.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": [
+   "https://3die.fr/"
+  ]
+ },
+ {
+  "url": "https://3die.fr/sudoku.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-01T00:19:28Z",
+  "googleCanonical": "https://3die.fr/sudoku.html",
+  "userCanonical": "https://3die.fr/sudoku.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/tboi2.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-08T03:02:29Z",
+  "googleCanonical": "https://3die.fr/tboi2.html",
+  "userCanonical": "https://3die.fr/tboi2.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": [
+   "https://3die.fr/portfolio.html"
+  ]
+ },
+ {
+  "url": "https://3die.fr/tomasek.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-01T00:56:59Z",
+  "googleCanonical": "https://3die.fr/tomasek.html",
+  "userCanonical": "https://3die.fr/tomasek.html",
+  "sitemaps": null,
+  "referring": [
+   "https://3die.fr/sitemap.xml"
+  ]
+ },
+ {
+  "url": "https://3die.fr/univerzum.html",
+  "verdict": "PASS",
+  "coverage": "Submitted and indexed",
+  "indexing": "INDEXING_ALLOWED",
+  "fetch": "SUCCESSFUL",
+  "robots": "ALLOWED",
+  "lastCrawl": "2026-09-08T05:47:12Z",
+  "googleCanonical": "https://3die.fr/univerzum.html",
+  "userCanonical": "https://3die.fr/univerzum.html",
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": null
+ },
+ {
+  "url": "https://3die.fr/websites.html",
+  "verdict": "NEUTRAL",
+  "coverage": "Discovered - currently not indexed",
+  "indexing": "INDEXING_STATE_UNSPECIFIED",
+  "fetch": "PAGE_FETCH_STATE_UNSPECIFIED",
+  "robots": "ROBOTS_TXT_STATE_UNSPECIFIED",
+  "lastCrawl": null,
+  "googleCanonical": null,
+  "userCanonical": null,
+  "sitemaps": [
+   "https://3die.fr/sitemap-3die.xml",
+   "https://3die.fr/sitemap.xml"
+  ],
+  "referring": [
+   "https://3die.fr/sitemap-3die.xml"
+  ]
+ }
+]

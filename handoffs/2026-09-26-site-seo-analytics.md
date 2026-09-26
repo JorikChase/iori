@@ -1,4 +1,4 @@
-# Site handoff — SEO, analytics, navigation (2026-09-26)
+# Site handoff — SEO, analytics, navigation (2026-09-26, status check added the same evening)
 
 Covers the **site itself**: iori.me and 3die.fr, `site.py` and its generated regions, the
 navigation menus, the deploy, and the Google Analytics / Search Console tooling.
@@ -33,10 +33,11 @@ Run the script from `/tmp`, never from `/root/iori` — it self-updates via git 
 The `http.version=HTTP/1.1` is required; without it the fetch silently ships the previous commit
 (this host's libcurl breaks on HTTP/2 against github.com).
 
-**3. As of today the tree is ahead of everything.** Local `6929661`, origin `921986e`, server
-`921986e`. Ten commits unpushed (nine petri, one iris-engine handoff) plus uncommitted work in
-`petri/` and `iris-engine/`. None of it is site work, but a deploy pulls origin, so push
-deliberately rather than by habit.
+**3. Check where the tree stands before deploying.** On the evening of 2026-09-26 local, origin
+and the server were all on `c11de9e`; the status check that same evening then committed the
+SoundCloud identity change on top, which is **not deployed until pushed and the command above is
+run**. Uncommitted iris-engine and petri work sits in the tree; it is not site work, but a deploy
+pulls origin, so push deliberately rather than by habit.
 
 ---
 
@@ -47,10 +48,18 @@ deliberately rather than by habit.
   navigation.
 - **Every page has real internal links.** Before the menu shipped, 63 pages had zero `<a>` tags.
   That was the largest finding of the September audit and it is closed.
-- **Identity is per-domain in JSON-LD.** iori.me declares a `Person` (iori, with SoundCloud and
-  Instagram in `sameAs`); 3die.fr declares the `Organization` (3DIE, logo, alternate names).
+- **Identity is per-domain in JSON-LD.** iori.me declares a `Person` (iori, `sameAs`
+  `soundcloud.com/ioriori` and `instagram.com/jorikjonathan`); 3die.fr declares the
+  `Organization` (3DIE, logo, alternate names, `sameAs` iori.me and `soundcloud.com/5gmaelstroem`).
   Until 2026-09-15 *every* page declared 3DIE, including all 63 iori.me pages, which told Google
   iori.me *is* 3DIE.
+- **The label's SoundCloud handle is `5gmaelstroem`, with the e.** `soundcloud.com/5gmaelstrom`
+  is a 404. Its profile description reads "3Die.FR", which is what makes it the label's account.
+  It is also on `crow_archduke.html` as that artist's `sameAs`, via the registry: artist pages
+  accept a `"sameAs": [...]` list in `pages.meta.json`. An Instagram `@5gmaelstrom` exists too
+  ("krau soulja"); ownership unconfirmed, so it is not declared anywhere.
+- **No page shows a visible link to any social profile.** The `sameAs` claims are machine-only.
+  The SoundCloud profile links back to both domains; Instagram cannot be checked without a login.
 - Compression on, root canonicals with `301`s from the filename URLs, real 404s, repo internals
   return 404, one GA tag per page, language declared per page from the registry.
 
@@ -73,6 +82,8 @@ python3 tools/seo-audit/google_report.py --check      # what the account can see
 python3 tools/seo-audit/google_report.py --days 90    # traffic + search, JSON + Markdown
 python3 tools/seo-audit/crawl.py                      # live crawl of both sitemaps
 python3 tools/seo-audit/sitemaps.py --fix --dry-run   # Search Console sitemap registrations
+python3 tools/seo-audit/inspect_urls.py               # URL inspection of every crawled page → out/inspect.json
+python3 tools/seo-audit/trend.py                      # weekly GSC + GA4, before/after the 2026-09-15 fix
 bash tools/seo-audit/setup_google_auth.sh             # rebuild access from scratch
 ```
 
@@ -106,6 +117,47 @@ generated tag now skips localhost, loopback, private ranges, `.local` and `file:
 effective: localhost sessions run daily through 2026-09-16 and stop dead after, the day the guard
 deployed. Windows that start before 16 September still include that noise.
 
+### Status check, evening of 2026-09-26
+
+`google_report.py` ends its window at today minus three days, so a run on the 26th covers the same
+28 days as the table above. The new information came from `inspect_urls.py` and `trend.py`.
+
+**Indexing** (Search Console URL inspection of all 85 sitemap URLs, `out/inspect.json`):
+
+| | iori.me | 3die.fr |
+|---|---:|---:|
+| Submitted and indexed | 50 of 64 | 19 of 21 |
+| URL unknown to Google | 7 | 0 |
+| Discovered, not yet crawled | 5 | 1 |
+| Crawled, not indexed | 2 | 1 |
+| Google canonical ≠ ours | 0 | 0 |
+| Recrawled on or after 2026-09-15 | 16 of 52 | 5 of 20 |
+
+The seven unknown pages are `iori.html`, `iris.html`, `iris-engine/`, `petri/`,
+`three-body-shaded.html`, `voxel-flames.html`, `voxel-flames-3d.html`. All are in the sitemap
+Google downloaded on 2026-09-24 and linked from the home page; Google simply has not fetched them.
+Three quarters of the index still holds the pre-fix pages, so the identity fix has not been
+absorbed yet. **Do not judge the fix before the recrawl is mostly done** — late October is a
+reasonable first look.
+
+**Search, nine days before the fix versus nine after:** zero clicks in both windows on both sites.
+iori.me impressions 5 → 3, 3die.fr 11 → 12 with average position 17 → 12, brand "3die" 8 → 7
+impressions at position 5.6. Noise on this sample size; consistent with "not recrawled yet".
+
+**Traffic is a small circle, and sessions double-count.** 31 August to 23 September by source:
+
+| | iori.me | 3die.fr |
+|---|---:|---:|
+| Direct | 43 sessions / 24 users | 41 / 25 |
+| Referral from the other domain | 31 / 7 | 36 / 10 |
+| Google organic | 2 | 0 |
+
+Cities: Prague, Kladno, Jablonec, Brno. The two domains are separate GA4 streams with no
+cross-domain linking, so a person following the menu between the sites starts a new session on
+every hop: about a third of each site's sessions are the same handful of people bouncing across.
+**Quote users, not sessions.** Some September volume is also the audit's own browser checks,
+which the localhost guard cannot filter.
+
 ---
 
 ## Open, and why
@@ -118,8 +170,28 @@ deployed. Windows that start before 16 September still include that noise.
   nameservers for 3die.fr, registrar-servers.com (Namecheap) for iori.me. If iori adds an A record
   to `194.182.91.236`, add the `www` → apex redirect in `server_setup.sh` at the same time.
   Judged modest value, bad failure mode.
-- **3DIE's own SoundCloud**, when it exists, goes in the `3die.fr` `sameAs` list in `site.py`.
-  iori's personal accounts deliberately belong to the iori.me Person, not to the label.
+- **Backlinks from the profiles, which only iori can set.** Instagram `@jorikjonathan` bio link →
+  `https://iori.me/`; SoundCloud `ioriori` profile link → iori.me (it already links to both
+  domains); SoundCloud `5gmaelstroem` profile link → `https://3die.fr/`; the Facebook page that
+  sends referrals → 3die.fr. These are the external signals the `sameAs` claims are waiting for;
+  Google corroborates an identity when the profile links back.
+- **Request indexing for the seven unknown iori.me pages** in the Search Console UI (URL
+  inspection → Request indexing). The API cannot do it; the Indexing API is for job postings only.
+  Or simply wait.
+
+**Next for the site track, in order**
+
+1. Push and deploy the SoundCloud identity commit (see the deploy command above).
+2. iori sets the profile backlinks listed under "waiting on iori".
+3. Cross-domain linking on the GA tag, so sessions stop double-counting between the domains:
+   `linker: {domains: ["iori.me", "3die.fr"]}` in the generated `gtag('config', …)` in `site.py`,
+   plus "Configure your domains" on both streams in the Analytics admin. Small, contained.
+4. Visible social links in the generated menu (`MENU_LINKS` in `site.py`): a SoundCloud and
+   Instagram entry on iori.me pages, SoundCloud on 3die.fr pages. This is the only way to put a
+   crawlable, human-visible outbound link on 83 canvas pages without touching the viewports. It is
+   a visible change to the menu, so **ask iori before doing it**.
+5. Re-run `inspect_urls.py` and `trend.py` in late October, once most pages show a lastCrawl after
+   2026-09-15. Only then compare search numbers against the table above.
 
 **Decided, do not redo**
 
@@ -148,6 +220,10 @@ artworks. `404.html` and `clip.html` have short descriptions and are internal.
 - **rsync `--exclude` does not delete what it already copied.** Excluding a path stops it being
   copied but leaves the old copy public forever. `--delete-excluded` is now in `server_setup.sh`;
   it is what finally removed a 620 MB stale checkout and the leaked repo notes from the webroot.
+- **The sitemaps API says "0 indexed" for every sitemap.** That field is a known quirk, not a
+  finding. `inspect_urls.py` gives the real per-URL answer (69 of 85 indexed on 2026-09-26).
+- **`google_report.py` ends its window three days ago** (GA and Search Console lag). Two runs a
+  few days apart can print identical numbers; that is the same window, not a flat line.
 - **There are no Caddy access logs.** The global `log` block is runtime logging only, so there is
   no request forensics. Do not promise to look something up in them.
 - **Browsers cache `assets/menu.js` and `assets/menu.css` for an hour** (`@shortcache`). A stale

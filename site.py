@@ -99,9 +99,10 @@ IDENTITY = {
         "logo": "https://3die.fr/icon/android/launchericon-512x512.png",
         "description": "Independent label fusing design, art and technology: games, "
                        "3D-printed objects, music and the artists behind them.",
-        # 3DIE's own profiles go here as they exist; iori's personal accounts
-        # belong to the iori.me entity above, not to the label
-        "sameAs": ["https://iori.me/"],
+        # 3DIE's own profiles; iori's personal accounts belong to the iori.me
+        # entity above, not to the label. The SoundCloud handle is 5gmaelstroem
+        # (with the e) — soundcloud.com/5gmaelstrom is a 404.
+        "sameAs": ["https://iori.me/", "https://soundcloud.com/5gmaelstroem"],
     },
 }
 PRIORITY_DEFAULT = 0.5
@@ -219,12 +220,16 @@ def json_ld_for(slug, meta):
             "author": {"@type": "Organization", "name": "3DIE"},
         })
     elif ptype == "artist":
-        blocks.append({
+        artist = {
             "@context": "https://schema.org",
             "@type": "Person",
             "name": title.split("—")[0].strip(), "url": url,
             "memberOf": {"@type": "Organization", "name": "3DIE"},
-        })
+        }
+        # registry "sameAs": the artist's own profiles (list of URLs)
+        if meta.get("sameAs"):
+            artist["sameAs"] = list(meta["sameAs"])
+        blocks.append(artist)
     elif ptype == "experiment":
         blocks.append({
             "@context": "https://schema.org",

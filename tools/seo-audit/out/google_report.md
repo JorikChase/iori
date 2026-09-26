@@ -1,78 +1,78 @@
-# Google report — 2026-06-15 to 2026-09-12
+# Google report — 2026-06-26 to 2026-09-23
 
 
 ## Analytics · iori.me
 
 | metric | value |
 |---|---|
-| sessions | 107 |
-| users | 74 |
-| new users | 73 |
-| page views | 318 |
-| engagement rate | 37.4% |
-| avg session | 3m 09s |
-| bounce rate | 62.6% |
+| sessions | 140 |
+| users | 78 |
+| new users | 77 |
+| page views | 483 |
+| engagement rate | 50.0% |
+| avg session | 4m 11s |
+| bounce rate | 50.0% |
 
 **Top pages**
 
 | page | views | users |
 |---|---:|---:|
-| / | 107 | 60 |
-| /portfolio.html | 47 | 13 |
-| /umprum.html | 16 | 9 |
-| /flame-strains.html | 12 | 7 |
-| /fractals.html | 10 | 7 |
-| /civilisation-builder.html | 9 | 2 |
+| / | 147 | 62 |
+| /portfolio.html | 71 | 17 |
+| /iris-engine/ | 26 | 4 |
+| /umprum.html | 17 | 9 |
+| /flame-strains.html | 14 | 8 |
+| /fractals.html | 13 | 10 |
+| /fluid.html | 11 | 7 |
+| /meta-iris.html | 11 | 6 |
+| /civilisation-builder.html | 10 | 3 |
+| /flame-simulation.html | 10 | 6 |
+| /web.html | 10 | 5 |
 | /death.html | 8 | 7 |
-| /meta-iris.html | 8 | 5 |
-| /flame-simulation.html | 7 | 4 |
-| /web.html | 7 | 4 |
-| /fluid.html | 5 | 5 |
-| /lambda_cognition.html | 5 | 5 |
-| /bismuth-fluid.html | 4 | 4 |
-| /ember-engine.html | 4 | 2 |
-| /web3d.html | 4 | 2 |
+| /ember-engine.html | 7 | 3 |
+| /aquarium.html | 6 | 5 |
+| /lambda_cognition.html | 6 | 6 |
 
 **Channels**
 
 | channel | sessions |
 |---|---:|
-| Direct | 67 |
-| Referral | 27 |
-| Organic Social | 11 |
+| Direct | 82 |
+| Referral | 48 |
+| Organic Social | 8 |
 | Organic Search | 2 |
 
-**Devices**: desktop 61, mobile 47, tablet 2
+**Devices**: desktop 88, mobile 54, tablet 6
 
-**Countries**: Czechia 64, Germany 14, United States 11, United Kingdom 5, China 4, France 2, Singapore 2, Sweden 2
+**Countries**: Czechia 98, Germany 14, United States 9, China 5, United Kingdom 5, France 2, Singapore 2, Sweden 2
 
 ## Analytics · 3die.fr
 
 | metric | value |
 |---|---|
-| sessions | 105 |
-| users | 71 |
-| new users | 70 |
-| page views | 212 |
-| engagement rate | 42.9% |
-| avg session | 2m 11s |
-| bounce rate | 57.1% |
+| sessions | 130 |
+| users | 74 |
+| new users | 72 |
+| page views | 265 |
+| engagement rate | 45.4% |
+| avg session | 2m 26s |
+| bounce rate | 54.6% |
 
 **Top pages**
 
 | page | views | users |
 |---|---:|---:|
-| / | 92 | 50 |
-| /blackjach/ | 33 | 17 |
-| /info.html | 13 | 9 |
-| /crow_archduke.html | 12 | 7 |
-| /shop.html | 12 | 6 |
-| /jachym.html | 8 | 5 |
-| /moises.html | 7 | 5 |
-| /portfolio.html | 7 | 6 |
-| /pi.html | 6 | 5 |
-| /start.html | 5 | 2 |
-| /web.html | 5 | 4 |
+| / | 124 | 55 |
+| /blackjach/ | 38 | 19 |
+| /start.html | 16 | 3 |
+| /crow_archduke.html | 13 | 8 |
+| /shop.html | 13 | 7 |
+| /info.html | 12 | 8 |
+| /jachym.html | 11 | 8 |
+| /moises.html | 8 | 6 |
+| /pi.html | 8 | 5 |
+| /portfolio.html | 4 | 4 |
+| /web.html | 3 | 2 |
 | /fractals.html | 2 | 2 |
 | /game.html | 2 | 2 |
 | /sudoku.html | 2 | 2 |
@@ -82,14 +82,14 @@
 
 | channel | sessions |
 |---|---:|
-| Direct | 66 |
-| Referral | 26 |
-| Organic Social | 12 |
+| Direct | 70 |
+| Referral | 46 |
+| Organic Social | 13 |
 | Unassigned | 1 |
 
-**Devices**: desktop 66, mobile 41
+**Devices**: desktop 84, mobile 48
 
-**Countries**: Czechia 70, United States 12, Germany 9, France 5, United Kingdom 4, China 3, Canada 1, Montenegro 1
+**Countries**: Czechia 95, United States 14, United Kingdom 6, Germany 5, China 3, France 3, Canada 1, Montenegro 1
 
 ## Analytics · traffic by hostname
 
@@ -97,9 +97,9 @@ _Both sites are data streams in one property, so the per-site figures above are 
 
 | hostname | sessions | users | views |
 |---|---:|---:|---:|
-| iori.me | 107 | 74 | 318 |
-| 3die.fr | 105 | 71 | 212 |
-| localhost | 33 | 6 | 277 |
+| iori.me | 140 | 78 | 483 |
+| 3die.fr | 130 | 74 | 265 |
+| localhost | 41 | 7 | 339 |
 
 **Not a real site**: localhost — development traffic is being recorded in the property.
 
@@ -108,14 +108,15 @@ _Both sites are data streams in one property, so the per-site figures above are 
 | metric | value |
 |---|---|
 | clicks | 1 |
-| impressions | 42 |
-| CTR | 2.4% |
-| avg position | 44.1 |
+| impressions | 46 |
+| CTR | 2.2% |
+| avg position | 42.0 |
 
 **Search queries**
 
 | query | clicks | impressions | CTR | position |
 |---|---:|---:|---:|---:|
+| cracking simulator | 0 | 1 | 0.0% | 35.0 |
 | flame simulation | 0 | 1 | 0.0% | 66.0 |
 | physarum simulation | 0 | 2 | 0.0% | 55.5 |
 | physarum: slime mold simulator | 0 | 1 | 0.0% | 62.0 |
@@ -130,30 +131,30 @@ _Both sites are data streams in one property, so the per-site figures above are 
 | https://iori.me/4cube.html | 0 | 1 | 64.0 |
 | https://iori.me/4cube_volume.html | 0 | 2 | 28.0 |
 | https://iori.me/aquarium.html | 0 | 1 | 1.0 |
-| https://iori.me/cracks.html | 0 | 1 | 10.0 |
+| https://iori.me/bismuth-fluid.html | 0 | 1 | 30.0 |
+| https://iori.me/cracks.html | 0 | 2 | 22.5 |
 | https://iori.me/disphere-inverse.html | 0 | 1 | 7.0 |
 | https://iori.me/disphere.html | 0 | 4 | 38.8 |
 | https://iori.me/dither-types.html | 0 | 1 | 5.0 |
+| https://iori.me/flame-simulation.html | 0 | 1 | 8.0 |
 | https://iori.me/flame-strains.html | 0 | 1 | 2.0 |
 | https://iori.me/flame.html | 0 | 3 | 71.3 |
 | https://iori.me/fluid.html | 0 | 1 | 4.0 |
-| https://iori.me/fractals.html | 0 | 3 | 76.0 |
-| https://iori.me/index.html | 0 | 1 | 9.0 |
-| https://iori.me/info.html | 0 | 1 | 5.0 |
+| https://iori.me/fractal-dimension.html | 0 | 1 | 10.0 |
 
 **Sitemaps**
 
-- https://iori.me/sitemap.xml — errors 0, warnings 0, last downloaded 2026-09-14T22:51:59.716Z (web: 63 submitted, 0 indexed)
-- https://iori.me/sitemap-iori.xml — errors 0, warnings 0, last downloaded 2026-09-14T22:51:58.930Z (web: 63 submitted, 0 indexed)
+- https://iori.me/sitemap.xml — errors 0, warnings 0, last downloaded 2026-09-24T17:50:58.177Z (web: 64 submitted, 0 indexed)
+- https://iori.me/sitemap-iori.xml — errors 0, warnings 0, last downloaded 2026-09-23T04:55:17.143Z (web: 64 submitted, 0 indexed)
 
 ## Search Console · sc-domain:3die.fr
 
 | metric | value |
 |---|---|
 | clicks | 0 |
-| impressions | 206 |
+| impressions | 203 |
 | CTR | 0.0% |
-| avg position | 22.9 |
+| avg position | 22.4 |
 
 **Search queries**
 
@@ -161,13 +162,14 @@ _Both sites are data streams in one property, so the per-site figures above are 
 |---|---:|---:|---:|---:|
 | 3 die | 0 | 1 | 0.0% | 3.0 |
 | 3 dinge | 0 | 1 | 0.0% | 87.0 |
+| 3d diel | 0 | 1 | 0.0% | 79.0 |
 | 3ddie | 0 | 1 | 0.0% | 50.0 |
-| 3die | 0 | 45 | 0.0% | 6.8 |
+| 3die | 0 | 48 | 0.0% | 6.6 |
 | 3ideco | 0 | 1 | 0.0% | 35.0 |
 | agence die drei | 0 | 1 | 0.0% | 71.0 |
 | did 3d | 0 | 1 | 0.0% | 67.0 |
 | did3d | 0 | 1 | 0.0% | 51.0 |
-| die v3 | 0 | 21 | 0.0% | 51.9 |
+| die v3 | 0 | 20 | 0.0% | 49.5 |
 | fractal processing | 0 | 1 | 0.0% | 61.0 |
 | petrosian fractal dimension | 0 | 1 | 0.0% | 34.0 |
 | pi trainer | 0 | 1 | 0.0% | 19.0 |
@@ -181,23 +183,23 @@ _Both sites are data streams in one property, so the per-site figures above are 
 
 | page | clicks | impressions | position |
 |---|---:|---:|---:|
-| https://3die.fr/ | 0 | 128 | 17.3 |
-| https://3die.fr/aquarium.html | 0 | 2 | 24.0 |
+| https://3die.fr/ | 0 | 128 | 16.5 |
+| https://3die.fr/aquarium.html | 0 | 3 | 16.3 |
+| https://3die.fr/bismuth-fluid.html | 0 | 1 | 8.0 |
 | https://3die.fr/burger.html | 0 | 1 | 6.0 |
 | https://3die.fr/clip.html | 0 | 1 | 4.0 |
 | https://3die.fr/crow_archduke.html | 0 | 1 | 4.0 |
 | https://3die.fr/dither-types.html | 0 | 5 | 80.2 |
-| https://3die.fr/fractal-dimension.html | 0 | 2 | 33.5 |
-| https://3die.fr/fractals.html | 0 | 46 | 24.3 |
-| https://3die.fr/info.html | 0 | 1 | 6.0 |
+| https://3die.fr/fractal-dimension.html | 0 | 3 | 25.7 |
+| https://3die.fr/fractals.html | 0 | 40 | 24.2 |
+| https://3die.fr/info.html | 0 | 2 | 5.5 |
 | https://3die.fr/lambda_cognition.html | 0 | 6 | 7.5 |
 | https://3die.fr/lili.html | 0 | 1 | 10.0 |
+| https://3die.fr/meta-iris.html | 0 | 1 | 7.0 |
+| https://3die.fr/metyou.html | 0 | 3 | 6.3 |
 | https://3die.fr/moises.html | 0 | 1 | 8.0 |
-| https://3die.fr/orbitals.html | 0 | 1 | 49.0 |
-| https://3die.fr/pi.html | 0 | 2 | 11.0 |
-| https://3die.fr/portfolio.html | 0 | 3 | 5.7 |
 
 **Sitemaps**
 
-- https://3die.fr/sitemap.xml — errors 0, warnings 0, last downloaded 2026-09-14T20:18:13.482Z (web: 21 submitted, 0 indexed)
-- https://3die.fr/sitemap-3die.xml — errors 0, warnings 0, last downloaded 2026-09-14T22:51:58.499Z (web: 21 submitted, 0 indexed)
+- https://3die.fr/sitemap.xml — errors 0, warnings 0, last downloaded 2026-09-20T20:02:46.053Z (web: 21 submitted, 0 indexed)
+- https://3die.fr/sitemap-3die.xml — errors 0, warnings 0, last downloaded 2026-09-25T08:25:55.853Z (web: 21 submitted, 0 indexed)

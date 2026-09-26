@@ -107,7 +107,10 @@
       "category": "artist",
       "domain": "3die.fr",
       "type": "artist",
-      "priority": 0.7
+      "priority": 0.7,
+      "sameAs": [
+        "https://soundcloud.com/5gmaelstroem"
+      ]
     },
     "crystalize.html": {
       "title": "Cryo-Genesis v5.3 — Macro Studio",

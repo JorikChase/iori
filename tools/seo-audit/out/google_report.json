@@ -1,7 +1,7 @@
 {
  "range": [
-  "2026-06-15",
-  "2026-09-12"
+  "2026-06-26",
+  "2026-09-23"
  ],
  "days": 90,
  "ga4_properties": {
@@ -57,25 +57,25 @@
      {
       "metricValues": [
        {
-        "value": "107"
+        "value": "140"
        },
        {
-        "value": "74"
+        "value": "78"
        },
        {
-        "value": "73"
+        "value": "77"
        },
        {
-        "value": "318"
+        "value": "483"
        },
        {
-        "value": "0.37383177570093457"
+        "value": "0.5"
        },
        {
-        "value": "189.56617204672898"
+        "value": "251.52656189285713"
        },
        {
-        "value": "0.62616822429906538"
+        "value": "0.5"
        }
       ]
      }
@@ -116,13 +116,13 @@
       ],
       "metricValues": [
        {
-        "value": "107"
+        "value": "147"
        },
        {
-        "value": "60"
+        "value": "62"
        },
        {
-        "value": "0.37037037037037035"
+        "value": "0.46938775510204084"
        }
       ]
      },
@@ -134,13 +134,31 @@
       ],
       "metricValues": [
        {
-        "value": "47"
+        "value": "71"
        },
        {
-        "value": "13"
+        "value": "17"
        },
        {
-        "value": "0.73076923076923073"
+        "value": "0.82051282051282048"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/iris-engine/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "26"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "0.8666666666666667"
        }
       ]
      },
@@ -152,7 +170,7 @@
       ],
       "metricValues": [
        {
-        "value": "16"
+        "value": "17"
        },
        {
         "value": "9"
@@ -170,13 +188,13 @@
       ],
       "metricValues": [
        {
-        "value": "12"
+        "value": "14"
        },
        {
-        "value": "7"
+        "value": "8"
        },
        {
-        "value": "0.72727272727272729"
+        "value": "0.76923076923076927"
        }
       ]
      },
@@ -188,13 +206,49 @@
       ],
       "metricValues": [
        {
+        "value": "13"
+       },
+       {
         "value": "10"
+       },
+       {
+        "value": "0.9"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
        },
        {
         "value": "7"
        },
        {
-        "value": "0.8571428571428571"
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/meta-iris.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "1"
        }
       ]
      },
@@ -206,13 +260,49 @@
       ],
       "metricValues": [
        {
-        "value": "9"
+        "value": "10"
        },
        {
-        "value": "2"
+        "value": "3"
        },
        {
         "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame-simulation.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "0.7142857142857143"
        }
       ]
      },
@@ -237,15 +327,15 @@
      {
       "dimensionValues": [
        {
-        "value": "/meta-iris.html"
+        "value": "/ember-engine.html"
        }
       ],
       "metricValues": [
        {
-        "value": "8"
+        "value": "7"
        },
        {
-        "value": "5"
+        "value": "3"
        },
        {
         "value": "1"
@@ -255,48 +345,12 @@
      {
       "dimensionValues": [
        {
-        "value": "/flame-simulation.html"
+        "value": "/aquarium.html"
        }
       ],
       "metricValues": [
        {
-        "value": "7"
-       },
-       {
-        "value": "4"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/web.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "7"
-       },
-       {
-        "value": "4"
-       },
-       {
-        "value": "0.6"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/fluid.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "5"
+        "value": "6"
        },
        {
         "value": "5"
@@ -314,13 +368,103 @@
       ],
       "metricValues": [
        {
-        "value": "5"
+        "value": "6"
        },
+       {
+        "value": "6"
+       },
+       {
+        "value": "0.66666666666666663"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/crystalize.html"
+       }
+      ],
+      "metricValues": [
        {
         "value": "5"
        },
        {
-        "value": "0.6"
+        "value": "4"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/slime-mold.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/star.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web3d.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/4cube_volume.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
        }
       ]
      },
@@ -345,7 +489,25 @@
      {
       "dimensionValues": [
        {
-        "value": "/ember-engine.html"
+        "value": "/flame.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/mirrorbrot.html"
        }
       ],
       "metricValues": [
@@ -363,7 +525,7 @@
      {
       "dimensionValues": [
        {
-        "value": "/web3d.html"
+        "value": "/three-body.html"
        }
       ],
       "metricValues": [
@@ -371,61 +533,7 @@
         "value": "4"
        },
        {
-        "value": "2"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/4cube_volume.html"
-       }
-      ],
-      "metricValues": [
-       {
         "value": "3"
-       },
-       {
-        "value": "2"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/aquarium.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "3"
-       },
-       {
-        "value": "3"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/crystalize.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "3"
-       },
-       {
-        "value": "2"
        },
        {
         "value": "1"
@@ -471,7 +579,7 @@
      {
       "dimensionValues": [
        {
-        "value": "/flame.html"
+        "value": "/fractal-dimension.html"
        }
       ],
       "metricValues": [
@@ -507,7 +615,7 @@
      {
       "dimensionValues": [
        {
-        "value": "/slime-mold.html"
+        "value": "/mandelbrot-gs.html"
        }
       ],
       "metricValues": [
@@ -515,7 +623,7 @@
         "value": "3"
        },
        {
-        "value": "1"
+        "value": "2"
        },
        {
         "value": "1"
@@ -525,7 +633,7 @@
      {
       "dimensionValues": [
        {
-        "value": "/star.html"
+        "value": "/procedural-flame.html"
        }
       ],
       "metricValues": [
@@ -533,7 +641,7 @@
         "value": "3"
        },
        {
-        "value": "1"
+        "value": "2"
        },
        {
         "value": "1"
@@ -543,7 +651,7 @@
      {
       "dimensionValues": [
        {
-        "value": "/three-body.html"
+        "value": "/universe.html"
        }
       ],
       "metricValues": [
@@ -579,105 +687,15 @@
      {
       "dimensionValues": [
        {
-        "value": "/fungal-growth.html"
+        "value": "/voxel-flames-3d.html"
        }
       ],
       "metricValues": [
        {
-        "value": "2"
+        "value": "3"
        },
        {
         "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/lighter-flame.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "2"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/mandelbrot-gs.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/mycelium.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "2"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/procedural-flame.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/voxel-sandbox.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "2"
        },
        {
         "value": "1"
@@ -692,10 +710,10 @@
       ],
       "metricValues": [
        {
-        "value": "2"
+        "value": "3"
        },
        {
-        "value": "2"
+        "value": "3"
        },
        {
         "value": "1"
@@ -710,10 +728,28 @@
       ],
       "metricValues": [
        {
-        "value": "1"
+        "value": "2"
+       },
+       {
+        "value": "2"
        },
        {
         "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/cracks-aberration.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
        },
        {
         "value": "1"
@@ -728,10 +764,28 @@
       ],
       "metricValues": [
        {
+        "value": "2"
+       },
+       {
         "value": "1"
        },
        {
         "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/disphere-ray.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
        },
        {
         "value": "1"
@@ -746,28 +800,10 @@
       ],
       "metricValues": [
        {
-        "value": "1"
+        "value": "2"
        },
        {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/fractal-dimension.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
+        "value": "2"
        },
        {
         "value": "1"
@@ -777,48 +813,12 @@
      {
       "dimensionValues": [
        {
-        "value": "/game-of-life.html"
+        "value": "/fungal-growth.html"
        }
       ],
       "metricValues": [
        {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/iori.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/lili.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
+        "value": "2"
        },
        {
         "value": "1"
@@ -829,7 +829,7 @@
       ]
      }
     ],
-    "rowCount": 51,
+    "rowCount": 65,
     "metadata": {
      "currencyCode": "CZK",
      "timeZone": "Europe/Prague"
@@ -861,10 +861,10 @@
       ],
       "metricValues": [
        {
-        "value": "67"
+        "value": "82"
        },
        {
-        "value": "50"
+        "value": "56"
        }
       ]
      },
@@ -876,10 +876,10 @@
       ],
       "metricValues": [
        {
-        "value": "27"
+        "value": "48"
        },
        {
-        "value": "14"
+        "value": "17"
        }
       ]
      },
@@ -891,10 +891,10 @@
       ],
       "metricValues": [
        {
-        "value": "11"
+        "value": "8"
        },
        {
-        "value": "11"
+        "value": "8"
        }
       ]
      },
@@ -942,7 +942,7 @@
       ],
       "metricValues": [
        {
-        "value": "67"
+        "value": "82"
        }
       ]
      },
@@ -954,19 +954,7 @@
       ],
       "metricValues": [
        {
-        "value": "21"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "m.facebook.com"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "6"
+        "value": "38"
        }
       ]
      },
@@ -979,6 +967,30 @@
       "metricValues": [
        {
         "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "localhost:8770"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "m.facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
        }
       ]
      },
@@ -1079,7 +1091,7 @@
       ]
      }
     ],
-    "rowCount": 12,
+    "rowCount": 13,
     "metadata": {
      "currencyCode": "CZK",
      "timeZone": "Europe/Prague"
@@ -1107,7 +1119,7 @@
       ],
       "metricValues": [
        {
-        "value": "64"
+        "value": "98"
        }
       ]
      },
@@ -1131,7 +1143,19 @@
       ],
       "metricValues": [
        {
-        "value": "11"
+        "value": "9"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "China"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
        }
       ]
      },
@@ -1144,18 +1168,6 @@
       "metricValues": [
        {
         "value": "5"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "China"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "4"
        }
       ]
      },
@@ -1284,7 +1296,7 @@
       ],
       "metricValues": [
        {
-        "value": "61"
+        "value": "88"
        }
       ]
      },
@@ -1296,7 +1308,7 @@
       ],
       "metricValues": [
        {
-        "value": "47"
+        "value": "54"
        }
       ]
      },
@@ -1308,7 +1320,7 @@
       ],
       "metricValues": [
        {
-        "value": "2"
+        "value": "6"
        }
       ]
      }
@@ -1337,36 +1349,6 @@
      }
     ],
     "rows": [
-     {
-      "dimensionValues": [
-       {
-        "value": "20260615"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "20260625"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "2"
-       }
-      ]
-     },
      {
       "dimensionValues": [
        {
@@ -1936,9 +1918,129 @@
         "value": "2"
        }
       ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260914"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260915"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260918"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260919"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260920"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260921"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260922"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260923"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
      }
     ],
-    "rowCount": 40,
+    "rowCount": 46,
     "metadata": {
      "currencyCode": "CZK",
      "timeZone": "Europe/Prague"
@@ -1982,25 +2084,25 @@
      {
       "metricValues": [
        {
-        "value": "105"
+        "value": "130"
        },
        {
-        "value": "71"
+        "value": "74"
        },
        {
-        "value": "70"
+        "value": "72"
        },
        {
-        "value": "212"
+        "value": "265"
        },
        {
-        "value": "0.42857142857142855"
+        "value": "0.45384615384615384"
        },
        {
-        "value": "131.31892808571428"
+        "value": "146.18123677692307"
        },
        {
-        "value": "0.5714285714285714"
+        "value": "0.5461538461538461"
        }
       ]
      }
@@ -2041,13 +2143,13 @@
       ],
       "metricValues": [
        {
-        "value": "92"
+        "value": "124"
        },
        {
-        "value": "50"
+        "value": "55"
        },
        {
-        "value": "0.49230769230769234"
+        "value": "0.51764705882352946"
        }
       ]
      },
@@ -2059,31 +2161,31 @@
       ],
       "metricValues": [
        {
-        "value": "33"
+        "value": "38"
        },
        {
-        "value": "17"
+        "value": "19"
        },
        {
-        "value": "0.38461538461538464"
+        "value": "0.375"
        }
       ]
      },
      {
       "dimensionValues": [
        {
-        "value": "/info.html"
+        "value": "/start.html"
        }
       ],
       "metricValues": [
        {
-        "value": "13"
+        "value": "16"
        },
        {
-        "value": "9"
+        "value": "3"
        },
        {
-        "value": "1"
+        "value": "0.9"
        }
       ]
      },
@@ -2095,13 +2197,13 @@
       ],
       "metricValues": [
        {
-        "value": "12"
+        "value": "13"
        },
        {
-        "value": "7"
+        "value": "8"
        },
        {
-        "value": "0.72727272727272729"
+        "value": "0.75"
        }
       ]
      },
@@ -2113,10 +2215,28 @@
       ],
       "metricValues": [
        {
+        "value": "13"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/info.html"
+       }
+      ],
+      "metricValues": [
+       {
         "value": "12"
        },
        {
-        "value": "6"
+        "value": "8"
        },
        {
         "value": "1"
@@ -2131,10 +2251,10 @@
       ],
       "metricValues": [
        {
-        "value": "8"
+        "value": "11"
        },
        {
-        "value": "5"
+        "value": "8"
        },
        {
         "value": "1"
@@ -2149,31 +2269,13 @@
       ],
       "metricValues": [
        {
-        "value": "7"
-       },
-       {
-        "value": "5"
-       },
-       {
-        "value": "0.77777777777777779"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "/portfolio.html"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "7"
+        "value": "8"
        },
        {
         "value": "6"
        },
        {
-        "value": "0.83333333333333337"
+        "value": "0.8"
        }
       ]
      },
@@ -2185,28 +2287,28 @@
       ],
       "metricValues": [
        {
-        "value": "6"
+        "value": "8"
        },
        {
         "value": "5"
        },
        {
-        "value": "0.5"
+        "value": "0.5714285714285714"
        }
       ]
      },
      {
       "dimensionValues": [
        {
-        "value": "/start.html"
+        "value": "/portfolio.html"
        }
       ],
       "metricValues": [
        {
-        "value": "5"
+        "value": "4"
        },
        {
-        "value": "2"
+        "value": "4"
        },
        {
         "value": "1"
@@ -2221,13 +2323,13 @@
       ],
       "metricValues": [
        {
-        "value": "5"
+        "value": "3"
        },
        {
-        "value": "4"
+        "value": "2"
        },
        {
-        "value": "0.75"
+        "value": "1"
        }
       ]
      },
@@ -2342,7 +2444,43 @@
      {
       "dimensionValues": [
        {
+        "value": "/poster.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
         "value": "/tboi2.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/tomasek.html"
        }
       ],
       "metricValues": [
@@ -2392,9 +2530,27 @@
         "value": "1"
        }
       ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/websites.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
      }
     ],
-    "rowCount": 20,
+    "rowCount": 23,
     "metadata": {
      "currencyCode": "CZK",
      "timeZone": "Europe/Prague"
@@ -2426,10 +2582,10 @@
       ],
       "metricValues": [
        {
-        "value": "66"
+        "value": "70"
        },
        {
-        "value": "50"
+        "value": "51"
        }
       ]
      },
@@ -2441,10 +2597,10 @@
       ],
       "metricValues": [
        {
-        "value": "26"
+        "value": "46"
        },
        {
-        "value": "12"
+        "value": "15"
        }
       ]
      },
@@ -2456,10 +2612,10 @@
       ],
       "metricValues": [
        {
-        "value": "12"
+        "value": "13"
        },
        {
-        "value": "11"
+        "value": "12"
        }
       ]
      },
@@ -2507,7 +2663,7 @@
       ],
       "metricValues": [
        {
-        "value": "66"
+        "value": "70"
        }
       ]
      },
@@ -2519,7 +2675,7 @@
       ],
       "metricValues": [
        {
-        "value": "23"
+        "value": "43"
        }
       ]
      },
@@ -2531,7 +2687,7 @@
       ],
       "metricValues": [
        {
-        "value": "3"
+        "value": "4"
        }
       ]
      },
@@ -2660,7 +2816,7 @@
       ],
       "metricValues": [
        {
-        "value": "70"
+        "value": "95"
        }
       ]
      },
@@ -2672,31 +2828,7 @@
       ],
       "metricValues": [
        {
-        "value": "12"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "Germany"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "9"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "France"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "5"
+        "value": "14"
        }
       ]
      },
@@ -2708,7 +2840,19 @@
       ],
       "metricValues": [
        {
-        "value": "4"
+        "value": "6"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Germany"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
        }
       ]
      },
@@ -2716,6 +2860,18 @@
       "dimensionValues": [
        {
         "value": "China"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "France"
        }
       ],
       "metricValues": [
@@ -2751,6 +2907,18 @@
      {
       "dimensionValues": [
        {
+        "value": "Sweden"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
         "value": "Türkiye"
        }
       ],
@@ -2761,7 +2929,7 @@
       ]
      }
     ],
-    "rowCount": 9,
+    "rowCount": 10,
     "metadata": {
      "currencyCode": "CZK",
      "timeZone": "Europe/Prague"
@@ -2789,7 +2957,7 @@
       ],
       "metricValues": [
        {
-        "value": "66"
+        "value": "84"
        }
       ]
      },
@@ -2801,7 +2969,7 @@
       ],
       "metricValues": [
        {
-        "value": "41"
+        "value": "48"
        }
       ]
      }
@@ -2830,96 +2998,6 @@
      }
     ],
     "rows": [
-     {
-      "dimensionValues": [
-       {
-        "value": "20260615"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "20260616"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "20260618"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "20260620"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "2"
-       },
-       {
-        "value": "2"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "20260621"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
-     {
-      "dimensionValues": [
-       {
-        "value": "20260624"
-       }
-      ],
-      "metricValues": [
-       {
-        "value": "1"
-       },
-       {
-        "value": "1"
-       }
-      ]
-     },
      {
       "dimensionValues": [
        {
@@ -3489,9 +3567,144 @@
         "value": "4"
        }
       ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260913"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260914"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260915"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260918"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260919"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260920"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260921"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260922"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260923"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
      }
     ],
-    "rowCount": 44,
+    "rowCount": 47,
     "metadata": {
      "currencyCode": "CZK",
      "timeZone": "Europe/Prague"
@@ -3506,15 +3719,24 @@
     "rows": [
      {
       "clicks": 1,
-      "impressions": 42,
-      "ctr": 0.023809523809523808,
-      "position": 44.07142857142857
+      "impressions": 46,
+      "ctr": 0.021739130434782608,
+      "position": 42.04347826086956
      }
     ],
     "responseAggregationType": "byProperty"
    },
    "queries": {
     "rows": [
+     {
+      "keys": [
+       "cracking simulator"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
      {
       "keys": [
        "flame simulation"
@@ -3603,12 +3825,21 @@
      },
      {
       "keys": [
-       "https://iori.me/cracks.html"
+       "https://iori.me/bismuth-fluid.html"
       ],
       "clicks": 0,
       "impressions": 1,
       "ctr": 0,
-      "position": 10
+      "position": 30
+     },
+     {
+      "keys": [
+       "https://iori.me/cracks.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 22.5
      },
      {
       "keys": [
@@ -3639,6 +3870,15 @@
      },
      {
       "keys": [
+       "https://iori.me/flame-simulation.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
        "https://iori.me/flame-strains.html"
       ],
       "clicks": 0,
@@ -3663,6 +3903,15 @@
       "impressions": 1,
       "ctr": 0,
       "position": 4
+     },
+     {
+      "keys": [
+       "https://iori.me/fractal-dimension.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
      },
      {
       "keys": [
@@ -3824,6 +4073,15 @@
      },
      {
       "keys": [
+       "ita"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 21.5
+     },
+     {
+      "keys": [
        "mar"
       ],
       "clicks": 0,
@@ -3860,6 +4118,15 @@
      },
      {
       "keys": [
+       "prt"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
        "rus"
       ],
       "clicks": 0,
@@ -3881,9 +4148,9 @@
        "tur"
       ],
       "clicks": 0,
-      "impressions": 1,
+      "impressions": 2,
       "ctr": 0,
-      "position": 41
+      "position": 35.5
      },
      {
       "keys": [
@@ -3922,123 +4189,24 @@
        "DESKTOP"
       ],
       "clicks": 1,
-      "impressions": 37,
-      "ctr": 0.02702702702702703,
-      "position": 49.027027027027025
+      "impressions": 39,
+      "ctr": 0.02564102564102564,
+      "position": 47.666666666666664
      },
      {
       "keys": [
        "MOBILE"
       ],
       "clicks": 0,
-      "impressions": 5,
+      "impressions": 7,
       "ctr": 0,
-      "position": 7.4
+      "position": 10.714285714285714
      }
     ],
     "responseAggregationType": "byProperty"
    },
    "daily": {
     "rows": [
-     {
-      "keys": [
-       "2026-06-15"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-16"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-17"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-18"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-19"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-20"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-21"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-22"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-23"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-24"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-25"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
      {
       "keys": [
        "2026-06-26"
@@ -4749,6 +4917,105 @@
       "impressions": 1,
       "ctr": 0,
       "position": 1
+     },
+     {
+      "keys": [
+       "2026-09-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-14"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "2026-09-15"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "2026-09-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-17"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-09-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-20"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-09-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-22"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-23"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
      }
     ],
     "responseAggregationType": "byProperty"
@@ -4761,13 +5028,13 @@
       "isPending": false,
       "isSitemapsIndex": false,
       "type": "sitemap",
-      "lastDownloaded": "2026-09-14T22:51:59.716Z",
+      "lastDownloaded": "2026-09-24T17:50:58.177Z",
       "warnings": "0",
       "errors": "0",
       "contents": [
        {
         "type": "web",
-        "submitted": "63",
+        "submitted": "64",
         "indexed": "0"
        }
       ]
@@ -4778,13 +5045,13 @@
       "isPending": false,
       "isSitemapsIndex": false,
       "type": "sitemap",
-      "lastDownloaded": "2026-09-14T22:51:58.930Z",
+      "lastDownloaded": "2026-09-23T04:55:17.143Z",
       "warnings": "0",
       "errors": "0",
       "contents": [
        {
         "type": "web",
-        "submitted": "63",
+        "submitted": "64",
         "indexed": "0"
        }
       ]
@@ -4797,9 +5064,9 @@
     "rows": [
      {
       "clicks": 0,
-      "impressions": 206,
+      "impressions": 203,
       "ctr": 0,
-      "position": 22.854368932038835
+      "position": 22.36945812807882
      }
     ],
     "responseAggregationType": "byProperty"
@@ -4826,6 +5093,15 @@
      },
      {
       "keys": [
+       "3d diel"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+     },
+     {
+      "keys": [
        "3ddie"
       ],
       "clicks": 0,
@@ -4838,9 +5114,9 @@
        "3die"
       ],
       "clicks": 0,
-      "impressions": 45,
+      "impressions": 48,
       "ctr": 0,
-      "position": 6.777777777777778
+      "position": 6.583333333333333
      },
      {
       "keys": [
@@ -4883,9 +5159,9 @@
        "die v3"
       ],
       "clicks": 0,
-      "impressions": 21,
+      "impressions": 20,
       "ctr": 0,
-      "position": 51.904761904761905
+      "position": 49.55
      },
      {
       "keys": [
@@ -4971,16 +5247,25 @@
       "clicks": 0,
       "impressions": 128,
       "ctr": 0,
-      "position": 17.3359375
+      "position": 16.546875
      },
      {
       "keys": [
        "https://3die.fr/aquarium.html"
       ],
       "clicks": 0,
-      "impressions": 2,
+      "impressions": 3,
       "ctr": 0,
-      "position": 24
+      "position": 16.333333333333336
+     },
+     {
+      "keys": [
+       "https://3die.fr/bismuth-fluid.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
      },
      {
       "keys": [
@@ -5023,27 +5308,27 @@
        "https://3die.fr/fractal-dimension.html"
       ],
       "clicks": 0,
-      "impressions": 2,
+      "impressions": 3,
       "ctr": 0,
-      "position": 33.5
+      "position": 25.666666666666668
      },
      {
       "keys": [
        "https://3die.fr/fractals.html"
       ],
       "clicks": 0,
-      "impressions": 46,
+      "impressions": 40,
       "ctr": 0,
-      "position": 24.282608695652176
+      "position": 24.175
      },
      {
       "keys": [
        "https://3die.fr/info.html"
       ],
       "clicks": 0,
-      "impressions": 1,
+      "impressions": 2,
       "ctr": 0,
-      "position": 6
+      "position": 5.5
      },
      {
       "keys": [
@@ -5062,6 +5347,24 @@
       "impressions": 1,
       "ctr": 0,
       "position": 10
+     },
+     {
+      "keys": [
+       "https://3die.fr/meta-iris.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "https://3die.fr/metyou.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 6.333333333333333
      },
      {
       "keys": [
@@ -5104,18 +5407,18 @@
        "https://3die.fr/shop.html"
       ],
       "clicks": 0,
-      "impressions": 12,
+      "impressions": 14,
       "ctr": 0,
-      "position": 29.833333333333332
+      "position": 31.357142857142858
      },
      {
       "keys": [
        "https://3die.fr/start.html"
       ],
       "clicks": 0,
-      "impressions": 2,
+      "impressions": 3,
       "ctr": 0,
-      "position": 39
+      "position": 27.333333333333332
      },
      {
       "keys": [
@@ -5125,6 +5428,15 @@
       "impressions": 4,
       "ctr": 0,
       "position": 54.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/universe.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
      },
      {
       "keys": [
@@ -5143,6 +5455,15 @@
      {
       "keys": [
        "arg"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "bel"
       ],
       "clicks": 0,
       "impressions": 1,
@@ -5181,27 +5502,27 @@
        "can"
       ],
       "clicks": 0,
-      "impressions": 3,
+      "impressions": 2,
       "ctr": 0,
-      "position": 6.666666666666667
+      "position": 6
      },
      {
       "keys": [
        "cze"
       ],
       "clicks": 0,
-      "impressions": 7,
+      "impressions": 9,
       "ctr": 0,
-      "position": 20
+      "position": 17
      },
      {
       "keys": [
        "deu"
       ],
       "clicks": 0,
-      "impressions": 4,
+      "impressions": 6,
       "ctr": 0,
-      "position": 7
+      "position": 18.666666666666668
      },
      {
       "keys": [
@@ -5226,27 +5547,27 @@
        "fra"
       ],
       "clicks": 0,
-      "impressions": 21,
+      "impressions": 20,
       "ctr": 0,
-      "position": 20.904761904761905
+      "position": 21.65
      },
      {
       "keys": [
        "gbr"
       ],
       "clicks": 0,
-      "impressions": 5,
+      "impressions": 6,
       "ctr": 0,
-      "position": 16.8
+      "position": 14.833333333333334
      },
      {
       "keys": [
        "gha"
       ],
       "clicks": 0,
-      "impressions": 12,
+      "impressions": 10,
       "ctr": 0,
-      "position": 7
+      "position": 7.1
      },
      {
       "keys": [
@@ -5268,12 +5589,21 @@
      },
      {
       "keys": [
+       "irl"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
        "ita"
       ],
       "clicks": 0,
-      "impressions": 6,
+      "impressions": 3,
       "ctr": 0,
-      "position": 12.166666666666666
+      "position": 17.666666666666668
      },
      {
       "keys": [
@@ -5301,24 +5631,6 @@
       "impressions": 3,
       "ctr": 0,
       "position": 7.666666666666667
-     },
-     {
-      "keys": [
-       "kor"
-      ],
-      "clicks": 0,
-      "impressions": 4,
-      "ctr": 0,
-      "position": 3.5
-     },
-     {
-      "keys": [
-       "mar"
-      ],
-      "clicks": 0,
-      "impressions": 5,
-      "ctr": 0,
-      "position": 44.4
      }
     ],
     "responseAggregationType": "byProperty"
@@ -5332,16 +5644,16 @@
       "clicks": 0,
       "impressions": 160,
       "ctr": 0,
-      "position": 27.55625
+      "position": 26.71875
      },
      {
       "keys": [
        "MOBILE"
       ],
       "clicks": 0,
-      "impressions": 44,
+      "impressions": 41,
       "ctr": 0,
-      "position": 6.454545454545454
+      "position": 6.121951219512195
      },
      {
       "keys": [
@@ -5357,105 +5669,6 @@
    },
    "daily": {
     "rows": [
-     {
-      "keys": [
-       "2026-06-15"
-      ],
-      "clicks": 0,
-      "impressions": 2,
-      "ctr": 0,
-      "position": 57
-     },
-     {
-      "keys": [
-       "2026-06-16"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-17"
-      ],
-      "clicks": 0,
-      "impressions": 1,
-      "ctr": 0,
-      "position": 8
-     },
-     {
-      "keys": [
-       "2026-06-18"
-      ],
-      "clicks": 0,
-      "impressions": 2,
-      "ctr": 0,
-      "position": 15.5
-     },
-     {
-      "keys": [
-       "2026-06-19"
-      ],
-      "clicks": 0,
-      "impressions": 2,
-      "ctr": 0,
-      "position": 30
-     },
-     {
-      "keys": [
-       "2026-06-20"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-21"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-22"
-      ],
-      "clicks": 0,
-      "impressions": 0,
-      "ctr": 0,
-      "position": 0
-     },
-     {
-      "keys": [
-       "2026-06-23"
-      ],
-      "clicks": 0,
-      "impressions": 5,
-      "ctr": 0,
-      "position": 14.2
-     },
-     {
-      "keys": [
-       "2026-06-24"
-      ],
-      "clicks": 0,
-      "impressions": 2,
-      "ctr": 0,
-      "position": 7
-     },
-     {
-      "keys": [
-       "2026-06-25"
-      ],
-      "clicks": 0,
-      "impressions": 1,
-      "ctr": 0,
-      "position": 10
-     },
      {
       "keys": [
        "2026-06-26"
@@ -6166,6 +6379,105 @@
       "impressions": 1,
       "ctr": 0,
       "position": 4
+     },
+     {
+      "keys": [
+       "2026-09-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-15"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+     },
+     {
+      "keys": [
+       "2026-09-16"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 7.5
+     },
+     {
+      "keys": [
+       "2026-09-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-18"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-09-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-20"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "2026-09-21"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "2026-09-22"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-09-23"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
      }
     ],
     "responseAggregationType": "byProperty"
@@ -6175,10 +6487,10 @@
      {
       "path": "https://3die.fr/sitemap.xml",
       "lastSubmitted": "2026-09-14T22:51:55.892Z",
-      "isPending": true,
+      "isPending": false,
       "isSitemapsIndex": false,
       "type": "sitemap",
-      "lastDownloaded": "2026-09-14T20:18:13.482Z",
+      "lastDownloaded": "2026-09-20T20:02:46.053Z",
       "warnings": "0",
       "errors": "0",
       "contents": [
@@ -6195,7 +6507,7 @@
       "isPending": false,
       "isSitemapsIndex": false,
       "type": "sitemap",
-      "lastDownloaded": "2026-09-14T22:51:58.499Z",
+      "lastDownloaded": "2026-09-25T08:25:55.853Z",
       "warnings": "0",
       "errors": "0",
       "contents": [
@@ -6244,13 +6556,13 @@
     ],
     "metricValues": [
      {
-      "value": "107"
+      "value": "140"
      },
      {
-      "value": "74"
+      "value": "78"
      },
      {
-      "value": "318"
+      "value": "483"
      }
     ]
    },
@@ -6262,13 +6574,13 @@
     ],
     "metricValues": [
      {
-      "value": "105"
+      "value": "130"
      },
      {
-      "value": "71"
+      "value": "74"
      },
      {
-      "value": "212"
+      "value": "265"
      }
     ]
    },
@@ -6280,13 +6592,13 @@
     ],
     "metricValues": [
      {
-      "value": "33"
+      "value": "41"
      },
      {
-      "value": "6"
+      "value": "7"
      },
      {
-      "value": "277"
+      "value": "339"
      }
     ]
    }

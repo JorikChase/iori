@@ -516,6 +516,30 @@ Fitter runs in parallel: 09 7.1 min / 1.5 GB, 25 8.1 min / 2.5 GB, 35 3.2 min / 
   do) and a **per-texel modulation along and across the tube** — the strand shader writes one brightness per strand
   today, and study/08 §7 showed a flat-brightness curve is no better than LIC. The one shader change the deck needs.
 
+**Built (2026-09-26) — `IrisTissue.buildFields()` / `fieldAt(layer, u, v)` / `fieldsCheck()` / `fieldsImage(layer)` in `tissue.js`.**
+Per cell of 0.1 mm over the region (≈ 240 × 37 on a whole iris): the structure tensor of the tangents (doubled angles,
+weighted by segment length — a tangent and its reverse agree) and the median across-flow distance from a sample to the
+nearest PARALLEL sample of another curve in another lane (a crossing fibre is not a neighbour, nor a same-lane fragment
+split at a junction: |cos| ≥ 0.7, across ≥ 15 µm, beside rather than ahead). Flow from every curve of the layer, spacing
+only from its bundle-scale curves (the sheet's fine fibres lie between the guides and would halve their spacing). Empty
+cells relax from their neighbours (u wraps on a whole iris) with conf 0; a layer with no samples takes the prior. The
+sampler is bilinear on the doubled-angle vectors and on log spacing. Built lazily, ≈ 0.2 s; not part of the arrival.
+
+| eye | deck: samples · cells filled · flow agreement median / p90 · spacing median (p10–p90) | sheet: the same |
+|---|---|---|
+| 26 | 7 894 · 1 248 / 8 604 · 9.8° / 39.6° · 0.048 mm (0.024–0.076) | 30 492 · 5 512 · 6.3° / 24.4° · 0.071 mm (0.043–0.102) |
+| 09 | 12 350 · 2 164 · 11.8° / 46.6° · 0.049 (0.024–0.075) | 31 273 · 5 435 · 6.0° / 22.6° · 0.072 (0.043–0.102) |
+| 25 | 6 538 · 956 · 18.2° / 59.5° · 0.041 (0.022–0.076) | 32 297 · 6 111 · 8.3° / 29.2° · 0.073 (0.044–0.101) |
+| 35 | 1 279 · 350 · 9.1° / 34.3° · 0.046 (0.019–0.076) | 27 087 · 5 571 · 5.0° / 18.2° · 0.078 (0.043–0.108) |
+
+Readings. The deck's spacing (≈ 0.045 mm) sits under the 65 µm autocorrelation peak measured on eye 26's photo and well
+under S0's child spacing (0.09–0.12 mm at ± 30 %): the tracer packs fragments in adjacent lanes tighter than the visible
+strands — the grower's `sep` multiplier (1.6 by default) is where that is corrected, and the field is what the tracer saw.
+The deck's p90 agreement (35–60°) is the weave: crossing fibres in one 0.1 mm cell average to one direction; eye 25's
+crypts cross most. The sheet's guides at 0.07 mm are the tracer's guide scale (σ 19–42 µm), finer than S0's bundle
+population (0.2 mm). Review: `study/proof-layers/fields-26-deck.png` / `-sheet.png` (a stroke per cell along the flow,
+colour = spacing, dim = filled). Gates: `reach()` `[]`; the bench and the arrival untouched (nothing runs unless asked).
+
 #### 5.2.3 Floating in the render — two or three layers
 
 Without a second layer a floating strand is a taller lump on one heightfield and the probe shows a wall under it.

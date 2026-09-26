@@ -620,6 +620,130 @@
         return T;
     };
 
+    // ---------------------------------------------------------------- study/11 §5.2.2: the flow and spacing fields of a layer eye
+    // The grower (strands.js) reads flow(u, v) — the angle from radial, sin along u — and spacing(u, v) in mm. For a fitted eye
+    // they come from the traced primitives themselves: the DECK's from its fibres (the shards, and through them the roots), the
+    // SHEET's from its guides and fine fibres — never from the legacy engine's flowDir / spacing, which belong to the procedural
+    // model. Per cell of ≈ 0.1 mm: the structure tensor of the tangents (doubled angles, so a tangent and its reverse agree)
+    // weighted by segment length, and the median across-flow distance from a sample to the nearest sample of ANOTHER curve.
+    // Cells with no sample are filled by relaxation from their neighbours (u wraps on a whole iris) and carry conf 0; a layer
+    // with no samples at all gets the prior: radial flow, S0's spacing (deck 0.10 mm, sheet 0.22 — study/08 §4).
+    // flow is read from every curve of the layer; spacing only from its bundle-scale curves (the sheet's fine fibres lie between
+    // the guides and would halve the guides' spacing), and only between PARALLEL neighbours in different lanes — a crossing fibre
+    // or a same-lane fragment (split at a junction) is not a neighbouring strand
+    const FIELD_SETS = { deck: { flow: ['fibres'], spacing: ['fibres'] }, sheet: { flow: ['guides', 'sfib'], spacing: ['guides'] } }, FIELD_PRIOR_MM = { deck: 0.10, sheet: 0.22 };
+    T.fields = null;
+    T.buildFields = function (opts = {}) {
+        if (!T.sets) throw new Error('tissue: nothing loaded');
+        const cellMm = opts.cellMm || 0.10, R = T.rect, full = T.full, rMid = 2 + 4 * (R[1] + 0.5 * R[3]);
+        const w = Math.max(4, Math.ceil(R[2] * 6.2831853 * rMid / cellMm)), h = Math.max(4, Math.ceil(R[3] * 4 / cellMm));
+        const cellOf = (u, v) => { let cu = (u - R[0]) / R[2], cv = (v - R[1]) / R[3]; if (full) cu -= Math.floor(cu); if (cu < 0 || cu >= 1 || cv < 0 || cv >= 1) return -1; return Math.min(h - 1, Math.floor(cv * h)) * w + Math.min(w - 1, Math.floor(cu * w)); };
+        const out = {};
+        for (const layer in FIELD_SETS) {
+            const c2 = new Float32Array(w * h), s2 = new Float32Array(w * h), wt = new Float32Array(w * h), n = new Int32Array(w * h);
+            const spBins = Array.from({ length: w * h }, () => []);
+            // every sample of the layer, bucketed for the across-flow neighbour search
+            const samples = [], grid = new Map(), bu = 0.02 / (6.2831853 * rMid), bv = 0.02 / 4;
+            const key = (u, v) => Math.floor(((u % 1) + 1) % 1 / bu) + ':' + Math.floor(v / bv);
+            for (const set of FIELD_SETS[layer].flow) for (const c of (T.sets[set] || [])) {
+                const uv = c.uv; if (!uv) continue; const forSpacing = FIELD_SETS[layer].spacing.includes(set);
+                for (let j = 0; j < uv.length; j++) {
+                    const p = uv[j]; if (!p) continue;
+                    const a = uv[Math.max(0, j - 1)], b = uv[Math.min(uv.length - 1, j + 1)]; if (!a || !b) continue;
+                    let du = b[0] - a[0]; du -= Math.round(du); const r = 2 + 4 * p[1], tx = du * 6.2831853 * r, ty = (b[1] - a[1]) * 4, L = Math.hypot(tx, ty);
+                    if (L < 1e-6) continue;
+                    const t = Math.atan2(tx, ty);                                        // from radial (+v), sin along u — strands.js' convention
+                    const rec = { u: p[0], v: p[1], t, curve: c, tx: tx / L, ty: ty / L, sp: forSpacing };
+                    samples.push(rec); const k = key(p[0], p[1]); let bkt = grid.get(k); if (!bkt) grid.set(k, bkt = []); bkt.push(rec);
+                    const ci = cellOf(p[0], p[1]); if (ci < 0) continue;
+                    const seg = 0.5 * L; c2[ci] += seg * Math.cos(2 * t); s2[ci] += seg * Math.sin(2 * t); wt[ci] += seg; n[ci]++;
+                }
+            }
+            // across-flow spacing: the nearest sample of another curve, its perpendicular distance to this sample's tangent line
+            for (let i = 0; i < samples.length; i += 2) {
+                const s = samples[i]; if (!s.sp) continue; const r = 2 + 4 * s.v, cu = Math.floor(((s.u % 1) + 1) % 1 / bu), cv = Math.floor(s.v / bv); let best = 1e9;
+                for (let dv = -4; dv <= 4; dv++) for (let du = -4; du <= 4; du++) {
+                    const bkt = grid.get((((cu + du) % Math.round(1 / bu)) + Math.round(1 / bu)) % Math.round(1 / bu) + ':' + (cv + dv)); if (!bkt) continue;
+                    for (const q of bkt) { if (q.curve === s.curve || !q.sp) continue;
+                        if (Math.abs(q.tx * s.tx + q.ty * s.ty) < 0.7) continue;         // a crossing fibre is not a neighbouring strand
+                        let ddu = q.u - s.u; ddu -= Math.round(ddu); const ex = ddu * 6.2831853 * r, ey = (q.v - s.v) * 4, along = ex * s.tx + ey * s.ty, across = Math.abs(ex * s.ty - ey * s.tx);
+                        if (across < 0.015 || Math.abs(along) > across + 0.02) continue;   // the same lane (a fragment split at a junction), or ahead rather than beside
+                        if (across < best) best = across; }
+                }
+                if (best < 0.4 && best > 0.004) { const ci = cellOf(s.u, s.v); if (ci >= 0) spBins[ci].push(best); }
+            }
+            const sp = new Float32Array(w * h), conf = new Float32Array(w * h), C2 = new Float32Array(w * h), S2 = new Float32Array(w * h);
+            let any = false;
+            for (let i = 0; i < w * h; i++) {
+                if (wt[i] > 0) { C2[i] = c2[i] / wt[i]; S2[i] = s2[i] / wt[i]; conf[i] = Math.min(1, n[i] / 8); any = true; }
+                const b = spBins[i]; if (b.length) { b.sort((x, y) => x - y); sp[i] = b[b.length >> 1]; } else sp[i] = wt[i] > 0 ? -1 : 0;
+            }
+            // relaxation: empty cells (and empty spacings) take the mean of their filled neighbours until every cell is set
+            const relax = (arr, has) => {
+                const cur = Float32Array.from(arr), set = Uint8Array.from(has);
+                for (let it = 0; it < 400; it++) {
+                    let changed = 0; const nx = Float32Array.from(cur), ns = Uint8Array.from(set);
+                    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (set[i]) continue; let sum = 0, k = 0;
+                        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const yy = y + dy; let xx = x + dx; if (yy < 0 || yy >= h) continue; if (xx < 0 || xx >= w) { if (!full) continue; xx = (xx + w) % w; }
+                            const j = yy * w + xx; if (set[j]) { sum += cur[j]; k++; } }
+                        if (k) { nx[i] = sum / k; ns[i] = 1; changed++; } }
+                    cur.set(nx); set.set(ns); if (!changed) break;
+                }
+                return cur;
+            };
+            const hasT = Uint8Array.from(wt, v => v > 0 ? 1 : 0), hasS = Uint8Array.from(sp, v => v > 0 ? 1 : 0);
+            let flowC, flowS, spacing;
+            if (!any) { flowC = new Float32Array(w * h).fill(1); flowS = new Float32Array(w * h); spacing = new Float32Array(w * h).fill(FIELD_PRIOR_MM[layer]); }
+            else { flowC = relax(C2, hasT); flowS = relax(S2, hasT); spacing = hasS.some(v => v) ? relax(sp.map(v => v > 0 ? Math.log(v) : 0), hasS).map(Math.exp) : new Float32Array(w * h).fill(FIELD_PRIOR_MM[layer]); }
+            const flow = new Float32Array(w * h); for (let i = 0; i < w * h; i++) flow[i] = 0.5 * Math.atan2(flowS[i], flowC[i]);
+            const spv = Array.from(spacing).sort((a, b) => a - b), q = f => spv[Math.min(spv.length - 1, Math.floor(f * spv.length))];
+            out[layer] = { w, h, cellMm, flow, c2: flowC, s2: flowS, spacing, logSpacing: spacing.map(Math.log), conf, samples: samples.length, cellsWithSamples: hasT.reduce((a, b) => a + b, 0),
+                           spacingMm: { p10: +q(0.1).toFixed(4), median: +q(0.5).toFixed(4), p90: +q(0.9).toFixed(4) }, prior: !any };
+            say(`fields · ${layer}: ${samples.length} samples over ${out[layer].cellsWithSamples}/${w * h} cells of ${cellMm} mm · spacing median ${out[layer].spacingMm.median} mm (p10 ${out[layer].spacingMm.p10}, p90 ${out[layer].spacingMm.p90})${any ? '' : ' · PRIOR (no samples)'}`);
+        }
+        T.fields = Object.assign(out, { rect: R.slice(), full });
+        return T.fields;
+    };
+    /** the field at (u, v): bilinear on the doubled-angle vectors (so the ±90° wrap never averages to nonsense), log-spacing */
+    T.fieldAt = function (layer, u, v) {
+        const F_ = (T.fields || T.buildFields())[layer], R = T.fields.rect, w = F_.w, h = F_.h;
+        let cu = (u - R[0]) / R[2] * w - 0.5, cv = (v - R[1]) / R[3] * h - 0.5;
+        if (T.fields.full) cu = ((cu % w) + w) % w; else cu = Math.min(w - 1, Math.max(0, cu)); cv = Math.min(h - 1, Math.max(0, cv));
+        const x0 = Math.floor(cu), y0 = Math.floor(cv), fx = cu - x0, fy = cv - y0, x1 = T.fields.full ? (x0 + 1) % w : Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1), xa = ((x0 % w) + w) % w;
+        const lerp4 = a => (1 - fy) * ((1 - fx) * a[y0 * w + xa] + fx * a[y0 * w + x1]) + fy * ((1 - fx) * a[y1 * w + xa] + fx * a[y1 * w + x1]);
+        return { flow: 0.5 * Math.atan2(lerp4(F_.s2), lerp4(F_.c2)), spacing: Math.exp(lerp4(F_.logSpacing)), conf: lerp4(F_.conf) };
+    };
+    /** how well the field agrees with the primitives it was built from: the angle between each sample's own tangent and the
+     *  field's flow there (mod 180°) — median and p90 in degrees, per layer */
+    T.fieldsCheck = function () {
+        const F0 = T.fields || T.buildFields(), out = {};
+        for (const layer in FIELD_SETS) {
+            const errs = [];
+            for (const set of FIELD_SETS[layer].flow) for (const c of (T.sets[set] || [])) { const uv = c.uv; if (!uv) continue;
+                for (let j = 1; j < uv.length - 1; j += 3) { const a = uv[j - 1], p = uv[j], b = uv[j + 1]; if (!a || !p || !b) continue;
+                    let du = b[0] - a[0]; du -= Math.round(du); const t = Math.atan2(du * 6.2831853 * (2 + 4 * p[1]), (b[1] - a[1]) * 4);
+                    let d = Math.abs(t - T.fieldAt(layer, p[0], p[1]).flow) % Math.PI; if (d > Math.PI / 2) d = Math.PI - d; errs.push(d * 180 / Math.PI); } }
+            errs.sort((x, y) => x - y); const q = f => errs.length ? +errs[Math.min(errs.length - 1, Math.floor(f * errs.length))].toFixed(2) : null;
+            out[layer] = { samples: errs.length, medianDeg: q(0.5), p90Deg: q(0.9), spacingMm: F0[layer].spacingMm, prior: F0[layer].prior };
+        }
+        return out;
+    };
+    /** the field drawn: a stroke per cell along the flow, its length the cell, its colour the spacing (blue 0.03 mm → red 0.3 mm);
+     *  unfilled cells dim. Returns a canvas. */
+    T.fieldsImage = function (layer, opts = {}) {
+        const F_ = (T.fields || T.buildFields())[layer], R = T.fields.rect, px = opts.px || 6;
+        const cv = document.createElement('canvas'); cv.width = F_.w * px; cv.height = F_.h * px; const cx = cv.getContext('2d');
+        cx.fillStyle = '#111'; cx.fillRect(0, 0, cv.width, cv.height);
+        for (let y = 0; y < F_.h; y++) for (let x = 0; x < F_.w; x++) { const i = y * F_.w + x, t = F_.flow[i], s = F_.spacing[i];
+            const k = Math.min(1, Math.max(0, (Math.log(s) - Math.log(0.03)) / (Math.log(0.3) - Math.log(0.03)))), hue = 240 - 240 * k;
+            cx.strokeStyle = `hsla(${hue}, 90%, ${F_.conf[i] > 0 ? 60 : 28}%, 1)`; cx.lineWidth = F_.conf[i] > 0 ? 1.5 : 1;
+            // v runs up in the tissue: draw with the root at the top, the pupil at the bottom; flow angle from radial (vertical)
+            const cxp = (x + 0.5) * px, cyp = cv.height - (y + 0.5) * px, L = 0.45 * px, dx = Math.sin(t) * L, dy = -Math.cos(t) * L;
+            cx.beginPath(); cx.moveTo(cxp - dx, cyp - dy); cx.lineTo(cxp + dx, cyp + dy); cx.stroke(); }
+        cx.fillStyle = '#fff'; cx.font = '12px sans-serif'; cx.fillText(`${layer} · flow (stroke) and spacing (blue 0.03 → red 0.3 mm) · ${F_.w} × ${F_.h} cells of ${F_.cellMm} mm · u → , v ↑ (pupil at the bottom)`, 6, 14);
+        return cv;
+    };
+
     // ---------------------------------------------------------------- G (§32): ops, the journal, and the brushes
     // One vocabulary for three callers. A brush emits ops, the generator emits ops, and the fitter of T6 will emit
     // the same ops as it grows an eye — so an edit by hand and a step of the fit are the same kind of thing, and the

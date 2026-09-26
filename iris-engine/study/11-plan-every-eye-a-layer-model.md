@@ -583,6 +583,31 @@ topmost strands there; the photo shader's view ray and shadow ray test the slabs
 the floor beneath it and drops its own shadow. Layer count from the quality table (2 at NORMAL, 3 at FINE+); each
 layer costs one slab test per march step. Bench untouched (the layer model is off in the bench).
 
+**Built (2026-09-27) — the bridge layer, `tissue.js`.** A fibre whose bottom clears the floor by more than `T.slabClearMm`
+(20 µm) FLOATS: the bake draws it in its own curve pass instead of the ground's, and the compose writes a **slab** beside the
+ground — top and bottom height in the ground's units, coverage, and the slab's own albedo (two more outputs; `fill` and the
+rim strength moved into the pack texture to stay at the sampler limit). The photo variant's view ray tests the slab before
+the ground at every march step (crossing its top from above is the hit, so a slab thinner than a step is not skipped), then
+bisects onto the slab's top, shades with the slab's albedo and the top's normal; the shadow ray marks any slab between the
+point and the light. The probe does the same, so a fly-over shows the floor beneath a bridge and the bridge's shadow.
+Generated instances float by their height; the weave's own lifted fibres only when `T.slabMeasured` is set (off until the
+picture is judged). DRAFT has no slab (its floating strands fall back into the ground); one slab from NORMAL up — the count
+is a quality parameter in name only so far (`T.slabs()`), the second slab is not built. The floor's depth (`deckThickness`)
+now reads measured fibres only, so a high instance cannot push the floor down. The T2a window has no slab of its own yet.
+
+Eye 26, measured on the Load button's path: with no floating strand the picture is **identical to before** (85.022 / 0.379 /
+2.47, to the last digit — the pack refactor is inert). With the roots' bridges and a laid bundle of six (50 µm tubes, 240 µm
+above the floor, 20 µm sag): 51 curves float; MATCH2 84.93 → 84.92 with the slab against the same curves in the ground,
+strandCorr 0.378 → 0.375 — the photo has no bridge there, so no photo score can reward one. Frame time at NORMAL,
+1151 × 1148: 9.1 ms with the slab, 9.8 ms without (noise; the legacy model 4.3 ms). Images: `study/proof-layers/slab-26-probe.png`
+(the probe beside the bundle and from above, one heightfield against the bridge layer: a solid block becomes a span with
+the cavity and the floor beneath it, and from above the tubes float with their shadows) and `slab-26-zoom.png` (the front
+view through the photo shader: separate tubes crossing the crypt over their own shadows, where one heightfield gave a black
+block). Honest: a bundle at 120 µm sat INSIDE the measured relief (the weave's lifts reach 278 µm here) and showed nothing,
+which is what a 240 µm float was needed to prove; the first bundle, with its width from the nearest measured fibre, had a
+61 µm radius at 60 µm height and never floated at all — the tube width calibration again. The bridges are not part of the
+arrival yet: that is a publish decision (their measurements would be re-exported) once iori has judged the look.
+
 #### 5.2.4 Build order and gates
 
 1. **Roots** in the fitter, exported, reviewed (§5.2.1) — eye 26 first, then the other three.

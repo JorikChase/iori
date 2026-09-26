@@ -476,8 +476,12 @@ thing on the way. Full account in `study/07-think-tank.md` §9.
 ## Next (spec §11)
 
 1. **P2 remainder** — T2 2/2 and the whole scorecard green (v14). Open: the aggregate's continuum
-   limit (D ~ 1.92) is more compact than DLA's 1.71 — suspects are the sub-cell absorbing layer and the
-   noise scale (one hypothesis tested and rejected, study/07 §10); CG warm start. Performance: cell pass 1.77 ms at 2048² is
+   limit (D ~ 1.92) is more compact than DLA's 1.71. **Diagnosed 2026-09-27 (study/07 §12): it is a
+   TIME-STEP problem** — noise scale and a weaker absorbing layer were both tested and rejected (each
+   makes it MORE compact), while cutting the growth rate per field update to a quarter took D from
+   1.822 to 1.671 at the same extent on the normal grid. The fix is growth substeps, mirroring
+   `E.substeps` for diffusion; it must wait on an equal-extent tier comparison at the slower rate,
+   because every T1 row is calibrated in cells per step. CG warm start also open. Performance: cell pass 1.77 ms at 2048² is
    the whole step — next levers are the neighbour-ownership scan for bare cells and fp16 substrate.
 2. P1 remainder, still open: **physical absorption** (the absorbing layer is 0.023 mm — sub-cell at
    every tier — which is what leaves the aggregate resolution-dependent; substrate substepping is DONE

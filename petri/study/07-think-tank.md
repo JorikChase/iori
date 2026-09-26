@@ -279,3 +279,50 @@ with paths WORSE than the tree's, which is what an organism that explores everyw
 nothing should look like. The contrast against the adaptive row is now visible in the scorecard instead
 of being hidden behind a mismatched band. The row's rule (>= 3 of 4 gates) is unchanged and it still
 passes 3/4; the remaining miss is expected biology, not a defect.
+
+## 12. The compact limit is a TIME-STEP problem (2026-09-27)
+
+Three hypotheses, two rejected on measurement, one supported.
+
+**(a) Noise scale — rejected, fairly this time.** §10's probe was invalid (a block die grew every cell
+in the block). Rebuilt properly: one event per 0.1875 mm block draws a landing site, fires only if
+`lapProb` there says it is a growth site, and deposits a disk of the particle's radius. Result
+D 1.789 / 1.867 / 1.867 — the tier spread does shrink (0.167 → 0.078, normal and fine identical) but
+the aggregate gets MORE compact and `dlaDimension` fails at 1.859 against 1.71 ± 0.1. Rejected under
+the rule written before the run (spread must shrink AND the DLA row must hold). Reverted.
+
+**(b) A weaker, resolved absorbing layer — rejected.** Sweeping the absorber at two tiers:
+
+| absorb | 1.0 | 0.3 | 0.1 | 0.03 |
+|---|---|---|---|---|
+| draft D | 1.708 | 1.757 | 1.792 | 1.830 |
+| normal D | 1.822 | 1.856 | 1.836 | 1.845 |
+
+Weakening absorption makes growth faster and MORE compact at both tiers, and the tier gap is smallest
+at the perfect absorber the engine already uses. The opposite of the fix.
+
+**(c) Growth events per field update — supported.** Both sweeps share a pattern: whenever the colony
+grows faster per step, it comes out more compact. The nutrient field is recomputed once per step, so
+when many events land within one screening length between updates, tips stop shading each other — and
+a finer grid grows faster per step (the per-cell probability carries `rs()²`), so it sits further into
+that regime. Measured at the same 11 mm extent on the normal grid:
+
+| growth rate per field update | D |
+|---|---|
+| standard | 1.822 |
+| quarter | **1.671** |
+
+Slowing growth fourfold moves the dimension across DLA's 1.71, where neither absorption nor noise
+scale could move it in that direction at all.
+
+**What this means.** The engine's step is too coarse for the Laplacian kernel, and more so as the grid
+refines — the same class of error as the substrate's diffusion cap (§9), now on the growth side. The
+fix is growth substeps: evaluate the kernel k times per step at 1/k the rate, with k rising as the cell
+shrinks, exactly as `E.substeps` does for diffusion.
+
+**Not done yet, and why.** The scored consequence has to be measured first: every T1 front-speed and
+morphology row is calibrated in cells per step, so k changes the mapping from steps to physical time.
+The equal-extent tier comparison at quarter rate is the gate for that decision, and it is expensive —
+slowing growth slows the front SUPERLINEARLY (more screening → less growth): draft at quarter rate
+reached only 5.6 mm in 250 000 steps, where the standard rate reaches 11 mm in 32 000. Budget a long
+background run for draft and fine before touching the calibration.

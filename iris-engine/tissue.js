@@ -73,7 +73,7 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_outA, u_outB, u_cellS, u_cellG, u_fill, u_pack;
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -105,7 +105,20 @@
             float roundness = mix(0.78 + 0.22 * sqrt(clamp(1.0 - pow(fB.r / max(u_fibRK * fB.g, 0.014), 2.0), 0.0, 1.0)), 1.0, u_delight);
             float vein = (1.0 - texture(u_veinA, c).r) * exp(-0.5 * pow(vB.r / max(vB.g, 0.0056), 2.0)) * vB.a;
             float prof = (1.0 - sstep(u_pit0, u_pit1, fB.r)) * fB.a;        // no fibre within ≈ 0.1 mm: a true pit, the ground shows
-            vec3 hole = mix(cg.rgb, fib * roundness * (1.0 - vein), prof);
+            // study/11 §5.2.2: the per-texel term. A fibre's payload is 1-D — one brightness per 20 µm along the centreline,
+            // flat across the tube — and study/08 §7 showed a flat curve is no better than LIC: what a real strand carries is
+            // texture ALONG and ACROSS its width (S0: local contrast std / mean 0.31–0.37). Seeded value noise in the tube's own
+            // frame (the across direction is the gradient of the distance field, so the noise stretches along the tube),
+            // inside the footprint only, u_fibNoise its amplitude; 0 leaves the picture as it was.
+            vec2 mm = (u_rect.xy + c * u_rect.zw) * vec2(6.2831853 * (2.0 + 4.0 * (u_rect.y + c.y * u_rect.w)), 4.0);
+            float fibTex = 1.0;
+            if (u_fibNoise > 0.0) {
+                vec2 gAcross = vec2(dFdx(fB.r), dFdy(fB.r)); float gLen = length(gAcross); vec2 nA = gLen > 1e-6 ? gAcross / gLen : vec2(0.0, 1.0), tA = vec2(-nA.y, nA.x);
+                vec2 q = vec2(dot(mm, tA) / 0.060, dot(mm, nA) / 0.014);       // a 60 µm grain along, 14 µm across
+                float n = 0.6 * vnoise(q) + 0.4 * vnoise(q * 2.3 + 5.7) - 0.5;
+                fibTex = 1.0 + u_fibNoise * 2.0 * n * (1.0 - sstep(0.8 * u_fibRK * fB.g, 1.4 * u_fibRK * fB.g, fB.r));
+            }
+            vec3 hole = mix(cg.rgb, fib * roundness * fibTex * (1.0 - vein), prof);
             // sheet: material cells × guides (relative brightness, own colour) × fine streaks and veins × seeded matte grain
             vec4 gA = texture(u_guideA, c), gB = texture(u_guideB, c), sfB = texture(u_sfB, c), svB = texture(u_svB, c);
             float mod_ = 1.0 + (gA.a - 1.0) * exp(-0.5 * pow(gB.r / max(0.55 * gB.g, 0.0093), 2.0)) * gB.a;
@@ -114,7 +127,6 @@
             float gmix = 0.85 * exp(-0.5 * pow(gB.r / max(0.9 * gB.g, 0.014), 2.0)) * gB.a;
             float sY = dot(cs.rgb, LUMA);
             vec3 sheetC = (cs.rgb / max(sY, 1e-5) * (1.0 - gmix) + gA.rgb / max(dot(gA.rgb, LUMA), 1e-5) * gmix) * sY;
-            vec2 mm = (u_rect.xy + c * u_rect.zw) * vec2(6.2831853 * (2.0 + 4.0 * (u_rect.y + c.y * u_rect.w)), 4.0);
             float grain = 1.0 + 0.055 * 3.4 * (0.5 * vnoise(mm / 0.008) + 0.5 * vnoise(mm / 0.017 + 7.3) - 0.5);
             vec3 sheet = mix(sheetC, u_rimRGB, rim) * mod_ * grain;
             vec3 lin = mix(hole, sheet, cover);
@@ -611,6 +623,7 @@
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
         gl.uniform1f(c.loc('u_srelAmt'), (T.srel && !grey) ? (T.srelAmt === undefined ? 1 : T.srelAmt) : 0);
+        gl.uniform1f(c.loc('u_fibNoise'), grey ? 0 : (T.fibNoise || 0));      // §5.2.2 the per-texel term; never in a calibration render
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         for (const t of [T.albedo, T.aux]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.generateMipmap(gl.TEXTURE_2D); }

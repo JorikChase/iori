@@ -563,6 +563,18 @@ bridge layer comes next). Not yet: the per-texel brightness term in the shader (
 neighbourhood fill through `IrisStrands.grow` over the field (the laid bundle is G1b's `Grow strands`; the streamline fill
 is G3's). Gates: `reach()` / `compare()` unaffected (no engine API, no DOM); the bench untouched.
 
+**The per-texel term (2026-09-26) — `u_fibNoise` in the compose pass, `IrisTissue.fibNoise`, default 0.** Seeded value noise
+in each tube's own frame (across = the gradient of the distance field, so the grain stretches along the tube: 60 × 14 µm),
+inside the footprint only, fading over the last 40 % of the radius. At 0 the picture is exactly as before (85.022 / 0.379 /
+2.47 on the measured load, the same to the last digit). **The whole-eye scores cannot see it at any amplitude** (0.08–0.35:
+MATCH2 ± 0.002, strandCorr 0.379 throughout) — they are taken on the 640 px fit render at 28 µm per pixel, where a 14 µm
+grain averages away; the instrument for this term is the zoomed view or a band correlation at the photograph's own
+resolution (study/08 §7's `bandCorrOf` at CAPTURE — not wired to the engine's render yet). At zoom
+(`study/proof-layers/fibnoise-26.png`, a 0.7 mm window, 0 against 0.25) the term is a faint mottle (mean 0.6 / 255): the
+deck's look there is set by the tube geometry — 78 µm slabs wider than their 65 µm lanes, overlapping, the payload smooth —
+so the visible levers at zoom are the tube width calibration (§5.2.1's note) and the bridge layer, not this term. It stays
+in, off by default; iori chooses the amplitude on a review sheet when the render step makes the deck legible at zoom.
+
 #### 5.2.3 Floating in the render — two or three layers
 
 Without a second layer a floating strand is a taller lump on one heightfield and the probe shows a wall under it.

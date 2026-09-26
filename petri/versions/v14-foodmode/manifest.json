@@ -1,0 +1,48 @@
+{
+ "id": "v14-foodmode",
+ "when": "2026-09-26T21:58:09",
+ "note": "t2Gates scored the free-growth length ratio against Tero's FOOD-SOURCE band (category error since v1); the forager now measures 4.83 food-mode against the adaptive organism's 1.80 \u2014 all green",
+ "features": {},
+ "src_sha256": "d9057369032bd30b",
+ "bench": "bench-v14-foodmode.json",
+ "summary": {
+  "pass": true,
+  "quality": "normal",
+  "n": 2048,
+  "T0": {
+   "replay": true,
+   "replayAdaptive": true,
+   "exportRoundTrip": true,
+   "nutrientConserved": true,
+   "microDish": true,
+   "batchExact": true,
+   "bareStaysBare": true,
+   "contained": true,
+   "catalogSmoke": true
+  },
+  "T0_passed": 9,
+  "T0_total": 9,
+  "T1": {
+   "diffusion": true,
+   "fisherSpeed": true,
+   "edenRoughness": true,
+   "dlaDimension": true,
+   "etaSweep": true,
+   "morphologyDiagram": true,
+   "resolutionInvariance": true
+  },
+  "T1_passed": 7,
+  "T1_total": 7,
+  "T2": {
+   "teroFixture": true,
+   "physarumNetwork": true
+  },
+  "T2_passed": 2,
+  "T2_total": 2,
+  "boxD_dla": 1.7596020228833158,
+  "beta_eden": 0.433,
+  "ms_per_step": 2.034,
+  "agents": 54912,
+  "cell_ms": 1.9
+ }
+}

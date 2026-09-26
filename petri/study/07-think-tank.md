@@ -254,3 +254,28 @@ A fair test needs one event per block to occupy ONE cell (the site the block's r
 a different kernel, not a one-line change. The hypothesis stands untested; the absorption item and this
 one are the two candidates left for the compact limit. Reverted; `kernels.js` is unchanged and the row
 reads 1.708 / 1.822 / 1.875 as before.
+
+## 11. The forager's "1.44 length ratio" was the wrong number (2026-09-26)
+
+`T2.physarumNetwork` had missed one of its four gates since v1: total length against the MST, 1.442
+against a 1.45–2.05 band credited to Tero 2010. The band never applied to that number. Study/05 §4.2 #9
+already separates the two modes: Tero measures total length against the MST **over the food sources**,
+while the ratio over a graph's own nodes is free-growth mode — the cost of redundancy. `t2Gates` was
+scoring the free-growth ratio against the food-source band.
+
+Fixed by measuring what the band is about: the row's six flakes now give a food-source ratio through
+`teroMetrics`, and the free-growth ratio is reported unscored. The correction was decided from the
+study's definition, before the new number was run.
+
+| on the same dish | forager (no adaptation) | adaptive organism (v11, Tero's layout) | Tero |
+|---|---|---|---|
+| TL/MST, food-source mode | **4.83** | 1.80 ± 0.26 | 1.75 ± 0.30 |
+| MD/MST | 1.27 | 0.835 ± 0.040 | 0.85 ± 0.04 |
+| FT | 0.76 | 0.854 ± 0.050 | 0.86 ± 0.04 |
+| coverage | 0.83 | 0.861 | — |
+
+So the forager is not a near miss on Tero's efficiency — it is four times as long as the minimum tree
+with paths WORSE than the tree's, which is what an organism that explores everywhere and adapts
+nothing should look like. The contrast against the adaptive row is now visible in the scorecard instead
+of being hidden behind a mismatched band. The row's rule (>= 3 of 4 gates) is unchanged and it still
+passes 3/4; the remaining miss is expected biology, not a defect.

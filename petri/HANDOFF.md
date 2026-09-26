@@ -390,6 +390,30 @@ thing on the way. Full account in `study/07-think-tank.md` §9.
   bit-identical (replay `da91426b`, whole scorecard unchanged). At `fine`, same organism and extent:
   208 mm² in 2050 steps → 116 mm² in 4320, in line with the other tiers.
 
+### Tenth round (2026-09-24/26): the catalogue's protocol, a negative result, and the forager's real number
+
+- **Catalogue suite rebuilt on fixed extent** (`v13`-era tooling, committed 76df5dd). The old version
+  asked "area > 0 after 3000 steps" and reported six life-like rules as dead: they **burn to ash by
+  design** (Conway Life ends at 0.6 mm² of the 190 mm² it seeds), a flat 1.2 mm inoculum starved rules
+  that need a big seeded patch, and 28 of 94 saturated the dish, which erases what a regression net is
+  for. Each organism now grows to 8 mm and the row keeps the steps it took plus its shape there;
+  `tank.js` gained `stopWhen`/`finalMeasure` and a cheap `extent` measure. **76/94 reach 8 mm** (median
+  750 steps), **7 burn out** (the ash-makers), **11 are slower than the 12 000-step cap** (dendrites and
+  the CA that settle). 11.6 s for all 94.
+- **Negative result on the compact limit** (6929661): the aggregate converges to D ≈ 1.92 against DLA's
+  1.71, and the suspect was noise thinning as the grid refines. Probed by moving the growth roll to a
+  fixed 0.1875 mm block: D 1.839/1.968/1.969 and the cluster **filled the dish** (5776 mm² against
+  ~100), because a block-level die grows every cell in the block at once — that tests block growth, not
+  the hypothesis. Reverted, kernels unchanged. A fair test fires ONE cell per block event.
+- **The forager's "1.44" was the wrong number** — sealed `v14-foodmode`. Tero's length ratio is measured
+  against the FOOD SOURCES; the ratio over a graph's own nodes is free-growth mode (study/05 §4.2 #9
+  says so). `t2Gates` scored the free-growth number against Tero's food-source band, and had done since
+  v1. Measured properly against the row's six flakes, the forager gives **TL/MST 4.83 and MD/MST 1.27**
+  — four times the minimum tree with paths worse than the tree's, which is exactly what an organism
+  that explores everywhere and adapts nothing should be, against the adaptive organism's 1.80 and 0.835
+  on Tero's own layout. The row's rule (>= 3 of 4 gates) is unchanged and it passes 3/4; free-growth
+  TL/MST stays reported. **The whole scorecard is green: T0 9/9, T1 7/7, T2 2/2.**
+
 ## Deviations from the spec, deliberate for P1a
 
 - One resolution for everything (no R0/R1 split, no bricks, no vein graph, no lens grid). State is f32, not the packed 12-byte contract; `present()` in `kernels.js` is the contract for now.
@@ -451,8 +475,9 @@ thing on the way. Full account in `study/07-think-tank.md` §9.
 
 ## Next (spec §11)
 
-1. **P2 remainder** — T2 2/2 (v7). Open: forager TL/MST 1.44 (gate floor 1.45); MD/MST 0.78 below
-   Tero's mean (layout, see fourth round); CG warm start. Performance: cell pass 1.77 ms at 2048² is
+1. **P2 remainder** — T2 2/2 and the whole scorecard green (v14). Open: the aggregate's continuum
+   limit (D ~ 1.92) is more compact than DLA's 1.71 — suspects are the sub-cell absorbing layer and the
+   noise scale (one hypothesis tested and rejected, study/07 §10); CG warm start. Performance: cell pass 1.77 ms at 2048² is
    the whole step — next levers are the neighbour-ownership scan for bare cells and fp16 substrate.
 2. P1 remainder, still open: **physical absorption** (the absorbing layer is 0.023 mm — sub-cell at
    every tier — which is what leaves the aggregate resolution-dependent; substrate substepping is DONE

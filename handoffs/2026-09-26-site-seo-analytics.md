@@ -35,8 +35,7 @@ The `http.version=HTTP/1.1` is required; without it the fetch silently ships the
 
 **3. Check where the tree stands before deploying.** On the evening of 2026-09-26 local, origin
 and the server were all on `c11de9e`; the status check that same evening then committed the
-SoundCloud identity change on top, which is **not deployed until pushed and the command above is
-run**. Uncommitted iris-engine and petri work sits in the tree; it is not site work, but a deploy
+SoundCloud identity and menu changes on top, pushed and deployed the same evening (`f3311c5`). Uncommitted iris-engine and petri work sits in the tree; it is not site work, but a deploy
 pulls origin, so push deliberately rather than by habit.
 
 ---
@@ -56,10 +55,12 @@ pulls origin, so push deliberately rather than by habit.
 - **The label's SoundCloud handle is `5gmaelstroem`, with the e.** `soundcloud.com/5gmaelstrom`
   is a 404. Its profile description reads "3Die.FR", which is what makes it the label's account.
   It is also on `crow_archduke.html` as that artist's `sameAs`, via the registry: artist pages
-  accept a `"sameAs": [...]` list in `pages.meta.json`. An Instagram `@5gmaelstrom` exists too
-  ("krau soulja"); ownership unconfirmed, so it is not declared anywhere.
-- **No page shows a visible link to any social profile.** The `sameAs` claims are machine-only.
-  The SoundCloud profile links back to both domains; Instagram cannot be checked without a login.
+  accept a `"sameAs": [...]` list in `pages.meta.json`.
+- **The generated menu carries the social links** (`MENU_SOCIAL` in `site.py`, `rel="me"`,
+  after the main links): soundcloud + instagram on iori.me pages, soundcloud on 3die.fr pages.
+  Deployed 2026-09-26 late evening as `f3311c5`. `crow_archduke.html` also declares
+  `instagram.com/5gmaelstrom`, confirmed by iori as his.
+  The SoundCloud profiles link back to both domains; Instagram cannot be checked without a login.
 - Compression on, root canonicals with `301`s from the filename URLs, real 404s, repo internals
   return 404, one GA tag per page, language declared per page from the registry.
 
@@ -181,15 +182,12 @@ which the localhost guard cannot filter.
 
 **Next for the site track, in order**
 
-1. Push and deploy the SoundCloud identity commit (see the deploy command above).
+1. ~~Push and deploy the SoundCloud identity commit~~ done, `f3311c5`.
 2. iori sets the profile backlinks listed under "waiting on iori".
 3. Cross-domain linking on the GA tag, so sessions stop double-counting between the domains:
    `linker: {domains: ["iori.me", "3die.fr"]}` in the generated `gtag('config', …)` in `site.py`,
    plus "Configure your domains" on both streams in the Analytics admin. Small, contained.
-4. Visible social links in the generated menu (`MENU_LINKS` in `site.py`): a SoundCloud and
-   Instagram entry on iori.me pages, SoundCloud on 3die.fr pages. This is the only way to put a
-   crawlable, human-visible outbound link on 83 canvas pages without touching the viewports. It is
-   a visible change to the menu, so **ask iori before doing it**.
+4. ~~Visible social links in the generated menu~~ done, iori approved, `f3311c5`.
 5. Re-run `inspect_urls.py` and `trend.py` in late October, once most pages show a lastCrawl after
    2026-09-15. Only then compare search numbers against the table above.
 

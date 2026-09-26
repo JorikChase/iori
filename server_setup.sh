@@ -130,6 +130,7 @@ sync_website_files() {
         --exclude 'moses_car_cursor.png' \
         --exclude 'LOGO.PNG' \
         --exclude 'logo_dark.png' \
+        --exclude 'logo_2026.png' \
         --exclude '.DS_Store' \
         --exclude 'session-*.md' \
         --exclude 'sandbox.md' \

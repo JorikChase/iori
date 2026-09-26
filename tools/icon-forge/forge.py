@@ -5,19 +5,20 @@ iOS 26 does not apply Liquid Glass to web-clip icons; only native .icon bundles
 built in Icon Composer get the system material. So what ships is the artwork
 itself, not a synthetic effect.
 
-The sheet is used FULL BLEED. Measured against the iOS squircle, 100.00% of the
-mark survives at full size (worst point reaches 0.965 of the mask edge) — the
-artwork is already composed to the squircle, so cropping or rescaling it only
-throws away background. The one exception is the Android maskable icon, whose
-safe zone is a circle of 80% diameter: the mark's furthest pixel sits at radius
-1.190, so that variant fills 0.65 and pads with the sheet's own ground tone.
+The sheet is used FULL BLEED — cropping or rescaling it only throws away the
+composition. The shipping sheet since 2026-09-26 is logo_2026.png, a painted
+full-bleed sheet carrying the 3die signature; logo_dark.png and LOGO.PNG are the
+earlier dark/light triangle sheets and still build.
 
-Everything resamples in linear light and converts Display P3 -> sRGB, which the
-icons shipping before this carried no profile for at all.
+The Android maskable icon is the one variant that may differ, because its safe
+zone is a circle of 80% diameter — see MASKABLE_FILL.
+
+Everything resamples in linear light and converts to sRGB (the earlier sheets are
+Display P3), which the icons shipping before this carried no profile for at all.
 
 Run:  uv run --with pillow,numpy tools/icon-forge/forge.py board
       uv run --with pillow,numpy tools/icon-forge/forge.py build
-      ... --source LOGO.PNG build      # the light sheet
+      ... --source logo_dark.png build      # the earlier dark sheet
 """
 
 
@@ -32,12 +33,21 @@ Image.MAX_IMAGE_PIXELS = None
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 
-SOURCES = ["logo_dark.png", "LOGO.PNG"]
-DEFAULT_SOURCE = "logo_dark.png"
+SOURCES = ["logo_2026.png", "logo_dark.png", "LOGO.PNG"]
+DEFAULT_SOURCE = "logo_2026.png"
 
-# Android masks to a circle of 80% diameter. The mark's outermost pixel sits at
-# radius 1.190 in artwork units, so the sheet must fill <= 0.8/1.190 = 0.672.
-MASKABLE_FILL = 0.65
+# Android masks to a circle of 80% diameter, so how much of the sheet may fill
+# the icon depends on how far the sheet's content reaches.
+#   logo_dark / LOGO  are an isolated triangle mark whose outermost pixel sits at
+#     radius 1.190 in artwork units, past the inscribed circle: fill <= 0.8/1.190
+#     = 0.672, so the tips survive the crop.
+#   logo_2026 is a full-bleed painting with no isolated mark. Everything that
+#     carries it — the green wedge, the 3die signature, the red and the yellow —
+#     sits inside the circle already, so it fills the icon and lets the crop eat
+#     the outer paint, which is what full-bleed artwork is for. Insetting it
+#     instead turns two thirds of the icon into flat ground tone.
+MASKABLE_FILL = {"logo_2026.png": 1.0}
+MASKABLE_FILL_DEFAULT = 0.65
 # Width of the fade from sheet into pad, as a fraction of the sheet's side.
 PAD_FEATHER = 0.09
 
@@ -178,6 +188,7 @@ IOS_SIZES = [16, 20, 29, 32, 40, 50, 57, 58, 60, 64, 72, 76, 80, 87, 100, 114,
              120, 128, 144, 152, 167, 180, 192, 256, 512, 1024]
 ANDROID_SIZES = [48, 72, 96, 144, 192, 512]
 FAVICON_ICO = [16, 32, 48]
+DASH_SIZES = [16, 32, 180, 192, 512]
 
 
 def cmd_build(args):
@@ -191,9 +202,11 @@ def cmd_build(args):
     for s_ in ANDROID_SIZES:
         save(compose(s_), os.path.join(icon, "android", f"launchericon-{s_}x{s_}.png"))
         n += 1
-    # Android/Chrome mask icons to a circle inset ~20%, so these need more air.
+    # Android/Chrome mask icons to a circle inset ~20%; MASKABLE_FILL says how
+    # much of this sheet may fill the frame.
+    mfill = MASKABLE_FILL.get(_cache["source"], MASKABLE_FILL_DEFAULT)
     for s_ in (192, 512):
-        save(compose(s_, fill=MASKABLE_FILL),
+        save(compose(s_, fill=mfill),
              os.path.join(icon, "android", f"maskable-{s_}x{s_}.png"))
         n += 1
 
@@ -220,6 +233,21 @@ def cmd_build(args):
     # Social card.
     save(compose(1200, 630), os.path.join(icon, "og.png"))
     n += 1
+
+    # dash/ rsyncs to its own webroot, so it carries its own copies rather than
+    # linking back to /icon. Same artwork, its own flat filenames.
+    dash = os.path.join(ROOT, "dash")
+    if os.path.isdir(dash):
+        for s_ in DASH_SIZES:
+            save(compose(s_), os.path.join(dash, "icon", f"{s_}.png"))
+            n += 1
+        save(compose(512, fill=mfill), os.path.join(dash, "icon", "maskable-512.png"))
+        n += 1
+        dico = [compose(s_) for s_ in FAVICON_ICO]
+        dico[-1].save(os.path.join(dash, "favicon.ico"), format="ICO",
+                      sizes=[(s_, s_) for s_ in FAVICON_ICO],
+                      append_images=dico[:-1])
+        n += 1
 
     print(f"[build] wrote {n} files from {_cache['source']}")
 

@@ -1,7 +1,7 @@
 {
  "grade": {
-  "chroma": 1.6,
-  "hue": 0
+  "chroma": 1.0,
+  "hue": -10
  },
  "classes": {
   "sheet": {
@@ -11,57 +11,57 @@
     17.3
    ],
    "model_Lab": [
-    51.5,
-    -4.6,
-    16.9
+    51.3,
+    -4.4,
+    17.6
    ],
-   "dE": 0.48,
+   "dE": 0.4,
    "material": {
-    "melanin": 0.023,
+    "melanin": 0.128,
     "stroma": 0.453,
-    "pheo": 1.0,
-    "yellow": 0.357,
+    "pheo": 0.0,
+    "yellow": 0.714,
     "mie": 0.2
    }
   },
   "deck": {
    "photo_Lab": [
-    44.1,
-    -3.3,
+    44.0,
+    -3.2,
     10.5
    ],
    "model_Lab": [
-    44.0,
-    -2.9,
+    43.6,
+    -3.3,
     10.6
    ],
-   "dE": 0.43,
-   "material": {
-    "melanin": 0.023,
-    "stroma": 0.266,
-    "pheo": 0.25,
-    "yellow": 0.357,
-    "mie": 0.2
-   }
-  },
-  "ground": {
-   "photo_Lab": [
-    32.5,
-    -1.6,
-    8.7
-   ],
-   "model_Lab": [
-    32.8,
-    -1.2,
-    9.1
-   ],
-   "dE": 0.65,
+   "dE": 0.42,
    "material": {
     "melanin": 0.023,
     "stroma": 0.172,
     "pheo": 1.0,
-    "yellow": 0.357,
-    "mie": 0.2
+    "yellow": 0.714,
+    "mie": 0.35
+   }
+  },
+  "ground": {
+   "photo_Lab": [
+    32.0,
+    -1.6,
+    8.6
+   ],
+   "model_Lab": [
+    32.4,
+    -1.5,
+    8.6
+   ],
+   "dE": 0.4,
+   "material": {
+    "melanin": 0.003,
+    "stroma": 0.141,
+    "pheo": 0.75,
+    "yellow": 0.714,
+    "mie": 0.5
    }
   },
   "rim": {
@@ -71,17 +71,17 @@
     28.2
    ],
    "model_Lab": [
-    46.5,
-    1.5,
-    28.6
+    47.0,
+    1.8,
+    28.4
    ],
-   "dE": 0.66,
+   "dE": 0.24,
    "material": {
-    "melanin": 0.065,
-    "stroma": 0.203,
-    "pheo": 1.0,
-    "yellow": 0.357,
-    "mie": 0.5
+    "melanin": 0.128,
+    "stroma": 0.328,
+    "pheo": 0.0,
+    "yellow": 1.071,
+    "mie": 0.7
    }
   }
  },
@@ -103,43 +103,43 @@
    "B3_ratio": 0.0
   },
   "layers_clean": {
-   "cellDab": 1.684,
-   "cellDL": 2.135,
-   "dab50": 2.114,
-   "dab50_hole": 1.416,
-   "dab50_sheet": 2.096,
-   "dab_hole": 0.539,
-   "dab_sheet": 0.607,
-   "dab_rim": 1.984,
-   "B1_corr": 0.92,
-   "B1_ratio": 0.963,
-   "B2_corr": 0.787,
-   "B2_ratio": 0.771,
-   "B3_corr": 0.288,
-   "B3_ratio": 0.271
+   "cellDab": 1.253,
+   "cellDL": 1.939,
+   "dab50": 1.723,
+   "dab50_hole": 1.346,
+   "dab50_sheet": 1.701,
+   "dab_hole": 0.465,
+   "dab_sheet": 0.144,
+   "dab_rim": 1.747,
+   "B1_corr": 0.934,
+   "B1_ratio": 0.985,
+   "B2_corr": 0.792,
+   "B2_ratio": 0.778,
+   "B3_corr": 0.289,
+   "B3_ratio": 0.272
   },
   "layers_with_camera_grain": {
-   "cellDab": 2.182,
-   "cellDL": 2.184,
-   "dab50": 2.861,
-   "dab50_hole": 2.236,
-   "dab50_sheet": 2.845,
-   "dab_hole": 0.86,
-   "dab_sheet": 3.522,
-   "dab_rim": 2.327,
-   "B1_corr": 0.92,
-   "B1_ratio": 0.959,
-   "B2_corr": 0.772,
-   "B2_ratio": 0.782,
+   "cellDab": 1.699,
+   "cellDL": 1.98,
+   "dab50": 2.462,
+   "dab50_hole": 2.116,
+   "dab50_sheet": 2.442,
+   "dab_hole": 0.791,
+   "dab_sheet": 3.363,
+   "dab_rim": 2.103,
+   "B1_corr": 0.934,
+   "B1_ratio": 0.98,
+   "B2_corr": 0.776,
+   "B2_ratio": 0.789,
    "B3_corr": 0.1,
-   "B3_ratio": 0.775
+   "B3_ratio": 0.777
   }
  },
  "primitives": {
   "outlines": 31,
   "outline_coeffs": 4030,
-  "fibres": 168,
-  "fibre_samples": 1254,
+  "fibres": 198,
+  "fibre_samples": 1239,
   "guides": 1115,
   "guide_samples": 21155,
   "veins": 292,
@@ -151,5 +151,44 @@
   "rim_samples": 15872,
   "sheet_cells": 14884,
   "window_mm2": 73.7
+ },
+ "roots": {
+  "fibres": 198,
+  "ends": 396,
+  "ends_wall": 273,
+  "ends_in_hole": 123,
+  "ends_linked": 12,
+  "ends_branched": 46,
+  "ends_free": 65,
+  "free_fraction_in_hole": 0.528,
+  "wall_fraction": 0.689,
+  "candidates": 10,
+  "links": 6,
+  "roots": 6,
+  "fibres_in_roots": 12,
+  "fibres_per_root": {
+   "median": 2.0,
+   "max": 2
+  },
+  "root_length_mm": {
+   "median": 0.2823,
+   "p90": 0.3565,
+   "max": 0.3593
+  },
+  "fragment_length_mm": {
+   "median": 0.1007,
+   "p90": 0.2064
+  },
+  "link_gap_mm": {
+   "median": 0.091,
+   "p90": 0.131
+  },
+  "link_conf": {
+   "median": 0.841
+  },
+  "branches": {
+   "branch": 25,
+   "merge": 21
+  }
  }
 }

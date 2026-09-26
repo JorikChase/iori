@@ -485,6 +485,23 @@ renders within 1 / 255 of it (mean 0.006, no pixel over 2). The bench in `tools/
 from `ref/cases.json`, which since rebuild step 1 is not the pinned case: its arrival comparison (max 82 / 255) is
 frames, not measurements — use the button path (`__irisTissueUI.load()`) to export and to compare.
 
+**The other three eyes (iori, 2026-09-26: "run the other three eyes and publish them").** Same fitter, same publishing
+recipe (export → `data/tissue-NN.json`; measured load on the Load button's path → `exportMeasurements({ lightBits: 10,
+shadeBits: 11 })` → `data/tissue-NN.cal.bin`; arrival checked against that measured render). Engine scores from
+`__t7.review` in a fresh page per eye, previous export against the new one, same path:
+
+| eye | deck fibres | roots · links | ends at a wall · free among the rest | MATCH2 prev → new | strandCorr prev → new | cellΔab prev → new | arrival vs measured |
+|---|---|---|---|---|---|---|---|
+| 09 | 1 344 → **1 616** | 73 · 78 | 56 % · 42 % | 81.31 → **81.56** | 0.416 → **0.426** | 3.00 → **2.87** | max 1 / 255, mean 0.005 |
+| 25 | 859 → **994** | 63 · 69 | 52 % · 48 % | 87.57 → **87.82** | 0.354 → 0.354 | 2.69 → **2.47** | max 1 / 255, mean 0.007 |
+| 35 | 168 → **198** | 6 · 6 | 69 % · 53 % | 83.21 → **83.97** | 0.369 → **0.374** | 2.64 → **2.34** | max 1 / 255, mean 0.004 |
+
+For 25 and 35 the previous export was the 500 nm fit, so their colour gains are mostly the edge (their grades went from
+×1.8 / ×1.6 to ×1.2 / ×1.0). Ref 35 has 2.9 % of its iris in holes, hence 198 fibres and six roots — its deck is
+nearly all wall-bounded (69 %). Measured loads on the pinned cases: 09 81.40 · 25 88.34 · 35 82.32 (26: 85.02).
+Fitter runs in parallel: 09 7.1 min / 1.5 GB, 25 8.1 min / 2.5 GB, 35 3.2 min / 1.5 GB peak. Review crops per eye:
+`study/proof-layers/roots-NN-crops.jpg`. Not pushed, not deployed.
+
 #### 5.2.2 The grower on a layer eye
 
 - **Flow and spacing fields of a layer eye**: rasterised from the traced fibres, guides and roots (direction from the

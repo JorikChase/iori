@@ -1,7 +1,7 @@
 {
  "grade": {
-  "chroma": 1.8,
-  "hue": 0
+  "chroma": 1.2,
+  "hue": -10
  },
  "classes": {
   "sheet": {
@@ -11,56 +11,56 @@
     35.1
    ],
    "model_Lab": [
-    44.9,
-    -1.5,
+    44.3,
+    -1.6,
     35.1
    ],
-   "dE": 0.63,
+   "dE": 0.16,
    "material": {
-    "melanin": 0.211,
-    "stroma": 0.328,
+    "melanin": 0.315,
+    "stroma": 0.422,
     "pheo": 0.0,
-    "yellow": 0.357,
-    "mie": 0.2
+    "yellow": 1.071,
+    "mie": 0.08
    }
   },
   "deck": {
    "photo_Lab": [
-    37.7,
+    38.2,
     -7.6,
     9.0
    ],
    "model_Lab": [
-    37.2,
-    -6.9,
-    9.3
+    37.7,
+    -8.1,
+    8.8
    ],
-   "dE": 0.91,
+   "dE": 0.71,
    "material": {
     "melanin": 0.023,
-    "stroma": 0.453,
+    "stroma": 0.422,
     "pheo": 0.0,
-    "yellow": 0.357,
-    "mie": 0.0
+    "yellow": 0.714,
+    "mie": 0.08
    }
   },
   "ground": {
    "photo_Lab": [
-    25.9,
-    -6.0,
-    7.8
+    23.8,
+    -5.0,
+    7.7
    ],
    "model_Lab": [
-    25.9,
-    -4.7,
-    8.9
+    23.6,
+    -5.4,
+    7.6
    ],
-   "dE": 1.67,
+   "dE": 0.48,
    "material": {
     "melanin": 0.065,
-    "stroma": 0.297,
-    "pheo": 0.0,
-    "yellow": 0.357,
+    "stroma": 0.203,
+    "pheo": 0.5,
+    "yellow": 0.714,
     "mie": 0.0
    }
   },
@@ -71,16 +71,16 @@
     28.3
    ],
    "model_Lab": [
-    22.6,
-    15.1,
-    28.9
+    22.9,
+    14.8,
+    28.1
    ],
-   "dE": 0.64,
+   "dE": 0.27,
    "material": {
-    "melanin": 0.753,
-    "stroma": 0.234,
+    "melanin": 0.94,
+    "stroma": 0.391,
     "pheo": 0.0,
-    "yellow": 0.0,
+    "yellow": 0.714,
     "mie": 0.7
    }
   }
@@ -103,34 +103,34 @@
    "B3_ratio": 0.0
   },
   "layers_clean": {
-   "cellDab": 1.738,
-   "cellDL": 1.395,
-   "dab50": 2.197,
-   "dab50_hole": 6.236,
-   "dab50_sheet": 1.885,
-   "dab_hole": 2.167,
+   "cellDab": 1.443,
+   "cellDL": 1.362,
+   "dab50": 1.928,
+   "dab50_hole": 5.658,
+   "dab50_sheet": 1.632,
+   "dab_hole": 2.101,
    "dab_sheet": 0.41,
-   "dab_rim": 3.719,
-   "B1_corr": 0.965,
-   "B1_ratio": 0.987,
-   "B2_corr": 0.775,
-   "B2_ratio": 0.792,
-   "B3_corr": 0.343,
-   "B3_ratio": 0.305
+   "dab_rim": 3.161,
+   "B1_corr": 0.967,
+   "B1_ratio": 0.986,
+   "B2_corr": 0.78,
+   "B2_ratio": 0.787,
+   "B3_corr": 0.347,
+   "B3_ratio": 0.301
   },
   "layers_with_camera_grain": {
-   "cellDab": 1.832,
-   "cellDL": 1.39,
-   "dab50": 2.409,
-   "dab50_hole": 6.356,
-   "dab50_sheet": 2.101,
-   "dab_hole": 3.445,
-   "dab_sheet": 1.586,
-   "dab_rim": 4.31,
-   "B1_corr": 0.965,
-   "B1_ratio": 0.98,
-   "B2_corr": 0.769,
-   "B2_ratio": 0.792,
+   "cellDab": 1.523,
+   "cellDL": 1.357,
+   "dab50": 2.138,
+   "dab50_hole": 5.78,
+   "dab50_sheet": 1.847,
+   "dab_hole": 2.687,
+   "dab_sheet": 1.357,
+   "dab_rim": 3.88,
+   "B1_corr": 0.967,
+   "B1_ratio": 0.978,
+   "B2_corr": 0.774,
+   "B2_ratio": 0.787,
    "B3_corr": 0.157,
    "B3_ratio": 0.66
   }
@@ -138,8 +138,8 @@
  "primitives": {
   "outlines": 64,
   "outline_coeffs": 8320,
-  "fibres": 859,
-  "fibre_samples": 6991,
+  "fibres": 994,
+  "fibre_samples": 6513,
   "guides": 2258,
   "guide_samples": 27710,
   "veins": 1642,
@@ -151,5 +151,44 @@
   "rim_samples": 32000,
   "sheet_cells": 14641,
   "window_mm2": 95.85
+ },
+ "roots": {
+  "fibres": 994,
+  "ends": 1988,
+  "ends_wall": 1024,
+  "ends_in_hole": 964,
+  "ends_linked": 138,
+  "ends_branched": 365,
+  "ends_free": 461,
+  "free_fraction_in_hole": 0.478,
+  "wall_fraction": 0.515,
+  "candidates": 81,
+  "links": 69,
+  "roots": 63,
+  "fibres_in_roots": 132,
+  "fibres_per_root": {
+   "median": 2.0,
+   "max": 3
+  },
+  "root_length_mm": {
+   "median": 0.3481,
+   "p90": 0.5676,
+   "max": 0.7347
+  },
+  "fragment_length_mm": {
+   "median": 0.1098,
+   "p90": 0.1996
+  },
+  "link_gap_mm": {
+   "median": 0.0708,
+   "p90": 0.2261
+  },
+  "link_conf": {
+   "median": 0.891
+  },
+  "branches": {
+   "branch": 242,
+   "merge": 123
+  }
  }
 }

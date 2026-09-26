@@ -52,6 +52,14 @@ MENU_LINKS = {
                 ("shop", "https://3die.fr/shop.html"), ("info", "https://3die.fr/info.html"),
                 ("iori", "https://iori.me/")],
 }
+# social profiles shown in the menu after the main links, per domain. These are
+# the human-visible half of the IDENTITY sameAs claims: the only crawlable
+# outbound links on the canvas pages, placed without touching a viewport.
+MENU_SOCIAL = {
+    "iori.me": [("soundcloud", "https://soundcloud.com/ioriori"),
+                ("instagram", "https://instagram.com/jorikjonathan")],
+    "3die.fr": [("soundcloud", "https://soundcloud.com/5gmaelstroem")],
+}
 MENU_BRAND = {"iori.me": "IORI", "3die.fr": "3DIE"}
 # legacy hand-written menus the generated one replaces (removed on every run)
 MENU_LEGACY_PATTERNS = [
@@ -489,10 +497,11 @@ def build_menu_block(slug, meta, pages):
     here = page_url(domain, slug)
     pos = meta.get("menu_pos", "tr")
 
-    def link(label, url, cls=""):
+    def link(label, url, cls="", rel=""):
         cur = ' aria-current="page"' if url == here else ""
         cattr = f' class="{cls}"' if cls else ""
-        return f'      <li{cattr}><a href="{url}"{cur}>{xml_escape(label)}</a></li>'
+        rattr = f' rel="{rel}"' if rel else ""
+        return f'      <li{cattr}><a href="{url}"{cur}{rattr}>{xml_escape(label)}</a></li>'
 
     lines = [MENU_BEGIN,
              f'<link rel="stylesheet" href="{up}assets/menu.css">',
@@ -503,6 +512,9 @@ def build_menu_block(slug, meta, pages):
              '    <ul class="menuItem" id="site-menu-panel">']
     for label, url in MENU_LINKS[domain]:
         lines.append(link(label, url))
+    # rel="me": the page says these profiles are the same identity
+    for label, url in MENU_SOCIAL.get(domain, []):
+        lines.append(link(label, url, cls="site-menu__social", rel="me"))
     # category neighbours: same domain, same category, public, sorted by the
     # optional "order" key (e.g. eyes: simplest to most sophisticated), then slug
     cat = meta.get("category")

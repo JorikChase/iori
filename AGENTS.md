@@ -41,6 +41,14 @@ bash /root/iori/server_setup.sh          # git pull + rsync + api + caddy
 - **Never run the script from inside /root/iori while it self-updates via git** —
   scp it to /tmp and run from there if server_setup.sh itself changed
 
+## Handoffs — read the one for your track first
+- **The site** (SEO, analytics, the menus, the deploy): `handoffs/2026-09-26-site-seo-analytics.md`
+- **Iris Engine**: `iris-engine/HANDOFF.md`
+- **Petri**: `petri/HANDOFF.md`
+
+Three tracks run in one working tree. They touch different files; the site track owns `site.py`,
+`pages.meta.json`, the generated regions in every page, `dash/`, `api/` and `tools/seo-audit/`.
+
 ## Layout
 - `site.py`, `pages.meta.json` — build tooling + page registry
 - `api/` — FastAPI backend (auth, kanban, messages, photo posts; SQLite)

@@ -370,6 +370,155 @@ undo and G4's session file cover every edit.
 4. **Gates as always**: ledger rows + `controls.json` for every control, `reach()` / `compare()` `[]`, the bench untouched
    (no engine shader change), a review image of a grown bundle and an actualized edit.
 
+### 5.2 Floating strands and roots (agreed with iori, 2026-09-25/26)
+
+iori's ask (2026-09-25): "engineer the strands to complement the iris by adding more floating strands which balance the
+sometimes jaggedy (but acceptable) micro strand shards underneath." Read from the data before anything was proposed:
+
+**Why the shards are jagged.** Eye 26's deck is 695 traced fragments — median run ≈ 0.13 mm (p90 0.29), tubes ≈ 80 µm,
+z inferred at crossings (median 87 µm) — drawn as the dome of the nearest tube on ONE heightfield. So a fragment's end
+is a vertical wall (T3's mesas), nothing passes over anything, and whatever the photo did not resolve at 28 µm/px was
+dropped as grain. The shards are right where they are and carry the photo's own brightness (study/08 §7: traced
+positions with real brightness beat any generated texture), so **the shards stay**. What is missing is the continuous
+mesh they are fragments of.
+
+**Decisions (iori, 2026-09-26).**
+
+| # | decision |
+|---|---|
+| F1 | **Generated strands with placement pull, shards kept** — not longer traces. The grower (`strands.js`, S0 priors) grows continuous strands; its `place` pull snaps them onto the shards where they exist and follows the flow field between. |
+| F2 | **Roots: trace every shard further along its vector** to find whether it is part of a larger root structure, *before* the grower runs — so the pull has roots to pull onto, not only fragments (§5.2.1). |
+| F3 | **Crypts first** (the deck seen through the holes; the probe test exists), the sheet's broad bundles second (a T4 debt). |
+| F4 | **Two or three render layers** — ground + one bridge slab now, the count a quality parameter, three at FINE and above (§5.2.3). The full depth-peeled stack (§32 Z) later, on the same code. |
+| F5 | **No cap on the photo score.** MATCH2 is reported at every step, not gated; `strandCorr` and the fine band (B3) must rise; cellΔab ≤ 2.75 stays (colour is never traded for structure, §32); iori judges the review sheet. |
+| F6 | Pupil-dilation waviness (strands slacken as the pupil opens) waits for G3. |
+
+#### 5.2.1 Roots — a shard traced along its vector
+
+In `tools/layer_proof.py` (the photo and its ridge maps are there; the site fitter ports it later with the rest):
+
+- From each fragment end, the **end tangent** (last three samples, blended with the local flow) is marched forward in
+  20 µm steps up to a gap of ≈ 3 spacings (0.3 mm). A candidate is another fragment whose end lies in the corridor:
+  across-distance under one tube radius, turn under 30°, width ratio within 0.5–2, colour continuous (Δab of the
+  payloads), and **ridge evidence along the corridor** (the tracer's own Hessian response sampled on the marched path,
+  so a join is made only where the photo shows tissue between the two, at a lower level than the tracer's threshold).
+- Scored, best wins above a threshold; chained transitively with a union-find (no cycles). A fragment joining a root
+  at > 30° is recorded as a **branch**, not a link — the "larger root structure" iori named — with its own confidence.
+- Exported as `roots: [{ fibres: [id …], links: [{ a, b, gapMm, turnDeg, conf }], branches: [...] }]`, provenance
+  `inferred`; `fibres` unchanged (a root points at them, the shards are never rewritten). Same rule for `guides` on the
+  sheet (F3, second).
+- Review: an overlay of roots in colour over the photo with the joins marked, and the statistics — fragments per root,
+  root length against S0's guide / child run distributions (§4 there), fraction of ends left free (S0: ≈ 20–25 % of
+  real ends are free — more than that and the chaining is too timid, fewer and it is inventing).
+
+**Built (2026-09-26) — `tools/roots.py`, called from `layer_proof.py` after the weave; eye 26, whole iris.** The fitter
+is unchanged everywhere else: at the same yellow edge the committed fitter and this one export identical JSON in every key,
+and this one adds `roots` (proven key by key; the export also differs from the 22 September file in its colour keys, which
+is T7's per-hue grade objective and predates this). `--dump-roots FILE` writes everything the pass reads (fibres, radii, the
+ridge map and thresholds, the signed distance, the photo) so the chaining can be iterated in seconds instead of a 6-min run.
+
+| eye 26 | value |
+|---|---|
+| fibre ends | 1390 — **54 % at a crypt wall** (the fibre dives under the sheet: `extend_to_walls` stopped it there), 641 inside the holes |
+| end pairs within 0.3 mm | 11 899, of which 11 045 fail the 30° turn (a lateral neighbour's end is 24 µm away, median — the lanes are packed) |
+| links | **53** from 66 candidates · gap median 95 µm, p90 198 (11 are junction rejoins ≤ 30 µm) · turn median 12.7° · evidence median 1.0 |
+| roots | **47**, holding 100 of 695 fibres (41 pairs, 6 triples) · length median 0.47 mm, p90 0.90, max 1.23 (fragments 0.18 / 0.40) |
+| branches | 200 branches (> 30°) + 146 merges (a fibre running into a near-parallel neighbour's body: the weave's over / under) |
+| free ends inside the holes | 189 = **29.5 %** of the visible ends (S0: 20–25 % of real ends are free) — slightly timid, nothing invented |
+
+Readings. (1) The shards are mostly **wall-bounded runs**: more than half of all ends are where the fibre goes under the
+sheet, which no photograph sees — a fact for the render (a wall end should dive, not stop) more than for the chaining.
+(2) Of the ends the photo does show, two thirds run into another fibre's body — the tracer's `extend_to_walls` already
+walks an end up to its neighbour — so the "larger root structure" here is mainly the branch / merge network, and true
+collinear continuations are the 53 links. (3) The review crops show many strands visible in the crypts that the tracer
+never found at all: that is coverage, the grower's job in §5.2.2, not chaining. Every end is exported classified
+(`roots.ends`, per fibre `[kind at start, kind at end]` ∈ wall · link · branch · merge · free), which is what the grower
+needs: a wall end anchors into the sheet, a free end is where a generated strand goes on.
+
+Files: `study/proof-layers/roots-26-crops.jpg` (the four largest crypts, 1.8 mm each: roots in colour, singletons grey,
+joins white, branches yellow, merges cyan, free ends red) and `roots-26-whole.jpg`. `data/tissue-26.json` carries the
+`roots` key (injected: its fibre geometry is identical to the export's; the page reads explicit keys only, so the shipped
+eye is untouched, +10 KB gzipped). Not run yet on 09 / 25 / 35 — after iori's look at 26.
+
+**More strands (iori, 2026-09-26: "we should be able to fit more strands, no? the overlay looks pretty unpopulated").**
+Two things were true at once. The roots overlay drew the deck fibres only — the sheet's 1 552 guides and 620 fine fibres
+were not in it, and with every class drawn the eye is densely traced (crypt centreline density was already 13.8 mm/mm²
+against S0's 8–12). But the crops did show strands in the crypts with no trace, and measuring why found two tracer faults,
+both fixed (`--dump-roots` made each trial a 25 s offline run instead of a 6 min fit):
+
+- **Blind wall extension.** `extend_to_walls` marched every end STRAIGHT for up to 70 px: **41 % of all traced deck length
+  on eye 26 was such marching**, and it ran across neighbouring strands (the cross-hatch in every crypt). It now follows
+  the local ridge direction where the ridge map still shows one, keeps the straight prior only inside the wall's shadow
+  band (sd < 12 px), and stops after four steps of dead evidence in the open. Extension share 41 % → 30 %; the spurs are
+  gone (`study/proof-layers/` crops, and the offline comparison in the log below).
+- **Percentile thresholds.** Hysteresis kept ridge pixels above the 45th / 15th percentile of ridge strength per hole —
+  the strongest 55 % by construction, whatever the crypt held. At 20 / 5 the tracer finds **29 % more deck fibres**, all
+  visible strands; at 10 / 2 the sheet's grain starts to come in as short worms. 20 / 5 is the default now (deck fibres
+  only; veins, guides and the sheet's fine curves keep 45 / 15).
+- **Not fixed, named**: at any threshold the darker half of a large crypt keeps visible strands with no trace, and the
+  strands' preferred ridge scale is the top of the ladder (38 % of strong ridge pixels choose σ 6.5 px, which the ladder
+  does not offer — a bundle population, since the strand spacing measured across the flow is 65 µm). Also: a tube's
+  drawn diameter (2 · 1.4 · w, 78 µm median) exceeds that spacing, so neighbouring tubes overlap in the render — a width
+  calibration for the render step, not the tracer.
+
+Eye 26, before → after, same page, same load path (`__t7.review`, measured load at NORMAL):
+
+| | old tracer | ridge-following + 20 / 5 |
+|---|---|---|
+| deck fibres · payload samples | 695 · 7 993 | **896** · 7 824 (shorter: no blind extension) |
+| engine MATCH2 · cellΔab · strandCorr · grad | 84.99 · 2.44 · 0.385 · 0.764 | **85.26** · 2.43 · **0.388** · **0.769** |
+| fitter B2 / B3 correlation (its own render) | 0.811 / 0.414 | 0.813 / 0.414 |
+| roots: links · roots · fibres in roots | 53 · 47 · 100 | 85 · 72 · 157 before the in-lane rule → **58 · 53 · 111** |
+| ends at a wall · free among the rest | 54 % · 29.5 % | 47 % · **46 %** |
+
+Both exports here are at the 450 nm edge; the shipped `data/tissue-26.json` is the 500 nm export and scores 84.24, so the
+edge alone is worth +0.75 and the tracer +0.27 on top. The free-end fraction rose because extensions no longer walk into a
+neighbour and get counted as a merge: those ends are where the ridge died in the open — the grower's continuation
+points. **In-lane rule** (added after this rerun's crops showed joins stepping across lanes): a join's sideways offset
+from each end's own line must stay under 30 µm, half the strand spacing measured across the flow — a 30° turn over a
+0.2 mm gap would otherwise reach the next lane. It removed 27 of 85 links (13 of them more than a tube radius off).
+The 46 % of visible ends left free is honest, not timid: they are ends where the ridge evidence died in the open. **Published (iori, 2026-09-26: "publish the new export and commit it")**: `data/tissue-26.json` is this export (896 fibres,
+450 nm colours, the roots key), and its measurements were re-exported on the Load button's path — they are measured on
+the deck's geometry, and the key that guards them checks only engine and dials, so a new deck with the old file would
+have been silently stale. Measured load on the pinned case 85.02 (strandCorr 0.379); the arrival with the shipped file
+renders within 1 / 255 of it (mean 0.006, no pixel over 2). The bench in `tools/s3/bench.js` frames its measured load
+from `ref/cases.json`, which since rebuild step 1 is not the pinned case: its arrival comparison (max 82 / 255) is
+frames, not measurements — use the button path (`__irisTissueUI.load()`) to export and to compare.
+
+#### 5.2.2 The grower on a layer eye
+
+- **Flow and spacing fields of a layer eye**: rasterised from the traced fibres, guides and roots (direction from the
+  tangents, spacing from the neighbour distances), smoothed — not the legacy engine's `flowDir` / `spacing`.
+- **Parents** (G1b step 1): every root becomes a parent spline (≈ one control point per 0.3 mm through its fragments'
+  samples); its fragments are measured instances, and the grower fills the gaps and the neighbourhood with generated
+  instances — pull = 1 on a fragment, the flow between. Params as §5.1 plus `floatMm` (height above the floor), `sagMm`
+  (a catenary dip between anchors), `taperMm` (the ends thin and lower over their last samples, diving under instead
+  of stopping at a wall). Over crossings the Z1 rule (the fibre whose brightness and width hold up is on top; a bump
+  per crossing, never a single lift). Provenance `seeded`; only parents + genes ship (a few KB), instances regenerate.
+- **Colour and brightness from the tissue**: each sample takes the albedo of the nearest measured sample (as the brushes
+  do) and a **per-texel modulation along and across the tube** — the strand shader writes one brightness per strand
+  today, and study/08 §7 showed a flat-brightness curve is no better than LIC. The one shader change the deck needs.
+
+#### 5.2.3 Floating in the render — two or three layers
+
+Without a second layer a floating strand is a taller lump on one heightfield and the probe shows a wall under it.
+The compose pass writes, beside the ground, a **bridge slab** per layer: (top z, bottom z, coverage, albedo) of the
+topmost strands there; the photo shader's view ray and shadow ray test the slabs before the ground, so a bridge shows
+the floor beneath it and drops its own shadow. Layer count from the quality table (2 at NORMAL, 3 at FINE+); each
+layer costs one slab test per march step. Bench untouched (the layer model is off in the bench).
+
+#### 5.2.4 Build order and gates
+
+1. **Roots** in the fitter, exported, reviewed (§5.2.1) — eye 26 first, then the other three.
+2. **Flow and spacing fields** of a layer eye (JS).
+3. **Parents with grown instances**, the float / sag / taper params, the per-texel brightness term.
+4. **Bridge layers** (2, then 3 at FINE+), shadows.
+5. **Measure**: whole iris at NORMAL with the generated deck on / off — MATCH2 (reported), cellΔab (≤ 2.75), strandCorr and
+   B3 (must rise); the probe fly-over of a crypt with a bridge and its shadow (T3's own acceptance); a review sheet for
+   iori. Contract `compare()` / `reach()` `[]`, the bench unchanged.
+6. G1b steps 2–3 on top (Select, Grow strands = this grower on a selected parent, Actualize).
+7. The sheet's bundles with the same grower (F3), then **G3** = the same grower over the whole iris, placement off.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

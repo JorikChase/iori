@@ -1,7 +1,7 @@
 {
  "grade": {
-  "chroma": 1.6,
-  "hue": 20
+  "chroma": 1.4,
+  "hue": 0
  },
  "classes": {
   "sheet": {
@@ -11,57 +11,57 @@
     36.7
    ],
    "model_Lab": [
-    42.1,
-    -6.6,
-    36.6
+    42.6,
+    -6.2,
+    37.0
    ],
-   "dE": 0.55,
+   "dE": 0.36,
    "material": {
     "melanin": 0.128,
-    "stroma": 0.141,
-    "pheo": 0.25,
-    "yellow": 0.357,
-    "mie": 0.7
+    "stroma": 0.297,
+    "pheo": 0.75,
+    "yellow": 1.071,
+    "mie": 0.5
    }
   },
   "deck": {
    "photo_Lab": [
-    31.4,
-    -9.1,
+    30.9,
+    -8.9,
     9.4
    ],
    "model_Lab": [
-    31.3,
-    -9.0,
+    31.1,
+    -8.8,
     9.6
    ],
-   "dE": 0.25,
+   "dE": 0.29,
    "material": {
     "melanin": 0.065,
-    "stroma": 0.297,
-    "pheo": 0.75,
-    "yellow": 0.357,
-    "mie": 0.0
+    "stroma": 0.266,
+    "pheo": 0.25,
+    "yellow": 0.714,
+    "mie": 0.08
    }
   },
   "ground": {
    "photo_Lab": [
-    14.8,
+    14.3,
     -3.7,
-    6.5
+    6.3
    ],
    "model_Lab": [
-    15.8,
-    -2.3,
-    7.5
+    15.9,
+    -3.0,
+    6.7
    ],
-   "dE": 1.99,
+   "dE": 1.81,
    "material": {
     "melanin": 0.065,
     "stroma": 0.078,
-    "pheo": 0.5,
-    "yellow": 0.357,
-    "mie": 0.0
+    "pheo": 0.0,
+    "yellow": 0.714,
+    "mie": 0.08
    }
   },
   "rim": {
@@ -71,17 +71,17 @@
     31.5
    ],
    "model_Lab": [
-    36.2,
-    -5.0,
-    31.7
+    36.3,
+    -5.2,
+    31.1
    ],
-   "dE": 0.27,
+   "dE": 0.46,
    "material": {
-    "melanin": 0.586,
-    "stroma": 0.203,
-    "pheo": 1.0,
-    "yellow": 0.0,
-    "mie": 0.0
+    "melanin": 0.065,
+    "stroma": 0.422,
+    "pheo": 0.75,
+    "yellow": 1.071,
+    "mie": 0.7
    }
   }
  },
@@ -103,43 +103,43 @@
    "B3_ratio": 0.802
   },
   "layers_clean": {
-   "cellDab": 2.034,
-   "cellDL": 2.139,
-   "dab50": 2.57,
-   "dab50_hole": 3.475,
-   "dab50_sheet": 2.318,
-   "dab_hole": 0.234,
-   "dab_sheet": 0.622,
-   "dab_rim": 1.768,
-   "B1_corr": 0.959,
-   "B1_ratio": 0.943,
-   "B2_corr": 0.811,
-   "B2_ratio": 0.854,
-   "B3_corr": 0.416,
-   "B3_ratio": 0.375
+   "cellDab": 1.747,
+   "cellDL": 2.115,
+   "dab50": 2.323,
+   "dab50_hole": 2.929,
+   "dab50_sheet": 2.104,
+   "dab_hole": 1.001,
+   "dab_sheet": 0.61,
+   "dab_rim": 1.712,
+   "B1_corr": 0.961,
+   "B1_ratio": 0.945,
+   "B2_corr": 0.813,
+   "B2_ratio": 0.856,
+   "B3_corr": 0.414,
+   "B3_ratio": 0.376
   },
   "layers_with_camera_grain": {
-   "cellDab": 2.066,
-   "cellDL": 2.143,
-   "dab50": 2.729,
-   "dab50_hole": 3.748,
-   "dab50_sheet": 2.481,
-   "dab_hole": 0.904,
-   "dab_sheet": 1.039,
-   "dab_rim": 2.207,
-   "B1_corr": 0.959,
-   "B1_ratio": 0.936,
-   "B2_corr": 0.807,
-   "B2_ratio": 0.853,
-   "B3_corr": 0.225,
-   "B3_ratio": 0.687
+   "cellDab": 1.745,
+   "cellDL": 2.118,
+   "dab50": 2.461,
+   "dab50_hole": 3.02,
+   "dab50_sheet": 2.264,
+   "dab_hole": 1.372,
+   "dab_sheet": 1.076,
+   "dab_rim": 2.143,
+   "B1_corr": 0.961,
+   "B1_ratio": 0.939,
+   "B2_corr": 0.809,
+   "B2_ratio": 0.855,
+   "B3_corr": 0.224,
+   "B3_ratio": 0.688
   }
  },
  "primitives": {
   "outlines": 84,
   "outline_coeffs": 10920,
-  "fibres": 695,
-  "fibre_samples": 7993,
+  "fibres": 896,
+  "fibre_samples": 7824,
   "guides": 1552,
   "guide_samples": 23836,
   "veins": 1657,
@@ -151,5 +151,44 @@
   "rim_samples": 41472,
   "sheet_cells": 15129,
   "window_mm2": 88.41
+ },
+ "roots": {
+  "fibres": 896,
+  "ends": 1792,
+  "ends_wall": 837,
+  "ends_in_hole": 955,
+  "ends_linked": 170,
+  "ends_branched": 372,
+  "ends_free": 413,
+  "free_fraction_in_hole": 0.432,
+  "wall_fraction": 0.467,
+  "candidates": 116,
+  "links": 85,
+  "roots": 72,
+  "fibres_in_roots": 157,
+  "fibres_per_root": {
+   "median": 2.0,
+   "max": 3
+  },
+  "root_length_mm": {
+   "median": 0.4804,
+   "p90": 0.8043,
+   "max": 1.1494
+  },
+  "fragment_length_mm": {
+   "median": 0.13,
+   "p90": 0.3052
+  },
+  "link_gap_mm": {
+   "median": 0.0847,
+   "p90": 0.2188
+  },
+  "link_conf": {
+   "median": 0.882
+  },
+  "branches": {
+   "branch": 210,
+   "merge": 162
+  }
  }
 }

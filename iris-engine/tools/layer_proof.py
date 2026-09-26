@@ -24,6 +24,7 @@ import cv2
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from strand_stats import zhang_suen, ridge, prune, order_path   # the S0 tracer (study/08 §4)
+from roots import find_roots, draw_roots                        # study/11 §5.2.1: shards chained into roots
 
 ENG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 OUT = os.path.join(ENG, 'study', 'proof-layers'); os.makedirs(OUT, exist_ok=True)
@@ -99,18 +100,19 @@ def fourier_smooth(cnt, M=24, n=512):
     z = np.fft.ifft(np.where(keep, Z, 0)); return np.stack([z.real, z.imag], 1)
 
 
-def centrelines(Lf, focus, sig_px, min_len, regions=None):
+def centrelines(Lf, focus, sig_px, min_len, regions=None, out=None, pct=(45, 15)):
     """S0 recipe: multi-scale bright-ridge strength, NMS across the ridge, hysteresis, thinning, pruning → ordered paths"""
     R, S, nx, ny = ridge(Lf, sig_px)
     H, W = Lf.shape; gy, gx = np.mgrid[0:H, 0:W].astype(np.float32); st = max(1.0, 0.5 * sig_px[0])
     Rs = cv2.GaussianBlur(R, (0, 0), max(0.8, 0.35 * sig_px[0]))
     Ra = cv2.remap(Rs, gx + st * nx, gy + st * ny, cv2.INTER_LINEAR); Rb = cv2.remap(Rs, gx - st * nx, gy - st * ny, cv2.INTER_LINEAR)
-    vals = R[focus & (R > 0)]; hi, lo = np.percentile(vals, 45), np.percentile(vals, 15)
+    vals = R[focus & (R > 0)]; hi, lo = np.percentile(vals, pct[0]), np.percentile(vals, pct[1])
     if regions is not None:                                                  # thresholds per hole: a dark crypt is judged against itself
         hi, lo = np.full(R.shape, hi, np.float32), np.full(R.shape, lo, np.float32)
         for r in range(1, int(regions.max()) + 1):
             m = (regions == r) & (R > 0)
-            if m.sum() > 200: hi[regions == r], lo[regions == r] = np.percentile(R[m], 45), np.percentile(R[m], 15)
+            if m.sum() > 200: hi[regions == r], lo[regions == r] = np.percentile(R[m], pct[0]), np.percentile(R[m], pct[1])
+    if out is not None: out.update(R=R, lo=lo, hi=hi, nx=nx, ny=ny)     # the ridge map, its thresholds and the across-ridge direction: for the extension and the roots pass
     cand = cv2.dilate(((Rs >= Ra) & (Rs >= Rb) & (R > lo) & focus).astype(np.uint8), np.ones((2, 2), np.uint8))
     n0, l0 = cv2.connectedComponents(cand, connectivity=8)
     strong = np.zeros(n0, bool); strong[np.unique(l0[(R > hi) & (cand > 0)])] = True; strong[0] = False
@@ -126,19 +128,34 @@ def centrelines(Lf, focus, sig_px, min_len, regions=None):
     return paths, S
 
 
-def extend_to_walls(paths, sd, max_px=70):
+def extend_to_walls(paths, sd, max_px=70, ridge=None, k_lo=0.5, shadow_px=12, dead_max=4):
     """Model prior: a deck fibre does not end in mid-air — it runs on under the shadow until it meets the wall (or another
-    fibre). Geometry of the extension is INFERRED (provenance), its brightness payload is still read from the photo."""
+    fibre). Geometry of the extension is INFERRED (provenance), its brightness payload is still read from the photo.
+
+    study/11 §5.2.1 (2026-09-26): the extension used to march STRAIGHT for up to 70 px — 41 % of all traced length on eye 26
+    was such marching, and it ran across neighbouring strands. With `ridge` = {R, lo, nx, ny} it now FOLLOWS the local ridge
+    direction where the ridge map still shows one (blended into the running tangent, so it cannot turn sharply), keeps the
+    straight prior only inside the wall's shadow band (sd < shadow_px, where the fibre really is hidden), and stops when the
+    ridge evidence has been dead for `dead_max` steps out in the open. Without `ridge` the old behaviour is unchanged."""
     H, W = sd.shape; ink = np.ones((H, W), np.uint8)
     for p in paths: ink[p[:, 0].astype(int), p[:, 1].astype(int)] = 0
     near = cv2.distanceTransform(ink, cv2.DIST_L2, 5); out = []
+    rg = ridge
     for p in paths:
         p = p.astype(np.float64)
         for end in (0, 1):
             q = p[::-1] if end == 0 else p
             if len(q) < 5 or sd[int(q[-1, 0]), int(q[-1, 1])] < 6: continue        # already at a wall
-            t = q[-1] - q[-min(len(q), 8)]; t /= max(np.hypot(*t), 1e-6); add = []; pos = q[-1].copy()
+            t = q[-1] - q[-min(len(q), 8)]; t /= max(np.hypot(*t), 1e-6); add = []; pos = q[-1].copy(); dead = 0
             for k in range(max_px):
+                if rg is not None:
+                    y, x = int(round(pos[0])), int(round(pos[1]))
+                    if 0 <= y < H and 0 <= x < W and rg['R'][y, x] >= k_lo * rg['lo'][y, x]:
+                        tr = np.array([rg['nx'][y, x], -rg['ny'][y, x]])           # along the ridge: ⟂ to the across direction, in (row, col)
+                        if tr @ t < 0: tr = -tr
+                        t = 0.6 * t + 0.4 * tr; t /= max(np.hypot(*t), 1e-6); dead = 0
+                    elif 0 <= y < H and 0 <= x < W and sd[y, x] > shadow_px: dead += 1
+                    if dead > dead_max: break
                 pos = pos + t; y, x = int(round(pos[0])), int(round(pos[1]))
                 if not (0 <= y < H and 0 <= x < W) or sd[y, x] < 1.5: break
                 if k > 8 and near[y, x] < 2.5: break
@@ -468,8 +485,11 @@ def main():
     # an absolute threshold does not) and their payload is READ from the true luminance, so they render as dim as they are
     Ln = (cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 1.5) / np.maximum(cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 14), 0.004)).astype(np.float32)
     _, hole_lab = cv2.connectedComponents((sd > 1).astype(np.uint8), connectivity=8)
-    fpaths, fS = centrelines(Ln, sd > 1, [2.0, 3.0, 4.5], 6, hole_lab)
-    fpaths = extend_to_walls(fpaths, sd)
+    # study/11 §5.2.1 (2026-09-26): hysteresis at the 20th / 5th percentile of ridge strength per hole, not 45 / 15 — the old
+    # rule kept the strongest 55 % of ridge pixels by construction, whatever the crypt held; on eye 26 the change traces 29 %
+    # more deck fibres, all of them visible strands (at 10 / 2 the sheet's grain starts to come in as short worms)
+    rx = {}; fpaths, fS = centrelines(Ln, sd > 1, [2.0, 3.0, 4.5], 6, hole_lab, out=rx, pct=(20, 5))
+    fpaths = extend_to_walls(fpaths, sd, ridge=rx)
     Lbody = cv2.GaussianBlur(pY.astype(np.float32), (0, 0), 2.5)                                          # a fibre's BODY brightness, not its peak
     lab_f = cv2.GaussianBlur(plab, (0, 0), 2.5); lab_g = cv2.GaussianBlur(plab, (0, 0), 3.5)             # colour is read at the body scale (finer = chroma noise)
     chan = lambda L3: {'L': np.ascontiguousarray(L3[..., 0]), 'a': np.ascontiguousarray(L3[..., 1]), 'b': np.ascontiguousarray(L3[..., 2])}
@@ -511,6 +531,18 @@ def main():
               f'order right at {100 * abv.mean():.0f} % of crossings, fully clear at {100 * np.mean(clr >= 0):.0f} %')
     nf, ng = sum(len(c['xy']) for c in fibres), sum(len(c['xy']) for c in guides)
     print(f'{len(fibres)} deck fibres ({nf} payload samples) · {len(guides)} sheet guides ({ng} samples)')
+    # ---- 2c. roots (study/11 §5.2.1): every fragment end followed along its own vector — joined to the fragment that
+    # continues it where the ridge map supports the path between, or recorded as a branch into another fibre's body
+    if '--dump-roots' in sys.argv:                                            # everything the roots pass reads, for iterating on it without a 6-min run
+        import pickle; pickle.dump({'fibres': fibres, 'fib_r': fib_r, 'R': rx['R'], 'lo': rx['lo'], 'hi': rx['hi'], 'nx': rx['nx'], 'ny': rx['ny'], 'sd': sd, 'step': step, 'UM': UM,
+                                    'photo': photo, 'outlines': outlines, 'hole_lab': hole_lab, 'PC': PC}, open(sys.argv[sys.argv.index('--dump-roots') + 1], 'wb'), protocol=4)
+    RT = find_roots(fibres, fib_r, rx['R'], rx['lo'], sd, step, UM)
+    RS = RT['stats']
+    print(f"roots: {RS['links']} links from {RS['candidates']} candidates · {RS['roots']} roots holding {RS['fibres_in_roots']}/{RS['fibres']} fibres "
+          f"(median {RS['fibres_per_root']['median']:.0f} fragments, max {RS['fibres_per_root']['max']}) · root length median {RS['root_length_mm']['median']:.3f} mm, "
+          f"p90 {RS['root_length_mm']['p90']:.3f}, max {RS['root_length_mm']['max']:.3f} (fragments {RS['fragment_length_mm']['median']:.3f} / {RS['fragment_length_mm']['p90']:.3f}) · "
+          f"link gap median {RS['link_gap_mm']['median'] * 1000:.0f} µm, conf {RS['link_conf']['median']:.2f} · branches {RS['branches']['branch']} + merges {RS['branches']['merge']} · "
+          f"ends: {100 * RS['wall_fraction']:.0f} % at a wall (under the sheet), of the rest {100 * RS['free_fraction_in_hole']:.0f} % free (S0: 20–25 % of visible ends are free)")
 
     # ---- 3. rim pigment: 1-D strength along each outline (how much more amber than the sheet next to it)
     LUT, PRM = build_lut()
@@ -674,6 +706,10 @@ def main():
         gch = mats['ground'][0] / max(float(mats['ground'][0] @ LUMA), 1e-5)
         ex['cells'] = {'xy': r3(fitxy(cpos)[inwin]), 'sheet': r3(graded(LUT[ci] * csc[:, None])[inwin]), 'ground': r3(graded(gch[None, :] * np.maximum(gcell, 1e-4)[:, None])[inwin])}
         ex['rimRGB'] = r1(graded((mats['rim'][0] * mats['rim'][1])[None, :])[0])
+        # study/11 §5.2.1: roots point at fibres by index; the fibres themselves are unchanged. Provenance inferred.
+        ex['roots'] = {'provenance': 'inferred', 'params': {'gmaxMm': 0.30, 'turnDeg': 30.0, 'acrossMm': 0.03, 'kLo': 0.5, 'evMin': 0.35, 'scoreMin': 0.5},
+                       'links': RT['links'], 'branches': RT['branches'], 'roots': [r for r in RT['roots'] if len(r['fibres']) > 1],
+                       'ends': RT['endKinds']}                                  # per fibre [kind at start, kind at end]: wall | link | branch | merge | free
         XN = f'tissue-{REF}{SFX}-whole.json' if WHOLE else f'tissue-{REF}{SFX}.json'
         ex['lut'] = {'yellowEdgeNm': YEDGE}
         json.dump(ex, open(os.path.join(OUT, XN), 'w'), separators=(',', ':'))
@@ -705,6 +741,7 @@ def main():
     report['metrics'] = {'engine_v84c': metrics(eng_w), 'layers_clean': metrics(clean), 'layers_with_camera_grain': metrics(noisy)}
     report['primitives'] = {'outlines': len(outlines), 'outline_coeffs': len(outlines) * 65 * 2, 'fibres': len(fibres), 'fibre_samples': nf, 'guides': len(guides), 'guide_samples': ng, 'veins': len(veins), 'vein_samples': int(sum(len(c['xy']) for c in veins)), 'sheet_fibres': len(sfib), 'sheet_fibre_samples': int(sum(len(c['xy']) for c in sfib)), 'sheet_veins': len(svein), 'sheet_vein_samples': int(sum(len(c['xy']) for c in svein)),
                             'rim_samples': int(sum(len(a) for a in rim_strength)), 'sheet_cells': int(gx * gy), 'window_mm2': round(float(iris.sum()) * (UM / 1000) ** 2, 2)}
+    report['roots'] = RS
     for kx, v in report['metrics'].items(): print(kx, v)
     print(report['primitives'])
     json.dump(report, open(os.path.join(OUT, TAG + '.json'), 'w'), indent=1)
@@ -719,6 +756,23 @@ def main():
     for c in guides: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (255, 0, 255), 1, cv2.LINE_AA)
     for c in veins: cv2.polylines(ov, [c['xy'].round().astype(np.int32)], False, (0, 0, 255), 1, cv2.LINE_AA)
     cv2.imwrite(os.path.join(OUT, TAG + '-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) veins (red) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
+
+    # ---- study/11 §5.2.1: the roots, drawn — the whole window, and the four largest holes enlarged
+    rv = draw_roots(photo, fibres, fib_r, RT)
+    cv2.imwrite(os.path.join(OUT, TAG + '-roots.jpg'), tag(rv, f"roots: {RS['roots']} roots ({RS['fibres_in_roots']}/{RS['fibres']} fibres), singletons grey, joins white, branches yellow, merges cyan, free ends red; {100 * RS['wall_fraction']:.0f} % of ends at a wall, {100 * RS['free_fraction_in_hole']:.0f} % of the rest free"), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    big, cents = [], []                                                                                  # the four largest holes, no two crops over the same place
+    for i_ in sorted(range(len(outlines)), key=lambda i_: -cv2.contourArea(outlines[i_].astype(np.float32))):
+        c_ = outlines[i_].mean(0)
+        if all(np.hypot(*(c_ - q)) > 0.9 * 1000 / UM for q in cents): big.append(i_); cents.append(c_)
+        if len(big) == 4: break
+    tiles = []
+    for i_ in big:
+        cx_, cy_ = outlines[i_].mean(0); half = int(round(0.9 * 1000 / UM))                              # a 1.8 mm square around the hole
+        x0_, y0_ = int(np.clip(cx_ - half, 0, W - 2 * half)), int(np.clip(cy_ - half, 0, H - 2 * half))
+        crop_ = cv2.resize(rv[y0_:y0_ + 2 * half, x0_:x0_ + 2 * half], (720, 720), interpolation=cv2.INTER_CUBIC)
+        cv2.putText(crop_, f'hole {i_} - 1.8 mm', (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA); tiles.append(crop_)
+    while len(tiles) < 4: tiles.append(np.zeros((720, 720, 3), np.uint8))
+    cv2.imwrite(os.path.join(OUT, TAG + '-roots-crops.jpg'), np.vstack([np.hstack(tiles[:2]), np.hstack(tiles[2:])]), [cv2.IMWRITE_JPEG_QUALITY, 92])
 
     # ---- Z1 (§32): the weave, drawn — every fibre coloured by the height of its centre above the floor, every
     # crossing marked with the side the evidence came down on (a filled dot on the fibre in front)

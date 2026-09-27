@@ -1,8 +1,10 @@
 **UI (2026-09-21): the Windows 3.11 shell is the default** (`ui31.js`, `ui.css`, `overlay.js`, `gaze.js`; `?ui=98` = the frozen Win98 fallback, one version). Every feature, its home and its test: `study/10-feature-ledger.md`. Before and after any UI change: `__uiContract.reach()` and `compare()` must both be `[]` (tools/ui-contract). A new engine feature lands with its ledger row and its `controls.json` entry.
 
-**Start here (2026-09-22, latest): `handoffs/2026-09-22-every-eye-a-layer-model.md`** — four layer-model eyes on arrival from shipped measurements, session files (⌘S), engine 0.9.5-yellow (the yellow edge; the bench moved to 67.1 / 66.8 / 69.4 / 66.8), the guide brush and the journal; next G1b (parent splines). The plan with every finding: `study/11-plan-every-eye-a-layer-model.md`.
+**Start here (2026-09-27, latest): `handoffs/2026-09-27-strands-roots-bridges.md`** — roots along every shard's vector, the tracer fixed, the flow and spacing fields, parents and their instances, the bridge layer (floating strands in a slab), the tube width calibration (four eyes republished), iori's separator rule (detected, lift opt-in); the task list with K2 next. Everything since `ab7d32f` is local.
 
-**Before it (2026-09-21): `handoffs/2026-09-21-ui-tissue-start-eye.md`** — the 3.11 shell by default, the feature ledger and reachability test, the Tissue window, the published photos and layer model, the start eye and its load timing. Tests open the page with `?start=off`.
+**Before it (2026-09-22): `handoffs/2026-09-22-every-eye-a-layer-model.md`** — four layer-model eyes on arrival from shipped measurements, session files (⌘S), engine 0.9.5-yellow (the yellow edge; the bench moved to 67.1 / 66.8 / 69.4 / 66.8), the guide brush and the journal; next G1b (parent splines). The plan with every finding: `study/11-plan-every-eye-a-layer-model.md`.
+
+**Before that (2026-09-21): `handoffs/2026-09-21-ui-tissue-start-eye.md`** — the 3.11 shell by default, the feature ledger and reachability test, the Tissue window, the published photos and layer model, the start eye and its load timing. Tests open the page with `?start=off`.
 
 **Renderer line (2026-09-21): `handoffs/2026-09-21-relief-and-edge.md`** — relief, the probe, the inner edge and the start of G, with the traps each cost. The layer model itself is `handoffs/2026-09-20-tissue-layer-model.md`.
 

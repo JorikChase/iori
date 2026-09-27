@@ -690,6 +690,13 @@ deck by ~70 µm changes the shading of the strand pattern it was measured from (
 6. G1b steps 2–3 on top (Select, Grow strands = this grower on a selected parent, Actualize).
 7. The sheet's bundles with the same grower (F3), then **G3** = the same grower over the whole iris, placement off.
 
+### 5.3 Open after the strands stretch (2026-09-27)
+
+The task list with each item's state and first step is `handoffs/2026-09-27-strands-roots-bridges.md` §6. New from iori
+on 2026-09-27: a **bokeh (depth of field) toggle** as a control; **detect a larger portion of the strands** the photos show;
+make a **bridge read as strands, not a displaced tube** (options there: fibril relief, a braid of children, the second slab,
+ray-traced tubes — recommended the braid with fibril relief). Agreed order: K2 next; the bridges wait for iori's choice.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

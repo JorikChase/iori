@@ -78,7 +78,7 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_flA, u_flB, u_outB, u_cellS, u_cellG, u_pack;   // §5.2.3: fill and the rim strength ride in u_pack (.b, .a) — compose is at the sampler limit — and the FLOATING pass (u_flA / u_flB) takes their units
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix, u_drape, u_dipMm;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux; layout(location = 2) out vec4 o_slab; layout(location = 3) out vec4 o_slabAlb;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -200,10 +200,17 @@
                 float sh = cover > 0.5 ? 1.0 : 0.0;
                 // the lip: a half-round edge of the shell's own thickness — full within half a thickness of the edge, then round
                 // (both corners rounded by u_lipMm; between them the edge is a face, seen edge-on from the front)
+                // the shell's top: the sheet's relief stand-in (the legacy height) without its deep pits — the old model's own crypts,
+                // which a shell would follow straight down: below −u_dipMm the dip is compressed smoothly towards −2 u_dipMm
+                float sheetL = sheetH > -u_dipMm ? sheetH : -u_dipMm - u_dipMm * (1.0 - exp((sheetH + u_dipMm) / u_dipMm));
                 float rl = min(u_lipMm, 0.5 * u_ablMm), lx = clamp(-sd, 0.0, rl), hr = sqrt(max(0.0, rl * rl - (rl - lx) * (rl - lx)));
-                float ablTop = sheetH - rl + hr, ablBot = sheetH - u_ablMm + rl - hr;
+                float ablTop = sheetL - rl + hr, ablBot = sheetL - u_ablMm + rl - hr;
                 float rise = sstep(u_under0, u_under0 + u_under1, -sd);
-                float baseZ = mix(-u_depth - u_deckH + zDeck, ablBot - 0.006, rise);
+                // the base DRAPES over the strands resting in it (the deep stroma is a mesh, a resting strand is embedded in it): a
+                // cosine bell of the strand's top height over u_drape radii, not a cylinder standing on the floor with a vertical flank
+                float dr = u_drape * max(rr, 1e-4), bell = fB.r < dr ? 0.5 + 0.5 * cos(3.14159265 * fB.r / dr) : 0.0;
+                float zRest = (texture(u_fibA, c).a + rr) * bell * u_deckZ * prof;
+                float baseZ = mix(-u_depth - u_deckH + zRest, ablBot - 0.006, rise);
                 // .r what the FRONT view marches: the base with the floating strands' tops on it (seen from above a strand hides what
                 // is under it; the photo shader has no traced strands yet — L2); .g the base alone, for the probe, which traces them
                 float fTop = fbase + (flA.a + fdome) * u_deckZ;
@@ -599,7 +606,7 @@
     T.slabClearMm = 0.02; T.slabMeasured = false; T.slabCurves = 0;
     // §5.4 L0 the layered stroma (off: the shipped model): the ABL shell's thickness, and the undercut — how far under the shell
     // the base stays down past a crypt's edge, then over how far it rises to meet the shell
-    T.layered = false; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0;
+    T.layered = false; T.restMm = 0.004; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0; T.drape = 1.8; T.dipMm = 0.03;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one
     // How much of the old model's sheet relief to keep. The layer model carries no furrows and no micro-relief, so
     // writing 0 on the sheet left 75.6 % of the iris at exactly 0.000 µm — a flat table, where the legacy atlas has
@@ -660,7 +667,25 @@
         const floats = c => { if (!slabOn || !c.z || !c.w) return false;
             if (c.bridge) return c.z.some((z, i) => z - rKf * c.w[i] > clear);   // a measured BRIDGE (the fitter's separator rule): it floats wherever its span is lifted
             if (c.inst === undefined && !T.slabMeasured && !(T.layered && c.layered)) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
-        const part = { fibres: [], floating: [] }; for (const c of T.sets.fibres) part[floats(c) ? 'floating' : 'fibres'].push(c);
+        const part = { fibres: [], floating: [] };
+        if (T.layered && slabOn) {
+            // §5.4 (iori, 2026-09-27: "the height we already use" models the upper layers — they meet and merge): no strand is a mesa.
+            // Every RUN of a strand that leaves the base (its bottom more than T.restMm above the floor) is a floating tube, one
+            // sample either side so it comes down onto the base; only the runs that rest displace the base. A lifted tube on a
+            // height field is a wall down to the floor — that was every vertical wall in a crypt.
+            const eps = T.restMm, keys = ['uv', 'xy', 'w', 'z', 'zc', 'rgb', 'r'];
+            const piece = (c, i0, i1, extra) => { const q = Object.assign({}, c, extra || {}); for (const k of keys) if (c[k]) q[k] = c[k].slice(i0, i1 + 1); return q; };
+            for (const c of T.sets.fibres) {
+                if (!c.z || !c.w) { part.fibres.push(c); continue; }
+                const up = c.z.map((z, i) => z - rKf * c.w[i] > eps), n = up.length;
+                if (!up.some(Boolean)) { part.fibres.push(c); continue; }
+                if (up.every(Boolean)) { part.floating.push(c); continue; }
+                for (let i = 0; i < n;) { let j = i; while (j + 1 < n && up[j + 1] === up[i]) j++;
+                    if (up[i]) part.floating.push(piece(c, Math.max(0, i - 1), Math.min(n - 1, j + 1), { runOf: c }));
+                    else if (j > i) part.fibres.push(piece(c, i, j, { runOf: c }));
+                    i = j + 1; }
+            }
+        } else for (const c of T.sets.fibres) part[floats(c) ? 'floating' : 'fibres'].push(c);
         T.slabCurves = part.floating.length;
         // §5.2.5 B1: a floating strand with a braid spec (its own, or T.braid) is drawn as its children; the set keeps the tube
         T.floatCurves = part.floating;          // §5.4 L0: the floating strands, for the probe's traced segments (after the braid below)
@@ -677,7 +702,7 @@
             gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
             gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]); gl.clearBufferfv(gl.COLOR, 1, [R, 0, -1, 0]); gl.clearBufferfv(gl.DEPTH, 0, [1]);
             const g = buildSet(part[k] || T.sets[k], valueOf, closed, R); gl.uniform1f(pr.curve.loc('u_R'), R); T.segs = (T.segs || 0) + g.count / 6;
-            gl.uniform1f(pr.curve.loc('u_top'), k === 'floating' ? 1 : 0); gl.uniform1f(pr.curve.loc('u_rK'), rKf);
+            gl.uniform1f(pr.curve.loc('u_top'), k === 'floating' || (k === 'fibres' && T.layered && slabOn) ? 1 : 0);   // §5.4: in the layered base, too, the higher strand wins (no seam between neighbours) gl.uniform1f(pr.curve.loc('u_rK'), rKf);
             gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
             if (k === 'floating' && g.count) {   // §5.2.5: the slab's BOTTOM is the lowest of every tube over the texel (a braid's lower children), not the top one's
                 gl.disable(gl.DEPTH_TEST); gl.drawBuffers([gl.NONE, gl.COLOR_ATTACHMENT1]); gl.colorMask(false, false, true, false);
@@ -747,7 +772,7 @@
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
-        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix);   // §5.4 L0
+        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_drape'), T.drape); gl.uniform1f(c.loc('u_dipMm'), T.dipMm);   // §5.4 L0
         gl.uniform1f(c.loc('u_srelAmt'), (T.srel && !grey) ? (T.srelAmt === undefined ? 1 : T.srelAmt) : 0);
         gl.uniform1f(c.loc('u_fibNoise'), grey ? 0 : (T.fibNoise || 0));      // §5.2.2 the per-texel term; never in a calibration render
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array

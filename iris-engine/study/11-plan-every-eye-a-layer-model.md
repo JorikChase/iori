@@ -838,6 +838,23 @@ texture on the first probe after a bake).
   (143 float) and the probe then shows strands crossing the crypt at different heights over the base.
 - **The undercut makes iori's bridge by itself**: on hole 8 the yellow band between the two lobes spans one valley
   (`study/proof-layers/layered-26-h8-probe.jpg`, the grazing view) — no detector involved.
+- **iori (2026-09-27, after L0): "the height of each layer can vary as they often meet and merge, so we can use the height we
+  already use to model the upper layers, bridges and such"** — the crypt depth stays (no deeper floor); the weave's own heights
+  ARE the upper layers. **And: "why are there still walls that are completely vertical?"** Measured on true-scale sections
+  (`layered-26-h14-section.png`) and on 120 profile columns through five crypts, three sources: (1) every weave-lifted strand
+  drawn on the one height field is a MESA — its top, then straight down to the floor beyond one radius (117 steep runs over
+  45 µm, 26 over 70, the tallest 109 µm = the whole crypt, in today's model); (2) the shell's top followed the legacy height's
+  own pits straight down (to −170 µm on hole 14); (3) a strand resting on the floor was a whole cylinder (a vertical flank)
+  and neighbours met at a seam (the nearest centreline won). Fixed in the layered mode: every RUN of a strand whose bottom
+  leaves the base by more than `T.restMm` (4 µm) is a floating tube (one sample either side so it lands on the base), only
+  the resting runs displace the base; the base DRAPES over a resting strand (a cosine bell over `T.drape` 1.8 radii); the
+  higher strand wins in the base as in the float pass; the shell's dip below `T.dipMm` (30 µm) is compressed smoothly.
+  After: 3 steep runs over 45 µm, none over 70, the tallest 47 µm (a thick strand's draped flank, ≈ 60°); the shell's top none
+  over 30 µm. Front view, review path: **MATCH2 84.51 · strandCorr 0.384 · cellΔab 2.31 · hcorr 0.744** (today 84.77 · 0.410
+  · 2.52 · 0.715): the best colour and height agreement yet, strandCorr still below. The front view still marches the floating
+  strands' tops as a height field (aux .r) — their mesas are there until L2 traces them in the photo shader.
+- iori: the light elevation default is **82°** (it was 0.6 rad = 34°; the slider stopped at 80°, below the start eyes' own
+  81.9°, so touching it lowered the light). Default 1.4312 rad, the slider to 90°. The eyes' own cases set their light as before.
 - Open: a band of the shell narrower than about twice its thickness draws as a WAFER (a pale blade seen edge-on, hole 14,
   `layered-26-h14-probe.jpg`) where it should be a round strand — the bridge-as-strand rule belongs in L1; faint stepping
   patterns on the shell's faces at grazing angles; the lifted strands are round tubes with the base's colour chain, their

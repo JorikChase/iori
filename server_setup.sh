@@ -223,7 +223,10 @@ deploy_api() {
 configure_caddy() {
     echo "--- Task: Configuring Caddy (Caddyfile) ---"
     
-    # Create the Caddyfile using a 'heredoc'
+    # Create the Caddyfile using a 'heredoc'. UNQUOTED on purpose, so $LOG_FILE
+    # and $WEB_ROOT below interpolate — which also means backticks and $ inside
+    # the Caddyfile text, comments included, are evaluated by the shell. Don't
+    # put either in here.
     tee /etc/caddy/Caddyfile > /dev/null <<EOF
 {
     # Global options
@@ -276,7 +279,7 @@ iori.me {
     header @appcode Cache-Control "no-cache"
     # /media/* is uploaded under a unique name, so it really is immutable.
     # /icon/* is NOT: forge.py replaces those files in place at fixed URLs, and
-    # `immutable` means "never revalidate, not even on a reload" — an iPad kept
+    # "immutable" means never revalidate, not even on a reload — an iPad kept
     # the pre-2026-09-27 home-screen icon through a reboot and a re-add because
     # of this line. Icons revalidate instead (a 304 costs nothing at this size).
     @immutable path /media/*
@@ -345,7 +348,7 @@ iori.me {
     header @appcode Cache-Control "no-cache"
     # /media/* is uploaded under a unique name, so it really is immutable.
     # /icon/* is NOT: forge.py replaces those files in place at fixed URLs, and
-    # `immutable` means "never revalidate, not even on a reload" — an iPad kept
+    # "immutable" means never revalidate, not even on a reload — an iPad kept
     # the pre-2026-09-27 home-screen icon through a reboot and a re-add because
     # of this line. Icons revalidate instead (a 304 costs nothing at this size).
     @immutable path /media/*

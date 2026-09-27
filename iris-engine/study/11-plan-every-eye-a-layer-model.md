@@ -750,6 +750,99 @@ than the slab's texel**, so the slab is never asked to resolve finer than the ba
 Open from B1: the ends of a floating strand still draw a stepped comb where they dive into the ground (as before the braid);
 generated strands' colour is the K2 problem (they read pale).
 
+### 5.4 The layered stroma — no walls, strands at depths over a base (agreed with iori, 2026-09-27)
+
+**iori's correction (2026-09-27).** The bridges were put in the wrong places: the separator rule only sees DECK fibres — the
+strands on a crypt's dark floor — so it lifted the valley's own weave (which is also why the lift cost strandCorr, F5). In
+iori's reading of the photographs: the bright (yellow) lines next to the darkest areas, the most contrasting lines, are
+the bridges most often; a dark plateau of many strands is a valley, not a bridge; bridges are the thickest single-strand
+objects. And the lift's height profile was wrong: a linear ramp, a plateau, a linear ramp (and a parent's `sag` bent the
+middle DOWN), where natural strands arc, each a little different in height from its neighbours.
+
+**iori's question, and the answer: there are no steep slopes, only layers of strands merging and diverging in height, with
+holes inside.** It is what study/01 already says: the stroma is 300–500 µm of loose collagen trabeculae with aqueous-filled
+spaces; a crypt is a hole in the anterior border layer (ABL, 20–70 µm) and the superficial stroma, 100–300 µm deep, its
+floor the deeper stroma — the same mesh, dense enough to look opaque. A crypt's edge is sharp IN PLAN (the ABL ends) but not
+a wall in height: below the edge, strands end and dive at staggered depths, and the ABL's edge or a strand continuing past
+it overhangs the hole — which is iori's bridge: bright because it is on top, beside the darkest pixels because the valley
+falls away under it. Two qualifications: there is a continuous base at the bottom (the posterior layers), and contraction
+furrows are true folds of the layered sheet, not cliffs.
+
+**Decided (iori, 2026-09-27): "the base with the strand displacement"; "the most anatomical way that enables a photoreal
+rendering of the iris"; the order as proposed.** The model, three parts:
+
+| part | anatomy | representation |
+|---|---|---|
+| **base** | the deep stroma / posterior layers: opaque | a height field — the floor, displaced by the strands that rest on it (today's ground inside a hole, continued under the sheet) |
+| **stroma strands** | trabeculae at depths, merging and diverging, arcing, continuing under the ABL | tubes with a height per sample: traced exactly at close range (a per-cell segment list), a depth-peeled stack of K layers from the same list further away (K = the quality) |
+| **ABL shell** | a thin condensed layer with the crypts as its holes | a shell of thickness 20–70 µm: the slab machinery of §5.2.3 (top, bottom, coverage), its edge the outline, no wall below it; the base drops away under it over an UNDERCUT |
+
+The undercut does the bridges' first job by itself: a band of the ABL narrower than twice the undercut, between two crypt
+lobes, has no base under it — a span over one continuous valley, which is iori's "yellow crevice next to the darkest area".
+The strands that iori's criteria pick (contrast against the darkest flank, thickness, a single strand) are the stroma's top
+strands, arcing from anchor to anchor.
+
+**Defaults taken where iori left the choice to anatomy** (all parameters, iori judges the sheets): a bridge is ONE thick strand
+with fibre grain at close range (the braid of B1 stays for strands the photo shows split into a bundle); a strand's arc
+leaves each anchor at an angle and peaks near the middle, roughly level with the ABL where it anchors on the rim; neighbours
+differ in height by a little (± 10–20 % of the arc).
+
+**Order (as proposed to iori).**
+
+| step | what | where | proof |
+|---|---|---|---|
+| **L0** | one crypt of eye 26, layered, in the probe beside today's: (a) the bake's layered mode — base + undercut + ABL shell; (b) traced strands in the probe from a per-cell segment list, shadows against them; (c) depths for the crypt's strands from three cues — who is on top at a crossing (the weave), brightness (deeper is darker and softer), the position against the hole's edge — as arcs, continuing under the edge | tissue.js (JS, no refit) | probe sheet: today vs layered; the front view's scores in the layered mode |
+| L1 | the fitter's depth pass: every strand a depth from the three cues; the bundle-scale ridge ladder (the thick strands the ladder misses, and their true width); bridge candidates by iori's criteria, drawn for iori before anything is lifted; arcs in the fitter and in the parents (`sag` → an upward arc) | layer_proof.py, roots.py | a detection sheet over the four eyes' crypts; then F5 again (the prediction: lifting the right strands does not cost strandCorr) |
+| L2 | the renderer: the segment grid for every strand (B2 widened), traced in the photo shader at close range with the automatic switch (B3), the K-layer stack far; the double shadow checked (the dark flank is partly the bridge's own shadow in the photo) | tissue.js | whole-eye scores, the probe fly-over, frame time per K |
+| L3 | the four eyes re-fitted and republished, measurements re-exported | | the arrival gate, contract `[]` |
+| then | K2 materials; B4 fibril grain | | |
+
+**Built (2026-09-27) — L0, `tissue.js`, all behind `T.layered` (off: the shipped eye is identical to the last digit, contract
+`[]`).** (a) The compose's layered mode: the ground is the BASE (the floor + the resting strands, continued under the sheet),
+the sheet is the ABL shell in the slab (`T.ablMm` 0.04, both corners rounded by `T.lipMm` 0.02, its top defined 20 µm past
+the edge so the edge's normal does not read the base), the base stays down `T.underMm[0]` 60 µm under the shell past a
+crypt's edge and rises over `[1]` 100 µm. (b) Traced strands in the probe: the floating strands of the bake as capsules in
+a per-cell list (40 µm cells over u, v; `segmentGrid()`), exact ray × capsule hits for the view ray and the shadow ray; the
+probe reads the base alone (aux .g), the front view the base with the floating strands' tops on it (aux .r) until L2. (c)
+`T.layerDepths()`: the deck's depth pass — brightness and thickness percentiles among the strands within 0.3 mm plus the
+weave's height (weights 0.5 / 0.25 / 0.25), only the top of the range lifting (0.55 → 0.95), each lifted strand an arc
+between its anchors (a wall end at the level it passes under the shell, continued 100 µm under it; a free end on the base;
+a branch half way), ± 15 % between neighbours. `T.layerDepthsOnLoad` runs it before the light is measured. `T.depthMm`
+overrides the crypt floor's drop.
+
+Measured, eye 26, every row through the review path with its own light measured on its own geometry (MATCH2 · strandCorr ·
+cellΔab · hcorr):
+
+| model | MATCH2 | strandCorr | cellΔab | hcorr |
+|---|---|---|---|---|
+| today | 84.77 | 0.410 | 2.52 | 0.715 |
+| layered, first cut (the edge's normal read the base; hard colour edge) | 85.36 | 0.369 | 2.50 | 0.683 |
+| + the top defined past the edge | 85.40 | 0.392 | 2.52 | 0.684 |
+| + the shell's colour soft at the edge, the base's hard (**default**) | **86.07** | 0.400 | **2.45** | 0.684 |
+| + the depth pass (188 of 932 strands lifted, 51 float) | 86.05 | 0.397 | 2.45 | 0.683 |
+| crypt floor 150 µm deeper, no depth pass | 85.90 | 0.377 | 2.37 | 0.708 |
+| deeper + the depth pass (143 float) | 85.79 | 0.380 | 2.37 | 0.712 |
+
+Lip 5 µm instead of 20: 85.20 · 0.364; no undercut: 85.37 · 0.360 — neither the lip nor the undercut is what the front
+view sees. Two bugs found on the way, both mine: the layered base skipped the calibration's flat grey (the crypts came out
+magenta), and the segment grid's textures were created with a sampler unit active (the shell's albedo became the index
+texture on the first probe after a bake).
+
+**What L0 found.**
+- The front view barely decides any of this: with the light measured on each geometry every variant is within ~0.3 MATCH2,
+  and depth trades strandCorr against cellΔab and hcorr. The layered look has to be judged in the probe and at close range
+  — the photo cannot choose the crypt's depth.
+- **The fitted crypts are shallow**: the fitter writes `depth: 0.01` mm (a constant), so a crypt's floor is one deck thickness
+  below the sheet — ≈ 110 µm on eye 26, the anatomical minimum (study/01: the ABL plus 100–300 µm of stroma). With a 40 µm
+  shell that leaves ≈ 70 µm for the layers, and at that depth only 51 strands clear the base. 150 µm deeper gives room
+  (143 float) and the probe then shows strands crossing the crypt at different heights over the base.
+- **The undercut makes iori's bridge by itself**: on hole 8 the yellow band between the two lobes spans one valley
+  (`study/proof-layers/layered-26-h8-probe.jpg`, the grazing view) — no detector involved.
+- Open: a band of the shell narrower than about twice its thickness draws as a WAFER (a pale blade seen edge-on, hole 14,
+  `layered-26-h14-probe.jpg`) where it should be a round strand — the bridge-as-strand rule belongs in L1; faint stepping
+  patterns on the shell's faces at grazing angles; the lifted strands are round tubes with the base's colour chain, their
+  colour is K2's.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

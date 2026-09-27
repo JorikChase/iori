@@ -78,7 +78,7 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_flA, u_flB, u_outB, u_cellS, u_cellG, u_pack;   // §5.2.3: fill and the rim strength ride in u_pack (.b, .a) — compose is at the sampler limit — and the FLOATING pass (u_flA / u_flB) takes their units
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux; layout(location = 2) out vec4 o_slab; layout(location = 3) out vec4 o_slabAlb;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -190,6 +190,32 @@
             if (u_srelAmt > 0.0) slabC /= mix(1.0, clamp(pk.g, 0.45, 2.2), u_srelAmt);
             if (u_grey > 0.0) slabC = vec3(u_grey);
             o_slabAlb = vec4(slabC, fcov * u_slabOn);
+            // §5.4 L0 the LAYERED stroma: no walls. The ground is the BASE — the floor with the strands resting on it, continued
+            // under the sheet — and the sheet is the ABL, a SHELL u_ablMm thick whose holes are the crypts; the slab carries it.
+            // Under the shell the base stays down for u_under0 past the hole's edge (the undercut: the loose stroma a crypt opens
+            // into) and rises to just under the shell over u_under1, so a band of the ABL narrower than twice the undercut spans a
+            // valley. The shell thins to nothing at its edge (the ABL ends; its lip catches the light). Floating strands are not
+            // in the slab here — they are traced (the probe's segment list).
+            if (u_layered > 0.5) {
+                float sh = cover > 0.5 ? 1.0 : 0.0;
+                // the lip: a half-round edge of the shell's own thickness — full within half a thickness of the edge, then round
+                // (both corners rounded by u_lipMm; between them the edge is a face, seen edge-on from the front)
+                float rl = min(u_lipMm, 0.5 * u_ablMm), lx = clamp(-sd, 0.0, rl), hr = sqrt(max(0.0, rl * rl - (rl - lx) * (rl - lx)));
+                float ablTop = sheetH - rl + hr, ablBot = sheetH - u_ablMm + rl - hr;
+                float rise = sstep(u_under0, u_under0 + u_under1, -sd);
+                float baseZ = mix(-u_depth - u_deckH + zDeck, ablBot - 0.006, rise);
+                // .r what the FRONT view marches: the base with the floating strands' tops on it (seen from above a strand hides what
+                // is under it; the photo shader has no traced strands yet — L2); .g the base alone, for the probe, which traces them
+                float fTop = fbase + (flA.a + fdome) * u_deckZ;
+                o_aux = vec4(fcov > 0.5 ? max(baseZ, fTop) : baseZ, baseZ, 0.0, mask);
+                // colour at the edge as soft as the ground's was (the colour wall ± u_wall): the shell takes the mixed colour, the base
+                // just outside it the outer half of the mix; under the shell the base keeps the hole's own colour
+                vec3 bse = mix(hole, sheet, sd > 0.0 ? cover * u_edgeMix : 0.0); if (u_srelAmt > 0.0) bse /= mix(1.0, clamp(pk.g, 0.45, 2.2), u_srelAmt); if (u_grey > 0.0) bse = vec3(u_grey);
+                o_alb = vec4(fcov > 0.5 && fTop > baseZ ? slabC : bse, mask);   // the base's own colour everywhere (under the shell too), through the same chain as lin; a floating strand's where it is on top
+                vec3 abl = lin;                                              // lin: mix(hole, sheet, cover), de-lit and greyed above
+                o_slab = vec4(ablTop, ablBot, sh, sd < 0.02 ? 1.0 : 0.0);   // .a: the top is DEFINED 20 µm past the edge, so the edge's normal does not read the base (no false cliff)
+                o_slabAlb = vec4(abl, sh);
+            }
         }`;
 
     // K1 (§32): the origin — the fitted atlas's material, packed the moment the layer model is switched on. The knobs
@@ -265,13 +291,16 @@
             vec4 a = tisAux(uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
         need('vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            float t = hitIris(pIn, dIn, rp);',
              'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; float t = hitIris(pIn, dIn, rp);');
-        need('int nM = int(u_marchSteps + 0.5);', 'int nM = int(u_marchSteps + 0.5); float hpPrev = 1e9;');
+        need('int nM = int(u_marchSteps + 0.5);', 'int nM = int(u_marchSteps + 0.5); float hpPrev = 1e9, topPrev = -1e9;');
         need(`                float hh = tissueH(atlasUV(aa, remapV(vv, rpr)), lod);
                 if (Pp.z > irisZ(vv) - hh) { tB = tt; break; }
                 tA = tt;`, `                vec2 uvS = atlasUV(aa, remapV(vv, rpr)); float hh = tissueH(uvS, lod); float hp = irisZ(vv) - Pp.z;
                 if (u_slabOn > 0.5) {                                             // the slab first: the ray comes from above, so crossing its top is the hit
                     vec4 sl = slabAt(uvS, lod); float top = sl.r * u_tisReliefK, bot = sl.g * u_tisReliefK;
-                    if (sl.b > 0.5 && hp <= top && (hpPrev > top || hp >= bot)) { g_slab = 1.0; tB = tt; break; }
+                    // crossing the top from above — measured against the top where the ray WAS as well as where it is, so a shell
+                    // thinner than a step is not stepped through where its top rises between two steps (§5.4)
+                    if (sl.b > 0.5 && hp <= top && (hpPrev > top || hpPrev > topPrev || hp >= bot)) { g_slab = 1.0; tB = tt; break; }
+                    topPrev = sl.b > 0.5 ? top : -1e9;
                 }
                 hpPrev = hp;
                 if (Pp.z > irisZ(vv) - hh) { tB = tt; break; }
@@ -355,7 +384,7 @@
         gl.uniform1f(gl.getUniformLocation(prog, 'u_tissueLod'), T.lodBias);
         gl.activeTexture(gl.TEXTURE19); gl.bindTexture(gl.TEXTURE_2D, T.slab || T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_slab'), 19);        // §5.2.3 the bridge layer
         gl.activeTexture(gl.TEXTURE20); gl.bindTexture(gl.TEXTURE_2D, T.slabAlb || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_slabAlb'), 20);
-        gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && T.slabCurves > 0 && T.slabs() > 0) ? 1 : 0);
+        gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && ((T.slabCurves > 0 && T.slabs() > 0) || T.layered)) ? 1 : 0);   // §5.4: in the layered mode the slab is the ABL shell
         const Wn = T.win;                                   // T2a: the finer window, if one is baked
         gl.activeTexture(gl.TEXTURE17); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.albedo) || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisW'), 17);
         gl.activeTexture(gl.TEXTURE18); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.aux) || T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisWAux'), 18);
@@ -568,6 +597,9 @@
     // lifted fibres may float too (off: only generated instances, until the picture is judged)
     T.slabs = () => (E && E.Q && E.Q.layers >= 2) ? 1 : 0;
     T.slabClearMm = 0.02; T.slabMeasured = false; T.slabCurves = 0;
+    // §5.4 L0 the layered stroma (off: the shipped model): the ABL shell's thickness, and the undercut — how far under the shell
+    // the base stays down past a crypt's edge, then over how far it rises to meet the shell
+    T.layered = false; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one
     // How much of the old model's sheet relief to keep. The layer model carries no furrows and no micro-relief, so
     // writing 0 on the sheet left 75.6 % of the iris at exactly 0.000 µm — a flat table, where the legacy atlas has
@@ -599,6 +631,9 @@
     // part of it: the flat model scores 0.516 and no setting comes near. The rest of that gap is still open.
     T.srelAmt = 0.5;                              // 0 = keep the double-count · 1 = divide all of what was measured
     T.wallZ = undefined;                          // the relief's hole wall; default 2.5 × the colour wall (set in bake)
+    // the crypt floor's drop below the deck (mm): the fitter's constant (0.01) unless T.depthMm says otherwise (§5.4 L0: the
+    // anatomy puts a crypt's floor 120–370 µm below the surface, the fitted model ≈ 110 µm with its deck)
+    T.depthMm = null; const cryptDepth = () => T.depthMm == null ? T.src.mm.depth : T.depthMm;
     function deckThickness() {
         if (T.deckH !== undefined) return T.deckH;
         const rK = (T.src.z || {}).rK || RK_DEFAULT, top = [];
@@ -624,11 +659,12 @@
         const rKf = (T.src.z || {}).rK || RK_DEFAULT, clear = T.slabClearMm === undefined ? 0.02 : T.slabClearMm, slabOn = T.slabs() > 0 && !opts.noSlab;
         const floats = c => { if (!slabOn || !c.z || !c.w) return false;
             if (c.bridge) return c.z.some((z, i) => z - rKf * c.w[i] > clear);   // a measured BRIDGE (the fitter's separator rule): it floats wherever its span is lifted
-            if (c.inst === undefined && !T.slabMeasured) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
+            if (c.inst === undefined && !T.slabMeasured && !(T.layered && c.layered)) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
         const part = { fibres: [], floating: [] }; for (const c of T.sets.fibres) part[floats(c) ? 'floating' : 'fibres'].push(c);
         T.slabCurves = part.floating.length;
         // §5.2.5 B1: a floating strand with a braid spec (its own, or T.braid) is drawn as its children; the set keeps the tube
-        T.braidKids = 0; if (part.floating.length) part.floating = part.floating.flatMap(c => { const sp = c.braid || T.braid; if (!sp) return [c]; const k = braidOf(c, sp, rKf); T.braidKids += k.length; return k; });
+        T.floatCurves = part.floating;          // §5.4 L0: the floating strands, for the probe's traced segments (after the braid below)
+        T.braidKids = 0; if (part.floating.length) part.floating = part.floating.flatMap(c => { const sp = c.braid || T.braid; if (!sp) return [c]; const k = braidOf(c, sp, rKf); T.braidKids += k.length; return k; }); T.floatCurves = part.floating;
         if (!T.fb) { T.fb = gl.createFramebuffer(); T.depth = gl.createRenderbuffer(); }
         gl.bindRenderbuffer(gl.RENDERBUFFER, T.depth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
         for (const k in (T.tex || {})) { gl.deleteTexture(T.tex[k][0]); gl.deleteTexture(T.tex[k][1]); } T.tex = {};
@@ -705,12 +741,13 @@
         gl.uniform4f(c.loc('u_rect'), T.rect[0], T.rect[1], T.rect[2], T.rect[3]); gl.uniform2f(c.loc('u_size'), w, h);
         const rim = grey ? [grey, grey, grey] : toAlbedo(T.src.rimRGB, T.cells.xy[0][0], T.cells.xy[0][1]); gl.uniform3f(c.loc('u_rimRGB'), rim[0], rim[1], rim[2]);
         gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
-        gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? mm.depth : opts.depth);
+        gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? cryptDepth() : opts.depth);
         const zm = T.src.z || {}, dz = T.deckZ === undefined ? 1 : T.deckZ;
         gl.uniform1f(c.loc('u_fibRK'), zm.rK || RK_DEFAULT); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
+        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix);   // §5.4 L0
         gl.uniform1f(c.loc('u_srelAmt'), (T.srel && !grey) ? (T.srelAmt === undefined ? 1 : T.srelAmt) : 0);
         gl.uniform1f(c.loc('u_fibNoise'), grey ? 0 : (T.fibNoise || 0));      // §5.2.2 the per-texel term; never in a calibration render
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array
@@ -718,7 +755,7 @@
         for (const t of [T.albedo, T.aux, T.slab, T.slabAlb]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.generateMipmap(gl.TEXTURE_2D); }
         for (const k in T.tex) { gl.deleteTexture(T.tex[k][0]); gl.deleteTexture(T.tex[k][1]); } T.tex = {};       // twelve region-sized targets: keep only the result
         gl.activeTexture(gl.TEXTURE0); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.drawBuffers([gl.BACK]); gl.viewport(0, 0, E.canvas.width, E.canvas.height);
-        T.depthUsed = opts.depth === undefined ? mm.depth : opts.depth;
+        T.depthUsed = opts.depth === undefined ? cryptDepth() : opts.depth;
         E.resetAccumulation && E.resetAccumulation();
         return T;
     };
@@ -1037,6 +1074,83 @@
         },
     };
 
+    // ---------------------------------------------------------------- §5.4 L0: the layered stroma's traced strands
+    // The floating strands of the last bake as capsules in a per-cell list: cells of ~40 µm over (u, v), each segment registered in
+    // every cell its footprint (radius + one cell) touches. Rebuilt when the bake changes. World z as the probe's: the sheet at 0,
+    // the floor at −(depth + deck thickness), a strand's centre z above the floor.
+    let segCache = null;
+    function segmentGrid() {
+        const list = T.floatCurves || [];
+        if (segCache && segCache.list === list && segCache.bakeId === T.bakeId) return segCache;
+        if (segCache) for (const k of ['seg', 'head', 'idx']) if (segCache[k]) gl.deleteTexture(segCache[k]);
+        const rK = (T.src.z || {}).rK || RK_DEFAULT, dz = T.deckZ, fbase = -cryptDepth() - deckThickness() * dz;
+        const segs = [];
+        for (const c of list) for (let i = 0; i + 1 < c.uv.length; i++) { const a = c.uv[i], b = c.uv[i + 1]; if (!a || !b) continue;
+            const al = toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]);
+            segs.push([a[0], a[1], fbase + c.z[i] * dz, rK * c.w[i], a[0] + ((b[0] - a[0]) - Math.round(b[0] - a[0])), b[1], fbase + c.z[i + 1] * dz, rK * c.w[i + 1], al[0], al[1], al[2]]); }
+        const rect = [0, T.rect[1], 1, T.rect[3]], cell = 0.04, nU = Math.ceil(6.2831853 * 6 / cell), nV = Math.max(1, Math.ceil(rect[3] * 4 / cell));
+        const cells = new Map();
+        segs.forEach((q, i) => { const v0 = Math.min(q[1], q[5]), v1 = Math.max(q[1], q[5]), cm = 6.2831853 * (2 + 4 * 0.5 * (v0 + v1)), pad = Math.max(q[3], q[7]) + cell;
+            const ua = Math.min(q[0], q[4]) - pad / cm, ub = Math.max(q[0], q[4]) + pad / cm, va = v0 - pad / 4, vb = v1 + pad / 4;
+            for (let cv = Math.max(0, Math.floor((va - rect[1]) / rect[3] * nV)); cv <= Math.min(nV - 1, Math.floor((vb - rect[1]) / rect[3] * nV)); cv++)
+                for (let cu = Math.floor(ua * nU); cu <= Math.floor(ub * nU); cu++) { const k = cv * nU + ((cu % nU) + nU) % nU; let b = cells.get(k); if (!b) cells.set(k, b = []); b.push(i); } });
+        const nC = nU * nV, headH = Math.ceil(nC / 1024), head = new Float32Array(1024 * headH * 4), idxL = []; for (const [k, b] of cells) { head[k * 4] = idxL.length; head[k * 4 + 1] = Math.min(b.length, 64); for (const i of b.slice(0, 64)) idxL.push(i); }
+        const idxH = Math.max(1, Math.ceil(idxL.length / 1024)), idx = new Float32Array(1024 * idxH * 4); idxL.forEach((i, j) => { idx[j * 4] = i; });
+        const segH = Math.max(1, Math.ceil(segs.length / 1024)), sd = new Float32Array(3072 * segH * 4); segs.forEach((q, i) => { const o = ((i / 1024 | 0) * 3072 + 3 * (i % 1024)) * 4; sd.set([q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8], q[9], q[10], 1], o); });
+        const tex = (w, h, data) => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); return t; };
+        let over = 0; for (const b of cells.values()) if (b.length > 64) over++;
+        segCache = { list, bakeId: T.bakeId, n: segs.length, nU, nV, rect, seg: tex(3072, segH, sd), head: tex(1024, headH, head), idx: tex(1024, idxH, idx), cellsUsed: cells.size, cellsOver64: over };
+        return segCache;
+    }
+    T.segmentStats = () => { const G = segmentGrid(); return { segments: G.n, cells: G.cellsUsed, cellsOver64: G.cellsOver64, grid: [G.nU, G.nV] }; };
+    /** §5.4 L0: the depth pass on the measured deck — every strand a depth from three cues, as an arc between anchors.
+     *  (1) brightness against its neighbours (deeper is darker and softer), (2) thickness against its neighbours (iori: the
+     *  thickest single strands are the bridges), (3) the weave's own over / under. Only the upper part of the range lifts; the
+     *  rest stays in the valley, resting on the base. A strand's end at a crypt WALL anchors at the level it passes under the
+     *  shell and continues under it; a free end dives to the base; a branch meets its neighbour half way. `false` restores. */
+    T.layerDepths = function (on = true, o = {}) {
+        const fib = T.sets.fibres || [], rK = (T.src.z || {}).rK || RK_DEFAULT, ends = ((T.src.roots || {}).ends) || [];
+        for (const c of fib) if (c.layered) { c.uv = c.l0.uv; c.xy = c.l0.xy; c.w = c.l0.w; c.z = c.l0.z; c.zc = c.l0.zc; c.rgb = c.l0.rgb; c.r = c.w.map(w => rK * w); delete c.l0; delete c.layered; delete c.depth; }
+        T.dirty = true; T.deckH = undefined; if (!on) return 0;
+        const P = Object.assign({ wBright: 0.5, wThick: 0.25, wWeave: 0.25, lift0: 0.55, lift1: 0.95, jitter: 0.15, extMm: null }, o);
+        const deckH = deckThickness(), Htop = cryptDepth() + deckH - T.ablMm, ext = P.extMm === null ? T.underMm[0] + 0.04 : P.extMm;
+        const meas = fib.map((c, i) => ({ c, i })).filter(q => q.c.inst === undefined && q.c.z && q.c.uv.length >= 2 && q.c.uv.every(Boolean));
+        const med = a => { const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; };
+        for (const q of meas) { const c = q.c; q.L = med(c.rgb.map(v => 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2])); q.W = med(c.w); q.Z = med(c.z.map((z, k) => (z - rK * c.w[k]) / Math.max(deckH, 1e-4))); q.m = c.uv[c.uv.length >> 1]; }
+        const grid = new Map(), cs = 0.3, key = (u, v) => Math.floor(u * 6.2831853 * 4 / cs) + ',' + Math.floor(v * 4 / cs);
+        for (const q of meas) { const k = key(q.m[0], q.m[1]); let b = grid.get(k); if (!b) grid.set(k, b = []); b.push(q); }
+        let lifted = 0;
+        for (const q of meas) {
+            const [gu, gv] = key(q.m[0], q.m[1]).split(',').map(Number), nb = [];
+            for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const x of (grid.get((gu + a) + ',' + (gv + b)) || [])) nb.push(x);
+            const pct = (f, val) => nb.filter(x => f(x) < val).length / Math.max(1, nb.length - 1);
+            const d = P.wBright * pct(x => x.L, q.L) + P.wThick * pct(x => x.W, q.W) + P.wWeave * Math.min(1, Math.max(0, q.Z));
+            const lift = Math.min(1, Math.max(0, (d - P.lift0) / (P.lift1 - P.lift0))), c = q.c; q.d = d;
+            if (lift <= 0.02) continue;
+            const R = rng(q.i * 7919 + 13), r0 = rK * q.W, peak = r0 + lift * (Htop - r0) * (1 + P.jitter * (2 * R() - 1));
+            const kinds = ends[q.i] || ['free', 'free'], anchor = k => k === 'wall' ? peak : (k === 'free' ? r0 : 0.5 * (r0 + peak));
+            c.l0 = { uv: c.uv, xy: c.xy, w: c.w, z: c.z, zc: c.zc, rgb: c.rgb };
+            let uv = c.uv.map(p => p.slice()), xy = c.xy.map(p => p.slice()), w = c.w.slice(), rgb = c.rgb.map(p => p.slice()), zw = c.z.slice();
+            // a wall end continues under the shell along its tangent (the stroma does not stop at the ABL's edge)
+            const extend = (atEnd) => { if (kinds[atEnd ? 1 : 0] !== 'wall' || lift < 0.3 || ext <= 0) return;
+                const n = uv.length, A = atEnd ? uv[n - 2] : uv[1], B = atEnd ? uv[n - 1] : uv[0], XA = atEnd ? xy[n - 2] : xy[1], XB = atEnd ? xy[n - 1] : xy[0];
+                let du = B[0] - A[0]; du -= Math.round(du); const dv = B[1] - A[1], L = mmBetween(A, B) || 1e-6, m = Math.max(1, Math.round(ext / 0.02));
+                for (let s = 1; s <= m; s++) { const f = s * 0.02 / L, p = [(((B[0] + du * f) % 1) + 1) % 1, B[1] + dv * f], x = [XB[0] + (XB[0] - XA[0]) * f, XB[1] + (XB[1] - XA[1]) * f];
+                    if (atEnd) { uv.push(p); xy.push(x); w.push(w[w.length - 1]); rgb.push(rgb[rgb.length - 1].slice()); zw.push(zw[zw.length - 1]); }
+                    else { uv.unshift(p); xy.unshift(x); w.unshift(w[0]); rgb.unshift(rgb[0].slice()); zw.unshift(zw[0]); } } };
+            extend(false); extend(true);
+            const arc = [0]; for (let k = 1; k < uv.length; k++) arc.push(arc[k - 1] + mmBetween(uv[k - 1], uv[k])); const tot = arc[arc.length - 1] || 1e-6;
+            const za = anchor(kinds[0]), zb = anchor(kinds[1]), hump = Math.max(0, peak - Math.max(za, zb));
+            c.uv = uv; c.xy = xy; c.w = w; c.rgb = rgb; c.zc = uv.map(() => 0);
+            c.z = arc.map((a, k) => { const t = a / tot, r = rK * w[k]; return Math.max(zw[k], r, za + (zb - za) * t + hump * Math.sin(Math.PI * t)); });
+            c.r = w.map(x => rK * x); c.layered = true; c.depth = +d.toFixed(3); lifted++;
+        }
+        T.layerStats = { strands: meas.length, lifted, HtopUm: Math.round(Htop * 1000), deckHUm: Math.round(deckH * 1000) };
+        say(`layer depths: ${lifted} of ${meas.length} deck strands lifted (the top ${(100 * lifted / Math.max(1, meas.length)).toFixed(0)} %), the shell's underside ${Math.round(Htop * 1000)} µm above the floor`);
+        return T.layerStats;
+    };
+
     // ---------------------------------------------------------------- T3 (§32): the probe camera
     // A camera inside the anterior chamber, down among the tissue, for reading the SHAPE of the landscape: how deep a
     // crypt is, how its walls run, which fibre bridges over which. It does not share fs-photo's camera: that march is
@@ -1057,7 +1171,27 @@
         out vec4 o;
         vec2 toUV(vec2 p) { return u_uv0 + vec2(p.x / (6.2831853 * u_r0), p.y / 4.0); }
         bool inR(vec2 uv, out vec2 c) { c = (vec2(fract(uv.x), uv.y) - u_rect.xy) / u_rect.zw; return c.x > 0.0 && c.x < 1.0 && c.y > 0.0 && c.y < 1.0; }
-        float H(vec2 p) { vec2 c; if (!inR(toUV(p), c)) return 0.0; return textureLod(u_aux, c, 0.0).r; }
+        uniform float u_layered, u_segOn; uniform sampler2D u_seg, u_cellH, u_cellI; uniform vec2 u_gridN; uniform vec4 u_gridR;
+        float H(vec2 p) { vec2 c; if (!inR(toUV(p), c)) return 0.0; vec4 a = textureLod(u_aux, c, 0.0); return u_layered > 0.5 ? a.g : a.r; }   // §5.4: the layered base (.g) — the floating strands are traced
+        // §5.4 L0 traced strands: every floating strand as capsules (20 µm segments) in a per-cell list over (u, v). A segment is
+        // three texels — (u, v, z, r) at both ends, then its albedo; z is already the world's (mm, the sheet at 0).
+        vec3 segP(vec4 a) { float du = a.x - u_uv0.x; du -= floor(du + 0.5); return vec3(du * 6.2831853 * u_r0, (a.y - u_uv0.y) * 4.0, a.z); }
+        float capT(vec3 ro, vec3 rd, vec3 pa, vec3 pb, float r) {           // ray × capsule, the nearest t > 0 or -1 (after iq)
+            vec3 ba = pb - pa, oa = ro - pa; float baba = dot(ba, ba), bard = dot(ba, rd), baoa = dot(ba, oa), rdoa = dot(rd, oa), oaoa = dot(oa, oa);
+            float a = baba - bard * bard, b = baba * rdoa - baoa * bard, c = baba * oaoa - baoa * baoa - r * r * baba, h = b * b - a * c;
+            if (h >= 0.0 && a > 1e-12) { float t = (-b - sqrt(h)) / a, y = baoa + t * bard; if (y > 0.0 && y < baba) return t;
+                vec3 oc = y <= 0.0 ? oa : ro - pb; b = dot(rd, oc); c = dot(oc, oc) - r * r; h = b * b - c; if (h > 0.0) return -b - sqrt(h); }
+            return -1.0;
+        }
+        int cellOf(vec2 p) { vec2 uv = toUV(p); float cu = floor((fract(uv.x) - u_gridR.x) / u_gridR.z * u_gridN.x), cv = floor((uv.y - u_gridR.y) / u_gridR.w * u_gridN.y);
+            if (cu < 0.0 || cv < 0.0 || cu >= u_gridN.x || cv >= u_gridN.y) return -1; return int(cv * u_gridN.x + cu); }
+        // the nearest capsule of cell k along the ray, if nearer than best
+        void segCell(int k, vec3 ro, vec3 rd, inout float best, inout int bi) {
+            vec2 hd = texelFetch(u_cellH, ivec2(k % 1024, k / 1024), 0).rg; int o = int(hd.x + 0.5), n = min(int(hd.y + 0.5), 64);
+            for (int j = 0; j < 64; j++) { if (j >= n) break; int i = int(texelFetch(u_cellI, ivec2((o + j) % 1024, (o + j) / 1024), 0).r + 0.5);
+                vec4 A = texelFetch(u_seg, ivec2(3 * (i % 1024), i / 1024), 0), B = texelFetch(u_seg, ivec2(3 * (i % 1024) + 1, i / 1024), 0);
+                float t = capT(ro, rd, segP(A), segP(B), 0.5 * (A.w + B.w)); if (t > 1e-5 && t < best) { best = t; bi = i; } }
+        }
         vec4 SL(vec2 p) { vec2 c; if (u_slabOn < 0.5 || !inR(toUV(p), c)) return vec4(0.0); return textureLod(u_slab, c, 0.0); }   // §5.2.3 the bridge layer: top, bottom, coverage
         bool inSlab(vec3 q) { vec4 sl = SL(q.xy); return sl.b > 0.5 && q.z <= sl.r && q.z >= sl.g; }
         vec3 SLALB(vec2 p) { vec2 c; if (!inR(toUV(p), c)) return vec3(0.22, 0.20, 0.18); return textureLod(u_slabAlb, c, 0.0).rgb; }
@@ -1076,8 +1210,12 @@
             vec3 p = u_pos;
             float gap = p.z - H(p.xy), prevT = 0.0, prevGap = gap, slab = 0.0, zPrev = p.z;
             if (gap < 0.0 || inSlab(p)) { o = vec4(0.02, 0.02, 0.03, 1.0); return; }        // started inside the tissue
+            float segBest = 1e9; int segI = -1, lastCell = -2;
             for (int i = 0; i < 320; i++) {
+                if (u_segOn > 0.5) { int k = cellOf(p.xy); if (k != lastCell) { if (k >= 0) segCell(k, u_pos, rd, segBest, segI); lastCell = k; } if (segBest <= t) break; }
                 float dt = clamp(abs(gap) * 0.45, 0.0008, 0.02 + 0.05 * t);
+                if (u_slabOn > 0.5) { vec4 s0 = SL(p.xy); if (s0.a > 0.5) dt = min(dt, max(0.0008, 0.45 * min(abs(p.z - s0.r), abs(p.z - s0.g)))); else dt = min(dt, 0.006); }   // §5.4: a thin shell is not stepped over
+                if (u_segOn > 0.5) dt = min(dt, 0.012);                               // never past a cell of the segment grid
                 prevT = t; prevGap = gap; t += dt;
                 if (t > u_far) break;
                 p = u_pos + rd * t; gap = p.z - H(p.xy);
@@ -1086,12 +1224,14 @@
                 zPrev = p.z;
                 if (gap < 0.0) { hit = t; break; }
             }
+            bool tube = segI >= 0 && (hit < 0.0 || segBest < hit);
+            if (tube) { hit = segBest; slab = 0.0; }
             if (hit < 0.0) {                                                    // the sky of the anterior chamber
                 if (u_mode > 2.5) { o = vec4(0.0, 0.0, 0.0, 0.0); return; }      // 'height': nothing was hit
                 float k = clamp(rd.z * 2.0, 0.0, 1.0);
                 o = vec4(mix(vec3(0.05, 0.06, 0.08), vec3(0.10, 0.12, 0.16), k), 1.0); return;
             }
-            for (int i = 0; i < 24; i++) {                                      // bisect onto the surface (the slab's top when the slab was hit)
+            for (int i = 0; i < 24; i++) { if (tube) break;                    // bisect onto the surface (the slab's top when the slab was hit); a tube's hit is exact
                 float m = 0.5 * (prevT + hit); vec3 q = u_pos + rd * m;
                 bool under = slab > 0.5 ? (SL(q.xy).b > 0.5 && q.z <= SL(q.xy).r) : (q.z - H(q.xy) < 0.0);
                 if (under) hit = m; else prevT = m;
@@ -1099,7 +1239,11 @@
             vec3 P = u_pos + rd * hit;
             float e = 0.0015;                                                   // 1.5 µm: the finest the bake resolves
             vec3 N;
-            if (slab > 0.5) { float t0_ = SL(P.xy).r; vec4 sR = SL(P.xy + vec2(e, 0.0)), sL = SL(P.xy - vec2(e, 0.0)), sU = SL(P.xy + vec2(0.0, e)), sD = SL(P.xy - vec2(0.0, e)); float tR = sR.a > 0.5 ? sR.r : t0_, tL = sL.a > 0.5 ? sL.r : t0_, tU = sU.a > 0.5 ? sU.r : t0_, tD = sD.a > 0.5 ? sD.r : t0_;
+            vec3 tubeAlb = vec3(0.0);
+            if (tube) { vec4 A = texelFetch(u_seg, ivec2(3 * (segI % 1024), segI / 1024), 0), B = texelFetch(u_seg, ivec2(3 * (segI % 1024) + 1, segI / 1024), 0);
+                vec3 pa = segP(A), pb = segP(B), ba = pb - pa; float hq = clamp(dot(P - pa, ba) / max(dot(ba, ba), 1e-12), 0.0, 1.0);
+                N = normalize(P - (pa + ba * hq)); tubeAlb = texelFetch(u_seg, ivec2(3 * (segI % 1024) + 2, segI / 1024), 0).rgb; }
+            else if (slab > 0.5) { float t0_ = SL(P.xy).r; vec4 sR = SL(P.xy + vec2(e, 0.0)), sL = SL(P.xy - vec2(e, 0.0)), sU = SL(P.xy + vec2(0.0, e)), sD = SL(P.xy - vec2(0.0, e)); float tR = sR.a > 0.5 ? sR.r : t0_, tL = sL.a > 0.5 ? sL.r : t0_, tU = sU.a > 0.5 ? sU.r : t0_, tD = sD.a > 0.5 ? sD.r : t0_;
                 N = normalize(vec3(-(tR - tL) / (2.0 * e), -(tU - tD) / (2.0 * e), 1.0)); }
             else N = normalize(vec3(-(H(P.xy + vec2(e, 0.0)) - H(P.xy - vec2(e, 0.0))) / (2.0 * e),
                                     -(H(P.xy + vec2(0.0, e)) - H(P.xy - vec2(0.0, e))) / (2.0 * e), 1.0));
@@ -1108,6 +1252,11 @@
             float lam = max(dot(N, toL), 0.0) / (1.0 + 6.0 * dist * dist);       // close light, so it falls off fast
             // is the lamp's path to this point blocked? one cheap march back toward it
             float sh = 1.0;
+            if (u_segOn > 0.5) {                                                 // a traced strand between here and the lamp
+                vec3 so = P + N * 0.0008; float sb = dist; int si = -1, lc = -2;
+                for (int i = 0; i <= 40; i++) { vec3 q = so + toL * (dist * float(i) / 40.0); int k = cellOf(q.xy); if (k != lc) { if (k >= 0) segCell(k, so, toL, sb, si); lc = k; } }
+                if (si >= 0 && sb < dist) sh = 0.0;
+            }
             for (int i = 1; i <= 24; i++) {
                 float ts = dist * float(i) / 25.0; vec3 q = P + toL * ts;
                 if (q.z < H(q.xy) - 0.0004) { sh = 0.0; break; }
@@ -1117,7 +1266,7 @@
                 o = vec4(vec3(clamp((P.z - u_zLo) / max(u_zHi - u_zLo, 1e-5), 0.0, 1.0)), 1.0); return;
             }
             vec3 base = u_mode > 1.5 ? turbo((P.z - u_zLo) / max(u_zHi - u_zLo, 1e-5))
-                      : (u_mode > 0.5 ? vec3(0.55) : (slab > 0.5 ? SLALB(P.xy) : ALB(P.xy)) * 1.6);
+                      : (u_mode > 0.5 ? vec3(0.55) : (tube ? tubeAlb : (slab > 0.5 ? SLALB(P.xy) : ALB(P.xy))) * 1.6);
             vec3 col = base * (u_ambient + (1.0 - u_ambient) * lam * mix(0.25, 1.0, sh));
             if (u_contour > 0.0) {                                              // height contours, every u_contour mm
                 float f = abs(fract(P.z / u_contour + 0.5) - 0.5) / max(fwidth(P.z / u_contour), 1e-4);
@@ -1162,12 +1311,19 @@
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.ptex, 0);
         gl.drawBuffers([gl.COLOR_ATTACHMENT0]); gl.viewport(0, 0, w, h);
         gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+        const G = T.layered && src.alb === T.albedo ? segmentGrid() : null;       // §5.4 L0: the traced strands — built BEFORE the bindings below (creating a texture binds it to the active unit)
         const P = pr.probe, u = n => P.loc(n); gl.useProgram(P);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, src.alb); gl.uniform1i(u('u_alb'), 0);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.aux); gl.uniform1i(u('u_aux'), 1);
         gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.slab || src.aux); gl.uniform1i(u('u_slab'), 2);
         gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, T.slabAlb || src.alb); gl.uniform1i(u('u_slabAlb'), 3);
-        gl.uniform1f(u('u_slabOn'), (T.slab && T.slabCurves > 0 && src.alb === T.albedo) ? 1 : 0);   // the window has no slab of its own yet
+        gl.uniform1f(u('u_slabOn'), (T.slab && (T.slabCurves > 0 || T.layered) && src.alb === T.albedo) ? 1 : 0);   // the window has no slab of its own yet
+        gl.uniform1f(u('u_layered'), T.layered && src.alb === T.albedo ? 1 : 0);
+        gl.uniform1f(u('u_segOn'), G && G.n ? 1 : 0);
+        if (G && G.n) { gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, G.seg); gl.uniform1i(u('u_seg'), 4);
+            gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, G.head); gl.uniform1i(u('u_cellH'), 5);
+            gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, G.idx); gl.uniform1i(u('u_cellI'), 6);
+            gl.uniform2f(u('u_gridN'), G.nU, G.nV); gl.uniform4f(u('u_gridR'), G.rect[0], G.rect[1], G.rect[2], G.rect[3]); }
         gl.uniform4f(u('u_rect'), src.rect[0], src.rect[1], src.rect[2], src.rect[3]);
         gl.uniform2f(u('u_uv0'), uv[0], uv[1]); gl.uniform1f(u('u_r0'), r0);
         gl.uniform3f(u('u_pos'), 0, 0, ground + hUp);
@@ -1181,7 +1337,7 @@
         gl.uniform1f(u('u_contour'), (opts.contourUm === undefined ? 0 : opts.contourUm) / 1000);
         gl.uniform1f(u('u_lightUp'), (opts.lampUm === undefined ? 60 : opts.lampUm) / 1000);
         gl.uniform1f(u('u_ambient'), opts.ambient === undefined ? 0.18 : opts.ambient);
-        const dh = T.deckH || 0.1, floor = -( (T.src.mm.depth || 0) + dh * (T.deckZ === undefined ? 1 : T.deckZ));
+        const dh = T.deckH || 0.1, floor = -( (cryptDepth() || 0) + dh * (T.deckZ === undefined ? 1 : T.deckZ));
         gl.uniform1f(u('u_zLo'), opts.zLoMm === undefined ? floor : opts.zLoMm);
         gl.uniform1f(u('u_zHi'), opts.zHiMm === undefined ? 0.02 : opts.zHiMm);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -1439,7 +1595,7 @@
     const MMU = v => 6.2831853 * (2 + 4 * v), MMV = 4;          // mm per unit u at radius v · mm per unit v
     // the floor the renderer actually draws, mm below the sheet: the hole's own wall plus as much of the deck's
     // thickness as deckZ is currently rendering (the anatomy is always the full T.deckH)
-    const floorMm = () => -((T.src.mm.depth || 0) + (T.deckH || 0) * (T.deckZ === undefined ? 1 : T.deckZ));
+    const floorMm = () => -((cryptDepth() || 0) + (T.deckH || 0) * (T.deckZ === undefined ? 1 : T.deckZ));
     const renderedMm = zMm => floorMm() + zMm * (T.deckZ === undefined ? 1 : T.deckZ);
     function fibreIndex() {                                      // fibre samples bucketed in uv, built once per eye
         if (T.fidx && T.fidx.sets === T.sets) return T.fidx;
@@ -1825,6 +1981,7 @@
         await stage(0, 'reading the primitives');
         const json = opts.json || await fetch(url).then(r => r.json()); T.json = json;
         await stage(1, 'mapping them onto the eye'); T.load(json);
+        if (T.layered && T.layerDepthsOnLoad) T.layerDepths(true, T.layerDepthsOnLoad === true ? {} : T.layerDepthsOnLoad);   // §5.4 L0: before the light is measured, so it is measured on this geometry
         // study/11 S3: opts.shipped = the eye's measurements (a URL or bytes). Installed → bake + origin, done; they do
         // not apply (dials, engine, no DecompressionStream) → the measured path below, unchanged.
         if (opts.shipped) {

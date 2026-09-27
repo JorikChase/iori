@@ -697,6 +697,59 @@ on 2026-09-27: a **bokeh (depth of field) toggle** as a control; **detect a larg
 make a **bridge read as strands, not a displaced tube** (options there: fibril relief, a braid of children, the second slab,
 ray-traced tubes — recommended the braid with fibril relief). Agreed order: K2 next; the bridges wait for iori's choice.
 
+### 5.2.5 Bridges that read as strands — one geometry, three distances (agreed with iori, 2026-09-27)
+
+**Decided.** Keep the existing bridge layer (one slab); the second slab (option 3) is dropped — at close range the ray-traced
+tubes do its over / under, and from the front a second slab only adds what the top one hides. Build the **braid (2)** with
+**fibril relief (1)** on it, and **ray-traced tubes (4) at close-up**. The switch is **automatic** (by how much of a pixel a
+child covers), and ray tracing is a **quality parameter** (on from NORMAL like the slab, off at DRAFT and on mobile by
+default; the braid itself is model data, the same on every device). **B1 before K2**; B2–B4 after K2, so the traced tubes
+shade with materials from the start.
+
+**The scales that decide it.** The whole eye is ≈ 28 µm per screen pixel, the base bake τ ≈ 5.7 µm, the T2a window down to
+≈ 1.4 µm; a bridge after the width calibration is 35–50 µm across. A braid of 3–6 children makes each 12–25 µm: under a
+pixel at the whole eye, so the braid averages back into the tube there and the photo scores do not move. With the braid,
+option 1 moves one scale down: the braid is what makes a tube read as a bundle, fibril relief is grain on each child (a few
+µm, below the base bake) — drawn analytically on a traced hit, statistically (the per-texel term, a strand sheen after K2)
+far away. One set of child splines drives all three distances: the slab far, the slab at zoom, traced tubes close.
+
+| step | what | proof |
+|---|---|---|
+| **B1** | the braid: children in the slab, the highest wins a texel, the lowest bottom kept | braid off identical; probe + zoom sheets — **built** |
+| B2 | ray-traced tubes in the probe: a per-cell list of tapered capsules in a texture, exact hits, shadow rays against the same list, the ground stays a heightfield | a crypt fly-over with a braided bridge; frame time |
+| B3 | traced tubes in the photo shader at close-up, the automatic switch with a handover band | no pop through the band; whole-eye scores unchanged |
+| B4 | fibril grain: analytic on traced hits, statistical far | a review sheet; iori sets the amount |
+
+**Built (2026-09-27) — B1, `tissue.js`.** `braidOf(tube, spec)`: n children (2–8, default 4) on a helix round the tube's
+centreline — child radius √(fill / n) of the tube's (fill 0.85), helix radius the rest, so they press together inside the
+tube; `turnsPerMm` 1.5; `loose` 0.25 jitters each child's phase, helix radius and brightness (± 12 %, a 50 µm grain along);
+over `splayMm` (80 µm) at each end the children fan out ACROSS the bridge into slots in the order they arrive in, so none
+crosses another where the bridge lands. Expanded at bake time, never stored: the set keeps the tube (the unit of the ops,
+the selection, the journal), only the spec ships — a parent's params (`braid` ≥ 2, `braidTurns`, `braidFill`,
+`braidSplayMm`, `braidLoose`) or `T.braid` for floating strands without one (measured bridges; `null` by default).
+Two changes to the floating pass came with it. (a) The **highest surface wins** a texel where tubes cover it (the nearest
+centreline would cut a seam across every crossing of a braid; beyond every tube, the nearest still wins). (b) A second,
+MIN-blended draw writes the **lowest bottom** of every tube over the texel into the floating pass's spare channel, so the
+slab's underside is the braid's, not its top child's — without it the view ray passed under the top child and speckled
+the floor through the bundle. No new sampler (the photo shader is at 16 of 16).
+
+Measured, eye 26 on the button's load path: the published eye (no floating strand) **identical to the last digit** (hash
+against the commit before). A laid bundle of six, 50 µm, 240 µm up: nearest → highest-wins 84.05 → 84.04 MATCH2, braided ×4
+84.05, strandCorr 0.408 → 0.407, bake 138 ms. The export with the lifted bridges (91 floating), every one braided ×4: MATCH2
+86.66 → 86.70, strandCorr 0.430 → 0.428, cellΔab 3.36 → 3.36, 364 children, bake 118 ms. setParams / undo / actualize /
+undo-actualize pixel-identical; journal replay within 1 / 255. Images: `study/proof-layers/braid-26-bundle-probe.jpg` (the
+laid bundle under the probe, tubes then braid: a plateau of merged domes becomes ridged strands twisting over each other,
+the side view solid with the bottom pass), `braid-26-measured-probe.jpg` (the largest measured bridge: helical grooves — at
+42 µm a child is ~4 slab texels, so it reads as a rope, not as separate strands), `braid-26-zoom8.jpg` (the front view ×8:
+barely different).
+
+**What that last image decides for B3.** At ×8 a screen pixel (3.5 µm) is already finer than a slab texel (5.7 µm), so the
+braid in the front view is soft whatever it is — and the T2a window cannot carry a slab of its own without dropping a
+sampler (16 / 16). It does not need to: **the automatic switch hands over to traced tubes where a screen pixel becomes finer
+than the slab's texel**, so the slab is never asked to resolve finer than the base bake and the window slab is not built.
+Open from B1: the ends of a floating strand still draw a stepped comb where they dive into the ground (as before the braid);
+generated strands' colour is the K2 problem (they read pale).
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

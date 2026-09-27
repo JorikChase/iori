@@ -52,14 +52,19 @@
     const CURVE_FS = `#version 300 es
         precision highp float;
         in vec2 v_q; flat in vec2 v_a; flat in vec2 v_b; flat in vec4 v_v0; flat in vec4 v_v1; flat in vec2 v_w;
-        uniform float u_R;
+        uniform float u_R, u_top, u_rK;
         layout(location = 0) out vec4 o0; layout(location = 1) out vec4 o1;
         void main() {
             vec2 ab = v_b - v_a; float t = clamp(dot(v_q - v_a, ab) / max(dot(ab, ab), 1e-12), 0.0, 1.0);
             float d = length(v_q - (v_a + ab * t)); if (d > u_R) discard;
             gl_FragDepth = d / u_R;                                          // the nearest curve wins the texel
+            // §5.2.5 the floating pass: the HIGHEST surface wins where tubes cover (a braid's children cross over and under
+            // each other, and the nearest centreline would cut a seam across every crossing); beyond every tube, the nearest
+            float r = u_rK * mix(v_w.x, v_w.y, t), dm = sqrt(max(0.0, r * r - d * d)), zc = mix(v_v0.a, v_v1.a, t);
+            if (u_top > 1.5) { if (d >= r) discard; o0 = vec4(0.0); o1 = vec4(0.0, 0.0, zc - dm, 0.0); return; }   // the BOTTOM pass: MIN-blended into .b
+            if (u_top > 0.5) gl_FragDepth = d < r ? clamp(0.25 - 0.2 * (zc + dm), 0.0, 0.499) : 0.5 + 0.5 * d / u_R;
             o0 = mix(v_v0, v_v1, t);
-            o1 = vec4(d, mix(v_w.x, v_w.y, t), (ab.x * (v_q.y - v_a.y) - ab.y * (v_q.x - v_a.x)) >= 0.0 ? 1.0 : -1.0, 1.0);
+            o1 = vec4(d, mix(v_w.x, v_w.y, t), u_top > 0.5 ? 1e4 : ((ab.x * (v_q.y - v_a.y) - ab.y * (v_q.x - v_a.x)) >= 0.0 ? 1.0 : -1.0), 1.0);
         }`;
     // inside / outside of the outlines by WINDING: every outline as a triangle fan, +1 for a front-facing triangle, −1 for a
     // back-facing one, added up — the sum is the winding number whatever the shape (holes wound one way, islands the other)
@@ -173,7 +178,8 @@
             // .a marks where the slab's TOP is defined for the normal: out to twice the tube radius, flat at the centre height
             // beyond the dome — without it the normal at a bridge's rim read the ground ~70 µm below and drew a false cliff
             float fdef = (flB.a > 0.5 && flB.r < 2.0 * frr) ? 1.0 : 0.0;
-            o_slab = vec4(fbase + (flA.a + fdome) * u_deckZ, fbase + (flA.a - fdome) * u_deckZ, fcov * u_slabOn, fdef * u_slabOn);
+            float fbot = flB.b < 1e3 ? min(flB.b, flA.a - fdome) : flA.a - fdome;   // §5.2.5: the lowest bottom of every floating tube here (the bottom pass)
+            o_slab = vec4(fbase + (flA.a + fdome) * u_deckZ, fbase + fbot * u_deckZ, fcov * u_slabOn, fdef * u_slabOn);
             // the slab's colour goes through the ground's own chain (iori: "the colour should be the same as the fitted layer
             // underneath"): the same small blur of the payload, and the same measured fine-scale de-light, so a floating strand
             // is not shaded twice — once in the photograph its colour was read from, and again by the renderer's own light
@@ -621,6 +627,8 @@
             if (c.inst === undefined && !T.slabMeasured) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
         const part = { fibres: [], floating: [] }; for (const c of T.sets.fibres) part[floats(c) ? 'floating' : 'fibres'].push(c);
         T.slabCurves = part.floating.length;
+        // §5.2.5 B1: a floating strand with a braid spec (its own, or T.braid) is drawn as its children; the set keeps the tube
+        T.braidKids = 0; if (part.floating.length) part.floating = part.floating.flatMap(c => { const sp = c.braid || T.braid; if (!sp) return [c]; const k = braidOf(c, sp, rKf); T.braidKids += k.length; return k; });
         if (!T.fb) { T.fb = gl.createFramebuffer(); T.depth = gl.createRenderbuffer(); }
         gl.bindRenderbuffer(gl.RENDERBUFFER, T.depth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
         for (const k in (T.tex || {})) { gl.deleteTexture(T.tex[k][0]); gl.deleteTexture(T.tex[k][1]); } T.tex = {};
@@ -633,7 +641,15 @@
             gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
             gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]); gl.clearBufferfv(gl.COLOR, 1, [R, 0, -1, 0]); gl.clearBufferfv(gl.DEPTH, 0, [1]);
             const g = buildSet(part[k] || T.sets[k], valueOf, closed, R); gl.uniform1f(pr.curve.loc('u_R'), R); T.segs = (T.segs || 0) + g.count / 6;
-            gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count); gl.bindVertexArray(null);
+            gl.uniform1f(pr.curve.loc('u_top'), k === 'floating' ? 1 : 0); gl.uniform1f(pr.curve.loc('u_rK'), rKf);
+            gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
+            if (k === 'floating' && g.count) {   // §5.2.5: the slab's BOTTOM is the lowest of every tube over the texel (a braid's lower children), not the top one's
+                gl.disable(gl.DEPTH_TEST); gl.drawBuffers([gl.NONE, gl.COLOR_ATTACHMENT1]); gl.colorMask(false, false, true, false);
+                gl.enable(gl.BLEND); gl.blendEquation(gl.MIN); gl.uniform1f(pr.curve.loc('u_top'), 2);
+                gl.drawArrays(gl.TRIANGLES, 0, g.count);
+                gl.disable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD); gl.colorMask(true, true, true, true); gl.enable(gl.DEPTH_TEST);
+            }
+            gl.bindVertexArray(null);
             gl.deleteBuffer(g.buf); gl.deleteVertexArray(g.vao);
         }
         gl.disable(gl.DEPTH_TEST);
@@ -1186,7 +1202,7 @@
     // the journal (G4), so undo, the session file and a replay cover it. Actualize (iori) freezes a parent's instances into
     // parents of their own, editable point by point; they keep `from` as a record.
     T.parents = [];
-    const PARENT_DEFAULTS = { count: 6, spreadMm: 0.10, wavinessMm: 0.014, waveLenMm: 0.30, widthMm: 0, floatMm: 0.06, sagMm: 0.02, taperMm: 0.10, brightness: 1.0, seed: 1 };
+    const PARENT_DEFAULTS = { count: 6, spreadMm: 0.10, wavinessMm: 0.014, waveLenMm: 0.30, widthMm: 0, floatMm: 0.06, sagMm: 0.02, taperMm: 0.10, brightness: 1.0, seed: 1, braid: 0, braidTurns: 1.5, braidFill: 0.85, braidSplayMm: 0.08, braidLoose: 0.25 };   // braid ≥ 2: each floating instance is a braid of that many children (§5.2.5)
     const circMm = v => 6.2831853 * (2 + 4 * v);                                 // mm round the eye at tissue v
     const mmBetween = (a, b) => { let du = b[0] - a[0]; du -= Math.round(du); return Math.hypot(du * circMm(0.5 * (a[1] + b[1])), (b[1] - a[1]) * 4); };
     /** centripetal Catmull-Rom through control points in tissue (u, v), u unwrapped, resampled every `step` mm */
@@ -1251,6 +1267,7 @@
             const c = deck ? { uv, xy, w, z, zc, rgb, r: w.map(q => rK * q) } : { uv, xy, w, val, base, rgb };
             out.push(Object.assign(c, { provenance: par.provenance === 'inferred' ? 'inferred' : 'seeded', parent: par.id, inst: k }));
         }
+        if (deck && prm.braid >= 2) out.forEach((c, i) => { c.braid = { n: prm.braid, turnsPerMm: prm.braidTurns, fill: prm.braidFill, splayMm: prm.braidSplayMm, loose: prm.braidLoose, seed: (prm.seed | 0) * 97 + i }; });
         return out;
     }
     const parentById = id => T.parents.find(p => p.id === id);
@@ -1284,6 +1301,51 @@
         });
         return out;
     }
+    // §5.2.5 B1 (iori, 2026-09-27: "the bridge reads as a displaced tube"): a floating strand as a BRAID — n thinner children
+    // twisting gently round its centreline, pressed together inside the tube's own radius, loosening apart where the bridge
+    // lands in the deck. Expanded at bake time, never stored: the tube stays the unit the data, the ops and the selection
+    // know, and only its spec ships (a parent's params, or T.braid for floating strands without one). At the whole eye a
+    // child is under a pixel and the braid averages back into the tube; it is a close-up's detail.
+    const BRAID_DEFAULTS = { n: 4, turnsPerMm: 1.5, fill: 0.85, splayMm: 0.08, loose: 0.25, seed: 1 };
+    T.braid = null;                                 // e.g. { n: 4 }: braid every floating strand that has no spec of its own
+    function braidOf(c, spec, rK) {
+        const S = Object.assign({}, BRAID_DEFAULTS, spec), n = Math.max(2, Math.min(8, S.n | 0));
+        // resample to ≤ 12 µm so a turn is smooth whatever the tube's own spacing
+        const U = [], W = [], Z = [], C = [], X = [];
+        for (let i = 0; i < c.uv.length; i++) {
+            if (!c.uv[i]) continue;
+            if (U.length) { const a = U[U.length - 1]; let b = c.uv[i].slice(); b[0] = a[0] + ((b[0] - a[0]) - Math.round(b[0] - a[0]));
+                const m = Math.max(1, Math.ceil(mmBetween(a, b) / 0.012)), w0 = W[W.length - 1], z0 = Z[Z.length - 1], c0 = C[C.length - 1];
+                for (let q = 1; q <= m; q++) { const s = q / m; U.push([a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s]); W.push(w0 + (c.w[i] - w0) * s); Z.push(z0 + (c.z[i] - z0) * s); C.push(c0.map((x, t) => x + (c.rgb[i][t] - x) * s)); X.push(q < m ? X[X.length - 1] : c.xy[i]); }
+            } else { U.push(c.uv[i].slice()); W.push(c.w[i]); Z.push(c.z[i]); C.push(c.rgb[i]); X.push(c.xy[i]); }
+        }
+        if (U.length < 2) return [c];
+        const arc = [0]; for (let j = 1; j < U.length; j++) arc.push(arc[j - 1] + mmBetween(U[j - 1], U[j])); const total = arc[arc.length - 1] || 1e-6;
+        const kc = Math.sqrt(S.fill / n), kr = 1 - kc;                               // child radius and helix radius, as fractions of the tube's
+        const kids = [];
+        for (let k = 0; k < n; k++) { const R = rng((S.seed | 0) * 7919 + k * 104729 + 17);
+            kids.push({ ph: 6.2831853 * (k + S.loose * (R() - 0.5)) / n, rho: 1 + S.loose * (R() - 0.5), wob: seededNoise(R, 64), rad: seededNoise(R, 64), br: 1 + 0.24 * (R() - 0.5), grain: seededNoise(R, 64) }); }
+        const phase = (kd, s) => kd.ph + 6.2831853 * S.turnsPerMm * s + 1.2 * S.loose * kd.wob(s / 0.25);
+        // where the bridge lands the children fan out ACROSS it, each to a slot in the order they arrive in, so none crosses another
+        const slots = end => { const s = end ? total : 0, ord = kids.map((kd, k) => [Math.cos(phase(kd, s)), k]).sort((a, b) => a[0] - b[0]), out = new Array(n); ord.forEach(([, k], r) => { out[k] = n > 1 ? 2 * r / (n - 1) - 1 : 0; }); return out; };
+        const slotA = slots(false), slotB = slots(true);
+        return kids.map((kd, k) => {
+            const uv = [], xy = [], w = [], z = [], zc = [], rgb = [];
+            for (let j = 0; j < U.length; j++) {
+                const a = U[Math.max(0, j - 1)], b = U[Math.min(U.length - 1, j + 1)], cm = circMm(U[j][1]);
+                let tx = (b[0] - a[0]) * cm, ty = (b[1] - a[1]) * 4; const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+                const Rt = rK * W[j], rho = kr * Rt * kd.rho * (1 + 0.3 * S.loose * kd.rad(arc[j] / 0.2)), ph = phase(kd, arc[j]);
+                const endMm = Math.min(arc[j], total - arc[j]), e0 = S.splayMm > 0 ? Math.max(0, 1 - endMm / S.splayMm) : 0, e = e0 * e0 * (3 - 2 * e0);
+                const slot = arc[j] < 0.5 * total ? slotA[k] : slotB[k];
+                const across = (1 - e) * rho * Math.cos(ph) + e * slot * (Rt + kc * Rt), up = (1 - e) * rho * Math.sin(ph);
+                const q = [U[j][0] - ty * across / cm, U[j][1] + tx * across / 4]; q[0] = ((q[0] % 1) + 1) % 1;
+                uv.push(q); xy.push(X[j]); w.push(kc * W[j]); z.push(Z[j] + up); zc.push(0);
+                const m = kd.br * (1 + 0.08 * kd.grain(arc[j] / 0.05)); rgb.push(C[j].map(x => x * m));
+            }
+            return { uv, xy, w, z, zc, rgb, r: w.map(x => rK * x), provenance: c.provenance, parent: c.parent, inst: c.inst, bridge: c.bridge, braided: k };
+        });
+    }
+    T.braidOf = (c, spec) => braidOf(c, spec, (T.src.z || {}).rK || RK_DEFAULT);
     let parentSeq = 1;
     /** the parent ops: addParent · setParams · moveParentPoint · insertParentPoint · removeParentPoint · deleteParent · actualize */
     function applyParentOp(op) {

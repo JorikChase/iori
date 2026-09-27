@@ -170,8 +170,19 @@
             float fcov = (flB.a > 0.5 && flB.r < frr) ? 1.0 : 0.0;
             float fround = mix(0.78 + 0.22 * sqrt(clamp(1.0 - pow(flB.r / max(frr, 0.014), 2.0), 0.0, 1.0)), 1.0, u_delight);
             float fbase = -u_depth - u_deckH;
-            o_slab = vec4(fbase + (flA.a + fdome) * u_deckZ, fbase + (flA.a - fdome) * u_deckZ, fcov * u_slabOn, 1.0);
-            vec3 slabC = u_grey > 0.0 ? vec3(u_grey) : flA.rgb * fround;
+            // .a marks where the slab's TOP is defined for the normal: out to twice the tube radius, flat at the centre height
+            // beyond the dome — without it the normal at a bridge's rim read the ground ~70 µm below and drew a false cliff
+            float fdef = (flB.a > 0.5 && flB.r < 2.0 * frr) ? 1.0 : 0.0;
+            o_slab = vec4(fbase + (flA.a + fdome) * u_deckZ, fbase + (flA.a - fdome) * u_deckZ, fcov * u_slabOn, fdef * u_slabOn);
+            // the slab's colour goes through the ground's own chain (iori: "the colour should be the same as the fitted layer
+            // underneath"): the same small blur of the payload, and the same measured fine-scale de-light, so a floating strand
+            // is not shaded twice — once in the photograph its colour was read from, and again by the renderer's own light
+            vec3 flC = vec3(0.0); float fw = 0.0;
+            for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 q = texture(u_flA, c + vec2(float(i), float(j)) * px * 2.5); if (texture(u_flB, c + vec2(float(i), float(j)) * px * 2.5).a < 0.5) continue; float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); flC += w * q.rgb; fw += w; }
+            flC = fw > 0.0 ? flC / fw : flA.rgb;
+            vec3 slabC = flC * fround;
+            if (u_srelAmt > 0.0) slabC /= mix(1.0, clamp(pk.g, 0.45, 2.2), u_srelAmt);
+            if (u_grey > 0.0) slabC = vec3(u_grey);
             o_slabAlb = vec4(slabC, fcov * u_slabOn);
         }`;
 
@@ -244,7 +255,7 @@
         uniform sampler2D u_slab, u_slabAlb; uniform float u_slabOn; float g_slab = 0.0;
         vec4 slabAt(vec2 uv, float lod) { return u_slabOn > 0.5 ? tissueAt(u_slab, uv, lod) : vec4(0.0); }
         float tissueH(vec2 uv, float lod) {
-            if (g_slab > 0.5) { vec4 sl = slabAt(uv, lod); if (sl.b > 0.5) return sl.r * u_tisReliefK; }
+            if (g_slab > 0.5) { vec4 sl = slabAt(uv, lod); if (sl.a > 0.5) return sl.r * u_tisReliefK; }   // the top where it is defined (to 2 r), not only where the tube covers
             vec4 a = tisAux(uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
         need('vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            float t = hitIris(pIn, dIn, rp);',
              'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; float t = hitIris(pIn, dIn, rp);');
@@ -605,7 +616,9 @@
         // §5.2.3: a fibre whose bottom clears the floor floats — it goes to the slab pass, not the ground's. Generated
         // instances always qualify by their height; measured fibres (the weave's lifts) only when T.slabMeasured says so.
         const rKf = (T.src.z || {}).rK || RK_DEFAULT, clear = T.slabClearMm === undefined ? 0.02 : T.slabClearMm, slabOn = T.slabs() > 0 && !opts.noSlab;
-        const floats = c => { if (!slabOn || !c.z || !c.w || (c.inst === undefined && !T.slabMeasured)) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
+        const floats = c => { if (!slabOn || !c.z || !c.w) return false;
+            if (c.bridge) return c.z.some((z, i) => z - rKf * c.w[i] > clear);   // a measured BRIDGE (the fitter's separator rule): it floats wherever its span is lifted
+            if (c.inst === undefined && !T.slabMeasured) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
         const part = { fibres: [], floating: [] }; for (const c of T.sets.fibres) part[floats(c) ? 'floating' : 'fibres'].push(c);
         T.slabCurves = part.floating.length;
         if (!T.fb) { T.fb = gl.createFramebuffer(); T.depth = gl.createRenderbuffer(); }
@@ -1070,7 +1083,7 @@
             vec3 P = u_pos + rd * hit;
             float e = 0.0015;                                                   // 1.5 µm: the finest the bake resolves
             vec3 N;
-            if (slab > 0.5) { float tR = SL(P.xy + vec2(e, 0.0)).r, tL = SL(P.xy - vec2(e, 0.0)).r, tU = SL(P.xy + vec2(0.0, e)).r, tD = SL(P.xy - vec2(0.0, e)).r;
+            if (slab > 0.5) { float t0_ = SL(P.xy).r; vec4 sR = SL(P.xy + vec2(e, 0.0)), sL = SL(P.xy - vec2(e, 0.0)), sU = SL(P.xy + vec2(0.0, e)), sD = SL(P.xy - vec2(0.0, e)); float tR = sR.a > 0.5 ? sR.r : t0_, tL = sL.a > 0.5 ? sL.r : t0_, tU = sU.a > 0.5 ? sU.r : t0_, tD = sD.a > 0.5 ? sD.r : t0_;
                 N = normalize(vec3(-(tR - tL) / (2.0 * e), -(tU - tD) / (2.0 * e), 1.0)); }
             else N = normalize(vec3(-(H(P.xy + vec2(e, 0.0)) - H(P.xy - vec2(e, 0.0))) / (2.0 * e),
                                     -(H(P.xy + vec2(0.0, e)) - H(P.xy - vec2(0.0, e))) / (2.0 * e), 1.0));

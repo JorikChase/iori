@@ -642,6 +642,42 @@ So the thinner tube is a gain on the photo score too on three of the four eyes �
 sweep was tuned on, is the only one that pays. The weave decides its crossings at 92–94 % now (86 % before): tubes that
 touch less leave fewer ambiguous crossings. Not pushed, not deployed.
 
+**The separator rule (iori, 2026-09-27: "if one strand is separating other strands, that most probably is a bridging strand —
+the cut strands flow under it, even though it is not visible in the photo").** Built in `tools/roots.py`, in two layers:
+
+- **Underpasses** (`find_underpasses`): the ends of other fibres that touch a fibre's footprint while crossing it, sorted by
+  side; an end on one side and an end on the other that continue each other across it (collinear, in lane, same width and
+  colour) are one strand passing under. Joined in the chaining with the fibre on top as the evidence (`links[].under`), the
+  hidden segment inferred. Synthetic test: a strand cut three times by a vertical one → one bridge, three underpasses; a
+  strand running alongside is not counted. On eye 26's real deck only 10 underpasses: the tracer splits EVERY strand at
+  every junction, the separating one too, so no raw fragment is continuous across a crossing.
+- **Bridges** (`find_bridges`) therefore work on CHAINS: a root (or a fibre in none) on top of two or more other chains — by
+  the weave's own decision at each crossing, or as the occluder of an underpass — and on top at two thirds of its
+  crossings or more. Eye 26: 85 bridges (93 fibres) · 09: 172 · 25: 129 · 35: 15 — about one deck fibre in ten.
+  Review: `study/proof-layers/bridges-26-crops.jpg` (bridges white, underpass joins magenta).
+
+The fitter lifts each bridge as ONE span over what it crosses (clearing the tallest strand under it, easing back beyond)
+and marks it `bridge`; the engine floats marked fibres into the slab. Two slab faults found on the way and fixed: its
+albedo now takes the ground's blur and measured de-light (no measurable effect), and its top is defined out to twice the
+tube radius — without that the normal at a bridge's rim read the ground ~70 µm below and drew a false cliff, which cost eye
+26 0.012 strandCorr on its own. After both, the slab is neutral (every eye within 0.003 of the same bridges kept in the
+ground) and **the cost is the lift itself**:
+
+| eye | MATCH2 no bridges → bridges | strandCorr | lifted but in the ground |
+|---|---|---|---|
+| 26 | 84.77 → 84.94 | 0.410 → 0.410 | 84.93 · 0.407 |
+| 09 | 84.20 → 84.00 | 0.487 → **0.472** | 83.96 · 0.471 |
+| 25 | 88.65 → 88.63 | 0.383 → 0.379 | 88.62 · 0.380 |
+| 35 | 83.96 → 83.96 | 0.385 → 0.383 | 83.96 · 0.384 |
+
+**Not shipped**: strandCorr falls on three eyes, gate F5 fails. The shipped files stay the calibrated ones (`5651b87`); the
+lift is opt-in (`layer_proof.py --bridges`); a default run detects and exports the bridges (`roots.bridges`) without
+moving a fibre. What the photo score cannot see, the probe does (`bridges-26-probe.png`): beside a measured bridge, one
+heightfield draws a wall down to the floor, the bridge layer draws it spanning above with the floor and the strands it
+crosses beneath. Likely why the photo pays: under a near-coaxial flash relief barely shows (§30.1), and lifting 10 % of the
+deck by ~70 µm changes the shading of the strand pattern it was measured from (§32.9's mechanism). Open: a stricter rule
+(on top of three chains or more: 33 bridges on 26 instead of 85) before judging again, or iori ships the 3-D truth anyway.
+
 #### 5.2.4 Build order and gates
 
 1. **Roots** in the fitter, exported, reviewed (§5.2.1) — eye 26 first, then the other three.

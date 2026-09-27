@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from strand_stats import zhang_suen, ridge, prune, order_path   # the S0 tracer (study/08 §4)
-from roots import find_roots, draw_roots                        # study/11 §5.2.1: shards chained into roots
+from roots import find_roots, draw_roots, find_bridges          # study/11 §5.2.1: shards chained into roots; bridges (iori's separator rule)
 
 ENG = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 OUT = os.path.join(ENG, 'study', 'proof-layers'); os.makedirs(OUT, exist_ok=True)
@@ -542,6 +542,28 @@ def main():
                                     'photo': photo, 'outlines': outlines, 'hole_lab': hole_lab, 'PC': PC}, open(sys.argv[sys.argv.index('--dump-roots') + 1], 'wb'), protocol=4)
     RT = find_roots(fibres, fib_r, rx['R'], rx['lo'], sd, step, UM)
     RS = RT['stats']
+    # ---- 2d. bridges (iori, 2026-09-27): a chain on top of two or more other chains — by the weave's own decision at the
+    # crossings, or because their ends are cut on both sides of it — is a BRIDGE, and the strands it crosses flow on under it.
+    # It is lifted as ONE span over everything it crosses (not a bump per crossing): each of its fibres, between its first and
+    # last crossing, stands high enough to clear the tallest strand it passes over, easing back beyond. Provenance inferred.
+    # The LIFT is opt-in (`--bridges`): on 2026-09-27 it cost strandCorr on three of the four eyes (09 0.487 → 0.472) and
+    # failed iori's gate F5, so a default run detects and exports the bridges (roots.bridges) without moving any fibre.
+    BRG = find_bridges(fibres, RT, weave); LIFT_BRIDGES = '--bridges' in sys.argv
+    bridge_of = {}
+    for b in (BRG if LIFT_BRIDGES else []):
+        for f in b['fibres']: bridge_of[f] = b['conf']
+        need = {}
+        for (hi, shi, lo, slo, c) in b['crossings']:
+            clear_ = (fib_z[lo][slo] + fib_r[lo][slo]) if slo >= 0 else 2 * float(np.median(fib_r[lo]))   # an underpass: the hidden strand rests on the floor
+            need.setdefault(hi, []).append((shi, clear_ + fib_r[hi][shi]))
+        for f, lst in need.items():
+            k0, k1 = min(q for q, _ in lst), max(q for q, _ in lst); lift = min(max(z_ for _, z_ in lst), Z_MAX_MM * 1000.0 / UM)
+            n = len(fib_z[f]); ramp = 4
+            for k in range(n):
+                t_ = 1.0 if k0 <= k <= k1 else max(0.0, 1.0 - min(abs(k - k0), abs(k - k1)) / ramp)
+                if t_ > 0: fib_z[f][k] = max(fib_z[f][k], fib_z[f][k] + (lift - fib_z[f][k]) * (0.5 - 0.5 * np.cos(np.pi * t_)))
+    RS['bridges'] = len(BRG); RS['bridge_fibres'] = len(bridge_of)
+    print(f"bridges: {len(BRG)} chains on top of two or more others ({sum(len(b['fibres']) for b in BRG)} fibres), over median {np.median([b['over'] for b in BRG]) if BRG else 0:.0f} · " + ('lifted as spans (--bridges)' if LIFT_BRIDGES else 'detected, not lifted (pass --bridges to lift)'))
     print(f"roots: {RS['links']} links from {RS['candidates']} candidates · {RS['roots']} roots holding {RS['fibres_in_roots']}/{RS['fibres']} fibres "
           f"(median {RS['fibres_per_root']['median']:.0f} fragments, max {RS['fibres_per_root']['max']}) · root length median {RS['root_length_mm']['median']:.3f} mm, "
           f"p90 {RS['root_length_mm']['p90']:.3f}, max {RS['root_length_mm']['max']:.3f} (fragments {RS['fragment_length_mm']['median']:.3f} / {RS['fragment_length_mm']['p90']:.3f}) · "
@@ -673,6 +695,7 @@ def main():
             # crossing order was there. Provenance: r measured, z inferred.
             ex['fibres'].append(curve(c, rgb=r3(graded(ch * c['val'][:, None])),
                                       r=r1(fib_r[i_] * MM, 5), z=r1(fib_z[i_] * MM, 5), zc=r1(fib_zc[i_], 3)))
+            if i_ in bridge_of: ex['fibres'][-1]['bridge'] = bridge_of[i_]   # a bridge: lifted as a span; the engine floats it into the slab
         # relative payloads also carry the photo-space luminance they are relative TO: the engine's camera is not linear, so a
         # ratio has to be converted through it (albedo(base × ratio) / albedo(base)), not copied
         def rdl(c, img): q = c['xy']; return r1(cv2.remap(img.astype(np.float32), q[None, :, 0], q[None, :, 1], cv2.INTER_LINEAR)[0], 5)
@@ -713,6 +736,7 @@ def main():
         # study/11 §5.2.1: roots point at fibres by index; the fibres themselves are unchanged. Provenance inferred.
         ex['roots'] = {'provenance': 'inferred', 'params': {'gmaxMm': 0.30, 'turnDeg': 30.0, 'acrossMm': 0.03, 'kLo': 0.5, 'evMin': 0.35, 'scoreMin': 0.5},
                        'links': RT['links'], 'branches': RT['branches'], 'roots': [r for r in RT['roots'] if len(r['fibres']) > 1],
+                       'bridges': [{'fibres': b['fibres'], 'over': b['over'], 'under': b['under'], 'conf': b['conf']} for b in BRG],
                        'ends': RT['endKinds']}                                  # per fibre [kind at start, kind at end]: wall | link | branch | merge | free
         XN = f'tissue-{REF}{SFX}-whole.json' if WHOLE else f'tissue-{REF}{SFX}.json'
         ex['lut'] = {'yellowEdgeNm': YEDGE}
@@ -762,7 +786,7 @@ def main():
     cv2.imwrite(os.path.join(OUT, TAG + '-primitives.jpg'), tag(ov, 'primitives: outlines (orange) fibres (cyan) veins (red) guides (magenta)'), [cv2.IMWRITE_JPEG_QUALITY, 92])
 
     # ---- study/11 §5.2.1: the roots, drawn — the whole window, and the four largest holes enlarged
-    rv = draw_roots(photo, fibres, fib_r, RT)
+    rv = draw_roots(photo, fibres, fib_r, dict(RT, bridges=BRG))
     cv2.imwrite(os.path.join(OUT, TAG + '-roots.jpg'), tag(rv, f"roots: {RS['roots']} roots ({RS['fibres_in_roots']}/{RS['fibres']} fibres), singletons grey, joins white, branches yellow, merges cyan, free ends red; {100 * RS['wall_fraction']:.0f} % of ends at a wall, {100 * RS['free_fraction_in_hole']:.0f} % of the rest free"), [cv2.IMWRITE_JPEG_QUALITY, 92])
     big, cents = [], []                                                                                  # the four largest holes, no two crops over the same place
     for i_ in sorted(range(len(outlines)), key=lambda i_: -cv2.contourArea(outlines[i_].astype(np.float32))):

@@ -76,6 +76,12 @@ RETIRED = {"star.html": "https://3die.fr/start.html"}
 DEFAULT_LANG = "en"
 OG_LOCALE = {"en": "en_US", "cs": "cs_CZ"}
 
+# Icons are replaced in place at fixed URLs by tools/icon-forge/forge.py, so a
+# client that cached one keeps it. Bump this whenever the artwork changes: the
+# query string makes it a new resource, which is the only thing that reliably
+# dislodges an iOS home-screen icon (deleting the icon and rebooting does not).
+ICON_VERSION = "2026-09-27"
+
 # Who each domain IS, in machine-readable form. Every page used to declare the
 # 3DIE organization as its primary entity, including all 63 iori.me pages, which
 # told search engines that iori.me is 3DIE. They are different entities: iori is
@@ -281,22 +287,26 @@ def build_seo_block(slug, meta):
     else:
         lines.append('    <meta name="twitter:card" content="summary">')
     up = rel_prefix(slug)
+    v = ICON_VERSION
     lines += [
         f'    <meta name="twitter:title" content="{title}">',
         f'    <meta name="twitter:description" content="{desc}">',
         "",
         '    <meta name="theme-color" content="#000000">',
         f'    <link rel="manifest" href="{up}manifest.json">',
-        f'    <link rel="icon" href="{up}favicon.ico" sizes="32x32">',
-        f'    <link rel="icon" type="image/png" sizes="16x16" href="{up}icon/ios/16.png">',
-        f'    <link rel="icon" type="image/png" sizes="32x32" href="{up}icon/ios/32.png">',
-        f'    <link rel="icon" type="image/png" sizes="192x192" href="{up}icon/android/launchericon-192x192.png">',
-        # iOS picks the closest size; 167 (iPad Pro) and 152 (iPad) otherwise
-        # get the 180 downscaled by the OS, which is softer than ours.
-        f'    <link rel="apple-touch-icon" sizes="180x180" href="{up}icon/ios/180.png">',
-        f'    <link rel="apple-touch-icon" sizes="167x167" href="{up}icon/ios/167.png">',
-        f'    <link rel="apple-touch-icon" sizes="152x152" href="{up}icon/ios/152.png">',
-        f'    <link rel="apple-touch-icon" sizes="120x120" href="{up}icon/ios/120.png">',
+        # Tab icon: the simple mark (icon/favicon/*), never the painted sheet —
+        # the painting is mush below ~48px and is the installed-app icon only.
+        f'    <link rel="icon" href="{up}favicon.ico?v={v}" sizes="32x32">',
+        f'    <link rel="icon" type="image/png" sizes="16x16" href="{up}icon/favicon/16.png?v={v}">',
+        f'    <link rel="icon" type="image/png" sizes="32x32" href="{up}icon/favicon/32.png?v={v}">',
+        f'    <link rel="icon" type="image/png" sizes="48x48" href="{up}icon/favicon/48.png?v={v}">',
+        # Home-screen icon: the painted sheet. iOS picks the closest size; 167
+        # (iPad Pro) and 152 (iPad) otherwise get the 180 downscaled by the OS,
+        # which is softer than ours.
+        f'    <link rel="apple-touch-icon" sizes="180x180" href="{up}icon/ios/180.png?v={v}">',
+        f'    <link rel="apple-touch-icon" sizes="167x167" href="{up}icon/ios/167.png?v={v}">',
+        f'    <link rel="apple-touch-icon" sizes="152x152" href="{up}icon/ios/152.png?v={v}">',
+        f'    <link rel="apple-touch-icon" sizes="120x120" href="{up}icon/ios/120.png?v={v}">',
         "",
         f'    <meta name="google-site-verification" content="{GOOGLE_VERIFICATION}" />',
         "",

@@ -138,7 +138,7 @@
     // windows
     // ---------------------------------------------------------------------------------------------------------
     const WINS = [
-        { key: 'camera', title: 'Camera', sliders: ['pupil', 'elev', 'light', 'srcsize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom'], src: true, buttons: ['debug-btn', 'refr-btn', 'spec-btn'], buttons2: ['anim2-btn', 'tone-btn', 'ref-btn'] },
+        { key: 'camera', title: 'Camera', sliders: ['pupil', 'elev', 'light', 'srcsize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'grain', 'bloom'], src: true, buttons: ['debug-btn', 'refr-btn', 'spec-btn', 'dof-btn'], buttons2: ['anim2-btn', 'tone-btn', 'ref-btn'] },
         { key: 'material', title: 'Material', sliders: ['pigment', 'stroma', 'pheo', 'yellow', 'mie', 'ring'] },
         { key: 'relief', title: 'Relief', sliders: ['crypt', 'furrow', 'relief', 'collr'] },
         { key: 'flow', title: 'Flow', sliders: ['warp', 'seed'], buttons: ['seed-btn', 'fieldw-btn', 'strand-btn'], buttons2: ['atlas-btn', 'maps-btn'] },
@@ -236,7 +236,7 @@
     const MENUS = [
         ['&File', () => [{ l: '&New (the start eye)', run: () => SES('fresh') }, { l: '&Open session…', sc: MOD + 'O', run: () => SES('open') }, { l: 'Save session', sc: MOD + 'S', run: () => SES('save') }, '-', { l: 'Open &ID…', run: click('idin-btn') }, { l: 'Save I&D', run: click('idout-btn') }, '-', { l: 'Capture &4K', run: click('shot-btn') }, '-', { l: '&META IRIS', run: () => { location.href = '../meta-iris.html'; } }]],
         ['&View', () => [{ l: '&Quality', ctl: 'quality-sel', sub: [...$('quality-sel').options].map(o => ({ l: o.textContent, chk: () => E.quality === o.value, run: () => { const s = $('quality-sel'); s.value = o.value; s.dispatchEvent(new Event('change')); } })) },
-            { l: '&Camera follows the pointer', ctl: 'cam-btn', chk: () => !E.state.useRot, run: () => E.setCamFixed(!E.state.useRot) }, '-', tog('&Grid', 'debug-btn'), tog('&Refraction', 'refr-btn'), tog('Corneal re&flection', 'spec-btn'), tog('F&ilmic', 'tone-btn'), tog('R&EF pose', 'ref-btn'), tog('&Hippus', 'anim2-btn'), '-',
+            { l: '&Camera follows the pointer', ctl: 'cam-btn', chk: () => !E.state.useRot, run: () => E.setCamFixed(!E.state.useRot) }, '-', tog('&Grid', 'debug-btn'), tog('&Refraction', 'refr-btn'), tog('Corneal re&flection', 'spec-btn'), tog('&Depth of field', 'dof-btn'), tog('F&ilmic', 'tone-btn'), tog('R&EF pose', 'ref-btn'), tog('&Hippus', 'anim2-btn'), '-',
             tog('&Atlas', 'atlas-btn'), tog('&Maps', 'maps-btn'), { l: '&Debug view', sub: debugMenu }, { l: () => 'Strands: ' + ($('strand-btn') ? $('strand-btn').textContent : ''), run: click('strand-btn') }, '-', { l: 'Control &Panel…', run: () => show(byKey('control'), true) }]],
         ['&Eye', () => [{ l: '&Presets', sub: FITTED.map(([f, l]) => ({ l, run: () => E.loadFittedPreset(f) })) }, { l: 'P&rocedural', sub: Object.keys(E.EYE_PRESETS || {}).map(k => ({ l: k, run: () => window.loadEyePreset(k) })) },
             { l: '&Fitted', sub: async () => { let cases = {}; try { cases = await fetch('ref/cases.json').then(r => r.ok ? r.json() : {}); } catch (e) {}

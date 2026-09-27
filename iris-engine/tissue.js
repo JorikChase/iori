@@ -78,7 +78,7 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_flA, u_flB, u_outB, u_cellS, u_cellG, u_pack;   // §5.2.3: fill and the rim strength ride in u_pack (.b, .a) — compose is at the sampler limit — and the FLOATING pass (u_flA / u_flB) takes their units
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix, u_drape, u_dipMm;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix, u_drape, u_dipMm, u_payBlur;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux; layout(location = 2) out vec4 o_slab; layout(location = 3) out vec4 o_slabAlb;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -94,7 +94,7 @@
             float rim = pk.a * exp(-pow((sd + u_rimOff) / u_rimW, 2.0)) * step(sd, 0.0093);
             // deck: every floor point takes its nearest fibre's colour (body brightness included), a little roundness, the veins cut the gaps
             vec3 fib = vec3(0.0); float wsum = 0.0;
-            for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); fib += w * texture(u_fibA, c + vec2(float(i), float(j)) * px * 2.5).rgb; wsum += w; }
+            for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); fib += w * texture(u_fibA, c + vec2(float(i), float(j)) * px * u_payBlur).rgb; wsum += w; }
             fib /= wsum;
             vec4 fB = texture(u_fibB, c), vB = texture(u_veinB, c);
             // Z3 (§32) de-lighting. The roundness term is SYNTHETIC cross-fibre shading: the payload is 1-D, read along the
@@ -184,7 +184,7 @@
             // underneath"): the same small blur of the payload, and the same measured fine-scale de-light, so a floating strand
             // is not shaded twice — once in the photograph its colour was read from, and again by the renderer's own light
             vec3 flC = vec3(0.0); float fw = 0.0;
-            for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 q = texture(u_flA, c + vec2(float(i), float(j)) * px * 2.5); if (texture(u_flB, c + vec2(float(i), float(j)) * px * 2.5).a < 0.5) continue; float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); flC += w * q.rgb; fw += w; }
+            for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec4 q = texture(u_flA, c + vec2(float(i), float(j)) * px * u_payBlur); if (texture(u_flB, c + vec2(float(i), float(j)) * px * u_payBlur).a < 0.5) continue; float w = (i == 0 ? 2.0 : 1.0) * (j == 0 ? 2.0 : 1.0); flC += w * q.rgb; fw += w; }
             flC = fw > 0.0 ? flC / fw : flA.rgb;
             vec3 slabC = flC * fround;
             if (u_srelAmt > 0.0) slabC /= mix(1.0, clamp(pk.g, 0.45, 2.2), u_srelAmt);
@@ -606,6 +606,7 @@
     T.slabClearMm = 0.02; T.slabMeasured = false; T.slabCurves = 0;
     // §5.4 L0 the layered stroma (off: the shipped model): the ABL shell's thickness, and the undercut — how far under the shell
     // the base stays down past a crypt's edge, then over how far it rises to meet the shell
+    T.payBlur = 2.5;                               // the compose's 3×3 blur of a strand's colour, in texels (2.5: as fitted; 0: the payload as traced)
     T.layered = false; T.restMm = 0.004; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0; T.drape = 1.8; T.dipMm = 0.03;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one
     // How much of the old model's sheet relief to keep. The layer model carries no furrows and no micro-relief, so
@@ -772,7 +773,7 @@
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
-        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_drape'), T.drape); gl.uniform1f(c.loc('u_dipMm'), T.dipMm);   // §5.4 L0
+        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_payBlur'), T.payBlur); gl.uniform1f(c.loc('u_drape'), T.drape); gl.uniform1f(c.loc('u_dipMm'), T.dipMm);   // §5.4 L0
         gl.uniform1f(c.loc('u_srelAmt'), (T.srel && !grey) ? (T.srelAmt === undefined ? 1 : T.srelAmt) : 0);
         gl.uniform1f(c.loc('u_fibNoise'), grey ? 0 : (T.fibNoise || 0));      // §5.2.2 the per-texel term; never in a calibration render
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array

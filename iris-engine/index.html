@@ -659,6 +659,7 @@
                 <button class="action-btn" id="debug-btn">GRID</button>
                 <button class="action-btn active" id="refr-btn">REFRACT</button>
                 <button class="action-btn" id="spec-btn">CORNEA REFL</button>
+                <button class="action-btn" id="dof-btn">DOF</button>
                 <button class="action-btn" id="anim2-btn">HIPPUS</button>
             </div>
             <div class="action-row" style="margin-bottom:6px">
@@ -2820,7 +2821,7 @@
             pheo: 0.5, mie: 0.2, ring: 0.0, ringR: 0.4, yellow: 0.3,
             srcType: 1, srcSize: 0.18, ambient: 0.35, lid: 5.0, hippus: false,
             mouseX: 0, mouseY: 0, paused: false, frameCount: 0,
-            ev: 0.0, sat: 1.0, fstop: 11.0, focus: 0.0, kelvin: 5600, grain: 0.02, bloom: 0.35, tone: 1, ref: 0,
+            ev: 0.0, sat: 1.0, fstop: 11.0, dof: 0, focus: 0.0, kelvin: 5600, grain: 0.02, bloom: 0.35, tone: 1, ref: 0,
             blColour: 1.0, blRelief: 1.0, blFlow: 1.0,   // fitted ↔ procedural share per layer (§19.9)
             view: [0, 0, 1, 1], capturing: false, fitting: false, useRot: false, camRot: [0, 0],
         };
@@ -2896,6 +2897,7 @@
         document.getElementById('debug-btn').onclick = (e) => { state.debug = 1 - state.debug; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('refr-btn').onclick = (e) => { state.refract = 1 - state.refract; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('spec-btn').onclick = (e) => { state.specular = 1 - state.specular; e.target.classList.toggle('active', !!state.specular); resetAccumulation(); };
+        document.getElementById('dof-btn').onclick = (e) => { state.dof = state.dof ? 0 : 1; e.target.classList.toggle('active', !!state.dof); resetAccumulation(); };   // off by default: the f-stop stays, the blur only when asked
         // camera: FREE = the eye turns toward the cursor (u_useRot 0), FIXED = locked to state.camRot.
         // solvePose() locks it and only closing the fit panel used to unlock it, so the eye would stop
         // tracking with no way back; this is that way back. Switching to FREE seeds the cursor position
@@ -2998,7 +3000,8 @@
             u1f(prog, 'u_zoom', opts.zoom !== undefined ? opts.zoom : state.zoomPhoto);
             const view = opts.view || state.view;
             u4f(prog, 'u_view', view[0], view[1], view[2], view[3]);
-            u1f(prog, 'u_fstop', opts.fstop !== undefined ? opts.fstop : state.fstop); u1f(prog, 'u_focus', state.focus); u1f(prog, 'u_ref', opts.ref !== undefined ? opts.ref : state.ref);
+            // depth of field off by default (iori, 2026-09-27): f/64 is the shader's own 'no DOF', the f-stop slider keeps its value
+            u1f(prog, 'u_fstop', opts.fstop !== undefined ? opts.fstop : ((opts.dof !== undefined ? opts.dof : state.dof) ? state.fstop : 64.0)); u1f(prog, 'u_focus', state.focus); u1f(prog, 'u_ref', opts.ref !== undefined ? opts.ref : state.ref);
             u1f(prog, 'u_useRot', opts.rot ? 1.0 : (state.useRot ? 1.0 : 0.0));
             { const r = opts.rot || state.camRot; u2f(prog, 'u_rot', r[0], r[1]); }
             { const kc = keyColor(); const l = loc(prog, 'u_keyColor'); if (l) gl.uniform3f(l, kc[0], kc[1], kc[2]); }

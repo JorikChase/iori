@@ -16,6 +16,7 @@
  "debug-btn": "window camera",
  "refr-btn": "window camera",
  "spec-btn": "window camera",
+ "dof-btn": "window camera",
  "anim2-btn": "window camera",
  "tone-btn": "window camera",
  "ref-btn": "window camera",

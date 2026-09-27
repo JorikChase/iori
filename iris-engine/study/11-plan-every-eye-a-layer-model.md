@@ -860,6 +860,40 @@ texture on the first probe after a bake).
   patterns on the shell's faces at grazing angles; the lifted strands are round tubes with the base's colour chain, their
   colour is K2's.
 
+### 5.5 Crispness and tone at close range (iori, 2026-09-27)
+
+iori, with crops of the overlay's wipe: "the colours of the procedural iris are a little dimmer and less saturated, with
+highlights and deep shadows missing — make sure all these features are present on the procedural fitted side". Measured
+with `tools/crisp/crisp.js`: the render at 3× zoom (9.4 µm / px) against the ORIGINAL photograph, eye 26, hole 26, inside
+the iris — median local contrast of L* at 3 / 7 / 17 px, and the L*, C* percentiles:
+
+| image | 3 px | 7 px | 17 px | L* p1 · p50 · p99 | C* p95 · p99 |
+|---|---|---|---|---|---|
+| photo, the 3840 px original | 4.5 | 6.3 | 8.3 | 7.7 · 43.9 · 78.1 | 53.6 · 57.1 |
+| the photo as the fitter traced it (1280 px) | 2.6 | 4.4 | 6.9 | | |
+| **the fit render (exact path)** | **1.9** | **4.0** | **6.7** | 1.4 · 47.7 · 76.5 | 52.1 · 56.1 |
+| viewport, defocus on (f/11, as it was) | 1.5 | 3.2 | 5.7 | | |
+| the photo as SCORED (640 px) | 1.3 | 3.0 | 5.4 | | |
+
+What it says, in order of size:
+1. **The fitter never saw most of the crispness**: it traces a 1280 px copy of a 3840 px photograph. The render keeps 73 % of
+   what the fitter saw at the finest scale and 91–97 % above it — the model is not what blurs; its input is.
+2. **Nothing scores it**: every score is taken at 640 px, which carries LESS fine detail than the render already has (1.3
+   against 1.9). No fit could be rewarded for crispness. A close-range gate is needed (this tool, per eye and per region).
+3. **The midtones are lifted** by ≈ 4 L* and the top highlights and chroma are ≈ 1–1.5 below the photo; the deep shadows
+   exist (p1 is darker than the photo's) — what is missing are the fine dark gaps and bright glints between the fibres (1).
+4. **Defocus** took a further 15–20 % at the finest scale in the viewport (the overlay shows the live viewport). **Now off
+   by default** (View ▸ Depth of field, the Camera window's DOF button; the f-stop is kept for when it is on).
+5. The compose's 3×3 blur of a strand's colour (±14 µm) is NOT a cause: off (`T.payBlur` 0) the zoom numbers do not move and
+   whole-eye strandCorr goes 0.410 → 0.413. The parameter stays (2.5, as fitted).
+
+The photo's finest band includes sensor noise (visible grain), so not all of 4.5 is tissue; a noise floor measured on a flat
+region belongs in the gate. Images: `study/proof-layers/crisp-26-zoom3.jpg` (photo · exact · viewport · viewport with
+defocus) and `crisp-26-trace-res.jpg` (the photo at 3840, as traced at 1280, the render, as scored at 640).
+
+A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
+so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

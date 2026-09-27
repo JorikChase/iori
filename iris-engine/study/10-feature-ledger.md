@@ -40,6 +40,7 @@ Audit method for this first pass: code reading of `index.html`, `fit.js`, `desig
 | GRID | `debug-btn` | ok | ok + View menu | ok |
 | REFRACT | `refr-btn` | ok | ok + View menu | ok |
 | CORNEA REFL | `spec-btn` | ok (fixed 2026-09-21) | ok: Camera window + View ▸ Corneal reflection (fixed 2026-09-21) | was **LOST** in both shells for a day: added 2026-09-20 into `#ui-panel`, which both hide. `reach()` found it on its first run |
+| DOF | `dof-btn` | new 2026-09-27 | ok: Camera window + View ▸ Depth of field | depth of field on / off (iori: off by default); the f-stop slider keeps its value and applies when on. The fit, the bench and the calibration render the exact path (ref), which never had it |
 | HIPPUS | `anim2-btn` | ok | ok + View menu | ok |
 | FILMIC | `tone-btn` | ok | ok + View menu | ok |
 | REF pose | `ref-btn` | ok | ok + View menu | ok |

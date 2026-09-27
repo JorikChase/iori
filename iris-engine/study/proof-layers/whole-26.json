@@ -155,40 +155,40 @@
  "roots": {
   "fibres": 896,
   "ends": 1792,
-  "ends_wall": 837,
-  "ends_in_hole": 955,
-  "ends_linked": 170,
-  "ends_branched": 372,
-  "ends_free": 413,
-  "free_fraction_in_hole": 0.432,
-  "wall_fraction": 0.467,
-  "candidates": 116,
-  "links": 85,
-  "roots": 72,
-  "fibres_in_roots": 157,
+  "ends_wall": 871,
+  "ends_in_hole": 921,
+  "ends_linked": 116,
+  "ends_branched": 427,
+  "ends_free": 378,
+  "free_fraction_in_hole": 0.41,
+  "wall_fraction": 0.486,
+  "candidates": 68,
+  "links": 58,
+  "roots": 53,
+  "fibres_in_roots": 111,
   "fibres_per_root": {
    "median": 2.0,
    "max": 3
   },
   "root_length_mm": {
-   "median": 0.4804,
-   "p90": 0.8043,
-   "max": 1.1494
+   "median": 0.4042,
+   "p90": 0.7175,
+   "max": 0.9143
   },
   "fragment_length_mm": {
    "median": 0.13,
    "p90": 0.3052
   },
   "link_gap_mm": {
-   "median": 0.0847,
-   "p90": 0.2188
+   "median": 0.0607,
+   "p90": 0.1623
   },
   "link_conf": {
-   "median": 0.882
+   "median": 1.0
   },
   "branches": {
-   "branch": 210,
-   "merge": 162
+   "branch": 263,
+   "merge": 164
   }
  }
 }

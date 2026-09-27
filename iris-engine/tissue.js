@@ -542,6 +542,9 @@
     // and a probe looking along the surface would carry a cosine baked for a camera that is no longer there.
     // strandCorr is what relief costs (0.527 → 0.414) and it is still open. Dials: deckZ 0 is exactly v0.8 (calibrate
     // with it set, not after), delight 0 restores the paint, wallZ overrides the relief wall.
+    // study/11 §5.2.3 (2026-09-27): the tube radius is 0.6 × the traced ridge width (the ridge's full width at half maximum);
+    // every shipped eye carries its own `z.rK`, this is only the fallback for a file without one
+    const RK_DEFAULT = 0.6;
     T.deckZ = 1;                                  // 0 = the flat v0.8 relief · 1 = the anatomy as inferred
     // §5.2.3 the bridge layer: how many slabs the quality allows (one from NORMAL up; DRAFT has none, its floating strands
     // fall back into the ground), the clearance above the floor that makes a strand float, and whether the weave's own
@@ -581,7 +584,7 @@
     T.wallZ = undefined;                          // the relief's hole wall; default 2.5 × the colour wall (set in bake)
     function deckThickness() {
         if (T.deckH !== undefined) return T.deckH;
-        const rK = (T.src.z || {}).rK || 1.4, top = [];
+        const rK = (T.src.z || {}).rK || RK_DEFAULT, top = [];
         for (const c of (T.sets.fibres || [])) if (c.z && c.inst === undefined) for (let i = 0; i < c.z.length; i++) top.push(c.z[i] + rK * c.w[i]);   // measured fibres only: a floating instance must not push the floor down
         top.sort((a, b) => a - b);
         return (T.deckH = top.length ? top[Math.floor(0.98 * (top.length - 1))] : 0);
@@ -601,7 +604,7 @@
         const spec = { fibres: [alb, 0.20, false], floating: [alb, 0.20, false], veins: [val, 0.05, false], guides: [chroma, 0.12, false], sfib: [val, 0.05, false], svein: [val, 0.05, false], outlines: [rimv, 0.55, true] };
         // §5.2.3: a fibre whose bottom clears the floor floats — it goes to the slab pass, not the ground's. Generated
         // instances always qualify by their height; measured fibres (the weave's lifts) only when T.slabMeasured says so.
-        const rKf = (T.src.z || {}).rK || 1.4, clear = T.slabClearMm === undefined ? 0.02 : T.slabClearMm, slabOn = T.slabs() > 0 && !opts.noSlab;
+        const rKf = (T.src.z || {}).rK || RK_DEFAULT, clear = T.slabClearMm === undefined ? 0.02 : T.slabClearMm, slabOn = T.slabs() > 0 && !opts.noSlab;
         const floats = c => { if (!slabOn || !c.z || !c.w || (c.inst === undefined && !T.slabMeasured)) return false; const q = c.z.map((z, i) => z - rKf * c.w[i]).sort((a, b) => a - b); return q[q.length >> 1] > clear; };
         const part = { fibres: [], floating: [] }; for (const c of T.sets.fibres) part[floats(c) ? 'floating' : 'fibres'].push(c);
         T.slabCurves = part.floating.length;
@@ -675,7 +678,7 @@
         gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
         gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? mm.depth : opts.depth);
         const zm = T.src.z || {}, dz = T.deckZ === undefined ? 1 : T.deckZ;
-        gl.uniform1f(c.loc('u_fibRK'), zm.rK || 1.4); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
+        gl.uniform1f(c.loc('u_fibRK'), zm.rK || RK_DEFAULT); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
@@ -851,7 +854,7 @@
                 const c = list[op.at]; op.undo = { key: op.key, was: clone(c[op.key]) };
                 if (Array.isArray(op.value)) c[op.key] = op.value.slice();
                 else c[op.key] = c[op.key].map(() => op.value);
-                if (op.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || 1.4) * w);
+                if (op.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || RK_DEFAULT) * w);
                 break;
             }
             case 'split': {                       // cut a curve at vertex i into two
@@ -882,7 +885,7 @@
             if (op.t === 'add') list.splice(op.undo.at, 1);
             else if (op.t === 'delete') list.splice(op.undo.at, 0, op.undo.curve);
             else if (op.t === 'move') { const c = list[op.at]; c.xy[op.i] = op.undo.xy; c.uv[op.i] = op.undo.uv; }
-            else if (op.t === 'set') { const c = list[op.at]; c[op.undo.key] = op.undo.was; if (op.undo.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || 1.4) * w); }
+            else if (op.t === 'set') { const c = list[op.at]; c[op.undo.key] = op.undo.was; if (op.undo.key === 'w') c.r = c.w.map(w => ((T.src.z || {}).rK || RK_DEFAULT) * w); }
             else if (op.t === 'split') { list.splice(op.at, 2, op.undo.curve); }
             else if (op.t === 'join') { list[op.at] = op.undo.curve; list.splice(op.undo.b, 0, op.undo.bCurve); }
             else undoParentOp(op);
@@ -1208,7 +1211,7 @@
      *  with its own gentle wave; width, colour and (deck) height from the params, the light's position from the nearest
      *  measured sample (as the brushes). Deck instances taper at their ends: thinner and diving to rest on the floor. */
     function instancesOf(par) {
-        const prm = Object.assign({}, PARENT_DEFAULTS, par.params), deck = par.layer === 'deck', set = deck ? 'fibres' : 'guides', rK = (T.src.z || {}).rK || 1.4;
+        const prm = Object.assign({}, PARENT_DEFAULTS, par.params), deck = par.layer === 'deck', set = deck ? 'fibres' : 'guides', rK = (T.src.z || {}).rK || RK_DEFAULT;
         const out = par.bridges ? bridgesOf(par) : [];
         if (par.frozen && !par.edited) { out.push(Object.assign(clone(par.frozen), { parent: par.id, inst: 0 })); return out; }   // an actualized child, untouched: the same shape
         if (!(prm.count > 0)) return out;
@@ -1248,7 +1251,7 @@
     /** the bridges of a roots parent: one generated curve per join, a cubic from fragment A's end along its tangent to fragment
      *  B's end along B's, sampled every 20 µm, width / height / colour interpolated between the two ends. What the shards lacked. */
     function bridgesOf(par) {
-        const fib = curvesOf('fibres'), rK = (T.src.z || {}).rK || 1.4, out = [];
+        const fib = curvesOf('fibres'), rK = (T.src.z || {}).rK || RK_DEFAULT, out = [];
         par.bridges.forEach((br, bi) => {
             const A = fib[br.a[0]], B = fib[br.b[0]], ia = br.a[1], ka = br.a[2], ib = br.b[1], kb = br.b[2]; if (!A || !B || !A.uv[ia] || !B.uv[ib] || !A.uv[ka] || !B.uv[kb]) return;
             const pa = A.uv[ia], pb = B.uv[ib], cm = circMm(0.5 * (pa[1] + pb[1]));
@@ -1328,7 +1331,7 @@
      *  join's own curve, width, height and colour interpolated between the two ends). The bridges are what the shards lacked. */
     T.parentsFromRoots = function (opts = {}) {
         const roots = T.src && T.src.roots; if (!roots || !roots.roots) { say('no roots in this eye'); return 0; }
-        const fib = curvesOf('fibres'), rK = (T.src.z || {}).rK || 1.4; let made = 0, bridges = 0;
+        const fib = curvesOf('fibres'), rK = (T.src.z || {}).rK || RK_DEFAULT; let made = 0, bridges = 0;
         const linkAt = {}; for (const L of roots.links) { linkAt[L.a.join(':')] = L; linkAt[L.b.join(':')] = L; }
         for (const root of roots.roots) {
             const ids = root.fibres.map(f => f[0]); if (ids.some(i => !fib[i] || !fib[i].uv)) continue;
@@ -1375,7 +1378,7 @@
     }
     /** every tube covering (u, v): distance to the centreline in mm, and the tube's section there. Anatomical mm. */
     T.tubesAt = function (u, v) {
-        const ix = fibreIndex(), cell = ix.cell, rK = (T.src.z || {}).rK || 1.4, fib = T.sets.fibres || [], out = [];
+        const ix = fibreIndex(), cell = ix.cell, rK = (T.src.z || {}).rK || RK_DEFAULT, fib = T.sets.fibres || [], out = [];
         const su = MMU(v), seen = new Set();
         for (let du = -1; du <= 1; du++) for (let dv = -1; dv <= 1; dv++) {
             const a = ix.grid.get((Math.floor(u / cell) + du) + ':' + (Math.floor(v / cell) + dv)); if (!a) continue;

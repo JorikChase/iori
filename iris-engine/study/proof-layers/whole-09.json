@@ -155,13 +155,13 @@
  "roots": {
   "fibres": 1616,
   "ends": 3232,
-  "ends_wall": 1809,
-  "ends_in_hole": 1423,
+  "ends_wall": 1846,
+  "ends_in_hole": 1386,
   "ends_linked": 156,
-  "ends_branched": 666,
-  "ends_free": 601,
-  "free_fraction_in_hole": 0.422,
-  "wall_fraction": 0.56,
+  "ends_branched": 723,
+  "ends_free": 507,
+  "free_fraction_in_hole": 0.366,
+  "wall_fraction": 0.571,
   "candidates": 92,
   "links": 78,
   "roots": 73,
@@ -187,8 +187,8 @@
    "median": 1.0
   },
   "branches": {
-   "branch": 418,
-   "merge": 248
+   "branch": 474,
+   "merge": 249
   }
  }
 }

@@ -238,7 +238,11 @@ def pupil_margin(plab, pc, rp, um, nth=720, harm=14):
 #     at the crossing is the one in front, and the other passes under it;
 #   · everything else is the resting prior: a fibre with no crossing lies on the floor, z = its own radius.
 # Every sample carries a confidence, and the provenance is `inferred`.
-FIB_R_K = 1.4          # tube radius / traced ridge width: compose reads the fibre out to 1.4 w (its roundness term)
+# study/11 §5.2.3 (2026-09-27): the tube width calibration. `w` is twice the ridge scale σ; a Gaussian ridge's full width at
+# half maximum is 2.35 σ = 1.18 w, so a radius of 0.6 w is the strand the tracer measured. 1.4 w made a 78 µm tube on lanes
+# 65 µm apart (S0: width ≈ half the spacing) — neighbours overlapped and the deck read as sausages. Re-measured on eye 26,
+# 1.4 → 0.6: strandCorr 0.381 → 0.399, cellΔab 2.50 → 2.59, MATCH2 85.30 → 84.60 (no cap, iori's gate F5).
+FIB_R_K = 0.6          # tube radius / traced ridge width
 Z_MAX_MM = 0.25        # nothing in the deck stands higher than this above its floor
 def crossings(curves, radii, min_cos=0.70):
     """every place two centrelines cross: KD-tree on all samples, kept when they are within the two radii and they

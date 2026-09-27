@@ -608,6 +608,40 @@ which is what a 240 µm float was needed to prove; the first bundle, with its wi
 61 µm radius at 60 µm height and never floated at all — the tube width calibration again. The bridges are not part of the
 arrival yet: that is a publish decision (their measurements would be re-exported) once iori has judged the look.
 
+**The tube width calibration (iori, 2026-09-27: "I agree with your order" — width first, then the separator rule, then K2).**
+The tracer's `w` is twice the ridge scale σ; the tube radius was 1.4 w, so a tube's diameter was 5.6 σ where a Gaussian
+ridge's full width at half maximum is 2.35 σ = 1.18 w: a 78 µm tube on eye 26's 65 µm lanes (S0: width ≈ half the spacing).
+Swept in the page on eye 26 with the light and shading re-measured at each value (the button's path):
+
+| radius / w | MATCH2 | strandCorr | cellΔab | deck thickness |
+|---|---|---|---|---|
+| 1.4 (was) | 85.30 | 0.381 | 2.50 | 278 µm |
+| 0.9 | 85.18 | 0.394 | 2.55 | 179 |
+| 0.7 | 84.85 | 0.398 | 2.58 | 139 |
+| **0.6** | 84.60 | **0.399** | 2.59 | 119 |
+
+`FIB_R_K = 0.6` in the fitter (the physically derived value: r = 0.6 w is the ridge's half width at half maximum), `RK_DEFAULT`
+= 0.6 as the engine's fallback (every shipped eye carries its own `z.rK`). Re-fitted, eye 26's weave has 780 crossings
+instead of 2 245 (thinner tubes touch less), lift mean 9 µm instead of 66, order right at 94 %; the fibres' geometry and the
+roots are unchanged. Engine review, same page and path: **MATCH2 85.26 → 84.77, strandCorr 0.388 → 0.410, cellΔab 2.43 →
+2.52**; published with re-exported measurements (measured load on the pinned case 84.07 / 0.408 / 2.58, arrival within
+1 / 255). The look (`study/proof-layers/rk-26.png`): the crypt reads as separate strands over a floor instead of
+interlocking blocks. Under gate F5 (no cap on the photo score, strandCorr up, cellΔab ≤ 2.75) it passes; iori's eye decides.
+
+The other three eyes, re-fitted and republished the same way (engine review, previous export → new, same page and path;
+measured load on the pinned case; arrival within 1 / 255 of it on every eye):
+
+| eye | MATCH2 | strandCorr | cellΔab | crossings in the weave | measured load (pinned case) |
+|---|---|---|---|---|---|
+| 09 | 81.56 → **84.20** | 0.426 → **0.487** | 2.87 → 2.86 | 1 557 | 84.06 · 0.473 · 2.88 |
+| 25 | 87.82 → **88.65** | 0.354 → **0.383** | 2.47 → 2.48 | 1 114 | 89.37 · 0.382 · 2.42 |
+| 35 | 83.97 → 83.96 | 0.374 → **0.385** | 2.34 → 2.35 | 143 | 82.08 · 0.373 · 2.39 |
+| 26 | 85.26 → 84.77 | 0.388 → **0.410** | 2.43 → 2.52 | 780 | 84.07 · 0.408 · 2.58 |
+
+So the thinner tube is a gain on the photo score too on three of the four eyes — 09 by 2.6 points — and eye 26, the one the
+sweep was tuned on, is the only one that pays. The weave decides its crossings at 92–94 % now (86 % before): tubes that
+touch less leave fewer ambiguous crossings. Not pushed, not deployed.
+
 #### 5.2.4 Build order and gates
 
 1. **Roots** in the fitter, exported, reviewed (§5.2.1) — eye 26 first, then the other three.

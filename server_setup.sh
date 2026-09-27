@@ -274,8 +274,15 @@ iori.me {
         not path /assets/* /images/* /js/* /icon/* /media/*
     }
     header @appcode Cache-Control "no-cache"
-    @immutable path /icon/* /media/*
+    # /media/* is uploaded under a unique name, so it really is immutable.
+    # /icon/* is NOT: forge.py replaces those files in place at fixed URLs, and
+    # `immutable` means "never revalidate, not even on a reload" — an iPad kept
+    # the pre-2026-09-27 home-screen icon through a reboot and a re-add because
+    # of this line. Icons revalidate instead (a 304 costs nothing at this size).
+    @immutable path /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
+    @icons path /icon/* /favicon.ico /apple-touch-icon*.png
+    header @icons Cache-Control "no-cache"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
     header @shortcache Cache-Control "public, max-age=3600"
 
@@ -336,8 +343,15 @@ iori.me {
         not path /assets/* /images/* /js/* /icon/* /media/* /blackjach/assets/* /blackjach/css/* /blackjach/js/*
     }
     header @appcode Cache-Control "no-cache"
-    @immutable path /icon/* /media/*
+    # /media/* is uploaded under a unique name, so it really is immutable.
+    # /icon/* is NOT: forge.py replaces those files in place at fixed URLs, and
+    # `immutable` means "never revalidate, not even on a reload" — an iPad kept
+    # the pre-2026-09-27 home-screen icon through a reboot and a re-add because
+    # of this line. Icons revalidate instead (a 304 costs nothing at this size).
+    @immutable path /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
+    @icons path /icon/* /favicon.ico /apple-touch-icon*.png
+    header @icons Cache-Control "no-cache"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png /blackjach/assets/* /blackjach/css/* /blackjach/js/*
     header @shortcache Cache-Control "public, max-age=3600"
 
@@ -362,6 +376,10 @@ dash.3die.fr {
     # Task/communication dashboard (static SPA, talks to api.3die.fr)
     root * /var/www/iori-dash
     encode zstd gzip
+    # Same rule as the main sites: dash's icons are replaced in place, so they
+    # must revalidate rather than be cached by heuristic.
+    @icons path /icon/* /favicon.ico
+    header @icons Cache-Control "no-cache"
     file_server
 }
 EOF
@@ -384,6 +402,17 @@ configure_firewall() {
 
 reload_caddy_service() {
     echo "--- Task: Reloading Caddy Service ---"
+
+    # Validate first. An invalid Caddyfile takes both sites down on restart, and
+    # this script has no local dry-run — the config is only ever written here.
+    # On failure Caddy keeps serving the config it already has.
+    if ! caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile; then
+        echo "" >&2
+        echo "ERROR: /etc/caddy/Caddyfile is invalid. Caddy was NOT restarted and" >&2
+        echo "is still serving the previous config. Files and API are already" >&2
+        echo "deployed; fix the Caddyfile and re-run." >&2
+        exit 1
+    fi
 
     systemctl daemon-reload
     systemctl enable caddy

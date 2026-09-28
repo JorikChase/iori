@@ -342,12 +342,16 @@
         // §5.2.3 the bridge layer: a slab of floating strands above the ground — top, bottom (o_aux units), coverage — and its albedo.
         // g_slab is set by the march when the view ray hits the slab; from then on this fragment's height is the slab's top.
         uniform sampler2D u_slab, u_slabAlb; uniform float u_slabOn; float g_slab = 0.0;
+        // (iori, 2026-09-28: "the white mask should be a little smaller so we don't see the edge of the iris map — visible when contracted
+        // and when turned") the white background takes over just inside the edge of the eye's OWN tissue region, in tissue v — wherever the
+        // pupil or the gaze puts it — instead of at the limbus ellipse alone, which left a 60–90 µm ring of the old atlas at the fit pose
+        uniform float u_edgeOn, u_edgeV0, u_edgeV1; float g_tisOut = 0.0;
         vec4 slabAt(vec2 uv, float lod) { return u_slabOn > 0.5 ? tissueAt(u_slab, uv, lod) : vec4(0.0); }
         float tissueH(vec2 uv, float lod) {
             if (g_slab > 0.5) { vec4 sl = slabAt(uv, lod); if (sl.a > 0.5) return sl.r * u_tisReliefK; }   // the top where it is defined (to 2 r), not only where the tube covers
             vec4 a = tisAux(uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
         need('vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            float t = hitIris(pIn, dIn, rp);',
-             'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; float t = hitIris(pIn, dIn, rp);');
+             'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; g_tisOut = 0.0; float t = hitIris(pIn, dIn, rp);');
         need('int nM = int(u_marchSteps + 0.5);', 'int nM = int(u_marchSteps + 0.5); float hpPrev = 1e9, topPrev = -1e9;');
         need(`                float hh = tissueH(atlasUV(aa, remapV(vv, rpr)), lod);
                 if (Pp.z > irisZ(vv) - hh) { tB = tt; break; }
@@ -369,8 +373,10 @@
                         vec4 sl = slabAt(atlasUV(qa, remapV(qv, rpr)), lod); float hq = irisZ(qv) - Q.z;
                         if (sl.b > 0.5 && hq < sl.r * u_tisReliefK && hq > sl.g * u_tisReliefK) pen = max(pen, 0.02);
                     }`);
+        need('            return vec4(col, 1.0 - edge);\n        }', '            return vec4(mix(col, BG_COL, g_tisOut), (1.0 - edge) * (1.0 - g_tisOut));\n        }');
         need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
             if (g_slab > 0.5) { vec4 sa = tissueAt(u_slabAlb, uv, lod); if (sa.a > 0.5) tsA = vec4(sa.rgb, 1.0); }   // §5.2.3: on the slab, its own albedo
+            if (u_edgeOn > 0.5) g_tisOut = smoothstep(u_edgeV0, u_edgeV1, uv.y);
             if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722)), hq), cov); if (u_ablDebug > 0.5) tsA.rgb = vec3(0.25) * ablTexture(uv, mmPerPx, 0.25, hq); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
             float tisRidge0 = t1.a;                                                                // K1: the fitted strand coverage, before the line below zeroes it
             t0.r = mix(t0.r, tissueH(uv, lod) / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here (tissueH: the slab's top when the ray hit the slab):
@@ -445,6 +451,8 @@
         { const A = T.ablTex, u_ = n => gl.getUniformLocation(prog, n); gl.uniform1f(u_('u_ablOn'), A && A.perPixel && !T.greyBake ? 1 : 0); gl.uniform1f(u_('u_ablLayered'), T.layered ? 1 : 0); gl.uniform1f(u_('u_ablDebug'), T.ablDebug ? 1 : 0);   // §5.5 (a) per pixel
           if (A && A.perPixel) { const a = A.amp, v = A.octVar; gl.uniform4f(u_('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform4f(u_('u_ablOctVar'), v[0], v[1], v[2], v[3]);
               gl.uniform1f(u_('u_ablExp'), A.exp); gl.uniform1f(u_('u_ablGain'), A.gain === undefined ? 1 : A.gain); gl.uniform1f(u_('u_ablYref'), T.cells ? ablYref() : 0.2); } }
+        { const vmax = T.dataV1 !== undefined ? T.dataV1 : T.rect[1] + T.rect[3], on = T.edgeMask && !T.greyBake && vmax < 0.999;   // the DATA's edge, not the padded region's   // (the calibration's grey renders keep the old mask: the shipped measurements do not move)
+          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeOn'), on ? 1 : 0); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV0'), vmax - T.edgeInV - T.edgeWV); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV1'), vmax - T.edgeInV); }
         gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && ((T.slabCurves > 0 && T.slabs() > 0) || T.layered)) ? 1 : 0);   // §5.4: in the layered mode the slab is the ABL shell
         const Wn = T.win;                                   // T2a: the finer window, if one is baked
         gl.activeTexture(gl.TEXTURE17); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.albedo) || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisW'), 17);
@@ -557,6 +565,7 @@
         if (T.ablTexOverride !== undefined) T.ablTex = T.ablTexOverride; else if ('ablTex' in json) T.ablTex = json.ablTex; else if (!T.ablTexPinned) T.ablTex = null;   // (ablTexOverride: a study's spec wins over the file's)   // §5.5 (a): the eye's own ABL texture, if its file carries one (T.ablTexPinned keeps a hand-set spec across loads, for studies)
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };
         for (const p of cells.uv) if (p) { u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); }
+        T.dataV1 = v1;                                                   // the data's own outer edge in v (the region below is padded by 0.3 mm)
         const padV = 0.3 / 4, padU = 0.3 / (6.2831853 * (2 + 4 * 0.5 * (v0 + v1)));
         T.rect = [Math.max(0, u0 - padU), Math.max(0, v0 - padV), 0, 0]; T.rect[2] = Math.min(1, u1 + padU) - T.rect[0]; T.rect[3] = Math.min(1, v1 + padV) - T.rect[1];
         if (T.full) { T.rect[0] = 0; T.rect[2] = 1; }
@@ -668,6 +677,7 @@
     // 09 86.88 → 87.43, 25 90.14 → 90.48, 35 86.28 → 88.37, cellΔab down on all four. No rim at all scores higher still on 26 (90.07) but
     // loses the lip iori asked to keep sharp.
     T.rimK = 0.2;
+    T.edgeMask = true; T.edgeInV = 0.01; T.edgeWV = 0.025;   // the tissue region's edge: white from 0.01 inside it, over 0.025 in v (≈ 35 and 90 µm)
     T.payBlur = 2.5;                               // the compose's 3×3 blur of a strand's colour, in texels (2.5: as fitted; 0: the payload as traced)
     T.layered = false; T.restMm = 0.004; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0; T.drape = 1.8; T.dipMm = 0.03;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one

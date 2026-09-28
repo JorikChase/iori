@@ -1107,6 +1107,15 @@ Final, each eye on fresh pages (amplitudes 6 · 12 · 24 µm; the viewport's she
 contract `[]`. At iori's crop, eye 26 at 6×, the viewport now holds 3.3 · 5.4 · 7.2 against the photo's 3.6 · 5.9 · 7.8
 (this morning 2.4 · 4.0 · 5.5): `study/proof-layers/closeup-26-before-after.jpg`.
 
+**The white mask (iori, 2026-09-28: "a little smaller so we don't see the edge of the iris map — visible when contracted and
+when turned").** The white background was the limbus ellipse alone (ln > 1). The layer model's DATA ends at v ≈ 0.82–0.89
+(eye 26 0.820, 09 0.829, 25 0.843, 35 0.893); its bake region is padded by 0.3 mm beyond that, and past the padding the old
+atlas answers. At the fit pose the visible iris ends at v 0.824 on eye 26 — the data's own edge — but a contracted pupil or a
+turned eye brings v beyond it into view: a strip of padding and old atlas (green, streaked). Now, with the layer model, the white
+takes over in TISSUE v, from 0.01 inside the data's edge over 0.025 (`T.edgeMask`, `T.edgeInV`, `T.edgeWV`; `T.dataV1` kept at
+load) — wherever the pupil or the gaze puts it; the calibration's grey renders keep the old mask. Arrival against measured 1 / 255
+on all four with unchanged scores (the mask lies outside the scoring mask's 0.92), contract `[]`.
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

@@ -9,3 +9,4 @@ t7/*.log
 # study/11 §5.4 L1: the sheet tracer's dumped inputs (177 MB per eye)
 sheet/*.pkl
 sheet/*-curves.pkl
+sheet/*.log

@@ -11,7 +11,7 @@
     X.lab = lab;
     X.site = (u, v) => { const c = T.sets.fibres.filter(c => c.inst === undefined && c.uv.some(q => q && Math.abs(q[0] - u) < 0.004 && Math.abs(q[1] - v) < 0.04))[0]; const q = c.xy[c.xy.length >> 1]; return [q[0] * F.fit.W / T.src.fit[0], q[1] * F.fit.H / T.src.fit[1]]; };
     X.render = (at, zoom, o = {}) => {
-        const W = F.fit.W, H = F.fit.H, s = 1 / zoom, pose = (window.__irisOverlay && window.__irisOverlay.pose) || [S.view[0], S.view[1]];
+        const W = F.fit.W, H = F.fit.H, s = 1 / zoom, O_ = window.__irisOverlay, pose = (O_ && O_.mode !== 'off' && O_.pose) ? O_.pose : [S.view[0], S.view[1]];   // the overlay's pose only while it is on: it keeps the pose of the eye it was switched on for
         const V = [pose[0] + at[0] / W - s / 2, pose[1] + (1 - at[1] / H) - s / 2, s, s], keep = {};
         for (const k of ['dof', 'bloom', 'grain']) if (o[k] !== undefined) { keep[k] = S[k]; S[k] = o[k]; }
         gl.activeTexture(gl.TEXTURE31);                                // a new texture binds to the active unit: keep it off the engine's
@@ -48,6 +48,15 @@
         const out = {}; for (const [rn, sel] of [['crypt', m => m > 5 && m < 35], ['sheet', m => m > 50]]) { out[rn] = {}; const p = [1, 3, 8].map(rr => band(Ls[0], rr, sel));
             list.forEach(([name], n) => { if (!n) { out[rn][name] = p.map(v => +v.toFixed(2)); return; } out[rn][name] = [1, 3, 8].map((rr, i) => Math.round(100 * band(Ls[n], rr, sel) / p[i]) + ' %'); }); }
         return out;
+    };
+    // any eye: sites half-way across the iris at five angles, in fit pixels (the limbus and pupil of the loaded case)
+    X.sites = () => { const L = F.fit.limbus, P = F.fit.pupil; return [0.3, 1.6, 2.9, 4.2, 5.5].map(a => { const r = 0.5 * (P.r + 0.5 * (L.rx + L.ry)); return [P.x + r * Math.cos(a), P.y + r * Math.sin(a)]; }); };
+    // the region table averaged over those sites: render / photo per band, crypts and sheet (renders: exact path)
+    X.eye = async (o = {}) => {
+        const acc = {}; let n = 0;
+        for (const at of X.sites()) { const list = [['photo', await X.photo(at, o.zoom || 3)], ['exact', X.render(at, o.zoom || 3, { exact: true })]]; const R = X.regions(list);
+            for (const rn in R) { const v = R[rn].exact.map(x => parseFloat(x)); if (v.some(x => !isFinite(x))) continue; acc[rn] = acc[rn] || { s: [0, 0, 0], n: 0 }; v.forEach((x, i) => acc[rn].s[i] += x); acc[rn].n++; } n++; }
+        return Object.fromEntries(Object.entries(acc).map(([k, a]) => [k, a.s.map(x => Math.round(x / a.n) + ' %').join(' · ') + ` (${a.n} sites)`]));
     };
     X.measure = async (o = {}) => {
         const at = o.at || X.site(0.0829, 0.514), z = o.zoom || 3, list = [['photo', await X.photo(at, z)]];

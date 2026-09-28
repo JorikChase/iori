@@ -1,51 +1,51 @@
 {
- "ref": "26",
- "var": 0.114,
- "std28um": 0.1265,
+ "ref": "25",
+ "var": 0.111,
+ "std28um": 0.1451,
  "bands": [
   {
    "band_um": [
     4.7,
     9.3
    ],
-   "rms": 0.126,
-   "isotropic_share": 0.99,
-   "iso_rms": 0.1254,
-   "exp": 0.79,
-   "fit_rms": 0.1251
+   "rms": 0.1228,
+   "isotropic_share": 0.981,
+   "iso_rms": 0.1216,
+   "exp": 0.28,
+   "fit_rms": 0.1212
   },
   {
    "band_um": [
     9.3,
     18.6
    ],
-   "rms": 0.0936,
-   "isotropic_share": 0.856,
-   "iso_rms": 0.0866,
-   "exp": 0.88,
-   "fit_rms": 0.0894
+   "rms": 0.104,
+   "isotropic_share": 0.886,
+   "iso_rms": 0.0978,
+   "exp": 0.14,
+   "fit_rms": 0.1018
   },
   {
    "band_um": [
     18.6,
     37.3
    ],
-   "rms": 0.0881,
-   "isotropic_share": 0.494,
-   "iso_rms": 0.062,
-   "exp": 0.85,
-   "fit_rms": 0.0326
+   "rms": 0.0916,
+   "isotropic_share": 0.705,
+   "iso_rms": 0.0769,
+   "exp": 0.09,
+   "fit_rms": 0.0389
   },
   {
    "band_um": [
     37.3,
     74.6
    ],
-   "rms": 0.0722,
-   "isotropic_share": 0.459,
-   "iso_rms": 0.0489,
-   "exp": 0.65,
-   "fit_rms": 0.0061
+   "rms": 0.0648,
+   "isotropic_share": 0.637,
+   "iso_rms": 0.0517,
+   "exp": 0.07,
+   "fit_rms": 0.0074
   }
  ],
  "octUm": [
@@ -80,13 +80,13 @@
  ],
  "amp": [
   0.0,
-  1.3167,
-  0.9815,
+  1.0989,
+  1.1901,
   0.0
  ],
- "exp": 0.81,
- "gain": 0.8,
- "yrefPhotoLin": 0.1357,
+ "exp": 0.19,
+ "gain": 0.635,
+ "yrefPhotoLin": 0.1442,
  "note": "relative contrast of the photo-space linear luminance; the engine applies it to the ABL albedo, scaled by gain",
  "gainNote": "calibrated end to end: the sheet at 3x = 100 % of the photo (tools/crisp/crisp.js eye(), five sites)"
 }

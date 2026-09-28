@@ -959,6 +959,34 @@ grains do not line up with — the price of statistics instead of pixels, which 
 Publishing: add `ablTex` to the eye's file (no measurement re-export needed — albedo only); per eye, the fitter's dump + this
 tool (≈ 5 min).
 
+**Published on all four eyes (iori, 2026-09-28: "publish on eye 26 first, then roll out to all four").** Each eye:
+`layer_proof.py --dump-sheet` (three in parallel, ≈ 5 min) → `abl_texture.py` → the gain calibrated END TO END (the sheet at
+3× = 100 % of the photo, `crisp.eye()`, five sites: two measurements, energies adding in quadrature) → `tools/abl_publish.py`
+appends `ablTex` to data/tissue-NN.json as one line. The gain differs per eye because each eye's grade (EV, saturation,
+tone) changes how an albedo texture shows in the final image:
+
+| eye | measured exponent | gain | sheet at 3×, today → texture | review path: MATCH2 | strandCorr | cellΔab |
+|---|---|---|---|---|---|---|
+| 26 | 0.81 | 0.80 | 30 · 43 · 60 → 103 · 96 · 92 % | 84.77 → 84.29 | 0.410 → 0.366 | 2.52 → 2.50 |
+| 09 | 0.05 | 1.19 | 47 · 64 · 82 → 101 · 98 · 99 % | 84.20 → 83.10 | 0.487 → 0.420 | 2.86 → 2.88 |
+| 25 | 0.19 | 0.635 | 31 · 40 · 55 → 103 · 102 · 99 % | 87.87 → 87.13 | 0.403 → 0.285 | 3.72 → 2.48 |
+| 35 | 0.81 | 1.228 | 23 · 37 · 53 → 101 · 100 · 95 % | 84.36 → 83.09 | 0.397 → 0.282 | 2.60 → 2.35 |
+
+Arrival against the measured load, each on a fresh page: max 1 / 255 on all four — no measurement re-export needed. Contract
+`[]`. Image: `study/proof-layers/abltex-all-zoom3.jpg`. Honest notes:
+- strandCorr falls 0.04–0.12 (most on 25 and 35): the price of statistics instead of pixels, larger where the texture is stronger.
+- Eyes 09 and 25 measure a speckle whose strength barely depends on brightness (exponents 0.05, 0.19): additive, noise-like,
+  where 26 and 35 read as texture (0.81). The shader follows the measurement (relative strength ∝ brightness^(e − 1), the ratio
+  clamped to 0.2–5), so on 09 and 25 the darker sheet carries relatively more texture. The comparison crops show no
+  blow-up; iori judges.
+- cellΔab improves 1.2 on eye 25 with the mean brightness unchanged (render mean luminance with / without: 1.001) — not
+  explained yet, not claimed.
+- Two things found on the way: `crisp.render` took the overlay's pose even with the overlay off (it keeps the pose of the
+  eye it was switched on for) — fixed, it uses the engine's view unless the overlay is on; and the measured load's path
+  dependence (study/11 §3.4) is large — eye 09 loaded twice in a row scored 83.71 then 82.73, and eye 25 loaded after 09
+  failed the arrival gate by 80 / 255 while it passes on a fresh page. Every number above is from the review path
+  (deterministic: it reproduces the published scores) or a fresh page.
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

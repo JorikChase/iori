@@ -219,7 +219,7 @@
             if (last.max < tol || it === maxIt) break;
             // distance: the limbus radius on the sensor ∝ 1 / (distance to the limbus plane)
             const sc = ((L.rx + L.ry) / 2) / ((rl.rx + rl.ry) / 2);
-            state.zoomPhoto = target.zoomPhoto = (state.zoomPhoto + zL) / sc - zL;
+            state.zoomPhoto = target.zoomPhoto = (state.zoomPhoto + zL) / sc - zL; state.captureZoom = state.zoomPhoto;
             // offset: a world point lands at pixel 0.5 + projection − u_view, so the view moves with the error
             state.view = [state.view[0] + (rl.x - L.x) / W, state.view[1] - (rl.y - L.y) / H, 1, 1];
             // pupil mm: through whatever magnification the renderer applies at this distance
@@ -637,7 +637,7 @@
         E.setSlider('light', 'lightAngle', +((az + 6.2832) % 6.2832).toFixed(2)); state.lightAngle = target.lightAngle = (az + 6.2832) % 6.2832;
         E.setSlider('elev', 'lightElev', +el.toFixed(2)); state.lightElev = target.lightElev = el;
         if (fit.isolated) { state.srcType = 2; state.srcSize = target.srcSize = 0.12; document.querySelectorAll('.src-btn').forEach(x => x.classList.toggle('active', x.dataset.src === '2')); }
-        state.zoomPhoto = target.zoomPhoto = zoom;
+        state.zoomPhoto = target.zoomPhoto = state.captureZoom = zoom;
         fit.pose = { zoom, pxPerMm, pupilMm, yaw, pitch, az, el };
         say(`pose: distance ${zoom.toFixed(0)} mm · pupil ${pupilMm.toFixed(2)} mm · yaw ${(yaw * 57.3).toFixed(1)}° pitch ${(pitch * 57.3).toFixed(1)}° · key az ${(az * 57.3).toFixed(0)}° el ${(el * 57.3).toFixed(0)}°`);
         alignLoop();
@@ -2815,7 +2815,7 @@
             fit.limbus = { x: a.limbus[0] * W, y: a.limbus[1] * H, rx: a.limbus[2] * H, ry: a.limbus[3] * H, ang: a.limbus[4] || 0 };
             fit.catch = { x: a.catch[0] * W, y: a.catch[1] * H };
             E.importID({ v: 2, genome: c.genome, fields: c.fieldsEnc || {}, view: c.view });
-            state.camRot = c.view.rot || [0, 0]; state.useRot = true; state.view = c.view.viewRect || [0, 0, 1, 1]; state.zoomPhoto = target.zoomPhoto = c.view.zoom; state.pupilOff = c.view.pupilOff ? c.view.pupilOff.slice() : [0.25, 0.15]; state.limb = c.view.limb ? c.view.limb.slice() : [5.85, 5.40, 0];
+            state.camRot = c.view.rot || [0, 0]; state.useRot = true; state.view = c.view.viewRect || [0, 0, 1, 1]; state.zoomPhoto = target.zoomPhoto = state.captureZoom = c.view.zoom; state.pupilOff = c.view.pupilOff ? c.view.pupilOff.slice() : [0.25, 0.15]; state.limb = c.view.limb ? c.view.limb.slice() : [5.85, 5.40, 0];
             state.sat = 1.0;
             for (const k of ['pupil', 'lightAngle', 'lightElev', 'srcSize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'sat']) if (c.view[k] !== undefined) { state[k] = c.view[k]; target[k] = c.view[k]; }
             state.srcType = c.view.srcType;
@@ -2844,7 +2844,7 @@
         fit.limbus = { x: a.limbus[0] * W, y: a.limbus[1] * H, rx: a.limbus[2] * H, ry: a.limbus[3] * H, ang: a.limbus[4] || 0 };
         fit.catch = { x: a.catch[0] * W, y: a.catch[1] * H };
         E.importID({ v: 2, genome: c.genome, fields: c.fieldsEnc || {}, view: c.view });
-        state.camRot = c.view.rot || [0, 0]; state.useRot = true; state.view = c.view.viewRect || [0, 0, 1, 1]; state.zoomPhoto = target.zoomPhoto = c.view.zoom; state.pupilOff = c.view.pupilOff ? c.view.pupilOff.slice() : [0.25, 0.15]; state.limb = c.view.limb ? c.view.limb.slice() : [5.85, 5.40, 0];
+        state.camRot = c.view.rot || [0, 0]; state.useRot = true; state.view = c.view.viewRect || [0, 0, 1, 1]; state.zoomPhoto = target.zoomPhoto = state.captureZoom = c.view.zoom; state.pupilOff = c.view.pupilOff ? c.view.pupilOff.slice() : [0.25, 0.15]; state.limb = c.view.limb ? c.view.limb.slice() : [5.85, 5.40, 0];
         state.sat = 1.0;
         for (const k of ['pupil', 'lightAngle', 'lightElev', 'srcSize', 'ambient', 'lid', 'ev', 'fstop', 'focus', 'kelvin', 'sat']) if (c.view[k] !== undefined) { state[k] = c.view[k]; target[k] = c.view[k]; }
         state.srcType = c.view.srcType;

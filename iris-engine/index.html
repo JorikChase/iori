@@ -659,7 +659,7 @@
                 <button class="action-btn" id="debug-btn">GRID</button>
                 <button class="action-btn active" id="refr-btn">REFRACT</button>
                 <button class="action-btn" id="spec-btn">CORNEA REFL</button>
-                <button class="action-btn" id="dof-btn" title="Photo softness: depth of field and the soft limbus edge (off: sharp when zoomed)">SOFTNESS</button>
+                <button class="action-btn" id="dof-btn" title="Depth of field: the lens's blur at the photograph's own distance, the same at every zoom (the limbus is soft either way)">SOFTNESS</button>
                 <button class="action-btn" id="anim2-btn">HIPPUS</button>
             </div>
             <div class="action-row" style="margin-bottom:6px">
@@ -1331,6 +1331,7 @@
         uniform float u_isMobile;
         uniform vec4 u_view;         // sub-rectangle of the image this pass renders (x, y, w, h), 0..1
         uniform float u_fstop;       // lens aperture f-number (DOF)
+        uniform float u_capZoom;     // the photograph's own camera distance, mm (the eye's pose): the depth of field is that shot's at every zoom
         uniform float u_focus;       // focus offset from the apparent iris plane, mm (+ = deeper)
         uniform float u_ref;         // 1 = reference pose: no jitter, no DOF
         uniform vec3 u_keyColor;     // key light colour relative to the camera's white balance
@@ -1344,7 +1345,7 @@
         uniform float u_refract;     // 1 = physical indices, 0 = n = 1 everywhere (test)
         uniform float u_specular;    // 1 = corneal reflection of the studio, 0 = none (isolated photos carry no catchlight)
         uniform float u_edgeFade;    // 1 = the last 4.5 % of the limbus blends into the page (presentation), 0 = opaque to the edge (fit / comparison)
-        uniform float u_edgeFadeW;   // how much of the limbus radius the blend takes: 0.045 with photo softness (Camera ▸ SOFTNESS), 0.006 without (iori, 2026-09-28)
+        uniform float u_edgeFadeW;   // how much of the limbus radius the blend takes: the eye's measured edge width in mm over the limbus radius (study/11 §5.6), never the lens's
         uniform float u_marchSteps;  // quality: parallax march steps (10 = normal)
         uniform float u_shadowSteps; // quality: self-shadow march steps (7 = normal)
 
@@ -1853,7 +1854,11 @@
             vec3 P = ro + rd * tC;
             float ln = limbusNorm(P.xy);
             bool maskView = u_debug > 12.5 && u_debug < 13.5, mapView = u_debug > 13.5 && u_debug < 15.5;   // 14 = coordinate map, 15 = height view: both raw
-            if (ln > 1.0 || (mapView && ln > 0.99)) {                  // the map stops 1 % short of the limbus: a ragged silhouette lets no background in
+            // presentation (edgeFade 1): the limbus blend is centred near the limbus, reaching a third of its width past it — the iris
+            // runs on behind the limbus to its root (ROOT_R 6 mm), and the photographs' own edge lies there (study/11 §5.6, eye 26: the
+            // blend ending AT the limbus put the render's edge 40 µm inward of the photo's). Fit, comparison and the maps: ln 1 as before.
+            float lnOut = (maskView || mapView) ? 1.0 : 1.0 + 0.35 * u_edgeFadeW * u_edgeFade;
+            if (ln > lnOut || (mapView && ln > 0.99)) {                  // the map stops 1 % short of the limbus: a ragged silhouette lets no background in
                 if (maskView) return vec4(1.0, 1.0, 1.0, 0.0);
                 if (mapView) return vec4(0.0);
                 // sclera: pure white, indistinguishable from the page
@@ -1893,7 +1898,7 @@
             // peripheral pigment plus the grazing-angle Fresnel loss above
             float milky = smoothstep(0.90, 1.0, ln);
             col = mix(col, mix(col, vec3(0.75, 0.72, 0.70), 0.5), milky * u_limbalMilk);
-            float edge = smoothstep(1.0 - u_edgeFadeW, 1.0, ln) * u_edgeFade;
+            float edge = smoothstep(lnOut - u_edgeFadeW, lnOut, ln) * u_edgeFade;
             if (u_debug > 0.5 && !maskView && !mapView) {
                 float ring = 1.0 - smoothstep(0.0, 0.01, abs(ln - 1.0));
                 col = mix(col, vec3(1.0, 0.6, 0.0), ring);
@@ -1922,7 +1927,9 @@
             vec3 ro = vec3(0.0);
             // thin-lens depth of field: sample the aperture, aim at the focal point on the iris plane
             if (hq && u_fstop < 64.0) {
-                float lensR = 0.5 * focal / u_fstop;                                          // mm
+                // zoom is a CROP of one photograph (iori, 2026-09-28): the blur on the tissue (aperture × Δdepth / distance) stays
+                // the shot's, so the aperture scales with the distance — dollying in no longer blurs the whole iris
+                float lensR = 0.5 * focal / u_fstop * (u_zoom + 3.05 + u_focus) / max(u_capZoom + 3.05 + u_focus, 1.0);   // mm
                 float h1 = hash(gl_FragCoord.xy * 0.37 + fr * 3.1), h2 = hash(gl_FragCoord.yx * 0.71 + fr * 5.3);
                 vec2 lens = lensR * sqrt(h1) * vec2(cos(6.2831853 * h2), sin(6.2831853 * h2));
                 float focusDist = u_zoom + 3.05 + u_focus;   // the apparent (refracted) iris plane, 01 §2
@@ -2764,7 +2771,7 @@
         function makeID() {
             applySlidersToGenome();
             const gcopy = Object.assign({}, genome); delete gcopy.fields;
-            return roundDeep({ v: 2, engine: ENGINE_VERSION, genome: gcopy, fields: encodeFields(genome), provenance: genome.provenance || null, view: { pupil: state.pupil, lightAngle: state.lightAngle, lightElev: state.lightElev, srcType: state.srcType, srcSize: state.srcSize, ambient: state.ambient, lid: state.lid, ev: state.ev, fstop: state.fstop, focus: state.focus, kelvin: state.kelvin, zoom: state.zoomPhoto, pupilOff: state.pupilOff.slice(), limb: (state.limb || [5.85, 5.40, 0]).slice(), sat: state.sat } });
+            return roundDeep({ v: 2, engine: ENGINE_VERSION, genome: gcopy, fields: encodeFields(genome), provenance: genome.provenance || null, view: { pupil: state.pupil, lightAngle: state.lightAngle, lightElev: state.lightElev, srcType: state.srcType, srcSize: state.srcSize, ambient: state.ambient, lid: state.lid, ev: state.ev, fstop: state.fstop, focus: state.focus, kelvin: state.kelvin, zoom: state.zoomPhoto, capZoom: state.captureZoom || state.zoomPhoto, pupilOff: state.pupilOff.slice(), limb: (state.limb || [5.85, 5.40, 0]).slice(), sat: state.sat } });
         }
         function exportID() {
             const id = makeID();
@@ -2789,7 +2796,7 @@
             setSlider('pigment', 'pigment', G.melanin); setSlider('stroma', 'stroma', G.stroma, 3);
             setSlider('pheo', 'pheo', G.pheo); setSlider('mie', 'mie', G.mie); setSlider('ring', 'ring', G.ringStrength); setSlider('yellow', 'yellow', G.yellow || 0);
             state.ringR = target.ringR = G.ringR; state.limbalDark = G.limbalDark;   // target too: ringR is a SMOOTH_KEY, the loop eased it back to 0.4
-            if (id.view) { const v = id.view; setSlider('pupil', 'pupil', v.pupil); setSlider('light', 'lightAngle', v.lightAngle); setSlider('elev', 'lightElev', v.lightElev); state.srcType = v.srcType; setSlider('srcsize', 'srcSize', v.srcSize, 3); setSlider('ambient', 'ambient', v.ambient); setSlider('lid', 'lid', v.lid, 1); setSlider('ev', 'ev', v.ev, 1); setSlider('fstop', 'fstop', v.fstop, 1); setSlider('focus', 'focus', v.focus); setSlider('kelvin', 'kelvin', v.kelvin, 0); state.zoomPhoto = target.zoomPhoto = v.zoom; state.pupilOff = v.pupilOff ? v.pupilOff.slice() : [0.25, 0.15]; state.limb = v.limb ? v.limb.slice() : [5.85, 5.40, 0]; state.sat = v.sat === undefined ? 1.0 : v.sat; document.querySelectorAll('.src-btn').forEach(x => x.classList.toggle('active', +x.dataset.src === v.srcType)); }
+            if (id.view) { const v = id.view; setSlider('pupil', 'pupil', v.pupil); setSlider('light', 'lightAngle', v.lightAngle); setSlider('elev', 'lightElev', v.lightElev); state.srcType = v.srcType; setSlider('srcsize', 'srcSize', v.srcSize, 3); setSlider('ambient', 'ambient', v.ambient); setSlider('lid', 'lid', v.lid, 1); setSlider('ev', 'ev', v.ev, 1); setSlider('fstop', 'fstop', v.fstop, 1); setSlider('focus', 'focus', v.focus); setSlider('kelvin', 'kelvin', v.kelvin, 0); state.zoomPhoto = target.zoomPhoto = v.zoom; state.captureZoom = v.capZoom || v.zoom; state.pupilOff = v.pupilOff ? v.pupilOff.slice() : [0.25, 0.15]; state.limb = v.limb ? v.limb.slice() : [5.85, 5.40, 0]; state.sat = v.sat === undefined ? 1.0 : v.sat; document.querySelectorAll('.src-btn').forEach(x => x.classList.toggle('active', +x.dataset.src === v.srcType)); }
             atlas.dirty = true; resetAccumulation();
         }
         function loadIDFromHash() {
@@ -2827,7 +2834,7 @@
             pheo: 0.5, mie: 0.2, ring: 0.0, ringR: 0.4, yellow: 0.3,
             srcType: 1, srcSize: 0.18, ambient: 0.35, lid: 5.0, hippus: false,
             mouseX: 0, mouseY: 0, paused: false, frameCount: 0,
-            ev: 0.0, sat: 1.0, fstop: 11.0, dof: 0, focus: 0.0, kelvin: 5600, grain: 0.02, bloom: 0.35, tone: 1, ref: 0,
+            ev: 0.0, sat: 1.0, fstop: 11.0, dof: 0, edgeMm: 0.085, focus: 0.0, kelvin: 5600, grain: 0.02, bloom: 0.35, tone: 1, ref: 0,
             blColour: 1.0, blRelief: 1.0, blFlow: 1.0,   // fitted ↔ procedural share per layer (§19.9)
             view: [0, 0, 1, 1], capturing: false, fitting: false, useRot: false, camRot: [0, 0],
         };
@@ -2989,10 +2996,14 @@
         function readStrandTex(x, y, w, h) { const px = new Float32Array(w * h * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB); gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return px; }
         window.__irisEngine = { setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, get growOverride() { return growOverride; }, set growOverride(o) { growOverride = o || {}; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
             FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
-            drawPhotoFrame, drawPost, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
+            drawPhotoFrame, drawPost, edgeBlendMm, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
             setCamFixed, syncCamBtn, makeID, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
 
         // draw one frame of the photo shader into `fb` (w×h), accumulating from `readTex` when frame > 0
+        // the disc's edge (study/11 §5.6, iori 2026-09-28): the limbus is soft in the photographs while the tissue beside it is sharp,
+        // so its softness is anatomy, measured per eye in mm (state.edgeMm, the 10–90 % rise) and always on — never the lens's.
+        // A smoothstep's 10–90 % rise is 0.61 of its width.
+        function edgeBlendMm() { return Math.max(0.005, state.edgeMm || 0.085) / 0.61; }
         function drawPhotoFrame(fb, w, h, frame, readTex, opts = {}) {
             const prog = (window.IrisTissue && window.IrisTissue.on) ? window.IrisTissue.photoProgram() : programs.photo;   // §30: the tissue layer model is a separately compiled variant
             gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
@@ -3008,6 +3019,7 @@
             u4f(prog, 'u_view', view[0], view[1], view[2], view[3]);
             // depth of field off by default (iori, 2026-09-27): f/64 is the shader's own 'no DOF', the f-stop slider keeps its value
             u1f(prog, 'u_fstop', opts.fstop !== undefined ? opts.fstop : ((opts.dof !== undefined ? opts.dof : state.dof) ? state.fstop : 64.0)); u1f(prog, 'u_focus', state.focus); u1f(prog, 'u_ref', opts.ref !== undefined ? opts.ref : state.ref);
+            u1f(prog, 'u_capZoom', opts.capZoom !== undefined ? opts.capZoom : (state.captureZoom || (opts.zoom !== undefined ? opts.zoom : state.zoomPhoto)));
             u1f(prog, 'u_useRot', opts.rot ? 1.0 : (state.useRot ? 1.0 : 0.0));
             { const r = opts.rot || state.camRot; u2f(prog, 'u_rot', r[0], r[1]); }
             { const kc = keyColor(); const l = loc(prog, 'u_keyColor'); if (l) gl.uniform3f(l, kc[0], kc[1], kc[2]); }
@@ -3020,7 +3032,7 @@
             u1f(prog, 'u_debug', opts.debug !== undefined ? opts.debug : state.debug);
             u1f(prog, 'u_refract', state.refract);
             u1f(prog, 'u_specular', opts.specular !== undefined ? opts.specular : state.specular);
-            u1f(prog, 'u_edgeFade', opts.edgeFade !== undefined ? opts.edgeFade : 1.0); u1f(prog, 'u_edgeFadeW', state.dof ? 0.045 : 0.006);
+            u1f(prog, 'u_edgeFade', opts.edgeFade !== undefined ? opts.edgeFade : 1.0); u1f(prog, 'u_edgeFadeW', edgeBlendMm() / Math.max(0.5 * ((opts.limb || state.limb || [5.85, 5.40])[0] + (opts.limb || state.limb || [5.85, 5.40])[1]), 1.0));
             u1f(prog, 'u_marchSteps', Q.marchSteps); u1f(prog, 'u_shadowSteps', Q.shadowSteps);
             { const po = opts.pupilOff || state.pupilOff || [0.25, 0.15]; u2f(prog, 'u_pupilOff', po[0], po[1]); }
             { const lb = opts.limb || state.limb || [5.85, 5.40, 0]; gl.uniform3f(loc(prog, 'u_limb'), lb[0], lb[1], lb[2] || 0); }

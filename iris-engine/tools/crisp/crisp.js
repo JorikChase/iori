@@ -19,7 +19,7 @@
         const mk = hf => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, hf ? gl.RGBA32F : gl.RGBA8, W, H, 0, gl.RGBA, hf ? gl.FLOAT : gl.UNSIGNED_BYTE, null);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return { t, f }; };
         const A = [mk(true), mk(true)], O = mk(false), ref = o.exact ? 1 : 0, frames = ref ? 1 : (o.frames || 64); let w = 0;
-        for (let i = 0; i < frames; i++) { const r = i % 2; w = (i + 1) % 2; E.drawPhotoFrame(A[w].f, W, H, i, A[r].t, { ref, rot: S.camRot, zoom: S.zoomPhoto, view: V, specular: F.fit.isolated ? 0 : 1, edgeFade: 0, time: 0 }); }
+        for (let i = 0; i < frames; i++) { const r = i % 2; w = (i + 1) % 2; E.drawPhotoFrame(A[w].f, W, H, i, A[r].t, { ref, rot: S.camRot, zoom: S.zoomPhoto, view: V, specular: F.fit.isolated ? 0 : 1, edgeFade: o.edgeFade || 0, time: 0 }); }
         E.drawPost(O.f, A[w].t, W, H, frames - 1, ref ? { ref: 1, view: V } : { view: V });   // the tile's view: the aberration is the frame's
         const px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, O.f); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, E.canvas.width, E.canvas.height);
         for (const q of [...A, O]) { gl.deleteTexture(q.t); gl.deleteFramebuffer(q.f); } for (const k in keep) S[k] = keep[k];

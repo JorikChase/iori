@@ -1119,6 +1119,92 @@ on all four with unchanged scores (the mask lies outside the scoring mask's 0.92
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 
+### 5.6 Priorities re-sorted: the blur split, then the strands in 2-D (agreed with iori, 2026-09-28)
+
+iori: "make the strand detection algorithm perfect along with bridges and plateaus"; "zoom in on the eye and have the corners
+of the iris disk still be blurred without having to have the whole iris zoomed in blurred"; the detection should give "all
+the strands and roots to fill the whole iris disc without breaking the displacement with the noise produced on photos".
+
+**Decided (iori, 2026-09-28).** Plateaus = the raised flats between crypts (the ABL shell). Zoom = a crop of one photograph.
+A new detection pipeline, but its 2-D half first (positions, widths, continuity, classes — heights later). The traced lines
+drawn bold and coloured BY CLASS in a Strands layer of the engine's photo overlay (zoom, pan, wipe), static sheets only as the
+study's record. Every class traced: bright strands everywhere, bridge candidates, dark valleys and furrows, crypt edges — and
+roots, so the strands fill the whole disc. The blur split first (it is small).
+
+**P0 — the blur split. Diagnosis.** Zoom is a dolly: the camera goes 113 → 23 mm with a fixed 100 mm lens and a fixed
+aperture (f/11 → 9.1 mm), so the blur on the tissue (aperture × Δdepth / distance) grows 4.9× and on screen ≈ 24× — the
+crypts' own 0.1 mm of relief blurs by ≈ 7 px at full zoom. And SOFTNESS ties the limbus blend and the mask's feather to that
+same depth of field. The fix:
+- depth of field in PHOTO space: the aperture scaled by distance / whole-eye distance, so the blur in mm on the tissue is the
+  whole-eye shot's at every zoom (iris relief ≈ 8 µm, the periphery 0.5–1.5 mm deeper 40–120 µm);
+- each photo's own depth of field measured (focus plane, f-number — fit.js's per-band focus maps), as the aberration was;
+- the limbus / mask softness is anatomy: its width in mm measured from each photo's radial profile, always on, out of SOFTNESS
+  (which becomes the depth of field alone);
+- the ABL texture recalibrated at 3× / 6× with the depth of field on (the photos already carry their own blur);
+- check first that the model's iris actually departs in depth toward its edge — a flat iris gives the corners nothing to blur.
+  Note: the layer model's data ends at v 0.82–0.89 and the white mask takes over there, so today's "corners" are the mask's
+  edge, not the limbus — filling the disc (below) moves them out.
+
+**P0 built (2026-09-28).** Measured first, with `tools/crisp/dof_study.js` (the viewport's accumulated path, bloom and grain
+off; `ring` = depth of field on / off by radius, `photoRing` = the photo's band contrast over the render's by radius, `edge` = the
+disc's edge along 24 radii, each normalised iris → background, aligned on its own half-way crossing, averaged):
+- **The photographs carry no depth of field across the iris.** Their fine contrast over the render's (no depth of field), at 6×,
+  pupil → limbus: 1.13 · 1.23 · 1.20 · 1.14 · 1.15 (eye 26, 8 angles each) — sharp right up to the edge. The lens at f/11 from
+  the fit pose keeps only 0.46–0.56 of the render's own contrast at every radius (best focus 0.15 mm in front of the plane),
+  so SOFTNESS on was never the photograph's look.
+- **The photographs' edge is soft** — anatomy (the limbus) plus the cutout, not defocus: 10–90 % rise 81 µm (26), 87 (09),
+  ≈ 106 (25, from its outer half; its dark limbal ring blurs the inner half), and eye 35's periphery fades into the black
+  cutout over ≈ 1.2 mm. The render's: 21 µm with SOFTNESS off (the 0.006 limbus blend), 77 µm on — the soft edge came from the
+  SOFTNESS toggle, which also blurred the whole iris.
+
+Built:
+- **Zoom is a crop.** The aperture scales with distance / the photograph's own distance (`u_capZoom`, `state.captureZoom`:
+  set by solvePose, the case and the ID loads, kept in sessions and IDs), so the blur in mm on the tissue is the shot's at every
+  dolly distance. SOFTNESS = the lens alone (the View menu says so).
+- **The edge is measured, always on, in mm**: `state.edgeMm` (the 10–90 % rise; `edgeBlendMm()` = / 0.61, a smoothstep's rise),
+  shipped per eye in the eye file (`tools/edge_publish.py NN=MM`, one field before `ablTex`): **26 0.115 · 09 0.17 · 25 0.16 · 35
+  0.25** mm, fitted by bisection (`__dof.fitEdge`) — rendered rise 26 77 µm (photo 81), 09 84 (87), 25 100 (≈ 106); 35 by eye
+  (the photo's 1.2 mm fade is into black; into the white page 0.25 reads closest, iori judges). Default 0.085 mm for eyes
+  without one.
+- The limbus blend (presentation only) now reaches a third of its width past the limbus (the iris runs on behind it to its
+  root): ending AT the limbus put the render's edge 40 µm inward of the photo's; now eye 26's half-way point is +77 µm against
+  the photo's +67.
+- The tissue mask's feather **starts at the data's own edge** and runs out into the region's padding (≤ 0.07 v), so the white
+  never covers measured tissue — centred on the edge it put the render's edge 80 µm inward and cut the rise to 56 µm; and it is
+  **presentation only** (× `u_edgeFade`), like the limbus blend: in the comparison renders a white feather against the photo's
+  black cutout cost eye 26 cellΔab 2.00 → 2.29 for nothing about the tissue.
+- Not needed after all: recalibrating the ABL texture with the depth of field on — the photos have none, and the default stays off.
+
+Checks: review path on fresh pages, all four identical to the published numbers (26 90.08 · 0.414 · 2.00, 09 87.68 · 0.483 ·
+2.78, 25 90.85 · 0.385 · 2.55, 35 88.39 · 0.390 · 2.16); eye 26 on arrival installs its shipped measurements; contract
+`compare()` `[]` after recording the two new state keys and the new export in the baseline, `reach()` `[]`. Seen at a 30 mm
+dolly with a crop on the limbus: SOFTNESS off — every strand and the texture sharp, the disc's edge soft; SOFTNESS on — the
+whole iris soft (f/11 at the shot's distance), but no longer 2.5× softer for having come closer.
+
+**The 2-D detector (P1–P4).** Why the current one cannot be perfect: detection is gated by the hole mask (deck only at
+sd > 1 px, guides at sd < −6) so crypt edges and septa — where iori's bridges are — are traced by nobody; the ridge ladder
+tops out at σ 4.5 px ≈ 13 µm (FWHM ≈ 30 µm) where bridges are 35–80 µm; the Hessian breaks at every crossing, so every strand
+is cut there and `roots.py` glues afterwards. The new one:
+1. **orientation score**: elongated oriented filters, 24 directions × widths σ 6–40 µm on the native photo — crossings separate
+   in direction instead of becoming junctions; the best width is the strand's width;
+2. **centrelines** per direction (NMS across the strand), each point with (θ, σ, strength);
+3. **tracking** along θ with a bending and a width-change cost — straight through crossings;
+4. **gap completion** between free ends by the cheapest smooth path through the evidence (retinal-vessel geodesics), joined only
+   where it beats the null;
+5. **the null sets every threshold**: the measured ABL speckle (the texture model's band energies, isotropic) synthesised
+   without strands and run through the same detector — a strand must beat grain of the photo's own spectrum;
+6. **classes**: crypt strand · plateau strand · bridge candidate (bright, wide, off a plateau over a crypt, a flank at the
+   floor's level) · dark valley · furrow · crypt edge.
+The whole disc: where the photo resolves nothing above the null (grain, blur, lashes, the periphery past v 0.82) the grower
+(`strands.js`, placement pull) fills along the flow field, provenance `grown`, drawn distinct from `traced`. **The
+displacement is built from the strand geometry, plateau shell and base only — never from photo pixels**; grain lives in the
+albedo texture. Gate: the height field's fine band carries no correlation with the photo's grain residual.
+
+**Order.** P0 the blur split → P1 the Strands overlay layer drawing TODAY's detection (the baseline iori judges against) → P2
+the ruler: synthetic ground truth (an engine eye with known strands rendered under the same flash and camera: found / invented
+/ width / continuity) and the grain null → P3 steps 1–3, judged in the overlay beside the old → P4 steps 4–6 and the fill →
+then marking in the overlay (iori's labels), the depth solve, L2, L3.
+
 ## 6. T8 — the layer fitter on the site (D6): possible, and how
 
 `layer_proof.py` is classical image processing — Gaussian blurs, morphology, thresholds, contours, distance

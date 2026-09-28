@@ -376,7 +376,7 @@
         need('            return vec4(col, 1.0 - edge);\n        }', '            return vec4(mix(col, BG_COL, g_tisOut), (1.0 - edge) * (1.0 - g_tisOut));\n        }');
         need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
             if (g_slab > 0.5) { vec4 sa = tissueAt(u_slabAlb, uv, lod); if (sa.a > 0.5) tsA = vec4(sa.rgb, 1.0); }   // §5.2.3: on the slab, its own albedo
-            if (u_edgeOn > 0.5) g_tisOut = smoothstep(u_edgeV0, u_edgeV1, uv.y);
+            if (u_edgeOn > 0.5) g_tisOut = smoothstep(u_edgeV0, u_edgeV1, uv.y) * u_edgeFade;   // presentation only: the fit / comparison renders (edgeFade 0) stay opaque to the edge, as the limbus blend does — the photo's cutout is black, a white feather there is not a colour error of the tissue (study/11 §5.6)
             if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722)), hq), cov); if (u_ablDebug > 0.5) tsA.rgb = vec3(0.25) * ablTexture(uv, mmPerPx, 0.25, hq); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
             float tisRidge0 = t1.a;                                                                // K1: the fitted strand coverage, before the line below zeroes it
             t0.r = mix(t0.r, tissueH(uv, lod) / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here (tissueH: the slab's top when the ray hit the slab):
@@ -452,8 +452,13 @@
           if (A && A.perPixel) { const a = A.amp, v = A.octVar; gl.uniform4f(u_('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform4f(u_('u_ablOctVar'), v[0], v[1], v[2], v[3]);
               gl.uniform1f(u_('u_ablExp'), A.exp); gl.uniform1f(u_('u_ablGain'), A.gain === undefined ? 1 : A.gain); gl.uniform1f(u_('u_ablYref'), T.cells ? ablYref() : 0.2); } }
         { const vmax = T.dataV1 !== undefined ? T.dataV1 : T.rect[1] + T.rect[3], on = T.edgeMask && !T.greyBake && vmax < 0.999;   // the DATA's edge, not the padded region's   // (the calibration's grey renders keep the old mask: the shipped measurements do not move)
-          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeOn'), on ? 1 : 0); const wv = E.state.dof ? T.edgeWV : T.edgeWVSharp;   // photo softness (Camera ▸ SOFTNESS) widens the mask's feather
-          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV0'), vmax - T.edgeInV - wv); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV1'), vmax - T.edgeInV); }
+          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeOn'), on ? 1 : 0); const wv = E.edgeBlendMm() / Math.max(6.0 - 0.5 * E.state.pupil, 1.0);   // the disc's edge width in mm (study/11 §5.6), in v: the annulus is ROOT_R − the pupil's radius
+          // the white never covers measured tissue: the feather STARTS at the data's own edge and runs out into the region's padding
+          // (0.3 mm ≈ 0.075 v of the compose's continuation, not the old atlas). At the fit pose the data reaches the limbus, so the
+          // limbus blend draws the edge; this mask takes over when a turned eye or a contracted pupil brings v past the data.
+          // Measured on eye 26: a mask centred on the data's edge put the render's edge 80 µm inward of the photo's and cut its rise.
+          const v0 = vmax + T.edgeAtV, v1 = v0 + Math.min(wv, 0.07 - T.edgeAtV);
+          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV0'), v0); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV1'), v1); }
         gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && ((T.slabCurves > 0 && T.slabs() > 0) || T.layered)) ? 1 : 0);   // §5.4: in the layered mode the slab is the ABL shell
         const Wn = T.win;                                   // T2a: the finer window, if one is baked
         gl.activeTexture(gl.TEXTURE17); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.albedo) || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisW'), 17);
@@ -567,6 +572,7 @@
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };
         for (const p of cells.uv) if (p) { u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); }
         T.dataV1 = v1;                                                   // the data's own outer edge in v (the region below is padded by 0.3 mm)
+        if (json.edgeMm) E.state.edgeMm = json.edgeMm;                   // study/11 §5.6: the photo's own disc edge, 10–90 % in mm on the tissue (tools/crisp/dof_study.js edge)
         const padV = 0.3 / 4, padU = 0.3 / (6.2831853 * (2 + 4 * 0.5 * (v0 + v1)));
         T.rect = [Math.max(0, u0 - padU), Math.max(0, v0 - padV), 0, 0]; T.rect[2] = Math.min(1, u1 + padU) - T.rect[0]; T.rect[3] = Math.min(1, v1 + padV) - T.rect[1];
         if (T.full) { T.rect[0] = 0; T.rect[2] = 1; }
@@ -678,7 +684,7 @@
     // 09 86.88 → 87.43, 25 90.14 → 90.48, 35 86.28 → 88.37, cellΔab down on all four. No rim at all scores higher still on 26 (90.07) but
     // loses the lip iori asked to keep sharp.
     T.rimK = 0.2;
-    T.edgeMask = true; T.edgeInV = 0.01; T.edgeWV = 0.025; T.edgeWVSharp = 0.004;   // the tissue region's edge: white from 0.01 inside it, over 0.025 in v (≈ 35 and 90 µm)
+    T.edgeMask = true; T.edgeAtV = 0;         // the tissue region's edge: from the data's own edge outward (+ T.edgeAtV in v), feathered over the eye's measured edge width (E.edgeBlendMm)
     T.payBlur = 2.5;                               // the compose's 3×3 blur of a strand's colour, in texels (2.5: as fitted; 0: the payload as traced)
     T.layered = false; T.restMm = 0.004; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0; T.drape = 1.8; T.dipMm = 0.03;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one

@@ -17,7 +17,7 @@
 
     S.capture = () => {
         const s = { format: 'iris-session', v: 1, engine: E.ENGINE_VERSION, saved: new Date().toISOString(), quality: E.quality,
-            camera: { useRot: !!state.useRot, camRot: (state.camRot || [0, 0]).slice(), view: (state.view || [0, 0, 1, 1]).slice(), zoomPhoto: state.zoomPhoto, specular: state.specular || 0 },
+            camera: { useRot: !!state.useRot, camRot: (state.camRot || [0, 0]).slice(), view: (state.view || [0, 0, 1, 1]).slice(), zoomPhoto: state.zoomPhoto, captureZoom: state.captureZoom || null, specular: state.specular || 0 },
             tissue: null, id: null, journal: null };
         if (X && X.st === 'loaded' && T && T.src) { s.tissue = { eye: T.src.ref, on: !!T.on, dials: Object.fromEntries(DIALS.map(k => [k, T[k] === undefined ? null : T[k]])) }; s.journal = X.journal ? X.journal() : null; }
         else s.id = E.makeID();
@@ -46,7 +46,7 @@
         else if (s.id) E.importID(s.id);
         const c = s.camera || {};
         if (c.view) state.view = c.view.slice(); if (c.camRot) state.camRot = c.camRot.slice(); state.useRot = !!c.useRot;
-        if (c.zoomPhoto) state.zoomPhoto = target.zoomPhoto = c.zoomPhoto; if (c.specular !== undefined) state.specular = c.specular;
+        if (c.zoomPhoto) state.zoomPhoto = target.zoomPhoto = c.zoomPhoto; if (c.captureZoom) state.captureZoom = c.captureZoom; if (c.specular !== undefined) state.specular = c.specular;
         E.resetAccumulation();
         if (!opts.quiet) U.say('Session opened' + (s.saved ? ' (saved ' + s.saved.slice(0, 16).replace('T', ' ') + ')' : '') + note);
         return true;

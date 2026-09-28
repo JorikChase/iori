@@ -1016,6 +1016,27 @@ cost 6.7 MATCH2; the de-bias now reproduces the fitter's irisMask() exactly. **T
 load-order artefacts, not facts:** eye 25's darkest bin at 0.67 ("too dark") — on a fresh page it is 1.23, lifted like the
 others; and eye 25's cellΔab 3.72 → 2.48 "with the texture" — the 3.72 was measured after another eye in the same page.
 
+**iori (2026-09-28, overlay crops at high zoom): "is the overlaid texture denoised? why do the highlight details get
+unsharpened?"** Measured at 6× (4.7 µm / screen px, the photo's own resolution), eye 26, near the limbus, band contrast
+3 · 7 · 17 px: photo 3.6 · 5.9 · 7.8 · exact render 2.7 · 4.3 · 5.8 (75 %) · the same with a window baked at 1.5 µm
+2.6 · 4.2 · 5.7 (no gain) · the viewport path (accumulated, post) 2.4 · 4.0 · 5.5 (67 %); median L* 47.9 against 48.0.
+Image `study/proof-layers/crisp-26-zoom6.jpg`. Why, in order:
+1. **The texture is band-limited by design, not denoised**: its finest octave (6 µm) was left out because the base bake's
+   5.7 µm texel cannot hold it — and the photo's strongest speckle IS that band (5–9 µm, rms 0.126, 99 % isotropic). At 3×
+   (9.4 µm / px) the band is below a pixel and the calibration looked exact; from ≈ 5× up its absence shows. A finer bake
+   alone does not help: the texture has no finer content to put in it.
+2. **Edges and glints are soft by construction** in the colour chain: a fibre's colour is read at body scale (σ ≈ 12 µm),
+   the compose blurs it again (±14 µm), the hole's colour wall is a smoothstep over ±37 µm, the rim a 42 µm Gaussian, the
+   sheet's colour 0.1 mm cells. Each was chosen against chroma noise at the whole-eye scale; at close range they smear
+   the lip highlights iori points at.
+3. **The viewport adds a little**: the accumulation's sub-pixel jitter (one pixel's box filter) and the lateral chromatic
+   aberration, which the post pass computes from the SCREEN position, not the position in the camera's frame — a zoomed
+   crop gets the fringes of a frame's corners (red / green at its edges). A bug.
+Proposed: (1) evaluate the ABL texture in the photo shader per pixel instead of in the bake — resolution-free, its
+octaves faded by the pixel footprint, the 6 µm octave included; (2) measure edge profiles (crypt lips, glints) photo vs
+render and sharpen the colour chain where the width is the chain's, not the tissue's; (3) the aberration in frame
+coordinates.
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

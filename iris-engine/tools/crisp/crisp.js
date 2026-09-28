@@ -11,6 +11,7 @@
     X.lab = lab;
     X.site = (u, v) => { const c = T.sets.fibres.filter(c => c.inst === undefined && c.uv.some(q => q && Math.abs(q[0] - u) < 0.004 && Math.abs(q[1] - v) < 0.04))[0]; const q = c.xy[c.xy.length >> 1]; return [q[0] * F.fit.W / T.src.fit[0], q[1] * F.fit.H / T.src.fit[1]]; };
     X.render = (at, zoom, o = {}) => {
+        if (S.view[2] !== 1 || S.view[3] !== 1) F.renderFit();          // after the Load button the view is a zoomed-out crop for a narrow pane; the fit's own call restores the pose (overlay.js guard)
         const W = F.fit.W, H = F.fit.H, s = 1 / zoom, O_ = window.__irisOverlay, pose = (O_ && O_.mode !== 'off' && O_.pose) ? O_.pose : [S.view[0], S.view[1]];   // the overlay's pose only while it is on: it keeps the pose of the eye it was switched on for
         const V = [pose[0] + at[0] / W - s / 2, pose[1] + (1 - at[1] / H) - s / 2, s, s], keep = {};
         for (const k of ['dof', 'bloom', 'grain']) if (o[k] !== undefined) { keep[k] = S[k]; S[k] = o[k]; }

@@ -692,7 +692,7 @@ deck by ~70 µm changes the shading of the strand pattern it was measured from (
 
 ### 5.3 Open after the strands stretch (2026-09-27)
 
-The task list with each item's state and first step is `handoffs/2026-09-27-strands-roots-bridges.md` §6. New from iori
+The task list with each item's state and first step is `handoffs/2026-09-28-layered-stroma-texture-closeups.md` §6 (it carries forward `handoffs/2026-09-27-strands-roots-bridges.md` §6). New from iori
 on 2026-09-27: a **bokeh (depth of field) toggle** as a control; **detect a larger portion of the strands** the photos show;
 make a **bridge read as strands, not a displaced tube** (options there: fibril relief, a braid of children, the second slab,
 ray-traced tubes — recommended the braid with fibril relief). Agreed order: K2 next; the bridges wait for iori's choice.

@@ -30,7 +30,7 @@
         { key: 'free',    label: 'Free ends',       col: '#ff3030', sets: [] },
         { key: 'furrow',  label: 'Furrow',          col: '#ff5a3c', sets: [] },
     ];
-    const L = window.__irisLines = { on: false, mode: 'class', width: 'uniform', weight: 1, alpha: 0.9, show: Object.fromEntries(CLASSES.map(c => [c.key, !['fine', 'pvalley', 'join'].includes(c.key)])), CLASSES };
+    const L = window.__irisLines = { on: false, terrain: false, fill: 0.45, tshow: {}, mode: 'class', width: 'uniform', weight: 1, alpha: 0.9, show: Object.fromEntries(CLASSES.map(c => [c.key, !['fine', 'pvalley', 'join'].includes(c.key)])), CLASSES };
 
     const cv = h('canvas'); cv.id = 'w31-ov-lines'; cv.style.cssText = 'position:fixed;left:0;top:0;pointer-events:none;z-index:41;display:none';
     document.body.appendChild(cv); const g = cv.getContext('2d');
@@ -63,25 +63,30 @@
         for (const k of R.links || []) { const a = endPt(k.a[0], k.a[1]), b = endPt(k.b[0], k.b[1]); if (a && b) { add([a, b], 'join', 0.01, 'j'); } }
         (R.ends || []).forEach((pair, f) => pair.forEach((kind, e) => { if (kind === 'free') { const p = endPt(f, e); if (p) { marks.push({ p, cls: 'free' }); counts.free++; } } }));
         (R.branches || []).forEach(b => { const q = fib[b.into[0]] && fib[b.into[0]].xy; if (q && q[b.into[1]]) marks.push({ p: q[b.into[1]], cls: 'join', ring: true }); });
-        L.counts = counts; buildLegend();
+        L.counts = counts; buildLegend(); timg = null; if (L.terrain) computeTerrain();
     }
+    // the terrain (terrain.js): computed per eye when first shown, its fill image rebuilt when a type is shown or hidden
+    let timg = null;
+    function computeTerrain() { const TR = window.__irisTerrain; if (!TR || !src) return; try { if (!TR.last || TR.last.eye !== src.ref || TR.last.src !== src) { TR.compute(); TR.last.src = src; } timg = TR.image(L.tshow); } catch (e) { U.say('Terrain: ' + e.message); timg = null; } buildTerrainLegend(); }
 
     // ---- drawing ------------------------------------------------------------------------------------------------------------
     let lastKey = '';
     function draw(force) {
-        const show = L.on && O.mode !== 'off' && box && box.style.display !== 'none';
+        const show = (L.on || L.terrain) && O.mode !== 'off' && box && box.style.display !== 'none';
         cv.style.display = show ? 'block' : 'none'; if (!show) { lastKey = ''; return; }
         if (T.src !== src) prepare(); if (!src) return;
         const r = box.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
-        const key = [r.left, r.top, r.width, r.height, W, H, L.mode, L.width, L.weight, L.alpha, JSON.stringify(L.show), items.length].join();
+        const key = [r.left, r.top, r.width, r.height, W, H, L.on, L.terrain, L.fill, !!timg, L.mode, L.width, L.weight, L.alpha, JSON.stringify(L.show), JSON.stringify(L.tshow), items.length].join();
         if (!force && key === lastKey) return; lastKey = key;
         if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px'; }
         g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.setTransform(dpr, 0, 0, dpr, 0, 0);
         paint(g, r, W, H);
     }
     // the lines of the loaded eye into context g, the photo's frame at r = { left, top, width, height } in a W × H target
-    function paint(g, r, W, H) {
+    function paint(g, r, W, H, o = {}) {
         const sx = r.width / src.fit[0], sy = r.height / src.fit[1];
+        if ((o.terrain !== undefined ? o.terrain : L.terrain) && timg) { g.save(); g.globalAlpha = L.fill; g.imageSmoothingEnabled = true; g.drawImage(timg, r.left, r.top, r.width, r.height); g.restore(); }
+        if (!(o.lines !== undefined ? o.lines : L.on)) return;
         const Lb = fit.limbus, lim = state.limb || [5.85, 5.40];                  // screen px per mm: the limbus in fit px against its size in mm
         const pxPerMm = Lb && fit.W ? (0.5 * (Lb.rx + Lb.ry)) / (0.5 * (lim[0] + lim[1])) * (r.width / fit.W) : sx * 45;
         const vis = it => { const b = it.b; return r.left + b[2] * sx >= -20 && r.left + b[0] * sx <= W + 20 && r.top + b[3] * sy >= -20 && r.top + b[1] * sy <= H + 20; };
@@ -109,12 +114,14 @@
     // frame's units (src.fit), span = how much of the frame's HEIGHT it shows. → a canvas.
     L.sheet = async (o = {}) => {
         if (T.src !== src) prepare(); if (!src || !fit.img) throw new Error('load an eye with its photograph first');
+        if (o.terrain && !timg) { const was = L.terrain; L.terrain = true; computeTerrain(); L.terrain = was; }
         const W = o.w || 1600, H = o.h || 1100, fw = src.fit[0], fh = src.fit[1], at = o.at || [fw / 2, fh / 2], span = o.span || 1;
         const k = H / (span * fh), r = { left: W / 2 - at[0] * k, top: H / 2 - at[1] * k, width: fw * k, height: fh * k };
         const c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d');
         cx.fillStyle = '#000'; cx.fillRect(0, 0, W, H); cx.imageSmoothingQuality = 'high'; cx.drawImage(fit.img, r.left, r.top, r.width, r.height);
         if (o.lines !== false) { const keep = {}; for (const q of ['mode', 'width', 'weight', 'alpha']) if (o[q] !== undefined) { keep[q] = L[q]; L[q] = o[q]; }
-            const ks = L.show; if (o.show) L.show = Object.assign({}, L.show, o.show); paint(cx, r, W, H); L.show = ks; Object.assign(L, keep); }
+            const ks = L.show; if (o.show) L.show = Object.assign({}, L.show, o.show); paint(cx, r, W, H, { lines: true, terrain: !!o.terrain }); L.show = ks; Object.assign(L, keep); }
+        else if (o.terrain) paint(cx, r, W, H, { lines: false, terrain: true });
         if (o.label) { cx.font = '600 22px sans-serif'; cx.fillStyle = 'rgba(0,0,0,.65)'; const tw = cx.measureText(o.label).width; cx.fillRect(0, 0, tw + 24, 36); cx.fillStyle = '#fff'; cx.fillText(o.label, 12, 26); }
         return c;
     };
@@ -125,22 +132,42 @@
 
     // ---- turning it on: the layer needs the photo's frame, so the overlay comes on with it (the Tissue window's Load brings the
     // eye's photo when the page arrived without one — the start eye ships its measurements and loads no photo)
+    async function ensurePhoto(what) {
+        const X = window.__irisTissueUI;
+        if (!(fit.photo && !fit.photoless)) {
+            if (!X || !T.src) { U.say(what + ': load an eye first (Tissue ▸ Load)'); return false; }
+            U.say(`${what}: loading eye ${X.eye}'s photograph…`); await X.load();
+            if (!(fit.photo && !fit.photoless)) { U.say(what + ': the photograph did not load'); return false; }
+        }
+        if (O.mode === 'off') O.set('photo'); return true;
+    }
     L.set = async on => {
         L.on = !!on; sync();
         if (!L.on) { draw(); return; }
-        const X = window.__irisTissueUI;
-        if (!(fit.photo && !fit.photoless)) {
-            if (!X || !T.src) { U.say('Lines: load an eye first (Tissue ▸ Load)'); L.on = false; sync(); return; }
-            U.say(`Lines: loading eye ${X.eye}'s photograph…`); await X.load();
-            if (!(fit.photo && !fit.photoless)) { U.say('Lines: the photograph did not load'); L.on = false; sync(); return; }
-        }
-        if (O.mode === 'off') O.set('photo');
+        if (!(await ensurePhoto('Lines'))) { L.on = false; sync(); return; }
         prepare(); draw(true);
+    };
+    L.setTerrain = async on => {
+        L.terrain = !!on; sync();
+        if (!L.terrain) { draw(); return; }
+        if (!(await ensurePhoto('Terrain'))) { L.terrain = false; sync(); return; }
+        U.say('Terrain: partitioning the iris…'); await new Promise(r => setTimeout(r, 30));
+        if (T.src !== src) prepare(); else computeTerrain(); draw(true);
+        const TR = window.__irisTerrain; if (TR && TR.last) U.say(`Terrain: ${Object.values(TR.last.stats).reduce((a, s) => a + s.sections, 0)} sections in ${TR.last.ms} ms`);
     };
 
     // ---- the controls, in the Fit window, under the overlay's -----------------------------------------------------------------
-    let legend = null, btn = null, modeBtn = null, widthBtn = null;
-    function sync() { if (btn) btn.classList.toggle('on', L.on); if (modeBtn) modeBtn.textContent = L.mode === 'class' ? 'Colour: class' : 'Colour: strand'; if (widthBtn) widthBtn.textContent = L.width === 'uniform' ? 'Width: even' : 'Width: measured'; }
+    let legend = null, btn = null, modeBtn = null, widthBtn = null, tBtn = null, tlegend = null;
+    function sync() { if (tBtn) tBtn.classList.toggle('on', L.terrain); if (btn) btn.classList.toggle('on', L.on); if (modeBtn) modeBtn.textContent = L.mode === 'class' ? 'Colour: class' : 'Colour: strand'; if (widthBtn) widthBtn.textContent = L.width === 'uniform' ? 'Width: even' : 'Width: measured'; }
+    function buildTerrainLegend() {
+        if (!tlegend) return; tlegend.innerHTML = ''; const TR = window.__irisTerrain; if (!TR) return; const st = TR.last && TR.last.src === src ? TR.last.stats : null;
+        for (const t of TR.TYPES) { if (!t) continue; const on = L.tshow[t.key] !== false, b = h('button', 'w31-b' + (on ? ' on' : '')), s_ = st && st[t.key];
+            b.style.cssText = `flex:1 0 46%;display:flex;align-items:center;gap:5px;justify-content:flex-start;text-align:left;opacity:${on ? 1 : 0.5}`;
+            b.innerHTML = `<i style="display:inline-block;width:14px;height:10px;background:rgb(${t.col.join(',')});outline:1px solid #000;flex:none"></i><span style="flex:1">${t.label}</span><span style="opacity:.7">${s_ ? s_.sections + ' · ' + s_.pct + '%' : '—'}</span>`;
+            b.title = { bridge: 'plateau with crypt on both sides within the undercut\'s reach: no base under it (study/11 §5.4)', flank: 'beside a crypt edge and darker than the plateau around it: the shadowed slope', collarette: 'the genome\'s collarette, its half-maximum band' }[t.key] || '';
+            b.onclick = () => { L.tshow[t.key] = !on; timg = window.__irisTerrain.image(L.tshow); buildTerrainLegend(); draw(); };
+            tlegend.appendChild(b); }
+    }
     function buildLegend() {
         if (!legend) return; legend.innerHTML = '';
         for (const C of CLASSES) { const n = counts[C.key] || 0, b = h('button', 'w31-b' + (L.show[C.key] ? ' on' : ''));
@@ -161,8 +188,11 @@
             inp.addEventListener('input', () => { L[key] = +inp.value; val.textContent = L[key].toFixed(2); draw(); }); grp.appendChild(U.makeScrubber ? U.makeScrubber(inp, label, val) : inp); };
         scrub('WEIGHT', 'weight', 0.4, 4, 0.05); scrub('OPACITY', 'alpha', 0.1, 1, 0.01);
         legend = h('div', 'w31-brow'); grp.appendChild(legend);
+        const trow = h('div', 'w31-brow'); tBtn = h('button', 'w31-b', 'Terrain'); tBtn.id = 'w31-terrain-btn'; tBtn.onclick = () => L.setTerrain(!L.terrain); trow.appendChild(tBtn); grp.appendChild(trow);
+        scrub('FILL', 'fill', 0.05, 1, 0.01);
+        tlegend = h('div', 'w31-brow'); grp.appendChild(tlegend);
         const ovg = host.querySelector('.w31-grp'); host.insertBefore(grp, ovg ? ovg.nextSibling : host.firstChild);
-        sync(); buildLegend(); }
+        sync(); buildLegend(); buildTerrainLegend(); }
 
     // the box moves with every zoom, pan and resize: follow it (rAF while visible; a timer for a hidden pane)
     (function tick() { draw(); requestAnimationFrame(tick); })();

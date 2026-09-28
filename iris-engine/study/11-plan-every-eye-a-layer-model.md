@@ -1206,6 +1206,39 @@ Contract `[]`, `reach()` `[]`.
 - **The rule's bridges sit on crypt floors** (yellow inside the outlines on every eye) — iori's correction of 2026-09-27, seen.
 - **Free ends are many** (26: 378 of 1 792 fibre ends; 09: 507) — the crossings cut every strand.
 
+**P1b built (2026-09-28) — terrain, automatic (`terrain.js`).** iori: "fill the whole sections of the detected features with
+their corresponding colour, so we can partition and choose the terrain types for each enclosed section"; then, on the sheets:
+"most areas are correctly identified even now programmatically — why do we need manual input?" So there is none: every
+section's type comes from detection and anatomy, a hand override only if a case ever needs one. Partition (iori's choice: closed
+features + zones) and types (core anatomy + bridge span), in a label raster of the export frame × 1.5 (9 µm):
+- **zones** traced through the engine's coordinate map (fit px → tissue u, v), so they follow refraction and pose: RUFF (as far
+  outside the margin as its beads reach: 26 36 µm), PUPILLARY ZONE, COLLARETTE RIDGE (the genome's collarette, vc(u) ± 0.83 w,
+  the half-maximum of the engine's exp(−((v − vc)/w)²)), CILIARY PLATEAU to the data's edge;
+- **CRYPT** / **SEPTUM** from the fitter's outlines;
+- **BRIDGE SPAN** — plateau or septum that a morphological OPENING with a disc of radius D = `underMm[0]` + ½ `underMm[1]`
+  (0.11 mm) removes, crypts the only outside: narrower than 0.22 mm between crypts, no base under it in the layered stroma
+  (§5.4's undercut). The first cut ("crypt straight across from the nearest crypt") drew angular wedges (the nearest-feature
+  transform's cells); the opening draws the necks between lobes as they are. Every septum of eye 26 is that narrow — all 8
+  are bridge spans;
+- **CRYPT FLANK** — plateau within 0.15 mm of a crypt, darker than 0.82 × the plateau's level around it (the photo read over
+  ±15 µm: speckle is not slope), connected to the edge — the band P1's sheets showed untraced;
+- specks under 0.002 mm² join the type that borders them most.
+
+| eye | crypt | flank | bridge span | plateau | collarette | pupillary | ruff | ms |
+|---|---|---|---|---|---|---|---|---|
+| 26 | 76 · 13.8 % | 90 · 9.6 % | 117 · 3.1 % | 51.6 % | 11.8 % | 9.5 % | 0.6 % | ≈ 800 |
+| 09 | 117 · 21.7 % | 196 · 4.8 % | 211 · 8.3 % | 44.4 % | 4.4 % | 13.7 % | 2.3 % | 811 |
+| 25 | 48 · 9.3 % | 85 · 5.8 % | 144 · 2.1 % | 66.2 % | 8.9 % | 6.2 % | 1.5 % | 838 |
+| 35 | 29 · 3.0 % | 49 · 2.3 % | 31 · 0.6 % | 74.9 % | 11.6 % | 3.7 % | 3.8 % | 688 |
+
+(sections · share of the tissue; a cold first run is ≈ 2.8 s, the same partition at × 2 within 0.2 %). On 09 the pale ribbons
+between the channels of its crypt complex come out as bridge span by the rule alone — iori's "brightest lines beside the darkest
+pixels". Seen: the opening leaves round plateau pieces in 25's peripheral crypt belt (correct by definition, a disc's shape).
+UI: Traced lines ▸ `Terrain`, FILL, chips with sections and share per type (toggle each). Sheets
+`study/proof-layers/lines-terrain-NN-*.jpg` (fills alone) and `lines-terrain-lines-NN-*.jpg` (fills under the lines).
+`lines_sheets.js` now refuses to name a sheet after an eye that is not the one loaded — a restored session brought eye 35 back
+under `?eye=26` once and its first terrain sheet was mislabelled (deleted). Contract `[]`, `reach()` `[]`.
+
 **The 2-D detector (P1–P4).** Why the current one cannot be perfect: detection is gated by the hole mask (deck only at
 sd > 1 px, guides at sd < −6) so crypt edges and septa — where iori's bridges are — are traced by nobody; the ridge ladder
 tops out at σ 4.5 px ≈ 13 µm (FWHM ≈ 30 µm) where bridges are 35–80 µm; the Hessian breaks at every crossing, so every strand

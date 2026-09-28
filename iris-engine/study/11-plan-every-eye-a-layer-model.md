@@ -870,14 +870,22 @@ the iris — median local contrast of L* at 3 / 7 / 17 px, and the L*, C* percen
 | image | 3 px | 7 px | 17 px | L* p1 · p50 · p99 | C* p95 · p99 |
 |---|---|---|---|---|---|
 | photo, the 3840 px original | 4.5 | 6.3 | 8.3 | 7.7 · 43.9 · 78.1 | 53.6 · 57.1 |
-| the photo as the fitter traced it (1280 px) | 2.6 | 4.4 | 6.9 | | |
+| the photo downsampled to 1280 px (**not** what the fitter traces — see the correction below) | 2.6 | 4.4 | 6.9 | | |
 | **the fit render (exact path)** | **1.9** | **4.0** | **6.7** | 1.4 · 47.7 · 76.5 | 52.1 · 56.1 |
 | viewport, defocus on (f/11, as it was) | 1.5 | 3.2 | 5.7 | | |
 | the photo as SCORED (640 px) | 1.3 | 3.0 | 5.4 | | |
 
 What it says, in order of size:
-1. **The fitter never saw most of the crispness**: it traces a 1280 px copy of a 3840 px photograph. The render keeps 73 % of
-   what the fitter saw at the finest scale and 91–97 % above it — the model is not what blurs; its input is.
+1. ~~The fitter never saw most of the crispness: it traces a 1280 px copy.~~ **Wrong — corrected 2026-09-28.** `layer_proof.py`
+   crops the NATIVE photograph and traces it at 4.66 µm / px (3840 px across on eye 26); 1280 is only the frame the export's
+   positions are written in. Where the detail goes instead, measured by region (photo's local L* < 35 = crypt floors, > 50 =
+   the sheet), render / photo at 3 · 7 · 17 px: **crypts 62 · 86 · 99 %, the sheet 29 · 46 · 65 %.** A 2.3× finer bake
+   (T2a window, 2.5 µm) over the crop changes nothing: not the bake's resolution — the sheet's CONTENT. On eye 26 the sheet
+   (≈ ¾ of the iris) is 0.1 mm colour cells, 1552 guides (45 µm wide), and 620 fine streaks that are brightness multipliers,
+   not strands; the 896 traced deck fibres with their own colour and height all lie in the crypts. The sheet's own fibres and
+   glints — iori's "highlights and deep shadows" — were never traced as strands. → L1: trace the sheet's strands with the
+   deck's tracer, at native resolution, as the ABL's top layer of tubes (colour payload + relief), and gate the SHEET's band
+   contrast separately.
 2. **Nothing scores it**: every score is taken at 640 px, which carries LESS fine detail than the render already has (1.3
    against 1.9). No fit could be rewarded for crispness. A close-range gate is needed (this tool, per eye and per region).
 3. **The midtones are lifted** by ≈ 4 L* and the top highlights and chroma are ≈ 1–1.5 below the photo; the deep shadows

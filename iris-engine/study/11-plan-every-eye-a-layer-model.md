@@ -987,6 +987,35 @@ Arrival against the measured load, each on a fresh page: max 1 / 255 on all four
   failed the arrival gate by 80 / 255 while it passes on a fresh page. Every number above is from the review path
   (deterministic: it reproduces the published scores) or a fresh page.
 
+**The midtone brightness (iori, 2026-09-28: "fix the midtone brightness next") — the albedo's smooth bias, measured and
+removed.** Render / photo luminance by the photo's own local brightness (8 bins, 0.25 mm average; `tools/tone/tone.js`):
+eye 26 was 1.41 in its darkest bin, 1.08 in its brightest, 14.6 % over all. Not the light — calibrate() measures that on flat
+grey — but the albedo the model is assembled from: a crypt's floor gives its gaps the nearest fibre's colour, and the sheet's
+guides and streaks are traced on bright ridges and only ever brighten its cells. `T.debias()` (after the shading is measured,
+two passes, `T.debiasPasses`): render the real albedo, take photo / render at calibrate()'s own smooth scale (luminance, the
+additive part taken out of both, inside the fitter's own iris mask), fold it into the light gain as k / g. Fine structure
+stays as traced; it ships inside the measurements (all four `tissue-NN.cal.bin` re-exported, `T.dialKey()` now records the
+de-bias so a measurement taken without it cannot pass for one taken with it). Each eye on a FRESH page, review path:
+
+| eye | render / photo by bin, darkest … brightest | mean | MATCH2 | strandCorr | cellΔab | Δab |
+|---|---|---|---|---|---|---|
+| 26 | 1.41 … 1.08 → **1.09 … 0.99** | 1.146 → 1.006 | 84.29 → **86.35** | 0.366 → 0.361 | 2.50 → 2.24 | 2.09 → 1.40 |
+| 09 | 1.20 … 0.96 → **1.02 … 1.00** | 1.058 → 1.004 | 83.10 → **85.83** | 0.420 → 0.421 | 2.88 → 2.94 | 1.65 → 1.71 |
+| 25 | 1.23 … 1.03 → **1.01 … 1.00** | 1.066 → 1.000 | 87.13 → **88.46** | 0.285 → 0.279 | 2.48 → 2.47 | 1.52 → 1.65 |
+| 35 | 1.12 … 0.97 → **0.99 … 1.00** | 1.078 → 1.006 | 83.09 → **84.91** | 0.282 → 0.280 | 2.35 → 2.23 | 1.67 → 1.55 |
+
+The Load button's path after publishing (measured, then the arrival from the new measurements): 26 85.57, 09 85.65,
+25 89.24, 35 82.52; arrival against measured max 1 / 255 on all four; contract `[]`. Image: `study/proof-layers/debias-26.jpg`.
+The correction is luminance only: hue is kept, so colour error moves either way by up to 0.13 Δab (09, 25 up; 26, 35 down).
+Eye 26's darkest bin keeps 9 %: the smallest crypts are finer than the correction's 0.2 mm scale.
+
+Found on the way, both fixed before the export that shipped: (1) the Load button's path has no `fit.mask` (score() builds it
+lazily) — the de-bias found no pixels and corrected nothing, silently, while the new key said it had; it now throws below
+1000 pixels. (2) A looser stand-in mask (the whole coordinate map) let the limbal ring and the pupil's edge into the ratio and
+cost 6.7 MATCH2; the de-bias now reproduces the fitter's irisMask() exactly. **Two earlier claims in this section were
+load-order artefacts, not facts:** eye 25's darkest bin at 0.67 ("too dark") — on a fresh page it is 1.23, lifted like the
+others; and eye 25's cellΔab 3.72 → 2.48 "with the texture" — the 3.72 was measured after another eye in the same page.
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

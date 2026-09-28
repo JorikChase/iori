@@ -1837,6 +1837,56 @@
     };
 
     // ---------------------------------------------------------------- irradiance: what the engine's light does to a flat grey region
+    /** study/11 §5.5 (iori, 2026-09-28: "fix the midtone brightness"): the model's albedo is biased BRIGHT at the smooth scale — eye 26
+     *  renders 14.6 % above its photo, 41 % in the darkest regions, 8 % in the brightest. Not the light (calibrate() measures that on
+     *  flat grey): the ALBEDO the model is assembled from. A crypt's floor takes its nearest fibre's colour into the gaps between
+     *  fibres, and the sheet's guides and streaks are traced on bright ridges and only ever brighten its cells. Measured and removed
+     *  the way the light is: render the real albedo, take photo / render at calibrate()'s own smooth scale (≈ 0.2 mm, luminance,
+     *  the additive part s taken out of both), and fold it into the light gain as k / g — toAlbedo() then gives A · g. Every fine
+     *  structure stays as traced; only its smooth level moves. It rides in the shipped measurements (exportMeasurements quantises
+     *  T.irr), so the arrival path carries it. T.debiasOn = false skips it. */
+    T.debiasOn = true; T.debiasPasses = 2;
+    T.debias = function () {
+        if (!T.irr || !T.irrDims) throw new Error('debias: measure the light first (calibrate)');
+        const fit = F.fit, [W, H] = T.irrDims, map = F.getMap(), a = T.irr;
+        if (W !== fit.W || H !== fit.H) throw new Error('debias: the light was measured on another frame');
+        // the iris pixels: fit.mask when the fitter has built it (score() does, lazily — the Load button's path never calls it), else
+        // the same test on the coordinate map: on the iris, not a clipped specular in the photo
+        // (the fitter's irisMask(), fit.js, reproduced: inside 0.92 of the limbus ellipse, outside 1.08 of the pupil, no clipped specular —
+        // a looser mask let the limbal ring and the pupil's edge into the ratio and cost 6.7 MATCH2 on eye 26)
+        const ph0 = fit.photo, Lm = fit.limbus, Pp = fit.pupil, ca = Math.cos(Lm.ang || 0), sa = Math.sin(Lm.ang || 0);
+        const okPx = k => { if (fit.mask) return !!fit.mask[k]; const x = k % W, y = (k / W) | 0, dx = x - Lm.x, dy = y - Lm.y, ex = (ca * dx + sa * dy) / Lm.rx, ey = (-sa * dx + ca * dy) / Lm.ry;
+            return ex * ex + ey * ey < 0.92 * 0.92 && Math.hypot(x - Pp.x, y - Pp.y) >= Pp.r * 1.08 && !(ph0[k * 4] > 235 && ph0[k * 4 + 1] > 235 && ph0[k * 4 + 2] > 225); };
+        const inR = k => { if (!map.inside[k] || !okPx(k)) return false; const u = map.u[k], v = map.v[k]; return u > T.rect[0] && u < T.rect[0] + T.rect[2] && v > T.rect[1] && v < T.rect[1] + T.rect[3]; };
+        T.bake(); const px = F.renderFit(), ph = fit.photo, num = new Float64Array(W * H), den = new Float64Array(W * H), wt = new Float64Array(W * H);
+        const Y = v => 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+        for (let k = 0; k < W * H; k++) {
+            if (!inR(k) || a[k * 7 + 6] < 1e-3) continue;
+            const w_ = a[k * 7 + 6], sY = (0.2126 * a[k * 7 + 3] + 0.7152 * a[k * 7 + 4] + 0.0722 * a[k * 7 + 5]) / w_;
+            const X = Y(unpost([px[k * 4] / 255, px[k * 4 + 1] / 255, px[k * 4 + 2] / 255])), P = Y(unpost([ph[k * 4] / 255, ph[k * 4 + 1] / 255, ph[k * 4 + 2] / 255]));
+            num[k] = Math.max(0, P - sY); den[k] = Math.max(0, X - sY); wt[k] = 1;
+        }
+        const rad = Math.max(4, Math.round(0.2 * ((fit.limbus.rx + fit.limbus.ry) / 2 / 5.625) / 1.7));   // calibrate()'s own blur
+        const blur = img => { let A = Float64Array.from(img), B = new Float64Array(W * H);
+            for (let pass = 0; pass < 3; pass++) for (const horiz of [true, false]) { const n1 = horiz ? W : H, n2 = horiz ? H : W;
+                for (let j = 0; j < n2; j++) { let sum = 0; const at = i => horiz ? j * W + i : i * W + j;
+                    for (let i = -rad; i < n1 + rad; i++) { const ad = i + rad, sb = i - rad - 1; if (ad >= 0 && ad < n1) sum += A[at(ad)]; if (sb >= 0 && sb < n1) sum -= A[at(sb)]; if (i >= 0 && i < n1) B[at(i)] = sum; } }
+                [A, B] = [B, A]; }
+            return A; };
+        const Nb = blur(num), Db = blur(den), Wb = blur(wt);
+        let lo = 9, hi = 0, sg = 0, n = 0;
+        for (let k = 0; k < W * H; k++) {
+            if (Wb[k] < 1e-6 || Db[k] < 1e-6 || a[k * 7 + 6] < 1e-3) continue;
+            const g = Math.min(2, Math.max(0.4, Nb[k] / Db[k]));
+            for (let t = 0; t < 3; t++) a[k * 7 + t] /= g;             // k' = k / g  →  toAlbedo gives A · g
+            if (inR(k)) { lo = Math.min(lo, g); hi = Math.max(hi, g); sg += g; n++; }
+        }
+        if (n < 1000) throw new Error(`debias: only ${n} iris pixels measured — nothing corrected (a measurement without the de-bias must not ship under its key)`);
+        T.debiasStats = { mean: +(sg / Math.max(1, n)).toFixed(3), min: +lo.toFixed(3), max: +hi.toFixed(3), blurPx: rad, pixels: n };
+        T._ablYref = null; T.bake();
+        say(`albedo de-biased at the light's scale: gain mean ${T.debiasStats.mean} (${T.debiasStats.min}–${T.debiasStats.max})`);
+        return T.debiasStats;
+    };
     T.calibrate = function () {
         // The renderer is affine in the albedo at a pixel: X = k(x)·A + s(x) — k the light (key, caustic, lid, ambient), s what it
         // adds regardless of the tissue colour (speculars). Two flat-grey renders through the real renderer give both; only their
@@ -1963,7 +2013,7 @@
     // and k1 are not in the key — neither reaches a grey bake. A mismatch = measure, as before.
     T.dialKey = () => JSON.stringify({ engine: E.ENGINE_VERSION, eye: T.src && T.src.ref, n: T.src && T.src.fit,
         deckZ: T.deckZ, sheetZ: T.sheetZ, wallZ: T.wallZ === undefined ? 2.5 : T.wallZ, delight: T.delight, margin: T.margin !== false,
-        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade });
+        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0 });   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
     const q16 = (v, lo, hi, L = 65535) => Math.max(0, Math.min(L, Math.round((v - lo) / Math.max(hi - lo, 1e-12) * L)));
     const gz = async (bytes, dir) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(dir ? new CompressionStream('gzip') : new DecompressionStream('gzip'))).arrayBuffer());
     // → gzipped bytes: 'IRC1' · u32 header length · header JSON · light (6 planes u16) · shading (u16) · light mask (u8, one
@@ -2043,6 +2093,7 @@
         await stage(3, 'baking the tissue'); T.bake();
         await stage(4, 'the knob origin'); T.setOrigin();
         if (opts.delight !== false) { await stage(5, 'measuring the shading'); T.measureDelight(opts); }      // ≈ 2 s: what the relief does to the light, measured
+        if (T.debiasOn && opts.debias !== false) for (let i = 0; i < T.debiasPasses; i++) T.debias();   // §5.5: the albedo's smooth bias, measured and removed (the second pass takes the remainder: eye 26's darkest bin 1.13 → 1.09)
         T.on = true; if (st) st(n, n, 'done'); say('tissue model on'); return T.log;
     };
 })();

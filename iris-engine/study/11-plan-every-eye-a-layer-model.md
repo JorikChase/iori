@@ -1181,6 +1181,31 @@ Checks: review path on fresh pages, all four identical to the published numbers 
 dolly with a crop on the limbus: SOFTNESS off — every strand and the texture sharp, the disc's edge soft; SOFTNESS on — the
 whole iris soft (f/11 at the shot's distance), but no longer 2.5× softer for having come closer.
 
+**P1 built (2026-09-28) — the Strands layer, `lines.js`.** Fit window ▸ **Traced lines**: `Lines` (on brings the overlay up in
+PHOTO; with no photo — an arrival eye ships its measurements and loads none — it runs the Tissue window's Load first), `Colour:
+class | strand` (strand = one hue per root chain, so a break shows as a change of colour), `Width: even | measured` (even: every
+line 2.4 px × WEIGHT, for continuity and coverage; measured: the strand's FWHM 1.18 w on screen, for thickness — the bridges'
+criterion), WEIGHT, OPACITY, and a legend of chips that toggle each class, with its count. A viewport-sized canvas over the
+overlay's photo box, following every zoom and pan (only the curves on screen are drawn); a dark casing under every line.
+Classes: crypt edge · septum / island (dashed) · crypt strand (`fibres`, the ruff's beads excluded — tissue.js appends them on
+load) · crypt valley (`veins`) · plateau strand (`guides`) · fine strand (`sfib`) · plateau valley (`svein`) · ruff / margin ·
+bridge (the separator rule's, `roots.bridges`) · root joins (`links`) and branch points · free ends · furrow (none detected —
+the chip says so). The bridge detections were only in the study exports; `tools/bridges_publish.py` inserted them into the four
+eye files as `roots.bridges` (one field; identical fibres checked; nothing in the engine reads it). Review sheets:
+`tools/lines_sheets.js` + `lines_sheets.py` → `study/proof-layers/lines-NN-{whole,crypt1,crypt2}.jpg`, the four eyes.
+Contract `[]`, `reach()` `[]`.
+
+**What the baseline shows** (the sheets; the new detector is judged against them):
+- **The crypt edge's outer flank is traced by nobody** — a clear band outside every white outline (26, 25), exactly the gate
+  diagnosed above (deck at sd > 1 px, guides at sd < −6 on a blurred image).
+- **The bright ribbons between crypt channels carry almost no line** (09 is the plainest: the pale radial bands between its
+  channels, iori's "brightest lines beside the darkest pixels", have a sparse green guide at most).
+- **Plateau strands are fragments**: 26's periphery reads as a reticulated net of short green arcs where the photo shows radial
+  streaks; 35's fine radial striations (the whole plateau is made of them) are mostly missed, and its guides wander out past the
+  visible iris into the dark periphery.
+- **The rule's bridges sit on crypt floors** (yellow inside the outlines on every eye) — iori's correction of 2026-09-27, seen.
+- **Free ends are many** (26: 378 of 1 792 fibre ends; 09: 507) — the crossings cut every strand.
+
 **The 2-D detector (P1–P4).** Why the current one cannot be perfect: detection is gated by the hole mask (deck only at
 sd > 1 px, guides at sd < −6) so crypt edges and septa — where iori's bridges are — are traced by nobody; the ridge ladder
 tops out at σ 4.5 px ≈ 13 µm (FWHM ≈ 30 µm) where bridges are 35–80 µm; the Hessian breaks at every crossing, so every strand

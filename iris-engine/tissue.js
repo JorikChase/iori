@@ -452,7 +452,8 @@
           if (A && A.perPixel) { const a = A.amp, v = A.octVar; gl.uniform4f(u_('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform4f(u_('u_ablOctVar'), v[0], v[1], v[2], v[3]);
               gl.uniform1f(u_('u_ablExp'), A.exp); gl.uniform1f(u_('u_ablGain'), A.gain === undefined ? 1 : A.gain); gl.uniform1f(u_('u_ablYref'), T.cells ? ablYref() : 0.2); } }
         { const vmax = T.dataV1 !== undefined ? T.dataV1 : T.rect[1] + T.rect[3], on = T.edgeMask && !T.greyBake && vmax < 0.999;   // the DATA's edge, not the padded region's   // (the calibration's grey renders keep the old mask: the shipped measurements do not move)
-          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeOn'), on ? 1 : 0); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV0'), vmax - T.edgeInV - T.edgeWV); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV1'), vmax - T.edgeInV); }
+          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeOn'), on ? 1 : 0); const wv = E.state.dof ? T.edgeWV : T.edgeWVSharp;   // photo softness (Camera ▸ SOFTNESS) widens the mask's feather
+          gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV0'), vmax - T.edgeInV - wv); gl.uniform1f(gl.getUniformLocation(prog, 'u_edgeV1'), vmax - T.edgeInV); }
         gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && ((T.slabCurves > 0 && T.slabs() > 0) || T.layered)) ? 1 : 0);   // §5.4: in the layered mode the slab is the ABL shell
         const Wn = T.win;                                   // T2a: the finer window, if one is baked
         gl.activeTexture(gl.TEXTURE17); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.albedo) || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisW'), 17);
@@ -677,7 +678,7 @@
     // 09 86.88 → 87.43, 25 90.14 → 90.48, 35 86.28 → 88.37, cellΔab down on all four. No rim at all scores higher still on 26 (90.07) but
     // loses the lip iori asked to keep sharp.
     T.rimK = 0.2;
-    T.edgeMask = true; T.edgeInV = 0.01; T.edgeWV = 0.025;   // the tissue region's edge: white from 0.01 inside it, over 0.025 in v (≈ 35 and 90 µm)
+    T.edgeMask = true; T.edgeInV = 0.01; T.edgeWV = 0.025; T.edgeWVSharp = 0.004;   // the tissue region's edge: white from 0.01 inside it, over 0.025 in v (≈ 35 and 90 µm)
     T.payBlur = 2.5;                               // the compose's 3×3 blur of a strand's colour, in texels (2.5: as fitted; 0: the payload as traced)
     T.layered = false; T.restMm = 0.004; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0; T.drape = 1.8; T.dipMm = 0.03;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one

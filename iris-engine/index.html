@@ -659,7 +659,7 @@
                 <button class="action-btn" id="debug-btn">GRID</button>
                 <button class="action-btn active" id="refr-btn">REFRACT</button>
                 <button class="action-btn" id="spec-btn">CORNEA REFL</button>
-                <button class="action-btn" id="dof-btn">DOF</button>
+                <button class="action-btn" id="dof-btn" title="Photo softness: depth of field and the soft limbus edge (off: sharp when zoomed)">SOFTNESS</button>
                 <button class="action-btn" id="anim2-btn">HIPPUS</button>
             </div>
             <div class="action-row" style="margin-bottom:6px">
@@ -1344,6 +1344,7 @@
         uniform float u_refract;     // 1 = physical indices, 0 = n = 1 everywhere (test)
         uniform float u_specular;    // 1 = corneal reflection of the studio, 0 = none (isolated photos carry no catchlight)
         uniform float u_edgeFade;    // 1 = the last 4.5 % of the limbus blends into the page (presentation), 0 = opaque to the edge (fit / comparison)
+        uniform float u_edgeFadeW;   // how much of the limbus radius the blend takes: 0.045 with photo softness (Camera ▸ SOFTNESS), 0.006 without (iori, 2026-09-28)
         uniform float u_marchSteps;  // quality: parallax march steps (10 = normal)
         uniform float u_shadowSteps; // quality: self-shadow march steps (7 = normal)
 
@@ -1892,7 +1893,7 @@
             // peripheral pigment plus the grazing-angle Fresnel loss above
             float milky = smoothstep(0.90, 1.0, ln);
             col = mix(col, mix(col, vec3(0.75, 0.72, 0.70), 0.5), milky * u_limbalMilk);
-            float edge = smoothstep(0.955, 1.0, ln) * u_edgeFade;
+            float edge = smoothstep(1.0 - u_edgeFadeW, 1.0, ln) * u_edgeFade;
             if (u_debug > 0.5 && !maskView && !mapView) {
                 float ring = 1.0 - smoothstep(0.0, 0.01, abs(ln - 1.0));
                 col = mix(col, vec3(1.0, 0.6, 0.0), ring);
@@ -2902,7 +2903,7 @@
         document.getElementById('debug-btn').onclick = (e) => { state.debug = 1 - state.debug; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('refr-btn').onclick = (e) => { state.refract = 1 - state.refract; e.target.classList.toggle('active'); resetAccumulation(); };
         document.getElementById('spec-btn').onclick = (e) => { state.specular = 1 - state.specular; e.target.classList.toggle('active', !!state.specular); resetAccumulation(); };
-        document.getElementById('dof-btn').onclick = (e) => { state.dof = state.dof ? 0 : 1; e.target.classList.toggle('active', !!state.dof); resetAccumulation(); };   // off by default: the f-stop stays, the blur only when asked
+        document.getElementById('dof-btn').onclick = (e) => { state.dof = state.dof ? 0 : 1; e.target.classList.toggle('active', !!state.dof); if (window.IrisTissue) window.IrisTissue.dirty = true; resetAccumulation(); };   // PHOTO SOFTNESS (iori, 2026-09-28): depth of field + the soft limbus edge + the layer model's soft mask; off by default — zooming stays sharp
         // camera: FREE = the eye turns toward the cursor (u_useRot 0), FIXED = locked to state.camRot.
         // solvePose() locks it and only closing the fit panel used to unlock it, so the eye would stop
         // tracking with no way back; this is that way back. Switching to FREE seeds the cursor position
@@ -3019,7 +3020,7 @@
             u1f(prog, 'u_debug', opts.debug !== undefined ? opts.debug : state.debug);
             u1f(prog, 'u_refract', state.refract);
             u1f(prog, 'u_specular', opts.specular !== undefined ? opts.specular : state.specular);
-            u1f(prog, 'u_edgeFade', opts.edgeFade !== undefined ? opts.edgeFade : 1.0);
+            u1f(prog, 'u_edgeFade', opts.edgeFade !== undefined ? opts.edgeFade : 1.0); u1f(prog, 'u_edgeFadeW', state.dof ? 0.045 : 0.006);
             u1f(prog, 'u_marchSteps', Q.marchSteps); u1f(prog, 'u_shadowSteps', Q.shadowSteps);
             { const po = opts.pupilOff || state.pupilOff || [0.25, 0.15]; u2f(prog, 'u_pupilOff', po[0], po[1]); }
             { const lb = opts.limb || state.limb || [5.85, 5.40, 0]; gl.uniform3f(loc(prog, 'u_limb'), lb[0], lb[1], lb[2] || 0); }

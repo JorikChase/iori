@@ -1,0 +1,53 @@
+{
+ "ridge-real": {
+  "curves": 125,
+  "length_mm": 26.0
+ },
+ "ridge-null": {
+  "curves": 17,
+  "length_mm": 2.299999952316284
+ },
+ "ridge-threshold": {
+  "hi": 1.8454263556003543,
+  "kept_frac_of_nms": 0.005,
+  "null_over_real_px": 0.083
+ },
+ "valley-real": {
+  "curves": 230,
+  "length_mm": 53.599998474121094
+ },
+ "valley-null": {
+  "curves": 34,
+  "length_mm": 6.400000095367432
+ },
+ "valley-threshold": {
+  "hi": 1.1802389693260198,
+  "kept_frac_of_nms": 0.01,
+  "null_over_real_px": 0.084
+ },
+ "rebuild_corr": {
+  "today (guides + streaks + veins)": 0.572,
+  "new (ridges + valleys)": 0.323,
+  "null (grain baseline)": 0.131
+ },
+ "params": {
+  "NULL_FRAC": 0.1,
+  "SCALES_px": [
+   1.2,
+   1.8,
+   2.7,
+   4.0
+  ],
+  "SIG_ALONG_px": 3.0,
+  "SIG_FLOW_px": 12.0,
+  "SIG_GRAD_px": 3.0,
+  "RADIAL": 0.5,
+  "MIN_LEN_MM": 0.05,
+  "UM": 4.6636287788801045
+ },
+ "today": {
+  "guides": 1552,
+  "sfib": 620,
+  "svein": 635
+ }
+}

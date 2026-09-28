@@ -899,6 +899,36 @@ The photo's finest band includes sensor noise (visible grain), so not all of 4.5
 region belongs in the gate. Images: `study/proof-layers/crisp-26-zoom3.jpg` (photo · exact · viewport · viewport with
 defocus) and `crisp-26-trace-res.jpg` (the photo at 3840, as traced at 1280, the render, as scored at 640).
 
+**L1 step 1, the sheet tracing on eye 26 (iori, 2026-09-28) — what the sheet's missing crispness is.** `layer_proof.py
+--dump-sheet FILE --dump-exit` writes the sheet's inputs (4¾ min); `tools/sheet_trace.py FILE` traces in 17 s. The tracer:
+a flow field (structure tensor of the local contrast, gradient σ 3 px, integration 12 px, plus a radial prior at half the local
+strength — the data's own coherence is 0.03 at σ 1 px, 0.18 at σ 3), smoothing along the flow only (σ 14 µm), ridges and
+valleys across it at 6–19 µm, and a NULL tracer with the flow turned 90° whose finds set the threshold (≤ 10 % of the real
+tracer's). Result: the null matches the real tracer at every threshold but the top 1 % — 125 ridges and 230 valleys pass,
+and they rebuild the sheet's fine band (σ 1 → 6 px, correlation with the photo) at 0.32 against today's guides + streaks at
+0.57 and the null at 0.13. Detection sheet: `study/proof-layers/sheet/sheet-26-detect.jpg`.
+
+Why, measured directly — the share of a band's energy that has a direction (across the flow minus along, over the sum):
+
+| band | sheet | crypt floors |
+|---|---|---|
+| 3–9 µm | **0.01** | 0.11 |
+| 7–19 µm | 0.10 | 0.40 |
+| 14–37 µm | 0.43 | 0.67 |
+
+**The sheet's finest contrast has no direction: it is speckle, not strands.** Strands show on the sheet from ≈ 15 µm up — the
+scale today's guides and streaks already hold. The crypts do carry fine directional strands, and the deck tracer takes them.
+So tracing more of the sheet does not bring back what iori sees missing. What the speckle IS: its strength grows with the
+sheet's brightness as brightness^0.79 (crypts ^1.18) — between shot noise (0.5; also ≈ 0.55 for noise added after the gamma)
+and a texture of constant relative contrast (1.0). A mix of sensor grain and the anterior border layer's own granularity
+(melanocytes and fibroblast clusters, 10–20 µm, study/01), which one photograph cannot split cleanly.
+
+Options for iori: (a) the ABL shell carries a measured stochastic micro-texture — per eye, the photo's isotropic fine-band
+spectrum and its brightness dependence, as a seeded field (statistics, not the photo's pixels); (b) it is camera grain —
+match the post's grain to the photo's instead, over the whole frame, crypts included; (c) both, split by the measured
+exponent. Recommended: (a), since the exponent sits nearer texture than noise and the ABL is granular in anatomy.
+The new tracer is kept as a tool; it does not replace today's sheet curves (they rebuild the ≥ 15 µm scale better).
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

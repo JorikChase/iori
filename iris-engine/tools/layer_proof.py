@@ -525,6 +525,11 @@ def main():
     n_raw = (len(sfp), len(svp)); sfp = [q for q in sfp if tissue_like(q)]; svp = [q for q in svp if tissue_like(q)]
     print(f'sheet fine curves kept {len(sfp)}/{n_raw[0]} fibres, {len(svp)}/{n_raw[1]} veins (the rest reads as grain)')
     sfib = [payload_curve(p, step, fine, sfS * 1.3) for p in sfp]; svein = [payload_curve(p, step, fine, svS * 1.2) for p in svp]
+    if '--dump-sheet' in sys.argv:                                            # study/11 §5.4 L1: everything the sheet tracer reads (tools/sheet_trace.py)
+        import pickle; pickle.dump({'photo': photo, 'pY': pY, 'plab': plab, 'sd': sd, 'inner': inner, 'near': near, 'iris': iris, 'UM': UM, 'PC': PC, 'step': step,
+                                    'gpaths': gpaths, 'sfp': sfp, 'svp': svp, 'fpaths': fpaths, 'outlines': outlines, 'REF': REF},
+                                   open(sys.argv[sys.argv.index('--dump-sheet') + 1], 'wb'), protocol=4)
+        if '--dump-exit' in sys.argv: print('sheet inputs dumped; --dump-exit'); return
     # ---- 2b. Z1 (§32): the deck's weave — tube radius from the traced width, height from the crossing order
     fib_r = [np.maximum(c['w'] * FIB_R_K, 0.6) for c in fibres]                     # px; the traced ridge width is the measurement
     fib_z, fib_zc, weave, clr, abv = weave_heights(fibres, fib_r, Z_MAX_MM * 1000.0 / UM, step_px=step)

@@ -1,0 +1,91 @@
+{
+ "ref": "26",
+ "var": 0.114,
+ "std28um": 0.1265,
+ "bands": [
+  {
+   "band_um": [
+    4.7,
+    9.3
+   ],
+   "rms": 0.126,
+   "isotropic_share": 0.99,
+   "iso_rms": 0.1254,
+   "exp": 0.79,
+   "fit_rms": 0.1251
+  },
+  {
+   "band_um": [
+    9.3,
+    18.6
+   ],
+   "rms": 0.0936,
+   "isotropic_share": 0.856,
+   "iso_rms": 0.0866,
+   "exp": 0.88,
+   "fit_rms": 0.0894
+  },
+  {
+   "band_um": [
+    18.6,
+    37.3
+   ],
+   "rms": 0.0881,
+   "isotropic_share": 0.494,
+   "iso_rms": 0.062,
+   "exp": 0.85,
+   "fit_rms": 0.0326
+  },
+  {
+   "band_um": [
+    37.3,
+    74.6
+   ],
+   "rms": 0.0722,
+   "isotropic_share": 0.459,
+   "iso_rms": 0.0489,
+   "exp": 0.65,
+   "fit_rms": 0.0061
+  }
+ ],
+ "octUm": [
+  6.0,
+  12.0,
+  24.0,
+  48.0
+ ],
+ "octRot": [
+  0.0,
+  0.61,
+  1.23,
+  1.87
+ ],
+ "octOff": [
+  [
+   3.1,
+   7.7
+  ],
+  [
+   11.3,
+   2.9
+  ],
+  [
+   5.3,
+   13.1
+  ],
+  [
+   17.9,
+   8.3
+  ]
+ ],
+ "amp": [
+  0.0,
+  1.3167,
+  0.9815,
+  0.0
+ ],
+ "exp": 0.81,
+ "gain": 0.8,
+ "yrefPhotoLin": 0.1357,
+ "note": "relative contrast of the photo-space linear luminance; the engine applies it to the ABL albedo, scaled by gain"
+}

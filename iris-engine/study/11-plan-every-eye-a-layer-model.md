@@ -929,6 +929,36 @@ match the post's grain to the photo's instead, over the whole frame, crypts incl
 exponent. Recommended: (a), since the exponent sits nearer texture than noise and the ABL is granular in anatomy.
 The new tracer is kept as a tool; it does not replace today's sheet curves (they rebuild the ≥ 15 µm scale better).
 
+**Option (a) built (iori, 2026-09-28: "go with (a), texture on the front layer").** `tools/abl_texture.py FILE` (4 s, from
+the sheet dump) measures, on the photo's sheet at native resolution, the local contrast in four bands (5–9, 9–19, 19–37,
+37–75 µm), each band's isotropic share (99 · 86 · 49 · 46 %) and how its strength scales with brightness (^0.79–0.88), and
+fits the compose shader's own value noise — ported bit for bit — to the isotropic band energies. It writes
+`study/proof-layers/sheet/abltex-NN.json`; `IrisTissue.ablTex` takes it (and an eye's file may carry `ablTex`, loaded
+with it; none does yet). In the compose the texture REPLACES the fixed sheet grain, as a lognormal factor (the photo's
+speckle is skewed to glints: 0.24× to 2.3× of its neighbourhood, p1 to p99), scaled by the sheet's brightness relative to
+its median as measured. It is albedo only, so the calibration's flat-grey renders — and the shipped measurements — do not
+see it. Without a spec the picture is identical to the last digit; contract `[]`.
+
+Three rounds to get there, eye 26, each through the review path (whole-eye MATCH2 · strandCorr; sheet at 3×, % of photo):
+
+| texture | whole eye | sheet 3 · 7 · 17 px |
+|---|---|---|
+| none (today) | 84.77 · 0.410 | 29 · 46 · 65 % |
+| four octaves of plain value noise, gain 1 | 82.53 · 0.345 | 120 · 123 · 114 % |
+| the same, gain 0.8 | 83.29 · 0.365 | 99 · 102 · 100 % |
+| **12 + 24 µm octaves, each HIGH-PASSED, gain 0.8** | **84.29 · 0.366** | **100 · 98 · 95 %** |
+
+Value noise is white at long wavelengths (every cell an independent value), so a 28 µm pixel — the scored scale — kept
+variance the photo's speckle does not have; subtracting each octave's four one-cell neighbours removes it and halves the
+MATCH2 cost. The free fit put its energy in a 6 µm octave (finer than the bake's 5.7 µm texel) or a 48 µm one (visible at
+the scored scale, where the cells and guides already hold that band's structure): the fit is held to 12 and 24 µm.
+cellΔab 2.52 → 2.50. The highlights come back (L* p99 76.5 → 79.2, photo 78.1); the midtone lift stays (median 47.0,
+photo 43.9) — a calibration question of its own. strandCorr falls 0.044: a random texture adds fine energy the photo's
+grains do not line up with — the price of statistics instead of pixels, which (a) chose. Image:
+`study/proof-layers/abltex-26-zoom3.jpg` (photo · today · the texture, at hole 26 and near the limbus).
+Publishing: add `ablTex` to the eye's file (no measurement re-export needed — albedo only); per eye, the fitter's dump + this
+tool (≈ 5 min).
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

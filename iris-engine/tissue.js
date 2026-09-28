@@ -78,12 +78,14 @@
         in vec2 v_c;
         uniform sampler2D u_fibA, u_fibB, u_veinA, u_veinB, u_guideA, u_guideB, u_sfA, u_sfB, u_svA, u_svB, u_flA, u_flB, u_outB, u_cellS, u_cellG, u_pack;   // §5.2.3: fill and the rim strength ride in u_pack (.b, .a) — compose is at the sampler limit — and the FLOATING pass (u_flA / u_flB) takes their units
         uniform vec4 u_rect; uniform vec2 u_size; uniform vec3 u_rimRGB; uniform float u_grey;
-        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix, u_drape, u_dipMm, u_payBlur;
+        uniform float u_wall, u_rimW, u_rimOff, u_pit0, u_pit1, u_depth, u_deckZ, u_deckH, u_fibRK, u_delight, u_wallZ, u_sheetZ, u_srelAmt, u_fibNoise, u_slabOn, u_layered, u_ablMm, u_under0, u_under1, u_lipMm, u_edgeMix, u_drape, u_dipMm, u_payBlur, u_ablOn, u_ablExp, u_ablYref, u_ablGain, u_ablVar; uniform vec4 u_ablAmp;
         layout(location = 0) out vec4 o_alb; layout(location = 1) out vec4 o_aux; layout(location = 2) out vec4 o_slab; layout(location = 3) out vec4 o_slabAlb;
         const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
         float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
         float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
         float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+        float vhp(vec2 mm, float cell, float rot, vec2 off) { vec2 q = mat2(cos(rot), sin(rot), -sin(rot), cos(rot)) * mm / cell + off;
+            return vnoise(q) - 0.25 * (vnoise(q + vec2(1, 0)) + vnoise(q - vec2(1, 0)) + vnoise(q + vec2(0, 1)) + vnoise(q - vec2(0, 1))); }
         void main() {
             vec2 c = v_c, px = 1.0 / u_size;
             vec4 cs = texture(u_cellS, c), cg = texture(u_cellG, c);
@@ -133,6 +135,18 @@
             float sY = dot(cs.rgb, LUMA);
             vec3 sheetC = (cs.rgb / max(sY, 1e-5) * (1.0 - gmix) + gA.rgb / max(dot(gA.rgb, LUMA), 1e-5) * gmix) * sY;
             float grain = 1.0 + 0.055 * 3.4 * (0.5 * vnoise(mm / 0.008) + 0.5 * vnoise(mm / 0.017 + 7.3) - 0.5);
+            // study/11 §5.5 (a) (iori, 2026-09-28): the ABL's granular micro-texture, MEASURED per eye (tools/abl_texture.py) — four
+            // rotated octaves of the same value noise whose amplitudes reproduce the photo's isotropic band energies on the sheet, as a
+            // lognormal factor (the photo's speckle is skewed to bright glints: 0.24× to 2.3× of its neighbourhood, p1 to p99), its
+            // strength scaling with the sheet's brightness as measured. It REPLACES the fixed grain; without a spec nothing changes.
+            if (u_ablOn > 0.5) {
+                // each octave HIGH-PASSED (the value noise minus its four one-cell neighbours' mean): value noise is white at long
+                // wavelengths, and a 28 µm pixel kept that variance — the photo's speckle averages away (tools/abl_texture.py octave())
+                float t = u_ablAmp.x * vhp(mm, 0.006, 0.0, vec2(3.1, 7.7)) + u_ablAmp.y * vhp(mm, 0.012, 0.61, vec2(11.3, 2.9))
+                        + u_ablAmp.z * vhp(mm, 0.024, 1.23, vec2(5.3, 13.1)) + u_ablAmp.w * vhp(mm, 0.048, 1.87, vec2(17.9, 8.3));
+                float k = u_ablGain * pow(clamp(sY / max(u_ablYref, 1e-4), 0.2, 5.0), u_ablExp - 1.0);
+                grain = exp(k * t) / exp(0.5 * k * k * u_ablVar);
+            }
             vec3 sheet = mix(sheetC, u_rimRGB, rim) * mod_ * grain;
             vec3 lin = mix(hole, sheet, cover);
             // Z3b (§32): de-light by MEASUREMENT. calibrate() measures the light on a flat region and keeps only its
@@ -499,6 +513,7 @@
         for (const k of ['outlines', 'fibres', 'veins', 'guides', 'sfib', 'svein']) sets[k] = json[k].map(c => { const uv = conv(c.xy); for (const p of uv) { tot++; if (!p) { lost++; continue; } u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); } return Object.assign({}, c, { uv }); });
         T.full = u1 - u0 > 0.5;                                          // the whole iris: the region is the full circle, u wraps
         T.parents = []; T.fields = null;                                // §5.2.2 / §5.1: a load starts from the measured primitives alone
+        if ('ablTex' in json) T.ablTex = json.ablTex; else if (!T.ablTexPinned) T.ablTex = null;   // §5.5 (a): the eye's own ABL texture, if its file carries one (T.ablTexPinned keeps a hand-set spec across loads, for studies)
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };
         for (const p of cells.uv) if (p) { u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); }
         const padV = 0.3 / 4, padU = 0.3 / (6.2831853 * (2 + 4 * 0.5 * (v0 + v1)));
@@ -642,6 +657,13 @@
     // the crypt floor's drop below the deck (mm): the fitter's constant (0.01) unless T.depthMm says otherwise (§5.4 L0: the
     // anatomy puts a crypt's floor 120–370 µm below the surface, the fitted model ≈ 110 µm with its deck)
     T.depthMm = null; const cryptDepth = () => T.depthMm == null ? T.src.mm.depth : T.depthMm;
+    // §5.5 (a): the ABL texture's spec (tools/abl_texture.py → abltex-NN.json): octave amplitudes, the brightness exponent, a gain; null = off
+    T.ablTex = null;
+    function ablYref() {                          // the median albedo luminance of the sheet's cells: the brightness the exponent is relative to
+        if (T._ablYref && T._ablYref.irr === T.irr) return T._ablYref.v;
+        const Y = []; T.cells.uv.forEach((p, i) => { if (!p) return; const a = toAlbedo(T.cells.sheet[i], T.cells.xy[i][0], T.cells.xy[i][1]); Y.push(0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2]); });
+        Y.sort((a, b) => a - b); const v = Y.length ? Y[Y.length >> 1] : 0.2; T._ablYref = { irr: T.irr, v }; return v;
+    }
     function deckThickness() {
         if (T.deckH !== undefined) return T.deckH;
         const rK = (T.src.z || {}).rK || RK_DEFAULT, top = [];
@@ -773,7 +795,9 @@
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
-        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_payBlur'), T.payBlur); gl.uniform1f(c.loc('u_drape'), T.drape); gl.uniform1f(c.loc('u_dipMm'), T.dipMm);   // §5.4 L0
+        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_payBlur'), T.payBlur); { const A = T.ablTex; gl.uniform1f(c.loc('u_ablOn'), A ? 1 : 0);   // §5.5 (a) the ABL texture
+            if (A) { const a = A.amp; gl.uniform4f(c.loc('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform1f(c.loc('u_ablExp'), A.exp); gl.uniform1f(c.loc('u_ablGain'), A.gain === undefined ? 1 : A.gain);
+                gl.uniform1f(c.loc('u_ablVar'), A.var === undefined ? 0.121 : A.var); gl.uniform1f(c.loc('u_ablYref'), ablYref()); } } gl.uniform1f(c.loc('u_drape'), T.drape); gl.uniform1f(c.loc('u_dipMm'), T.dipMm);   // §5.4 L0
         gl.uniform1f(c.loc('u_srelAmt'), (T.srel && !grey) ? (T.srelAmt === undefined ? 1 : T.srelAmt) : 0);
         gl.uniform1f(c.loc('u_fibNoise'), grey ? 0 : (T.fibNoise || 0));      // §5.2.2 the per-texel term; never in a calibration render
         // the engine's fullscreen quad lives on attribute 0 of the default vertex array

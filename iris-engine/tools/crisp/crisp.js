@@ -45,9 +45,9 @@
     X.regions = (list = X.last) => {
         const W = F.fit.W, H = F.fit.H, Ls = list.map(([, px]) => { const L = new Float32Array(W * H); for (let k = 0; k < W * H; k++) L[k] = lab(px, k * 4)[0]; return L; });
         const r = 10, mean = new Float32Array(W * H); for (let y = r; y < H - r; y++) for (let x = r; x < W - r; x++) { let s = 0; for (let j = -r; j <= r; j += 2) for (let i = -r; i <= r; i += 2) s += Ls[0][(y + j) * W + x + i]; mean[y * W + x] = s / 121; }
-        const band = (L, rr, sel) => { const v = []; for (let y = 30; y < H - 30; y += 3) for (let x = 30; x < W - 30; x += 3) { const k = y * W + x; if (!sel(mean[k]) || Ls[0][k] < 2 || Ls[1][k] > 98 || Ls[1][k] < 1) continue; let s1 = 0, s2 = 0, n = 0; for (let j = -rr; j <= rr; j++) for (let i = -rr; i <= rr; i++) { const q = L[(y + j) * W + x + i]; s1 += q; s2 += q * q; n++; } v.push(Math.sqrt(Math.max(0, s2 / n - (s1 / n) ** 2))); } v.sort((a, b) => a - b); return v[v.length >> 1]; };
+        const band = (L, rr, sel) => { const v = []; for (let y = 30; y < H - 30; y += 3) for (let x = 30; x < W - 30; x += 3) { const k = y * W + x; if (!sel(mean[k]) || Ls[0][k] < 2 || Ls[1][k] > 98 || Ls[1][k] < 1) continue; let s1 = 0, s2 = 0, n = 0; for (let j = -rr; j <= rr; j++) for (let i = -rr; i <= rr; i++) { const q = L[(y + j) * W + x + i]; s1 += q; s2 += q * q; n++; } v.push(Math.sqrt(Math.max(0, s2 / n - (s1 / n) ** 2))); } v.sort((a, b) => a - b); return v.length >= 30 ? v[v.length >> 1] : NaN; };   // a class with too few pixels at this site: no number (eye() skips it)
         const out = {}; for (const [rn, sel] of [['crypt', m => m > 5 && m < 35], ['sheet', m => m > 50]]) { out[rn] = {}; const p = [1, 3, 8].map(rr => band(Ls[0], rr, sel));
-            list.forEach(([name], n) => { if (!n) { out[rn][name] = p.map(v => +v.toFixed(2)); return; } out[rn][name] = [1, 3, 8].map((rr, i) => Math.round(100 * band(Ls[n], rr, sel) / p[i]) + ' %'); }); }
+            list.forEach(([name], n) => { if (!n) { out[rn][name] = p.map(v => isFinite(v) ? +v.toFixed(2) : NaN); return; } out[rn][name] = [1, 3, 8].map((rr, i) => Math.round(100 * band(Ls[n], rr, sel) / p[i]) + ' %'); }); }
         return out;
     };
     // any eye: sites half-way across the iris at five angles, in fit pixels (the limbus and pupil of the loaded case)

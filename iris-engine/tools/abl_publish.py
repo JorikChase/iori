@@ -7,8 +7,9 @@ import json, os, sys
 ENG = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for ref in sys.argv[1:]:
     spec = json.load(open(os.path.join(ENG, 'study/proof-layers/sheet', f'abltex-{ref}.json')))
-    keep = {k: spec[k] for k in ('amp', 'exp', 'gain', 'var')}; keep['src'] = 'tools/abl_texture.py, study/11 §5.5 (a)'
+    keep = {k: spec[k] for k in ('amp', 'exp', 'gain', 'var', 'octVar', 'perPixel') if k in spec}; keep['src'] = 'tools/abl_texture.py, study/11 §5.5 (a)'
     p = os.path.join(ENG, 'data', f'tissue-{ref}.json'); s = open(p).read().rstrip()
-    if '"ablTex"' in s: print(ref, 'already carries ablTex — left alone'); continue
+    if '"ablTex"' in s:                                   # replace the spec this script appended earlier (always the file's last field)
+        i = s.rindex(', "ablTex": '); assert s.endswith('}}'), 'ablTex is not the last field'; s = s[:i] + '}'
     assert s.endswith('}')
     s = s[:-1] + ', "ablTex": ' + json.dumps(keep) + '}\n'; json.loads(s); open(p, 'w').write(s); print(ref, keep)

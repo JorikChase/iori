@@ -300,6 +300,22 @@
         uniform float u_tisReliefK, u_oRingStr, u_oRingR, u_oRingPheo, u_oStromaMax, u_tisK1;
         bool tisIn(vec4 R, vec2 uv, out vec2 c) { c = (vec2(fract(uv.x), uv.y) - R.xy) / R.zw; return c.x > 0.0 && c.x < 1.0 && c.y > 0.0 && c.y < 1.0; }
         vec4 tissueAt(sampler2D s, vec2 uv, float lod) { vec2 c; if (!tisIn(u_tissueRect, uv, c)) return vec4(0.0); return textureLod(s, c, max(0.0, lod + u_tissueLod)); }
+        // study/11 §5.5 (a), per pixel (2026-09-28): the ABL's measured micro-texture, evaluated here rather than in the bake, so no texel
+        // limits it. The same noise as tools/abl_texture.py (compose's hash / value noise, high-passed octaves, rotated, offset); each octave
+        // fades with the pixel's footprint (full to 0.75 of its cell, gone at 1.5), and the lognormal's normalisation uses the faded variance.
+        uniform float u_ablOn, u_ablExp, u_ablGain, u_ablYref, u_ablLayered; uniform vec4 u_ablAmp, u_ablOctVar;
+        float ablHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+        float ablVn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(ablHash(i), ablHash(i + vec2(1, 0)), f.x), mix(ablHash(i + vec2(0, 1)), ablHash(i + vec2(1, 1)), f.x), f.y); }
+        float ablHp(vec2 mm, float cell, float rot, vec2 off) { vec2 q = mat2(cos(rot), sin(rot), -sin(rot), cos(rot)) * mm / cell + off;
+            return ablVn(q) - 0.25 * (ablVn(q + vec2(1, 0)) + ablVn(q - vec2(1, 0)) + ablVn(q + vec2(0, 1)) + ablVn(q - vec2(0, 1))); }
+        float ablTexture(vec2 uv, float pxMm, float Y) {
+            vec2 mm = vec2(fract(uv.x), uv.y) * vec2(6.2831853 * (2.0 + 4.0 * uv.y), 4.0);
+            vec4 fd = vec4(1.0) - smoothstep(vec4(0.0045, 0.009, 0.018, 0.036), vec4(0.009, 0.018, 0.036, 0.072), vec4(pxMm));
+            vec4 a = u_ablAmp * fd;
+            float t = a.x * ablHp(mm, 0.006, 0.0, vec2(3.1, 7.7)) + a.y * ablHp(mm, 0.012, 0.61, vec2(11.3, 2.9)) + a.z * ablHp(mm, 0.024, 1.23, vec2(5.3, 13.1)) + a.w * ablHp(mm, 0.048, 1.87, vec2(17.9, 8.3));
+            float k = u_ablGain * pow(clamp(Y / max(u_ablYref, 1e-4), 0.2, 5.0), u_ablExp - 1.0);
+            return exp(k * t) / exp(0.5 * k * k * dot(a * a, u_ablOctVar));
+        }
         // T2a: inside the window the finer bake wins; everywhere else the base region answers, so the eye stays whole
         vec4 tisAlb(vec2 uv, float lod) { vec2 c; if (u_tisWOn > 0.5 && tisIn(u_tisWRect, uv, c)) return textureLod(u_tisW, c, max(0.0, lod + u_tisWLod)); return tissueAt(u_tissue, uv, lod); }
         vec4 tisAux(vec2 uv, float lod) { vec2 c; if (u_tisWOn > 0.5 && tisIn(u_tisWRect, uv, c)) return textureLod(u_tisWAux, c, max(0.0, lod + u_tisWLod)); return tissueAt(u_tissueAux, uv, lod); }
@@ -335,6 +351,7 @@
                     }`);
         need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
             if (g_slab > 0.5) { vec4 sa = tissueAt(u_slabAlb, uv, lod); if (sa.a > 0.5) tsA = vec4(sa.rgb, 1.0); }   // §5.2.3: on the slab, its own albedo
+            if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722))), cov); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
             float tisRidge0 = t1.a;                                                                // K1: the fitted strand coverage, before the line below zeroes it
             t0.r = mix(t0.r, tissueH(uv, lod) / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here (tissueH: the slab's top when the ray hit the slab):
             t1 = mix(t1, vec4(0.0), tsA.a); t3.r = mix(t3.r, 1.0, tsA.a);                          // no crypt / furrow / spot / strand-sheen / occlusion terms of the old model
@@ -405,6 +422,9 @@
         gl.uniform1f(gl.getUniformLocation(prog, 'u_tissueLod'), T.lodBias);
         gl.activeTexture(gl.TEXTURE19); gl.bindTexture(gl.TEXTURE_2D, T.slab || T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_slab'), 19);        // §5.2.3 the bridge layer
         gl.activeTexture(gl.TEXTURE20); gl.bindTexture(gl.TEXTURE_2D, T.slabAlb || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_slabAlb'), 20);
+        { const A = T.ablTex, u_ = n => gl.getUniformLocation(prog, n); gl.uniform1f(u_('u_ablOn'), A && A.perPixel && !T.greyBake ? 1 : 0); gl.uniform1f(u_('u_ablLayered'), T.layered ? 1 : 0);   // §5.5 (a) per pixel
+          if (A && A.perPixel) { const a = A.amp, v = A.octVar; gl.uniform4f(u_('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform4f(u_('u_ablOctVar'), v[0], v[1], v[2], v[3]);
+              gl.uniform1f(u_('u_ablExp'), A.exp); gl.uniform1f(u_('u_ablGain'), A.gain === undefined ? 1 : A.gain); gl.uniform1f(u_('u_ablYref'), T.cells ? ablYref() : 0.2); } }
         gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && ((T.slabCurves > 0 && T.slabs() > 0) || T.layered)) ? 1 : 0);   // §5.4: in the layered mode the slab is the ABL shell
         const Wn = T.win;                                   // T2a: the finer window, if one is baked
         gl.activeTexture(gl.TEXTURE17); gl.bindTexture(gl.TEXTURE_2D, (Wn && Wn.albedo) || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_tisW'), 17);
@@ -441,7 +461,8 @@
         } else { gl.uniform1f(u('u_marg0'), 0); gl.uniform2fv(u('u_marg'), new Float32Array(20)); }
         gl.uniform1f(u('u_margFade'), T.margFade === undefined ? 0.04 : T.margFade);
         gl.uniform1f(u('u_tisSheetZ'), T.sheetZ === undefined ? 1 : T.sheetZ);   // the sheet keeps the legacy relief   // ablation: K1 off = the v0.8 behaviour, the fit as fixed pixels
-        if (T.full) gl.uniform1f(gl.getUniformLocation(prog, 'u_limbalMilk'), 0.0);   // the old fit's milky limbus answered a rim this model draws itself gl.activeTexture(gl.TEXTURE0);
+        if (T.full) gl.uniform1f(gl.getUniformLocation(prog, 'u_limbalMilk'), 0.0);   // the old fit's milky limbus answered a rim this model draws itself
+        gl.activeTexture(gl.TEXTURE0);                    // 2026-09-28: this call sat inside the comment above since 2026-09-20 (P2) — the active unit was left wherever bind() last put it
     };
 
     // ---------------------------------------------------------------- photo space → albedo
@@ -513,7 +534,7 @@
         for (const k of ['outlines', 'fibres', 'veins', 'guides', 'sfib', 'svein']) sets[k] = json[k].map(c => { const uv = conv(c.xy); for (const p of uv) { tot++; if (!p) { lost++; continue; } u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); } return Object.assign({}, c, { uv }); });
         T.full = u1 - u0 > 0.5;                                          // the whole iris: the region is the full circle, u wraps
         T.parents = []; T.fields = null;                                // §5.2.2 / §5.1: a load starts from the measured primitives alone
-        if ('ablTex' in json) T.ablTex = json.ablTex; else if (!T.ablTexPinned) T.ablTex = null;   // §5.5 (a): the eye's own ABL texture, if its file carries one (T.ablTexPinned keeps a hand-set spec across loads, for studies)
+        if (T.ablTexOverride !== undefined) T.ablTex = T.ablTexOverride; else if ('ablTex' in json) T.ablTex = json.ablTex; else if (!T.ablTexPinned) T.ablTex = null;   // (ablTexOverride: a study's spec wins over the file's)   // §5.5 (a): the eye's own ABL texture, if its file carries one (T.ablTexPinned keeps a hand-set spec across loads, for studies)
         const cells = { xy: json.cells.xy, uv: conv(json.cells.xy), sheet: json.cells.sheet, ground: json.cells.ground };
         for (const p of cells.uv) if (p) { u0 = Math.min(u0, p[0]); u1 = Math.max(u1, p[0]); v0 = Math.min(v0, p[1]); v1 = Math.max(v1, p[1]); }
         const padV = 0.3 / 4, padU = 0.3 / (6.2831853 * (2 + 4 * 0.5 * (v0 + v1)));
@@ -675,6 +696,7 @@
     // ---------------------------------------------------------------- bake the region
     T.bake = function (opts = {}) {
         const pr = programs(), [w, h] = T.size, mm = T.src.mm, grey = opts.grey || 0;
+        T.greyBake = grey;                        // §5.5 (a): the photo shader's per-pixel texture stays off while a calibration renders flat grey
         const [AW0, AH0] = E.ATLAS;
         if (!T.origin || T.origin.atlas[0] !== AW0 || T.origin.atlas[1] !== AH0) T.setOrigin();   // outside any draw, where it is safe
         const alb = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], c.z ? c.z[i] : 0]; };   // .a = Z1: the tube's centre height above its floor, mm
@@ -725,7 +747,9 @@
             gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
             gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 0]); gl.clearBufferfv(gl.COLOR, 1, [R, 0, -1, 0]); gl.clearBufferfv(gl.DEPTH, 0, [1]);
             const g = buildSet(part[k] || T.sets[k], valueOf, closed, R); gl.uniform1f(pr.curve.loc('u_R'), R); T.segs = (T.segs || 0) + g.count / 6;
-            gl.uniform1f(pr.curve.loc('u_top'), k === 'floating' || (k === 'fibres' && T.layered && slabOn) ? 1 : 0);   // §5.4: in the layered base, too, the higher strand wins (no seam between neighbours) gl.uniform1f(pr.curve.loc('u_rK'), rKf);
+            // §5.4: in the layered base, too, the higher strand wins (no seam between neighbours). (2026-09-28: u_rK sat inside this comment since
+            // 7e82199 — the floating pass's highest-wins and the bottom pass ran with a tube radius of 0)
+            gl.uniform1f(pr.curve.loc('u_top'), k === 'floating' || (k === 'fibres' && T.layered && slabOn) ? 1 : 0); gl.uniform1f(pr.curve.loc('u_rK'), rKf);
             gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
             if (k === 'floating' && g.count) {   // §5.2.5: the slab's BOTTOM is the lowest of every tube over the texel (a braid's lower children), not the top one's
                 gl.disable(gl.DEPTH_TEST); gl.drawBuffers([gl.NONE, gl.COLOR_ATTACHMENT1]); gl.colorMask(false, false, true, false);
@@ -795,8 +819,9 @@
         gl.uniform1f(c.loc('u_delight'), T.delight === undefined ? 0 : T.delight);
         gl.uniform1f(c.loc('u_wallZ'), T.wallZ === undefined ? 2.5 * mm.wall : T.wallZ);
         gl.uniform1f(c.loc('u_sheetZ'), T.sheetZ === undefined ? 0.5 : T.sheetZ);
-        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_payBlur'), T.payBlur); { const A = T.ablTex; gl.uniform1f(c.loc('u_ablOn'), A ? 1 : 0);   // §5.5 (a) the ABL texture
-            if (A) { const a = A.amp; gl.uniform4f(c.loc('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform1f(c.loc('u_ablExp'), A.exp); gl.uniform1f(c.loc('u_ablGain'), A.gain === undefined ? 1 : A.gain);
+        gl.uniform1f(c.loc('u_layered'), T.layered ? 1 : 0); gl.uniform1f(c.loc('u_ablMm'), T.ablMm); gl.uniform1f(c.loc('u_under0'), T.underMm[0]); gl.uniform1f(c.loc('u_under1'), T.underMm[1]); gl.uniform1f(c.loc('u_lipMm'), T.lipMm); gl.uniform1f(c.loc('u_edgeMix'), T.edgeMix); gl.uniform1f(c.loc('u_payBlur'), T.payBlur); { const A = T.ablTex; gl.uniform1f(c.loc('u_ablOn'), A ? 1 : 0);   // §5.5 (a): with a spec the bake drops its fixed grain; a per-pixel spec is applied by the photo shader
+            // a per-pixel spec: the bake's factor is exp(0) = 1 (no grain) — the photo shader applies it
+            if (A) { const a = A.perPixel ? [0, 0, 0, 0] : A.amp; gl.uniform4f(c.loc('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform1f(c.loc('u_ablExp'), A.exp); gl.uniform1f(c.loc('u_ablGain'), A.gain === undefined ? 1 : A.gain);
                 gl.uniform1f(c.loc('u_ablVar'), A.var === undefined ? 0.121 : A.var); gl.uniform1f(c.loc('u_ablYref'), ablYref()); } } gl.uniform1f(c.loc('u_drape'), T.drape); gl.uniform1f(c.loc('u_dipMm'), T.dipMm);   // §5.4 L0
         gl.uniform1f(c.loc('u_srelAmt'), (T.srel && !grey) ? (T.srelAmt === undefined ? 1 : T.srelAmt) : 0);
         gl.uniform1f(c.loc('u_fibNoise'), grey ? 0 : (T.fibNoise || 0));      // §5.2.2 the per-texel term; never in a calibration render

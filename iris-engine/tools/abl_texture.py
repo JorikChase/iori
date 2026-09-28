@@ -23,7 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sheet_trace import flow_field
 
 BANDS_UM = [(4.7, 9.3), (9.3, 18.6), (18.6, 37.3), (37.3, 74.6)]
-FIT_OCT = [1, 2]                            # the octaves fitted: 12 and 24 µm. 6 µm cells are finer than the base bake's 5.7 µm texel (it would
+FIT_OCT = [0, 1, 2]                         # 6, 12 and 24 µm (study/11 §5.5, 2026-09-28: the texture is evaluated per PIXEL in the photo shader now,
+                                            # its octaves faded by the pixel footprint — the 6 µm octave the bake could not hold is back)
+FIT_OCT_BAKED = [1, 2]                            # the octaves fitted: 12 and 24 µm. 6 µm cells are finer than the base bake's 5.7 µm texel (it would
                                             # average them away unpredictably; the free fit put 3.15 there, a std of 0.69 > the photo's 0.42)
 FIT_N = 3                                   # bands / octaves the texture carries: up to 37 µm. The 37–75 µm band is half directional and its
                                             # structure sits where the cells and guides already put it; a random octave there cost the whole-eye score
@@ -86,19 +88,20 @@ def main():
         f = octave(k, xx, yy).astype(np.float32)
         for bi, (a, b) in enumerate(BANDS_UM): M[bi, k] = float(np.sqrt((band(f, a / UM, b / UM)[64:-64, 64:-64] ** 2).mean()))
     # energies add: target² = M² · amp²  (non-negative, by active set)
-    A2 = (M ** 2)[:FIT_N][:, FIT_OCT]; t2 = (np.array(target) ** 2)[:FIT_N]; act = list(range(len(FIT_OCT)))
-    while True:
-        x = np.zeros(len(FIT_OCT)); x[act] = np.linalg.lstsq(A2[:, act], t2, rcond=None)[0]
-        if (x >= 0).all() or not act: break
-        act = [i for i in act if x[i] > 0]
-    amp = np.zeros(len(OCT_UM)); amp[FIT_OCT] = np.sqrt(np.maximum(x, 0)); fit = np.sqrt((M ** 2) @ amp ** 2)
+    # each octave sized for ITS band (target over its own response there), then one common scale fitted over the bands: the free
+    # least squares is ill-conditioned (the octaves' responses overlap — it put 3.15 on one octave, a texture wider than the photo)
+    amp = np.zeros(len(OCT_UM)); T_ = np.array(target)
+    for bi, k in enumerate(FIT_OCT): amp[k] = T_[bi] / max(M[bi, k], 1e-9)
+    fit0 = np.sqrt((M ** 2) @ amp ** 2)[:FIT_N]; sc = float(np.sqrt(((T_[:FIT_N] ** 2) * (fit0 ** 2)).sum() / max(((fit0 ** 2) ** 2).sum(), 1e-12))); amp *= sc
+    fit = np.sqrt((M ** 2) @ amp ** 2)
     e_all = float(np.average([r['exp'] for r in rows], weights=np.array(target) ** 2))
     for bi, r in enumerate(rows): r['fit_rms'] = round(float(fit[bi]), 4)
     print('octave amplitudes', dict(zip(OCT_UM, amp.round(3))), '· fitted band rms', fit.round(4), 'target', np.round(target, 4), f'· exponent (energy-weighted) {e_all:.2f}')
-    tex = sum(a_ * octave(k, xx, yy) for k, a_ in enumerate(amp)); var = float(tex.var())
+    octs = [octave(k, xx, yy) for k in range(len(OCT_UM))]; octVar = [float(o.var()) for o in octs]
+    tex = sum(a_ * o for a_, o in zip(amp, octs)); var = float(tex.var())
     tex28 = cv2.resize(tex.astype(np.float32), None, fx=UM / 28.0, fy=UM / 28.0, interpolation=cv2.INTER_AREA)
     print(f'texture std {np.sqrt(var):.3f} · left after averaging into 28 µm pixels (the scored scale): std {tex28.std():.4f}')
-    out = {'ref': REF, 'var': round(var, 4), 'std28um': round(float(tex28.std()), 4), 'bands': rows, 'octUm': OCT_UM, 'octRot': OCT_ROT, 'octOff': OCT_OFF, 'amp': [round(float(a_), 4) for a_ in amp], 'exp': round(e_all, 2),
+    out = {'ref': REF, 'var': round(var, 4), 'octVar': [round(v, 5) for v in octVar], 'perPixel': True, 'std28um': round(float(tex28.std()), 4), 'bands': rows, 'octUm': OCT_UM, 'octRot': OCT_ROT, 'octOff': OCT_OFF, 'amp': [round(float(a_), 4) for a_ in amp], 'exp': round(e_all, 2),
            'gain': 0.8, 'yrefPhotoLin': round(Yref, 4), 'note': 'relative contrast of the photo-space linear luminance; the engine applies it to the ABL albedo, scaled by gain'}
     path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), f'abltex-{REF}.json'); json.dump(out, open(path, 'w'), indent=1); print('wrote', path)
 

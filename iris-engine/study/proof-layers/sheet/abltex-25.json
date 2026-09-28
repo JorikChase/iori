@@ -1,7 +1,14 @@
 {
  "ref": "25",
- "var": 0.111,
- "std28um": 0.1451,
+ "var": 0.2016,
+ "octVar": [
+  0.04223,
+  0.04222,
+  0.0423,
+  0.0423
+ ],
+ "perPixel": true,
+ "std28um": 0.1227,
  "bands": [
   {
    "band_um": [
@@ -12,7 +19,7 @@
    "isotropic_share": 0.981,
    "iso_rms": 0.1216,
    "exp": 0.28,
-   "fit_rms": 0.1212
+   "fit_rms": 0.1268
   },
   {
    "band_um": [
@@ -23,7 +30,7 @@
    "isotropic_share": 0.886,
    "iso_rms": 0.0978,
    "exp": 0.14,
-   "fit_rms": 0.1018
+   "fit_rms": 0.0864
   },
   {
    "band_um": [
@@ -34,7 +41,7 @@
    "isotropic_share": 0.705,
    "iso_rms": 0.0769,
    "exp": 0.09,
-   "fit_rms": 0.0389
+   "fit_rms": 0.0316
   },
   {
    "band_um": [
@@ -45,7 +52,7 @@
    "isotropic_share": 0.637,
    "iso_rms": 0.0517,
    "exp": 0.07,
-   "fit_rms": 0.0074
+   "fit_rms": 0.006
   }
  ],
  "octUm": [
@@ -79,14 +86,20 @@
   ]
  ],
  "amp": [
-  0.0,
-  1.0989,
-  1.1901,
-  0.0
+  0.412,
+  0.415,
+  0.35,
+  0
  ],
  "exp": 0.19,
- "gain": 0.635,
+ "gain": 1.0,
  "yrefPhotoLin": 0.1442,
  "note": "relative contrast of the photo-space linear luminance; the engine applies it to the ABL albedo, scaled by gain",
- "gainNote": "calibrated end to end: the sheet at 3x = 100 % of the photo (tools/crisp/crisp.js eye(), five sites)"
+ "ampFitted": [
+  1.5487,
+  1.211,
+  0.9535,
+  0.0
+ ],
+ "gainNote": "per-octave amplitudes calibrated end to end (tools/crisp/abl_calibrate.js): each octave against the band it dominates at 6x, the sheet at 5 sites; the 6 um octave trimmed to 100 % at the finest band"
 }

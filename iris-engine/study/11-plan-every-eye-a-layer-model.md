@@ -1037,6 +1037,35 @@ octaves faded by the pixel footprint, the 6 µm octave included; (2) measure edg
 render and sharpen the colour chain where the width is the chain's, not the tissue's; (3) the aberration in frame
 coordinates.
 
+**Fix 1 built (iori, 2026-09-28: "do all three in that order") — the ABL texture per PIXEL.** The texture moved from the
+compose into the photo shader: evaluated at every pixel on tissue millimetres (the same noise, ported), each octave fading
+with the pixel's footprint (`mmPerPx`; full to 0.75 of its cell, gone at 1.5), the lognormal normalised on the faded
+variance (`octVar` per octave from abl_texture.py), off while a calibration renders flat grey (`T.greyBake`). The 6 µm
+octave is back. Amplitudes per octave, calibrated end to end (`tools/crisp/abl_calibrate.js`: each octave against the band it
+dominates at 6×, in quadrature over the render without texture; the 6 µm octave trimmed to the finest band's 100 %; the
+coarse band left short on purpose — above ≈ 20 µm the sheet is partly directional). Each eye on fresh pages, review path:
+
+| eye | 6 · 12 · 24 µm | sheet at 6× | sheet at 3× | whole eye: no texture → per-pixel texture |
+|---|---|---|---|---|
+| 26 | .53 · .62 · .55 | 108 · 90 · 86 % | 93 · 88 · 87 % | 86.85 · 0.405 → **87.41 · 0.363** |
+| 09 | .36 · .42 · .38 | 105 · 90 · 87 % | 88 · 85 · 90 % | 86.94 · 0.486 → 86.88 · 0.458 |
+| 25 | .41 · .42 · .35 | 104 · 91 · 87 % | 89 · 86 · 86 % | 90.00 · 0.378 → **90.14** · 0.334 |
+| 35 | .92 · .64 · .54 | 102 · 92 · 88 % | 76 · 77 · 79 % | 85.73 · 0.379 → **86.28 · 0.378** |
+
+Against the baked texture (§ above) the whole-eye cost is gone — MATCH2 now RISES on three eyes — because octaves finer than a
+pixel no longer add variance there, and the close range carries the finest band it could not before (the baked one reached
+75 % of the photo at 6×). Published on all four (`abl_publish.py` replaces the spec; `perPixel`, `octVar` carried),
+measurements re-exported, arrival against measured 1 / 255 on each, contract `[]`. `T.ablTexOverride` lets a study's spec win
+over the file's.
+
+Three statements silenced by comments — the same trap as §5.5's first bug, found by reading a score that did not move:
+`u_ablExp` / `u_ablGain` in the compose's binding (mine, today: the old baked spec had gain 0 — caught before any export);
+`u_rK` in the curve pass since 7e82199 (mine: the layered mode's highest-wins and the bottom pass ran with a tube radius of 0,
+so the no-walls numbers were taken with them off); and `gl.activeTexture(gl.TEXTURE0)` at the end of `T.bind` since
+1410a78 (2026-09-20: the active unit was left where bind() put it). Fixing the last changes no shipped render (arrival hashes
+of 09 and 26 identical before and after) and is not the cause of the measured load's path dependence (eye 09 twice: 85.65
+then 85.45, before and after).
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

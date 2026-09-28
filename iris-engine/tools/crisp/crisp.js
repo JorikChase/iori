@@ -20,7 +20,7 @@
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return { t, f }; };
         const A = [mk(true), mk(true)], O = mk(false), ref = o.exact ? 1 : 0, frames = ref ? 1 : (o.frames || 64); let w = 0;
         for (let i = 0; i < frames; i++) { const r = i % 2; w = (i + 1) % 2; E.drawPhotoFrame(A[w].f, W, H, i, A[r].t, { ref, rot: S.camRot, zoom: S.zoomPhoto, view: V, specular: F.fit.isolated ? 0 : 1, edgeFade: 0, time: 0 }); }
-        E.drawPost(O.f, A[w].t, W, H, frames - 1, ref ? { ref: 1 } : {});
+        E.drawPost(O.f, A[w].t, W, H, frames - 1, ref ? { ref: 1, view: V } : { view: V });   // the tile's view: the aberration is the frame's
         const px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, O.f); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, E.canvas.width, E.canvas.height);
         for (const q of [...A, O]) { gl.deleteTexture(q.t); gl.deleteFramebuffer(q.f); } for (const k in keep) S[k] = keep[k];
         const out = new Uint8ClampedArray(W * H * 4); for (let y = 0; y < H; y++) out.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4); return out;
@@ -55,7 +55,7 @@
     // the region table averaged over those sites: render / photo per band, crypts and sheet (renders: exact path)
     X.eye = async (o = {}) => {
         const acc = {}; let n = 0;
-        for (const at of X.sites()) { const list = [['photo', await X.photo(at, o.zoom || 3)], ['exact', X.render(at, o.zoom || 3, { exact: true })]]; const R = X.regions(list);
+        for (const at of X.sites()) { const list = [['photo', await X.photo(at, o.zoom || 3)], ['exact', X.render(at, o.zoom || 3, o.render || { exact: true })]]; const R = X.regions(list);   // o.render: { frames: 32 } = the viewport's accumulated path
             for (const rn in R) { const v = R[rn].exact.map(x => parseFloat(x)); if (v.some(x => !isFinite(x))) continue; acc[rn] = acc[rn] || { s: [0, 0, 0], n: 0 }; v.forEach((x, i) => acc[rn].s[i] += x); acc[rn].n++; } n++; }
         return Object.fromEntries(Object.entries(acc).map(([k, a]) => [k, a.s.map(x => Math.round(x / a.n) + ' %').join(' · ') + ` (${a.n} sites)`]));
     };

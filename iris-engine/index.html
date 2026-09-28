@@ -1242,14 +1242,19 @@
         uniform sampler2D u_src;
         uniform vec2 u_resolution;
         uniform float u_ev, u_grain, u_tone, u_ca, u_bloom, u_ref, u_sat;
+        uniform vec4 u_view;         // the tile of the frame this pass shows (x, y, w, h): the aberration belongs to the FRAME, not the screen
+        uniform float u_caFrame;     // 1 with the layer model: the frame's aberration, measured on the photographs (u_ca 0); 0 = the legacy screen formula
         uniform int u_frame;
         float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
         vec3 aces(vec3 x) { const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14; return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0); }
         void main() {
             vec2 uv = gl_FragCoord.xy / u_resolution;
-            vec2 c = uv - 0.5; c.x *= u_resolution.x / u_resolution.y;
-            // lateral chromatic aberration, growing with the square of the image radius
-            vec2 dir = (u_ref > 0.5 ? 0.0 : u_ca) * c * dot(c, c) * 0.012;
+            // lateral chromatic aberration, growing with the square of the radius in the camera's FRAME (2026-09-28: it was the screen's,
+            // so a zoomed view got the fringes of a frame's corners at its own edges): the displacement is computed in frame units and
+            // brought back to the tile's (÷ u_view.zw) — at the full view it is the old one, to within the pose's own offset
+            // (the legacy model keeps the screen's formula and its amount: the UI contract's fits see it, and it is not this change's to move)
+            vec2 cS = uv - 0.5, cF = (u_view.xy + uv * u_view.zw) - 0.5, c = u_caFrame > 0.5 ? cF : cS; c.x *= u_resolution.x / u_resolution.y;
+            vec2 dir = (u_ref > 0.5 ? 0.0 : u_ca) * c * dot(c, c) * 0.012 / (u_caFrame > 0.5 ? u_view.zw : vec2(1.0));
             vec4 sG = texture(u_src, uv);
             vec3 col = vec3(texture(u_src, uv + dir).r, sG.g, texture(u_src, uv - dir).b);
             float alpha = sG.a;
@@ -3048,7 +3053,10 @@
             gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, srcTex);
             u1i(pp, 'u_src', 0); u2f(pp, 'u_resolution', w, h);
             u1f(pp, 'u_ev', state.ev); u1f(pp, 'u_grain', state.grain); u1f(pp, 'u_tone', state.tone); u1f(pp, 'u_sat', state.sat === undefined ? 1.0 : state.sat);
-            u1f(pp, 'u_ca', 1.0); u1f(pp, 'u_bloom', state.bloom); u1f(pp, 'u_ref', opts.ref !== undefined ? opts.ref : state.ref); u1i(pp, 'u_frame', frame);
+            { const v = opts.view || state.view || [0, 0, 1, 1]; u4f(pp, 'u_view', v[0], v[1], v[2], v[3]); }
+            // the lateral aberration, MEASURED on the four photographs (red against blue, 2026-09-28): ≤ 0.1 native px, 0.4 µm — the old 1.0 put
+            // ≈ 18 µm between red and blue near the limbus, doubled edges at close range. With the layer model: the frame's formula, amount 0
+            { const lm = !!(window.IrisTissue && window.IrisTissue.on); u1f(pp, 'u_caFrame', lm ? 1.0 : 0.0); u1f(pp, 'u_ca', lm ? 0.0 : 1.0); } u1f(pp, 'u_bloom', state.bloom); u1f(pp, 'u_ref', opts.ref !== undefined ? opts.ref : state.ref); u1i(pp, 'u_frame', frame);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }
 

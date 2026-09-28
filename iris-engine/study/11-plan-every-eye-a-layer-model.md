@@ -1066,6 +1066,47 @@ so the no-walls numbers were taken with them off); and `gl.activeTexture(gl.TEXT
 of 09 and 26 identical before and after) and is not the cause of the measured load's path dependence (eye 09 twice: 85.65
 then 85.45, before and after).
 
+**Fixes 2 and 3, and what the viewport showed (2026-09-28).**
+- **Fix 2 — the rim.** Edge profiles against the model's own outlines cannot judge edge sharpness (the render's edge sits on its
+  outline by construction, the photo's wanders round the smoothed one: the photo "measured" softer, 62–78 µm against 39 µm —
+  `tools/crisp/edges.js`, kept, not used). Tested instead by narrowing the colour chain's widths through the review path
+  (`tools/crisp/mm_study.js`): the colour wall ×0.5 gains nothing and costs strandCorr; the rim pigment's drawn width is too
+  wide on every eye — rim ×0.2 (42 → 8 µm): MATCH2 26 87.41 → 89.65, 09 86.88 → 87.43, 25 90.14 → 90.48, 35 86.28 → 88.37,
+  cellΔab down on all four; no rim at all scores higher still on 26 (90.07) but loses the thin lip line the photo has.
+  `T.rimK = 0.2` (engine side: the fitter keeps its width for MEASURING the rim's strength), in the measurement key.
+  Image `study/proof-layers/rim-26-zoom6.jpg`.
+- **Fix 3 — the aberration.** Measured on the four photographs (red against blue, phase correlation of gradient images, native
+  resolution): ≤ 0.1 px, 0.4 µm at any radius. The renderer's lateral aberration (amount 1.0, a look, never measured) put
+  ≈ 18 µm between red and blue near the limbus. With the layer model: the frame's formula (a zoomed view is a crop of the
+  frame; the old one used the screen) and amount 0. The legacy model keeps its formula and amount — the UI contract's legacy
+  fits see it (changing it moved the bench) and it is not this change's to move.
+- **What the viewport showed.** A single viewport frame matched the exact path; its accumulation (jittered frames — each
+  pixel averaged over its area, as the photo's pixels are) left 60 % of the texture's finest band: the texture had been
+  calibrated on the exact path's point samples. Recalibrated on the VIEWPORT (`abl_calibrate.js`, 16 frames). The exact
+  path (the fit, the scores, the de-bias) now fades each octave out between 0.5 and 1 cell per pixel — at the scored scale a
+  statistical texture only adds variance the photo's own grains do not line up with (a physically attenuated one,
+  1/(1+(x/1.38)²) measured on this noise, cost 1.3 MATCH2) — and the viewport keeps full strength, fading only past 2–4 cells.
+- **A shear, mine.** The per-pixel texture read the tissue plane as (u × circumference(v), 4 v): a radial step moved the
+  first axis by u · 8π · Δv (617 µm for a 112 µm step at u 0.92) — the texture drew radial streaks (visible in the viewport as
+  brushed metal; iori would have seen it). Now the Cartesian plane r (cos θ, sin θ), r = 2 + 4 v: isotropic, no seam, what
+  abl_texture.py assumes. (The compose's own grain and the per-texel term use the sheared form still; neither applies to a
+  published eye — noted.) Recalibrated once more on the isotropic texture.
+- **Cost.** The per-pixel texture skips octaves faded to nothing and shares one 4×4 lattice of hashes across its five lookups:
+  at the whole-eye view it costs ≈ 0.04 ms per frame (1280 × 924), at 6× ≈ 0.3 ms per megapixel.
+
+Final, each eye on fresh pages (amplitudes 6 · 12 · 24 µm; the viewport's sheet against the photo; the review path's scores):
+
+| eye | amplitudes | viewport 6× | viewport 3× | whole eye (this morning → now) |
+|---|---|---|---|---|
+| 26 | .49 · .71 · .87 | 96 · 99 · 99 % | 102 · 105 · 101 % | 84.29 · 0.366 → **90.08 · 0.414** · cellΔab 2.00 |
+| 09 | .33 · .65 · .62 | 106 · 106 · 103 % | 106 · 102 · 101 % | 83.10 · 0.420 → **87.68 · 0.483** · 2.78 |
+| 25 | .38 · .52 · .58 | 97 · 100 · 100 % | 107 · 108 · 104 % | 87.13 · 0.285 → **90.85 · 0.385** · 2.55 |
+| 35 | .90 · .92 · .94 | 99 · 103 · 101 % | 101 · 102 · 97 % | 83.09 · 0.282 → **88.39 · 0.390** · 2.16 |
+
+("This morning" = the review path with the baked texture, before the de-bias.) Arrival against measured 1 / 255 on all four;
+contract `[]`. At iori's crop, eye 26 at 6×, the viewport now holds 3.3 · 5.4 · 7.2 against the photo's 3.6 · 5.9 · 7.8
+(this morning 2.4 · 4.0 · 5.5): `study/proof-layers/closeup-26-before-after.jpg`.
+
 A bug of mine found on the way, fixed before commit: a comment put mid-line in drawPhotoFrame silenced `u_focus` and `u_ref`,
 so every "exact" render ran the interactive path with defocus — the contract caught it (the panel and bench fits moved).
 

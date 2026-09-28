@@ -86,9 +86,9 @@
   ]
  ],
  "amp": [
-  0.361,
-  0.424,
-  0.377,
+  0.332,
+  0.648,
+  0.622,
   0
  ],
  "exp": 0.05,
@@ -101,5 +101,11 @@
   0.5205,
   0.0
  ],
- "gainNote": "per-octave amplitudes calibrated end to end (tools/crisp/abl_calibrate.js): each octave against the band it dominates at 6x, the sheet at 5 sites; the 6 um octave trimmed to 100 % at the finest band"
+ "gainNote": "per-octave amplitudes calibrated end to end on the VIEWPORT (16 jittered frames), the texture on the tissue's Cartesian plane: the sheet at 6x and 3x within 8 % of the photo, 5 sites (tools/crisp/abl_calibrate.js)",
+ "ampExactPath": [
+  0.361,
+  0.424,
+  0.377,
+  0
+ ]
 }

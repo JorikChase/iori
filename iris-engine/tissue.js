@@ -303,16 +303,36 @@
         // study/11 §5.5 (a), per pixel (2026-09-28): the ABL's measured micro-texture, evaluated here rather than in the bake, so no texel
         // limits it. The same noise as tools/abl_texture.py (compose's hash / value noise, high-passed octaves, rotated, offset); each octave
         // fades with the pixel's footprint (full to 0.75 of its cell, gone at 1.5), and the lognormal's normalisation uses the faded variance.
-        uniform float u_ablOn, u_ablExp, u_ablGain, u_ablYref, u_ablLayered; uniform vec4 u_ablAmp, u_ablOctVar;
+        uniform float u_ablOn, u_ablExp, u_ablGain, u_ablYref, u_ablLayered, u_ablDebug; uniform vec4 u_ablAmp, u_ablOctVar;
         float ablHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
         float ablVn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(ablHash(i), ablHash(i + vec2(1, 0)), f.x), mix(ablHash(i + vec2(0, 1)), ablHash(i + vec2(1, 1)), f.x), f.y); }
+        // the high-passed octave: the value noise minus its four one-cell neighbours' mean. The five lookups share one 4×4 lattice
+        // neighbourhood — 16 hashes instead of 20, the same numbers bit for bit (the interpolation weights are the centre's)
         float ablHp(vec2 mm, float cell, float rot, vec2 off) { vec2 q = mat2(cos(rot), sin(rot), -sin(rot), cos(rot)) * mm / cell + off;
-            return ablVn(q) - 0.25 * (ablVn(q + vec2(1, 0)) + ablVn(q - vec2(1, 0)) + ablVn(q + vec2(0, 1)) + ablVn(q - vec2(0, 1))); }
-        float ablTexture(vec2 uv, float pxMm, float Y) {
-            vec2 mm = vec2(fract(uv.x), uv.y) * vec2(6.2831853 * (2.0 + 4.0 * uv.y), 4.0);
-            vec4 fd = vec4(1.0) - smoothstep(vec4(0.0045, 0.009, 0.018, 0.036), vec4(0.009, 0.018, 0.036, 0.072), vec4(pxMm));
+            vec2 i = floor(q), f = fract(q); f = f * f * (3.0 - 2.0 * f);
+            float h[16]; for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) h[y * 4 + x] = ablHash(i + vec2(float(x - 1), float(y - 1)));
+            #define VN(ox, oy) mix(mix(h[(oy) * 4 + (ox)], h[(oy) * 4 + (ox) + 1], f.x), mix(h[((oy) + 1) * 4 + (ox)], h[((oy) + 1) * 4 + (ox) + 1], f.x), f.y)
+            float c0 = VN(1, 1), n = VN(2, 1) + VN(0, 1) + VN(1, 2) + VN(1, 0);
+            #undef VN
+            return c0 - 0.25 * n; }
+        // How much of an octave a pixel keeps (2026-09-28): a camera pixel — and the viewport's jittered accumulation — AVERAGES over its area;
+        // the exact path samples one point. Measured on this noise (tools/abl_texture.py octave(), box average): the std left is
+        // 0.90 · 0.66 · 0.27 · 0.10 at a pixel of 0.5 · 1 · 2 · 4 cells. The VIEWPORT keeps full strength — its accumulation does the
+        // averaging, as the photo's pixels did — and fades only past 2–4 cells per pixel, so a few-frame view does not sparkle. The EXACT path
+        // (the fit, the scores, the de-bias) fades each octave out between 0.5 and 1 cell per pixel: at the scored scale a statistical
+        // texture can only add variance the photo's own grains do not line up with (the physical 1/(1+(x/1.38)²) there cost 1.3 MATCH2).
+        float ablTexture(vec2 uv, float pxMm, float Y, bool integ) {
+            // the tissue's own plane, CARTESIAN: r (cos θ, sin θ), r = 2 + 4 v mm — isotropic everywhere, no seam. (2026-09-28: it was
+            // u × circumference(v), which shears — a radial step moved the texture's first axis by u · 8π · Δv — and drew radial streaks)
+            float rr = 2.0 + 4.0 * uv.y, th = 6.2831853 * uv.x; vec2 mm = rr * vec2(cos(th), sin(th));
+            vec4 cell = vec4(0.006, 0.012, 0.024, 0.048), x = vec4(pxMm) / cell;
+            vec4 fd = integ ? vec4(1.0) - smoothstep(vec4(2.0), vec4(4.0), x) : vec4(1.0) - smoothstep(vec4(0.5), vec4(1.0), x);
             vec4 a = u_ablAmp * fd;
-            float t = a.x * ablHp(mm, 0.006, 0.0, vec2(3.1, 7.7)) + a.y * ablHp(mm, 0.012, 0.61, vec2(11.3, 2.9)) + a.z * ablHp(mm, 0.024, 1.23, vec2(5.3, 13.1)) + a.w * ablHp(mm, 0.048, 1.87, vec2(17.9, 8.3));
+            float t = 0.0;                                                     // an octave faded to nothing is not evaluated (at the whole eye most are)
+            if (a.x > 1e-3) t += a.x * ablHp(mm, 0.006, 0.0, vec2(3.1, 7.7));
+            if (a.y > 1e-3) t += a.y * ablHp(mm, 0.012, 0.61, vec2(11.3, 2.9));
+            if (a.z > 1e-3) t += a.z * ablHp(mm, 0.024, 1.23, vec2(5.3, 13.1));
+            if (a.w > 1e-3) t += a.w * ablHp(mm, 0.048, 1.87, vec2(17.9, 8.3));
             float k = u_ablGain * pow(clamp(Y / max(u_ablYref, 1e-4), 0.2, 5.0), u_ablExp - 1.0);
             return exp(k * t) / exp(0.5 * k * k * dot(a * a, u_ablOctVar));
         }
@@ -351,7 +371,7 @@
                     }`);
         need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
             if (g_slab > 0.5) { vec4 sa = tissueAt(u_slabAlb, uv, lod); if (sa.a > 0.5) tsA = vec4(sa.rgb, 1.0); }   // §5.2.3: on the slab, its own albedo
-            if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722))), cov); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
+            if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722)), hq), cov); if (u_ablDebug > 0.5) tsA.rgb = vec3(0.25) * ablTexture(uv, mmPerPx, 0.25, hq); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
             float tisRidge0 = t1.a;                                                                // K1: the fitted strand coverage, before the line below zeroes it
             t0.r = mix(t0.r, tissueH(uv, lod) / max(u_relief, 1e-4), tsA.a); t0.a *= 1.0 - tsA.a;   // the layer model owns relief and darkness here (tissueH: the slab's top when the ray hit the slab):
             t1 = mix(t1, vec4(0.0), tsA.a); t3.r = mix(t3.r, 1.0, tsA.a);                          // no crypt / furrow / spot / strand-sheen / occlusion terms of the old model
@@ -422,7 +442,7 @@
         gl.uniform1f(gl.getUniformLocation(prog, 'u_tissueLod'), T.lodBias);
         gl.activeTexture(gl.TEXTURE19); gl.bindTexture(gl.TEXTURE_2D, T.slab || T.aux); gl.uniform1i(gl.getUniformLocation(prog, 'u_slab'), 19);        // §5.2.3 the bridge layer
         gl.activeTexture(gl.TEXTURE20); gl.bindTexture(gl.TEXTURE_2D, T.slabAlb || T.albedo); gl.uniform1i(gl.getUniformLocation(prog, 'u_slabAlb'), 20);
-        { const A = T.ablTex, u_ = n => gl.getUniformLocation(prog, n); gl.uniform1f(u_('u_ablOn'), A && A.perPixel && !T.greyBake ? 1 : 0); gl.uniform1f(u_('u_ablLayered'), T.layered ? 1 : 0);   // §5.5 (a) per pixel
+        { const A = T.ablTex, u_ = n => gl.getUniformLocation(prog, n); gl.uniform1f(u_('u_ablOn'), A && A.perPixel && !T.greyBake ? 1 : 0); gl.uniform1f(u_('u_ablLayered'), T.layered ? 1 : 0); gl.uniform1f(u_('u_ablDebug'), T.ablDebug ? 1 : 0);   // §5.5 (a) per pixel
           if (A && A.perPixel) { const a = A.amp, v = A.octVar; gl.uniform4f(u_('u_ablAmp'), a[0], a[1], a[2], a[3]); gl.uniform4f(u_('u_ablOctVar'), v[0], v[1], v[2], v[3]);
               gl.uniform1f(u_('u_ablExp'), A.exp); gl.uniform1f(u_('u_ablGain'), A.gain === undefined ? 1 : A.gain); gl.uniform1f(u_('u_ablYref'), T.cells ? ablYref() : 0.2); } }
         gl.uniform1f(gl.getUniformLocation(prog, 'u_slabOn'), (T.slab && ((T.slabCurves > 0 && T.slabs() > 0) || T.layered)) ? 1 : 0);   // §5.4: in the layered mode the slab is the ABL shell
@@ -642,6 +662,12 @@
     T.slabClearMm = 0.02; T.slabMeasured = false; T.slabCurves = 0;
     // §5.4 L0 the layered stroma (off: the shipped model): the ABL shell's thickness, and the undercut — how far under the shell
     // the base stays down past a crypt's edge, then over how far it rises to meet the shell
+    // study/11 §5.5 fix 2 (iori, 2026-09-28: "why do the highlight details get unsharpened?"): the rim pigment's WIDTH as drawn, against the
+    // fitter's (the fitter keeps its own width to MEASURE the rim's strength along each outline). As fitted, 42 µm — a broad amber band
+    // round every crypt where the photo has a thin line; each eye through the review path, rim ×1 → ×0.2 (8 µm): MATCH2 26 87.41 → 89.65,
+    // 09 86.88 → 87.43, 25 90.14 → 90.48, 35 86.28 → 88.37, cellΔab down on all four. No rim at all scores higher still on 26 (90.07) but
+    // loses the lip iori asked to keep sharp.
+    T.rimK = 0.2;
     T.payBlur = 2.5;                               // the compose's 3×3 blur of a strand's colour, in texels (2.5: as fitted; 0: the payload as traced)
     T.layered = false; T.restMm = 0.004; T.ablMm = 0.04; T.underMm = [0.06, 0.10]; T.lipMm = 0.02; T.edgeMix = 0; T.drape = 1.8; T.dipMm = 0.03;
     T.delight = 1;                                // 1 = the geometry's own cross-fibre shading · 0 = the painted one
@@ -812,7 +838,7 @@
         gl.uniform1f(c.loc('u_slabOn'), slabOn ? 1 : 0);
         gl.uniform4f(c.loc('u_rect'), T.rect[0], T.rect[1], T.rect[2], T.rect[3]); gl.uniform2f(c.loc('u_size'), w, h);
         const rim = grey ? [grey, grey, grey] : toAlbedo(T.src.rimRGB, T.cells.xy[0][0], T.cells.xy[0][1]); gl.uniform3f(c.loc('u_rimRGB'), rim[0], rim[1], rim[2]);
-        gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
+        gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW * T.rimK); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
         gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? cryptDepth() : opts.depth);
         const zm = T.src.z || {}, dz = T.deckZ === undefined ? 1 : T.deckZ;
         gl.uniform1f(c.loc('u_fibRK'), zm.rK || RK_DEFAULT); gl.uniform1f(c.loc('u_deckZ'), dz); gl.uniform1f(c.loc('u_deckH'), deckThickness() * dz);
@@ -2038,7 +2064,7 @@
     // and k1 are not in the key — neither reaches a grey bake. A mismatch = measure, as before.
     T.dialKey = () => JSON.stringify({ engine: E.ENGINE_VERSION, eye: T.src && T.src.ref, n: T.src && T.src.fit,
         deckZ: T.deckZ, sheetZ: T.sheetZ, wallZ: T.wallZ === undefined ? 2.5 : T.wallZ, delight: T.delight, margin: T.margin !== false,
-        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0 });   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
+        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0, rimK: T.rimK });   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
     const q16 = (v, lo, hi, L = 65535) => Math.max(0, Math.min(L, Math.round((v - lo) / Math.max(hi - lo, 1e-12) * L)));
     const gz = async (bytes, dir) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(dir ? new CompressionStream('gzip') : new DecompressionStream('gzip'))).arrayBuffer());
     // → gzipped bytes: 'IRC1' · u32 header length · header JSON · light (6 planes u16) · shading (u16) · light mask (u8, one

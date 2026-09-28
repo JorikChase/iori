@@ -1239,6 +1239,56 @@ UI: Traced lines ▸ `Terrain`, FILL, chips with sections and share per type (to
 `lines_sheets.js` now refuses to name a sheet after an eye that is not the one loaded — a restored session brought eye 35 back
 under `?eye=26` once and its first terrain sheet was mislabelled (deleted). Contract `[]`, `reach()` `[]`.
 
+**P2 built (2026-09-28) — the ruler: a phantom with known truth, and today's detector scored on it (`tools/detect/`).**
+Why a phantom: a render of a fitted eye has today's detections as its "truth", so it would score today's detector against
+itself. `phantom.py` draws the truth first and makes the image from it, on eye 26's measured terms (`params-26.json`):
+4.66 µm/px, plateau 0.129 / floor 0.037 (linear), the photo's ISOTROPIC grain band for band, measured the photo's own way
+(`abl_texture.py`'s bands: σ = the band's µm; my first cut divided by 2.355 and the 0.6 px blur erased the grain — 0.039
+where the photo has 0.125 — caught by measuring both sides with one function), and the plateau's broad radial bundles and
+troughs (45–110 µm, 44 per 2 mm tile, contrast 0.05–0.55) — the photo's directional 18–75 µm energy, without which the
+phantom's broad bands were 0.064 / 0.049 against the photo's 0.088 / 0.072. Calibrated, the phantom's four bands are
+0.127 · 0.093 · 0.085 · 0.072 against the photo's 0.126 · 0.094 · 0.088 · 0.072, and the tracers' ridge response on its
+plateau is the real plateau's: broad 0.40 · 0.79 · 1.35 (p50 · 90 · 99) against 0.38 · 0.80 · 1.40, fine 0.24 · 0.46 · 0.75
+against 0.24 · 0.51 · 0.92 (the fine top percent is lighter: a few brighter fine strands would close it). Tiles (2 mm, seeded):
+plateau · crypt (a woven deck: the upper strand continuous, the lower vanishing under it) · bridges (wide bright strands across
+two crypts, shadows) · crossings at 10–90° · a width × contrast ladder (6–80 µm × 0.03–0.5) · null (grain + an empty crypt) ·
+nullbundle (grain + bundles, no strands). `phantom-26-vs-photo.png`: the tiles beside a real crop at the same stretch.
+
+`ruler.py`: both sides resampled per pixel; a truth sample is FOUND by a detection of its polarity within ½ FWHM + 1 px
+(≥ 1.5 px) running within 30°; recall, precision, false line density (mm / mm²), width ratio, continuity (strands found as one
+curve over ≥ 90 % of their visible length), crossing survival (the same detected curve on both sides, for the strand over and
+the one under), the ladder, and a CHANCE floor (the same detections against the truth shifted 70 µm — recall there is luck).
+Checked: the truth scored against itself 1.0 everywhere, against nothing 0.
+
+**Today's detector (`baseline.py`: layer_proof.py §2 with its own parameters; the phantom's crypt mask, so strand detection
+is what is measured):**
+
+| scenario | recall (chance) | precision | false mm / mm² | found whole | crossing survives: over · under |
+|---|---|---|---|---|---|
+| plateau | 0.39 (0.22) | 0.56 | 3.8 | 0.4 % | 0.03 · 0.12 |
+| crypt | 0.45 (0.28) | 0.47 | 8.5 | 2 % | 0.25 · 0.10 |
+| bridges | 0.46 (0.27) | 0.51 | 5.9 | 1 % | 0.15 · 0.03 |
+| crossings | 0.40 (0.13) | 0.08 | 7.1 | 0 % | 0.06 · 0.06 |
+| null (grain only) | — | 0 | **13.0** | — | — |
+
+By class (recall · chance · width detected / true): bridge 0.84 · 0.46 · 0.93, deck 0.74 · 0.34 · 1.38, bundle 0.62 · 0.38 · 1.02,
+plateau strand 0.45 · 0.17 · 1.75, valley 0.25 · 0.15 · 1.69, trough 0.25 · 0.15 · 0.45, fine 0.21 · 0.12 · 3.02. The ladder: found
+reliably (≥ 0.6 and well over chance) only at contrast ≥ 0.25 and width ≥ 28 µm; the fine strands the photos show (10–25 µm,
+contrast 0.2–0.35, the measured range) sit at 0.1–0.3, near chance. Sheet: `baseline-26-sheet.png` (found truth green, missed
+magenta, true detections cyan, false red).
+
+What this measures, beyond P1's look:
+- **The thresholds are relative**, so the tracers draw the same density whatever is there: the broad tracer draws 7.9 mm / mm²
+  on the grain-only tile and 7.5 on eye 26's real plateau; on the null tile 13 mm / mm² in all — an empty crypt fills with a
+  net of short worms. The fine tracer's straight-and-radial filter is the one part that responds to content (0.54 on grain
+  against 2.35 on the real plateau).
+- **Nothing is continuous**: under 3 % of strands come out whole; a crossing is survived by the strand on top 3–25 % of the
+  time and by the one beneath 3–12 % — the "cut at every crossing" diagnosis, now a number.
+- **The width convention is wrong**: the tracer's w is 2 × its best scale, and for a Gaussian ridge under its s² normalisation
+  the best scale is √2 σ, so FWHM = 0.83 w, not 1.18 w (study/11 §5.2.3) — the predicted ratio 1.18 / 0.83 = 1.42 is what the
+  deck measures (1.38). The tube radius r = 0.6 w was tuned by a sweep, so it stands as tuned; its physical reading changes.
+- Scope: calibrated on eye 26 only (params for 09 / 25 / 35: `phantom.py measure NN`, then the bundles' calibration per eye).
+
 **The 2-D detector (P1–P4).** Why the current one cannot be perfect: detection is gated by the hole mask (deck only at
 sd > 1 px, guides at sd < −6) so crypt edges and septa — where iori's bridges are — are traced by nobody; the ridge ladder
 tops out at σ 4.5 px ≈ 13 µm (FWHM ≈ 30 µm) where bridges are 35–80 µm; the Hessian breaks at every crossing, so every strand

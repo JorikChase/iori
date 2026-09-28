@@ -1,47 +1,53 @@
 {
  "scenarios": {
   "bridges": {
-   "recall": 0.46,
-   "recall_chance": 0.272,
-   "precision": 0.513,
-   "fp_mm_per_mm2": 5.87,
-   "whole": 0.009,
-   "cross_over": 0.154,
-   "cross_under": 0.026
+   "recall": 0.456,
+   "recall_chance": 0.278,
+   "precision": 0.494,
+   "precision_chance": 0.329,
+   "fp_mm_per_mm2": 6.46,
+   "whole": 0.005,
+   "cross_over": 0.105,
+   "cross_under": 0.017
   },
   "crossings": {
    "recall": 0.401,
    "recall_chance": 0.132,
    "precision": 0.079,
+   "precision_chance": 0.02,
    "fp_mm_per_mm2": 7.113,
    "whole": 0.0,
    "cross_over": 0.056,
    "cross_under": 0.056
   },
   "crypt": {
-   "recall": 0.453,
-   "recall_chance": 0.28,
-   "precision": 0.472,
-   "fp_mm_per_mm2": 8.483,
-   "whole": 0.023,
-   "cross_over": 0.246,
-   "cross_under": 0.098
+   "recall": 0.436,
+   "recall_chance": 0.281,
+   "precision": 0.435,
+   "precision_chance": 0.325,
+   "fp_mm_per_mm2": 9.68,
+   "whole": 0.008,
+   "cross_over": 0.162,
+   "cross_under": 0.104
   },
   "ladder": {
    "recall": 0.377,
    "recall_chance": 0.162,
    "precision": 0.125,
+   "precision_chance": 0.039,
    "fp_mm_per_mm2": 7.068,
    "whole": 0.04
   },
   "null": {
    "precision": 0.0,
-   "fp_mm_per_mm2": 12.967
+   "precision_chance": 0.0,
+   "fp_mm_per_mm2": 13.033
   },
   "nullbundle": {
    "recall": 0.459,
    "recall_chance": 0.244,
    "precision": 0.552,
+   "precision_chance": 0.324,
    "fp_mm_per_mm2": 3.973,
    "whole": 0.0
   },
@@ -49,6 +55,7 @@
    "recall": 0.393,
    "recall_chance": 0.222,
    "precision": 0.56,
+   "precision_chance": 0.362,
    "fp_mm_per_mm2": 3.787,
    "whole": 0.004,
    "cross_over": 0.028,
@@ -57,19 +64,19 @@
  },
  "classes": {
   "bridge": {
-   "recall": 0.841,
-   "recall_chance": 0.458,
+   "recall": 0.838,
+   "recall_chance": 0.514,
    "width_ratio": 0.93
   },
   "bundle": {
-   "recall": 0.618,
-   "recall_chance": 0.376,
-   "width_ratio": 1.019
+   "recall": 0.617,
+   "recall_chance": 0.374,
+   "width_ratio": 1.018
   },
   "deck": {
-   "recall": 0.744,
-   "recall_chance": 0.338,
-   "width_ratio": 1.383
+   "recall": 0.661,
+   "recall_chance": 0.386,
+   "width_ratio": 1.195
   },
   "fine": {
    "recall": 0.206,
@@ -77,19 +84,19 @@
    "width_ratio": 3.02
   },
   "plateau": {
-   "recall": 0.451,
-   "recall_chance": 0.167,
-   "width_ratio": 1.748
+   "recall": 0.452,
+   "recall_chance": 0.16,
+   "width_ratio": 1.741
   },
   "trough": {
-   "recall": 0.25,
-   "recall_chance": 0.148,
+   "recall": 0.248,
+   "recall_chance": 0.147,
    "width_ratio": 0.446
   },
   "valley": {
-   "recall": 0.246,
-   "recall_chance": 0.154,
-   "width_ratio": 1.69
+   "recall": 0.241,
+   "recall_chance": 0.164,
+   "width_ratio": 1.631
   }
  },
  "ladder": {

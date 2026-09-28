@@ -1,3 +1,4 @@
 # regenerable: tools/detect/phantom.py build NN (seeded) and tools/detect/baseline.py NN
 phantom-*/
 baseline-*/
+detect2-*/

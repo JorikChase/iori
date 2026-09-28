@@ -5,28 +5,28 @@
   "classes": {
    "bridge": {
     "truth_mm": 3.09,
-    "recall": 0.87,
+    "recall": 0.861,
     "width_ratio": 1.06,
     "width_spread": 0.22,
-    "recall_chance": 0.497
+    "recall_chance": 0.566
    },
    "bundle": {
     "truth_mm": 36.1,
-    "recall": 0.616,
+    "recall": 0.615,
     "width_ratio": 1.02,
     "width_spread": 0.29,
-    "recall_chance": 0.432
+    "recall_chance": 0.431
    },
    "deck": {
     "truth_mm": 4.35,
-    "recall": 0.58,
-    "width_ratio": 1.29,
-    "width_spread": 0.43,
-    "recall_chance": 0.22
+    "recall": 0.492,
+    "width_ratio": 1.24,
+    "width_spread": 0.38,
+    "recall_chance": 0.295
    },
    "fine": {
     "truth_mm": 0.91,
-    "recall": 0.195,
+    "recall": 0.226,
     "width_ratio": 1.8,
     "width_spread": 0.59,
     "recall_chance": 0.015
@@ -36,44 +36,45 @@
     "recall": 0.72,
     "width_ratio": 1.28,
     "width_spread": 0.38,
-    "recall_chance": 0.29
+    "recall_chance": 0.282
    },
    "trough": {
     "truth_mm": 35.78,
-    "recall": 0.225,
+    "recall": 0.224,
     "width_ratio": 0.38,
     "width_spread": 0.96,
-    "recall_chance": 0.162
+    "recall_chance": 0.165
    },
    "valley": {
     "truth_mm": 0.61,
-    "recall": 0.206,
+    "recall": 0.237,
     "width_ratio": 1.55,
     "width_spread": 0.44,
-    "recall_chance": 0.16
+    "recall_chance": 0.145
    }
   },
-  "recall": 0.451,
-  "detected_mm": 46.3,
-  "precision": 0.521,
-  "fp_mm_per_mm2": 5.54,
+  "recall": 0.446,
+  "detected_mm": 48.24,
+  "precision": 0.508,
+  "fp_mm_per_mm2": 5.93,
   "continuity": {
    "strands": 73,
-   "whole": 0.014,
+   "whole": 0.0,
    "pieces_median": 3.0,
    "missed": 0.055
   },
   "crossings": {
    "over": [
-    0.237,
+    0.184,
     38
    ],
    "under": [
-    0.045,
+    0.023,
     44
    ]
   },
-  "recall_chance": 0.297
+  "recall_chance": 0.304,
+  "precision_chance": 0.384
  },
  {
   "tile": "bridges-2001",
@@ -81,75 +82,76 @@
   "classes": {
    "bridge": {
     "truth_mm": 3.23,
-    "recall": 0.859,
+    "recall": 0.861,
     "width_ratio": 0.77,
-    "width_spread": 0.32,
-    "recall_chance": 0.433
+    "width_spread": 0.44,
+    "recall_chance": 0.579
    },
    "bundle": {
     "truth_mm": 31.25,
-    "recall": 0.624,
+    "recall": 0.629,
     "width_ratio": 0.98,
     "width_spread": 0.42,
-    "recall_chance": 0.329
+    "recall_chance": 0.324
    },
    "deck": {
     "truth_mm": 3.85,
-    "recall": 0.672,
-    "width_ratio": 1.38,
-    "width_spread": 0.36,
-    "recall_chance": 0.367
+    "recall": 0.565,
+    "width_ratio": 1.05,
+    "width_spread": 0.25,
+    "recall_chance": 0.418
    },
    "fine": {
     "truth_mm": 2.98,
-    "recall": 0.315,
+    "recall": 0.299,
     "width_ratio": 2.85,
     "width_spread": 1.05,
-    "recall_chance": 0.108
+    "recall_chance": 0.102
    },
    "plateau": {
     "truth_mm": 1.04,
-    "recall": 0.233,
-    "width_ratio": 2.99,
-    "width_spread": 1.1,
+    "recall": 0.238,
+    "width_ratio": 2.84,
+    "width_spread": 1.04,
     "recall_chance": 0.166
    },
    "trough": {
     "truth_mm": 35.08,
-    "recall": 0.274,
+    "recall": 0.276,
     "width_ratio": 0.41,
     "width_spread": 0.88,
-    "recall_chance": 0.165
+    "recall_chance": 0.173
    },
    "valley": {
     "truth_mm": 0.85,
-    "recall": 0.297,
-    "width_ratio": 2.02,
+    "recall": 0.28,
+    "width_ratio": 2.22,
     "width_spread": 0.8,
-    "recall_chance": 0.203
+    "recall_chance": 0.187
    }
   },
-  "recall": 0.459,
-  "detected_mm": 49.98,
-  "precision": 0.496,
-  "fp_mm_per_mm2": 6.3,
+  "recall": 0.456,
+  "detected_mm": 52.98,
+  "precision": 0.472,
+  "fp_mm_per_mm2": 6.99,
   "continuity": {
    "strands": 75,
    "whole": 0.0,
    "pieces_median": 3.0,
-   "missed": 0.053
+   "missed": 0.067
   },
   "crossings": {
    "over": [
-    0.17,
+    0.075,
     53
    ],
    "under": [
-    0.034,
+    0.0,
     58
    ]
   },
-  "recall_chance": 0.25
+  "recall_chance": 0.26,
+  "precision_chance": 0.29
  },
  {
   "tile": "bridges-2002",
@@ -157,31 +159,31 @@
   "classes": {
    "bridge": {
     "truth_mm": 2.12,
-    "recall": 0.795,
+    "recall": 0.791,
     "width_ratio": 0.96,
-    "width_spread": 0.04,
-    "recall_chance": 0.443
+    "width_spread": 0.12,
+    "recall_chance": 0.396
    },
    "bundle": {
     "truth_mm": 33.83,
-    "recall": 0.611,
+    "recall": 0.612,
     "width_ratio": 0.93,
     "width_spread": 0.32,
     "recall_chance": 0.359
    },
    "deck": {
     "truth_mm": 4.96,
-    "recall": 0.709,
-    "width_ratio": 1.27,
+    "recall": 0.658,
+    "width_ratio": 0.98,
     "width_spread": 0.33,
-    "recall_chance": 0.348
+    "recall_chance": 0.423
    },
    "fine": {
     "truth_mm": 3.18,
     "recall": 0.216,
     "width_ratio": 2.29,
     "width_spread": 0.83,
-    "recall_chance": 0.185
+    "recall_chance": 0.186
    },
    "plateau": {
     "truth_mm": 0.25,
@@ -192,27 +194,27 @@
    },
    "trough": {
     "truth_mm": 35.53,
-    "recall": 0.312,
+    "recall": 0.305,
     "width_ratio": 0.47,
     "width_spread": 0.75,
-    "recall_chance": 0.172
+    "recall_chance": 0.17
    },
    "valley": {
     "truth_mm": 0.99,
-    "recall": 0.118,
-    "width_ratio": 1.5,
-    "width_spread": 0.4,
-    "recall_chance": 0.212
+    "recall": 0.302,
+    "width_ratio": 1.41,
+    "width_spread": 0.39,
+    "recall_chance": 0.17
    }
   },
-  "recall": 0.47,
-  "detected_mm": 48.23,
-  "precision": 0.521,
-  "fp_mm_per_mm2": 5.77,
+  "recall": 0.466,
+  "detected_mm": 51.91,
+  "precision": 0.502,
+  "fp_mm_per_mm2": 6.46,
   "continuity": {
    "strands": 73,
    "whole": 0.014,
-   "pieces_median": 3.0,
+   "pieces_median": 4.0,
    "missed": 0.027
   },
   "crossings": {
@@ -221,11 +223,12 @@
     36
    ],
    "under": [
-    0.0,
+    0.029,
     35
    ]
   },
-  "recall_chance": 0.269
+  "recall_chance": 0.271,
+  "precision_chance": 0.314
  },
  {
   "tile": "crossings-3000",
@@ -259,7 +262,8 @@
     6
    ]
   },
-  "recall_chance": 0.105
+  "recall_chance": 0.105,
+  "precision_chance": 0.013
  },
  {
   "tile": "crossings-3001",
@@ -293,7 +297,8 @@
     6
    ]
   },
-  "recall_chance": 0.14
+  "recall_chance": 0.14,
+  "precision_chance": 0.026
  },
  {
   "tile": "crossings-3002",
@@ -327,7 +332,8 @@
     6
    ]
   },
-  "recall_chance": 0.151
+  "recall_chance": 0.151,
+  "precision_chance": 0.022
  },
  {
   "tile": "crypt-1000",
@@ -335,17 +341,17 @@
   "classes": {
    "bundle": {
     "truth_mm": 26.96,
-    "recall": 0.599,
+    "recall": 0.597,
     "width_ratio": 0.98,
     "width_spread": 0.35,
-    "recall_chance": 0.447
+    "recall_chance": 0.441
    },
    "deck": {
     "truth_mm": 10.54,
-    "recall": 0.85,
-    "width_ratio": 1.48,
-    "width_spread": 0.44,
-    "recall_chance": 0.365
+    "recall": 0.784,
+    "width_ratio": 1.4,
+    "width_spread": 0.42,
+    "recall_chance": 0.418
    },
    "fine": {
     "truth_mm": 1.01,
@@ -356,47 +362,48 @@
    },
    "plateau": {
     "truth_mm": 3.17,
-    "recall": 0.61,
+    "recall": 0.577,
     "width_ratio": 1.7,
     "width_spread": 0.53,
-    "recall_chance": 0.063
+    "recall_chance": 0.054
    },
    "trough": {
     "truth_mm": 24.98,
-    "recall": 0.149,
+    "recall": 0.144,
     "width_ratio": 0.39,
     "width_spread": 0.93,
-    "recall_chance": 0.144
+    "recall_chance": 0.141
    },
    "valley": {
     "truth_mm": 1.83,
-    "recall": 0.357,
-    "width_ratio": 1.82,
-    "width_spread": 0.6,
-    "recall_chance": 0.166
+    "recall": 0.158,
+    "width_ratio": 1.54,
+    "width_spread": 0.51,
+    "recall_chance": 0.232
    }
   },
-  "recall": 0.459,
-  "detected_mm": 66.44,
-  "precision": 0.463,
-  "fp_mm_per_mm2": 8.92,
+  "recall": 0.439,
+  "detected_mm": 70.87,
+  "precision": 0.429,
+  "fp_mm_per_mm2": 10.11,
   "continuity": {
    "strands": 86,
-   "whole": 0.023,
-   "pieces_median": 3.0,
-   "missed": 0.093
+   "whole": 0.0,
+   "pieces_median": 4.0,
+   "missed": 0.116
   },
   "crossings": {
    "over": [
-    0.309,
+    0.221,
     68
    ],
    "under": [
-    0.065,
+    0.048,
     62
    ]
   },
-  "recall_chance": 0.295
+  "recall_chance": 0.301,
+  "precision_chance": 0.349
  },
  {
   "tile": "crypt-1001",
@@ -404,21 +411,21 @@
   "classes": {
    "bundle": {
     "truth_mm": 34.98,
-    "recall": 0.581,
+    "recall": 0.582,
     "width_ratio": 1.08,
     "width_spread": 0.32,
-    "recall_chance": 0.348
+    "recall_chance": 0.347
    },
    "deck": {
     "truth_mm": 8.7,
-    "recall": 0.755,
-    "width_ratio": 1.44,
-    "width_spread": 0.48,
-    "recall_chance": 0.381
+    "recall": 0.657,
+    "width_ratio": 1.24,
+    "width_spread": 0.33,
+    "recall_chance": 0.355
    },
    "fine": {
     "truth_mm": 2.97,
-    "recall": 0.283,
+    "recall": 0.273,
     "width_ratio": 3.29,
     "width_spread": 1.19,
     "recall_chance": 0.085
@@ -428,44 +435,45 @@
     "recall": 0.292,
     "width_ratio": 1.61,
     "width_spread": 0.47,
-    "recall_chance": 0.196
+    "recall_chance": 0.153
    },
    "trough": {
     "truth_mm": 38.66,
-    "recall": 0.336,
+    "recall": 0.34,
     "width_ratio": 0.44,
     "width_spread": 0.81,
     "recall_chance": 0.205
    },
    "valley": {
     "truth_mm": 1.78,
-    "recall": 0.451,
-    "width_ratio": 1.33,
-    "width_spread": 0.28,
-    "recall_chance": 0.268
+    "recall": 0.478,
+    "width_ratio": 1.3,
+    "width_spread": 0.27,
+    "recall_chance": 0.383
    }
   },
-  "recall": 0.47,
-  "detected_mm": 54.89,
-  "precision": 0.565,
-  "fp_mm_per_mm2": 5.96,
+  "recall": 0.463,
+  "detected_mm": 56.7,
+  "precision": 0.534,
+  "fp_mm_per_mm2": 6.6,
   "continuity": {
    "strands": 86,
    "whole": 0.0,
    "pieces_median": 3.0,
-   "missed": 0.047
+   "missed": 0.058
   },
   "crossings": {
    "over": [
-    0.149,
+    0.046,
     87
    ],
    "under": [
-    0.049,
+    0.11,
     82
    ]
   },
-  "recall_chance": 0.274
+  "recall_chance": 0.272,
+  "precision_chance": 0.365
  },
  {
   "tile": "crypt-1002",
@@ -473,68 +481,69 @@
   "classes": {
    "bundle": {
     "truth_mm": 23.35,
-    "recall": 0.546,
-    "width_ratio": 1.09,
+    "recall": 0.533,
+    "width_ratio": 1.08,
     "width_spread": 0.29,
-    "recall_chance": 0.39
+    "recall_chance": 0.382
    },
    "deck": {
     "truth_mm": 10.03,
-    "recall": 0.897,
-    "width_ratio": 1.44,
-    "width_spread": 0.37,
-    "recall_chance": 0.346
+    "recall": 0.813,
+    "width_ratio": 1.26,
+    "width_spread": 0.36,
+    "recall_chance": 0.407
    },
    "fine": {
     "truth_mm": 3.67,
-    "recall": 0.21,
+    "recall": 0.211,
     "width_ratio": 3.22,
     "width_spread": 1.17,
-    "recall_chance": 0.136
+    "recall_chance": 0.137
    },
    "plateau": {
     "truth_mm": 1.47,
-    "recall": 0.337,
-    "width_ratio": 1.6,
-    "width_spread": 0.47,
-    "recall_chance": 0.27
+    "recall": 0.375,
+    "width_ratio": 1.63,
+    "width_spread": 0.49,
+    "recall_chance": 0.222
    },
    "trough": {
     "truth_mm": 27.26,
-    "recall": 0.19,
+    "recall": 0.176,
     "width_ratio": 0.41,
     "width_spread": 0.89,
-    "recall_chance": 0.161
+    "recall_chance": 0.148
    },
    "valley": {
     "truth_mm": 3.0,
-    "recall": 0.484,
-    "width_ratio": 1.76,
-    "width_spread": 0.57,
-    "recall_chance": 0.284
+    "recall": 0.418,
+    "width_ratio": 1.43,
+    "width_spread": 0.42,
+    "recall_chance": 0.267
    }
   },
-  "recall": 0.431,
-  "detected_mm": 68.97,
-  "precision": 0.387,
-  "fp_mm_per_mm2": 10.57,
+  "recall": 0.407,
+  "detected_mm": 75.09,
+  "precision": 0.343,
+  "fp_mm_per_mm2": 12.33,
   "continuity": {
    "strands": 86,
-   "whole": 0.047,
+   "whole": 0.023,
    "pieces_median": 3.0,
-   "missed": 0.081
+   "missed": 0.093
   },
   "crossings": {
    "over": [
-    0.281,
+    0.219,
     32
    ],
    "under": [
-    0.179,
+    0.154,
     39
    ]
   },
-  "recall_chance": 0.272
+  "recall_chance": 0.271,
+  "precision_chance": 0.262
  },
  {
   "tile": "ladder-4000",
@@ -611,6 +620,7 @@
    "80um@0.50": 1.0
   },
   "recall_chance": 0.206,
+  "precision_chance": 0.048,
   "ladder_chance": {
    "6um@0.03": 0.22,
    "6um@0.06": 0.0,
@@ -729,6 +739,7 @@
    "80um@0.50": 1.0
   },
   "recall_chance": 0.178,
+  "precision_chance": 0.048,
   "ladder_chance": {
    "6um@0.03": 0.0,
    "6um@0.06": 0.09,
@@ -847,6 +858,7 @@
    "80um@0.50": 1.0
   },
   "recall_chance": 0.119,
+  "precision_chance": 0.024,
   "ladder_chance": {
    "6um@0.03": 0.0,
    "6um@0.06": 0.0,
@@ -965,6 +977,7 @@
    "80um@0.50": 0.78
   },
   "recall_chance": 0.124,
+  "precision_chance": 0.03,
   "ladder_chance": {
    "6um@0.03": 0.0,
    "6um@0.06": 0.0,
@@ -1083,6 +1096,7 @@
    "80um@0.50": 1.0
   },
   "recall_chance": 0.182,
+  "precision_chance": 0.047,
   "ladder_chance": {
    "6um@0.03": 0.62,
    "6um@0.06": 0.12,
@@ -1131,9 +1145,9 @@
   "area_mm2": 4.003,
   "classes": {},
   "recall": null,
-  "detected_mm": 44.03,
+  "detected_mm": 43.65,
   "precision": 0.0,
-  "fp_mm_per_mm2": 11.0,
+  "fp_mm_per_mm2": 10.9,
   "continuity": {
    "strands": 0,
    "whole": 0.0,
@@ -1150,16 +1164,17 @@
     0
    ]
   },
-  "recall_chance": null
+  "recall_chance": null,
+  "precision_chance": 0.0
  },
  {
   "tile": "null-5001",
   "area_mm2": 4.003,
   "classes": {},
   "recall": null,
-  "detected_mm": 50.28,
+  "detected_mm": 50.8,
   "precision": 0.0,
-  "fp_mm_per_mm2": 12.56,
+  "fp_mm_per_mm2": 12.69,
   "continuity": {
    "strands": 0,
    "whole": 0.0,
@@ -1176,16 +1191,17 @@
     0
    ]
   },
-  "recall_chance": null
+  "recall_chance": null,
+  "precision_chance": 0.0
  },
  {
   "tile": "null-5002",
   "area_mm2": 4.003,
   "classes": {},
   "recall": null,
-  "detected_mm": 61.41,
+  "detected_mm": 62.1,
   "precision": 0.0,
-  "fp_mm_per_mm2": 15.34,
+  "fp_mm_per_mm2": 15.51,
   "continuity": {
    "strands": 0,
    "whole": 0.0,
@@ -1202,7 +1218,8 @@
     0
    ]
   },
-  "recall_chance": null
+  "recall_chance": null,
+  "precision_chance": 0.0
  },
  {
   "tile": "nullbundle-6000",
@@ -1243,7 +1260,8 @@
     0
    ]
   },
-  "recall_chance": 0.239
+  "recall_chance": 0.239,
+  "precision_chance": 0.369
  },
  {
   "tile": "nullbundle-6001",
@@ -1284,7 +1302,8 @@
     0
    ]
   },
-  "recall_chance": 0.247
+  "recall_chance": 0.247,
+  "precision_chance": 0.3
  },
  {
   "tile": "nullbundle-6002",
@@ -1325,7 +1344,8 @@
     0
    ]
   },
-  "recall_chance": 0.245
+  "recall_chance": 0.245,
+  "precision_chance": 0.303
  },
  {
   "tile": "plateau-0",
@@ -1387,7 +1407,8 @@
     15
    ]
   },
-  "recall_chance": 0.23
+  "recall_chance": 0.23,
+  "precision_chance": 0.383
  },
  {
   "tile": "plateau-1",
@@ -1449,7 +1470,8 @@
     10
    ]
   },
-  "recall_chance": 0.249
+  "recall_chance": 0.249,
+  "precision_chance": 0.402
  },
  {
   "tile": "plateau-2",
@@ -1511,6 +1533,7 @@
     16
    ]
   },
-  "recall_chance": 0.187
+  "recall_chance": 0.187,
+  "precision_chance": 0.301
  }
 ]

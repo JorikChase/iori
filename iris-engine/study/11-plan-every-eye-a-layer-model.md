@@ -1289,6 +1289,50 @@ What this measures, beyond P1's look:
   deck measures (1.38). The tube radius r = 0.6 w was tuned by a sweep, so it stands as tuned; its physical reading changes.
 - Scope: calibrated on eye 26 only (params for 09 / 25 / 35: `phantom.py measure NN`, then the bundles' calibration per eye).
 
+**P3, first cut (2026-09-28) — `tools/detect/detect2.py`. Built, measured, NOT adopted: it overshoots on the real photo.**
+The design as planned: an orientation score (elongated −∂²G across the strand, 16 directions × 7 widths 8–90 µm, σ^1.5 so the
+winning σ is the strand's — checked on clean ridges, every width picks itself); each region filtered on its own (the other
+zeroed) so no filter straddles a crypt's edge, the edge itself and dark lines parallel to it in the flank band excluded;
+NMS across the strand and across directions (a crossing keeps both); tracking in (x, y, θ) with straight gaps up to 110 µm; a
+running score Σ (z − z0), z0 the grain's own typical candidate strength, each walk cut back to its peak; and EVERY threshold
+from the eye's grain (the null's 99.9th percentile per width; the tracker down to its 80th; acceptance where the null's
+surviving lines fall under 0.3 mm / mm²). Filter length swept (along σ 2.5 / 4 / 6 × across): 4 kept; tracker depth 60 / 70 /
+80th percentile: 80 kept (deeper finds more, but chance and false lines rise with it); the dip tolerance does not matter
+(walks end at gaps).
+
+Found on the way, and fixed in the ruler:
+- **The phantom's crypts were too clean.** I had assumed the floor's grain at 0.7 × the plateau's; measured (each region
+  against its own local mean, the finest band — sensor noise and speckle, narrower than the deck's strands), eye 26's crypt
+  floor is **1.35 ×** (`params-26.json` `cryptGrain`): a dark floor is relatively noisier. The phantom uses it now, the new
+  detector judges each region against its own grain, and today's crypt recall dropped from 0.74 to 0.66 on the honest phantom.
+- **Precision needs a chance floor too**: a line through dense truth (the plateau's 44 bundles per tile) matches something by
+  luck. Now reported (`precision_chance`).
+
+| scenario (phantom) | today: recall (chance) · precision (chance) · false mm/mm² | new: the same |
+|---|---|---|
+| plateau | 0.39 (0.22) · 0.56 (0.36) · 3.8 | 0.57 (0.34) · 0.76 (0.50) · 4.7 |
+| crypt | 0.44 (0.28) · 0.43 (0.33) · 9.7 | 0.47 (0.28) · 0.73 (0.49) · 4.0 |
+| bridges | 0.46 (0.28) · 0.49 (0.33) · 6.5 | 0.61 (0.38) · 0.74 (0.50) · 4.9 |
+| null (grain only) | — · 0 · 13.0 | — · 0 · 0.2 |
+
+Widths now true where a strand stands alone (deck 1.02, plateau strand 1.09, bridge 0.86, trough 0.93; fine and valley are
+confounded by the strands they lie on). Crossings survive 2–3 × more often. Continuity is still poor (≤ 8 % whole), and the
+crypt's margin over chance is not better than today's (0.19 against 0.16 recall, 0.24 against 0.10 precision).
+
+**The real photo overrules the phantom** (`study/detect/detect2-26-real.png`, eye 26's two largest crypts, today beside new):
+the new tracker draws long straight lines through everything — across crypt edges, through the plateau's texture, into
+star-shaped convergences — where the photo has short, curving strands; median length 0.6 mm against today's 0.13. The real
+plateau's texture is far more directionally coherent than the phantom's, so a candidate in the right direction is always
+within reach and a 110 µm straight gap never ends a walk. Lessons: (1) **every detector step is judged on real crops beside the
+phantom's numbers** — the phantom can be gamed by a detector that suits its statistics; (2) the phantom needs the real
+texture's coherence (a background synthesised from the real plateau's full 2-D spectrum, anisotropy included, not only its
+isotropic share and radial bundles).
+
+**P3b — next (proposed):** gaps only where the separator rule justifies one (iori, 2026-09-27: a strand crossing the gap —
+occlusion, not free straight continuation); tracking bounded by its region (crypt edges end deck and plateau strands; bridges
+their own pass); a coherence-aware local null (the threshold rises where the texture is directionally coherent); the phantom's
+plateau background from the real spectrum; the real-crop sheet in every scoring run.
+
 **The 2-D detector (P1–P4).** Why the current one cannot be perfect: detection is gated by the hole mask (deck only at
 sd > 1 px, guides at sd < −6) so crypt edges and septa — where iori's bridges are — are traced by nobody; the ridge ladder
 tops out at σ 4.5 px ≈ 13 µm (FWHM ≈ 30 µm) where bridges are 35–80 µm; the Hessian breaks at every crossing, so every strand

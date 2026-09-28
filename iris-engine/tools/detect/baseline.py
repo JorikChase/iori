@@ -64,7 +64,7 @@ def summary(rows):
     S = defaultdict(lambda: defaultdict(list)); C = defaultdict(lambda: defaultdict(list))
     for r in rows:
         sc = r['tile'].rsplit('-', 1)[0]
-        for k in ('recall', 'recall_chance', 'precision', 'fp_mm_per_mm2'):
+        for k in ('recall', 'recall_chance', 'precision', 'precision_chance', 'fp_mm_per_mm2'):
             if r[k] is not None: S[sc][k].append(r[k])
         if r['continuity']['strands']: S[sc]['whole'].append(r['continuity']['whole'])
         for role in ('over', 'under'):

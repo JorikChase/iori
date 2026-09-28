@@ -127,7 +127,7 @@ def with_chance(gt, det, shift_px=15.0):
     what a detector scores by drawing lines where there are none. Recall at or under it is luck, not detection."""
     r = score(gt, det)
     sh = dict(gt); sh['curves'] = [dict(c, xy=(np.asarray(c['xy'], float) + shift_px).tolist()) for c in gt['curves']]; sh['crossings'] = []
-    ch = score(sh, det); r['recall_chance'] = ch['recall']
+    ch = score(sh, det); r['recall_chance'] = ch['recall']; r['precision_chance'] = ch['precision']   # a line through dense truth matches something by luck too
     for cls, v in r['classes'].items(): v['recall_chance'] = ch['classes'].get(cls, {}).get('recall')
     if 'ladder' in ch: r['ladder_chance'] = ch['ladder']
     return r

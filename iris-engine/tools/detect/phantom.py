@@ -15,7 +15,7 @@ Image model (linear luminance, the fitter's pY):
   bundles  broad radial bundles (bright) and troughs (dark), 45–110 µm, modulating the plateau's ground: the photo's directional
            18–75 µm energy (their contrast calibrated so the phantom's bands match the photo's total band rms)
   bridge   a wide bright strand from plateau across a crypt to plateau, drawn last, with its shadow on the floor
-  speckle  isotropic, the photo's band rms measured the photo's way (calibrate_gains; ×0.7 on the floor), multiplicative;
+  speckle  isotropic, the photo's band rms measured the photo's way (calibrate_gains; × the measured cryptGrain on the floor),
            then a 0.6 px PSF and sensor noise
 Ground truth per tile (JSON): every curve (px, per-sample FWHM µm, contrast, class, z, visible flag per sample), the
 crossings (who is over), the crypt polygons, the bridges; the flank as a PNG mask.
@@ -51,6 +51,15 @@ def measure(ref):
          'contrast': {'guide': pct(at(d['gpaths'], Lg)), 'fine': pct(at(d['sfp'], Ln)), 'deck': pct(at(d['fpaths'], Ln))},
          'flankProfile': {'px_step': 4, 'rel': prof},
          'src': 'phantom.py measure: sheet dump + abltex (study/11 §5.6 P2)'}
+    # the crypt floor's grain, relative to the plateau's: the finest band (4.7–9.3 µm, sensor noise and speckle — the deck's strands are
+    # wider), each region against its OWN local mean. Eye 26: 1.36 (the dark floor is relatively noisier); the broader bands
+    # cannot separate grain from the deck (strands in every direction read as isotropic in aggregate), so the finest band's ratio is used
+    def region_band(m):
+        w = m.astype(np.float32); s = 65.0 / UM; mean = cv2.GaussianBlur(pY * w, (0, 0), s) / np.maximum(cv2.GaussianBlur(w, (0, 0), s), 1e-4)
+        Ln = np.where(m, pY / np.maximum(mean, 1e-6), 1).astype(np.float32); a, b = tex['bands'][0]['band_um']
+        B = cv2.GaussianBlur(Ln, (0, 0), a / UM) - cv2.GaussianBlur(Ln, (0, 0), b / UM); core = cv2.erode(m.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+        return float(np.sqrt((B[core] ** 2).mean()))
+    P['cryptGrain'] = round(region_band(sd > 2) / region_band((sd < -14) & inner), 3)
     os.makedirs(OUT, exist_ok=True); json.dump(P, open(os.path.join(OUT, f'params-{ref}.json'), 'w'), indent=1); print(json.dumps(P, indent=1))
 
 
@@ -169,9 +178,9 @@ class Tile:
                 L = np.where(crypt, L * (1 - 0.45 * gs), L).astype(np.float32)
         # visibility of each GT sample: covered by a higher strand's core (g > 0.5 of a strand drawn after it) → hidden
         self.visibility(order)
-        # speckle: the photo's isotropic band rms (calibrate_gains, measured as abl_texture.py measures the photo); the floor 0.7 of it
+        # speckle: the photo's isotropic band rms (calibrate_gains, measured as abl_texture.py measures the photo); the floor × its measured cryptGrain
         n = speckle(P, N, R, P['_gains'])
-        L = L * (1 + n * np.where(crypt, 0.7, 1.0))
+        L = L * (1 + n * np.where(crypt, P.get('cryptGrain', 1.0), 1.0))
         L = cv2.GaussianBlur(L.astype(np.float32), (0, 0), PSF_PX)
         L = np.clip(L + R.normal(0, 0.0015, L.shape) + np.sqrt(np.maximum(L, 0) * 2e-5) * R.normal(0, 1, L.shape), 1e-5, 1).astype(np.float32)
         self.img = L; return L

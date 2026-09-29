@@ -1333,6 +1333,31 @@ occlusion, not free straight continuation); tracking bounded by its region (cryp
 their own pass); a coherence-aware local null (the threshold rises where the texture is directionally coherent); the phantom's
 plateau background from the real spectrum; the real-crop sheet in every scoring run.
 
+**P3b, step 1 (2026-09-29) — the inspect view, and `detect3.py`.** iori: "launch an inspect view". `tools/detect/inspect.html`
+(on the dev server: `/iris-engine/tools/detect/inspect.html`), data from `tools/detect/inspect_build.py 26 --detectors
+today,detect2,detect3` (regenerable, not committed): real 2 mm crops of eye 26 (the narrowest necks between crypts — the bridge
+sites —, its two largest crypts, the most crypt-dense window, a plain plateau, the pupillary zone) and the phantom's tiles, each
+under every detector in synchronised panes (one zoom and pan: wheel, drag, double-click), the phantom's truth as its own pane or
+dashed under the others, class chips, the crypt edge, line weight, photo dim; the ruler's scores (with chance) for the phantom,
+curve counts and lengths for the real crops.
+
+`detect3` = detect2's evidence and thresholds with bounded walks: a walk ends where it would leave its region (crypt / plateau);
+a gap longer than 2 px is crossed only under an OCCLUDER — a strong candidate at least 34° off the walk's direction inside the
+gap (iori's separator rule), then no further than 60 µm, and those points are marked `under` (over / under evidence for L1).
+
+| phantom | today: recall (ch.) · precision (ch.) · false | detect2 | detect3 |
+|---|---|---|---|
+| plateau | 0.39 (0.22) · 0.56 (0.36) · 3.8 | 0.57 (0.34) · 0.76 (0.50) · 4.7 | 0.41 (0.19) · 0.88 (0.48) · 1.1 |
+| crypt | 0.44 (0.28) · 0.43 (0.33) · 9.7 | 0.47 (0.28) · 0.73 (0.49) · 4.0 | 0.34 (0.17) · 0.81 (0.51) · 1.3 |
+| bridges | 0.46 (0.28) · 0.49 (0.33) · 6.5 | 0.61 (0.38) · 0.74 (0.50) · 4.9 | 0.47 (0.26) · 0.79 (0.51) · 1.9 |
+
+Real crops of eye 26 (total line · median length): today 73–82 mm · 0.13–0.21 mm; detect2 150–275 mm · 0.59–1.11 mm; detect3
+66–78 mm · 0.32–0.53 mm. Seen in the view at 3×: detect3 no longer runs through crypt edges, but its lines are still STRAIGHTER
+than the photo's strands — long parallel strokes along the crypt's dominant direction where today's short traces follow the wavy
+strands and valleys the photo shows; crossings survive less than in detect2 (the occluder test fires too rarely). Next in P3b:
+curvature (shorter filters where the texture is coherent, or a curvature-aware pick), the coherence-aware null, the phantom's
+background from the real spectrum.
+
 **The 2-D detector (P1–P4).** Why the current one cannot be perfect: detection is gated by the hole mask (deck only at
 sd > 1 px, guides at sd < −6) so crypt edges and septa — where iori's bridges are — are traced by nobody; the ridge ladder
 tops out at σ 4.5 px ≈ 13 µm (FWHM ≈ 30 µm) where bridges are 35–80 µm; the Hessian breaks at every crossing, so every strand

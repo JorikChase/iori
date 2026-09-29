@@ -54,6 +54,7 @@ def local_contrast(pY, crypt, um):
 
 
 class Detector:
+    NULL_NAME = 'null'                                                              # the calibration file: study/detect/<NULL_NAME>-<eye>.json
     def __init__(self, um, thresholds=None, min_len_px=None):
         self.um = um; self.sig = [f / 2.355 / um for f in FWHM_UM]; self.th = [(k + 0.5) * math.pi / K_DIRS for k in range(K_DIRS)]
         self.bank = [[kernel(s, t, max(ELONG * s, MIN_ALONG_PX)) for t in self.th] for s in self.sig]
@@ -129,7 +130,7 @@ class Detector:
         return curves
 
     def __call__(self, pY, crypt, raw=False):
-        crypt = crypt.astype(bool); C = local_contrast(pY.astype(np.float32), crypt, self.um); out = []
+        crypt = crypt.astype(bool); self._region = crypt; C = local_contrast(pY.astype(np.float32), crypt, self.um); out = []
         # each region filtered on its own (the other region's contrast zeroed — its mean): no filter straddles a crypt's edge
         if crypt.any() and (~crypt).any():
             Rc, Rp = self.responses(np.where(crypt, C, 0).astype(np.float32)), self.responses(np.where(crypt, 0, C).astype(np.float32))
@@ -161,7 +162,7 @@ class Detector:
     # ---- 4. thresholds from the eye's own grain
     @classmethod
     def for_eye(cls, ref, recalibrate=False):
-        path = os.path.join(OUT, f'null-{ref}{os.environ.get("D2_TAG", "")}.json')
+        path = os.path.join(OUT, f'{cls.NULL_NAME}-{ref}{os.environ.get("D2_TAG", "")}.json')
         P = json.load(open(os.path.join(OUT, f'params-{ref}.json'))); D = cls(P['UM']); D.crypt_grain = P.get('cryptGrain', 1.0)
         if os.path.exists(path) and not recalibrate:
             c = json.load(open(path)); D.T = c['T']; D.min_len_px = 0; return D

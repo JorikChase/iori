@@ -1,0 +1,184 @@
+{
+ "scenarios": {
+  "bridges": {
+   "recall": 0.467,
+   "recall_chance": 0.256,
+   "precision": 0.794,
+   "precision_chance": 0.509,
+   "fp_mm_per_mm2": 1.893,
+   "whole": 0.009,
+   "cross_over": 0.185,
+   "cross_under": 0.068
+  },
+  "crossings": {
+   "recall": 0.077,
+   "recall_chance": 0.007,
+   "precision": 0.318,
+   "precision_chance": 0.037,
+   "fp_mm_per_mm2": 0.49,
+   "whole": 0.0,
+   "cross_over": 0.056,
+   "cross_under": 0.111
+  },
+  "crypt": {
+   "recall": 0.344,
+   "recall_chance": 0.17,
+   "precision": 0.806,
+   "precision_chance": 0.511,
+   "fp_mm_per_mm2": 1.297,
+   "whole": 0.031,
+   "cross_over": 0.243,
+   "cross_under": 0.111
+  },
+  "ladder": {
+   "recall": 0.117,
+   "recall_chance": 0.005,
+   "precision": 0.632,
+   "precision_chance": 0.012,
+   "fp_mm_per_mm2": 0.288,
+   "whole": 0.075
+  },
+  "null": {
+   "fp_mm_per_mm2": 0.0
+  },
+  "nullbundle": {
+   "recall": 0.559,
+   "recall_chance": 0.282,
+   "precision": 0.846,
+   "precision_chance": 0.514,
+   "fp_mm_per_mm2": 1.54,
+   "whole": 0.0
+  },
+  "plateau": {
+   "recall": 0.412,
+   "recall_chance": 0.192,
+   "precision": 0.878,
+   "precision_chance": 0.485,
+   "fp_mm_per_mm2": 1.087,
+   "whole": 0.008,
+   "cross_over": 0.0,
+   "cross_under": 0.118
+  }
+ },
+ "classes": {
+  "bridge": {
+   "recall": 0.58,
+   "recall_chance": 0.103,
+   "width_ratio": 1.1
+  },
+  "bundle": {
+   "recall": 0.464,
+   "recall_chance": 0.262,
+   "width_ratio": 0.943
+  },
+  "deck": {
+   "recall": 0.182,
+   "recall_chance": 0.09,
+   "width_ratio": 1.53
+  },
+  "fine": {
+   "recall": 0.125,
+   "recall_chance": 0.101,
+   "width_ratio": 3.233
+  },
+  "plateau": {
+   "recall": 0.223,
+   "recall_chance": 0.047,
+   "width_ratio": 1.204
+  },
+  "trough": {
+   "recall": 0.486,
+   "recall_chance": 0.227,
+   "width_ratio": 0.97
+  },
+  "valley": {
+   "recall": 0.118,
+   "recall_chance": 0.051,
+   "width_ratio": 4.047
+  }
+ },
+ "ladder": {
+  "6um@0.03": 0.0,
+  "6um@0.06": 0.0,
+  "6um@0.12": 0.0,
+  "6um@0.25": 0.0,
+  "6um@0.50": 0.0,
+  "9um@0.03": 0.0,
+  "9um@0.06": 0.0,
+  "9um@0.12": 0.04,
+  "9um@0.25": 0.0,
+  "9um@0.50": 0.0,
+  "13um@0.03": 0.0,
+  "13um@0.06": 0.0,
+  "13um@0.12": 0.0,
+  "13um@0.25": 0.0,
+  "13um@0.50": 0.17,
+  "19um@0.03": 0.0,
+  "19um@0.06": 0.0,
+  "19um@0.12": 0.0,
+  "19um@0.25": 0.02,
+  "19um@0.50": 0.54,
+  "28um@0.03": 0.0,
+  "28um@0.06": 0.0,
+  "28um@0.12": 0.0,
+  "28um@0.25": 0.16,
+  "28um@0.50": 0.6,
+  "40um@0.03": 0.0,
+  "40um@0.06": 0.0,
+  "40um@0.12": 0.0,
+  "40um@0.25": 0.01,
+  "40um@0.50": 0.6,
+  "58um@0.03": 0.0,
+  "58um@0.06": 0.0,
+  "58um@0.12": 0.0,
+  "58um@0.25": 0.38,
+  "58um@0.50": 1.0,
+  "80um@0.03": 0.0,
+  "80um@0.06": 0.0,
+  "80um@0.12": 0.15,
+  "80um@0.25": 0.4,
+  "80um@0.50": 0.6
+ },
+ "ladder_chance": {
+  "6um@0.03": 0.0,
+  "6um@0.06": 0.03,
+  "6um@0.12": 0.0,
+  "6um@0.25": 0.0,
+  "6um@0.50": 0.0,
+  "9um@0.03": 0.0,
+  "9um@0.06": 0.0,
+  "9um@0.12": 0.0,
+  "9um@0.25": 0.0,
+  "9um@0.50": 0.0,
+  "13um@0.03": 0.0,
+  "13um@0.06": 0.0,
+  "13um@0.12": 0.0,
+  "13um@0.25": 0.0,
+  "13um@0.50": 0.0,
+  "19um@0.03": 0.0,
+  "19um@0.06": 0.0,
+  "19um@0.12": 0.0,
+  "19um@0.25": 0.0,
+  "19um@0.50": 0.0,
+  "28um@0.03": 0.0,
+  "28um@0.06": 0.0,
+  "28um@0.12": 0.0,
+  "28um@0.25": 0.0,
+  "28um@0.50": 0.0,
+  "40um@0.03": 0.0,
+  "40um@0.06": 0.0,
+  "40um@0.12": 0.0,
+  "40um@0.25": 0.0,
+  "40um@0.50": 0.0,
+  "58um@0.03": 0.0,
+  "58um@0.06": 0.0,
+  "58um@0.12": 0.0,
+  "58um@0.25": 0.0,
+  "58um@0.50": 0.0,
+  "80um@0.03": 0.0,
+  "80um@0.06": 0.0,
+  "80um@0.12": 0.0,
+  "80um@0.25": 0.08,
+  "80um@0.50": 0.11
+ }
+}

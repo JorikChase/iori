@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strand Inspect</title>
+<!-- study/11 §5.6 P3b: the same regions under every detector, side by side, one zoom. Data: tools/detect/inspect_build.py →
+     study/detect/inspect/. Served by the iris-engine dev server: http://localhost:8771/iris-engine/tools/detect/inspect.html -->
+<style>
+  :root { --bg: #111317; --panel: #1b1e24; --line: #2c313a; --text: #e6e8eb; --dim: #9aa1ab; --accent: #ffd23f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 -apple-system, system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header b { font-weight: 600; }
+  .grp { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .grp > span { color: var(--dim); margin-right: 2px; }
+  button { font: inherit; color: var(--text); background: #262a31; border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+  button.on { background: #3a4150; border-color: #5b6475; }
+  button.case.on { outline: 1px solid var(--accent); }
+  button .sw { display: inline-block; width: 12px; height: 4px; margin-right: 5px; vertical-align: middle; outline: 1px solid #000; }
+  input[type=range] { width: 90px; vertical-align: middle; }
+  #why { color: var(--dim); padding: 4px 12px; border-bottom: 1px solid var(--line); min-height: 24px; }
+  #panes { flex: 1; display: grid; gap: 4px; padding: 4px; min-height: 0; }
+  .pane { position: relative; background: #000; border: 1px solid var(--line); overflow: hidden; min-height: 0; }
+  .pane canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+  .pane .lab { position: absolute; left: 6px; top: 4px; background: rgba(0,0,0,.6); padding: 1px 6px; border-radius: 4px; pointer-events: none; }
+  #scores { padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); overflow-x: auto; }
+  table { border-collapse: collapse; }
+  td, th { padding: 2px 10px 2px 0; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th { color: var(--dim); font-weight: 500; }
+  td:first-child, th:first-child { text-align: left; }
+  .muted { color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <b>Strand inspect</b>
+  <div class="grp" id="cases"></div>
+  <div class="grp" id="dets"><span>panes</span></div>
+  <div class="grp" id="classes"></div>
+  <div class="grp"><span>weight</span><input id="weight" type="range" min="0.5" max="4" step="0.1" value="1.4"></div>
+  <div class="grp"><span>photo</span><input id="dim" type="range" min="0.1" max="1" step="0.05" value="0.75"></div>
+  <div class="grp"><button id="truthUnder" title="the phantom's truth, thin grey, under every detector">truth under</button><button id="edge" class="on">crypt edge</button><button id="reset">reset zoom</button></div>
+</header>
+<div id="why"></div>
+<div id="panes"></div>
+<div id="scores"></div>
+<script>
+(() => {
+  const DATA = '../../study/detect/inspect/';
+  const COL = { deck: '#1fe3ff', valley: '#a066ff', plateau: '#35f06a', fine: '#d4ff3a', bridge: '#fff23a', bundle: '#ff9d3a', trough: '#c77dff' };
+  const LABEL = { deck: 'crypt strand', valley: 'valley', plateau: 'plateau strand', fine: 'fine strand', bridge: 'bridge', bundle: 'bundle (truth)', trough: 'trough (truth)' };
+  const S = { idx: null, cas: null, panes: [], show: Object.fromEntries(Object.keys(COL).map(k => [k, true])), dets: new Set(), weight: 1.4, dim: 0.75, truthUnder: false, edge: true,
+              view: { s: 1, x: 0, y: 0 }, cache: {} };
+  const $ = id => document.getElementById(id), h = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.innerHTML = x; return e; };
+  const load = async (url, kind) => { if (S.cache[url]) return S.cache[url]; const p = kind === 'img' ? new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; }) : fetch(url, { cache: 'no-store' }).then(r => r.ok ? r.json() : null); S.cache[url] = p; return p; };
+  const fmt = v => v === null || v === undefined ? '—' : typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) : v;
+
+  async function init() {
+    S.idx = await fetch(DATA + 'index.json', { cache: 'no-store' }).then(r => r.json());
+    S.idx.detectors.forEach(d => S.dets.add(d));
+    const cs = Object.values(S.idx.cases), cg = $('cases');
+    for (const kind of ['real', 'phantom']) {
+      cg.appendChild(h('span', '', kind === 'real' ? 'photo' : 'phantom'));
+      for (const c of cs.filter(c => c.kind === kind)) { const b = h('button', 'case', c.name.replace(/^phantom-/, '').replace(/^\d\d-/, '')); b.title = c.why; b.onclick = () => pick(c.name); b.dataset.case = c.name; cg.appendChild(b); }
+    }
+    const dg = $('dets');
+    for (const d of S.idx.detectors) { const b = h('button', 'on', d); b.onclick = () => { S.dets.has(d) ? S.dets.delete(d) : S.dets.add(d); b.classList.toggle('on', S.dets.has(d)); build(); }; dg.appendChild(b); }
+    const kg = $('classes');
+    for (const k of Object.keys(COL)) { const b = h('button', 'on', `<i class="sw" style="background:${COL[k]}"></i>${LABEL[k]}`); b.onclick = () => { S.show[k] = !S.show[k]; b.classList.toggle('on', S.show[k]); draw(); }; kg.appendChild(b); }
+    $('weight').oninput = e => { S.weight = +e.target.value; draw(); }; $('dim').oninput = e => { S.dim = +e.target.value; draw(); };
+    $('truthUnder').onclick = e => { S.truthUnder = !S.truthUnder; e.target.classList.toggle('on', S.truthUnder); draw(); };
+    $('edge').onclick = e => { S.edge = !S.edge; e.target.classList.toggle('on', S.edge); draw(); };
+    $('reset').onclick = () => { S.view = { s: 1, x: 0, y: 0 }; draw(); };
+    addEventListener('resize', () => { size(); draw(); });
+    const want = (location.hash.slice(1) && S.idx.cases[decodeURIComponent(location.hash.slice(1))]) ? decodeURIComponent(location.hash.slice(1)) : cs[0].name;
+    pick(want);
+  }
+
+  async function pick(name) {
+    S.cas = S.idx.cases[name]; location.hash = encodeURIComponent(name);
+    document.querySelectorAll('button.case').forEach(b => b.classList.toggle('on', b.dataset.case === name));
+    const base = DATA + name + '/';
+    S.img = await load(base + 'photo.png', 'img'); S.edgeImg = await load(base + 'crypt.png', 'img').catch(() => null);
+    S.curves = {}; for (const d of S.idx.detectors) S.curves[d] = await load(base + d + '.json');
+    S.truth = S.cas.kind === 'phantom' ? await load(base + 'truth.json') : null;
+    S.edgePath = S.edgeImg ? edgeOutline(S.edgeImg) : null;
+    $('why').innerHTML = `<b>${name}</b> · ${S.cas.why} · ${S.cas.N} px = ${(S.cas.N * S.cas.UM / 1000).toFixed(2)} mm · ${S.cas.UM.toFixed(2)} µm/px` + (S.cas.at ? ` · centre (${S.cas.at.join(', ')}) in the fitter's crop` : '');
+    build(); scores();
+  }
+  function edgeOutline(img) {                        // the crypt mask's boundary pixels, once per case
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data, W = c.width, H = c.height, pts = [];
+    const on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4] > 127;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (on(x, y) && (!on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1))) pts.push(x, y);
+    return pts;
+  }
+
+  function build() {
+    const P = $('panes'); P.innerHTML = ''; S.panes = [];
+    const list = [{ key: 'photo', label: 'photo' }, ...S.idx.detectors.filter(d => S.dets.has(d)).map(d => ({ key: d, label: d }))];
+    if (S.truth) list.push({ key: 'truth', label: 'truth' });
+    const n = list.length, cols = n <= 3 ? n : Math.ceil(n / 2); P.style.gridTemplateColumns = `repeat(${cols}, 1fr)`; P.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, 1fr)`;
+    for (const p of list) {
+      const el = h('div', 'pane'), cv = h('canvas'), lab = h('div', 'lab', p.label); el.appendChild(cv); el.appendChild(lab); P.appendChild(el);
+      const st = S.cas.stats && S.cas.stats[p.key]; if (st) lab.innerHTML += ` <span class="muted">· ${st.curves} curves · ${st.mm} mm · median ${st.median_um} µm</span>`;
+      S.panes.push({ ...p, el, cv }); interact(cv);
+    }
+    size(); draw();
+  }
+  function size() { for (const p of S.panes) { const r = p.el.getBoundingClientRect(), dpr = devicePixelRatio || 1; p.cv.width = Math.max(1, r.width * dpr); p.cv.height = Math.max(1, r.height * dpr); p.dpr = dpr; } }
+
+  // one view for every pane: s = zoom, (x, y) = the image point at the pane's centre offset, in image px
+  function xf(p) { const W = p.cv.width, H = p.cv.height, N = S.img.width, fit = Math.min(W, H) / N * S.view.s; return { k: fit, ox: W / 2 - (N / 2 + S.view.x) * fit, oy: H / 2 - (N / 2 + S.view.y) * fit }; }
+  function draw() {
+    if (!S.img) return;
+    for (const p of S.panes) {
+      const g = p.cv.getContext('2d'), T = xf(p); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#000'; g.fillRect(0, 0, p.cv.width, p.cv.height);
+      g.setTransform(T.k, 0, 0, T.k, T.ox, T.oy); g.imageSmoothingEnabled = T.k < 3; g.globalAlpha = p.key === 'photo' ? 1 : S.dim; g.drawImage(S.img, 0, 0); g.globalAlpha = 1;
+      const lw = S.weight / T.k * (p.dpr || 1);
+      if (S.edge && S.edgePath && p.key !== 'photo') { g.fillStyle = 'rgba(255,255,255,0.8)'; const e = S.edgePath, r = Math.max(1, 1.6 / T.k * (p.dpr || 1)); for (let i = 0; i < e.length; i += 2) g.fillRect(e[i] + 0.5 - r / 2, e[i + 1] + 0.5 - r / 2, r, r); }
+      if (p.key === 'photo') continue;
+      if (S.truth && (p.key === 'truth' || S.truthUnder)) curves(g, S.truth.curves, p.key === 'truth' ? lw : lw * 0.8, p.key !== 'truth');
+      if (p.key !== 'truth' && S.curves[p.key]) curves(g, S.curves[p.key].curves, lw, false);
+    }
+  }
+  function curves(g, list, lw, grey) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const pass of [0, 1]) for (const c of list) {
+      if (!S.show[c.cls] || c.xy.length < 2) continue;
+      g.beginPath(); g.moveTo(c.xy[0][0] + 0.5, c.xy[0][1] + 0.5); for (let i = 1; i < c.xy.length; i++) g.lineTo(c.xy[i][0] + 0.5, c.xy[i][1] + 0.5);
+      if (grey) { if (!pass) continue; g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = lw; g.setLineDash([3 * lw, 3 * lw]); g.stroke(); g.setLineDash([]); continue; }
+      g.strokeStyle = pass ? COL[c.cls] || '#fff' : 'rgba(0,0,0,0.55)'; g.lineWidth = pass ? lw : lw * 2.2; g.stroke();
+    }
+  }
+  function interact(cv) {
+    let drag = null;
+    cv.addEventListener('wheel', e => { e.preventDefault(); const p = S.panes.find(q => q.cv === cv), r = cv.getBoundingClientRect(), dpr = p.dpr || 1, N = S.img.width;
+      const W = p.cv.width, H = p.cv.height, mx = (e.clientX - r.left) * dpr, my = (e.clientY - r.top) * dpr, k0 = xf(p).k;
+      const ix = (mx - W / 2) / k0 + N / 2 + S.view.x, iy = (my - H / 2) / k0 + N / 2 + S.view.y;     // the image point under the pointer
+      S.view.s = Math.min(40, Math.max(0.5, S.view.s * Math.exp(-e.deltaY * 0.0015))); const k1 = xf(p).k;
+      S.view.x = ix - (mx - W / 2) / k1 - N / 2; S.view.y = iy - (my - H / 2) / k1 - N / 2; draw(); }, { passive: false });
+    cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; });
+    cv.addEventListener('pointermove', e => { if (!drag) return; const p = S.panes.find(q => q.cv === cv), T = xf(p), dpr = p.dpr || 1; S.view.x -= (e.clientX - drag[0]) * dpr / T.k; S.view.y -= (e.clientY - drag[1]) * dpr / T.k; drag = [e.clientX, e.clientY]; draw(); });
+    const up = () => { drag = null; cv.style.cursor = 'grab'; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('dblclick', () => { S.view = { s: 1, x: 0, y: 0 }; draw(); });
+  }
+  function scores() {
+    const c = S.cas, el = $('scores'); el.innerHTML = '';
+    if (c.kind === 'phantom') {
+      const keys = [['recall', 'found'], ['recall_chance', 'chance'], ['precision', 'true share'], ['precision_chance', 'chance'], ['fp_mm_per_mm2', 'false mm/mm²'], ['whole', 'whole'], ['cross_over', 'crossing: over'], ['cross_under', 'crossing: under']];
+      el.innerHTML = `<table><tr><th>detector</th>${keys.map(k => `<th>${k[1]}</th>`).join('')}</tr>` + S.idx.detectors.map(d => `<tr><td>${d}</td>${keys.map(k => `<td>${fmt((c.scores[d] || {})[k[0]])}</td>`).join('')}</tr>`).join('') + '</table>';
+    } else {
+      el.innerHTML = `<table><tr><th>detector</th><th>curves</th><th>total mm</th><th>median length µm</th></tr>` + S.idx.detectors.map(d => { const s = c.stats[d] || {}; return `<tr><td>${d}</td><td>${fmt(s.curves)}</td><td>${fmt(s.mm)}</td><td>${fmt(s.median_um)}</td></tr>`; }).join('') + '</table><span class="muted">a real photo has no truth: judge by eye, the panes share one zoom (wheel, drag, double-click resets)</span>';
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>

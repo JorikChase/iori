@@ -65,3 +65,4 @@ redir /web.html https://iori.me/web.html permanent
 redir /web3d.html https://iori.me/web3d.html permanent
 redir /webgl.html https://iori.me/webgl.html permanent
 redir /star.html https://3die.fr/start.html permanent
+redir /audiotools/* https://3die.fr/audio/ permanent

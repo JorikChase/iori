@@ -35,13 +35,13 @@
       "lastmod": "2026-09-27"
     },
     {
-      "slug": "audiotools/index.html",
+      "slug": "audio/index.html",
       "title": "Audio Tools — Eight Instruments for iPhone and iPad",
       "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor in one installable web app, sharing one tempo and one shelf of takes.",
-      "category": "audio",
+      "category": "tools",
       "type": "app",
       "domain": "3die.fr",
-      "url": "https://3die.fr/audiotools/",
+      "url": "https://3die.fr/audio/",
       "og_image": null,
       "lastmod": "2026-10-09"
     },
@@ -406,7 +406,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-10-09"
     },
     {
       "slug": "iris-engine/index.html",
@@ -728,7 +728,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/start.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-10-09"
     },
     {
       "slug": "sudoku.html",

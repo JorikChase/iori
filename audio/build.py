@@ -2,9 +2,9 @@
 """Stamp the Audio Tools service worker.
 
 Writes sw.js from sw.src.js with VERSION = a hash of every file the app ships
-and FILES = the precache list. Run after any change under audiotools/:
+and FILES = the precache list. Run after any change under audio/:
 
-    python3 audiotools/build.py
+    python3 audio/build.py
 
 `site.py heads` rewrites index.html's <head>, so run this after `site.py all`
 (the deploy order in AGENTS.md does both in sequence).
@@ -29,7 +29,7 @@ def main():
     out = src.replace("'__VERSION__'", json.dumps(version)).replace("__FILES__", json.dumps(FILES + ICONS))
     with open(os.path.join(HERE, "sw.js"), "w", encoding="utf-8") as fh:
         fh.write(out)
-    print(f"[audiotools] sw.js version {version}, {len(FILES)} files precached")
+    print(f"[audio] sw.js version {version}, {len(FILES)} files precached")
 
 if __name__ == "__main__":
     main()

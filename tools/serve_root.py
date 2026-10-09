@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Static dev server for the site root (no caching), for previewing pages and
-folder apps such as audiotools/ at http://127.0.0.1:<port>/<dir>/.
+folder apps such as audio/ at http://127.0.0.1:<port>/<dir>/.
 Usage: python3 tools/serve_root.py [port]   (default 8792). Local use only."""
 import http.server, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

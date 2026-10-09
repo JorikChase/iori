@@ -70,6 +70,9 @@ LANDING_PAGES = {"iori.me": "iori_INDEX.html", "3die.fr": "index.html"}
 # pages merged into another one: removed from the registry, but the old URL
 # 301s to the survivor on both domains so links and search results keep working
 RETIRED = {"star.html": "https://3die.fr/start.html"}
+# whole folders that moved: the old path 301s to the new home on both domains
+# (RETIRED cannot express this: a folder entry there would redirect to itself)
+RETIRED_DIRS = {"audiotools/": "https://3die.fr/audio/"}
 # page language: registry "lang" wins, else English. Pages that are written in
 # Czech must say so — a wrong lang tells search engines and screen readers to
 # read Czech as English.
@@ -717,6 +720,8 @@ def cmd_caddy():
                 lines.append(f"redir /{path}* https://{target.split('/')[2]}{{uri}} permanent")
             else:
                 lines.append(f"redir /{path} {target} permanent")
+        for path, target in sorted(RETIRED_DIRS.items()):
+            lines.append(f"redir /{path}* {target} permanent")
         suffix = "iori" if domain == "iori.me" else "3die"
         out = os.path.join(ROOT, f"redirects-{suffix}.caddy")
         with open(out, "w", encoding="utf-8") as fh:

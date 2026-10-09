@@ -34,10 +34,10 @@
       "type": "experiment",
       "priority": 0.5
     },
-    "audiotools/index.html": {
+    "audio/index.html": {
       "title": "Audio Tools — Eight Instruments for iPhone and iPad",
       "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor in one installable web app, sharing one tempo and one shelf of takes.",
-      "category": "audio",
+      "category": "tools",
       "domain": "3die.fr",
       "type": "app",
       "priority": 0.7,

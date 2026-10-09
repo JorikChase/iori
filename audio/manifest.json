@@ -1,10 +1,10 @@
 {
-  "id": "/audiotools/",
+  "id": "/audio/",
   "name": "Audio Tools",
   "short_name": "Audio Tools",
   "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor sharing one tempo and one shelf of takes.",
-  "start_url": "/audiotools/",
-  "scope": "/audiotools/",
+  "start_url": "/audio/",
+  "scope": "/audio/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",

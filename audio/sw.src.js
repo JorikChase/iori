@@ -1,13 +1,13 @@
-/* Audio Tools service worker — scoped to /audiotools/.
+/* Audio Tools service worker — scoped to /audio/.
    Precaches the shell and the eight tools so the installed app opens offline,
    then serves them cache-first and refreshes each file in the background
    (stale-while-revalidate): a deploy lands on the launch after next.
    VERSION is stamped by build.py from the files' content; a new version
    drops every older cache on activate. Cross-origin requests (analytics)
    pass straight through. */
-var VERSION = "0b4b599c6930";
-var CACHE = 'audiotools-' + VERSION;
-var FILES = ["./", "index.html", "manifest.json", "t/ana.html", "t/bpm.html", "t/edit.html", "t/metro.html", "t/play.html", "t/rec.html", "t/synth.html", "t/tuner.html", "../icon/android/launchericon-192x192.png?v=2026-09-27", "../icon/android/launchericon-512x512.png?v=2026-09-27"];
+var VERSION = '__VERSION__';
+var CACHE = 'audio-' + VERSION;
+var FILES = __FILES__;
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
@@ -15,7 +15,7 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k.indexOf('audiotools-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k.indexOf('audio-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 

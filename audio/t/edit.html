@@ -71,7 +71,7 @@ body>div:first-of-type{height:100%!important;border-radius:0!important}
    Tempo lives in localStorage and is broadcast; takes live in IndexedDB.
    Everything is wrapped so a tool still works when storage is blocked. */
 (function(){
-var ch=null;try{ch=new BroadcastChannel('audiotools');}catch(_){}
+var ch=null;try{ch=new BroadcastChannel('audio');}catch(_){}
 var L={tempo:[],takes:[]};
 if(ch)ch.onmessage=function(e){var m=e.data||{};(L[m.t]||[]).forEach(function(f){try{f(m.v,m.src)}catch(_){}});};
 function emit(t,v,src){if(ch)try{ch.postMessage({t:t,v:v,src:src})}catch(_){}}
@@ -82,7 +82,7 @@ function setTempo(v,src){v=Math.max(20,Math.min(300,Math.round(v*10)/10));mem.te
  var now=Date.now();if(now-lastSet>60){lastSet=now;emit('tempo',v,src);}else{clearTimeout(pend);pend=setTimeout(function(){lastSet=Date.now();emit('tempo',mem.tempo,src);},70);}}
 /* takes */
 var dbp=null;
-function db(){if(dbp)return dbp;dbp=new Promise(function(res,rej){try{var r=indexedDB.open('audiotools',1);r.onupgradeneeded=function(){r.result.createObjectStore('takes',{keyPath:'id'});};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};}catch(e){rej(e)}});return dbp;}
+function db(){if(dbp)return dbp;dbp=new Promise(function(res,rej){try{var r=indexedDB.open('audio',1);r.onupgradeneeded=function(){r.result.createObjectStore('takes',{keyPath:'id'});};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};}catch(e){rej(e)}});return dbp;}
 var memTakes=[];
 function tx(mode,fn){return db().then(function(d){return new Promise(function(res,rej){var t=d.transaction('takes',mode),s=t.objectStore('takes'),out=fn(s);t.oncomplete=function(){res(out&&out.result!==undefined?out.result:out)};t.onerror=function(){rej(t.error)};});});}
 var takes={

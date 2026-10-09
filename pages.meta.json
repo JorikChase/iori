@@ -34,6 +34,16 @@
       "type": "experiment",
       "priority": 0.5
     },
+    "audiotools/index.html": {
+      "title": "Audio Tools — Eight Instruments for iPhone and iPad",
+      "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor in one installable web app, sharing one tempo and one shelf of takes.",
+      "category": "audio",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.7,
+      "menu_pos": "tr",
+      "manifest": "manifest.json"
+    },
     "bismuth-fluid.html": {
       "title": "Bismuth Crystal Fluid",
       "description": "Iridescent bismuth-crystal colours poured into a living fluid simulation.",
@@ -494,6 +504,15 @@
       "type": "experiment",
       "priority": 0.6
     },
+    "petri/index.html": {
+      "title": "Petri — Slime Mold and Colony Growth Engine",
+      "description": "A WebGPU petri dish: inoculate agar with millimetre precision and grow slime molds, bacteria, molds and biofilms from ninety organisms on ten growth kernels.",
+      "category": "organisms",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6,
+      "menu_pos": "br"
+    },
     "pi.html": {
       "title": "Learn PI by Heart — Minimal Trainer",
       "description": "A minimal trainer for memorising the digits of pi, one decimal at a time.",
@@ -731,15 +750,6 @@
       "domain": "3die.fr",
       "type": "client",
       "priority": 0.7
-    },
-    "petri/index.html": {
-      "title": "Petri — Slime Mold and Colony Growth Engine",
-      "description": "A WebGPU petri dish: inoculate agar with millimetre precision and grow slime molds, bacteria, molds and biofilms from ninety organisms on ten growth kernels.",
-      "category": "organisms",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.6,
-      "menu_pos": "br"
     }
   }
 }

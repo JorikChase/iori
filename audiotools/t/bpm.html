@@ -1,0 +1,369 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tempo</title>
+<style>.ti{display:inline-block;width:1em;height:1em;background:currentColor;-webkit-mask:var(--i) center/contain no-repeat;mask:var(--i) center/contain no-repeat;vertical-align:middle}
+.ti-activity{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2012h4l3%208l4%20-16l3%208h4%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-adjustments-alt{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%208h4v4h-4l0%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M6%204l0%204%22%20%2F%3E%20%3Cpath%20d%3D%22M6%2012l0%208%22%20%2F%3E%20%3Cpath%20d%3D%22M10%2014h4v4h-4l0%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M12%204l0%2010%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2018l0%202%22%20%2F%3E%20%3Cpath%20d%3D%22M16%205h4v4h-4l0%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M18%204l0%201%22%20%2F%3E%20%3Cpath%20d%3D%22M18%209l0%2011%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-adjustments-horizontal{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M12%206a2%202%200%201%200%204%200a2%202%200%201%200%20-4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%206l8%200%22%20%2F%3E%20%3Cpath%20d%3D%22M16%206l4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M6%2012a2%202%200%201%200%204%200a2%202%200%201%200%20-4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2012l2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M10%2012l10%200%22%20%2F%3E%20%3Cpath%20d%3D%22M15%2018a2%202%200%201%200%204%200a2%202%200%201%200%20-4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2018l11%200%22%20%2F%3E%20%3Cpath%20d%3D%22M19%2018l1%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-arrow-bar-to-down{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2020l16%200%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2014l0%20-10%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2014l4%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2014l-4%20-4%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-arrows-down-up{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M17%203l0%2018%22%20%2F%3E%20%3Cpath%20d%3D%22M10%2018l-3%203l-3%20-3%22%20%2F%3E%20%3Cpath%20d%3D%22M7%2021l0%20-18%22%20%2F%3E%20%3Cpath%20d%3D%22M20%206l-3%20-3l-3%203%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-arrows-move{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M18%209l3%203l-3%203%22%20%2F%3E%20%3Cpath%20d%3D%22M15%2012h6%22%20%2F%3E%20%3Cpath%20d%3D%22M6%209l-3%203l3%203%22%20%2F%3E%20%3Cpath%20d%3D%22M3%2012h6%22%20%2F%3E%20%3Cpath%20d%3D%22M9%2018l3%203l3%20-3%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2015v6%22%20%2F%3E%20%3Cpath%20d%3D%22M15%206l-3%20-3l-3%203%22%20%2F%3E%20%3Cpath%20d%3D%22M12%203v6%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-arrows-vertical{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M8%207l4%20-4l4%204%22%20%2F%3E%20%3Cpath%20d%3D%22M8%2017l4%204l4%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M12%203l0%2018%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-atom-2{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M9%2012a3%203%200%201%200%206%200a3%203%200%201%200%20-6%200%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2021l0%20.01%22%20%2F%3E%20%3Cpath%20d%3D%22M3%209l0%20.01%22%20%2F%3E%20%3Cpath%20d%3D%22M21%209l0%20.01%22%20%2F%3E%20%3Cpath%20d%3D%22M8%2020.1a9%209%200%200%201%20-5%20-7.1%22%20%2F%3E%20%3Cpath%20d%3D%22M16%2020.1a9%209%200%200%200%205%20-7.1%22%20%2F%3E%20%3Cpath%20d%3D%22M6.2%205a9%209%200%200%201%2011.4%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-bolt{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M13%203l0%207l6%200l-8%2011l0%20-7l-6%200l8%20-11%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-cat{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M20%203v10a8%208%200%201%201%20-16%200v-10l3.432%203.432a7.963%207.963%200%200%201%204.568%20-1.432c1.769%200%203.403%20.574%204.728%201.546l3.272%20-3.546%22%20%2F%3E%20%3Cpath%20d%3D%22M2%2016h5l-4%204%22%20%2F%3E%20%3Cpath%20d%3D%22M22%2016h-5l4%204%22%20%2F%3E%20%3Cpath%20d%3D%22M11%2016a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M9%2011v.01%22%20%2F%3E%20%3Cpath%20d%3D%22M15%2011v.01%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-chart-area{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2019l16%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2015l4%20-6l4%202l4%20-5l4%204l0%205l-16%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-chart-bar{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2013a1%201%200%200%201%201%20-1h4a1%201%200%200%201%201%201v6a1%201%200%200%201%20-1%201h-4a1%201%200%200%201%20-1%20-1l0%20-6%22%20%2F%3E%20%3Cpath%20d%3D%22M15%209a1%201%200%200%201%201%20-1h4a1%201%200%200%201%201%201v10a1%201%200%200%201%20-1%201h-4a1%201%200%200%201%20-1%20-1l0%20-10%22%20%2F%3E%20%3Cpath%20d%3D%22M9%205a1%201%200%200%201%201%20-1h4a1%201%200%200%201%201%201v14a1%201%200%200%201%20-1%201h-4a1%201%200%200%201%20-1%20-1l0%20-14%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2020h14%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-chart-donut{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M10%203.2a9%209%200%201%200%2010.8%2010.8a1%201%200%200%200%20-1%20-1h-3.8a4.1%204.1%200%201%201%20-5%20-5v-4a.9%20.9%200%200%200%20-1%20-.8%22%20%2F%3E%20%3Cpath%20d%3D%22M15%203.5a9%209%200%200%201%205.5%205.5h-4.5a9%209%200%200%200%20-1%20-1v-4.5%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-chart-line{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2019l16%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2015l4%20-6l4%202l4%20-5l4%204%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-circle{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2012a9%209%200%201%200%2018%200a9%209%200%201%200%20-18%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-circle-filled{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23000%22%20%3E%20%3Cpath%20d%3D%22M7%203.34a10%2010%200%201%201%20-4.995%208.984l-.005%20-.324l.005%20-.324a10%2010%200%200%201%204.995%20-8.336z%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-copy{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M7%209.667a2.667%202.667%200%200%201%202.667%20-2.667h8.666a2.667%202.667%200%200%201%202.667%202.667v8.666a2.667%202.667%200%200%201%20-2.667%202.667h-8.666a2.667%202.667%200%200%201%20-2.667%20-2.667l0%20-8.666%22%20%2F%3E%20%3Cpath%20d%3D%22M4.012%2016.737a2.005%202.005%200%200%201%20-1.012%20-1.737v-10c0%20-1.1%20.9%20-2%202%20-2h10c.75%200%201.158%20.385%201.5%201%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-cut{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2017a3%203%200%201%200%206%200a3%203%200%201%200%20-6%200%22%20%2F%3E%20%3Cpath%20d%3D%22M14%2017a3%203%200%201%200%206%200a3%203%200%201%200%20-6%200%22%20%2F%3E%20%3Cpath%20d%3D%22M9.15%2014.85l8.85%20-10.85%22%20%2F%3E%20%3Cpath%20d%3D%22M6%204l8.85%2010.85%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-device-floppy{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M6%204h10l4%204v10a2%202%200%200%201%20-2%202h-12a2%202%200%200%201%20-2%20-2v-12a2%202%200%200%201%202%20-2%22%20%2F%3E%20%3Cpath%20d%3D%22M10%2014a2%202%200%201%200%204%200a2%202%200%201%200%20-4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M14%204l0%204l-6%200l0%20-4%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-edit{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M7%207h-1a2%202%200%200%200%20-2%202v9a2%202%200%200%200%202%202h9a2%202%200%200%200%202%20-2v-1%22%20%2F%3E%20%3Cpath%20d%3D%22M20.385%206.585a2.1%202.1%200%200%200%20-2.97%20-2.97l-8.415%208.385v3h3l8.385%20-8.415%22%20%2F%3E%20%3Cpath%20d%3D%22M16%205l3%203%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-file{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M14%203v4a1%201%200%200%200%201%201h4%22%20%2F%3E%20%3Cpath%20d%3D%22M17%2021h-10a2%202%200%200%201%20-2%20-2v-14a2%202%200%200%201%202%20-2h7l5%205v11a2%202%200%200%201%20-2%202%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-file-music{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M14%203v4a1%201%200%200%200%201%201h4%22%20%2F%3E%20%3Cpath%20d%3D%22M17%2021h-10a2%202%200%200%201%20-2%20-2v-14a2%202%200%200%201%202%20-2h7l5%205v11a2%202%200%200%201%20-2%202%22%20%2F%3E%20%3Cpath%20d%3D%22M10%2016a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2016l0%20-5l2%201%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-filter{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%204h16v2.172a2%202%200%200%201%20-.586%201.414l-4.414%204.414v7l-6%202v-8.5l-4.48%20-4.928a2%202%200%200%201%20-.52%20-1.345v-2.227%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-gauge{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2012a9%209%200%201%200%2018%200a9%209%200%201%200%20-18%200%22%20%2F%3E%20%3Cpath%20d%3D%22M11%2012a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M13.41%2010.59l2.59%20-2.59%22%20%2F%3E%20%3Cpath%20d%3D%22M7%2012a5%205%200%200%201%205%20-5%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-grain{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3.5%209.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M8.5%204.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M8.5%2014.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M3.5%2019.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M13.5%209.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M18.5%204.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M13.5%2019.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M18.5%2014.5a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-grid-dots{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%205a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M11%205a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M18%205a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2012a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M11%2012a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M18%2012a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2019a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M11%2019a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M18%2019a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-headphones{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2015a2%202%200%200%201%202%20-2h1a2%202%200%200%201%202%202v3a2%202%200%200%201%20-2%202h-1a2%202%200%200%201%20-2%20-2l0%20-3%22%20%2F%3E%20%3Cpath%20d%3D%22M15%2015a2%202%200%200%201%202%20-2h1a2%202%200%200%201%202%202v3a2%202%200%200%201%20-2%202h-1a2%202%200%200%201%20-2%20-2l0%20-3%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2015v-3a8%208%200%200%201%2016%200v3%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-hexagon{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M19.875%206.27a2.225%202.225%200%200%201%201.125%201.948v7.284c0%20.809%20-.443%201.555%20-1.158%201.948l-6.75%204.27a2.269%202.269%200%200%201%20-2.184%200l-6.75%20-4.27a2.225%202.225%200%200%201%20-1.158%20-1.948v-7.285c0%20-.809%20.443%20-1.554%201.158%20-1.947l6.75%20-3.98a2.33%202.33%200%200%201%202.25%200l6.75%203.98h-.033%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-history{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M12%208l0%204l2%202%22%20%2F%3E%20%3Cpath%20d%3D%22M3.05%2011a9%209%200%201%201%20.5%204m-.5%205v-5h5%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-history-off{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3.05%2011a8.975%208.975%200%200%201%202.54%20-5.403m2.314%20-1.697a9%209%200%200%201%2012.113%2012.112m-1.695%202.312a9%209%200%200%201%20-14.772%20-3.324m-.5%205v-5h5%22%20%2F%3E%20%3Cpath%20d%3D%22M3%203l18%2018%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-home{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M5%2012l-2%200l9%20-9l9%209l-2%200%22%20%2F%3E%20%3Cpath%20d%3D%22M5%2012v7a2%202%200%200%200%202%202h10a2%202%200%200%200%202%20-2v-7%22%20%2F%3E%20%3Cpath%20d%3D%22M9%2021v-6a2%202%200%200%201%202%20-2h2a2%202%200%200%201%202%202v6%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-icons{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%206.5a3.5%203.5%200%201%200%207%200a3.5%203.5%200%201%200%20-7%200%22%20%2F%3E%20%3Cpath%20d%3D%22M2.5%2021h8l-4%20-7l-4%207%22%20%2F%3E%20%3Cpath%20d%3D%22M14%203l7%207%22%20%2F%3E%20%3Cpath%20d%3D%22M14%2010l7%20-7%22%20%2F%3E%20%3Cpath%20d%3D%22M14%2014h7v7h-7l0%20-7%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-layout-columns{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%206a2%202%200%200%201%202%20-2h12a2%202%200%200%201%202%202v12a2%202%200%200%201%20-2%202h-12a2%202%200%200%201%20-2%20-2l0%20-12%22%20%2F%3E%20%3Cpath%20d%3D%22M12%204l0%2016%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-line{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2018a2%202%200%201%200%204%200a2%202%200%201%200%20-4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M16%206a2%202%200%201%200%204%200a2%202%200%201%200%20-4%200%22%20%2F%3E%20%3Cpath%20d%3D%22M7.5%2016.5l9%20-9%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-magnet{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2013v-8a2%202%200%200%201%202%20-2h1a2%202%200%200%201%202%202v8a2%202%200%200%200%206%200v-8a2%202%200%200%201%202%20-2h1a2%202%200%200%201%202%202v8a8%208%200%200%201%20-16%200%22%20%2F%3E%20%3Cpath%20d%3D%22M4%208l5%200%22%20%2F%3E%20%3Cpath%20d%3D%22M15%208l4%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-metronome{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M14.153%208.188l-.72%20-3.236a2.493%202.493%200%200%200%20-4.867%200l-3.025%2013.614a2%202%200%200%200%201.952%202.434h7.014a2%202%200%200%200%201.952%20-2.434l-.524%20-2.357m-4.935%201.791l9%20-13%22%20%2F%3E%20%3Cpath%20d%3D%22M19%205a1%201%200%201%200%202%200a1%201%200%201%200%20-2%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-microphone{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M9%205a3%203%200%200%201%203%20-3a3%203%200%200%201%203%203v5a3%203%200%200%201%20-3%203a3%203%200%200%201%20-3%20-3l0%20-5%22%20%2F%3E%20%3Cpath%20d%3D%22M5%2010a7%207%200%200%200%2014%200%22%20%2F%3E%20%3Cpath%20d%3D%22M8%2021l8%200%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2017l0%204%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-microphone-off{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%203l18%2018%22%20%2F%3E%20%3Cpath%20d%3D%22M9%205a3%203%200%200%201%206%200v5a3%203%200%200%201%20-.13%20.874m-2%202a3%203%200%200%201%20-3.87%20-2.872v-1%22%20%2F%3E%20%3Cpath%20d%3D%22M5%2010a7%207%200%200%200%2010.846%205.85m2%20-2a6.967%206.967%200%200%200%201.152%20-3.85%22%20%2F%3E%20%3Cpath%20d%3D%22M8%2021l8%200%22%20%2F%3E%20%3Cpath%20d%3D%22M12%2017l0%204%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-number-1{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M13%2020v-16l-5%205%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-number-2{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M8%208a4%204%200%201%201%208%200c0%201.098%20-.564%202.025%20-1.159%202.815l-6.841%209.185h8%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-number-3{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M12%2012a4%204%200%201%200%20-4%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M8%2016a4%204%200%201%200%204%20-4%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-number-4{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M15%2020v-15l-8%2011h10%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-player-pause{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M6%206a1%201%200%200%201%201%20-1h2a1%201%200%200%201%201%201v12a1%201%200%200%201%20-1%201h-2a1%201%200%200%201%20-1%20-1l0%20-12%22%20%2F%3E%20%3Cpath%20d%3D%22M14%206a1%201%200%200%201%201%20-1h2a1%201%200%200%201%201%201v12a1%201%200%200%201%20-1%201h-2a1%201%200%200%201%20-1%20-1l0%20-12%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-player-play{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M7%204v16l13%20-8l-13%20-8%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-player-record{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M5%2012a7%207%200%201%200%2014%200a7%207%200%201%200%20-14%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-player-stop{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M5%207a2%202%200%200%201%202%20-2h10a2%202%200%200%201%202%202v10a2%202%200%200%201%20-2%202h-10a2%202%200%200%201%20-2%20-2l0%20-10%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-plus{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M12%205l0%2014%22%20%2F%3E%20%3Cpath%20d%3D%22M5%2012l14%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-repeat{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2012v-3a3%203%200%200%201%203%20-3h13m-3%20-3l3%203l-3%203%22%20%2F%3E%20%3Cpath%20d%3D%22M20%2012v3a3%203%200%200%201%20-3%203h-13m3%203l-3%20-3l3%20-3%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-resize{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%2011v8a1%201%200%200%200%201%201h8m-9%20-14v-1a1%201%200%200%201%201%20-1h1m5%200h2m5%200h1a1%201%200%200%201%201%201v1m0%205v2m0%205v1a1%201%200%200%201%20-1%201h-1%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2012h7a1%201%200%200%201%201%201v7%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-ripple{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%207c3%20-2%206%20-2%209%200s6%202%209%200%22%20%2F%3E%20%3Cpath%20d%3D%22M3%2017c3%20-2%206%20-2%209%200s6%202%209%200%22%20%2F%3E%20%3Cpath%20d%3D%22M3%2012c3%20-2%206%20-2%209%200s6%202%209%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-scissors{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%207a3%203%200%201%200%206%200a3%203%200%201%200%20-6%200%22%20%2F%3E%20%3Cpath%20d%3D%22M3%2017a3%203%200%201%200%206%200a3%203%200%201%200%20-6%200%22%20%2F%3E%20%3Cpath%20d%3D%22M8.6%208.6l10.4%2010.4%22%20%2F%3E%20%3Cpath%20d%3D%22M8.6%2015.4l10.4%20-10.4%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-square{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%205a2%202%200%200%201%202%20-2h14a2%202%200%200%201%202%202v14a2%202%200%200%201%20-2%202h-14a2%202%200%200%201%20-2%20-2v-14%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-stack-2{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M12%204l-8%204l8%204l8%20-4l-8%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2012l8%204l8%20-4%22%20%2F%3E%20%3Cpath%20d%3D%22M4%2016l8%204l8%20-4%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-tool{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M7%2010h3v-3l-3.5%20-3.5a6%206%200%200%201%208%208l6%206a2%202%200%200%201%20-3%203l-6%20-6a6%206%200%200%201%20-8%20-8l3.5%203.5%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-trash{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M4%207l16%200%22%20%2F%3E%20%3Cpath%20d%3D%22M10%2011l0%206%22%20%2F%3E%20%3Cpath%20d%3D%22M14%2011l0%206%22%20%2F%3E%20%3Cpath%20d%3D%22M5%207l1%2012a2%202%200%200%200%202%202h8a2%202%200%200%200%202%20-2l1%20-12%22%20%2F%3E%20%3Cpath%20d%3D%22M9%207v-3a1%201%200%200%201%201%20-1h4a1%201%200%200%201%201%201v3%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-trending-up{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2017l6%20-6l4%204l8%20-8%22%20%2F%3E%20%3Cpath%20d%3D%22M14%207l7%200l0%207%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-triangle{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M10.363%203.591l-8.106%2013.534a1.914%201.914%200%200%200%201.636%202.871h16.214a1.914%201.914%200%200%200%201.636%20-2.87l-8.106%20-13.536a1.914%201.914%200%200%200%20-3.274%200%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-volume-off{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M15%208a5%205%200%200%201%201.912%204.934m-1.377%202.602a5%205%200%200%201%20-.535%20.464%22%20%2F%3E%20%3Cpath%20d%3D%22M17.7%205a9%209%200%200%201%202.362%2011.086m-1.676%202.299a9%209%200%200%201%20-.686%20.615%22%20%2F%3E%20%3Cpath%20d%3D%22M9.069%205.054l.431%20-.554a.8%20.8%200%200%201%201.5%20.5v2m0%204v8a.8%20.8%200%200%201%20-1.5%20.5l-3.5%20-4.5h-2a1%201%200%200%201%20-1%20-1v-4a1%201%200%200%201%201%20-1h2l1.294%20-1.664%22%20%2F%3E%20%3Cpath%20d%3D%22M3%203l18%2018%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-wand{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M6%2021l15%20-15l-3%20-3l-15%2015l3%203%22%20%2F%3E%20%3Cpath%20d%3D%22M15%206l3%203%22%20%2F%3E%20%3Cpath%20d%3D%22M9%203a2%202%200%200%200%202%202a2%202%200%200%200%20-2%202a2%202%200%200%200%20-2%20-2a2%202%200%200%200%202%20-2%22%20%2F%3E%20%3Cpath%20d%3D%22M19%2013a2%202%200%200%200%202%202a2%202%200%200%200%20-2%202a2%202%200%200%200%20-2%20-2a2%202%200%200%200%202%20-2%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-wave-saw-tool{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2012h5l4%208v-16l4%208h5%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-wave-sine{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M21%2012h-2c-.894%200%20-1.662%20-.857%20-1.761%20-2c-.296%20-3.45%20-.749%20-6%20-2.749%20-6s-2.5%203.582%20-2.5%208s-.5%208%20-2.5%208s-2.452%20-2.547%20-2.749%20-6c-.1%20-1.147%20-.867%20-2%20-1.763%20-2h-2%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-wave-square{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2012h5v8h4v-16h4v8h5%22%20%2F%3E%20%3C%2Fsvg%3E")}
+.ti-x{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M18%206l-12%2012%22%20%2F%3E%20%3Cpath%20d%3D%22M6%206l12%2012%22%20%2F%3E%20%3C%2Fsvg%3E")}
+html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
+body>div:first-of-type{height:100%!important;border-radius:0!important}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+</style><script>/* Shared layer for every tool: one tempo for the whole app and one shelf of takes.
+   Tempo lives in localStorage and is broadcast; takes live in IndexedDB.
+   Everything is wrapped so a tool still works when storage is blocked. */
+(function(){
+var ch=null;try{ch=new BroadcastChannel('audiotools');}catch(_){}
+var L={tempo:[],takes:[]};
+if(ch)ch.onmessage=function(e){var m=e.data||{};(L[m.t]||[]).forEach(function(f){try{f(m.v,m.src)}catch(_){}});};
+function emit(t,v,src){if(ch)try{ch.postMessage({t:t,v:v,src:src})}catch(_){}}
+var mem={tempo:100};
+function getTempo(){try{var v=+localStorage.getItem('at.tempo');if(v>=20&&v<=300)return v;}catch(_){}return mem.tempo;}
+var lastSet=0,pend=null;
+function setTempo(v,src){v=Math.max(20,Math.min(300,Math.round(v*10)/10));mem.tempo=v;try{localStorage.setItem('at.tempo',String(v));}catch(_){}
+ var now=Date.now();if(now-lastSet>60){lastSet=now;emit('tempo',v,src);}else{clearTimeout(pend);pend=setTimeout(function(){lastSet=Date.now();emit('tempo',mem.tempo,src);},70);}}
+/* takes */
+var dbp=null;
+function db(){if(dbp)return dbp;dbp=new Promise(function(res,rej){try{var r=indexedDB.open('audiotools',1);r.onupgradeneeded=function(){r.result.createObjectStore('takes',{keyPath:'id'});};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};}catch(e){rej(e)}});return dbp;}
+var memTakes=[];
+function tx(mode,fn){return db().then(function(d){return new Promise(function(res,rej){var t=d.transaction('takes',mode),s=t.objectStore('takes'),out=fn(s);t.oncomplete=function(){res(out&&out.result!==undefined?out.result:out)};t.onerror=function(){rej(t.error)};});});}
+var takes={
+ put:function(k){/* k: {id,name,sr,data:Float32Array,retro,created} */k.created=k.created||Date.now();k.len=k.data.length;
+  /* the first take asks iOS not to evict this origin's storage */try{if(!takes.persisted&&navigator.storage&&navigator.storage.persist){takes.persisted=true;navigator.storage.persist().catch(function(){});}}catch(_){}
+  memTakes=memTakes.filter(function(x){return x.id!==k.id});memTakes.unshift(k);
+  return tx('readwrite',function(s){return s.put(k)}).catch(function(){}).then(function(){emit('takes',{op:'put',id:k.id});});},
+ del:function(id){memTakes=memTakes.filter(function(x){return x.id!==id});return tx('readwrite',function(s){return s.delete(id)}).catch(function(){}).then(function(){emit('takes',{op:'del',id:id});});},
+ list:function(){return tx('readonly',function(s){return s.getAll()}).then(function(a){return (a||[]).sort(function(x,y){return y.created-x.created});}).catch(function(){return memTakes.slice();});}
+};
+/* microphone: in the shell the parent asks once and keeps the grant (parent.ATS.mic), then this frame's own request is granted silently */
+var CONS={audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
+function own(){return navigator.mediaDevices.getUserMedia(CONS);}
+function mic(){var p=null;try{if(window.parent!==window&&parent.ATS&&parent.ATS.mic)p=parent.ATS.mic();}catch(_){}
+ return p?p.then(own,own):own();}
+/* screen wake lock while recording (the recorder): re-acquired when the app comes back to the front */
+var wl=null,wantWake=false;
+function wake(on){wantWake=!!on;if(!navigator.wakeLock)return;
+ if(on){if(wl)return;navigator.wakeLock.request('screen').then(function(l){wl=l;l.addEventListener('release',function(){wl=null;});}).catch(function(){});}
+ else if(wl){try{wl.release()}catch(_){}wl=null;}}
+document.addEventListener('visibilitychange',function(){if(wantWake&&!wl&&document.visibilityState==='visible')wake(true);});
+window.AT={tempo:getTempo,setTempo:setTempo,onTempo:function(f){L.tempo.push(f)},takes:takes,onTakes:function(f){L.takes.push(f)},
+ mic:mic,wake:wake,inShell:function(){try{return window.parent!==window}catch(_){return true}}};
+})();
+</script></head><body>
+<h2 class="sr-only">Touch prototype of the tempo view: a whole song drawn as a vertical bar strip, drag to select a part and its tempo is detected, tempo changes shown as a step trace.</h2>
+<div id="bb" style="position:relative;height:520px;background:#000;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
+  <canvas id="bc" role="img" aria-label="Tempo view prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
+  <i id="bi0" class="ti ti-file-music" aria-hidden="true" style="position:absolute;font-size:17px;color:#fff;transform:translate(-50%,-50%);pointer-events:none;"></i>
+  <i id="bi1" class="ti ti-microphone" aria-hidden="true" style="position:absolute;font-size:17px;color:#fff;transform:translate(-50%,-50%);pointer-events:none;"></i>
+  <i id="bi2" class="ti ti-arrows-vertical" aria-hidden="true" style="position:absolute;font-size:17px;color:#fff;transform:translate(-50%,-50%);pointer-events:none;"></i>
+  <div id="bm0" style="position:absolute;font-size:14px;color:#000;transform:translate(-50%,-50%);pointer-events:none;line-height:1;visibility:hidden;">÷2</div>
+  <div id="bm1" style="position:absolute;font-size:14px;color:#000;transform:translate(-50%,-50%);pointer-events:none;line-height:1;visibility:hidden;">1</div>
+  <div id="bm2" style="position:absolute;font-size:14px;color:#000;transform:translate(-50%,-50%);pointer-events:none;line-height:1;visibility:hidden;">×2</div>
+  <input id="bfile" type="file" accept="audio/*,video/*" style="display:none">
+</div>
+<script>
+(function(){
+var box=document.getElementById('bb'),cv=document.getElementById('bc'),fileIn=document.getElementById('bfile');
+var IC=[0,1,2].map(function(i){return document.getElementById('bi'+i)}),ML=[0,1,2].map(function(i){return document.getElementById('bm'+i)});
+var gl=cv.getContext('webgl',{antialias:false,alpha:false});
+if(!gl){box.innerHTML='<p style="color:#fff;padding:1rem;font-size:14px;">WebGL is not available here.</p>';return;}
+var VS='attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
+var FS=[
+'precision highp float;',
+'uniform vec2 uRes,uSz;uniform float uT,uDpr,uCx,uY0,uY1,uFill,uSa,uSb,uWhole,uBusy,uPitch,uNB,uNBT;',
+'uniform sampler2D uTex,uEnv;uniform vec4 uP0,uP1,uP2;uniform vec3 uB[4];uniform vec3 uMk[3];uniform vec4 uMd;uniform vec4 uSec[8];uniform vec4 uGr[8];uniform float uBnd[8];',
+'float smin(float a,float b,float k){k=max(k,.001);float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}',
+'float seg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-4),0.,1.);return length(pa-ba*h);}',
+'float panel(vec2 P,vec4 p,vec2 n,float px){',
+' vec2 o=p.xy;float pitch=p.z;vec2 g=(P-o)/pitch;',
+' if(g.x<-1.||g.y<-1.||g.x>n.x+1.||g.y>n.y+1.)return 0.;',
+' vec2 c=floor(g);float d=999.;',
+' for(int j=-1;j<=1;j++){for(int i=-1;i<=1;i++){',
+'  vec2 cc=c+vec2(float(i),float(j));',
+'  if(cc.x<0.||cc.y<0.||cc.x>=n.x||cc.y>=n.y)continue;',
+'  vec4 t=texture2D(uTex,(vec2(cc.x,cc.y+p.w)+.5)/32.);',
+'  float r=t.r*1.4*.42*pitch;if(r<.06)continue;',
+'  d=smin(d,length(P-(o+(cc+.5)*pitch))-r,t.a*pitch*.9);}}',
+' return smoothstep(px,-px,d);}',
+'void main(){',
+' vec2 P=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;float px=1./uDpr;',
+' vec3 col=vec3(0.);',
+' float H=uY1-uY0,f=(P.y-uY0)/H,ad=abs(P.x-uCx);',
+' if(f>=0.&&f<=1.){',
+'  float inSel=step(uSa,P.y)*step(P.y,uSb);float dim=mix(.28,1.,inSel);',
+'  for(int i=0;i<8;i++){float by=uBnd[i];if(by>0.){col=max(col,vec3(.22)*smoothstep(px,0.,abs(P.y-by)-.5)*step(ad,118.));}}',
+'  float bi=floor((P.y-uY0)/uPitch),by=P.y-uY0-bi*uPitch;',
+'  if(bi<uNB&&by<uPitch-1.){float v=texture2D(uEnv,vec2((bi+.5)/uNBT,.5)).r;float hw=max(.75,v*100.);',
+'   col=max(col,vec3(dim)*smoothstep(hw+px*.5,hw-px*.5,ad));}',
+'  for(int i=0;i<8;i++){vec4 g=uGr[i];if(g.z>3.5&&P.y>=g.x&&P.y<=g.y){float d=abs(mod(P.y-g.w+g.z*.5,g.z)-g.z*.5);',
+'   float tx=P.x-(uCx-130.);col=max(col,vec3(.95)*smoothstep(.6+px,.6-px,d)*step(0.,tx)*step(tx,7.));}}',
+'  float tr=999.;for(int i=0;i<8;i++){vec4 s=uSec[i];if(s.w>.5){tr=min(tr,seg(P,vec2(s.z,s.x),vec2(s.z,s.y)));',
+'   if(i<7){vec4 n=uSec[i+1];if(n.w>.5)tr=min(tr,seg(P,vec2(s.z,s.y),vec2(n.z,s.y)));}}}',
+'  col=max(col,vec3(.8)*smoothstep(.7+px,.7-px,tr));',
+'  if(uWhole<.5){for(int k=0;k<2;k++){float yy=k==0?uSa:uSb;',
+'   col=max(col,vec3(1.)*smoothstep(.6+px,.6-px,abs(P.y-yy))*step(ad,118.));',
+'   col=max(col,vec3(1.)*smoothstep(px,-px,length(P-vec2(uCx-118.,yy))-4.));col=max(col,vec3(1.)*smoothstep(px,-px,length(P-vec2(uCx+118.,yy))-4.));}}',
+' }',
+' if(uBusy>0.){float a=atan(P.y-uY0-H*.5,P.x-uCx);float r=length(P-vec2(uCx,uY0+H*.5));col=max(col,vec3(1.)*smoothstep(1.+px,1.-px,abs(r-14.))*step(fract(a/6.2832-uT*.8),.25));}',
+' float v=panel(P,uP0,vec2(15.,5.),px)+panel(P,uP1,vec2(7.,5.),px)+panel(P,uP2,vec2(15.,5.),px);',
+' col=mix(col,vec3(1.),min(v,1.));',
+' for(int i=0;i<4;i++){float dm=length(P-uB[i].xy)-17.;col=mix(col,vec3(1.),mix(smoothstep(px,-px,abs(dm)-.7),smoothstep(px,-px,dm),uB[i].z));}',
+' if(uMd.w>.005){float mb=length(P-uMd.xy)-17.;for(int k=0;k<3;k++){vec3 m=uMk[k];mb=smin(mb,length(P-m.xy)-m.z,26.*(1.-uMd.w)+8.);}col=mix(col,vec3(1.),smoothstep(px,-px,mb));}',
+' float dd2=min(length(P-uMd.xy-vec2(-4.5,4.5)),length(P-uMd.xy-vec2(4.5,-4.5)))-2.6;col=mix(col,vec3(1.-max(uMd.z,step(.005,uMd.w))),smoothstep(px,-px,dd2));',
+' gl_FragColor=vec4(col,1.);}'].join('\n');
+function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
+var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
+var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+var al=gl.getAttribLocation(pr,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
+var U={};['uRes','uSz','uT','uDpr','uCx','uY0','uY1','uFill','uSa','uSb','uWhole','uBusy','uPitch','uNB','uNBT','uTex','uEnv','uP0','uP1','uP2','uB','uSec','uGr','uBnd','uMk','uMd'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
+function mkTex(lin){var t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);var f=lin?gl.LINEAR:gl.NEAREST;
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,f);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,f);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;}
+var tex=mkTex(false),etex=mkTex(false);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
+var TD=new Uint8Array(32*32*2);
+var W=380,H=520,dpr=1,Y0=124,Y1=414;
+function size(){W=box.clientWidth||380;H=box.clientHeight||520;dpr=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);gl.viewport(0,0,cv.width,cv.height);Y1=H-106;S&&(S.envDirty=true);}
+var G={'0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001','5':'111100111001111','6':'111100111101111','7':'111001001001001','8':'111101111101111','9':'111101111001111','.':'000000000000010',' ':'000000000000000'};
+var cells=[];for(var i=0;i<32*32;i++)cells.push({c:0,v:0,t:0,d:0});
+var PN=[{row:0,slots:4},{row:5,slots:2},{row:10,slots:4}],shown=['','',''];
+function setPanel(pi,str){if(shown[pi]===str)return;shown[pi]=str;var p=PN[pi];
+ for(var s=0;s<p.slots;s++){var g=G[str.charAt(s)]||G[' '];
+  for(var r=0;r<5;r++)for(var c=0;c<3;c++){var cell=cells[(p.row+r)*32+s*4+c],tg=g.charAt(r*3+c)==='1'?1:0;
+   if(cell.t!==tg){cell.t=tg;cell.d=Math.random()*.1;}}}}
+var ER=100,MAXN=ER*600;
+var S={n:0,env:[new Float32Array(MAXN),new Float32Array(MAXN),new Float32Array(MAXN)],on:new Float32Array(MAXN),
+ secs:[],sel:{a:0,b:0},whole:true,res:null,mult:1,rec:false,an:null,ctx:null,fd:null,micFail:false,busy:0,
+ drag:null,lastTap:0,envDirty:true,lastLive:0,acc:0,prevE:[0,0,0],recFrom:0};
+size();window.addEventListener('resize',size);
+function lerp(a,b,t){return a+(b-a)*t}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function dur(){return Math.max(S.n/ER,.5)}
+function t2y(t){return Y0+t/dur()*(Y1-Y0)}
+function y2t(y){return clamp((y-Y0)/(Y1-Y0)*dur(),0,S.n/ER)}
+function onsets(from,to){var e=S.env;for(var n=Math.max(1,from);n<to;n++){S.on[n]=Math.max(0,e[0][n]-e[0][n-1])+.8*Math.max(0,e[1][n]-e[1][n-1])+.4*Math.max(0,e[2][n]-e[2][n-1]);}}
+function genDemo(){
+ var plan=[[96,20],[128,20],[87.5,24]],t=0,n=0,DEC=[Math.exp(-1/(.13*ER)),Math.exp(-1/(.085*ER)),Math.exp(-1/(.04*ER))],ev=[];
+ var seed=7;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+ for(var p=0;p<plan.length;p++){var bpm=plan[p][0],end=t+plan[p][1],step=60/bpm/2,k=0;
+  for(var tt=t;tt<end-1e-6;tt+=step,k++){var j=(rnd()-.5)*.008,q=(k>>1)%4,on=k%2===0;
+   var g=Math.min(1,.45+tt/8)*(p===1?1:.85),brk=tt>52&&tt<55.5;ev.push([tt+j,2,(.45+.15*rnd())*g]);if(on&&!brk){ev.push([tt+j,0,(.85+.15*rnd())*g]);if(q===1||q===3)ev.push([tt+j,1,(.8+.15*rnd())*g]);}else if(!brk&&rnd()<.12)ev.push([tt+j,0,.45*g]);}
+  t=end;}
+ ev.sort(function(a,b){return a[0]-b[0]});var N=Math.round(t*ER),e=[0,0,0],ei=0;
+ for(n=0;n<N;n++){for(var b=0;b<3;b++)e[b]*=DEC[b];while(ei<ev.length&&ev[ei][0]*ER<=n){var x=ev[ei];e[x[1]]=Math.max(e[x[1]],x[2]);ei++;}
+  for(var b=0;b<3;b++)S.env[b][n]=e[b];}
+ S.n=N;onsets(0,N);}
+var xs=new Float32Array(MAXN),acf=new Float32Array(460);
+function tempoOf(s0,s1){
+ var N=s1-s0;if(N<200)return null;var mean=0,en=0;for(var i=s0;i<s1;i++)mean+=S.on[i];mean/=N;
+ for(var i=0;i<N;i++){var a=0,ws=0;for(var k=-2;k<=2;k++){var j=s0+i+k;if(j<s0||j>=s1)continue;var w=3-Math.abs(k);a+=(S.on[j]-mean)*w;ws+=w;}xs[i]=a/ws;en+=xs[i]*xs[i];}
+ if(en<.02)return null;var maxL=Math.min(452,Math.floor(N*.66));
+ for(var l=1;l<=maxL+2&&l<457;l++){var s=0;for(var n=l;n<N;n++)s+=xs[n]*xs[n-l];acf[l]=s/(N-l);}
+ function A(l){if(l>=maxL)return 0;var i=Math.floor(l),f=l-i;return acf[i]*(1-f)+acf[i+1]*f;}
+ function comb(L){var w=[1,.9,.7,.5],s=0,ws=0;for(var k=1;k<=4;k++){if(k*L>=maxL)break;s+=w[k-1]*A(k*L);ws+=w[k-1];}return ws?s/ws:-1e9;}
+ var best=-1e9,b0=0;for(var bp=50;bp<=215;bp+=.5){var sc=comb(60*ER/bp),lb=Math.log(bp/118)/Math.LN2;sc*=Math.exp(-.5*lb*lb/.7);if(sc>best){best=sc;b0=bp;}}
+ if(!b0)return null;var bb=b0,bs=-1e9;for(var bp=b0-1.2;bp<=b0+1.2;bp+=.05){var c=comb(60*ER/bp);if(c>bs){bs=c;bb=bp;}}
+ var a0=en/N,L0=60*ER/bb,cf=clamp((A(L0)+A(2*L0))/(2*a0)*1.5,0,1);
+ var Pp=L0,bph=0,bsc=-1;for(var ph=0;ph<Pp;ph+=.5){var s2=0;for(var x=ph;x<N;x+=Pp){var ix=s0+Math.round(x);s2+=S.on[ix]+.6*((ix>0?S.on[ix-1]:0)+(ix+1<s1?S.on[ix+1]:0));}if(s2>bsc){bsc=s2;bph=ph;}}
+ return{bpm:bb,conf:cf,tb:(s0+bph)/ER,score:bs,comb:comb};}
+function sections(){
+ var N=S.n,win=600,hop=100,pts=[];if(N<win){var r=tempoOf(0,N);S.secs=r?[{a:0,b:N/ER,bpm:r.bpm,tb:r.tb}]:[];return;}
+ for(var s=0;s+win<=N;s+=hop){var r=tempoOf(s,s+win);if(!r||r.conf<.2){pts.push(null);continue;}
+  var bpm=r.bpm,prev=null;for(var q=pts.length-1;q>=0;q--)if(pts[q]){prev=pts[q].bpm;break;}
+  if(prev){var cands=[bpm,bpm*2,bpm/2],bestC=bpm,bestD=1e9;for(var c=0;c<3;c++){var cb=cands[c];if(cb<50||cb>215)continue;var sc=r.comb(60*ER/cb);if(sc<.75*r.score)continue;var d=Math.abs(Math.log(cb/prev));if(d<bestD){bestD=d;bestC=cb;}}bpm=bestC;}
+  pts.push({c:(s+win/2)/ER,bpm:bpm});}
+ var segs=[],cur=null,dev=0,devStart=0;
+ for(var i=0;i<pts.length;i++){var p=pts[i];if(!p)continue;
+  if(!cur){cur={a:0,bpm:p.bpm,vals:[p.bpm]};continue;}
+  if(Math.abs(p.bpm-cur.bpm)/cur.bpm>.04){if(dev===0)devStart=p.c;dev++;if(dev>=2){cur.b=devStart;segs.push(cur);cur={a:devStart,bpm:p.bpm,vals:[p.bpm]};dev=0;}}
+  else{dev=0;cur.vals.push(p.bpm);cur.bpm=cur.vals.slice().sort(function(a,b){return a-b})[cur.vals.length>>1];}}
+ if(cur){cur.b=N/ER;segs.push(cur);}
+ var out=[];for(var i=0;i<segs.length;i++){var g=segs[i];if(g.b-g.a<4&&out.length){out[out.length-1].b=g.b;continue;}out.push(g);}
+ for(var i=0;i<out.length;i++){var g=out[i],r=tempoOf(Math.round(g.a*ER),Math.round(g.b*ER));if(r){if(Math.abs(Math.log(r.bpm/g.bpm))>.35){var alt=r.bpm*(r.bpm>g.bpm?.5:2);r.bpm=alt;}g.bpm=r.bpm;g.tb=r.tb;}}
+ S.secs=out.slice(0,8);}
+function analyseSel(){
+ var a=S.sel.a,b=S.sel.b;S.grids=[];S.res=null;if(b-a<2)return;
+ var best=null,bestOv=0,tot=b-a;
+ for(var i=0;i<S.secs.length;i++){var g=S.secs[i],ov=Math.max(0,Math.min(b,g.b)-Math.max(a,g.a));if(ov>bestOv){bestOv=ov;best=g;}}
+ if(!S.secs.length||bestOv/tot>=.85||S.whole&&S.secs.length===1){
+  var r=tempoOf(Math.round(a*ER),Math.round(b*ER));if(r&&r.conf>.15){if(best&&Math.abs(Math.log(r.bpm/best.bpm))>.35)r.bpm=best.bpm;S.res={bpm:r.bpm};S.grids=[{a:a,b:b,bpm:r.bpm,tb:r.tb}];}}
+ else{S.res={bpm:best.bpm};for(var i=0;i<S.secs.length;i++){var g=S.secs[i],ga=Math.max(a,g.a),gb=Math.min(b,g.b);if(gb>ga)S.grids.push({a:ga,b:gb,bpm:g.bpm,tb:g.tb});}}}
+var _as=analyseSel,_asN=0;analyseSel=function(){_as();if(_asN++>0&&S.res&&window.AT)AT.setTempo(S.res.bpm,'bpm');};
+function selectWhole(){S.whole=true;S.sel={a:0,b:S.n/ER};analyseSel();}
+function fullAnalysis(){sections();selectWhole();S.envDirty=true;}
+function startRec(){
+ if(S.rec){stopRec();return;}
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){S.micFail=true;return;}
+ AT.mic().then(function(st){
+  var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();var src=S.ctx.createMediaStreamSource(st);S.stream=st;
+  S.an=S.ctx.createAnalyser();S.an.fftSize=1024;S.an.smoothingTimeConstant=0;src.connect(S.an);S.fd=new Uint8Array(512);
+  S.rec=true;S.micFail=false;S.recFrom=S.n;S.grids=[];S.res=null;S.acc=0;S.prevE=[0,0,0];S.whole=true;if(S.ctx.resume)S.ctx.resume();
+ }).catch(function(){S.micFail=true;});}
+function stopRec(){S.rec=false;try{S.stream.getTracks().forEach(function(t){t.stop()});S.ctx.close();}catch(_){}S.an=null;
+ for(var b=0;b<3;b++){var mx=1e-4;for(var i=S.recFrom;i<S.n;i++)mx=Math.max(mx,S.env[b][i]);for(var i=S.recFrom;i<S.n;i++)S.env[b][i]/=mx;}
+ onsets(Math.max(1,S.recFrom),S.n);fullAnalysis();}
+var DEC=[Math.exp(-1/(.13*ER)),Math.exp(-1/(.085*ER)),Math.exp(-1/(.04*ER))];
+function recStep(){if(S.n>=MAXN){stopRec();return;}
+ S.an.getByteFrequencyData(S.fd);var hz=S.ctx.sampleRate/1024,lo=0,mi=0,hi=0,n0=0,n1=0,n2=0;
+ for(var k=1;k<512;k++){var f=k*hz,v=S.fd[k]/255;if(f<160){lo+=v;n0++;}else if(f<2500){mi+=v;n1++;}else if(f<11000){hi+=v;n2++;}}
+ var m=[lo/Math.max(1,n0),mi/Math.max(1,n1)*1.6,hi/Math.max(1,n2)*2.2];
+ for(var b=0;b<3;b++){S.prevE[b]=Math.max(S.prevE[b]*DEC[b],Math.min(1,m[b]*m[b]*1.4));S.env[b][S.n]=S.prevE[b];}
+ S.n++;}
+function loadFile(file){
+ S.busy=1;var AC=window.AudioContext||window.webkitAudioContext,ac=new AC();
+ file.arrayBuffer().then(function(ab){return new Promise(function(res,rej){var p=ac.decodeAudioData(ab,res,rej);if(p&&p.then)p.then(res,rej);});}).then(function(buf){
+  var len=Math.min(buf.length,buf.sampleRate*600),sr=buf.sampleRate,OC=window.OfflineAudioContext||window.webkitOfflineAudioContext,oc=new OC(3,len,sr);
+  var src=oc.createBufferSource();src.buffer=buf;var mg=oc.createChannelMerger(3);
+  var f0=oc.createBiquadFilter();f0.type='lowpass';f0.frequency.value=160;
+  var f1=oc.createBiquadFilter();f1.type='bandpass';f1.frequency.value=630;f1.Q.value=.35;
+  var f2=oc.createBiquadFilter();f2.type='highpass';f2.frequency.value=2500;
+  [f0,f1,f2].forEach(function(fl,i){src.connect(fl);fl.connect(mg,0,i);});mg.connect(oc.destination);src.start();
+  return oc.startRendering();}).then(function(rb){
+  var hopS=rb.sampleRate/ER,N=Math.floor(rb.length/hopS);
+  for(var b=0;b<3;b++){var ch=rb.getChannelData(b),e=S.env[b],vals=[];
+   for(var n=0;n<N;n++){var s=0,i0=Math.floor(n*hopS),i1=Math.floor((n+1)*hopS);for(var i=i0;i<i1;i++)s+=ch[i]*ch[i];e[n]=Math.sqrt(s/(i1-i0));}
+   for(var n=0;n<N;n+=7)vals.push(e[n]);vals.sort(function(a,c){return a-c});var p98=vals[Math.floor(vals.length*.98)]||1e-4;
+   for(var n=0;n<N;n++)e[n]=Math.min(1,e[n]/p98);}
+  S.n=N;onsets(0,N);fullAnalysis();S.busy=0;try{ac.close()}catch(_){}
+ }).catch(function(){S.busy=0;});}
+fileIn.addEventListener('change',function(){if(fileIn.files&&fileIn.files[0])loadFile(fileIn.files[0]);fileIn.value='';});
+function btn(i){return{x:34+i*(W-68)/3,y:H-28}}
+var MA=[112,76,40],MV=[.5,1,2];
+function mPos(k,o){var b=btn(2),a=MA[k]*Math.PI/180;return{x:b.x+Math.cos(a)*92*o,y:b.y-Math.sin(a)*92*o};}
+function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+box.addEventListener('pointerdown',function(e){
+ var p=pos(e);
+ for(var i=0;i<4;i++){var b=btn(i);if(Math.hypot(p.x-b.x,p.y-b.y)<24){e.preventDefault();
+  if(i===0){if(!S.rec)fileIn.click();}else if(i===1){startRec();}else if(i===2){try{box.setPointerCapture(e.pointerId)}catch(_){}S.mp={tw:performance.now(),t0:e.timeStamp,x:p.x,y:p.y,moved:0,open:false,sel:-1};}else{if(!S.rec)selectWhole();}
+  return;}}
+ e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}
+ if(S.rec||!S.n||p.y<Y0-16||p.y>Y1+16)return;
+ var ya=t2y(S.sel.a),yb=t2y(S.sel.b),mode='new';
+ if(!S.whole){if(Math.abs(p.y-ya)<16)mode='a';else if(Math.abs(p.y-yb)<16)mode='b';}
+ S.drag={mode:mode,y0:p.y,t0:y2t(p.y),moved:0,tm:e.timeStamp,last:0};});
+box.addEventListener('pointermove',function(e){if(S.mp){var p0=pos(e),m=S.mp;m.moved=Math.max(m.moved,Math.hypot(p0.x-m.x,p0.y-m.y));if(m.moved>10)m.open=true;
+  if(m.open){var b=btn(2),dx=p0.x-b.x,dy=b.y-p0.y,dist=Math.hypot(dx,dy);m.sel=-1;if(dist>30){var an=Math.atan2(dy,dx)*180/Math.PI,bd=40;for(var k=0;k<3;k++){var df=Math.abs(an-MA[k]);if(df<bd){bd=df;m.sel=k;}}}}return;}
+ var d=S.drag;if(!d)return;var p=pos(e);d.moved=Math.max(d.moved,Math.abs(p.y-d.y0));
+ var t=y2t(p.y);
+ if(d.mode==='a'){S.sel.a=Math.min(t,S.sel.b-.5);S.whole=false;}else if(d.mode==='b'){S.sel.b=Math.max(t,S.sel.a+.5);S.whole=false;}
+ else if(d.moved>8){S.sel={a:Math.min(d.t0,t),b:Math.max(d.t0,t)};S.whole=false;}
+ var now=performance.now();if(now-d.last>140&&(d.mode!=='new'||d.moved>8)){d.last=now;analyseSel();}});
+function up(e){if(S.mp){var m=S.mp;S.mp=null;if(m.open){if(m.sel>=0)S.mult=MV[m.sel];}else S.mult=1;return;}
+ var d=S.drag;if(!d)return;S.drag=null;var now=e.timeStamp;
+ if(d.mode==='new'&&d.moved<=8&&now-d.tm<320){
+  if(now-S.lastTap<340){S.lastTap=0;selectWhole();return;}S.lastTap=now;
+  for(var i=0;i<S.secs.length;i++){var g=S.secs[i];if(d.t0>=g.a&&d.t0<g.b&&S.secs.length>1){S.sel={a:g.a,b:g.b};S.whole=false;analyseSel();return;}}
+  return;}
+ if(!S.whole&&S.sel.b-S.sel.a>=S.n/ER-.3){selectWhole();return;}
+ analyseSel();}
+box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
+box.addEventListener('contextmenu',function(e){e.preventDefault()});
+var ED=new Uint8Array(512*4),NB=0,PITCH=3,AMP=new Float32Array(MAXN);
+function buildEnvTex(){
+ NB=Math.max(8,Math.min(512,Math.floor((Y1-Y0)/PITCH)));var dd=dur(),N=S.n,mx=1e-4,vals=[];
+ for(var n=0;n<N;n++){var a=S.env[0][n],b=S.env[1][n]*.85,c=S.env[2][n]*.6;AMP[n]=Math.sqrt(a*a+b*b+c*c);}
+ for(var r=0;r<NB;r++){var n0=Math.floor(r/NB*dd*ER),n1=Math.max(n0+1,Math.floor((r+1)/NB*dd*ER)),s2=0,c2=0,pk=0;
+  for(var n=n0;n<n1&&n<N;n++){s2+=AMP[n]*AMP[n];c2++;if(AMP[n]>pk)pk=AMP[n];}
+  var v=c2?Math.sqrt(s2/c2):0;vals.push(v);}
+ var srt=vals.slice().sort(function(a,b){return a-b});mx=Math.max(1e-4,srt[Math.floor(srt.length*.97)]);
+ for(var r=0;r<512;r++){var v=r<NB?Math.pow(Math.min(1,vals[r]/mx),1.6):0;ED[r*4]=Math.min(255,Math.round(v*255));ED[r*4+3]=255;}
+ gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,etex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,512,1,0,gl.RGBA,gl.UNSIGNED_BYTE,ED);S.envDirty=false;}
+genDemo();fullAnalysis();
+var secU=new Float32Array(32),grU=new Float32Array(32),bndU=new Float32Array(8),t0=performance.now(),last=t0,lastTxt=0;
+function frame(now){
+ var dt=Math.min(.05,(now-last)/1000);last=now;var t=(now-t0)/1000;
+ if(S.rec&&S.an){S.acc+=dt;var k=0;while(S.acc>=1/ER&&k<8){recStep();S.acc-=1/ER;k++;}if(k===8)S.acc=0;S.envDirty=true;
+  if(now-S.lastLive>1000&&S.n>300){S.lastLive=now;onsets(Math.max(1,S.n-900),S.n);var r;var lr=Math.max(S.recFrom,S.n-800);r=S.n-S.recFrom>300?tempoOf(lr,S.n):null;S.res=r&&r.conf>.2?{bpm:r.bpm}:null;S.sel={a:0,b:S.n/ER};S.grids=r&&r.conf>.2?[{a:lr/ER,b:S.n/ER,bpm:r.bpm,tb:r.tb}]:[];}}
+ if(S.envDirty)buildEnvTex();
+ if(now-lastTxt>120){lastTxt=now;
+  if(S.res){var b=S.res.bpm*S.mult,r=Math.round(b*10)/10,ip=Math.floor(r),s=String(ip);while(s.length<3)s=' '+s;
+   setPanel(0,s.slice(-3));setPanel(1,'.'+Math.round((r-ip)*10));var ms=String(Math.round(60000/b));while(ms.length<4)ms=' '+ms;setPanel(2,ms.slice(-4));}
+  else{setPanel(0,'    ');setPanel(1,'  ');setPanel(2,'    ');}}
+ for(var i=0;i<cells.length;i++){var c2=cells[i];if(c2.t===0&&c2.c===0&&c2.v===0){TD[i*2]=0;TD[i*2+1]=0;continue;}
+  if(c2.d>0){c2.d-=dt;}else{c2.v+=((c2.t-c2.c)*260-c2.v*19)*dt;c2.c+=c2.v*dt;if(c2.c<0){c2.c=0;c2.v=0;}if(c2.t===0&&c2.c<.01&&Math.abs(c2.v)<.05){c2.c=0;c2.v=0;}}
+  TD[i*2]=Math.max(0,Math.min(255,Math.round(c2.c/1.4*255)));TD[i*2+1]=Math.max(0,Math.min(255,Math.round((Math.abs(c2.t-c2.c)*1.3+Math.abs(c2.v)*.06)*255)));}
+ gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE_ALPHA,32,32,0,gl.LUMINANCE_ALPHA,gl.UNSIGNED_BYTE,TD);
+ var cx=W/2,dd=dur();
+ secU.fill(0);grU.fill(0);bndU.fill(0);
+ for(var i=0;i<S.secs.length&&i<8;i++){var g=S.secs[i];secU[i*4]=t2y(g.a);secU[i*4+1]=t2y(g.b);secU[i*4+2]=W-56+clamp((g.bpm*S.mult-60)/150,0,1)*40;secU[i*4+3]=1;if(i>0)bndU[i]=t2y(g.a);}
+ var grids=S.grids||[];for(var i=0;i<grids.length&&i<8;i++){var q=grids[i],per=60/(q.bpm*S.mult);grU[i*4]=t2y(q.a);grU[i*4+1]=t2y(q.b);var pp=per/dd*(Y1-Y0);while(pp<6)pp*=4;grU[i*4+2]=pp;grU[i*4+3]=t2y(q.tb);}
+ gl.uniform2f(U.uRes,cv.width,cv.height);gl.uniform2f(U.uSz,W,H);gl.uniform1f(U.uDpr,dpr);gl.uniform1f(U.uT,t);
+ gl.uniform1f(U.uCx,cx);gl.uniform1f(U.uY0,Y0);gl.uniform1f(U.uY1,Y1);gl.uniform1f(U.uFill,1);gl.uniform1f(U.uPitch,PITCH);gl.uniform1f(U.uNB,NB);gl.uniform1f(U.uNBT,512);
+ gl.uniform1f(U.uSa,S.whole?Y0-1:t2y(S.sel.a));gl.uniform1f(U.uSb,S.whole?Y1+1:t2y(S.sel.b));gl.uniform1f(U.uWhole,S.whole?1:0);gl.uniform1f(U.uBusy,S.busy);
+ gl.uniform4fv(U.uSec,secU);gl.uniform4fv(U.uGr,grU);gl.uniform1fv(U.uBnd,bndU);
+ gl.uniform1i(U.uTex,0);gl.uniform1i(U.uEnv,1);
+ gl.uniform4f(U.uP0,cx-82.5,22,15,0);gl.uniform4f(U.uP1,cx+90,67,6,5);gl.uniform4f(U.uP2,cx-37.5,H-86,5,10);
+ if(S.mp&&!S.mp.open&&performance.now()-S.mp.tw>200)S.mp.open=true;
+ var e2=1-Math.pow(.0005,dt);S.mo=lerp(S.mo||0,S.mp&&S.mp.open?1:0,e2);if(S.mo<.004)S.mo=0;
+ var mk=[];for(var k=0;k<3;k++){var sl=S.mp&&S.mp.sel===k?1:0;S['ms'+k]=lerp(S['ms'+k]||0,sl,e2);var q=mPos(k,S.mo);mk.push(q.x,q.y,(15+6*S['ms'+k])*S.mo);
+  ML[k].style.left=q.x+'px';ML[k].style.top=q.y+'px';ML[k].style.visibility=S.mo>.6?'visible':'hidden';ML[k].style.fontSize=(S['ms'+k]>.5?'17px':'14px');}
+ gl.uniform3fv(U.uMk,new Float32Array(mk));var b3=btn(2);gl.uniform4f(U.uMd,b3.x,b3.y,S.mult!==1?1:0,S.mo);
+ var bs=[0,S.rec?1:0,S.mult!==1?1:0,S.whole?1:0],bu=[],ix=[0,1,-1,2];
+ for(var i=0;i<4;i++){var b2=btn(i);bu.push(b2.x,b2.y,bs[i]);if(ix[i]>=0){var el=IC[ix[i]];el.style.left=b2.x+'px';el.style.top=b2.y+'px';el.style.color=bs[i]?'#000':'#fff';}}
+ IC[1].className='ti ti-'+(S.micFail?'microphone-off':(S.rec?'player-stop':'microphone'));
+ gl.uniform3fv(U.uB,new Float32Array(bu));
+ gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+ requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

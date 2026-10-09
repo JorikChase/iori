@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-26",
+  "generated": "2026-10-09",
   "pages": [
     {
       "slug": "4cube.html",
@@ -10,7 +10,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/4cube.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "4cube_volume.html",
@@ -21,7 +21,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/4cube_volume.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "aquarium.html",
@@ -32,7 +32,18 @@
       "domain": "iori.me",
       "url": "https://iori.me/aquarium.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
+    },
+    {
+      "slug": "audiotools/index.html",
+      "title": "Audio Tools — Eight Instruments for iPhone and iPad",
+      "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor in one installable web app, sharing one tempo and one shelf of takes.",
+      "category": "audio",
+      "type": "app",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/audiotools/",
+      "og_image": null,
+      "lastmod": "2026-10-09"
     },
     {
       "slug": "bismuth-fluid.html",
@@ -43,7 +54,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/bismuth-fluid.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "blackjach/index.html",
@@ -54,7 +65,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/blackjach/",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "bubbles.html",
@@ -65,7 +76,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/bubbles.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "civilisation-builder.html",
@@ -76,7 +87,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/civilisation-builder.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "cracks-aberration.html",
@@ -87,7 +98,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/cracks-aberration.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "cracks.html",
@@ -98,7 +109,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/cracks.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "crow_archduke.html",
@@ -109,7 +120,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/crow_archduke.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "crystalize.html",
@@ -120,7 +131,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/crystalize.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "dandelion-cycle.html",
@@ -131,7 +142,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/dandelion-cycle.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "darkwood.html",
@@ -142,7 +153,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/darkwood.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "death.html",
@@ -153,7 +164,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/death.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "diffusion-fluid.html",
@@ -164,7 +175,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/diffusion-fluid.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "disphere-inverse.html",
@@ -175,7 +186,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere-inverse.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "disphere-ray.html",
@@ -186,7 +197,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere-ray.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "disphere-symmetry.html",
@@ -197,7 +208,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere-symmetry.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "disphere.html",
@@ -208,7 +219,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "dither-types.html",
@@ -219,7 +230,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/dither-types.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "ember-engine.html",
@@ -230,7 +241,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/ember-engine.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "flame-simulation.html",
@@ -241,7 +252,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/flame-simulation.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "flame-strains.html",
@@ -252,7 +263,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/flame-strains.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "flame.html",
@@ -263,7 +274,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/flame.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "fluid.html",
@@ -274,7 +285,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fluid.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "fractal-dimension.html",
@@ -285,7 +296,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-dimension.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "fractals.html",
@@ -296,7 +307,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractals.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "fungal-growth.html",
@@ -307,7 +318,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fungal-growth.html",
       "og_image": null,
-      "lastmod": "2026-09-20"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "game-of-life.html",
@@ -318,7 +329,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/game-of-life.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "game.html",
@@ -329,7 +340,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/game.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "game_multiplayer.html",
@@ -340,7 +351,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/game_multiplayer.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "indent.html",
@@ -351,7 +362,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/indent.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "index.html",
@@ -362,7 +373,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "info.html",
@@ -373,7 +384,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/info.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "iori.html",
@@ -384,7 +395,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iori.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "iori_INDEX.html",
@@ -395,7 +406,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/",
       "og_image": null,
-      "lastmod": "2026-09-20"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "iris-engine/index.html",
@@ -406,7 +417,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris-engine/",
       "og_image": null,
-      "lastmod": "2026-09-22",
+      "lastmod": "2026-09-28",
       "order": 3
     },
     {
@@ -418,7 +429,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris.html",
       "og_image": null,
-      "lastmod": "2026-09-18",
+      "lastmod": "2026-09-27",
       "order": 1
     },
     {
@@ -430,7 +441,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/jachym.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "lambda_cognition.html",
@@ -441,7 +452,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/lambda_cognition.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "lighter-flame.html",
@@ -452,7 +463,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/lighter-flame.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "lili.html",
@@ -463,7 +474,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/lili.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "liquid-automata.html",
@@ -474,7 +485,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/liquid-automata.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "mandelbrot-gs.html",
@@ -485,7 +496,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mandelbrot-gs.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "maska.html",
@@ -496,7 +507,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/maska.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "meta-iris.html",
@@ -507,7 +518,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/meta-iris.html",
       "og_image": null,
-      "lastmod": "2026-09-18",
+      "lastmod": "2026-09-27",
       "order": 2
     },
     {
@@ -519,7 +530,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/metyou.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "mirrorbrot-16k.html",
@@ -530,7 +541,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mirrorbrot-16k.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "mirrorbrot.html",
@@ -541,7 +552,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mirrorbrot.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "moises.html",
@@ -552,7 +563,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/moises.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "multiOS.html",
@@ -563,7 +574,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/multiOS.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "music.html",
@@ -574,7 +585,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/music.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "mycelium.html",
@@ -585,7 +596,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mycelium.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "nasal-wave.html",
@@ -596,7 +607,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/nasal-wave.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "orbitals.html",
@@ -607,7 +618,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/orbitals.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "petri/index.html",
@@ -618,7 +629,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/petri/",
       "og_image": null,
-      "lastmod": "2026-09-20"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "pi.html",
@@ -629,7 +640,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/pi.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "portfolio.html",
@@ -640,7 +651,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/portfolio.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "poster.html",
@@ -651,7 +662,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/poster.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "procedural-flame.html",
@@ -662,7 +673,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/procedural-flame.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "shop.html",
@@ -673,7 +684,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/shop.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "sigmoid-helix.html",
@@ -684,7 +695,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/sigmoid-helix.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "slime-mold.html",
@@ -695,7 +706,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/slime-mold.html",
       "og_image": null,
-      "lastmod": "2026-09-20"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "socci.html",
@@ -706,7 +717,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/socci.html",
       "og_image": "images/socci-base-island.avif",
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "start.html",
@@ -717,7 +728,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/start.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "sudoku.html",
@@ -728,7 +739,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/sudoku.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "tboi2.html",
@@ -739,7 +750,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/tboi2.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "three-body-shaded.html",
@@ -750,7 +761,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/three-body-shaded.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "three-body.html",
@@ -761,7 +772,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/three-body.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "tomasek.html",
@@ -772,7 +783,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/tomasek.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "two-body.html",
@@ -783,7 +794,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/two-body.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "umprum.html",
@@ -794,7 +805,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/umprum.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "universe.html",
@@ -805,7 +816,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/universe.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "univerzum.html",
@@ -816,7 +827,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/univerzum.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "voxel-flame.html",
@@ -827,7 +838,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/voxel-flame.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "voxel-flames-3d.html",
@@ -838,7 +849,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/voxel-flames-3d.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "voxel-flames.html",
@@ -849,7 +860,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/voxel-flames.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "voxel-sandbox.html",
@@ -860,7 +871,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/voxel-sandbox.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "voxel-scale-less.html",
@@ -871,7 +882,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/voxel-scale-less.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "voxel-terrain.html",
@@ -882,7 +893,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/voxel-terrain.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "watercolor.html",
@@ -893,7 +904,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/watercolor.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "web.html",
@@ -904,7 +915,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/web.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "web3d.html",
@@ -915,7 +926,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/web3d.html",
       "og_image": null,
-      "lastmod": "2026-09-18"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "webgl.html",
@@ -926,7 +937,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/webgl.html",
       "og_image": null,
-      "lastmod": "2026-09-15"
+      "lastmod": "2026-09-27"
     },
     {
       "slug": "websites.html",
@@ -937,7 +948,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/websites.html",
       "og_image": null,
-      "lastmod": "2026-09-26"
+      "lastmod": "2026-09-27"
     }
   ]
 }

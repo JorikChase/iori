@@ -244,6 +244,17 @@ def json_ld_for(slug, meta):
         if meta.get("sameAs"):
             artist["sameAs"] = list(meta["sameAs"])
         blocks.append(artist)
+    elif ptype == "app":
+        blocks.append({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": title, "description": desc, "url": url,
+            "applicationCategory": "MultimediaApplication",
+            "operatingSystem": "iOS, iPadOS, Web Browser",
+            "browserRequirements": "Requires WebGL and Web Audio",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+            "author": {"@type": "Organization", "name": "3DIE", "url": "https://3die.fr/"},
+        })
     elif ptype == "experiment":
         blocks.append({
             "@context": "https://schema.org",
@@ -293,7 +304,10 @@ def build_seo_block(slug, meta):
         f'    <meta name="twitter:description" content="{desc}">',
         "",
         '    <meta name="theme-color" content="#000000">',
-        f'    <link rel="manifest" href="{up}manifest.json">',
+        # An installable folder app ships its own manifest (scope = its folder)
+        # so it installs as itself, not as the whole site: registry "manifest"
+        # is the path relative to the page. Everything else links the site one.
+        f'    <link rel="manifest" href="{meta.get("manifest") or up + "manifest.json"}">',
         # Tab icon: the simple mark (icon/favicon/*), never the painted sheet —
         # the painting is mush below ~48px and is the installed-app icon only.
         f'    <link rel="icon" href="{up}favicon.ico?v={v}" sizes="32x32">',

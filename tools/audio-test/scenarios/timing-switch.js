@@ -22,5 +22,5 @@ module.exports = async (lib) => {
   const errors = page.errors.filter(e => !/service ?worker/i.test(e));
   await page.context().close(); await br.close();
   const live = after.frames.filter(s => s && s !== 'about:blank');
-  return lib.result(dir, { pass: t > 0 && t <= 820 && after.tool !== from && after.tool === pre.pick && live.length === 1 && !errors.length, from, pre, releaseToSettled: t, after, errors });
+  return lib.result(dir, { pass: t > 0 && t <= 960 && after.tool !== from && after.tool === pre.pick && live.length === 1 && !errors.length, from, pre, releaseToSettled: t, after, errors });
 };

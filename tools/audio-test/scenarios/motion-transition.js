@@ -2,7 +2,7 @@
    motion for enter (home -> tuner) and leave (tuner -> home). Visual check of the band, the wobble, the reveal
    and the collapse into the hub; the timing itself is measured by timing-transition. */
 module.exports = async (lib) => {
-  const br = await lib.browser(); const dir = lib.outDir('motion-transition'); const SLOW = 5, TD = 660 * SLOW;
+  const br = await lib.browser(); const dir = lib.outDir('motion-transition'); const SLOW = 5, TD = 800 * SLOW;
   const page = await lib.open(br, 'shell', { wait: 1200 });
   await page.evaluate((s) => { window.__SLOW = s; }, SLOW);
   const tap = (kind) => page.evaluate((kind) => { const hit = document.getElementById('hit'); const p = kind === 'enter' ? __SAT(window.__TOOL || 1) : { x: 40, y: innerHeight - 40 };

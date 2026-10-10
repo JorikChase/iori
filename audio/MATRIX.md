@@ -27,8 +27,8 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | S2 | Hold orb + drag → melt toward finger, neck, eight icons bloom | H | todo |
 | S3 | Release on a tool opens it | H | todo |
 | S4 | Tap a satellite dot opens its tool | H | pass (pane, 2026-10-09) |
-| S5 | Transition (owner, 2026-10-10, second pass): seamless full-screen e-ink sweep — the tool unmasked through a natural wave with five ordered-dither steps at its edge; no flash, no line; soft start, glide, settle; 0.66 s (?td= to try speeds) | H | pass (motion-transition sheets; 649 ms after lift) |
-| S6 | Going home: the same sweep reversed into the hub | H | pass (654 ms after lift) |
+| S5 | Transition (owner, 2026-10-10, second pass): seamless full-screen e-ink sweep — the tool unmasked through a natural wave with five ordered-dither steps at its edge; no flash, no line; soft start, glide, settle; 0.8 s (owner chose ?td=0.8; ?td= still overrides) | H | pass (motion-transition sheets; 775 ms after lift) |
+| S6 | Going home: the same sweep reversed into the hub | H | pass (806 ms after lift) |
 | S7 | Orb shrinks to bottom-left hub inside a tool | H | todo |
 | S8 | Hub tap → home; tool frame unloads (audio stops) | H | pass (pane) |
 | S9 | Hub hold + drag → three buds (prev, current, next); further drag turns the dial; release switches | H | pass (timing-switch: dial step, preload during rest, switch, old frame unloaded; hub hit-test now uses its resting corner) |

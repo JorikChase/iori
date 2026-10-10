@@ -4,7 +4,8 @@
    - virtual clock: page.clock lets motion be stepped frame by frame and captured at exact instants
    - state hooks: every page exposes window.__S (its state) and, with ?perf, window.__PERF
    Output goes to out/<scenario>/ : PNG frames, a contact sheet, and result.json. */
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
+const ENGINE = process.env.AT_BROWSER === 'webkit' ? 'webkit' : 'chromium';   // AT_BROWSER=webkit: Safari's engine
 const { spawn } = require('child_process');
 const fs = require('fs'); const path = require('path'); const net = require('net');
 
@@ -25,6 +26,7 @@ async function server() {
 
 /* one browser per WAV, since the capture file is a launch flag */
 async function browser() {
+  if (ENGINE === 'webkit') return webkit.launch({ headless: true });
   const args = ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
   return chromium.launch({ headless: true, args });
 }
@@ -33,9 +35,10 @@ async function browser() {
    plays that file through a MediaStreamAudioDestinationNode. Chromium's own fake capture device hangs on this
    Mac (getUserMedia never resolves, headless or headed), and this path is deterministic on every platform. */
 const MIC_INIT = (url) => `(() => {
-  const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-  navigator.mediaDevices.getUserMedia = async (c) => {
-    if (!c || !c.audio) return real(c);
+  const MD = window.MediaDevices && MediaDevices.prototype; if (!MD) return;
+  const real = MD.getUserMedia;                                   // patch the prototype: WebKit ignores an instance override
+  MD.getUserMedia = async function (c) {
+    if (!c || !c.audio) return real.call(this, c);
     const ac = new (window.__MIC_AC = window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
     const buf = await ac.decodeAudioData(await (await fetch(${JSON.stringify(url)})).arrayBuffer());
     const src = ac.createBufferSource(); src.buffer = buf; const dst = ac.createMediaStreamDestination(); src.connect(dst);
@@ -44,9 +47,22 @@ const MIC_INIT = (url) => `(() => {
   };
 })();`;
 
-async function open(br, tool, { perf = false, clock = false, wait = 600, wav = null } = {}) {
-  const ctx = await br.newContext({ viewport: VIEW, deviceScaleFactor: DPR, hasTouch: true, isMobile: true, permissions: ['microphone'] });
+/* iOS audio rule, emulated (AT_IOS=1 or {ios:true}): a context starts suspended unless created during a touch END
+   (pointerup/touchend/click/keydown), and resume() does nothing outside one. Desktop engines are permissive, so
+   without this the harness cannot see the commonest iPhone failure: audio started on touch-down never runs. */
+const IOS_INIT = `(() => {
+  let g = false; for (const t of ['touchend','pointerup','click','keydown']) addEventListener(t, () => { g = true; setTimeout(() => { g = false; }, 0); }, true);
+  const O = window.AudioContext || window.webkitAudioContext; if (!O) return;
+  const res = O.prototype.resume; O.prototype.resume = function () { return g ? res.call(this) : Promise.resolve(); };
+  function C(o) { const c = o ? new O(o) : new O(); if (!g) c.suspend(); return c; } C.prototype = O.prototype;
+  window.AudioContext = C; if (window.webkitAudioContext) window.webkitAudioContext = C; window.__IOS_AUDIO = true;
+})();`;
+
+async function open(br, tool, { perf = false, clock = false, wait = 600, wav = null, ios = !!process.env.AT_IOS, noUnlock = false } = {}) {
+  const ctx = await br.newContext(ENGINE === 'webkit' ? { viewport: VIEW, deviceScaleFactor: DPR, hasTouch: true } : { viewport: VIEW, deviceScaleFactor: DPR, hasTouch: true, isMobile: true, permissions: ['microphone'] });
   const page = await ctx.newPage();
+  if (ios) await page.addInitScript(IOS_INIT);
+  if (noUnlock) await page.addInitScript(() => { window.__NO_UNLOCK = true; });
   if (wav) await page.addInitScript(MIC_INIT(`http://127.0.0.1:${PORT}/tools/audio-test/signals/${wav}`));
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -120,4 +136,4 @@ async function lit(br, png) {
 function result(dir, data) { fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(data, null, 2)); return data; }
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
-module.exports = { server, browser, open, outDir, frames, captureAt, sheet, lit, result, near, VIEW, DPR, ROOT, OUT };
+module.exports = { ENGINE, server, browser, open, outDir, frames, captureAt, sheet, lit, result, near, VIEW, DPR, ROOT, OUT };

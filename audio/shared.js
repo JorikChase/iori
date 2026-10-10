@@ -14,7 +14,8 @@
      put({name, kind, sr, data: Float32Array, markers}) -> Promise<meta>
      del(id)           -> Promise
      import(file)      -> Promise<meta>   decode any audio/video file to mono and store it
-     pick()            -> Promise<meta|null>  open the system file picker (call from a tap) and import
+     pick()            -> Promise<meta|null>  open the system file picker (call from a tap) and import; no type filter
+                          (iPadOS greys out WAV under "audio/*"), undecodable files resolve null
    AT.onTakes(fn)      fn({op:'put'|'del', id}) whenever any tool changes the library
 
    AT.place(id)        Put a take on the editor timeline: queues it, then asks the shell to open the editor.
@@ -22,7 +23,8 @@
    AT.go(tool) / AT.preload(tool)   Shell navigation: 'edit','tuner','bpm','metro','synth','ana','play','rec'.
    AT.session.load(key) / save(key, obj)   Small JSON state that must survive leaving a tool (editor timeline).
 
-   AT.mic()            getUserMedia through the shell's one-grant-per-session helper.
+   AT.mic()            getUserMedia (each tool asks itself; iOS keeps the site's permission once allowed).
+   Audio unlock        every AudioContext is resumed on each touch end (iOS rule) and after interruptions.
    AT.wake(on)         Screen wake lock (recorder).
    AT.inShell()        True inside the shell's frame.
 
@@ -49,6 +51,29 @@
       window.__PERF = { fps: 1000 / m, frame: m, worst: worst, long: long, js: js / n }; n = 0; sum = 0; worst = 0; js = 0;
     }, 500);
   })();
+
+  /* ---------------------------------------------------------------- audio unlock (iOS) */
+  /* iOS starts or resumes audio only inside a touch END — touchend, pointerup or click — never on touch-down.
+     Tools create and resume their contexts on pointerdown, which leaves them suspended on an iPhone: no sound,
+     no capture. Every AudioContext is registered here and resumed on each touch end, and resumed again when iOS
+     interrupts it (a call, Siri, the mic starting). resume() inside the gesture is enough on current iOS — no silent
+     "priming" buffer, so nothing is ever generated. */
+  var CTXS = [];
+  (function () {
+    var O = window.AudioContext || window.webkitAudioContext; if (!O) return;
+    function R(o) { var c = o ? new O(o) : new O(); CTXS.push(c); watch(c); return c; }
+    R.prototype = O.prototype;
+    window.AudioContext = R; if (window.webkitAudioContext) window.webkitAudioContext = R;
+  })();
+  function watch(c) { try { c.addEventListener('statechange', function () { if (c.state === 'interrupted' && document.visibilityState === 'visible') c.resume().catch(function () {}); }); } catch (_) {} }
+  function unlock() {
+    CTXS.forEach(function (c) {
+      if (c.state === 'closed') return;
+      if (c.state !== 'running') { try { c.resume().catch(function () {}); } catch (_) {} }
+    });
+  }
+  if (!window.__NO_UNLOCK) ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (t) { window.addEventListener(t, unlock, { capture: true, passive: true }); });   // __NO_UNLOCK: harness proof that iOS mode catches the bug
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') CTXS.forEach(function (c) { if (c.state === 'interrupted' || c.state === 'suspended') { try { c.resume().catch(function () {}); } catch (_) {} } }); });
 
   /* ---------------------------------------------------------------- shell link */
   function shell() { try { return window.parent !== window && window.parent.ATS ? window.parent.ATS : null; } catch (_) { return null; } }
@@ -151,7 +176,9 @@
     },
     pick: function () {
       return new Promise(function (res) {
-        var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'audio/*,video/*'; fi.style.display = 'none';
+        /* no accept filter: iPadOS maps "audio/*" to a set of file types that greys out WAV (and others) in the Files
+           picker. Every file is selectable; anything that does not decode resolves null. */
+        var fi = document.createElement('input'); fi.type = 'file'; fi.style.display = 'none';
         var done = false;
         fi.addEventListener('change', function () { done = true; var f = fi.files && fi.files[0]; fi.remove(); if (!f) return res(null); takes.import(f).then(res, function () { res(null); }); });
         fi.addEventListener('cancel', function () { if (!done) { done = true; fi.remove(); res(null); } });   // the user closed the picker
@@ -180,8 +207,7 @@
   function own() { return navigator.mediaDevices.getUserMedia(CONS); }
   function mic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('no microphone'));
-    var s = shell(), p = s && s.mic ? s.mic() : null;
-    return p ? p.then(own, own) : own();
+    return own().then(function (st) { setTimeout(unlock, 0); return st; });   // capture start can interrupt a running context
   }
   var wl = null, wantWake = false;
   function wake(on) {

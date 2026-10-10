@@ -129,9 +129,10 @@ html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);overflo
 #app{position:relative;height:100%;overflow:hidden;background:var(--ground)}
 .fr{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--ground);z-index:1;clip-path:circle(0px at 0 0);-webkit-clip-path:circle(0px at 0 0)}
 #orb{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:3}
-#icons{position:absolute;inset:0;pointer-events:none;z-index:4}
+#flash{position:absolute;inset:0;pointer-events:none;z-index:4;display:none;-webkit-backdrop-filter:invert(1);backdrop-filter:invert(1)}
+#icons{position:absolute;inset:0;pointer-events:none;z-index:5}
 #icons i{position:absolute;transform:translate(-50%,-50%);visibility:hidden}
-#hit{position:absolute;left:0;bottom:0;width:100%;height:100%;touch-action:none;z-index:5}
+#hit{position:absolute;left:0;bottom:0;width:100%;height:100%;touch-action:none;z-index:6}
 #hit.corner{width:104px;height:104px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 body.in-tool #site-menu{display:none}
@@ -141,6 +142,7 @@ body.in-tool #site-menu{display:none}
   <iframe id="tool" class="fr" title="Active tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
   <iframe id="tool2" class="fr" title="Next tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
   <canvas id="orb" aria-hidden="true"></canvas>
+  <div id="flash" aria-hidden="true"></div>
   <div id="icons"></div>
   <div id="hit"></div>
 </div>
@@ -162,30 +164,16 @@ setInterval(function(){if(!n)return;var m=sum/n;el.textContent=(1000/m).toFixed(
 })();
 </script>
 <script>
-/* Shell services, reached by the tools as parent.ATS (same origin).
-   mic(): the shell asks for the microphone once and keeps its stream open for
-   the session, so each tool's own getUserMedia is granted without a new prompt
-   (WebKit keeps a grant for the page's lifetime and this page never
-   navigates). The tools still own their streams, so nothing crosses frames.
-   Released when the app is hidden for good (pagehide). */
+/* Shell services, reached by the tools as parent.ATS (same origin). The tools ask for the microphone themselves:
+   holding a second capture stream here could get one of them muted on iOS. */
 (function(){
-var stream=null,pending=null;
-var CONS={audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
-function mic(){
- if(stream&&stream.active)return Promise.resolve(true);
- if(pending)return pending;
- if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return Promise.reject(new Error('no microphone'));
- pending=navigator.mediaDevices.getUserMedia(CONS).then(function(s){stream=s;pending=null;return true;},function(e){pending=null;throw e;});
- return pending;}
-function release(){if(stream){try{stream.getTracks().forEach(function(t){t.stop()})}catch(_){}stream=null;}}
-addEventListener('pagehide',release);
 var persisted=false;
 function persist(){if(persisted)return;persisted=true;try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(function(){});}catch(_){}}
 var standalone=false;try{standalone=!!(navigator.standalone||matchMedia('(display-mode: standalone)').matches);}catch(_){}
-window.ATS={mic:mic,releaseMic:release,persist:persist,standalone:standalone};
+window.ATS={persist:persist,standalone:standalone};
 if(standalone)persist();
 if('serviceWorker' in navigator)addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
-})();
+})()
 </script>
 <script>
 (function(){
@@ -204,6 +192,8 @@ var FS=[
 'uniform vec2 uRes,uC,uF,uSat,uWO,uD0,uD1,uD2;',
 'uniform float uT,uDpr,uR,uFk,uMelt,uSel,uBloom,uSats,uWo,uWi,uToTool,uDk,uDial,uWa;',
 'uniform vec3 uA,uB,uN,uWc,uDr;uniform mat3 uM;',
+'uniform vec4 uWv;uniform float uWt,uWm,uWh,uWb;',
+'float b2(vec2 a){a=floor(a);return fract(a.x*.5+a.y*a.y*.75);}',
 'float smin(float a,float b,float k){k=max(k,.001);float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}',
 'mat3 rx(vec3 a,float g){float c=cos(g),s=sin(g),i=1.-c;return mat3(c+a.x*a.x*i,a.y*a.x*i+a.z*s,a.z*a.x*i-a.y*s,a.x*a.y*i-a.z*s,c+a.y*a.y*i,a.z*a.y*i+a.x*s,a.x*a.z*i+a.y*s,a.y*a.z*i-a.x*s,c+a.z*a.z*i);}',
 'float gy(vec3 p){return dot(sin(p),cos(p.yzx));}',
@@ -222,11 +212,15 @@ var FS=[
 'void over(inout vec3 P,inout float A,vec3 c,float m){P=c*m+P*(1.-m);A=m+A*(1.-m);}',
 'void main(){',
 ' vec2 P0=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;float px=1./uDpr;',
-' vec2 dw=P0-uWO;float dd=length(dw);float ro=wob(dw,uWo),ri=wob(dw,uWi);',
-/* where the tool shows through: inside the opening edge on the way in, outside the flood on the way home */
-' float tool=min(1.,smoothstep(px,-px,dd-ri)+smoothstep(-px,px,dd-ro)*uToTool);',
-' vec3 P=vec3(0.);float A=1.-tool;',
-' over(P,A,uWc,smoothstep(px,-px,dd-ro)*smoothstep(-px,px,dd-ri));',
+/* the e-ink wave (uWm 0: off · 1: home lies outside the wave · 2: a tool lies outside). Inside the front, uWh px of
+   solid black, then five ordered-dither steps over uWb px resolving into what is underneath — the same refresh the
+   tools use, swept along the wave. The inverse flash ring ahead of the front is a backdrop-filter in the DOM. */
+' vec3 P=vec3(0.);float A=0.;',
+' if(uWm>.5){vec2 dw=P0-uWv.xy;float aa=atan(dw.y,dw.x);',
+'  float rw=uWv.z+uWv.w*(.55*sin(3.*aa+2.3*uWt)+.3*sin(5.*aa-3.1*uWt+1.7)+.15*sin(7.*aa+4.3*uWt+.6));',
+'  float d=rw-length(dw);',
+'  float lv=d<0.?step(uWm,1.5):(d<uWh?1.:1.-ceil(clamp((d-uWh)/uWb,0.,1.)*5.)/5.);',
+'  vec2 cl=floor(P0/2.);float bay=b2(cl*.5)*.25+b2(cl);A=step(bay+.03,lv);}',
 ' float dO=length(P0-uC)-uR;',
 ' float k=uMelt*uR*.7;',
 ' float dF=length(P0-uF)-22.*uFk+(1.-uFk)*999.;',
@@ -260,7 +254,7 @@ function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(
 var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
 var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
 var al=gl.getAttribLocation(pr,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
-var U={};['uRes','uC','uF','uSat','uWO','uT','uDpr','uR','uFk','uMelt','uSel','uBloom','uSats','uWo','uWi','uToTool','uWa','uDk','uDial','uD0','uD1','uD2','uDr','uA','uB','uN','uWc','uM'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
+var U={};['uRes','uC','uF','uSat','uWO','uT','uDpr','uR','uFk','uMelt','uSel','uBloom','uSats','uWo','uWi','uToTool','uWa','uWv','uWt','uWm','uWh','uWb','uDk','uDial','uD0','uD1','uD2','uDr','uA','uB','uN','uWc','uM'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
 var W=380,H=700,dpr=1;
 function size(){W=app.clientWidth||380;H=app.clientHeight||700;dpr=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);gl.viewport(0,0,cv.width,cv.height);}
 size();window.addEventListener('resize',size);
@@ -271,7 +265,7 @@ var DA=[78,45,12];
 function m8(i){return((i%8)+8)%8}
 var BIG=4000;
 var S={mode:'home',hold:false,cx:0,cy:0,r:0,fx:0,fy:0,fk:0,melt:0,sel:-1,selA:0,bloom:0,sats:1,tool:0,
- a:AC[0].slice(),b:AC[1].slice(),n:AC[0].slice(),wc:AC[0].slice(),wox:0,woy:0,wo:-100,wi:-100,wa:0,wt:-1,wti:-1,toTool:0,inF:-1,selT:0,pickT:0,
+ a:AC[0].slice(),b:AC[1].slice(),n:AC[0].slice(),wc:AC[0].slice(),wox:0,woy:0,wo:-100,wi:-100,wa:0,wt:-1,wti:-1,toTool:1,wm:1,wR:-1e4,wA:0,fromTool:false,inF:-1,selT:0,pickT:0,
  dial:false,dOpen:0,dWas:false,dT:0,dMove:0,pick:0,dir:0,dOff:0,dPulse:0,spin:0,px:0,py:0,vx:0,vy:0,downT:0,downSat:-1,M:[1,0,0,0,1,0,0,0,1]};
 function home(){return{x:W/2,y:Math.round(H*.44),r:Math.min(W*.26,110)}}
 function hubP(){return{x:44,y:H-44,r:26}}
@@ -295,8 +289,19 @@ function toolSrc(k){return 't/'+k+'.html'+(PERF?'?perf':'');}
 var F=[FR,document.getElementById('tool2')].map(function(el){var f={el:el,k:null,ready:false,loaded:false,t0:0,clipV:''};
  el.addEventListener('load',function(){if(f.k){f.loaded=true;f.loadT=performance.now();}});return f;});
 var curF=-1;
-function clip(f,r,x,y){var v=r===null?'none':r<=0?'circle(0px at 0 0)':'circle('+r.toFixed(1)+'px at '+x.toFixed(1)+'px '+y.toFixed(1)+'px)';
- if(f.clipV!==v){f.clipV=v;f.el.style.clipPath=v;f.el.style.webkitClipPath=v;}}
+function setClip(f,v){if(f.clipV!==v){f.clipV=v;f.el.style.clipPath=v;f.el.style.webkitClipPath=v;}}
+function clip(f,r){setClip(f,r===null?'none':'circle(0px at 0 0)');}
+/* the reveal edge: a closed wave around (x,y) — three slow harmonics drifting against each other, like a liquid
+   front. amp is in px; at amp 0 it is a circle. The mask is all there is: no colour, no line. */
+var WN=96,WC=[],WS=[];for(var wi=0;wi<WN;wi++){var wa0=wi/WN*6.2832;WC.push(Math.cos(wa0));WS.push(Math.sin(wa0));}
+var EH=0,EB=100,EFLASH=.07;   /* e-ink: no solid band (it reads as a line), 5 dither steps over EB px, full-screen inverse flash s */
+var FL=document.getElementById('flash'),flV=false,flOK0=true;
+function waveR(a,R,amp,t){return R+amp*(.55*Math.sin(3*a+2.3*t)+.3*Math.sin(5*a-3.1*t+1.7)+.15*Math.sin(7*a+4.3*t+.6));}
+function flash(on){on=!!on&&flOK0;if(on!==flV){flV=on;FL.style.display=on?'block':'none';}}
+function waveClip(f,R,x,y,amp,t){if(R<=0){clip(f,0);return;}var pts=new Array(WN);
+ for(var i=0;i<WN;i++){var r=waveR(i/WN*6.2832,R,amp,t);
+  pts[i]=(x+WC[i]*r).toFixed(1)+'px '+(y+WS[i]*r).toFixed(1)+'px';}
+ setClip(f,'polygon('+pts.join(',')+')');}
 function spare(){return F[curF===0?1:0];}
 function unload(f){f.k=null;f.ready=f.loaded=false;clip(f,0);f.el.removeAttribute('src');f.el.src='about:blank';}
 function preload(k){var f=spare();if(f.k===k)return f;f.k=k;f.ready=f.loaded=false;f.t0=performance.now();clip(f,0);
@@ -305,9 +310,9 @@ function dropSpare(){if(S.mode==='entering')return;var f=spare();if(f.k)unload(f
 window.ATS.ready=function(win){F.forEach(function(f){try{if(f.k&&f.el.contentWindow===win){f.ready=true;f.readyMs=performance.now()-f.t0;}}catch(_){}});};
 window.ATS.go=function(k){var i=-1;TOOLS.forEach(function(t,j){if(t.k===k)i=j;});if(i<0||S.mode==='entering'||S.mode==='going')return;if(S.mode==='tool'&&S.tool===i)return;enter(i);};
 window.ATS.preload=function(k){if(S.mode==='home'||S.mode==='tool')preload(k);};
-function enter(i){var f=preload(TOOLS[i].k);S.inF=F.indexOf(f);S.toTool=curF>=0?1:0;S.tool=i;S.mode='entering';
+function enter(i){var f=preload(TOOLS[i].k);S.inF=F.indexOf(f);S.fromTool=curF>=0;S.tool=i;S.mode='entering';
  S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wti=-1;S.wc=AC[i].slice();}
-function leave(){if(curF<0)return;S.mode='going';S.toTool=0;S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wc=AC[S.tool].slice();}
+function leave(){if(curF<0)return;S.mode='going';S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wc=AC[S.tool].slice();}
 function eOut(x){x=1-x;return 1-x*x*x;}
 function eInOut(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}
 function setCorner(on){HIT.className=on?'corner':'';document.body.classList.toggle('in-tool',S.mode!=='home');}
@@ -348,24 +353,26 @@ function frame(now){
  if(Math.abs(S.spin)>.001){var sg2=S.spin*e;S.spin-=sg2;S.M=mul(S.M,rZ(sg2));}
  var ti=S.sel>=0?S.sel:(S.dial?S.pick:S.tool);
  lerp3(S.a,AC[ti],e);lerp3(S.b,AC[(ti+1)%8],e);if(S.sel>=0)S.n=AC[S.sel].slice();else if(S.dOpen>0)S.n=AC[S.pick].slice();
- /* transition: the incoming tool opens inside a circle from the orb, led by a band of its colour (TD each way) */
- var TD=.30*(window.__SLOW||1),WA=11,cover=Math.hypot(Math.max(S.wox,W-S.wox),Math.max(S.woy,H-S.woy))+WA+4,nowT=performance.now();
+ /* transition: an e-ink refresh swept along a widening wave from the orb — a full-screen inverse flash, then
+    five ordered-dither steps resolving into the incoming tool; going home sweeps it back into the hub. The frame's
+    clip-path is the wave front, the canvas draws the dither, #flash inverts the whole screen for the first 70 ms. */
+ var TD=.34*(window.__SLOW||1),cover=Math.hypot(Math.max(S.wox,W-S.wox),Math.max(S.woy,H-S.woy)),nowT=performance.now();
  if(S.hold&&S.sel>=0&&nowT-S.selT>70)preload(TOOLS[S.sel].k);
  if(S.dial&&S.dWas&&S.pick!==S.tool&&nowT-S.pickT>70)preload(TOOLS[S.pick].k);
  F.forEach(function(f){if(f.k&&f.loaded&&!f.ready&&nowT-f.loadT>600)f.ready=true;});   /* a page that never signals */
- if(S.mode==='entering'){var fi=F[S.inF];S.wt+=dt;
-  /* the band: EXT px of tool colour leading the reveal, thinning as it travels; it ends past the far corner */
-  var EXT=58,ro=(cover+EXT)*eOut(Math.min(1,S.wt/TD));
-  if(S.wti<0&&(fi.ready||S.wt>4))S.wti=0;
-  var ri=-100;if(S.wti>=0){S.wti+=dt;var pi=Math.min(1,S.wti/TD);ri=Math.min(ro-2*WA-6,(cover+EXT)*eOut(pi)-EXT*(1-.45*pi));}
-  S.wi=ri;S.wo=ro;S.wa=Math.min(WA,Math.max(0,ro-Math.max(ri,0))/3);
-  clip(fi,ri<0?0:ri+S.wa+1,S.wox,S.woy);
-  if(S.wti>=TD){clip(fi,null);if(curF>=0&&curF!==S.inF)unload(F[curF]);curF=S.inF;fi.el.style.zIndex=1;
-   S.mode='tool';S.wo=S.wi=BIG;S.wa=0;S.wt=S.wti=-1;}}
+ S.wo=S.wi=-100;S.toTool=1;S.wa=0;
+ if(S.mode==='entering'){var fi=F[S.inF];S.wt+=dt;S.wm=S.fromTool?2:1;S.wR=-1e4;S.wA=0;
+  if(S.wti<0&&(fi.ready||S.wt>1.2))S.wti=0;
+  if(S.wti>=0){S.wti+=dt;var pi=Math.min(1,S.wti/TD),amp=Math.min(36,cover*.09)*(1-pi*.85),R=(cover+amp+EH+EB+4)*eOut(pi);
+   S.wR=R;S.wA=amp;waveClip(fi,R,S.wox,S.woy,amp,t);flash(S.wti<EFLASH*(window.__SLOW||1));
+   if(pi>=1){clip(fi,null);flash(false);if(curF>=0&&curF!==S.inF)unload(F[curF]);curF=S.inF;fi.el.style.zIndex=1;S.mode='tool';S.wt=S.wti=-1;}}
+  else flash(false);}
  else if(S.mode==='going'){var fc=F[curF];S.wt+=dt;var pg=Math.min(1,S.wt/TD);
-  var rc=cover*(1-eOut(pg));S.wi=rc;S.wo=rc+48*Math.sin(Math.PI*Math.min(1,pg*1.15));S.wa=Math.min(WA,(S.wo-S.wi)/3,rc*.12);
-  clip(fc,rc+S.wa+1,S.wox,S.woy);
-  if(pg>=1){unload(fc);curF=-1;S.mode='home';S.wo=S.wi=-100;S.wa=0;S.wt=-1;}}
+  var Rg=(cover+40+EH+EB+4)*(1-eOut(pg)),ampg=Math.min(36,Math.max(0,Rg)*.12);
+  S.wm=1;S.wR=Rg;S.wA=ampg;waveClip(fc,Rg,S.wox,S.woy,ampg,t);flash(S.wt<EFLASH*(window.__SLOW||1));
+  if(pg>=1){unload(fc);flash(false);curF=-1;S.mode='home';S.wt=-1;S.wR=-1e4;}}
+ else if(S.mode==='home'){S.wm=1;S.wR=-1e4;}
+ else S.wm=0;
  setCorner(S.mode==='tool');
  var sa=(S.sel>=0?S.sel:0)*Math.PI/4-Math.PI/2;
  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
@@ -373,7 +380,7 @@ function frame(now){
  gl.uniform2f(U.uC,S.cx,S.cy);gl.uniform1f(U.uR,S.r);gl.uniform2f(U.uF,S.fx,S.fy);
  gl.uniform1f(U.uFk,S.fk);gl.uniform1f(U.uMelt,S.melt);gl.uniform1f(U.uSel,S.selA);gl.uniform1f(U.uBloom,S.bloom);gl.uniform1f(U.uSats,S.sats);
  gl.uniform2f(U.uSat,S.cx+Math.cos(sa)*S.r*1.5,S.cy+Math.sin(sa)*S.r*1.5);
- gl.uniform2f(U.uWO,S.wox,S.woy);gl.uniform1f(U.uWo,S.wo);gl.uniform1f(U.uWi,S.wi);gl.uniform1f(U.uToTool,S.toTool);gl.uniform1f(U.uWa,S.wa);
+ gl.uniform2f(U.uWO,S.wox,S.woy);gl.uniform1f(U.uWo,S.wo);gl.uniform1f(U.uWi,S.wi);gl.uniform1f(U.uToTool,S.toTool);gl.uniform1f(U.uWa,S.wa);gl.uniform4f(U.uWv,S.wox,S.woy,S.wR,S.wA);gl.uniform1f(U.uWt,t);gl.uniform1f(U.uWm,S.wm);gl.uniform1f(U.uWh,EH);gl.uniform1f(U.uWb,EB);
  gl.uniform3fv(U.uWc,S.wc);gl.uniform3fv(U.uA,S.a);gl.uniform3fv(U.uB,S.b);gl.uniform3fv(U.uN,S.n);
  var hp=hubP(),dp=[],drr=[];
  for(var k2=0;k2<3;k2++){var ang=(DA[k2]+S.dOff)*Math.PI/180,o2=S.dOpen;

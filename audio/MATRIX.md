@@ -27,8 +27,8 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | S2 | Hold orb + drag → melt toward finger, neck, eight icons bloom | H | todo |
 | S3 | Release on a tool opens it | H | todo |
 | S4 | Tap a satellite dot opens its tool | H | pass (pane, 2026-10-09) |
-| S5 | Transition: tool starts loading on touch-down (or after a 70 ms rest while dragging); opens inside a circle from the orb led by a wobbling band of its colour; full flood only while a slow tool has not painted | H | pass (motion-transition sheet; timing-transition: 288 ms after lift, was 1937 ms) |
-| S6 | Going home: the tool collapses into the hub (fast start, soft landing), band on its edge, frame unloads at the end | H | pass (306 ms after lift, was 1852 ms) |
+| S5 | Transition (owner, 2026-10-10): pure mask, natural wave shape, no line; e-ink refresh = full-screen inverse flash 70 ms + five ordered-dither steps along the wave edge; tool loads on touch-down | H | pass (motion-transition: tuner + recorder sheets, Chromium + WebKit; 331 ms after lift) |
+| S6 | Going home: the same e-ink wave sweeps the tool back into the hub; frame unloads at the end | H | pass (336 ms after lift) |
 | S7 | Orb shrinks to bottom-left hub inside a tool | H | todo |
 | S8 | Hub tap → home; tool frame unloads (audio stops) | H | pass (pane) |
 | S9 | Hub hold + drag → three buds (prev, current, next); further drag turns the dial; release switches | H | pass (timing-switch: dial step, preload during rest, switch, old frame unloaded; hub hit-test now uses its resting corner) |
@@ -37,7 +37,9 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | S16 | No placeholder audio anywhere: every sound is a real recording, file or take (owner rule 2026-10-10) | H | pass (2026-10-10: grep of all tools + per-tool scenarios; only synth and metronome generate sound, as instruments) |
 | S17 | Tool page load stall on the shell thread (first WebGL draw) | D | todo (harness: ~100 ms under software GL; measure on iPhone with ?perf; next lever = keep tools warm instead of reloading) |
 | S12 | Install: manifest, icon, standalone launch, offline relaunch (service worker) | D | todo |
-| S13 | Microphone asked once per session; second mic tool gets no prompt | D | todo |
+| S13 | Microphone: each tool asks itself (the shell-held stream was removed: on iOS it could mute a tool's capture) | D | todo |
+| S18 | iOS audio rule: every tool's audio runs although iOS only starts audio on a touch END (shared unlock; BPM and synth create their context inside the touch) | H | pass (ios-audio, emulated iOS rule: tuner, recorder, BPM, metronome, synth silent without the unlock, all working with it) |
+| S19 | File import: no type filter (iPadOS greyed out WAV under audio/*); WAV, AAC, AIFF decode in WebKit | H+D | pass harness (WebKit import of wav/m4a/aif); device todo |
 | S14 | Persistent storage requested when installed | D | todo |
 | S15 | Plasma-disc orb variant | — | n/a |
 
@@ -51,7 +53,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | L4 | Takes persist in IndexedDB (meta + 16-bit pcm) and come back after reload | H | pass (rec-record: same id and length after reload) |
 | L5 | Editor shelf: open-file bud + the four most recent takes; tapping places at the playhead / first free track / new track | H | pass (edit-file, edit-place) |
 | L6 | Practice source cycles the three most recent takes, then open file | H | pass (play-library) |
-| L7 | Synth saves land on the takes shelf | — | n/a |
+| L7 | Synth: passive 4-minute capture of its output; hold the right-edge dot and drag down to choose 10 s – 4 min, release places it on the timeline; tap places the last 30 s | H | pass (synth-place, synth-tap; WebKit too) |
 | L8 | Projects: typed names, autosave, share-sheet bundles | — | n/a |
 | L9 | Recorder places a take on the editor timeline (hold → place bud → shell opens editor → clip at playhead); editor preloads during the hold | H | pass (flow-record-place: 3.13 s take, release→editor 418 ms, clip restored after leaving) |
 | L10 | Editor timeline persists across leaving (session) | H | pass (edit-place, flow-record-place) |
@@ -133,7 +135,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | Y11 | Setups dial (top-right): Serum-style default, FM, mono | H | todo |
 | Y12 | Layers (top-left): drive, crush, filter, comb; top-edge dots turn a layer off | H | todo |
 | Y13 | Gene spiral (bottom-right): go, hold, slide; sideways = gear | H+D | todo |
-| Y14 | Save (right edge): last 2 min + 3 recent runs as WAV | H | todo |
+| Y14 | Place (right edge): selection of the passive 4-min capture → take → editor timeline (replaces the WAV save) | H | pass (synth-place) |
 | Y15 | Garden saved every 2 s, restored on open | H | todo |
 
 ## Analyzer

@@ -206,7 +206,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | E14 | Undo two-finger tap, 40 steps | H+D | pass (edit-place: two-finger tap undoes a move (CDP touch)) |
 | E15 | Grid takes the shared tempo on open | H | pass (edit-place) |
 | E17 | Clips reference takes by id; a deleted take's clips are dropped (closed) or shrink away (open) | H | pass (edit-deleted) |
-| E18 | Clip limit 12 and two-digit bar numbers (blank past bar 99) | — | todo (limits that matter now that long real files open) |
+| E18 | No clip limit (was 12): the shader draws on-screen clips in slots sized from the GPU (32–48 on phones); more on screen than slots → neighbours in a track draw merged. Bar numbers up to four digits (were blank past 99) | H | pass (edit-many: 40 clips persisted, played with 40 sources, all drawn zoomed out; merge path at 12 slots; bars 101–110 drawn) |
 | E16 | Trim, record into armed track, volume/pan, effects | — | n/a |
 
 ## Performance (device, `?perf`)

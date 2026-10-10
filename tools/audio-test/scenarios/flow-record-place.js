@@ -29,10 +29,12 @@ module.exports = async (lib) => {
   await shot('4-buds');
   const p = buds.tgt[0]; for (let k = 1; k <= 6; k++) await page.mouse.move(x0 + (p[0] - x0) * k / 6, ty + (p[1] - ty) * k / 6);
   await page.waitForTimeout(200);
+  await page.evaluate(() => { window.__FI = []; let l = performance.now(); (function f(t) { window.__FI.push(Math.round(t - l)); l = t; if (window.__FI.length < 90) requestAnimationFrame(f); })(performance.now()); });
   const tUp = await page.evaluate(() => performance.now()); await page.mouse.up();
   // 4. the shell switches to the editor
   await page.waitForFunction(() => __S.mode === 'tool' && __S.tool === 0, null, { timeout: 8000 });
   const switchMs = Math.round(await page.evaluate(() => performance.now()) - tUp);
+  const frameIntervals = await page.evaluate(() => window.__FI.slice());
   const edit = frame('edit');
   await edit.waitForFunction((id) => (window.__D && __D.clips || []).some(c => c.k === id), take.id, { timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(600); await shot('5-editor');
@@ -49,5 +51,5 @@ module.exports = async (lib) => {
   await page.context().close(); await br.close();
   const checks = { takeLength: lib.near(take.dur, 3, 0.4), budsOpened: buds.opened, editorPreloadedDuringHold: preloading.some(s => s && s.includes('edit.html')),
     switchedToEditor: switchMs > 0 && switchMs < 1100, clipPlaced: placed.length === 1 && lib.near(placed[0].d, take.dur, 0.05), restoredAfterLeaving: again === 1, oneLiveFrame: live.length === 1, noErrors: !errors.length };
-  return lib.result(dir, { pass: Object.values(checks).every(Boolean), checks, take, switchMs, placed, preloading, live, errors });
+  return lib.result(dir, { pass: Object.values(checks).every(Boolean), checks, take, switchMs, frameIntervals, placed, preloading, live, errors });
 };

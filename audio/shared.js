@@ -75,6 +75,14 @@
   if (!window.__NO_UNLOCK) ['touchend', 'pointerup', 'click', 'keydown'].forEach(function (t) { window.addEventListener(t, unlock, { capture: true, passive: true }); });   // __NO_UNLOCK: harness proof that iOS mode catches the bug
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') CTXS.forEach(function (c) { if (c.state === 'interrupted' || c.state === 'suspended') { try { c.resume().catch(function () {}); } catch (_) {} } }); });
 
+  /* ---------------------------------------------------------------- drawing pause (shell transitions) */
+  /* During a tool-to-tool transition the outgoing tool stays visible but need not redraw: a canvas keeps showing its
+     last frame. The shell calls AT.pauseDraw(true) on it, rAF callbacks are held, and released on pauseDraw(false).
+     Audio is untouched (it does not run on animation frames). Halves the GPU work while the sweep runs. */
+  var rafNative = window.requestAnimationFrame.bind(window), held = [], drawPaused = false;
+  window.requestAnimationFrame = function (cb) { if (drawPaused) { held.push(cb); return 0; } return rafNative(cb); };
+  function pauseDraw(on) { on = !!on; if (on === drawPaused) return; drawPaused = on; if (!on) { var q = held; held = []; q.forEach(function (cb) { rafNative(cb); }); } }
+
   /* ---------------------------------------------------------------- shell link */
   function shell() { try { return window.parent !== window && window.parent.ATS ? window.parent.ATS : null; } catch (_) { return null; } }
   function inShell() { try { return window.parent !== window; } catch (_) { return true; } }
@@ -222,7 +230,7 @@
     takes: takes, onTakes: function (f) { L.takes.push(f); },
     onPlace: function (f) { L.place.push(f); },
     place: place, placements: placements, go: go, preload: preload, session: session,
-    mic: mic, wake: wake, inShell: inShell
+    mic: mic, wake: wake, inShell: inShell, pauseDraw: pauseDraw
   };
 
   /* ---------------------------------------------------------------- ready: painted at least one frame */

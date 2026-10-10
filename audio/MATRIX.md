@@ -35,6 +35,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | S10 | Site menu visible on home (top-right), hidden inside a tool | H | pass (pane) |
 | S11 | ?perf overlay shows in shell and is passed to frames | H | pass (harness smoke) |
 | S16 | No placeholder audio anywhere: every sound is a real recording, file or take (owner rule 2026-10-10) | H | pass (2026-10-10: grep of all tools + per-tool scenarios; only synth and metronome generate sound, as instruments) |
+| S20 | Tool-to-tool sweep: the outgoing tool's drawing is paused (its last frame stays on screen, audio untouched) | H | pass (flow-record-place: switch 1.03 → 0.86 s under software GL, frame median 50–67 → 33 ms) |
 | S17 | Tool page load stall on the shell thread (first WebGL draw) | D | todo (harness: ~100 ms under software GL; measure on iPhone with ?perf; next lever = keep tools warm instead of reloading) |
 | S12 | Install: manifest, icon, standalone launch, offline relaunch (service worker) | D | todo |
 | S13 | Microphone: each tool asks itself (the shell-held stream was removed: on iOS it could mute a tool's capture) | D | todo |
@@ -201,7 +202,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | E9 | Move: picked up where held, follows across tracks, snaps to edges and beats with a green line, shows start time | H | todo |
 | E10 | Edits take effect live during playback | H | todo |
 | E11 | Hold head → mute, solo, arm (red), remove | H | todo |
-| E12 | Top-left plus adds a track (to 8, 4 on screen) | H | todo |
+| E12 | Up to 8 tracks, 4 lanes on screen: + adds a track and scrolls it into view; sideways drag on empty timeline scrolls lanes (axis lock in the first 8 px), settles on whole lanes with the flick; dots under the heads show the visible four; a clip dragged to a screen edge scrolls the lanes; offset saved in the session | H | pass (edit-lanes, Chromium + WebKit) |
 | E13 | Properties: snap (on), push (off), takes shelf | H | todo |
 | E14 | Undo two-finger tap, 40 steps | H+D | pass (edit-place: two-finger tap undoes a move (CDP touch)) |
 | E15 | Grid takes the shared tempo on open | H | pass (edit-place) |

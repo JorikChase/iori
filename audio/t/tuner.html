@@ -67,48 +67,8 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script>/* Shared layer for every tool: one tempo for the whole app and one shelf of takes.
-   Tempo lives in localStorage and is broadcast; takes live in IndexedDB.
-   Everything is wrapped so a tool still works when storage is blocked. */
-(function(){
-var ch=null;try{ch=new BroadcastChannel('audio');}catch(_){}
-var L={tempo:[],takes:[]};
-if(ch)ch.onmessage=function(e){var m=e.data||{};(L[m.t]||[]).forEach(function(f){try{f(m.v,m.src)}catch(_){}});};
-function emit(t,v,src){if(ch)try{ch.postMessage({t:t,v:v,src:src})}catch(_){}}
-var mem={tempo:100};
-function getTempo(){try{var v=+localStorage.getItem('at.tempo');if(v>=20&&v<=300)return v;}catch(_){}return mem.tempo;}
-var lastSet=0,pend=null;
-function setTempo(v,src){v=Math.max(20,Math.min(300,Math.round(v*10)/10));mem.tempo=v;try{localStorage.setItem('at.tempo',String(v));}catch(_){}
- var now=Date.now();if(now-lastSet>60){lastSet=now;emit('tempo',v,src);}else{clearTimeout(pend);pend=setTimeout(function(){lastSet=Date.now();emit('tempo',mem.tempo,src);},70);}}
-/* takes */
-var dbp=null;
-function db(){if(dbp)return dbp;dbp=new Promise(function(res,rej){try{var r=indexedDB.open('audio',1);r.onupgradeneeded=function(){r.result.createObjectStore('takes',{keyPath:'id'});};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};}catch(e){rej(e)}});return dbp;}
-var memTakes=[];
-function tx(mode,fn){return db().then(function(d){return new Promise(function(res,rej){var t=d.transaction('takes',mode),s=t.objectStore('takes'),out=fn(s);t.oncomplete=function(){res(out&&out.result!==undefined?out.result:out)};t.onerror=function(){rej(t.error)};});});}
-var takes={
- put:function(k){/* k: {id,name,sr,data:Float32Array,retro,created} */k.created=k.created||Date.now();k.len=k.data.length;
-  /* the first take asks iOS not to evict this origin's storage */try{if(!takes.persisted&&navigator.storage&&navigator.storage.persist){takes.persisted=true;navigator.storage.persist().catch(function(){});}}catch(_){}
-  memTakes=memTakes.filter(function(x){return x.id!==k.id});memTakes.unshift(k);
-  return tx('readwrite',function(s){return s.put(k)}).catch(function(){}).then(function(){emit('takes',{op:'put',id:k.id});});},
- del:function(id){memTakes=memTakes.filter(function(x){return x.id!==id});return tx('readwrite',function(s){return s.delete(id)}).catch(function(){}).then(function(){emit('takes',{op:'del',id:id});});},
- list:function(){return tx('readonly',function(s){return s.getAll()}).then(function(a){return (a||[]).sort(function(x,y){return y.created-x.created});}).catch(function(){return memTakes.slice();});}
-};
-/* microphone: in the shell the parent asks once and keeps the grant (parent.ATS.mic), then this frame's own request is granted silently */
-var CONS={audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
-function own(){return navigator.mediaDevices.getUserMedia(CONS);}
-function mic(){var p=null;try{if(window.parent!==window&&parent.ATS&&parent.ATS.mic)p=parent.ATS.mic();}catch(_){}
- return p?p.then(own,own):own();}
-/* screen wake lock while recording (the recorder): re-acquired when the app comes back to the front */
-var wl=null,wantWake=false;
-function wake(on){wantWake=!!on;if(!navigator.wakeLock)return;
- if(on){if(wl)return;navigator.wakeLock.request('screen').then(function(l){wl=l;l.addEventListener('release',function(){wl=null;});}).catch(function(){});}
- else if(wl){try{wl.release()}catch(_){}wl=null;}}
-document.addEventListener('visibilitychange',function(){if(wantWake&&!wl&&document.visibilityState==='visible')wake(true);});
-window.AT={tempo:getTempo,setTempo:setTempo,onTempo:function(f){L.tempo.push(f)},takes:takes,onTakes:function(f){L.takes.push(f)},
- mic:mic,wake:wake,inShell:function(){try{return window.parent!==window}catch(_){return true}}};
-})();
-</script></head><body>
-<h2 class="sr-only">Touch prototype of the tuner view: a vertical line that splits into rainbow strips when out of tune, with the note, cents and frequency shown on a dot grid.</h2>
+</style><script src="../shared.js"></script></head><body>
+<h2 class="sr-only">Tuner: tap anywhere to listen through the microphone; a vertical line splits into rainbow strips when out of tune, with the note, cents and frequency shown on a dot grid. In silence the line is hair thin.</h2>
 <div id="tb" style="position:relative;height:480px;background:#000;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="tc" role="img" aria-label="Tuner prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <i id="tmi" class="ti ti-microphone" aria-hidden="true" style="position:absolute;font-size:17px;color:#fff;transform:translate(-50%,-50%);pointer-events:none;"></i>
@@ -185,7 +145,7 @@ function setPanel(pi,str){if(shown[pi]===str)return;shown[pi]=str;var p=PN[pi];
    if(cell.t!==tg){cell.t=tg;cell.d=Math.random()*.1;}}}}
 var SHP='0101011111010101111101010',shOn=-1;
 function setSharp(on){on=on?1:0;if(shOn===on)return;shOn=on;for(var r=0;r<5;r++)for(var c=0;c<5;c++){var cell=cells[(20+r)*32+c],tg=(on&&SHP.charAt(r*5+c)==='1')?1:0;if(cell.t!==tg){cell.t=tg;cell.d=Math.random()*.1;}}}
-var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],A4=440,SR=48000,NB=4096;
+var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],A4=440,NB=4096;
 var buf=new Float32Array(NB),yb=new Float32Array(1024),HA=[1,.62,.46,.3,.24,.16,.1];
 function detect(b,sr){
  var Wn=b.length>>1,tMin=Math.floor(sr/1500),tMax=Math.min(Wn-1,yb.length-2,Math.floor(sr/52)),rms=0;
@@ -198,26 +158,26 @@ function detect(b,sr){
  var x0=yb[best-1],x1=yb[best],x2=yb[Math.min(best+1,tMax)],den=x0-2*x1+x2,sh2=den!==0?.5*(x0-x2)/den:0;
  return{f:sr/(best+sh2),conf:1-x1,rms:rms};}
 function goertzel(b,sr,f,n){var w=2*Math.PI*f/sr,c=2*Math.cos(w),s0=0,s1=0,s2=0;for(var i=0;i<n;i++){s0=b[i]+c*s1-s2;s2=s1;s1=s0;}return Math.sqrt(Math.max(0,s1*s1+s2*s2-c*s1*s2))/n*2;}
-var S={p:54.25,lvl:1,touch:false,px:0,py:0,mic:0,micFail:false,an:null,ctx:null,
+var S={mic:0,micFail:false,req:false,an:null,ctx:null,stream:null,has:false,
  f:0,cents:0,cS:0,note:-1,pend:-1,pres:0,level:0,disp:0,lock:0,lockT:0,green:0,ha:HA.slice(),ph:[0,0,0,0,0,0,0],lastDet:0,lastTxt:0,vib:0,hist:new Float32Array(24),lastH:0};
 function micP(){return{x:W-34,y:H-28}}
 function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function lerp(a,b,t){return a+(b-a)*t}
+function stopMic(){S.mic=0;S.an=null;if(S.stream){S.stream.getTracks().forEach(function(t){t.stop()});S.stream=null;}try{S.ctx.close()}catch(_){}S.ctx=null;}
+/* the context is made inside the tap (iOS only lets a gesture start audio); the stream joins it once granted */
 function startMic(){
- if(S.mic){S.mic=0;try{S.ctx.close()}catch(_){ }S.ctx=null;S.an=null;return;}
- if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){S.micFail=true;return;}
- AT.mic().then(function(st){
-  var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();var src=S.ctx.createMediaStreamSource(st);
-  S.an=S.ctx.createAnalyser();S.an.fftSize=NB;src.connect(S.an);S.mic=1;S.micFail=false;if(S.ctx.resume)S.ctx.resume();
- }).catch(function(){S.micFail=true;S.mic=0;});}
+ if(S.mic){stopMic();return;}
+ if(S.req)return;
+ var AC=window.AudioContext||window.webkitAudioContext,ctx;try{ctx=new AC();if(ctx.resume)ctx.resume();}catch(_){S.micFail=true;return;}
+ S.req=true;
+ AT.mic().then(function(st){S.req=false;
+  S.ctx=ctx;S.stream=st;var src=ctx.createMediaStreamSource(st);S.an=ctx.createAnalyser();S.an.fftSize=NB;src.connect(S.an);S.mic=1;S.micFail=false;if(ctx.resume)ctx.resume();
+ },function(){S.req=false;S.micFail=true;S.mic=0;try{ctx.close()}catch(_){}});}
+/* the mic dot toggles; a tap anywhere else starts listening when it is not running (and retries a refused microphone) */
 box.addEventListener('pointerdown',function(e){
- e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}
- var p=pos(e),m=micP();if(Math.hypot(p.x-m.x,p.y-m.y)<26){startMic();return;}
- S.touch=true;S.px=p.x;S.py=p.y;});
-box.addEventListener('pointermove',function(e){if(!S.touch)return;var p=pos(e);
- S.p=Math.max(28,Math.min(88,S.p+(p.x-S.px)*.004-(p.y-S.py)*.03));S.px=p.x;S.py=p.y;});
-function up(){S.touch=false;}
-box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
+ e.preventDefault();var p=pos(e),m=micP();
+ if(Math.hypot(p.x-m.x,p.y-m.y)<26){startMic();return;}
+ if(!S.mic)startMic();});
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 var LB=[],LU=new Float32Array(36);
 (function(){var base=[-13,1,14,-7,8,-17,-2,12,18],wd=[7.5,9.5,6.5,8.5,7,6,10,7.5,6.5];
@@ -225,13 +185,9 @@ var LB=[],LU=new Float32Array(36);
 var t0=performance.now(),last=t0;
 function frame(now){
  var dt=Math.min(.05,(now-last)/1000);last=now;var t=(now-t0)/1000;var e=1-Math.pow(.0005,dt);
- if(!S.mic){S.lvl=S.touch?lerp(S.lvl,1,1-Math.pow(.001,dt)):S.lvl*Math.pow(.22,dt);}
- if(now-S.lastDet>70){S.lastDet=now;var sr=SR,r;
-  if(S.mic&&S.an){S.an.getFloatTimeDomainData(buf);sr=S.ctx.sampleRate;}
-  else{var f0=A4*Math.pow(2,(S.p-69+Math.sin(t*31)*.003)/12),a=S.lvl*.3;
-   for(var i=0;i<NB;i++){var x=0,w=2*Math.PI*f0*i/SR;for(var k=0;k<7;k++)x+=HA[k]*Math.sin(w*(k+1)+k*1.3);buf[i]=a*x+(Math.random()-.5)*.004;}}
-  r=detect(buf,sr);
-  S.level=Math.min(1,r.rms*(S.mic?9:3.2));
+ if(now-S.lastDet>70){S.lastDet=now;var sr=48000,r;
+  if(S.mic&&S.an){S.an.getFloatTimeDomainData(buf);sr=S.ctx.sampleRate;r=detect(buf,sr);S.level=Math.min(1,r.rms*9);}
+  else{r={f:0,conf:0};S.level=0;}   /* no microphone: silence (the impossibly thin line), never a made-up pitch */
   if(r.f>0&&r.conf>.85&&S.level>.05){S.f=r.f;var mf=69+12*Math.log(r.f/A4)/Math.LN2,n=Math.round(mf);S.cents=(mf-n)*100;
    if(n===S.pend||S.note<0){S.note=n;}S.pend=n;S.has=true;
    var mx=1e-6;for(var k=0;k<7;k++){S.ha[k]=goertzel(buf,sr,r.f*(k+1),2048);if(r.f*(k+1)>sr*.45)S.ha[k]=0;mx=Math.max(mx,S.ha[k]);}
@@ -274,6 +230,7 @@ function frame(now){
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+window.__S=S;/* test hook (tools/audio-test) */
 })();
 </script>
 

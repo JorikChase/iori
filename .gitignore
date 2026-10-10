@@ -74,3 +74,13 @@ iris-engine/study/audit-s6/guide-dump-*.json
 # Petri engine reference datasets (large, licence-bound) — see petri/ref/DATA-PLAN.md
 petri/ref-data/
 petri/proto/out/
+
+# ACRCloud credentials for tools/release/acr_scan.py — never commit
+tools/release/.acr.env
+# downloaded/derived release artwork (large binaries)
+tools/release/art/
+
+# audio test harness (Playwright)
+tools/audio-test/node_modules/
+tools/audio-test/out/
+tools/audio-test/signals/*.wav

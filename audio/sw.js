@@ -5,9 +5,9 @@
    VERSION is stamped by build.py from the files' content; a new version
    drops every older cache on activate. Cross-origin requests (analytics)
    pass straight through. */
-var VERSION = "6b1359748ae8";
+var VERSION = "53e717973cc9";
 var CACHE = 'audio-' + VERSION;
-var FILES = ["./", "index.html", "manifest.json", "t/ana.html", "t/bpm.html", "t/edit.html", "t/metro.html", "t/play.html", "t/rec.html", "t/synth.html", "t/tuner.html", "../icon/android/launchericon-192x192.png?v=2026-09-27", "../icon/android/launchericon-512x512.png?v=2026-09-27"];
+var FILES = ["./", "index.html", "manifest.json", "shared.js", "t/ana.html", "t/bpm.html", "t/edit.html", "t/metro.html", "t/play.html", "t/rec.html", "t/synth.html", "t/tuner.html", "../icon/android/launchericon-192x192.png?v=2026-09-27", "../icon/android/launchericon-512x512.png?v=2026-09-27"];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));

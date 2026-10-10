@@ -127,22 +127,40 @@
 .ti-x{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M18%206l-12%2012%22%20%2F%3E%20%3Cpath%20d%3D%22M6%206l12%2012%22%20%2F%3E%20%3C%2Fsvg%3E")}
 html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #app{position:relative;height:100%;overflow:hidden;background:var(--ground)}
-#tool{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--ground)}
-#orb{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
-#icons{position:absolute;inset:0;pointer-events:none}
+.fr{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--ground);z-index:1;clip-path:circle(0px at 0 0);-webkit-clip-path:circle(0px at 0 0)}
+#orb{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:3}
+#icons{position:absolute;inset:0;pointer-events:none;z-index:4}
 #icons i{position:absolute;transform:translate(-50%,-50%);visibility:hidden}
-#hit{position:absolute;left:0;bottom:0;width:100%;height:100%;touch-action:none}
+#hit{position:absolute;left:0;bottom:0;width:100%;height:100%;touch-action:none;z-index:5}
 #hit.corner{width:104px;height:104px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 body.in-tool #site-menu{display:none}
 </style>
 <div id="app">
   <h1 class="sr-only">Audio tools: hold the orb and drag toward a tool to open it; in a tool, the bottom-left dot goes home on tap, or switches tools when held and dragged.</h1>
-  <iframe id="tool" title="Active tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
+  <iframe id="tool" class="fr" title="Active tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
+  <iframe id="tool2" class="fr" title="Next tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
   <canvas id="orb" aria-hidden="true"></canvas>
   <div id="icons"></div>
   <div id="hit"></div>
 </div>
+<script>
+/* ?perf — a frame-time readout for device measurements. iOS exposes no GPU timers, so what we can see is the
+   frame interval (GPU-bound frames show up as a slow, even cadence), JS time inside rAF callbacks, long frames,
+   and the audio context's latencies. Shell passes ?perf through to the tool frames. */
+if(/[?&]perf/.test(location.search))(function(){
+var raf=window.requestAnimationFrame.bind(window),js=0,last=0,n=0,sum=0,worst=0,long=0,ctx=null;
+window.requestAnimationFrame=function(cb){return raf(function(t){var a=performance.now();try{cb(t)}finally{js+=performance.now()-a;}});};
+var O=window.AudioContext||window.webkitAudioContext;
+if(O){var W=function(o){var c=new O(o);ctx=c;return c;};W.prototype=O.prototype;window.AudioContext=W;if(window.webkitAudioContext)window.webkitAudioContext=W;}
+var el=document.createElement('div');el.id='perf';el.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:2147483647;font:11px/1.3 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.75);padding:3px 6px;pointer-events:none;white-space:pre';
+if(document.body)document.body.appendChild(el);else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(el)});
+function tick(t){if(last){var d=t-last;n++;sum+=d;if(d>worst)worst=d;if(d>25)long++;}last=t;raf(tick);}raf(tick);
+setInterval(function(){if(!n)return;var m=sum/n;el.textContent=(1000/m).toFixed(0)+' fps  '+m.toFixed(1)+' ms  worst '+worst.toFixed(0)+'  long '+long+'  js '+(js/n).toFixed(2)+' ms'
+ +(ctx?'  lat '+((ctx.baseLatency||0)*1000).toFixed(0)+'/'+((ctx.outputLatency||0)*1000).toFixed(0)+' ms  '+ctx.sampleRate+' Hz '+ctx.state:'');
+ window.__PERF={fps:1000/m,frame:m,worst:worst,long:long,js:js/n};n=0;sum=0;worst=0;js=0;},500);
+})();
+</script>
 <script>
 /* Shell services, reached by the tools as parent.ATS (same origin).
    mic(): the shell asks for the microphone once and keeps its stream open for
@@ -184,7 +202,7 @@ var FS=[
 '#extension GL_OES_standard_derivatives : enable',
 'precision highp float;',
 'uniform vec2 uRes,uC,uF,uSat,uWO,uD0,uD1,uD2;',
-'uniform float uT,uDpr,uR,uFk,uMelt,uSel,uBloom,uSats,uWo,uWi,uToTool,uDk,uDial;',
+'uniform float uT,uDpr,uR,uFk,uMelt,uSel,uBloom,uSats,uWo,uWi,uToTool,uDk,uDial,uWa;',
 'uniform vec3 uA,uB,uN,uWc,uDr;uniform mat3 uM;',
 'float smin(float a,float b,float k){k=max(k,.001);float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}',
 'mat3 rx(vec3 a,float g){float c=cos(g),s=sin(g),i=1.-c;return mat3(c+a.x*a.x*i,a.y*a.x*i+a.z*s,a.z*a.x*i-a.y*s,a.x*a.y*i-a.z*s,c+a.y*a.y*i,a.z*a.y*i+a.x*s,a.x*a.z*i+a.y*s,a.y*a.z*i-a.x*s,c+a.z*a.z*i);}',
@@ -199,14 +217,14 @@ var FS=[
 ' vec3 q=flow(rx(ax,uT*sp)*(uM*p),uT,m);',
 ' float f=dot(q,n)+.22*gy(q*2.6+uT*.2)-th;float e=fwidth(f)*.8+1e-4;',
 ' return smoothstep(-e,e,f)*smoothstep(0.,px*1.5,r-length(uv));}',
-'float wob(vec2 d,float r){float a=atan(d.y,d.x);return r*(1.+.05*sin(a*5.+uT*2.)+.03*sin(a*9.-uT*3.1));}',
+'float wob(vec2 d,float r){float a=atan(d.y,d.x);return r+uWa*(.62*sin(a*5.+uT*7.)+.38*sin(a*9.-uT*9.));}',
 /* premultiplied "over" */
 'void over(inout vec3 P,inout float A,vec3 c,float m){P=c*m+P*(1.-m);A=m+A*(1.-m);}',
 'void main(){',
 ' vec2 P0=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;float px=1./uDpr;',
 ' vec2 dw=P0-uWO;float dd=length(dw);float ro=wob(dw,uWo),ri=wob(dw,uWi);',
 /* where the tool shows through: inside the opening edge on the way in, outside the flood on the way home */
-' float tool=mix(smoothstep(-px,px,dd-ro),smoothstep(px,-px,dd-ri),uToTool);',
+' float tool=min(1.,smoothstep(px,-px,dd-ri)+smoothstep(-px,px,dd-ro)*uToTool);',
 ' vec3 P=vec3(0.);float A=1.-tool;',
 ' over(P,A,uWc,smoothstep(px,-px,dd-ro)*smoothstep(-px,px,dd-ri));',
 ' float dO=length(P0-uC)-uR;',
@@ -242,7 +260,7 @@ function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(
 var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
 var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
 var al=gl.getAttribLocation(pr,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
-var U={};['uRes','uC','uF','uSat','uWO','uT','uDpr','uR','uFk','uMelt','uSel','uBloom','uSats','uWo','uWi','uToTool','uDk','uDial','uD0','uD1','uD2','uDr','uA','uB','uN','uWc','uM'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
+var U={};['uRes','uC','uF','uSat','uWO','uT','uDpr','uR','uFk','uMelt','uSel','uBloom','uSats','uWo','uWi','uToTool','uWa','uDk','uDial','uD0','uD1','uD2','uDr','uA','uB','uN','uWc','uM'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
 var W=380,H=700,dpr=1;
 function size(){W=app.clientWidth||380;H=app.clientHeight||700;dpr=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);gl.viewport(0,0,cv.width,cv.height);}
 size();window.addEventListener('resize',size);
@@ -253,7 +271,7 @@ var DA=[78,45,12];
 function m8(i){return((i%8)+8)%8}
 var BIG=4000;
 var S={mode:'home',hold:false,cx:0,cy:0,r:0,fx:0,fy:0,fk:0,melt:0,sel:-1,selA:0,bloom:0,sats:1,tool:0,
- a:AC[0].slice(),b:AC[1].slice(),n:AC[0].slice(),wc:AC[0].slice(),wox:0,woy:0,wo:BIG,wi:BIG,wt:-1,toTool:0,loaded:false,
+ a:AC[0].slice(),b:AC[1].slice(),n:AC[0].slice(),wc:AC[0].slice(),wox:0,woy:0,wo:-100,wi:-100,wa:0,wt:-1,wti:-1,toTool:0,inF:-1,selT:0,pickT:0,
  dial:false,dOpen:0,dWas:false,dT:0,dMove:0,pick:0,dir:0,dOff:0,dPulse:0,spin:0,px:0,py:0,vx:0,vy:0,downT:0,downSat:-1,M:[1,0,0,0,1,0,0,0,1]};
 function home(){return{x:W/2,y:Math.round(H*.44),r:Math.min(W*.26,110)}}
 function hubP(){return{x:44,y:H-44,r:26}}
@@ -268,35 +286,56 @@ function lerp3(a,b,t){for(var i=0;i<3;i++)a[i]=lerp(a[i],b[i],t)}
 function pos(e){var r=app.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function satPos(i){var an=i*Math.PI/4-Math.PI/2;return{x:S.cx+Math.cos(an)*S.r*1.5,y:S.cy+Math.sin(an)*S.r*1.5}}
 /* flood into a tool; the frame loads while the flood covers the screen */
-function enter(i){S.tool=i;S.mode='entering';S.toTool=1;S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wc=AC[i].slice();S.loaded=false;S.want=TOOLS[i].k;}
-function leave(){S.mode='going';S.toTool=0;S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wc=AC[S.tool].slice();}
-FR.addEventListener('load',function(){if(FR.getAttribute('src'))S.loaded=true;});
-function setCorner(on){HIT.className=on?'corner':'';document.body.classList.toggle('in-tool',!!on);}
+var PERF=/[?&]perf/.test(location.search);
+function toolSrc(k){return 't/'+k+'.html'+(PERF?'?perf':'');}
+/* Two frames: the current tool and the incoming one. A tool starts loading on touch-down (satellite), or once
+   the finger has rested on it for a moment while dragging the orb or the hub dial, so by the time the finger
+   lifts it has usually painted. The reveal is one motion: the tool opens inside a circle from the orb, led by
+   a band of its colour. If it has not painted yet the band keeps growing as a flood until it has. */
+var F=[FR,document.getElementById('tool2')].map(function(el){var f={el:el,k:null,ready:false,loaded:false,t0:0,clipV:''};
+ el.addEventListener('load',function(){if(f.k){f.loaded=true;f.loadT=performance.now();}});return f;});
+var curF=-1;
+function clip(f,r,x,y){var v=r===null?'none':r<=0?'circle(0px at 0 0)':'circle('+r.toFixed(1)+'px at '+x.toFixed(1)+'px '+y.toFixed(1)+'px)';
+ if(f.clipV!==v){f.clipV=v;f.el.style.clipPath=v;f.el.style.webkitClipPath=v;}}
+function spare(){return F[curF===0?1:0];}
+function unload(f){f.k=null;f.ready=f.loaded=false;clip(f,0);f.el.removeAttribute('src');f.el.src='about:blank';}
+function preload(k){var f=spare();if(f.k===k)return f;f.k=k;f.ready=f.loaded=false;f.t0=performance.now();clip(f,0);
+ f.el.style.zIndex=2;if(curF>=0)F[curF].el.style.zIndex=1;f.el.setAttribute('src',toolSrc(k));return f;}
+function dropSpare(){if(S.mode==='entering')return;var f=spare();if(f.k)unload(f);}
+window.ATS.ready=function(win){F.forEach(function(f){try{if(f.k&&f.el.contentWindow===win){f.ready=true;f.readyMs=performance.now()-f.t0;}}catch(_){}});};
+window.ATS.go=function(k){var i=-1;TOOLS.forEach(function(t,j){if(t.k===k)i=j;});if(i<0||S.mode==='entering'||S.mode==='going')return;if(S.mode==='tool'&&S.tool===i)return;enter(i);};
+window.ATS.preload=function(k){if(S.mode==='home'||S.mode==='tool')preload(k);};
+function enter(i){var f=preload(TOOLS[i].k);S.inF=F.indexOf(f);S.toTool=curF>=0?1:0;S.tool=i;S.mode='entering';
+ S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wti=-1;S.wc=AC[i].slice();}
+function leave(){if(curF<0)return;S.mode='going';S.toTool=0;S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wc=AC[S.tool].slice();}
+function eOut(x){x=1-x;return 1-x*x*x;}
+function eInOut(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}
+function setCorner(on){HIT.className=on?'corner':'';document.body.classList.toggle('in-tool',S.mode!=='home');}
 HIT.addEventListener('pointerdown',function(e){e.preventDefault();try{HIT.setPointerCapture(e.pointerId)}catch(_){}
  var p=pos(e);S.px=p.x;S.py=p.y;var d=Math.hypot(p.x-S.cx,p.y-S.cy);
  if(S.mode==='home'){
-  S.downSat=-1;for(var i=0;i<8;i++){var sp=satPos(i);if(Math.hypot(p.x-sp.x,p.y-sp.y)<24){S.downSat=i;S.downT=e.timeStamp;return;}}
+  S.downSat=-1;for(var i=0;i<8;i++){var sp=satPos(i);if(Math.hypot(p.x-sp.x,p.y-sp.y)<24){S.downSat=i;S.downT=e.timeStamp;preload(TOOLS[i].k);return;}}
   if(d<S.r*1.2){S.hold=true;S.fx=p.x;S.fy=p.y;S.vx=S.vy=0;}}
- else if(S.mode==='tool'&&d<52){S.dial=true;S.dWas=false;S.dT=performance.now();S.dMove=0;S.pick=S.tool;S.dir=0;S.dOff=0;}});
+ else if(S.mode==='tool'&&Math.hypot(p.x-hubP().x,p.y-hubP().y)<52){S.dial=true;S.dWas=false;S.dT=performance.now();S.dMove=0;S.pick=S.tool;S.dir=0;S.dOff=0;}});
 HIT.addEventListener('pointermove',function(e){var p=pos(e),dx=p.x-S.px,dy=p.y-S.py;S.px=p.x;S.py=p.y;
  if(S.hold){S.fx=p.x;S.fy=p.y;roll(dx,dy);S.vx=dx;S.vy=dy;
   var vx=p.x-S.cx,vy=p.y-S.cy,d=Math.hypot(vx,vy);
-  if(d>S.r*.75){var a=Math.atan2(vy,vx)+Math.PI/2;S.sel=((Math.round(a/(Math.PI/4))%8)+8)%8;}else S.sel=-1;}
+  if(d>S.r*.75){var a=Math.atan2(vy,vx)+Math.PI/2;var ns=((Math.round(a/(Math.PI/4))%8)+8)%8;if(ns!==S.sel){S.sel=ns;S.selT=performance.now();}}else S.sel=-1;}
  else if(S.dial){S.dMove+=Math.abs(dx)+Math.abs(dy);
   var ox=p.x-S.cx,oy=S.cy-p.y,dd=Math.hypot(ox,oy);var st=dd<56?0:1+Math.floor((dd-56)/46);
   if(st===0)S.dir=0;else if(S.dir===0)S.dir=(Math.atan2(oy,ox)*180/Math.PI)>45?-1:1;
   var np=m8(S.tool+S.dir*Math.min(st,4));
-  if(np!==S.pick){var df=m8(np-S.pick);var sg=df<=4?1:-1;S.pick=np;S.dOff=-sg*33;S.dPulse=1;S.spin+=sg*Math.PI/4;}}});
+  if(np!==S.pick){var df=m8(np-S.pick);var sg=df<=4?1:-1;S.pick=np;S.pickT=performance.now();S.dOff=-sg*33;S.dPulse=1;S.spin+=sg*Math.PI/4;}}});
 function up(e){
- if(S.mode==='home'&&S.downSat>=0){var p=pos(e),sp=satPos(S.downSat);if(Math.hypot(p.x-sp.x,p.y-sp.y)<30)enter(S.downSat);S.downSat=-1;return;}
- if(S.hold){S.hold=false;if(S.sel>=0)enter(S.sel);S.sel=-1;}
- if(S.dial){S.dial=false;if(!S.dWas)leave();else if(S.pick!==S.tool)enter(S.pick);}}
+ if(S.mode==='home'&&S.downSat>=0){var p=pos(e),sp=satPos(S.downSat);if(Math.hypot(p.x-sp.x,p.y-sp.y)<30)enter(S.downSat);else dropSpare();S.downSat=-1;return;}
+ if(S.hold){S.hold=false;if(S.sel>=0)enter(S.sel);else dropSpare();S.sel=-1;}
+ if(S.dial){S.dial=false;if(!S.dWas)leave();else if(S.pick!==S.tool)enter(S.pick);else dropSpare();}}
 HIT.addEventListener('pointerup',up);HIT.addEventListener('pointercancel',up);
 HIT.addEventListener('contextmenu',function(e){e.preventDefault()});
 var t0=performance.now(),last=t0;
 function frame(now){
  var dt=Math.min(.05,(now-last)/1000);last=now;var t=(now-t0)/1000;
- var e=1-Math.pow(.0005,dt),es=1-Math.pow(.02,dt);
+ var e=1-Math.pow(.0005,dt),es=1-Math.pow(.0004,dt);
  var tgt=(S.mode==='home'||S.mode==='going')?home():hubP();
  S.cx=lerp(S.cx,tgt.x,es);S.cy=lerp(S.cy,tgt.y,es);S.r=lerp(S.r,tgt.r,es);
  S.fk=lerp(S.fk,S.hold?1:0,e);S.melt=lerp(S.melt,S.hold?1:0,e);S.bloom=lerp(S.bloom,S.hold?1:0,e);
@@ -309,14 +348,24 @@ function frame(now){
  if(Math.abs(S.spin)>.001){var sg2=S.spin*e;S.spin-=sg2;S.M=mul(S.M,rZ(sg2));}
  var ti=S.sel>=0?S.sel:(S.dial?S.pick:S.tool);
  lerp3(S.a,AC[ti],e);lerp3(S.b,AC[(ti+1)%8],e);if(S.sel>=0)S.n=AC[S.sel].slice();else if(S.dOpen>0)S.n=AC[S.pick].slice();
- /* flood timing: the outer edge covers the screen, the frame swaps underneath, then the inner edge opens */
- var cover=Math.hypot(W,H)+60;
- if(S.wt>=0){S.wt+=dt;var sp=1100;S.wo=Math.min(S.wt*sp,cover+200);
-  if(S.mode==='entering'&&S.wo>=cover&&FR.getAttribute('src')!=='t/'+S.want+'.html'){S.loaded=false;FR.setAttribute('src','t/'+S.want+'.html');S.held=S.wt;}
-  if(S.mode==='going'&&S.wo>=cover&&FR.getAttribute('src')){FR.removeAttribute('src');FR.src='about:blank';}
-  var ready=S.mode!=='entering'||S.loaded||(S.held!==undefined&&S.wt-S.held>2.5);
-  if(S.wo>=cover&&ready){if(S.wiT===undefined)S.wiT=S.wt;S.wi=(S.wt-S.wiT)*sp;}else if(S.wo<cover)S.wi=0;
-  if(S.wi>cover){S.wt=-1;S.wo=S.wi=BIG;S.wiT=undefined;S.held=undefined;S.mode=(S.mode==='entering')?'tool':'home';}}
+ /* transition: the incoming tool opens inside a circle from the orb, led by a band of its colour (TD each way) */
+ var TD=.30*(window.__SLOW||1),WA=11,cover=Math.hypot(Math.max(S.wox,W-S.wox),Math.max(S.woy,H-S.woy))+WA+4,nowT=performance.now();
+ if(S.hold&&S.sel>=0&&nowT-S.selT>70)preload(TOOLS[S.sel].k);
+ if(S.dial&&S.dWas&&S.pick!==S.tool&&nowT-S.pickT>70)preload(TOOLS[S.pick].k);
+ F.forEach(function(f){if(f.k&&f.loaded&&!f.ready&&nowT-f.loadT>600)f.ready=true;});   /* a page that never signals */
+ if(S.mode==='entering'){var fi=F[S.inF];S.wt+=dt;
+  /* the band: EXT px of tool colour leading the reveal, thinning as it travels; it ends past the far corner */
+  var EXT=58,ro=(cover+EXT)*eOut(Math.min(1,S.wt/TD));
+  if(S.wti<0&&(fi.ready||S.wt>4))S.wti=0;
+  var ri=-100;if(S.wti>=0){S.wti+=dt;var pi=Math.min(1,S.wti/TD);ri=Math.min(ro-2*WA-6,(cover+EXT)*eOut(pi)-EXT*(1-.45*pi));}
+  S.wi=ri;S.wo=ro;S.wa=Math.min(WA,Math.max(0,ro-Math.max(ri,0))/3);
+  clip(fi,ri<0?0:ri+S.wa+1,S.wox,S.woy);
+  if(S.wti>=TD){clip(fi,null);if(curF>=0&&curF!==S.inF)unload(F[curF]);curF=S.inF;fi.el.style.zIndex=1;
+   S.mode='tool';S.wo=S.wi=BIG;S.wa=0;S.wt=S.wti=-1;}}
+ else if(S.mode==='going'){var fc=F[curF];S.wt+=dt;var pg=Math.min(1,S.wt/TD);
+  var rc=cover*(1-eOut(pg));S.wi=rc;S.wo=rc+48*Math.sin(Math.PI*Math.min(1,pg*1.15));S.wa=Math.min(WA,(S.wo-S.wi)/3,rc*.12);
+  clip(fc,rc+S.wa+1,S.wox,S.woy);
+  if(pg>=1){unload(fc);curF=-1;S.mode='home';S.wo=S.wi=-100;S.wa=0;S.wt=-1;}}
  setCorner(S.mode==='tool');
  var sa=(S.sel>=0?S.sel:0)*Math.PI/4-Math.PI/2;
  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
@@ -324,7 +373,7 @@ function frame(now){
  gl.uniform2f(U.uC,S.cx,S.cy);gl.uniform1f(U.uR,S.r);gl.uniform2f(U.uF,S.fx,S.fy);
  gl.uniform1f(U.uFk,S.fk);gl.uniform1f(U.uMelt,S.melt);gl.uniform1f(U.uSel,S.selA);gl.uniform1f(U.uBloom,S.bloom);gl.uniform1f(U.uSats,S.sats);
  gl.uniform2f(U.uSat,S.cx+Math.cos(sa)*S.r*1.5,S.cy+Math.sin(sa)*S.r*1.5);
- gl.uniform2f(U.uWO,S.wox,S.woy);gl.uniform1f(U.uWo,S.wo);gl.uniform1f(U.uWi,S.wi);gl.uniform1f(U.uToTool,S.toTool);
+ gl.uniform2f(U.uWO,S.wox,S.woy);gl.uniform1f(U.uWo,S.wo);gl.uniform1f(U.uWi,S.wi);gl.uniform1f(U.uToTool,S.toTool);gl.uniform1f(U.uWa,S.wa);
  gl.uniform3fv(U.uWc,S.wc);gl.uniform3fv(U.uA,S.a);gl.uniform3fv(U.uB,S.b);gl.uniform3fv(U.uN,S.n);
  var hp=hubP(),dp=[],drr=[];
  for(var k2=0;k2<3;k2++){var ang=(DA[k2]+S.dOff)*Math.PI/180,o2=S.dOpen;
@@ -343,6 +392,7 @@ function frame(now){
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+window.__S=S;window.__SAT=satPos;/* test hooks (tools/audio-test) */
 })();
 </script>
 

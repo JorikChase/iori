@@ -67,56 +67,15 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script>/* Shared layer for every tool: one tempo for the whole app and one shelf of takes.
-   Tempo lives in localStorage and is broadcast; takes live in IndexedDB.
-   Everything is wrapped so a tool still works when storage is blocked. */
-(function(){
-var ch=null;try{ch=new BroadcastChannel('audio');}catch(_){}
-var L={tempo:[],takes:[]};
-if(ch)ch.onmessage=function(e){var m=e.data||{};(L[m.t]||[]).forEach(function(f){try{f(m.v,m.src)}catch(_){}});};
-function emit(t,v,src){if(ch)try{ch.postMessage({t:t,v:v,src:src})}catch(_){}}
-var mem={tempo:100};
-function getTempo(){try{var v=+localStorage.getItem('at.tempo');if(v>=20&&v<=300)return v;}catch(_){}return mem.tempo;}
-var lastSet=0,pend=null;
-function setTempo(v,src){v=Math.max(20,Math.min(300,Math.round(v*10)/10));mem.tempo=v;try{localStorage.setItem('at.tempo',String(v));}catch(_){}
- var now=Date.now();if(now-lastSet>60){lastSet=now;emit('tempo',v,src);}else{clearTimeout(pend);pend=setTimeout(function(){lastSet=Date.now();emit('tempo',mem.tempo,src);},70);}}
-/* takes */
-var dbp=null;
-function db(){if(dbp)return dbp;dbp=new Promise(function(res,rej){try{var r=indexedDB.open('audio',1);r.onupgradeneeded=function(){r.result.createObjectStore('takes',{keyPath:'id'});};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};}catch(e){rej(e)}});return dbp;}
-var memTakes=[];
-function tx(mode,fn){return db().then(function(d){return new Promise(function(res,rej){var t=d.transaction('takes',mode),s=t.objectStore('takes'),out=fn(s);t.oncomplete=function(){res(out&&out.result!==undefined?out.result:out)};t.onerror=function(){rej(t.error)};});});}
-var takes={
- put:function(k){/* k: {id,name,sr,data:Float32Array,retro,created} */k.created=k.created||Date.now();k.len=k.data.length;
-  /* the first take asks iOS not to evict this origin's storage */try{if(!takes.persisted&&navigator.storage&&navigator.storage.persist){takes.persisted=true;navigator.storage.persist().catch(function(){});}}catch(_){}
-  memTakes=memTakes.filter(function(x){return x.id!==k.id});memTakes.unshift(k);
-  return tx('readwrite',function(s){return s.put(k)}).catch(function(){}).then(function(){emit('takes',{op:'put',id:k.id});});},
- del:function(id){memTakes=memTakes.filter(function(x){return x.id!==id});return tx('readwrite',function(s){return s.delete(id)}).catch(function(){}).then(function(){emit('takes',{op:'del',id:id});});},
- list:function(){return tx('readonly',function(s){return s.getAll()}).then(function(a){return (a||[]).sort(function(x,y){return y.created-x.created});}).catch(function(){return memTakes.slice();});}
-};
-/* microphone: in the shell the parent asks once and keeps the grant (parent.ATS.mic), then this frame's own request is granted silently */
-var CONS={audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
-function own(){return navigator.mediaDevices.getUserMedia(CONS);}
-function mic(){var p=null;try{if(window.parent!==window&&parent.ATS&&parent.ATS.mic)p=parent.ATS.mic();}catch(_){}
- return p?p.then(own,own):own();}
-/* screen wake lock while recording (the recorder): re-acquired when the app comes back to the front */
-var wl=null,wantWake=false;
-function wake(on){wantWake=!!on;if(!navigator.wakeLock)return;
- if(on){if(wl)return;navigator.wakeLock.request('screen').then(function(l){wl=l;l.addEventListener('release',function(){wl=null;});}).catch(function(){});}
- else if(wl){try{wl.release()}catch(_){}wl=null;}}
-document.addEventListener('visibilitychange',function(){if(wantWake&&!wl&&document.visibilityState==='visible')wake(true);});
-window.AT={tempo:getTempo,setTempo:setTempo,onTempo:function(f){L.tempo.push(f)},takes:takes,onTakes:function(f){L.takes.push(f)},
- mic:mic,wake:wake,inShell:function(){try{return window.parent!==window}catch(_){return true}}};
-})();
-</script></head><body>
-<h2 class="sr-only">Touch prototype of the analyzer: tap the dot to start or stop listening, hold it and drag to a bud to switch between a circular spectrum, a dithered vertical spectrogram and a loudness meter; tap the top-right dot to switch source between microphone, test signal and an audio file.</h2>
+</style><script src="../shared.js"></script></head><body>
+<h2 class="sr-only">Analyzer: tap the dot to start or stop listening, hold it and drag to a bud to switch between a circular spectrum, a dithered vertical spectrogram and a loudness meter; tap the top-right dot to switch source between the microphone, the three most recent takes in the library and an audio file.</h2>
 <div id="ab" style="position:relative;height:540px;background:#fff;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="ac" role="img" aria-label="Analyzer prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <div id="al" style="position:absolute;inset:0;pointer-events:none;"></div>
-  <input id="af" type="file" accept="audio/*" style="display:none">
 </div>
 <script>
 (function(){
-var box=document.getElementById('ab'),cv=document.getElementById('ac'),IL=document.getElementById('al'),FI=document.getElementById('af');
+var box=document.getElementById('ab'),cv=document.getElementById('ac'),IL=document.getElementById('al');
 var gl=cv.getContext('webgl',{antialias:false,alpha:false});
 if(!gl){box.innerHTML='<p style="color:#000;padding:1rem;font-size:14px;">WebGL is not available here.</p>';return;}
 var VS='attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
@@ -221,7 +180,7 @@ function cols(str){return Math.max(0,str.length*4-1)}
 var LAY=[];function place(k,str,x,y,pitch,align){LAY[k]={x:x,y:y,p:pitch,a:align};setPanel(k,str);}
 
 /* audio */
-var S={sty:0,run:false,src:1,ctx:null,view:0,from:0,vt:1,vt0:0,inv:0,tr:null,flash:0,press:null,pick:null,buf:null,micFail:false,
+var S={sty:0,run:false,wait:false,tok:0,src:'mic',take:null,recent:[],order:[],ctx:null,view:0,from:0,vt:1,vt0:0,inv:0,tr:null,flash:0,press:null,pick:null,buf:null,bufId:null,micFail:false,micTried:false,
  nodes:[],stream:null,an:null,kwBlocks:[],ms400:[],raw400:[],peak:[],intg:-70,mom:-70,sh:-70,rms:-90,pk:-90,head:0};
 var A={};
 function ensure(){if(S.ctx)return true;try{var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();}catch(_){return false;}
@@ -244,27 +203,47 @@ function loud(){var B=S.kwBlocks,L=B.length;S.mom=lufs(mean(B,L-4));S.sh=lufs(me
  if(gated.length){var rel=lufs(mean(gated,0))-10,s=0,c=0;gated.forEach(function(m){if(lufs(m)>rel){s+=m;c++;}});S.intg=c?lufs(s/c):-70;}
  S.rms=10*Math.log10(Math.max(1e-12,mean(S.raw400,0)));var p=0;S.peak.forEach(function(x){if(x>p)p=x;});S.pk=20*Math.log10(Math.max(1e-6,p));}
 function resetLoud(){S.kwBlocks=[];S.raw400=[];S.peak=[];S.intg=-70;S.mom=-70;S.sh=-70;}
-function stopSrc(){S.nodes.forEach(function(n){try{n.stop&&n.stop();}catch(_){}try{n.disconnect();}catch(_){}});S.nodes=[];if(S.stream){S.stream.getTracks().forEach(function(t){t.stop()});S.stream=null;}if(S.demoT){clearInterval(S.demoT);S.demoT=null;}}
-function demo(){var c=S.ctx,t=c.currentTime,out=c.createGain();out.gain.value=.5;out.connect(A.in);out.connect(A.mon);S.nodes.push(out);
- var sw=c.createOscillator(),sg=c.createGain();sg.gain.value=.25;sw.connect(sg);sg.connect(out);sw.start();S.nodes.push(sw,sg);
- var nb=c.createBuffer(1,c.sampleRate*2,c.sampleRate),d=nb.getChannelData(0),b0=0;for(var i=0;i<d.length;i++){b0=.97*b0+.03*(Math.random()*2-1);d[i]=b0*3+(Math.random()*2-1)*.05;}
- var ns=c.createBufferSource();ns.buffer=nb;ns.loop=true;var ng=c.createGain();ng.gain.value=.25;ns.connect(ng);ng.connect(out);ns.start();S.nodes.push(ns,ng);
- var ch=[220,277.18,329.63].map(function(f){var o=c.createOscillator();o.type='triangle';o.frequency.value=f;var g=c.createGain();g.gain.value=0;o.connect(g);g.connect(out);o.start();S.nodes.push(o,g);return g;});
- function arm(){var t0=c.currentTime;sw.frequency.cancelScheduledValues(t0);sw.frequency.setValueAtTime(80,t0);sw.frequency.exponentialRampToValueAtTime(8000,t0+8);
-  for(var k=0;k<4;k++){ch.forEach(function(g){g.gain.setValueAtTime(.18,t0+k*2);g.gain.setTargetAtTime(0,t0+k*2+.05,.4);});}}
- arm();S.demoT=setInterval(arm,8000);}
-function startSrc(){var c=S.ctx;stopSrc();resetLoud();
- if(S.src===1){demo();return;}
- if(S.src===2){if(!S.buf){FI.click();return;}var bs=c.createBufferSource();bs.buffer=S.buf;bs.loop=true;bs.connect(A.in);bs.connect(A.mon);bs.start();S.nodes.push(bs);return;}
- if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){S.micFail=true;S.src=1;demo();return;}
- AT.mic().then(function(st){if(!S.run||S.src!==0){st.getTracks().forEach(function(t){t.stop()});return;}S.stream=st;var ms=c.createMediaStreamSource(st);ms.connect(A.in);S.nodes.push(ms);S.micFail=false;})
-  .catch(function(){S.micFail=true;S.src=1;if(S.run)demo();});}
-FI.addEventListener('change',function(){var f=FI.files&&FI.files[0];if(!f||!ensure())return;f.arrayBuffer().then(function(b){return S.ctx.decodeAudioData(b);}).then(function(buf){S.buf=buf;S.src=2;if(!S.run)toggle();else startSrc();}).catch(function(){});});
-function toggle(){if(!ensure())return;if(S.ctx.resume)S.ctx.resume();S.run=!S.run;S.tr={from:S.inv,to:S.run?1:0,t0:performance.now()};if(S.run)startSrc();else stopSrc();}
+function stopSrc(){S.nodes.forEach(function(n){try{n.stop&&n.stop();}catch(_){}try{n.disconnect();}catch(_){}});S.nodes=[];if(S.stream){S.stream.getTracks().forEach(function(t){t.stop()});S.stream=null;}}
+/* sources: only real audio. 'mic' (default), 'take' (a take from the library, looped), 'file' (the picker; the file becomes a take) */
+function saveSrc(){AT.session.save('ana',S.src==='take'?{src:'take',take:S.take}:{src:'mic'});}
+function toMic(){end();S.src='mic';S.take=null;S.micTried=false;saveSrc();}
+function refresh(){return AT.takes.list().then(function(a){S.order=a.map(function(m){return m.id});S.recent=S.order.slice(0,3);
+ if(S.src==='take'&&S.order.indexOf(S.take)<0)toMic();});}
+var SS=AT.session.load('ana');if(SS&&SS.src==='take'&&SS.take){S.src='take';S.take=SS.take;}
+refresh();AT.onTakes(function(){refresh();});
+function loadTake(id){if(S.bufId===id&&S.buf)return Promise.resolve(S.buf);
+ return AT.takes.get(id).then(function(k){if(!k||!k.data||!k.data.length)return null;var b=S.ctx.createBuffer(1,k.data.length,k.sr);b.getChannelData(0).set(k.data);S.buf=b;S.bufId=id;return b;});}
+function setRun(on){if(S.run===on)return;S.run=on;S.tr={from:S.inv,to:on?1:0,t0:performance.now()};}
+/* begin listening on the current source; the run (inversion) starts only once real audio is flowing */
+function begin(){if(!ensure())return;if(S.ctx.resume)S.ctx.resume();stopSrc();resetLoud();var tok=++S.tok,c=S.ctx;
+ if(S.src==='file'){openFile();return;}
+ S.wait=true;
+ if(S.src==='take'){loadTake(S.take).then(function(b){if(tok!==S.tok)return;S.wait=false;if(!b){toMic();return;}
+   var bs=c.createBufferSource();bs.buffer=b;bs.loop=true;bs.connect(A.in);bs.connect(A.mon);bs.start();S.nodes.push(bs);setRun(true);},
+  function(){if(tok===S.tok){S.wait=false;toMic();}});return;}
+ AT.mic().then(function(st){if(tok!==S.tok){st.getTracks().forEach(function(t){t.stop()});return;}S.wait=false;
+   S.stream=st;var ms=c.createMediaStreamSource(st);ms.connect(A.in);S.nodes.push(ms);S.micFail=false;S.micTried=false;setRun(true);},
+  function(){if(tok!==S.tok)return;S.wait=false;S.micFail=true;setRun(false);});}
+function end(){S.tok++;S.wait=false;stopSrc();setRun(false);}
+function toggle(){if(S.run||S.wait)end();else begin();}
+/* open file: the system picker (from this tap); the file is imported into the library and analysed as a take */
+function openFile(){end();S.src='file';if(ensure()&&S.ctx.resume)S.ctx.resume();var tok=S.tok;
+ AT.takes.pick().then(function(m){if(!m||tok!==S.tok||S.src!=='file')return;S.src='take';S.take=m.id;saveSrc();refresh();begin();});}
+/* the source dot: microphone -> the three most recent takes -> open file -> microphone.
+   With the microphone refused, the first tap retries it; if it is still refused the next tap moves on. */
+function srcTap(){
+ if(S.src==='mic'&&S.micFail&&!S.micTried){S.micTried=true;begin();return;}
+ var L=['mic'].concat(S.recent.map(function(id){return 't:'+id}),['file']),cur=S.src==='take'?'t:'+S.take:S.src,i=L.indexOf(cur);
+ if(i<0)i=L.length-2;var nx=L[(i+1)%L.length],was=S.run||S.wait;
+ if(nx==='file'){openFile();return;}
+ if(nx==='mic'){S.src='mic';S.take=null;S.micTried=false;}else{S.src='take';S.take=nx.slice(2);}
+ saveSrc();if(was)begin();else S.tok++;}
+function srcIcon(){if(S.src==='mic')return S.micFail?'microphone-off':'microphone';if(S.src==='file')return 'file-music';
+ var r=S.recent.indexOf(S.take);return r>=0?'number-'+(r+1):'history';}
 function setView(v){if(v===S.view)return;S.from=S.view;S.view=v;S.vt0=performance.now();S.vt=0;}
 
 /* layout */
-var VIEWS=[{ic:'chart-donut'},{ic:'chart-area'},{ic:'gauge'}],SRCS=[{ic:'microphone'},{ic:'wave-sine'},{ic:'file-music'}];
+var VIEWS=[{ic:'chart-donut'},{ic:'chart-area'},{ic:'gauge'}];
 function SC(){return{x:W/2,y:Math.round(H*.55)}}
 function R0(){return 70}function R1(){return Math.min(W/2-14,176)}
 var CT={x:W/2,y:H*.55,r:54};
@@ -283,7 +262,7 @@ box.addEventListener('pointermove',function(e){var pr=S.press;if(!pr)return;var 
  if(S.pick){var c=ctlTarget(),d=Math.hypot(p.x-c.x,p.y-c.y),bi=-1,bd=.6;if(d>34){var an=Math.atan2(p.y-c.y,p.x-c.x);for(var i=0;i<3;i++){var b=budPos(i),ba=Math.atan2(b.y-c.y,b.x-c.x),df=Math.abs(Math.atan2(Math.sin(an-ba),Math.cos(an-ba)));if(df<bd){bd=df;bi=i;}}}S.pick.sel=bi;return;}
  if(pr.k==='ctl'&&pr.moved>10&&ts(e)-pr.t0<HOLD){S.pick={sel:-1};}});
 function up(){var pr=S.press;S.press=null;if(S.pick){var sel=S.pick.sel;S.pick=null;if(sel>=0)setView(sel);return;}if(!pr||pr.moved>12)return;
- if(pr.k==='ctl')toggle();else if(pr.k==='src'){S.src=(S.src+1)%3;if(S.src===2&&!S.buf){FI.click();S.src=1;}if(S.run)startSrc();}else if(pr.k==='reset')resetLoud();else if(pr.k==='sty')S.sty=(S.sty+1)%3;}
+ if(pr.k==='ctl')toggle();else if(pr.k==='src')srcTap();else if(pr.k==='reset')resetLoud();else if(pr.k==='sty')S.sty=(S.sty+1)%3;}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 
@@ -303,7 +282,7 @@ function frame(nw){
    var sm=0,cn=0;for(var i=i0;i<=i1&&i<A.fb.length;i++){if(A.fb[i]>m)m=A.fb[i];sm+=Math.pow(10,A.fb[i]/10);cn++;}var db=cn>2?10*Math.log10(sm/cn):m;SR[b]=Math.max(0,Math.min(1,(db+105)/95));}
   for(var b=0;b<256;b++){var v=0,wsum=0;for(var j=-2;j<=2;j++){var q=Math.min(255,Math.max(0,b+j)),w=3-Math.abs(j);v+=SR[q]*w;wsum+=w;}v/=wsum;SP[b]=v;PK[b]=Math.max(PK[b]-dt*.08,v);}
   for(var i=Math.floor(40/bw);i<Math.min(A.fb.length-1,Math.floor(18000/bw));i++)if(A.fb[i]>bv){bv=A.fb[i];best=i;}
-  if(best>0){var a=A.fb[best-1],c=A.fb[best+1],dl=.5*(a-c)/(a-2*bv+c||1);pf=(best+dl)*bw;pd=bv;}
+  if(best>0){var a=A.fb[best-1],c=A.fb[best+1],dl=.5*(a-c)/(a-2*bv+c||1);pf=(best+dl)*bw;pd=bv;}S.pf=pf;S.pd=pd;
   S.head=(S.head+1)%256;for(var b=0;b<256;b++)GR[b]=Math.round(SP[b]*255);gl.bindTexture(gl.TEXTURE_2D,gtex);gl.texSubImage2D(gl.TEXTURE_2D,0,0,S.head,256,1,gl.LUMINANCE,gl.UNSIGNED_BYTE,GR.subarray(0,256));}
  else{for(var b=0;b<256;b++){SP[b]*=Math.pow(.02,dt);PK[b]=Math.max(0,PK[b]-dt*.2);}}
  for(var b=0;b<256;b++){SPD[b]=Math.round(SP[b]*255);SPD[256+b]=Math.round(PK[b]*255);}
@@ -329,7 +308,7 @@ function frame(nw){
  /* icons */
  var fg=dark?'#fff':'#000',bg=dark?'#000':'#fff',seen={};
  function ico(key,nm,x,y,sz,col,op){var el=icon(key,nm);seen[key]=1;el.style.left=x+'px';el.style.top=y+'px';el.style.fontSize=sz+'px';el.style.color=col;el.style.opacity=op;el.style.visibility='visible';}
- ico('src',S.micFail&&S.src===1?'microphone-off':SRCS[S.src].ic,sp.x,sp.y,15,fg,1);
+ ico('src',srcIcon(),sp.x,sp.y,15,fg,1);
  if(S.view!==0||!S.run)ico('ctl',S.run?'player-stop':'player-play',CT.x,CT.y,S.view===0?22:14,bg,1);
  for(var i=0;i<3;i++)if(budS[i]>.05){var b=budPos(i),f=(S.pick&&S.pick.sel===i)||i===S.view;ico('v'+i,VIEWS[i].ic,b.x,b.y,17*budS[i],f?bg:fg,Math.min(1,budS[i]*1.4));}
  if(styK>.1)ico('sty',STY[S.sty],sy.x,sy.y,14*styK,fg,styK);
@@ -345,6 +324,7 @@ function frame(nw){
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+S.spec=SP;window.__S=S;/* test hook (tools/audio-test): S.pf/S.pd strongest frequency and level, S.spec the 256 log bins */
 })();
 </script>
 

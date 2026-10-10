@@ -12,7 +12,7 @@ and FILES = the precache list. Run after any change under audio/:
 import hashlib, json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FILES = ["./", "index.html", "manifest.json"] + sorted(
+FILES = ["./", "index.html", "manifest.json", "shared.js"] + sorted(
     "t/" + f for f in os.listdir(os.path.join(HERE, "t")) if f.endswith(".html"))
 ICONS = ["../icon/android/launchericon-192x192.png?v=2026-09-27",
          "../icon/android/launchericon-512x512.png?v=2026-09-27"]

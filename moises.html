@@ -146,11 +146,33 @@
   #viewer .vprev { left:.4rem; } #viewer .vnext { right:.4rem; }
   #viewer .vclose { position:absolute; top:1rem; right:1.2rem; background:none; border:none; color:#fff; font:inherit; font-size:1.4rem; cursor: none; }
 
+  /* Phones: the 1200px freeform stage scaled to a third of its size made every
+     photo a thumbnail. Below 700px the posts flow into one column instead, in
+     the order moises arranged them on the canvas (top to bottom, then left to
+     right). Desktop keeps the freeform composition. */
+  #stage.flow {
+    width: auto !important; height: auto !important; transform: none !important;
+    display: flex; flex-direction: column; gap: 2.2rem; padding: 1.4rem 16px 4rem;
+  }
+  #stage.flow .post { position: relative; left: auto !important; top: auto !important; width: auto !important; z-index: auto !important; }
+  #stage.flow .post .cap { font-size: .78rem; line-height: 1.5; }
+  #stage.flow .text-post { font-size: .95rem; }
+  @media (max-width: 700px) {
+    header { gap: .8rem; padding: .9rem 16px; flex-wrap: wrap; padding-right: 64px; }
+    header nav { gap: .8rem; font-size: .72rem; }
+    .sub { padding: .8rem 16px; letter-spacing: .18em; }
+    #viewer img, #viewer video { max-width: 100vw; max-height: 74vh; }
+    #viewer .vnav { font-size: 2.2rem; padding: .6rem; top: auto; bottom: 1.2rem; transform: none; }
+    #viewer .ytframe { width: 100vw; }
+  }
+
   @media (pointer: coarse) {
     /* real controls come back for touch, but the car stays and follows your
        finger -- hiding it removed the only thing on the page that moves */
     body, a, .post, #viewer, #viewer .vclose, #viewer .vnav { cursor: auto; }
     #stage-wrap { touch-action: pan-y; }
+    /* on touch the car parks where the finger was: not on top of the photo you opened */
+    body.viewing #car { opacity: 0; }
   }
 </style>
 </head>
@@ -197,12 +219,21 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&
 const stage = document.getElementById("stage");
 const wrap = document.getElementById("stage-wrap");
 
+const PHONE = matchMedia("(max-width: 700px)");
+const isFlow = () => PHONE.matches;
+
 function fitStage() {
+  stage.classList.toggle("flow", isFlow());
+  if (isFlow()) {
+    wrap.style.height = "auto";
+    return;
+  }
   const scale = Math.min(1, wrap.clientWidth / CANVAS_W);
   stage.style.transform = `scale(${scale})`;
   wrap.style.height = (stage.offsetHeight * scale) + "px";
 }
 addEventListener("resize", fitStage);
+PHONE.addEventListener("change", fitStage);
 
 async function boot() {
   const empty = document.getElementById("empty");
@@ -269,6 +300,12 @@ function layoutPosts(posts) {
     rects.push({ x, y, w: DEFAULT_W, h });
   }
 
+  // reading order for the phone column: rows of the canvas top to bottom
+  // (posts within 60px of each other count as one row), then left to right
+  const reading = [...posts].sort((a, b) =>
+    (Math.abs(a.layout.y - b.layout.y) < 60 ? 0 : a.layout.y - b.layout.y) || a.layout.x - b.layout.x);
+  const order = new Map(reading.map((p, i) => [p, i]));
+
   let maxBottom = 400;
   for (const p of [...posts].reverse()) {
     const el = document.createElement("div");
@@ -279,6 +316,7 @@ function layoutPosts(posts) {
     el.style.top = lay.y + "px";
     el.style.width = w + "px";
     el.style.zIndex = lay.z || 1;
+    el.style.order = order.get(p);
 
     const date = new Date(p.created_at).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
     const first = p.media[0];
@@ -318,6 +356,7 @@ function layoutPosts(posts) {
 }
 
 function growStage() {
+  if (isFlow()) return;   // the column grows by itself; the ResizeObserver resizes the tracks
   let bottom = 400;
   for (const el of stage.children) bottom = Math.max(bottom, el.offsetTop + el.offsetHeight + 120);
   if (bottom > stage.offsetHeight) { stage.style.height = bottom + "px"; fitStage(); sizeTracks(); }
@@ -346,6 +385,7 @@ function openViewer(p, i = 0) {
   document.getElementById("vcount").textContent = many ? `${i + 1} / ${items.length}` : "";
   document.getElementById("vprev").hidden = document.getElementById("vnext").hidden = !many;
   v.classList.add("open");
+  document.body.classList.add("viewing");
 }
 function stepViewer(d) {
   const n = vPost ? viewItems(vPost).length : 0;
@@ -354,6 +394,7 @@ function stepViewer(d) {
 }
 function closeViewer() {
   document.getElementById("viewer").classList.remove("open");
+  document.body.classList.remove("viewing");
   document.getElementById("vmedia").innerHTML = "";
   vPost = null;
 }
@@ -425,7 +466,10 @@ let DPR = 1;
 // Resizing a canvas clears it; the stage grows as lazy photos load, so the
 // marks already laid are copied across instead of vanishing mid-drive.
 function sizeTracks() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  // iOS Safari refuses canvases over ~16.7M pixels (it draws nothing), and the
+  // phone column can run very long: drop density before hitting that
+  const area = Math.max(1, wrap.clientWidth * wrap.clientHeight);
+  DPR = Math.min(2, window.devicePixelRatio || 1, Math.sqrt(16e6 / area));
   const w = Math.round(wrap.clientWidth * DPR), h = Math.round(wrap.clientHeight * DPR);
   if (w === tracksCv.width && h === tracksCv.height) return;
   let keep = null;
@@ -442,6 +486,7 @@ function sizeTracks() {
   tracksCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 addEventListener("resize", sizeTracks);
+if (window.ResizeObserver) new ResizeObserver(() => sizeTracks()).observe(wrap);
 sizeTracks();
 
 const car = {
@@ -542,7 +587,7 @@ function carTick(now) {
     car.trackL = car.trackR = null;   // lift the pen while parked
   }
 
-  carEl.style.transform = `translate3d(${car.x}px, ${car.y}px, 0)`;
+  carEl.style.transform = `translate3d(${car.x}px, ${car.y}px, 0) scale(${carScale()})`;
 
   // Fade in coarse steps: an 8-bit canvas cannot remove less than one level
   // per pass, so a gentle per-frame fade strands every mark as a permanent
@@ -568,8 +613,9 @@ function carTick(now) {
    breaks at a turn. */
 const TRACK_RGB = "232, 226, 214";   // the one track colour — change it here
 const TYRE_W = 6;          // printed tyre width, px
-const AXLE_HALF = 11;      // half the distance between the rear tyres
-const REAR = 24;           // rear axle behind the car's centre
+const AXLE_HALF = 11;      // half the distance between the rear tyres (at full car size)
+const REAR = 24;           // rear axle behind the car's centre (at full car size)
+const carScale = () => (isFlow() ? 0.62 : 1);   // a smaller car on phones
 const TREAD = 3.2;         // px of travel per tread block
 const SMEAR = 14;          // px across each dab of photo a tread step drags along
 const DRAG = 5;            // how far behind the tyre the dragged pixels come from
@@ -646,9 +692,10 @@ function layTracks(step) {
   }
   const sl = Math.hypot(car.sux, car.suy) || 1;
   const tux = car.sux / sl, tuy = car.suy / sl;   // the lagged heading
-  const ox = -tuy * AXLE_HALF, oy = tux * AXLE_HALF;
-  const bx = car.x - wrapRect.left - tux * REAR;
-  const by = car.y - wrapRect.top - tuy * REAR;
+  const k = carScale();
+  const ox = -tuy * AXLE_HALF * k, oy = tux * AXLE_HALF * k;
+  const bx = car.x - wrapRect.left - tux * REAR * k;
+  const by = car.y - wrapRect.top - tuy * REAR * k;
   const L = { x: bx + ox, y: by + oy };
   const R = { x: bx - ox, y: by - oy };
 

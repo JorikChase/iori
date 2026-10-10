@@ -778,7 +778,13 @@
         // §5.2.5 B1: a floating strand with a braid spec (its own, or T.braid) is drawn as its children; the set keeps the tube
         T.floatCurves = part.floating;          // §5.4 L0: the floating strands, for the probe's traced segments (after the braid below)
         T.braidKids = 0; if (part.floating.length) part.floating = part.floating.flatMap(c => { const sp = c.braid || T.braid; if (!sp) return [c]; const k = braidOf(c, sp, rKf); T.braidKids += k.length; return k; }); T.floatCurves = part.floating;
+        // A framebuffer and depth renderbuffer that outlive the region's SIZE carry the previous eye into the next one: resizing
+        // the attached renderbuffer in place (eye 25's 634 rows → eye 09's 630) left the first grey bake of the next eye with a
+        // different light (gain −2.2 %, an additive 0.008 that a fresh page does not have) — the path-dependent measured load's
+        // second half (study/11 §3.4, 2026-10-10). A new size gets a new framebuffer and a new renderbuffer.
+        if (T.fb && T.fbSize && (T.fbSize[0] !== w || T.fbSize[1] !== h)) { gl.deleteFramebuffer(T.fb); gl.deleteRenderbuffer(T.depth); T.fb = null; T.depth = null; }
         if (!T.fb) { T.fb = gl.createFramebuffer(); T.depth = gl.createRenderbuffer(); }
+        T.fbSize = [w, h];
         gl.bindRenderbuffer(gl.RENDERBUFFER, T.depth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
         for (const k in (T.tex || {})) { gl.deleteTexture(T.tex[k][0]); gl.deleteTexture(T.tex[k][1]); } T.tex = {};
         gl.bindFramebuffer(gl.FRAMEBUFFER, T.fb); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, T.depth);
@@ -1985,7 +1991,11 @@
     // ratio is what the geometry does to the light — every term of it, normals, self-shadow, occlusion and all, as
     // the renderer actually computes them, not as an analytic dome cosine predicts (§32.4: that was 3× too strong).
     // Two grey levels each, so the additive part of the render (speculars) cancels and only the gain is compared.
-    T.measureDelight = function (opts = {}) {
+    // The overlay (overlay.js) guards every fitter call by restoring the pose's view; the tiles below are cropped views set
+    // on purpose, so the measurement runs under O.hold — without it the nine tiles were nine renders of the whole eye at
+    // 28 µm a pixel, and the frame they fell back to depended on page history (study/11 §3.4, fixed 2026-10-10).
+    T.measureDelight = function (opts = {}) { const O = window.__irisOverlay; return O && O.hold ? O.hold(() => measureDelightTiles(opts)) : measureDelightTiles(opts); };
+    function measureDelightTiles(opts = {}) {
         const fit = F.fit, W = fit.W, H = fit.H, G = [0.06, 0.30];
         const was = { deckZ: T.deckZ, sheetZ: T.sheetZ, srelAmt: T.srelAmt, on: T.on, view: E.state.view.slice() };
         T.on = true; T.srelAmt = 0;                                  // measure the bare geometry, not a de-lit one
@@ -2071,7 +2081,7 @@
         T.bake();                                                    // the albedo, now divided by what was measured
         say(`de-light measured: ${gw}×${gh} cells of ${(cell * 1000).toFixed(0)} µm · relief multiplies the light by ${T.srelStats.min}–${T.srelStats.max} (mean ${T.srelStats.mean})`);
         return T.srelStats;
-    };
+    }
 
     // ---------------------------------------------------------------- study/11 S3: the measurements, shipped with the eye
     // calibrate() and measureDelight() render flat-grey frames through the engine; they never read the photograph, so they

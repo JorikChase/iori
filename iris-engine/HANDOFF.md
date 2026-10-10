@@ -188,6 +188,11 @@ weak LOW correlation in §7, independent of strands), whole-eye photos.
 - `snapshot.py` archives `versions/<id>/bench/cases.json` (written by the bench with `ver`); `ref/cases.json` belongs to
   whichever bench ran last.
 
+**The overlay guards the fitter's API (overlay.js).** Every function of `__irisEngine.fit` is wrapped: `O.restoreView()` runs
+  first and resets any cropped view (width or height ≠ 1) to the pose's frame. A measurement that renders tiles — a view
+  set on purpose, then `renderFit()`/`getMap()` — must run under `O.hold(() => …)` or it silently measures the whole frame
+  nine times (the path-dependent measured load, study/11 §3.4, fixed 2026-10-10). Any new tiled measurement: hold first.
+
 **Strand building (study/08)**
 - **Any code added to `fs-bake`, even behind an inert uniform, shifts its compiled float arithmetic and moves the
   bench** (±0.3 MATCH2 on two eyes, observed). A new rendering path must be a **separately compiled shader

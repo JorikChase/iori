@@ -30,7 +30,13 @@
     const ratio = () => (fit.W / fit.H) / (innerWidth / innerHeight);
     const viewOf = () => [O.pose[0] + (O.cx - 0.5 * O.s), O.pose[1] + (O.cy - 0.5 * O.s), O.s, O.s];   // offset first: at home (cx 0.5, s 1) it is exactly 0 and the view is the pose bit for bit — (pose + 0.5) − 0.5 was not, and the contract saw the last digit flip with timing
     function writeView() { if (busy()) return; const v = viewOf(), c = state.view || []; if (c[0] !== v[0] || c[1] !== v[1] || c[2] !== v[2] || c[3] !== v[3]) { state.view = v; E.resetAccumulation(); } }
-    O.restoreView = () => { const c = state.view; if (c && (c[2] !== 1 || c[3] !== 1)) { state.view = [O.pose[0], O.pose[1], 1, 1]; E.resetAccumulation(); } };
+    // A measurement that renders TILES of the frame (the de-light's 3 × 3, tissue.js measureDelight) sets cropped views on
+    // purpose; the guard below would put the pose's frame back under every tile — nine identical whole-eye renders, and
+    // which frame came back ([0, 0] or the pose) depended on whether O.pose had been set yet in this page (the
+    // path-dependent measured load, study/11 §3.4). O.hold(f) suspends the restore while f runs.
+    let hold = 0;
+    O.hold = f => { hold++; try { return f(); } finally { hold--; } };
+    O.restoreView = () => { if (hold) return; const c = state.view; if (c && (c[2] !== 1 || c[3] !== 1)) { state.view = [O.pose[0], O.pose[1], 1, 1]; E.resetAccumulation(); } };
     function home() { const r = fit.W ? ratio() : 1; O.s = r > 1 ? r * 1.04 : 1; O.cx = O.cy = 0.5; }   // the whole photo frame in view
     function layout() {
         const shift = U.sceneShift ? U.sceneShift() : 0, on = O.mode !== 'off', tf = shift ? `translateY(${shift}px)` : '';

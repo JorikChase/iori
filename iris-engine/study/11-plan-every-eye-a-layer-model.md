@@ -279,6 +279,42 @@ pass is rebound per draw), the margin uniforms (set every draw), the deck-height
 Consequence: the Load button can give a picture up to 14 / 255 off the shipped one. Visitors never measure (the arrival
 is deterministic), so it is a dev-side determinism bug. Next step: bisect `X.load` line by line in a fresh page.
 
+**Solved (2026-10-10, phase 0 of study/14).** The cause was never in `X.load`: `overlay.js` wraps every function of
+`__irisEngine.fit` in a guard that calls `O.restoreView()` first, and `restoreView` puts the pose's frame back under any
+view whose width or height is not 1. `measureDelight` sets nine cropped tile views (3 × 3) and calls `F.renderFit()` and
+`F.getMap()` under each — the guard reset every one of them, so **the nine tiles were nine renders of the whole eye at
+28 µm a pixel**, not 9 µm as §32.4 asked and as the code's comment claims. The frame they fell back to was
+`[O.pose, 1, 1]`, and `O.pose` is `[0, 0]` until something sets it (the Tissue window's `frame()`, an overlay mode): a
+direct load measured under `[0, 0, 1, 1]`, the Tissue window's load under the pose's own frame `[0.00054, 0.00022, 1, 1]`
+— a sub-pixel shift of the whole frame, 180 pixels of `inside` and a different relief gain (srel max 1.336 vs 1.669), and
+whichever ran first fixed `O.pose` for the rest of the page. Found by dumping every input of the measurement under both
+paths and diffing them (only `srel` differed), then asking `getMap` for a tile and reading its signature: the view it
+rendered was not the view that had just been set.
+
+Fix: `O.hold(f)` in overlay.js suspends the restore while `f` runs; `measureDelight` runs under it. Eye 26, measured load,
+fresh pages, before → after: direct 89.870 / X.load 90.064 → **both 90.354**, strandCorr 0.426, cellΔab 1.97, de-light
+pixels 992 389 on both, per-tile `inside` counts now 47 010 · 224 846 · 47 102 · 132 149 · 87 476 … (the corners, edges
+and centre of a 3 × 3), srel range 0.304–1.888 (was 0.502–1.336 / 0.517–1.669: the real tiles see the tube profile).
+The shipped measurements (`data/tissue-NN.cal.bin`) of all four eyes were measured with the whole-eye tiles; the arrival
+path still installs them unchanged, so the live eyes do not move until they are republished — iori decides (the
+measured path is +0.29 MATCH2 on eye 26 with the real tiles).
+
+**The second half — an eye after a different eye (2026-10-10).** With the tiles fixed, eye 09 after eye 25 still scored
+88.520 against 88.117 on a fresh page, and 25 after 09 89.959 against 91.397 — the drift the 2026-09-28 handoff had seen
+(85.65 / 85.45, the failed arrival gate). Bisected by stage on two pages at once: the legacy render after `renderCaseThumb`
+identical (pixel sum and score), the mapped primitives identical, **`calibrate()` different** — gain 1.2786 → 1.2511 and an
+additive 0.00012 → 0.0084 on eye 09's first grey bake. Not the de-light texture, not the wall relief, not the region
+textures (all recreated per bake): freeing **`T.fb` + `T.depth`** before the bake restored the fresh numbers exactly. The
+bake created its framebuffer and depth renderbuffer once and resized the attached renderbuffer in place when the region's
+size changed between eyes (25: 6144 × 634, 09: 6144 × 630); the first bake after that resize rendered a different light.
+Fix: a new region size gets a new framebuffer and renderbuffer (`T.fbSize`). Gate, one page, in order: 09 88.117 · 25 91.397
+· 09 88.117 · 35 88.316 · 25 91.397; another page: 26 90.354 · 35 88.316 · 26 90.354 — every eye equal to its fresh-page
+number to three decimals, strandCorr and cellΔab included.
+
+Measured-path numbers now (fresh page = any page): 26 **90.354** · 0.426 · 1.97 — 09 **88.117** · 0.484 · 2.78 — 25
+**91.397** · 0.395 · 2.51 — 35 **88.316** · 0.394 · 2.16. The shipped measurements still carry the whole-eye de-light;
+republishing the four eyes on the real tiles is iori's call.
+
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 
 Read as: Cmd / Ctrl + S no longer opens the browser's useless "save page as"; it downloads a session file, and

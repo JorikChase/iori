@@ -56,6 +56,9 @@ const STRINGS = {
     "nothing": "nic k archivaci", "archived.n": "archivováno", "chat.empty": "zatím žádné zprávy — napiš něco.",
     "inbox.empty": "zatím žádné zprávy.", "feed.empty": "zatím žádné příspěvky.", "pw.mismatch": "nová hesla se neshodují",
     "pw.done": "heslo změněno.", "mark.read": "označit přečtené", "mark.unread": "označit nepřečtené",
+    "welcome.title": "Tvoje stránka je připravená.",
+    "welcome.body": "Jsou na ní ukázkové příspěvky: vyměň je za svoje, nebo je smaž. Jak na to, ukazuje návod.",
+    "welcome.guide": "JAK TO FUNGUJE", "welcome.canvas": "OTEVŘÍT PLÁTNO",
     "guide": "? JAK TO FUNGUJE", "canvas.view": "ZOBRAZIT STRÁNKU ↗", "ct.text": "UPRAVIT TEXT", "ct.replace": "VYMĚNIT SOUBOR",
     "ct.front": "DOPŘEDU", "ct.link": "VYMĚNIT ODKAZ", "post.link": "odkaz na YouTube (nepovinné) — youtube.com/watch?v=… nebo youtu.be/…",
     "post.link.new": "nový odkaz na YouTube:", "sound": "zvuk", "files.n": "vybrané soubory:", "ct.back": "DOZADU", "cap.title": "UPRAVIT TEXT", "cancel": "ZRUŠIT",
@@ -158,9 +161,29 @@ async function showMain() {
   loadInbox();
   loadFeed();
   loadChat();
-  loadCanvas();
+  loadCanvas().catch(() => {});
   fillPrefsForm();
 }
+
+/* The welcome notice: while the samples seeded by tools/moises-guide/seed.py
+   are still on the author's page, every login points at the guide. × hides it
+   on this device; replacing or deleting the samples retires it for good. */
+const SAMPLE = /^ukázk/i;
+const welcomeKey = () => `welcome_hidden_${state.user.username}`;
+function showWelcome() {
+  let hidden = false;
+  try { hidden = localStorage.getItem(welcomeKey()) === "1"; } catch { /* private mode */ }
+  const samples = canvasPosts.filter((p) => SAMPLE.test(p.caption || "")).length;
+  $("#welcome").classList.toggle("hidden", hidden || !samples);
+}
+$("#welcome-close").addEventListener("click", () => {
+  try { localStorage.setItem(welcomeKey(), "1"); } catch { /* private mode */ }
+  $("#welcome").classList.add("hidden");
+});
+$("#welcome-canvas").addEventListener("click", () => {
+  switchTab("canvas");
+  loadCanvas().catch(() => {});
+});
 
 function renderWhoami() {
   $("#whoami").textContent = state.prefs.display_name || state.user.username;
@@ -1180,6 +1203,7 @@ async function loadCanvas() {
   canvasPosts = posts;
   maxZ = Math.max(1, ...posts.map(p => (p.layout && p.layout.z) || 1));
   renderCanvas();
+  showWelcome();   // retires itself once the last sample is replaced or deleted
 }
 $$('.tab[data-tab="canvas"]').forEach((b) => b.addEventListener("click", () => loadCanvas().catch(() => {})));
 

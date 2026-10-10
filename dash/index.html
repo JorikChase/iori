@@ -47,6 +47,18 @@
       </div>
     </header>
 
+    <!-- shown while the author still has the sample posts from tools/moises-guide/seed.py -->
+    <div id="welcome" class="welcome hidden" role="alert">
+      <span class="welcome-mark">!</span>
+      <div class="welcome-text">
+        <b data-i18n="welcome.title">Your page is ready.</b>
+        <span data-i18n="welcome.body">It has sample posts on it: replace them with your own or delete them. The guide shows how.</span>
+      </div>
+      <a id="welcome-guide" class="welcome-btn" href="guide.html" target="_blank" data-i18n="welcome.guide">HOW IT WORKS</a>
+      <button id="welcome-canvas" class="ghost-btn" data-i18n="welcome.canvas">OPEN CANVAS</button>
+      <button id="welcome-close" class="ghost-btn icon" title="hide" aria-label="hide">×</button>
+    </div>
+
     <!-- BOARD -->
     <div id="tab-board" class="tabpanel">
       <div class="board-toolbar">

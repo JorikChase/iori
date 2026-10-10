@@ -389,3 +389,21 @@ a.ghost-btn { display: inline-block; padding: .4em .8em; font-size: .8em; text-d
   #board-scroll { max-height: none; }
   .prefs-identity { flex-direction: column; }
 }
+
+/* ---------- welcome notice ---------- */
+.welcome {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .8rem;
+  margin: .8rem 1rem 0; padding: .8rem 1rem;
+  border: 2px solid var(--warn); box-shadow: 5px 5px 0 var(--warn);
+}
+.welcome-mark {
+  flex: none; width: 1.8em; height: 1.8em; display: grid; place-items: center;
+  background: var(--warn); color: #000; font-weight: bold;
+}
+.welcome-text { flex: 1 1 22rem; display: flex; flex-direction: column; gap: .15rem; line-height: 1.45; }
+.welcome-text span { color: var(--dim); }
+.welcome-btn {
+  display: inline-block; padding: .6em 1.2em; background: var(--warn); color: #000; border: 1px solid var(--warn);
+  text-decoration: none; text-transform: uppercase; letter-spacing: .12em; font-weight: bold;
+}
+.welcome-btn:hover { background: var(--fg); border-color: var(--fg); color: var(--bg); }

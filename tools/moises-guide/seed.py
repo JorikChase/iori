@@ -72,6 +72,16 @@ def import_(bundle, db, media):
         )
         added += 1
         print("added:", p["caption"][:50])
+    # the guide and the welcome notice are Czech; switch the dash to Czech
+    # unless he has already chosen a language himself
+    row = conn.execute("SELECT prefs FROM user_prefs WHERE username = ?", (AUTHOR,)).fetchone()
+    prefs = json.loads(row[0]) if row else {}
+    if "lang" not in prefs:
+        prefs["lang"] = "cs"
+        conn.execute("INSERT INTO user_prefs(username, prefs, updated_at) VALUES (?, ?, ?) "
+                     "ON CONFLICT(username) DO UPDATE SET prefs = excluded.prefs, updated_at = excluded.updated_at",
+                     (AUTHOR, json.dumps(prefs), datetime.now(timezone.utc).isoformat()))
+        print("dash language set to cs")
     conn.commit()
     print(f"{added} added, {len(posts) - added} skipped")
 

@@ -78,12 +78,16 @@ body>div:first-of-type{height:100%!important;border-radius:0!important}
 var box=document.getElementById('eb'),cv=document.getElementById('ec'),IL=document.getElementById('el');
 var gl=cv.getContext('webgl',{antialias:false,alpha:false});
 if(!gl){box.innerHTML='<p style="color:#000;padding:1rem;font-size:14px;">WebGL is not available here.</p>';return;}
-var MAXC=12,MAXT=4;
+var MAXT=4;
+/* No limit on clips. The shader draws the clips that are ON SCREEN, in VIS uniform slots sized from what the GPU
+   allows (3 vec4 per slot, leaving room for the rest): 32+ on any current phone. If a zoomed-out view shows more
+   clips than slots, adjacent clips in a track are drawn merged — nothing disappears. */
+var VIS=12;try{var mfu=gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS)||64;VIS=Math.max(12,Math.min(48,Math.floor((mfu-64)/3)));}catch(_){}if(window.__VIS>0)VIS=window.__VIS|0;   /* __VIS: test hook (merge path) */
 var VS='attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
 var FS=[
 'precision highp float;',
 'uniform vec2 uRes,uO,uF;uniform float uDpr,uInv,uFlash,uT,uTop,uBot,uVt,uPps,uTL,uBar,uPh,uCk,uDk,uOr,uFr,uSy,uWr,uSnap;',
-'uniform vec4 uCl[12];uniform vec4 uCs[12];uniform vec4 uCx[12];uniform vec4 uHd[4];uniform vec3 uTc[4];uniform vec4 uGh;uniform vec2 uLn;',
+'uniform vec4 uCl['+VIS+'];uniform vec4 uCs['+VIS+'];uniform vec4 uCx['+VIS+'];uniform float uNc;uniform vec4 uHd[4];uniform vec3 uTc[4];uniform vec4 uGh;uniform vec2 uLn;',
 'uniform vec3 uDs[5];uniform float uDa[5];uniform vec3 uAcc;uniform vec4 uNd[11];uniform vec4 uPn[2];uniform vec2 uPm[2];uniform float uDg[10];uniform float uEnvR;',
 'uniform sampler2D uTex,uEnv;',
 'float smin(float a,float b,float k){k=max(k,.001);float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}',
@@ -103,11 +107,12 @@ var FS=[
 ' return smoothstep(px,-px,d);}',
 /* tiny static digits for bar numbers */
 'float glyph(float g,vec2 c){if(c.x<0.||c.y<0.||c.x>2.||c.y>4.)return 0.;float bit=14.-(c.y*3.+c.x);return mod(floor(g/pow(2.,bit)),2.);}',
-'float digits(vec2 P,vec2 o,float n,float px){float pt=2.5;vec2 g=(P-o)/pt;if(g.x<-.5||g.y<-.5||g.x>8.||g.y>5.)return 0.;',
-' float tens=floor(n/10.),ones=mod(n,10.);float two=step(10.,n);vec2 c=floor(g);float ci=floor(c.x/4.),cx=mod(c.x,4.);',
-' float dg=0.;if(two>.5){if(ci<.5)dg=tens;else if(ci<1.5)dg=ones;else return 0.;}else{if(ci<.5)dg=ones;else return 0.;}',
+/* bar numbers in the gutter: 1-4 digits; the dot pitch shrinks so a wide number still ends before the beat ticks (x 21) */
+'float digits(vec2 P,vec2 o,float n,float px){float nd=n<10.?1.:(n<100.?2.:(n<1000.?3.:4.));float pt=min(2.5,19.5/(4.*nd-1.));',
+' vec2 g=(P-o)/pt;if(g.x<-.5||g.y<-.5||g.x>4.*nd||g.y>5.)return 0.;vec2 c=floor(g);float ci=floor(c.x/4.),cx=mod(c.x,4.);',
+' if(ci>=nd||cx>2.5)return 0.;float dg=mod(floor(n/pow(10.,nd-1.-ci)+.001),10.);',
 ' float gv=0.;for(int k=0;k<10;k++){if(float(k)==dg)gv=uDg[k];}',
-' if(cx>2.5)return 0.;float on=glyph(gv,vec2(cx,c.y));vec2 ctr=o+(c+.5)*pt;return on*smoothstep(px,-px,length(P-ctr)-1.);}',
+' float on=glyph(gv,vec2(cx,c.y));vec2 ctr=o+(c+.5)*pt;return on*smoothstep(px,-px,length(P-ctr)-.42*pt);}',
 'float env(float row0,float t){float i=floor(max(t,0.)*50.);return texture2D(uEnv,vec2((mod(i,256.)+.5)/256.,(row0+floor(i/256.)+.5)/uEnvR)).r;}',
 'void main(){',
 ' vec2 P=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;float px=1./uDpr,W=uRes.x/uDpr,H=uRes.y/uDpr;',
@@ -124,8 +129,8 @@ var FS=[
 ' if(uGh.z>.01){ink=max(ink,.4*smoothstep(px,0.,abs(box2(P-uGh.xy,uGh.zw))-.5));}',
 /* clips: liquid union of rounded boxes; waveform rows sample each clip's source */
 ' float u=999.,dn=999.;int ni=-1;',
-' for(int i=0;i<12;i++){vec4 c=uCl[i];if(c.z>.01){float d=box2(P-c.xy,max(c.zw-vec2(3.,3.5),vec2(.5)))-2.;u=smin(u,d,uCk);if(d<dn){dn=d;ni=i;}}}',
-' if(ni>=0){vec4 c=vec4(0.),cs=vec4(0.),cx=vec4(0.);for(int i=0;i<12;i++){if(i==ni){c=uCl[i];cs=uCs[i];cx=uCx[i];}}',
+' for(int i=0;i<'+VIS+';i++){if(float(i)>=uNc)break;vec4 c=uCl[i];if(c.z>.01){float d=box2(P-c.xy,max(c.zw-vec2(3.,3.5),vec2(.5)))-2.;u=smin(u,d,uCk);if(d<dn){dn=d;ni=i;}}}',
+' if(ni>=0){vec4 c=vec4(0.),cs=vec4(0.),cx=vec4(0.);for(int i=0;i<'+VIS+';i++){if(i==ni){c=uCl[i];cs=uCs[i];cx=uCx[i];}}',
 '  float body=smoothstep(px,-px,u);ink=max(ink,.06*body);',
 '  float y0=c.y-c.w,ry=y0+floor((P.y-y0)/4.)*4.+2.,ts=cs.y+cs.z*(ry-y0)/uPps;',
 '  float e=env(cs.x,ts),hw=2.+e*(c.z-6.);',
@@ -168,7 +173,7 @@ function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(
 var pr0=gl.createProgram();gl.attachShader(pr0,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr0,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr0);gl.useProgram(pr0);
 var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
 var al=gl.getAttribLocation(pr0,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
-var U={};['uRes','uO','uF','uDpr','uInv','uFlash','uT','uTop','uBot','uVt','uPps','uTL','uBar','uPh','uCk','uDk','uOr','uFr','uSy','uWr','uSnap','uCl','uCs','uCx','uHd','uTc','uGh','uLn','uDs','uDa','uAcc','uNd','uPn','uPm','uDg','uEnvR','uTex','uEnv'].forEach(function(n){U[n]=gl.getUniformLocation(pr0,n)});
+var U={};['uRes','uO','uF','uDpr','uInv','uFlash','uT','uTop','uBot','uVt','uPps','uTL','uBar','uPh','uCk','uDk','uOr','uFr','uSy','uWr','uSnap','uNc','uCl','uCs','uCx','uHd','uTc','uGh','uLn','uDs','uDa','uAcc','uNd','uPn','uPm','uDg','uEnvR','uTex','uEnv'].forEach(function(n){U[n]=gl.getUniformLocation(pr0,n)});
 function mkTex(){var t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;}
 gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
@@ -290,11 +295,11 @@ function act(pr,i){var name=ACT[pr.kind][i];
   if(name==='trash'){if(nT()<2)return;snapU();D.clips.forEach(function(c){if(c.t===pr.t)c.dying=true;else if(c.t>pr.t)c.t--;});D.tracks.splice(pr.t,1);edited();return;}
   snapU();if(name==='volume-off')tr.m=!tr.m;else if(name==='headphones')tr.s=!tr.s;else tr.a=!tr.a;mixGains();return;}
  var c=find(pr.id);if(!c)return;
- if(name==='scissors'){if(c.d<BEAT||D.clips.length>=MAXC){c.cur.cx+=12;return;}snapU();var g=S.snapOn?BEAT/2:0,s=clamp(g?Math.round(pr.s/g)*g:pr.s,c.s+BEAT/2,c.s+c.d-BEAT/2);
+ if(name==='scissors'){if(c.d<BEAT){c.cur.cx+=12;return;}snapU();var g=S.snapOn?BEAT/2:0,s=clamp(g?Math.round(pr.s/g)*g:pr.s,c.s+BEAT/2,c.s+c.d-BEAT/2);
   var a=mk(c.t,c.s,s-c.s,c.k,c.rev?c.off+(c.s+c.d-s):c.off,c.rev),b=mk(c.t,s,c.s+c.d-s,c.k,c.rev?c.off:c.off+(s-c.s),c.rev);
   a.cur=Object.assign({},c.cur);b.cur=Object.assign({},c.cur);D.clips.splice(D.clips.indexOf(c),1,a,b);S.ck=24;edited();}
- else if(name==='copy'){var t2=c.t,ns=c.s+c.d,ok=D.clips.length<MAXC&&free(t2,ns,ns+c.d);
-  for(var k=0;!ok&&k<nT()&&D.clips.length<MAXC;k++){if(k===c.t)continue;t2=k;ns=c.s;ok=free(t2,ns,ns+c.d);}
+ else if(name==='copy'){var t2=c.t,ns=c.s+c.d,ok=free(t2,ns,ns+c.d);
+  for(var k=0;!ok&&k<nT();k++){if(k===c.t)continue;t2=k;ns=c.s;ok=free(t2,ns,ns+c.d);}
   if(!ok){c.cur.cx+=12;return;}snapU();var n2=mk(t2,ns,c.d,c.k,c.off,c.rev);n2.cur=Object.assign({},c.cur);D.clips.push(n2);S.ck=34;edited();}
  else if(name==='arrows-down-up'){snapU();c.rev=!c.rev;S.wr=0;S.wo={x:pr.ox,y:pr.oy};edited();}
  else if(name==='trash'){snapU();c.dying=true;c.dx=pr.ox;c.dy=pr.oy;S.ck=18;edited();}}
@@ -304,7 +309,7 @@ function learn(a){(a||[]).forEach(function(m){META[m.id]=m;});return a||[];}
 function loadShelf(){if(window.AT)AT.takes.list().then(function(a){S.shelfTakes=learn(a).slice(0,4);});}
 if(window.AT)AT.onTakes(function(ev){if(ev&&ev.op==='del')goneTake(ev.id);else if(S.shelf)loadShelf();});
 /* a take goes in at the playhead (snapped to the beat) in the first track with room, else a new track, else the nearest gap */
-function insertTake(m){if(!m||!(m.dur>0)||D.clips.length>=MAXC)return false;
+function insertTake(m){if(!m||!(m.dur>0))return false;
  var d=m.dur,at=clamp(S.play?curT():S.ph,0,1e9);if(S.snapOn)at=Math.round(at/BEAT)*BEAT;
  var tl0=TL;if(at+d>TL)TL=Math.ceil((at+d)/BAR)*BAR;
  var tt=-1,add=false;for(var t=0;t<nT();t++){if(free(t,at,at+d)){tt=t;break;}}
@@ -331,7 +336,7 @@ var SES=window.AT?AT.session.load('edit'):null;
  if(o.tl>0)TL=Math.max(TL0,+o.tl);if(o.pps>=8&&o.pps<=160)S.pps=+o.pps;S.ph=Math.max(0,+o.ph||0);S.vt=Math.max(0,+o.vt||0);
  if(o.snap!=null)S.snapOn=!!o.snap;if(o.push!=null)S.push=!!o.push;})(SES);
 function restore(a){learn(a);var cs=SES&&SES.clips||[],n=0;
- cs.forEach(function(c){var m=c&&META[c.k];if(!m||!(c.d>0)||c.t>=nT()||D.clips.length>=MAXC){n++;return;}slot(m);
+ cs.forEach(function(c){var m=c&&META[c.k];if(!m||!(c.d>0)||c.t>=nT()){n++;return;}slot(m);
   var k=mk(c.t|0,Math.max(0,+c.s||0),+c.d,c.k,Math.max(0,+c.off||0),!!c.rev);D.clips.push(k);if(k.s+k.d>TL)TL=Math.ceil((k.s+k.d)/BAR)*BAR;});
  S.dropped=n;S.vt=clamp(S.vt,0,maxVt());S.ph=clamp(S.ph,0,TL);S.ready=true;if(D.clips.length)S.ck=20;consume();save();}
 if(window.AT)AT.takes.list().then(restore,function(){restore([]);});else S.ready=true;
@@ -391,7 +396,7 @@ var IC={};
 function icon(key,nm){var el=IC[key];if(!el){el=document.createElement('i');el.setAttribute('aria-hidden','true');el.style.cssText='position:absolute;transform:translate(-50%,-50%);pointer-events:none;line-height:1;';IL.appendChild(el);IC[key]=el;}var cls='ti ti-'+nm;if(el.className!==cls)el.className=cls;return el;}
 function bb(t){var b=Math.floor(t/BAR+1e-6),r=t-b*BAR,be=Math.floor(r/BEAT+1e-6);return (b+1)+'.'+(be+1);}
 
-var cl=new Float32Array(48),cs=new Float32Array(48),cx=new Float32Array(48),hd=new Float32Array(16),tc=new Float32Array(12),ds=new Float32Array(15),da=new Float32Array(5),nd=new Float32Array(44),PN=new Float32Array(8),PMv=new Float32Array(4);
+var cl=new Float32Array(VIS*4),cs=new Float32Array(VIS*4),cx=new Float32Array(VIS*4),NC=0,hd=new Float32Array(16),tc=new Float32Array(12),ds=new Float32Array(15),da=new Float32Array(5),nd=new Float32Array(44),PN=new Float32Array(8),PMv=new Float32Array(4);
 var t0=performance.now(),last=t0,lastTxt=0,lastSave=0;
 function frame(now){
  var dt=Math.min(.05,(now-last)/1000);last=now;var e=1-Math.pow(.0005,dt);
@@ -437,10 +442,19 @@ function frame(now){
   if(!c.cur)c.cur={cx:tg.cx,cy:tg.cy,hw:tg.hw,hh:tg.hh};
   if(!(mv&&c.id===mv.id)){c.cur.cx=lerp(c.cur.cx,tg.cx,e);c.cur.cy=S.pinch||S.scr||S.play?tg.cy:lerp(c.cur.cy,tg.cy,e);c.cur.hw=lerp(c.cur.hw,tg.hw,e);c.cur.hh=S.pinch?tg.hh:lerp(c.cur.hh,tg.hh,e);}
   if(c.dying&&c.cur.hw<1.2)D.clips.splice(i,1);}
- for(var i=0;i<D.clips.length&&i<MAXC;i++){var c=D.clips[i],held=(pr&&pr.kind==='clip'&&pr.id===c.id)?S.pressA:0;if(mv&&mv.id===c.id)held=mv.sy>=0?2:1;
-  cl[i*4]=c.cur.cx;cl[i*4+1]=c.cur.cy;cl[i*4+2]=c.cur.hw;cl[i*4+3]=c.cur.hh;
-  var topY=c.cur.cy-c.cur.hh,yS=yOf(c.s),dTop=(topY-yS)/S.pps;cs[i*4]=ROW0[SID[c.k]]||0;cs[i*4+1]=c.rev?c.off+c.d-dTop:c.off+dTop;cs[i*4+2]=c.rev?-1:1;
-  cx[i*4]=c.t<nT()&&audible(c.t)?0:1;cx[i*4+1]=held;cx[i*4+2]=c.t%4;cx[i*4+3]=c.rev?1:0;}
+ var vis=[],vy0=TOP-40,vy1=H+40;
+ for(var i=0;i<D.clips.length;i++){var c=D.clips[i];if(!c.cur)continue;var held=(pr&&pr.kind==='clip'&&pr.id===c.id)?S.pressA:0;if(mv&&mv.id===c.id)held=mv.sy>=0?2:1;
+  if(c.cur.cy+c.cur.hh<vy0||c.cur.cy-c.cur.hh>vy1)continue;vis.push({c:c,held:held,y0:c.cur.cy-c.cur.hh,y1:c.cur.cy+c.cur.hh,m:0});}
+ if(vis.length>VIS){   /* more on screen than slots: merge neighbours within a track (held / moving clips stay whole) */
+  vis.sort(function(a,b){return a.c.t-b.c.t||a.y0-b.y0;});var out=[];
+  vis.forEach(function(v){var l=out[out.length-1];if(l&&!l.held&&!v.held&&l.c.t===v.c.t&&Math.abs(l.c.cur.cx-v.c.cur.cx)<1&&v.y0-l.y1<6){l.y1=Math.max(l.y1,v.y1);l.m=1;}else out.push(v);});
+  out.sort(function(a,b){return (b.held?1:0)-(a.held?1:0)||(b.y1-b.y0)-(a.y1-a.y0);});vis=out.slice(0,VIS);}
+ else vis.sort(function(a,b){return (b.held?1:0)-(a.held?1:0);});
+ NC=vis.length;
+ for(var i=0;i<NC;i++){var v=vis[i],c=v.c,cyv=(v.y0+v.y1)/2,hhv=(v.y1-v.y0)/2;
+  cl[i*4]=c.cur.cx;cl[i*4+1]=cyv;cl[i*4+2]=c.cur.hw;cl[i*4+3]=hhv;
+  var topY=v.y0,yS=yOf(c.s),dTop=(topY-yS)/S.pps;cs[i*4]=ROW0[SID[c.k]]||0;cs[i*4+1]=c.rev?c.off+c.d-dTop:c.off+dTop;cs[i*4+2]=c.rev?-1:1;
+  cx[i*4]=c.t<nT()&&audible(c.t)?0:1;cx[i*4+1]=v.held;cx[i*4+2]=c.t%4;cx[i*4+3]=c.rev?1:0;}
  hd.fill(0);for(var k=0;k<nT();k++){var h=headPos(k),tr=D.tracks[k];hd[k*4]=h.x;hd[k*4+1]=h.y;hd[k*4+2]=tr.a?1:0;hd[k*4+3]=audible(k)?0:1;}
  for(var k=0;k<4;k++){tc[k*3]=TC[k][0];tc[k*3+1]=TC[k][1];tc[k*3+2]=TC[k][2];}
  /* radial buds */
@@ -474,7 +488,7 @@ function frame(now){
  gl.uniform2f(U.uRes,cv.width,cv.height);gl.uniform1f(U.uDpr,dpr);gl.uniform1f(U.uInv,S.inv);gl.uniform1f(U.uFlash,S.flash);gl.uniform1f(U.uT,(now-t0)/1000);
  gl.uniform1f(U.uTop,TOP);gl.uniform1f(U.uBot,BOT);gl.uniform1f(U.uVt,S.vt);gl.uniform1f(U.uPps,S.pps);gl.uniform1f(U.uTL,TL);gl.uniform1f(U.uBar,BAR);gl.uniform1f(U.uSnap,S.snapOn?1:.4);
  gl.uniform1f(U.uPh,yOf(T));gl.uniform1f(U.uSy,sy);gl.uniform4f(U.uGh,gh[0],gh[1],gh[2],gh[3]);gl.uniform2f(U.uLn,nT(),LW());
- gl.uniform4fv(U.uCl,cl);gl.uniform4fv(U.uCs,cs);gl.uniform4fv(U.uCx,cx);gl.uniform4fv(U.uHd,hd);gl.uniform3fv(U.uTc,tc);
+ gl.uniform1f(U.uNc,NC);window.__NC=function(){return NC;};gl.uniform4fv(U.uCl,cl);gl.uniform4fv(U.uCs,cs);gl.uniform4fv(U.uCx,cx);gl.uniform4fv(U.uHd,hd);gl.uniform3fv(U.uTc,tc);
  gl.uniform3fv(U.uDs,ds);gl.uniform1fv(U.uDa,da);gl.uniform3fv(U.uAcc,S.acc);gl.uniform4fv(U.uNd,nd);
  gl.uniform2f(U.uO,S.wr>=0&&S.wo?S.wo.x:S.ox,S.wr>=0&&S.wo?S.wo.y:S.oy);gl.uniform2f(U.uF,S.fx,S.fy);gl.uniform1f(U.uOr,13*S.pressA);gl.uniform1f(U.uFr,Math.max(10*S.open,12*S.mvA));
  gl.uniform1f(U.uCk,S.ck);gl.uniform1f(U.uDk,S.open>0?34*(1-S.open):0);gl.uniform1f(U.uWr,S.wr);

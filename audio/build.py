@@ -13,7 +13,7 @@ import hashlib, json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # app files beside the shell, precached when present (worklet modules, the wheel component, the UX lab)
-OPTIONAL = ["worklet-capture.js", "worklet-player.js", "wheel.js", "lab.html"]
+OPTIONAL = ["worklet-capture.js", "worklet-player.js", "wheel.js", "lab.html", "clip-lab.html"]
 FILES = ["./", "index.html", "manifest.json", "shared.js"] + [f for f in OPTIONAL if os.path.exists(os.path.join(HERE, f))] + sorted(
     "t/" + f for f in os.listdir(os.path.join(HERE, "t")) if f.endswith(".html"))
 ICONS = ["../icon/android/launchericon-192x192.png?v=2026-09-27",

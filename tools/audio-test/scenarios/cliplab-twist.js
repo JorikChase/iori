@@ -1,0 +1,59 @@
+/* Clip Lab — two fingers. Chromium: real touch through CDP; WebKit: synthetic touch PointerEvents.
+   1. twist C by 60° and let go -> it rotated with the fingers (mode 'twist', angle ~60° mid-gesture), springs back
+      to 0, not reversed
+   2. twist C by 130° -> mid-rotation the clip is turned ~100° (screenshot); on release it flips (spring) to a half
+      turn and becomes reversed (rev, angle 0, flips +1); the reversed waveform drawn upside down (screenshot)
+   3. pinch (distance x1.6, no rotation) on the clip -> zoom by the distance ratio since recognition, nothing reversed
+   4. two-finger tap -> undo: the reverse is taken back
+   5. ?rev=dbl: double-tap C reverses it (spring flip); a two-finger twist there does nothing to the clip */
+const H = require('./cliplab-base.js');
+module.exports = async (lib) => {
+  const sfx = H.SFX(); const dir = lib.outDir('cliplab-twist' + sfx); const br = await lib.browser(); const files = []; const checks = {}, info = {};
+  const page = await H.openLab(lib, br); await H.seed(page, H.STD); await H.reload(page);
+  const v = await H.view(page); let C = (await H.clips(page)).find(c => c.take === 'take-c');
+  const cx = v.lanes[1], cy = await H.yOf(page, C.s + C.d / 2), clip = async () => (await H.clips(page)).find(c => c.id === C.id);
+  const step = async (frames, ms = 16) => { for (const f of frames) { await H.twoMove(lib, page, f); await page.waitForTimeout(ms); } };
+  // 1. 60°
+  let fr = H.twistFrames(cx, cy, 60, { n: 12 });
+  await H.twoStart(lib, page, fr[0]); await page.waitForTimeout(30); await step(fr.slice(1)); await page.waitForTimeout(150);   // pointermoves are frame-aligned: let the last one land
+  const mid1 = await page.evaluate(() => ({ two: __CL.two(), ang: __CL.clips().find(c => c.lane === 1).ang }));
+  await H.twoEnd(lib, page); await page.waitForTimeout(900); const c1 = await clip();
+  info.twist60 = { mid: mid1, after: c1 };
+  checks.twistFollows = mid1.two && mid1.two.mode === 'twist' && lib.near(mid1.ang * 180 / Math.PI, 60, 4);
+  checks.under90SpringsBack = !c1.rev && Math.abs(c1.ang) < 1e-6 && c1.flip === 0;
+  // 2. 130°
+  fr = H.twistFrames(cx, cy, 130, { n: 26 });
+  await H.twoStart(lib, page, fr[0]); await page.waitForTimeout(30); await step(fr.slice(1, 21)); await page.waitForTimeout(150);
+  const mid2 = await page.evaluate(() => __CL.clips().find(c => c.lane === 1).ang); await H.shot(page, dir, 'twist-mid', files);
+  await step(fr.slice(21)); await H.twoEnd(lib, page); await page.waitForTimeout(160); await H.shot(page, dir, 'twist-flipping', files);
+  await page.waitForTimeout(900); const c2 = await clip(); const s2 = await H.st(page); await H.shot(page, dir, 'reversed', files);
+  info.twist130 = { midDeg: mid2 * 180 / Math.PI, after: c2, state: s2 };
+  checks.twistMidRotation = lib.near(mid2 * 180 / Math.PI, 100, 4);
+  checks.over90Reverses = c2.rev && Math.abs(c2.ang) < 1e-6 && c2.flip === 0 && s2.flips === 1;
+  // 3. pinch on the clip
+  const pps0 = (await H.view(page)).pps;
+  const pin = []; for (let k = 0; k <= 12; k++) { const r = 50 * (1 + .6 * k / 12); pin.push([{ x: cx, y: cy - r }, { x: cx, y: cy + r }]); }
+  await H.twoStart(lib, page, pin[0]); await page.waitForTimeout(30); await step(pin.slice(1)); const pm = await page.evaluate(() => __CL.two()); await H.twoEnd(lib, page); await page.waitForTimeout(400);
+  const pps1 = (await H.view(page)).pps, c3 = await clip(); info.pinch = { pps0, pps1, mode: pm };
+  checks.pinchZooms = pm && pm.mode === 'pinch' && lib.near(pps1 / pps0, 160 / pm.d0, .02) && pps1 / pps0 > 1.35 && c3.rev === c2.rev;   // zoom follows the finger distance from where the pinch was recognised (no jump)
+  // 4. two-finger tap -> undo the reverse
+  const u0 = await H.st(page);
+  await H.twoStart(lib, page, [{ x: 120, y: 600 }, { x: 260, y: 600 }]); await page.waitForTimeout(80); await H.twoEnd(lib, page); await page.waitForTimeout(500);
+  const c4 = await clip(), u1 = await H.st(page); info.undo = { before: u0, after: u1, clip: c4 };
+  checks.twoFingerTapUndoes = u1.undos === u0.undos + 1 && !c4.rev;
+  const errors = H.errorsOf(page); await page.context().close();
+  // 5. ?rev=dbl
+  const p2 = await H.openLab(lib, br, { q: '?rev=dbl' }); await H.seed(p2, H.STD); await H.reload(p2);
+  const D0 = (await H.clips(p2)).find(c => c.take === 'take-c'), dy = await H.yOf(p2, D0.s + D0.d / 2);
+  await H.tap(p2, cx, dy, 40); await p2.waitForTimeout(110); await H.tap(p2, cx, dy, 40); await p2.waitForTimeout(150); await H.shot(p2, dir, 'dbl-flipping', files); await p2.waitForTimeout(900);
+  const D1 = (await H.clips(p2)).find(c => c.id === D0.id);
+  fr = H.twistFrames(cx, dy, 130, { n: 26 }); await H.twoStart(lib, p2, fr[0]); await p2.waitForTimeout(30);
+  for (const f of fr.slice(1)) { await H.twoMove(lib, p2, f); await p2.waitForTimeout(16); }
+  const tm = await p2.evaluate(() => __CL.two()); await H.twoEnd(lib, p2); await p2.waitForTimeout(900);
+  const D2 = (await H.clips(p2)).find(c => c.id === D0.id); info.dbl = { rev: await p2.evaluate(() => __CL.rev), afterDouble: D1, twistMode: tm, afterTwist: D2 };
+  checks.doubleTapReverses = D1.rev && Math.abs(D1.ang) < 1e-6;
+  checks.dblModeIgnoresTwist = D2.rev === D1.rev && Math.abs(D2.ang) < 1e-6 && (!tm || tm.mode !== 'twist');
+  const errors2 = H.errorsOf(p2); checks.noErrors = errors.length + errors2.length === 0;
+  await lib.sheet(br, files, `${dir}/sheet.png`, 4, 180); await br.close();
+  return lib.result(dir, { pass: Object.values(checks).every(Boolean), engine: lib.ENGINE, checks, info, errors: errors.concat(errors2) });
+};

@@ -103,13 +103,13 @@
     // ---------------------------------------------------------------------------------------------------------
     async function available() {
         const r = X.eye; if (avail[r] !== undefined) return avail[r];
-        try { const [a, b] = await Promise.all([fetch(X.eyeFile && window.IrisEye ? EYE(r) : SRC(r), { method: 'HEAD' }), fetch('ref/' + CASE(r), { method: 'HEAD' })]); avail[r] = a.ok && b.ok; } catch (e) { avail[r] = false; }   // study/15: the one file
+        try { const [a, b] = await Promise.all([fetch(X.useEyeFile && window.IrisEye ? EYE(r) : SRC(r), { method: 'HEAD' }), fetch('ref/' + CASE(r), { method: 'HEAD' })]); avail[r] = a.ok && b.ok; } catch (e) { avail[r] = false; }   // study/15: the one file
         return avail[r]; }
     X.ready = () => X.st === 'loaded' && !X.loading;
     X.canLoad = () => !X.loading && avail[X.eye] !== false;
     X.canToggle = () => X.st === 'loaded' && !X.loading;
     X.loadLabel = () => (X.st === 'loaded' && T.src && T.src.ref === CASE(X.eye) ? 'Re-load eye ' : X.st === 'other' ? 'Switch to eye ' : 'Load eye ') + X.eye;
-    X.eyeFile = true;                 // study/15: load data/NN.iris (false: the three files of before)
+    X.useEyeFile = true;              // study/15: load data/NN.iris (false: the three files of before, if present)
     X.eyes = () => EYES.slice();
     // choose the eye the window loads; if a model is on screen, the chosen eye replaces it
     X.pick = r => { if (!EYES.includes(r) || X.loading) return; const was = X.eye; X.eye = r; sync(); if (X.st === 'loaded' && was !== r) X.load(); };
@@ -119,7 +119,11 @@
     X.load = async (opts = {}) => {
         if (X.loading) return; if (!(await available())) { X.st = 'unavailable'; sync(); return; }
         // G4: painted work on THIS eye survives a re-load (a dial, the button); another eye's does not belong here
-        const keepJ = opts.journal || (T.src && T.src.ref === CASE(X.eye) && T.ops.length ? T.journal() : null);
+        // study/15 §5: opts.url loads ANY eye file; the eye's id and its photograph's name come from the file's head.
+        // Without it the eye is X.eye, one of the page's own (data/NN.iris)
+        let eye = null; if (opts.url && window.IrisEye) { eye = await IrisEye.fetch(opts.url); X.eye = (eye.head.eye && eye.head.eye.id) || X.eye; X.lastUrl = opts.url; } else X.lastUrl = null;
+        const photo = eye ? eye.head.ref.file : CASE(X.eye);
+        const keepJ = opts.journal || (T.src && T.src.ref === photo && T.ops.length ? T.journal() : null);
         X.loading = true; X.st = 'loading'; prog = [0, 7, 'the photograph of eye ' + X.eye]; if (!X.quietOpen) U.showWindow('tissue', true); sync();
         // study/10 S0: every load records where its time goes (Help ▸ Load timing shows it, on any device)
         const r = X.eye, t0 = performance.now(), tm = { at: new Date().toISOString(), eye: r, steps: [], quality: E.quality }, mark = label => { const now = performance.now(); tm.steps.push([label, Math.round(now - (tm.last || t0))]); tm.last = now; };
@@ -130,18 +134,19 @@
             // button to read it, its measured eye would drift from the shipped one. ref/cases.json only if the pinned file is missing.
             // study/15 (ID v3): ONE file per eye — data/NN.iris carries the case, the primitives and the measurements; the three
             // old files remain the fallback while the gate runs (X.eyeFile = false forces them)
-            let eye = null, c1 = null;
-            if (X.eyeFile && window.IrisEye) { try { eye = await IrisEye.fetch(EYE(r)); c1 = eye.case; mark('eye file (' + EYE(r) + ')'); } catch (e) { console.warn('eye file not used:', e.message); eye = null; } }
+            let c1 = null;
+            if (eye) { c1 = eye.case; mark('eye file (' + opts.url + ')'); }
+            else if (X.useEyeFile && window.IrisEye) { try { eye = await IrisEye.fetch(EYE(r)); c1 = eye.case; mark('eye file (' + EYE(r) + ')'); } catch (e) { console.warn('eye file not used:', e.message); eye = null; } }
             if (!eye) { try { c1 = await fetch(CASE1(r)).then(q => q.ok ? q.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1(r) + ')'); }
             if (!c1 && !cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
             const cs = c1 || cases[CASE(r)];
             T.on = false;
             // the case's pose, genome and photo: the layer model is measured on exactly this frame (calibrate reads it)
             await (O ? O.quietly : (f => f()))(async () => {
-                if (arrival && c1) { F.frameFromCase(CASE(r), c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
-                else { await F.renderCaseThumb(CASE(r), cs, document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
+                if (arrival && c1) { F.frameFromCase(photo, c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
+                else { await F.renderCaseThumb(photo, cs, document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
                 // the cached primitives only when they are this eye's (a dial re-load); another eye fetches its own
-                let st = null; await T.proof(SRC(r), { json: eye ? eye.tissue : (T.json && T.json.ref === CASE(r) ? T.json : undefined), shipped: arrival && c1 ? (eye ? eye.measurements : CAL(r)) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                let st = null; await T.proof(SRC(r), { json: eye ? eye.tissue : (T.json && T.json.ref === photo ? T.json : undefined), shipped: arrival && c1 ? (eye ? eye.measurements : CAL(r)) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
                 tm.shipped = !!(T.shipped && T.shipped.light);
             });
             eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye ' + r); }

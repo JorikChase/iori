@@ -99,6 +99,17 @@ h.unload(); h.on; h.camera; h.probe(opts); h.apply(op); h.undo(); h.journal(); h
 The fitter's result is written with `IrisEye.write` and read back through the same reader before it is scored (the
 round-trip is part of the fit).
 
+**Built 2026-10-10 (phase 1 step 4, first form).** `engine.js` holds the renderer, moved verbatim out of index.html (1 160
+lines; the shaders stay as `<script type="x-shader">` tags). `engine-api.js` is `window.IrisEngine`: `mount(canvas)` →
+the handle with `load('26' | 'data/26.iris' | { id } | { url }, { arrival })`, `unload`, `eye`, `on`, `eyes()`, `measure()`,
+`quality`, `camera`, `apply/undo/journal/replay`, `probe`, `elevationAt`, `export()` (the file with the journal section
+replaced, everything else byte for byte) and three named escape hatches (`_engine`, `_tissue`, `_loader`) so remaining direct
+uses can be found. `__irisTissueUI.load({ url })` loads any eye file; the eye's id and its photograph's name come from the
+file's head. Honest limits: the engine still creates and sizes its own canvas and syncs 23 page controls by id, so `mount`
+accepts only `#gl` and throws for another canvas — the 1b worklist in study/14; arrival loads carry no photograph, so they
+have no score (by design). Gate: contract `[]` after the move; loads by id, by url and on arrival through the facade give the
+phase 0 numbers.
+
 ## 6. Migration and the gate
 
 1. `tools/eyefile_pack.py NN` — offline: the three files of today → `data/NN.iris` (and `.iris.json` for diffing).

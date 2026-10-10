@@ -223,6 +223,12 @@ fitter's case import), keep only what the layer model needs (today: the frame an
 rest, and measure the cold-load timeline before and after (S0 of the start-eye plan). Gate: the layer model is the first
 picture on screen, no procedural frame before it; the contract `[]`.
 
+**1b worklist, measured 2026-10-10 after the move to `engine.js`:** the renderer reaches the page's DOM for the canvas
+`#gl`, the shader tags (13: fs-bake fs-blit fs-bundle fs-photo fs-post fs-splat fs-splat4 fs-strand vs vs-bundle vs-splat vs-splat4 vs-strand) and 23 controls it syncs itself (accum-bar anim2-btn atlas-btn cam-btn debug-btn dof-btn fieldw-btn gl idin-btn idout-btn maps-btn param-crypt param-seed quality-sel ref-btn refr-btn seed-btn shot-btn spec-btn strand-btn tone-btn ui-panel val-pupil), plus
+`document.body` on a WebGL failure and the resize listener — 56 references in all. `IrisEngine.mount(canvas)` therefore
+accepts only `#gl` for now and throws for any other canvas; the 1b work is: shaders as strings in `engine.js`, the controls
+synced by events the UI subscribes to instead of ids the engine writes, the canvas and the resize owned by `mount`.
+
 **K2b — lateral subsurface (added 2026-10-10, iori: "shouldn't they have subsurface?").** The colour model is vertical
 only: light goes down through melanin and stroma and comes back at the same pixel. Add lateral transport: a tissue-space
 scattering of the irradiance weighted by stroma density and depth before the albedo, so crypt walls glow from light

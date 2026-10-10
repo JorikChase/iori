@@ -86,7 +86,11 @@
 
   /* freeform canvas */
   #stage-wrap { position: relative; overflow: hidden; min-height: 62vh; }
-  #tracks { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  /* above the posts: the tyres drive over the photos and smear them.
+     Width/height are explicit because a canvas sized with inset alone takes
+     its intrinsic (device-pixel) size, which on a 2x screen drew every mark
+     at twice its distance from the corner */
+  #tracks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   #stage { position: relative; width: 1200px; transform-origin: top left; z-index: 2; }
   .post { position: absolute; overflow: hidden; cursor: none; }
   .post img, .post video {
@@ -432,6 +436,8 @@ function sizeTracks() {
   }
   tracksCv.width = w;
   tracksCv.height = h;
+  tracksCv.style.width = wrap.clientWidth + "px";
+  tracksCv.style.height = wrap.clientHeight + "px";
   if (keep) tracksCtx.drawImage(keep, 0, 0);
   tracksCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
@@ -565,6 +571,71 @@ const TYRE_W = 6;          // printed tyre width, px
 const AXLE_HALF = 11;      // half the distance between the rear tyres
 const REAR = 24;           // rear axle behind the car's centre
 const TREAD = 3.2;         // px of travel per tread block
+const SMEAR = 14;          // px across each dab of photo a tread step drags along
+const DRAG = 5;            // how far behind the tyre the dragged pixels come from
+const SMEAR_ALPHA = 0.5;
+
+/* What the tyres can smear: every photo / video frame / thumbnail on the
+   stage, with its rect in tracks-canvas space, topmost first. Rebuilt once per
+   frame while driving, so it follows scroll, resize and lazy loading. */
+let surfaces = [];
+function collectSurfaces(wrapRect) {
+  surfaces = [];
+  for (const post of stage.children) {
+    const m = post.querySelector("img, video");
+    if (!m) continue;
+    const nw = m.naturalWidth || m.videoWidth, nh = m.naturalHeight || m.videoHeight;
+    if (!nw || !nh || (m.tagName === "VIDEO" && m.readyState < 2)) continue;
+    const r = m.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) continue;
+    surfaces.push({ m, nw, nh, z: +post.style.zIndex || 1,
+      x: r.left - wrapRect.left, y: r.top - wrapRect.top, w: r.width, h: r.height });
+  }
+  surfaces.sort((a, b) => b.z - a.z);
+}
+const surfaceAt = (x, y) => surfaces.find(s => x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h);
+
+/* Copy a small dab of the photo from DRAG px behind the tyre to under it,
+   clipped to the photo: the picture is pushed along the track like wet paint.
+   Each dab is feathered round (a radial mask on a scratch canvas), so a line
+   of them reads as one smudge instead of stepped squares. The coarse fade
+   lets the photo relax back to the original over half a minute. */
+const dab = document.createElement("canvas");
+const dabCtx = dab.getContext("2d");
+const dabMask = document.createElement("canvas");
+function sizeDab() {
+  const px = Math.ceil(SMEAR * DPR);
+  if (dab.width === px) return;
+  dab.width = dab.height = dabMask.width = dabMask.height = px;
+  const m = dabMask.getContext("2d");
+  const g = m.createRadialGradient(px / 2, px / 2, 0, px / 2, px / 2, px / 2);
+  g.addColorStop(0, "rgba(0,0,0,1)");
+  g.addColorStop(0.55, "rgba(0,0,0,0.85)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  m.fillStyle = g;
+  m.fillRect(0, 0, px, px);
+}
+function smearAt(sf, px, py, ax, ay, wobble) {
+  sizeDab();
+  const kx = sf.nw / sf.w, ky = sf.nh / sf.h;          // screen px -> source px
+  const bx = px - ax * DRAG - ay * wobble, by = py - ay * DRAG + ax * wobble;
+  const n = dab.width;
+  dabCtx.globalCompositeOperation = "copy";
+  try {
+    dabCtx.drawImage(sf.m, (bx - SMEAR / 2 - sf.x) * kx, (by - SMEAR / 2 - sf.y) * ky, SMEAR * kx, SMEAR * ky, 0, 0, n, n);
+  } catch (e) { return; }  /* a frame not decoded yet */
+  dabCtx.globalCompositeOperation = "destination-in";
+  dabCtx.drawImage(dabMask, 0, 0);
+  const c = tracksCtx;
+  c.save();
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);   // the tread loop leaves a rotated frame behind
+  c.beginPath();
+  c.rect(sf.x, sf.y, sf.w, sf.h);
+  c.clip();
+  c.globalAlpha = SMEAR_ALPHA;
+  c.drawImage(dab, px - SMEAR / 2, py - SMEAR / 2, SMEAR, SMEAR);
+  c.restore();
+}
 
 function layTracks(step) {
   if (tracksCv.height <= 0) return;
@@ -582,6 +653,7 @@ function layTracks(step) {
   const R = { x: bx - ox, y: by - oy };
 
   if (car.trackL && car.trackR) {
+    collectSurfaces(wrapRect);
     // reject only genuine teleports (a resize, a tab returning from the
     // background) -- a fixed pixel cap would also cut the trail on any machine
     // running below about 25fps, where one frame legitimately covers a lot
@@ -617,7 +689,10 @@ function tyreMark(a, b, slip, pressure, wheel, maxSeg) {
   while (d <= len) {
     const px = a.x + ax * d, py = a.y + ay * d;
     wheel.flip ^= 1;
-    const k = pressure * (0.75 + Math.random() * 0.5);
+    const sf = surfaceAt(px, py);
+    if (sf) smearAt(sf, px, py, ax, ay, (Math.random() - 0.5) * 2.4);
+    // on a photo the print is fainter: the smear carries most of the mark
+    const k = pressure * (0.75 + Math.random() * 0.5) * (sf ? 0.55 : 1);
     c.fillStyle = `rgba(${TRACK_RGB}, ${k.toFixed(3)})`;
     // local frame: x along the mark, y across the tyre
     c.setTransform(DPR * ax, DPR * ay, -DPR * ay, DPR * ax, DPR * px, DPR * py);

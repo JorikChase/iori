@@ -99,7 +99,16 @@
     margin-top: .35rem; font-size: .72rem; letter-spacing:.12em; color: #888;
   }
   .post .time { font-size: .62rem; color:#444; letter-spacing:.15em; }
-  .text-post { border:1px solid #333; padding:1.2rem; color:#ddd; line-height:1.8; font-size:.85rem; }
+  .text-post { border:1px solid #333; padding:1.2rem; color:#ddd; line-height:1.8; font-size:.85rem; white-space: pre-wrap; word-break: break-word; background:#000; }
+  .audio-post { border:1px solid #333; padding:.8rem; background:#000; }
+  .audio-post .sound { font-size:.78rem; letter-spacing:.12em; color:#ddd; margin-bottom:.5rem; white-space:pre-wrap; }
+  .audio-post audio { width:100%; display:block; color-scheme: dark; }
+  .audio-post .time { margin-top:.4rem; }
+  .post .yt { position:relative; aspect-ratio:16/9; overflow:hidden; background:#111; }
+  .post .yt img { height:100%; object-fit:cover; }
+  .post .yt .play { position:absolute; inset:0; display:grid; place-items:center; font-size:2.2rem; color:#fff; text-shadow:0 0 14px #000; }
+  #viewer .ytframe { width:min(94vw, 146vh); aspect-ratio:16/9; border:0; }
+  .post .count { position:absolute; top:.4rem; right:.4rem; background:#000; color:#fff; font-size:.62rem; padding:.1rem .35rem; letter-spacing:.12em; }
 
   #empty { padding: 5rem 1.2rem; color:#555; letter-spacing:.2em; text-align:center; line-height:2; }
 
@@ -127,12 +136,16 @@
   #viewer img, #viewer video { max-width: 94vw; max-height: 82vh; animation: pop 160ms ease; }
   @keyframes pop { from { transform: scale(.97); opacity: 0; } }
   #viewer .vcap { margin-top: 1rem; color:#ccc; font-size:.8rem; letter-spacing:.1em; max-width: 70ch; text-align:center; line-height:1.7; padding: 0 1rem; }
+  #viewer .vcount { margin-top:.4rem; color:#555; font-size:.7rem; letter-spacing:.2em; }
+  #viewer .vnav { position:absolute; top:50%; transform:translateY(-50%); background:none; border:none; color:#fff; font:inherit; font-size:2.6rem; padding:1rem; cursor:none; }
+  #viewer .vnav[hidden] { display:none; }
+  #viewer .vprev { left:.4rem; } #viewer .vnext { right:.4rem; }
   #viewer .vclose { position:absolute; top:1rem; right:1.2rem; background:none; border:none; color:#fff; font:inherit; font-size:1.4rem; cursor: none; }
 
   @media (pointer: coarse) {
     /* real controls come back for touch, but the car stays and follows your
        finger -- hiding it removed the only thing on the page that moves */
-    body, a, .post, #viewer, #viewer .vclose { cursor: auto; }
+    body, a, .post, #viewer, #viewer .vclose, #viewer .vnav { cursor: auto; }
     #stage-wrap { touch-action: pan-y; }
   }
 </style>
@@ -159,13 +172,19 @@
 <div id="car"></div>
 
 <div id="viewer">
-  <button class="vclose" id="vclose">×</button>
+  <button class="vclose" id="vclose" aria-label="close">×</button>
+  <button class="vnav vprev" id="vprev" aria-label="previous">‹</button>
   <div id="vmedia"></div>
+  <button class="vnav vnext" id="vnext" aria-label="next">›</button>
   <div class="vcap" id="vcap"></div>
+  <div class="vcount" id="vcount"></div>
 </div>
 
 <script>
-const API = "https://api.3die.fr";
+// same override as the dashboard: localStorage.dash_api points a local preview
+// at a local API (python3 api/main.py); production never sets it
+let API = "https://api.3die.fr";
+try { API = localStorage.getItem("dash_api") || API; } catch (e) {}
 const CANVAS_W = 1200;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -194,66 +213,165 @@ async function boot() {
   }
 }
 
+/* Placement is shared with the dashboard's CANVAS tab (dash/app.js): the
+   same default width, columns and height estimate. Posts carry their layout
+   from the moment they are uploaded; the packing below only places older ones. */
+const DEFAULT_W = 300, COLS = [40, 380, 720];
+const isVideo = (u) => /\.(mp4|webm|mov|m4v)$/i.test(u);
+const isAudio = (u) => /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(u);
+const ytThumb = (id) => `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
+function postKind(p) {
+  const m = p.media[0];
+  if (m) return isVideo(m) ? "video" : isAudio(m) ? "audio" : "image";
+  return p.embed ? "yt" : "text";
+}
+
+function postHeight(p, w) {
+  const a = p.layout && p.layout.a;
+  const kind = postKind(p);
+  if (kind === "audio") return 96 + (p.caption ? 24 : 0);
+  if (kind === "yt") return w * 9 / 16 + 28;
+  if (kind === "text") {
+    const chars = Math.max(1, (p.caption || "").length);
+    const perLine = Math.max(8, (w - 40) / 8.2);
+    return 40 + Math.ceil(chars / perLine + ((p.caption || "").match(/\n/g) || []).length) * 24;
+  }
+  return w / (a || 4 / 3) + 28;
+}
+function freeSlot(rects, w, h) {
+  const GAP = 24;
+  for (let y = 40; y < 100000; y += 20) {
+    for (const x of COLS) {
+      const hit = rects.some(r => x < r.x + r.w + GAP && x + w + GAP > r.x && y < r.y + r.h + GAP && y + h + GAP > r.y);
+      if (!hit) return { x, y };
+    }
+  }
+  return { x: COLS[0], y: 40 };
+}
+
 function layoutPosts(posts) {
-  let autoX = 40, autoY = 40, maxBottom = 400;
-  // posts with a saved layout go exactly where moises put them;
-  // new ones cascade in until he places them from the dashboard canvas.
+  const rects = [];
+  for (const p of posts) {
+    if (p.layout && p.layout.x != null) {
+      const w = p.layout.w || DEFAULT_W;
+      rects.push({ x: p.layout.x, y: p.layout.y, w, h: postHeight(p, w) });
+    }
+  }
+  for (const p of [...posts].reverse()) {
+    if (p.layout && p.layout.x != null) continue;
+    const h = postHeight(p, DEFAULT_W);
+    const { x, y } = freeSlot(rects, DEFAULT_W, h);
+    p.layout = { x, y, w: DEFAULT_W, z: 1, a: p.layout?.a ?? null };
+    rects.push({ x, y, w: DEFAULT_W, h });
+  }
+
+  let maxBottom = 400;
   for (const p of [...posts].reverse()) {
     const el = document.createElement("div");
     el.className = "post";
-    const lay = p.layout || {};
-    const hasLay = lay.x != null;
-    const x = hasLay ? lay.x : autoX;
-    const y = hasLay ? lay.y : autoY;
-    const w = (hasLay && lay.w) || 300;
-    if (!hasLay) { autoX += 340; if (autoX > CANVAS_W - 340) { autoX = 40; autoY += 380; } }
-    el.style.left = x + "px";
-    el.style.top = y + "px";
+    const lay = p.layout;
+    const w = lay.w || DEFAULT_W;
+    el.style.left = lay.x + "px";
+    el.style.top = lay.y + "px";
     el.style.width = w + "px";
-    el.style.zIndex = (hasLay && lay.z) || 1;
+    el.style.zIndex = lay.z || 1;
 
     const date = new Date(p.created_at).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
     const first = p.media[0];
-    if (!first) {
+    const kind = postKind(p);
+    if (kind === "text") {
       el.classList.add("text-post");
-      el.innerHTML = esc(p.caption);
+      el.textContent = p.caption;
+    } else if (kind === "audio") {
+      el.classList.add("audio-post");
+      el.innerHTML = `<div class="sound">♪ ${esc(p.caption || "sound")}</div>` +
+        `<audio src="${esc(first)}" preload="none" controls></audio>` +
+        `<div class="time">${date}</div>`;
     } else {
       el.innerHTML =
-        (/\.(mp4|webm|mov)$/i.test(first)
-          ? `<video src="${esc(first)}" muted loop playsinline onmouseover="this.play()" onmouseout="this.pause()"></video>`
-          : `<img src="${esc(first)}" loading="lazy" alt="">`) +
+        (kind === "video"
+          ? `<video src="${esc(first)}#t=0.1" preload="metadata" muted loop playsinline></video>`
+          : kind === "yt"
+            ? `<div class="yt"><img src="${esc(ytThumb(p.embed))}" loading="lazy" alt="${esc(p.caption || "video by moises")}"><span class="play">▶</span></div>`
+            : `<img src="${esc(first)}" loading="lazy" alt="${esc(p.caption || "photograph by moises")}">`) +
+        (p.media.length > 1 ? `<span class="count">1/${p.media.length}</span>` : "") +
         `<div class="cap">${esc(p.caption || "")} <span class="time">${date}</span></div>`;
-      el.addEventListener("click", () => openViewer(p));
+      const v = el.querySelector("video");
+      if (v) {
+        el.addEventListener("mouseenter", () => v.play().catch(() => {}));
+        el.addEventListener("mouseleave", () => v.pause());
+      }
+      if (kind !== "audio") el.addEventListener("click", () => openViewer(p));
     }
     stage.appendChild(el);
-    maxBottom = Math.max(maxBottom, y + el.offsetHeight + 120);
+    maxBottom = Math.max(maxBottom, lay.y + Math.max(el.offsetHeight, postHeight(p, w)) + 120);
   }
   stage.style.height = maxBottom + "px";
   requestAnimationFrame(fitStage);
   sizeTracks();
+  // images arrive after layout; the stage grows to whatever they turn out to be
+  stage.querySelectorAll("img").forEach(img => img.addEventListener("load", growStage, { once: true }));
+}
+
+function growStage() {
+  let bottom = 400;
+  for (const el of stage.children) bottom = Math.max(bottom, el.offsetTop + el.offsetHeight + 120);
+  if (bottom > stage.offsetHeight) { stage.style.height = bottom + "px"; fitStage(); sizeTracks(); }
 }
 
 /* ================= fullscreen viewer ================= */
 
-function openViewer(p) {
+let vPost = null, vIdx = 0;
+// everything a post can show in the viewer, in order: its files, then its YouTube video
+const viewItems = (p) => [...p.media.filter(m => !isAudio(m)), ...(p.embed ? ["yt:" + p.embed] : [])];
+function openViewer(p, i = 0) {
+  const items = viewItems(p);
+  if (!items.length) return;
+  vPost = p; vIdx = i;
   const v = document.getElementById("viewer");
   const vm = document.getElementById("vmedia");
-  const first = p.media[0];
-  vm.innerHTML = /\.(mp4|webm|mov)$/i.test(first)
-    ? `<video src="${esc(first)}" controls autoplay></video>`
-    : `<img src="${esc(first)}" alt="">`;
+  const m = items[i];
+  // youtube-nocookie: no tracking cookies until the visitor presses play
+  vm.innerHTML = m.startsWith("yt:")
+    ? `<iframe class="ytframe" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(m.slice(3))}?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="${esc(p.caption || "video")}"></iframe>`
+    : isVideo(m)
+      ? `<video src="${esc(m)}" controls autoplay playsinline></video>`
+      : `<img src="${esc(m)}" alt="${esc(p.caption || "photograph by moises")}">`;
   document.getElementById("vcap").textContent = p.caption || "";
+  const many = items.length > 1;
+  document.getElementById("vcount").textContent = many ? `${i + 1} / ${items.length}` : "";
+  document.getElementById("vprev").hidden = document.getElementById("vnext").hidden = !many;
   v.classList.add("open");
 }
-document.getElementById("vclose").addEventListener("click", () => {
+function stepViewer(d) {
+  const n = vPost ? viewItems(vPost).length : 0;
+  if (n < 2) return;
+  openViewer(vPost, (vIdx + d + n) % n);
+}
+function closeViewer() {
   document.getElementById("viewer").classList.remove("open");
   document.getElementById("vmedia").innerHTML = "";
-});
+  vPost = null;
+}
+document.getElementById("vclose").addEventListener("click", closeViewer);
+document.getElementById("vprev").addEventListener("click", (e) => { e.stopPropagation(); stepViewer(-1); });
+document.getElementById("vnext").addEventListener("click", (e) => { e.stopPropagation(); stepViewer(1); });
 document.getElementById("viewer").addEventListener("click", (e) => {
-  if (e.target.id === "viewer") document.getElementById("vclose").click();
+  if (e.target.id === "viewer") closeViewer();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") document.getElementById("vclose").click();
+  if (!vPost) return;
+  if (e.key === "Escape") closeViewer();
+  if (e.key === "ArrowRight") stepViewer(1);
+  if (e.key === "ArrowLeft") stepViewer(-1);
+});
+let swipeX = null;
+document.getElementById("viewer").addEventListener("touchstart", (e) => { swipeX = e.touches[0].clientX; }, { passive: true });
+document.getElementById("viewer").addEventListener("touchend", (e) => {
+  if (swipeX == null) return;
+  const dx = e.changedTouches[0].clientX - swipeX;
+  swipeX = null;
+  if (Math.abs(dx) > 50) stepViewer(dx < 0 ? 1 : -1);
 });
 
 /* ================= the car cursor =================
@@ -299,9 +417,23 @@ const atlas = new Image();
 atlas.src = "moises_car_atlas.png";
 atlas.onload = () => { atlasReady = true; };
 
+let DPR = 1;
+// Resizing a canvas clears it; the stage grows as lazy photos load, so the
+// marks already laid are copied across instead of vanishing mid-drive.
 function sizeTracks() {
-  tracksCv.width = wrap.clientWidth;
-  tracksCv.height = wrap.clientHeight;
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.round(wrap.clientWidth * DPR), h = Math.round(wrap.clientHeight * DPR);
+  if (w === tracksCv.width && h === tracksCv.height) return;
+  let keep = null;
+  if (tracksCv.width && tracksCv.height) {
+    keep = document.createElement("canvas");
+    keep.width = tracksCv.width; keep.height = tracksCv.height;
+    keep.getContext("2d").drawImage(tracksCv, 0, 0);
+  }
+  tracksCv.width = w;
+  tracksCv.height = h;
+  if (keep) tracksCtx.drawImage(keep, 0, 0);
+  tracksCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 addEventListener("resize", sizeTracks);
 sizeTracks();
@@ -316,8 +448,8 @@ const car = {
   dwell: 0,         // time held in the current heading
   moving: false,
   speed: 0,
-  hue: 0,           // tyre-track colour, advanced by distance driven
   trackL: null, trackR: null,   // last rear-wheel points, so rubber connects
+  wheels: [{ acc: 0, flip: 0 }, { acc: 0, flip: 0 }],   // tread phase per rear tyre
 };
 const CHASE = 6.5;        // how hard it pulls toward the cursor
 const MAX_SPEED = 2000;   // px/s
@@ -406,20 +538,34 @@ function carTick(now) {
 
   carEl.style.transform = `translate3d(${car.x}px, ${car.y}px, 0)`;
 
+  // Fade in coarse steps: an 8-bit canvas cannot remove less than one level
+  // per pass, so a gentle per-frame fade strands every mark as a permanent
+  // faint ghost. 9% once a second clears fully and still reads as a slow fade.
   fadeClock += dt;
-  if (fadeClock > 0.32 && tracksCv.height > 0) {
+  if (fadeClock > 1 && tracksCv.height > 0) {
     fadeClock = 0;
+    tracksCtx.save();
+    tracksCtx.setTransform(1, 0, 0, 1, 0, 0);
     tracksCtx.globalCompositeOperation = "destination-out";
-    tracksCtx.fillStyle = "rgba(0,0,0,0.035)";
+    tracksCtx.fillStyle = "rgba(0,0,0,0.09)";
     tracksCtx.fillRect(0, 0, tracksCv.width, tracksCv.height);
-    tracksCtx.globalCompositeOperation = "source-over";
+    tracksCtx.restore();
   }
 }
 
-/* Two thin rubber lines from the rear axle. Each segment starts exactly where
-   the previous one ended -- including through a corner, where the wheel offsets
-   swing round to the new heading. Recomputing both ends from the current
-   heading (the obvious way) leaves a visible break at every turn. */
+/* Tyre marks from the two rear wheels, in one colour (TRACK_RGB).
+   Each tyre is TYRE_W wide and printed as staggered tread blocks every TREAD px
+   of travel, with a little grain in the pressure; when the car corners, the
+   lagged heading (sux, suy) and the driven one diverge, and that slip lays a
+   solid smear under the tread — a skid mark. Each segment starts exactly where
+   the previous one ended, including through a corner, so the rubber never
+   breaks at a turn. */
+const TRACK_RGB = "232, 226, 214";   // the one track colour — change it here
+const TYRE_W = 6;          // printed tyre width, px
+const AXLE_HALF = 11;      // half the distance between the rear tyres
+const REAR = 24;           // rear axle behind the car's centre
+const TREAD = 3.2;         // px of travel per tread block
+
 function layTracks(step) {
   if (tracksCv.height <= 0) return;
   const wrapRect = wrap.getBoundingClientRect();
@@ -429,33 +575,59 @@ function layTracks(step) {
   }
   const sl = Math.hypot(car.sux, car.suy) || 1;
   const tux = car.sux / sl, tuy = car.suy / sl;   // the lagged heading
-  const ox = -tuy * 10, oy = tux * 10;            // half the track width
-  const back = 24;
-  const bx = car.x - wrapRect.left - tux * back;
-  const by = car.y - wrapRect.top - tuy * back;
+  const ox = -tuy * AXLE_HALF, oy = tux * AXLE_HALF;
+  const bx = car.x - wrapRect.left - tux * REAR;
+  const by = car.y - wrapRect.top - tuy * REAR;
   const L = { x: bx + ox, y: by + oy };
   const R = { x: bx - ox, y: by - oy };
 
-  car.hue = (car.hue + step * 0.30) % 360;
   if (car.trackL && car.trackR) {
-    tracksCtx.lineWidth = 1.6;
-    tracksCtx.lineCap = "round";
-    tracksCtx.lineJoin = "round";
     // reject only genuine teleports (a resize, a tab returning from the
     // background) -- a fixed pixel cap would also cut the trail on any machine
     // running below about 25fps, where one frame legitimately covers a lot
     const maxSeg = step * 1.7 + 28;
-    const pairs = [[car.trackL, L, -14], [car.trackR, R, 14]];
-    for (const [prev, now, shift] of pairs) {
-      if (Math.hypot(now.x - prev.x, now.y - prev.y) > maxSeg) continue;
-      tracksCtx.strokeStyle = `hsla(${(car.hue + shift + 360) % 360}, 92%, 58%, 0.55)`;
-      tracksCtx.beginPath();
-      tracksCtx.moveTo(prev.x, prev.y);
-      tracksCtx.lineTo(now.x, now.y);
-      tracksCtx.stroke();
-    }
+    const slip = Math.min(1, Math.abs(car.ux * tuy - car.uy * tux) * 1.6);
+    const pressure = 0.30 - 0.10 * (car.speed / MAX_SPEED);
+    tyreMark(car.trackL, L, slip, pressure, car.wheels[0], maxSeg);
+    tyreMark(car.trackR, R, slip, pressure, car.wheels[1], maxSeg);
   }
   car.trackL = L; car.trackR = R;
+}
+
+function tyreMark(a, b, slip, pressure, wheel, maxSeg) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (!len || len > maxSeg) return;
+  const c = tracksCtx;
+
+  if (slip > 0.05) {
+    c.strokeStyle = `rgba(${TRACK_RGB}, ${(slip * 0.32).toFixed(3)})`;
+    c.lineWidth = TYRE_W + slip * 2;
+    c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(a.x, a.y);
+    c.lineTo(b.x, b.y);
+    c.stroke();
+  }
+
+  // tread: blocks across the tyre, alternating halves offset along the mark
+  const ax = dx / len, ay = dy / len;
+  const half = TYRE_W / 2;
+  let d = TREAD - wheel.acc;
+  while (d <= len) {
+    const px = a.x + ax * d, py = a.y + ay * d;
+    wheel.flip ^= 1;
+    const k = pressure * (0.75 + Math.random() * 0.5);
+    c.fillStyle = `rgba(${TRACK_RGB}, ${k.toFixed(3)})`;
+    // local frame: x along the mark, y across the tyre
+    c.setTransform(DPR * ax, DPR * ay, -DPR * ay, DPR * ax, DPR * px, DPR * py);
+    const off = wheel.flip ? 0.8 : -0.8;
+    c.fillRect(off - 0.8, -half, 1.6, half - 0.5);
+    c.fillRect(-off - 0.8, 0.5, 1.6, half - 0.5);
+    d += TREAD;
+  }
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  wheel.acc = (wheel.acc + len) % TREAD;
 }
 requestAnimationFrame(carTick);
 

@@ -31,7 +31,6 @@ const STRINGS = {
     "out": "ODHLÁSIT", "task.new": "+ ÚKOL", "lane.new": "+ ŘÁDEK", "phase.new": "+ FÁZE",
     "search.ph": "hledat úkoly", "archive.done": "ARCHIVOVAT HOTOVÉ", "export": "EXPORT .MD",
     "board.empty": "filtrům nic neodpovídá.", "chat.ph": "napiš partě…", "send": "ODESLAT",
-    "canvas.hint": "tažením umísti • rohem změň velikost • rozvržení se ukládá samo",
     "prefs.title": "NASTAVENÍ", "prefs.avatar": "změnit avatar", "prefs.display": "zobrazované jméno",
     "prefs.display.ph": "místo uživatelského jména", "prefs.color": "tvoje barva", "prefs.lane": "výchozí řádek pro nové úkoly", "prefs.view": "nástěnka se otevře jako",
     "prefs.view.board": "všechno", "prefs.view.mine": "jen moje úkoly", "prefs.density": "hustota",
@@ -41,7 +40,7 @@ const STRINGS = {
     "prefs.poll.60": "každou minutu", "prefs.poll.300": "každých 5 minut", "prefs.lang": "jazyk",
     "save": "ULOŽIT", "pw.title": "ZMĚNA HESLA", "pw.old": "současné heslo", "pw.new": "nové heslo (min. 8 znaků)",
     "pw.new2": "nové heslo znovu", "pw.change": "ZMĚNIT", "post.new": "NOVÝ PŘÍSPĚVEK", "post.caption": "popisek / text",
-    "post.drop": "přetáhni obrázky sem nebo klikni", "publish": "PUBLIKOVAT",
+    "post.drop": "přetáhni sem fotky, videa nebo zvuky (mp3) — nebo klikni", "publish": "PUBLIKOVAT",
     "task.title.ph": "název", "task.body.ph": "poznámky / popis", "f.lane": "řádek", "f.phase": "fáze",
     "f.assignee": "kdo", "f.priority": "priorita", "p.none": "žádná", "p.low": "· nízká", "p.medium": "! střední",
     "p.high": "!! vysoká", "p.urgent": "!!! urgentní", "f.due": "termín", "f.estimate": "odhad", "f.color": "barva",
@@ -57,6 +56,12 @@ const STRINGS = {
     "nothing": "nic k archivaci", "archived.n": "archivováno", "chat.empty": "zatím žádné zprávy — napiš něco.",
     "inbox.empty": "zatím žádné zprávy.", "feed.empty": "zatím žádné příspěvky.", "pw.mismatch": "nová hesla se neshodují",
     "pw.done": "heslo změněno.", "mark.read": "označit přečtené", "mark.unread": "označit nepřečtené",
+    "guide": "? JAK TO FUNGUJE", "canvas.view": "ZOBRAZIT STRÁNKU ↗", "ct.text": "UPRAVIT TEXT", "ct.replace": "VYMĚNIT SOUBOR",
+    "ct.front": "DOPŘEDU", "ct.link": "VYMĚNIT ODKAZ", "post.link": "odkaz na YouTube (nepovinné) — youtube.com/watch?v=… nebo youtu.be/…",
+    "post.link.new": "nový odkaz na YouTube:", "sound": "zvuk", "files.n": "vybrané soubory:", "ct.back": "DOZADU", "cap.title": "UPRAVIT TEXT", "cancel": "ZRUŠIT",
+    "preparing": "PŘIPRAVUJI", "uploading": "NAHRÁVÁM", "err.empty": "přidej fotku, video, zvuk, odkaz na YouTube nebo text",
+    "confirm.post": "Smazat tento příspěvek? Fotka zmizí i ze stránky.",
+    "canvas.hint": "tažením umísti • rohem změň velikost • klikni na příspěvek pro nástroje • ukládá se samo",
   },
 };
 const t = (k, fallback) => (STRINGS[state.prefs.lang] || {})[k] ?? fallback ?? k;
@@ -786,6 +791,18 @@ function renderInbox(messages) {
 
 /* ---------------- blog ---------------- */
 
+const isVideo = (u) => /\.(mp4|webm|mov|m4v)$/i.test(u);
+const isAudio = (u) => /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(u);
+const ytThumb = (id) => `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
+// what a post shows first: "image" | "video" | "audio" | "yt" | "text" (same rule as moises.html)
+function postKind(p) {
+  const m = p.media[0];
+  if (m) return isVideo(m) ? "video" : isAudio(m) ? "audio" : "image";
+  return p.embed ? "yt" : "text";
+}
+const MAX_EDGE = 3200;            // long edge a photo is published at
+const KEEP_BYTES = 3.5e6;         // a jpeg/png/webp this small and within MAX_EDGE goes up untouched
+
 $("#file-drop").addEventListener("dragover", (e) => {
   e.preventDefault();
   $("#file-drop").classList.add("dragover");
@@ -803,7 +820,7 @@ function renderPreview() {
   const row = $("#post-preview");
   row.innerHTML = "";
   const files = $("#post-files").files;
-  $("#file-drop-label").textContent = files.length ? `${files.length} file(s) selected` : t("post.drop", "drop images here or click to choose");
+  $("#file-drop-label").textContent = files.length ? `${t("files.n", "files selected:")} ${files.length}` : t("post.drop", "drop images here or click to choose");
   for (const f of files) {
     if (!f.type.startsWith("image/")) continue;
     const img = document.createElement("img");
@@ -812,25 +829,139 @@ function renderPreview() {
   }
 }
 
+/* Phone photos arrive as 4–12 MB originals, often HEIC, and the page shows
+   every one of them. Each image is decoded here (which also applies its EXIF
+   rotation), and anything HEIC, oversized or heavy is re-encoded as a JPEG at
+   MAX_EDGE. Returns { file, aspect }. */
+async function preparePhoto(f) {
+  if (f.type.startsWith("video/")) return { file: f, aspect: await videoAspect(f) };
+  if (f.type.startsWith("audio/") || isAudio(f.name)) return { file: f, aspect: null };
+  const heic = /hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
+  let bmp;
+  try {
+    bmp = await createImageBitmap(f, { imageOrientation: "from-image" });
+  } catch {
+    bmp = await decodeViaImg(f);   // Safari reads HEIC in <img> on some versions where createImageBitmap refuses
+  }
+  if (!bmp) {
+    if (heic) throw new Error(t("err.heic", `${f.name}: this browser cannot read iPhone HEIC photos — upload from Safari / the iPhone, or export it as JPEG first`));
+    throw new Error(`${f.name}: ${t("err.decode", "this file could not be read as an image")}`);
+  }
+  const aspect = bmp.width / bmp.height;
+  const long = Math.max(bmp.width, bmp.height);
+  const keep = !heic && f.type !== "image/tiff" && long <= MAX_EDGE && f.size <= KEEP_BYTES;
+  if (keep || f.type === "image/gif") { bmp.close?.(); return { file: f, aspect }; }
+  const k = Math.min(1, MAX_EDGE / long);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(bmp.width * k);
+  cv.height = Math.round(bmp.height * k);
+  const cx = cv.getContext("2d");
+  cx.imageSmoothingQuality = "high";
+  cx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  bmp.close?.();
+  const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.9));
+  if (!blob) return { file: f, aspect };
+  return { file: new File([blob], f.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }), aspect };
+}
+
+async function decodeViaImg(f) {
+  const url = URL.createObjectURL(f);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const cv = document.createElement("canvas");
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext("2d").drawImage(img, 0, 0);
+    return cv;   // drawImage / width / height work the same as on an ImageBitmap
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function videoAspect(f) {
+  return new Promise((res) => {
+    const v = document.createElement("video");
+    const done = (a) => { URL.revokeObjectURL(v.src); res(a); };
+    v.preload = "metadata";
+    v.onloadedmetadata = () => done(v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : null);
+    v.onerror = () => done(null);
+    setTimeout(() => done(null), 4000);
+    v.src = URL.createObjectURL(f);
+  });
+}
+
+// FormData upload with progress (fetch cannot report upload progress)
+function upload(method, path, fd, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open(method, API + path);
+    x.withCredentials = true;
+    x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    x.onload = () => {
+      let data = {};
+      try { data = JSON.parse(x.responseText); } catch { /* empty */ }
+      if (x.status === 401) { showLogin(); return reject(new Error("unauthorized")); }
+      if (x.status >= 400) return reject(new Error(data.detail || `error ${x.status}`));
+      resolve(data);
+    };
+    x.onerror = () => reject(new Error(t("err.network", "upload failed — check the connection and try again")));
+    x.send(fd);
+  });
+}
+
+function setBar(frac) {
+  const bar = $("#upload-bar");
+  bar.classList.toggle("hidden", frac == null);
+  bar.firstElementChild.style.width = `${Math.round((frac || 0) * 100)}%`;
+}
+
 $("#post-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const status = $("#post-status");
   status.textContent = "";
-  const fd = new FormData();
-  fd.append("caption", $("#post-caption").value);
-  for (const f of $("#post-files").files) fd.append("files", f);
+  const caption = $("#post-caption").value;
+  const link = $("#post-link").value.trim();
+  const picked = [...$("#post-files").files];
+  if (!picked.length && !caption.trim() && !link) {
+    status.textContent = t("err.empty", "add a photo, video, sound, YouTube link or some text");
+    return;
+  }
   $("#post-submit").disabled = true;
   try {
-    await api("/posts", { method: "POST", body: fd });
+    const fd = new FormData();
+    fd.append("caption", caption);
+    fd.append("link", link);
+    let aspect = null;
+    for (let i = 0; i < picked.length; i++) {
+      $("#post-submit").textContent = `${t("preparing", "PREPARING")} ${i + 1}/${picked.length}`;
+      const p = await preparePhoto(picked[i]);
+      if (i === 0) aspect = p.aspect;
+      fd.append("files", p.file);
+    }
+    // the new post gets its place on the canvas now, so the page and the
+    // CANVAS tab agree on where it is from the first second
+    if (!canvasPosts.length) await loadCanvas().catch(() => {});
+    const ghost = { media: picked.map((f) => f.name), embed: link ? "x" : null, caption, layout: { a: aspect } };
+    fd.append("layout", JSON.stringify(newPostLayout(ghost)));
+    $("#post-submit").textContent = t("uploading", "UPLOADING");
+    setBar(0);
+    await upload("POST", "/posts", fd, setBar);
     $("#post-caption").value = "";
+    $("#post-link").value = "";
     $("#post-files").value = "";
     renderPreview();
     status.textContent = "";
     loadFeed();
+    loadCanvas();
   } catch (err) {
     status.textContent = err.message;
   } finally {
+    setBar(null);
     $("#post-submit").disabled = false;
+    $("#post-submit").textContent = t("publish", "PUBLISH");
   }
 });
 
@@ -848,24 +979,51 @@ function renderFeed(posts) {
     const el = document.createElement("div");
     el.className = "msg";
     const mediaHtml = p.media.map((u) =>
-      u.match(/\.(mp4|webm|mov)$/i)
-        ? `<video src="${esc(u)}" controls muted></video>`
-        : `<img src="${esc(u)}" loading="lazy" alt="">`
-    ).join("");
+      isVideo(u)
+        ? `<video src="${esc(u)}#t=0.1" preload="metadata" controls muted playsinline></video>`
+        : isAudio(u)
+          ? `<audio src="${esc(u)}" preload="none" controls></audio>`
+          : `<img src="${esc(u)}" loading="lazy" alt="">`
+    ).join("") + (p.embed
+      ? `<a href="https://youtu.be/${esc(p.embed)}" target="_blank" rel="noopener"><img src="${esc(ytThumb(p.embed))}" loading="lazy" alt="YouTube"></a>` : "");
+    const mine = p.author === state.user?.username || state.user?.role === "admin";
     el.innerHTML =
       `<div class="msg-head"><span class="msg-author">@${esc(p.author)}</span>` +
       `<span class="msg-time">${fmtTime(p.created_at)}</span></div>` +
       (p.caption ? `<div class="msg-body">${esc(p.caption)}</div>` : "") +
       (mediaHtml ? `<div class="feed-media">${mediaHtml}</div>` : "") +
-      (p.author === state.user?.username || state.user?.role === "admin"
-        ? `<div class="msg-actions"><button class="ghost-btn">${esc(t("delete", "delete"))}</button></div>` : "");
-    const del = el.querySelector("button");
-    if (del) del.addEventListener("click", async () => {
+      (mine
+        ? `<div class="msg-actions"><button class="ghost-btn" data-act="edit">${esc(t("ct.text", "edit text"))}</button>` +
+          `<button class="ghost-btn" data-act="del">${esc(t("delete", "delete"))}</button></div>` : "");
+    el.querySelector('[data-act="edit"]')?.addEventListener("click", async () => {
+      if (await editCaption(p)) { loadFeed(); loadCanvas(); }
+    });
+    el.querySelector('[data-act="del"]')?.addEventListener("click", async () => {
+      if (!confirm(t("confirm.post", "Delete this post? The photo is removed from the page too."))) return;
       await api(`/posts/${p.id}`, { method: "DELETE" });
       loadFeed();
+      loadCanvas();
     });
     list.appendChild(el);
   }
+}
+
+// one small dialog edits a post's caption / text, from the feed or the canvas
+function editCaption(post) {
+  const dlg = $("#cap-dialog");
+  $("#cap-text").value = post.caption || "";
+  dlg.showModal();
+  $("#cap-text").focus();
+  return new Promise((resolve) => {
+    dlg.addEventListener("close", async () => {
+      if (dlg.returnValue !== "save") return resolve(false);
+      const caption = $("#cap-text").value.trim();
+      if (!caption && !post.media.length) return resolve(false);   // a text post cannot be emptied
+      const updated = await api(`/posts/${post.id}`, { method: "PATCH", body: JSON.stringify({ caption }) });
+      post.caption = updated.caption;
+      resolve(true);
+    }, { once: true });
+  });
 }
 
 /* ---------------- chat ---------------- */
@@ -1007,9 +1165,15 @@ $("#pw-form").addEventListener("submit", async (e) => {
 
 /* ---------------- canvas (freeform layout editor) ---------------- */
 
+/* Mirrors moises.html: same 1200px stage, same default width, same caption
+   line. Posts made here carry their layout from creation (newPostLayout), so
+   nothing on the page is left to a fallback that could disagree with this. */
 const CANVAS_W = 1200;
+const DEFAULT_W = 300;
+const COLS = [40, 380, 720];
 let canvasPosts = [];
 let maxZ = 1;
+let activePost = null;
 
 async function loadCanvas() {
   const { posts } = await api(`/posts?author=${encodeURIComponent(state.user.username)}&limit=200`);
@@ -1017,55 +1181,178 @@ async function loadCanvas() {
   maxZ = Math.max(1, ...posts.map(p => (p.layout && p.layout.z) || 1));
   renderCanvas();
 }
+$$('.tab[data-tab="canvas"]').forEach((b) => b.addEventListener("click", () => loadCanvas().catch(() => {})));
+
+// estimated height of a post at width w, the same estimate the page uses
+function postHeight(p, w) {
+  const a = p.layout && p.layout.a;
+  const kind = postKind(p);
+  if (kind === "audio") return 96 + (p.caption ? 24 : 0);
+  if (kind === "yt") return w * 9 / 16 + 28;
+  if (kind === "text") {
+    const chars = Math.max(1, (p.caption || "").length);
+    const perLine = Math.max(8, (w - 40) / 8.2);
+    return 40 + Math.ceil(chars / perLine + ((p.caption || "").match(/\n/g) || []).length) * 24;
+  }
+  return w / (a || 4 / 3) + 28;
+}
+
+// first free slot in three columns, top to bottom, that clears every placed post
+function freeSlot(rects, w, h) {
+  const GAP = 24;
+  for (let y = 40; y < 100000; y += 20) {
+    for (const x of COLS) {
+      const hit = rects.some(r => x < r.x + r.w + GAP && x + w + GAP > r.x && y < r.y + r.h + GAP && y + h + GAP > r.y);
+      if (!hit) return { x, y };
+    }
+  }
+  return { x: COLS[0], y: 40 };
+}
+
+function placedRects(except) {
+  return canvasPosts.filter(p => p !== except && p.layout && p.layout.x != null).map(p => {
+    const el = $(`.canvas-item[data-id="${p.id}"]`);
+    const w = p.layout.w || DEFAULT_W;
+    return { x: p.layout.x, y: p.layout.y, w, h: (el && el.offsetHeight) || postHeight(p, w) };
+  });
+}
+
+function newPostLayout(ghost) {
+  const { x, y } = freeSlot(placedRects(), DEFAULT_W, postHeight(ghost, DEFAULT_W));
+  maxZ += 1;
+  return { x, y, w: DEFAULT_W, z: maxZ, a: ghost.layout.a };
+}
 
 function renderCanvas() {
   const area = $("#canvas-area");
   area.innerHTML = "";
-  let autoX = 30, autoY = 30;
+  // posts from before layouts were stored at upload get a slot now, oldest first,
+  // and keep it — the same packing the page uses for them
+  for (const p of [...canvasPosts].reverse()) {
+    if (p.layout && p.layout.x != null) continue;
+    const { x, y } = freeSlot(placedRects(p), DEFAULT_W, postHeight(p, DEFAULT_W));
+    p.layout = { x, y, w: DEFAULT_W, z: 1, a: p.layout?.a ?? null };
+    api(`/posts/${p.id}`, { method: "PATCH", body: JSON.stringify({ layout: p.layout }) }).catch(() => {});
+  }
   for (const p of canvasPosts) {
     const el = document.createElement("div");
     el.className = "canvas-item";
-    const lay = p.layout || {};
-    const hasLay = lay.x != null;
-    const x = hasLay ? lay.x : autoX;
-    const y = hasLay ? lay.y : autoY;
-    const w = (hasLay && lay.w) || 260;
-    const z = (hasLay && lay.z) || 1;
-    if (!hasLay) { autoX += 40; autoY += 40; if (autoX > CANVAS_W - 300) { autoX = 30; autoY += 40; } }
-    el.style.left = x + "px";
-    el.style.top = y + "px";
-    el.style.width = w + "px";
-    el.style.zIndex = z;
+    el.dataset.id = p.id;
+    const lay = p.layout;
+    el.style.left = lay.x + "px";
+    el.style.top = lay.y + "px";
+    el.style.width = (lay.w || DEFAULT_W) + "px";
+    el.style.zIndex = lay.z || 1;
     const first = p.media[0];
-    el.innerHTML =
-      (first
-        ? (/\.(mp4|webm|mov)$/i.test(first)
-            ? `<video src="${esc(first)}" muted></video>`
-            : `<img src="${esc(first)}" draggable="false" alt="">`)
-        : `<div class="msg">${esc(p.caption).slice(0, 140)}</div>`) +
-      (p.caption && first ? `<div class="cap">${esc(p.caption).slice(0, 60)}</div>` : "") +
-      `<div class="resize-handle"></div>`;
+    const kind = postKind(p);
+    if (kind === "text") {
+      el.classList.add("text-post");
+      el.textContent = p.caption;
+    } else if (kind === "audio") {
+      el.classList.add("audio-post");
+      el.innerHTML = `<div class="sound">♪ ${esc(p.caption || t("sound", "sound"))}</div>` +
+        `<audio src="${esc(first)}" preload="none" controls></audio>`;
+    } else {
+      el.innerHTML =
+        (kind === "video"
+          ? `<video src="${esc(first)}#t=0.1" preload="metadata" muted playsinline></video>`
+          : kind === "yt"
+            ? `<div class="yt"><img src="${esc(ytThumb(p.embed))}" draggable="false" alt=""><span class="play">▶</span></div>`
+            : `<img src="${esc(first)}" draggable="false" alt="">`) +
+        (p.media.length > 1 ? `<span class="count">1/${p.media.length}</span>` : "") +
+        `<div class="cap">${esc(p.caption || "")}</div>`;
+    }
+    el.insertAdjacentHTML("beforeend", `<div class="resize-handle"></div>`);
+    if (activePost && activePost.id === p.id) el.classList.add("active");
     attachCanvasDrag(el, p);
     area.appendChild(el);
   }
   // grow canvas to fit content
   let maxBottom = 800;
   canvasPosts.forEach(p => {
-    if (p.layout && p.layout.y != null) maxBottom = Math.max(maxBottom, p.layout.y + 500);
+    maxBottom = Math.max(maxBottom, p.layout.y + postHeight(p, p.layout.w || DEFAULT_W) + 300);
   });
   area.style.minHeight = maxBottom + "px";
+  if (activePost && !canvasPosts.some(p => p.id === activePost.id)) selectPost(null);
+  $("#canvas-open-page").href = `https://3die.fr/${encodeURIComponent(state.user.username)}.html`;
 }
+
+function selectPost(p) {
+  activePost = p;
+  $$(".canvas-item").forEach(i => i.classList.toggle("active", !!p && i.dataset.id == p.id));
+  $("#canvas-tools").classList.toggle("hidden", !p);
+  $("#ct-status").textContent = "";
+  if (p) $("#ct-replace").classList.toggle("hidden", !p.media.length);
+  if (p) $("#ct-link").classList.toggle("hidden", !p.embed);
+}
+$("#canvas-area").addEventListener("pointerdown", (e) => { if (e.target.id === "canvas-area") selectPost(null); });
+
+async function saveLayout(p) {
+  try {
+    await api(`/posts/${p.id}`, { method: "PATCH", body: JSON.stringify({ layout: p.layout }) });
+  } catch (err) { $("#ct-status").textContent = err.message; }
+}
+
+$("#ct-text").addEventListener("click", async () => {
+  if (activePost && await editCaption(activePost)) { renderCanvas(); loadFeed(); }
+});
+$("#ct-front").addEventListener("click", () => {
+  if (!activePost) return;
+  activePost.layout.z = ++maxZ;
+  renderCanvas(); saveLayout(activePost);
+});
+$("#ct-back").addEventListener("click", () => {
+  if (!activePost) return;
+  // shift everything else up one so "back" always has room below it
+  const minZ = Math.min(...canvasPosts.map(p => p.layout.z || 1));
+  activePost.layout.z = minZ - 1;
+  if (activePost.layout.z < 1) {
+    canvasPosts.forEach(p => { p.layout.z = (p.layout.z || 1) + 1; if (p !== activePost) saveLayout(p); });
+    activePost.layout.z = 1;
+  }
+  renderCanvas(); saveLayout(activePost);
+});
+$("#ct-delete").addEventListener("click", async () => {
+  if (!activePost || !confirm(t("confirm.post", "Delete this post? The photo is removed from the page too."))) return;
+  await api(`/posts/${activePost.id}`, { method: "DELETE" });
+  selectPost(null);
+  loadCanvas(); loadFeed();
+});
+$("#ct-replace").addEventListener("click", () => $("#ct-file").click());
+$("#ct-link").addEventListener("click", async () => {
+  if (!activePost) return;
+  const link = prompt(t("post.link.new", "new YouTube link:"), `https://youtu.be/${activePost.embed}`);
+  if (!link) return;
+  try {
+    await api(`/posts/${activePost.id}`, { method: "PATCH", body: JSON.stringify({ link }) });
+    $("#ct-status").textContent = t("saved", "saved");
+    await loadCanvas(); loadFeed();
+  } catch (err) { $("#ct-status").textContent = err.message; }
+});
+$("#ct-file").addEventListener("change", async () => {
+  const f = $("#ct-file").files[0];
+  $("#ct-file").value = "";
+  if (!f || !activePost) return;
+  const st = $("#ct-status");
+  try {
+    st.textContent = t("preparing", "PREPARING");
+    const p = await preparePhoto(f);
+    const fd = new FormData();
+    fd.append("files", p.file);
+    if (p.aspect) fd.append("aspect", String(p.aspect));
+    await upload("PUT", `/posts/${activePost.id}/media`, fd, (k) => { st.textContent = `${t("uploading", "UPLOADING")} ${Math.round(k * 100)}%`; });
+    st.textContent = t("saved", "saved");
+    await loadCanvas();
+    loadFeed();
+  } catch (err) { st.textContent = err.message; }
+});
 
 function attachCanvasDrag(el, post) {
   let mode = null, startX = 0, startY = 0, origX = 0, origY = 0, origW = 0;
 
   el.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    $$(".canvas-item").forEach(i => i.classList.remove("active"));
-    el.classList.add("active");
-    // bring to front
-    maxZ += 1;
-    el.style.zIndex = maxZ;
+    selectPost(post);
     mode = e.target.classList.contains("resize-handle") ? "resize" : "drag";
     startX = e.clientX; startY = e.clientY;
     origX = parseFloat(el.style.left); origY = parseFloat(el.style.top);
@@ -1087,20 +1374,19 @@ function attachCanvasDrag(el, post) {
     }
   });
 
-  el.addEventListener("pointerup", async () => {
+  el.addEventListener("pointerup", async (e) => {
     if (!mode) return;
+    const moved = Math.hypot(e.clientX - startX, e.clientY - startY) > 3;
     mode = null;
     el.style.cursor = "grab";
-    const layout = {
+    if (!moved) return;   // a click only selects
+    post.layout = {
+      ...post.layout,
       x: Math.round(parseFloat(el.style.left)),
       y: Math.round(parseFloat(el.style.top)),
       w: Math.round(el.offsetWidth),
-      z: parseInt(el.style.zIndex, 10),
     };
-    post.layout = layout;
-    try {
-      await api(`/posts/${post.id}`, { method: "PATCH", body: JSON.stringify({ layout }) });
-    } catch (err) { console.error("layout save failed", err); }
+    saveLayout(post);
   });
 }
 

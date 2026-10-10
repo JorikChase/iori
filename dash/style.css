@@ -267,20 +267,51 @@ textarea { resize: vertical; line-height: 1.5; }
 .canvas-hint { color: var(--dim); font-size: .75rem; letter-spacing: .15em; align-self: center; }
 #canvas-scroll { overflow: auto; max-height: calc(100vh - 130px); padding: 0 1rem 1rem; }
 #canvas-area {
-  position: relative; width: 1200px; min-height: 800px;
+  position: relative; width: 1200px; min-height: 800px; background-color: #000;
   border: 1px solid var(--dim);
   background-image: linear-gradient(var(--bg2) 1px, transparent 1px), linear-gradient(90deg, var(--bg2) 1px, transparent 1px);
   background-size: 60px 60px;
 }
+/* the items mirror moises.html's .post / .text-post, so the editor shows what
+   the page will show: same widths, same caption line, same text box */
 .canvas-item {
-  position: absolute; cursor: grab; border: 1px solid transparent;
-  transition: border-color 120ms;
-  touch-action: none;
+  position: absolute; cursor: grab; outline: 1px solid transparent;
+  transition: outline-color 120ms;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  font-family: "Courier New", ui-monospace, monospace; color: #fff;
 }
-.canvas-item:hover { border-color: var(--dim); }
-.canvas-item.active { border-color: var(--fg); }
+.canvas-item:hover { outline-color: var(--dim); }
+.canvas-item.active { outline: 2px solid var(--fg); outline-offset: 2px; }
 .canvas-item img, .canvas-item video { width: 100%; display: block; pointer-events: none; }
-.canvas-item .cap { font-size: .68rem; color: var(--dim); padding-top: .2rem; }
+.canvas-item .cap { margin-top: .35rem; font-size: .72rem; letter-spacing: .12em; color: #888; }
+.canvas-item .count { position: absolute; top: .4rem; right: .4rem; background: #000; color: #fff; font-size: .65rem; padding: .1rem .35rem; letter-spacing: .1em; }
+.canvas-item.text-post { border: 1px solid #333; padding: 1.2rem; color: #ddd; line-height: 1.8; font-size: .85rem; white-space: pre-wrap; word-break: break-word; background: #000; }
+/* floats over the canvas, so selecting a post never shifts the layout under the pointer */
+.canvas-item.audio-post, .feed-media audio { background: #000; }
+.canvas-item.audio-post { border: 1px solid #333; padding: .8rem; }
+.canvas-item .sound { font-size: .78rem; letter-spacing: .12em; color: #ddd; margin-bottom: .5rem; white-space: pre-wrap; }
+.canvas-item audio { width: 100%; pointer-events: none; color-scheme: dark; }
+.feed-media audio { color-scheme: dark; }
+.canvas-item .yt { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #111; }
+.canvas-item .yt img { height: 100%; object-fit: cover; }
+.canvas-item .yt .play, .post .yt .play { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2rem; color: #fff; text-shadow: 0 0 12px #000; }
+.canvas-tools {
+  position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 60;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; align-items: center;
+  width: max-content; max-width: calc(100vw - 1.5rem);
+  padding: .5rem; border: 2px solid var(--line); background: var(--bg); box-shadow: 5px 5px 0 var(--dim2);
+}
+.canvas-tools.hidden { display: none; }
+.canvas-tools button { padding: .4em .8em; font-size: .8em; }
+a.ghost-btn { display: inline-block; padding: .4em .8em; font-size: .8em; text-decoration: none; text-transform: uppercase; letter-spacing: .12em; }
+.guide-link { float: right; color: var(--dim); font-size: .75em; letter-spacing: .1em; text-decoration: none; }
+.guide-link:hover { color: var(--fg); }
+.cap-dialog { margin: auto; border: none; background: transparent; color: var(--fg); width: min(640px, 94vw); }
+.cap-dialog::backdrop { background: rgba(0,0,0,.7); }
+.cap-dialog .post-card { margin: 0; background: var(--bg); }
+#post-caption { min-height: 4.5em; }
+.upload-bar { height: 3px; background: var(--dim2); }
+.upload-bar > i { display: block; height: 100%; width: 0; background: var(--fg); transition: width 120ms linear; }
 .canvas-item .resize-handle {
   position: absolute; right: -6px; bottom: -6px; width: 14px; height: 14px;
   background: var(--fg); cursor: nwse-resize; display: none;

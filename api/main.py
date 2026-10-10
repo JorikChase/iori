@@ -46,7 +46,7 @@ CORS_ORIGINS = [o.strip() for o in os.environ.get(
 SESSION_COOKIE = "iori_session"
 SESSION_DAYS = 30
 MAX_UPLOAD_MB = 50
-ALLOWED_MEDIA = re.compile(r"^(image|video)/", re.I)
+ALLOWED_MEDIA = re.compile(r"^(image|video|audio)/", re.I)
 
 DEFAULT_LANES = [("general", 0), ("3die", 1), ("iori", 2), ("moises", 3), ("jachym", 4)]
 DEFAULT_PHASES = [("idea", 0), ("doing", 1), ("review", 2), ("done", 3)]
@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS posts (
     caption TEXT NOT NULL DEFAULT '',
     media TEXT NOT NULL DEFAULT '[]',
     layout TEXT,
+    embed TEXT,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_lane_phase ON tasks(lane, phase, position);
@@ -176,6 +177,8 @@ def init_db():
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(posts)").fetchall()]
         if "layout" not in cols:
             conn.execute("ALTER TABLE posts ADD COLUMN layout TEXT")
+        if "embed" not in cols:
+            conn.execute("ALTER TABLE posts ADD COLUMN embed TEXT")
         tcols = [r["name"] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()]
         for col, decl in TASK_MIGRATIONS:
             if col not in tcols:
@@ -736,32 +739,102 @@ def list_posts(author: str = "", limit: int = 100, offset: int = 0):
     return {"posts": [post_dict(r) for r in rows]}
 
 
-@app.post("/posts")
-async def create_post(
-    caption: str = Form(""),
-    files: list[UploadFile] = File(default=[]),
-    user=Depends(require_user),
-):
-    saved = []
+# Browsers other than Safari cannot display HEIC/HEIF, so a phone original
+# would publish as a broken image. The dashboard converts these to JPEG before
+# upload; this catches any other client.
+UNSHOWABLE_MEDIA = re.compile(r"^image/(heic|heif|heic-sequence|heif-sequence|tiff)$", re.I)
+LAYOUT_KEYS = ("x", "y", "w", "z", "a")   # a = aspect (width / height) of the first image
+
+
+YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def youtube_id(link):
+    """The 11-character video id from any usual YouTube link form, or None.
+    Only the id is stored; the page builds the embed URL itself."""
+    link = (link or "").strip()
+    if not link:
+        return None
+    if YT_ID.match(link):
+        return link
+    m = re.match(r"^(?:https?://)?(?:www\.|m\.|music\.)?(?:youtube\.com|youtube-nocookie\.com|youtu\.be)(/[^?#]*)?(\?[^#]*)?", link, re.I)
+    if not m:
+        raise HTTPException(400, "only YouTube links can be embedded")
+    path, query = m.group(1) or "", m.group(2) or ""
+    q = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", query)
+    p = re.match(r"^/(?:shorts/|embed/|live/|v/)?([A-Za-z0-9_-]{11})(?:/|$)", path)
+    vid = q.group(1) if q else (p.group(1) if p else None)
+    if not vid:
+        raise HTTPException(400, "could not find the video in that YouTube link")
+    return vid
+
+
+def clean_layout(lay):
+    if not isinstance(lay, dict):
+        raise HTTPException(400, "layout must be an object")
+    clean = {}
+    for k in LAYOUT_KEYS:
+        v = lay.get(k)
+        try:
+            clean[k] = max(-100000, min(100000, float(v))) if v is not None else None
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"layout.{k} must be a number")
+    return clean
+
+
+async def save_media(files):
+    """Validate every file first, then write them, so a bad file in a batch
+    leaves nothing orphaned in the media dir."""
+    checked = []
     for f in files:
         if not f.filename:
             continue
         ctype = (f.content_type or "").lower()
         if not ALLOWED_MEDIA.match(ctype):
             raise HTTPException(400, f"unsupported file type: {f.filename}")
+        if UNSHOWABLE_MEDIA.match(ctype):
+            raise HTTPException(400, f"{f.filename}: HEIC/TIFF cannot be shown in most browsers — export it as JPEG")
         data = await f.read()
         if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
             raise HTTPException(400, f"file too large (>{MAX_UPLOAD_MB}MB): {f.filename}")
         ext = Path(f.filename).suffix.lower()[:10] or ".bin"
-        name = f"{uuid.uuid4().hex}{ext}"
+        checked.append((f"{uuid.uuid4().hex}{ext}", data))
+    for name, data in checked:
         (MEDIA_DIR / name).write_bytes(data)
-        saved.append(name)
-    if not saved and not caption.strip():
-        raise HTTPException(400, "post needs media or a caption")
+    return [name for name, _ in checked]
+
+
+def unlink_media(names):
+    for name in names:
+        try:
+            (MEDIA_DIR / name).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+@app.post("/posts")
+async def create_post(
+    caption: str = Form(""),
+    layout: str = Form(""),
+    link: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+    user=Depends(require_user),
+):
+    embed = youtube_id(link)
+    lay = None
+    if layout.strip():
+        try:
+            lay = clean_layout(json.loads(layout))
+        except json.JSONDecodeError:
+            raise HTTPException(400, "layout must be JSON")
+    saved = await save_media(files)
+    if not saved and not embed and not caption.strip():
+        raise HTTPException(400, "post needs media, a YouTube link or text")
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO posts(author, caption, media, created_at) VALUES (?, ?, ?, ?)",
-            (user["username"], caption.strip(), json.dumps(saved), now()),
+            "INSERT INTO posts(author, caption, media, layout, embed, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user["username"], caption.replace("\r\n", "\n").strip()[:4000], json.dumps(saved),
+             json.dumps(lay) if lay else None, embed, now()),
         )
         row = conn.execute("SELECT * FROM posts WHERE id = ?", (cur.lastrowid,)).fetchone()
         return post_dict(row)
@@ -777,22 +850,54 @@ def update_post(post_id: int, body: dict, user=Depends(require_user)):
             raise HTTPException(403, "can only edit your own posts")
         if "caption" in body:
             conn.execute("UPDATE posts SET caption = ? WHERE id = ?",
-                         (str(body["caption"])[:4000], post_id))
+                         (str(body["caption"]).replace("\r\n", "\n").strip()[:4000], post_id))
+        if "link" in body:
+            conn.execute("UPDATE posts SET embed = ? WHERE id = ?", (youtube_id(str(body["link"] or "")), post_id))
         if "layout" in body:
             lay = body["layout"]
             if lay is not None:
-                if not isinstance(lay, dict):
-                    raise HTTPException(400, "layout must be an object")
-                clean = {}
-                for k in ("x", "y", "w", "z"):
-                    v = lay.get(k)
-                    clean[k] = max(-100000, min(100000, float(v))) if v is not None else None
+                clean = clean_layout(lay)
+                # keep the stored aspect when a drag sends only position/size
+                old = json.loads(row["layout"]) if row["layout"] else {}
+                if clean.get("a") is None and old.get("a") is not None:
+                    clean["a"] = old["a"]
                 conn.execute("UPDATE posts SET layout = ? WHERE id = ?",
                              (json.dumps(clean), post_id))
             else:
                 conn.execute("UPDATE posts SET layout = NULL WHERE id = ?", (post_id,))
         row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
         return post_dict(row)
+
+
+@app.put("/posts/{post_id}/media")
+async def replace_post_media(
+    post_id: int,
+    aspect: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+    user=Depends(require_user),
+):
+    """Swap a post's photos and keep its place, size and caption on the canvas."""
+    with db() as conn:
+        row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "post not found")
+        if row["author"] != user["username"] and user["role"] != "admin":
+            raise HTTPException(403, "can only edit your own posts")
+    saved = await save_media(files)
+    if not saved:
+        raise HTTPException(400, "choose a photo or video")
+    with db() as conn:
+        lay = json.loads(row["layout"]) if row["layout"] else None
+        if lay is not None:
+            try:
+                lay["a"] = max(0.05, min(20.0, float(aspect))) if aspect else None
+            except ValueError:
+                lay["a"] = None
+        conn.execute("UPDATE posts SET media = ?, layout = ? WHERE id = ?",
+                     (json.dumps(saved), json.dumps(lay) if lay else None, post_id))
+        row2 = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+    unlink_media(json.loads(row["media"]))
+    return post_dict(row2)
 
 
 @app.delete("/posts/{post_id}")
@@ -803,11 +908,7 @@ def delete_post(post_id: int, user=Depends(require_user)):
             raise HTTPException(404, "post not found")
         if row["author"] != user["username"] and user["role"] != "admin":
             raise HTTPException(403, "can only delete your own posts")
-        for name in json.loads(row["media"]):
-            try:
-                (MEDIA_DIR / name).unlink(missing_ok=True)
-            except OSError:
-                pass
+        unlink_media(json.loads(row["media"]))
         conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     return {"ok": True}
 

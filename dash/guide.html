@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Jak přidávat příspěvky</title>
+<meta name="description" content="Návod pro moises: jak nahrát fotky, videa, zvuky, YouTube odkazy a text na 3die.fr/moises.html a jak je rozmístit na plátně.">
+<link rel="icon" href="favicon.ico">
+<style>
+  :root {
+    --bg: #000; --fg: #fff; --dim: #8a8a8a; --line: #fff; --soft: #1a1a1a; --accent: #22d3ee;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg: #f4f2ea; --fg: #111; --dim: #5f5d55; --line: #111; --soft: #e2dfd3; --accent: #0e7490; }
+  }
+  :root[data-theme="light"] { --bg: #f4f2ea; --fg: #111; --dim: #5f5d55; --line: #111; --soft: #e2dfd3; --accent: #0e7490; }
+  :root[data-theme="dark"] { --bg: #000; --fg: #fff; --dim: #8a8a8a; --line: #fff; --soft: #1a1a1a; --accent: #22d3ee; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Courier New", ui-monospace, monospace; font-size: 16px; line-height: 1.65;
+    padding: 0 16px 6rem;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  header { padding: 2.5rem 0 1.5rem; border-bottom: 2px solid var(--line); margin-bottom: 2rem; }
+  h1 { font-size: 1.6rem; letter-spacing: .25em; text-transform: uppercase; }
+  .lede { color: var(--dim); margin-top: .6rem; max-width: 60ch; }
+  .go { display: inline-block; margin-top: 1.2rem; padding: .6em 1.2em; background: var(--fg); color: var(--bg); text-decoration: none; letter-spacing: .15em; text-transform: uppercase; font-size: .85rem; }
+  .go.ghost { background: none; color: var(--fg); border: 1px solid var(--line); margin-left: .5rem; }
+  nav.toc { border: 1px solid var(--line); padding: 1rem 1.2rem; margin-bottom: 2.5rem; }
+  nav.toc ol { margin-left: 1.4rem; }
+  nav.toc a { color: var(--fg); }
+  section { margin-bottom: 3rem; }
+  h2 { font-size: 1rem; letter-spacing: .2em; text-transform: uppercase; margin-bottom: .8rem; display: flex; gap: .8rem; align-items: baseline; }
+  h2 .n { color: var(--accent); }
+  p, li { max-width: 68ch; }
+  p + p, p + ul, ul + p { margin-top: .7rem; }
+  ul { margin-left: 1.3rem; }
+  li + li { margin-top: .3rem; }
+  b, kbd { font-weight: bold; }
+  kbd { border: 1px solid var(--line); padding: 0 .35em; font-family: inherit; font-size: .85em; white-space: nowrap; }
+  figure { margin: 1.2rem 0 0; border: 1px solid var(--line); background: #000; }
+  figure img { display: block; width: 100%; height: auto; }
+  figcaption { padding: .5rem .8rem; font-size: .8rem; color: var(--dim); border-top: 1px solid var(--line); background: var(--bg); }
+  .phone { max-width: 320px; }
+  .note { border-left: 3px solid var(--accent); padding: .4rem 0 .4rem 1rem; margin-top: 1rem; color: var(--fg); }
+  table { border-collapse: collapse; margin-top: .8rem; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--soft); vertical-align: top; }
+  th { color: var(--dim); font-weight: normal; letter-spacing: .1em; text-transform: uppercase; font-size: .75rem; }
+  footer { border-top: 1px solid var(--line); padding-top: 1rem; color: var(--dim); font-size: .85rem; }
+  @media (max-width: 600px) {
+    body { font-size: 15px; }
+    h1 { font-size: 1.25rem; letter-spacing: .15em; }
+    .go.ghost { margin-left: 0; margin-top: .5rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Jak přidávat příspěvky</h1>
+  <p class="lede">Tvoje stránka <b>3die.fr/moises.html</b> je hotová a čeká na tebe. Všechno se dělá tady v dashboardu: nahraješ to v záložce <b>BLOG</b> a rozmístíš na <b>PLÁTNĚ</b>. Co vidíš na plátně, uvidí lidi na stránce.</p>
+  <a class="go" href="./">Otevřít dashboard</a>
+  <a class="go ghost" href="https://3die.fr/moises.html" target="_blank">Moje stránka ↗</a>
+</header>
+
+<nav class="toc" aria-label="obsah">
+  <ol>
+    <li><a href="#prihlaseni">Přihlášení</a></li>
+    <li><a href="#novy">Nový příspěvek: fotky, video, zvuk, text</a></li>
+    <li><a href="#youtube">Video z YouTube</a></li>
+    <li><a href="#platno">Plátno: rozmístění, velikost, úpravy</a></li>
+    <li><a href="#stranka">Jak to vypadá na stránce</a></li>
+    <li><a href="#ukazky">Ukázkové příspěvky: vyměň je, nebo smaž</a></li>
+    <li><a href="#tipy">Formáty a tipy</a></li>
+  </ol>
+</nav>
+
+<section id="prihlaseni">
+  <h2><span class="n">01</span> Přihlášení</h2>
+  <p>Jdi na <b>dash.3die.fr</b> a přihlas se jménem <b>moises</b> a heslem, které ti dal iori. Přihlášení vydrží 30 dní.</p>
+  <p>Heslo si pak změň: klikni vpravo nahoře na svoje jméno → <b>ZMĚNA HESLA</b>. Tam si můžeš přepnout i jazyk (čeština / angličtina).</p>
+  <figure><img src="guide/01-login.jpg" alt="Přihlašovací okno dashboardu" width="1200" height="800" loading="lazy"><figcaption>dash.3die.fr: jméno moises + heslo</figcaption></figure>
+</section>
+
+<section id="novy">
+  <h2><span class="n">02</span> Nový příspěvek</h2>
+  <p>Otevři záložku <b>BLOG</b>. Jeden příspěvek může být:</p>
+  <ul>
+    <li><b>fotka</b>, nebo <b>víc fotek najednou</b>: vyber jich víc, na stránce se pak listují šipkami,</li>
+    <li><b>video</b> (mp4 / mov),</li>
+    <li><b>zvuk</b> (mp3, m4a, wav): na stránce se zobrazí jako přehrávač,</li>
+    <li><b>jen text</b>: nech soubory prázdné a napiš text, zalomení řádků zůstanou.</li>
+  </ul>
+  <p>Postup: napiš popisek (nepovinné) → klikni do čárkovaného rámečku a vyber soubory (na počítači je tam můžeš i přetáhnout) → <b>PUBLIKOVAT</b>. Během nahrávání ukazuje tlačítko, co se děje, a pod ním běží proužek.</p>
+  <figure><img src="guide/02-new-post.jpg" alt="Formulář nového příspěvku s vybranou fotkou" width="1280" height="520" loading="lazy"><figcaption>popisek nahoře, soubory do rámečku, pak PUBLIKOVAT</figcaption></figure>
+  <p class="note">Fotky z mobilu se před nahráním samy zmenší na rozumnou velikost (nejdelší strana 3200 px) a otočí správně. Na stránce pak nic nečeká na 12 MB originál.</p>
+  <figure class="phone"><img src="guide/09-phone.jpg" alt="Formulář nového příspěvku na mobilu" width="390" height="844" loading="lazy"><figcaption>z mobilu to funguje stejně</figcaption></figure>
+</section>
+
+<section id="youtube">
+  <h2><span class="n">03</span> Video z YouTube</h2>
+  <p>Do pole <b>odkaz na YouTube</b> vlož odkaz na video, jakýkoli tvar: <kbd>youtube.com/watch?v=…</kbd>, <kbd>youtu.be/…</kbd> i <kbd>shorts/…</kbd>. Na stránce se ukáže náhled s ▶ a po kliknutí se video přehraje přes celou obrazovku.</p>
+  <p>Odkaz můžeš dát i k fotkám: pak se video přehraje jako poslední položka po fotkách.</p>
+  <figure><img src="guide/03-youtube-link.jpg" alt="Formulář s vloženým odkazem na YouTube" width="1280" height="520" loading="lazy"><figcaption>odkaz vlož do spodního pole</figcaption></figure>
+</section>
+
+<section id="platno">
+  <h2><span class="n">04</span> Plátno: rozmístění a úpravy</h2>
+  <p>Záložka <b>PLÁTNO</b> je tvoje stránka v editoru. Každý nový příspěvek se sám položí na první volné místo nahoře. Pak:</p>
+  <ul>
+    <li><b>přetáhni</b> příspěvek, kam chceš,</li>
+    <li><b>bílý čtvereček</b> v pravém dolním rohu vybraného příspěvku mění velikost,</li>
+    <li><b>klikni</b> na příspěvek a dole se objeví nástroje:</li>
+  </ul>
+  <table>
+    <tr><th>tlačítko</th><th>co dělá</th></tr>
+    <tr><td><b>UPRAVIT TEXT</b></td><td>změní popisek nebo text příspěvku</td></tr>
+    <tr><td><b>VYMĚNIT SOUBOR</b></td><td>dá tam jinou fotku / video / zvuk; místo, velikost i popisek zůstanou</td></tr>
+    <tr><td><b>VYMĚNIT ODKAZ</b></td><td>u YouTube příspěvku vloží jiné video</td></tr>
+    <tr><td><b>DOPŘEDU / DOZADU</b></td><td>když se příspěvky překrývají, určí, který je navrchu</td></tr>
+    <tr><td><b>SMAZAT</b></td><td>smaže příspěvek ze stránky (zeptá se)</td></tr>
+  </table>
+  <p>Všechno se ukládá samo, hned. Tlačítko <b>ZOBRAZIT STRÁNKU ↗</b> otevře výsledek.</p>
+  <figure><img src="guide/05-canvas.jpg" alt="Plátno s vybraným příspěvkem a lištou nástrojů" width="1280" height="800" loading="lazy"><figcaption>vybraný příspěvek má bílý rámeček, nástroje jsou dole</figcaption></figure>
+  <figure><img src="guide/06-edit-text.jpg" alt="Okno pro úpravu textu" width="1280" height="800" loading="lazy"><figcaption>UPRAVIT TEXT → přepiš → ULOŽIT</figcaption></figure>
+  <p class="note">Plátno je široké 1200 px, takže se nejlíp rovná na počítači. Na mobilu jde nahrávat bez omezení. Rozmisťovat se tam dá taky, jen je to stísněnější.</p>
+</section>
+
+<section id="stranka">
+  <h2><span class="n">05</span> Jak to vypadá na stránce</h2>
+  <p>Stránka ukazuje příspěvky přesně tam, kam jsi je dal na plátně. Kurzor je auto, které za sebou nechává stopy pneumatik. Kliknutím na fotku se otevře přes celou obrazovku: u víc fotek listuješ šipkami <kbd>←</kbd> <kbd>→</kbd> nebo na mobilu tahem prstu, <kbd>Esc</kbd> zavře.</p>
+  <figure><img src="guide/07-page.jpg" alt="Veřejná stránka moises.html s ukázkovými příspěvky" width="1280" height="800" loading="lazy"><figcaption>3die.fr/moises.html</figcaption></figure>
+  <figure><img src="guide/08-viewer.jpg" alt="Prohlížeč přes celou obrazovku, fotka 2 ze 3" width="1280" height="800" loading="lazy"><figcaption>prohlížeč: 2 / 3, šipky po stranách</figcaption></figure>
+</section>
+
+<section id="ukazky">
+  <h2><span class="n">06</span> Ukázkové příspěvky</h2>
+  <p>Na tvojí stránce už je šest ukázek (fotka, víc fotek, text, YouTube, zvuk), ať vidíš, že všechno funguje. Jsou tvoje: na plátně je <b>vyměň</b> za svoje věci (VYMĚNIT SOUBOR / UPRAVIT TEXT), nebo je <b>smaž</b>. Fotky v ukázkách jsou náhodné ilustrační obrázky.</p>
+  <figure><img src="guide/04-feed.jpg" alt="Seznam příspěvků v záložce BLOG" width="1280" height="800" loading="lazy"><figcaption>v BLOGU jsou pod formulářem všechny příspěvky, každý jde upravit nebo smazat i odtud</figcaption></figure>
+</section>
+
+<section id="tipy">
+  <h2><span class="n">07</span> Formáty a tipy</h2>
+  <table>
+    <tr><th>co</th><th>formáty</th><th>pozn.</th></tr>
+    <tr><td>fotky</td><td>jpg, png, webp, gif, heic z iPhonu</td><td>HEIC se před nahráním převede na jpg (iPhone to při výběru fotky většinou udělá sám). Chrome na počítači HEIC přečíst neumí a napíše ti to. Pak fotku nejdřív vyexportuj jako JPEG.</td></tr>
+    <tr><td>video</td><td>mp4, mov, webm</td><td>max 50 MB na soubor. Delší videa dej radši na YouTube a vlož odkaz.</td></tr>
+    <tr><td>zvuk</td><td>mp3, m4a, wav, ogg</td><td>max 50 MB</td></tr>
+    <tr><td>YouTube</td><td>jakýkoli odkaz na video</td><td>jiné weby (Vimeo, Instagram…) zatím ne</td></tr>
+    <tr><td>text</td><td>až 4000 znaků</td><td>zalomení řádků zůstanou</td></tr>
+  </table>
+  <p>Kdyby něco nešlo, pošli screenshot ioriovi do CHATU v dashboardu.</p>
+</section>
+
+<footer>3DIE_DASH: návod pro moises</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{
+ "note": "Floors for the default presets on the fidelity bench at 320x176: Xvid classic vs MPEG-4 ASP at q 4 ('floors'), H.264 soft vs x264 at QP 24 ('h264'). Set from ref/fidelity-m2.json and ref/fidelity-m3-h264.json minus a small margin; raise them when the simulation improves. See study/fidelity.md.",
+ "floors": {
+  "fixture.mosh": {
+   "ssim0": 0.89,
+   "ssim10": 0.83,
+   "winRate": 0.98
+  },
+  "fixture.bloom": {
+   "ssim0": 0.89,
+   "ssim10": 0.82,
+   "winRate": 0.98
+  },
+  "clip.mosh": {
+   "ssim0": 0.71,
+   "ssim10": 0.64,
+   "winRate": 0.95
+  },
+  "clip.bloom": {
+   "ssim0": 0.7,
+   "ssim10": 0.5,
+   "winRate": 0.95
+  }
+ },
+ "h264": {
+  "fixture.mosh": {
+   "ssim0": 0.78,
+   "ssim10": 0.7,
+   "winRate": 0.98
+  },
+  "clip.mosh": {
+   "ssim0": 0.52,
+   "ssim10": 0.67,
+   "winRate": 0.8
+  }
+ }
+}

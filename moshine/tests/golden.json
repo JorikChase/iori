@@ -1,0 +1,74 @@
+{
+ "pan": {
+  "0": {
+   "frame": "6792a833",
+   "field": "e37f08c5"
+  },
+  "1": {
+   "frame": "5e554687",
+   "field": "e37f08c5"
+  },
+  "2": {
+   "frame": "a943d4a6",
+   "field": "e37f08c5"
+  },
+  "59": {
+   "frame": "853c7a8f",
+   "field": "e37f08c5"
+  }
+ },
+ "square": {
+  "0": {
+   "frame": "ade90f8d",
+   "field": "4486aec5"
+  },
+  "1": {
+   "frame": "477d31f2",
+   "field": "ea174ec5"
+  },
+  "2": {
+   "frame": "627b5980",
+   "field": "ea174ec5"
+  },
+  "59": {
+   "frame": "23fdcae1",
+   "field": "da98aec5"
+  }
+ },
+ "cut": {
+  "0": {
+   "frame": "d280464a",
+   "field": "1681a3c5"
+  },
+  "1": {
+   "frame": "d280464a",
+   "field": "1681a3c5"
+  },
+  "40": {
+   "frame": "ab6615b0",
+   "field": "1681a3c5"
+  },
+  "119": {
+   "frame": "918d46ba",
+   "field": "6ccb7ba5"
+  }
+ },
+ "bars": {
+  "0": {
+   "frame": "d280464a",
+   "field": "1681a3c5"
+  },
+  "1": {
+   "frame": "d280464a",
+   "field": "1681a3c5"
+  },
+  "2": {
+   "frame": "d280464a",
+   "field": "1681a3c5"
+  },
+  "7": {
+   "frame": "d280464a",
+   "field": "1681a3c5"
+  }
+ }
+}

@@ -39,6 +39,7 @@ redir /maska.html https://iori.me/maska.html permanent
 redir /meta-iris.html https://iori.me/meta-iris.html permanent
 redir /mirrorbrot-16k.html https://iori.me/mirrorbrot-16k.html permanent
 redir /mirrorbrot.html https://iori.me/mirrorbrot.html permanent
+redir /moshine/* https://iori.me{uri} permanent
 redir /multiOS.html https://iori.me/multiOS.html permanent
 redir /mycelium.html https://iori.me/mycelium.html permanent
 redir /nasal-wave.html https://iori.me/nasal-wave.html permanent

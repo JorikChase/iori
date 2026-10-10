@@ -1,0 +1,78 @@
+{
+ "tag": "m0",
+ "date": "2026-10-09T11:17:57.126Z",
+ "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+ "pass": true,
+ "T0": {
+  "device": {
+   "pass": true,
+   "adapter": "apple metal-3",
+   "level": "core",
+   "features": [
+    "shader-f16",
+    "timestamp-query"
+   ],
+   "coi": true,
+   "tier": 3,
+   "secs": 0
+  },
+  "goldenFixtures": {
+   "pass": true,
+   "mismatches": [],
+   "secs": 0.06
+  },
+  "warpParity": {
+   "pass": true,
+   "firstDiffIndex": {
+    "clamp": {
+     "f32": -1,
+     "f16": -1
+    },
+    "repeat": {
+     "f32": -1,
+     "f16": -1
+    },
+    "mirror": {
+     "f32": -1,
+     "f16": -1
+    }
+   },
+   "secs": 0.05
+  },
+  "warpTruth": {
+   "pass": true,
+   "rows": {
+    "pan": {
+     "masked": 56922,
+     "bad": 0
+    },
+    "square": {
+     "masked": 53504,
+     "bad": 0
+    },
+    "cut": {
+     "masked": 52632,
+     "bad": 0
+    }
+   },
+   "secs": 0.02
+  },
+  "moshReplay": {
+   "pass": true,
+   "hash": "9a7a3522",
+   "steps": 80,
+   "replayEqual": true,
+   "cpuEqual": true,
+   "secs": 0.38
+  }
+ },
+ "T4": {
+  "warpCost": {
+   "msPerFrame": 0.225,
+   "fps": 4450,
+   "size": "1920x1080",
+   "format": "rgba16float",
+   "secs": 0.06
+  }
+ }
+}

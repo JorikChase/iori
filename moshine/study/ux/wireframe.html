@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOSHINE — UX wireframe</title>
+<style>
+/* ---------- tokens: Program Manager idiom (house default, iris-engine/petri) ---------- */
+:root { --row: 22px; --cap: 18px; --fs: 12px; --grey: #c0c0c0; --dk: #808080; --navy: #000080; --menuh: 20px;
+  --font: 'Urbanist', Arial, Helvetica, sans-serif; --fw: 700; --bg: #000; --ink: #000; --paper: #fff; --line: 1px solid #000;
+  --red: #c01010; --yellow: #e0c000; --green: #20a040; --accent: var(--navy); --radius: 3px; --tt: none; }
+/* ---------- tokens: brutalist idiom (legacy DATAMOSHINE) ---------- */
+body.brut { --grey: #ececec; --dk: #111; --navy: #111; --font: 'JetBrains Mono', 'Courier New', monospace; --fw: 800; --bg: #ececec; --paper: #fff;
+  --line: 3px solid #111; --red: #ff3300; --yellow: #fdff00; --green: #111; --accent: #ff3300; --radius: 0; --tt: uppercase; --cap: 26px; --menuh: 26px; --row: 26px; }
+html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+body { font: var(--fw) var(--fs)/1 var(--font); color: var(--ink); user-select: none; -webkit-user-select: none; cursor: default; text-transform: var(--tt); }
+button, select, input { font: inherit; color: inherit; text-transform: inherit; }
+
+/* caption + menu */
+#cap { position: fixed; left: 0; right: 0; top: 0; height: var(--cap); z-index: 200; background: var(--navy); color: #fff; border-bottom: var(--line); display: flex; align-items: stretch; line-height: var(--cap); }
+.ctl { width: var(--cap); background: #000; border-right: var(--line); flex: none; }
+.capt { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
+.capb { padding: 0 8px; background: var(--grey); color: var(--ink); border: 0; border-left: var(--line); box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); }
+.capb:active { box-shadow: inset 1px 1px 0 var(--dk); }
+#menubar { position: fixed; left: 0; right: 0; top: calc(var(--cap) + 1px); height: var(--menuh); display: flex; align-items: stretch; background: var(--paper); border-bottom: var(--line); z-index: 200; }
+.mtop { padding: 0 8px; line-height: var(--menuh); position: relative; }
+.mtop.open, .mtop:hover { background: var(--navy); color: #fff; }
+#status { margin-left: auto; padding: 0 8px; line-height: var(--menuh); font-weight: 400; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.menu { position: fixed; background: var(--paper); border: var(--line); z-index: 9000; min-width: 210px; display: none; }
+.menu.open { display: block; }
+.mi { padding: 0 24px; line-height: calc(var(--row) - 2px); white-space: nowrap; position: relative; font-weight: 400; }
+.mi:hover { background: var(--navy); color: #fff; }
+.mi.chk::before { content: "\2713"; position: absolute; left: 7px; }
+.mi small { float: right; margin-left: 24px; opacity: .7; }
+.sep { border-top: var(--line); margin: 2px 0; }
+
+/* docked layout */
+#desk { position: fixed; left: 0; right: 0; top: calc(var(--cap) + var(--menuh) + 2px); bottom: 26px; display: grid; grid-template-columns: 1fr 300px; grid-template-rows: 1fr 300px; gap: 4px; padding: 4px; box-sizing: border-box; }
+.pane { background: var(--grey); border: var(--line); padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.pane > .in { border: var(--line); flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--grey); }
+.wcap { height: var(--cap); display: flex; align-items: stretch; background: var(--paper); border-bottom: var(--line); line-height: var(--cap); }
+.pane.active .wcap, .win.active .wcap { background: var(--navy); color: #fff; }
+.wcap .capt { cursor: default; }
+.wmin { width: var(--cap); background: var(--grey); color: var(--ink); border: 0; border-left: var(--line); box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); }
+.body { padding: 6px 7px 7px; font-weight: 400; overflow: auto; flex: 1; min-height: 0; }
+
+/* preview */
+#preview { grid-column: 1; grid-row: 1; }
+#stage { flex: 1; background: #000; position: relative; min-height: 0; display: grid; place-items: center; }
+#stage canvas { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+#stage .ov { position: absolute; left: 8px; top: 6px; color: #f0a040; font-weight: 400; font-variant-numeric: tabular-nums; }
+#transport { display: flex; gap: 4px; align-items: center; padding: 5px 6px; border-top: var(--line); flex-wrap: wrap; }
+.b { background: var(--grey); border: var(--line); border-radius: var(--radius); height: var(--row); padding: 0 8px; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk); white-space: nowrap; }
+.b:active, .b.on { box-shadow: inset 1px 1px 0 var(--dk), inset 2px 2px 0 var(--dk); background: #dcdcdc; }
+body.brut .b { box-shadow: none; } body.brut .b.on { background: var(--yellow); }
+select.b, input.t { background: var(--paper); border: var(--line); border-radius: 0; box-shadow: none; height: var(--row); padding: 0 4px; font-weight: 400; }
+.sp { flex: 1; }
+
+/* inspector */
+#inspector { grid-column: 2; grid-row: 1; }
+.stack { list-style: none; margin: 0; padding: 0; border: var(--line); background: var(--paper); }
+.stack li { display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; padding: 2px 4px; line-height: 1.3; border-bottom: 1px solid var(--dk); }
+.stack li:last-child { border-bottom: 0; }
+.stack li.grp { font-weight: 700; background: #e8e8e8; }
+.stack li.sub { padding-left: 18px; }
+.stack li.sub2 { padding-left: 30px; font-weight: 400; }
+.stack li.sel { background: var(--navy); color: #fff; }
+.stack li .tag { font-size: 10px; opacity: .7; }
+.stack li .st { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; }
+.grp-box { border: 1px solid var(--dk); box-shadow: 1px 1px 0 #fff, inset 1px 1px 0 #fff; padding: 9px 6px 6px; margin: 10px 0 0; position: relative; }
+.grp-box > b { position: absolute; top: -6px; left: 8px; background: var(--grey); padding: 0 3px; }
+.prow { display: grid; grid-template-columns: 16px 64px 1fr 54px 24px; align-items: center; gap: 5px; margin: 5px 0 0; }
+.prow .sw { width: 12px; height: 12px; border: 1px solid #000; border-radius: 50%; background: var(--paper); display: inline-block; }
+.prow .sw.on { background: var(--red); }
+.scrub { height: calc(var(--row) - 6px); border: var(--line); background: var(--paper); position: relative; overflow: hidden; cursor: ew-resize; }
+.scrub i { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--navy); }
+.scrub u { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: repeating-linear-gradient(90deg, #000 0 1px, transparent 1px 8px); }
+.scrub em { position: absolute; left: 0; bottom: 0; height: 100%; width: 100%; background: linear-gradient(90deg, transparent, rgba(0,0,128,.18), transparent); }
+.val { text-align: right; font-variant-numeric: tabular-nums; }
+.mod { font-size: 11px; border: 1px dashed var(--dk); padding: 3px 5px; margin: 4px 0 0 21px; background: #ececec; display: flex; gap: 6px; align-items: center; }
+.mod b { color: var(--navy); }
+.note { font-size: 11px; line-height: 1.35; margin: 6px 0 0; color: #202020; }
+
+/* timeline */
+#timeline { grid-column: 1 / 3; grid-row: 2; }
+#tl { flex: 1; display: grid; grid-template-columns: 150px 1fr; grid-template-rows: 30px 1fr; min-height: 0; position: relative; background: var(--paper); }
+#tlcorner { border-right: var(--line); border-bottom: var(--line); background: var(--grey); display: flex; align-items: center; gap: 4px; padding: 0 4px; font-size: 11px; }
+#ruler { position: relative; border-bottom: var(--line); background: var(--paper); overflow: hidden; }
+#ruler .rs { position: absolute; left: 0; right: 0; top: 0; height: 6px; display: flex; }
+#ruler .rs span { height: 100%; }
+#ruler .rs .g { background: var(--green); } #ruler .rs .y { background: var(--yellow); } #ruler .rs .r { background: var(--red); }
+#ruler .ck { position: absolute; top: 7px; height: 4px; width: 1px; background: #000; }
+#ruler .tc { position: absolute; top: 12px; font-size: 10px; font-weight: 400; font-variant-numeric: tabular-nums; border-left: 1px solid #000; padding-left: 2px; height: 18px; }
+#ruler .mk { position: absolute; top: 14px; width: 0; height: 0; border: 6px solid transparent; border-top: 9px solid var(--red); margin-left: -6px; }
+#ruler .mk.hit { border-top-color: var(--navy); }
+#ruler .io { position: absolute; top: 24px; height: 5px; background: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 8px); }
+#heads { border-right: var(--line); background: var(--grey); overflow: hidden; }
+#lanes { position: relative; overflow: auto; background: var(--paper); background-image: repeating-linear-gradient(90deg, transparent 0 79px, #eee 79px 80px); }
+.head { height: 44px; border-bottom: 1px solid var(--dk); display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 4px; gap: 2px; }
+.head.kf { height: 26px; font-size: 10px; font-weight: 400; padding-left: 16px; background: #d8d8d8; }
+.head .tb { display: flex; gap: 2px; } .head .tb button { width: 16px; height: 16px; padding: 0; font-size: 9px; line-height: 1; border: 1px solid #000; background: var(--paper); }
+.head .tb button.on { background: var(--navy); color: #fff; }
+.lane { height: 44px; border-bottom: 1px solid var(--dk); position: relative; }
+.lane.kf { height: 26px; background: #f4f4f4; }
+.clip { position: absolute; top: 4px; height: 36px; border: var(--line); background: #e4e4e4; padding: 2px 5px; box-sizing: border-box; font-size: 11px; line-height: 1.25; overflow: hidden; white-space: nowrap; }
+.clip.fx { background: #ffe6c0; } .clip.still { background: #d8e8ff; } .clip.aud { background: #d8f0d8; } .clip.sel { outline: 2px solid var(--navy); outline-offset: 1px; }
+.clip small { display: block; font-weight: 400; opacity: .8; }
+.clip .reset { position: absolute; left: -1px; top: -1px; bottom: -1px; width: 4px; background: var(--navy); }
+.clip .stretch { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(0,0,0,.18) 0 4px, transparent 4px 8px); border-left: 1px dashed #000; border-right: 1px dashed #000; }
+.cut { position: absolute; top: 0; height: 44px; width: 0; border-left: 3px solid var(--red); }
+.cut b { position: absolute; left: 4px; top: 1px; font-size: 9px; color: var(--red); background: var(--paper); padding: 0 2px; border: 1px solid var(--red); white-space: nowrap; }
+.kfd { position: absolute; top: 9px; width: 8px; height: 8px; background: var(--navy); transform: rotate(45deg); margin-left: -4px; }
+.kfd.hold { border-radius: 0; background: #000; }
+.kfl { position: absolute; left: 0; right: 0; top: 13px; height: 1px; background: #000; }
+.kfghost { position: absolute; left: 0; right: 0; top: 0; height: 26px; pointer-events: none; }
+#playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--red); z-index: 20; pointer-events: none; }
+#phhead { position: absolute; top: 0; width: 0; height: 0; border: 7px solid transparent; border-top: 10px solid var(--red); margin-left: -7px; z-index: 21; cursor: ew-resize; }
+
+/* floating windows */
+.win { position: fixed; width: 320px; background: var(--grey); border: var(--line); padding: 3px; box-sizing: border-box; z-index: 100; display: none; }
+.win.open { display: block; }
+.win .in { border: var(--line); }
+.win .wcap .capt { cursor: move; touch-action: none; }
+.win .body { max-height: calc(100vh - 160px); }
+.list { border: var(--line); background: var(--paper); max-height: 300px; overflow: auto; font-weight: 400; }
+.list .h { font-weight: 700; background: #e8e8e8; padding: 2px 5px; border-bottom: 1px solid var(--dk); position: sticky; top: 0; }
+.list .e { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; padding: 2px 5px; border-bottom: 1px solid #ddd; align-items: center; }
+.list .e:hover, .list .e.sel { background: var(--navy); color: #fff; }
+.list .e .v { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; }
+.list .e .v.v1 { background: var(--green); color: #fff; border-color: transparent; } .list .e .v.v2 { background: var(--yellow); color: #000; border-color: transparent; } .list .e .v.v3 { background: var(--dk); color: #fff; border-color: transparent; }
+.list .e .s { font-size: 10px; opacity: .75; }
+.brow { display: flex; gap: 4px; margin: 6px 0 0; flex-wrap: wrap; } .brow > * { flex: 1; padding: 0 3px; }
+.bar { height: 12px; border: var(--line); background: var(--paper); position: relative; } .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--navy); }
+.line2 { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 5px; margin: 5px 0 0; }
+label.chk { display: flex; gap: 5px; align-items: center; margin: 6px 0 0; font-weight: 400; }
+.warn { border: 2px solid var(--red); background: #fff2f0; padding: 6px; margin: 8px 0 0; font-weight: 400; line-height: 1.35; }
+#veil { position: fixed; inset: 0; z-index: 9500; display: none; place-items: center; background: rgba(0,0,0,.25); } #veil.on { display: grid; }
+#veil .win { position: static; display: block; width: 380px; }
+
+/* dock strip (minimised windows) */
+#dock { position: fixed; left: 0; right: 0; bottom: 0; height: 26px; background: var(--paper); border-top: var(--line); display: flex; gap: 2px; align-items: center; padding: 0 4px; z-index: 60; }
+#dock button { height: 20px; padding: 0 8px; }
+#dock button.on { background: var(--navy); color: #fff; }
+#dock .sp { flex: 1; } #dock .hint { font-weight: 400; font-size: 11px; opacity: .7; }
+</style>
+</head>
+<body>
+
+<!-- caption + menu -->
+<div id="cap"><div class="ctl" title="site burger (3DIE logo) — house idiom"></div>
+  <div class="capt">MOSHINE — untitled.mosh</div>
+  <button class="capb" id="idiom" title="toggle visual idiom for discussion">IDIOM: PROGRAM MANAGER</button>
+  <button class="capb" title="device tier from the capability probe">TIER 2 · WebGPU · H.264 hw</button>
+</div>
+<div id="menubar">
+  <div class="mtop" data-menu="m-file">File</div><div class="mtop" data-menu="m-edit">Edit</div><div class="mtop" data-menu="m-clip">Clip</div>
+  <div class="mtop" data-menu="m-fx">Effects</div><div class="mtop" data-menu="m-view">View</div><div class="mtop" data-menu="m-export">Export</div>
+  <div class="mtop" data-menu="m-lab">Lab</div><div class="mtop" data-menu="m-help">Help</div>
+  <div id="status">f 00412 / 01800 · 29.97 · 1920×1080 · cache 62 % · gpu 4.1 ms · mosh id ↑</div>
+</div>
+
+<!-- menus: the feature inventory, discuss here -->
+<div class="menu" id="m-file"><div class="mi">New sequence… <small>⌘N</small></div><div class="mi">Open .mosh… <small>⌘O</small></div><div class="mi">Save <small>⌘S</small></div><div class="mi">Save as .mosh…</div><div class="sep"></div><div class="mi">Import media… <small>⌘I</small></div><div class="mi">Templates ▸ Video Mutation / Image on Video / Motion Hijack / Echo Projection</div><div class="sep"></div><div class="mi">Mosh ID ↓ (paste)</div><div class="mi">Mosh ID ↑ (copy link)</div><div class="sep"></div><div class="mi">Autosave: OPFS <small>on</small></div></div>
+<div class="menu" id="m-edit"><div class="mi">Undo <small>⌘Z</small></div><div class="mi">Redo <small>⇧⌘Z</small></div><div class="sep"></div><div class="mi">Cut / Copy / Paste at playhead</div><div class="mi">Duplicate <small>⌘D</small></div><div class="mi">Delete</div><div class="sep"></div><div class="mi">Split at playhead <small>⌘B</small></div><div class="mi">Bloom Insert… <small>⇧B</small></div><div class="mi">Add marker <small>M</small></div><div class="mi">Add mosh hit at playhead <small>H</small></div><div class="sep"></div><div class="mi chk">Snap <small>N</small></div><div class="mi">Loop range = selection <small>⌥L</small></div></div>
+<div class="menu" id="m-clip"><div class="mi">Hold (freeze source)</div><div class="mi">Reset at in-point <small>default</small></div><div class="mi">Continue state across split</div><div class="mi">Warm-up frames…</div><div class="sep"></div><div class="mi">Transform &amp; blend…</div><div class="mi">Use as motion source (source2)</div><div class="mi">Use as matte</div><div class="sep"></div><div class="mi">Save stack as preset…</div><div class="mi">Paste stack</div></div>
+<div class="menu" id="m-fx"><div class="mi">Effects browser… <small>⌘E</small></div><div class="mi">Modulators…</div><div class="mi">Presets ▸ Xvid classic / H.264 soft / Packet loss / Fluid / Bloom</div><div class="mi">Legacy presets ▸ 01 Classic Melt … 12 Echo Proj.</div><div class="sep"></div><div class="mi">Add Mosh Loop to selection</div><div class="mi">Add Mosh Cut at playhead</div><div class="sep"></div><div class="mi chk">Bypass all effects <small>⇧E</small></div></div>
+<div class="menu" id="m-view"><div class="mi chk">Preview quality: full</div><div class="mi">Preview quality: ½</div><div class="mi">Preview quality: ¼</div><div class="sep"></div><div class="mi">Overlay ▸ motion field</div><div class="mi">Overlay ▸ block grid</div><div class="mi">Overlay ▸ SAD heatmap</div><div class="mi">Overlay ▸ cache status</div><div class="sep"></div><div class="mi">A/B compare (hold)</div><div class="mi">Fullscreen output <small>⌘⇧F</small></div><div class="mi">Zoom to fit <small>⇧Z</small></div></div>
+<div class="menu" id="m-export"><div class="mi">Export video… <small>⌘⇧E</small></div><div class="mi">Export PNG sequence…</div><div class="mi">Export frame (still) <small>⌘⇧S</small></div><div class="sep"></div><div class="mi">Authentic bake (ffmpeg, slow)…</div><div class="sep"></div><div class="mi">Export OTIO (cut only) <small>v3</small></div></div>
+<div class="menu" id="m-lab"><div class="mi">Open lab window</div><div class="mi">Load image sequence…</div><div class="mi">Run GPU vs CPU parity</div><div class="mi">Run determinism replay</div><div class="mi">Bench (writes ref/bench-tag.json)</div></div>
+<div class="menu" id="m-help"><div class="mi">Keyboard map</div><div class="mi">About tiers and limits</div><div class="mi">What is a Mosh ID</div><div class="mi">Credits</div></div>
+
+<div id="desk">
+  <!-- preview -->
+  <div class="pane active" id="preview"><div class="in">
+    <div class="wcap"><div class="capt">Preview — Sequence 1 · 1920×1080 · 29.97</div><button class="wmin" title="minimise">▾</button></div>
+    <div id="stage"><canvas id="cv" width="480" height="270"></canvas><div class="ov">f 00412 · 00:13.76 · E1 replaying from checkpoint 400 (12 steps)</div></div>
+    <div id="transport">
+      <button class="b" title="to start (Home)">⏮</button><button class="b" title="J">◀</button><button class="b on" title="K / space">▶</button><button class="b" title="L">▶▶</button><button class="b" title="to end (End)">⏭</button>
+      <button class="b" title="loop range">LOOP</button><button class="b" title="hold to see source without effects">A/B</button>
+      <span class="sp"></span>
+      <select class="b"><option>Quality: full</option><option>½</option><option>¼</option></select>
+      <button class="b" title="overlay: motion field arrows">FIELD</button><button class="b" title="overlay: 16px block grid">GRID</button><button class="b" title="overlay: SAD heatmap">SAD</button>
+      <button class="b" title="fullscreen output window">⛶</button>
+    </div>
+  </div></div>
+
+  <!-- inspector / stack -->
+  <div class="pane" id="inspector"><div class="in">
+    <div class="wcap"><div class="capt">Stack — E1 · MOSH LOOP · 0:04.2 – 0:09.8</div><button class="wmin">▾</button></div>
+    <div class="body">
+      <ul class="stack">
+        <li class="grp"><input type="checkbox" checked><span>MOSH LOOP <span class="tag">group · stateful</span></span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>Field: estimate <span class="tag">block 16 · pel ½ · λ 200</span></span><span class="st">⋮</span></li>
+        <li class="sub sel"><input type="checkbox" checked><span>Field ▸ Multiply</span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>Field ▸ Noise</span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>Hold ▸ Bloom <span class="tag">repeat 20 · trig: hits</span></span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>Warp <span class="tag">nearest · clamp</span></span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>Residual paint-in</span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>In-loop ▸ Chroma 4:2:0</span><span class="st">⋮</span></li>
+        <li class="sub"><input type="checkbox" checked><span>Reset <span class="tag">gop 0 · auto on cut</span></span><span class="st">⋮</span></li>
+        <li><input type="checkbox" checked><span>DCT QUANTISE <span class="tag">post</span></span><span class="st">⋮</span></li>
+        <li><input type="checkbox"><span>RGB SPLIT <span class="tag">post · bypassed</span></span><span class="st">⋮</span></li>
+      </ul>
+      <div class="brow"><button class="b">+ ADD</button><button class="b">PRESET ▾</button><button class="b">COPY</button><button class="b">RESET</button></div>
+
+      <div class="grp-box"><b>Field ▸ Multiply</b>
+        <div class="prow"><span class="sw on" title="keyframes on (stopwatch)"></span><span>gain x</span><div class="scrub"><u></u><em></em><i></i></div><span class="val">1.40</span><button class="b" style="padding:0" title="modulation slots">∿</button></div>
+        <div class="mod"><b>LFO</b> sine · 0.50 Hz · depth 0.30 · add <span class="sp"></span><span>×</span></div>
+        <div class="prow"><span class="sw" title="keyframes off"></span><span>gain y</span><div class="scrub"><u></u><i style="left:30%"></i></div><span class="val">0.20</span><button class="b" style="padding:0">∿</button></div>
+        <div class="prow"><span class="sw"></span><span>seed</span><div class="scrub"><u></u><i style="left:12%"></i></div><span class="val">1337</span><button class="b" style="padding:0">⟳</button></div>
+        <div class="note">Scrubber = the house ruler: drag one width for the whole range, wheel for fine steps, double-click resets. Stopwatch dot = keyframing. ∿ opens modulation slots; the LFO is drawn as a ghost curve on the keyframe lane below.</div>
+      </div>
+
+      <div class="grp-box"><b>Macros (group)</b>
+        <div class="prow"><span class="sw"></span><span>entropy</span><div class="scrub"><u></u><i style="left:62%"></i></div><span class="val">0.62</span><span></span></div>
+        <div class="prow"><span class="sw"></span><span>intensity</span><div class="scrub"><u></u><i style="left:48%"></i></div><span class="val">0.48</span><span></span></div>
+        <div class="prow"><span class="sw"></span><span>blend</span><div class="scrub"><u></u><i style="left:10%"></i></div><span class="val">0.10</span><span></span></div>
+        <div class="prow"><span class="sw"></span><span>threshold</span><div class="scrub"><u></u><i style="left:35%"></i></div><span class="val">0.35</span><span></span></div>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- timeline -->
+  <div class="pane" id="timeline"><div class="in">
+    <div class="wcap"><div class="capt">Timeline — Sequence 1 · 60.0 s · loop 0:03.0 – 0:12.0</div><button class="wmin">▾</button></div>
+    <div id="tl">
+      <div id="tlcorner"><button class="b" style="height:18px;padding:0 5px" title="snap (N)">N</button><button class="b on" style="height:18px;padding:0 5px" title="blade (B)">B</button><span class="sp"></span><span style="font-weight:400">zoom</span><input type="range" min="1" max="10" value="4" style="width:48px"></div>
+      <div id="ruler">
+        <div class="rs"><span class="g" style="width:22%"></span><span class="y" style="width:10%"></span><span class="g" style="width:14%"></span><span class="r" style="width:19%"></span><span class="y" style="width:35%"></span></div>
+        <div class="ck" style="left:5%"></div><div class="ck" style="left:10%"></div><div class="ck" style="left:15%"></div><div class="ck" style="left:20%"></div><div class="ck" style="left:33%"></div><div class="ck" style="left:38%"></div><div class="ck" style="left:43%"></div>
+        <div class="tc" style="left:0">0:00</div><div class="tc" style="left:16.7%">0:10</div><div class="tc" style="left:33.3%">0:20</div><div class="tc" style="left:50%">0:30</div><div class="tc" style="left:66.7%">0:40</div><div class="tc" style="left:83.3%">0:50</div>
+        <div class="mk hit" style="left:8%" title="mosh hit (H): bloom trigger"></div><div class="mk hit" style="left:11%"></div><div class="mk" style="left:46%" title="marker (M)"></div>
+        <div class="io" style="left:5%;width:15%" title="loop / export range I-O"></div>
+        <div id="phhead" style="left:23%"></div>
+      </div>
+      <div id="heads">
+        <div class="head"><span>E2 · LOST SECTORS</span><div class="tb"><button title="lock">L</button><button title="bypass" class="on">B</button><button title="solo">S</button></div></div>
+        <div class="head"><span>E1 · MOSH LOOP</span><div class="tb"><button>L</button><button>B</button><button>S</button></div></div>
+        <div class="head kf"><span>↳ Multiply · gain x</span><span style="font-size:10px">◆ 3 · ∿ LFO</span></div>
+        <div class="head"><span>V2 · still</span><div class="tb"><button>L</button><button>B</button><button>S</button></div></div>
+        <div class="head"><span>V1 · video</span><div class="tb"><button>L</button><button>B</button><button>S</button></div></div>
+        <div class="head"><span>A1 · audio</span><div class="tb"><button>L</button><button>M</button><button>S</button></div></div>
+      </div>
+      <div id="lanes">
+        <div class="lane"><div class="clip fx" style="left:30%;width:19%"><span>LOST SECTORS</span><small>density 0.4 · layers 2</small><div class="reset" title="state resets at in-point"></div></div></div>
+        <div class="lane"><div class="clip fx sel" style="left:7%;width:26%"><span>MOSH LOOP</span><small>Xvid classic · 9 nodes</small><div class="reset"></div></div><div class="clip fx" style="left:52%;width:40%"><span>MOSH LOOP</span><small>continue state ⟶</small></div></div>
+        <div class="lane kf"><div class="kfghost" id="ghost"></div><div class="kfl" style="left:7%;width:26%;right:auto"></div><div class="kfd" style="left:9%"></div><div class="kfd hold" style="left:18%"></div><div class="kfd" style="left:30%"></div></div>
+        <div class="lane"><div class="clip still" style="left:52%;width:40%"><span>poster.png</span><small>hold · used as reset image by E1</small></div></div>
+        <div class="lane"><div class="clip" style="left:0;width:24%"><span>clip_a.mp4</span><small>0:00 – 0:14.4 · 1080p</small></div><div class="cut" style="left:24%"><b>MOSH CUT</b></div><div class="clip" style="left:24%;width:4%;background:#cfcfcf"><small>hold ×48</small></div><div class="clip" style="left:28%;width:64%"><span>clip_b.mp4</span><small>0:17.0 – 0:55.2 · 4K → proxy</small></div></div>
+        <div class="lane"><div class="clip aud" style="left:0;width:92%"><span>clip_a + clip_b audio</span><small>stretch 1.0 · segment 1.08 at hold</small><div class="stretch" style="left:26%;width:4.4%" title="time-stretched segment matching the hold"></div></div></div>
+        <div id="playhead" style="left:23%"></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- floating windows -->
+<div class="win open" id="w-fx" style="left:16px;top:70px"><div class="in">
+  <div class="wcap"><div class="capt">Effects</div><button class="wmin" data-min="w-fx">▾</button></div>
+  <div class="body">
+    <input class="t" placeholder="search… (⌘E)" style="width:100%;box-sizing:border-box">
+    <div class="list" id="fxlist"></div>
+    <div class="note" id="fxnote">Double-click adds to the selected clip's stack. Drag onto a channel to create an effect clip over the drop range. v1 = ships with the engine, v2 = next, v3 = opt-in. Verdicts in CATALOG-REVIEW.md.</div>
+  </div>
+</div></div>
+
+<div class="win" id="w-mod" style="left:350px;top:90px"><div class="in">
+  <div class="wcap"><div class="capt">Modulators — E1</div><button class="wmin" data-min="w-mod">▾</button></div>
+  <div class="body">
+    <div class="list">
+      <div class="h">continuous</div>
+      <div class="e"><span>LFO sine 0.5 Hz → Multiply.gain x</span><span class="s">add · 0.30</span><span></span></div>
+      <div class="e"><span>Audio bass (RMS 60–180 Hz) → Noise.amplitude</span><span class="s">multiply · 0.8</span><span></span></div>
+      <div class="e"><span>Noise 1D 0.2 Hz → DCT.qscale</span><span class="s">add · 6</span><span></span></div>
+      <div class="h">triggers (events)</div>
+      <div class="e"><span>Onsets (threshold 0.4) → Bloom.trigger</span><span class="s">hold 20 f</span><span></span></div>
+      <div class="e"><span>Mosh hits (H markers) → Bloom.trigger</span><span class="s">hold 20 f</span><span></span></div>
+      <div class="e"><span>Every 90 f → Reset (random blocks 0.3)</span><span class="s">phase 0</span><span></span></div>
+    </div>
+    <div class="brow"><button class="b">+ LFO</button><button class="b">+ NOISE</button><button class="b">+ AUDIO</button><button class="b">+ TRIGGER</button></div>
+    <div class="note">Modulators are pure functions of (frame, seed, audio features). Audio features are computed once at import, so a modulated render is deterministic and the ghost curve can be drawn before playing.</div>
+  </div>
+</div></div>
+
+<div class="win" id="w-export" style="right:16px;top:90px"><div class="in">
+  <div class="wcap"><div class="capt">Export</div><button class="wmin" data-min="w-export">▾</button></div>
+  <div class="body">
+    <div class="line2"><span>container</span><select class="b"><option>MP4</option><option>WebM</option><option>PNG sequence</option></select></div>
+    <div class="line2"><span>video</span><select class="b"><option>H.264 High · hw</option><option>VP9</option><option>AV1 (unsupported here)</option></select></div>
+    <div class="line2"><span>quality</span><select class="b"><option>quantizer 23</option><option>VBR 12 Mb/s</option></select></div>
+    <div class="line2"><span>audio</span><select class="b"><option>Opus 128k</option><option>AAC 160k</option><option>none</option></select></div>
+    <div class="line2"><span>range</span><select class="b"><option>I–O (0:03.0 – 0:12.0)</option><option>whole sequence</option></select></div>
+    <div class="line2"><span>resolution</span><select class="b"><option>1920×1080 (tier max 4K)</option><option>½</option></select></div>
+    <label class="chk"><input type="checkbox"> Authentic bake (ffmpeg.wasm, MPEG-4 ASP, ~12× slower)</label>
+    <label class="chk"><input type="checkbox" checked> Stream to disk (no memory growth)</label>
+    <div class="bar" style="margin-top:8px"><i style="width:38%"></i></div>
+    <div class="note">0:03.4 of 0:09.0 · 142 fps encode · 00:04 left · sequential from frame 0, cache unused</div>
+    <div class="brow"><button class="b">EXPORT</button><button class="b">CANCEL</button></div>
+  </div>
+</div></div>
+
+<div class="win" id="w-lab" style="left:360px;top:120px;width:360px"><div class="in">
+  <div class="wcap"><div class="capt">Lab — algorithm bench</div><button class="wmin" data-min="w-lab">▾</button></div>
+  <div class="body">
+    <div class="line2"><span>input</span><select class="b"><option>fixture: panning checkerboard</option><option>fixture: moving square</option><option>fixture: scene cut</option><option>image sequence…</option><option>video…</option></select></div>
+    <div class="line2"><span>chain</span><select class="b"><option>estimate → multiply → warp</option><option>full Xvid classic</option></select></div>
+    <div class="line2"><span>backend</span><select class="b"><option>GPU vs CPU (diff)</option><option>GPU</option><option>CPU ref</option></select></div>
+    <div class="brow"><button class="b">|◀</button><button class="b">◀ 1</button><button class="b">1 ▶</button><button class="b">▶ 10</button><button class="b">RUN</button></div>
+    <label class="chk"><input type="checkbox" checked> field arrows</label><label class="chk"><input type="checkbox" checked> SAD heatmap</label><label class="chk"><input type="checkbox"> ground-truth field (fixtures)</label>
+    <div class="note">frame 12 · max |GPU−CPU| 1/255 · field EPE 0.31 px vs truth · 0.9 ms estimate · 0.4 ms warp</div>
+    <div class="brow"><button class="b">EXPORT PNGs</button><button class="b">SAVE BENCH</button><button class="b">A/B vs BAKE</button></div>
+  </div>
+</div></div>
+
+<div class="win" id="w-keys" style="right:16px;top:120px;width:300px"><div class="in">
+  <div class="wcap"><div class="capt">Keyboard map</div><button class="wmin" data-min="w-keys">▾</button></div>
+  <div class="body" style="font-weight:400;line-height:1.5">
+    space / K play-pause · J L shuttle · ← → frame · ⇧← → 10 f<br>
+    I O range · M marker · <b>H mosh hit</b> · N snap · B blade · V select<br>
+    ⌘B split · ⇧B bloom insert · ⌘D duplicate · ⌘Z undo<br>
+    ⌘E effects · ⇧E bypass all · ⌘⇧E export · ⇧Z fit · ⌘ +/− zoom<br>
+    1–9 preset slots · ⌥drag = copy clip · ⌘drag = no snap
+  </div>
+</div></div>
+
+<!-- import gate modal -->
+<div id="veil"><div class="win"><div class="in">
+  <div class="wcap"><div class="capt">Import — clip_b.mp4</div></div>
+  <div class="body" style="font-weight:400">
+    <div>3840×2160 · 29.97 · 18:04 · H.264 · AAC · 2.1 GB</div>
+    <div class="warn"><b>Tier 1 device.</b> This device decodes 4K at 11 fps and holds about 10 minutes of cache. The clip will preview and export at 1080p unless you trim it.</div>
+    <label class="chk"><input type="radio" name="g" checked> Transcode a 1080p proxy once (≈ 2 min), keep the 4K file for export on a bigger device</label>
+    <label class="chk"><input type="radio" name="g"> Trim to the first 10 minutes</label>
+    <label class="chk"><input type="radio" name="g"> Import anyway (slow preview, export capped)</label>
+    <div class="brow"><button class="b" id="veil-ok">IMPORT</button><button class="b" id="veil-no">CANCEL</button></div>
+  </div>
+</div></div></div>
+
+<div id="dock">
+  <button data-win="w-fx" class="on">Effects</button><button data-win="w-mod">Modulators</button><button data-win="w-export">Export</button><button data-win="w-lab">Lab</button><button data-win="w-keys">Keys</button>
+  <button id="show-import">Import gate (demo)</button>
+  <span class="sp"></span><span class="hint">wireframe · nothing renders for real · drag playhead, open menus, toggle idiom</span>
+</div>
+
+<script type="module">
+// ---- catalogue (mirrors docs/CATALOG-REVIEW.md; [name, group, tier, stateful, verdict]) ----
+const CATALOG = [
+  ['Mosh Loop (group)','core loop','v1',true,'keep · the recurrent core; children run inside the loop'],
+  ['Mosh Cut (transition)','core loop','v1',true,'NEW · a cut object: drop the keyframe at a join, carry A into B'],
+  ['Reset / keyframe','core loop','v1',false,'keep · hard, random blocks, sweep, gop, auto-on-cut, image source'],
+  ['Bloom (hold field)','core loop','v1',true,'keep · trigger input added (hits, onsets, every n)'],
+  ['Pulse','core loop','v1',true,'merge → Bloom with "every n" trigger'],
+  ['Residual paint-in','core loop','v1',false,'keep · luma only by default'],
+  ['Intra block refresh','core loop','v1',false,'keep'],
+  ['Skip / freeze blocks','core loop','v1',false,'merge → estimate node output flag + threshold param'],
+  ['Lost sectors','core loop','v1',true,'keep · also usable as post effect'],
+  ['Vector mismatch','core loop','v1',false,'keep · tiny param, lives in Field ▸ Noise'],
+  ['Field ▸ Pan / add','field','v1',false,'keep'],
+  ['Field ▸ Multiply / axis kill','field','v1',false,'keep'],
+  ['Field ▸ Spatial gain (ramps, sin, mirror)','field','v1',false,'keep · one node, type select'],
+  ['Field ▸ Synthetic (zoom, rotate, shear, slam)','field','v1',false,'keep'],
+  ['Field ▸ Temporal average / inertia','field','v2',true,'keep v2 · needs field ring buffer'],
+  ['Field ▸ Spatial average','field','v1',false,'keep'],
+  ['Field ▸ Gravity / accumulate','field','v2',true,'keep v2'],
+  ['Field ▸ Selective amplify (fastest p%)','field','v1',false,'keep · needs per-frame histogram'],
+  ['Field ▸ Random damage','field','v2',false,'keep v2 · macro over other field ops'],
+  ['Field ▸ Noise / diffusion','field','v1',false,'keep'],
+  ['Field ▸ Quantise / precision','field','v1',false,'merge → Warp.pel'],
+  ['Field ▸ Sort','field','v2',false,'keep v2 · row sort in compute'],
+  ['Motion transplant (source2)','sources','v1',false,'keep · Motion Hijack'],
+  ['Still as I-frame','sources','v1',false,'merge → Reset.image source'],
+  ['Mosh map (mask layer)','sources','v1',false,'generalise → any param modulated by a layer luminance'],
+  ['Scene-cut auto-mosh','sources','v1',false,'merge → estimate.sceneCut + Reset.autoOnCut'],
+  ['Runaway / fluid (match vs output)','sources','v2',false,'merge → estimate.matchAgainst'],
+  ['Optical flow (dense)','sources','v1',false,'keep · toggle on estimate node'],
+  ['DCT quantise','codec','v1',false,'keep · in-loop or post'],
+  ['DCT coefficient glitch','codec','v2',false,'keep v2'],
+  ['Fake DCT stripes','codec','v1',false,'keep · cheap'],
+  ['Chroma subsampling / bleed','codec','v1',false,'keep'],
+  ['Deblocking (in-loop)','codec','v1',false,'keep · H.264 soft style'],
+  ['Posterise / colour quantise','codec','v1',false,'keep'],
+  ['Pixel sort','glitch','v2',false,'keep v2 · hard on GPU at 4K rows'],
+  ['Slit-scan / time displacement','glitch','v2',true,'keep v2 · frame ring'],
+  ['Echo / feedback trails','glitch','v1',true,'keep'],
+  ['Frame blend / ghost','glitch','v2',true,'keep v2'],
+  ['Displacement by motion (non-recurrent)','glitch','v1',false,'keep'],
+  ['Block drag / shuffle','glitch','v1',false,'keep'],
+  ['Slice tear / interlace','glitch','v1',false,'keep'],
+  ['RGB / chroma split','glitch','v1',false,'keep'],
+  ['Dither (ordered, FS, blue noise)','glitch','v2',false,'NEW · house interest (dither-types.html)'],
+  ['Analog: VHS / CRT / scanlines','glitch','v2',false,'NEW · adjacent family, often paired with mosh'],
+  ['Transform & blend (intrinsic)','utility','v1',false,'NEW · position, scale, rotate, opacity, blend mode per clip'],
+  ['Basic colour (levels, invert, hue, threshold)','utility','v1',false,'NEW · tiny set, needed for masks and looks'],
+  ['Luma / chroma key → matte','utility','v2',false,'NEW'],
+  ['Generator clips (solid, gradient, noise, text, automata)','utility','v2',false,'NEW · procedural sources'],
+  ['Audio-reactive drive','modulation','v1',false,'keep · as modulator type, not effect'],
+  ['Frame-order ops (random, reverse, jiggle)','time','v2',false,'keep v2 · timeline-level'],
+  ['Hold / freeze (clip)','time','v1',false,'keep · clip property; Bloom Insert uses it'],
+  ['Authentic bake (ffmpeg.wasm)','opt-in','v3',true,'keep v3'],
+  ['WebCodecs bitstream mosh','opt-in','v3',true,'keep v3 · browser dependent'],
+  ['Live input (camera / capture) + live output','live','v?',false,'ASK · festival mode'],
+  ['MIDI / OSC control','live','v?',false,'ASK · Web MIDI (no Safari)'],
+];
+const list = document.getElementById('fxlist'); let cur = '';
+for (const [name, group, tier, st, verdict] of CATALOG) {
+  if (group !== cur) { cur = group; const h = document.createElement('div'); h.className = 'h'; h.textContent = group; list.appendChild(h); }
+  const e = document.createElement('div'); e.className = 'e'; e.title = verdict;
+  e.innerHTML = `<span>${name}${st ? ' <span class="s">· stateful</span>' : ''}</span><span class="v ${tier.replace('?','x')}">${tier}</span><span class="s">${verdict.split(' · ')[0]}</span>`;
+  e.onclick = () => { for (const x of list.children) x.classList.remove('sel'); e.classList.add('sel'); document.getElementById('fxnote').textContent = `${name}: ${verdict}`; };
+  list.appendChild(e);
+}
+
+// ---- menus ----
+let openMenu = null;
+for (const t of document.querySelectorAll('.mtop')) {
+  const m = document.getElementById(t.dataset.menu);
+  t.onclick = (ev) => { ev.stopPropagation(); const was = m.classList.contains('open'); closeMenus(); if (!was) { m.classList.add('open'); t.classList.add('open'); const r = t.getBoundingClientRect(); m.style.left = r.left + 'px'; m.style.top = r.bottom + 'px'; openMenu = m; } };
+}
+function closeMenus() { for (const m of document.querySelectorAll('.menu')) m.classList.remove('open'); for (const t of document.querySelectorAll('.mtop')) t.classList.remove('open'); openMenu = null; }
+document.addEventListener('click', closeMenus);
+
+// ---- windows: dock toggles, minimise, drag, activate ----
+for (const b of document.querySelectorAll('#dock [data-win]')) b.onclick = () => { const w = document.getElementById(b.dataset.win); w.classList.toggle('open'); b.classList.toggle('on', w.classList.contains('open')); activate(w); };
+for (const b of document.querySelectorAll('[data-min]')) b.onclick = () => { document.getElementById(b.dataset.min).classList.remove('open'); document.querySelector(`#dock [data-win="${b.dataset.min}"]`).classList.remove('on'); };
+function activate(w) { for (const x of document.querySelectorAll('.win, .pane')) x.classList.remove('active'); w.classList.add('active'); w.style.zIndex = 150; for (const x of document.querySelectorAll('.win')) if (x !== w) x.style.zIndex = 100; }
+for (const w of document.querySelectorAll('.win')) {
+  w.addEventListener('pointerdown', () => activate(w));
+  const capt = w.querySelector('.capt'); let sx, sy, ox, oy;
+  capt.onpointerdown = (e) => { sx = e.clientX; sy = e.clientY; const r = w.getBoundingClientRect(); ox = r.left; oy = r.top; capt.setPointerCapture(e.pointerId); w.style.right = 'auto'; };
+  capt.onpointermove = (e) => { if (sx === undefined) return; w.style.left = (ox + e.clientX - sx) + 'px'; w.style.top = (oy + e.clientY - sy) + 'px'; };
+  capt.onpointerup = () => { sx = undefined; };
+}
+for (const p of document.querySelectorAll('.pane')) p.addEventListener('pointerdown', () => activate(p));
+
+// ---- playhead drag (ruler) ----
+const ruler = document.getElementById('ruler'), ph = document.getElementById('playhead'), phh = document.getElementById('phhead'), status = document.getElementById('status'), ov = document.querySelector('#stage .ov');
+function seek(e) { const r = ruler.getBoundingClientRect(); const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); ph.style.left = phh.style.left = (x * 100) + '%'; const f = Math.round(x * 1800); status.firstChild.textContent = `f ${String(f).padStart(5,'0')} / 01800 · 29.97 · 1920×1080 · cache 62 % · gpu 4.1 ms · mosh id ↑`; ov.textContent = `f ${String(f).padStart(5,'0')} · ${(f/29.97).toFixed(2)} s · ${x > .33 && x < .52 ? 'E1 replaying from checkpoint (' + (f % 16) + ' steps)' : 'cached'}`; paint(f); }
+ruler.onpointerdown = (e) => { ruler.setPointerCapture(e.pointerId); seek(e); ruler.onpointermove = seek; };
+ruler.onpointerup = () => { ruler.onpointermove = null; };
+
+// ---- idiom toggle ----
+const idiom = document.getElementById('idiom');
+idiom.onclick = () => { document.body.classList.toggle('brut'); idiom.textContent = document.body.classList.contains('brut') ? 'IDIOM: BRUTALIST' : 'IDIOM: PROGRAM MANAGER'; drawGhost(); };
+
+// ---- import gate demo ----
+document.getElementById('show-import').onclick = () => document.getElementById('veil').classList.add('on');
+document.getElementById('veil-ok').onclick = document.getElementById('veil-no').onclick = () => document.getElementById('veil').classList.remove('on');
+
+// ---- fake mosh preview: blocks smeared along a field, deterministic by frame ----
+const cv = document.getElementById('cv'), g = cv.getContext('2d');
+function hash(i, f) { let x = (i * 374761393 + f * 668265263) | 0; x = (x ^ (x >>> 13)) * 1274126177 | 0; return ((x ^ (x >>> 16)) >>> 0) / 4294967296; }
+function paint(f) {
+  const W = cv.width, H = cv.height, B = 16; g.fillStyle = '#101418'; g.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += B) for (let x = 0; x < W; x += B) {
+    const i = (y / B) * 64 + x / B, r = hash(i, Math.floor(f / 7)), t = (f * 0.015 + x / W) % 1;
+    const smear = 1 + Math.floor(r * 6) * (x > W * 0.3 ? 1 : 0), col = `hsl(${(200 + r * 90 + y / H * 40) | 0} ${40 + r * 40 | 0}% ${20 + ((x / W + t) % 1) * 45 | 0}%)`;
+    g.fillStyle = col; g.fillRect(x, y, B * smear, B);
+    if (r > .93) { g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(x, y, B, B); }
+  }
+  // field overlay, every 2nd block
+  g.strokeStyle = 'rgba(240,160,64,.7)'; g.lineWidth = 1;
+  for (let y = B / 2; y < H; y += B * 2) for (let x = B / 2; x < W; x += B * 2) { const dx = (hash(x * 7 + y, f >> 3) - .3) * 14, dy = (hash(x + y * 7, f >> 3) - .5) * 6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + dx, y + dy); g.stroke(); }
+}
+// ---- ghost LFO on the keyframe lane ----
+function drawGhost() {
+  const gh = document.getElementById('ghost'); gh.innerHTML = '';
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('width', '100%'); s.setAttribute('height', '26'); s.setAttribute('viewBox', '0 0 1000 26'); s.setAttribute('preserveAspectRatio', 'none');
+  let d = ''; for (let x = 70; x <= 330; x += 4) d += (x === 70 ? 'M' : 'L') + x + ' ' + (13 - Math.sin(x / 9) * 7 + (x > 180 && x < 300 ? -3 : 0)).toFixed(1) + ' ';
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', getComputedStyle(document.body).getPropertyValue('--navy')); p.setAttribute('stroke-dasharray', '3 2'); p.setAttribute('vector-effect', 'non-scaling-stroke'); s.appendChild(p); gh.appendChild(s);
+}
+paint(412); drawGhost();
+</script>
+</body>
+</html>

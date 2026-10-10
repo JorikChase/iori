@@ -5,5 +5,6 @@ Disallow: /404.html
 Disallow: /burger.html
 Disallow: /clip.html
 Disallow: /lili-web.html
+Disallow: /moshine/lab.html
 
 Sitemap: https://3die.fr/sitemap-3die.xml

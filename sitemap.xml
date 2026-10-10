@@ -196,6 +196,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://iori.me/moshine/</loc>
+    <lastmod>2026-10-10</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://iori.me/multiOS.html</loc>
     <lastmod>2026-09-27</lastmod>
     <priority>0.5</priority>

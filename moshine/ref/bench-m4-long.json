@@ -1,0 +1,174 @@
+{
+ "tag": "m4-long",
+ "date": "2026-10-09T14:25:19.476Z",
+ "gpu": "apple metal-3",
+ "only": {
+  "slowExportLong": {
+   "pass": true,
+   "frames": 18000,
+   "expected": 18000,
+   "minutes": 5.1,
+   "fps": 58.9,
+   "outputMiB": 966.3,
+   "heapStartMiB": 7,
+   "heapGrowthMiB": 61.8,
+   "uaMemoryMiB": [
+    6,
+    14
+   ],
+   "samples": [
+    {
+     "frame": 4,
+     "heapMiB": 7.6,
+     "fps": 1.2
+    },
+    {
+     "frame": 617,
+     "heapMiB": 19.4,
+     "fps": 47.2
+    },
+    {
+     "frame": 1223,
+     "heapMiB": 25.9,
+     "fps": 53.2
+    },
+    {
+     "frame": 1824,
+     "heapMiB": 22.6,
+     "fps": 55.4
+    },
+    {
+     "frame": 2430,
+     "heapMiB": 22.4,
+     "fps": 56.4
+    },
+    {
+     "frame": 3043,
+     "heapMiB": 58.2,
+     "fps": 57.1
+    },
+    {
+     "frame": 3656,
+     "heapMiB": 46.3,
+     "fps": 57.5
+    },
+    {
+     "frame": 4260,
+     "heapMiB": 30.5,
+     "fps": 57.8
+    },
+    {
+     "frame": 4860,
+     "heapMiB": 54.5,
+     "fps": 58
+    },
+    {
+     "frame": 5465,
+     "heapMiB": 64,
+     "fps": 58.2
+    },
+    {
+     "frame": 6079,
+     "heapMiB": 50.1,
+     "fps": 58.3
+    },
+    {
+     "frame": 6683,
+     "heapMiB": 49.2,
+     "fps": 58.4
+    },
+    {
+     "frame": 7283,
+     "heapMiB": 55,
+     "fps": 58.4
+    },
+    {
+     "frame": 7883,
+     "heapMiB": 27.3,
+     "fps": 58.5
+    },
+    {
+     "frame": 8486,
+     "heapMiB": 69.4,
+     "fps": 58.5
+    },
+    {
+     "frame": 9086,
+     "heapMiB": 24.1,
+     "fps": 58.5
+    },
+    {
+     "frame": 9693,
+     "heapMiB": 29,
+     "fps": 58.5
+    },
+    {
+     "frame": 10293,
+     "heapMiB": 19.3,
+     "fps": 58.6
+    },
+    {
+     "frame": 10900,
+     "heapMiB": 29.5,
+     "fps": 58.6
+    },
+    {
+     "frame": 11504,
+     "heapMiB": 22.9,
+     "fps": 58.7
+    },
+    {
+     "frame": 12110,
+     "heapMiB": 27.5,
+     "fps": 58.7
+    },
+    {
+     "frame": 12716,
+     "heapMiB": 24.5,
+     "fps": 58.7
+    },
+    {
+     "frame": 13317,
+     "heapMiB": 40,
+     "fps": 58.7
+    },
+    {
+     "frame": 13922,
+     "heapMiB": 19.1,
+     "fps": 58.7
+    },
+    {
+     "frame": 14533,
+     "heapMiB": 23,
+     "fps": 58.8
+    },
+    {
+     "frame": 15137,
+     "heapMiB": 30.5,
+     "fps": 58.8
+    },
+    {
+     "frame": 15747,
+     "heapMiB": 20.8,
+     "fps": 58.8
+    },
+    {
+     "frame": 16359,
+     "heapMiB": 29.8,
+     "fps": 58.9
+    },
+    {
+     "frame": 16962,
+     "heapMiB": 29.4,
+     "fps": 58.9
+    },
+    {
+     "frame": 17567,
+     "heapMiB": 19.6,
+     "fps": 58.9
+    }
+   ],
+   "secs": 330.5
+  }
+ }
+}

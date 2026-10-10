@@ -1,0 +1,919 @@
+{
+ "tag": "m6-step2",
+ "date": "2026-10-10T06:49:23.428Z",
+ "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+ "pass": true,
+ "T0": {
+  "device": {
+   "pass": true,
+   "adapter": "apple metal-3",
+   "level": "core",
+   "features": [
+    "shader-f16",
+    "timestamp-query"
+   ],
+   "coi": true,
+   "tier": 3,
+   "secs": 0
+  },
+  "goldenFixtures": {
+   "pass": true,
+   "mismatches": [],
+   "secs": 0.07
+  },
+  "warpParity": {
+   "pass": true,
+   "firstDiffIndex": {
+    "clamp": {
+     "f32": -1,
+     "f16": -1
+    },
+    "repeat": {
+     "f32": -1,
+     "f16": -1
+    },
+    "mirror": {
+     "f32": -1,
+     "f16": -1
+    }
+   },
+   "secs": 0.06
+  },
+  "warpTruth": {
+   "pass": true,
+   "rows": {
+    "pan": {
+     "masked": 56922,
+     "bad": 0
+    },
+    "square": {
+     "masked": 53504,
+     "bad": 0
+    },
+    "cut": {
+     "masked": 52632,
+     "bad": 0
+    }
+   },
+   "secs": 0.02
+  },
+  "moshReplay": {
+   "pass": true,
+   "hash": "9a7a3522",
+   "steps": 80,
+   "replayEqual": true,
+   "cpuEqual": true,
+   "secs": 0.44
+  },
+  "pyramidParity": {
+   "pass": true,
+   "levels": [
+    {
+     "bad": 8234,
+     "max": 1.1920928955078125e-7
+    },
+    {
+     "bad": 1761,
+     "max": 1.1920928955078125e-7
+    },
+    {
+     "bad": 392,
+     "max": 1.1920928955078125e-7
+    }
+   ],
+   "secs": 0.01
+  },
+  "matchParity": {
+   "pass": true,
+   "rows": {
+    "pan@7": {
+     "sameVectors": 1,
+     "madMax": 7.450580596923828e-9,
+     "cut": [
+      0,
+      0
+     ]
+    },
+    "square@9": {
+     "sameVectors": 1,
+     "madMax": 0,
+     "cut": [
+      0,
+      0
+     ]
+    },
+    "cut@40": {
+     "sameVectors": 1,
+     "madMax": 1.4901161193847656e-8,
+     "cut": [
+      238,
+      238
+     ]
+    },
+    "cut@47": {
+     "sameVectors": 1,
+     "madMax": 0,
+     "cut": [
+      1,
+      1
+     ]
+    }
+   },
+   "secs": 0.11
+  },
+  "matchTruth": {
+   "pass": true,
+   "rows": {
+    "pan@7": {
+     "blocks": 209,
+     "median": 0,
+     "p90": 0,
+     "max": 1.5811388300841898,
+     "exact": 203
+    },
+    "square@9": {
+     "blocks": 224,
+     "median": 0,
+     "p90": 0,
+     "max": 0,
+     "exact": 224
+    },
+    "cut@47": {
+     "blocks": 210,
+     "median": 0,
+     "p90": 0,
+     "max": 12.020815280171307,
+     "exact": 209
+    },
+    "pan@5 13,-7": {
+     "blocks": 190,
+     "median": 0,
+     "p90": 0,
+     "max": 0,
+     "exact": 190
+    }
+   },
+   "secs": 0.07
+  },
+  "fieldOpsParity": {
+   "pass": true,
+   "rows": {
+    "pan": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "multiply": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "noise": {
+     "maxDiff": 9.5367431640625e-7,
+     "flagMismatch": 0
+    },
+    "smooth": {
+     "maxDiff": 2.384185791015625e-7,
+     "flagMismatch": 0
+    },
+    "gain:sinX": {
+     "maxDiff": 0.0000050067901611328125,
+     "flagMismatch": 0
+    },
+    "gain:radial": {
+     "maxDiff": 7.152557373046875e-7,
+     "flagMismatch": 0
+    },
+    "gain:checker": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "gain:mirrorL": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "gain:invY": {
+     "maxDiff": 4.76837158203125e-7,
+     "flagMismatch": 0
+    },
+    "synthetic:zoom": {
+     "maxDiff": 9.5367431640625e-7,
+     "flagMismatch": 0
+    },
+    "synthetic:rotate": {
+     "maxDiff": 0.0000050067901611328125,
+     "flagMismatch": 0
+    },
+    "synthetic:swirl": {
+     "maxDiff": 0.000007152557373046875,
+     "flagMismatch": 0
+    },
+    "synthetic:shearX": {
+     "maxDiff": 9.5367431640625e-7,
+     "flagMismatch": 0
+    },
+    "synthetic:shearY": {
+     "maxDiff": 9.5367431640625e-7,
+     "flagMismatch": 0
+    },
+    "lost": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "skip": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "amplify:fastest": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "amplify:slowest": {
+     "maxDiff": 0,
+     "flagMismatch": 0
+    },
+    "map": {
+     "maxDiff": 0.00000286102294921875,
+     "flagMismatch": 0
+    },
+    "map:inv": {
+     "maxDiff": 0.0000022649765014648438,
+     "flagMismatch": 0
+    }
+   },
+   "secs": 0.04
+  },
+  "warpModes": {
+   "pass": true,
+   "rows": {
+    "nearest pel2": {
+     "bad": 0,
+     "max": 0,
+     "tol": 0
+    },
+    "nearest pel4 x1.3": {
+     "bad": 0,
+     "max": 0,
+     "tol": 0
+    },
+    "bilinear pel2": {
+     "bad": 0,
+     "max": 0,
+     "tol": 0.00001
+    },
+    "bilinear free mirror": {
+     "bad": 0,
+     "max": 1.1920928955078125e-7,
+     "tol": 0.00001
+    },
+    "zero on cut": {
+     "bad": 0,
+     "max": 0,
+     "tol": 0
+    },
+    "smooth field, bilinear": {
+     "bad": 0,
+     "max": 1.1920928955078125e-7,
+     "tol": 0.00001
+    },
+    "smooth field, nearest pel 2": {
+     "bad": 0,
+     "max": 0,
+     "tol": 0
+    }
+   },
+   "secs": 0.03
+  },
+  "codeParity": {
+   "pass": true,
+   "rows": {
+    "detail": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "full": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "codec": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "no code (hold)": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "hard": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "honoured cut": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "dropped I-frame": {
+     "pixelsOff": 0,
+     "max": 0
+    }
+   },
+   "secs": 0.06
+  },
+  "loopParity": {
+   "pass": true,
+   "rows": {
+    "Xvid classic": {
+     "41": 1,
+     "80": 1,
+     "119": 1
+    },
+    "Pure smear": {
+     "41": 1,
+     "80": 1,
+     "119": 1
+    },
+    "Packet loss": {
+     "41": 1,
+     "80": 1,
+     "119": 1
+    },
+    "Bloom pulse": {
+     "41": 1,
+     "80": 1,
+     "119": 1
+    },
+    "Xvid + residual": {
+     "41": 1,
+     "80": 1,
+     "119": 1
+    },
+    "Codec residual + intra": {
+     "41": 1,
+     "80": 1,
+     "119": 1
+    }
+   },
+   "secs": 20.16
+  },
+  "cutDetect": {
+   "pass": true,
+   "cutFrames": [
+    40
+   ],
+   "secs": 1.42
+  },
+  "bloomHold": {
+   "pass": true,
+   "hold": "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,2,3,4,-1,-1",
+   "secs": 0.16
+  },
+  "loopReplay": {
+   "pass": true,
+   "hashes": [
+    "a84f53e4",
+    "a84f53e4",
+    "a84f53e4"
+   ],
+   "secs": 1.1
+  },
+  "fxParity": {
+   "pass": true,
+   "rows": {
+    "dct": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "chroma": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "deblock": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "posterise": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "stripes": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "echo": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "displace": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "blockdrag": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "slice": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "rgbsplit": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "colour": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "freeze": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "dct #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "dct #2": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "chroma #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "posterise #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "stripes #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "echo #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "blockdrag #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "blockdrag #2": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "slice #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "rgbsplit #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "colour #1": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "colour #2": {
+     "pixelsOff": 0,
+     "max": 0
+    },
+    "freeze #1": {
+     "pixelsOff": 0,
+     "max": 0
+    }
+   },
+   "secs": 0.77
+  },
+  "flowParityTruth": {
+   "pass": true,
+   "rows": {
+    "pan@7": {
+     "maxGpuCpu": 0.00002,
+     "truth": {
+      "blocks": 209,
+      "median": 0.000007932793794911934,
+      "p90": 0.12494400454599174,
+      "max": 0.4063161117744696,
+      "exact": 0
+     }
+    },
+    "square@9": {
+     "maxGpuCpu": 0.00001,
+     "truth": {
+      "blocks": 224,
+      "median": 0,
+      "p90": 0,
+      "max": 1.773634182961575,
+      "exact": 204
+     }
+    },
+    "cut@47": {
+     "maxGpuCpu": 0.00003,
+     "truth": {
+      "blocks": 210,
+      "median": 0.0000037822019114230055,
+      "p90": 0.03630224052758469,
+      "max": 1.7736225791508577,
+      "exact": 0
+     }
+    }
+   },
+   "secs": 0.19
+  },
+  "fxLoopReplay": {
+   "pass": true,
+   "rows": {
+    "broken signal + echo + freeze": {
+     "same": true,
+     "hash": "752f6c6e"
+    },
+    "fluid": {
+     "same": true,
+     "hash": "0987e1da"
+    },
+    "soft deblocked": {
+     "same": true,
+     "hash": "91883efd"
+    }
+   },
+   "secs": 1.47
+  },
+  "fxLoopParity": {
+   "pass": true,
+   "rows": {
+    "Soft deblocked": {
+     "meanAbsDiff": 0.0075
+    },
+    "Fluid": {
+     "meanAbsDiff": 0
+    },
+    "04 Phantom Trail": {
+     "meanAbsDiff": 0.00005
+    },
+    "09 Acid Wash": {
+     "meanAbsDiff": 0.00009
+    }
+   },
+   "secs": 13.35
+  },
+  "compositeParity": {
+   "pass": true,
+   "rows": {
+    "place identity": {
+     "firstDiff": -1,
+     "bad": 0
+    },
+    "place moved": {
+     "firstDiff": -1,
+     "bad": 0
+    },
+    "place scaled": {
+     "firstDiff": -1,
+     "bad": 0
+    },
+    "place rotated": {
+     "firstDiff": -1,
+     "bad": 0
+    },
+    "blend normal 1": {
+     "bad": 0
+    },
+    "blend normal 0.45": {
+     "bad": 0
+    },
+    "blend add 1": {
+     "bad": 0
+    },
+    "blend add 0.45": {
+     "bad": 0
+    },
+    "blend multiply 1": {
+     "bad": 0
+    },
+    "blend multiply 0.45": {
+     "bad": 0
+    },
+    "blend screen 1": {
+     "bad": 0
+    },
+    "blend screen 0.45": {
+     "bad": 0
+    },
+    "blend difference 1": {
+     "bad": 0
+    },
+    "blend difference 0.45": {
+     "bad": 0
+    }
+   },
+   "secs": 0.04
+  },
+  "sequenceParity": {
+   "pass": true,
+   "rows": {
+    "oneClip": {
+     "frames": 16,
+     "framesDiffering": 0,
+     "firstBad": -1,
+     "maxAbsDiff": 0
+    },
+    "layered": {
+     "frames": 16,
+     "framesDiffering": 0,
+     "firstBad": -1,
+     "maxAbsDiff": 0
+    },
+    "fxMix": {
+     "frames": 16,
+     "framesDiffering": 5,
+     "firstBad": 2,
+     "maxAbsDiff": 0.00024
+    }
+   },
+   "secs": 0.64
+  },
+  "editorSmoke": {
+   "pass": true,
+   "trim": "0-90",
+   "move": "20-140",
+   "across": "0,1,1,0",
+   "marquee": 2,
+   "scrub": 45,
+   "undoSteps": 4,
+   "restored": true,
+   "secs": 0.48
+  },
+  "editorItems": {
+   "pass": true,
+   "next": 50,
+   "prev": 10,
+   "interp": "easeInOut",
+   "pasted": "moshLoop",
+   "presets": 1,
+   "added": 2,
+   "effectChannels": 2,
+   "moshIdChars": 1450,
+   "moshIdSame": true,
+   "secs": 0.28
+  },
+  "sequenceSeek": {
+   "pass": true,
+   "from": 0,
+   "seek11": true,
+   "seek5": true,
+   "secs": 0.17
+  },
+  "checkpointStore": {
+   "pass": true,
+   "seeks": {
+    "9": {
+     "same": true,
+     "replayed": 2,
+     "checkpoint": 8
+    },
+    "17": {
+     "same": true,
+     "replayed": 2,
+     "checkpoint": 16
+    },
+    "26": {
+     "same": true,
+     "replayed": 3,
+     "checkpoint": 24
+    },
+    "33": {
+     "same": true,
+     "replayed": 2,
+     "checkpoint": 32
+    },
+    "39": {
+     "same": true,
+     "replayed": 8,
+     "checkpoint": 32
+    }
+   },
+   "cpuSame": 40,
+   "cache": {
+    "frames": [
+     8,
+     16,
+     24,
+     32,
+     40
+    ],
+    "MiB": 0.86,
+    "deposits": 5,
+    "restores": 5
+   },
+   "secs": 0.47
+  },
+  "checkpointParity": {
+   "pass": true,
+   "checkpointMiB540p": 10.54,
+   "rows": {
+    "Xvid classic": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 130944
+    },
+    "Bloom pulse": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 180864
+    },
+    "Fluid": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 130560
+    },
+    "Packet loss": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 130944
+    },
+    "Soft deblocked": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 130560
+    },
+    "Phantom Trail": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 230016
+    },
+    "Motion Hijack": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 163200
+    },
+    "Healing GOP": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 130944
+    },
+    "bloom hit 20": {
+     "detour": true,
+     "fresh": true,
+     "bytes": 180864
+    }
+   },
+   "secs": 5.52
+  }
+ },
+ "T1": {
+  "sequenceVideo": {
+   "pass": true,
+   "frames": 48,
+   "sameAsM4": 48,
+   "seek40": true,
+   "size": "640×360",
+   "fps": {
+    "num": 30,
+    "den": 1
+   },
+   "secs": 1.26
+  },
+  "ingestLadder": {
+   "pass": true,
+   "probe": {
+    "codec": "avc",
+    "w": 640,
+    "h": 360,
+    "duration": 6,
+    "fps": 30,
+    "frames": 180,
+    "audio": "aac 48000 Hz ×1"
+   },
+   "externalMode": "external",
+   "rows": {
+    "t=1s": {
+     "meanAbsDiff": 0.00072,
+     "max": 0.1717
+    },
+    "t=4s": {
+     "meanAbsDiff": 0.00081,
+     "max": 0.1682
+    }
+   },
+   "secs": 0.05
+  },
+  "exportRoundTrip": {
+   "pass": true,
+   "exported": {
+    "frames": 180,
+    "seconds": 3.9,
+    "codec": "avc",
+    "audio": "aac"
+   },
+   "size": 1098167,
+   "back": {
+    "codec": "avc",
+    "w": 320,
+    "h": 176,
+    "duration": 6,
+    "fps": 30,
+    "frames": 180,
+    "audio": "aac 48000 Hz ×1"
+   },
+   "lumaPsnrFrame120": 42.48,
+   "ssim": 0.9901,
+   "secs": 3.94
+  },
+  "timelineExportM4": {
+   "pass": true,
+   "size": "320×180",
+   "frames": [
+    48,
+    48
+   ],
+   "sameFrames": 48,
+   "decoded": [
+    48,
+    48
+   ],
+   "audio": [
+    "aac",
+    "aac"
+   ],
+   "codec": [
+    "avc",
+    "avc"
+   ],
+   "secs": 0.54
+  },
+  "timelineEditedVideo": {
+   "pass": true,
+   "frames": 98,
+   "seeks": {
+    "20": true,
+    "45": true,
+    "63": true,
+    "80": true
+   },
+   "cachedSeeks": {
+    "33": true,
+    "50": true,
+    "64": true,
+    "85": true
+   },
+   "exportSameAsPreview": 98,
+   "decoded": 98,
+   "audioNote": "several clips in the range: the audio mix arrives in M7",
+   "distinctFrames": 95,
+   "layout": [
+    "V1: 0-30, 30-60, 60-68 hold, 68-98",
+    "FX2: 29-78 moshCut",
+    "FX1: 0-98",
+    "A1: "
+   ],
+   "secs": 1.93
+  },
+  "fidelitySets": {
+   "pass": true,
+   "rows": {
+    "fixture · mosh": {
+     "framesChecked": 12,
+     "maxSsimDeviation": 0.000047
+    },
+    "fixture · bloom": {
+     "framesChecked": 12,
+     "maxSsimDeviation": 0.000045
+    },
+    "clip · mosh": {
+     "framesChecked": 12,
+     "maxSsimDeviation": 0.000049
+    },
+    "clip · bloom": {
+     "framesChecked": 12,
+     "maxSsimDeviation": 0.000044
+    }
+   },
+   "secs": 1.13
+  },
+  "videoCut": {
+   "pass": true,
+   "frames": 180,
+   "cutFrames": [
+    90
+   ],
+   "cpuIdentical": 1,
+   "secs": 3.85
+  }
+ },
+ "T4": {
+  "warpCost": {
+   "msPerFrame": 0.344,
+   "fps": 2909,
+   "size": "1920x1080",
+   "format": "rgba16float",
+   "secs": 0.08
+  },
+  "loopCost1080": {
+   "size": "1920x1080",
+   "Xvid classic": {
+    "msPerFrame": 16.33,
+    "fps": 61
+   },
+   "heavy": {
+    "msPerFrame": 15.6,
+    "fps": 64
+   },
+   "secs": 2.46
+  }
+ }
+}

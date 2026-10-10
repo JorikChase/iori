@@ -1,0 +1,183 @@
+/* ui.css — MOSHINE's shell: the iris-engine / petri Program Manager idiom. One caption, one menu bar with
+   the status at its right, the docked preview, tool windows that minimise to the shortcut row.
+   Everything is prefixed ms. Urbanist is self-hosted (SIL OFL 1.1, fonts/OFL.txt): the page runs
+   cross-origin isolated, so nothing may load from another origin without CORP. */
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 400 700; font-display: swap; src: url(fonts/urbanist-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 400 700; font-display: swap; src: url(fonts/urbanist-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+:root { --row: 22px; --cap: 18px; --fs: 12px; --grey: #c0c0c0; --dk: #808080; --navy: #000080; --menuh: 20px; --dock: 26px;
+  --font: 'Urbanist', Arial, Helvetica, sans-serif; --red: #c01010; --yellow: #e0c000; --green: #20a040; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; }
+body.ms-touch { --row: 38px; --cap: 30px; --menuh: 34px; --fs: 14px; --dock: 40px; }
+
+#ms-cap, #ms-menubar, .ms, .ms-menu, #ms-dock, #ms-desk { font: 700 var(--fs)/1 var(--font); color: #000; cursor: default; user-select: none; -webkit-user-select: none; }
+#ms-cap { position: fixed; left: 0; right: 0; top: 0; height: var(--cap); z-index: 200; background: var(--navy); color: #fff; border-bottom: 1px solid #000; display: flex; align-items: stretch; line-height: var(--cap); }
+.ms-capt0 { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
+.ms-ctl { width: var(--cap); padding: 0; background: #000; border: 0; border-right: 1px solid #000; border-radius: 0; flex: none; }   /* site burger at the move (site.py menu) */
+#ms-menubar { position: fixed; left: 0; right: 0; top: calc(var(--cap) + 1px); height: var(--menuh); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; z-index: 200; }
+.ms-mtop { padding: 0 8px; line-height: var(--menuh); } .ms-mtop.open { background: var(--navy); color: #fff; }
+#ms-status { margin-left: auto; padding: 0 8px; line-height: var(--menuh); font-weight: 400; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.ms-menu { position: fixed; background: #fff; border: 1px solid #000; z-index: 9000; min-width: 210px; max-height: 80vh; overflow-y: auto; }
+.ms-mi { padding: 0 24px; line-height: calc(var(--row) - 2px); white-space: nowrap; position: relative; font-weight: 400; }
+.ms-mi:hover { background: var(--navy); color: #fff; } .ms-mi.chk::before { content: "\2713"; position: absolute; left: 7px; }
+.ms-mi.dis, .ms-mi.dis:hover { color: var(--dk); background: #fff; }
+.ms-mi small { float: right; margin-left: 24px; opacity: .7; }
+.ms-mi.head, .ms-mi.head:hover { font-weight: 700; color: var(--dk); background: #fff; }
+.ms-sep { border-top: 1px solid #000; margin: 2px 0; }
+
+/* docked desk: preview now; stack and timeline panes join it in M5 */
+#ms-desk { position: fixed; left: 0; right: 0; top: calc(var(--cap) + var(--menuh) + 2px); bottom: var(--dock); display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr; gap: 4px; padding: 4px; box-sizing: border-box; background: #000; }
+.ms-pane { background: var(--grey); border: 1px solid #000; padding: 3px; box-sizing: border-box; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.ms-pane > .ms-in, .ms > .ms-in { border: 1px solid #000; flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--grey); }
+.ms-wcap { height: var(--cap); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; line-height: var(--cap); flex: none; }
+.ms-pane.active .ms-wcap, .ms.active .ms-wcap { background: var(--navy); color: #fff; }
+.ms-capt { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
+.ms .ms-capt { cursor: move; touch-action: none; }
+.ms-min { width: var(--cap); padding: 0; background: var(--grey); border: 0; border-left: 1px solid #000; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); display: grid; place-items: center; }
+.ms-min::after { content: ""; border: 4px solid transparent; border-top: 5px solid #000; margin-top: 4px; }
+
+#ms-stage { flex: 1; background: #000; position: relative; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+#ms-fit { position: absolute; }
+#ms-view, #ms-overlay { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; background: transparent; }
+#ms-view { background: #000; } #ms-overlay { pointer-events: none; image-rendering: auto; }
+#ms-ov { position: absolute; left: 8px; top: 6px; color: #f0a040; font: 400 11px/1.3 var(--font); font-variant-numeric: tabular-nums; pointer-events: none; white-space: pre; }
+#ms-fail { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; color: #c0c0c0; font: 400 14px/1.5 var(--font); text-align: center; z-index: 5; }
+#ms-fail[hidden] { display: none; }
+#ms-transport { display: flex; gap: 4px; align-items: center; padding: 5px 6px; border-top: 1px solid #000; flex-wrap: wrap; flex: none; }
+.ms-b { background: var(--grey); border: 1px solid #000; border-radius: 3px; height: var(--row); padding: 0 8px; color: #000; font: 700 var(--fs)/1 var(--font); box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk), inset -2px -2px 0 var(--dk); white-space: nowrap; }
+.ms-b:active, .ms-b.on { box-shadow: inset 1px 1px 0 var(--dk), inset 2px 2px 0 var(--dk); background: #dcdcdc; }
+.ms-sp { flex: 1; }
+#ms-scrub { flex: 1; min-width: 120px; height: calc(var(--row) - 6px); border: 1px solid #000; background: #fff; position: relative; cursor: ew-resize; touch-action: none; }
+#ms-scrub i { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--red); pointer-events: none; }
+#ms-scrub b { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #000; pointer-events: none; }
+
+/* floating tool windows */
+.ms { position: fixed; width: 360px; background: var(--grey); border: 1px solid #000; padding: 3px; box-sizing: border-box; z-index: 100; display: none; }
+.ms.open { display: block; }
+.ms-body { padding: 6px 7px 8px; font-weight: 400; max-height: calc(100vh - 160px); overflow-y: auto; }
+.ms-grp { border: 1px solid var(--dk); box-shadow: 1px 1px 0 #fff, inset 1px 1px 0 #fff; padding: 9px 6px 6px; margin: 10px 0 0; position: relative; }
+.ms-grp > b { position: absolute; top: -6px; left: 8px; background: var(--grey); padding: 0 3px; }
+.ms-kv { display: grid; grid-template-columns: 120px 1fr; gap: 3px 8px; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.ms-kv span:nth-child(odd) { color: #303030; }
+.ms-res { border: 1px solid #000; background: #fff; margin-top: 6px; font: 400 11px/1.4 var(--font); }
+.ms-res div { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 1px 5px; border-bottom: 1px solid #ddd; }
+.ms-res .pass { color: var(--green); font-weight: 700; } .ms-res .fail { color: var(--red); font-weight: 700; }
+.ms-brow { display: flex; gap: 4px; margin: 6px 0 0; flex-wrap: wrap; } .ms-brow > * { flex: 1; padding: 0 3px; }
+.ms-note { font-size: 11px; line-height: 1.35; margin: 6px 0 0; color: #202020; }
+
+#ms-dock { position: fixed; left: 0; right: 0; bottom: 0; height: var(--dock); background: #fff; border-top: 1px solid #000; display: flex; gap: 2px; align-items: center; padding: 0 4px; z-index: 60; }
+#ms-dock button { height: calc(var(--dock) - 6px); padding: 0 8px; }
+#ms-dock button.on { background: var(--navy); color: #fff; box-shadow: none; }
+#ms-dock .hint { margin-left: auto; font-weight: 400; font-size: 11px; opacity: .7; white-space: nowrap; overflow: hidden; }
+
+/* phone: windows become one bottom sheet above the dock (petri idiom) */
+body.ms-phone #ms-status { display: none; }
+body.ms-phone .ms { left: 0 !important; right: 0; top: auto !important; bottom: var(--dock); width: auto !important; padding: 0; border-left: 0; border-right: 0; }
+body.ms-phone .ms-body { max-height: 40vh; }
+body.ms-phone .ms .ms-capt { cursor: default; }
+body.ms-phone #ms-dock .hint { display: none; }
+
+/* parameter rows (lab stack editor, later the inspector) */
+.ms-row { display: grid; grid-template-columns: 74px 1fr 50px; align-items: center; gap: 5px; margin: 4px 0 0; font-weight: 400; }
+.ms-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-row-sel { grid-template-columns: 74px 1fr; } .ms-row-chk { grid-template-columns: 74px auto; justify-content: start; }
+.ms input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: calc(var(--row) - 6px); margin: 0; background: #fff; border: 1px solid #000; box-sizing: border-box; }
+.ms input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: calc(var(--row) - 8px); background: var(--grey); border-left: 1px solid #000; border-right: 1px solid #000; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); }
+.ms input[type=range]::-moz-range-thumb { width: 11px; height: 100%; border-radius: 0; background: var(--grey); border: 0; border-left: 1px solid #000; border-right: 1px solid #000; }
+.ms select, .ms input[type=text], .ms input[type=number] { background: #fff; border: 1px solid #000; border-radius: 0; height: var(--row); font: 400 var(--fs)/1 var(--font); color: #000; padding: 0 3px; box-sizing: border-box; width: 100%; min-width: 0; }
+.ms .ms-val { text-align: right; font-variant-numeric: tabular-nums; }
+.ms-grp .ms-tools { position: absolute; top: -8px; right: 6px; display: flex; gap: 2px; background: var(--grey); padding: 0 2px; }
+.ms-grp .ms-tools button { height: 15px; min-width: 15px; padding: 0 3px; font: 700 10px/1 var(--font); border: 1px solid #000; background: #fff; border-radius: 0; }
+.ms-grp.off > *:not(b):not(.ms-tools) { opacity: .45; }
+.ms-kv b { font-weight: 700; } .ms-kv .good { color: var(--green); } .ms-kv .bad { color: var(--red); }
+#ms-transport .ms-lbl { font-weight: 400; font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+#ms-scrub u { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--yellow); pointer-events: none; opacity: .9; }
+#ms-scrub s { position: absolute; bottom: 0; height: 4px; background: var(--navy); pointer-events: none; text-decoration: none; }
+.ms-bar { height: 12px; border: 1px solid #000; background: #fff; position: relative; margin-top: 8px; } .ms-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--navy); }
+#ms-veil { position: fixed; inset: 0; z-index: 9500; display: none; place-items: center; background: rgba(0, 0, 0, .35); } #ms-veil.on { display: grid; }
+.ms-res b { font-weight: 700; }
+
+/* ---- M5 editor desk: preview | stack over the timeline (wireframe); tablet floats the stack; phone: preview only, the
+   timeline and the stack are bottom sheets */
+#ms-desk.ed { grid-template-columns: 1fr 330px; grid-template-rows: minmax(160px, 1fr) minmax(170px, 40%); }
+#ms-desk.ed #ms-preview { grid-column: 1; grid-row: 1; } #ms-stackpane { grid-column: 2; grid-row: 1; } #ms-tlpane { grid-column: 1 / 3; grid-row: 2; }
+body.ms-tablet #ms-desk.ed { grid-template-columns: 1fr; } body.ms-tablet #ms-stackpane { display: none; } body.ms-tablet #ms-tlpane { grid-column: 1; }
+body.ms-phone #ms-desk.ed { grid-template-columns: 1fr; grid-template-rows: 1fr; } body.ms-phone #ms-stackpane, body.ms-phone #ms-tlpane { display: none; }
+#ms-stackpane .ins { flex: 1; min-height: 0; overflow-y: auto; max-height: none; }
+.ms .ins { padding: 0; }
+.tlhost { flex: 1; min-height: 0; display: flex; }
+.ms .tlhost { height: 42vh; } body.ms-phone .ms .ms-body:has(.tlhost) { max-height: none; padding: 0; }
+
+/* the timeline */
+.tl { flex: 1; display: grid; grid-template-columns: 150px 1fr; grid-template-rows: 30px 1fr; min-height: 0; min-width: 0; background: #fff; position: relative; }
+.tl-corner { grid-column: 1; grid-row: 1; border-right: 1px solid #000; border-bottom: 1px solid #000; background: var(--grey); display: flex; align-items: center; gap: 3px; padding: 0 4px; overflow: hidden; }
+.tl-corner .ms-b { height: 20px; padding: 0 5px; } .tl-corner .ms-b.on { background: var(--navy); color: #fff; box-shadow: none; }
+.tl-info { font-weight: 400; font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; margin-left: 2px; }
+.tl-heads { grid-column: 1; grid-row: 2; border-right: 1px solid #000; background: var(--grey); overflow: hidden; position: relative; }
+.tl-head { border-bottom: 1px solid var(--dk); display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 4px; gap: 2px; box-sizing: border-box; font-size: 11px; white-space: nowrap; overflow: hidden; }
+.tl-head.kf { display: block; font-weight: 400; font-size: 10px; padding-left: 14px; background: #d8d8d8; line-height: 24px; text-overflow: ellipsis; }
+.tl-tb { display: flex; gap: 2px; } .tl-tb button { width: 16px; height: 16px; padding: 0; font: 700 9px/1 var(--font); border: 1px solid #000; background: #fff; color: #000; border-radius: 0; }
+body.ms-touch .tl-tb button { width: 26px; height: 26px; font-size: 11px; }
+.tl-tb button.on { background: var(--navy); color: #fff; }
+.tl-cv { grid-column: 2; grid-row: 1 / 3; width: 100%; height: 100%; min-width: 0; min-height: 0; touch-action: none; display: block; }
+
+
+/* the inspector */
+.ins .ms-kv { grid-template-columns: 60px 1fr; margin: 6px 7px 0; }
+.ins > .ms-grp, .ins > .ms-brow, .ins > .ins-stack, .ins > .ms-note { margin-left: 7px; margin-right: 7px; }
+.ins-stack { list-style: none; margin: 8px 7px 0; padding: 0; border: 1px solid #000; background: #fff; }
+.ins-stack li { display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; padding: 2px 4px; line-height: 1.3; border-bottom: 1px solid var(--dk); font-weight: 400; }
+.ins-stack li:last-child { border-bottom: 0; } .ins-stack li.sel { background: var(--navy); color: #fff; } .ins-stack li.empty { display: block; color: var(--dk); }
+.ins-stack small { font-size: 10px; opacity: .7; }
+.ins-tools { display: flex; gap: 2px; } .ins-tools button, .ins-ihead button { height: 15px; min-width: 15px; padding: 0 3px; font: 700 10px/1 var(--font); border: 1px solid #000; background: #fff; color: #000; border-radius: 0; box-shadow: none; }
+.ins-add { flex: 1; }
+.ins-prow { display: grid; grid-template-columns: 14px 70px 1fr 46px 20px; align-items: center; gap: 4px; margin: 4px 0 0; font-weight: 400; }
+.ins-prow > select { grid-column: 3 / 5; }
+.ins-sw { width: 12px; height: 12px; padding: 0; border: 1px solid #000; border-radius: 50%; background: #fff; }
+.ins-sw.on { background: var(--red); } .ins-sw.key { box-shadow: 0 0 0 2px var(--yellow); }
+.ins-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; } .ins-name.shown { color: var(--navy); font-weight: 700; text-decoration: underline; }
+.ins-mod { width: 20px; height: 18px; padding: 0; border: 1px solid #000; background: var(--grey); font: 700 11px/1 var(--font); } .ins-mod.on { background: var(--navy); color: #fff; }
+.ins-mods { border: 1px dashed var(--dk); background: #ececec; margin: 4px 0 4px 18px; padding: 2px 5px 5px; }
+.ins-moditem, .ins-item { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 4px; }
+.ins-ihead { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.ins-item { border: 1px solid var(--dk); background: #d0d0d0; padding: 2px 5px 5px; margin: 6px 0; }
+body.ms-touch .ins-prow { grid-template-columns: 22px 80px 1fr 52px 28px; } body.ms-touch .ins-sw { width: 20px; height: 20px; } body.ms-touch .ins-mod { width: 28px; height: 28px; }
+/* phone: the preview keeps the top half (transport reachable), the sheet takes the bottom */
+body.ms-phone #ms-desk.ed { bottom: calc(var(--dock) + 44vh + var(--cap) + 8px); }
+body.ms-phone .ms .tlhost { height: 44vh; } body.ms-phone .ms .ms-body:has(.ins) { max-height: 44vh; }
+body.ms-phone .tl { grid-template-columns: 112px 1fr; } body.ms-phone .tl-tb button { width: 22px; height: 24px; }
+body.ms-phone .tl-head { grid-template-columns: 1fr auto; font-size: 10px; } body.ms-phone .tl-info { display: none; }
+.ins-keys { display: flex; gap: 3px; align-items: center; margin: 2px 0 2px 18px; font-size: 11px; font-weight: 400; }
+.ins-keys .ms-b { height: 18px; padding: 0 5px; } .ins-keys span { flex: 1; font-variant-numeric: tabular-nums; } .ins-keys select { width: 90px; height: 18px; }
+.ins > .ms-brow { margin-left: 7px; margin-right: 7px; } .ins .ms-brow .ms-b { height: 20px; font-size: 11px; }
+.fx-find { width: 100%; box-sizing: border-box; } .fx-list { max-height: 320px; overflow-y: auto; } .fx-list small { font-size: 10px; opacity: .7; }
+.fx-list div:hover { background: #eef; } .fx-list .ms-b { height: 18px; padding: 0 5px; margin-left: 2px; }
+
+/* R1 (owner, 2026-10-10): no black between the docked panes. The desk is the panes' grey; each pane keeps only its
+   inner window frame, so neighbours are separated by a grey margin, not a black gutter. */
+#ms-desk.ed { gap: 0; padding: 0 1px; background: var(--grey); }
+#ms-desk.ed > .ms-pane { border: 0; padding: 3px; }
+
+/* R4: the Looks strip under the preview, and the empty-project drop zone */
+#ms-looks { display: flex; gap: 4px; overflow-x: auto; padding: 4px 6px 5px; border-top: 1px solid #000; flex: none; align-items: stretch; scrollbar-width: thin; }
+#ms-looks.empty { opacity: .45; pointer-events: none; }
+.look { flex: none; width: 104px; padding: 2px; border: 1px solid transparent; background: none; border-radius: 0; font: 400 10px/1.2 var(--font); color: #000; text-align: center; cursor: pointer; }
+.look canvas { width: 100px; height: 56px; display: block; background: #000; border: 1px solid #000; box-sizing: border-box; image-rendering: auto; }
+.look span { display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.look:hover { background: #d8d8d8; } .look.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.look-group { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 9px/1 var(--font); color: var(--dk); padding: 0 2px; flex: none; text-align: center; }
+body.ms-touch .look { width: 92px; } body.ms-touch .look canvas { width: 88px; height: 50px; }
+#ms-empty { position: absolute; inset: 0; display: grid; place-items: center; z-index: 2; background: rgba(0, 0, 0, .55); }
+#ms-empty[hidden] { display: none; }
+#ms-empty .em-box { background: var(--grey); border: 1px solid #000; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 var(--dk); padding: 16px 18px; max-width: 360px; display: grid; gap: 8px; font: 400 12px/1.4 var(--font); text-align: center; }
+#ms-empty .em-box b { font: 700 16px/1.2 var(--font); }
+#ms-looks.empty canvas { visibility: hidden; } #ms-looks.empty .look { background: none; }
+
+/* R3: mask brushes */
+.mk-tools { display: inline-flex; gap: 3px; align-items: center; margin-right: 6px; }
+.mk-tools input[type=range] { width: 70px; } #mk-inc.on { background: #2a9a4a; color: #fff; box-shadow: none; } #mk-lock.on { background: var(--red); color: #fff; box-shadow: none; } #mk-show.on { background: var(--navy); color: #fff; box-shadow: none; }
+#ms-fit.painting, #ms-fit.painting #ms-overlay { cursor: crosshair; touch-action: none; }
+.ins-mask { border: 1px solid var(--dk); background: #d0d0d0; padding: 2px 5px 5px; margin: 6px 0; }
+#mk-vec.on { background: #c09000; color: #000; box-shadow: none; } #mk-push { width: 56px; } #mk-vmode { height: var(--row); font: 400 11px var(--font); border: 1px solid #000; background: #fff; }

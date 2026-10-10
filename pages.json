@@ -566,6 +566,17 @@
       "lastmod": "2026-10-10"
     },
     {
+      "slug": "moshine/index.html",
+      "title": "MOSHINE — Datamosh Editor",
+      "description": "A datamosh editor in the browser: a simulated codec on WebGPU with a timeline, masks, painted motion vectors and audio-reactive looks.",
+      "category": "tools",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/moshine/",
+      "og_image": null,
+      "lastmod": "2026-10-10"
+    },
+    {
       "slug": "multiOS.html",
       "title": "Multi-OS VJ Studio Environment",
       "description": "A Windows-style multi-OS desktop for VJing: draggable retro windows, CRT texture, studio tools in the browser.",

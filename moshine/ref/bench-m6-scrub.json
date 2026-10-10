@@ -1,0 +1,258 @@
+{
+ "tag": "m6-scrub",
+ "date": "2026-10-10",
+ "row": "slowScrub5min",
+ "result": {
+  "pass": true,
+  "note": "exit target: every seek < 100 ms on tier 2",
+  "K": 8,
+  "byTier": {
+   "cpu": {
+    "n": 4,
+    "median": 76.3,
+    "max": 97
+   },
+   "gpu": {
+    "n": 3,
+    "median": 56.5,
+    "max": 62.8
+   },
+   "disk": {
+    "n": 23,
+    "median": 51.6,
+    "max": 75.3
+   }
+  },
+  "fillSeconds": 32.8,
+  "fillFps": 274.6,
+  "cache": {
+   "gpu": 48,
+   "mem": 128,
+   "disk": 949,
+   "K": 8,
+   "spills": 1077
+  },
+  "seekMs": {
+   "median": 54,
+   "p90": 75.3,
+   "max": 97
+  },
+  "decodeSeekMs": {
+   "median": 31.8,
+   "max": 48.2
+  },
+  "allSame": true,
+  "seeks": [
+   {
+    "t": 8342,
+    "ms": 70.1,
+    "frames": 7,
+    "tier": "cpu",
+    "same": true
+   },
+   {
+    "t": 8755,
+    "ms": 56.5,
+    "frames": 4,
+    "tier": "gpu",
+    "same": true
+   },
+   {
+    "t": 3262,
+    "ms": 67.4,
+    "frames": 7,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 5512,
+    "ms": 59.1,
+    "frames": 1,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 4066,
+    "ms": 59.5,
+    "frames": 3,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 4266,
+    "ms": 45.4,
+    "frames": 3,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 827,
+    "ms": 65.2,
+    "frames": 4,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 619,
+    "ms": 32.8,
+    "frames": 4,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 3248,
+    "ms": 41.6,
+    "frames": 1,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 4930,
+    "ms": 50.5,
+    "frames": 3,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 1098,
+    "ms": 54,
+    "frames": 3,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 4333,
+    "ms": 37.1,
+    "frames": 6,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 1609,
+    "ms": 57.8,
+    "frames": 2,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 7507,
+    "ms": 53.5,
+    "frames": 4,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 6742,
+    "ms": 51.6,
+    "frames": 7,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 7669,
+    "ms": 76.3,
+    "frames": 6,
+    "tier": "cpu",
+    "same": true
+   },
+   {
+    "t": 3762,
+    "ms": 37.1,
+    "frames": 3,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 477,
+    "ms": 75.3,
+    "frames": 6,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 4781,
+    "ms": 49.5,
+    "frames": 6,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 5445,
+    "ms": 48,
+    "frames": 6,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 8221,
+    "ms": 97,
+    "frames": 6,
+    "tier": "cpu",
+    "same": true
+   },
+   {
+    "t": 7018,
+    "ms": 51.6,
+    "frames": 3,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 444,
+    "ms": 61.2,
+    "frames": 5,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 8855,
+    "ms": 62.8,
+    "frames": 8,
+    "tier": "gpu",
+    "same": true
+   },
+   {
+    "t": 6996,
+    "ms": 47.8,
+    "frames": 5,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 2149,
+    "ms": 72.1,
+    "frames": 6,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 3223,
+    "ms": 55.9,
+    "frames": 8,
+    "tier": "disk",
+    "same": true
+   },
+   {
+    "t": 7702,
+    "ms": 47,
+    "frames": 7,
+    "tier": "cpu",
+    "same": true
+   },
+   {
+    "t": 8835,
+    "ms": 41.9,
+    "frames": 4,
+    "tier": "gpu",
+    "same": true
+   },
+   {
+    "t": 4093,
+    "ms": 38.2,
+    "frames": 6,
+    "tier": "disk",
+    "same": true
+   }
+  ]
+ }
+}

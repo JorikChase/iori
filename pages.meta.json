@@ -750,6 +750,23 @@
       "domain": "3die.fr",
       "type": "client",
       "priority": 0.7
+    },
+    "moshine/index.html": {
+      "title": "MOSHINE — Datamosh Editor",
+      "description": "A datamosh editor in the browser: a simulated codec on WebGPU with a timeline, masks, painted motion vectors and audio-reactive looks.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6,
+      "menu_pos": "br"
+    },
+    "moshine/lab.html": {
+      "title": "MOSHINE Lab — Mosh Engine Workbench",
+      "description": "The developer workbench behind MOSHINE: fixtures, GPU and CPU parity, motion-field overlays and the fidelity sets.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true
     }
   }
 }

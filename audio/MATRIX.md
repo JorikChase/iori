@@ -31,7 +31,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | S6 | Going home: the same sweep reversed into the hub | H | pass (806 ms after lift) |
 | S7 | Orb shrinks to bottom-left hub inside a tool | H | todo |
 | S8 | Hub tap → home; tool frame unloads (audio stops) | H | pass (pane) |
-| S9 | Hub hold + drag → three buds (prev, current, next); further drag turns the dial; release switches | H | pass (timing-switch: dial step, preload during rest, switch, old frame unloaded; hub hit-test now uses its resting corner) |
+| S9 | Hub hold + drag: sideways steps forward, upward steps back, through all 7 other tools on either axis (step fitted to the shorter screen side, 40–70 px); back to the hub cancels; release switches; the picked tool preloads during the rest | H | pass (dial-reach, timing-switch) |
 | S10 | Site menu visible on home (top-right), hidden inside a tool | H | pass (pane) |
 | S11 | ?perf overlay shows in shell and is passed to frames | H | pass (harness smoke) |
 | S16 | No placeholder audio anywhere: every sound is a real recording, file or take (owner rule 2026-10-10) | H | pass (2026-10-10: grep of all tools + per-tool scenarios; only synth and metronome generate sound, as instruments) |
@@ -222,3 +222,23 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | X6 | Audio: output latency per tool, dropouts over 5 min | none | todo |
 | X7 | Battery: 30 min in the recorder with retro on | report | todo |
 | X8 | Software-GL ranking (harness smoke, DPR 1): synth 24, edit 46, ana 52, others 60 fps | measured 2026-10-09 | pass |
+
+## AudioWorklet (2026-10-10)
+
+| # | Function | How | Status |
+|---|---|---|---|
+| W1 | No ScriptProcessorNode anywhere: capture (recorder, BPM, synth ring, analyzer metering) on worklet-capture.js, practice player on worklet-player.js | H | pass (worklet-static, play-worklet: constructors counted) |
+| W2 | Recorder under main-thread load (blocked 120 of every 150 ms): no breaks in a 440 Hz take | H | pass (worklet-busy: 0 breaks, was 14–31) |
+| W3 | Take alignment and meter latency | H | pass (worklet-rec: alignment 4–13 ms Chromium / 48–51 ms WebKit, was 28–52 / 70–77; meter 25–43 ms, was 43–47) |
+| W4 | Analyzer numbers unchanged on the worklet | H | pass (worklet-ana: −23.028 LUFS momentary, identical) |
+| W5 | Practice player: speed and pitch independent (WSOLA default; ?engine=ola keeps the old OLA) | H | pass (play-worklet: 440.00 Hz at 75 %, 879.94 Hz at 75 % +12; old OLA drifted to 423.7 / 892.5 Hz) |
+| W6 | Device: worklet modules load offline from the precache; no glitches on iPhone | D | todo |
+
+## Editor export, wheel, dial (2026-10-10)
+
+| # | Function | How | Status |
+|---|---|---|---|
+| E19 | Save/export bud (4th in the properties row): first tap renders the mixdown (mute/solo respected) and saves it as a 'mix' take; second tap within 6 s shares the WAV (download on desktop) | H | pass (edit-export: length exact, samples match to 16-bit rounding, share inside the gesture; Chromium, WebKit, iOS emulation) |
+| K1 | Wheel picker (wheel.js): drum columns like the iOS alarm, dot-matrix rows, flick with momentum and row snap, tap mode and press-drag-release mode | H | pass (wheel-drag, wheel-fling: no long frames, wheel-tap) |
+| K2 | UX lab (audio/lab.html): timed A/B of wheel vs current fan and slide gestures for lists and values; results stored and exportable | H+D | pass harness (wheel-lab); owner sessions todo |
+| K3 | Wheel adopted where lists live today (synth setups, analyzer views/sources, practice source, editor shelf, BPM ×/÷) | — | todo (after lab results) |

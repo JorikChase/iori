@@ -178,7 +178,7 @@ function loadTake(id,rest){var my=++loadSeq;S.loading=1;
   if(rest){var dd=S.song.len/S.song.sr;
    if(rest.pos>0&&rest.pos<dd)S.pos=Math.floor(rest.pos*S.song.sr);
    if(rest.loop&&rest.loop.b>rest.loop.a&&rest.loop.b<=dd+.01)S.loop={a:rest.loop.a,b:rest.loop.b};}
-  saveSession();return true;}).catch(function(){if(my===loadSeq)S.loading=0;return false;});}
+  sendSong();sync(true);saveSession();return true;}).catch(function(){if(my===loadSeq)S.loading=0;return false;});}
 /* last source + where you were, so leaving the player and coming back continues */
 var lastSave='';
 function saveSession(){if(!window.AT||!S.src)return;
@@ -186,31 +186,43 @@ function saveSession(){if(!window.AT||!S.src)return;
  if(j!==lastSave){lastSave=j;AT.session.save('play',o);}}
 function refreshLib(){return window.AT?AT.takes.list().then(function(a){S.lib=a||[];return S.lib;}):Promise.resolve([]);}
 
-/* engine: overlap-add grains — speed moves the read head, pitch resamples each grain */
-var N=2048,HOP=512,WIN=new Float32Array(N);for(var i=0;i<N;i++)WIN[i]=.5-.5*Math.cos(2*Math.PI*i/N);
-var ACC=[new Float32Array(N),new Float32Array(N)];
-function ensure(){if(S.ctx)return true;try{var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();}catch(_){return false;}
- var c=S.ctx,sp=c.createScriptProcessor(2048,1,2),g=c.createGain();g.gain.value=.9;sp.connect(g);g.connect(c.destination);
- var dummy=c.createConstantSource?c.createConstantSource():c.createOscillator();var z=c.createGain();z.gain.value=0;dummy.connect(z);z.connect(sp);dummy.start();
- sp.onaudioprocess=render;S.sp=sp;return true;}
-function render(e){var oL=e.outputBuffer.getChannelData(0),oR=e.outputBuffer.getChannelData(1),sg=S.song;
- if(!sg){oL.fill(0);oR.fill(0);ACC[0].fill(0);ACC[1].fill(0);return;}
- var q=sg.sr/S.ctx.sampleRate;
- for(var h=0;h<oL.length/HOP;h++){
-  if(S.play){var r=Math.pow(2,S.semi/12)*q,st=S.pos-N*r/2;
-   for(var c=0;c<2;c++){var d=sg.ch[Math.min(c,sg.ch.length-1)],A=ACC[c];
-    for(var j=0;j<N;j++){var x=st+j*r,i0=Math.floor(x);if(i0<0||i0>=sg.len-1)continue;var f=x-i0;A[j]+=(d[i0]+(d[i0+1]-d[i0])*f)*WIN[j]*.5;}}
-   S.pos+=HOP*S.speed*q;
-   if(S.loop&&S.pos>=S.loop.b*sg.sr){S.pos-= (S.loop.b-S.loop.a)*sg.sr;S.pass++;if(S.trainer&&S.speed<1)S.speed=Math.min(1,Math.round((S.speed+.05)*100)/100);}
-   if(S.pos>=sg.len){S.pos=0;}}
-  for(var c=0;c<2;c++){var A=ACC[c],o=c?oR:oL;for(var j=0;j<HOP;j++)o[h*HOP+j]=A[j];A.copyWithin(0,HOP);A.fill(0,N-HOP);}}}
+/* engine: an AudioWorklet (../worklet-player.js) on the audio thread — grains of the take, speed moves the read head,
+   pitch resamples each grain; each grain's read start is aligned to the previous grain (WSOLA), so tones keep their
+   pitch at any speed. ?engine=ola selects the original plain overlap-add. The take's samples cross to the audio
+   thread once per song (transferred, with a 4x decimated copy for the alignment search); every change after that is a
+   small 'state' message. The worklet reports its read head every 3 quanta; frames interpolate on the audio clock.
+   The context is created inside a tap (pointerdown on the play dot, or the play tap itself) and the module load starts
+   right there: a play tap during the load is remembered and plays once the node exists — never a second tap. */
+var ENG={node:null,seq:0,rep:null,songs:0};S.eng='off';S.algo=/[?&]engine=ola/.test(location.search)?'ola':'wsola';
+function ensure(){if(S.ctx)return true;var c;try{var AC=window.AudioContext||window.webkitAudioContext;c=S.ctx=new AC();}catch(_){return false;}
+ if(!c.audioWorklet||!window.AudioWorkletNode){S.eng='none';return true;}
+ S.eng='loading';
+ c.audioWorklet.addModule(new URL('../worklet-player.js',location.href).href).then(function(){
+  var nd=new AudioWorkletNode(c,'practice-player',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+  nd.port.onmessage=report;nd.connect(c.destination);ENG.node=S.node=nd;S.eng='ready';sendSong();sync(true);
+ }).catch(function(e){S.eng='error';try{console.warn('practice engine: '+(e&&e.message||e));}catch(_){}});
+ return true;}
+/* the take, once: its buffer moves to the audio thread (the page keeps only the envelope and onsets) */
+function sendSong(){var sg=S.song;if(!ENG.node||!sg||!sg.ch)return;var d=sg.ch[0],n=d.length>>2,dc=new Float32Array(n);
+ for(var k=0,i=0;k<n;k++,i+=4)dc[k]=(d[i]+d[i+1]+d[i+2]+d[i+3])*.25;
+ ENG.node.port.postMessage({t:'song',id:++ENG.songs,sr:sg.sr,data:d,dec:dc},[d.buffer,dc.buffer]);sg.ch=null;}
+/* everything else: speed, pitch, loop, trainer, play; pos only when seeking */
+function sync(seek){if(!ENG.node)return;
+ ENG.node.port.postMessage({t:'state',seq:++ENG.seq,pos:seek&&S.song?S.pos:null,speed:S.speed,semi:S.semi,loop:S.loop?{a:S.loop.a,b:S.loop.b}:null,trainer:S.trainer,play:S.play&&!!S.song,algo:S.algo});}
+function seek(p){S.pos=p;sync(true);}
+/* reports older than the page's last change are dropped (a scrub or a drag must not be pulled back);
+   the trainer's +5 % arrives here as the worklet's speed */
+function report(e){var m=e.data;if(!m||m.t!=='pos'||m.seq!==ENG.seq)return;ENG.rep=S.rep=m;S.pos=m.pos;S.pass=m.pass;S.speed=m.speed;}
+function tick(){var r=ENG.rep,sg=S.song,c=S.ctx;if(!r||!sg||!S.play||!r.play||r.seq!==ENG.seq||!c||c.state!=='running')return;
+ var p=r.pos+Math.max(0,Math.min(.1,c.currentTime-r.time))*sg.sr*r.speed;
+ if(S.loop&&p>=S.loop.b*sg.sr)p-=(S.loop.b-S.loop.a)*sg.sr;if(p>=sg.len)p=0;S.pos=p;}
 /* source dot: the three most recent takes, then OPEN FILE (the system picker; the file joins the library).
    Decided synchronously from the cached list so the picker opens inside the tap (iOS needs the gesture). */
 function srcOpts(){return S.lib.slice(0,3).map(function(m){return m.id}).concat(['file']);}
 function nextSource(){if(!window.AT)return;var o=srcOpts(),cur=S.srcAt==='file'?o.length-1:(S.src?o.indexOf(S.src.id):-1),nx=o[(cur+1)%o.length];
  if(nx==='file'){S.srcAt='file';AT.takes.pick().then(function(m){if(!m)return;S.srcAt=null;refreshLib();loadTake(m.id);});}
  else{S.srcAt=null;loadTake(nx);}}
-function toggle(){if(!S.song||!ensure())return;if(S.ctx.resume)S.ctx.resume();S.play=!S.play;S.tr={from:S.inv,to:S.play?1:0,t0:performance.now()};saveSession();}
+function toggle(){if(!S.song||!ensure())return;if(S.ctx.resume)S.ctx.resume();S.play=!S.play;sync(false);S.tr={from:S.inv,to:S.play?1:0,t0:performance.now()};saveSession();}
 
 /* layout */
 var PPS=42,HOLD=window.__HOLD||300;
@@ -227,23 +239,24 @@ box.addEventListener('pointerdown',function(e){e.preventDefault();try{box.setPoi
  var b={x:p.x,y:p.y,cx:p.x,cy:p.y,t0:ts(e),moved:0,dx:0,dy:0};
  if(Math.hypot(p.x-srcPos().x,p.y-srcPos().y)<28){b.k='src';S.press=b;return;}
  if(Math.hypot(p.x-propPos().x,p.y-propPos().y)<28){b.k='prop';S.press=b;return;}
- if(Math.hypot(p.x-c.x,p.y-c.y)<36){if(!S.song)return;b.k='ctl';b.sp0=S.speed;b.se0=S.semi;S.press=b;return;}
+ if(Math.hypot(p.x-c.x,p.y-c.y)<36){if(!S.song)return;ensure();b.k='ctl';b.sp0=S.speed;b.se0=S.semi;S.press=b;return;}
  if(S.song&&p.y>TOP()&&p.y<BOT()&&!(p.x<70&&p.y>H-70)){b.k='wave';b.pos0=S.pos;b.ta=timeAt(p.y);S.press=b;}});
 box.addEventListener('pointermove',function(e){var pr=S.press;if(!pr)return;var p=pos(e);pr.dx=p.x-pr.x;pr.dy=p.y-pr.y;pr.cx=p.x;pr.cy=p.y;pr.moved=Math.max(pr.moved,Math.hypot(pr.dx,pr.dy));
- if(pr.k==='ctl'&&pr.moved>6){S.speed=Math.max(.5,Math.min(1.5,Math.round((pr.sp0+pr.dx*.0025)*100)/100));S.semi=Math.max(-12,Math.min(12,pr.se0-Math.round(pr.dy/14)));}
+ if(pr.k==='ctl'&&pr.moved>6){var sp1=Math.max(.5,Math.min(1.5,Math.round((pr.sp0+pr.dx*.0025)*100)/100)),se1=Math.max(-12,Math.min(12,pr.se0-Math.round(pr.dy/14)));
+  if(sp1!==S.speed||se1!==S.semi){S.speed=sp1;S.semi=se1;sync(false);}}
  if(pr.k==='wave'&&S.song){
   if(pr.mode==='loop'){var a=snapT(pr.ta),b2=snapT(timeAt(p.y));S.sel={a:Math.max(0,Math.min(a,b2)),b:Math.min(S.song.len/S.song.sr,Math.max(a,b2))};}
   else if(!pr.mode&&pr.moved>8&&ts(e)-pr.t0<HOLD)pr.mode='scrub';
-  if(pr.mode==='scrub'){S.pos=Math.max(0,Math.min(S.song.len-1,pr.pos0-pr.dy/PPS*S.song.sr));}}});
+  if(pr.mode==='scrub'){seek(Math.max(0,Math.min(S.song.len-1,pr.pos0-pr.dy/PPS*S.song.sr)));}}});
 function up(){var pr=S.press;S.press=null;if(!pr)return;
  if(pr.k==='wave'&&S.song){
-  if(pr.mode==='loop'){var s=S.sel;S.sel=null;if(s&&s.b-s.a>=.25){S.loop=s;S.pass=0;S.pos=s.a*S.song.sr;}return;}
+  if(pr.mode==='loop'){var s=S.sel;S.sel=null;if(s&&s.b-s.a>=.25){S.loop=s;S.pass=0;seek(s.a*S.song.sr);}return;}
   if(pr.mode==='scrub')return;
-  var t=timeAt(pr.y);if(S.loop&&t>=S.loop.a&&t<=S.loop.b){S.loop=null;}else S.pos=Math.max(0,Math.min(S.song.len-1,t*S.song.sr));return;}
+  var t=timeAt(pr.y);if(S.loop&&t>=S.loop.a&&t<=S.loop.b){S.loop=null;sync(false);}else seek(Math.max(0,Math.min(S.song.len-1,t*S.song.sr)));return;}
  if(pr.moved>8)return;
  if(pr.k==='ctl')toggle();
  else if(pr.k==='src'){nextSource();}
- else if(pr.k==='prop'){S.trainer=!S.trainer;}}
+ else if(pr.k==='prop'){S.trainer=!S.trainer;sync(false);}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 
@@ -251,7 +264,7 @@ var IC={};
 function icon(key,nm){var el=IC[key];if(!el){el=document.createElement('i');el.setAttribute('aria-hidden','true');el.style.cssText='position:absolute;transform:translate(-50%,-50%);pointer-events:none;line-height:1;';IL.appendChild(el);IC[key]=el;}var cls='ti ti-'+nm;if(el.className!==cls)el.className=cls;return el;}
 var last=performance.now(),lastTxt=0,lastSaveT=0,CTx=0,CTy=0,CTr=20,goo=0;
 function frame(nw){
- var dt=Math.min(.05,(nw-last)/1000);last=nw;
+ var dt=Math.min(.05,(nw-last)/1000);last=nw;tick();
  var pr=S.press;if(pr&&pr.k==='wave'&&!pr.mode&&nw-pr.t0>HOLD&&pr.moved<=8){pr.mode='loop';S.sel={a:snapT(pr.ta),b:snapT(pr.ta)};}
  S.flash=0;if(S.tr){var el=nw-S.tr.t0;if(el<70){S.flash=1;S.inv=S.tr.from;}else if(el<140){S.inv=S.tr.from;}else{var kq=Math.min(1,(Math.floor((el-140)/56)+1)/5);S.inv=S.tr.from+(S.tr.to-S.tr.from)*kq;if(kq>=1)S.tr=null;}}
  var dark=(S.inv>.5)!==(S.flash>.5),c=ctlPos();

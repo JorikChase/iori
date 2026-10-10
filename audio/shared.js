@@ -233,6 +233,18 @@
     mic: mic, wake: wake, inShell: inShell, pauseDraw: pauseDraw
   };
 
+  /* ---------------------------------------------------------------- capture worklet */
+  /* AT.worklet(ctx) -> Promise, resolved once worklet-capture.js (processor 'capture') is added to that context.
+     Call it where the context is made, inside the tap: addModule is async, so the node is created when it resolves
+     and nothing waits for a second tap. One promise per context; the URL is resolved against shared.js itself. */
+  var WK_URL = (function () { try { return new URL('worklet-capture.js', (document.currentScript && document.currentScript.src) || location.href).href; } catch (_) { return '../worklet-capture.js'; } })();
+  var WKS = typeof WeakMap === 'function' ? new WeakMap() : null;
+  window.AT.worklet = function (ctx) {
+    var p = WKS && WKS.get(ctx); if (p) return p;
+    p = ctx && ctx.audioWorklet ? ctx.audioWorklet.addModule(WK_URL) : Promise.reject(new Error('no AudioWorklet'));
+    if (WKS) WKS.set(ctx, p); return p;
+  };
+
   /* ---------------------------------------------------------------- ready: painted at least one frame */
   function ready() { requestAnimationFrame(function () { requestAnimationFrame(function () { var s = shell(); if (s && s.ready) s.ready(window); }); }); }
   if (document.readyState === 'complete') ready(); else window.addEventListener('load', ready);

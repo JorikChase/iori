@@ -279,9 +279,11 @@ function layerOff(u,t){if(t==='drive')u[GI.drvAmt]=0;else if(t==='crush')u[GI.cr
    runs, silence included. Int16, like the library itself: 23 MB at 48 kHz instead of 46 as float. */
 var CAPS=240,CAP={ring:null,w:0,n:0,sr:48000};
 function startCap(z){var c=S.ctx;CAP.sr=c.sampleRate;CAP.ring=new Int16Array(Math.round(CAP.sr*CAPS));
- try{var sp=c.createScriptProcessor(4096,1,1);M.out.connect(sp);sp.connect(z);
-  sp.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0),n=d.length,R=CAP.ring,L=R.length,w=CAP.w;
-   for(var i=0;i<n;i++){var v=d[i];R[w]=v>=1?32767:v<=-1?-32767:v*32767;if(++w===L)w=0;}CAP.w=w;CAP.n=Math.min(L,CAP.n+n);};M.sp=sp;}catch(_){}}
+ var m=M;AT.worklet(c).then(function(){if(M!==m)return;   /* the capture worklet: 1024-frame batches from the audio thread */
+  var cn=new AudioWorkletNode(c,'capture',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:1,channelCountMode:'explicit',processorOptions:{channels:1,batch:1024}});
+  M.out.connect(cn);cn.connect(z);
+  cn.port.onmessage=function(e){var d=e.data.ch[0],n=d.length,R=CAP.ring,L=R.length,w=CAP.w;
+   for(var i=0;i<n;i++){var v=d[i];R[w]=v>=1?32767:v<=-1?-32767:v*32767;if(++w===L)w=0;}CAP.w=w;CAP.n=Math.min(L,CAP.n+n);};M.cap=cn;}).catch(function(){});}
 function gathered(){return CAP.n/CAP.sr}
 function capTail(sec){var n=Math.min(CAP.n,Math.round(sec*CAP.sr));if(n<1)return null;var R=CAP.ring,L=R.length,i0=CAP.w-n+L,d=new Float32Array(n);
  for(var i=0;i<n;i++)d[i]=R[(i0+i)%L]/32767;return d;}

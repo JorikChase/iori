@@ -188,11 +188,14 @@ function ensure(){if(S.ctx)return true;try{var AC=window.AudioContext||window.we
  A.an=c.createAnalyser();A.an.fftSize=8192;A.an.smoothingTimeConstant=.55;A.in.connect(A.an);
  A.hp=c.createBiquadFilter();A.hp.type='highpass';A.hp.frequency.value=38;A.hp.Q.value=.5;A.hs=c.createBiquadFilter();A.hs.type='highshelf';A.hs.frequency.value=1500;A.hs.gain.value=4;
  A.in.connect(A.hp);A.hp.connect(A.hs);A.mg=c.createChannelMerger(2);A.in.connect(A.mg,0,0);A.hs.connect(A.mg,0,1);
- A.sp=c.createScriptProcessor(4096,2,1);A.mg.connect(A.sp);var z=c.createGain();z.gain.value=0;A.sp.connect(z);z.connect(c.destination);
- A.sp.onaudioprocess=meter;A.fb=new Float32Array(A.an.frequencyBinCount);return true;}
+ A.fb=new Float32Array(A.an.frequencyBinCount);
+ /* metering runs off the capture worklet: [raw, K-weighted] in 1024-frame batches; the zero gain keeps it pulled on Safari */
+ AT.worklet(c).then(function(){if(S.ctx!==c)return;A.cap=new AudioWorkletNode(c,'capture',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:2,channelCountMode:'explicit',channelInterpretation:'discrete',processorOptions:{channels:2,batch:1024}});
+  A.mg.connect(A.cap);var z=c.createGain();z.gain.value=0;A.cap.connect(z);z.connect(c.destination);A.cap.port.onmessage=function(e){meter(e.data);};}).catch(function(){});
+ return true;}
 /* loudness: 100 ms sub-blocks of K-weighted mean square, gated integration (BS.1770 style, mono) */
 var acc={kw:0,raw:0,n:0,pk:0};
-function meter(e){if(!S.run)return;var r=e.inputBuffer.getChannelData(0),k=e.inputBuffer.getChannelData(1),n=r.length,sr=S.ctx.sampleRate,blk=Math.round(sr*.1);
+function meter(m){if(!S.run)return;var r=m.ch[0],k=m.ch[1],n=m.n,sr=S.ctx.sampleRate,blk=Math.round(sr*.1);
  for(var i=0;i<n;i++){acc.kw+=k[i]*k[i];acc.raw+=r[i]*r[i];var a=Math.abs(r[i]);if(a>acc.pk)acc.pk=a;acc.n++;
   if(acc.n>=blk){S.kwBlocks.push(acc.kw/acc.n);S.raw400.push(acc.raw/acc.n);S.peak.push(acc.pk);acc={kw:0,raw:0,n:0,pk:0};
    if(S.kwBlocks.length>36000)S.kwBlocks.shift();if(S.raw400.length>4)S.raw400.shift();if(S.peak.length>30)S.peak.shift();loud();}}}

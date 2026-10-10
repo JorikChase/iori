@@ -170,34 +170,56 @@ var S={ctx:null,live:false,asking:false,want:false,rec:false,retro:true,micFail:
  ring:null,ringSr:0,tail:0,lastSpan:0,rw:0,rn:0,cur:null,curN:0,t0:0,mk:[],takes:[],lvl:-90,play:null,playTok:0,nodes:[],stream:null,mkFlash:0,
  pressA:0,open:0,n:0,tgt:null,sa:[0,0,0,0,0],ox:0,oy:0,fx:0,fy:0,lastExport:0,lastAct:null};
 var A={},DATA={};
-function ensure(){if(S.ctx)return true;try{var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();}catch(_){return false;}return true;}
+function ensure(){if(S.ctx)return true;try{var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();}catch(_){return false;}
+ A.wk=AT.worklet(S.ctx);A.wk.catch(function(){});return true;}   /* the module loads while the microphone is asked for */
 function wire(st){var c=S.ctx;S.stream=st;var ms=c.createMediaStreamSource(st);
- A.sp=c.createScriptProcessor(4096,1,1);ms.connect(A.sp);var z=c.createGain();z.gain.value=0;A.sp.connect(z);z.connect(c.destination);
- S.nodes=[ms,A.sp,z];if(!S.ring||S.ringSr!==c.sampleRate){S.ring=new Float32Array(c.sampleRate*RETRO);S.ringSr=c.sampleRate;S.rw=0;S.rn=0;}
- A.sp.onaudioprocess=capture;S.live=true;S.micFail=false;
+ A.cap=new AudioWorkletNode(c,'capture',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:1,channelCountMode:'explicit',processorOptions:{channels:1,batch:1024}});
+ ms.connect(A.cap);var z=c.createGain();z.gain.value=0;A.cap.connect(z);z.connect(c.destination);
+ S.nodes=[ms,A.cap,z];if(!S.ring||S.ringSr!==c.sampleRate){S.ring=new Float32Array(c.sampleRate*RETRO);S.ringSr=c.sampleRate;S.rw=0;S.rn=0;}
+ A.pre=[];A.preN=0;A.pks=[];A.ld=[];A.inLat=0;try{A.inLat=Math.max(0,Math.min(.2,st.getAudioTracks()[0].getSettings().latency||0));}catch(_){}A.cap.port.onmessage=function(e){capture(e.data);};S.live=true;S.micFail=false;
  st.getAudioTracks().forEach(function(t){t.addEventListener('ended',function(){if(S.stream===st)unwire();});});}
-function unwire(){if(S.rec)stopRec();S.nodes.forEach(function(n){try{n.disconnect();}catch(_){}});S.nodes=[];
+function unwire(){if(S.rec)stopRec();if(A.cap){A.cap.port.onmessage=null;try{A.cap.port.postMessage('stop');}catch(_){}A.cap=null;}
+ S.nodes.forEach(function(n){try{n.disconnect();}catch(_){}});S.nodes=[];
  if(S.stream){S.stream.getTracks().forEach(function(t){t.stop()});S.stream=null;}S.live=false;S.lvl=-90;}
-function capture(e){var x=e.inputBuffer.getChannelData(0),n=x.length,pk=0;
- for(var i=0;i<n;i++){var a=Math.abs(x[i]);if(a>pk)pk=a;}
- S.lvl=20*Math.log10(Math.max(1e-6,pk));
- if(S.retro){var R=S.ring,L=R.length;for(var i=0;i<n;i++){R[S.rw]=x[i];S.rw=(S.rw+1)%L;}S.rn=Math.min(L,S.rn+n);}
- if(S.rec||S.tail){S.cur.push(new Float32Array(x));S.curN+=n;if(S.tail&&S.curN>=S.tail)finish(S.tail);}}
+/* capture arrives from the worklet in 1024-frame batches {f: first frame on the audio clock, n, ch, pk}.
+   Level = peak over the last four batches (~85 ms); the last 0.5 s is kept so a take can start before its batch arrived */
+function capture(m){var x=m.ch[0],n=m.n,sr=S.ctx.sampleRate;
+ A.pks.push(m.pk);if(A.pks.length>4)A.pks.shift();S.lvl=20*Math.log10(Math.max(1e-6,Math.max.apply(null,A.pks)));
+ if(S.retro){var R=S.ring,L=R.length,w=S.rw;for(var i=0;i<n;i++){R[w]=x[i];if(++w===L)w=0;}S.rw=w;S.rn=Math.min(L,S.rn+n);}
+ A.pre.push(m);A.preN+=n;while(A.preN-A.pre[0].n>=sr*.5)A.preN-=A.pre.shift().n;
+ lead();if(S.cur)take(m);}
+/* the take starts at f0, the start tap mapped onto the audio clock, and runs on for exactly the tap-to-tap span in
+   samples. Past f0 the batches are joined as they come: when the browser skips rendering (it does at start-up), the
+   frame index jumps but the microphone's samples stay contiguous */
+function take(m){var i=0;
+ if(!S.in0){if(m.f+m.n<=S.f0)return;i=Math.max(0,S.f0-m.f);S.in0=true;}
+ var b=S.need?Math.min(m.n,i+S.need-S.curN):m.n;if(b>i){S.cur.push(m.ch[0].subarray(i,b));S.curN+=b-i;}
+ if(S.need&&S.curN>=S.need)finish();}
+/* an event time (performance.now clock) -> the audio frame holding the sound heard at that instant.
+   getOutputTimestamp maps the two clocks smoothly; how far processing runs ahead of it differs per engine, so that
+   lead is measured (median of currentTime minus the mapped now, sampled at each batch); plus the input latency */
+function outNow(t){var c=S.ctx,o=null;try{o=c.getOutputTimestamp&&c.getOutputTimestamp();}catch(_){}
+ return o&&o.performanceTime>0?o.contextTime+(t-o.performanceTime)/1000:null;}
+function lead(){var c=S.ctx,m=outNow(performance.now());if(m===null)return;A.ld.push(c.currentTime-m);if(A.ld.length>15)A.ld.shift();}
+function frameAt(t){var c=S.ctx,m=outNow(t),l=A.ld.slice().sort(function(p,q){return p-q});
+ var s=m!==null&&l.length?m+l[l.length>>1]:c.currentTime+(t-performance.now())/1000;
+ return Math.round((s+A.inLat)*c.sampleRate);}
 /* ask for the microphone (also the retry from the refused state); a refusal leaves the page silent, never a stand-in */
 function goLive(){if(!ensure())return;if(S.ctx.state!=='running'&&S.ctx.resume)S.ctx.resume();
  if(S.live||S.asking)return;S.asking=true;
- AT.mic().then(function(st){S.asking=false;if(S.live){st.getTracks().forEach(function(t){t.stop()});return;}wire(st);if(S.want){S.want=false;startRec();}},
+ AT.mic().then(function(st){return A.wk.then(function(){return st;},function(e){st.getTracks().forEach(function(t){t.stop()});throw e;});}).then(function(st){S.asking=false;if(S.live){st.getTracks().forEach(function(t){t.stop()});return;}wire(st);if(S.want){S.want=false;startRec();}},
   function(){S.asking=false;S.want=false;S.micFail=true;});}
 try{navigator.permissions.query({name:'microphone'}).then(function(p){if(p.state==='denied')S.micFail=true;
  p.onchange=function(){if(p.state==='denied'&&!S.live)S.micFail=true;else if(p.state!=='denied'&&!S.live)S.micFail=false;};}).catch(function(){});}catch(_){}
-function startRec(t){if(!S.live||S.tail)return;AT.wake(true);S.rec=true;S.cur=[];S.curN=0;S.mk=[];S.t0=t||performance.now();inv(1);}
-/* the take spans tap to tap. Capture arrives in 4096-sample blocks: audio from before the start tap is trimmed off the
-   first block, and after the stop tap capture runs on until the block covering that instant has arrived (<= 400 ms) */
+function startRec(t){if(!S.live||S.tail)return;AT.wake(true);S.rec=true;S.mk=[];S.t0=t||performance.now();
+ S.f0=frameAt(S.t0);S.in0=false;S.need=0;S.cur=[];S.curN=0;A.pre.forEach(take);inv(1);}
+/* the take spans tap to tap, to the sample: after the stop tap capture runs on until that many samples have arrived
+   (a few tens of ms); if the audio stalls, whatever arrived is kept after 400 ms */
 function stopRec(t){S.rec=false;AT.wake(false);inv(0);var sr=S.ctx.sampleRate;if(!S.cur){return;}
- var want=Math.max(Math.round(sr*.3),Math.round(Math.max(0,(t||performance.now())-S.t0)/1000*sr));S.lastSpan=want/sr;
- if(S.curN>=want||!S.live)return finish(want);S.tail=want;var tk=S.tailTok=(S.tailTok||0)+1;setTimeout(function(){if(S.tail&&tk===S.tailTok)finish(S.tail);},400);}
-function finish(want){var sr=S.ctx.sampleRate,cur=S.cur,n=S.curN;S.tail=0;S.cur=null;if(!cur||n<sr*.3)return;
- var skip=Math.max(0,n-want),d=new Float32Array(n-skip),o=-skip;cur.forEach(function(b){if(o+b.length>0)d.set(o<0?b.subarray(-o):b,Math.max(0,o));o+=b.length;});
+ var want=Math.max(Math.round(sr*.3),Math.round(Math.max(0,(t||performance.now())-S.t0)/1000*sr));S.lastSpan=want/sr;S.need=want;
+ if(S.curN>=want||!S.live)return finish();S.tail=want;var tk=S.tailTok=(S.tailTok||0)+1;setTimeout(function(){if(S.tail&&tk===S.tailTok)finish();},400);}
+function finish(){var sr=S.ctx.sampleRate,cur=S.cur,n=Math.min(S.curN,S.need);S.tail=0;S.cur=null;S.need=0;if(!cur||n<sr*.3)return;
+ var d=new Float32Array(n),o=0;for(var i=0;i<cur.length&&o<n;i++){var b=cur[i];if(o+b.length>n)b=b.subarray(0,n-o);d.set(b,o);o+=b.length;}
  save(d,'rec',S.mk.filter(function(m){return m<=d.length/sr;}));}
 function retroGrab(sec){var sr=S.ctx.sampleRate,n=Math.min(S.rn,Math.round(sec*sr)),R=S.ring,L=R.length,d=new Float32Array(n);
  for(var i=0;i<n;i++)d[i]=R[(S.rw-n+i+L)%L];save(d,'retro',[]);}

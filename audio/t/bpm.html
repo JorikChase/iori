@@ -208,15 +208,17 @@ function startRec(){
  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){S.micFail=true;return;}
  /* the context is made inside the tap: iOS only lets a gesture start audio (shared.js resumes it on the touch end) */
  var AC=window.AudioContext||window.webkitAudioContext,ctx;try{ctx=new AC();if(ctx.resume)ctx.resume();}catch(_){S.micFail=true;return;}
- AT.mic().then(function(st){
+ var wk=AT.worklet(ctx);   /* the capture module loads while the microphone is asked for */
+ AT.mic().then(function(st){return wk.then(function(){return st;},function(e){st.getTracks().forEach(function(t){t.stop()});throw e;});}).then(function(st){
   S.ctx=ctx;var src=S.ctx.createMediaStreamSource(st);S.stream=st;
   S.an=S.ctx.createAnalyser();S.an.fftSize=1024;S.an.smoothingTimeConstant=0;src.connect(S.an);S.fd=new Uint8Array(512);
-  var cap=S.ctx.createScriptProcessor(4096,1,1),z=S.ctx.createGain();z.gain.value=0;src.connect(cap);cap.connect(z);z.connect(S.ctx.destination);
-  S.pcm=[];S.pcmN=0;S.recSr=S.ctx.sampleRate;cap.onaudioprocess=function(e){if(!S.rec||!S.pcm)return;var d=e.inputBuffer.getChannelData(0);S.pcm.push(new Float32Array(d));S.pcmN+=d.length;};S.cap=cap;
+  /* raw pcm for the take: the capture worklet hands over 2048-frame batches (the zero gain keeps it pulled on Safari) */
+  var cap=new AudioWorkletNode(S.ctx,'capture',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:1,channelCountMode:'explicit',processorOptions:{channels:1,batch:2048}}),z=S.ctx.createGain();z.gain.value=0;src.connect(cap);cap.connect(z);z.connect(S.ctx.destination);
+  S.pcm=[];S.pcmN=0;S.recSr=S.ctx.sampleRate;cap.port.onmessage=function(e){if(!S.rec||!S.pcm)return;var d=e.data.ch[0];S.pcm.push(d);S.pcmN+=d.length;};S.cap=cap;
   S.n=0;S.on[0]=0;S.secs=[];S.takeId=null;S.sel={a:0,b:0};S.envDirty=true;S.lastLive=0;
   S.rec=true;S.micFail=false;S.recFrom=0;S.grids=[];S.res=null;S.acc=0;S.prevE=[0,0,0];S.whole=true;if(S.ctx.resume)S.ctx.resume();
  }).catch(function(){S.micFail=true;try{ctx.close()}catch(_){}});}
-function stopRec(){S.rec=false;try{S.cap.onaudioprocess=null;S.cap.disconnect();}catch(_){}try{S.stream.getTracks().forEach(function(t){t.stop()});S.ctx.close();}catch(_){}S.an=null;
+function stopRec(){S.rec=false;try{S.cap.port.onmessage=null;S.cap.port.postMessage('stop');S.cap.disconnect();}catch(_){}try{S.stream.getTracks().forEach(function(t){t.stop()});S.ctx.close();}catch(_){}S.an=null;
  for(var b=0;b<3;b++){var mx=1e-4;for(var i=S.recFrom;i<S.n;i++)mx=Math.max(mx,S.env[b][i]);for(var i=S.recFrom;i<S.n;i++)S.env[b][i]/=mx;}
  onsets(Math.max(1,S.recFrom),S.n);fullAnalysis();
  var n=S.pcmN,sr=S.recSr,ch=S.pcm;S.pcm=null;S.pcmN=0;

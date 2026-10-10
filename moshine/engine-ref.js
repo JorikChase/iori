@@ -332,6 +332,18 @@ import { fxChain } from './fx-ref.js';
 
 /** The Mosh Loop on the CPU. Same semantics as createMoshLoop() in engine.js. `store: 'f16'` (default) rounds
  *  the prediction and the history to half floats like the GPU's rgba16float textures; 'f32' keeps full floats. */
+/** CPU twin of the maskmix kernel: clean x (1 - a) + moshed x a with a = the mask coverage in 1/4096 steps (exact
+ *  products, as in blendRef); opaque result. Used by the masks (R3) and by the loop's lock refresh. */
+export function maskmixRef(clean, moshed, mask) {
+  const out = new Float32Array(clean.length);
+  for (let i = 0; i < clean.length; i += 4) {
+    const a = Math.min(4096, Math.max(0, Math.floor(mask[i + 3] * 4096 + 0.5))), af = a / 4096, gf = (4096 - a) / 4096;
+    for (let k = 0; k < 3; k++) out[i + k] = a <= 0 ? clean[i + k] : a >= 4096 ? moshed[i + k] : fr(fr(clean[i + k] * gf) + fr(moshed[i + k] * af));
+    out[i + 3] = 1;
+  }
+  return out;
+}
+
 export function createLoopRef({ w, h }, cfg0, { store = 'f16' } = {}) {
   let cfg = normalize(cfg0), S = null;
   const keep = store === 'f16' ? (a) => fromHalfArray(toHalfArray(a)) : (a) => a;
@@ -343,14 +355,17 @@ export function createLoopRef({ w, h }, cfg0, { store = 'f16' } = {}) {
      *  state lists are copied. */
     snapshot() { return S && S.history ? { block: cfg.block, state: { ...S, inStates: [...S.inStates], postStates: [...S.postStates] } } : null; },
     restore(snap) { const st = snap.state; S = { ...st, inStates: [...st.inStates], postStates: [...st.postStates] }; },
-    /** inputs: { src: Float32Array, src2?: Float32Array } -> { out, field, est, hold, cut } */
-    step(t, { src, src2 }) {
+    /** inputs: { src: Float32Array, src2?: Float32Array, lock?: Float32Array } -> { out, field, est, hold, cut }. lock is the
+     *  keep coverage of the clip's lock masks (1 = free, 0 = locked): locked pixels of the history are refreshed from
+     *  src every frame, so nothing builds up under a lock (owner decision 2026-10-10: a lock does nothing). */
+    step(t, { src, src2, lock = null }) {
       const c = f32All(resolveAll(cfg, t, cfg.clock)), block = c.block, seed = cfg.seed | 0, geo = { w, h, block };
       const resetSrc = c.reset.source === 'source2' && src2 ? src2 : src;
       const resSrc = c.estimate.source === 'source2' && src2 ? src2 : src;     // the codec residual belongs to the motion source's stream
       const curP = pyramid(luma(src, w, h), w, h, L()), curP2 = src2 ? pyramid(luma(src2, w, h), w, h, L()) : null;
       const post = (img, fld) => (c.post.length ? keep(fxChain(c.post, img, { ...geo, t, seed, field: fld }, S.postStates)) : img);
-      if (t === S.t0 || !S.history) { S.history = keep(new Float32Array(resetSrc)); S.prevP = curP; S.prevP2 = curP2; S.prevSrc = keep(new Float32Array(resSrc)); return { out: S.history, display: post(S.history, null), field: null, est: null, hold: -1, cut: 0 }; }
+      const locked = (img) => (lock ? keep(maskmixRef(src, img, lock)) : img);
+      if (t === S.t0 || !S.history) { S.history = locked(keep(new Float32Array(resetSrc))); S.prevP = curP; S.prevP2 = curP2; S.prevSrc = keep(new Float32Array(resSrc)); return { out: S.history, display: post(S.history, null), field: null, est: null, hold: -1, cut: 0 }; }
       const k = holdAt(t, { ...c.bloom, hits: cfg.bloom.hits }, S.t0);
       let field, est = null, cut = 0;
       if (k > 0 && S.frozen) field = S.frozen;
@@ -382,6 +397,7 @@ export function createLoopRef({ w, h }, cfg0, { store = 'f16' } = {}) {
         resGain: c.residual.gain, resSteps: c.residual.steps, resMode: c.residual.mode, resDead: c.residual.dead, allowCode: k <= 0 || !!c.bloom.residual,
       }, mc, resSrc));
       if (c.inLoop.length) S.history = keep(fxChain(c.inLoop, S.history, { ...geo, t, seed, field }, S.inStates));   // accumulates: feeds back
+      S.history = locked(S.history);
       S.prevP = curP; S.prevP2 = curP2; S.prevSrc = keep(new Float32Array(resSrc));
       return { out: S.history, display: post(S.history, field), field, est, hold: k, cut };
     },

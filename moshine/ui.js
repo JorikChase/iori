@@ -12,7 +12,7 @@ import { deviceWindow, testsWindow } from './panels.js';
 import { openLibrary, openVideo, analyseAudio, createAudioDecoder } from './media.js';
 import { createAudioPlayer } from './audioplay.js';
 import { importLimits, fitSize, SCALES, createGovernor, AUDIO_OK } from './governor.js';
-import { exportSequence, openTarget, encodableCodecs, passThroughAudio, QUALITIES } from './export.js';
+import { exportSequence, openTarget, encodableCodecs, audioPlan, mixCodec, QUALITIES } from './export.js';
 import { createAudioClip, toRational, createProject, fromConfig, mediaFromLibrary, createMediaClip, createEffectClip, createEffect, openProjectStore, createAutosave, saveFile, readFile, newId, sequenceEnd, toMoshID, fromMoshID, EFFECTS } from './project.js';
 import { createTimeline, indexProject } from './timeline.js';
 import { createSequenceRenderer, videoReader } from './render.js';
@@ -104,13 +104,13 @@ function useProject(p) {
 function rebuildRenderer() {
   const s = seq(), cap = caps().preview, [bw, bh] = fitSize(s.width, s.height, cap[0], cap[1]), [w, h2] = fitSize(bw, bh, Math.round(bw * gov.scale()), Math.round(bh * gov.scale()));
   covDirty = true; renderer?.destroy(); renderer = createSequenceRenderer(gpu, project, { w, h: h2, sources, K: 8, budget: Math.round(caps().gpuBudget / 2), cpuBudget: ckCpuBudget, ...(ckDisk && ckDiskBudget > 0 ? { disk: ckDisk, diskBudget: ckDiskBudget } : {}) }); rsize = [w, h2];   // checkpoints: half the tier's GPU budget
-  S.setAspect(s.width / s.height); gov.setBudget(1000 / Math.min(60, fpsOf())); play.dirty = true;
+  S.setAspect(s.width / s.height); gov.setBudget(1000 / Math.min(60, fpsOf())); play.dirty = true; requestAnimationFrame(densify);
 }
 function onChange(what) {
   if (what !== 'selection' && sound.playing) { sound.clearCache(); sound.start(play.t); }   // the mix changed
   if (typeof refreshLooks === 'function') { syncEmpty(); refreshLooks(); drawMaskOverlay(); }
   if (what !== 'selection') { autosave.touch(project); renderer.invalidate(); covDirty = true; touchActivity(); play.dirty = true; pump(); title(); if (U.open.export && !exporting) refreshExport(); }
-  view.draw(); inspector.refresh();
+  view.draw(); inspector.refresh(); if (what !== 'selection') requestAnimationFrame(densify);
 }
 function title() {
   const s = seq(); S.setPaneTitle(`Preview — ${project.name} · ${s.width}×${s.height} · ${+fpsOf().toFixed(3)} fps`);
@@ -327,9 +327,10 @@ function drawMaskOverlay() {
 }
 new ResizeObserver(() => drawMaskOverlay()).observe(fitBox);
 
-const view = createTimelineView(tlBody, { tl: { get project() { return project; }, get selection() { return tl.selection; }, exec: (...a) => tl.exec(...a), select: (...a) => tl.select(...a), selectRange: (...a) => tl.selectRange(...a), marquee: (...a) => tl.marquee(...a), selectedClips: () => tl.selectedClips() },
+const view0 = createTimelineView(tlBody, { tl: { get project() { return project; }, get selection() { return tl.selection; }, exec: (...a) => tl.exec(...a), select: (...a) => tl.select(...a), selectRange: (...a) => tl.selectRange(...a), marquee: (...a) => tl.marquee(...a), selectedClips: () => tl.selectedClips() },
   playhead: () => play.want, onSeek: (f, final) => { play.on = false; seek(f, final); }, note, onPick: () => inspector.refresh(), coverage: () => coverageNow() });
-const inspector = createInspector(insBody, { tl: { get project() { return project; }, exec: (...a) => tl.exec(...a), seal: () => tl.seal(), selectedClips: () => tl.selectedClips() }, playhead: () => play.want, view, note, seek: (f) => seek(f) });
+const showParam0 = view0.showParam, view = Object.assign(view0, { showParam(p) { showParam0(p); requestAnimationFrame(densify); } });   // a keyframe lane changes the rows' height
+const inspector = createInspector(insBody, { tl: { get project() { return project; }, exec: (...a) => tl.exec(...a), seal: () => tl.seal(), selectedClips: () => { const s = tl.selectedClips(); if (s.length) return s; const lt = typeof lookTarget === 'function' && lookTarget(); return lt ? [lt.clip.id] : []; }, auto: () => !tl.selectedClips().length }, playhead: () => play.want, view, note, seek: (f) => seek(f) });
 
 // tablet: the stack floats; phone: timeline and stack are bottom sheets (petri idiom)
 const stackWin = S.win('stack', 'Stack', h('div'), { x: -16, y: 70, w: 340, dock: 'STACK' });
@@ -343,7 +344,25 @@ function relayout() {
   for (const [k, on] of [['stack', m !== 'desktop'], ['timeline', m === 'phone']]) { S.wins[k].btn.style.display = on ? '' : 'none'; if (!on) S.toggleWin(k, false); }
   if (m === 'phone') S.toggleWin('timeline', true);
 }
-addEventListener('resize', relayout);
+addEventListener('resize', () => { relayout(); densify(); });
+
+/**
+ * D41 (owner, 2026-10-10): no empty space. The timeline pane is as tall as its rows (at most 45 % of the desk), the
+ * preview and stack get the rest, and on desktop the stack column takes the width the picture would otherwise
+ * letterbox (330 px at least, half the desk at most). Runs on resize, edits, and a new sequence size.
+ */
+let dense = { tlh: 0, stackw: 0 };
+function densify() {
+  const desk = $('ms-desk'); if (!desk || layout === 'phone' || !view) return;
+  const D = desk.getBoundingClientRect(); if (!D.height) return;
+  const cap = tlPane.querySelector('.ms-wcap')?.offsetHeight || 18;
+  const tlh = Math.round(Math.min(D.height * 0.45, Math.max(118, cap + view.contentH + 12)));
+  if (Math.abs(tlh - dense.tlh) > 1) { dense.tlh = tlh; desk.style.setProperty('--tlh', tlh + 'px'); }
+  if (layout !== 'desktop') return;
+  const stage = $('ms-stage'), s = seq(), A = s.width / s.height, sh = stage.clientHeight; if (!sh) return;
+  const want = Math.round(Math.min(D.width * 0.5, Math.max(330, D.width - sh * A - 10)));
+  if (Math.abs(want - dense.stackw) > 2) { dense.stackw = want; desk.style.setProperty('--stackw', want + 'px'); }
+}
 
 // ------------------------------------------------------------------------------------------------ media window + import
 const mediaBox = h('div'), mediaList = h('div', 'ms-res'), mrow = h('div', 'ms-brow');
@@ -532,14 +551,14 @@ async function refreshExport() {
   const s = seq(), E = U.exp, cap = caps().export, sizes = { sequence: fitSize(s.width, s.height, ...cap), half: fitSize(s.width, s.height, Math.round(s.width / 2), Math.round(s.height / 2)), '720p': fitSize(s.width, s.height, 1280, 720) };
   const [w, h2] = sizes[E.size] || sizes.sequence, end = sequenceEnd(s), useRange = E.range === 'range' || (E.range === 'auto' && !!s.exportRange);
   const range = useRange && s.exportRange ? { ...s.exportRange } : { in: 0, out: end }, codecs = await encodableCodecs(E.container, w, h2);
-  const a = passThroughAudio(project, range), m = a.mediaId && project.media.find((x) => x.id === a.mediaId);
+  const a = audioPlan(project, range), m = a.mediaId && project.media.find((x) => x.id === a.mediaId), ac = a.mode === 'mix' ? await mixCodec(E.container) : null;
   expPlan = { w, h: h2, range, codec: codecs[0] };
   expForm.innerHTML = '';
   expForm.append(sel1('container', 'container', [['mp4', 'MP4'], ['webm', 'WebM']]), sel1('size', 'size', Object.entries(sizes).map(([k, [x, y]]) => [k, `${k} · ${x}×${y}`])),
     sel1('quality', 'quality', QUALITIES.map((q) => [q, q])), sel1('range', 'range', [['auto', s.exportRange ? 'I–O range' : 'whole sequence'], ['whole', 'whole sequence'], ['range', 'I–O range']]),
-    sel1('audio', 'audio', [['true', 'pass through when possible'], ['false', 'none']], () => { U.exp.audio = U.exp.audio === true || U.exp.audio === 'true'; S.save(); refreshExport(); }),
+    sel1('audio', 'audio', [['true', 'the sequence mix'], ['false', 'none']], () => { U.exp.audio = U.exp.audio === true || U.exp.audio === 'true'; S.save(); refreshExport(); }),
     h('div', 'ms-kv', [['output', `${w}×${h2} · ${codecs[0] ? codecs[0].toUpperCase() : 'no encoder'} · ${+fpsOf().toFixed(3)} fps`], ['range', `${range.in} – ${range.out} (${range.out - range.in} frames, ${timecode(range.out - range.in, fpsOf(), true)})`],
-      ['audio', !U.exp.audio || U.exp.audio === 'false' ? 'none' : a.reason ? `dropped: ${a.reason}` : `${m?.name}: passed through`], ['saved to', window.showSaveFilePicker ? 'a file you choose' : 'browser storage, then downloaded'],
+      ['audio', !U.exp.audio || U.exp.audio === 'false' ? 'none' : !a.mode ? `none: ${a.reason}` : a.mode === 'pass' ? `${m?.name}: passed through (one untouched clip)` : ac ? `mixed (${a.clips} clip${a.clips > 1 ? 's' : ''}) → ${ac.toUpperCase()} 48 kHz stereo` : `dropped: this browser cannot encode audio for ${E.container.toUpperCase()}`], ['saved to', window.showSaveFilePicker ? 'a file you choose' : 'browser storage, then downloaded'],
       ['render', 'sequential from the first frame of the range on a fresh renderer (a range starting inside an effect clip replays from its in-point)']].map(([k, x]) => `<span>${k}</span><span>${x}</span>`).join('')));
   expGo.disabled = !!expAbort || !codecs.length || range.out <= range.in;
 }
@@ -707,7 +726,7 @@ addEventListener('pagehide', () => { autosave.flush(); });
 if (qs.has('harness')) window.__moshineHarness = await import('./harness.js');
 let start = null;
 if (store && !qs.has('demo') && !qs.has('bench')) { const id = U.last && store.list().some((e) => e.id === U.last) ? U.last : store.list()[0]?.id; if (id) { try { start = await store.load(id); } catch (e) { note('could not reopen the last project: ' + e.message); } } }
-relayout();
+relayout(); requestAnimationFrame(() => { densify(); requestAnimationFrame(densify); });   // twice: the stage height settles after the rows
 useProject(start || demoProject());
 if (location.hash.startsWith('#P1.')) await openMoshID(location.hash.slice(1));
 refreshMedia(); refresh();

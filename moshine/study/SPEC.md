@@ -54,6 +54,11 @@ Decisions taken in discussion on 2026-10-09. Items marked *assumed* were chosen 
 | D37 | Preview vs export | **The M4 preview plays decoded frames through the Mosh Loop at a governed resolution; seeking re-keys the mosh** (the frame you land on is the I-frame) until the checkpoint cache (M6). **Export always renders sequentially from the first frame of the range** at the chosen size, independent of the preview. |
 | D38 | Export | **WebCodecs encode through Mediabunny, streamed into a positional writable** (save picker on Chrome/Edge, else an OPFS file handed over as a download); MP4 with the index at the end (`fastStart: false`) or WebM. **Source audio is passed through packet for packet** when the container accepts its codec (timing is unchanged in M4); otherwise it is dropped until the M7 mix. Safari H.264 uses `latencyMode: 'realtime'`. |
 | D39 | Probe and governor | **Probe v1 measures** the default Mosh Loop at 720p (scaled to 1080p), H.264 encode and decode throughput (after a warm-up) and what the default-limits device can allocate, and caps the static tier with them. **The governor** moves preview scale (100, 75, 50, 37.5, 25 %) by the median frame time of a 20-frame window (down above 115 % of budget, up after 60 calm windows below 55 %); a manual pin overrides it. |
+| D40 | Locks | **A lock does nothing** (owner, 2026-10-10). Lock masks refresh the Mosh Loop's history from its input every frame (both twins, the maskmix kernel, exact), so no mosh builds up underneath and turning a lock off reveals nothing hidden. Lock masks therefore enter the checkpoint signature; include masks still mix after the state. Supersedes the "optional in-loop refresh" of R3. |
+| D41 | UI density | **Looks cards stay as they are; the editor is dense** (owner, 2026-10-10): remove empty space everywhere, as much utility per pixel as possible. Desktop decides behaviour; layouts adapt. |
+| D42 | Own code, made fast | **Keep our own code over vendored libraries, and make it fast enough to justify that** (owner, 2026-10-10: "we like on prem but we need performant code built to make up for it"). The JS WSOLA stays (signalsmith-stretch is not vendored). Performance is first-class work, not polish: workers for audio and cache I/O, the matcher in workgroup shared memory, measured against T4 rows. |
+| D43 | Public early | **The app stays public at iori.me/moshine/ while M7 and M8 are open**, so it can be tested on other devices (owner, 2026-10-10). M9 is split: its public part is done; the authentic bake, the v2 library and the docs become M9b. |
+| D44 | Isolation | **iori.me sends no COOP/COEP for /moshine/ until the ffmpeg.wasm bake needs them** (this defers D15's per-path headers). `serve.py` and the bench match production by default; `--coi` opts in. Nothing in the app depends on isolation today (the bench passes non-isolated). |
 
 Open decisions still needed from the owner are collected in §15.
 
@@ -121,7 +126,7 @@ moshine/
   harness.js         in-page tests T0 (parity, determinism, replay, catalogue smoke) and T4 (perf)
   tools/bench.mjs    headless Chrome runner writing ref/bench-<tag>.json (petri idiom)
   fixtures.js        procedural fixture generators (no binaries in the repo)
-  vendor/            mediabunny, signalsmith-stretch, ffmpeg.wasm (lazy), pinned versions
+  vendor/            mediabunny, ffmpeg.wasm (lazy), pinned versions (time-stretch is our own WSOLA, D42)
   ref/               bench results, golden hashes
   study/             spec, research, decisions (this docs folder moves here)
   HANDOFF.md
@@ -138,7 +143,7 @@ legacy/tauri/        parked Tauri + Rust prototype (stays in data_moshine, not m
 | cache | OPFS `createSyncAccessHandle`, checkpoint and encoded-cache I/O | 5–15× faster than IndexedDB (web-platform §E.2). |
 | encode | `VideoEncoder`, `AudioEncoder`, Mediabunny `Output` → `StreamTarget` | Streams to disk; never buffers a whole export in memory. |
 | ffmpeg | ffmpeg.wasm, lazily loaded | Only for the compat and bake paths (§8.4). |
-| audio | AudioWorklet (preview), analysis (features at import), signalsmith-stretch | Features are precomputed and stored with the project so modulators stay deterministic. |
+| audio | AudioWorklet (preview), analysis (features at import), own WSOLA stretcher (D42) | Features are precomputed and stored with the project so modulators stay deterministic. |
 
 Messages between workers carry `VideoFrame`s and `ArrayBuffer`s by transfer. Frames are closed by the last consumer; the render worker copies each decoded frame once into an owned `rgba16float`/`rgba8unorm` texture so that every node sees identical bytes regardless of the import path (timeline-editors §E.3 determinism).
 
@@ -434,7 +439,7 @@ Lazy separate chunk, runs in its own worker. Used only for: unsupported containe
 
 - **Features at import:** per-frame RMS, band energies (bass/mid/high and N-band FFT), onset flags, stored with the media and referenced by audio modulators. Deterministic and offline.
 - **Playback (preview):** WebAudio + AudioWorklet, scheduled from the sequence frame clock.
-- **Time-stretch (D6):** signalsmith-stretch (MIT) as default in an AudioWorklet for preview and as an offline WASM pass for export; SoundTouchJS as the low-CPU fallback on tier 0–1 (web-platform §F).
+- **Time-stretch (D6, D42):** our own WSOLA (`stretch.js`), deterministic, used for playback and export; signalsmith-stretch was considered and declined (D42). It must run off the main thread (a worker) and be fast enough for long holds.
 
 **How duration changes are modelled.** In the simulated engine, Bloom and Pulse *hold the motion field* while sequence time keeps running, so by default they do **not** insert frames and the duration does not change. The classic "picture keeps sliding while the video gets longer" is modelled at the **timeline level** by a `Bloom Insert` command: it splits the media clip at the playhead, inserts a `hold` segment of N frames (source frozen), ripples the rest of the channel, and inserts a matching `StretchSegment` on the linked audio clip. Audio in that segment is time-stretched by the same ratio. This keeps the engine pure and keeps every duration change visible and undoable on the timeline. (Decision requested in §15.)
 
@@ -566,9 +571,10 @@ Ordered for D25: the engine and its fidelity bench come first, the editor follow
 | 4 | Media pipeline ✔ 2026-10-09 | Import to OPFS, decode ladder 1–2, streaming MP4 export, tier probe and governor v0 | Done: see the M4 section of HANDOFF.md and `ref/bench-m4-long.json` |
 | 5 | Timeline v1 ✔ 2026-10-10 (core) | Data model, command bus, undo, canvas timeline, keyframes, effect stack, modulators and triggers, mosh hits, Mosh Cut, Bloom Insert, preview, Mosh ID | Done; the small §11.1 items were closed after step 7 (keyframe interp and navigation, stack copy and presets, effects browser, project Mosh ID). Left: fast J reverse (needs M6), pinch on a real device. Evidence: `ref/bench-m5-items.json`, `ref/bench-m5-step7.json` (timeline export = M4 export, seek = playback on edited real video, editor drags), 107 node tests |
 | 6 | Cache and scrubbing ✔ 2026-10-10 | Four-layer cache, lossless checkpoints, invalidation, status bar, background fill | Met on this Mac (tier 3): 30 random seeks in a 5-minute 1080p sequence previewed at 540p, median 54 ms, worst 97 ms, all bit-exact (`ref/bench-m6-scrub.json`). Tier 2 not verified; levers are a preview proxy and the matcher. Layers 1 (decoded-source ring) and 2 (channel-output cache) were not needed and are not built |
-| 7 | Audio | Features at import (from M1 for modulators), **playback**, Bloom Insert time-stretch, export mix | Audio-reactive preset works; stretched audio exports in sync |
+| 7 | Audio ✔ 2026-10-10 | Features at import (from M1 for modulators), **playback**, Bloom Insert time-stretch, export mix | Done: T1 `audioReactive` (Onset bloom holds start on the clicks of `beat.mp4`, frames 6, 21, 36, 51) and `exportMix` (a 15-frame Bloom Insert exports with the mix: clicks before and after the stretch within 0 ms, audio ends 27 ms after the video, one AAC frame of padding); `ref/bench-m7.json` |
 | 8 | Compatibility | Decode ladders 3–5, WebGL2 backend, Safari and Firefox QA, Firefox preview-only mode | Core flow works on Safari 26 and Firefox current on macOS; governor caps shown on an iPhone |
-| 9 | Ship | Move to `iori/moshine/`, `pages.meta.json`, Caddy headers, authentic bake as opt-in export, v2 library (dither, analog, pixel sort, slit-scan, sort, gravity, temporal average), docs | Public at iori.me |
+| 9 | Public ✔ 2026-10-10 (early, D43) | Move to `iori/moshine/`, `pages.meta.json`, site menu | Done: live at iori.me/moshine/ (iori `b222691`); lab hidden; no COOP/COEP (D44) |
+| 9b | Bake and library | Authentic bake as opt-in export (ffmpeg.wasm, LGPL; then the `/moshine/*` COOP/COEP block), v2 library (dither, analog, pixel sort, slit-scan, sort, gravity, temporal average), docs | Bake matches the native reference within the fidelity budgets; site menu and analytics still work under COEP |
 | 10 | Live rack (v2) | Capture input, live clock, output window, MIDI mapping, OSC bridge | A stack from the timeline runs live at 60 fps on tier 2 |
 
 ---
@@ -579,7 +585,7 @@ Ordered for D25: the engine and its fidelity bench come first, the editor follow
 |---|---|---|
 | R1 ✔ | Remove the black borders between the docked windows | The desk's 4 px black gap and pane borders become the shell's grey bevel, with no black channel between panes (ui.css desk grid). |
 | R2 ✔ | Paint the motion vectors of the moshes that have them | A vector brush on the preview, for a Mosh Loop on its effect clip: strokes write a per-clip vector field (direction and strength from the drag) that is added to, or replaces, the estimated field inside the brush, keyframeable over time. It enters the loop as a field op (GPU + CPU twins, D28) and is stored in the project as strokes, not pixels, so it stays deterministic and editable. |
-| R3 ✔ (tracking, in-loop refresh and on-canvas handles still open) | Masks: limit where a mosh applies, and a lock brush that keeps the mosh off an area | Per effect clip: an include mask (mosh only here) and a lock mask (never here), painted with a brush or drawn as shapes, feathered, with keyframes or tracking over time. Applied at the loop's output as a mix with the clean composite (lock = always clean), and optionally as a refresh mask inside the loop (locked blocks reset from the source every frame). Stored as strokes and shapes in the project. |
+| R3 ✔ (in-loop lock refresh ✔ D40; tracking and on-canvas handles still open) | Masks: limit where a mosh applies, and a lock brush that keeps the mosh off an area | Per effect clip: an include mask (mosh only here) and a lock mask (never here), painted with a brush or drawn as shapes, feathered, with keyframes or tracking over time. Applied at the loop's output as a mix with the clean composite (lock = always clean), and optionally as a refresh mask inside the loop (locked blocks reset from the source every frame). Stored as strokes and shapes in the project. |
 | R4 (first pass ✔; masks ✔ with R3) | A streamlined, intuitive path: import, apply a preset, mask each mosh, keyframe its shape or properties | A guided first screen (drop a video → it is on the timeline and previewing), a preset strip with live thumbnails that applies to the selection with one click, mask and vector tools on the preview with obvious on-canvas handles, a stopwatch next to every control, and fewer windows open by default. Designed against the wireframe, tested on desktop, tablet and phone (D19). |
 | R5 | App icon | The owner provides an SVG (`moshine/icon.svg`); it becomes the favicon, the caption control box image and the iori.me site-menu entry at the move (M9). |
 
@@ -614,6 +620,7 @@ Condensed from web-platform §H and datamoshing §E.
 12. ~~Phone~~ resolved: one editor everywhere, governed in real time (D19).
 13. ~~Mosh Cut between clips of different sizes~~ resolved by the model: every channel output is sequence-sized after Transform & Blend, and a Mosh Loop estimates its field on the composite below it, so there is never a size mismatch. Source-picker inputs are sequence-sized for the same reason.
 14. **Hosting** is resolved by the house Caddy (D15); item 9 is closed.
+16. ~~Looks grouping, signalsmith, locked areas, deploy before M7~~ resolved 2026-10-10: D40 (locks inert), D41 (Looks kept, dense UI), D42 (own code, made fast), D43 (public early).
 
 ---
 

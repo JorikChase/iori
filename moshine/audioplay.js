@@ -2,10 +2,11 @@
 // back to back at exact AudioContext times, a second ahead. The picture drives: the editor compares the frame it shows
 // with expectedFrame() and restarts the sound there when they drift apart (a mosh may render slower than real time).
 import { mixBlock } from './mix.js';
+import { createStretcher } from './stretch.js';
 
 export function createAudioPlayer({ project, seq, decode, block = 0.5, ahead = 1.0, onError = (e) => console.warn('moshine: audio', e) }) {
   let ctx = null, out = null, gen = 0, sources = [], timer = null, state = null;
-  const cache = new Map();
+  const cache = new Map(), stretcher = createStretcher();          // Bloom Insert stretches are made in a worker (D42)
   const ensure = async () => {
     if (!ctx) { ctx = new AudioContext({ latencyHint: 'interactive' }); out = ctx.createGain(); out.connect(ctx.destination); }
     if (ctx.state !== 'running') await ctx.resume().catch(() => {});
@@ -17,7 +18,7 @@ export function createAudioPlayer({ project, seq, decode, block = 0.5, ahead = 1
     while (state && g === gen && state.at < ctx.currentTime + ahead) {
       const s0 = state.next, when = state.at; state.next += B; state.at += B / sr;
       let chans;
-      try { chans = await mixBlock({ project: project(), seq: s, s0, s1: s0 + B, sr, nch: 2, decode, cache }); } catch (e) { onError(e); return; }
+      try { chans = await mixBlock({ project: project(), seq: s, s0, s1: s0 + B, sr, nch: 2, decode, cache, stretch: stretcher.stretch }); } catch (e) { onError(e); return; }
       if (g !== gen) return;
       const buf = ctx.createBuffer(2, B, sr); chans.forEach((c, i) => buf.copyToChannel(c, i));
       const src = ctx.createBufferSource(); src.buffer = buf; src.connect(out); src.start(Math.max(when, ctx.currentTime));
@@ -43,6 +44,6 @@ export function createAudioPlayer({ project, seq, decode, block = 0.5, ahead = 1
     expectedFrame() { return state && ctx ? state.frame + (ctx.currentTime - state.t0) * state.fps : null; },
     setVolume(v) { if (out) out.gain.value = v; },
     clearCache() { cache.clear(); },
-    close() { stopAll(); ctx?.close(); ctx = null; },
+    close() { stopAll(); ctx?.close(); ctx = null; stretcher.close(); },
   };
 }

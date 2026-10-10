@@ -19,6 +19,7 @@ let clipboard = null;                                                   // a cop
 const INTERP = ['hold', 'linear', 'easeIn', 'easeOut', 'easeInOut'];
 
 export function createInspector(host, { tl, playhead, view, seek = () => {}, note = () => {} }) {
+  const auto = () => !!tl.auto?.();                     // showing the mosh under the playhead, not a selection (D41)
   const st = { effectId: null, mods: new Set(), all: false };
   let sig = '', updaters = [];
   const run = (name, args, opts) => { try { return tl.exec(name, args, opts); } catch (e) { note(e.message); return null; } };
@@ -31,7 +32,7 @@ export function createInspector(host, { tl, playhead, view, seek = () => {}, not
     if (!effs.some((e) => e.id === st.effectId)) st.effectId = effs[0]?.id || null;
     return { clip, ch: o.ch, eff: effs.find((e) => e.id === st.effectId) || null, ix };
   }
-  const structure = (S) => !S ? 'none' : JSON.stringify([S && S.eff && S.eff.type === 'moshLoop' ? (S.eff.params.ops.find((o) => o.op === 'paint')?.strokes || []).length : 0, (S && S.clip.masks || []).map((m) => [m.id, m.mode, m.enabled, m.invert, m.shapes.length]), st.all, !!clipboard, (tl.project.presets || []).map((x) => x.id + x.name), S.clip.id, S.clip.kind, S.ch.locked, (S.clip.stack || []).map((e) => [e.id, e.type, e.enabled]), st.effectId, [...st.mods],
+  const structure = (S) => !S ? 'none' : JSON.stringify([S.clip.id, auto(), S && S.eff && S.eff.type === 'moshLoop' ? (S.eff.params.ops.find((o) => o.op === 'paint')?.strokes || []).length : 0, (S && S.clip.masks || []).map((m) => [m.id, m.mode, m.enabled, m.invert, m.shapes.length]), st.all, !!clipboard, (tl.project.presets || []).map((x) => x.id + x.name), S.clip.id, S.clip.kind, S.ch.locked, (S.clip.stack || []).map((e) => [e.id, e.type, e.enabled]), st.effectId, [...st.mods],
     S.eff && S.eff.type === 'moshLoop' ? [S.eff.params.ops.map((o) => o.op), S.eff.params.inLoop.map((o) => o.fx), S.eff.params.post.map((o) => o.fx)] : 0,
     animShape(S.clip.transform), S.eff ? animShape(S.eff.params) : 0, view.shown && view.shown.id + view.shown.path.join('.')]);
   function animShape(o) { const out = []; const walk = (x, p) => { if (isAnim(x)) out.push(p + (x.keys ? 'k' : '') + (x.mods ? 'm' + x.mods.length + x.mods.map((m) => m.type).join() : '')); else if (x && typeof x === 'object') for (const k of Object.keys(x)) walk(x[k], p + '.' + k); }; walk(o, ''); return out.join('|'); }
@@ -40,10 +41,13 @@ export function createInspector(host, { tl, playhead, view, seek = () => {}, not
     const S = selection(), s = structure(S);
     if (s === sig) { for (const u of updaters) u(); return; }
     sig = s; updaters = []; host.innerHTML = '';
-    if (!S) { host.append(h('div', 'ms-note', 'Select a clip on the timeline to edit its stack. Double-click a keyframe lane to add a key; drag diamonds to move them.')); return; }
+    if (!S) { host.append(h('div', 'ms-note', 'No mosh under the playhead. Select a clip on the timeline to edit its stack. Double-click a keyframe lane to add a key; drag diamonds to move them.')); return; }
     const { clip, ch } = S, owner = clip;
-    const kv = h('div', 'ms-kv'); host.append(kv);
-    const head = () => { kv.innerHTML = [['clip', clip.label || (clip.kind === 'effect' ? 'effect clip' : tl.project.media.find((m) => m.id === clip.mediaId)?.name || clip.kind)], ['range', `${clip.range.in} – ${clip.range.out} (${clip.range.out - clip.range.in} f)`], ['channel', `${ch.name}${ch.locked ? ' · locked' : ''}`]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join(''); };
+    const kv = h('div', 'ins-head'); host.append(kv);           // one line (D41): name · channel · range
+    const head = () => {
+      const name = clip.label || (clip.kind === 'effect' ? 'effect clip' : tl.project.media.find((m) => m.id === clip.mediaId)?.name || clip.kind);
+      kv.innerHTML = `<b>${name}</b> · ${ch.name}${ch.locked ? ' (locked)' : ''} · ${clip.range.in}–${clip.range.out} <small>(${clip.range.out - clip.range.in} f)${auto() ? ' · under the playhead' : ''}</small>`;
+    };
     head(); updaters.push(head);
     // clip properties
     if (clip.kind === 'media') {
@@ -55,7 +59,11 @@ export function createInspector(host, { tl, playhead, view, seek = () => {}, not
       g.append(selRow('state at in', ['atIn', 'continue'], () => clip.reset, (v) => run('setValue', { id: clip.id, path: ['reset'], value: v })));
       g.append(numRow('warm-up frames', () => clip.warmup, (v) => run('setValue', { id: clip.id, path: ['warmup'], value: Math.max(0, Math.round(v)) })));
     }
-    if (clip.kind === 'audio') { host.append(h('div', 'ms-note', 'Audio clips are mixed and played in M7.')); return; }
+    if (clip.kind === 'audio') {                                  // M7: the clip's gain (keyframeable); the mix plays and exports it
+      const g = group('Sound'); g.append(param({ id: clip.id, path: ['gain'], spec: [0, 2, 0.01, 1], label: 'gain', clip }));
+      if (clip.stretch?.length) g.append(h('div', 'ms-note', `${clip.stretch.length} Bloom Insert stretch${clip.stretch.length > 1 ? 'es' : ''}: the sound slows over the hold and is back in sync after.`));
+      return;
+    }
     // the stack
     const list = h('ul', 'ins-stack');
     clip.stack.forEach((e, i) => {

@@ -30,8 +30,9 @@ function fitChannels(src, nch) {
  * Mix sequence samples [s0, s1) at rate sr (sample 0 = sequence frame 0) into nch channels.
  * decode(media, t0, t1) -> Promise<{ sampleRate, first, channels: Float32Array[] }> covers at least media seconds [t0, t1)
  * (0 = the media's first video frame); `first` is the media sample index of channels[x][0], so positions stay exact. cache: a Map kept across calls for stretched pieces (playback and export pass one).
+ * stretch(channels, outLen) -> Promise<channels>: wsola inline by default; the browser passes a worker (stretch.js createStretcher).
  */
-export async function mixBlock({ project, seq, s0, s1, sr, nch = 2, decode, cache = new Map() }) {
+export async function mixBlock({ project, seq, s0, s1, sr, nch = 2, decode, cache = new Map(), stretch = async (ch, n) => wsola(ch, n) }) {
   const n = Math.max(0, s1 - s0), out = Array.from({ length: nch }, () => new Float32Array(n)), fps = seq.timebase.num / seq.timebase.den;
   const S = (frames) => Math.round((frames * sr) / fps);                 // sequence frames -> absolute output samples
   for (const k of audibleClips(seq)) {
@@ -49,16 +50,23 @@ export async function mixBlock({ project, seq, s0, s1, sr, nch = 2, decode, cach
       } else {                                                          // stretched: the whole piece once, then slice
         const key = JSON.stringify([k.id, k.mediaId, k.sourceIn, k.stretch, p.from, p.to, sr]);
         let whole = cache.get(key);
-        if (!whole) {
-          const t0 = p.src0 / fps, t1 = (p.src0 + srcFrames) / fps, d = await decode(media, t0, t1), m = Math.max(1, Math.round((t1 - t0) * sr));
-          whole = wsola(resample(d.channels, d.sampleRate, sr, (p.src0 * d.sampleRate * seq.timebase.den) / seq.timebase.num - d.first, m), P1 - P0); cache.set(key, whole);
+        if (!whole) {                                                   // pending pieces are shared: concurrent blocks wait for one
+          whole = (async () => {
+            const t0 = p.src0 / fps, t1 = (p.src0 + srcFrames) / fps, d = await decode(media, t0, t1), m = Math.max(1, Math.round((t1 - t0) * sr));
+            return stretch(resample(d.channels, d.sampleRate, sr, (p.src0 * d.sampleRate * seq.timebase.den) / seq.timebase.num - d.first, m), P1 - P0);
+          })();
+          cache.set(key, whole); whole.catch(() => cache.get(key) === whole && cache.delete(key));
           if (cache.size > 64) cache.delete(cache.keys().next().value);
         }
-        chans = whole.map((c) => c.subarray(a - P0, b - P0));
+        chans = (await whole).map((c) => c.subarray(a - P0, b - P0));
       }
       chans = fitChannels(chans, nch);
-      const g = resolve(k.gain ?? 1, Math.floor(((a * fps) / sr) - k.range.in));
-      for (let c = 0; c < nch; c++) { const o = out[c], x = chans[c]; for (let i = 0; i < b - a; i++) o[a - s0 + i] += x[i] * g; }
+      // gain per sequence frame (clip-local), so a keyframed gain moves at frame rate whatever the block size
+      for (let i = 0; i < b - a;) {
+        const f = Math.floor(((a + i) * fps) / sr), j = Math.min(b - a, Math.ceil(((f + 1) * sr) / fps) - a), g = resolve(k.gain ?? 1, f - k.range.in);
+        for (let c = 0; c < nch; c++) { const o = out[c], x = chans[c]; for (let q = i; q < j; q++) o[a - s0 + q] += x[q] * g; }
+        i = Math.max(j, i + 1);
+      }
     }
   }
   return out;

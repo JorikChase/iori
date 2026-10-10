@@ -98,8 +98,10 @@ export function gpuBackend(gpu, { w, h, sources }) {
     /** A mask raster (uploaded when its key changes) resampled to the working size. */
     mask(key, r, P) {
       let m = maskSrc.get(key);
-      if (!m || m.key !== r.key) { const tex = img('mask src ' + key, r.mw, r.mh); upload(gpu, tex, r.data); maskSrc.set(key, (m = { key: r.key, tex })); }
-      const dst = img('mask ' + key); submit((e) => place.encode(e, m.tex, dst, P)); return dst;
+      if (!m || m.key !== r.key) { const tex = img('mask src ' + key, r.mw, r.mh); upload(gpu, tex, r.data); maskSrc.set(key, (m = { key: r.key, tex, placed: null })); }
+      const dst = img('mask ' + key);
+      if (m.placed !== dst) { submit((e) => place.encode(e, m.tex, dst, P)); m.placed = dst; }   // unchanged raster: already placed
+      return dst;
     },
     maskmix(clean, moshed, mask, key) { const dst = img('mmix ' + key); submit((e) => maskmix.encode(e, clean, moshed, mask, dst)); return dst; },
     blend(comp, layer, opacity, mode, key) { const dst = img('comp ' + key); submit((e) => blend.encode(e, comp, layer, dst, opacity, mode)); return dst; },
@@ -127,7 +129,7 @@ export function gpuBackend(gpu, { w, h, sources }) {
  * opens a reader for a MediaRef (the app opens
  * the OPFS file with media.openVideo and wraps it in videoReader).
  */
-export function createSequenceRenderer(gpu, project, { w, h, sources, sequenceId, K, budget, cpuBudget, disk, diskBudget } = {}) {
+export function createSequenceRenderer(gpu, project, { w, h, sources, sequenceId, K, budget, cpuBudget, disk, diskBudget, features } = {}) {
   const seq = project.sequences.find((s) => s.id === (sequenceId || project.activeSequence));
-  return createEvaluator(project, gpuBackend(gpu, { w: w || seq.width, h: h || seq.height, sources }), { sequenceId, ...(K ? { K } : {}), ...(budget ? { budget } : {}), ...(cpuBudget ? { cpuBudget } : {}), ...(disk ? { disk } : {}), ...(diskBudget ? { diskBudget } : {}) });
+  return createEvaluator(project, gpuBackend(gpu, { w: w || seq.width, h: h || seq.height, sources }), { sequenceId, ...(features ? { features } : {}), ...(K ? { K } : {}), ...(budget ? { budget } : {}), ...(cpuBudget ? { cpuBudget } : {}), ...(disk ? { disk } : {}), ...(diskBudget ? { diskBudget } : {}) });
 }

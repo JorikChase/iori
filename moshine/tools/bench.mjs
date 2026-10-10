@@ -33,7 +33,8 @@ const cleanup = () => { for (const k of kids) { try { k.kill('SIGKILL'); } catch
 process.on('exit', cleanup);
 process.on('SIGINT', () => { cleanup(); process.exit(130); });
 
-const server = spawn('python3', [join(APP, 'serve.py'), String(port)], { stdio: 'ignore' });
+// production (iori.me) sends no COOP/COEP, so the bench runs without them unless --coi asks (the ffmpeg.wasm bake)
+const server = spawn('python3', [join(APP, 'serve.py'), String(port), ...(args.coi ? ['--coi'] : [])], { stdio: 'ignore' });
 kids.push(server);
 for (let i = 0; ; i++) {
   try { if ((await fetch(`http://127.0.0.1:${port}/moshine/index.html`)).ok) break; } catch {}

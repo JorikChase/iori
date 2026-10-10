@@ -96,13 +96,15 @@ const h16 = (a) => fromHalfArray(toHalfArray(a));                       // what 
 const tex = (f, t, format = F16, data = f.frame(t)) => { const x = createImage(M().gpu, f.w, f.h, format); upload(M().gpu, x, data); return x; };
 const submit = (fn) => { const g = M().gpu, enc = g.device.createCommandEncoder(); fn(enc); g.device.queue.submit([enc.finish()]); };
 const frac = (n, d) => +(n / d).toFixed(5);
-async function gpuPyr(f, t) { const g = M().gpu, x = tex(f, t), P = createPyramid(g, { w: f.w, h: f.h, levels: 3 }); submit((e) => P.encode(e, x)); x.destroy(); return P; }
+async function gpuPyr(f, t, levels = 3) { const g = M().gpu, x = tex(f, t), P = createPyramid(g, { w: f.w, h: f.h, levels }); submit((e) => P.encode(e, x)); x.destroy(); return P; }
 const planes = async (P) => Promise.all(P.levels.map(async (pl) => ({ data: await readPlane(M().gpu, pl), w: pl.width, h: pl.height })));
 const MATCH = { block: 16, search: 16, lambda: 0.002, pel: 2, cutMad: 0.05 };
-async function gpuMatch(f, t, o = MATCH) {
-  const g = M().gpu, A = await gpuPyr(f, t), B = await gpuPyr(f, t - 1), m = createMatcher(g, { w: f.w, h: f.h, block: 16, levels: 3 });
-  const out = storageBuffer(g, m.nb * 16), cut = storageBuffer(g, 16);
-  submit((e) => { e.clearBuffer(cut); m.encode(e, A, B, out, cut, o); });
+async function gpuMatch(f, t, o = MATCH, temporal = null) {
+  const block = o.block || 16, levels = levelsFor(block);
+  const g = M().gpu, A = await gpuPyr(f, t, levels), B = await gpuPyr(f, t - 1, levels), m = createMatcher(g, { w: f.w, h: f.h, block, levels });
+  const out = storageBuffer(g, m.nb * 16), cut = storageBuffer(g, 16), tb = temporal ? storageBuffer(g, m.nb * 16) : null;
+  if (tb) g.device.queue.writeBuffer(tb, 0, temporal);
+  submit((e) => { e.clearBuffer(cut); m.encode(e, A, B, out, cut, { ...o, temporal: tb }); }); tb && (await g.device.queue.onSubmittedWorkDone(), tb.destroy());
   const field = new Float32Array(await readBuffer(g, out, m.nb * 16)), n = new Uint32Array(await readBuffer(g, cut, 4))[0];
   const cp = await planes(A), rp = await planes(B); [A, B, m].forEach((x) => x.destroy()); out.destroy(); cut.destroy();
   return { field, cut: n, cp, rp };
@@ -116,12 +118,27 @@ Object.assign(T0, {
     const lv = got.map((g, l) => close(g.data, ref[l].data, 0)); return { pass: lv.every((r) => r.max <= 1e-6), levels: lv };
   },
   // the matcher: GPU vectors == CPU vectors from identical pyramids (only float-rounding near-ties may differ)
+  // D42: the worker stretcher (playback and export) returns the very bytes of the inline wsola, and is not slower
+  async stretchWorker() {
+    const S = await import('./stretch.js'), sr = 48000, n = sr * 2; let seed = 7;
+    const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32) - 0.5;
+    const make = () => { const c = [new Float32Array(n), new Float32Array(n)]; seed = 7; for (let i = 0; i < n; i++) { c[0][i] = Math.sin(i * 0.05) * 0.4 + rnd() * 0.2; c[1][i] = Math.sin(i * 0.031) * 0.3 + rnd() * 0.1; } return c; };
+    let t = performance.now(); const a = S.wsola(make(), n * 2); const inline = performance.now() - t;
+    const st = S.createStretcher(); t = performance.now(); const b = await st.stretch(make(), n * 2); const worker = performance.now() - t; st.close();
+    const same = a.every((c, k) => c.length === b[k].length && c.every((v, i) => v === b[k][i]));
+    return { pass: same, same, ms: { inline: +inline.toFixed(1), worker: +worker.toFixed(1) } };
+  },
   async matchParity() {
     const rows = {};
     for (const [name, t] of [['pan', 7], ['square', 9], ['cut', 40], ['cut', 47]]) {
       const f = fixture(name), g = await gpuMatch(f, t), c = matchBlocks(g.cp, g.rp, MATCH); let same = 0;
       for (let i = 0; i < g.field.length / 4; i++) if (g.field[i * 4] === c.field[i * 4] && g.field[i * 4 + 1] === c.field[i * 4 + 1]) same++;
       rows[`${name}@${t}`] = { sameVectors: frac(same, g.field.length / 4), madMax: close(g.field.filter((_, i) => i % 4 === 2), c.field.filter((_, i) => i % 4 === 2), 1e-5).max, cut: [g.cut, c.cut] };
+    }
+    for (const [label, o, withT] of [['block 8 pel 4', { ...MATCH, block: 8, pel: 4 }], ['block 32 pel 4', { ...MATCH, block: 32, pel: 4, search: 24 }], ['temporal pel 4', { ...MATCH, pel: 4 }, true], ['block 4 pel 1', { ...MATCH, block: 4, pel: 1, search: 6 }]]) {
+      const f = fixture('pan'), prev = withT ? (await gpuMatch(f, 6, o)).field : null, g = await gpuMatch(f, 7, o, prev), c = matchBlocks(g.cp, g.rp, { ...o, temporal: prev }); let same = 0;
+      for (let i = 0; i < g.field.length / 4; i++) if (g.field[i * 4] === c.field[i * 4] && g.field[i * 4 + 1] === c.field[i * 4 + 1]) same++;
+      rows[label] = { sameVectors: frac(same, g.field.length / 4), madMax: close(g.field.filter((_, i) => i % 4 === 2), c.field.filter((_, i) => i % 4 === 2), 1e-5).max, cut: [g.cut, c.cut] };
     }
     return { pass: Object.values(rows).every((r) => r.sameVectors >= 0.99 && Math.abs(r.cut[0] - r.cut[1]) <= 2), rows };
   },
@@ -381,14 +398,16 @@ Object.assign(T0, {
   async editorSmoke() {
     const app = window.__app; if (!app || !app.view) return { skipped: 'not the editor page' };
     const P = await projMod(); app.useProject(app.demoProject()); await new Promise((r) => setTimeout(r, 200));
-    const before = P.stringify(app.project), cv = document.querySelector('.tl-cv'), R = cv.getBoundingClientRect(), v = app.view.view, s = () => app.project.sequences[0];
-    const X = (f) => R.left + (f - v.x0) * v.ppf, rowY = (i) => R.top + 30 + 44 * i + 22;
+    const before = P.stringify(app.project), cv = document.querySelector('.tl-cv'), v = app.view.view, s = () => app.project.sequences[0], lh = app.view.laneH;
+    let R = cv.getBoundingClientRect();                       // re-measured per drag: the pane follows its rows (D41)
+    const X = (f) => R.left + (f - v.x0) * v.ppf, rowY = (i) => R.top + 30 + lh * i + lh / 2;
     const ev = (type, x, y) => cv.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 9, bubbles: true, pointerType: 'mouse', button: 0 }));
+    const settle = async () => { await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); R = cv.getBoundingClientRect(); };
     const drag = async (x0, y0, x1, y1) => { ev('pointerdown', x0, y0); for (let i = 1; i <= 5; i++) ev('pointermove', x0 + ((x1 - x0) * i) / 5, y0 + ((y1 - y0) * i) / 5); ev('pointerup', x1, y1); await new Promise((r) => setTimeout(r, 30)); };
     const ranges = (ci) => s().channels[ci].clips.map((k) => `${k.range.in}-${k.range.out}`).join(' '), rows = {};
     await drag(X(120) - 2, rowY(2), X(90), rowY(2)); rows.trim = ranges(0);
     await drag(X(60), rowY(1), X(80), rowY(1)); rows.move = ranges(1);
-    app.tl.exec('addChannel', { kind: 'video', index: 1 }); await drag(X(30), rowY(3), X(30), rowY(2)); rows.across = s().channels.map((c) => c.clips.length).join(',');
+    app.tl.exec('addChannel', { kind: 'video', index: 1 }); await settle(); await drag(X(30), rowY(3), X(30), rowY(2)); rows.across = s().channels.map((c) => c.clips.length).join(',');
     await drag(X(-1) + 2, R.top + 32, X(100), rowY(3) + 10); rows.marquee = app.tl.selection.size;
     await drag(X(30), R.top + 5, X(45), R.top + 5); rows.scrub = app.play.want;
     const depth = app.tl.depth; while (app.tl.undo()); const restored = P.stringify(app.project) === before;
@@ -606,13 +625,14 @@ export const T1 = {
     const a = [], b = [], tA = await openTarget('harness-m4.mp4', 'mp4', 'opfs'), tB = await openTarget('harness-seq.mp4', 'mp4', 'opfs');
     const rA = await exportVideo({ gpu: g, video: v, cfg: PRESETS['Xvid classic'], w, h, container: 'mp4', quality: 'high', audio: true, range: { start: 0, end: n / v.fps }, target: tA, onFrame: grab(a) });
     const p = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: 'cut', name: 'cut.mp4', info }), frames: 180 });
+    p.sequences[0].channels[2].clips.push(P.createAudioClip(p.media[0].id, { in: 0, out: 180 }));   // its sound on A1, as an import makes it
     const rB = await exportSequence({ gpu: g, project: p, w, h, range: { in: 0, out: n }, container: 'mp4', quality: 'high', audio: true, target: tB, onFrame: grab(b),
       sources: async () => R.videoReader(await openVideo(blob, 'cut.mp4')), openMedia: async () => openVideo(blob, 'cut.mp4') });
     let same = 0; for (let i = 0; i < n; i++) { const x = await a[i], y = await b[i]; if (fnv1a(await readback(g, x)) === fnv1a(await readback(g, y))) same++; x.destroy(); y.destroy(); }
     const fa = await openVideo(await rA.file(), 'a.mp4'), fb = await openVideo(await rB.file(), 'b.mp4');
     const out = { size: `${w}×${h}`, frames: [rA.frames, rB.frames], sameFrames: same, decoded: [fa.frames, fb.frames], audio: [fa.audio?.codec || null, fb.audio?.codec || null], codec: [rA.codec, rB.codec] };
     fa.close(); fb.close(); v.close(); await tA.remove(); await tB.remove();
-    return { pass: same === n && rB.frames === n && Math.abs(fa.frames - fb.frames) <= 1 && Math.abs(fb.frames - n) <= 1 && out.audio[1] === out.audio[0] && !!out.audio[1], ...out };
+    return { pass: same === n && rB.frames === n && Math.abs(fa.frames - fb.frames) <= 1 && Math.abs(fb.frames - n) <= 1 && out.audio[1] === out.audio[0] && !!out.audio[1] && rB.audioMode === 'pass', audioMode: rB.audioMode, ...out };
   },
   // an edited timeline on real video (split, Mosh Cut, a hit, Bloom Insert): seeks on fresh renderers land on the
   // playback frames, and the export renders the same frames as the preview path
@@ -621,6 +641,7 @@ export const T1 = {
     const { openVideo } = await media(), { exportSequence, openTarget } = await exporter(), P = await projMod(), R = await renderMod(), T = await import('./timeline.js'), g = M().gpu;
     const v = await openVideo(blob, 'cut.mp4'), w = 320, h = Math.round((320 * v.h) / v.w / 2) * 2, info = v.info(); v.close();
     const p = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: 'cut', name: 'cut.mp4', info }), frames: 90 }), tl = T.createTimeline(p), V = p.sequences[0].channels[0];
+    p.sequences[0].channels[2].clips.push(P.createAudioClip(p.media[0].id, { in: 0, out: 90 }));          // its sound (Bloom Insert stretches it)
     tl.exec('splitClips', { frame: 30, ids: [V.clips[0].id] }); tl.exec('trimClip', { id: V.clips[1].id, edge: 'in', frame: 30 });
     tl.exec('moveClips', { ids: [V.clips[1].id], delta: 0 }); tl.exec('setValue', { id: V.clips[1].id, path: ['sourceIn'], value: 120 });   // a real cut at the join
     tl.exec('moshCut', { channelId: V.id, frame: 30, length: 40 }); tl.exec('addMarker', { frame: 52, hit: true });
@@ -635,7 +656,7 @@ export const T1 = {
     let same = 0; for (let t = 0; t < n; t++) { const x = await ex[t]; if (fnv1a(await readback(g, x)) === play[t]) same++; x.destroy(); }
     const back = await openVideo(await r.file(), 'edited.mp4'), decoded = back.frames; back.close(); await target.remove(); await a.destroy();
     const changed = new Set(play).size;
-    return { pass: Object.values(seeks).every(Boolean) && Object.values(cached).every(Boolean) && same === n && Math.abs(decoded - n) <= 1 && changed > n / 2, frames: n, seeks, cachedSeeks: cached, exportSameAsPreview: same, decoded, audioNote: r.audioNote, distinctFrames: changed,
+    return { pass: Object.values(seeks).every(Boolean) && Object.values(cached).every(Boolean) && same === n && Math.abs(decoded - n) <= 1 && changed > n / 2 && r.audioMode === 'mix' && !!r.audio, frames: n, seeks, cachedSeeks: cached, exportSameAsPreview: same, decoded, audio: r.audio, audioMode: r.audioMode, audioNote: r.audioNote, distinctFrames: changed,
       layout: p.sequences[0].channels.map((c) => `${c.name}: ${c.clips.map((k) => `${k.range.in}-${k.range.out}${k.hold ? ' hold' : ''}${k.role ? ' ' + k.role : ''}`).join(', ')}`) };
   },
   // M7: the mixer on real AAC: a one-clip project's mix equals the decoded samples exactly (48 kHz mono to 48 kHz stereo)
@@ -648,6 +669,61 @@ export const T1 = {
     const raw = await dec.decode(1, 3); let max = 0; for (let i = 0; i < L.length; i++) max = Math.max(max, Math.abs(L[i] - raw.channels[0][i + sr - raw.first]));
     v.close();
     return { pass: max === 0 && L.every((x, i) => x === R[i]) && L.some((x) => x !== 0), maxDiff: max, sampleRate: dec.sampleRate, samples: L.length };
+  },
+  // M7 exit 1: an audio-reactive preset works. On beat.mp4 (a click every 0.5 s from 0.2 s = frames 6, 21, 36, ...),
+  // "Onset bloom" holds the field exactly from each click, and the reactive render equals the same project without
+  // audio features until the first click and differs from it there
+  async audioReactive() {
+    const blob = await clipBlob('beat.mp4'); if (!blob) return { skipped: 'no tests/media/beat.mp4 (run tools/make-media.sh)' };
+    const { openVideo, analyseAudio } = await media(), R = await renderMod(), P = await projMod(), S = await seqMod(), PM = await import('./params.js'), g = M().gpu, n = 60;
+    const v = await openVideo(blob, 'beat.mp4'), info = v.info(), table = await analyseAudio(v, P.toRational(v.fps)); v.close();
+    const p = P.fromConfig(PRESETS['Onset bloom'], { media: P.mediaFromLibrary({ id: 'beat', name: 'beat.mp4', info }), frames: n });
+    p.sequences[0].channels[2].clips.push(P.createAudioClip(p.media[0].id, { in: 0, out: n }));
+    const seq = p.sequences[0], fx = seq.channels[1].clips[0], e = fx.stack[0], feats = (h) => (h === 'beat' ? table : null);
+    const cfg = S.loopConfig(e, fx, seq, p, feats), holdStarts = [];
+    for (let t = 1; t < n; t++) if (PM.holdAt(t, cfg.bloom) === 0) holdStarts.push(t);
+    const sources = async () => R.videoReader(await openVideo(blob, 'beat.mp4')), w = 160, h = 90;
+    const A = R.createSequenceRenderer(g, p, { w, h, sources, features: feats }), B = R.createSequenceRenderer(g, p, { w, h, sources, features: () => null });
+    let firstDiff = -1;
+    for (let t = 0; t < 24 && firstDiff < 0; t++) if (fnv1a(await readback(g, (await A.render(t)).image)) !== fnv1a(await readback(g, (await B.render(t)).image))) firstDiff = t;
+    await A.destroy(); await B.destroy();
+    const clicks = [6, 21, 36, 51], near = clicks.every((c) => holdStarts.some((s) => Math.abs(s - c) <= 1)) && holdStarts.every((s) => clicks.some((c) => Math.abs(s - c) <= 1));
+    const clock = S.clockOf(seq, fx, e.seed, p, feats), onset = Array.from({ length: 24 }, (_, t) => +clock.audio?.('onset', t)?.toFixed(3));
+    return { pass: !!table && near && firstDiff >= 6 && firstDiff <= 8, holdStarts, clicks, firstDiff, bloom: { ...cfg.bloom, hits: cfg.bloom.hits?.length }, audioKey: clock.audioKey, onset };
+  },
+  // M7 exit 2: stretched audio exports in sync. beat.mp4 with a 15-frame Bloom Insert at frame 60 exports with the mix:
+  // the audio lasts as long as the video, clicks before the insert stay put, and clicks after the stretched span
+  // (source >= 2.5 s) land 0.5 s later, within 5 ms
+  async exportMix() {
+    const blob = await clipBlob('beat.mp4'); if (!blob) return { skipped: 'no tests/media/beat.mp4 (run tools/make-media.sh)' };
+    const { openVideo, createAudioDecoder } = await media(), { exportSequence, openTarget } = await exporter(), R = await renderMod(), P = await projMod(), T = await import('./timeline.js'), g = M().gpu;
+    const v = await openVideo(blob, 'beat.mp4'), info = v.info(); v.close();
+    const p = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: 'beat', name: 'beat.mp4', info }), frames: 180 }), tl = T.createTimeline(p);
+    p.sequences[0].channels[2].clips.push(P.createAudioClip(p.media[0].id, { in: 0, out: 180 }));
+    tl.exec('bloomInsert', { clipId: p.sequences[0].channels[0].clips[0].id, frame: 60, length: 15 });
+    const n = p.sequences[0].durationFrames, target = await openTarget('harness-mix.mp4', 'mp4', 'opfs'), t0 = performance.now();
+    const r = await exportSequence({ gpu: g, project: p, w: 160, h: 90, container: 'mp4', quality: 'high', audio: true, target,
+      sources: async () => R.videoReader(await openVideo(blob, 'beat.mp4')), openMedia: async () => openVideo(blob, 'beat.mp4') });
+    const secs = (performance.now() - t0) / 1000, back = await openVideo(await r.file(), 'mix.mp4'), dec = createAudioDecoder(back);
+    const videoDur = n / 30, aDur = back.audio ? await back.audio.track.computeDuration() : 0;   // the presented end (priming before 0 is hidden by the edit list)
+    const d = dec ? await dec.decode(0, videoDur + 0.2) : null, x = d ? d.channels[0] : new Float32Array(0), sr = d?.sampleRate || 48000, starts = [];
+    for (let i = 0, last = -1e9; i < x.length; i++) if (Math.abs(x[i]) > 0.1) { if (i - last > 0.1 * sr) starts.push(+((i + (d.first || 0)) / sr).toFixed(4)); last = i; }
+    back.close(); await target.remove();
+    // the pass-through path on the same clicks: one untouched clip, packets copied (the source's priming packet is skipped)
+    const q = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: 'beat', name: 'beat.mp4', info }), frames: 90 });
+    q.sequences[0].channels[2].clips.push(P.createAudioClip(q.media[0].id, { in: 0, out: 90 }));
+    const tq = await openTarget('harness-pass.mp4', 'mp4', 'opfs'), rq = await exportSequence({ gpu: g, project: q, w: 160, h: 90, container: 'mp4', quality: 'high', audio: true, target: tq,
+      sources: async () => R.videoReader(await openVideo(blob, 'beat.mp4')), openMedia: async () => openVideo(blob, 'beat.mp4') });
+    const bq = await openVideo(await rq.file(), 'pass.mp4'), dq = createAudioDecoder(bq), xq = dq ? await dq.decode(0, 3) : null, pstarts = [];
+    if (xq) for (let i = 0, last = -1e9, y = xq.channels[0]; i < y.length; i++) if (Math.abs(y[i]) > 0.1) { if (i - last > 0.1 * sr) pstarts.push(+((i + xq.first) / sr).toFixed(4)); last = i; }
+    bq.close(); await tq.remove();
+    const passErr = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7].map((c) => Math.min(...pstarts.map((s) => Math.abs(s - c))));
+    const before = [0.2, 0.7, 1.2, 1.7], after = [3.2, 3.7, 4.2, 4.7, 5.2, 5.7, 6.2];
+    const err = (list) => list.map((c) => Math.min(...starts.map((s) => Math.abs(s - c)))), eb = err(before), ea = err(after);
+    const lastAudio = starts.length ? Math.max(...starts) : 0;
+    return { pass: r.audioMode === 'mix' && !!r.audio && Math.max(...eb, ...ea) <= 0.005 && Math.abs(aDur - videoDur) < 0.06 && lastAudio < videoDur && rq.audioMode === 'pass' && Math.max(...passErr) <= 0.005,
+      passThrough: { mode: rq.audioMode, clicks: pstarts, maxErr: Math.max(...passErr) },
+      frames: n, audio: r.audio, audioMode: r.audioMode, videoDur, audioDur: +aDur.toFixed(4), clicks: starts, maxErrBefore: Math.max(...eb), maxErrAfter: Math.max(...ea), secs: +secs.toFixed(2) };
   },
   // the GPU reproduces the fidelity bench's CPU numbers on every set (node moshine/tools/fidelity.mjs writes them)
   async fidelitySets() {
@@ -747,6 +823,53 @@ export const T4 = {
     return { msPerFrame: +ms.toFixed(3), fps: Math.round(1000 / ms), size: `${w}x${h}`, format: F16 };
   },
   // the whole Mosh Loop at 1080p: Xvid classic, and a heavy stack (residual, intra, lost, noise, smooth, synthetic)
+  // where a 1080p Mosh Loop frame goes: each stage alone, 60 times, on the loop's own resources (D42: measure first)
+  async stageCost1080() {
+    const g = M().gpu, f = fixture('pan', { w: 1920, h: 1080 }), frames = [tex(f, 0), tex(f, 1)], out = {}, cfg = normalize(PRESETS['Xvid classic']);
+    const G = createMoshLoop(g, f, cfg); G.begin(0); for (let t = 0; t < 4; t++) G.step(t, { src: frames[t & 1] }); await g.device.queue.onSubmittedWorkDone();
+    const R = G.resources, e = cfg.estimate;
+    const time = async (name, fn) => {
+      const run = () => { const enc = g.device.createCommandEncoder(); fn(enc); g.device.queue.submit([enc.finish()]); };
+      for (let i = 0; i < 5; i++) run(); await g.device.queue.onSubmittedWorkDone();
+      let best = Infinity;                                       // the minimum of 7 trials of 20: robust to other GPU users
+      for (let k = 0; k < 7; k++) { const t0 = performance.now(); for (let i = 0; i < 20; i++) run(); await g.device.queue.onSubmittedWorkDone(); best = Math.min(best, (performance.now() - t0) / 20); }
+      out[name] = +best.toFixed(3);
+    };
+    await time('pyramid', (enc) => R.pyr[0].encode(enc, frames[0]));
+    await time('match', (enc) => R.match.encode(enc, R.pyr[0], R.pyr[1], R.est[0], R.cut, { search: e.search, lambda: e.lambda, pel: e.pel, cutMad: e.cutMad, temporal: R.est[1] }));
+    await time('match pel 1', (enc) => R.match.encode(enc, R.pyr[0], R.pyr[1], R.est[0], R.cut, { search: e.search, lambda: e.lambda, pel: 1, cutMad: e.cutMad, temporal: R.est[1] }));
+    await time('warp', (enc) => R.warp.encode(enc, R.hist[0], R.pred, { field: R.est[0], cut: R.cut, edge: 0, sampling: cfg.warp.sampling, pel: cfg.warp.pel, scale: 1, zeroOnCut: false, cutThresh: 1e9, interp: cfg.warp.interp }));
+    let whole = Infinity;
+    for (let k = 0, t = 4; k < 7; k++) { const t0 = performance.now(); for (let i = 0; i < 20; i++, t++) G.step(t, { src: frames[t & 1] }); await g.device.queue.onSubmittedWorkDone(); whole = Math.min(whole, (performance.now() - t0) / 20); }
+    out.wholeLoop = +whole.toFixed(3);
+    G.destroy(); frames.forEach((x) => x.destroy());
+    return { size: '1920x1080', preset: 'Xvid classic', search: e.search, pel: e.pel, msPerFrame: out };
+  },
+  // the evaluator's own JS per frame (D42): a small sequence (GPU cost negligible) with heavy painted state — 20 vector
+  // strokes and 20 mask strokes of 100 points each, a keyframed mask opacity — rendered forward; ms per frame
+  async evalOverhead() {
+    const P = await projMod(), R = await renderMod(), T = await import('./timeline.js'), g = M().gpu, w = 192, h = 108;
+    const f = fixture('pan', { w, h, count: 200 }), mref = { id: 'pan', name: 'pan', hash: 'fixture:pan', kind: 'video', width: w, height: h, fps: { num: 30, den: 1 }, durationFrames: 200, hasAudio: false, storage: 'opfs' };
+    const p = P.fromConfig(PRESETS['Xvid classic'], { media: mref, frames: 200, width: w, height: h, timebase: { num: 30, den: 1 } }), tl = T.createTimeline(p);
+    const fx = p.sequences[0].channels[1].clips[0], e = fx.stack[0];
+    const stroke = (k) => { const pts = []; for (let i = 0; i < 100; i++) pts.push(0.1 + 0.8 * i / 100, 0.5 + 0.3 * Math.sin(i / 9 + k)); return { pts, r: 0.03, s: 0.01 }; };
+    const out = {};
+    const run = async (label) => {
+      const r = R.createSequenceRenderer(g, p, { w, h, sources: async () => ({ w, h, frame: (i) => f.frame(i) }) });
+      for (let t = 0; t < 10; t++) await r.render(t); await g.device.queue.onSubmittedWorkDone();
+      const t0 = performance.now(); for (let t = 10; t < 70; t++) await r.render(t); await g.device.queue.onSubmittedWorkDone();
+      out[label] = +((performance.now() - t0) / 60).toFixed(2); await r.destroy();
+    };
+    await run('plain');
+    for (let k = 0; k < 20; k++) tl.exec('addVectorStroke', { effectId: e.id, stroke: stroke(k) });
+    await run('20 vector strokes');
+    for (let k = 0; k < 20; k++) tl.exec('addMaskStroke', { clipId: fx.id, mode: k % 4 ? 'include' : 'lock', stroke: stroke(k + 0.5) });
+    await run('+ 20 mask strokes');
+    const m = fx.masks[0]; tl.exec('animate', { id: m.id, path: ['opacity'], at: 0 }); tl.exec('setValue', { id: m.id, path: ['opacity'], value: 0.2, at: 100 });
+    await run('+ keyframed mask opacity');
+    f.destroy?.();
+    return { size: `${w}x${h}`, msPerFrame: out };
+  },
   async loopCost1080() {
     const f = fixture('pan', { w: 1920, h: 1080 }), frames = [tex(f, 0), tex(f, 1)], out = {};
     const heavy = normalize({ ...PRESETS['Xvid + residual'], ops: [opDefaults('lost'), opDefaults('noise'), opDefaults('smooth'), opDefaults('synthetic')], reset: { blocks: 0.002, sweepBand: 4 } });

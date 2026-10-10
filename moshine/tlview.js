@@ -77,7 +77,7 @@ export function createTimelineView(host, { tl, playhead, onSeek, note = () => {}
   btn('fit').onclick = () => fit();
   const seq = () => tl.project.sequences.find((s) => s.id === tl.project.activeSequence);
   const fps = () => seq().timebase.num / seq().timebase.den;
-  const dims = () => ({ laneH: touch() ? 56 : 44, kfH: touch() ? 34 : 26 });
+  const dims = () => ({ laneH: touch() ? 52 : 34, kfH: touch() ? 34 : 24 });     // dense on desktop (D41)
   let W = 0, H = 0, rows = [], drag = null, headSig = '';
   const pointers = new Map();
 
@@ -100,7 +100,7 @@ export function createTimelineView(host, { tl, playhead, onSeek, note = () => {}
     const s = seq(), S = shownInfo(), d = devicePixelRatio || 1, { laneH, kfH } = dims(), fp = fps();
     rows = layoutRows(s, S && { channelId: S.ch.id }, { laneH, kfH });
     btn('snap').classList.toggle('on', st.snap); btn('blade').classList.toggle('on', st.tool === 'blade');
-    info.textContent = `${timecode(playhead(), fp, true)} · ${Math.round(v.ppf * 100) / 100} px/f`;
+    info.textContent = timecode(playhead(), fp, true); info.title = `${Math.round(v.ppf * 100) / 100} px per frame`;
     syncHeads(s, S);
     ctx.setTransform(d, 0, 0, d, 0, 0); ctx.clearRect(0, 0, W, H); ctx.textBaseline = 'top';
     const step = rulerStep(v.ppf, fp), f0 = Math.floor(xToFrame(0, v) / step) * step, f1 = xToFrame(W, v);
@@ -162,7 +162,7 @@ export function createTimelineView(host, { tl, playhead, onSeek, note = () => {}
     }
   }
   function drawClip(k, r, selected, dim) {
-    const x = frameToX(k.range.in, v), w = (k.range.out - k.range.in) * v.ppf, y = r.y + 4, h = r.h - 8;
+    const x = frameToX(k.range.in, v), w = (k.range.out - k.range.in) * v.ppf, y = r.y + 2, h = r.h - 4;
     if (x > W || x + w < 0) return;
     ctx.globalAlpha = dim ? 0.45 : 1;
     ctx.fillStyle = k.kind === 'effect' ? COL.effect : k.kind === 'audio' ? COL.audio : k.hold ? COL.hold : COL.media; ctx.fillRect(x, y, w, h);
@@ -323,6 +323,9 @@ export function createTimelineView(host, { tl, playhead, onSeek, note = () => {}
     follow() { const x = frameToX(playhead(), v); if (x > W - 40 || x < 0) { v.x0 = playhead() - 40 / v.ppf; } },
     showParam(p) { st.shown = p; draw(); },
     get shown() { return st.shown; },
+    get laneH() { return dims().laneH; },
+    /** Height the ruler and every row need (the editor sizes the timeline pane to it, D41). */
+    get contentH() { const s = seq(), S = shownInfo(), last = layoutRows(s, S && { channelId: S.ch.id }, dims()).at(-1); return RULER + (last ? last.y + last.h : 0); },
     get tool() { return st.tool; }, set tool(t) { st.tool = t; draw(); },
     get snap() { return st.snap; }, set snap(s) { st.snap = s; draw(); },
   };

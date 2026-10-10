@@ -13,6 +13,7 @@ import { createWarpNode } from './nodes/warp.js';
 import { createCodeNode } from './nodes/code.js';
 import { createFlow } from './nodes/flow.js';
 import { createFxChain } from './nodes/fx.js';
+import { createMaskMix } from './nodes/composite.js';
 import { hash3 } from './util.js';
 import { normalize } from './config.js';
 import { resolveAll, holdAt } from './params.js';
@@ -34,13 +35,13 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
       pyrH: createPyramid(gpu, geo, 'history'),
       est: [storageBuffer(gpu, nb * 16, 'estimate A'), storageBuffer(gpu, nb * 16, 'estimate B')], ops: [storageBuffer(gpu, nb * 16, 'ops A'), storageBuffer(gpu, nb * 16, 'ops B')],
       frozen: storageBuffer(gpu, nb * 16, 'frozen field'), frozenEst: storageBuffer(gpu, nb * 16, 'frozen estimate'), cut: storageBuffer(gpu, 16, 'cut counter'),
-      match: createMatcher(gpu, geo), fieldops: createFieldOps(gpu, geo), warp: createWarpNode(gpu, geo), mcWarp: createWarpNode(gpu, geo), code: createCodeNode(gpu, geo),
+      lockMix: createMaskMix(gpu), match: createMatcher(gpu, geo), fieldops: createFieldOps(gpu, geo), warp: createWarpNode(gpu, geo), mcWarp: createWarpNode(gpu, geo), code: createCodeNode(gpu, geo),
     };
   }
   function destroy() {
     for (const k of ['hist', 'est', 'ops']) R[k].forEach((x) => x.destroy());
     for (const k of ['pyr', 'pyr2']) R[k].forEach((x) => x.destroy());
-    for (const k of ['pred', 'prevSrc', 'prevFrozen', 'mc', 'codeOut', 'display', 'flow', 'fxIn', 'fxPost', 'pyrH', 'frozen', 'frozenEst', 'cut', 'match', 'fieldops', 'warp', 'mcWarp', 'code']) R[k].destroy();
+    for (const k of ['pred', 'prevSrc', 'prevFrozen', 'mc', 'codeOut', 'display', 'flow', 'fxIn', 'fxPost', 'pyrH', 'frozen', 'frozenEst', 'cut', 'lockMix', 'match', 'fieldops', 'warp', 'mcWarp', 'code']) R[k].destroy();
   }
   build(cfg.block);
 
@@ -55,7 +56,7 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
      * Advance to frame t. inputs: { src: GPUTexture, src2?: GPUTexture } (rgba16float, w x h).
      * Returns { out: GPUTexture (the history), display: GPUTexture (after the post chain), field, est, hold, cutThresh }.
      */
-    step(t, { src, src2 = null }) {
+    step(t, { src, src2 = null, lock = null }) {
       const c = resolveAll(cfg, t, cfg.clock), seed = cfg.seed | 0, dev = gpu.device, enc = dev.createCommandEncoder({ label: `mosh f${t}` });
       const resetSrc = c.reset.source === 'source2' && src2 ? src2 : src;
       const use2 = c.estimate.source === 'source2' && !!src2;
@@ -66,6 +67,7 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
       if (!S.started || t === S.t0) {
         enc.copyTextureToTexture({ texture: resetSrc }, { texture: R.hist[S.hi] }, [w, h]);
         enc.copyTextureToTexture({ texture: resSrc }, { texture: R.prevSrc }, [w, h]); S.prevIsSrc = resSrc === src;
+        locked(enc, R.hist[S.hi]);
         const display = post(enc, R.hist[S.hi], null);
         dev.queue.submit([enc.finish()]);
         S.started = true; S.pi = 1 - S.pi;
@@ -102,12 +104,15 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
         resMode: c.residual.mode, resDead: c.residual.dead, allowCode: k <= 0 || !!c.bloom.residual,
       });
       if (inLoop) R.fxIn.encode(enc, R.codeOut, R.hist[1 - S.hi], c.inLoop, { t, seed, field });     // accumulates: feeds back
+      locked(enc, R.hist[1 - S.hi]);
       enc.copyTextureToTexture({ texture: resSrc }, { texture: R.prevSrc }, [w, h]); S.prevIsSrc = resSrc === src;
       const display = post(enc, R.hist[1 - S.hi], field);
       dev.queue.submit([enc.finish()]);
       S.hi = 1 - S.hi; S.pi = 1 - S.pi;
       if (est) { S.ei = 1 - S.ei; S.hasPrevEst = true; }
       return (S.last = { out: R.hist[S.hi], display, field, est, hold: k, cutThresh });
+      // lock refresh: the history is the source wherever the clip's lock masks hold (codeOut is free by now)
+      function locked(e2, hist) { if (!lock) return; R.lockMix.encode(e2, src, hist, lock, R.codeOut); e2.copyTextureToTexture({ texture: R.codeOut }, { texture: hist }, [w, h]); }
       function post(e2, img, fld) { if (!c.post.some((o) => o.on !== false)) return img; R.fxPost.encode(e2, img, R.display, c.post, { t, seed, field: fld }); return R.display; }
     },
     /**

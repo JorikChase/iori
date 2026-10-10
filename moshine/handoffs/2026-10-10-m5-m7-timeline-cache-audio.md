@@ -121,6 +121,18 @@ python3 moshine/serve.py 8772                            # the app: http://local
    hold land on the shifted frames (cross-correlate a click against the expected sample position).
 4. Then mark M7 done in spec §13 and HANDOFF.md.
 
+## Deployed (2026-10-10, 19:35)
+
+**Live at https://iori.me/moshine/** (listed in the `tools` category; the lab at `/moshine/lab.html` is hidden and
+disallowed in robots; `3die.fr/moshine/*` redirects). iori repo commit `b222691` (a copy of data_moshine `0bf0fd3`
+without test media and `tools/bin/`), pushed to `main`, `server_setup.sh` run on iori-vps (Caddy validated and
+restarted). No COOP/COEP on the server: the app runs non-isolated, verified live (demo renders, 28 looks, checkpoints
+fill, no console errors). The site menu sits bottom-right (`menu_pos: br`).
+**To redeploy:** `rsync -a --delete --exclude 'tests/media/' --exclude 'tools/bin/' --exclude '.DS_Store'
+--exclude '__pycache__/' data_moshine/moshine/ iori/moshine/`, then in iori: `python3 site.py all && python3 site.py
+check`, commit only `moshine/` and the generated files (the iori tree is shared: other tracks may have uncommitted work
+in it), push, `ssh iori-vps 'bash /root/iori/server_setup.sh'`.
+
 ## Deploying to iori.me (M9 checklist, updated)
 
 The iori repo (`~/Desktop/code/iori`, GitHub `JorikChase/iori`) deploys by pushing `main` and running

@@ -1,6 +1,6 @@
 # MOSHINE — handoff
 
-**Latest session handoff: [handoffs/2026-10-10-m5-m7-timeline-cache-audio.md](handoffs/2026-10-10-m5-m7-timeline-cache-audio.md)** (previous: [2026-10-09-m0-m4-engine-to-timeline.md](handoffs/2026-10-09-m0-m4-engine-to-timeline.md)) — state, invariants, gotchas, open threads, the M5 plan. This file is the per-milestone file map.
+**Latest session handoff: [handoffs/2026-10-10b-decisions-m7-perf-density.md](handoffs/2026-10-10b-decisions-m7-perf-density.md)** (previous: [2026-10-10-m5-m7-timeline-cache-audio.md](handoffs/2026-10-10-m5-m7-timeline-cache-audio.md), [2026-10-09-m0-m4-engine-to-timeline.md](handoffs/2026-10-09-m0-m4-engine-to-timeline.md)) — state, invariants, gotchas, open threads. This file is the per-milestone file map.
 
 Start here. Design and decisions: `study/SPEC.md` (§0 decision log, §13 milestones, §15 open items). Lab: http://localhost:8772/moshine/lab.html
 Effect set: `study/CATALOG-REVIEW.md`. Agreed UI: `study/ux/wireframe.html`. Evidence: `study/research/`.
@@ -11,9 +11,9 @@ Effect set: `study/CATALOG-REVIEW.md`. Agreed UI: `study/ux/wireframe.html`. Evi
 python3 moshine/serve.py 8772        # http://localhost:8772/moshine/  (serves the parent folder, like petri)
 ```
 
-`serve.py` sends COOP/COEP, so the page is cross-origin isolated exactly as it will be on iori.me
-(needed for SharedArrayBuffer and multithreaded WASM). Everything must be same-origin: fonts are
-self-hosted, vendor code goes in `vendor/`.
+`serve.py` sends the same headers as iori.me: **no COOP/COEP** (D44), so the page is not cross-origin isolated here
+either. `serve.py 8772 --coi` (and `bench.mjs --coi`) add them for work on the ffmpeg.wasm bake (M9b). Everything
+must be same-origin: fonts are self-hosted, vendor code goes in `vendor/`.
 
 In the Claude desktop app the launcher cannot read ~/Desktop (macOS privacy), so start `serve.py` from a
 shell and use the `moshine-attach` launch config.
@@ -122,7 +122,7 @@ and after, JS heap sawing between 8 and 69 MiB with no upward trend (`ref/bench-
 Not yet: the CPU-copy and WASM decode rungs and Safari/Firefox QA (M8), proxies (v2), workers for decode/encode
 (everything runs on the main thread; the UI stays responsive because every stage awaits), audio mixing and time-stretch (M7).
 
-## M5 — timeline v1 (in progress)
+## M5 — timeline v1 (2026-10-10)
 
 Plan and order: the M5 section of the latest handoff. Steps 1 (project model), 2 (command bus), 3 (evaluator), 4 (mosh objects), 5 (modulators), 6 (the editor UI) and 7 (timeline export and the exit rows) are done. What is left of §11.1 is listed at the end of this section.
 
@@ -252,14 +252,14 @@ Step 5 (the exit test, `ref/bench-m6-scrub.json`):
 - Changes that got it there: checkpoints dropped to **7.9 MiB at 540p**, because the luma pyramid is rebuilt from the stored previous source on restore when that source was the plain input (`S.prevIsSrc`; source2 hijacks still store it; still bit-exact). The decoder's seek to the checkpoint frame runs in parallel with the checkpoint restore (`backend.prefetch`; `videoReader.frame` is now serialized).
 - **What a seek costs now**: decoding from the previous keyframe to the checkpoint (32 ms median, 48 ms worst: this clip has a keyframe every 120 frames at 1080p), then at most 7 mosh frames at about 3.2 ms each, plus the restore. **Tier 2 is not verified** (no tier 2 device here). Two levers if it misses there: (1) a preview proxy (a short-GOP, preview-size transcode made at import, used by both playback and scrubbing so they stay identical; export keeps the original), which removes most of the decode term; (2) the matcher in workgroup shared memory (open thread 2), which cuts the per-frame mosh cost.
 
-## M7 — audio (in progress)
+## M7 — audio (2026-10-10)
 
 Exit criterion (spec §13): an audio-reactive preset works; stretched audio exports in sync. Steps:
 1. **Audio features at import** — done.
 2. **Audio modulators** — done. Planned as: audio modulators (feature, smoothing) on the clock, and audio-reactive presets.
 3. **The stretch model and the JS stretcher** — done. Planned as: the stretch model: Bloom Insert gives the linked audio clip a stretch segment (the audio around the hold slows to fill it, back in sync after); a WSOLA stretcher in JS (deterministic; signalsmith-stretch from the spec needs the owner's OK to vendor and can replace it behind the same interface).
 4. **Playback** — done. Planned as: WebAudio, scheduled from the sequence clock (video drives; audio re-syncs on drift).
-5. The export mix (all audible clips, gains, stretch segments, encoded AAC or Opus, streamed) and the exit rows.
+5. **The export mix and the exit rows** — done (below).
 
 Step 1:
 - **`features.js`**: a streaming extractor (`createFeatureExtractor({ sampleRate, fps })`, `push(mono)`, `finish()`): one row per video frame — rms, bass (< 150 Hz), mid (150 Hz – 2 kHz), high (> 2 kHz), onset (the rise of band energy over the previous 4 frames) — each normalised to 0..1 by its 99th percentile. RBJ biquads whose state carries across chunks (results do not depend on chunking), plain double arithmetic (deterministic). `featureAt(table, name, i)`, `encodeFeatures` / `decodeFeatures`.
@@ -287,6 +287,15 @@ Step 4 (playback):
 - **Editor**: SOUND toggle in the transport; the sound plays while the picture plays forward; an edit restarts it with the new mix; drift over 3 frames re-syncs it to the shown frame (the picture drives: a mosh may render slower than real time). Scrubbing and reverse are silent. Measured in the browser pane with a trusted click: the context runs and the sound stays 0.2–0.4 frames from the picture (at most 1).
 - Headless Chrome keeps AudioContexts suspended (no user gesture), so the player clock is checked in the browser pane; T1 `soundMix` checks the mixer against the decoder on real AAC (difference 0). Tests: `tests/m7-mix.test.mjs`. `ref/bench-m7-step4.json`.
 
+Step 5 (the export mix, M7 done):
+- **`export.js` `audioPlan(project, range)`**: the export hears what playback hears, the audible audio clips (a video clip's own sound is never heard; its linked audio clip is). One untouched clip (unit gain, no keys or modulators, no stretch, covering the range, media at the sequence rate) passes its packets through, exact and cheap; anything else is mixed; no audible clip means no audio, with a reason. The Export window says which and with what codec.
+- **The mix**: `mixBlock` (the playback mixer) in one-second blocks with one stretch cache, clamped to ±1, 48 kHz stereo, encoded by our own WebCodecs `AudioEncoder` (AAC in MP4, Opus in WebM, `mixCodec` picks what this browser can encode) into a Mediabunny `EncodedAudioPacketSource`, never more than a block ahead of the video.
+- **Encoder delay**: WebCodecs labels the first packet 0 although it begins with the encoder's priming (2112 samples for Apple's AAC), so an unshifted file plays 44 ms late. `encoderDelay(codec, sr, nch)` measures it once per browser (a burst encoded and decoded) and the packets are shifted back by it; Mediabunny then writes the edit list that hides the priming. Measured: clicks land at 0 ms error.
+- **`mix.js`**: gain is resolved per sequence frame inside a block (a keyframed gain no longer steps per block).
+- **Test media**: `make-media.sh` writes `beat.mp4` (6 s testsrc2 320×180, a 10 ms 2 kHz click every 0.5 s from 0.2 s = frames 6, 21, 36, …).
+- Rows: T1 `audioReactive`, `exportMix`; `timelineExportM4` now has its linked audio clip and checks pass-through; `timelineEditedVideo` exports a mixed, stretched clip. Node: `tests/m5-export.test.mjs` covers `audioPlan`. `ref/bench-m7.json`: 30 T0 and 10 T1 rows pass; 140 node tests.
+- Pass-through is in sync too (`exportMix` also exports beat.mp4 untouched: clicks at 0 ms error). Not checked: Opus delay on other browsers (M8), and the 27 ms AAC tail padding (the edit list could trim it).
+
 ## Owner requests (2026-10-10)
 
 Recorded in spec §13.1 (R1–R5). Agreed order: R1 and R4 first, then R3 masks, then R2 vector painting; R5 when the owner's `moshine/icon.svg` lands.
@@ -307,7 +316,8 @@ Recorded in spec §13.1 (R1–R5). Agreed order: R1 and R4 first, then R3 masks,
 - **Bug found and fixed on the way**: the **screen** blend was not contraction-proof (1 − C can need 13 bits, so (1 − C)(1 − L) rounded and Metal fused it). Both twins now round 1 − C and 1 − L to half first. `sequenceParity` gained a `composite` case (the effect channel bypassed, 40 frames), so composite drift can no longer hide behind a loop.
 - **Test-harness rule**: rows that call `app.renderer.render()` directly must hold `app.play.busy`, because the idle background fill renders on the same renderer (`editorMasks` failed in the full run until it did; `editorFill` now does too).
 - Tests: `tests/r3-masks.test.mjs` (raster shapes, union, lock, invert, feather, transform, opacity; left-half include = full mosh there and clean source elsewhere, exactly; a full lock = clean; strokes keep checkpoints; keyframed x). T0 `editorMasks` (a lock stroke painted with pointer events; a locked pixel equals the clean render; undo restores). `sequenceParity` has masks in its fixture. `ref/bench-r3.json`: 29 T0 and 7 T1 rows pass; 121 node tests.
-- Not yet (from spec §13.1): mask tracking (follow motion automatically), the optional in-loop refresh for locked areas (so the history stays clean under a lock), and on-canvas handles to move or scale shapes (use x, y, scale and rotation in the stack for now).
+- **Locks are inert (D40, 2026-10-10):** both loop twins take `lock` (the lock masks' keep coverage, `masks.js rasterLock`, placed by `backend.mask(clip.id + ':lock')`) and mix the history back to their input under it after the code stage and the in-loop FX, so nothing builds up under a lock. Lock masks are in `depSig`. Stateful clip FX (echo, freeze) still keep state under a lock; their output is masked.
+- Not yet (from spec §13.1): mask tracking (follow motion automatically) and on-canvas handles to move or scale shapes (use x, y, scale and rotation in the stack for now).
 
 **R2 — painted motion vectors, done** (`vectors.js`; screenshot `study/ux/editor-r2.png`):
 - **Model**: a Mosh Loop field op `{ op: 'paint', amount, mode: 'add' | 'replace', strokes }` (config.js `OPS.paint`, `OP_CODE` 10), ordered with the other field ops. A stroke is a drag `{ pts: [u, v, ...], r, s }` in sequence space; r (brush radius) and s (push per frame) are fractions of the height, so painted motion is resolution-independent (paint at 540p, export at 1080p: the same motion). `amount` is animatable (keyframes, modulators). Inside the brush the motion follows the drag's direction (soft edge half a radius wide); 'add' pushes the estimate, 'replace' overrides it where coverage is at least 0.5 (with `estimate: none` that is fully authored motion).
@@ -319,14 +329,13 @@ Recorded in spec §13.1 (R1–R5). Agreed order: R1 and R4 first, then R3 masks,
 
 ## Next
 
-- **Performance:** matcher in workgroup shared memory (one workgroup per block, cached reference window), aim ≤ 4 ms at 1080p.
-- **Fidelity threads** (study/fidelity.md): encoder-style intra decisions, bloom compounding, EPZS predictors, more footage and qscales.
-- **M6 cache and scrubbing** is next by the spec: in-memory checkpoints first (the replay cost shows in the preview overlay and as red on the ruler), then the OPFS spill and background fill. Close the small §11.1 items listed in the M5 section.
-- **v2 catalogue rows** listed in study/coverage.md (field mirror/swap/sort, temporal average, gravity, random damage, frame-order ops, pixel sort, analog).
+The current order lives in the latest session handoff. Done on 2026-10-10 (evening): locks inert (D40), M7 closed,
+the candidate-parallel matcher (1080p loop 13.7 → 5.4 ms), WSOLA in a worker, the fast mask raster, the dense desk
+(D41). Next: M8 Safari and Firefox on the live site (D43), more speed (cache I/O worker, probe caps), the FX
+contraction fixes, mask tracking and handles, R5 when the icon arrives, M9b (bake, v2 library, docs).
 
-## At the move into iori/
+## Deploying to iori.me
 
-Copy `moshine/` to `iori/moshine/`; register `moshine/index.html` in `pages.meta.json` by hand (folder
-apps are not auto-scanned); `python3 site.py all && python3 site.py check`; add the Caddy `handle
-/moshine/*` block with COOP/COEP; verify the analytics tag from the SEO block works under COEP or skip it
-on this path; wire the caption control box to the site menu like petri; add the launch config.
+Live since 2026-10-10 (M9, D43). The redeploy steps and the shared-tree rule are in the latest session handoff
+("Deployed"). Do not edit `iori/moshine/` directly: it is an rsync copy of this folder. COOP/COEP stay off until the
+bake (D44).

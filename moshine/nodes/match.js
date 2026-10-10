@@ -3,7 +3,13 @@
 // Output: vec4 per block [mvx, mvy, mad, 0]; the final level also counts blocks with mad > cutMad.
 import { pipeline, computePipeline, dispatch, uniformBuffer, storageBuffer, L } from '../gpu.js';
 
-const WGSL = /* wgsl */`
+// Candidate-parallel (D42, 2026-10-10): one workgroup per block, one lane per candidate vector. Each lane computes a
+// candidate's MAD exactly as before (the same sequential sum in the same order, so the CPU twin is unchanged), and the
+// choice — the first candidate in list order with the strictly lowest cost — is a (cost, index) minimum over the lanes,
+// which equals the sequential scan. The current block and, for sub-pel, a window of the reference sit in workgroup
+// memory, sized per block size (one pipeline each: big arrays cost occupancy). Measured by T4 stageCost1080.
+const WG = 32;
+const WGSL = (block) => /* wgsl */`
 struct P { dims: vec2u, blocks: vec2u, bs: u32, radius: u32, pel: u32, flags: u32, lambda: f32, unit: f32, cutMad: f32, pad: f32 };
 @group(0) @binding(0) var curT: texture_2d<f32>;
 @group(0) @binding(1) var refT: texture_2d<f32>;
@@ -13,6 +19,14 @@ struct P { dims: vec2u, blocks: vec2u, bs: u32, radius: u32, pel: u32, flags: u3
 @group(0) @binding(5) var<storage, read_write> cut: array<atomic<u32>>;
 @group(0) @binding(6) var<uniform> p: P;
 const HAS_COARSE = 1u; const HAS_TEMPORAL = 2u; const FINAL = 4u;
+const WG = ${WG}u;
+var<workgroup> curS: array<f32, ${block * block}>;
+var<workgroup> win: array<f32, ${(block + 4) * (block + 4)}>;   // the reference around the chosen vector, for sub-pel
+var<workgroup> wo: vec2i;
+var<workgroup> redC: array<f32, ${WG}>;
+var<workgroup> redM: array<f32, ${WG}>;
+var<workgroup> redI: array<u32, ${WG}>;
+var<workgroup> pick: vec4f;                          // the chosen vector and its mad, broadcast by lane 0
 
 fn tap(q: vec2i) -> f32 { return textureLoad(refT, clamp(q, vec2i(0), vec2i(p.dims) - vec2i(1)), 0).r; }
 fn madAt(b: vec2u, v: vec2f) -> f32 {
@@ -25,58 +39,111 @@ fn madAt(b: vec2u, v: vec2f) -> f32 {
       var r: f32;
       if (a.x == 0.0 && a.y == 0.0) { r = tap(i); }
       else { r = (tap(i) * (1.0 - a.x) + tap(i + vec2i(1, 0)) * a.x) * (1.0 - a.y) + (tap(i + vec2i(0, 1)) * (1.0 - a.x) + tap(i + vec2i(1, 1)) * a.x) * a.y; }
-      acc += abs(textureLoad(curT, vec2i(x, y), 0).r - r);
+      acc += abs(curS[(y - y0) * bs + (x - x0)] - r);
+    }
+  }
+  return acc / f32((x1 - x0) * (y1 - y0));
+}
+// madAt with the reference taps from the window (the same clamped texels, so the same value bit for bit)
+fn madW(b: vec2u, v: vec2f) -> f32 {
+  let bs = i32(p.bs); let x0 = i32(b.x) * bs; let y0 = i32(b.y) * bs; let W = bs + 4;
+  let x1 = min(x0 + bs, i32(p.dims.x)); let y1 = min(y0 + bs, i32(p.dims.y));
+  var acc = 0.0;
+  for (var y = y0; y < y1; y++) {
+    for (var x = x0; x < x1; x++) {
+      let s = vec2f(f32(x), f32(y)) - v; let f0 = floor(s); let a = s - f0; let i = vec2i(f0) - wo; let k = i.y * W + i.x;
+      var r: f32;
+      if (a.x == 0.0 && a.y == 0.0) { r = win[k]; }
+      else { r = (win[k] * (1.0 - a.x) + win[k + 1] * a.x) * (1.0 - a.y) + (win[k + W] * (1.0 - a.x) + win[k + W + 1] * a.x) * a.y; }
+      acc += abs(curS[(y - y0) * bs + (x - x0)] - r);
     }
   }
   return acc / f32((x1 - x0) * (y1 - y0));
 }
 fn med3(a: vec2f, b: vec2f, c: vec2f) -> vec2f { return max(min(a, b), min(max(a, b), c)); }
-fn consider(b: vec2u, v: vec2f, pr: vec2f, best: ptr<function, vec2f>, bv: ptr<function, vec2f>) {
-  let m = madAt(b, v);
-  let c = m + p.lambda * p.unit * (abs(v.x - pr.x) + abs(v.y - pr.y));
-  if (c < (*best).x) { *best = vec2f(c, m); *bv = v; }
-}
+fn less(c0: f32, i0: u32, c1: f32, i1: u32) -> bool { return c0 < c1 || (c0 == c1 && i0 < i1); }
 
-@compute @workgroup_size(8, 8)
-fn main(@builtin(global_invocation_id) id: vec3u) {
-  if (id.x >= p.blocks.x || id.y >= p.blocks.y) { return; }
-  let b = id.xy; let bi = b.y * p.blocks.x + b.x;
+@compute @workgroup_size(${WG})
+fn main(@builtin(workgroup_id) wid: vec3u, @builtin(local_invocation_index) lid: u32) {
+  let b = wid.xy; let bi = b.y * p.blocks.x + b.x;
+  let hasCoarse = (p.flags & HAS_COARSE) != 0u; let fin = (p.flags & FINAL) != 0u; let hasT = fin && (p.flags & HAS_TEMPORAL) != 0u;
+  // the current block into workgroup memory (the same texels every lane reads)
+  { let bs = p.bs; let x0 = b.x * bs; let y0 = b.y * bs;
+    for (var k = lid; k < bs * bs; k += WG) {
+      let x = x0 + k % bs; let y = y0 + k / bs;
+      if (x < p.dims.x && y < p.dims.y) { curS[k] = textureLoad(curT, vec2i(i32(x), i32(y)), 0).r; }
+    } }
   var c = vec2f(0.0); var pr = vec2f(0.0);
-  let hasCoarse = (p.flags & HAS_COARSE) != 0u; let fin = (p.flags & FINAL) != 0u;
   if (hasCoarse) {
     c = 2.0 * coarse[bi].xy;
     let li = b.y * p.blocks.x + select(b.x - 1u, b.x, b.x == 0u);
     let ti = select(b.y - 1u, b.y, b.y == 0u) * p.blocks.x + b.x;
     pr = med3(c, 2.0 * coarse[li].xy, 2.0 * coarse[ti].xy);
   }
-  let m0 = madAt(b, c);
-  var best = vec2f(m0 + p.lambda * p.unit * (abs(c.x - pr.x) + abs(c.y - pr.y)), m0); var bv = c;
-  let r = i32(p.radius);
-  for (var dy = -r; dy <= r; dy++) { for (var dx = -r; dx <= r; dx++) {
-    if (dx != 0 || dy != 0) { consider(b, c + vec2f(f32(dx), f32(dy)), pr, &best, &bv); }
-  } }
-  consider(b, vec2f(0.0), pr, &best, &bv);
-  if (hasCoarse) { consider(b, pr, pr, &best, &bv); }
-  if (fin && (p.flags & HAS_TEMPORAL) != 0u) { consider(b, floor(temporal[bi].xy + vec2f(0.5)), pr, &best, &bv); }
+  let tv = select(vec2f(0.0), floor(temporal[bi].xy + vec2f(0.5)), hasT);
+  workgroupBarrier();
+  // candidates in the CPU's order: c, the grid around c without its centre (row by row), zero, the predictor, temporal
+  let r = i32(p.radius); let side = u32(2 * r + 1); let ng = side * side; let ctr = u32(r) * side + u32(r);
+  let n = ng + 1u + select(0u, 1u, hasCoarse) + select(0u, 1u, hasT);
+  var myC = 3.0e38; var myM = 0.0; var myI = 0xffffffffu;
+  for (var k = lid; k < n; k += WG) {
+    var v: vec2f;
+    if (k == 0u) { v = c; }
+    else if (k < ng) { let j = select(k, k - 1u, k - 1u < ctr); v = c + vec2f(f32(i32(j % side) - r), f32(i32(j / side) - r)); }
+    else if (k == ng) { v = vec2f(0.0); }
+    else if (k == ng + 1u && hasCoarse) { v = pr; }
+    else { v = tv; }
+    let m = madAt(b, v);
+    let cost = m + p.lambda * p.unit * (abs(v.x - pr.x) + abs(v.y - pr.y));
+    if (cost < myC) { myC = cost; myM = m; myI = k; }
+  }
+  redC[lid] = myC; redM[lid] = myM; redI[lid] = myI;
+  workgroupBarrier();
+  if (lid == 0u) {
+    var bc = redC[0]; var bm = redM[0]; var bk = redI[0];
+    for (var q = 1u; q < WG; q++) { if (less(redC[q], redI[q], bc, bk)) { bc = redC[q]; bm = redM[q]; bk = redI[q]; } }
+    var v: vec2f;
+    if (bk == 0u) { v = c; }
+    else if (bk < ng) { let j = select(bk, bk - 1u, bk - 1u < ctr); v = c + vec2f(f32(i32(j % side) - r), f32(i32(j / side) - r)); }
+    else if (bk == ng) { v = vec2f(0.0); }
+    else if (bk == ng + 1u && hasCoarse) { v = pr; }
+    else { v = tv; }
+    pick = vec4f(v, bm, 0.0);
+  }
+  workgroupBarrier();
+  // sub-pel: 8 neighbours at 1/2, then 8 at 1/4, decided by mad alone (strictly lower than the best so far)
   if (fin && p.pel >= 2u) {
-    var bm = best.y;
+    // every sub-pel tap lies within the integer winner -1 .. +bs + 2 (offsets reach +-0.75): load that window once
+    { let bs = i32(p.bs); let W = bs + 4; let o = pick.xy;
+      let org = vec2i(i32(b.x) * bs, i32(b.y) * bs) + vec2i(floor(-o - vec2f(0.75)));
+      for (var k = lid; k < u32(W * W); k += WG) { win[k] = tap(org + vec2i(i32(k % u32(W)), i32(k / u32(W)))); }
+      if (lid == 0u) { wo = org; } }
+    workgroupBarrier();
     var s = 0.5;
-    for (var k = 0u; k < select(1u, 2u, p.pel >= 4u); k++) {
-      let o = bv;
-      for (var dy = -1; dy <= 1; dy++) { for (var dx = -1; dx <= 1; dx++) {
-        if (dx != 0 || dy != 0) { let v = o + vec2f(f32(dx), f32(dy)) * s; let m = madAt(b, v); if (m < bm) { bm = m; bv = v; } }
-      } }
+    for (var it = 0u; it < select(1u, 2u, p.pel >= 4u); it++) {
+      let o = pick.xy; let bm0 = pick.z;
+      var m = 3.0e38; var v = o;
+      if (lid < 8u) { let j = select(lid, lid + 1u, lid >= 4u); v = o + vec2f(f32(i32(j % 3u) - 1), f32(i32(j / 3u) - 1)) * s; m = madW(b, v); }
+      redM[lid] = m; redI[lid] = lid;
+      workgroupBarrier();
+      if (lid == 0u) {
+        var mm = redM[0]; var mk = 0u;
+        for (var q = 1u; q < 8u; q++) { if (redM[q] < mm) { mm = redM[q]; mk = q; } }
+        if (mm < bm0) { let j = select(mk, mk + 1u, mk >= 4u); pick = vec4f(o + vec2f(f32(i32(j % 3u) - 1), f32(i32(j / 3u) - 1)) * s, mm, 0.0); }
+      }
+      workgroupBarrier();
       s = 0.25;
     }
-    best.y = bm;
   }
-  outF[bi] = vec4f(bv, best.y, 0.0);
-  if (fin && best.y > p.cutMad) { atomicAdd(&cut[0], 1u); }
+  if (lid == 0u) {
+    outF[bi] = vec4f(pick.xy, pick.z, 0.0);
+    if (fin && pick.z > p.cutMad) { atomicAdd(&cut[0], 1u); }
+  }
 }`;
 
 /** A matcher for one geometry. encode() runs every level from coarse to fine. */
 export function createMatcher(gpu, { w, h, block, levels }) {
-  const P = pipeline(gpu, 'match', () => computePipeline(gpu, 'match', WGSL, [L.tex(0), L.tex(1), L.ro(2), L.ro(3), L.rw(4), L.rw(5), L.uni(6)]));
+  const P = pipeline(gpu, 'match:' + block, () => computePipeline(gpu, 'match ' + block, WGSL(block), [L.tex(0), L.tex(1), L.ro(2), L.ro(3), L.rw(4), L.rw(5), L.uni(6)]));
   const bw = Math.ceil(w / block), bh = Math.ceil(h / block), nb = bw * bh;
   const coarse = Array.from({ length: levels }, (_, l) => (l === 0 ? null : storageBuffer(gpu, nb * 16, `match L${l}`)));
   const uni = Array.from({ length: levels }, (_, l) => uniformBuffer(gpu, 48, `match L${l} uniform`));
@@ -91,7 +158,7 @@ export function createMatcher(gpu, { w, h, block, levels }) {
         U32.set([pl.width, pl.height, bw, bh, block >> l, top ? Math.ceil(search / 2 ** (levels - 1)) : fin ? 1 : 2, pel | 0, (top ? 0 : 1) | (fin && temporal ? 2 : 0) | (fin ? 4 : 0)]);
         F32[8] = lambda; F32[9] = 2 ** -l; F32[10] = cutMad;
         gpu.device.queue.writeBuffer(uni[l], 0, u);
-        dispatch(gpu, enc, P, [pl, ref.levels[l], top ? dummy : coarse[l + 1], fin && temporal ? temporal : dummy, fin ? out : coarse[l], cut, uni[l]], Math.ceil(bw / 8), Math.ceil(bh / 8), `match L${l}`);
+        dispatch(gpu, enc, P, [pl, ref.levels[l], top ? dummy : coarse[l + 1], fin && temporal ? temporal : dummy, fin ? out : coarse[l], cut, uni[l]], bw, bh, `match L${l}`);
       }
     },
     destroy() { coarse.forEach((b) => b && b.destroy()); uni.forEach((b) => b.destroy()); dummy.destroy(); },

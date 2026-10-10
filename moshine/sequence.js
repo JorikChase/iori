@@ -12,11 +12,11 @@
 // effects only for now (stateful ones reset at each clip in-point).
 import { resolveAll, f32All } from './params.js';
 import { EFFECTS } from './project.js';
-import { createLoopRef } from './engine-ref.js';
+import { createLoopRef, maskmixRef } from './engine-ref.js';
 import { fxChain } from './fx-ref.js';
 import { toHalfArray, fromHalfArray, toHalf, fromHalf } from './util.js';
 import { cpuSerializer, encodeFile, decodeFile } from './cache.js';
-import { resolveMasks, rasterMasks, maskSize, maskKey } from './masks.js';
+import { resolveMasks, rasterMasks, rasterLock, maskSize, maskKey, createCoverageCache } from './masks.js';
 import { featureAt } from './features.js';
 import { audioSourceAt } from './audio.js';
 
@@ -84,17 +84,7 @@ export function blendRef(comp, layer, opacity, mode) {
   return out;
 }
 
-/** CPU twin of the maskmix kernel: clean x (1 - a) + moshed x a with a = the mask coverage in 1/4096 steps (exact
- *  products, as in blendRef); opaque result. */
-export function maskmixRef(clean, moshed, mask) {
-  const out = new Float32Array(clean.length);
-  for (let i = 0; i < clean.length; i += 4) {
-    const a = Math.min(4096, Math.max(0, Math.floor(mask[i + 3] * 4096 + 0.5))), af = a / 4096, gf = (4096 - a) / 4096;
-    for (let k = 0; k < 3; k++) out[i + k] = a <= 0 ? clean[i + k] : a >= 4096 ? moshed[i + k] : fr(fr(clean[i + k] * gf) + fr(moshed[i + k] * af));
-    out[i + 3] = 1;
-  }
-  return out;
-}
+export { maskmixRef };
 
 // ------------------------------------------------------------------------------------------------ planning
 /**
@@ -255,7 +245,7 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
         else if (I.sig !== sig) { I.obj.setConfig(cfg); I.sig = sig; I.at = null; }
         if (I.at !== t - 1) I.obj.begin(t);
         const src2 = e.inputs?.source2?.channel ? outs.get(e.inputs.source2.channel) || null : null;
-        const r = I.obj.step(t, { src: cur, src2 }); I.at = t; I.meta = { ch, clip, e, onCh: false, f: t + clip.range.in };
+        const r = I.obj.step(t, { src: cur, src2, lock: lockOf(seq, clip, t) }); I.at = t; I.meta = { ch, clip, e, onCh: false, f: t + clip.range.in };
         cur = r.display; field = r.field; block = e.params.block;
       } else {
         let I = inst.get(key);
@@ -269,13 +259,24 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
   }
 
   /** Masks (R3): the mosh's output mixed with the clean composite below by the clip's mask coverage at clip time t. */
-  const rasters = new Map();
+  const rasters = new Map(), covCache = createCoverageCache(128), shapeSigs = new WeakMap();
+  // a mask's shapes signature, computed once per edit (every edit calls invalidate(), which bumps the revision)
+  const shapeSig = (m) => { let x = shapeSigs.get(m); if (!x || x.rev !== revision) shapeSigs.set(m, (x = { rev: revision, sig: strHash(JSON.stringify([m.mode, m.invert, m.shapes])) })); return x.sig; };
+  const masksAt = (seq, clip, t) => resolveMasks(clip.masks, t, CK(seq, clip), shapeSig);
+  const maskP = (mw, mh) => placement({ x: 0, y: 0, scale: 1, rotation: 0, fit: 'stretch' }, { sw: mw, sh: mh, W: backend.w, H: backend.h });
+  /** The lock masks' keep coverage for a clip's Mosh Loops at clip time t (in-loop refresh), or null. */
+  function lockOf(seq, clip, t) {
+    if (clip.kind !== 'effect' || !clip.masks?.some((m) => m.mode === 'lock' && m.enabled !== false)) return null;
+    const res = masksAt(seq, clip, t).filter((m) => m.mode === 'lock'); if (!res.length) return null;
+    const [mw, mh] = maskSize(backend.w, backend.h), A = backend.w / backend.h, key = 'lock' + maskKey(res, mw, mh, A), id = clip.id + ':lock';
+    let r = rasters.get(id); if (!r || r.key !== key) { r = { key, data: rasterLock(res, mw, mh, A, covCache), mw, mh }; rasters.set(id, r); }
+    return backend.mask(id, r, maskP(mw, mh));
+  }
   function applyMasks(seq, clip, ch, t, clean, moshed) {
-    const res = resolveMasks(clip.masks, t, CK(seq, clip)); if (!res.length) return moshed;
+    const res = masksAt(seq, clip, t); if (!res.length) return moshed;
     const [mw, mh] = maskSize(backend.w, backend.h), A = backend.w / backend.h, key = maskKey(res, mw, mh, A);
-    let r = rasters.get(clip.id); if (!r || r.key !== key) { r = { key, data: rasterMasks(res, mw, mh, A), mw, mh }; rasters.set(clip.id, r); }
-    const P = placement({ x: 0, y: 0, scale: 1, rotation: 0, fit: 'stretch' }, { sw: mw, sh: mh, W: backend.w, H: backend.h });
-    return backend.maskmix(clean, moshed, backend.mask(clip.id, r, P), ch.id);
+    let r = rasters.get(clip.id); if (!r || r.key !== key) { r = { key, data: rasterMasks(res, mw, mh, A, covCache), mw, mh }; rasters.set(clip.id, r); }
+    return backend.maskmix(clean, moshed, backend.mask(clip.id, r, maskP(mw, mh)), ch.id);
   }
   async function frame(seq, f) {
     let comp = backend.black(); const outs = new Map();
@@ -314,7 +315,7 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
     const cfg = e.type === 'moshLoop' && !onCh ? LC(e, clip, seq) : { params: e.params, seed: e.seed, audio: CK(seq, onCh ? null : clip, e.seed).audioKey };
     if (cfg.bloom) cfg.bloom = { ...cfg.bloom, hits: cfg.bloom.hits.filter((h) => (typeof h === 'number' ? h : h.at) + clip.range.in < g) };
     if (cfg.clock) cfg.clock = { ...cfg.clock, hits: cfg.clock.hits.filter((h) => h + clip.range.in < g) };
-    return strHash(JSON.stringify([seq.timebase, e.id, onCh, cfg, { ...clip, masks: undefined }, onCh ? ch.stack : 0, below, project.media.filter((m) => media.has(m.id))]));   // own masks mix after the state: they never void it
+    return strHash(JSON.stringify([seq.timebase, e.id, onCh, cfg, { ...clip, masks: (clip.masks || []).filter((m) => m.mode === 'lock') }, onCh ? ch.stack : 0, below, project.media.filter((m) => media.has(m.id))]));   // include masks mix after the state; locks refresh inside it
   }
   /** Stateful effects that must be carried across frame g to render up to t: active somewhere in [g, t], started before g. */
   function needed(seq, g, t) {

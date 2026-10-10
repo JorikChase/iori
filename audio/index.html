@@ -129,7 +129,6 @@ html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);overflo
 #app{position:relative;height:100%;overflow:hidden;background:var(--ground)}
 .fr{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--ground);z-index:1;clip-path:circle(0px at 0 0);-webkit-clip-path:circle(0px at 0 0)}
 #orb{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:3}
-#flash{position:absolute;inset:0;pointer-events:none;z-index:4;display:none;-webkit-backdrop-filter:invert(1);backdrop-filter:invert(1)}
 #icons{position:absolute;inset:0;pointer-events:none;z-index:5}
 #icons i{position:absolute;transform:translate(-50%,-50%);visibility:hidden}
 #hit{position:absolute;left:0;bottom:0;width:100%;height:100%;touch-action:none;z-index:6}
@@ -142,7 +141,6 @@ body.in-tool #site-menu{display:none}
   <iframe id="tool" class="fr" title="Active tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
   <iframe id="tool2" class="fr" title="Next tool" allow="microphone; autoplay; screen-wake-lock"></iframe>
   <canvas id="orb" aria-hidden="true"></canvas>
-  <div id="flash" aria-hidden="true"></div>
   <div id="icons"></div>
   <div id="hit"></div>
 </div>
@@ -300,10 +298,10 @@ function clip(f,r){setClip(f,r===null?'none':'circle(0px at 0 0)');}
 /* the reveal edge: a closed wave around (x,y) — three slow harmonics drifting against each other, like a liquid
    front. amp is in px; at amp 0 it is a circle. The mask is all there is: no colour, no line. */
 var WN=96,WC=[],WS=[];for(var wi=0;wi<WN;wi++){var wa0=wi/WN*6.2832;WC.push(Math.cos(wa0));WS.push(Math.sin(wa0));}
-var EH=0,EB=100,EFLASH=.07;   /* e-ink: no solid band (it reads as a line), 5 dither steps over EB px, full-screen inverse flash s */
-var FL=document.getElementById('flash'),flV=false,flOK0=true;
+var EH=0,EB=140;   /* e-ink: no solid band (it reads as a line), 5 ordered-dither steps over EB px; no flash (owner: "a jump") */
+/* duration of the sweep, s. ?td=0.8 in the URL tries another speed on the device */
+var TDQ=+((location.search.match(/[?&]td=([0-9.]+)/)||[])[1])||0,TD0=TDQ>.05&&TDQ<5?TDQ:.66;
 function waveR(a,R,amp,t){return R+amp*(.55*Math.sin(3*a+2.3*t)+.3*Math.sin(5*a-3.1*t+1.7)+.15*Math.sin(7*a+4.3*t+.6));}
-function flash(on){on=!!on&&flOK0;if(on!==flV){flV=on;FL.style.display=on?'block':'none';}}
 function waveClip(f,R,x,y,amp,t){if(R<=0){clip(f,0);return;}var pts=new Array(WN);
  for(var i=0;i<WN;i++){var r=waveR(i/WN*6.2832,R,amp,t);
   pts[i]=(x+WC[i]*r).toFixed(1)+'px '+(y+WS[i]*r).toFixed(1)+'px';}
@@ -321,6 +319,8 @@ function enter(i){var f=preload(TOOLS[i].k);S.inF=F.indexOf(f);S.fromTool=curF>=
 function leave(){if(curF<0)return;S.mode='going';S.wox=S.cx;S.woy=S.cy;S.wt=0;S.wc=AC[S.tool].slice();}
 function eOut(x){x=1-x;return 1-x*x*x;}
 function eInOut(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}
+/* the sweep's motion: starts softly, glides, settles (sine in-out blended toward an ease-out so it never hangs at the end) */
+function eSweep(x){var a=.5-.5*Math.cos(Math.PI*x),b=1-Math.pow(1-x,2.2);return a*.55+b*.45;}
 function setCorner(on){HIT.className=on?'corner':'';document.body.classList.toggle('in-tool',S.mode!=='home');}
 HIT.addEventListener('pointerdown',function(e){e.preventDefault();try{HIT.setPointerCapture(e.pointerId)}catch(_){}
  var p=pos(e);S.px=p.x;S.py=p.y;var d=Math.hypot(p.x-S.cx,p.y-S.cy);
@@ -359,24 +359,23 @@ function frame(now){
  if(Math.abs(S.spin)>.001){var sg2=S.spin*e;S.spin-=sg2;S.M=mul(S.M,rZ(sg2));}
  var ti=S.sel>=0?S.sel:(S.dial?S.pick:S.tool);
  lerp3(S.a,AC[ti],e);lerp3(S.b,AC[(ti+1)%8],e);if(S.sel>=0)S.n=AC[S.sel].slice();else if(S.dOpen>0)S.n=AC[S.pick].slice();
- /* transition: an e-ink refresh swept along a widening wave from the orb — a full-screen inverse flash, then
+ /* transition: an e-ink refresh swept along a widening wave from the orb —
     five ordered-dither steps resolving into the incoming tool; going home sweeps it back into the hub. The frame's
-    clip-path is the wave front, the canvas draws the dither, #flash inverts the whole screen for the first 70 ms. */
- var TD=.34*(window.__SLOW||1),cover=Math.hypot(Math.max(S.wox,W-S.wox),Math.max(S.woy,H-S.woy)),nowT=performance.now();
+    clip-path is the wave front and the canvas draws the dither. Soft start, glide, settle (eSweep), TD0 s. */
+ var TD=TD0*(window.__SLOW||1),cover=Math.hypot(Math.max(S.wox,W-S.wox),Math.max(S.woy,H-S.woy)),nowT=performance.now();
  if(S.hold&&S.sel>=0&&nowT-S.selT>70)preload(TOOLS[S.sel].k);
  if(S.dial&&S.dWas&&S.pick!==S.tool&&nowT-S.pickT>70)preload(TOOLS[S.pick].k);
  F.forEach(function(f){if(f.k&&f.loaded&&!f.ready&&nowT-f.loadT>600)f.ready=true;});   /* a page that never signals */
  S.wo=S.wi=-100;S.toTool=1;S.wa=0;
  if(S.mode==='entering'){var fi=F[S.inF];S.wt+=dt;S.wm=S.fromTool?2:1;S.wR=-1e4;S.wA=0;
   if(S.wti<0&&(fi.ready||S.wt>1.2))S.wti=0;
-  if(S.wti>=0){S.wti+=dt;var pi=Math.min(1,S.wti/TD),amp=Math.min(36,cover*.09)*(1-pi*.85),R=(cover+amp+EH+EB+4)*eOut(pi);
-   S.wR=R;S.wA=amp;waveClip(fi,R,S.wox,S.woy,amp,t);flash(S.wti<EFLASH*(window.__SLOW||1));
-   if(pi>=1){clip(fi,null);flash(false);if(curF>=0&&curF!==S.inF)unload(F[curF]);curF=S.inF;fi.el.style.zIndex=1;S.mode='tool';S.wt=S.wti=-1;}}
-  else flash(false);}
+  if(S.wti>=0){S.wti+=dt;var pi=Math.min(1,S.wti/TD),amp=Math.min(30,cover*.08)*(1-pi*.8),R=(cover+amp+EH+EB+4)*eSweep(pi);
+   S.wR=R;S.wA=amp;waveClip(fi,R,S.wox,S.woy,amp,t);
+   if(pi>=1){clip(fi,null);if(curF>=0&&curF!==S.inF)unload(F[curF]);curF=S.inF;fi.el.style.zIndex=1;S.mode='tool';S.wt=S.wti=-1;}}}
  else if(S.mode==='going'){var fc=F[curF];S.wt+=dt;var pg=Math.min(1,S.wt/TD);
-  var Rg=(cover+40+EH+EB+4)*(1-eOut(pg)),ampg=Math.min(36,Math.max(0,Rg)*.12);
-  S.wm=1;S.wR=Rg;S.wA=ampg;waveClip(fc,Rg,S.wox,S.woy,ampg,t);flash(S.wt<EFLASH*(window.__SLOW||1));
-  if(pg>=1){unload(fc);flash(false);curF=-1;S.mode='home';S.wt=-1;S.wR=-1e4;if(window.ATS.maybeReload)setTimeout(window.ATS.maybeReload,350);}}
+  var Rg=(cover+34+EH+EB+4)*(1-eSweep(pg)),ampg=Math.min(30,Math.max(0,Rg)*.1);
+  S.wm=1;S.wR=Rg;S.wA=ampg;waveClip(fc,Rg,S.wox,S.woy,ampg,t);
+  if(pg>=1){unload(fc);curF=-1;S.mode='home';S.wt=-1;S.wR=-1e4;if(window.ATS.maybeReload)setTimeout(window.ATS.maybeReload,350);}}
  else if(S.mode==='home'){S.wm=1;S.wR=-1e4;}
  else S.wm=0;
  setCorner(S.mode==='tool');

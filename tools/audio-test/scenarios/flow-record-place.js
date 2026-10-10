@@ -48,6 +48,6 @@ module.exports = async (lib) => {
   const errors = page.errors.filter(e => !/service ?worker/i.test(e));
   await page.context().close(); await br.close();
   const checks = { takeLength: lib.near(take.dur, 3, 0.4), budsOpened: buds.opened, editorPreloadedDuringHold: preloading.some(s => s && s.includes('edit.html')),
-    switchedToEditor: switchMs > 0 && switchMs < 600, clipPlaced: placed.length === 1 && lib.near(placed[0].d, take.dur, 0.05), restoredAfterLeaving: again === 1, oneLiveFrame: live.length === 1, noErrors: !errors.length };
+    switchedToEditor: switchMs > 0 && switchMs < 950, clipPlaced: placed.length === 1 && lib.near(placed[0].d, take.dur, 0.05), restoredAfterLeaving: again === 1, oneLiveFrame: live.length === 1, noErrors: !errors.length };
   return lib.result(dir, { pass: Object.values(checks).every(Boolean), checks, take, switchMs, placed, preloading, live, errors });
 };

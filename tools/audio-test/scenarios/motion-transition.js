@@ -2,13 +2,13 @@
    motion for enter (home -> tuner) and leave (tuner -> home). Visual check of the band, the wobble, the reveal
    and the collapse into the hub; the timing itself is measured by timing-transition. */
 module.exports = async (lib) => {
-  const br = await lib.browser(); const dir = lib.outDir('motion-transition'); const SLOW = 10, TD = 300 * SLOW;
+  const br = await lib.browser(); const dir = lib.outDir('motion-transition'); const SLOW = 5, TD = 660 * SLOW;
   const page = await lib.open(br, 'shell', { wait: 1200 });
   await page.evaluate((s) => { window.__SLOW = s; }, SLOW);
   const tap = (kind) => page.evaluate((kind) => { const hit = document.getElementById('hit'); const p = kind === 'enter' ? __SAT(window.__TOOL || 1) : { x: 40, y: innerHeight - 40 };
     const fire = (t) => hit.dispatchEvent(new PointerEvent(t, { clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1, isPrimary: true, pointerType: 'touch' }));
     fire('pointerdown'); return new Promise(r => setTimeout(() => { fire('pointerup'); r(performance.now()); }, kind === 'enter' ? 400 : 60)); }, kind);  // enter: a long touch lets the frame load first; leave: a tap (a hold opens the hub dial)
-  const files = []; const fr = [0.01, 0.1, 0.25, 0.45, 0.65, 0.85];
+  const files = []; const fr = [0.08, 0.2, 0.35, 0.5, 0.65, 0.8];
   for (const kind of ['enter', 'leave']) {
     const t0 = await tap(kind);
     for (const f of fr) {

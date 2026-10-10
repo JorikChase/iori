@@ -20,5 +20,5 @@ module.exports = async (lib) => {
   await page.waitForTimeout(500);
   const leave = await run('leave'); await page.screenshot({ path: `${dir}/home.png` });
   await page.context().close(); await br.close();
-  return lib.result(dir, { pass: enter.settled <= 400 && leave.settled <= 400, enter, leave });
+  return lib.result(dir, { pass: enter.settled <= 820 && leave.settled <= 820, enter, leave });   // budget: the 0.66 s sweep + 160 ms
 };

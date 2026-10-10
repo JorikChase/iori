@@ -27,8 +27,8 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | S2 | Hold orb + drag → melt toward finger, neck, eight icons bloom | H | todo |
 | S3 | Release on a tool opens it | H | todo |
 | S4 | Tap a satellite dot opens its tool | H | pass (pane, 2026-10-09) |
-| S5 | Transition (owner, 2026-10-10): pure mask, natural wave shape, no line; e-ink refresh = full-screen inverse flash 70 ms + five ordered-dither steps along the wave edge; tool loads on touch-down | H | pass (motion-transition: tuner + recorder sheets, Chromium + WebKit; 331 ms after lift) |
-| S6 | Going home: the same e-ink wave sweeps the tool back into the hub; frame unloads at the end | H | pass (336 ms after lift) |
+| S5 | Transition (owner, 2026-10-10, second pass): seamless full-screen e-ink sweep — the tool unmasked through a natural wave with five ordered-dither steps at its edge; no flash, no line; soft start, glide, settle; 0.66 s (?td= to try speeds) | H | pass (motion-transition sheets; 649 ms after lift) |
+| S6 | Going home: the same sweep reversed into the hub | H | pass (654 ms after lift) |
 | S7 | Orb shrinks to bottom-left hub inside a tool | H | todo |
 | S8 | Hub tap → home; tool frame unloads (audio stops) | H | pass (pane) |
 | S9 | Hub hold + drag → three buds (prev, current, next); further drag turns the dial; release switches | H | pass (timing-switch: dial step, preload during rest, switch, old frame unloaded; hub hit-test now uses its resting corner) |
@@ -89,6 +89,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | T5 | Silence: line impossibly thin, not dimmed | H | todo |
 | T6 | Mic refused → microphone-off state, tap retries (no test signal) | H | pass (tuner-real: refused → microphone-off, no fallback audio; spec changed by owner rule) |
 | T8 | Mic off: thin line, no note, no simulated pitch; tap anywhere starts listening | H | pass (tuner-real) |
+| T9 | Quiet and higher voices (owner: a girl's voice was not accepted): gate lowered from −45 to −63 dBFS, quiet input must be more periodic; level drawn on a dB scale | H | pass (tuner-voices: female 262/523 Hz and male 110 Hz at −52 dBFS all read correctly, noise gives no note; lab/level_lab.js) |
 | T7 | Lock window, flats/sharps, A4 reference, drone | — | n/a (open question) |
 
 ## BPM detector

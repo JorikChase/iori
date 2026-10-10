@@ -264,7 +264,8 @@
         if (P) return P;
         P = { curve: program(CURVE_VS, CURVE_FS, 'tissue-curve'), compose: program(QUAD_VS, COMPOSE_FS, 'tissue-compose'), fill: program(FILL_VS, FILL_FS, 'tissue-fill'), origin: program(QUAD_VS, ORIGIN_FS, 'tissue-origin'), probe: program(QUAD_VS, PROBE_FS, 'tissue-probe'), pack: program(QUAD_VS, PACK_FS, 'tissue-pack') };
         // the photo shader variant: string replacement on the untouched fs-photo source
-        let src = document.getElementById('fs-photo').text.trim(); const need = (a, b) => { if (!src.includes(a)) throw new Error('tissue: fs-photo anchor missing: ' + a.slice(0, 40)); src = src.replace(a, b); };
+        const shaderSrc = id => (window.IrisShaders && window.IrisShaders[id] !== undefined) ? window.IrisShaders[id] : document.getElementById(id).text;   // shaders.js, 1b
+        let src = shaderSrc('fs-photo').trim(); const need = (a, b) => { if (!src.includes(a)) throw new Error('tissue: fs-photo anchor missing: ' + a.slice(0, 40)); src = src.replace(a, b); };
         // every height read goes through tissueH (done first, so the helper below keeps its own raw read)
         src = src.replace(/textureLod\(u_atlas0, (.+?), lod\)\.r \* u_relief/g, (m, uv) => `tissueH(${uv}, lod)`);
         // T1 (§32): the pupil margin is not a circle. This belongs to the VARIANT and not to fs-photo itself: the
@@ -408,7 +409,7 @@
                 tint = clamp((nCol + EPS) / (oCol + EPS), vec3(0.0), vec3(8.0));
             }
             col = mix(col, tsA.rgb * tint, tsA.a);`);
-        P.photo = program(document.getElementById('vs').text.trim(), src, 'photo-tissue', { position: 0 });
+        P.photo = program(shaderSrc('vs').trim(), src, 'photo-tissue', { position: 0 });
         return P;
     }
     T.k1 = true;                                  // K1 (§32): the knobs offset the fit. Set false for the v0.8 ablation.

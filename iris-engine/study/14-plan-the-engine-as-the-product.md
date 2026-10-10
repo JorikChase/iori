@@ -253,6 +253,14 @@ shader reads them — the pruning of the bake is a phase 2 gate, not a 1b task. 
 shaders out of the page into `engine.js`, the 23 controls synced by events, the canvas owned by `mount`, the photo fetched
 once on a measured load.
 
+**1b step 2 built, 2026-10-10 — the shaders out of the page, the photograph fetched once.** `shaders.js` holds the thirteen
+GLSL sources (`window.IrisShaders`, each the tag's exact text); engine.js and tissue.js read them through `shaderSrc(id)`,
+which still falls back to a tag if a page carries one. The overlay's `<img>` now loads the photograph with the fitter's
+CORS mode, so the browser serves it from the same cache entry (one 1.5 MB fetch on a measured load, was two). Gate: eye
+26 measured through the facade 90.354 · 0.426 · 1.97; no x-shader tag left in the DOM; contract `[]`. **1b's remainder:**
+the 23 controls the engine writes by id (events the UI subscribes to instead) and the canvas owned by `mount` — the two
+moves that let `IrisEngine.mount` take a free canvas; interleaved with phase 2.
+
 **K2b — lateral subsurface (added 2026-10-10, iori: "shouldn't they have subsurface?").** The colour model is vertical
 only: light goes down through melanin and stroma and comes back at the same pixel. Add lateral transport: a tissue-space
 scattering of the irradiance weighted by stroma density and depth before the albedo, so crypt walls glow from light

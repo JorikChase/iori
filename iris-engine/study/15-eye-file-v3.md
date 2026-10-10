@@ -100,7 +100,7 @@ The fitter's result is written with `IrisEye.write` and read back through the sa
 round-trip is part of the fit).
 
 **Built 2026-10-10 (phase 1 step 4, first form).** `engine.js` holds the renderer, moved verbatim out of index.html (1 160
-lines; the shaders stay as `<script type="x-shader">` tags). `engine-api.js` is `window.IrisEngine`: `mount(canvas)` →
+lines); the thirteen shaders live in `shaders.js` since 1b step 2 (`window.IrisShaders`, read through `shaderSrc(id)`). `engine-api.js` is `window.IrisEngine`: `mount(canvas)` →
 the handle with `load('26' | 'data/26.iris' | { id } | { url }, { arrival })`, `unload`, `eye`, `on`, `eyes()`, `measure()`,
 `quality`, `camera`, `apply/undo/journal/replay`, `probe`, `elevationAt`, `export()` (the file with the journal section
 replaced, everything else byte for byte) and three named escape hatches (`_engine`, `_tissue`, `_loader`) so remaining direct

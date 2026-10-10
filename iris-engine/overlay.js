@@ -23,6 +23,7 @@
     const box = h('div'); box.id = 'w31-ov'; box.innerHTML = '<canvas id="w31-ov-render"></canvas><img id="w31-ov-photo" alt="" draggable="false"><svg id="w31-ov-marks" preserveAspectRatio="none"></svg><div id="w31-ov-wipe" data-ui="1"></div>';
     document.body.appendChild(box);
     const img = $('w31-ov-photo'), svg = $('w31-ov-marks'), wipe = $('w31-ov-wipe'), live = $('w31-ov-render');
+    img.crossOrigin = 'anonymous';   // 1b: the fitter loads the photograph with crossOrigin 'anonymous'; a plain <img> is a different cache entry and fetched the 1.3 MB again
 
     // ---- geometry: where the photo's frame lies on the canvas, and the shared zoom / pan transform -------------
     let rect = null;

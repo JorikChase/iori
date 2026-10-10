@@ -116,16 +116,18 @@ function decodeFields(g, enc) {
     }
 }
 
-const vsSrc = document.getElementById('vs').text.trim();
+// the shaders live in shaders.js (window.IrisShaders); a page may still carry them as <script type="x-shader"> tags
+const shaderSrc = id => (window.IrisShaders && window.IrisShaders[id] !== undefined) ? window.IrisShaders[id] : document.getElementById(id).text;
+const vsSrc = shaderSrc('vs').trim();
 const programs = {
-    photo: createProgram(vsSrc, document.getElementById('fs-photo').text.trim(), 'photo'),
-    bake: createProgram(vsSrc, document.getElementById('fs-bake').text.trim().replace('//FIELD_DECODE//', fieldDecodeGLSL()), 'bake'),
-    blit: createProgram(vsSrc, document.getElementById('fs-blit').text.trim(), 'blit'),
-    post: createProgram(vsSrc, document.getElementById('fs-post').text.trim(), 'post'),
-    bundle: createProgram(document.getElementById('vs-bundle').text.trim(), document.getElementById('fs-bundle').text.trim(), 'bundle'),
-    strand: createProgram(document.getElementById('vs-strand').text.trim(), document.getElementById('fs-strand').text.trim(), 'strand'),
-    splat: createProgram(document.getElementById('vs-splat').text.trim(), document.getElementById('fs-splat').text.trim(), 'splat'),
-    splat4: createProgram(document.getElementById('vs-splat4').text.trim(), document.getElementById('fs-splat4').text.trim(), 'splat4'),
+    photo: createProgram(vsSrc, shaderSrc('fs-photo').trim(), 'photo'),
+    bake: createProgram(vsSrc, shaderSrc('fs-bake').trim().replace('//FIELD_DECODE//', fieldDecodeGLSL()), 'bake'),
+    blit: createProgram(vsSrc, shaderSrc('fs-blit').trim(), 'blit'),
+    post: createProgram(vsSrc, shaderSrc('fs-post').trim(), 'post'),
+    bundle: createProgram(shaderSrc('vs-bundle').trim(), shaderSrc('fs-bundle').trim(), 'bundle'),
+    strand: createProgram(shaderSrc('vs-strand').trim(), shaderSrc('fs-strand').trim(), 'strand'),
+    splat: createProgram(shaderSrc('vs-splat').trim(), shaderSrc('fs-splat').trim(), 'splat'),
+    splat4: createProgram(shaderSrc('vs-splat4').trim(), shaderSrc('fs-splat4').trim(), 'splat4'),
 };
 const uniformCache = new Map();
 function loc(prog, name) {
@@ -574,7 +576,7 @@ gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 const strandVAO = gl.createVertexArray(), strandVBO = gl.createBuffer(); let strandVerts = 0, strandCache = { key: null, strands: [] }, strandModelOverride = null, strandGeomKey = null, growOverride = {};   // growOverride: grower genes forced for A/B benches (like strandModelOverride)
 // the curves variant of the bake shader, compiled on first use: the top layer's fine scale reads the strand texture
 function bakeCurvesProgram() {
-    if (!programs.bakeCurves) programs.bakeCurves = createProgram(vsSrc, document.getElementById('fs-bake').text.trim().replace('//FIELD_DECODE//', fieldDecodeGLSL())
+    if (!programs.bakeCurves) programs.bakeCurves = createProgram(vsSrc, shaderSrc('fs-bake').trim().replace('//FIELD_DECODE//', fieldDecodeGLSL())
         .replace('//STRAND_DECL//', 'uniform sampler2D u_strands;')
         .replace('//STRAND_FINE//', 'if (L == 0) { vec4 sc = texture(u_strands, uv); cF = sc.r * mix(0.8, 1.0, sc.b / max(sc.r, 1e-3)); }'), 'bakeCurves');
     return programs.bakeCurves;

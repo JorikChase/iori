@@ -248,8 +248,22 @@ iori.me {
         respond 404
     }
 
-    # Compress text responses (HTML/JSON/SVG/XML); images and media are skipped by default
-    encode zstd gzip
+    # Compress text responses (HTML/JSON/SVG/XML) and the iris engine's binary eye files (data/NN.iris, served as
+    # application/octet-stream, which Caddy's default matcher skips: 3.6 MB on the wire instead of 2.3 — study/15).
+    # A `match` block REPLACES the default list, so the defaults are spelled out; images and media stay uncompressed.
+    encode zstd gzip {
+        match {
+            header Content-Type text/*
+            header Content-Type application/json*
+            header Content-Type application/javascript*
+            header Content-Type application/xhtml+xml*
+            header Content-Type application/atom+xml*
+            header Content-Type application/rss+xml*
+            header Content-Type image/svg+xml*
+            header Content-Type application/wasm*
+            header Content-Type application/octet-stream*
+        }
+    }
 
     # The landing page is canonical at the domain root, never at its filename
     redir /iori_INDEX.html / permanent

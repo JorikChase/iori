@@ -68,7 +68,7 @@ async function createEncoder({ w, h, fps, container = 'mp4', codec, quality, tar
     if (aerr) throw aerr;
     while (ready.length) {
       const [chunk, meta] = ready.shift(), pk = M.EncodedPacket.fromEncodedChunk(chunk);
-      await asrc.add(pk.clone({ timestamp: pk.timestamp - shift }), firstMix ? { decoderConfig: meta?.decoderConfig } : undefined); firstMix = false;
+      await asrc.add(pk.clone({ timestamp: pk.timestamp - shift }), firstMix ? { decoderConfig: cleanAudioConfig(meta?.decoderConfig) } : undefined); firstMix = false;
     }
   };
   const feedMix = async (until) => {
@@ -161,6 +161,22 @@ export function audioPlan(project, range, sequenceId) {
   return { mode: 'mix', clips: ks.length };
 }
 const WC_AUDIO = { aac: 'mp4a.40.2', opus: 'opus' };
+/**
+ * A decoder config as WebCodecs decoders and the MP4 writer expect it. WebKit's AAC encoder (Safari 26/27) hands out a
+ * whole ES_Descriptor (an esds payload, 39 bytes) as the description instead of the AudioSpecificConfig inside it
+ * (2 bytes); its own AudioDecoder then refuses it, and an MP4 would carry a descriptor inside a descriptor. Unwrap it.
+ */
+export function cleanAudioConfig(cfg) {
+  const d = cfg?.description && new Uint8Array(cfg.description.buffer ? cfg.description.buffer.slice(cfg.description.byteOffset, cfg.description.byteOffset + cfg.description.byteLength) : cfg.description);
+  if (!d || d[0] !== 0x03 || !/^mp4a/.test(cfg.codec)) return cfg;
+  const len = (i) => { let n = 0, j = i; do { n = (n << 7) | (d[j] & 0x7f); } while (d[j++] & 0x80 && j < d.length); return [n, j]; };
+  for (let i = 0; i < d.length - 2; i++) {                        // DecoderSpecificInfo: tag 0x05, then a 1-4 byte length
+    if (d[i] !== 0x05) continue;
+    const [n, j] = len(i + 1);
+    if (n >= 2 && n <= 64 && j + n <= d.length) return { ...cfg, description: d.slice(j, j + n) };
+  }
+  return cfg;
+}
 const delays = new Map();
 /**
  * This browser's audio encoder delay in samples, measured once per codec, rate and channel count: a 10 ms burst at
@@ -183,7 +199,7 @@ export function encoderDelay(codec, sr, nch) {
       const base = Math.round((d.timestamp / 1e6) * sr); if (onset < 0) { const i = a.findIndex((v) => Math.abs(v) > 0.4); if (i >= 0) onset = base + i; }
       d.close();
     }, error: (e) => { err = e; } });
-    dec.configure(cfg); for (const c of chunks) dec.decode(c); await dec.flush(); dec.close(); if (err) throw err;
+    dec.configure(cleanAudioConfig(cfg)); for (const c of chunks) dec.decode(c); await dec.flush(); dec.close(); if (err) throw err;
     const ref = x.findIndex((v) => Math.abs(v) > 0.4);
     return onset < 0 ? 0 : Math.max(0, onset - ref);
   })();

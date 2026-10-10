@@ -11,7 +11,10 @@ import { OP_CODE } from './config.js';
 const fr = Math.fround;
 export const EDGE = { clamp: 0, repeat: 1, mirror: 2 };
 export const FLAG = { skip: 1, lost: 4 };
-export const LUMA = [fr(0.2126), fr(0.7152), fr(0.0722)];
+export const LUMA = [fr(0.2126), fr(0.7152), fr(0.0722)];       // nominal BT.709 weights (the kernels use lumaPx)
+const q15 = (x) => Math.floor((x < 0 ? 0 : x > 1 ? 1 : x) * 32768 + 0.5);
+/** Exact integer luma, twin of gpu.js LUMA_WGSL lumaOf: a multiple of 1/32768 in [0, 1]. */
+export const lumaPx = (r, g, b) => ((13933 * q15(r) + 46871 * q15(g) + 4732 * q15(b) + 32768) >>> 16) / 32768;
 const GAIN_SHAPES = ['rampX', 'rampY', 'invX', 'invY', 'sinX', 'sinY', 'radial', 'mirrorL', 'mirrorR', 'mirrorT', 'mirrorB', 'checker'];
 const SYN_KINDS = ['zoom', 'rotate', 'shearX', 'shearY', 'swirl'];
 
@@ -27,7 +30,7 @@ const blocksOf = (w, h, block) => [Math.ceil(w / block), Math.ceil(h / block)];
 /** Y' = 0.2126 R' + 0.7152 G' + 0.0722 B' (BT.709 weights on gamma-encoded values, like a codec). */
 export function luma(img, w, h) {
   const out = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) out[i] = fr(fr(fr(img[i * 4] * LUMA[0]) + fr(img[i * 4 + 1] * LUMA[1])) + fr(img[i * 4 + 2] * LUMA[2]));
+  for (let i = 0; i < w * h; i++) out[i] = lumaPx(img[i * 4], img[i * 4 + 1], img[i * 4 + 2]);
   return out;
 }
 /** 2x2 box downsample, dims ceil(w/2) x ceil(h/2), clamped taps. */
@@ -223,7 +226,7 @@ export function fieldOp(field, o, ctx) {
       // mosh map: scale by the mean luma of the map image over the block
       const mp = ctx.map; if (mp) {
         let s = fr(0), n = 0;
-        for (let y = by * block; y < Math.min(h, by * block + block); y++) for (let x = bx * block; x < Math.min(w, bx * block + block); x++) { const k = (y * w + x) * 4; s = fr(s + fr(fr(fr(mp[k] * LUMA[0]) + fr(mp[k + 1] * LUMA[1])) + fr(mp[k + 2] * LUMA[2]))); n++; }
+        for (let y = by * block; y < Math.min(h, by * block + block); y++) for (let x = bx * block; x < Math.min(w, bx * block + block); x++) { const k = (y * w + x) * 4; s = fr(s + lumaPx(mp[k], mp[k + 1], mp[k + 2])); n++; }
         let m = Math.min(1, Math.max(0, fr(fr(fr(fr(s / n) - 0.5) * fr(o.contrast)) + 0.5))); if (o.invert) m = fr(1 - m);
         const g = fr(fr(1 - fr(o.amount)) + fr(fr(o.amount) * m)); mx = fr(mx * g); my = fr(my * g);
       }
@@ -295,7 +298,7 @@ export function warp(prev, field, { w, h, block, edge = EDGE.clamp, sampling = '
 export function code(src, resetSrc, pred, field, { w, h, block }, u, mc = null, res = src) {
   const [bw] = blocksOf(w, h, block), out = new Float32Array(pred), Y = (img, x, y) => {
     const i = (Math.min(Math.max(y, 0), h - 1) * w + Math.min(Math.max(x, 0), w - 1)) * 4;
-    return fr(fr(fr(img[i] * LUMA[0]) + fr(img[i + 1] * LUMA[1])) + fr(img[i + 2] * LUMA[2]));
+    return lumaPx(img[i], img[i + 1], img[i + 2]);
   };
   const box = (img, x, y) => { let s = fr(0); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s = fr(s + Y(img, x + dx, y + dy)); return fr(s / 9); };
   const hardAll = u.hard || (u.cut && hash3(u.t, 3, u.seed * 4 + 1) < fr(u.honourCut));

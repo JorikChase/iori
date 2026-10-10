@@ -120,8 +120,18 @@ fn roundHalf1(x: f32) -> f32 {
   return bitcast<f32>((b + 0x0fffu + ((b >> 13u) & 1u)) & 0xffffe000u);
 }
 fn Q(v: vec4f) -> vec4f { ${fmt === 'rgba16float' ? 'return vec4f(roundHalf1(v.x), roundHalf1(v.y), roundHalf1(v.z), roundHalf1(v.w));' : 'return v;'} }`;
-export const LUMA_WGSL = /* wgsl */`const LW = vec3f(0.2126, 0.7152, 0.0722);
-fn lumaOf(c: vec4f) -> f32 { return c.r * LW.x + c.g * LW.y + c.b * LW.z; }`;
+/**
+ * Luma (BT.709) in exact integer arithmetic, twin of engine-ref.js lumaPx (M8, 2026-10-10). The float dot product
+ * rounded differently per compiler (Chrome and WebKit, and both against the CPU), and a near tie in the matcher then
+ * picked another vector and the loops drifted apart. Channels clamp to [0, 1] and quantize to 1/32768 (a power of two:
+ * exact), the weights are integers summing to 65536, and the result is a multiple of 1/32768, so the pyramid's 2 x 2
+ * means stay exact too.
+ */
+export const LUMA_WGSL = /* wgsl */`
+fn lumaOf(c: vec4f) -> f32 {
+  let q = vec3u(floor(clamp(c.rgb, vec3f(0.0), vec3f(1.0)) * 32768.0 + vec3f(0.5)));
+  return f32((13933u * q.x + 46871u * q.y + 4732u * q.z + 32768u) >> 16u) * (1.0 / 32768.0);
+}`;
 
 // ------------------------------------------------------------------------------------------------ present
 const PRESENT_WGSL = /* wgsl */`

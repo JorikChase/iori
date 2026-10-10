@@ -163,9 +163,11 @@
 
             	float limit = SPEED_LIMIT;
 
-            	dir = predator * UPPER_BOUNDS - selfPosition;
-            	dir.z = 0.;
-            	// dir.z *= 0.6;
+            	// predator is handed over in texture units (see render); the bird
+            	// mesh is turned 90° about Y, so texture x is depth — ignore it and
+            	// scare on the screen plane only
+            	dir = predator - selfPosition;
+            	dir.x = 0.;
             	dist = length( dir );
             	distSquared = dist * dist;
 
@@ -470,6 +472,7 @@
                 init();
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 composer.setSize(window.innerWidth, window.innerHeight);
+                last = performance.now(); // the clock started while the model was still loading
                 animate();
             });
 
@@ -542,6 +545,8 @@
 
                 container.style.touchAction = "none";
                 container.addEventListener("pointermove", onPointerMove);
+                container.addEventListener("pointerleave", onPointerLeave);
+                container.addEventListener("pointercancel", onPointerLeave);
                 container.appendChild(renderer.domElement);
 
                 window.addEventListener("resize", onWindowResize);
@@ -770,32 +775,77 @@
                 scene.add(birdMesh);
             }
 
+            /* ---- the launch: every bird starts inside the star menu's silhouette.
+               The resting star is a small X at the viewport centre; the birds are
+               laid along that X, extruded away from the camera as a cross-shaped
+               cone so that, seen from the camera, the whole flock hides behind the
+               star. Their first velocities point out along the arms, so the
+               simulation opens with the stars flying away from the centre.
+
+               Axes: the bird mesh is rotated 90° about Y, so simulation texture
+               space (x, y, z) lands on world (z, y, -x) — texture x is depth away
+               from the camera, texture z is screen x. */
+            const SPAWN_DEPTH = 600; // texture-x reach of the cone behind the origin plane
+
+            function starHalfWorld(distFromCamera) {
+                // half-extent of the resting star, in world units, at a given depth
+                const nav = document.getElementById("center-nav");
+                const r = nav ? nav.getBoundingClientRect() : null;
+                const halfPx = r && r.width > 0 ? Math.min(r.width, r.height) / 2 : 26;
+                const frac = halfPx / (window.innerHeight / 2);
+                return frac * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distFromCamera;
+            }
+
+            const spawnArms = []; // per bird: unit arm direction in (screen x, y) = texture (z, y)
+
             function fillPositionTexture(texture) {
                 const theArray = texture.image.data;
+                const camZ = camera.position.z;
 
                 for (let k = 0, kl = theArray.length; k < kl; k += 4) {
-                    const x = Math.random() * BOUNDS - BOUNDS_HALF;
-                    const y = Math.random() * BOUNDS - BOUNDS_HALF;
-                    const z = Math.random() * BOUNDS - BOUNDS_HALF;
+                    // deeper slices have more room: bias toward the far end
+                    const t = Math.sqrt(Math.random());
+                    const depth = t * SPAWN_DEPTH;
+                    const half = starHalfWorld(camZ + depth);
 
-                    theArray[k + 0] = x;
-                    theArray[k + 1] = y;
-                    theArray[k + 2] = z;
+                    // the resting astroid's cusps point to the box corners: an X
+                    const arm = Math.floor(Math.random() * 4);
+                    const ang = Math.PI / 4 + (arm * Math.PI) / 2;
+                    const ax = Math.cos(ang),
+                        ay = Math.sin(ang);
+                    const len = half * 1.2;
+                    const r = Math.sqrt(Math.random()) * len;
+                    // arms taper toward the cusp like the astroid does
+                    const thick = half * 0.45 * Math.pow(1 - r / len, 1.5) + half * 0.03;
+                    const side = (Math.random() + Math.random() - 1) * thick;
+
+                    const sx = ax * r - ay * side; // screen x  -> texture z
+                    const sy = ay * r + ax * side; // screen y  -> texture y
+
+                    theArray[k + 0] = depth;
+                    theArray[k + 1] = sy;
+                    theArray[k + 2] = sx;
                     theArray[k + 3] = 1;
+                    spawnArms.push(ax, ay);
                 }
             }
 
             function fillVelocityTexture(texture) {
                 const theArray = texture.image.data;
 
-                for (let k = 0, kl = theArray.length; k < kl; k += 4) {
-                    const x = Math.random() - 0.5;
-                    const y = Math.random() - 0.5;
-                    const z = Math.random() - 0.5;
+                for (let k = 0, kl = theArray.length, b = 0; k < kl; k += 4, b += 2) {
+                    const ax = spawnArms[b] ?? 0,
+                        ay = spawnArms[b + 1] ?? 0;
+                    const speed = 4 + Math.random() * 5; // up to the shader's SPEED_LIMIT
+                    const wobble = (Math.random() - 0.5) * 0.35;
+                    const c = Math.cos(wobble),
+                        sn = Math.sin(wobble);
+                    const dx = ax * c - ay * sn,
+                        dy = ax * sn + ay * c;
 
-                    theArray[k + 0] = x * 10;
-                    theArray[k + 1] = y * 10;
-                    theArray[k + 2] = z * 10;
+                    theArray[k + 0] = 1 + Math.random() * 2; // drift deeper, never into the camera
+                    theArray[k + 1] = dy * speed;
+                    theArray[k + 2] = dx * speed;
                     theArray[k + 3] = 1;
                 }
             }
@@ -811,11 +861,18 @@
                 composer.setSize(window.innerWidth, window.innerHeight);
             }
 
+            let pointerIn = false;
+
             function onPointerMove(event) {
                 if (event.isPrimary === false) return;
 
                 mouseX = event.clientX - windowHalfX;
                 mouseY = event.clientY - windowHalfY;
+                pointerIn = true;
+            }
+
+            function onPointerLeave() {
+                pointerIn = false;
             }
 
             //
@@ -841,14 +898,20 @@
                 if (materialShader)
                     materialShader.uniforms["delta"].value = delta;
 
-                velocityUniforms["predator"].value.set(
-                    (0.5 * mouseX) / windowHalfX,
-                    (-0.5 * mouseY) / windowHalfY,
-                    0,
-                );
-
-                mouseX = 10000;
-                mouseY = 10000;
+                // the cursor as predator: project it onto the origin plane in world
+                // units, then hand it over in texture space (world x,y,z → texture
+                // -z,y,x); the shader ignores depth. Stays put while the pointer is
+                // over the canvas, parks far away once it leaves
+                if (pointerIn) {
+                    const halfH =
+                        camera.position.z *
+                        Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+                    const wx = (mouseX / windowHalfX) * halfH * camera.aspect;
+                    const wy = (-mouseY / windowHalfY) * halfH;
+                    velocityUniforms["predator"].value.set(0, wy, wx);
+                } else {
+                    velocityUniforms["predator"].value.set(1e5, 1e5, 1e5);
+                }
 
                 gpuCompute.compute();
 

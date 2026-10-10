@@ -67,15 +67,17 @@ re-laid the desk so the picture, the stack and the timeline use the whole window
 4. **Masks:** tracking and on-canvas handles.
 5. **R5** when `moshine/icon.svg` arrives, then **M9b** (bake, v2 library, docs; COOP/COEP then).
 6. Small: AAC tail padding (27 ms of silence after the video; the edit list could trim it), the tablet letterbox (the
-   stack floats there), the empty bottom of a tall stack pane at full HD.
+   stack floats there), and the empty bottom of a tall stack pane at full HD (smaller now with the 480 px cap).
 
-## Decisions still open for the owner
+## Owner answers after this session
 
-- Whether the stack column should be capped narrower at full HD (it takes up to half the width, and the stack's
-  content is shorter than the window there).
-- Whether include masks should also be inert outside them (today only locks refresh inside the loop; outside an
-  include the history keeps building, which is what flows in at its edge).
+- The stack column is capped at 480 px (it took up to half the width at full HD).
+- Include masks stay as they are: only locks are inert inside the loop.
 
 ## Deploy
 
-Same steps as the previous handoff ("Deployed"). New file to ship: `stretch-worker.js` (a module worker, same origin).
+**Live at https://iori.me/moshine/ since 2026-10-10 20:28** (iori commit `7b997ed`, a copy of data_moshine `68b5ae9`).
+Same steps as the previous handoff ("Deployed"); `server_setup.sh` ran, Caddy validated and restarted. Checked live:
+`stretch-worker.js` is served as JavaScript, the new matcher and `densify` are in the served files, the demo renders
+the dense desk with no console errors. The iori tree had another track's uncommitted work (`fractals.html`,
+`audio/build.py`); it was left out of the commit.

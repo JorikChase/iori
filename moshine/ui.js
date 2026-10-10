@@ -349,7 +349,7 @@ addEventListener('resize', () => { relayout(); densify(); });
 /**
  * D41 (owner, 2026-10-10): no empty space. The timeline pane is as tall as its rows (at most 45 % of the desk), the
  * preview and stack get the rest, and on desktop the stack column takes the width the picture would otherwise
- * letterbox (330 px at least, half the desk at most). Runs on resize, edits, and a new sequence size.
+ * letterbox (330 px at least, 480 px at most: owner, 2026-10-10, capped at full HD). Runs on resize, edits, and a new sequence size.
  */
 let dense = { tlh: 0, stackw: 0 };
 function densify() {
@@ -360,7 +360,7 @@ function densify() {
   if (Math.abs(tlh - dense.tlh) > 1) { dense.tlh = tlh; desk.style.setProperty('--tlh', tlh + 'px'); }
   if (layout !== 'desktop') return;
   const stage = $('ms-stage'), s = seq(), A = s.width / s.height, sh = stage.clientHeight; if (!sh) return;
-  const want = Math.round(Math.min(D.width * 0.5, Math.max(330, D.width - sh * A - 10)));
+  const want = Math.round(Math.min(480, D.width * 0.5, Math.max(330, D.width - sh * A - 10)));
   if (Math.abs(want - dense.stackw) > 2) { dense.stackw = want; desk.style.setProperty('--stackw', want + 'px'); }
 }
 

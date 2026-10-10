@@ -16,7 +16,9 @@
         await F.renderCaseThumb(file, c, document.createElement('canvas'));
         const legacy = score(), legacyPx = Uint8ClampedArray.from(F.fit.render), photo = Uint8ClampedArray.from(F.fit.photo);
         const t0 = performance.now();
-        await T.proof(opts.url || `study/proof-layers/tissue-${ref}-whole.json`, {});
+        // study/15: the eye file by default (opts.url ending in .iris, or none); a .json url keeps the old path
+        const url = opts.url || `data/${ref}.iris`;
+        if (/\.iris$/.test(url)) { const eye = await IrisEye.fetch(url); await T.proof(url, { json: eye.tissue }); } else await T.proof(url, {});
         const ms = Math.round(performance.now() - t0), layer = score(), layerPx = Uint8ClampedArray.from(F.fit.render);
         const W = F.fit.W, H = F.fit.H, L = F.fit.limbus, s = Math.round(Math.max(L.rx, L.ry) * 2.3), x0 = Math.round(L.x - s / 2), y0 = Math.round(L.y - s / 2);
         const cv = document.createElement('canvas'); cv.width = s * 3 + 16; cv.height = s + 26; const cx = cv.getContext('2d');

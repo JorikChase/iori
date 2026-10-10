@@ -12,7 +12,11 @@
         T.debiasOn = true; window.__irisTissueUI.eye = r; await window.__irisTissueUI.load();
         F.renderFit(); const A = Uint8ClampedArray.from(F.fit.render), s = F.score();
         const ex = await T.exportMeasurements({ lightBits: 10, shadeBits: 11 }), bytes = ex.bytes;
-        const saved = await fetch(`/save/data/tissue-${r}.cal.bin`, { method: 'POST', body: bytes }).then(x => x.text());
+        // study/15: the measurements live in the eye file — replace that one section and save the file; the cal.bin stays only
+        // while the three old files are the fallback (X.eyeFile = false)
+        let saved;
+        if (window.__irisTissueUI.eyeFile && window.IrisEye) { const eye = await IrisEye.fetch(`data/${r}.iris`); const buf = await fetch(`data/${r}.iris`).then(x => x.arrayBuffer()); const out = await IrisEye.replaceSection(buf, 'measurements', new Uint8Array(bytes.buffer || bytes), 'bytes'); saved = await fetch(`/save/data/${r}.iris`, { method: 'POST', body: out }).then(x => x.text()); delete IrisEye.cache[`data/${r}.iris`]; void eye; }
+        else saved = await fetch(`/save/data/tissue-${r}.cal.bin`, { method: 'POST', body: bytes }).then(x => x.text());
         await window.__irisTissueUI.load({ arrival: true }); F.renderFit(); const B = F.fit.render; let mx = 0, n = 0;
         for (let i = 0; i < A.length; i++) { const d = Math.abs(A[i] - B[i]); if (d > 1) n++; mx = Math.max(mx, d); }
         return { eye: r, measured: [+s.match2.toFixed(2), s.strandCorr], saved, bytes: bytes.byteLength || bytes.length, gate: { maxDiff: mx, over1: n, pass: mx <= 1 } };

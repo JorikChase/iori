@@ -2,7 +2,7 @@
 """Dev server for the Iris Engine: serves the repo root and accepts POST /save/<name>.json to write
 bench outputs (cases.json, align.json, texture-study.json) into iris-engine/ref/, and
 POST /save/versions/<id>/<name>.json into iris-engine/versions/<id>/bench/ (§22), and
-POST /save/data/<name>.json|.cal.bin into iris-engine/data/ (study/11 S3). Local use only."""
+POST /save/data/<name>.json|.cal.bin|.iris into iris-engine/data/ (study/11 S3, study/15). Local use only."""
 import http.server, socketserver, sys, os, re, json
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
@@ -13,7 +13,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         n = int(self.headers.get('Content-Length', '0')); body = self.rfile.read(n)
         # /save/<name>.json → iris-engine/ref/ ; /save/versions/<id>/<name>.json → iris-engine/versions/<id>/bench/
         # /save/data/<name> → iris-engine/data/ (study/11 S3: an eye's case file and its shipped measurements, any bytes)
-        md = re.match(r'^/save/data/([A-Za-z0-9_-]+\.(?:json|cal\.bin))$', self.path)
+        md = re.match(r'^/save/data/([A-Za-z0-9_-]+\.(?:json|cal\.bin|iris))$', self.path)
         if md:
             open(os.path.join(ROOT, 'iris-engine', 'data', md.group(1)), 'wb').write(body)
             self.send_response(200); self.end_headers(); self.wfile.write(b'saved data/' + md.group(1).encode()); return

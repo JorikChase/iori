@@ -15,7 +15,7 @@
     // and (S3) the arrival's files: its own case (no photo, not the 5 MB ref/cases.json) and its shipped measurements
     const EYES = window.__irisStartEyes ? Object.keys(window.__irisStartEyes).sort() : ['26'];
     const CASE = r => (window.__irisStartEyes && window.__irisStartEyes[r] ? window.__irisStartEyes[r].file : '26-green-crypts-isolated.jpg');
-    const SRC = r => `data/tissue-${r}.json`, CASE1 = r => `data/case-${r}.json`, CAL = r => `data/tissue-${r}.cal.bin`;
+    const SRC = r => `data/tissue-${r}.json`, CASE1 = r => `data/case-${r}.json`, CAL = r => `data/tissue-${r}.cal.bin`, EYE = r => `data/${r}.iris`;   // EYE: study/15, the one file
     const X = window.__irisTissueUI = { loading: false, st: 'none', page: 'inspect', tool: 'point', eye: (window.__irisStartPending && window.__irisStartPending.ref) || '26',   /* the arriving eye; 26 for tests (?start=off) */ probe: { uv: null, heightUm: 150, yaw: 20, pitch: -14, fov: 75, contourUm: 25, mode: 'clay' } };
     let eyeAt = null, avail = {}, cases = null, prog = [0, 1, ''];
 
@@ -103,12 +103,13 @@
     // ---------------------------------------------------------------------------------------------------------
     async function available() {
         const r = X.eye; if (avail[r] !== undefined) return avail[r];
-        try { const [a, b] = await Promise.all([fetch(SRC(r), { method: 'HEAD' }), fetch('ref/' + CASE(r), { method: 'HEAD' })]); avail[r] = a.ok && b.ok; } catch (e) { avail[r] = false; }
+        try { const [a, b] = await Promise.all([fetch(X.eyeFile && window.IrisEye ? EYE(r) : SRC(r), { method: 'HEAD' }), fetch('ref/' + CASE(r), { method: 'HEAD' })]); avail[r] = a.ok && b.ok; } catch (e) { avail[r] = false; }   // study/15: the one file
         return avail[r]; }
     X.ready = () => X.st === 'loaded' && !X.loading;
     X.canLoad = () => !X.loading && avail[X.eye] !== false;
     X.canToggle = () => X.st === 'loaded' && !X.loading;
     X.loadLabel = () => (X.st === 'loaded' && T.src && T.src.ref === CASE(X.eye) ? 'Re-load eye ' : X.st === 'other' ? 'Switch to eye ' : 'Load eye ') + X.eye;
+    X.eyeFile = true;                 // study/15: load data/NN.iris (false: the three files of before)
     X.eyes = () => EYES.slice();
     // choose the eye the window loads; if a model is on screen, the chosen eye replaces it
     X.pick = r => { if (!EYES.includes(r) || X.loading) return; const was = X.eye; X.eye = r; sync(); if (X.st === 'loaded' && was !== r) X.load(); };
@@ -127,7 +128,11 @@
             // study/11 step 1: BOTH paths read the eye's PINNED case (data/case-NN.json) — the one its layer model was measured
             // and shipped on. ref/cases.json belongs to the legacy fits (presets, casebook) and is re-fitted on its own; were the
             // button to read it, its measured eye would drift from the shipped one. ref/cases.json only if the pinned file is missing.
-            let c1 = null; try { c1 = await fetch(CASE1(r)).then(q => q.ok ? q.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1(r) + ')');
+            // study/15 (ID v3): ONE file per eye — data/NN.iris carries the case, the primitives and the measurements; the three
+            // old files remain the fallback while the gate runs (X.eyeFile = false forces them)
+            let eye = null, c1 = null;
+            if (X.eyeFile && window.IrisEye) { try { eye = await IrisEye.fetch(EYE(r)); c1 = eye.case; mark('eye file (' + EYE(r) + ')'); } catch (e) { console.warn('eye file not used:', e.message); eye = null; } }
+            if (!eye) { try { c1 = await fetch(CASE1(r)).then(q => q.ok ? q.json() : null); } catch (e) {} if (c1) mark('case file (' + CASE1(r) + ')'); }
             if (!c1 && !cases) { cases = await fetch('ref/cases.json').then(r => r.json()); mark('case file (ref/cases.json)'); }
             const cs = c1 || cases[CASE(r)];
             T.on = false;
@@ -136,7 +141,7 @@
                 if (arrival && c1) { F.frameFromCase(CASE(r), c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
                 else { await F.renderCaseThumb(CASE(r), cs, document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
                 // the cached primitives only when they are this eye's (a dial re-load); another eye fetches its own
-                let st = null; await T.proof(SRC(r), { json: T.json && T.json.ref === CASE(r) ? T.json : undefined, shipped: arrival && c1 ? CAL(r) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                let st = null; await T.proof(SRC(r), { json: eye ? eye.tissue : (T.json && T.json.ref === CASE(r) ? T.json : undefined), shipped: arrival && c1 ? (eye ? eye.measurements : CAL(r)) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
                 tm.shipped = !!(T.shipped && T.shipped.light);
             });
             eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye ' + r); }
@@ -144,7 +149,7 @@
             const fr = await Promise.race([new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))), new Promise(r => setTimeout(() => r(false), 1000))]);
             mark(fr ? 'first frames on screen' : 'first frames (the tab is hidden — not waited for)');
             tm.total = Math.round(performance.now() - t0); delete tm.last;
-            tm.bytes = performance.getEntriesByType('resource').filter(e => new RegExp(`cases\\.json|case-${r}|tissue-${r}|/${r}-`).test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
+            tm.bytes = performance.getEntriesByType('resource').filter(e => new RegExp(`cases\\.json|case-${r}|tissue-${r}|/${r}-|/${r}\\.iris`).test(e.name)).map(e => [e.name.split('/').pop(), e.transferSize, e.encodedBodySize, e.decodedBodySize, Math.round(e.duration)]);
             X.timing = tm; try { localStorage.setItem('irisLoadTiming', JSON.stringify(tm)); } catch (e) {}
         } catch (e) { X.st = 'error'; q('#w31t-err').textContent = 'The layer model could not be loaded: ' + (e && e.message || e); console.error(e); }
         strokes.length = 0; T.ops = [];   // a load re-reads the primitives: the journal is replayed onto them (G4)

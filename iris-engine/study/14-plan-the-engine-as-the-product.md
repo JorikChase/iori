@@ -60,6 +60,18 @@ no materials, no fields.
 **Gate:** the four eyes round-trip (today's load → write → read → review) bit-identical on MATCH2, strandCorr,
 cellΔab; one eye file loads with no other request; the contract is `[]`.
 
+**Built 2026-10-10 (same day).** `tools/eyefile/pack.py` packs the three files into `data/NN.iris` (container of study/15 §2;
+tables with per-column lossless encodings u8 · i32 · q5 · q5d · f64, chosen by the data; `--check` decodes and compares every
+number); `eyefile.js` reads it in the page and `IrisEye.replaceSection` writes one section with everything else passed through;
+`tools/eyefile/replace.py` is the offline twin, `read.py` the dump tool. The Tissue window's load, `?eye=`, the session file,
+`__t7.review` and `__fresh.publish` go through the file; the twelve old files are deleted. **Gate passed:** on one page 26
+90.354 · 0.426 · 1.97, 09 88.117 · 0.484 · 2.78, 25 91.397 · 0.395 · 2.51, 35 88.316 · 0.394 · 2.16 — the phase 0 numbers to
+three decimals; each arrival maxDiff 1 with 0 pixels over; requests per eye: the file and the photograph only; contract
+`compare()` and `reach()` both `[]`. Sizes: 26 3.5 MB (2.3 MB gz on the wire; was 2.7 MB in three requests) · 09 4.2 (2.5) ·
+25 3.3 (2.2) · 35 2.5 (1.7). Not yet: `IrisEngine.mount` (the module boundary, step 4 — next, with 1b), the hashed served
+name (step 3's immutable cache), S4 quantisation. Seen in passing: the photograph is fetched twice on a measured load
+(1.3 MB), for 1b.
+
 ## Phase 2 — the Gabor stack: levels, fields, crests (3–4 sessions)
 
 **Goal:** the strands become fields on the polar at several heights; today's curves become extracted crests of them;

@@ -177,13 +177,13 @@
     // closed; the camera, view and zoom the visitor had are given back, so the eye keeps following the pointer. Skipped
     // without float render targets (the layer model needs them) or when the browser asks to save data.
     X.startEye = async () => {
-        const P = window.__irisStartPending; window.__irisStartPending = null; if (!P) return; if (P.ref && EYES.includes(P.ref)) X.eye = P.ref;
-        const conn = navigator.connection; if ((conn && conn.saveData) || !gl.getExtension('EXT_color_buffer_float')) return;
-        if (!(await available())) return;
+        const P = window.__irisStartPending; window.__irisStartPending = null; if (!P) { state.holdEye = false; return; } if (P.ref && EYES.includes(P.ref)) X.eye = P.ref;
+        const conn = navigator.connection; if ((conn && conn.saveData) || !gl.getExtension('EXT_color_buffer_float')) { state.holdEye = false; return; }
+        if (!(await available())) { state.holdEye = false; return; }
         const keep = { useRot: state.useRot, view: (state.view || [0, 0, 1, 1]).slice(), zoom: state.zoomPhoto, camRot: (state.camRot || [0, 0]).slice() };
-        X.quietOpen = true; state.fitting = true;
+        X.quietOpen = true; state.fitting = true; if (state.holdEye) U.say(`Eye ${X.eye} is arriving`);
         try { await X.load({ arrival: true }); }
-        finally { state.fitting = false; X.quietOpen = false; }
+        finally { state.fitting = false; X.quietOpen = false; state.holdEye = false; E.resetAccumulation(); }   // 1b: the hold ends with the eye on screen — or with the procedural fallback if the load failed
         if (X.st !== 'loaded') return;
         state.useRot = keep.useRot; state.view = keep.view; state.zoomPhoto = E.target.zoomPhoto = keep.zoom; state.camRot = keep.camRot; state.preset = 'fit-' + X.eye;
         E.resetAccumulation(); sync(); marks(); U.say(`Eye ${X.eye} — its measured tissue`); };

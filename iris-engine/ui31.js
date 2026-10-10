@@ -483,11 +483,11 @@
     // study/11 SAVE: a session kept from the last visit wins over the start eye (session.js restores it once loaded)
     const urlEye = /[?&]start=off\b/.test(location.search) || /(^|[#&])(id|seed)=/.test(location.hash.slice(1));
     let kept = null; if (!urlEye) try { kept = localStorage.getItem('irisSession'); } catch (e) {}
-    if (kept) window.__irisSessionPending = kept;
+    if (kept) { window.__irisSessionPending = kept; if (/"tissue":\{/.test(kept)) E.state.holdEye = true; }   // 1b: a kept layer-model session is on its way too — no procedural frame before it
     const START = window.__irisStartEye, startOn = !!START && !urlEye && !kept;
     if (startOn) { try { const g = E.genomeFromSeed(START.seed); Object.assign(g.globals, START.globals); g.coll = START.coll; delete g.fitted;
         E.importID({ v: 2, genome: g, fields: {}, view: START.view }); E.state.useRot = false; E.state.view = [0, 0, 1, 1]; E.state.preset = 'start-' + START.ref; E.atlas.dirty = true; E.resetAccumulation();
-        window.__irisStartPending = { ref: START.ref, file: START.file, zoom: E.state.zoomPhoto }; } catch (e) { console.warn('start eye', e); } }
+        window.__irisStartPending = { ref: START.ref, file: START.file, zoom: E.state.zoomPhoto }; E.state.holdEye = true; } catch (e) { console.warn('start eye', e); } }   // 1b: no procedural frame before the layer model
     document.body.classList.add('w31-shell');
     buildChrome(); WINS.forEach(makeWin); buildControl(byKey('control'));
     const panel = $('ui-panel'); if (panel) panel.style.display = 'none';

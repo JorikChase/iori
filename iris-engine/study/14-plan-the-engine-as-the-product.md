@@ -229,6 +229,30 @@ picture on screen, no procedural frame before it; the contract `[]`.
 accepts only `#gl` for now and throws for any other canvas; the 1b work is: shaders as strings in `engine.js`, the controls
 synced by events the UI subscribes to instead of ids the engine writes, the canvas and the resize owned by `mount`.
 
+**1b measured, 2026-10-10 (dev server, eye 26, `?eye=26`):** scripts parsed by 0.2 s, the procedural stand-in drawn from the
+first frame; the script chain (gaze → overlay → terrain → tissue-ui → lines, session) ends at 0.5 s; the eye file requested
+at 0.53 s; the layer model on screen at 1.13 s. On iori.me the 2.4 MB download sits between 0.53 s and the eye — the "couple
+of seconds". The legacy atlas bake costs **5–9 ms** (normal quality, this machine); the tissue bake 92 ms; the arrival's
+stages 47 + 65 + 2 + 100 + 29 + 216 + 1 + 139 ms. So the stand-in is not expensive, it is wrong: the fix is a hold
+(`state.holdEye`) — nothing drawn until the eye is on, the procedural eye only as the fallback when the arrival fails.
+
+**1b step 1 built, 2026-10-10 — the hold.** `state.holdEye`: raised by ui31.js before the first frame when a start eye or a
+kept layer-model session is on its way, the render loop then clears the canvas and draws nothing; lowered by X.startEye /
+session.js when the eye is on (or when the load failed — the procedural eye stays the fallback). A one-line toast while it
+holds. Verified on the dev server by sampling the canvas every 30 ms from the first script: hold from 0.43 s, zero painted
+samples during it, lowered at the moment the arrival finished (3.9 s with the pane hidden and throttled; 1.1 s visible), the
+contract `[]`. The stand-in genome import stays (it gives X.startEye the eye's zoom; 9 ms, never drawn now).
+
+**1b finding, 2026-10-10 — the legacy bake cannot be pruned before phase 2.** Test: the layered eye 26 rendered normally, then
+with every legacy atlas texture replaced by 1 × 1 black, then normally again (identical to the first). With the atlas black,
+**110 065 of the 110 350 iris pixels change, up to 160 / 255.** The tissue variant replaces the atlas's HEIGHT inside the
+region (`tissueH`, mixed by coverage) but the colour chain still reads the legacy material fields (melanin · stroma ·
+crypt; collarette · furrow · spot · nodule) through the atlas, and the pupil, ruff and limbus come from it entirely. So the
+procedural bake (5–9 ms) stays on the load path until **phase 2** gives the eye file its own material channels and the
+shader reads them — the pruning of the bake is a phase 2 gate, not a 1b task. What 1b still owns: the hold (done), the
+shaders out of the page into `engine.js`, the 23 controls synced by events, the canvas owned by `mount`, the photo fetched
+once on a measured load.
+
 **K2b — lateral subsurface (added 2026-10-10, iori: "shouldn't they have subsurface?").** The colour model is vertical
 only: light goes down through melanin and stroma and comes back at the same pixel. Add lateral transport: a tissue-space
 scattering of the irradiance weighted by stroma density and depth before the albedo, so crypt walls glow from light

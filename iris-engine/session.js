@@ -79,6 +79,8 @@
 
     // the visit: a kept session (ui31.js decided before the first frame, and skipped the start eye for it)
     const P = window.__irisSessionPending; window.__irisSessionPending = null;
+    // 1b: ui31.js raised state.holdEye for a kept layer-model session (nothing drawn until it is on); it ends here either way
     if (P) S.restore(P, { quiet: true }).then(() => U.say('Welcome back — your last eye')).catch(e => {
-        console.warn('kept session', e); try { localStorage.removeItem(KEY); } catch (e2) { return; } location.reload(); });   // a broken copy: forget it, meet the start eye
+        console.warn('kept session', e); try { localStorage.removeItem(KEY); } catch (e2) { return; } location.reload(); })   // a broken copy: forget it, meet the start eye
+        .finally(() => { state.holdEye = false; E.resetAccumulation(); });
 })();

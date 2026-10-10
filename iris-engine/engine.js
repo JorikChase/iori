@@ -1122,6 +1122,11 @@ function render(time, forceCapture = false) {
     if (camBtnState !== state.useRot) { camBtnState = state.useRot; syncCamBtn(); }
     // while the fitter or a capture drives the engine, the interactive loop must not touch state
     if ((state.capturing || state.fitting) && !forceCapture) { requestAnimationFrame(render); return; }
+    // study/14 1b (iori, 2026-10-10: "the layer model is the first picture on screen"): while a start eye is on its way,
+    // nothing is drawn — the canvas stays clear over the white page instead of showing the procedural stand-in for the
+    // seconds the eye file takes to arrive. ui31.js raises the hold before the first frame; tissue-ui.js X.startEye
+    // lowers it when the eye is on (or when it failed, and the procedural eye is the fallback).
+    if (state.holdEye && !forceCapture) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(render); return; }
     let t = time * 0.001;
     let isMoving = false;
     let dx = target.mouseX - state.mouseX, dy = target.mouseY - state.mouseY;

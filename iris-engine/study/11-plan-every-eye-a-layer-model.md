@@ -315,6 +315,8 @@ Measured-path numbers now (fresh page = any page): 26 **90.354** · 0.426 · 1.9
 **91.397** · 0.395 · 2.51 — 35 **88.316** · 0.394 · 2.16. The shipped measurements still carry the whole-eye de-light;
 republishing the four eyes on the real tiles is iori's call.
 
+**Republished 2026-10-10 (iori: "republish all four")**, each on a fresh page through `__fresh.publish`: 26 90.35 · 0.426 (624 KB) — 09 88.12 · 0.484 (579 KB) — 25 91.40 · 0.395 (525 KB) — 35 88.32 · 0.394 (515 KB); arrival gate maxDiff 1, 0 pixels over, on all four. The texture specs (`ablTex`) were not touched.
+
 ## 4. SAVE — Cmd + S, a real save / load state (D3)
 
 Read as: Cmd / Ctrl + S no longer opens the browser's useless "save page as"; it downloads a session file, and

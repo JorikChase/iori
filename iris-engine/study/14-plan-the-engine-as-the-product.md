@@ -194,14 +194,36 @@ told apart by iori only at the probe scale.
 | Soulmake | not started | phase 1's module boundary and eye file are the only work done for it |
 | mammals, pathologies beyond S+3 | ledger §7 | phase 8, one at a time |
 
-## Order, and what each phase hands the next
+## Order, and what each phase hands the next (re-sorted 2026-10-10: materials first, iori)
 
-0 floor → **1 eye file** (the schema the rest fills) → **2 Gabor stack** (fields the depth pass acts on) → **3 depth**
-(the layered model L2 renders) → **4 one camera** (the renderer the fit is judged in) → **5 fit on the page** (the
-eyes the editor works on) → **6 materials + editor** → **7 dynamics** → **8 from zero, polished**.
+0 floor → **1 eye file** (+ 1b the legacy pruned from the load path) → **2 materials** (K2 per sample, K2b lateral
+subsurface) → **3 Gabor stack** (+ 3b the grain smear) → **4 depth** → **5 one camera** → **6 fit on the page** →
+**7 editor** (comb, lift, colour, brushes) → **8 dynamics** → **9 from zero, polished**. The phase texts below keep
+their original numbers (2 Gabor, 3 depth, 4 camera, 5 fit, 6 materials + editor, 7 dynamics, 8 from zero); this list is
+the order they run in. iori: "materials are a large part of good rendering so it should take priority".
 
-Phases 4 and 5 can run in parallel in two sessions (camera and light touch `index.html` and the photo shader; the fit
-touches `fit.js`, the Worker and `layer_proof.py`), under the two-sessions-one-tree rule in HANDOFF.md.
+Phases 5 and 6 of the list (camera, fit) can run in parallel in two sessions under the two-sessions-one-tree rule.
+
+**1b — the legacy pruned from the load path (added 2026-10-10).** iori sees the old engine for a couple of seconds on
+init: the stand-in frame is the procedural renderer with the eye's globals, then the layer model arrives. Inventory every
+legacy path still executed on a load (the procedural bake, LIC strands, splat upload, the F2 carrier bake, the legacy
+fitter's case import), keep only what the layer model needs (today: the frame and the fallback), remove or defer the
+rest, and measure the cold-load timeline before and after (S0 of the start-eye plan). Gate: the layer model is the first
+picture on screen, no procedural frame before it; the contract `[]`.
+
+**K2b — lateral subsurface (added 2026-10-10, iori: "shouldn't they have subsurface?").** The colour model is vertical
+only: light goes down through melanin and stroma and comes back at the same pixel. Add lateral transport: a tissue-space
+scattering of the irradiance weighted by stroma density and depth before the albedo, so crypt walls glow from light
+entering the sheet beside them and thin strands are translucent at their edges. Gate: crypt-wall brightness profiles
+against the photos by region (`tools/crisp` samples them), cellΔab not worse.
+
+**3b — the grain smear (added 2026-10-10).** Softness off shows the photo's grain. The texture study measured that the
+photo's own speckle is isotropic at 5–9 µm and 43 % directional at 14–37 µm in crypts (11 % on the sheet): the photo turns
+grain into short streaks at that scale and the render does not. A line-integral-convolution pass on the baked region
+texture, in polar space, along the S0 orientation field (the flow field until the carrier exists), brightness-gated so
+bright pixels propagate, a slight sharpen across the direction, iterated; **albedo only, never the displacement**; a
+separately compiled bake variant. Gate: the render's directional share per band matches the photo's by region, and no
+further. Whole-eye bake only (iori); no analytic per-pixel variant.
 
 ## What iori does
 

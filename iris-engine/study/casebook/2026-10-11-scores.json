@@ -1,0 +1,122 @@
+{
+ "26": {
+  "procedural": {
+   "match2": 13.1,
+   "ssim": 0.057,
+   "ssim2": 0.095,
+   "grad": 0,
+   "dE": 25.19
+  },
+  "legacy": {
+   "match2": 65.8,
+   "ssim": 0.793,
+   "ssim2": 0.722,
+   "grad": 0.76,
+   "dE": 25.8
+  },
+  "flat": {
+   "match2": 90.4,
+   "ssim": 0.958,
+   "ssim2": 0.878,
+   "grad": 0.828,
+   "dE": 1.99
+  },
+  "layered": {
+   "match2": 87.1,
+   "ssim": 0.93,
+   "ssim2": 0.841,
+   "grad": 0.781,
+   "dE": 2.74
+  }
+ },
+ "09": {
+  "procedural": {
+   "match2": 13,
+   "ssim": 0.094,
+   "ssim2": 0.109,
+   "grad": 0,
+   "dE": 27.26
+  },
+  "legacy": {
+   "match2": 63.8,
+   "ssim": 0.716,
+   "ssim2": 0.681,
+   "grad": 0.73,
+   "dE": 22.99
+  },
+  "flat": {
+   "match2": 88.1,
+   "ssim": 0.94,
+   "ssim2": 0.845,
+   "grad": 0.81,
+   "dE": 2.79
+  },
+  "layered": {
+   "match2": 84.9,
+   "ssim": 0.902,
+   "ssim2": 0.803,
+   "grad": 0.767,
+   "dE": 2.97
+  }
+ },
+ "25": {
+  "procedural": {
+   "match2": 6.2,
+   "ssim": 0.107,
+   "ssim2": 0.133,
+   "grad": 0,
+   "dE": 39.77
+  },
+  "legacy": {
+   "match2": 63.7,
+   "ssim": 0.698,
+   "ssim2": 0.646,
+   "grad": 0.733,
+   "dE": 21.17
+  },
+  "flat": {
+   "match2": 91.4,
+   "ssim": 0.969,
+   "ssim2": 0.898,
+   "grad": 0.841,
+   "dE": 2.06
+  },
+  "layered": {
+   "match2": 87.6,
+   "ssim": 0.925,
+   "ssim2": 0.849,
+   "grad": 0.79,
+   "dE": 2.38
+  }
+ },
+ "35": {
+  "procedural": {
+   "match2": 8.4,
+   "ssim": 0.117,
+   "ssim2": 0.109,
+   "grad": 0,
+   "dE": 35.59
+  },
+  "legacy": {
+   "match2": 66,
+   "ssim": 0.759,
+   "ssim2": 0.702,
+   "grad": 0.734,
+   "dE": 22.14
+  },
+  "flat": {
+   "match2": 88.3,
+   "ssim": 0.962,
+   "ssim2": 0.87,
+   "grad": 0.757,
+   "dE": 2.28
+  },
+  "layered": {
+   "match2": 86.3,
+   "ssim": 0.948,
+   "ssim2": 0.85,
+   "grad": 0.729,
+   "dE": 2.99
+  }
+ }
+}

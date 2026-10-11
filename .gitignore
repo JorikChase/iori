@@ -84,3 +84,6 @@ tools/release/art/
 tools/audio-test/node_modules/
 tools/audio-test/out/
 tools/audio-test/signals/*.wav
+
+# casebook per-eye PNGs are regenerable from the page (tools/t7/casebook.py); the stitched sheet and scores are kept
+iris-engine/study/casebook/*-[0-9][0-9].png

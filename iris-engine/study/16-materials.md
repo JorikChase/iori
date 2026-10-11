@@ -80,6 +80,32 @@ them to the nearest material, and the ruff of those two eyes will change by up t
 materials — iori judges it then. Everything else is within the renderer's own quantisation. The file grows by ≈ 13 %
 (26: 3 543 → 3 988 KB) while rgb is still carried; K2.2 drops rgb at its gate and the file shrinks below its old size.
 
+## 2c. K2.2 built (2026-10-11) — the bake renders from materials; the colours are gone from the files
+
+`materials.js` (`window.IrisMaterials`) is the fitter's spectral table ported to the page — the same 24 × 16 × 5 × 8 × 7 grid,
+built in 70 ms, **equal to the fitter's table to the last float** on every entry checked — with the Lab round trip and the
+camera grade (hue in degrees). `tissue.js` regenerates every sample's colour from `mat` × `lum` × the eye's grade at load
+(guides normalised to unit luminance), so the bake and the photo shader are untouched: no new GPU table was needed for the
+shipped eyes, because the colours come from the CPU side exactly as the fitter made them. The engine's own 4-axis GPU
+table stays for the legacy renderer and the knobs until K2.3 moves the knobs into material space.
+
+**Gate, measured (materials vs the shipped rgb, the same page, fresh file each time):**
+
+| eye | MATCH2 materials / rgb | strandCorr | cellΔab | mean |Δ| per iris pixel | pixels over 2 steps | max |
+|---|---|---|---|---|---|---|
+| 26 | 90.339 / 90.354 | 0.425 / 0.426 | 2.00 / 1.97 | 0.33 | 0.1 % | 5 |
+| 09 | 88.136 / 88.117 | 0.484 / 0.484 | 2.77 / 2.78 | 0.38 | 0.06 % | 5 |
+| 25 | 91.372 / 91.397 | 0.395 / 0.395 | 2.67 / 2.51 | 0.66 | 6.5 % | 9 |
+| 35 | 88.307 / 88.316 | 0.393 / 0.394 | 2.16 / 2.16 | 0.42 | 1.7 % | 5 |
+
+Not bit-identical — that gate was retired in §2b — but within the precision a material has: the differences are a scatter of
+single sheet cells a few steps apart (`study/casebook/2026-10-11-matdiff-25.png`, eye 25, the worst, amplified ×25; the two
+renders cannot be told apart unamplified). Eye 25's 6.5 % is its hue-rotated grade meeting the exact Lab of the port against
+OpenCV's approximate one. **Decision 5 executed:** `publish.py --drop-rgb` removed `rgb`, `cells.sheet`, `cells.ground` and
+`rimRGB` from the four files; `materialChannels.rgbDropped` says so; the files are now 26 3,396 KB · 09 4,069 KB ·
+25 3,159 KB · 35 2,388 KB (26 was 3 543 KB with rgb only, 3 988 with both). The shipped rgb of before remains in
+git history (commit 02b2e45 and earlier) should a cross-check ever be needed.
+
 ## 3. What K2 changes
 
 - **Representation.** Per sample: a material (Ma, Ds, pheo, yellow, mie — five u8 indices into a fixed LUT grid) and a

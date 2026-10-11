@@ -79,6 +79,11 @@ def publish(ref):
     mats, lum, err, err8, dE = fit(cells['ground']); note('cells.ground', err, err8, dE); cells['matG'] = mats.tolist(); cells['lumG'] = lum.tolist()
     mats, lum, err, err8, dE = fit([t['rimRGB']]); note('rim', err, err8, dE); t['rimMat'] = mats[0].tolist(); t['rimLum'] = float(lum[0])
     t['materialChannels'] = grid()
+    if '--drop-rgb' in sys.argv:                      # K2.2's gate passed: the colours are derived, the file carries materials only
+        for setname in ('fibres', 'guides', 'beads'):
+            for cv in t[setname]: cv.pop('rgb', None)
+        cells.pop('sheet', None); cells.pop('ground', None); t.pop('rimRGB', None)
+        t['materialChannels']['rgbDropped'] = True
     out = build(ref, t, c, cal, head_over={'engine': head.get('engine'), 'scores': head.get('scores'), 'modified': head.get('modified'),
                                            'provenance': dict(head.get('provenance', {}), materials='measured (LUT materials recovered from the fitted colours, K2.1)')})
     t2, c2, cal2 = read(out)
@@ -96,4 +101,4 @@ def publish(ref):
     return rep
 
 if __name__ == '__main__':
-    for r in (sys.argv[1:] or ['26']): publish(r)
+    for r in ([a for a in sys.argv[1:] if not a.startswith('--')] or ['26']): publish(r)

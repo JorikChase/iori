@@ -137,7 +137,7 @@ def build(ref, t, c, cal, head_over=None):
     add('structures', 'json', {'collarette': g.get('coll'), 'furrows': g.get('furrows', []), 'spots': g.get('spots', []), 'nodules': g.get('nodules', []),
                                'margin.circle': t['margin']['circle']})
     m, b = table([{'xy': t['margin']['xy']}], ['xy'], ('xy',)); add('structures/margin', 'table', b, m)
-    m, b = table(t['beads'], ['xy', 'w', 'r', 'z', 'zc', 'rgb'], ('xy',)); add('structures/beads', 'table', b, m)
+    bf = [k for k in t['beads'][0].keys() if isinstance(t['beads'][0][k], list)] if t['beads'] else ['xy']; m, b = table(t['beads'], bf, ('xy',)); add('structures/beads', 'table', b, m)   # every per-point field the beads carry (rgb until K2.2, mat + lum after)
     m, b = table(t['outlines'], ['xy', 'rim'], ('xy',)); add('structures/outlines', 'table', b, m)
     # 3 levels — the ledger's six, today's sets by class; empty slots typed
     LEVELS = [('lattice', 'S-2', -0.35), ('deck', 'S-1', -0.2), ('sheet', 'S0', 0.0), ('freed', 'S+1', 0.02), ('bridges', 'S+2', 0.0), ('membrane', 'S+3', 0.3)]

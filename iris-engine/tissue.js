@@ -562,6 +562,17 @@
     // `json`: tools/layer_proof.py --export. The fit photo of json.ref must be loaded and posed (fit.renderCaseThumb / solvePose).
     T.load = function (json, opts = {}) {
         E = window.__irisEngine; gl = E.gl; F = E.fit; T.src = json;
+        // study/16 K2.2: an eye that carries MATERIALS (`mat` five indices + `lum` per sample, K2.1) gets its colours regenerated
+        // from them — rgb = grade(clip(LUT[mat] × lum)), guides normalised to unit luminance — through IrisMaterials (the
+        // fitter's own table, ported). The shipped rgb is then only a cross-check; T.useMaterials = false renders it instead.
+        if (T.useMaterials !== false && window.IrisMaterials && json.materialChannels && json.fibres && json.fibres[0] && json.fibres[0].mat) {
+            const M = window.IrisMaterials, gr = json.grade || { chroma: 1, hue: 0 }, r4 = v => v.map(x => Math.round(x * 1e4) / 1e4);
+            const regen = (list, unit) => { for (const c of list) if (c.mat && c.lum) c.rgb = c.mat.map((m, i) => r4(M.colourOf(m, c.lum[i], gr, { unit }))); };
+            regen(json.fibres, false); regen(json.guides, true); if (json.beads) regen(json.beads, false);
+            const cl = json.cells; if (cl.matS) { cl.sheet = cl.matS.map((m, i) => r4(M.colourOf(m, cl.lumS[i], gr))); cl.ground = cl.matG.map((m, i) => r4(M.colourOf(m, cl.lumG[i], gr))); }
+            if (json.rimMat) json.rimRGB = r4(M.colourOf(json.rimMat, json.rimLum, gr));
+            T.materialsUsed = true;
+        } else T.materialsUsed = false;
         const fit = F.fit, W = fit.W, H = fit.H, map = F.getMap(), sx = W / json.fit[0], sy = H / json.fit[1];
         const conv = xy => xy.map(p => uvAt(map, W, H, p[0] * sx, p[1] * sy));
         const sets = {}; let u0 = 1, u1 = 0, v0 = 1, v1 = 0, lost = 0, tot = 0;

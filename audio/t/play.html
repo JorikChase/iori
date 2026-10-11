@@ -67,8 +67,8 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script src="../shared.js"></script></head><body>
-<h2 class="sr-only">Practice player prototype: a vertical waveform scrolls up past a fixed playhead. Tap the bottom dot to play or pause; drag it sideways to change speed and up or down to change pitch. Drag the waveform to scrub, tap it to jump, hold then drag on it to mark a loop, tap the loop to clear it. Top-right picks the source: each tap steps through the three most recent takes in the library, then opens a file; bottom-right toggles the loop trainer that speeds up each pass.</h2>
+</style><script src="../shared.js"></script><script src="../wheel.js"></script></head><body>
+<h2 class="sr-only">Practice player prototype: a vertical waveform scrolls up past a fixed playhead. Tap the bottom dot to play or pause; drag it sideways to change speed and up or down to change pitch. Drag the waveform to scrub, tap it to jump, hold then drag on it to mark a loop, tap the loop to clear it. Tap the speed or pitch readout (or the tempo beside it) to set it exactly on a wheel. Top-right picks the source: a tap opens a wheel of every take in the library plus open file, press and drag on it to choose in one gesture; bottom-right toggles the loop trainer that speeds up each pass.</h2>
 <div id="pb" style="position:relative;height:540px;background:#fff;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="pc" role="img" aria-label="Practice player prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <div id="pl" style="position:absolute;inset:0;pointer-events:none;"></div>
@@ -152,7 +152,7 @@ var LAY=[];function place(k,str,x,y,p,a){LAY[k]={x:x,y:y,p:p,a:a};setPanel(k,str
 
 /* the song: always a real take from the library (recordings, retro captures, opened files, synth saves).
    Nothing is generated: with no source chosen the player is empty and the source dot asks for one. */
-var KIND={rec:'microphone',retro:'history',file:'file-music',synth:'wave-sine'};
+var KIND={rec:'microphone',retro:'history',file:'file-music',synth:'wave-sine',mix:'device-floppy'};
 var S={song:null,src:null,lib:[],srcAt:null,ctx:null,play:false,pos:0,speed:1,semi:0,loop:null,sel:null,trainer:false,pass:0,inv:0,tr:null,flash:0,press:null,loading:0};
 function setSong(sg){S.song=sg;S.pos=0;S.loop=null;S.sel=null;S.pass=0;
  var n=Math.ceil(sg.len/sg.sr*50),rows=Math.max(1,Math.ceil(n/256)),E=new Uint8Array(256*rows),hop=sg.sr/50;
@@ -216,12 +216,39 @@ function report(e){var m=e.data;if(!m||m.t!=='pos'||m.seq!==ENG.seq)return;ENG.r
 function tick(){var r=ENG.rep,sg=S.song,c=S.ctx;if(!r||!sg||!S.play||!r.play||r.seq!==ENG.seq||!c||c.state!=='running')return;
  var p=r.pos+Math.max(0,Math.min(.1,c.currentTime-r.time))*sg.sr*r.speed;
  if(S.loop&&p>=S.loop.b*sg.sr)p-=(S.loop.b-S.loop.a)*sg.sr;if(p>=sg.len)p=0;S.pos=p;}
-/* source dot: the three most recent takes, then OPEN FILE (the system picker; the file joins the library).
-   Decided synchronously from the cached list so the picker opens inside the tap (iOS needs the gesture). */
-function srcOpts(){return S.lib.slice(0,3).map(function(m){return m.id}).concat(['file']);}
-function nextSource(){if(!window.AT)return;var o=srcOpts(),cur=S.srcAt==='file'?o.length-1:(S.src?o.indexOf(S.src.id):-1),nx=o[(cur+1)%o.length];
- if(nx==='file'){S.srcAt='file';AT.takes.pick().then(function(m){if(!m)return;S.srcAt=null;refreshLib();loadTake(m.id);});}
- else{S.srcAt=null;loadTake(nx);}}
+/* source dot: a wheel (../wheel.js) of every take in the library — kind icon + length — and OPEN FILE (the system picker;
+   the file joins the library). Tap: the wheel stays open (flick, tap the band to choose). Press-drag: it opens as the
+   finger moves and the release chooses, one gesture. Rows run oldest to newest downward with OPEN FILE on top: the dot
+   sits at the top edge, so the drag has room only downward, and pulling down walks back through the library. The wheel
+   hangs below the dot with its cancel mark clear of it. Empty library: the picker at once. onDone runs inside the
+   committing pointerup, so the picker opens within the gesture (iOS needs it). */
+var WROW=44,WROWS=5;
+function below(x,y,r){var b=box.getBoundingClientRect();return{x:b.left+x,y:b.top+y+r+8+30+WROW*WROWS/2};}/* 30: the cancel mark above the wheel's corner */
+function openFile(){if(!window.AT)return;S.srcAt='file';AT.takes.pick().then(function(m){S.srcAt=null;if(!m)return;refreshLib();loadTake(m.id);});}
+function srcWheel(pr){if(!window.AT)return;if(!S.lib.length||!window.Wheel){if(!pr)openFile();return;}
+ var t=Wheel.takes(S.lib,{file:true});t.items.reverse();t.keys.reverse();
+ var cur=S.src?t.keys.indexOf(S.src.id):-1,sp=srcPos(),a=below(sp.x,sp.y,16);
+ var o={columns:[{items:t.items,index:cur>=0?cur:t.keys.length-1}],current:[cur],anchor:a,light:S.inv<.5,mode:pr?'drag':'tap',rowH:WROW,rows:WROWS,
+  onDone:function(ix){S.wheel=null;if(!ix)return;var k=t.keys[ix[0]];if(k==='file')openFile();else if(!S.src||k!==S.src.id)loadTake(k);}};
+ /* drag: the wheel sits at the anchor (not under the finger) and spins 1:1 from the touch-down point */
+ if(pr)o.pointerEvent={clientX:pr.ex,clientY:pr.ey,pointerId:pr.id,timeStamp:pr.t0};
+ var h=S.wheel=Wheel.open(o);S.wheelK='src';S.wheelKeys=t.keys;}
+/* readouts: tap one to set it exactly on a wheel (the drag on the play dot stays the primary control). Speed 50..150 %,
+   pitch -12..+12, tempo at speed (whole BPM inside the speed range). Each wheel hangs below the readout block (y 88), its
+   cancel mark clear of every readout. The engine follows each row as it passes; cancel puts the old value back. */
+function readAt(p){if(!S.song)return null;
+ if(Math.abs(p.x-W/2)<64&&p.y>16&&p.y<68)return 'speed';
+ if(p.y>=66&&p.y<=96){if(Math.abs(p.x-(W/2-40))<36)return 'semi';if(Math.abs(p.x-(W/2+40))<36&&S.song.bpm)return 'tempo';}
+ return null;}
+function valWheel(k){if(!window.Wheel||!S.song)return;var sp0=S.speed,se0=S.semi,bpm=S.song.bpm,lo=0,o;
+ function sg(v){return +v>0?'+'+v:v;}
+ if(k==='speed')o={items:Wheel.seq(50,150,1,0),index:clampN(Math.round(sp0*100),50,150)-50,x:W/2,y:88};
+ else if(k==='semi')o={items:Wheel.seq(-12,12,1,0).map(sg),index:se0+12,x:W/2-40,y:88};
+ else{if(!bpm)return;lo=Math.ceil(bpm*.5);var hi=Math.floor(bpm*1.5);o={items:Wheel.seq(lo,hi,1,0),index:clampN(Math.round(bpm*sp0),lo,hi)-lo,x:W/2+40,y:88};}
+ function apply(i){if(k==='semi')S.semi=i-12;else S.speed=clampN(k==='speed'?(50+i)/100:(lo+i)/bpm,.5,1.5);sync(false);}
+ S.wheelK=k;S.wheel=Wheel.open({columns:[{items:o.items,index:o.index}],anchor:below(o.x,o.y,0),light:S.inv<.5,mode:'tap',rowH:WROW,rows:WROWS,
+  onChange:function(ix){apply(ix[0]);},
+  onDone:function(ix){S.wheel=null;if(ix)apply(ix[0]);else{S.speed=sp0;S.semi=se0;sync(false);}saveSession();}});}
 function toggle(){if(!S.song||!ensure())return;if(S.ctx.resume)S.ctx.resume();S.play=!S.play;sync(false);S.tr={from:S.inv,to:S.play?1:0,t0:performance.now()};saveSession();}
 
 /* layout */
@@ -236,12 +263,14 @@ function snapT(t){var sg=S.song;if(!sg||!sg.bpm)return t;var g=60/sg.bpm/2,o=sg.
 function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function ts(e){return e&&e.timeStamp?e.timeStamp:performance.now()}
 box.addEventListener('pointerdown',function(e){e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}var p=pos(e),c=ctlPos();
- var b={x:p.x,y:p.y,cx:p.x,cy:p.y,t0:ts(e),moved:0,dx:0,dy:0};
+ var b={x:p.x,y:p.y,cx:p.x,cy:p.y,t0:ts(e),moved:0,dx:0,dy:0,ex:e.clientX,ey:e.clientY,id:e.pointerId};
  if(Math.hypot(p.x-srcPos().x,p.y-srcPos().y)<28){b.k='src';S.press=b;return;}
  if(Math.hypot(p.x-propPos().x,p.y-propPos().y)<28){b.k='prop';S.press=b;return;}
  if(Math.hypot(p.x-c.x,p.y-c.y)<36){if(!S.song)return;ensure();b.k='ctl';b.sp0=S.speed;b.se0=S.semi;S.press=b;return;}
+ var rd=readAt(p);if(rd){b.k='read';b.r=rd;S.press=b;return;}
  if(S.song&&p.y>TOP()&&p.y<BOT()&&!(p.x<70&&p.y>H-70)){b.k='wave';b.pos0=S.pos;b.ta=timeAt(p.y);S.press=b;}});
 box.addEventListener('pointermove',function(e){var pr=S.press;if(!pr)return;var p=pos(e);pr.dx=p.x-pr.x;pr.dy=p.y-pr.y;pr.cx=p.x;pr.cy=p.y;pr.moved=Math.max(pr.moved,Math.hypot(pr.dx,pr.dy));
+ if(pr.k==='src'&&!pr.wh&&pr.moved>8&&S.lib.length&&window.Wheel){pr.wh=1;srcWheel(pr);return;}
  if(pr.k==='ctl'&&pr.moved>6){var sp1=Math.max(.5,Math.min(1.5,Math.round((pr.sp0+pr.dx*.0025)*100)/100)),se1=Math.max(-12,Math.min(12,pr.se0-Math.round(pr.dy/14)));
   if(sp1!==S.speed||se1!==S.semi){S.speed=sp1;S.semi=se1;sync(false);}}
  if(pr.k==='wave'&&S.song){
@@ -253,9 +282,10 @@ function up(){var pr=S.press;S.press=null;if(!pr)return;
   if(pr.mode==='loop'){var s=S.sel;S.sel=null;if(s&&s.b-s.a>=.25){S.loop=s;S.pass=0;seek(s.a*S.song.sr);}return;}
   if(pr.mode==='scrub')return;
   var t=timeAt(pr.y);if(S.loop&&t>=S.loop.a&&t<=S.loop.b){S.loop=null;sync(false);}else seek(Math.max(0,Math.min(S.song.len-1,t*S.song.sr)));return;}
- if(pr.moved>8)return;
+ if(pr.wh||pr.moved>8)return;
  if(pr.k==='ctl')toggle();
- else if(pr.k==='src'){nextSource();}
+ else if(pr.k==='src')srcWheel(null);
+ else if(pr.k==='read')valWheel(pr.r);
  else if(pr.k==='prop'){S.trainer=!S.trainer;sync(false);}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});

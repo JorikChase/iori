@@ -67,8 +67,8 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script src="../shared.js"></script></head><body>
-<h2 class="sr-only">Analyzer: tap the dot to start or stop listening, hold it and drag to a bud to switch between a circular spectrum, a dithered vertical spectrogram and a loudness meter; tap the top-right dot to switch source between the microphone, the three most recent takes in the library and an audio file.</h2>
+</style><script src="../shared.js"></script><script src="../wheel.js"></script></head><body>
+<h2 class="sr-only">Analyzer: tap the dot to start or stop listening, hold it and drag to a bud to switch between a circular spectrum, a dithered vertical spectrogram and a loudness meter; tap the top-right dot for a wheel of sources: the microphone, every take in the library and an audio file; press and drag on it to choose in one gesture.</h2>
 <div id="ab" style="position:relative;height:540px;background:#fff;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="ac" role="img" aria-label="Analyzer prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <div id="al" style="position:absolute;inset:0;pointer-events:none;"></div>
@@ -180,7 +180,7 @@ function cols(str){return Math.max(0,str.length*4-1)}
 var LAY=[];function place(k,str,x,y,pitch,align){LAY[k]={x:x,y:y,p:pitch,a:align};setPanel(k,str);}
 
 /* audio */
-var S={sty:0,run:false,wait:false,tok:0,src:'mic',take:null,recent:[],order:[],ctx:null,view:0,from:0,vt:1,vt0:0,inv:0,tr:null,flash:0,press:null,pick:null,buf:null,bufId:null,micFail:false,micTried:false,
+var S={sty:0,run:false,wait:false,tok:0,src:'mic',take:null,lib:[],order:[],wheel:null,ctx:null,view:0,from:0,vt:1,vt0:0,inv:0,tr:null,flash:0,press:null,pick:null,buf:null,bufId:null,micFail:false,micTried:false,
  nodes:[],stream:null,an:null,kwBlocks:[],ms400:[],raw400:[],peak:[],intg:-70,mom:-70,sh:-70,rms:-90,pk:-90,head:0};
 var A={};
 function ensure(){if(S.ctx)return true;try{var AC=window.AudioContext||window.webkitAudioContext;S.ctx=new AC();}catch(_){return false;}
@@ -210,7 +210,7 @@ function stopSrc(){S.nodes.forEach(function(n){try{n.stop&&n.stop();}catch(_){}t
 /* sources: only real audio. 'mic' (default), 'take' (a take from the library, looped), 'file' (the picker; the file becomes a take) */
 function saveSrc(){AT.session.save('ana',S.src==='take'?{src:'take',take:S.take}:{src:'mic'});}
 function toMic(){end();S.src='mic';S.take=null;S.micTried=false;saveSrc();}
-function refresh(){return AT.takes.list().then(function(a){S.order=a.map(function(m){return m.id});S.recent=S.order.slice(0,3);
+function refresh(){return AT.takes.list().then(function(a){S.lib=a;S.order=a.map(function(m){return m.id});
  if(S.src==='take'&&S.order.indexOf(S.take)<0)toMic();});}
 var SS=AT.session.load('ana');if(SS&&SS.src==='take'&&SS.take){S.src='take';S.take=SS.take;}
 refresh();AT.onTakes(function(){refresh();});
@@ -232,17 +232,30 @@ function toggle(){if(S.run||S.wait)end();else begin();}
 /* open file: the system picker (from this tap); the file is imported into the library and analysed as a take */
 function openFile(){end();S.src='file';if(ensure()&&S.ctx.resume)S.ctx.resume();var tok=S.tok;
  AT.takes.pick().then(function(m){if(!m||tok!==S.tok||S.src!=='file')return;S.src='take';S.take=m.id;saveSrc();refresh();begin();});}
-/* the source dot: microphone -> the three most recent takes -> open file -> microphone.
-   With the microphone refused, the first tap retries it; if it is still refused the next tap moves on. */
-function srcTap(){
- if(S.src==='mic'&&S.micFail&&!S.micTried){S.micTried=true;begin();return;}
- var L=['mic'].concat(S.recent.map(function(id){return 't:'+id}),['file']),cur=S.src==='take'?'t:'+S.take:S.src,i=L.indexOf(cur);
- if(i<0)i=L.length-2;var nx=L[(i+1)%L.length],was=S.run||S.wait;
- if(nx==='file'){openFile();return;}
- if(nx==='mic'){S.src='mic';S.take=null;S.micTried=false;}else{S.src='take';S.take=nx.slice(2);}
- saveSrc();if(was)begin();else S.tok++;}
+/* the source dot: a wheel (../wheel.js) of the microphone, every take in the library (kind icon + length) and OPEN FILE.
+   Tap: the wheel stays open (flick, tap the band to choose). Press-drag: it opens as the finger moves and the release
+   chooses, one gesture. Rows run oldest to newest downward, OPEN FILE on top and the microphone at the bottom: the dot
+   sits at the top edge, so the drag has room only downward, and pulling down walks from the microphone back through the
+   library. The wheel hangs below the dot with its cancel mark clear of it. Choosing a source starts listening on it.
+   The microphone refused: its row shows microphone-off and choosing it retries; still refused, the refused state stays.
+   onDone runs inside the committing pointerup, so the file picker opens within the gesture (iOS needs it). */
+var WROW=44,WROWS=5,KIND={rec:'microphone',retro:'history',file:'file-music',synth:'wave-sine',mix:'device-floppy'};
+function choose(k){
+ if(k==='file'){openFile();return;}
+ if(k==='mic'){if(S.src==='mic'&&(S.run||S.wait))return;S.src='mic';S.take=null;S.micTried=false;}
+ else{if(S.src==='take'&&S.take===k&&(S.run||S.wait))return;S.src='take';S.take=k;}
+ saveSrc();begin();}
+function srcWheel(pr){if(!window.Wheel)return;
+ var t=Wheel.takes(S.lib,{mic:true,file:true});t.items.reverse();t.keys.reverse();if(S.micFail)t.items[t.items.length-1]={icon:'microphone-off'};
+ var cur=t.keys.indexOf(S.src==='take'?S.take:S.src);if(cur<0)cur=t.keys.length-1;
+ var b=box.getBoundingClientRect(),sp=srcPos(),a={x:b.left+sp.x,y:b.top+sp.y+16+8+30+WROW*WROWS/2};/* 30: the cancel mark above the wheel's corner */
+ var o={columns:[{items:t.items,index:cur}],anchor:a,light:S.inv<.5,mode:pr?'drag':'tap',rowH:WROW,rows:WROWS,
+  onDone:function(ix){S.wheel=null;if(ix)choose(t.keys[ix[0]]);}};
+ /* drag: the wheel sits at the anchor (not under the finger) and spins 1:1 from the touch-down point */
+ if(pr)o.pointerEvent={clientX:pr.ex,clientY:pr.ey,pointerId:pr.id,timeStamp:pr.t0};
+ var h=S.wheel=Wheel.open(o);S.wheelKeys=t.keys;}
 function srcIcon(){if(S.src==='mic')return S.micFail?'microphone-off':'microphone';if(S.src==='file')return 'file-music';
- var r=S.recent.indexOf(S.take);return r>=0?'number-'+(r+1):'history';}
+ for(var i=0;i<S.lib.length;i++)if(S.lib[i].id===S.take)return KIND[S.lib[i].kind]||'file-music';return 'history';}
 function setView(v){if(v===S.view)return;S.from=S.view;S.view=v;S.vt0=performance.now();S.vt=0;}
 
 /* layout */
@@ -258,14 +271,15 @@ function ts(e){return e&&e.timeStamp?e.timeStamp:performance.now()}
 var HOLD=window.__HOLD||260;
 box.addEventListener('pointerdown',function(e){e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}var p=pos(e),s=srcPos();
  var sy=styPos();if(S.view===0&&Math.hypot(p.x-sy.x,p.y-sy.y)<28){S.press={k:'sty',x:p.x,y:p.y,t0:ts(e),moved:0};return;}
- if(Math.hypot(p.x-s.x,p.y-s.y)<28){S.press={k:'src',x:p.x,y:p.y,t0:ts(e),moved:0};return;}
+ if(Math.hypot(p.x-s.x,p.y-s.y)<28){S.press={k:'src',x:p.x,y:p.y,t0:ts(e),moved:0,ex:e.clientX,ey:e.clientY,id:e.pointerId};return;}
  if(Math.hypot(p.x-CT.x,p.y-CT.y)<Math.max(30,CT.r+12)){S.press={k:'ctl',x:p.x,y:p.y,t0:ts(e),moved:0};return;}
  if(S.view===2&&p.y<130){S.press={k:'reset',x:p.x,y:p.y,t0:ts(e),moved:0};}});
 box.addEventListener('pointermove',function(e){var pr=S.press;if(!pr)return;var p=pos(e);pr.moved=Math.max(pr.moved,Math.hypot(p.x-pr.x,p.y-pr.y));
  if(S.pick){var c=ctlTarget(),d=Math.hypot(p.x-c.x,p.y-c.y),bi=-1,bd=.6;if(d>34){var an=Math.atan2(p.y-c.y,p.x-c.x);for(var i=0;i<3;i++){var b=budPos(i),ba=Math.atan2(b.y-c.y,b.x-c.x),df=Math.abs(Math.atan2(Math.sin(an-ba),Math.cos(an-ba)));if(df<bd){bd=df;bi=i;}}}S.pick.sel=bi;return;}
+ if(pr.k==='src'&&!pr.wh&&pr.moved>8&&window.Wheel){pr.wh=1;srcWheel(pr);return;}
  if(pr.k==='ctl'&&pr.moved>10&&ts(e)-pr.t0<HOLD){S.pick={sel:-1};}});
-function up(){var pr=S.press;S.press=null;if(S.pick){var sel=S.pick.sel;S.pick=null;if(sel>=0)setView(sel);return;}if(!pr||pr.moved>12)return;
- if(pr.k==='ctl')toggle();else if(pr.k==='src')srcTap();else if(pr.k==='reset')resetLoud();else if(pr.k==='sty')S.sty=(S.sty+1)%3;}
+function up(){var pr=S.press;S.press=null;if(S.pick){var sel=S.pick.sel;S.pick=null;if(sel>=0)setView(sel);return;}if(!pr||pr.wh||pr.moved>12)return;
+ if(pr.k==='ctl')toggle();else if(pr.k==='src')srcWheel(null);else if(pr.k==='reset')resetLoud();else if(pr.k==='sty')S.sty=(S.sty+1)%3;}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 

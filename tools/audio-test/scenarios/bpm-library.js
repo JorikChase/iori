@@ -1,6 +1,6 @@
 /* BPM detector with real audio only (no demo): empty on first open; a recording REPLACES the strip, is kept in the
-   library and does NOT write the shared tempo; a drag selection does; a recent take is picked from the properties
-   dot; an opened file is analysed and kept; reopening restores the last analysed take. */
+   library and does NOT write the shared tempo; a drag selection does; a take is picked from the properties dot's take
+   wheel (still hold, release commits); an opened file is analysed and kept; reopening restores the last analysed take. */
 const path = require('path');
 module.exports = async (lib) => {
   const dir = lib.outDir('bpm-library'); const W = lib.VIEW.width, H = lib.VIEW.height;
@@ -46,16 +46,14 @@ module.exports = async (lib) => {
   check('dragSetsTempo', !s3.whole && s3.res && lib.near(s3.tempo, 120, 1.5), { res: s3.res, tempo: s3.tempo });
   steps.dragSetsTempo.file = await shot(page, '3-selection');
 
-  // 4. hold the properties dot, slide to the newest take's bud (the recording), release: analysed from its saved samples
+  // 4. hold the properties dot still: the take wheel (drag mode) lists every take, on the recording; release: analysed from its saved samples
   await page.evaluate(() => { __S.n = 0; __S.secs = []; __S.res = null; __S.envDirty = true; });   // prove it reloads
-  const bud = [prop[0] + Math.cos(95 * Math.PI / 180) * 92, prop[1] - Math.sin(95 * Math.PI / 180) * 92];
-  await page.mouse.move(...prop); await page.mouse.down(); await page.waitForTimeout(300);
-  for (let i = 1; i <= 6; i++) { await page.mouse.move(prop[0] + (bud[0] - prop[0]) * i / 6, prop[1] + (bud[1] - prop[1]) * i / 6); await page.waitForTimeout(40); }
-  const menu = await page.evaluate(() => ({ open: !!(__S.mp && __S.mp.open), sel: __S.mp ? __S.mp.sel : null, k: __S.mp && __S.mp.k }));
-  await shot(page, '4-takes-menu');
+  await page.mouse.move(...prop); await page.mouse.down(); await page.waitForTimeout(450);
+  const menu = await page.evaluate(() => { const w = Wheel.active(); return w ? { open: true, kind: w.kind, mode: w.mode, n: w.cols[0].n, sel: w.indices()[0], lib: __S.lib.length } : { open: false }; });
+  await shot(page, '4-take-wheel');
   await page.mouse.up(); await idle(page);
   const s4 = await state(page);
-  check('pickRecent', menu.open && menu.k === 'takes' && menu.sel === 0 && s4.takeId === rec.id && s4.secs.length === 1 && lib.near(s4.secs[0].bpm, 120, 1.5) && lib.near(s4.tempo, 120, 1.5),
+  check('pickRecent', menu.open && menu.kind === 'takes' && menu.mode === 'drag' && menu.n === menu.lib && menu.sel === 0 && s4.takeId === rec.id && s4.secs.length === 1 && lib.near(s4.secs[0].bpm, 120, 1.5) && lib.near(s4.tempo, 120, 1.5),
     { menu, takeId: s4.takeId, secs: s4.secs, tempo: s4.tempo });
 
   // 5. open a file from the source dot (top-right): analysed, two sections, kept in the library, tempo untouched

@@ -67,8 +67,8 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script src="../shared.js"></script></head><body>
-<h2 class="sr-only">Touch prototype of the finished synth seed: double-tap the seed to mute it; hold the top-right dot and drag away to rotate between Serum-style, FM and mono setups; hold a coloured dot on the left edge for that category's genes; the garden is kept between visits. Also: drag out of the centre to grow a mutating branch, rest to drop an anchor, release on an anchor to park it. Tap parked branches to switch each one on or off so several play together with the seed, drag one to re-mutate it or back onto the seed to remove it. Hold the centre for the path menu, the top-left dot for distortion and filter layers (now part of each sound and mutated by branches), the bottom-right dot for the gene spiral. Everything the synth plays is kept for four minutes: tap the dot on the right edge to place the last 30 seconds on the editor timeline, or hold it and drag down along the edge to choose from 10 seconds up to four minutes, then release to place it; release back at the start to cancel.</h2>
+</style><script src="../shared.js"></script><script src="../wheel.js"></script></head><body>
+<h2 class="sr-only">Touch prototype of the finished synth seed: double-tap the seed to mute it; hold the top-right dot and drag away to rotate between Serum-style, FM and mono setups; hold a coloured dot on the left edge for that category's genes; the garden is kept between visits. Also: drag out of the centre to grow a mutating branch, rest to drop an anchor, release on an anchor to park it. Tap parked branches to switch each one on or off so several play together with the seed, drag one to re-mutate it or back onto the seed to remove it. Hold the centre for the path menu, the top-left dot for distortion and filter layers (now part of each sound and mutated by branches), the bottom-right dot for the gene spiral. Everything the synth plays is kept for four minutes: tap the dot on the right edge to place the last 30 seconds on the editor timeline, or hold it and drag down along the edge to choose from 10 seconds up to four minutes, then release to place it; release back at the start to cancel. In the gene spiral and in the menus, hold still on a number and lift without sliding to open a wheel for its exact value.</h2>
 <div id="sb" style="position:relative;height:520px;background:#fff;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="sc" role="img" aria-label="Synth seed prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <div id="sl" style="position:absolute;inset:0;pointer-events:none;"></div>
@@ -142,7 +142,7 @@ function mkTex(lin){var t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);var
 var tex=mkTex(false),wtex=mkTex(true);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
 var TD=new Uint8Array(64*32*2),WD=new Uint8Array(256),WB=null,wAmp=0;for(var i=0;i<256;i++)WD[i]=128;
 var ND=new Float32Array(96),SG=new Float32Array(16),SGC=new Float32Array(4),BP=new Float32Array(68),AN=new Float32Array(12),GN=new Float32Array(128),PK=new Float32Array(24),PC=new Float32Array(18),PS=new Float32Array(96),PN=new Float32Array(48),PMv=new Float32Array(24);
-var W=380,H=520,dpr=1;
+var W=380,H=520,dpr=1,DK=false;
 function size(){W=box.clientWidth||380;H=box.clientHeight||520;dpr=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);gl.viewport(0,0,cv.width,cv.height);placeRoots();}
 
 /* dot-matrix text */
@@ -382,6 +382,42 @@ function endBranch(){var b=S.br;S.br=null;S.aud=false;
 function remut(k,p){var A=k.an[k.an.length-2],T=k.an[k.an.length-1],dx=p.x-A.p.x,dy=p.y-A.p.y,L=Math.hypot(dx,dy),ang=Math.atan2(dy,dx),off=k.an.length===2?RC.r+6:6,m=Math.max(0,Math.min(1,(L-off)/210));
  k.u=mutate(A.u,ang,m,A.ph);T.u=k.u;T.p={x:p.x,y:p.y};k.x=p.x;k.y=p.y;k.col=mixCol(k.an[0].u,k.u).col;syncGU();live();}
 
+/* the wheel (wheel.js): the exact way into a value. The slide stays the main control; a still hold on a NUMERIC value
+   (the dwell that starts the slide) and a lift without sliding (< 8 px) opens the wheel there instead. Lists of picks
+   (wave, octave, filter types, delay time, shapes, FM ratio) keep their gestures. Steps come from the gene table:
+   semitones for pitches (base, comb), E24 round numbers for cutoffs, a 1-2-5 ladder for envelope times (ms), 1 % for
+   mixes, 0.5 dB for level, 0.1 for res / FM index, 1 for cents. Spinning previews the sound live; the x restores the
+   value it had; a commit sets the step exactly (an unmoved wheel leaves the value as it was) and saves the garden. */
+var E24=[10,11,12,13,15,16,18,20,22,24,27,30,33,36,39,43,47,51,56,62,68,75,82,91];
+function gLadder(i){var g=GN0[i];if(g.o)return null;var a=[],k,n=g.n;
+ function run(lo,hi,st){for(var j=0,m=Math.round((hi-lo)/st);j<=m;j++)a.push(+(lo+j*st).toFixed(6));}
+ if(n==='base'||n==='combF'){for(k=-60;k<=60;k++)a.push(440*Math.pow(2,k/12));}
+ else if(g.fq){for(k=0;k<6;k++)E24.forEach(function(e){a.push(e*Math.pow(10,k));});}
+ else if(g.ms){run(1,10,1);run(12,20,2);run(25,50,5);run(60,100,10);run(120,200,20);run(250,500,50);run(600,1200,100);a=a.map(function(v){return v/1000});}
+ else if(g.pc)run(0,Math.round(g.hi*100),1),a=a.map(function(v){return v/100});
+ else if(g.db)run(g.lo,g.hi,.5);
+ else if(n==='res'){run(.5,2,.1);run(2.5,8,.5);run(9,16,1);}
+ else if(n==='lrate'){run(.1,1,.1);run(1.25,4,.25);run(4.5,8,.5);run(9,12,1);}
+ else if(g.dec)run(g.lo,g.hi,Math.pow(10,-g.dec));
+ else run(g.lo,g.hi,1);
+ a.push(g.lo,g.hi);a=a.filter(function(v){return v>=g.lo-1e-9&&v<=g.hi+1e-9}).sort(function(x,y){return x-y});
+ return a.filter(function(v,j){return !j||Math.abs(v-a[j-1])>1e-9*Math.max(1,Math.abs(v))});}
+function geneSpec(i,at,spi){var L=gLadder(i);if(!L)return null;
+ return{gi:i,vals:L,labs:L.map(function(v){return fgene(i,toU(i,v))}),uOf:function(v){return toU(i,v)},apply:function(a,v){a[i]=Math.max(0,Math.min(1,toU(i,v)));},at:at,sp:!!spi,ic:CICON[GN0[i].c]};}
+function layerSpec(t,lv,at){var D=LT[t],s;
+ if(t==='crush'){var L=[];for(var b=D.rng.lo;b<=D.rng.hi;b++)L.push(b);
+  return{gi:GI.crush,vals:L,labs:L.map(String),uOf:function(v){return Math.max(.1,(12-v)/10)},apply:function(a,v){setLayer(a,t,lv,v);},at:at,ic:D.icon};}
+ s=geneSpec(GI[{drive:'drvAmt',filter:'fltCut',comb:'combF'}[t]],at);s.apply=function(a,v){setLayer(a,t,lv,v);};s.ic=D.icon;return s;}
+function pathSpec(){var J=S.adj,A=anchor(),at=dp(A);if(GI[J.k]!=null)return GN0[GI[J.k]].o?null:geneSpec(GI[J.k],at);
+ if(J.k==='amt'){var v={};S.path.forEach(function(n){for(var k in n.v)v[k]=n.v[k];});if(v.ltype)return layerSpec(v.ltype,v.lvar||0,at);}return null;}
+function wheelOpen(sp){if(!window.Wheel||!sp)return;var a=GU,snap=a.slice(),i0=0,bd=1e9,r=box.getBoundingClientRect();
+ sp.vals.forEach(function(v,k){var d=Math.abs(sp.uOf(v)-a[sp.gi]);if(d<bd){bd=d;i0=k;}});
+ var w=S.wh={gi:sp.gi,sp:sp.sp,ic:sp.ic,i0:i0,idx:i0,lab:sp.labs[i0],done:null};
+ function put(k){for(var j=0;j<a.length;j++)a[j]=snap[j];if(k!==i0)sp.apply(a,sp.vals[k]);w.idx=k;w.lab=sp.labs[k];live();}
+ w.h=Wheel.open({anchor:{x:r.left+sp.at.x,y:r.top+sp.at.y},columns:[{items:sp.labs,index:i0}],mode:'tap',light:!DK,
+  onChange:function(ix){put(ix[0]);},   /* live preview while spinning */
+  onDone:function(ix){put(ix?ix[0]:i0);w.done=ix?'commit':'cancel';if(S.wh===w)S.wh=null;saveGarden();}});}
+
 /* input */
 function hitPk(p){for(var i=S.pk.length-1;i>=0;i--){var k=S.pk[i];if(!k.dead&&Math.hypot(p.x-k.x,p.y-k.y)<22)return k;}return null;}
 box.addEventListener('pointerdown',function(e){ensure();   /* audio exists from the first touch: iOS resumes it on this touch's end (shared.js); the seed tap itself is resolved on a timer, outside any gesture */
@@ -395,7 +431,7 @@ e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}
 box.addEventListener('pointermove',function(e){var p=pos(e);S.fp=p;
  if(S.br){branchAt(p,e);return;}
  if(S.sp){var sp=S.sp;
-  if(S.adj&&!S.adj.path){var J=S.adj,dy=J.py-p.y,g=1/(1+Math.abs(p.x-J.x0)/30);J.py=p.y;J.g=g;GU[J.i]=Math.max(0,Math.min(.9999,GU[J.i]+dy*g/240));live();return;}
+  if(S.adj&&!S.adj.path){var J=S.adj,dy=J.py-p.y,g=1/(1+Math.abs(p.x-J.x0)/30);J.mv=Math.max(J.mv,Math.hypot(p.x-J.x0,p.y-J.y0));J.py=p.y;J.g=g;GU[J.i]=Math.max(0,Math.min(.9999,GU[J.i]+dy*g/240));live();return;}
   if(!S.dw||Math.hypot(p.x-S.dw.x,p.y-S.dw.y)>4)S.dw={x:p.x,y:p.y,t:ts(e)};
   var bi=-1,bd=24;for(var i=0;i<GN0.length;i++){var q=gpos(i),d=Math.hypot(p.x-q.x,p.y-q.y);if(d<bd){bd=d;bi=i;}}sp.hv=bi;return;}
  if(S.dial){var dd=Math.hypot(p.x-RT.lp.x,p.y-RT.lp.y),stp=dd<56?0:Math.floor((dd-56)/46)+1;S.dial.idx=(S.dial.i0+stp)%SETUPS.length;return;}
@@ -405,7 +441,7 @@ box.addEventListener('pointermove',function(e){var p=pos(e);S.fp=p;
  if(pr.ldot)return;
  if(pr.root===RS){var cp=S.cap;if(cp){cp.y=p.y;cp.on=pr.moved>12&&p.y-pr.y>16;cp.sec=cp.on?capSel(p.y):0;}return;}
  if(!S.open){if(pr.moved>12){if(pr.root===RC&&ts(e)-pr.t0<HOLD){startBranch(e);branchAt(p,e);}else if(pr.root===RT){S.dial={i0:S.setup,idx:S.setup};S.press=null;}else S.press=null;}return;}
- if(S.adj){var J=S.adj,dy=J.py-p.y,g=1/(1+Math.abs(p.x-J.x0)/30);J.py=p.y;J.g=g;
+ if(S.adj){var J=S.adj,dy=J.py-p.y,g=1/(1+Math.abs(p.x-J.x0)/30);J.mv=Math.max(J.mv,Math.hypot(p.x-J.x0,p.y-J.y0));J.py=p.y;J.g=g;
   if(GI[J.k]!=null){var i=GI[J.k];J.u=Math.max(0,Math.min(.9999,J.u+dy*g/240));J.val=val(i,J.u);GU[i]=J.u;live();}
   else{var rg=J.rng,u2=Math.max(0,Math.min(1,rngU(rg,J.val)+dy*g/240));J.val=rngV(rg,u2);}
   return;}
@@ -416,14 +452,15 @@ box.addEventListener('pointermove',function(e){var p=pos(e);S.fp=p;
  var an=Math.atan2(p.y-q.y,p.x-q.x),bi=-1,bd=1e9;
  for(var i=0;i<a.kids.length;i++){var k=a.kids[i],ka=Math.atan2(k.lp.y-a.lp.y,k.lp.x-a.lp.x),df=Math.abs(Math.atan2(Math.sin(an-ka),Math.cos(an-ka)));if(df<bd){bd=df;bi=i;}}
  if(bi>=0&&bd<a.step*.6+.12){var kk=a.kids[bi];S.path.push(kk);layoutKids(kk);S.tk=performance.now();}});
-function up(e){if(S.br){endBranch();return;}if(S.sp){S.sp=null;S.adj=null;S.dw=null;return;}
+function up(e){if(S.br){endBranch();return;}var still=!!e&&e.type!=='pointercancel';
+ if(S.sp){var J=S.adj,ws=null;if(J&&!J.path&&still&&J.mv<8&&!GN0[J.i].o){GU[J.i]=J.u0;live();ws=geneSpec(J.i,gpos(J.i),true);}S.sp=null;S.adj=null;S.dw=null;if(ws)wheelOpen(ws);return;}
  var pr=S.press;S.press=null;
  if(pr&&pr.root===RS){var cp=S.cap;S.cap=null;if(e&&e.type==='pointercancel')return;
   if(cp&&cp.on)placeTail(capSel(cp.y));else if(pr.moved<=12)placeTail(Math.min(30,gathered()));return;}
  if(pr&&pr.ldot){if(pr.moved<=12){layerOff(GU,pr.ldot);live();}return;}
  if(pr&&pr.pk){var k=pr.pk;if(pr.drag){S.aud=false;S.audK=null;var c0=C0();if(Math.hypot(k.x-c0.x,k.y-c0.y)<RC.r+14){k.dead=true;k.on=false;if(S.act===k)setAct(null);}else live();return;}
   if(!k.on){k.on=true;setAct(k);if(!S.run)toggle(true);}else if(S.act!==k)setAct(k);else{k.on=false;setAct(null);}live();return;}
- if(S.open){commit();close();return;}
+ if(S.open){var J=S.adj,ws=J&&J.path&&still&&J.mv<8?pathSpec():null;if(ws){J.val=J.val0;if(J.u0!=null)J.u=J.u0;}commit();close();if(ws)wheelOpen(ws);return;}
  if(S.dial){var dl=S.dial;S.dial=null;if(dl.idx!==S.setup){S.setup=dl.idx;st(RT.id).v+=8;}return;}
  if(pr&&pr.moved<=12){if(pr.root===RC){var tn=ts(e);if(tn-S.lastTap<DTAP&&S.tapT){clearTimeout(S.tapT);S.tapT=null;S.mute=!S.mute;st(RC.id).v+=8;live();S.lastTap=0;}else{S.lastTap=tn;S.tapT=setTimeout(function(){S.tapT=null;toggle();},DTAP-40);}}
   else if(pr.root===RT){S.setup=(S.setup+1)%SETUPS.length;st(RT.id).v+=8;}else if(pr.root===RD){S.layersOn=!S.layersOn;live();}}}
@@ -439,20 +476,20 @@ function frame(nw){
  if(S.press&&S.press.root&&!S.open&&!S.br&&!S.sp&&nw-S.press.t0>HOLD&&S.press.moved<=12){var rr=S.press.root;if(rr===RC||rr===RD||rr.catRoot)openAt(rr);else if(rr===RP){S.sp={hv:-1};S.press=null;}else if(rr===RT){S.dial={i0:S.setup,idx:S.setup};S.press=null;}}
  if(S.br){var b=S.br;if(!b.atA&&nw-b.dw.t>ANCH&&b.m>.06&&b.an.length<5){b.an.push({p:{x:S.fp.x,y:S.fp.y},u:b.u.slice(),ph:newPh()});b.atA=true;b.m=0;b.L=0;anS[b.an.length-2]=0;}}
  if(S.open&&!S.adj&&S.path.length>1&&S.dw){var A0=anchor(),k0=null;for(var kk in A0.v)if(KEYS[kk]||A0.gk)k0=kk;
-  if(k0&&nw-S.dw.t>DWELL&&Math.hypot(S.fp.x-A0.lp.x,S.fp.y-A0.lp.y)<30){S.adj={path:1,k:k0,val:A0.v[k0],py:S.fp.y,x0:S.fp.x,g:1,rng:A0.rng};st(A0.id).v+=9;if(GI[k0]!=null){S.adj.u=A0.gk?GU[GI[k0]]:toU(GI[k0],A0.v[k0]);GU[GI[k0]]=S.adj.u;live();}}}
- if(S.sp&&!S.adj&&S.sp.hv>=0&&S.dw&&nw-S.dw.t>DWELL){S.adj={i:S.sp.hv,py:S.fp.y,x0:S.fp.x,g:1};}
+  if(k0&&nw-S.dw.t>DWELL&&Math.hypot(S.fp.x-A0.lp.x,S.fp.y-A0.lp.y)<30){S.adj={path:1,k:k0,val:A0.v[k0],val0:A0.v[k0],py:S.fp.y,x0:S.fp.x,y0:S.fp.y,mv:0,g:1,rng:A0.rng};st(A0.id).v+=9;if(GI[k0]!=null){S.adj.u=S.adj.u0=A0.gk?GU[GI[k0]]:toU(GI[k0],A0.v[k0]);GU[GI[k0]]=S.adj.u;live();}}}
+ if(S.sp&&!S.adj&&S.sp.hv>=0&&S.dw&&nw-S.dw.t>DWELL){S.adj={i:S.sp.hv,py:S.fp.y,x0:S.fp.x,y0:S.fp.y,mv:0,g:1,u0:GU[S.sp.hv]};}
  var hold=S.press&&S.press.root&&!S.open?Math.min(1,(nw-S.press.t0)/260):0;
- var tg={},busy=S.open||S.br;
- tg[RC.id]=S.sp?.45:(S.open&&S.open!==RC?0:1);tg[RP.id]=busy?0:(S.sp?1.3:1);tg[RD.id]=(S.open&&S.open!==RD)||S.br||S.sp?0:1;tg[RS.id]=busy||S.sp?0:1;
- tg[RT.id]=busy||S.sp?0:1;CATR.forEach(function(r){tg[r.id]=(S.open&&S.open!==r)||S.br||S.sp?0:1;});
+ var tg={},busy=S.open||S.br,spOn=!!(S.sp||(S.wh&&S.wh.sp));
+ tg[RC.id]=spOn?.45:(S.open&&S.open!==RC?0:1);tg[RP.id]=busy?0:(spOn?1.3:1);tg[RD.id]=(S.open&&S.open!==RD)||S.br||spOn?0:1;tg[RS.id]=busy||spOn?0:1;
+ tg[RT.id]=busy||spOn?0:1;CATR.forEach(function(r){tg[r.id]=(S.open&&S.open!==r)||S.br||spOn?0:1;});
  DIAL.forEach(function(n){tg[n.id]=S.dial?1:0;});
  if(hold)tg[S.press.root.id]=1+.18*hold;
  if(S.open){S.path.forEach(function(n){tg[n.id]=n===RC?1.15:1;});if(!S.adj)anchor().kids.forEach(function(k){tg[k.id]=1;});else{tg[anchor().id]=1.25;}}
  for(var id in tg)st(id);
  for(var id in NS){stepNode(NS[id],tg[id]||0,dt);}
- stepNode(fS,(S.open||S.br)?1:0,dt);stepNode(gS,S.sp?1:0,dt);
+ stepNode(fS,(S.open||S.br)?1:0,dt);stepNode(gS,spOn?1:0,dt);
  var er=1-Math.pow(.0006,dt);ROOTS.forEach(function(r){r.rp.x+=(r.lp.x-r.rp.x)*er;r.rp.y+=(r.lp.y-r.rp.y)*er;});
- S.pk.forEach(function(k){stepNode(k,k.dead||S.sp?0:(S.act===k?1.2:1),dt);});S.pk=S.pk.filter(function(k){var gone=k.dead&&k.s===0&&k.arm<0;if(gone)dropStrip(k.id);return !gone});
+ S.pk.forEach(function(k){stepNode(k,k.dead||spOn?0:(S.act===k?1.2:1),dt);});S.pk=S.pk.filter(function(k){var gone=k.dead&&k.s===0&&k.arm<0;if(gone)dropStrip(k.id);return !gone});
  /* place-on-timeline: selection follows the gathered audio while held, green pulse after placing */
  if(S.cap&&S.cap.on)S.cap.sec=capSel(S.cap.y);S.pulse=Math.max(0,S.pulse-dt*1.6);tkA+=((S.cap?1:0)-tkA)*(1-Math.pow(.0005,dt));if(tkA<.003)tkA=0;
  var capG=S.cap&&S.cap.on||S.pulse>0;
@@ -464,7 +501,7 @@ function frame(nw){
   var filled=(n===RC&&!S.mute)||onPath[id]||n.catRoot||di===1||(n===RD&&S.layersOn&&layerOn(GU).length>0)?1:0,ty=n===RC&&!S.mute?2:filled,cat=(onPath[id]&&n!==RC)||n.catRoot?n.cat:0;
   if(n===RS&&capG){filled=1;ty=1;cat=GREEN;}
   put(q.x,q.y,r,ty+4*cat);draw.push({n:n,q:q,s:o.s,filled:filled,r:r,cat:cat});}
- S.ldots=[];if(!S.open&&!S.br&&!S.sp)layerOn(GU).forEach(function(t,i){var q={x:62+i*22,y:34};S.ldots.push({t:t,x:q.x,y:q.y});put(q.x,q.y,5.5,(S.layersOn?1:0)+4*LT[t].cat);});
+ S.ldots=[];if(!S.open&&!S.br&&!spOn)layerOn(GU).forEach(function(t,i){var q={x:62+i*22,y:34};S.ldots.push({t:t,x:q.x,y:q.y});put(q.x,q.y,5.5,(S.layersOn?1:0)+4*LT[t].cat);});
  var tq=trk(),capE=S.cap&&S.cap.on?tq.y0+capU(S.cap.sec)*tq.len:0;if(capE)put(tq.x,capE,5+5*S.cap.sec/CAPS,1+4*GREEN);
  for(;ni<24;ni++){ND[ni*4+2]=0;}
  for(var i=0;i<4;i++){SG[i*4]=-999;SGC[i]=0;}
@@ -485,17 +522,18 @@ function frame(nw){
   if(sc>.05)for(var j=1;j<k.an.length&&psn<24;j++){var A=k.an[j-1].p,B=k.an[j].p;if(j===1){var dx=B.x-A.x,dy=B.y-A.y,l=Math.max(1,Math.hypot(dx,dy));A={x:A.x+dx/l*(RC.r+2),y:A.y+dy/l*(RC.r+2)};}
    PS[psn*4]=A.x;PS[psn*4+1]=A.y;PS[psn*4+2]=A.x+(B.x-A.x)*sc;PS[psn*4+3]=A.y+(B.y-A.y)*sc;psn++;}});
  /* gene dots */
- for(var i=0;i<GN0.length;i++){var gp=gpos(i),gr=(4+8*GU[i]);var sel=(S.sp&&(S.sp.hv===i||(S.adj&&S.adj.i===i)))?1:0;GN[i*4]=gp.x;GN[i*4+1]=gp.y;GN[i*4+2]=Math.max(0,gr*Math.min(1,Math.max(0,gS.s*1.6-(30-i)*.022)));GN[i*4+3]=GN0[i].c+8*sel;}
+ for(var i=0;i<GN0.length;i++){var gp=gpos(i),gr=(4+8*GU[i]);var sel=(S.sp&&(S.sp.hv===i||(S.adj&&S.adj.i===i)))||(S.wh&&S.wh.sp&&S.wh.gi===i)?1:0;GN[i*4]=gp.x;GN[i*4+1]=gp.y;GN[i*4+2]=Math.max(0,gr*Math.min(1,Math.max(0,gS.s*1.6-(30-i)*.022)));GN[i*4+3]=GN0[i].c+8*sel;}
  /* readouts */
  var hvI=S.sp?(S.adj&&S.adj.i!=null?S.adj.i:S.sp.hv):-1,ic0=null;
  if(nw-lastTxt>80){lastTxt=nw;
   if(S.cap){setPanel(0,S.cap.on?'-'+mmss(S.cap.sec):mmss(gathered()));setPanel(1,S.cap.on?mmss(gathered()):'');}
   else if(S.pulse>0){setPanel(0,'-'+mmss(S.pulseSec));setPanel(1,'');}
   else if(S.br){setPanel(0,String(Math.round(S.br.m*100)));setPanel(1,S.br.an.length>1?String(S.br.an.length-1):'');}
+  else if(S.wh){setPanel(0,S.wh.lab);setPanel(1,'');}
   else if(hvI>=0){setPanel(0,fgene(hvI,GU[hvI]));setPanel(1,'');}
   else if(S.adj&&S.adj.path&&GI[S.adj.k]!=null&&anchor()&&anchor().gk){setPanel(0,fgene(GI[S.adj.k],S.adj.u));setPanel(1,'');}
   else{setPanel(0,gv('wave')==='noise'?'':ffreq(gv('base')));setPanel(1,trim((Math.round(gv('level')*2)/2).toFixed(1)));}}
- if(S.br)ic0=CICON[S.br.dom];else if(hvI>=0)ic0=CICON[GN0[hvI].c];else if(S.open&&S.open.catRoot)ic0=CICON[S.open.catRoot];
+ if(S.br)ic0=CICON[S.br.dom];else if(S.wh)ic0=S.wh.ic;else if(hvI>=0)ic0=CICON[GN0[hvI].c];else if(S.open&&S.open.catRoot)ic0=CICON[S.open.catRoot];
  var s0=shown[0]||'',s1=shown[1]||'';
  PN[0]=W/2-cols(s0)*7/2;PN[1]=44;PN[2]=7;PN[3]=0;PMv[0]=cols(s0);PMv[1]=1;
  PN[4]=W/2-cols(s1)*3/2;PN[5]=96;PN[6]=3;PN[7]=1;PMv[2]=cols(s1);PMv[3]=1;
@@ -509,7 +547,7 @@ function frame(nw){
   TD[i*2]=Math.max(0,Math.min(255,Math.round(c2.c/1.4*255)));TD[i*2+1]=Math.max(0,Math.min(255,Math.round((Math.abs(c2.t-c2.c)*1.3+Math.abs(c2.v)*.06)*255)));}
  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE_ALPHA,64,32,0,gl.LUMINANCE_ALPHA,gl.UNSIGNED_BYTE,TD);
  S.flash=0;if(S.tr){var el=nw-S.tr.t0;if(el<70){S.flash=1;S.inv=S.tr.from;}else if(el<140){S.inv=S.tr.from;}else{var kq=Math.min(1,(Math.floor((el-140)/56)+1)/5);S.inv=S.tr.from+(S.tr.to-S.tr.from)*kq;if(kq>=1)S.tr=null;}}
- var dark=(S.inv>.5)!==(S.flash>.5);
+ var dark=(S.inv>.5)!==(S.flash>.5);DK=dark;
  /* live waveform from the output */
  var wt=0;
  if((S.run||S.aud)&&M&&WB){M.an.getFloatTimeDomainData(WB);var sr=S.ctx.sampleRate,L=WB.length,fq=gv('base'),noise=gv('wave')==='noise',cyc=noise?1:Math.max(1,Math.min(32,Math.round(fq/55))),span=noise?1024:cyc*sr/fq,i0=0;
@@ -537,7 +575,7 @@ function frame(nw){
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__S=S;window.__CAP=function(){return{gathered:gathered(),sr:CAP.sr}};/* test hooks (tools/audio-test) */
+window.__S=S;window.__SW={GN0:GN0,GI:GI,val:val,toU:toU,ladder:gLadder,fmt:function(i,v){return fgene(i,toU(i,v))},gpos:gpos,seed:function(n){return gvU(S.seedU,n)},gv:gv};window.__CAP=function(){return{gathered:gathered(),sr:CAP.sr}};/* test hooks (tools/audio-test) */
 })();
 </script>
 

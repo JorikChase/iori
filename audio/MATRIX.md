@@ -52,8 +52,8 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | L2 | Metronome writes tempo live; BPM detector writes it on selection only, not on open | H | pass (bpm-library: stop and file load leave the tempo alone; a drag selection sets it to 120) |
 | L3 | Editor grid, synth pattern and practice readout read the tempo on open | H | todo |
 | L4 | Takes persist in IndexedDB (meta + 16-bit pcm) and come back after reload | H | pass (rec-record: same id and length after reload) |
-| L5 | Editor shelf: open-file bud + the four most recent takes; tapping places at the playhead / first free track / new track | H | pass (edit-file, edit-place) |
-| L6 | Practice source cycles the three most recent takes, then open file | H | pass (play-library) |
+| L5 | Editor shelf: a take wheel of every take (kind icon + length) with the open-file row; commit inserts at the playhead | H | pass (edit-wheel-shelf, edit-file) |
+| L6 | Practice source: tap → take wheel (+ open file), press-drag-release in one gesture; wheel hangs below the dot | H | pass (play-wheel) |
 | L7 | Synth: passive 4-minute capture of its output; hold the right-edge dot and drag down to choose 10 s – 4 min, release places it on the timeline; tap places the last 30 s | H | pass (synth-place, synth-tap; WebKit too) |
 | L8 | Projects: typed names, autosave, share-sheet bundles | — | n/a |
 | L9 | Recorder places a take on the editor timeline (hold → place bud → shell opens editor → clip at playhead); editor preloads during the hold | H | pass (flow-record-place: 3.13 s take, release→editor 418 ms, clip restored after leaving) |
@@ -241,10 +241,16 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | E19 | Save/export bud (4th in the properties row): first tap renders the mixdown (mute/solo respected) and saves it as a 'mix' take; second tap within 6 s shares the WAV (download on desktop) | H | pass (edit-export: length exact, samples match to 16-bit rounding, share inside the gesture; Chromium, WebKit, iOS emulation) |
 | K1 | Wheel picker (wheel.js): drum columns like the iOS alarm, dot-matrix rows, flick with momentum and row snap, tap mode and press-drag-release mode | H | pass (wheel-drag, wheel-fling: no long frames, wheel-tap) |
 | K2 | UX lab (audio/lab.html): timed A/B of wheel vs current fan and slide gestures for lists and values; results stored and exportable | H+D | pass harness (wheel-lab); owner sessions todo |
-| K3 | Wheel adopted where lists live today (synth setups, analyzer views/sources, practice source, editor shelf, BPM ×/÷) | — | todo (after lab results) |
+| K3 | Wheel adopted (owner 2026-10-11: take lists + every numeric value; option lists stay gestures) | H | pass (see K5–K9) |
 | K4 | Clip gesture mock-up (audio/clip-lab.html): edge trim / hold-fade, seam roll / hold-crossfade, body buds (cut, copy, move, delete), two-finger twist reverses (?rev=dbl double-tap), tap selects → clip panel (warp switch, mode, original tempo with wheel, transpose, gain, fade curve), 4 ms declick, WSOLA warp | H+D | pass harness (cliplab-*: 8 scenarios Chromium + WebKit; 1.25× warp keeps 439.99 Hz, crossfade midpoint −3.04 dB per side); owner try-out todo |
 | E20 | Clip gestures in the editor (ported from clip-lab, owner-approved): edge drag trims (snaps to half-beats and clip edges when snap is on) / stretches when warped; hold edge = fade; seam drag rolls; hold seam = equal-power crossfade; two-finger twist reverses; pinch zooms; two-finger tap undoes | H | pass (edit-gesture-trim/fade/seams/twist; Chromium + WebKit) |
 | E21 | Tap a clip → its panel replaces the property buds: per-clip warp switch, mode beats/tones/repitch, original tempo (estimate + digit wheel), transpose, gain, fade curve; tap empty restores | H | pass (edit-gesture-panel, edit-gesture-stretch: warped stretch keeps pitch, warped clips follow the shared tempo) |
 | E22 | Save/export mixdown and playback use per-clip rendered audio: fades, equal-power crossfades (−3 dB per side at the midpoint), reverse (sample-exact), warp, 4 ms declick | H | pass (edit-gesture-mixdown) |
 | E23 | Session v3 stores every new clip field; v2 sessions load with defaults | H | pass (edit-gesture-session) |
 | E24 | On-screen clip slots from the uniform budget with the larger per-clip data (16–48), merge fallback, the twisting clip always whole | H | pass (edit-gesture-slots) |
+| K5 | Take wheels: practice and analyzer sources (top-right dot, older takes downward), BPM recent takes (hold the properties dot, drag mode, above the dot), editor shelf | H | pass (play-wheel, ana-wheel, bpm-wheel, edit-wheel-shelf; Chromium + WebKit) |
+| K6 | Value wheels, metronome and BPM: still hold on the metronome centre → tempo with tenths (137.5 exact; tap tempo and drag unchanged); tap the BPM readout → sets the shared tempo exactly (128.0) | H | pass (metro-wheel, bpm-wheel) |
+| K7 | Tuner A4 reference: new top-right control, wheel 415–466 Hz, persisted; detection follows it (432 Hz reads A4 +0.07 c; 440 Hz reads +31.84 c) | H | pass (tuner-wheel) |
+| K8 | Practice speed 50–150 % and pitch ±12 wheels (−5 → 329.62 Hz measured), tempo readout → speed | H | pass (play-wheel) |
+| K9 | Editor clip transpose/gain wheels; synth: 24 numeric genes, still-hold-and-lift opens the wheel with live preview, list genes unchanged | H | pass (edit-wheel-values, synth-wheel, synth-wheel-menus) |
+| K10 | Wheel drag mode can sit at an anchor while spinning 1:1 from the finger (replaces per-tool workarounds) | H | pass (play-wheel, ana-wheel, bpm-wheel after the change; full run 70/70 Chromium, 15/15 WebKit) |

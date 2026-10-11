@@ -67,8 +67,8 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script src="../shared.js"></script></head><body>
-<h2 class="sr-only">Touch prototype of the tempo view: a whole song drawn as a vertical bar strip, drag to select a part and its tempo is detected and becomes the shared tempo, tempo changes shown as a step trace. Top-right opens a file, the record dot records from the microphone (both are kept in the library), hold the bottom-right dot to pick one of the three most recent takes, tap it to select the whole song.</h2>
+</style><script src="../shared.js"></script><script src="../wheel.js"></script></head><body>
+<h2 class="sr-only">Touch prototype of the tempo view: a whole song drawn as a vertical bar strip, drag to select a part and its tempo is detected and becomes the shared tempo, tempo changes shown as a step trace. Top-right opens a file, the record dot records from the microphone (both are kept in the library), hold the bottom-right dot still to spin a wheel of every take and release on one, tap it to select the whole song. Tap the detected tempo to set the shared tempo exactly on a digit wheel.</h2>
 <div id="bb" style="position:relative;height:520px;background:#000;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="bc" role="img" aria-label="Tempo view prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <i id="bi0" class="ti ti-file-music" aria-hidden="true" style="position:absolute;font-size:17px;color:#fff;transform:translate(-50%,-50%);pointer-events:none;"></i>
@@ -77,14 +77,11 @@ body>div:first-of-type{height:100%!important;border-radius:0!important}
   <div id="bm0" style="position:absolute;font-size:14px;color:#000;transform:translate(-50%,-50%);pointer-events:none;line-height:1;visibility:hidden;">÷2</div>
   <div id="bm1" style="position:absolute;font-size:14px;color:#000;transform:translate(-50%,-50%);pointer-events:none;line-height:1;visibility:hidden;">1</div>
   <div id="bm2" style="position:absolute;font-size:14px;color:#000;transform:translate(-50%,-50%);pointer-events:none;line-height:1;visibility:hidden;">×2</div>
-  <i id="bt0" aria-hidden="true" style="position:absolute;font-size:15px;color:#000;transform:translate(-50%,-50%);pointer-events:none;visibility:hidden;"></i>
-  <i id="bt1" aria-hidden="true" style="position:absolute;font-size:15px;color:#000;transform:translate(-50%,-50%);pointer-events:none;visibility:hidden;"></i>
-  <i id="bt2" aria-hidden="true" style="position:absolute;font-size:15px;color:#000;transform:translate(-50%,-50%);pointer-events:none;visibility:hidden;"></i>
 </div>
 <script>
 (function(){
 var box=document.getElementById('bb'),cv=document.getElementById('bc');
-var IC=[0,1,2].map(function(i){return document.getElementById('bi'+i)}),ML=[0,1,2].map(function(i){return document.getElementById('bm'+i)}),TI=[0,1,2].map(function(i){return document.getElementById('bt'+i)});
+var IC=[0,1,2].map(function(i){return document.getElementById('bi'+i)}),ML=[0,1,2].map(function(i){return document.getElementById('bm'+i)});
 var gl=cv.getContext('webgl',{antialias:false,alpha:false});
 if(!gl){box.innerHTML='<p style="color:#fff;padding:1rem;font-size:14px;">WebGL is not available here.</p>';return;}
 var VS='attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
@@ -261,40 +258,66 @@ function loadTakeId(id){var my=++loadSeq;S.busy=1;
 function refreshLib(){return window.AT?AT.takes.list().then(function(a){S.lib=a||[];return S.lib;}):Promise.resolve([]);}
 /* top-right = source: the system picker, synchronously inside the tap (iOS), the file joins the library */
 function openFile(){if(S.rec||S.busy||!window.AT)return;AT.takes.pick().then(function(m){if(m){refreshLib();loadTakeId(m.id);}});}
-var KIND={rec:'microphone',retro:'history',file:'file-music',synth:'wave-sine'};
-/* bottom row: btn(1) record, btn(2) ÷2/×2 (hold), btn(3) properties: tap = whole song, hold = the three most recent
-   takes. btn(0) sits in the hub's corner and is not used; the file opener is the source dot, top-right. */
+/* bottom row: btn(1) record, btn(2) ÷2/×2 (hold), btn(3) properties: tap = whole song, still hold = the take wheel.
+   btn(0) sits in the hub's corner and is not used; the file opener is the source dot, top-right. */
 function btn(i){return{x:34+i*(W-68)/3,y:H-28}}
 function srcPos(){return{x:W-34,y:34}}
-var MA=[112,76,40],MV=[.5,1,2],TA=[95,122,149];
-function menuN(mk){return mk==='takes'?Math.min(3,S.lib.length):3;}
-function menuAt(mk){return mk==='takes'?btn(3):btn(2);}
-function mPos(k,o,mk){var b=menuAt(mk),a=(mk==='takes'?TA:MA)[k]*Math.PI/180;return{x:b.x+Math.cos(a)*92*o,y:b.y-Math.sin(a)*92*o};}
+var MA=[112,76,40],MV=[.5,1,2],HOLD=350,RH=44,ROWS=5;
+function mPos(k,o){var b=btn(2),a=MA[k]*Math.PI/180;return{x:b.x+Math.cos(a)*92*o,y:b.y-Math.sin(a)*92*o};}
+/* the take wheel: every take in the library, newest first (kind icon + length), press-drag-release in the same gesture
+   as the hold. It opens ABOVE the properties dot (never over it, never in the hub corner), so the finger stays on the
+   dot and drives the drum from below; release commits and analyses that take. */
+function canTakes(){return S.lib.length>0&&!S.rec&&!S.busy;}
+function takeWheel(m){var L=Wheel.takes(S.lib,{}),cur=L.keys.indexOf(S.takeId),r=box.getBoundingClientRect(),b=btn(3);
+ var at={x:r.left+b.x,y:r.top+b.y-17-12-RH*ROWS/2};
+ var h=Wheel.open({mode:'drag',anchor:at,pointerEvent:{clientX:m.cx,clientY:m.cy,pointerId:m.pid,timeStamp:m.t0},column:0,rowH:RH,rows:ROWS,columns:[{items:L.items,index:Math.max(0,cur)}],current:[cur],
+  onDone:function(ix){S.wheel=null;if(!ix||S.rec)return;var id=L.keys[ix[0]];if(id&&(id!==S.takeId||!S.n))loadTakeId(id);}});
+ h.kind='takes';S.wheel=h;}
+/* the tempo digit wheel: tap the detected tempo; hundreds/tens/ones . tenths, 20.0-300.0; commit = the shared tempo.
+   It hangs below the readout (its cancel x clear of it) and the readout follows the drum while it spins. */
+var DIG=['0','1','2','3','4','5','6','7','8','9'];
+function shownBpm(){return S.res?(S.wv!=null?S.wv:S.res.user!=null?S.res.user:S.res.bpm*S.mult):0;}
+function digV(ix){return (ix[0]*1000+ix[1]*100+ix[2]*10+ix[3])/10;}
+function onReadout(p){var cx=W/2;return S.res&&p.x>cx-96&&p.x<cx+134&&p.y>10&&p.y<106;}
+function tempoWheel(){var r=box.getBoundingClientRect(),res=S.res,v=Math.max(200,Math.min(3000,Math.round(shownBpm()*10)));
+ var h=Wheel.open({mode:'tap',anchor:{x:r.left+W/2,y:r.top+240},
+  columns:[{items:['0','1','2','3'],index:Math.floor(v/1000)},{items:DIG,index:Math.floor(v/100)%10,loop:true},{items:DIG,index:Math.floor(v/10)%10,loop:true},{items:DIG,index:v%10,loop:true}],separators:['','','.'],
+  fix:function(ix){var t=ix[0]*1000+ix[1]*100+ix[2]*10+ix[3],k=Math.max(200,Math.min(3000,t));return k===t?null:[Math.floor(k/1000),Math.floor(k/100)%10,Math.floor(k/10)%10,k%10];},
+  onChange:function(ix){var t=digV(ix);S.wv=t>=20&&t<=300?t:null;},
+  onDone:function(ix){S.wheel=null;S.wv=null;if(!ix)return;var bpm=digV(ix);if(window.AT)AT.setTempo(bpm,'bpm');if(S.res===res&&res)res.user=bpm;}});
+ h.kind='tempo';S.wheel=h;}
 function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 box.addEventListener('pointerdown',function(e){
+ if(S.wheel&&!S.wheel.closing){e.preventDefault();return;}
  var p=pos(e),sp=srcPos();
  if(Math.hypot(p.x-sp.x,p.y-sp.y)<24){e.preventDefault();S.srcP=true;return;}
  for(var i=1;i<4;i++){var b=btn(i);if(Math.hypot(p.x-b.x,p.y-b.y)<24){e.preventDefault();
-  if(i===1){startRec();}else{try{box.setPointerCapture(e.pointerId)}catch(_){}S.mp={k:i===2?'mult':'takes',tw:performance.now(),t0:e.timeStamp,x:p.x,y:p.y,moved:0,open:false,sel:-1};S.mk=S.mp.k;}
+  if(i===1){startRec();}else{try{box.setPointerCapture(e.pointerId)}catch(_){}var m=S.mp={k:i===2?'mult':'takes',tw:performance.now(),t0:e.timeStamp,x:p.x,y:p.y,moved:0,open:false,sel:-1,pid:e.pointerId,cx:e.clientX,cy:e.clientY};
+   if(m.k==='takes')m.hold=setTimeout(function(){if(S.mp!==m||m.moved>=8)return;m.held=true;if(canTakes())takeWheel(m);},HOLD);}
   return;}}
  e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}
+ if(onReadout(p)){S.rp={x:p.x,y:p.y,moved:0};return;}   /* the readout: a tap opens the tempo wheel */
  if(S.rec||!S.n||p.y<Y0-16||p.y>Y1+16)return;
  var ya=t2y(S.sel.a),yb=t2y(S.sel.b),mode='new';
  if(!S.whole){if(Math.abs(p.y-ya)<16)mode='a';else if(Math.abs(p.y-yb)<16)mode='b';}
  S.drag={mode:mode,y0:p.y,t0:y2t(p.y),moved:0,tm:e.timeStamp,last:0};});
-function canOpen(m){return m.k==='mult'||(menuN('takes')>0&&!S.rec&&!S.busy);}
-box.addEventListener('pointermove',function(e){if(S.mp){var p0=pos(e),m=S.mp;m.moved=Math.max(m.moved,Math.hypot(p0.x-m.x,p0.y-m.y));if(m.moved>10&&canOpen(m))m.open=true;
-  if(m.open){var b=menuAt(m.k),A=m.k==='takes'?TA:MA,dx=p0.x-b.x,dy=b.y-p0.y,dist=Math.hypot(dx,dy);m.sel=-1;if(dist>30){var an=Math.atan2(dy,dx)*180/Math.PI,bd=40;for(var k=0;k<menuN(m.k);k++){var df=Math.abs(an-A[k]);if(df<bd){bd=df;m.sel=k;}}}}return;}
+box.addEventListener('pointermove',function(e){if(S.rp){var pr=pos(e);S.rp.moved=Math.max(S.rp.moved,Math.hypot(pr.x-S.rp.x,pr.y-S.rp.y));return;}
+ if(S.mp){var p0=pos(e),m=S.mp;m.moved=Math.max(m.moved,Math.hypot(p0.x-m.x,p0.y-m.y));
+  if(m.k==='takes'){if(!m.held){m.cx=e.clientX;m.cy=e.clientY;if(m.moved>=8)clearTimeout(m.hold);}return;}   /* the wheel follows the finger itself once open */
+  if(m.moved>10)m.open=true;
+  if(m.open){var b=btn(2),dx=p0.x-b.x,dy=b.y-p0.y,dist=Math.hypot(dx,dy);m.sel=-1;if(dist>30){var an=Math.atan2(dy,dx)*180/Math.PI,bd=40;for(var k=0;k<3;k++){var df=Math.abs(an-MA[k]);if(df<bd){bd=df;m.sel=k;}}}}return;}
  var d=S.drag;if(!d)return;var p=pos(e);d.moved=Math.max(d.moved,Math.abs(p.y-d.y0));
  var t=y2t(p.y);
  if(d.mode==='a'){S.sel.a=Math.min(t,S.sel.b-.5);S.whole=false;}else if(d.mode==='b'){S.sel.b=Math.max(t,S.sel.a+.5);S.whole=false;}
  else if(d.moved>8){S.sel={a:Math.min(d.t0,t),b:Math.max(d.t0,t)};S.whole=false;}
  var now=performance.now();if(now-d.last>140&&(d.mode!=='new'||d.moved>8)){d.last=now;analyseSel(true);}});
 function up(e){
+ if(S.rp){var rp=S.rp;S.rp=null;if(e.type==='pointerup'&&rp.moved<10&&onReadout(pos(e)))tempoWheel();return;}
  if(S.srcP){S.srcP=false;var p=pos(e),sp=srcPos();if(e.type==='pointerup'&&Math.hypot(p.x-sp.x,p.y-sp.y)<30)openFile();return;}
  if(S.mp){var m=S.mp;S.mp=null;
-  if(m.k==='mult'){if(m.open){if(m.sel>=0)S.mult=MV[m.sel];}else S.mult=1;return;}
-  if(m.open){if(m.sel>=0&&S.lib[m.sel]&&!S.rec)loadTakeId(S.lib[m.sel].id);}else if(!S.rec&&S.n)selectWhole(true);
+  if(m.k==='mult'){var m0=S.mult;if(m.open){if(m.sel>=0)S.mult=MV[m.sel];}else S.mult=1;if(S.mult!==m0&&S.res)delete S.res.user;return;}
+  clearTimeout(m.hold);if(m.held||e.type!=='pointerup')return;   /* a hold belongs to the take wheel (it committed on this release) */
+  if(m.moved<10&&!S.rec&&S.n)selectWhole(true);
   return;}
  var d=S.drag;if(!d)return;S.drag=null;var now=e.timeStamp;
  if(d.mode==='new'&&d.moved<=8&&now-d.tm<320){
@@ -322,7 +345,7 @@ function frame(now){
   if(now-S.lastLive>1000&&S.n>300){S.lastLive=now;onsets(Math.max(1,S.n-900),S.n);var r;var lr=Math.max(S.recFrom,S.n-800);r=S.n-S.recFrom>300?tempoOf(lr,S.n):null;S.res=r&&r.conf>.2?{bpm:r.bpm}:null;S.sel={a:0,b:S.n/ER};S.grids=r&&r.conf>.2?[{a:lr/ER,b:S.n/ER,bpm:r.bpm,tb:r.tb}]:[];}}
  if(S.envDirty)buildEnvTex();
  if(now-lastTxt>120){lastTxt=now;
-  if(S.res){var b=S.res.bpm*S.mult,r=Math.round(b*10)/10,ip=Math.floor(r),s=String(ip);while(s.length<3)s=' '+s;
+  if(S.res){var b=shownBpm(),r=Math.round(b*10)/10,ip=Math.floor(r),s=String(ip);while(s.length<3)s=' '+s;
    setPanel(0,s.slice(-3));setPanel(1,'.'+Math.round((r-ip)*10));var ms=String(Math.round(60000/b));while(ms.length<4)ms=' '+ms;setPanel(2,ms.slice(-4));}
   else{setPanel(0,'    ');setPanel(1,'  ');setPanel(2,'    ');}}
  for(var i=0;i<cells.length;i++){var c2=cells[i];if(c2.t===0&&c2.c===0&&c2.v===0){TD[i*2]=0;TD[i*2+1]=0;continue;}
@@ -339,17 +362,15 @@ function frame(now){
  gl.uniform4fv(U.uSec,secU);gl.uniform4fv(U.uGr,grU);gl.uniform1fv(U.uBnd,bndU);
  gl.uniform1i(U.uTex,0);gl.uniform1i(U.uEnv,1);
  gl.uniform4f(U.uP0,cx-82.5,22,15,0);gl.uniform4f(U.uP1,cx+90,67,6,5);gl.uniform4f(U.uP2,cx-37.5,H-86,5,10);
- if(S.mp&&!S.mp.open&&performance.now()-S.mp.tw>200&&canOpen(S.mp))S.mp.open=true;
+ if(S.mp&&S.mp.k==='mult'&&!S.mp.open&&performance.now()-S.mp.tw>200)S.mp.open=true;
  var e2=1-Math.pow(.0005,dt);S.mo=lerp(S.mo||0,S.mp&&S.mp.open?1:0,e2);if(S.mo<.004)S.mo=0;
- var mk=[];for(var k=0;k<3;k++){var sl=S.mp&&S.mp.sel===k?1:0;S['ms'+k]=lerp(S['ms'+k]||0,sl,e2);var mkk=S.mk||'mult',has=k<menuN(mkk),q=has?mPos(k,S.mo,mkk):{x:-999,y:-999};mk.push(q.x,q.y,has?(15+6*S['ms'+k])*S.mo:0);
-  var vis=has&&S.mo>.6;ML[k].style.left=q.x+'px';ML[k].style.top=q.y+'px';ML[k].style.visibility=vis&&mkk==='mult'?'visible':'hidden';ML[k].style.fontSize=(S['ms'+k]>.5?'17px':'14px');
-  var tk=mkk==='takes'&&has?S.lib[k]:null,cl='ti ti-'+(tk?KIND[tk.kind]||'file-music':'file');if(TI[k].className!==cl)TI[k].className=cl;
-  TI[k].style.left=q.x+'px';TI[k].style.top=q.y+'px';TI[k].style.visibility=vis&&tk?'visible':'hidden';TI[k].style.fontSize=(S['ms'+k]>.5?'18px':'15px');TI[k].style.opacity=tk&&tk.id===S.takeId?1:.55;}
- gl.uniform3fv(U.uMk,new Float32Array(mk));var b3=menuAt(S.mk||'mult'),bm=btn(2);gl.uniform4f(U.uMd,b3.x,b3.y,0,S.mo);
- gl.uniform3f(U.uMg,bm.x,bm.y,(S.mult!==1||(S.mo>.005&&(S.mk||'mult')==='mult'))?1:0);
+ var mk=[];for(var k=0;k<3;k++){var sl=S.mp&&S.mp.sel===k?1:0;S['ms'+k]=lerp(S['ms'+k]||0,sl,e2);var q=mPos(k,S.mo);mk.push(q.x,q.y,(15+6*S['ms'+k])*S.mo);
+  ML[k].style.left=q.x+'px';ML[k].style.top=q.y+'px';ML[k].style.visibility=S.mo>.6?'visible':'hidden';ML[k].style.fontSize=(S['ms'+k]>.5?'17px':'14px');}
+ gl.uniform3fv(U.uMk,new Float32Array(mk));var bm=btn(2);gl.uniform4f(U.uMd,bm.x,bm.y,0,S.mo);
+ gl.uniform3f(U.uMg,bm.x,bm.y,(S.mult!==1||S.mo>.005)?1:0);
  /* the source dot breathes while the strip is empty: open a file (or record) — nothing plays until you do */
  var empty=!S.n&&!S.rec&&!S.busy,pul=empty?.5+.5*Math.sin(t*Math.PI*1.6):0;
- var takesOpen=S.mo>.005&&S.mk==='takes',bs=[pul,S.rec?1:0,S.mult!==1?1:0,(S.whole&&S.n>0)||takesOpen?1:0],bu=[],sp=srcPos();
+ var takesOpen=!!(S.wheel&&S.wheel.kind==='takes'&&!S.wheel.closing),bs=[pul,S.rec?1:0,S.mult!==1?1:0,(S.whole&&S.n>0)||takesOpen?1:0],bu=[],sp=srcPos();
  for(var i=0;i<4;i++){var b2=i===0?sp:btn(i);bu.push(b2.x,b2.y,bs[i]);var el=i===0?IC[0]:i===1?IC[1]:i===3?IC[2]:null;if(el){el.style.left=b2.x+'px';el.style.top=b2.y+'px';el.style.color=bs[i]>.5?'#000':'#fff';}}
  IC[0].style.opacity=S.rec||S.busy?.35:1;IC[2].style.opacity=S.n||S.lib.length?1:.35;
  IC[1].className='ti ti-'+(S.micFail?'microphone-off':(S.rec?'player-stop':'microphone'));

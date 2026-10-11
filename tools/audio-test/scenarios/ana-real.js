@@ -1,6 +1,7 @@
 /* Analyzer, real audio only: the microphone is the default source; a 1 kHz sine at -20 dBFS measures at 1 kHz and
    about -23 LUFS; a refused microphone shows microphone-off and makes no sound at all; an opened file is analysed
-   and lands in the library; the source is remembered; no generated audio is left in the page. */
+   and lands in the library; the source is remembered; no generated audio is left in the page. Sources are chosen on the
+   source dot's wheel (audio/wheel.js: OPEN FILE on top, takes oldest to newest, the microphone at the bottom). */
 const fs = require('fs'); const path = require('path');
 const DENY = `navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('denied', 'NotAllowedError'));`;
 /* count every audio source node the page creates (the harness microphone's own context excluded) */
@@ -12,6 +13,13 @@ module.exports = async (lib) => {
   const dir = lib.outDir('ana-real'); const W = lib.VIEW.width, H = lib.VIEW.height; const shots = []; const out = {};
   const CTL = [W / 2, Math.round(H * .55)], SRC = [W - 34, 34];
   const tap = async (page, [x, y]) => { await page.mouse.click(x, y); await page.waitForTimeout(150); };
+  /* the source wheel: tap the dot, move the drum by `rows` (slow drag; + = finger down = towards OPEN FILE), tap the band */
+  const choose = async (page, rows) => { await page.mouse.click(...SRC); await page.waitForTimeout(400);
+    const w = await page.evaluate(() => { const s = Wheel.last.state(); return { x: s.cols[0].x, y: s.bandY, rowH: s.rowH }; });
+    if (rows) { const y0 = rows < 0 ? w.y + 90 : w.y; await page.mouse.move(w.x, y0); await page.mouse.down();
+      for (let k = 1; k <= 12; k++) { await page.mouse.move(w.x, y0 + rows * w.rowH * k / 12); await page.waitForTimeout(18); }
+      await page.waitForTimeout(180); await page.mouse.up(); await page.waitForTimeout(450); }
+    const key = await page.evaluate(() => __S.wheelKeys[Wheel.last.state().cols[0].idx]); await page.mouse.click(w.x, w.y); await page.waitForTimeout(150); return key; };
   const shot = async (page, name) => { const f = `${dir}/${name}.png`; await page.screenshot({ path: f }); shots.push(f); };
   const icon = (page) => page.evaluate(() => { const i = [...document.querySelectorAll('#al i')].find(e => e.style.top === '34px' && e.style.visibility !== 'hidden'); return i ? i.className.replace('ti ti-', '') : null; });
   const st = (page) => page.evaluate(() => ({ src: __S.src, take: __S.take, run: __S.run, wait: __S.wait, micFail: __S.micFail, nodes: __S.nodes.length,
@@ -38,19 +46,20 @@ module.exports = async (lib) => {
     await page.context().close();
   }
 
-  /* 2. microphone refused: microphone-off, no run, no nodes, nothing generated; the dot retries, then moves on */
+  /* 2. microphone refused: microphone-off, no run, no nodes, nothing generated; choosing the microphone on the wheel
+        retries, the OPEN FILE row moves on */
   {
     const page = await lib.open(br, 'ana', { wait: 300 });
     await page.addInitScript(DENY); await page.addInitScript(COUNT); await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(600);
     await tap(page, CTL); await page.waitForTimeout(800);
     const s1 = await st(page); const ic1 = await icon(page); await shot(page, '4-refused');
-    await tap(page, SRC); await page.waitForTimeout(800);                      // retry
+    const kRetry = await choose(page, 0); await page.waitForTimeout(800);   // the microphone, pre-selected: retry
     const s2 = await st(page); const ic2 = await icon(page);
     let chooser = null; page.on('filechooser', c => (chooser = c)); await page.waitForTimeout(200);   // interception on before the tap
-    await tap(page, SRC); await page.waitForTimeout(800);                      // next tap moves on: empty library, so open file
+    const kFile = await choose(page, 1); await page.waitForTimeout(800);   // OPEN FILE (empty library: right above the microphone)
     if (chooser) await chooser.setFiles([]).catch(() => {});             // answer the dialog (cancel) so the browser can open the next one
     const s3 = await st(page); const gen = await page.evaluate(() => window.__GEN);
-    const ok = s1.micFail && !s1.run && s1.nodes === 0 && ic1 === 'microphone-off' && s2.micFail && !s2.run && ic2 === 'microphone-off' &&
+    const ok = kRetry === 'mic' && kFile === 'file' && s1.micFail && !s1.run && s1.nodes === 0 && ic1 === 'microphone-off' && s2.micFail && !s2.run && ic2 === 'microphone-off' &&
       !!chooser && s3.src === 'file' && gen.osc === 0 && gen.bufsrc === 0 && gen.buf === 0;
     out.refused = { ok, afterPlay: { icon: ic1, ...s1 }, afterRetry: { icon: ic2, run: s2.run, micFail: s2.micFail }, nextTapOpensPicker: !!chooser, srcAfter: s3.src, generated: gen, errors: page.errors };
     await page.context().close();
@@ -63,7 +72,7 @@ module.exports = async (lib) => {
     const page = await lib.open(br3, 'ana', { wait: 300 });
     await page.addInitScript(DENY); await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(600);
     const choosing = page.waitForEvent('filechooser'); await page.waitForTimeout(200);   // interception on before the tap
-    await tap(page, SRC); const chooser = await choosing;
+    await choose(page, 1); const chooser = await choosing;                     // OPEN FILE, one row above the microphone
     await chooser.setFiles(path.join(lib.ROOT, 'tools/audio-test/signals/sine440.wav'));
     await page.waitForTimeout(3000);
     const s = await st(page); const ic = await icon(page); await shot(page, '5-file-440');
@@ -72,12 +81,12 @@ module.exports = async (lib) => {
     await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(800);
     const r = await st(page); const icr = await icon(page); await shot(page, '6-reload-take-remembered');
     await tap(page, CTL); await page.waitForTimeout(2000); const rr = await st(page);
-    await tap(page, SRC); const c1 = await st(page);                           // take -> open file (picker; left unanswered)
-    await tap(page, SRC); const c2 = await st(page); const icm = await icon(page);  // -> microphone (stopped: refused here)
-    await tap(page, SRC); const c3 = await st(page);                           // microphone refused? first tap retries...
+    await choose(page, 1); const c1 = await st(page);                          // take -> OPEN FILE (picker; left unanswered)
+    await choose(page, -2); await page.waitForTimeout(600); const c2 = await st(page); const icm = await icon(page);  // -> microphone (refused here)
+    await choose(page, 0); await page.waitForTimeout(600); const c3 = await st(page);  // the microphone again: retries, still refused
     const ok = s.src === 'take' && s.run && s.nodes === 1 && Math.abs(Math.log(s.pf / 440)) <= BIN && lib1.length === 1 && lib1[0].kind === 'file' &&
-      lib1[0].id === s.take && sess && sess.src === 'take' && sess.take === s.take && r.src === 'take' && r.take === s.take && icr === 'number-1' &&
-      rr.run && Math.abs(Math.log(rr.pf / 440)) <= BIN && c1.src === 'file' && !c1.run && c2.src === 'mic' && icm === 'microphone';
+      lib1[0].id === s.take && sess && sess.src === 'take' && sess.take === s.take && r.src === 'take' && r.take === s.take && icr === 'file-music' &&
+      rr.run && Math.abs(Math.log(rr.pf / 440)) <= BIN && c1.src === 'file' && !c1.run && c2.src === 'mic' && c2.micFail && !c2.run && icm === 'microphone-off' && c3.src === 'mic' && c3.micFail && !c3.run;
     out.file = { ok, playing: { icon: ic, ...s }, library: lib1, session: sess, afterReload: { icon: icr, src: r.src, take: r.take, run: r.run },
       replay: { run: rr.run, pf: rr.pf }, cycle: [c1.src, c2.src, c3.src], errors: page.errors };
     await page.context().close(); await br3.close();

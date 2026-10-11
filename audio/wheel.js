@@ -7,7 +7,8 @@
                                 drag: press-drag-release — opens under the finger, vertical drag spins 1:1, sideways moves to
                                       the next column, release commits (one gesture)
      anchor:{x,y},              client px: tap mode centres the band on it
-     pointerEvent:e, column:i,  drag mode: the pointerdown that opened it, and the column under the finger
+     pointerEvent:e, column:i,  drag mode: the pointerdown that opened it, and the column under the finger;
+                                with anchor too, the wheel sits at the anchor and spins 1:1 from the finger
      current:[i,…],             rows marked blue (default: the opening indices)
      fix(indices)->indices|null bounce invalid combinations (e.g. 015.0 BPM) back into range when settled / at release
      onChange(indices, items, col)   once per row crossing
@@ -111,7 +112,7 @@
   }
 
   var M = 30;   /* canvas margin around the panel: room for the cancel mark and the pop */
-  function norm(it) { if (it && typeof it === 'object') return it.icon ? { icon: it.icon } : { text: String(it.text) }; return { text: String(it) }; }
+  function norm(it) { if (it && typeof it === 'object') { if (it.icon && it.text != null) return { icon: it.icon, text: String(it.text) }; return it.icon ? { icon: it.icon } : { text: String(it.text) }; } return { text: String(it) }; }
 
   function Wh(o) {
     var me = this; this.o = o; this.mode = o.mode === 'drag' ? 'drag' : 'tap';
@@ -121,7 +122,7 @@
     var P = this.P, padX = o.padX == null ? 10 : o.padX;
     this.cols = o.columns.map(function (c, ci) {
       var its = c.items.map(norm), n = its.length, mw = 0;
-      its.forEach(function (it) { mw = Math.max(mw, it.icon ? me.icoPx : textW(it.text, P)); });
+      its.forEach(function (it) { mw = Math.max(mw, it.icon && it.text != null ? me.icoPx + 8 + textW(it.text, P) : it.icon ? me.icoPx : textW(it.text, P)); });
       var ix = clamp(c.index | 0, 0, n - 1);
       return { items: c.items, its: its, n: n, loop: !!c.loop && n > 2, pos: ix, anim: null, last: ix,
         cur: o.current ? o.current[ci] : ix, w: c.width || Math.max(o.columns.length === 1 ? 96 : 44, Math.ceil(mw + 2 * padX)), x: 0, sepX: 0, sepW: 0 };   /* one column: a comfortable thumb target */
@@ -135,8 +136,8 @@
 
     /* placement */
     var vw = window.innerWidth, vh = window.innerHeight, sa = safe(), ax, ay, e = o.pointerEvent;
-    if (this.mode === 'drag' && e) {
-      ax = e.clientX; ay = e.clientY; this.act = clamp(o.column | 0, 0, this.cols.length - 1);
+    if (this.mode === 'drag' && e) {   /* drag: under the finger, or at o.anchor (the gesture still starts at the finger) */
+      ax = o.anchor ? o.anchor.x : e.clientX; ay = o.anchor ? o.anchor.y : e.clientY; this.act = clamp(o.column | 0, 0, this.cols.length - 1);
       var ac = this.cols[this.act]; this.left = ax - (ac.x + ac.w / 2);
     } else {
       ax = o.anchor ? o.anchor.x : vw / 2; ay = o.anchor ? o.anchor.y : vh / 2; this.act = clamp(o.column | 0, 0, this.cols.length - 1);
@@ -358,6 +359,12 @@
   };
   W._item = function (x, it, cx, cy, sx, sy, col, fat) {
     var d = this.dpr;
+    if (it.icon && it.text != null) {   /* icon + text: the pair centred as one row */
+      var tw = textW(it.text, this.P), full = this.icoPx + 8 + tw, x0 = cx - full * sx / 2;
+      this._item(x, { icon: it.icon }, x0 + this.icoPx * sx / 2, cy, sx, sy, col, fat);
+      this._item(x, { text: it.text }, x0 + (this.icoPx + 8 + tw / 2) * sx, cy, sx, sy, col, fat);
+      return;
+    }
     if (it.icon) {
       var sd = Math.round(this.icoPx * d * 1.15), s = iconSprite(it.icon, sd, col);
       if (s.ready) drawSpr(x, s, cx, cy, sx, sy, sd / this.icoPx);
@@ -422,7 +429,18 @@
     var a = [], n = Math.round((hi - lo) / step); for (var i = 0; i <= n; i++) { var v = (lo + i * step).toFixed(dec || 0); while (pad && v.length < pad) v = '0' + v; a.push(v); } return a;
   }
 
+  /* takes(metas, {mic, file}) -> {items, keys}: rows for a take wheel — newest first, each the take's kind icon and its
+     length (m:ss); keys[i] is a take id, or 'mic' / 'file' for the optional first / last rows. */
+  var KIND = { rec: 'microphone', retro: 'history', file: 'file-music', synth: 'wave-sine', mix: 'device-floppy' };
+  function takes(metas, o) {
+    o = o || {}; var items = [], keys = [];
+    if (o.mic) { items.push({ icon: 'microphone' }); keys.push('mic'); }
+    (metas || []).forEach(function (m) { var s = Math.max(0, Math.round(m.dur || 0)); items.push({ icon: KIND[m.kind] || 'file', text: Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60) }); keys.push(m.id); });
+    if (o.file) { items.push({ icon: 'file-music' }); keys.push('file'); }
+    return { items: items, keys: keys };
+  }
   var Wheel = window.Wheel = {
+    takes: takes,
     open: function (o) { return new Wh(o); },
     text: text, textW: textW, icon: icon, seq: seq, GL: GL, BLUE: BLUE, GREEN: GREEN, bayer: bayerCanvas,
     onIcon: function (f) { ICONWAIT.push(f); },

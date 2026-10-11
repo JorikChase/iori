@@ -1,5 +1,6 @@
 /* Practice player on its AudioWorklet engine (audio/worklet-player.js), measured on the real output.
-   A 440 Hz take (signals/sine440.wav, 20 s) is seeded and played through the UI (taps and drags only):
+   A 440 Hz take (signals/sine440.wav, 20 s) is seeded and played through the UI (taps and drags only; the take is chosen
+   on the source dot's wheel):
      - the read head advances 2.0 s per 2 s at 100 % and 1.5 s at 75 % (wall clock and audio clock)
      - output pitch: an AnalyserNode on the engine node (fftSize 32768, ~0.7 s), peak by a fine DFT scan
        (Hann, 1 Hz then 0.02 Hz steps): 440 Hz at 100 %, 440 at 75 %, 880 at 75 % +12, 440 at 125 % (±1 Hz)
@@ -50,6 +51,9 @@ module.exports = async (lib) => {
   const rate = async (pg, ms = 2000) => { const a = await st(pg); await pg.waitForTimeout(ms); const b = await st(pg);
     return { adv: +(b.t - a.t).toFixed(3), wall: ms / 1000, perAudioSec: +((b.ht - a.ht) / Math.max(1e-6, b.ct - a.ct)).toFixed(4), speed: b.speed }; };
   const freq = (pg, f0) => pg.evaluate(FREQ, [Math.round(f0 * 0.8), Math.round(f0 * 1.2)]);
+  /* the source dot opens a wheel of the library (audio/wheel.js) with the newest take pre-selected: tap the band to choose it */
+  const pick = async (pg) => { await pg.mouse.click(...src); await until(pg, () => !!(window.Wheel && Wheel.active())); await pg.waitForTimeout(250);
+    const w = await pg.evaluate(() => { const s = Wheel.last.state(); return [s.cols[0].x, s.bandY]; }); await pg.mouse.click(...w); };
   const shot = async (pg, name) => { const f = `${dir}/${name}.png`; await pg.screenshot({ path: f }); shots.push(f); };
 
   /* ------------------------------------------------------------ main run (desktop rules) */
@@ -58,7 +62,7 @@ module.exports = async (lib) => {
   const seeded = await page.evaluate(async () => { AT.setTempo(120); const b = await (await fetch('/tools/audio-test/signals/sine440.wav')).blob();
     const m = await AT.takes.import(new File([b], 'sine440.wav')); return m.id; });
   await until(page, () => __S.lib.length > 0);
-  await page.mouse.click(...src); await until(page, () => !!__S.song);
+  await pick(page); await until(page, () => !!__S.song);
   await page.mouse.click(...ctl);
   const ready = await until(page, () => __S.eng === 'ready' && __S.ctx.state === 'running' && __S.play);
   await page.waitForTimeout(300);
@@ -139,7 +143,7 @@ module.exports = async (lib) => {
   const op = await lib.open(br, 'play', { wait: 300 });
   await op.evaluate(async () => { AT.session.save('play', null); const b = await (await fetch('/tools/audio-test/signals/sine440.wav')).blob(); await AT.takes.import(new File([b], 'sine440.wav')); });
   await op.goto(op.url() + '?engine=ola', { waitUntil: 'load' }); await until(op, () => __S.lib.length > 0);
-  await op.mouse.click(...src); await until(op, () => !!__S.song); await op.mouse.click(...ctl);
+  await pick(op); await until(op, () => !!__S.song); await op.mouse.click(...ctl);
   await until(op, () => __S.eng === 'ready' && __S.ctx.state === 'running');
   const ola = { algo: (await st(op)).algo, p100: await freq(op, 440) };
   await drag(op, ctl, -100, 0); ola.p75 = await freq(op, 440);
@@ -153,7 +157,7 @@ module.exports = async (lib) => {
   for (const noUnlock of [false, true]) {
     const b2 = await lib.browser(); const pg = await lib.open(b2, 'play', { wait: 600, ios: true, noUnlock });
     await pg.evaluate(async () => { const b = await (await fetch('/tools/audio-test/signals/sine440.wav')).blob(); await AT.takes.import(new File([b], 'sine440.wav')); });
-    await until(pg, () => __S.lib.length > 0); await pg.mouse.click(...src); await until(pg, () => !!__S.song);
+    await until(pg, () => __S.lib.length > 0); await pick(pg); await until(pg, () => !!__S.song);
     await pg.mouse.click(...ctl); await pg.waitForTimeout(2500);
     const s = await st(pg); const lvl = s.eng === 'ready' && s.ctx === 'running' ? await freq(pg, 440) : null;
     ios[noUnlock ? 'withoutUnlock' : 'withUnlock'] = { ios: await pg.evaluate(() => !!window.__IOS_AUDIO), ctx: s.ctx, eng: s.eng, play: s.play, t: +s.t.toFixed(3), level: lvl,

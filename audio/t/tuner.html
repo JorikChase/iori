@@ -67,8 +67,8 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script src="../shared.js"></script></head><body>
-<h2 class="sr-only">Tuner: tap anywhere to listen through the microphone; a vertical line splits into rainbow strips when out of tune, with the note, cents and frequency shown on a dot grid. In silence the line is hair thin.</h2>
+</style><script src="../shared.js"></script><script src="../wheel.js"></script></head><body>
+<h2 class="sr-only">Tuner: tap anywhere to listen through the microphone; a vertical line splits into rainbow strips when out of tune, with the note, cents and frequency shown on a dot grid. In silence the line is hair thin. Top-right: the A4 reference (415 to 466 Hz, default 440); tap it to change it on a wheel.</h2>
 <div id="tb" style="position:relative;height:480px;background:#000;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="tc" role="img" aria-label="Tuner prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <i id="tmi" class="ti ti-microphone" aria-hidden="true" style="position:absolute;font-size:17px;color:#fff;transform:translate(-50%,-50%);pointer-events:none;"></i>
@@ -83,7 +83,7 @@ var FS=[
 'precision highp float;',
 'uniform vec2 uRes,uSz;uniform float uT,uDpr,uCx,uY0,uY1,uLam,uGreen,uExt;',
 'uniform float uH[24];uniform float uHf,uPres,uAmp0,uPh0;uniform vec4 uL[9];',
-'uniform sampler2D uTex;uniform vec4 uP0,uP1,uP2,uP3,uP4;uniform vec3 uMic;',
+'uniform sampler2D uTex;uniform vec4 uP0,uP1,uP2,uP3,uP4,uP5;uniform vec3 uMic;uniform float uA4k;',
 'float smin(float a,float b,float k){k=max(k,.001);float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}',
 'float att(float u){float x=2.*u;x=x*x;x=x*x;float r=4./(4.+x);r=r*r;return r*r;}',
 'float bs(float x){x=abs(x);return x<.5?.75-x*x:(x<1.5?.5*(1.5-x)*(1.5-x):0.);}',
@@ -117,7 +117,7 @@ var FS=[
 ' float ln=smoothstep(fe+px,fe-px,ad);',
 ' col=min(col+(lob+vec3(ln))*ends,vec3(1.));}',
 ' float v=panel(P,uP0,vec2(3.,5.),px)+panel(P,uP4,vec2(5.,5.),px)+panel(P,uP1,vec2(3.,5.),px)+panel(P,uP2,vec2(11.,5.),px)+panel(P,uP3,vec2(23.,5.),px);',
-' col=mix(col,vec3(1.),min(v,1.));',
+' col=mix(col,vec3(1.),min(v,1.));col=mix(col,vec3(1.),panel(P,uP5,vec2(11.,5.),px)*uA4k);',
 ' float dm=length(P-uMic.xy)-17.;',
 ' col=mix(col,vec3(1.),mix(smoothstep(px,-px,abs(dm)-.7),smoothstep(px,-px,dm),uMic.z));',
 ' gl_FragColor=vec4(col,1.);}'].join('\n');
@@ -125,7 +125,7 @@ function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(
 var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
 var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
 var al=gl.getAttribLocation(pr,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
-var U={};['uRes','uSz','uT','uDpr','uCx','uY0','uY1','uLam','uGreen','uExt','uH','uHf','uPres','uAmp0','uPh0','uL','uTex','uP0','uP1','uP2','uP3','uP4','uMic'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
+var U={};['uRes','uSz','uT','uDpr','uCx','uY0','uY1','uLam','uGreen','uExt','uH','uHf','uPres','uAmp0','uPh0','uL','uTex','uP0','uP1','uP2','uP3','uP4','uP5','uMic','uA4k'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
 var tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
@@ -138,14 +138,14 @@ var G={'0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'11
  'A':'010101111101101','B':'110101110101110','C':'011100100100011','D':'110101101101110','E':'111100110100111','F':'111100110100100','G':'011100101101011',
  '#':'101111101111101','+':'000010111010000','-':'000000111000000','.':'000000000000010',' ':'000000000000000'};
 var cells=[];for(var i=0;i<32*32;i++)cells.push({c:0,v:0,t:0,d:0});
-var PN=[{row:0,slots:1},{row:5,slots:1},{row:10,slots:3},{row:15,slots:6}],shown=['','','',''];
+var PN=[{row:0,slots:1},{row:5,slots:1},{row:10,slots:3},{row:15,slots:6},{row:25,slots:3}],shown=['','','','',''];
 function setPanel(pi,str){if(shown[pi]===str)return;shown[pi]=str;var p=PN[pi];
  for(var s=0;s<p.slots;s++){var g=G[str.charAt(s)]||G[' '];
   for(var r=0;r<5;r++)for(var c=0;c<3;c++){var cell=cells[(p.row+r)*32+s*4+c],tg=g.charAt(r*3+c)==='1'?1:0;
    if(cell.t!==tg){cell.t=tg;cell.d=Math.random()*.1;}}}}
 var SHP='0101011111010101111101010',shOn=-1;
 function setSharp(on){on=on?1:0;if(shOn===on)return;shOn=on;for(var r=0;r<5;r++)for(var c=0;c<5;c++){var cell=cells[(20+r)*32+c],tg=(on&&SHP.charAt(r*5+c)==='1')?1:0;if(cell.t!==tg){cell.t=tg;cell.d=Math.random()*.1;}}}
-var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],A4=440,NB=4096;
+var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],NB=4096;
 var buf=new Float32Array(NB),yb=new Float32Array(1024),HA=[1,.62,.46,.3,.24,.16,.1];
 function detect(b,sr){
  var Wn=b.length>>1,tMin=Math.floor(sr/1500),tMax=Math.min(Wn-1,yb.length-2,Math.floor(sr/52)),rms=0;
@@ -159,8 +159,17 @@ function detect(b,sr){
  return{f:sr/(best+sh2),conf:1-x1,rms:rms};}
 function goertzel(b,sr,f,n){var w=2*Math.PI*f/sr,c=2*Math.cos(w),s0=0,s1=0,s2=0;for(var i=0;i<n;i++){s0=b[i]+c*s1-s2;s2=s1;s1=s0;}return Math.sqrt(Math.max(0,s1*s1+s2*s2-c*s1*s2))/n*2;}
 var S={mic:0,micFail:false,req:false,an:null,ctx:null,stream:null,has:false,
- f:0,cents:0,cS:0,note:-1,pend:-1,pres:0,level:0,disp:0,lock:0,lockT:0,green:0,ha:HA.slice(),ph:[0,0,0,0,0,0,0],lastDet:0,lastTxt:0,vib:0,hist:new Float32Array(24),lastH:0};
+ f:0,cents:0,cS:0,note:-1,pend:-1,pres:0,level:0,disp:0,lock:0,lockT:0,green:0,ha:HA.slice(),ph:[0,0,0,0,0,0,0],lastDet:0,lastTxt:0,vib:0,hist:new Float32Array(24),lastH:0,a4:440,wheel:null,a4p:null};
+/* the A4 reference: the note and cents maths use it; kept with the session */
+(function(){var ss=window.AT&&AT.session.load('tuner');if(ss&&ss.a4>=415&&ss.a4<=466)S.a4=Math.round(ss.a4);})();
 function micP(){return{x:W-34,y:H-28}}
+function a4P(){return{x:W-34,y:34}}
+function onA4(p){var q=a4P();return Math.abs(p.x-q.x)<34&&Math.abs(p.y-q.y)<26;}
+/* tap the reference: a single-column wheel 415-466 Hz (tap mode, stays open) hung below the readout, its cancel x clear of it;
+   commit changes the detection reference */
+function a4Wheel(){var r=box.getBoundingClientRect(),q=a4P();
+ S.wheel=Wheel.open({mode:'tap',anchor:{x:r.left+q.x,y:r.top+q.y+156},columns:[{items:Wheel.seq(415,466,1,0),index:S.a4-415}],
+  onDone:function(ix){S.wheel=null;if(!ix)return;S.a4=415+ix[0];S.shC=undefined;if(window.AT)AT.session.save('tuner',{a4:S.a4});}});}
 function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function lerp(a,b,t){return a+(b-a)*t}
 function stopMic(){S.mic=0;S.an=null;if(S.stream){S.stream.getTracks().forEach(function(t){t.stop()});S.stream=null;}try{S.ctx.close()}catch(_){}S.ctx=null;}
@@ -175,9 +184,13 @@ function startMic(){
  },function(){S.req=false;S.micFail=true;S.mic=0;try{ctx.close()}catch(_){}});}
 /* the mic dot toggles; a tap anywhere else starts listening when it is not running (and retries a refused microphone) */
 box.addEventListener('pointerdown',function(e){
- e.preventDefault();var p=pos(e),m=micP();
+ e.preventDefault();if(S.wheel&&!S.wheel.closing)return;var p=pos(e),m=micP();
+ if(onA4(p)){S.a4p={x:p.x,y:p.y,id:e.pointerId,moved:0};try{box.setPointerCapture(e.pointerId)}catch(_){}return;}   /* the reference never starts the mic */
  if(Math.hypot(p.x-m.x,p.y-m.y)<26){startMic();return;}
  if(!S.mic)startMic();});
+box.addEventListener('pointermove',function(e){var a=S.a4p;if(!a||e.pointerId!==a.id)return;var p=pos(e);a.moved=Math.max(a.moved,Math.hypot(p.x-a.x,p.y-a.y));});
+function a4Up(e){var a=S.a4p;if(!a||e.pointerId!==a.id)return;S.a4p=null;if(e.type==='pointerup'&&a.moved<10&&onA4(pos(e)))a4Wheel();}
+box.addEventListener('pointerup',a4Up);box.addEventListener('pointercancel',a4Up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 var LB=[],LU=new Float32Array(36);
 (function(){var base=[-13,1,14,-7,8,-17,-2,12,18],wd=[7.5,9.5,6.5,8.5,7,6,10,7.5,6.5];
@@ -189,7 +202,7 @@ function frame(now){
   if(S.mic&&S.an){S.an.getFloatTimeDomainData(buf);sr=S.ctx.sampleRate;r=detect(buf,sr);r.db=20*Math.log10(Math.max(1e-9,r.rms));S.level=Math.max(0,Math.min(1,(r.db+66)/36));}
   else{r={f:0,conf:0};S.level=0;}   /* no microphone: silence (the impossibly thin line), never a made-up pitch */
   if(r.f>0&&r.db>-63&&r.conf>(r.db<-45?.9:.85)){   /* periodicity decides; a quiet voice only has to be a little cleaner */
-   S.f=r.f;var mf=69+12*Math.log(r.f/A4)/Math.LN2,n=Math.round(mf);S.cents=(mf-n)*100;
+   S.f=r.f;var mf=69+12*Math.log(r.f/S.a4)/Math.LN2,n=Math.round(mf);S.cents=(mf-n)*100;
    if(n===S.pend||S.note<0){S.note=n;}S.pend=n;S.has=true;
    var mx=1e-6;for(var k=0;k<7;k++){S.ha[k]=goertzel(buf,sr,r.f*(k+1),2048);if(r.f*(k+1)>sr*.45)S.ha[k]=0;mx=Math.max(mx,S.ha[k]);}
    for(var k=0;k<7;k++)S.ha[k]=Math.max(.12,S.ha[k]/mx);
@@ -208,7 +221,8 @@ function frame(now){
    setPanel(0,nm.charAt(0));setSharp(nm.length>1);setPanel(1,String(Math.max(0,Math.min(9,oc))));
    if(S.shC===undefined||Math.abs(S.cS-S.shC)>.75||S.shN!==S.note){S.shC=c;S.shN=S.note;var cs=(c>0?'+':c<0?'-':'')+Math.abs(c);while(cs.length<3)cs=' '+cs;setPanel(2,cs);}
    if(!S.shF||Math.abs(1200*Math.log(S.f/S.shF)/Math.LN2)>.9){S.shF=S.f;var hz=S.f.toFixed(1);while(hz.length<6)hz=' '+hz;setPanel(3,hz.slice(-6));}}
-  else if(S.pres<.2){S.shC=undefined;S.shF=0;setPanel(0,' ');setSharp(false);setPanel(1,' ');setPanel(2,'   ');setPanel(3,'      ');}}
+  else if(S.pres<.2){S.shC=undefined;S.shF=0;setPanel(0,' ');setSharp(false);setPanel(1,' ');setPanel(2,'   ');setPanel(3,'      ');}
+  setPanel(4,String(S.a4));}
  for(var i=0;i<cells.length;i++){var c2=cells[i];if(c2.t===0&&c2.c===0&&c2.v===0){TD[i*2]=0;TD[i*2+1]=0;continue;}
   if(c2.d>0){c2.d-=dt;}else{c2.v+=((c2.t-c2.c)*260-c2.v*19)*dt;c2.c+=c2.v*dt;if(c2.c<0){c2.c=0;c2.v=0;}if(c2.t===0&&c2.c<.01&&Math.abs(c2.v)<.05){c2.c=0;c2.v=0;}}
   TD[i*2]=Math.max(0,Math.min(255,Math.round(c2.c/1.4*255)));TD[i*2+1]=Math.max(0,Math.min(255,Math.round((Math.abs(c2.t-c2.c)*1.3+Math.abs(c2.v)*.06)*255)));}
@@ -225,6 +239,7 @@ function frame(now){
  gl.uniform4fv(U.uL,LU);gl.uniform1f(U.uAmp0,amp[0]);gl.uniform1f(U.uPh0,S.ph[0]);
  gl.uniform1i(U.uTex,0);
  gl.uniform4f(U.uP0,cx-22.5,22,15,0);gl.uniform4f(U.uP1,cx-9,108,6,5);gl.uniform4f(U.uP2,cx-44,H-80,8,10);gl.uniform4f(U.uP3,cx-51.75,H-28,4.5,15);gl.uniform4f(U.uP4,cx+34,22,9,20);
+ var aq=a4P(),apc=3.2;gl.uniform4f(U.uP5,aq.x-5.5*apc,aq.y-2.5*apc,apc,25);gl.uniform1f(U.uA4k,S.a4===440?.55:1);
  var mp=micP();gl.uniform3f(U.uMic,mp.x,mp.y,S.mic?1:0);
  micI.style.left=mp.x+'px';micI.style.top=mp.y+'px';micI.style.color=S.mic?'#000':'#fff';micI.className='ti ti-'+(S.micFail?'microphone-off':'microphone');
  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);

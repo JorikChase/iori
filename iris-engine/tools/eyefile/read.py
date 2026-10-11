@@ -58,8 +58,12 @@ def read(buf):
          'outlines': sec('structures/outlines'), 'fibres': sec('levels/deck/fibres'), 'veins': sec('levels/deck/veins'),
          'guides': sec('levels/sheet/guides'), 'sfib': sec('levels/sheet/sfib'), 'svein': sec('levels/sheet/svein'),
          'beads': sec('structures/beads'), 'margin': {'xy': sec('structures/margin')[0]['xy'], 'circle': st['margin.circle']},
-         'cells': {'xy': cells['xy'], 'sheet': cells['sheet'], 'ground': cells['ground']}, 'rimRGB': mat['rimRGB'],
+         'cells': dict(cells), 'rimRGB': mat.get('rimRGB'),
          'roots': sec('levels/bridges/graph'), 'lut': fr['lut'], 'edgeMm': fr['edgeMm'], 'ablTex': alb['ablTex']}
+    for k in ('rimMat', 'rimLum'):
+        if mat.get(k) is not None: t[k] = mat[k]
+    if mat.get('channels') is not None: t['materialChannels'] = mat['channels']
+    t = {k: v for k, v in t.items() if v is not None or k in ('rimRGB',)}
     c = dict(sec('legacy')); c.update({'align': fr['align'], 'view': fr['view'], 'scores': sec('scores'), 'texture': fr['texture'],
                                        'tag': fr['tag'], 'quality': fr['quality'], 'natural': fr['natural'], 'isolated': fr['isolated']})
     c = {k: v for k, v in c.items() if v is not None or k in ('scores',)}

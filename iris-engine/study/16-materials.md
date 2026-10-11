@@ -45,6 +45,41 @@ its sheet colour sits at the gamut's edge, the known eye-25 colour debt), and a 
 chromaticity (max 12–55, irrelevant at their luminance). **All seven mie levels are in use on every eye** — the engine's
 fixed-mie LUT cannot reproduce the fitted materials; the engine needs the mie axis.
 
+## 2b. K2.1 built (2026-10-11) — the materials are in the eye files
+
+`tools/materials/publish.py NN` writes, beside the colours for now, `mat` (five u8 indices: Ma, Ds, pheo, yellow, mie) and
+`lum` (the luminance scale, 5 decimals) on every point of fibres, guides and beads, `matS/lumS` and `matG/lumG` on the cells,
+`rimMat/rimLum`, and `materialChannels` (the grid's values, the LUT's constants, the formula). Four things were learned on
+the way, each the cause of a failed gate:
+
+1. **A material is defined only to ≈ 1e-3.** The fitter's Lab conversions go through OpenCV's float path, which is precise
+   to about a thousandth and not smooth; on synthetic colours with the material KNOWN, only half reproduce their colour to
+   1e-4. So the gate is the renderer's: the colour regenerated from mat × lum × grade within **one 8-bit sRGB step** of the
+   shipped one. The within-1/10 000 gate of §5 was wrong by construction and is replaced.
+2. **The guides' forward model is different**: graded(chromaticity × yl) normalised to unit luminance, yl the photo's own
+   luminance at the point (layer_proof.py:711), a different clip and grade per sample. They are matched directly in the
+   cloud of normalised graded LUT colours at 24 luminances (99.9 % of the shipped guide colours lie within 0.005 of it),
+   and judged at the bake's brightness (× 0.25, tissue.js `chroma`). Nearest-chromaticity matching after ungrading picks
+   the wrong neighbour in a table with 87 000 distinct chromaticities.
+3. **The grade's hue is in degrees** (layer_proof.grade: np.radians). K2.0 had converted it to radians, so §2's eye-25
+   "gamut edge" (sheet p95 4.7) was this bug: with the hue right its sheet p95 is 0.25 like the others. §2's table stands
+   for eyes 26 and 09 (hue 0) and is superseded for 25 and 35 by the numbers below.
+4. **The clouds are per grade.** One eye's cloud served the next in the same process once.
+
+Regenerated colour within one 8-bit step (% of samples / worst sample in steps):
+
+| eye | grade chroma / hue | fibres | guides | sheet cells | ground cells | beads | file |
+|---|---|---|---|---|---|---|---|
+| 26 | 1.4 / 0° | 99.0 / 2 | 100.0 / 3 | 99.1 / 2 | 99.8 / 2 | 100.0 / 1 | 3,988 KB |
+| 09 | 1.6 / 0° | 97.2 / 3 | 99.9 / 4 | 97.7 / 2 | 99.1 / 2 | 42.7 / 27 | 4,700 KB |
+| 25 | 1.2 / -10° | 99.5 / 2 | 99.9 / 3 | 99.4 / 2 | 99.9 / 2 | 86.1 / 7 | 3,791 KB |
+| 35 | 1.0 / -10° | 100.0 / 1 | 100.0 / 2 | 99.8 / 2 | 100.0 / 2 | 100.0 / 1 | 2,831 KB |
+
+The beads of 09 and 25 are the one visible exception: their colours were measured Lab, never materials; decision 3 fits
+them to the nearest material, and the ruff of those two eyes will change by up to 27 / 7 steps when K2.2 renders from
+materials — iori judges it then. Everything else is within the renderer's own quantisation. The file grows by ≈ 13 %
+(26: 3 543 → 3 988 KB) while rgb is still carried; K2.2 drops rgb at its gate and the file shrinks below its old size.
+
 ## 3. What K2 changes
 
 - **Representation.** Per sample: a material (Ma, Ds, pheo, yellow, mie — five u8 indices into a fixed LUT grid) and a

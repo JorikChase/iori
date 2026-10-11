@@ -91,9 +91,32 @@ def section(name, enc, payload, meta=None):
 
 # ------------------------------------------------------------------ pack
 def pack(ref, check=False):
+    """the migration record: the three files of before → data/NN.iris (they are gone from data/ since 2026-10-10; from git history)"""
     t = json.load(open(os.path.join(DATA, f'tissue-{ref}.json')))
     c = json.load(open(os.path.join(DATA, f'case-{ref}.json')))
     cal = open(os.path.join(DATA, f'tissue-{ref}.cal.bin'), 'rb').read()
+    out = build(ref, t, c, cal)
+    path = os.path.join(DATA, f'{ref}.iris'); open(path, 'wb').write(out); report(path, out, t, c, cal, check); return path
+
+def report(path, out, t, c, cal, check):
+    print(f'{path}: {len(out) / 1024:.0f} KB (gz on the wire {len(gzip.compress(out, 6)) / 1024:.0f} KB)')
+    if check:
+        from read import read
+        T2, C2, CAL2 = read(out)
+        assert CAL2 == cal, 'measurements differ'
+        def same(a, b):                                   # numeric equality: 1 and 1.0 are the same number in the page
+            if isinstance(a, bool) or isinstance(b, bool): return a == b
+            if isinstance(a, (int, float)) and isinstance(b, (int, float)): return a == b
+            if isinstance(a, dict): return isinstance(b, dict) and set(a) == set(b) and all(same(a[k], b[k]) for k in a)
+            if isinstance(a, list): return isinstance(b, list) and len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
+            return a == b
+        for k in t: assert same(t[k], T2[k]), f'tissue.{k} differs'
+        for k in c: assert same(c[k], C2[k]), f'case.{k} differs'
+        print('   round trip: every number comes back equal')
+
+def build(ref, t, c, cal, head_over=None):
+    """the writer: the three in-memory objects (tissue, case, measurement bytes) → the file's bytes. head_over merges into
+    the head (engine, scores, modified … carried over from a file being rewritten)."""
     refs = {r['file']: r for r in json.load(open(os.path.join(ROOT, 'ref', 'refs.json')))} if os.path.exists(os.path.join(ROOT, 'ref', 'refs.json')) else {}
     rj = refs.get(t['ref'], {})
     calhead = {}
@@ -125,8 +148,8 @@ def pack(ref, check=False):
         m, b = table(recs, fields, ('xy',)); add(f'levels/{level}/{setname}', 'table', b, m)
     add('levels/bridges/graph', 'json', t['roots'])
     # 4 materials
-    cells = t['cells']; m, b = table([{'xy': cells['xy'], 'sheet': cells['sheet'], 'ground': cells['ground']}], ['xy', 'sheet', 'ground']); add('materials/cells', 'table', b, m)
-    add('materials', 'json', {'rimRGB': t['rimRGB'], 'channels': None})
+    cells = t['cells']; cf = [k for k in cells if isinstance(cells[k], list)]; m, b = table([{k: cells[k] for k in cf}], cf); add('materials/cells', 'table', b, m)
+    add('materials', 'json', {'rimRGB': t.get('rimRGB'), 'rimMat': t.get('rimMat'), 'rimLum': t.get('rimLum'), 'channels': t.get('materialChannels')})
     # 5 albedo · 6 relief · 7 dynamics
     add('albedo', 'json', {'ablTex': t.get('ablTex')})
     add('relief', 'json', {'mm': t['mm'], 'z': t['z']})
@@ -146,25 +169,11 @@ def pack(ref, check=False):
             'scores': {'match2': (c.get('scores') or {}).get('match2'), 'hcorr': (c.get('scores') or {}).get('hcorr')},
             'provenance': {'frame': 'measured', 'structures': 'traced', 'levels': 'traced+inferred', 'materials': 'measured', 'measurements': 'measured'},
             'sections': secs}
+    for k, v in (head_over or {}).items():
+        if isinstance(v, dict) and isinstance(head.get(k), dict): head[k].update(v)
+        else: head[k] = v
     hb = pad4(json.dumps(head, separators=(',', ':'), ensure_ascii=False).encode('utf8'))
-    out = MAGIC + struct.pack('<HHI', V, MINOR, len(hb)) + hb + b''.join(blobs)
-    path = os.path.join(DATA, f'{ref}.iris'); open(path, 'wb').write(out)
-    print(f'{path}: {len(out) / 1024:.0f} KB (head {len(hb) / 1024:.1f} KB, gz on the wire {len(gzip.compress(out, 6)) / 1024:.0f} KB)')
-    for s in secs: print(f'   {s["name"]:28s} {s["enc"]:6s} {s["len"] / 1024:8.1f} KB')
-    if check:
-        from read import read
-        T2, C2, CAL2 = read(out)
-        assert CAL2 == cal, 'measurements differ'
-        def same(a, b):                                   # numeric equality: 1 and 1.0 are the same number in the page
-            if isinstance(a, bool) or isinstance(b, bool): return a == b
-            if isinstance(a, (int, float)) and isinstance(b, (int, float)): return a == b
-            if isinstance(a, dict): return isinstance(b, dict) and set(a) == set(b) and all(same(a[k], b[k]) for k in a)
-            if isinstance(a, list): return isinstance(b, list) and len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
-            return a == b
-        for k in t: assert same(t[k], T2[k]), f'tissue.{k} differs'
-        for k in c: assert same(c[k], C2[k]), f'case.{k} differs'
-        print('   round trip: every number of the three source files comes back equal')
-    return path
+    return MAGIC + struct.pack('<HHI', V, MINOR, len(hb)) + hb + b''.join(blobs)
 
 if __name__ == '__main__':
     sys.path.insert(0, HERE)

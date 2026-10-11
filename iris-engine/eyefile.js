@@ -45,7 +45,8 @@
         const tissue = { ref: head.ref.file, fit: fr.fit, grade: fr.grade, z: rel.z, mm: rel.mm, outlines: await sec('structures/outlines'),
             fibres: await sec('levels/deck/fibres'), veins: await sec('levels/deck/veins'), guides: await sec('levels/sheet/guides'), sfib: await sec('levels/sheet/sfib'), svein: await sec('levels/sheet/svein'),
             beads: await sec('structures/beads'), margin: { xy: (await sec('structures/margin'))[0].xy, circle: st['margin.circle'] },
-            cells: { xy: cells.xy, sheet: cells.sheet, ground: cells.ground }, rimRGB: mat.rimRGB, roots: await sec('levels/bridges/graph'), lut: fr.lut, edgeMm: fr.edgeMm, ablTex: alb.ablTex };
+            cells: Object.assign({}, cells), rimRGB: mat.rimRGB, roots: await sec('levels/bridges/graph'), lut: fr.lut, edgeMm: fr.edgeMm, ablTex: alb.ablTex };
+        if (mat.rimMat) tissue.rimMat = mat.rimMat; if (mat.rimLum !== undefined && mat.rimLum !== null) tissue.rimLum = mat.rimLum; if (mat.channels) tissue.materialChannels = mat.channels;   // K2.1 (study/16)
         const cs = Object.assign({}, await sec('legacy'), { align: fr.align, view: fr.view, scores: await sec('scores'), texture: fr.texture, tag: fr.tag, quality: fr.quality, natural: fr.natural, isolated: fr.isolated });
         for (const k in cs) if (cs[k] === null || cs[k] === undefined) delete cs[k];
         return { head, tissue, case: cs, measurements: await sec('measurements'), levels: await sec('levels'), journal: await sec('journal') };

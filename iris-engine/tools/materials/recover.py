@@ -31,9 +31,24 @@ def invert_chroma(lin, LUT, G, ROT, Y0=0.18):
     dE, j = tree.query(lab_t, k=1, workers=-1)
     return j, (Y / Yl[j]).astype(np.float32), dE.astype(np.float32)
 
+def candidates(lin, LUT, G, ROT, k=8, Y0=0.18):
+    """the k nearest LUT materials by chromaticity (as invert_chroma), for a solve through the exact forward model"""
+    from scipy.spatial import cKDTree
+    key = (id(LUT), Y0)
+    if key not in _CH:
+        Yl = np.maximum(LUT @ LP.LUMA, 1e-6); _CH[key] = (cKDTree(LP.lin2lab(LUT / Yl[:, None] * Y0)), Yl)
+    tree, Yl = _CH[key]
+    # normalise to Y0 BEFORE the Lab round trip: a chromaticity stored at unit luminance has components above 1 and lin2lab
+    # clips them — the ungrading would then see a different colour. Chromaticity is what is matched, so the scale is free here.
+    Yin = np.maximum(lin @ LP.LUMA, 1e-9); at0 = lin / Yin[:, None] * Y0
+    un = LP.lab2lin(LP.grade(LP.lin2lab(at0.astype(np.float32)), 1.0 / G, -ROT)); un = np.maximum(un, 1e-6)
+    Y = np.maximum(un @ LP.LUMA, 1e-6); lab_t = LP.lin2lab(un / Y[:, None] * Y0)
+    dE, j = tree.query(lab_t, k=k, workers=-1)
+    return j, dE
+
 def recover(ref):
     t, c, _ = read(open(os.path.join(ENG, 'data', f'{ref}.iris'), 'rb').read())
-    G, ROT = float(t['grade']['chroma']), float(t['grade'].get('hue', 0)) * np.pi / 180 if abs(t['grade'].get('hue', 0)) > 6.3 else float(t['grade'].get('hue', 0))
+    G, ROT = float(t['grade']['chroma']), float(t['grade'].get('hue', 0))   # the grade's hue is in DEGREES (layer_proof.grade: np.radians(rot))
     LUT, P = LP.build_lut()
     classes = {
         'cells.sheet': np.array(t['cells']['sheet'], np.float32), 'cells.ground': np.array(t['cells']['ground'], np.float32),

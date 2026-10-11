@@ -72,10 +72,10 @@ module.exports = async (lib) => {
   for (let i = 1; i <= 12; i++) { await page.mouse.move(lerp(cx + ux / ul * 96, ex, i / 12), lerp(cy + uy / ul * 96, ey, i / 12)); await page.waitForTimeout(40); }
   await page.waitForTimeout(300); await page.mouse.up(); await page.waitForTimeout(400);
   const d4 = await doc(); const a4 = d4.clips.find(c => c.k === id1);
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 120, y: 600, id: 0 }, { x: 260, y: 600, id: 1 }] });
+  /* two-finger tap: CDP touch in Chromium, synthetic touch PointerEvents in WebKit (no CDP there) */
+  const T2 = require('./cliplab-base.js'); await T2.twoStart(lib, page, [{ x: 120, y: 600 }, { x: 260, y: 600 }]);
   await page.waitForTimeout(80);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await T2.twoEnd(lib, page);
   await page.waitForTimeout(500);
   const d5 = await doc(); const a5 = d5.clips.find(c => c.k === id1);
   info.move = { moving, tgt, after: a4, undone: a5 };

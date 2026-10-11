@@ -7,7 +7,9 @@
      C  2.4 s 'noise'        track 2, s = 5 beats, track MUTED, ends after everything else
      D  1.0 s decaying tone  placed live while AT.takes.get is held back 2.5 s -> the render must fetch it (busy state)
    1. prop dot -> the row shows the save bud; tap it -> busy (ring), then ready (green); a 'mix' take is in the library,
-      length = end of the last AUDIBLE clip (A: 4 beats + 2 s) +-1 ms, samples = 0.8 x the sum of A(rev), B(off), D;
+      length = end of the last AUDIBLE clip (A: 4 beats + 2 s) +-1 ms, samples = 0.8 x the sum of A(rev), B(off), D,
+      each with the 4 ms linear declick at both of its edges (the clip model since the gesture port, 2026-10-10: playback
+      and the mixdown play the per-clip baked buffers); without the ramps the clip edges would be off by > 0.05;
       C absent (window where only C would add)
    2. second tap on the green bud -> navigator.share called once, inside a user activation, with one audio/wav File whose
       header is 16-bit mono at the mix rate and whose samples equal the mix
@@ -99,27 +101,29 @@ module.exports = async (lib) => {
   const B4 = 4 * BEAT, B2 = 2 * BEAT;
   // windows: D alone, B alone (with its offset), A+B overlap, A alone (reversed) where the muted C would add
   const WINS = [[0.05, 0.95, 'D'], [B2 + 0.05, B4 - 0.05, 'B (offset 0.5 s)'], [B4 + 0.05, B2 + 2 - 0.05, 'A rev + B'], [B2 + 2 + 0.05, B4 + 2 - 0.05, 'A rev alone, muted C under it']];
-  /* expected mix, computed independently from the takes and the timeline document: 0.8 x each audible clip's samples */
+  /* expected mix, computed independently from the takes and the timeline document: 0.8 x each audible clip's samples,
+     times the declick (linear over the first and the last 4 ms of the clip: t / 4 ms and (d - t) / 4 ms) */
   const cmp = (mixId, wins) => page.evaluate(async ([mixId, wins]) => {
     const g = window.__getRaw || AT.takes.get, mix = await g(mixId), sr = mix.sr;
     const tr = __D.tracks, solo = tr.some(t => t.s), aud = (t) => !tr[t].m && (!solo || tr[t].s);
     const clips = __D.clips.filter(c => !c.dying), on = clips.filter(c => aud(c.t));
     const end = Math.max(...on.map(c => c.s + c.d)), N = Math.round(end * sr);
-    const L = Math.max(N, mix.data.length) + 10, exp = new Float32Array(L), alt = new Float32Array(L), cmuted = new Float32Array(L);
+    const L = Math.max(N, mix.data.length) + 10, exp = new Float32Array(L), alt = new Float32Array(L), cmuted = new Float32Array(L), raw = new Float32Array(L), DK = 0.004;
     for (const c of clips) {
       const src = (await g(c.k)).data, s0 = Math.round(c.s * sr), o0 = Math.round(c.off * sr), n = Math.round(c.d * sr), e0 = Math.round((c.off + c.d) * sr);
-      for (let i = 0; i < n; i++) { const v = c.rev ? src[e0 - 1 - i] : src[o0 + i], vf = src[o0 + i];
-        if (aud(c.t)) { exp[s0 + i] += 0.8 * v; alt[s0 + i] += 0.8 * vf; } else cmuted[s0 + i] += 0.8 * v; }
+      for (let i = 0; i < n; i++) { const t = i / sr, dk = Math.min(1, t / DK) * Math.min(1, Math.max(0, (c.d - t) / DK)), u = c.rev ? src[e0 - 1 - i] : src[o0 + i], v = u * dk, vf = src[o0 + i] * dk;
+        if (aud(c.t)) { exp[s0 + i] += 0.8 * v; alt[s0 + i] += 0.8 * vf; raw[s0 + i] += 0.8 * u; } else cmuted[s0 + i] += 0.8 * v; }
     }
     const win = ([a, b, label]) => { let e = 0, ea = 0, em = 0, pk = 0; const i0 = Math.round(a * sr), i1 = Math.min(mix.data.length, Math.round(b * sr));
       for (let i = i0; i < i1; i++) { const d = mix.data[i]; e = Math.max(e, Math.abs(d - exp[i])); ea = Math.max(ea, Math.abs(d - alt[i])); em = Math.max(em, Math.abs(d - exp[i] - cmuted[i])); pk = Math.max(pk, Math.abs(d)); }
       return { label, from: +a.toFixed(3), to: +b.toFixed(3), err: +e.toExponential(2), errIfForward: +ea.toExponential(2), errIfMutedPlayed: +em.toExponential(2), peak: +pk.toFixed(3) }; };
-    let all = 0; for (let i = 0; i < mix.data.length; i++) all = Math.max(all, Math.abs(mix.data[i] - exp[i]));
-    return { sr, len: mix.data.length, expLen: N, end, lenErrMs: +((mix.data.length - N) / sr * 1000).toFixed(3), all: +all.toExponential(2), win: (wins || []).map(win), clips: on.map(c => [c.t, c.s, c.d, c.off, c.rev]) };
+    let all = 0, noDk = 0; for (let i = 0; i < mix.data.length; i++) { all = Math.max(all, Math.abs(mix.data[i] - exp[i])); noDk = Math.max(noDk, Math.abs(mix.data[i] - raw[i])); }
+    return { sr, len: mix.data.length, expLen: N, end, lenErrMs: +((mix.data.length - N) / sr * 1000).toFixed(3), all: +all.toExponential(2), errIfNoDeclick: +noDk.toExponential(2), win: (wins || []).map(win), clips: on.map(c => [c.t, c.s, c.d, c.off, c.rev]) };
   }, [mixId, wins]);
   const r1 = await cmp(ready.id, WINS); info.mix1 = r1; const wr = r1.win;
   checks.mixLength = lib.near(r1.end, B4 + 2, 1e-9) && Math.abs(r1.lenErrMs) <= 1 && lib.near(r1.len / r1.sr, B4 + 2, 0.001);
   checks.mixSamples = r1.all < 2e-4 && wr.every(w => w.err < 2e-4 && w.peak > 0.02);
+  checks.declickInMix = r1.errIfNoDeclick > 0.05;
   checks.reversedMatters = wr[3].errIfForward > 0.01;
   checks.mutedAbsent = wr[3].errIfMutedPlayed > 0.05;
 

@@ -25,9 +25,9 @@ module.exports = async (lib) => {
   await shot('shrinking');
   await page.waitForTimeout(1200);
   const d2 = await page.evaluate(() => ({ clips: __D.clips.map(c => c.k), slots: __E.slots().map(s => ({ id: s.id, st: s.st })) }));
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 120, y: 600, id: 0 }, { x: 260, y: 600, id: 1 }] });
-  await page.waitForTimeout(80); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await page.waitForTimeout(600);
+  /* two-finger tap: CDP touch in Chromium, synthetic touch PointerEvents in WebKit (no CDP there) */
+  const T2 = require('./cliplab-base.js'); await T2.twoStart(lib, page, [{ x: 120, y: 600 }, { x: 260, y: 600 }]);
+  await page.waitForTimeout(80); await T2.twoEnd(lib, page); await page.waitForTimeout(600);
   const d3 = await page.evaluate(() => ({ clips: __D.clips.filter(c => !c.dying).map(c => c.k), tracks: __D.tracks.length }));
   await shot('after-undo');
   const errors = page.errors.filter(e => !/serviceworker|service worker/i.test(e));

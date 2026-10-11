@@ -198,7 +198,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | E5 | Drag empty space scrolls | H | todo |
 | E6 | Pinch zooms around the fingers; readout shows zoom while pinching | H | todo |
 | E7 | Readout shows bar.beat | H | todo |
-| E8 | Hold clip → cut, copy, move, reverse, delete | H (T) | todo |
+| E8 | Hold clip body → cut, copy, move, delete (reverse is now the twist) | H | pass (edit-place, edit-gesture-panel) |
 | E9 | Move: picked up where held, follows across tracks, snaps to edges and beats with a green line, shows start time | H | todo |
 | E10 | Edits take effect live during playback | H | todo |
 | E11 | Hold head → mute, solo, arm (red), remove | H | todo |
@@ -208,7 +208,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | E15 | Grid takes the shared tempo on open | H | pass (edit-place) |
 | E17 | Clips reference takes by id; a deleted take's clips are dropped (closed) or shrink away (open) | H | pass (edit-deleted) |
 | E18 | No clip limit (was 12): the shader draws on-screen clips in slots sized from the GPU (32–48 on phones); more on screen than slots → neighbours in a track draw merged. Bar numbers up to four digits (were blank past 99) | H | pass (edit-many: 40 clips persisted, played with 40 sources, all drawn zoomed out; merge path at 12 slots; bars 101–110 drawn) |
-| E16 | Trim, record into armed track, volume/pan, effects | — | n/a |
+| E16 | Record into armed track, volume/pan, effects | — | n/a |
 
 ## Performance (device, `?perf`)
 
@@ -243,3 +243,8 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | K2 | UX lab (audio/lab.html): timed A/B of wheel vs current fan and slide gestures for lists and values; results stored and exportable | H+D | pass harness (wheel-lab); owner sessions todo |
 | K3 | Wheel adopted where lists live today (synth setups, analyzer views/sources, practice source, editor shelf, BPM ×/÷) | — | todo (after lab results) |
 | K4 | Clip gesture mock-up (audio/clip-lab.html): edge trim / hold-fade, seam roll / hold-crossfade, body buds (cut, copy, move, delete), two-finger twist reverses (?rev=dbl double-tap), tap selects → clip panel (warp switch, mode, original tempo with wheel, transpose, gain, fade curve), 4 ms declick, WSOLA warp | H+D | pass harness (cliplab-*: 8 scenarios Chromium + WebKit; 1.25× warp keeps 439.99 Hz, crossfade midpoint −3.04 dB per side); owner try-out todo |
+| E20 | Clip gestures in the editor (ported from clip-lab, owner-approved): edge drag trims (snaps to half-beats and clip edges when snap is on) / stretches when warped; hold edge = fade; seam drag rolls; hold seam = equal-power crossfade; two-finger twist reverses; pinch zooms; two-finger tap undoes | H | pass (edit-gesture-trim/fade/seams/twist; Chromium + WebKit) |
+| E21 | Tap a clip → its panel replaces the property buds: per-clip warp switch, mode beats/tones/repitch, original tempo (estimate + digit wheel), transpose, gain, fade curve; tap empty restores | H | pass (edit-gesture-panel, edit-gesture-stretch: warped stretch keeps pitch, warped clips follow the shared tempo) |
+| E22 | Save/export mixdown and playback use per-clip rendered audio: fades, equal-power crossfades (−3 dB per side at the midpoint), reverse (sample-exact), warp, 4 ms declick | H | pass (edit-gesture-mixdown) |
+| E23 | Session v3 stores every new clip field; v2 sessions load with defaults | H | pass (edit-gesture-session) |
+| E24 | On-screen clip slots from the uniform budget with the larger per-clip data (16–48), merge fallback, the twisting clip always whole | H | pass (edit-gesture-slots) |

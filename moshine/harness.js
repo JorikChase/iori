@@ -85,6 +85,43 @@ export const T0 = {
     return { pass: Object.values(rows).every((r) => r.bad === 0 && r.masked > 0), rows };
   },
   // 80 recurrent warp steps: the GPU feedback loop equals the CPU loop bit for bit, and replays identically
+  // M8: every field op and every effect (fractional params, in the loop and after it), a sine modulator and the bloom's
+  // acceleration, each in a Mosh Loop on the 'pan' fixture (motion everywhere): GPU == CPU bit for bit, and a hash per case so the browsers
+  // can be compared (they must all print the same hashes)
+  async crossHashes() {
+    const f = fixture('pan'), n = 24, g = M().gpu, base = PRESETS['Xvid classic'];
+    const ops = [{ op: 'pan', x: 2.5, y: -1.25 }, { op: 'multiply', gx: -1.35, gy: 0.7 }, { ...opDefaults('noise'), amp: 3.25, cell: 2, hold: 3, mismatch: 0.17 }, { op: 'smooth', radius: 2 },
+      ...['sinX', 'sinY', 'radial', 'checker', 'invY', 'rampX'].map((shape) => ({ ...opDefaults('gain'), shape, amount: 0.83, freq: 2.75, phase: 0.13 })),
+      ...['zoom', 'rotate', 'swirl', 'shearX', 'shearY'].map((kind, k) => ({ ...opDefaults('synthetic'), kind, strength: 0.037, mode: k % 2 ? 'mix' : 'add', blend: 0.71, cx: 0.43, cy: 0.61 })),
+      { ...opDefaults('lost'), density: 0.31, layers: 3, life: 7, scale: 2, aspect: 1.5 }, { op: 'skip', eps: 1.5, mad: 0.07 }, { ...opDefaults('amplify'), pct: 0.23, gain: 2.65 },
+      { ...opDefaults('map'), amount: 0.77, contrast: 1.35, from: 'source' }];
+    const fx = [{ ...fxDefaults('dct'), quality: 23, chroma: 1.7 }, { ...fxDefaults('chroma'), scheme: '4:1:1', dx: 1.5 }, { ...fxDefaults('deblock'), strength: 0.63, alpha: 0.215, beta: 0.095 },
+      { ...fxDefaults('posterise'), levels: 9, motion: 0.45 }, { ...fxDefaults('stripes'), amount: 0.4, contrast: 0.37 }, { ...fxDefaults('echo'), decay: 0.73, warp: true }, { ...fxDefaults('echo'), decay: 0.61, mode: 'max' },
+      { ...fxDefaults('displace'), gain: 1.35 }, { ...fxDefaults('blockdrag'), prob: 0.2 }, { ...fxDefaults('slice'), prob: 0.4 }, { ...fxDefaults('rgbsplit'), dx: 2.5, motion: 0.85 },
+      { ...fxDefaults('colour'), hue: 37, sat: 1.43, gamma: 0.71, invert: 0.21, black: 0.07, white: 0.93 }, { ...fxDefaults('colour'), threshold: 0.43 }, { ...fxDefaults('freeze'), density: 0.35 }];
+    const cases = [
+      ...ops.map((o) => [`op ${o.op}${o.shape ? ':' + o.shape : o.kind ? ':' + o.kind : ''}`, { ...base, ops: [o] }]),
+      ...fx.map((o, k) => [`fx ${o.fx}${k}${k % 2 ? ' post' : ''}`, k % 2 ? { ...base, post: [o] } : { ...base, inLoop: [o] }]),
+      ['lfo sine on residual gain', { ...base, residual: { ...base.residual, gain: { value: 0.4, mods: [{ type: 'lfo', mode: 'add', depth: 0.3, params: { shape: 'sine', rate: 0.37, phase: 0.11 } }] } } }],
+      ['bloom accel', { ...base, bloom: { ...base.bloom, repeat: 9, every: 13, accel: 1.07 } }],
+    ];
+    // the residual modes, intra refresh, block refresh and sweep across the 'cut' fixture's scene cut (frame 40)
+    const XR = PRESETS['Xvid + residual'], fc = fixture('cut'), nc = 52;
+    cases.push(['cut: Xvid + residual (detail, intra)', XR, fc, nc], ['cut: full residual', { ...XR, residual: { ...XR.residual, mode: 'full', gain: 0.6, steps: 23 } }, fc, nc],
+      ['cut: codec residual', { ...base, residual: { ...base.residual, gain: 0.83, steps: 27, dead: 0.017 } }, fc, nc],
+      ['cut: noise + lost + smooth, bloom, refresh, sweep', { ...XR, ops: [opDefaults('lost'), { ...opDefaults('noise'), amp: 2, mismatch: 0.1 }, opDefaults('smooth')], bloom: { repeat: 12, every: 30, accel: 1.05 }, reset: { blocks: 0.003, sweepBand: 3 } }, fc, nc]);
+    const rows = {};
+    for (const [name, c0, fx0 = f, nx = n] of cases) {
+      const f = fx0, n = nx, x = createImage(g, f.w, f.h, F16);
+      const cfg = normalize(c0), G = createMoshLoop(g, f, cfg), C = createLoopRef(f, cfg); G.begin(0); C.begin(0); let r, c;
+      for (let t = 0; t < n; t++) { upload(g, x, f.frame(t)); r = G.step(t, { src: x }); c = C.step(t, { src: fromHalfArray(toHalfArray(f.frame(t))) }); }
+      const got = await readback(g, r.display), want = toHalfArray(c.display || c.out);
+      rows[name] = { hash: fnv1a(got).toString(16), cpuEqual: fnv1a(got) === fnv1a(want) };
+      G.destroy(); x.destroy();
+    }
+    const bad = Object.entries(rows).filter(([, r]) => !r.cpuEqual).map(([k]) => k);
+    return { pass: !bad.length, notEqual: bad, all: fnv1a(new TextEncoder().encode(JSON.stringify(Object.values(rows).map((r) => r.hash)))).toString(16), rows };
+  },
   async moshReplay() {
     const f = fixture('cut'), a = await moshLoopGPU(f, F16), b = await moshLoopGPU(f, F16), ref = toHalfArray(moshLoopCPU(f));
     return { pass: fnv1a(a) === fnv1a(b) && firstDiff(a, ref) === -1, hash: fnv1a(a), steps: f.count - f.cut, replayEqual: fnv1a(a) === fnv1a(b), cpuEqual: firstDiff(a, ref) === -1 };
@@ -169,7 +206,7 @@ Object.assign(T0, {
       rows[o.op + (o.shape || o.kind || o.which ? ':' + (o.shape || o.kind || o.which) : '') + (o.invert ? ':inv' : '')] = { maxDiff: close(got, want, 1e-3).max, flagMismatch: flags };
     }
     [inp, ...bufs, mapTex].forEach((b) => b.destroy()); F.destroy();
-    return { pass: Object.values(rows).every((r) => r.maxDiff <= 1e-3 && r.flagMismatch === 0), rows };
+    return { pass: Object.values(rows).every((r) => r.maxDiff === 0 && r.flagMismatch === 0), rows };   // exact (M8)
   },
   // warp modes on f32 images: nearest + pel exact, bilinear within float noise, accel scale, zero-on-cut
   async warpModes() {
@@ -265,14 +302,14 @@ Object.assign(T0, {
     for (const o of cases) {
       const C = createFxChain(g, { w, h, block: 16 }, F32, 'parity'), states = [];
       submit((e) => C.encode(e, a, D, [o], { t: 11, seed: 4, field: fb }));                      // frame 1 (stateful: no state yet)
-      fxChain([o], A, { w, h, block: 16, t: 11, seed: 4, field: fld }, states);
+      fxChain([o], A, { w, h, block: 16, t: 11, seed: 4, field: fld, store: 'f32' }, states);
       submit((e) => C.encode(e, b, D, [o], { t: 12, seed: 4, field: fb }));                      // frame 2 (stateful: uses frame 1)
-      const want = fxChain([o], B, { w, h, block: 16, t: 12, seed: 4, field: fld }, states), got = await readback(g, D), r = close(got, want, 1e-4);
+      const want = fxChain([o], B, { w, h, block: 16, t: 12, seed: 4, field: fld, store: 'f32' }, states), got = await readback(g, D), r = close(got, want, 0);
       rows[o.fx + (rows[o.fx] ? ' #' + Object.keys(rows).filter((k) => k.startsWith(o.fx)).length : '')] = { pixelsOff: frac(r.bad, got.length), max: +r.max.toFixed(5) };
       C.destroy();
     }
     [fb, a, b, D].forEach((x) => x.destroy());
-    return { pass: Object.entries(rows).every(([k, r]) => (k.startsWith('dct') ? r.pixelsOff <= 0.01 : r.pixelsOff <= 0.001 && r.max <= 0.02)), rows };
+    return { pass: Object.values(rows).every((r) => r.pixelsOff === 0), rows };            // M8: every effect exact
   },
   // optical flow: GPU == CPU from identical pyramids (iterative float: small drift allowed), and the truth
   async flowParityTruth() {
@@ -309,7 +346,7 @@ Object.assign(T0, {
       const got = fromHalfArray(await readback(M().gpu, r.display)); let sum = 0; for (let i = 0; i < got.length; i++) sum += Math.abs(got[i] - c.display[i]);
       rows[name] = { meanAbsDiff: +(sum / got.length).toFixed(5) }; x.destroy(); G.destroy();
     }
-    return { pass: Object.values(rows).every((r) => r.meanAbsDiff <= 0.01), rows };
+    return { pass: Object.entries(rows).every(([k, r]) => r.meanAbsDiff === 0 || (k === 'Fluid' && r.meanAbsDiff <= 0.01)), rows };   // exact (M8); flow is float
   },
 });
 
@@ -376,8 +413,7 @@ Object.assign(T0, {
   },
   // the GPU sequence renderer equals the CPU evaluator bit for bit: one clip; and layers with transforms, a screen
   // blend, clip stacks (rgbsplit at an integer shift, displace), a hit marker and lfo / noise / random-hold / trigger
-  // modulators. 'fxMix' adds echo and a noise-modulated rgbsplit shift: those M3 kernels mix with fractional weights
-  // that Metal fuses into multiply-adds, so they are only close until the FX library is made contraction-proof.
+  // modulators. 'fxMix' adds echo and a noise-modulated rgbsplit shift (exact since the integer FX library, M8).
   async sequenceParity() {
     const S = await seqMod(), R = await renderMod(), rows = {};
     for (const [name, opts] of [['oneClip', { layered: false }], ['layered', { loopFx: ['displace'], fxMod: false }], ['composite', { loopFx: [], fxMod: false, n: 40, bypassLoop: true }], ['fxMix', {}]]) {
@@ -391,7 +427,7 @@ Object.assign(T0, {
       rows[name] = { frames: X.n, framesDiffering: bad, firstBad, maxAbsDiff: +max.toFixed(5) };
       await gpu.destroy();
     }
-    return { pass: rows.oneClip.framesDiffering === 0 && rows.layered.framesDiffering === 0 && rows.composite.framesDiffering === 0 && rows.fxMix.maxAbsDiff <= 0.002, rows };
+    return { pass: rows.oneClip.framesDiffering === 0 && rows.layered.framesDiffering === 0 && rows.composite.framesDiffering === 0 && rows.fxMix.framesDiffering === 0, rows };
   },
   // the editor (index.html only): real pointer drags on the timeline canvas trim, move along and across channels,
   // marquee-select and scrub, each as one undo step, and undo restores the project

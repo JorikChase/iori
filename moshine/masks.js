@@ -5,6 +5,7 @@
 // mixed with the clean picture below by it. Shapes live in sequence space: u = 0..1 across the width, v = 0..1 down
 // the height; distances (radius, feather) are fractions of the height, so a mask looks the same at any resolution.
 // The raster is plain JS (deterministic; both backends upload these very bytes, so GPU and CPU agree bit for bit).
+import { dsincos, dhypot } from './dmath.js';
 import { resolve } from './params.js';
 
 export const MASK_TRANSFORM = { x: [-1, 1, 0.001, 0], y: [-1, 1, 0.001, 0], scale: [0.05, 4, 0.01, 1], rotation: [-180, 180, 0.5, 0], opacity: [0, 1, 0.01, 1] };
@@ -43,18 +44,18 @@ function shapeCov(s, px, py, A, fe) {
   let d;                                                   // signed distance in height units: < 0 inside
   if (s.type === 'stroke') {
     const p = s.pts, r = s.r; d = Infinity;
-    if (p.length === 2) d = Math.hypot(px - p[0] * A, py - p[1]) - r;
+    if (p.length === 2) d = dhypot(px - p[0] * A, py - p[1]) - r;
     for (let i = 0; i + 3 < p.length; i += 2) {
       const ax = p[i] * A, ay = p[i + 1], bx = p[i + 2] * A, by = p[i + 3], vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy;
       const u = l2 > 0 ? clamp01(((px - ax) * vx + (py - ay) * vy) / l2) : 0;
-      const e = Math.hypot(px - (ax + u * vx), py - (ay + u * vy)) - r; if (e < d) d = e;
+      const e = dhypot(px - (ax + u * vx), py - (ay + u * vy)) - r; if (e < d) d = e;
     }
   } else if (s.type === 'ellipse') {
-    const dx = (px - s.cx * A) / (s.rx * A), dy = (py - s.cy) / s.ry, k = Math.hypot(dx, dy);
+    const dx = (px - s.cx * A) / (s.rx * A), dy = (py - s.cy) / s.ry, k = dhypot(dx, dy);
     d = (k - 1) * Math.min(s.rx * A, s.ry);
   } else if (s.type === 'rect') {
     const cx = (s.x + s.w / 2) * A, cy = s.y + s.h / 2, qx = Math.abs(px - cx) - (s.w * A) / 2, qy = Math.abs(py - cy) - s.h / 2;
-    d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+    d = dhypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
   } else return 0;
   return fe > 0 ? clamp01(0.5 - d / fe) : d <= 0 ? 1 : 0;
 }
@@ -92,7 +93,7 @@ function unionInto(dst, m, mw, mh, A, cache) {
 function coverage(m, mw, mh, A) {
   // inverse of the mask transform about the frame centre (A / 2, 1 / 2): translate, rotate, scale. The per-column and
   // per-row terms are the same expressions as per pixel (x - A / 2 - m.x * A), so the values are unchanged.
-  const th = (-m.rotation * Math.PI) / 180, c = Math.cos(th), s = Math.sin(th), sc = Math.max(1e-3, m.scale), fe = Math.max(0, m.feather) / sc;
+  const th = (-m.rotation * Math.PI) / 180, [s, c] = dsincos(th), sc = Math.max(1e-3, m.scale), fe = Math.max(0, m.feather) / sc;
   const v = new Float64Array(mw * mh), DX = new Float64Array(mw), DY = new Float64Array(mh), H = A / 2;
   for (let i = 0; i < mw; i++) DX[i] = ((i + 0.5) / mw) * A - A / 2 - m.x * A;
   for (let j = 0; j < mh; j++) DY[j] = (j + 0.5) / mh - 0.5 - m.y;
@@ -112,7 +113,7 @@ function coverage(m, mw, mh, A) {
       const p = sh.pts, r = sh.r, R = r + reach;
       if (p.length === 2) {
         const ax = p[0] * A, ay = p[1], [i0, j0, i1, j1] = pixels(ax - R, ay - R, ax + R, ay + R);
-        for (let j = j0; j <= j1; j++) { const dy = DY[j]; for (let i = i0; i <= i1; i++) { const dx = DX[i], px = (dx * c - dy * s) / sc + H, py = (dx * s + dy * c) / sc + 0.5; put(j * mw + i, Math.hypot(px - ax, py - ay) - r); } }
+        for (let j = j0; j <= j1; j++) { const dy = DY[j]; for (let i = i0; i <= i1; i++) { const dx = DX[i], px = (dx * c - dy * s) / sc + H, py = (dx * s + dy * c) / sc + 0.5; put(j * mw + i, dhypot(px - ax, py - ay) - r); } }
       }
       for (let n = 0; n + 3 < p.length; n += 2) {
         const ax = p[n] * A, ay = p[n + 1], bx = p[n + 2] * A, by = p[n + 3], vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy;
@@ -122,7 +123,7 @@ function coverage(m, mw, mh, A) {
           for (let i = i0; i <= i1; i++) {
             const dx = DX[i], px = (dx * c - dy * s) / sc + H, py = (dx * s + dy * c) / sc + 0.5;
             const u = l2 > 0 ? clamp01(((px - ax) * vx + (py - ay) * vy) / l2) : 0;
-            put(j * mw + i, Math.hypot(px - (ax + u * vx), py - (ay + u * vy)) - r);
+            put(j * mw + i, dhypot(px - (ax + u * vx), py - (ay + u * vy)) - r);
           }
         }
       }
@@ -131,14 +132,14 @@ function coverage(m, mw, mh, A) {
       const [i0, j0, i1, j1] = pixels(cxA - ex, sh.cy - ey, cxA + ex, sh.cy + ey);
       for (let j = j0; j <= j1; j++) { const dy = DY[j]; for (let i = i0; i <= i1; i++) {
         const dx = DX[i], px = (dx * c - dy * s) / sc + H, py = (dx * s + dy * c) / sc + 0.5;
-        put(j * mw + i, (Math.hypot((px - cxA) / rxA, (py - sh.cy) / sh.ry) - 1) * mn);
+        put(j * mw + i, (dhypot((px - cxA) / rxA, (py - sh.cy) / sh.ry) - 1) * mn);
       } }
     } else if (sh.type === 'rect') {
       const cx = (sh.x + sh.w / 2) * A, cy = sh.y + sh.h / 2, hw = (sh.w * A) / 2, hh = sh.h / 2;
       const [i0, j0, i1, j1] = pixels(sh.x * A - reach, sh.y - reach, (sh.x + sh.w) * A + reach, sh.y + sh.h + reach);
       for (let j = j0; j <= j1; j++) { const dy = DY[j]; for (let i = i0; i <= i1; i++) {
         const dx = DX[i], px = (dx * c - dy * s) / sc + H, py = (dx * s + dy * c) / sc + 0.5, qx = Math.abs(px - cx) - hw, qy = Math.abs(py - cy) - hh;
-        put(j * mw + i, Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0));
+        put(j * mw + i, dhypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0));
       } }
     }
   }

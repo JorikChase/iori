@@ -4,7 +4,9 @@
 //
 // Float discipline: every arithmetic step that the WGSL performs in f32 is rounded with fr() here, in the
 // same order, so integer-motion paths are bit-exact and the rest differ only where the GPU fuses ops.
+import { dpowi } from './dmath.js';
 import { paintField } from './vectors.js';
+import { fieldOpQ, vq, fdiv, rdiv, h12, qs } from './fixed.js';
 import { hash3, toHalfArray, fromHalfArray } from './util.js';
 import { OP_CODE } from './config.js';
 
@@ -13,6 +15,8 @@ export const EDGE = { clamp: 0, repeat: 1, mirror: 2 };
 export const FLAG = { skip: 1, lost: 4 };
 export const LUMA = [fr(0.2126), fr(0.7152), fr(0.0722)];       // nominal BT.709 weights (the kernels use lumaPx)
 const q15 = (x) => Math.floor((x < 0 ? 0 : x > 1 ? 1 : x) * 32768 + 0.5);
+/** The bloom's acceleration after k held frames, f32: repeated multiplication (Math.pow differs between JS engines). */
+export const accelScale = (accel, k) => fr(dpowi(fr(accel), k));
 /** Exact integer luma, twin of gpu.js LUMA_WGSL lumaOf: a multiple of 1/32768 in [0, 1]. */
 export const lumaPx = (r, g, b) => ((13933 * q15(r) + 46871 * q15(g) + 4732 * q15(b) + 32768) >>> 16) / 32768;
 const GAIN_SHAPES = ['rampX', 'rampY', 'invX', 'invY', 'sinX', 'sinY', 'radial', 'mirrorL', 'mirrorR', 'mirrorT', 'mirrorB', 'checker'];
@@ -160,78 +164,57 @@ export function flowCells(curP, refP, { block, cutMad }) {
 }
 
 // ------------------------------------------------------------------------------------------------ field ops
-/** One field operation (OPS in config.js) at frame t. Input field is not modified. */
+/**
+ * One field operation (OPS in config.js) at frame t. Input field is not modified. Twin of nodes/fieldops.js: integer
+ * arithmetic in 1/64 px with the parameters and tables of fixed.js fieldOpQ (M8: identical in every browser).
+ */
 export function fieldOp(field, o, ctx) {
-  const { w, h, block, t, seed } = ctx;
-  if (o.op === 'paint') {                                              // R2: painted vectors (vectors.js), add or select only
-    const P = paintField(o, { w, h, block }), out = new Float32Array(field), rep = o.mode === 'replace';
-    for (let i = 0; i < out.length; i += 4) { if (rep) { if (P[i + 2] >= 0.5) { out[i] = P[i]; out[i + 1] = P[i + 1]; } } else { out[i] = fr(field[i] + P[i]); out[i + 1] = fr(field[i + 1] + P[i + 1]); } }
-    return out;
-  }
+  const { w, h, block, t, seed } = ctx, geo = { w, h, block };
   const [bw, bh] = blocksOf(w, h, block), out = new Float32Array(field), code = OP_CODE[o.op];
+  const { a, table: T } = fieldOpQ(o, geo, o.op === 'paint' ? paintField(o, geo) : null);
+  const VUf = (m) => fr(m / 64), mulQ = (m, f, sh) => fdiv(m * f + (sh >> 1), sh);
   for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
-    const i = (by * bw + bx) * 4;
-    let mx = field[i], my = field[i + 1], fl = field[i + 3];
-    const u = fr(fr(bx + 0.5) / bw), v = fr(fr(by + 0.5) / bh);
-    if (code === 0) { mx = fr(mx + fr(o.x)); my = fr(my + fr(o.y)); }
-    else if (code === 1) { mx = fr(mx * fr(o.gx)); my = fr(my * fr(o.gy)); }
+    const bi = by * bw + bx, i = bi * 4, fx = field[i], fy = field[i + 1];
+    let ox = fx, oy = fy, fl = field[i + 3]; const mx = vq(fx), my = vq(fy);
+    if (code === 10) { if (a[0] === 1) { if (T[i + 2] > 0.5) { ox = VUf(T[i]); oy = VUf(T[i + 1]); } } else { ox = VUf(mx + T[i]); oy = VUf(my + T[i + 1]); } }
+    else if (code === 0) { ox = VUf(mx + a[0]); oy = VUf(my + a[1]); }
+    else if (code === 1) { ox = VUf(mulQ(mx, a[0], 1024)); oy = VUf(mulQ(my, a[1], 1024)); }
     else if (code === 2) {
-      const cell = Math.max(1, o.cell | 0), hold = Math.max(1, o.hold | 0), th = Math.floor(t / hold), cxi = Math.floor(bx / cell), cyi = Math.floor(by / cell);
-      if (hash3(bx * 7919 + by, t, seed * 4 + 3) < fr(o.mismatch)) { const j = (Math.min(by + 1, bh - 1) * bw + Math.min(bx + 1, bw - 1)) * 4; mx = field[j]; my = field[j + 1]; }
-      const amp = fr(o.amp);
-      mx = fr(mx + fr(fr(fr(hash3(cxi * 7919 + cyi, th, seed * 4) - 0.5) * 2) * amp));
-      my = fr(my + fr(fr(fr(hash3(cxi * 7919 + cyi, th, seed * 4 + 1) - 0.5) * 2) * amp));
+      const cell = a[1], hold = a[2], th = Math.floor(t / hold), cid = Math.floor(bx / cell) * 7919 + Math.floor(by / cell);
+      let nx = mx, ny = my;
+      if (hash3(bx * 7919 + by, t, seed * 4 + 3) < a[3]) { const j = (Math.min(by + 1, bh - 1) * bw + Math.min(bx + 1, bw - 1)) * 4; nx = vq(field[j]); ny = vq(field[j + 1]); }
+      nx += fdiv((2 * h12(cid, th, seed * 4) + 1 - 4096) * a[0], 4096); ny += fdiv((2 * h12(cid, th, seed * 4 + 1) + 1 - 4096) * a[0], 4096);
+      ox = VUf(nx); oy = VUf(ny);
     } else if (code === 3) {
-      const r = o.radius | 0; let sx = fr(0), sy = fr(0), n = 0;
+      const r = a[0]; let sx = 0, sy = 0, n = 0;
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-        const j = (Math.min(Math.max(by + dy, 0), bh - 1) * bw + Math.min(Math.max(bx + dx, 0), bw - 1)) * 4; sx = fr(sx + field[j]); sy = fr(sy + field[j + 1]); n++;
+        const j = (Math.min(Math.max(by + dy, 0), bh - 1) * bw + Math.min(Math.max(bx + dx, 0), bw - 1)) * 4; sx += vq(field[j]); sy += vq(field[j + 1]); n++;
       }
-      mx = fr(sx / n); my = fr(sy / n);
-    } else if (code === 4) {
-      const s = GAIN_SHAPES.indexOf(o.shape), f = fr(o.freq), ph = fr(o.phase), TAU = fr(6.283185307179586);
-      let g = 1;
-      if (s === 0) g = u; else if (s === 1) g = v; else if (s === 2) g = fr(1 - u); else if (s === 3) g = fr(1 - v);
-      else if (s === 4) g = fr(0.5 + fr(0.5 * fr(Math.sin(fr(TAU * fr(fr(f * u) + ph))))));
-      else if (s === 5) g = fr(0.5 + fr(0.5 * fr(Math.sin(fr(TAU * fr(fr(f * v) + ph))))));
-      else if (s === 6) { const dx = fr(u - 0.5), dy = fr(v - 0.5); g = fr(Math.max(0, fr(1 - fr(2 * fr(Math.sqrt(fr(fr(dx * dx) + fr(dy * dy)))))))); }
-      else if (s === 7) g = u < 0.5 ? 1 : 0; else if (s === 8) g = u >= 0.5 ? 1 : 0; else if (s === 9) g = v < 0.5 ? 1 : 0; else if (s === 10) g = v >= 0.5 ? 1 : 0;
-      else if (s === 11) { const c = Math.max(1, Math.floor(fr(o.freq) + 0.5)); g = ((Math.floor(bx / c) + Math.floor(by / c)) & 1) ? 1 : 0; }
-      const k = fr(fr(1 - fr(o.amount)) + fr(fr(o.amount) * g));
-      mx = fr(mx * k); my = fr(my * k);
-    } else if (code === 5) {
-      const kind = SYN_KINDS.indexOf(o.kind), k = fr(o.strength);
-      const px = fr(fr(bx * block) + fr(block * 0.5)), py = fr(fr(by * block) + fr(block * 0.5)), cx = fr(fr(o.cx) * w), cy = fr(fr(o.cy) * h);
-      const dx = fr(px - cx), dy = fr(py - cy); let sx = 0, sy = 0;
-      if (kind === 0) { sx = fr(dx * k); sy = fr(dy * k); }
-      else if (kind === 1 || kind === 4) {
-        let a = k;
-        if (kind === 4) { const dm = fr(fr(0.5) * fr(Math.min(w, h))), d = fr(Math.sqrt(fr(fr(dx * dx) + fr(dy * dy)))); a = fr(fr(k * 10) * fr(Math.max(0, fr(1 - fr(d / dm))))); }
-        const c = fr(Math.cos(a)), s = fr(Math.sin(a));
-        sx = fr(dx - fr(fr(c * dx) + fr(s * dy))); sy = fr(dy - fr(fr(c * dy) - fr(s * dx)));
-      } else if (kind === 2) sx = fr(fr(dy * k) * 4);
-      else if (kind === 3) sy = fr(fr(dx * k) * 4);
-      const b = fr(o.blend);
-      if (o.mode === 'add') { mx = fr(mx + fr(sx * b)); my = fr(my + fr(sy * b)); }
-      else { mx = fr(mx + fr(fr(sx - mx) * b)); my = fr(my + fr(fr(sy - my) * b)); }
+      ox = VUf(rdiv(sx, n)); oy = VUf(rdiv(sy, n));
+    } else if (code === 4) { ox = VUf(mulQ(mx, T[i], 4096)); oy = VUf(mulQ(my, T[i], 4096)); }
+    else if (code === 5) {
+      const sx = T[i], sy = T[i + 1];
+      if (a[1] === 1) { ox = VUf(mx + mulQ(sx, a[0], 4096)); oy = VUf(my + mulQ(sy, a[0], 4096)); }
+      else { ox = VUf(mx + mulQ(sx - mx, a[0], 4096)); oy = VUf(my + mulQ(sy - my, a[0], 4096)); }
     } else if (code === 6) {
-      if (lostAt(bx, by, t, o, seed)) { mx = 0; my = 0; fl = fl | FLAG.lost; }
+      if (lostAt(bx, by, t, o, seed)) { ox = 0; oy = 0; fl = fl | FLAG.lost; }
     } else if (code === 7) {
-      if (Math.max(Math.abs(mx), Math.abs(my)) < fr(o.eps) && field[i + 2] < fr(o.mad)) { mx = 0; my = 0; fl = fl | FLAG.skip; }
+      if (Math.max(Math.abs(fx), Math.abs(fy)) < a[0] && field[i + 2] < a[1]) { ox = 0; oy = 0; fl = fl | FLAG.skip; }
     } else if (code === 8) {
-      // selective amplify: rank by |mv|^2 (ties by index), exact on both sides
-      const nb = bw * bh, bi = by * bw + bx, mb = fr(fr(field[i] * field[i]) + fr(field[i + 1] * field[i + 1])), fastest = o.which !== 'slowest'; let rank = 0;
-      for (let j = 0; j < nb; j++) { const mj = fr(fr(field[j * 4] * field[j * 4]) + fr(field[j * 4 + 1] * field[j * 4 + 1])); if ((fastest ? mj > mb : mj < mb) || (mj === mb && j < bi)) rank++; }
-      if (rank < fr(fr(o.pct) * nb)) { mx = fr(mx * fr(o.gain)); my = fr(my * fr(o.gain)); }
+      // selective amplify: rank by |mv|^2 in quarter pixels (integers), ties by index
+      const q4 = (m) => Math.max(-8191, Math.min(8191, Math.floor(m * 4 + 0.5))), nb = bw * bh, mb = q4(fx) ** 2 + q4(fy) ** 2, fastest = a[2] === 0; let rank = 0;
+      for (let j = 0; j < nb; j++) { const mj = q4(field[j * 4]) ** 2 + q4(field[j * 4 + 1]) ** 2; if ((fastest ? mj > mb : mj < mb) || (mj === mb && j < bi)) rank++; }
+      if (rank < fr(a[0] * nb)) { ox = VUf(mulQ(mx, a[1], 1024)); oy = VUf(mulQ(my, a[1], 1024)); }
     } else if (code === 9) {
-      // mosh map: scale by the mean luma of the map image over the block
+      // mosh map: scale by the mean luma of the map image over the block (exact luma, integer sums)
       const mp = ctx.map; if (mp) {
-        let s = fr(0), n = 0;
-        for (let y = by * block; y < Math.min(h, by * block + block); y++) for (let x = bx * block; x < Math.min(w, bx * block + block); x++) { const k = (y * w + x) * 4; s = fr(s + lumaPx(mp[k], mp[k + 1], mp[k + 2])); n++; }
-        let m = Math.min(1, Math.max(0, fr(fr(fr(fr(s / n) - 0.5) * fr(o.contrast)) + 0.5))); if (o.invert) m = fr(1 - m);
-        const g = fr(fr(1 - fr(o.amount)) + fr(fr(o.amount) * m)); mx = fr(mx * g); my = fr(my * g);
+        let sum = 0, n = 0;
+        for (let y = by * block; y < Math.min(h, by * block + block); y++) for (let x = bx * block; x < Math.min(w, bx * block + block); x++) { const k = (y * w + x) * 4; sum += lumaPx(mp[k], mp[k + 1], mp[k + 2]) * 32768; n++; }
+        let mm = Math.min(4096, Math.max(0, rdiv((rdiv(sum, n) - 16384) * a[3], 32768) + 2048)); if (a[1] === 1) mm = 4096 - mm;
+        const F = (4096 - a[0]) + rdiv(a[0] * mm, 4096); ox = VUf(mulQ(mx, F, 4096)); oy = VUf(mulQ(my, F, 4096));
       }
     }
-    out[i] = mx; out[i + 1] = my; out[i + 3] = fl;
+    out[i] = ox; out[i + 1] = oy; out[i + 3] = fl;
   }
   return out;
 }
@@ -296,11 +279,13 @@ export function warp(prev, field, { w, h, block, edge = EDGE.clamp, sampling = '
  * not get a new residual, which is what makes ffglitch-style edits visible), with a dead zone.
  */
 export function code(src, resetSrc, pred, field, { w, h, block }, u, mc = null, res = src) {
-  const [bw] = blocksOf(w, h, block), out = new Float32Array(pred), Y = (img, x, y) => {
+  const [bw] = blocksOf(w, h, block), out = new Float32Array(pred), Y = (img, x, y) => {     // luma in 1/32768 (integers)
     const i = (Math.min(Math.max(y, 0), h - 1) * w + Math.min(Math.max(x, 0), w - 1)) * 4;
-    return lumaPx(img[i], img[i + 1], img[i + 2]);
+    return lumaPx(img[i], img[i + 1], img[i + 2]) * 32768;
   };
-  const box = (img, x, y) => { let s = fr(0); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s = fr(s + Y(img, x + dx, y + dy)); return fr(s / 9); };
+  const box = (img, x, y) => { let s = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += Y(img, x + dx, y + dy); return s; };
+  const st = Math.round(fr(u.resSteps)), gq = qs(Math.min(1, Math.max(0, fr(u.resGain))), 4096);
+  const resOff = (num, den) => { const n = fdiv(2 * num * st + den, 2 * den); return fr(rdiv(gq * n * 8, st) / 32768); };   // twin of code.js resOff
   const hardAll = u.hard || (u.cut && hash3(u.t, 3, u.seed * 4 + 1) < fr(u.honourCut));
   const y0 = u.sweepBand > 0 ? Math.floor(fr(u.t * fr(u.sweepSpeed))) % h : -1, allow = u.allowCode && !(u.cut && u.dropCut);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -309,16 +294,15 @@ export function code(src, resetSrc, pred, field, { w, h, block }, u, mc = null, 
     if (hardAll) { copy(resetSrc); continue; }
     if (lost) continue;
     if (allow && u.resGain > 0 && u.resMode === 'codec') {
-      const dead = fr(u.resDead), st = fr(u.resSteps), gain = fr(u.resGain);
+      const dead = fr(u.resDead);
       for (let k = 0; k < 3; k++) {
-        const r = fr(res[p + k] - mc[p + k]), rq = Math.abs(r) < dead ? 0 : fr(Math.floor(fr(fr(r * st) + 0.5)) / st);
-        out[p + k] = Math.min(1, Math.max(0, fr(pred[p + k] + fr(gain * rq))));
+        const r = fr(res[p + k] - mc[p + k]), g = Math.abs(r) < dead ? 0 : fr(rdiv(gq * fdiv(r * 16777216 * st + 8388608, 16777216) * 8, st) / 32768);
+        out[p + k] = Math.min(1, Math.max(0, fr(pred[p + k] + g)));
       }
     } else if (allow && u.resGain > 0) {
-      let r;
-      if (u.resMode === 'full') r = fr(Y(src, x, y) - Y(pred, x, y));
-      else { const hs = fr(Y(src, x, y) - box(src, x, y)), hp = fr(Y(pred, x, y) - box(pred, x, y)); r = Math.abs(hs) > Math.abs(hp) ? fr(hs - hp) : 0; }
-      const rq = fr(Math.floor(fr(fr(r * fr(u.resSteps)) + 0.5)) / fr(u.resSteps)), g = fr(fr(u.resGain) * rq);
+      let g = 0;
+      if (u.resMode === 'full') g = resOff(Y(src, x, y) - Y(pred, x, y), 32768);
+      else { const hs = 9 * Y(src, x, y) - box(src, x, y), hp = 9 * Y(pred, x, y) - box(pred, x, y); if (Math.abs(hs) > Math.abs(hp)) g = resOff(hs - hp, 9 * 32768); }
       for (let k = 0; k < 3; k++) out[p + k] = Math.min(1, Math.max(0, fr(pred[p + k] + g)));
     }
     if (allow && field[bi * 4 + 2] > fr(u.intraMad) && hash3(bi, u.t, u.seed * 4 + 1) < fr(u.intraRate)) { copy(src); continue; }
@@ -387,7 +371,7 @@ export function createLoopRef({ w, h }, cfg0, { store = 'f16' } = {}) {
         if (k === 0) { S.frozen = field; S.frozenEst = est; S.prevFrozen = S.prevSrc; }
       }
       const nb = Math.ceil(w / block) * Math.ceil(h / block), isCut = cut > Math.floor(c.estimate.cutFrac * nb);
-      const scale = k > 0 ? fr(c.bloom.accel ** k) : 1;
+      const scale = k > 0 ? accelScale(c.bloom.accel, k) : 1;
       const wo = { ...geo, edge: EDGE[c.warp.edge], sampling: c.warp.sampling, pel: c.warp.pel, scale, zero: isCut && c.estimate.zeroOnCut, interp: c.warp.interp };
       const pred = keep(warp(S.history, field, wo));
       // codec residual: the previous source under the same motion (during a hold: the trigger frame's previous source)

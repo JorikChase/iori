@@ -1,17 +1,17 @@
 // fx-ref.js — CPU reference of the image effects (config.js FX). Twins of nodes/fx.js. Float32Array RGBA in and
 // out; ctx = { w, h, block, t, seed, field (vec4 per block, may be null) }; stateful effects (echo, freeze) take
-// and return their previous output. The WGSL mirrors the arithmetic order; effects with cos/pow/division are
-// compared with a tolerance (D28 keeps bit-exactness for the integer and half-pel paths).
-import { hash3 } from './util.js';
+// and return their previous output. M8 (2026-10-11): the colour effects work in q15 integers with the parameters and
+// tables of fixed.js fxQ, so GPU and CPU agree bit for bit in every browser; every effect's output is rounded to half
+// floats, as the GPU stores it between passes.
+import { hash3, toHalfArray, fromHalfArray } from './util.js';
 import { lostAt } from './engine-ref.js';
+import { fxQ, DCT_T13, q15, fdiv, rdiv, vq, isqrt, y601q, h12 } from './fixed.js';
 
 const fr = Math.fround, clamp01 = (v) => Math.min(1, Math.max(0, v));
 const blocksOf = (w, h, b) => [Math.ceil(w / b), Math.ceil(h / b)];
 export const FX_SCHEMES = { '4:2:0': [2, 2], '4:2:2': [2, 1], '4:1:1': [4, 1], '8x8': [8, 8], '16x16': [16, 16] };
 
-// ---- DCT tables shared with the WGSL (written into the shader as literals, so both sides use identical f32 values)
-export const DCT_T = new Float32Array(64);
-for (let u = 0; u < 8; u++) for (let x = 0; x < 8; x++) DCT_T[u * 8 + x] = fr((u === 0 ? Math.SQRT1_2 : 1) * 0.5 * Math.cos(((2 * x + 1) * u * Math.PI) / 16));
+// ---- JPEG tables shared with the WGSL
 export const JPEG_Y = [16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92, 49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99];
 export const JPEG_C = [17, 18, 24, 47, 99, 99, 99, 99, 18, 21, 26, 66, 99, 99, 99, 99, 24, 26, 56, 99, 99, 99, 99, 99, 47, 66, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99];
 export const ZIGZAG = (() => { const z = new Array(64); let i = 0; for (let s = 0; s < 15; s++) { const cells = []; for (let y = 0; y < 8; y++) { const x = s - y; if (x >= 0 && x < 8) cells.push([x, y]); } if (s % 2 === 0) cells.reverse(); for (const [x, y] of cells) z[y * 8 + x] = i++; } return z; })();
@@ -40,110 +40,116 @@ const mvAt = (ctx, x, y) => {
   return [ctx.field[bi * 4], ctx.field[bi * 4 + 1]];
 };
 
+const h16 = (a) => fromHalfArray(toHalfArray(a));
+/** How the GPU stores an effect's output: half floats (the loop, the clip FX) or float32 (ctx.store === 'f32', tests). */
+const keepOf = (ctx) => (ctx.store === 'f32' ? (a) => a : h16);
+const ycc = (Y, cbi, cri) => { const cb = Math.max(-18000, Math.min(18000, cbi)), cr = Math.max(-18000, Math.min(18000, cri)), c = (v) => Math.max(0, Math.min(32768, v));
+  return [c(Y + fdiv(91881 * cr + 32768, 65536)), c(Y - fdiv(22554 * cb + 46802 * cr + 32768, 65536)), c(Y + fdiv(116130 * cb + 32768, 65536))]; };
+const cbq = (r, g, b) => fdiv(-11058 * r - 21710 * g + 32768 * b + 32768, 65536), crq = (r, g, b) => fdiv(32768 * r - 27439 * g - 5329 * b + 32768, 65536);
+const Q = (v) => fr(v / 32768);
+const px15 = (img, i) => [q15(img[i]), q15(img[i + 1]), q15(img[i + 2])];
 /** Apply one effect. Returns { out, state } (state = this effect's previous output for the next frame). */
 export function fxApply(o, img, ctx, state = null) {
   const { w, h } = ctx, out = new Float32Array(img.length), t = ctx.t | 0, seed = ctx.seed | 0;
   switch (o.fx) {
     case 'dct': {
-      const S = jpegScale(o.quality), cut = Math.round(o.cutoff), cm = fr(o.chroma);
+      const { passes: [a], table: QT } = fxQ(o, ctx.block, { Y: JPEG_Y, C: JPEG_C }), cut = a[2], dc = a[3] === 1, T = DCT_T13;
+      const r13 = (v) => rdiv(v, 8192);
       for (let by = 0; by < Math.ceil(h / 8); by++) for (let bx = 0; bx < Math.ceil(w / 8); bx++) {
-        const f = [new Float32Array(64), new Float32Array(64), new Float32Array(64)];
+        const f = [new Array(64), new Array(64), new Array(64)];
         for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-          const i = at(img, w, h, bx * 8 + x, by * 8 + y), r = img[i], g = img[i + 1], b = img[i + 2];
-          f[0][y * 8 + x] = fr(fr(fr(fr(fr(0.299 * r) + fr(0.587 * g)) + fr(0.114 * b)) * 255) - 128);
-          f[1][y * 8 + x] = fr(fr(fr(fr(-0.168736 * r) + fr(-0.331264 * g)) + fr(0.5 * b)) * 255);
-          f[2][y * 8 + x] = fr(fr(fr(fr(0.5 * r) + fr(-0.418688 * g)) + fr(-0.081312 * b)) * 255);
+          const [r, g, b] = px15(img, at(img, w, h, bx * 8 + x, by * 8 + y)), k = y * 8 + x;
+          f[0][k] = rdiv(y601q(r, g, b) * 4080, 32768) - 2048; f[1][k] = rdiv(cbq(r, g, b) * 4080, 32768); f[2][k] = rdiv(crq(r, g, b) * 4080, 32768);
         }
-        const rec = [new Float32Array(64), new Float32Array(64), new Float32Array(64)];
+        const rec = [new Array(64), new Array(64), new Array(64)];
         for (let ch = 0; ch < 3; ch++) {
-          const F = new Float32Array(64);
+          const F = new Array(64);
           for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) {
-            let acc = fr(0);
-            for (let y = 0; y < 8; y++) { let row = fr(0); for (let x = 0; x < 8; x++) row = fr(row + fr(DCT_T[u * 8 + x] * f[ch][y * 8 + x])); acc = fr(acc + fr(DCT_T[v * 8 + y] * row)); }
-            const k = v * 8 + u, base = ch === 0 ? JPEG_Y[k] : JPEG_C[k], q = fr(Math.max(1, Math.floor((base * S + 50) / 100)) * (ch === 0 ? 1 : cm));
-            F[k] = (o.dcOnly ? k !== 0 : ZIGZAG[k] >= cut) ? 0 : fr(roundEven(fr(acc / q)) * q);
+            let acc = 0;
+            for (let y = 0; y < 8; y++) { let row = 0; for (let x = 0; x < 8; x++) row += T[u * 8 + x] * f[ch][y * 8 + x]; acc += T[v * 8 + y] * r13(row); }
+            const k = v * 8 + u, q = QT[(ch === 0 ? 0 : 64) + k], co = r13(acc);
+            F[k] = (dc ? k !== 0 : ZIGZAG[k] >= cut) ? 0 : rdiv(co, q) * q;
           }
           for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-            let acc = fr(0);
-            for (let v = 0; v < 8; v++) { let row = fr(0); for (let u = 0; u < 8; u++) row = fr(row + fr(DCT_T[u * 8 + x] * F[v * 8 + u])); acc = fr(acc + fr(DCT_T[v * 8 + y] * row)); }
-            rec[ch][y * 8 + x] = acc;
+            let acc = 0;
+            for (let v = 0; v < 8; v++) { let row = 0; for (let u = 0; u < 8; u++) row += T[u * 8 + x] * F[v * 8 + u]; acc += T[v * 8 + y] * r13(row); }
+            rec[ch][y * 8 + x] = r13(acc);
           }
         }
         for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
           const px = bx * 8 + x, py = by * 8 + y; if (px >= w || py >= h) continue;
-          const k = y * 8 + x, Y = fr(fr(rec[0][k] + 128) / 255), Cb = fr(rec[1][k] / 255), Cr = fr(rec[2][k] / 255), d = (py * w + px) * 4;
-          out[d] = clamp01(fr(Y + fr(1.402 * Cr))); out[d + 1] = clamp01(fr(fr(Y - fr(0.344136 * Cb)) - fr(0.714136 * Cr))); out[d + 2] = clamp01(fr(Y + fr(1.772 * Cb))); out[d + 3] = img[d + 3];
+          const k = y * 8 + x, d = (py * w + px) * 4, c = ycc(rdiv((rec[0][k] + 2048) * 32768, 4080), rdiv(rec[1][k] * 32768, 4080), rdiv(rec[2][k] * 32768, 4080));
+          out[d] = Q(c[0]); out[d + 1] = Q(c[1]); out[d + 2] = Q(c[2]); out[d + 3] = img[d + 3];
         }
       }
       return { out, state };
     }
     case 'chroma': {
-      const [cw, ch] = FX_SCHEMES[o.scheme] || [2, 2], n = cw * ch;
+      const { passes: [a] } = fxQ(o, ctx.block), cw = a[0], ch = a[1];
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const d = (y * w + x) * 4, Y = Y601(img, d);
-        const ox = Math.floor(fr(x - fr(o.dx))), oy = Math.floor(fr(y - fr(o.dy))), cx = Math.floor(ox / cw) * cw, cy = Math.floor(oy / ch) * ch;
-        let cb = fr(0), cr = fr(0);
-        for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-          const s = at(img, w, h, cx + i, cy + j), r = img[s], g = img[s + 1], b = img[s + 2];
-          cb = fr(cb + fr(fr(fr(-0.168736 * r) + fr(-0.331264 * g)) + fr(0.5 * b))); cr = fr(cr + fr(fr(fr(0.5 * r) + fr(-0.418688 * g)) + fr(-0.081312 * b)));
-        }
-        cb = fr(cb / n); cr = fr(cr / n);
-        out[d] = clamp01(fr(Y + fr(1.402 * cr))); out[d + 1] = clamp01(fr(fr(Y - fr(0.344136 * cb)) - fr(0.714136 * cr))); out[d + 2] = clamp01(fr(Y + fr(1.772 * cb))); out[d + 3] = img[d + 3];
+        const d = (y * w + x) * 4, ox = Math.floor(fr(x - a[2])), oy = Math.floor(fr(y - a[3])), cx = fdiv(ox, cw) * cw, cy = fdiv(oy, ch) * ch;
+        let cb = 0, cr = 0;
+        for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) { const [r, g, b] = px15(img, at(img, w, h, cx + i, cy + j)); cb += cbq(r, g, b); cr += crq(r, g, b); }
+        const [r, g, b] = px15(img, d), c = ycc(y601q(r, g, b), rdiv(cb, cw * ch), rdiv(cr, cw * ch));
+        out[d] = Q(c[0]); out[d + 1] = Q(c[1]); out[d + 2] = Q(c[2]); out[d + 3] = img[d + 3];
       }
       return { out, state };
     }
     case 'deblock': {
-      const pass = (src, dir) => {
-        const res = new Float32Array(src), g = o.grid | 0, n = dir === 0 ? w : h, al = fr(o.alpha), be = fr(o.beta), st = fr(o.strength);
+      const { passes } = fxQ(o, ctx.block);
+      const pass = (src, a) => {
+        const res = new Float32Array(src), dir = a[4], g = a[1], n = dir === 0 ? w : h, st = a[0], al = a[2], be = a[3];
         for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-          const a = dir === 0 ? x : y, m = a % g; let p0, sgn;
-          if (m === 0 && a > 0 && a + 1 < n) { p0 = a - 1; sgn = 1; } else if (m === g - 1 && a + 2 < n && a > 0) { p0 = a; sgn = -1; } else continue;   // q0 moves by -delta, p0 by +delta
-          const idx = (k) => (dir === 0 ? (y * w + k) * 4 : (k * w + x) * 4), P1 = idx(p0 - 1), P0 = idx(p0), Q0 = idx(p0 + 1), Q1 = idx(p0 + 2);
-          const lp1 = Y601(src, P1), lp0 = Y601(src, P0), lq0 = Y601(src, Q0), lq1 = Y601(src, Q1);
-          if (!(Math.abs(fr(lp0 - lq0)) < al && Math.abs(fr(lp1 - lp0)) < be && Math.abs(fr(lq1 - lq0)) < be)) continue;
-          const d = idx(a);
+          const ax = dir === 0 ? x : y, m = ax % g; let p0, sgn;
+          if (m === 0 && ax > 0 && ax + 1 < n) { p0 = ax - 1; sgn = 1; } else if (m === g - 1 && ax + 2 < n && ax > 0) { p0 = ax; sgn = -1; } else continue;
+          const idx = (k) => (dir === 0 ? (y * w + k) * 4 : (k * w + x) * 4), P1 = px15(src, idx(p0 - 1)), P0 = px15(src, idx(p0)), Q0 = px15(src, idx(p0 + 1)), Q1 = px15(src, idx(p0 + 2));
+          const L = (c) => y601q(c[0], c[1], c[2]);
+          if (!(Math.abs(L(P0) - L(Q0)) < al && Math.abs(L(P1) - L(P0)) < be && Math.abs(L(Q1) - L(Q0)) < be)) continue;
+          const d = idx(ax), c0 = px15(src, d);
           for (let k = 0; k < 3; k++) {
-            const delta = fr(Math.min(al, Math.max(-al, fr(fr(fr(fr(src[Q0 + k] - src[P0 + k]) * 4) + fr(src[P1 + k] - src[Q1 + k])) / 8))) * st);
-            res[d + k] = clamp01(fr(src[d + k] - fr(sgn * delta)));
+            const dl = Math.max(-al, Math.min(al, rdiv((Q0[k] - P0[k]) * 4 + (P1[k] - Q1[k]), 8))), delta = fdiv(dl * st + 2048, 4096);
+            res[d + k] = Q(Math.max(0, Math.min(32768, c0[k] - delta * sgn)));
           }
         }
-        return res;
+        return keepOf(ctx)(res);                                        // the GPU stores each pass in its format
       };
-      return { out: pass(pass(img, 0), 1), state };
+      return { out: pass(pass(img, passes[0]), passes[1]), state };
     }
     case 'posterise': {
+      const { passes: [a] } = fxQ(o, ctx.block);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const d = (y * w + x) * 4; let L = fr(o.levels);
-        if (o.motion > 0) { const [mx, my] = mvAt(ctx, x, y), m = fr(Math.sqrt(fr(fr(mx * mx) + fr(my * my)))); L = Math.max(2, Math.floor(fr(L * fr(1 - fr(fr(o.motion) * Math.min(1, fr(m / 8))))))); }
-        const k = fr(L - 1);
-        for (let c = 0; c < 3; c++) out[d + c] = fr(Math.floor(fr(fr(img[d + c] * k) + 0.5)) / k);
+        const d = (y * w + x) * 4; let L = a[0];
+        if (a[1] > 0) { const [mvx, mvy] = mvAt(ctx, x, y), mx = Math.max(-16383, Math.min(16383, vq(mvx))), my = Math.max(-16383, Math.min(16383, vq(mvy)));
+          const f = Math.min(4096, isqrt(mx * mx + my * my) * 8); L = Math.max(2, fdiv(L * (4096 - rdiv(a[1] * f, 4096)), 4096)); }
+        const k = L - 1;
+        for (let c = 0; c < 3; c++) { const n = fdiv(q15(img[d + c]) * k + 16384, 32768); out[d + c] = Q(rdiv(n * 32768, k)); }
         out[d + 3] = img[d + 3];
       }
       return { out, state };
     }
     case 'stripes': {
-      const B = ctx.block, [bw] = blocksOf(w, h, B), th = Math.floor(t / Math.max(1, o.hold | 0)), PI = fr(Math.PI);
+      const { passes: [a], table: T } = fxQ(o, ctx.block), B = ctx.block, [bw] = blocksOf(w, h, B), th = Math.floor(t / a[2]);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         const d = (y * w + x) * 4, bx = Math.min(Math.floor(x / B), bw - 1), by = Math.floor(y / B), bi = by * bw + bx;
         for (let c = 0; c < 4; c++) out[d + c] = img[d + c];
-        if (!(hash3(bi, th, seed * 4 + 3) < fr(o.amount))) continue;
-        const u = Math.floor(fr(hash3(bi, th, seed * 4 + 1) * o.freq)), v = Math.floor(fr(hash3(bi, th, seed * 4 + 2) * o.freq));
-        const amp = fr(fr(o.contrast) * fr(fr(hash3(bi, th, seed * 8 + 5) - 0.5) * 2)), lx = x - bx * B, ly = y - by * B;
-        const basis = fr(fr(Math.cos(fr(fr(PI * fr((2 * lx + 1) * u)) / (2 * B)))) * fr(Math.cos(fr(fr(PI * fr((2 * ly + 1) * v)) / (2 * B)))));
-        for (let c = 0; c < 3; c++) out[d + c] = clamp01(fr(img[d + c] + fr(amp * basis)));
+        if (!(hash3(bi, th, seed * 4 + 3) < a[0])) continue;
+        const u = Math.floor(fr(hash3(bi, th, seed * 4 + 1) * a[3])), v = Math.floor(fr(hash3(bi, th, seed * 4 + 2) * a[3]));
+        const amp = fdiv((2 * h12(bi, th, seed * 8 + 5) + 1 - 4096) * a[1], 4096), lx = x - bx * B, ly = y - by * B;
+        const dl = fdiv(amp * fdiv(T[lx * 8 + u] * T[ly * 8 + v], 32768), 4096);
+        for (let c = 0; c < 3; c++) out[d + c] = Q(Math.max(0, Math.min(32768, q15(img[d + c]) + dl)));
       }
       return { out, state };
     }
     case 'echo': {
-      const dec = fr(o.decay);
+      const { passes: [a] } = fxQ(o, ctx.block), dq = a[0], mode = a[1];
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         const d = (y * w + x) * 4;
         if (!state) { for (let c = 0; c < 4; c++) out[d + c] = img[d + c]; continue; }
         let s = d;
-        if (o.warp) { const [mx, my] = mvAt(ctx, x, y); s = at(state, w, h, Math.floor(fr(fr(x - mx) + 0.5)), Math.floor(fr(fr(y - my) + 0.5))); }
+        if (a[2] === 1) { const [mx, my] = mvAt(ctx, x, y); s = at(state, w, h, fdiv(x * 64 - vq(mx) + 32, 64), fdiv(y * 64 - vq(my) + 32, 64)); }
         for (let c = 0; c < 3; c++) {
-          const a = img[d + c], p = state[s + c];
-          out[d + c] = o.mode === 'max' ? Math.max(a, fr(p * dec)) : o.mode === 'add' ? clamp01(fr(a + fr(p * dec))) : fr(fr(a * fr(1 - dec)) + fr(p * dec));
+          const cv = q15(img[d + c]), pr = q15(state[s + c]), pd = fdiv(pr * dq + 2048, 4096);
+          out[d + c] = Q(mode === 1 ? Math.max(cv, pd) : mode === 2 ? Math.min(cv + pd, 32768) : fdiv(cv * (4096 - dq) + pr * dq + 2048, 4096));
         }
         out[d + 3] = img[d + 3];
       }
@@ -177,27 +183,25 @@ export function fxApply(o, img, ctx, state = null) {
       return { out, state };
     }
     case 'rgbsplit': {
+      const { passes: [a] } = fxQ(o, ctx.block);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const d = (y * w + x) * 4, [mx, my] = mvAt(ctx, x, y), vx = fr(fr(o.dx) + fr(mx * fr(o.motion))), vy = fr(fr(o.dy) + fr(my * fr(o.motion)));
-        out[d] = img[at(img, w, h, Math.floor(fr(fr(x - vx) + 0.5)), Math.floor(fr(fr(y - vy) + 0.5)))];
+        const d = (y * w + x) * 4, [mx, my] = mvAt(ctx, x, y), cl = (v) => Math.max(-16383, Math.min(16383, v));
+        const vx = a[0] + fdiv(cl(vq(mx)) * a[2] + 32, 64), vy = a[1] + fdiv(cl(vq(my)) * a[2] + 32, 64);
+        out[d] = img[at(img, w, h, fdiv(x * 64 - vx + 32, 64), fdiv(y * 64 - vy + 32, 64))];
         out[d + 1] = img[d + 1];
-        out[d + 2] = img[at(img, w, h, Math.floor(fr(fr(x + vx) + 0.5)), Math.floor(fr(fr(y + vy) + 0.5))) + 2];
+        out[d + 2] = img[at(img, w, h, fdiv(x * 64 + vx + 32, 64), fdiv(y * 64 + vy + 32, 64)) + 2];
         out[d + 3] = img[d + 3];
       }
       return { out, state };
     }
     case 'colour': {
-      const span = fr(Math.max(1e-4, fr(fr(o.white) - fr(o.black)))), ig = fr(1 / fr(o.gamma)), a = fr(fr(fr(o.hue) * fr(Math.PI)) / 180), ca = fr(Math.cos(a)), sa = fr(Math.sin(a));
+      const { passes: [a], table: L } = fxQ(o, ctx.block), m = a.slice(0, 9), off = a[9], thr = a[10];
+      const lut = (x) => { const i = x >> 3, f = x & 7; return i >= 4096 ? L[4096] : (L[i] * (8 - f) + L[i + 1] * f + 4) >> 3; };
       for (let i = 0; i < w * h; i++) {
-        const d = i * 4; let c = [0, 1, 2].map((k) => fr(Math.pow(clamp01(fr(fr(img[d + k] - fr(o.black)) / span)), ig)));
-        const l = fr(fr(fr(0.299 * c[0]) + fr(0.587 * c[1])) + fr(0.114 * c[2]));
-        c = c.map((v) => fr(l + fr(fr(v - l) * fr(o.sat))));
-        const I = fr(fr(fr(0.596 * c[0]) - fr(0.274 * c[1])) - fr(0.322 * c[2])), Q = fr(fr(fr(0.211 * c[0]) - fr(0.523 * c[1])) + fr(0.312 * c[2]));
-        const I2 = fr(fr(I * ca) - fr(Q * sa)), Q2 = fr(fr(I * sa) + fr(Q * ca));
-        c = [fr(fr(l + fr(0.956 * I2)) + fr(0.621 * Q2)), fr(fr(l - fr(0.272 * I2)) - fr(0.647 * Q2)), fr(fr(l - fr(1.106 * I2)) + fr(1.703 * Q2))];
-        c = c.map((v) => fr(v + fr(fr(1 - fr(2 * v)) * fr(o.invert))));
-        if (o.threshold > 0) { const l2 = fr(fr(fr(0.299 * c[0]) + fr(0.587 * c[1])) + fr(0.114 * c[2])); c = [0, 0, 0].map(() => (l2 > fr(o.threshold) ? 1 : 0)); }
-        for (let k = 0; k < 3; k++) out[d + k] = clamp01(c[k]); out[d + 3] = img[d + 3];
+        const d = i * 4, t = [lut(q15(img[d])), lut(q15(img[d + 1])), lut(q15(img[d + 2]))];
+        let c = [0, 1, 2].map((r) => fdiv(m[r * 3] * t[0] + m[r * 3 + 1] * t[1] + m[r * 3 + 2] * t[2] + 1024, 2048) + off);
+        if (thr >= 0) { const oc = c.map((v) => Math.max(-32768, Math.min(65536, v))), on = 1225 * oc[0] + 2404 * oc[1] + 467 * oc[2] > thr * 4096; c = [0, 0, 0].map(() => (on ? 32768 : 0)); }
+        for (let k = 0; k < 3; k++) out[d + k] = Q(Math.max(0, Math.min(32768, c[k]))); out[d + 3] = img[d + 3];
       }
       return { out, state };
     }
@@ -216,6 +220,7 @@ export function fxApply(o, img, ctx, state = null) {
 /** Run a chain. states: array (per entry) of previous outputs, updated in place. */
 export function fxChain(list, img, ctx, states) {
   let cur = img;
-  list.forEach((o, i) => { if (o.on === false) return; const r = fxApply(o, cur, ctx, states[i] || null); cur = r.out; if (r.state) states[i] = r.state; });
+  const keep = keepOf(ctx);
+  list.forEach((o, i) => { if (o.on === false) return; const r = fxApply(o, cur, ctx, states[i] || null); cur = keep(r.out); if (r.state) states[i] = r.state === r.out ? cur : keep(r.state); });
   return cur;
 }

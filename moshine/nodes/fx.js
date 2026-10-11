@@ -3,7 +3,8 @@
 // previous output for stateful effects), uniform { size, blocks, block, t, seed, flags, a, b, c, d }.
 import { pipeline, computePipeline, dispatch, uniformBuffer, storageBuffer, createImage, L, HASH_WGSL, HALF_WGSL, LUMA_WGSL, F16 } from '../gpu.js';
 import { FX } from '../config.js';
-import { DCT_T, JPEG_Y, JPEG_C, ZIGZAG, FX_SCHEMES, jpegScale } from '../fx-ref.js';
+import { JPEG_Y, JPEG_C, ZIGZAG } from '../fx-ref.js';
+import { FIXED_WGSL, fxQ, DCT_T13 } from '../fixed.js';
 
 const HEAD = (fmt) => /* wgsl */`
 struct P { size: vec2u, blocks: vec2u, block: u32, t: u32, seed: u32, flags: u32, a: vec4f, b: vec4f, c: vec4f, d: vec4f };
@@ -12,9 +13,12 @@ struct P { size: vec2u, blocks: vec2u, block: u32, t: u32, seed: u32, flags: u32
 @group(0) @binding(2) var<storage, read> field: array<vec4f>;
 @group(0) @binding(3) var auxT: texture_2d<f32>;
 @group(0) @binding(4) var<uniform> p: P;
+@group(0) @binding(5) var<storage, read> tab: array<f32>;   // per-effect table (fixed.js fxQ): small integers
 ${HASH_WGSL}
 ${HALF_WGSL(fmt)}
 ${LUMA_WGSL}
+${FIXED_WGSL}
+fn ti(k: i32) -> i32 { return i32(tab[k]); }
 const PI = 3.141592653589793;
 fn ld(q: vec2i) -> vec4f { return textureLoad(inT, clamp(q, vec2i(0), vec2i(p.size) - vec2i(1)), 0); }
 fn ldA(q: vec2i) -> vec4f { return textureLoad(auxT, clamp(q, vec2i(0), vec2i(p.size) - vec2i(1)), 0); }
@@ -29,6 +33,11 @@ fn bilQ(q: vec2i, d: vec2i) -> vec4f {
   return (ld(vec2i(x0, y0)) * w00 + ld(vec2i(x0 + 1, y0)) * w10) + (ld(vec2i(x0, y0 + 1)) * w01 + ld(vec2i(x0 + 1, y0 + 1)) * w11); }
 /** A motion vector times a gain in 1/4096 px, as integers (both quantized to 1/64 first). */
 fn dispQ(mv: vec2f, g: f32) -> vec2i { let gi = i32(floor(g * 64.0 + 0.5)); return vec2i(i32(floor(mv.x * 64.0 + 0.5)) * gi, i32(floor(mv.y * 64.0 + 0.5)) * gi); }
+// Y (q15) and chroma (q15, signed) back to RGB in q15 (BT.601 with integer coefficients), clamped
+fn ycc(Y: i32, cbi: i32, cri: i32) -> vec3i {
+  let cb = clamp(cbi, -18000, 18000); let cr = clamp(cri, -18000, 18000);
+  return clamp(vec3i(Y + fdiv(91881 * cr + 32768, 65536), Y - fdiv(22554 * cb + 46802 * cr + 32768, 65536), Y + fdiv(116130 * cb + 32768, 65536)), vec3i(0), vec3i(32768));
+}
 fn bil(s: vec2f) -> vec4f { let f0 = floor(s); let a = s - f0; let i = vec2i(f0);
   return (ld(i) * (1.0 - a.x) + ld(i + vec2i(1, 0)) * a.x) * (1.0 - a.y) + (ld(i + vec2i(0, 1)) * (1.0 - a.x) + ld(i + vec2i(1, 1)) * a.x) * a.y; }
 `;
@@ -39,51 +48,58 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   textureStore(dst, vec2i(id.xy), Q(fx(vec2i(id.xy))));
 }`;
 
+// M8 (2026-10-11): colour arithmetic in q15 integers (fixed.js), trig and pow tables made in JavaScript (dmath.js);
+// displace, blockdrag, slice and freeze only move or pick pixels and were exact already.
 const BODY = {
   chroma: `fn fx(q: vec2i) -> vec4f {
-  let c0 = ld(q); let Y = Y601(c0); let cw = i32(p.a.x); let ch = i32(p.a.y);
-  let o = vec2i(floor(vec2f(q) - p.a.zw));
-  let cx = i32(floor(f32(o.x) / f32(cw))) * cw; let cy = i32(floor(f32(o.y) / f32(ch))) * ch;
-  var cb = 0.0; var cr = 0.0;
-  for (var j = 0; j < ch; j++) { for (var i = 0; i < cw; i++) { let s = ld(vec2i(cx + i, cy + j));
-    cb = cb + ((-0.168736 * s.r + -0.331264 * s.g) + 0.5 * s.b); cr = cr + ((0.5 * s.r + -0.418688 * s.g) + -0.081312 * s.b); } }
-  cb = cb / f32(cw * ch); cr = cr / f32(cw * ch);
-  return vec4f(clamp(vec3f(Y + 1.402 * cr, (Y - 0.344136 * cb) - 0.714136 * cr, Y + 1.772 * cb), vec3f(0.0), vec3f(1.0)), c0.a);
+  let c0 = ld(q); let cw = i32(p.a.x); let ch = i32(p.a.y);
+  let o = vec2i(floor(vec2f(q) - p.a.zw)); let cx = fdiv(o.x, cw) * cw; let cy = fdiv(o.y, ch) * ch;
+  var cb = 0; var cr = 0;
+  for (var j = 0; j < ch; j++) { for (var i = 0; i < cw; i++) { let s = q15v(ld(vec2i(cx + i, cy + j)).rgb);
+    cb = cb + fdiv(-11058 * s.r - 21710 * s.g + 32768 * s.b + 32768, 65536); cr = cr + fdiv(32768 * s.r - 27439 * s.g - 5329 * s.b + 32768, 65536); } }
+  return vec4f(fromQ15(ycc(y601q(q15v(c0.rgb)), rdiv(cb, cw * ch), rdiv(cr, cw * ch))), c0.a);
 }`,
   deblock: `fn fx(q: vec2i) -> vec4f {
   let c0 = ld(q); let dir = u32(p.b.x); let g = i32(p.a.y);
   let a = select(q.y, q.x, dir == 0u); let n = select(i32(p.size.y), i32(p.size.x), dir == 0u); let m = a % g;
-  var p0 = 0; var sgn = 0.0;
-  if (m == 0 && a > 0 && a + 1 < n) { p0 = a - 1; sgn = 1.0; } else if (m == g - 1 && a + 2 < n && a > 0) { p0 = a; sgn = -1.0; } else { return c0; }
+  var p0 = 0; var sgn = 0;
+  if (m == 0 && a > 0 && a + 1 < n) { p0 = a - 1; sgn = 1; } else if (m == g - 1 && a + 2 < n && a > 0) { p0 = a; sgn = -1; } else { return c0; }
   let ax = select(vec2i(0, 1), vec2i(1, 0), dir == 0u); let base = select(vec2i(q.x, 0), vec2i(0, q.y), dir == 0u);
-  let P1 = ld(base + ax * (p0 - 1)); let P0 = ld(base + ax * p0); let Q0 = ld(base + ax * (p0 + 1)); let Q1 = ld(base + ax * (p0 + 2));
-  let al = p.a.z; let be = p.a.w;
-  if (!(abs(Y601(P0) - Y601(Q0)) < al && abs(Y601(P1) - Y601(P0)) < be && abs(Y601(Q1) - Y601(Q0)) < be)) { return c0; }
-  let delta = clamp(((Q0.rgb - P0.rgb) * 4.0 + (P1.rgb - Q1.rgb)) / 8.0, vec3f(-al), vec3f(al)) * p.a.x;
-  return vec4f(clamp(c0.rgb - sgn * delta, vec3f(0.0), vec3f(1.0)), c0.a);
+  let P1 = q15v(ld(base + ax * (p0 - 1)).rgb); let P0 = q15v(ld(base + ax * p0).rgb); let Q0 = q15v(ld(base + ax * (p0 + 1)).rgb); let Q1 = q15v(ld(base + ax * (p0 + 2)).rgb);
+  let al = i32(p.a.z); let be = i32(p.a.w);
+  if (!(abs(y601q(P0) - y601q(Q0)) < al && abs(y601q(P1) - y601q(P0)) < be && abs(y601q(Q1) - y601q(Q0)) < be)) { return c0; }
+  let d = (Q0 - P0) * 4 + (P1 - Q1); let st = i32(p.a.x);
+  let dl = clamp(vec3i(rdiv(d.x, 8), rdiv(d.y, 8), rdiv(d.z, 8)), vec3i(-al), vec3i(al));
+  let delta = vec3i(fdiv(dl.x * st + 2048, 4096), fdiv(dl.y * st + 2048, 4096), fdiv(dl.z * st + 2048, 4096));
+  return vec4f(fromQ15(clamp(q15v(c0.rgb) - delta * sgn, vec3i(0), vec3i(32768))), c0.a);
 }`,
   posterise: `fn fx(q: vec2i) -> vec4f {
-  let c0 = ld(q); var Lv = p.a.x;
-  if (p.a.y > 0.0) { let mv = mvAt(q); let m = sqrt(mv.x * mv.x + mv.y * mv.y); Lv = max(2.0, floor(Lv * (1.0 - p.a.y * min(1.0, m / 8.0)))); }
-  let k = Lv - 1.0; return vec4f(floor(c0.rgb * k + 0.5) / k, c0.a);
+  let c0 = ld(q); var L = i32(p.a.x); let mq = i32(p.a.y);
+  if (mq > 0) { let mv = mvAt(q); let mx = clamp(vq(mv.x), -16383, 16383); let my = clamp(vq(mv.y), -16383, 16383);
+    let f = min(4096, isqrt(mx * mx + my * my) * 8); L = max(2, fdiv(L * (4096 - rdiv(mq * f, 4096)), 4096)); }
+  let k = L - 1; let c = q15v(c0.rgb);
+  let nq = vec3i(fdiv(c.r * k + 16384, 32768), fdiv(c.g * k + 16384, 32768), fdiv(c.b * k + 16384, 32768));
+  return vec4f(fromQ15(vec3i(rdiv(nq.r * 32768, k), rdiv(nq.g * 32768, k), rdiv(nq.b * 32768, k))), c0.a);
 }`,
   stripes: `fn fx(q: vec2i) -> vec4f {
   let c0 = ld(q); let B = p.block; let bx = min(u32(q.x) / B, p.blocks.x - 1u); let by = u32(q.y) / B; let bi = by * p.blocks.x + bx;
   let th = p.t / max(1u, u32(p.a.z));
   if (!(hash3(bi, th, p.seed * 4u + 3u) < p.a.x)) { return c0; }
-  let u = floor(hash3(bi, th, p.seed * 4u + 1u) * p.a.w); let v = floor(hash3(bi, th, p.seed * 4u + 2u) * p.a.w);
-  let amp = p.a.y * ((hash3(bi, th, p.seed * 8u + 5u) - 0.5) * 2.0);
-  let lx = f32(u32(q.x) - bx * B); let ly = f32(u32(q.y) - by * B);
-  let basis = cos(PI * ((2.0 * lx + 1.0) * u) / f32(2u * B)) * cos(PI * ((2.0 * ly + 1.0) * v) / f32(2u * B));
-  return vec4f(clamp(c0.rgb + amp * basis, vec3f(0.0), vec3f(1.0)), c0.a);
+  let u = i32(floor(hash3(bi, th, p.seed * 4u + 1u) * p.a.w)); let v = i32(floor(hash3(bi, th, p.seed * 4u + 2u) * p.a.w));
+  let amp = fdiv((2 * h12(bi, th, p.seed * 8u + 5u) + 1 - 4096) * i32(p.a.y), 4096);
+  let lx = i32(u32(q.x) - bx * B); let ly = i32(u32(q.y) - by * B);
+  let b15 = fdiv(ti(lx * 8 + u) * ti(ly * 8 + v), 32768); let dl = fdiv(amp * b15, 4096);
+  return vec4f(fromQ15(clamp(q15v(c0.rgb) + vec3i(dl), vec3i(0), vec3i(32768))), c0.a);
 }`,
   echo: `fn fx(q: vec2i) -> vec4f {
   let c0 = ld(q); if (p.b.x < 0.5) { return c0; }
-  var sq = q; if (p.a.z > 0.5) { let mv = mvAt(q); sq = vec2i(floor(vec2f(q) - mv + vec2f(0.5))); }
-  let pr = ldA(sq).rgb; let d = p.a.x; let mode = u32(p.a.y);
-  if (mode == 1u) { return vec4f(max(c0.rgb, pr * d), c0.a); }
-  if (mode == 2u) { return vec4f(clamp(c0.rgb + pr * d, vec3f(0.0), vec3f(1.0)), c0.a); }
-  return vec4f(c0.rgb * (1.0 - d) + pr * d, c0.a);
+  var sq = q; if (p.a.z > 0.5) { let mv = mvAt(q); sq = vec2i(fdiv(q.x * 64 - vq(mv.x) + 32, 64), fdiv(q.y * 64 - vq(mv.y) + 32, 64)); }
+  let pr = q15v(ldA(sq).rgb); let c = q15v(c0.rgb); let d = i32(p.a.x); let mode = u32(p.a.y);
+  let pd = vec3i(fdiv(pr.r * d + 2048, 4096), fdiv(pr.g * d + 2048, 4096), fdiv(pr.b * d + 2048, 4096));
+  if (mode == 1u) { return vec4f(fromQ15(max(c, pd)), c0.a); }
+  if (mode == 2u) { return vec4f(fromQ15(min(c + pd, vec3i(32768))), c0.a); }
+  let e = 4096 - d;
+  return vec4f(fromQ15(vec3i(fdiv(c.r * e + pr.r * d + 2048, 4096), fdiv(c.g * e + pr.g * d + 2048, 4096), fdiv(c.b * e + pr.b * d + 2048, 4096))), c0.a);
 }`,
   displace: `fn fx(q: vec2i) -> vec4f { return bilQ(q, dispQ(mvAt(q), p.a.x)); }`,   // R2 made fractional fields common: contraction-proof
   blockdrag: `fn fx(q: vec2i) -> vec4f {
@@ -102,21 +118,19 @@ const BODY = {
   let W = i32(p.size.x); return ld(vec2i((((q.x - sh) % W) + W) % W, q.y));
 }`,
   rgbsplit: `fn fx(q: vec2i) -> vec4f {
-  let c0 = ld(q); let mv = mvAt(q); let v = vec2f(p.a.x + mv.x * p.a.z, p.a.y + mv.y * p.a.z);
-  return vec4f(ld(vec2i(floor(vec2f(q) - v + vec2f(0.5)))).r, c0.g, ld(vec2i(floor(vec2f(q) + v + vec2f(0.5)))).b, c0.a);
+  let c0 = ld(q); let mv = mvAt(q); let mz = i32(p.a.z);
+  let vx = i32(p.a.x) + fdiv(clamp(vq(mv.x), -16383, 16383) * mz + 32, 64); let vy = i32(p.a.y) + fdiv(clamp(vq(mv.y), -16383, 16383) * mz + 32, 64);
+  let r = ld(vec2i(fdiv(q.x * 64 - vx + 32, 64), fdiv(q.y * 64 - vy + 32, 64))).r; let b = ld(vec2i(fdiv(q.x * 64 + vx + 32, 64), fdiv(q.y * 64 + vy + 32, 64))).b;
+  return vec4f(r, c0.g, b, c0.a);
 }`,
-  colour: `fn pw(v: f32, e: f32) -> f32 { return select(0.0, pow(v, e), v > 0.0); }
+  colour: `fn lut(x: i32) -> i32 { let i = x >> 3u; let f = x & 7; if (i >= 4096) { return ti(4096); } return (ti(i) * (8 - f) + ti(i + 1) * f + 4) >> 3u; }
 fn fx(q: vec2i) -> vec4f {
-  let c0 = ld(q); let span = max(1e-4, p.a.y - p.a.x); let ig = 1.0 / p.a.z; let an = (p.b.x * PI) / 180.0; let ca = cos(an); let sa = sin(an);
-  var c = vec3f(pw(clamp((c0.r - p.a.x) / span, 0.0, 1.0), ig), pw(clamp((c0.g - p.a.x) / span, 0.0, 1.0), ig), pw(clamp((c0.b - p.a.x) / span, 0.0, 1.0), ig));
-  let l = (0.299 * c.r + 0.587 * c.g) + 0.114 * c.b;
-  c = vec3f(l) + (c - vec3f(l)) * p.a.w;
-  let I = (0.596 * c.r - 0.274 * c.g) - 0.322 * c.b; let Qq = (0.211 * c.r - 0.523 * c.g) + 0.312 * c.b;
-  let I2 = I * ca - Qq * sa; let Q2 = I * sa + Qq * ca;
-  c = vec3f((l + 0.956 * I2) + 0.621 * Q2, (l - 0.272 * I2) - 0.647 * Q2, (l - 1.106 * I2) + 1.703 * Q2);
-  c = c + (vec3f(1.0) - 2.0 * c) * p.b.y;
-  if (p.b.z > 0.0) { let l2 = (0.299 * c.r + 0.587 * c.g) + 0.114 * c.b; c = vec3f(select(0.0, 1.0, l2 > p.b.z)); }
-  return vec4f(clamp(c, vec3f(0.0), vec3f(1.0)), c0.a);
+  let c0 = ld(q); let c = q15v(c0.rgb); let t = vec3i(lut(c.r), lut(c.g), lut(c.b));
+  let m0 = vec3i(i32(p.a.x), i32(p.a.y), i32(p.a.z)); let m1 = vec3i(i32(p.a.w), i32(p.b.x), i32(p.b.y)); let m2 = vec3i(i32(p.b.z), i32(p.b.w), i32(p.c.x));
+  let off = i32(p.c.y); let thr = i32(p.c.z);
+  var o = vec3i(fdiv(dot(m0, t) + 1024, 2048), fdiv(dot(m1, t) + 1024, 2048), fdiv(dot(m2, t) + 1024, 2048)) + vec3i(off);
+  if (thr >= 0) { let oc = clamp(o, vec3i(-32768), vec3i(65536)); o = select(vec3i(0), vec3i(32768), 1225 * oc.r + 2404 * oc.g + 467 * oc.b > thr * 4096); }
+  return vec4f(fromQ15(clamp(o, vec3i(0), vec3i(32768))), c0.a);
 }`,
   freeze: `fn lostAt(bx: u32, by: u32) -> bool {
   let life = max(1u, u32(p.a.z)); let ch = max(1u, u32(p.a.w)); let cw = max(1u, u32(floor(p.a.w * p.b.x)));
@@ -135,57 +149,42 @@ fn fx(q: vec2i) -> vec4f {
 }`,
 };
 
-const lit = (arr, type = 'f32') => `array<${type}, ${arr.length}>(${Array.from(arr, (v) => (type === 'f32' ? (Number.isInteger(v) ? v.toFixed(1) : v.toPrecision(9)) : v + 'u')).join(', ')})`;
+const lit = (arr, type = 'f32') => `array<${type}, ${arr.length}>(${Array.from(arr, (v) => (type === 'f32' ? (Number.isInteger(v) ? v.toFixed(1) : v.toPrecision(9)) : type === 'i32' ? String(v) : v + 'u')).join(', ')})`;
+// the integer DCT: samples in 1/16 level (JPEG's 0..255 x 16, centred), the basis in 1/8192, quantisers from the table
 const DCT_WGSL = (fmt) => HEAD(fmt) + /* wgsl */`
-var<private> T: array<f32, 64> = ${lit(DCT_T)};
-var<private> QY: array<f32, 64> = ${lit(JPEG_Y)};
-var<private> QC: array<f32, 64> = ${lit(JPEG_C)};
+var<private> T: array<i32, 64> = ${lit(DCT_T13, 'i32')};
 var<private> ZZ: array<u32, 64> = ${lit(ZIGZAG, 'u32')};
-var<workgroup> F: array<vec3f, 64>;
-var<workgroup> R: array<vec3f, 64>;
+var<workgroup> F: array<vec3i, 64>;
+var<workgroup> R: array<vec3i, 64>;
+fn r13(v: vec3i) -> vec3i { return vec3i(rdiv(v.x, 8192), rdiv(v.y, 8192), rdiv(v.z, 8192)); }
 @compute @workgroup_size(8, 8)
 fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) li: vec3u) {
   let x = li.x; let y = li.y; let k = y * 8u + x;
-  let q = vec2i(i32(wg.x * 8u + x), i32(wg.y * 8u + y)); let c = ld(q);
-  F[k] = vec3f((((0.299 * c.r + 0.587 * c.g) + 0.114 * c.b) * 255.0) - 128.0, ((-0.168736 * c.r + -0.331264 * c.g) + 0.5 * c.b) * 255.0, ((0.5 * c.r + -0.418688 * c.g) + -0.081312 * c.b) * 255.0);
+  let q = vec2i(i32(wg.x * 8u + x), i32(wg.y * 8u + y)); let c = ld(q); let s = q15v(c.rgb);
+  let cb = fdiv(-11058 * s.r - 21710 * s.g + 32768 * s.b + 32768, 65536); let cr = fdiv(32768 * s.r - 27439 * s.g - 5329 * s.b + 32768, 65536);
+  F[k] = vec3i(rdiv(y601q(s) * 4080, 32768) - 2048, rdiv(cb * 4080, 32768), rdiv(cr * 4080, 32768));
   workgroupBarrier();
-  var acc = vec3f(0.0);
-  for (var yy = 0u; yy < 8u; yy++) { var row = vec3f(0.0); for (var xx = 0u; xx < 8u; xx++) { row = row + T[x * 8u + xx] * F[yy * 8u + xx]; } acc = acc + T[y * 8u + yy] * row; }
-  let S = p.a.x; let qy = max(1.0, floor((QY[k] * S + 50.0) / 100.0)); let qc = max(1.0, floor((QC[k] * S + 50.0) / 100.0)) * p.a.y;
-  var Fq = vec3f(round(acc.x / qy) * qy, round(acc.y / qc) * qc, round(acc.z / qc) * qc);
-  if ((p.a.w > 0.5 && k != 0u) || (p.a.w <= 0.5 && f32(ZZ[k]) >= p.a.z)) { Fq = vec3f(0.0); }
+  var acc = vec3i(0);
+  for (var yy = 0u; yy < 8u; yy++) { var row = vec3i(0); for (var xx = 0u; xx < 8u; xx++) { row = row + T[x * 8u + xx] * F[yy * 8u + xx]; } acc = acc + T[y * 8u + yy] * r13(row); }
+  let co = r13(acc); let qy = ti(i32(k)); let qc = ti(64 + i32(k));
+  var Fq = vec3i(rdiv(co.x, qy) * qy, rdiv(co.y, qc) * qc, rdiv(co.z, qc) * qc);
+  if ((p.a.w > 0.5 && k != 0u) || (p.a.w <= 0.5 && f32(ZZ[k]) >= p.a.z)) { Fq = vec3i(0); }
   R[k] = Fq;
   workgroupBarrier();
-  var r = vec3f(0.0);
-  for (var vv = 0u; vv < 8u; vv++) { var row = vec3f(0.0); for (var uu = 0u; uu < 8u; uu++) { row = row + T[uu * 8u + x] * R[vv * 8u + uu]; } r = r + T[vv * 8u + y] * row; }
+  var r = vec3i(0);
+  for (var vv = 0u; vv < 8u; vv++) { var row = vec3i(0); for (var uu = 0u; uu < 8u; uu++) { row = row + T[uu * 8u + x] * R[vv * 8u + uu]; } r = r + T[vv * 8u + y] * r13(row); }
+  let rr = r13(r);
   if (u32(q.x) < p.size.x && u32(q.y) < p.size.y) {
-    let Y = (r.x + 128.0) / 255.0; let Cb = r.y / 255.0; let Cr = r.z / 255.0;
-    textureStore(dst, q, Q(vec4f(clamp(vec3f(Y + 1.402 * Cr, (Y - 0.344136 * Cb) - 0.714136 * Cr, Y + 1.772 * Cb), vec3f(0.0), vec3f(1.0)), c.a)));
+    textureStore(dst, q, Q(vec4f(fromQ15(ycc(rdiv((rr.x + 2048) * 32768, 4080), rdiv(rr.y * 32768, 4080), rdiv(rr.z * 32768, 4080))), c.a)));
   }
 }`;
 
-/** Pack an effect's params into the shader's a, b vec4s; deblock returns one pack per pass. */
-function packs(o) {
-  switch (o.fx) {
-    case 'dct': return [[jpegScale(o.quality), o.chroma, Math.round(o.cutoff), o.dcOnly ? 1 : 0, 0, 0, 0, 0]];
-    case 'chroma': { const [cw, ch] = FX_SCHEMES[o.scheme] || [2, 2]; return [[cw, ch, o.dx, o.dy, 0, 0, 0, 0]]; }
-    case 'deblock': return [0, 1].map((dir) => [o.strength, o.grid, o.alpha, o.beta, dir, 0, 0, 0]);
-    case 'posterise': return [[o.levels, o.motion, 0, 0, 0, 0, 0, 0]];
-    case 'stripes': return [[o.amount, o.contrast, o.hold, o.freq, 0, 0, 0, 0]];
-    case 'echo': return [[o.decay, { mix: 0, max: 1, add: 2 }[o.mode] ?? 0, o.warp ? 1 : 0, 0, 0, 0, 0, 0]];
-    case 'displace': return [[o.gain, 0, 0, 0, 0, 0, 0, 0]];
-    case 'blockdrag': return [[o.prob, o.offset, o.hold, o.mode === 'shuffle' ? 1 : 0, 0, 0, 0, 0]];
-    case 'slice': return [[o.prob, o.height, o.shift, o.hold, Math.round(o.field), 0, 0, 0]];
-    case 'rgbsplit': return [[o.dx, o.dy, o.motion, 0, 0, 0, 0, 0]];
-    case 'colour': return [[o.black, o.white, o.gamma, o.sat, o.hue, o.invert, o.threshold, 0]];
-    case 'freeze': return [[o.density, o.layers, o.life, o.scale, o.aspect, 0, 0, 0]];
-  }
-  return [[0, 0, 0, 0, 0, 0, 0, 0]];
-}
+/** An effect's params and table (fixed.js fxQ: integers where the kernel computes). */
+const packs = (o, block) => fxQ(o, block, { Y: JPEG_Y, C: JPEG_C });
 
 function fxPipeline(gpu, fx, format) {
   return pipeline(gpu, `fx:${fx}:${format}`, () => computePipeline(gpu, `fx ${fx}`, fx === 'dct' ? DCT_WGSL(format) : HEAD(format) + BODY[fx] + MAIN,
-    [L.tex(0), L.out(1, format), L.ro(2), L.tex(3), L.uni(4)]));
+    [L.tex(0), L.out(1, format), L.ro(2), L.tex(3), L.uni(4), L.ro(5)]));
 }
 
 /**
@@ -195,7 +194,16 @@ function fxPipeline(gpu, fx, format) {
  */
 export function createFxChain(gpu, { w, h, block }, format = F16, label = 'fx') {
   const bw = Math.ceil(w / block), bh = Math.ceil(h / block), unis = [], states = [], has = [];
-  const dummy = storageBuffer(gpu, 16, label + ' no field'); let pp = null;
+  const dummy = storageBuffer(gpu, 16, label + ' no field'), tabs = []; let pp = null;
+  /** Effect i's params and table (uploaded only when its values change). */
+  const prep = (i, o) => {
+    const key = JSON.stringify(o); let T = tabs[i];
+    if (T && T.key === key) return T;
+    const q = packs(o, block);
+    if (q.table) { if (!T?.buf || T.buf.size < q.table.byteLength) { T?.buf?.destroy(); T = { buf: storageBuffer(gpu, q.table.byteLength, `${label} table ${i}`) }; } gpu.device.queue.writeBuffer(T.buf, 0, q.table); }
+    else if (!T) T = {};
+    T.key = key; T.passes = q.passes; T.has = !!q.table; return (tabs[i] = T);
+  };
   const uni = (k) => { while (unis.length <= k) unis.push(uniformBuffer(gpu, 96, `${label} uniform ${unis.length}`)); return unis[k]; };
   return {
     reset() { has.length = 0; },
@@ -203,9 +211,9 @@ export function createFxChain(gpu, { w, h, block }, format = F16, label = 'fx') 
       const act = list.map((o, i) => [o, i]).filter(([o]) => o.on !== false && FX[o.fx]);
       if (!act.length) { enc.copyTextureToTexture({ texture: input }, { texture: dst }, [w, h]); return; }
       if (!pp) pp = [createImage(gpu, w, h, format, label + ' a'), createImage(gpu, w, h, format, label + ' b')];
-      const passes = act.flatMap(([o, i]) => packs(o).map((pk) => ({ o, i, pk })));
+      const passes = act.flatMap(([o, i]) => { const T = prep(i, o); return T.passes.map((pk) => ({ o, i, pk, T })); });
       let cur = input, slot = 0;
-      passes.forEach(({ o, i, pk }, n) => {
+      passes.forEach(({ o, i, pk, T }, n) => {
         const last = n === passes.length - 1, target = last ? dst : pp[n % 2];
         const stateful = !!FX[o.fx].stateful;
         if (stateful && !states[i]) states[i] = createImage(gpu, w, h, format, `${label} state ${i}`);
@@ -213,7 +221,7 @@ export function createFxChain(gpu, { w, h, block }, format = F16, label = 'fx') 
         U32.set([w, h, bw, bh, block, t, seed, field ? 1 : 0]); F32.set(pk, 8);
         if (stateful) F32[o.fx === 'freeze' ? 13 : 12] = has[i] ? 1 : 0;           // b.y (freeze) / b.x (echo): "the previous output exists"
         gpu.device.queue.writeBuffer(uni(slot), 0, u);
-        dispatch(gpu, enc, fxPipeline(gpu, o.fx, format), [cur, target, field || dummy, stateful ? states[i] : cur, uni(slot)], Math.ceil(w / 8), Math.ceil(h / 8), 'fx ' + o.fx);
+        dispatch(gpu, enc, fxPipeline(gpu, o.fx, format), [cur, target, field || dummy, stateful ? states[i] : cur, uni(slot), T.has ? T.buf : dummy], Math.ceil(w / 8), Math.ceil(h / 8), 'fx ' + o.fx);
         slot++;
         if (stateful) { enc.copyTextureToTexture({ texture: target }, { texture: states[i] }, [w, h]); has[i] = true; }
         cur = target;
@@ -235,6 +243,6 @@ export function createFxChain(gpu, { w, h, block }, format = F16, label = 'fx') 
         enc.copyTextureToTexture({ texture: snap.tex[i] }, { texture: states[i] }, [w, h]);
       });
     },
-    destroy() { unis.forEach((b) => b.destroy()); states.forEach((x) => x && x.destroy()); if (pp) pp.forEach((x) => x.destroy()); dummy.destroy(); },
+    destroy() { unis.forEach((b) => b.destroy()); states.forEach((x) => x && x.destroy()); tabs.forEach((T) => T?.buf?.destroy()); if (pp) pp.forEach((x) => x.destroy()); dummy.destroy(); },
   };
 }

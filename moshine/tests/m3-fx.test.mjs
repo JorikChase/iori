@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from '../fixtures.js';
 import { luma, pyramid, flowCells, fieldEPE, fieldOp, warp, createLoopRef } from '../engine-ref.js';
-import { fxApply, fxChain, DCT_T, ZIGZAG, roundEven } from '../fx-ref.js';
+import { fxApply, fxChain, ZIGZAG, roundEven } from '../fx-ref.js';
+import { DCT_T13 } from '../fixed.js';
 import { normalize, fxDefaults, opDefaults, FX, PRESETS } from '../config.js';
 import { compare } from '../metrics.js';
 import { fnv1a } from '../util.js';
@@ -36,7 +37,7 @@ test('flow sees the scene cut like the matcher', () => {
 
 // ---- effects: identities and directions
 test('DCT tables: orthonormal, zigzag is a permutation, half-even rounding', () => {
-  for (let u = 0; u < 8; u++) for (let v = 0; v < 8; v++) { let s = 0; for (let x = 0; x < 8; x++) s += DCT_T[u * 8 + x] * DCT_T[v * 8 + x]; assert.ok(Math.abs(s - (u === v ? 1 : 0)) < 1e-6); }
+  for (let u = 0; u < 8; u++) for (let v = 0; v < 8; v++) { let s = 0; for (let x = 0; x < 8; x++) s += DCT_T13[u * 8 + x] * DCT_T13[v * 8 + x]; assert.ok(Math.abs(s / 8192 ** 2 - (u === v ? 1 : 0)) < 1e-3); }   // integer basis in 1/8192 (M8)
   assert.deepEqual([...ZIGZAG].sort((a, b) => a - b), [...Array(64).keys()]); assert.equal(ZIGZAG[1], 1); assert.equal(ZIGZAG[8], 2);
   assert.deepEqual([0.5, 1.5, 2.5, -0.5, -1.5, 2.4].map(roundEven), [0, 2, 2, -0, -2, 2].map((v) => v + 0));
 });
@@ -53,7 +54,7 @@ test('chroma 4:2:0 keeps luma and blurs colour', () => {
 });
 test('deblock smooths a hard block edge, leaves flat areas alone', () => {
   const w = 32, h = 8, a = new Float32Array(w * h * 4);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = x < 16 ? 0.4 : 0.48; a.set([v, v, v, 1], (y * w + x) * 4); }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = x < 16 ? 0.375 : 0.46875; a.set([v, v, v, 1], (y * w + x) * 4); }   // half-float values, as the GPU holds them
   const o = fxApply({ ...fxDefaults('deblock'), grid: 16, strength: 1 }, a, { ...ctx, w, h }).out, i15 = (4 * w + 15) * 4, i16 = (4 * w + 16) * 4;
   assert.ok(o[i16] - o[i15] < a[i16] - a[i15] - 0.01, `edge step ${(a[i16] - a[i15]).toFixed(3)} -> ${(o[i16] - o[i15]).toFixed(3)}`);
   assert.equal(o[(4 * w + 5) * 4], a[(4 * w + 5) * 4]);
@@ -70,8 +71,8 @@ test('zero-strength glitches are identities', () => {
 });
 test('echo decays toward the input; freeze holds frozen blocks from the previous output', () => {
   const st = []; fxChain([fxDefaults('echo')], img, ctx, st); const o = fxChain([{ ...fxDefaults('echo'), decay: 0.5 }], f.frame(20), ctx, st);
-  const i = 4000; assert.ok(Math.abs(o[i] - (0.5 * f.frame(20)[i] + 0.5 * img[i])) < 1e-6);
-  const fs = [], fz = { ...fxDefaults('freeze'), density: 1 }; fxChain([fz], img, ctx, fs); assert.equal(fnv1a(fxChain([fz], f.frame(30), ctx, fs)), fnv1a(img));
+  const i = 4000; assert.ok(Math.abs(o[i] - (0.5 * f.frame(20)[i] + 0.5 * img[i])) < 1e-3);   // q15 arithmetic, half-float storage (M8)
+  const fs = [], fz = { ...fxDefaults('freeze'), density: 1 }, c32 = { ...ctx, store: 'f32' }; fxChain([fz], img, c32, fs); assert.equal(fnv1a(fxChain([fz], f.frame(30), c32, fs)), fnv1a(img));
 });
 test('slice shifts whole rows, wrapping', () => {
   const o = fxApply({ ...fxDefaults('slice'), prob: 1, height: 4, shift: 50 }, img, ctx).out;

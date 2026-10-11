@@ -6,12 +6,14 @@
 //   rms    overall loudness
 //   bass   energy below ~150 Hz      mid  ~150 Hz – 2 kHz      high  above ~2 kHz
 //   onset  how sharply the loudness rose against the recent past (spectral-free flux on the band energies), 0..1
+import { dsincos } from './dmath.js';
+
 export const FEATURES = ['rms', 'bass', 'mid', 'high', 'onset'];
 const NF = FEATURES.length;
 
 /** A 2nd-order section (RBJ cookbook), direct form I, state kept across chunks. */
 function biquad(type, f0, sr, q = Math.SQRT1_2) {
-  const w = (2 * Math.PI * f0) / sr, c = Math.cos(w), a = Math.sin(w) / (2 * q);
+  const w = (2 * Math.PI * f0) / sr, [sn, c] = dsincos(w), a = sn / (2 * q);   // deterministic (M8)
   let b0, b1, b2; const a0 = 1 + a, a1 = -2 * c, a2 = 1 - a;
   if (type === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; } else { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = (1 + c) / 2; }
   const B0 = b0 / a0, B1 = b1 / a0, B2 = b2 / a0, A1 = a1 / a0, A2 = a2 / a0; let x1 = 0, x2 = 0, y1 = 0, y2 = 0;

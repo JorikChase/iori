@@ -7,6 +7,7 @@
 // Modulator: { type, mode: 'add' | 'multiply' | 'replace', depth, clamp?: [lo, hi], params, seed?, enabled? }
 // Clock: { fps, seed, hits } — the frame rate (rates are in Hz), the owning effect's seed, and the mosh hit frames in
 //   the same time base as t. Modulators are pure functions of (t, clock): replay, scrubbing, GPU and CPU agree.
+import { dsin } from './dmath.js';
 import { hash3 } from './util.js';
 
 const EASE = {
@@ -20,7 +21,7 @@ export const DEFAULT_CLOCK = Object.freeze({ fps: 30, seed: 0, hits: [] });
 // ------------------------------------------------------------------------------------------------ modulators
 const frac = (x) => x - Math.floor(x), bip = (u) => u * 2 - 1;
 const SHAPES = {
-  sine: (f) => Math.sin(2 * Math.PI * f),
+  sine: (f) => dsin(2 * Math.PI * f),                                 // deterministic in every JS engine (M8)
   triangle: (f) => (f < 0.25 ? 4 * f : f < 0.75 ? 2 - 4 * f : 4 * f - 4),
   saw: (f) => 2 * f - 1, sawDown: (f) => 1 - 2 * f, square: (f) => (f < 0.5 ? 1 : -1),
 };

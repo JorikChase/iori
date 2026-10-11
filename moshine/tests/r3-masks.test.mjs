@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { rasterMasks, createMask, resolveMasks, maskSize } from '../masks.js';
 import { createEvaluator, cpuBackend } from '../sequence.js';
 import { createLoopRef } from '../engine-ref.js';
+import { dsincos, dhypot } from '../dmath.js';
 import { fromConfig, validate } from '../project.js';
 import { createTimeline } from '../timeline.js';
 import { PRESETS } from '../config.js';
@@ -89,18 +90,18 @@ function shapeCov(s, px, py, A, fe) {
   let d;                                                   // signed distance in height units: < 0 inside
   if (s.type === 'stroke') {
     const p = s.pts, r = s.r; d = Infinity;
-    if (p.length === 2) d = Math.hypot(px - p[0] * A, py - p[1]) - r;
+    if (p.length === 2) d = dhypot(px - p[0] * A, py - p[1]) - r;
     for (let i = 0; i + 3 < p.length; i += 2) {
       const ax = p[i] * A, ay = p[i + 1], bx = p[i + 2] * A, by = p[i + 3], vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy;
       const u = l2 > 0 ? clamp01(((px - ax) * vx + (py - ay) * vy) / l2) : 0;
-      const e = Math.hypot(px - (ax + u * vx), py - (ay + u * vy)) - r; if (e < d) d = e;
+      const e = dhypot(px - (ax + u * vx), py - (ay + u * vy)) - r; if (e < d) d = e;
     }
   } else if (s.type === 'ellipse') {
-    const dx = (px - s.cx * A) / (s.rx * A), dy = (py - s.cy) / s.ry, k = Math.hypot(dx, dy);
+    const dx = (px - s.cx * A) / (s.rx * A), dy = (py - s.cy) / s.ry, k = dhypot(dx, dy);
     d = (k - 1) * Math.min(s.rx * A, s.ry);
   } else if (s.type === 'rect') {
     const cx = (s.x + s.w / 2) * A, cy = s.y + s.h / 2, qx = Math.abs(px - cx) - (s.w * A) / 2, qy = Math.abs(py - cy) - s.h / 2;
-    d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+    d = dhypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
   } else return 0;
   return fe > 0 ? clamp01(0.5 - d / fe) : d <= 0 ? 1 : 0;
 }
@@ -109,7 +110,7 @@ function rasterMasksRef(masks, mw, mh, A) {
   const inc = masks.filter((m) => m.mode === 'include'), lock = masks.filter((m) => m.mode === 'lock'), out = new Float32Array(mw * mh * 4);
   const cov = (m, x, y) => {
     // inverse of the mask transform about the frame centre (A / 2, 1 / 2): translate, rotate, scale
-    const th = (-m.rotation * Math.PI) / 180, c = Math.cos(th), s = Math.sin(th), sc = Math.max(1e-3, m.scale);
+    const th = (-m.rotation * Math.PI) / 180, [s, c] = dsincos(th), sc = Math.max(1e-3, m.scale);
     const dx = x - A / 2 - m.x * A, dy = y - 0.5 - m.y, px = (dx * c - dy * s) / sc + A / 2, py = (dx * s + dy * c) / sc + 0.5, fe = Math.max(0, m.feather) / sc;
     let v = 0; for (const sh of m.shapes) { const q = shapeCov(sh, px, py, A, fe); if (q > v) v = q; if (v >= 1) break; }
     return (m.invert ? 1 - v : v) * clamp01(m.opacity);

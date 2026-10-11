@@ -10,6 +10,7 @@
 // clip-relative, so every clip effect runs on clip-local time t - in; a Mosh Loop sees exactly the frames and
 // times it would see as a single clip (M4 semantics). Channel stacks run on sequence time and hold stateless
 // effects only for now (stateful ones reset at each clip in-point).
+import { dsincos } from './dmath.js';
 import { resolveAll, f32All } from './params.js';
 import { EFFECTS } from './project.js';
 import { createLoopRef, maskmixRef } from './engine-ref.js';
@@ -40,7 +41,8 @@ export function baseSize(fit, sw, sh, W, H, k = 1) {
 export const FIX = 1024;
 export function placement(tr, { sw, sh, W, H, k = 1 }) {
   const [bw, bh] = baseSize(tr.fit, sw, sh, W, H, k), th = (tr.rotation * Math.PI) / 180, sc = Math.max(0.01, tr.scale);
-  const c = Math.abs(tr.rotation % 90) === 0 ? Math.round(Math.cos(th)) / sc : Math.cos(th) / sc, s = Math.abs(tr.rotation % 90) === 0 ? Math.round(Math.sin(th)) / sc : Math.sin(th) / sc;
+  const [sn, cs] = dsincos(th);                                      // deterministic in every JS engine (M8)
+  const c = Math.abs(tr.rotation % 90) === 0 ? Math.round(cs) / sc : cs / sc, s = Math.abs(tr.rotation % 90) === 0 ? Math.round(sn) / sc : sn / sc;
   const cx = W / 2 + tr.x * W, cy = H / 2 + tr.y * H, R = (v) => Math.round(v * FIX) | 0;
   return { W, H, bw, bh,
     ax: R(c), bx: R(s), cx: R(c * (0.5 - cx) + s * (0.5 - cy) + bw / 2 - 0.5),

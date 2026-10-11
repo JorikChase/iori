@@ -59,6 +59,7 @@ Decisions taken in discussion on 2026-10-09. Items marked *assumed* were chosen 
 | D42 | Own code, made fast | **Keep our own code over vendored libraries, and make it fast enough to justify that** (owner, 2026-10-10: "we like on prem but we need performant code built to make up for it"). The JS WSOLA stays (signalsmith-stretch is not vendored). Performance is first-class work, not polish: workers for audio and cache I/O, the matcher in workgroup shared memory, measured against T4 rows. |
 | D43 | Public early | **The app stays public at iori.me/moshine/ while M7 and M8 are open**, so it can be tested on other devices (owner, 2026-10-10). M9 is split: its public part is done; the authentic bake, the v2 library and the docs become M9b. |
 | D44 | Isolation | **iori.me sends no COOP/COEP for /moshine/ until the ffmpeg.wasm bake needs them** (this defers D15's per-path headers). `serve.py` and the bench match production by default; `--coi` opts in. Nothing in the app depends on isolation today (the bench passes non-isolated). |
+| D45 | Exact everywhere | **Every kernel that feeds the mosh is integer arithmetic, and every transcendental value is computed in JavaScript with deterministic functions** (`fixed.js`, `dmath.js`, 2026-10-11). Chrome, Safari, Firefox render the same bits for the same frames (T0 `crossHashes`). Extends D28 from GPU = CPU to browser = browser. Exception: the optical-flow estimator. |
 
 Open decisions still needed from the owner are collected in §15.
 

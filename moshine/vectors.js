@@ -5,6 +5,7 @@
 // paintField() turns the strokes into one vec4 per block for the loop's own size, [dx, dy, replace?, 0] in pixels per
 // frame with `amount` already applied, so a painted mosh looks the same at any resolution. One JS function feeds both
 // the GPU node and the CPU reference: they read the same float32 values and the GPU only adds or selects (D28).
+import { dhypot } from './dmath.js';
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
@@ -21,7 +22,7 @@ export function paintField(op, { w, h, block }) {
       const p = s.pts; let d = Infinity, tx = 0, ty = 0;
       for (let i = 0; i + 3 < p.length; i += 2) {
         const ax = p[i] * A, ay = p[i + 1], vx = p[i + 2] * A - ax, vy = p[i + 3] - ay, l2 = vx * vx + vy * vy; if (!(l2 > 0)) continue;
-        const u = clamp01(((px - ax) * vx + (py - ay) * vy) / l2), e = Math.hypot(px - (ax + u * vx), py - (ay + u * vy));
+        const u = clamp01(((px - ax) * vx + (py - ay) * vy) / l2), e = dhypot(px - (ax + u * vx), py - (ay + u * vy));
         if (e < d) { d = e; const l = Math.sqrt(l2); tx = vx / l; ty = vy / l; }
       }
       const cov = clamp01((s.r - d) / (0.5 * s.r) + 0.5);                // a soft edge half a radius wide

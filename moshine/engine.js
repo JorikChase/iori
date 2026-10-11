@@ -17,7 +17,7 @@ import { createMaskMix } from './nodes/composite.js';
 import { hash3 } from './util.js';
 import { normalize } from './config.js';
 import { resolveAll, holdAt } from './params.js';
-import { levelsFor, EDGE } from './engine-ref.js';
+import { levelsFor, EDGE, accelScale } from './engine-ref.js';
 
 export function createMoshLoop(gpu, { w, h }, cfg0) {
   let cfg = normalize(cfg0), R = null, S = null;
@@ -90,7 +90,7 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
         field = R.fieldops.encode(enc, est, R.ops, c.ops.filter((o) => o.on !== false), { t, seed, src, src2 });
         if (k === 0) { enc.copyBufferToBuffer(field, 0, R.frozen, 0, R.nb * 16); enc.copyBufferToBuffer(est, 0, R.frozenEst, 0, R.nb * 16); enc.copyTextureToTexture({ texture: R.prevSrc }, { texture: R.prevFrozen }, [w, h]); S.frozenOk = true; }
       }
-      const scale = k > 0 ? Math.fround(Math.fround(c.bloom.accel) ** k) : 1;   // same rounding as the CPU reference
+      const scale = k > 0 ? accelScale(c.bloom.accel, k) : 1;           // same function as the CPU reference (deterministic)
       const wo = { field, cut: R.cut, edge: EDGE[c.warp.edge], sampling: c.warp.sampling, pel: c.warp.pel, scale, zeroOnCut: c.estimate.zeroOnCut, cutThresh, interp: c.warp.interp };
       R.warp.encode(enc, R.hist[S.hi], R.pred, wo);
       const codecRes = c.residual.mode === 'codec' && c.residual.gain > 0;     // the previous source under the same motion

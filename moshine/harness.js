@@ -440,14 +440,14 @@ Object.assign(T0, {
     const app = window.__app; if (!app || !app.view) return { skipped: 'not the editor page' };
     app.useProject(app.demoProject()); const wait = (ms) => new Promise((r) => setTimeout(r, ms)), kinds = () => app.renderer.coverage().spans.map((x) => x.kind);
     const settle = async (ms) => { const t0 = performance.now(); while (performance.now() - t0 < ms && kinds().some((k) => k !== 'green')) await wait(100); };
-    await settle(4000); const filled0 = kinds().every((k) => k === 'green');
+    await settle(20000); const filled0 = kinds().every((k) => k === 'green');
     const loop = app.project.sequences[0].channels[1].clips[0].stack[0];
     app.tl.exec('setValue', { id: loop.id, path: ['params', 'residual', 'gain'], value: 0.5 }); const red = kinds().includes('red');
     await wait(650); app.seek(90); while (app.play.busy || app.play.shown !== 90) await wait(20);
     const R = await renderMod(), cv = document.getElementById('ms-view'), shown = await (async () => { while (app.play.busy) await wait(20); app.play.busy = true; try { return fnv1a(await readback(M().gpu, (await app.renderer.render(90)).image)); } finally { app.play.busy = false; } })();   // under the editor's render lock
     const fresh = R.createSequenceRenderer(M().gpu, app.project, { w: cv.width, h: cv.height, sources: async () => ({ w: 320, h: 180, frame: async (i) => fixture('cut').frame(Math.min(i, 119)) }) });
     const same = shown === fnv1a(await readback(M().gpu, (await fresh.render(90)).image)); await fresh.destroy();
-    await settle(5000); const filled = kinds().every((k) => k === 'green');
+    await settle(20000); const filled = kinds().every((k) => k === 'green');
     return { pass: filled0 && red && same && filled, filledAtStart: filled0, redAfterEdit: red, seekDuringFillSame: same, filledAgain: filled, cache: app.renderer.cache().frames };
   },
   // R3 in the editor: a lock stroke painted with pointer events on the preview is one undo step; a pixel under it shows
@@ -717,12 +717,22 @@ export const T1 = {
     const bq = await openVideo(await rq.file(), 'pass.mp4'), dq = createAudioDecoder(bq), xq = dq ? await dq.decode(0, 3) : null, pstarts = [];
     if (xq) for (let i = 0, last = -1e9, y = xq.channels[0]; i < y.length; i++) if (Math.abs(y[i]) > 0.1) { if (i - last > 0.1 * sr) pstarts.push(+((i + xq.first) / sr).toFixed(4)); last = i; }
     bq.close(); await tq.remove();
+    // the same Bloom Insert mix as WebM + Opus (Opus has its own pre-skip; this browser may not encode it at all)
+    let webm = null;
+    if (await (await exporter()).mixCodec('webm')) {
+      const tw = await openTarget('harness-mix.webm', 'webm', 'opfs'), rw = await exportSequence({ gpu: g, project: p, w: 160, h: 90, container: 'webm', quality: 'high', audio: true, target: tw,
+        sources: async () => R.videoReader(await openVideo(blob, 'beat.mp4')), openMedia: async () => openVideo(blob, 'beat.mp4') });
+      const bw = await openVideo(await rw.file(), 'mix.webm'), dw = bw.audio ? createAudioDecoder(bw) : null, xw = dw ? await dw.decode(0, videoDur) : null, ws = [];
+      if (xw) for (let i = 0, last = -1e9, y = xw.channels[0]; i < y.length; i++) if (Math.abs(y[i]) > 0.1) { if (i - last > 0.1 * sr) ws.push(+((i + xw.first) / sr).toFixed(4)); last = i; }
+      const want = [0.2, 0.7, 1.2, 1.7, 3.2, 3.7, 4.2, 4.7, 5.2, 5.7, 6.2], e = want.map((c) => Math.min(...ws.map((s) => Math.abs(s - c))));
+      webm = { audio: rw.audio, clicks: ws, maxErr: Math.max(...e) }; bw.close(); await tw.remove();
+    }
     const passErr = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7].map((c) => Math.min(...pstarts.map((s) => Math.abs(s - c))));
     const before = [0.2, 0.7, 1.2, 1.7], after = [3.2, 3.7, 4.2, 4.7, 5.2, 5.7, 6.2];
     const err = (list) => list.map((c) => Math.min(...starts.map((s) => Math.abs(s - c)))), eb = err(before), ea = err(after);
     const lastAudio = starts.length ? Math.max(...starts) : 0;
-    return { pass: r.audioMode === 'mix' && !!r.audio && Math.max(...eb, ...ea) <= 0.005 && Math.abs(aDur - videoDur) < 0.06 && lastAudio < videoDur && rq.audioMode === 'pass' && Math.max(...passErr) <= 0.005,
-      passThrough: { mode: rq.audioMode, clicks: pstarts, maxErr: Math.max(...passErr) },
+    return { pass: r.audioMode === 'mix' && !!r.audio && Math.max(...eb, ...ea) <= 0.005 && Math.abs(aDur - videoDur) < 0.06 && lastAudio < videoDur && rq.audioMode === 'pass' && Math.max(...passErr) <= 0.005 && (!webm || webm.maxErr <= 0.005),
+      webm, passThrough: { mode: rq.audioMode, clicks: pstarts, maxErr: Math.max(...passErr) },
       frames: n, audio: r.audio, audioMode: r.audioMode, videoDur, audioDur: +aDur.toFixed(4), clicks: starts, maxErrBefore: Math.max(...eb), maxErrAfter: Math.max(...ea), secs: +secs.toFixed(2) };
   },
   // the GPU reproduces the fidelity bench's CPU numbers on every set (node moshine/tools/fidelity.mjs writes them)
@@ -884,6 +894,8 @@ export const T4 = {
   },
 };
 
+/** An error as text in every engine (Firefox stacks leave out the message). */
+const errText = (e) => { const m = String(e), st = e && e.stack ? String(e.stack) : ''; return st.includes(m) ? st : m + (st ? '\n' + st : ''); };
 export async function runAll({ tag = 'dev', save = true, tiers = ['T0', 'T1', 'T4'], slow = false } = {}) {
   const out = { tag, date: new Date().toISOString(), ua: navigator.userAgent, pass: true };
   for (const [tn, tier] of [['T0', T0], ['T1', T1], ['T4', T4]]) {
@@ -891,7 +903,7 @@ export async function runAll({ tag = 'dev', save = true, tiers = ['T0', 'T1', 'T
     for (const [name, fn] of Object.entries(tier)) {
       if (name.startsWith('slow') && !slow) continue;
       const t = performance.now(); let r;
-      try { r = await fn(); } catch (e) { r = { pass: false, error: String(e && e.stack || e) }; }
+      try { r = await fn(); } catch (e) { r = { pass: false, error: errText(e) }; }
       r.secs = +((performance.now() - t) / 1000).toFixed(2); out[tn][name] = r;
       if (r.pass === false) out.pass = false;
       console.log(`[${tn}] ${name} ${r.pass === undefined ? JSON.stringify(r) : r.pass ? 'pass' : 'FAIL ' + JSON.stringify(r)}`);

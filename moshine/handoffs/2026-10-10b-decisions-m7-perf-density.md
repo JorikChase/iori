@@ -56,6 +56,12 @@ re-laid the desk so the picture, the stack and the timeline use the whole window
 - zsh treats `echo =====` as an equals expansion; use another separator in shell scripts.
 - Timing on this Mac is noisy while Jump Desktop streams: `stageCost1080` takes the minimum of 7 trials.
 
+## M8 started (late 2026-10-10)
+
+State and how to run it: [`study/m8.md`](../study/m8.md). `tools/xbench.mjs` runs the harness in Playwright WebKit:
+41/41 rows pass there and in Chrome after two fixes (exact integer luma; WebKit's AAC descriptor unwrapped), both
+deployed (iori `411f6af`). Safari proper and Firefox wait on the owner (safaridriver enable, a Firefox install).
+
 ## Open threads, by value
 
 1. **M8 on the live site** (D43): Safari 26 and Firefox on macOS, then an iPhone for the governor caps. Check the

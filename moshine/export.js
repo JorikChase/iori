@@ -59,7 +59,10 @@ async function createEncoder({ w, h, fps, container = 'mp4', codec, quality, tar
   // that hides the priming samples (Mediabunny only writes one for a negative first timestamp; see encoderDelay)
   let done = 0, aenc = null, aerr = null, shift = 0, firstMix = true; const ready = [];
   if (!asrc && mix) {
-    shift = (await encoderDelay(mix.codec, mix.sampleRate, mix.nch)) / mix.sampleRate;
+    // AAC in MP4 has no in-band priming: shift by the measured delay and let the edit list hide it. Opus carries its own
+    // pre-skip in the OpusHead every player applies; shifting too would count it twice (Safari's decoder ignores pre-skip
+    // when probed, so the probe says 312 there and 0 in Chrome, while both play the file right unshifted).
+    shift = mix.codec === 'opus' ? 0 : (await encoderDelay(mix.codec, mix.sampleRate, mix.nch)) / mix.sampleRate;
     asrc = new M.EncodedAudioPacketSource(mix.codec); output.addAudioTrack(asrc);
     aenc = new AudioEncoder({ output: (chunk, meta) => ready.push([chunk, meta]), error: (e) => { aerr = e; } });
     aenc.configure({ codec: WC_AUDIO[mix.codec], sampleRate: mix.sampleRate, numberOfChannels: mix.nch, bitrate: mix.bitrate || 192000 });

@@ -1,6 +1,6 @@
 {
  "tag": "m8-chrome",
- "date": "2026-10-10T18:52:52.452Z",
+ "date": "2026-10-10T21:49:03.483Z",
  "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
  "pass": true,
  "T0": {
@@ -19,7 +19,7 @@
   "goldenFixtures": {
    "pass": true,
    "mismatches": [],
-   "secs": 0.07
+   "secs": 0.1
   },
   "warpParity": {
    "pass": true,
@@ -37,7 +37,7 @@
      "f16": -1
     }
    },
-   "secs": 0.06
+   "secs": 1.16
   },
   "warpTruth": {
    "pass": true,
@@ -55,7 +55,7 @@
      "bad": 0
     }
    },
-   "secs": 0.02
+   "secs": 0.05
   },
   "moshReplay": {
    "pass": true,
@@ -63,7 +63,7 @@
    "steps": 80,
    "replayEqual": true,
    "cpuEqual": true,
-   "secs": 0.5
+   "secs": 0.82
   },
   "pyramidParity": {
    "pass": true,
@@ -81,16 +81,16 @@
      "max": 0
     }
    ],
-   "secs": 0.15
+   "secs": 0.03
   },
   "stretchWorker": {
    "pass": true,
    "same": true,
    "ms": {
-    "inline": 57.7,
-    "worker": 205.1
+    "inline": 93.4,
+    "worker": 95.8
    },
-   "secs": 0.34
+   "secs": 0.19
   },
   "matchParity": {
    "pass": true,
@@ -160,7 +160,7 @@
      ]
     }
    },
-   "secs": 0.24
+   "secs": 0.47
   },
   "matchTruth": {
    "pass": true,
@@ -194,7 +194,7 @@
      "exact": 190
     }
    },
-   "secs": 0.05
+   "secs": 0.09
   },
   "fieldOpsParity": {
    "pass": true,
@@ -280,7 +280,7 @@
      "flagMismatch": 0
     }
    },
-   "secs": 0.03
+   "secs": 0.04
   },
   "warpModes": {
    "pass": true,
@@ -355,7 +355,7 @@
      "max": 0
     }
    },
-   "secs": 0.4
+   "secs": 0.08
   },
   "loopParity": {
    "pass": true,
@@ -391,19 +391,19 @@
      "119": 1
     }
    },
-   "secs": 20.18
+   "secs": 46.81
   },
   "cutDetect": {
    "pass": true,
    "cutFrames": [
     40
    ],
-   "secs": 0.59
+   "secs": 1.34
   },
   "bloomHold": {
    "pass": true,
    "hold": "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,2,3,4,-1,-1",
-   "secs": 0.07
+   "secs": 0.22
   },
   "loopReplay": {
    "pass": true,
@@ -412,7 +412,7 @@
     "9a06ed2b",
     "9a06ed2b"
    ],
-   "secs": 1.13
+   "secs": 2.8
   },
   "fxParity": {
    "pass": true,
@@ -518,7 +518,7 @@
      "max": 0
     }
    },
-   "secs": 0.81
+   "secs": 1.25
   },
   "flowParityTruth": {
    "pass": true,
@@ -554,7 +554,7 @@
      }
     }
    },
-   "secs": 0.2
+   "secs": 0.26
   },
   "fxLoopReplay": {
    "pass": true,
@@ -572,7 +572,7 @@
      "hash": "91883efd"
     }
    },
-   "secs": 1.47
+   "secs": 3.7
   },
   "fxLoopParity": {
    "pass": true,
@@ -590,7 +590,7 @@
      "meanAbsDiff": 0.00009
     }
    },
-   "secs": 13.45
+   "secs": 26.53
   },
   "compositeParity": {
    "pass": true,
@@ -642,7 +642,7 @@
      "bad": 0
     }
    },
-   "secs": 0.04
+   "secs": 0.06
   },
   "sequenceParity": {
    "pass": true,
@@ -672,7 +672,7 @@
      "maxAbsDiff": 0.00024
     }
    },
-   "secs": 0.73
+   "secs": 1.34
   },
   "editorSmoke": {
    "pass": true,
@@ -683,7 +683,7 @@
    "scrub": 45,
    "undoSteps": 4,
    "restored": true,
-   "secs": 0.58
+   "secs": 0.81
   },
   "editorItems": {
    "pass": true,
@@ -694,9 +694,9 @@
    "presets": 1,
    "added": 2,
    "effectChannels": 2,
-   "moshIdChars": 1482,
+   "moshIdChars": 1479,
    "moshIdSame": true,
-   "secs": 0.28
+   "secs": 0.52
   },
   "editorFill": {
    "pass": true,
@@ -721,7 +721,7 @@
     112,
     120
    ],
-   "secs": 2.29
+   "secs": 4.3
   },
   "editorMasks": {
    "pass": true,
@@ -729,7 +729,7 @@
    "undoLabel": "Mask stroke",
    "lockedEqualsClean": true,
    "restored": true,
-   "secs": 0.53
+   "secs": 1.18
   },
   "editorVectors": {
    "pass": true,
@@ -737,14 +737,14 @@
    "label": "Vector stroke",
    "changed": true,
    "undoRestoresPixels": true,
-   "secs": 1.12
+   "secs": 2.95
   },
   "sequenceSeek": {
    "pass": true,
    "from": 0,
    "seek11": true,
    "seek5": true,
-   "secs": 0.31
+   "secs": 0.74
   },
   "checkpointStore": {
    "pass": true,
@@ -788,7 +788,7 @@
     "deposits": 5,
     "restores": 5
    },
-   "secs": 0.48
+   "secs": 1.05
   },
   "checkpointSpill": {
    "pass": true,
@@ -827,7 +827,7 @@
    "spills": 5,
    "loads": 3,
    "filesLeft": 0,
-   "secs": 0.13
+   "secs": 0.35
   },
   "checkpointParity": {
    "pass": true,
@@ -879,7 +879,7 @@
      "bytes": 148608
     }
    },
-   "secs": 2.31
+   "secs": 4.51
   }
  },
  "T1": {
@@ -893,7 +893,7 @@
     "num": 30,
     "den": 1
    },
-   "secs": 0.6
+   "secs": 1.27
   },
   "ingestLadder": {
    "pass": true,
@@ -917,13 +917,13 @@
      "max": 0.1682
     }
    },
-   "secs": 0.04
+   "secs": 0.05
   },
   "exportRoundTrip": {
    "pass": true,
    "exported": {
     "frames": 180,
-    "seconds": 3.88,
+    "seconds": 5.16,
     "codec": "avc",
     "audio": "aac"
    },
@@ -939,7 +939,7 @@
    },
    "lumaPsnrFrame120": 42.47,
    "ssim": 0.9901,
-   "secs": 3.91
+   "secs": 5.19
   },
   "timelineExportM4": {
    "pass": true,
@@ -962,7 +962,7 @@
     "avc",
     "avc"
    ],
-   "secs": 0.36
+   "secs": 0.79
   },
   "timelineEditedVideo": {
    "pass": true,
@@ -991,7 +991,7 @@
     "FX1: 0-98",
     "A1: 0-98"
    ],
-   "secs": 0.78
+   "secs": 1.68
   },
   "soundMix": {
    "pass": true,
@@ -1052,10 +1052,28 @@
     0,
     0
    ],
-   "secs": 0.04
+   "secs": 0.12
   },
   "exportMix": {
    "pass": true,
+   "webm": {
+    "audio": "opus",
+    "clicks": [
+     0.2,
+     0.7,
+     1.2,
+     1.7,
+     2.3816,
+     3.2,
+     3.7,
+     4.2,
+     4.7,
+     5.2,
+     5.7,
+     6.2
+    ],
+    "maxErr": 0
+   },
    "passThrough": {
     "mode": "pass",
     "clicks": [
@@ -1089,7 +1107,7 @@
    ],
    "maxErrBefore": 0,
    "maxErrAfter": 0,
-   "secs": 0.57
+   "secs": 2.21
   },
   "fidelitySets": {
    "pass": true,
@@ -1111,7 +1129,7 @@
      "maxSsimDeviation": 0.000048
     }
    },
-   "secs": 0.88
+   "secs": 1.91
   },
   "videoCut": {
    "pass": true,
@@ -1120,16 +1138,16 @@
     90
    ],
    "cpuIdentical": 1,
-   "secs": 3.55
+   "secs": 7.22
   }
  },
  "T4": {
   "warpCost": {
-   "msPerFrame": 0.268,
-   "fps": 3731,
+   "msPerFrame": 0.856,
+   "fps": 1168,
    "size": "1920x1080",
    "format": "rgba16float",
-   "secs": 0.06
+   "secs": 0.2
   },
   "stageCost1080": {
    "size": "1920x1080",
@@ -1137,35 +1155,35 @@
    "search": 16,
    "pel": 2,
    "msPerFrame": {
-    "pyramid": 0.305,
-    "match": 4.095,
-    "match pel 1": 2.805,
-    "warp": 0.28,
-    "wholeLoop": 5.7
+    "pyramid": 0.535,
+    "match": 4.865,
+    "match pel 1": 3.38,
+    "warp": 0.635,
+    "wholeLoop": 8.345
    },
-   "secs": 2.2
+   "secs": 3.33
   },
   "evalOverhead": {
    "size": "192x108",
    "msPerFrame": {
-    "plain": 1.34,
-    "20 vector strokes": 1.6,
-    "+ 20 mask strokes": 1.69,
-    "+ keyframed mask opacity": 2.83
+    "plain": 3.35,
+    "20 vector strokes": 3.98,
+    "+ 20 mask strokes": 3.96,
+    "+ keyframed mask opacity": 7.14
    },
-   "secs": 0.56
+   "secs": 1.37
   },
   "loopCost1080": {
    "size": "1920x1080",
    "Xvid classic": {
-    "msPerFrame": 5.86,
-    "fps": 171
+    "msPerFrame": 8.27,
+    "fps": 121
    },
    "heavy": {
-    "msPerFrame": 5.65,
-    "fps": 177
+    "msPerFrame": 7.88,
+    "fps": 127
    },
-   "secs": 1.06
+   "secs": 1.84
   }
  }
 }

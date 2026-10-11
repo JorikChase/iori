@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-10",
+  "generated": "2026-10-11",
   "pages": [
     {
       "slug": "4cube.html",
@@ -301,7 +301,7 @@
     {
       "slug": "fractals.html",
       "title": "Fractal Optimization Through a Procedural Lens",
-      "description": "Fractal dimension as a working number: carpet to Ising embedded live, with Flame Strains, Petri and the Iris Engine running inside the paper as the evidence.",
+      "description": "Mandelbrot's Brownian casebook live, then the claim: diffusion models are Brownian motion reversed and work because the world is fractal.",
       "category": "fractals",
       "type": "experiment",
       "domain": "iori.me",

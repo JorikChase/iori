@@ -161,12 +161,17 @@ export function createIngest(gpu, { mode = 'auto' } = {}) {
     const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: S, texture: { sampleType: 'float' } }, { binding: 1, visibility: S, sampler: { type: 'filtering' } }, { binding: 2, visibility: S, storageTexture: { access: 'write-only', format: F16 } }] });
     return { layout, pipe: device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }), compute: { module: device.createShaderModule({ code: TEX_WGSL }), entryPoint: 'main' } }) };
   });
-  let staging = null, used = mode === 'auto' ? (typeof device.importExternalTexture === 'function' ? 'external' : 'copy') : mode;
+  let staging = null, viaCanvas = false, cv = null, cx = null, used = mode === 'auto' ? (typeof device.importExternalTexture === 'function' ? 'external' : 'copy') : mode;
   const run = (P, entries, dst) => { const enc = device.createCommandEncoder(), pass = enc.beginComputePass(); pass.setPipeline(P.pipe); pass.setBindGroup(0, device.createBindGroup({ layout: P.layout, entries })); pass.dispatchWorkgroups(Math.ceil(dst.width / 8), Math.ceil(dst.height / 8)); pass.end(); device.queue.submit([enc.finish()]); };
   const viaCopy = (frame, dst) => {
     const w = frame.displayWidth, h = frame.displayHeight;
     if (!staging || staging.width !== w || staging.height !== h) { staging?.destroy(); staging = device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT }); }
-    device.queue.copyExternalImageToTexture({ source: frame }, { texture: staging }, [w, h]);
+    // Firefox (Gecko 157) refuses a VideoFrame as a copy source: draw it into a canvas first, and keep doing so
+    if (!viaCanvas) { try { device.queue.copyExternalImageToTexture({ source: frame }, { texture: staging }, [w, h]); } catch (e) { viaCanvas = true; } }
+    if (viaCanvas) {
+      if (!cv || cv.width !== w || cv.height !== h) { cv = new OffscreenCanvas(w, h); cx = cv.getContext('2d'); }
+      cx.drawImage(frame, 0, 0, w, h); device.queue.copyExternalImageToTexture({ source: cv }, { texture: staging }, [w, h]);
+    }
     run(PT, [{ binding: 0, resource: staging.createView() }, { binding: 1, resource: smp }, { binding: 2, resource: dst.createView() }], dst);
   };
   return {

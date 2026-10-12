@@ -1,0 +1,203 @@
+/* Fractal Optimization Through a Procedural Lens — the paper's look.
+   Light, minimal, legible: one text column, figures a little wider, a quiet contents rail on wide screens.
+   Every colour is a token on :root so a figure never hard-codes one. */
+:root {
+  --paper: #ffffff;
+  --ink: #1d2024;
+  --ink-2: #4a4f55;
+  --muted: #74797f;
+  --rule: #e7e9eb;
+  --wash: #f6f7f8;
+  --link: #1f5fbf;
+  --walk: #e0703a;     /* walkers, fits, the thing that moves */
+  --data: #23936a;     /* the world, the data, the target */
+  --noise: #2d6fd2;    /* noise, floors, the unknown */
+  --note: #8a5cc4;     /* dimension, the measured number */
+  --serif: 'Lora', Georgia, serif;
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --text: 40rem;       /* the reading column */
+  --wide: 54rem;       /* figures */
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.68 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  counter-reset: figure;
+}
+
+/* ---- reading progress ---- */
+#progress { position: fixed; top: 0; left: 0; height: 2px; width: 0; background: var(--ink); z-index: 20; }
+
+/* ---- layout: rail + column ---- */
+.page { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 4rem 1rem 6rem; }
+main { width: 100%; max-width: var(--wide); min-width: 0; }
+main > * { max-width: var(--text); margin-left: auto; margin-right: auto; }
+main > figure, main > .wide, main > section > figure, main > section > .wide { max-width: var(--wide); }
+section > * { max-width: var(--text); margin-left: auto; margin-right: auto; }
+
+.toc { display: none; }
+@media (min-width: 1180px) {
+  .page { grid-template-columns: 15rem minmax(0, var(--wide)) minmax(0, 15rem); column-gap: 2.5rem; justify-items: stretch; }
+  .toc { display: block; position: sticky; top: 2.5rem; align-self: start; max-height: calc(100vh - 5rem); overflow: auto;
+    font-size: 0.82rem; line-height: 1.45; padding-right: 0.5rem; }
+  .toc a { display: block; color: var(--muted); text-decoration: none; padding: 0.22rem 0 0.22rem 0.75rem; border-left: 2px solid transparent; }
+  .toc a:hover { color: var(--ink); }
+  .toc a.active { color: var(--ink); border-left-color: var(--ink); }
+  .toc .sub { padding-left: 1.5rem; font-size: 0.78rem; }
+  .toc .toc-title { font-family: var(--serif); font-weight: 700; color: var(--ink); margin: 0 0 0.6rem 0.75rem; font-size: 0.9rem; }
+}
+
+/* ---- type ---- */
+h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.2; color: var(--ink); }
+h1 { font-size: clamp(2rem, 4.2vw, 2.9rem); margin: 0 auto 1.2rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.75rem; margin: 5rem auto 0.5rem; }
+h3 { font-size: 1.22rem; margin: 2.8rem auto 0.6rem; }
+p, li { margin-top: 0; margin-bottom: 1.05rem; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+i, em { font-style: italic; }
+sub, sup { line-height: 0; }
+b, strong { font-weight: 600; }
+
+.subtitle { font-family: var(--serif); font-style: italic; font-size: 1.18rem; color: var(--ink-2); line-height: 1.55; }
+.byline { font-weight: 600; margin: 1.6rem auto 0.1rem; }
+.affiliation { font-size: 0.85rem; color: var(--muted); }
+.acknowledgements { font-style: italic; color: var(--muted); font-size: 0.95rem; }
+
+/* the one-sentence lead under every chapter heading */
+.lead { font-family: var(--serif); font-size: 1.16rem; color: var(--ink-2); line-height: 1.55; margin-bottom: 1.8rem; }
+
+/* the paper in one paragraph */
+.abstract { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 1.4rem 0 0.4rem; margin: 2.4rem auto; }
+.abstract h2 { font-size: 0.78rem; font-family: var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.8rem; }
+.howto { font-size: 0.92rem; color: var(--muted); }
+
+/* accents: plain colour and weight, no gradients */
+.accent { font-weight: 600; }
+.accent-blue { color: var(--noise); }
+.accent-orange { color: var(--walk); }
+.accent-green { color: var(--data); }
+.accent-purple { color: var(--note); }
+
+/* citations */
+a.cite { font-size: 0.72em; vertical-align: super; line-height: 0; margin-left: 0.08em; color: var(--muted); }
+a.cite:hover { color: var(--link); text-decoration: none; }
+
+/* glossary terms in the text */
+a.term { color: inherit; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+a.term:hover { text-decoration-color: var(--ink); text-decoration-style: solid; }
+#term-pop { position: absolute; z-index: 30; max-width: 20rem; background: var(--ink); color: #fff; font-size: 0.85rem; line-height: 1.45;
+  padding: 0.6rem 0.75rem; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,0.12); pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+#term-pop.on { opacity: 1; }
+#term-pop b { display: block; margin-bottom: 0.15rem; }
+
+/* ---- figures ---- */
+figure { margin: 2.2rem auto 2.6rem; padding: 0; counter-increment: figure; }
+figure canvas, .fig-view { display: block; width: 100%; height: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; }
+figure canvas.square { max-width: 32rem; margin: 0 auto; aspect-ratio: 1 / 1; }
+figure canvas.strip { aspect-ratio: 2 / 1; }
+figure .three-view { width: 100%; max-width: 32rem; aspect-ratio: 1 / 1; margin: 0 auto; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; touch-action: none; cursor: grab; }
+figure .three-view:active { cursor: grabbing; }
+figure .three-view canvas { border: 0; border-radius: 0; width: 100% !important; height: 100% !important; }
+figure .fig-view { aspect-ratio: 16 / 10; overflow: hidden; touch-action: none; }
+figure .fig-view canvas { border: 0; border-radius: 0; width: 100% !important; height: 100% !important; }
+@media (max-width: 700px) { figure .fig-view { aspect-ratio: 4 / 5; } }
+figcaption { font-size: 0.86rem; color: var(--muted); line-height: 1.5; margin-top: 0.8rem; max-width: var(--text); margin-left: auto; margin-right: auto; }
+figcaption::before { content: "Figure " counter(figure) ". "; font-weight: 600; color: var(--ink-2); }
+figure.embed figcaption::before { content: "Live engine. "; }
+figure.embed { counter-increment: none; }
+
+.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.panels > div { text-align: center; font-size: 0.78rem; color: var(--muted); }
+.panels canvas { aspect-ratio: 1 / 1; image-rendering: pixelated; margin-bottom: 0.3rem; }
+@media (max-width: 640px) { .panels { grid-template-columns: 1fr 1fr; } .panels > div:last-child { grid-column: span 2; max-width: 60%; margin: 0 auto; } }
+
+.pair { display: grid; grid-template-columns: 13rem 1fr; gap: 0.8rem; align-items: start; }
+.pair canvas:first-child { aspect-ratio: 1 / 1; }
+@media (max-width: 640px) { .pair { grid-template-columns: 1fr; } .pair canvas:first-child { max-width: 14rem; margin: 0 auto; } }
+
+/* controls under a figure */
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 1rem; margin: 0.8rem auto 0; font-size: 0.86rem; color: var(--ink-2); max-width: var(--wide); }
+.controls label { display: inline-flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.controls input[type="range"] { width: 8.5rem; accent-color: var(--ink); }
+.controls button, .controls select, .controls input[type="file"]::file-selector-button {
+  font: 500 0.82rem var(--sans); color: var(--ink); background: var(--paper); border: 1px solid #d5d8db; border-radius: 999px;
+  padding: 0.32rem 0.85rem; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.controls select { border-radius: 6px; padding: 0.3rem 0.5rem; }
+.controls button:hover, .controls select:hover { background: var(--wash); border-color: #b9bdc1; }
+.controls button:active { background: #eceef0; }
+.controls input[type="file"] { font-size: 0.8rem; color: var(--muted); max-width: 15rem; }
+.controls .value, .status { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.82rem; }
+p.status { text-align: center; margin: 0.5rem auto 0; min-height: 1.3em; }
+.chart { display: block; width: 100%; height: auto; margin-top: 0.8rem; border: 1px solid var(--rule); border-radius: 10px; }
+.bar { max-width: 32rem; height: 2px; margin: 0.7rem auto 0; background: var(--rule); border-radius: 1px; overflow: hidden; }
+.bar div { height: 100%; width: 0; background: var(--ink); transition: width 0.1s linear; }
+
+/* the DoG pair */
+.image-container { display: flex; justify-content: center; gap: 0.8rem; max-width: 32rem; margin: 0 auto; }
+.image-container img, .image-container canvas { width: 50%; height: auto; border: 1px solid var(--rule); border-radius: 8px; }
+
+/* ---- the mathematics, folded ---- */
+details.math { border: 1px solid var(--rule); border-radius: 10px; padding: 0 1.1rem; margin: 1.2rem auto 1.6rem; background: var(--wash); }
+details.math > summary { cursor: pointer; list-style: none; padding: 0.75rem 0; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-2); }
+details.math > summary::-webkit-details-marker { display: none; }
+details.math > summary::before { content: "+"; display: inline-block; width: 1.1rem; font-weight: 400; }
+details.math[open] > summary::before { content: "–"; }
+details.math[open] { padding-bottom: 0.6rem; }
+details.math p, details.math li { font-size: 0.93rem; }
+.eq { font-family: var(--serif); font-size: 1.04rem; text-align: center; margin: 0.9rem 0; overflow-x: auto; white-space: nowrap; }
+
+/* the theorem and the plain-language box */
+.theorem { border-left: 3px solid var(--ink); padding: 0.2rem 0 0.2rem 1.1rem; margin: 1.6rem auto; }
+.theorem > p:first-child::before { content: attr(data-label) " "; font-weight: 700; font-family: var(--serif); }
+.plain { background: var(--wash); border-radius: 10px; padding: 1.2rem 1.3rem 0.4rem; margin: 1.4rem auto 2rem; }
+.plain h4, .theorem h4 { margin: 0 0 0.6rem; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-family: var(--sans); }
+.steps { counter-reset: step; padding-left: 0; list-style: none; }
+.steps > li { counter-increment: step; padding-left: 2.1rem; position: relative; }
+.steps > li::before { content: counter(step); position: absolute; left: 0; top: 0.05rem; width: 1.45rem; height: 1.45rem; border-radius: 50%;
+  border: 1px solid var(--ink); font-size: 0.78rem; font-weight: 600; display: grid; place-items: center; }
+
+/* tables */
+table.data { border-collapse: collapse; margin: 1.4rem auto; font-size: 0.9rem; width: 100%; max-width: var(--text); }
+table.data th, table.data td { border-bottom: 1px solid var(--rule); padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+table.data th { font-weight: 600; color: var(--ink-2); font-size: 0.8rem; }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* live engine embeds */
+.embed-frame { width: 100%; aspect-ratio: 16 / 10; background: var(--wash); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.embed-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+@media (max-width: 700px) { .embed-frame { aspect-ratio: 3 / 4; } }
+
+/* the series */
+.series { list-style: none; padding: 0; }
+.series li { border-top: 1px solid var(--rule); padding: 0.9rem 0 0.2rem; }
+.series li .n { font-family: var(--serif); font-weight: 700; margin-right: 0.4rem; }
+.series li .state { font-size: 0.78rem; color: var(--muted); margin-left: 0.4rem; }
+.series li p { font-size: 0.92rem; color: var(--ink-2); margin: 0.25rem 0 0.7rem; }
+
+#silviculture { min-height: 18rem; }
+
+/* glossary + references */
+dl.glossary dt { font-weight: 600; margin-top: 0.9rem; }
+dl.glossary dd { margin: 0.15rem 0 0; color: var(--ink-2); font-size: 0.95rem; }
+dl.glossary dt:target, dl.glossary dt:target + dd { background: #fff8e1; }
+ol.refs { padding-left: 1.8rem; font-size: 0.86rem; color: var(--ink-2); }
+ol.refs li { margin-bottom: 0.45rem; }
+ol.refs li:target { background: #fff8e1; }
+
+footer { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 4rem; }
+
+/* phones */
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .page { padding: 2.5rem 1rem 4rem; }
+  h2 { margin-top: 3.6rem; }
+  .controls { gap: 0.45rem 0.8rem; }
+  .controls input[type="range"] { width: 7rem; }
+}

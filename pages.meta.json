@@ -253,7 +253,7 @@
     },
     "fractals.html": {
       "title": "Fractal Optimization Through a Procedural Lens",
-      "description": "Fractals as a procedural craft: optimization techniques and infinite detail, explored interactively.",
+      "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
       "category": "fractals",
       "domain": "iori.me",
       "type": "experiment",
@@ -766,6 +766,42 @@
       "category": "tools",
       "domain": "iori.me",
       "type": "experiment",
+      "hidden": true
+    },
+    "automata.html": {
+      "title": "Cellular Automata as the Computational Basis",
+      "description": "Paper 1 of iori's series, in preparation: cellular automata as the computational basis, with Flame Strains and Petri as measured evidence.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
+      "hidden": true
+    },
+    "tensor-landscapes.html": {
+      "title": "Fractal Optimization of Tensor Landscapes",
+      "description": "Paper 2 of iori's series, in preparation: where neural network training landscapes are fractal, and whether that structure can become speed.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
+      "hidden": true
+    },
+    "document-diffusion.html": {
+      "title": "Diffusion Over the Whole Document",
+      "description": "Paper 3 of iori's series, in preparation: can a text generator draw a whole document coarse to fine, the outline first, the way image diffusion does?",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
+      "hidden": true
+    },
+    "papers/index.html": {
+      "title": "Papers — iori",
+      "description": "iori's paper series: fractal roughness, cellular automata, tensor landscapes, document diffusion and lambda cognition, each a page to read and play with.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
       "hidden": true
     }
   }

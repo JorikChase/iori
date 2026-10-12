@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-11",
+  "generated": "2026-10-12",
   "pages": [
     {
       "slug": "4cube.html",
@@ -301,7 +301,7 @@
     {
       "slug": "fractals.html",
       "title": "Fractal Optimization Through a Procedural Lens",
-      "description": "Mandelbrot's Brownian casebook live, then the claim: diffusion models are Brownian motion reversed and work because the world is fractal.",
+      "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
       "category": "fractals",
       "type": "experiment",
       "domain": "iori.me",

@@ -2,9 +2,13 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /404.html
+Disallow: /automata.html
 Disallow: /burger.html
 Disallow: /clip.html
+Disallow: /document-diffusion.html
 Disallow: /lili-web.html
 Disallow: /moshine/lab.html
+Disallow: /papers/
+Disallow: /tensor-landscapes.html
 
 Sitemap: https://3die.fr/sitemap-3die.xml

@@ -74,7 +74,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="papers/fractals/paper.css?v=3">
+  <link rel="stylesheet" href="papers/fractals/paper.css?v=4">
 </head>
 
 <body>
@@ -290,16 +290,86 @@
           toward even, and height costs a little vigour. Single tree grows one tree for two hundred years. Drag to
           orbit.</figcaption>
       </figure>
+      <p>Each species in that forest is a handful of numbers: how strongly the leader dominates its side branches (λ),
+        how determinate the branching is (<i>D</i>), which way the branches lean, how long a tree lives, how much shade
+        it can take. Some trees differ by more than numbers. Hallé and Oldeman sorted the world's trees into some two
+        dozen architectural models by how trunk and branches are built <a class="cite" href="#ref-halle1978">[20]</a>;
+        eight of them grow here, from the layered conifer (Massart's model) to the palm (Corner's) and the candelabra
+        (Leeuwenberg's), with reiteration, a strong branch turning into a new trunk, and sprouting after damage. The
+        windows below grow one plant of each form alone, in open light. Every window is cut to the shape of its
+        plant.</p>
+      <figure>
+        <div id="specimens"></div>
+        <figcaption>One plant per window, each grown alone from seed by the same rules with a different architecture or
+          different numbers from the paper's species table. The labels give the form, its architectural model, its row
+          in the table, λ and <i>D</i>, and the plant's age and height as it grows.</figcaption>
+      </figure>
 
-      <h3 id="ch2-7">2.7 The Spectrum of a Rough World</h3>
+      <h3 id="ch2-7">2.7 A Landscape Formed by Rivers</h3>
+      <p>The forest needs ground, and the ground is not drawn either. It starts as the Brownian landscape of 2.3, raised by
+        tectonic uplift, and is carved for five million simulated years by the law geomorphologists use for rivers: the
+        ground lowers in proportion to its slope and, roughly, the square root of the area draining through it
+        <a class="cite" href="#ref-cordonnier2016">[21]</a><a class="cite" href="#ref-braun2013">[22]</a>. Hillsides creep,
+        slopes steeper than their angle of repose slide, and hard rock beds erode slower than soft ones, so cliffs and
+        benches form where they alternate <a class="cite" href="#ref-cordonnier2018">[23]</a>. Lakes fill to the height of
+        their spill point <a class="cite" href="#ref-barnes2014">[24]</a>. Rivers take their width from the water they
+        carry, and on low slopes they meander and cut off oxbow lakes <a class="cite" href="#ref-paris2023">[25]</a>.
+        Lower the sea and the region becomes coast, islands and, now and then, a strait.</p>
+      <p>The result can be checked, because river networks on Earth obey tight laws. A river's length grows with its
+        basin's area to a power between 0.57 and 0.60, which is Hack's law; each order of stream gathers three to five
+        tributaries of the order below, which is Horton's <a class="cite" href="#ref-dodds1999">[26]</a>. Measured on
+        three generated regions:</p>
+      <table class="data">
+        <thead><tr><th>Statistic</th><th class="num">Generated</th><th class="num">Earth</th></tr></thead>
+        <tbody>
+          <tr><td>Hack's exponent: river length against basin area</td><td class="num">0.54–0.58</td><td class="num">0.57–0.60</td></tr>
+          <tr><td>Drainage-area exponent τ</td><td class="num">1.36–1.45</td><td class="num">1.43 ± 0.02</td></tr>
+          <tr><td>Horton's bifurcation ratio</td><td class="num">3.1–4.6</td><td class="num">3–5</td></tr>
+          <tr><td>Horton's length ratio</td><td class="num">2.0–2.4</td><td class="num">1.5–3</td></tr>
+          <tr><td>Channel concavity θ</td><td class="num">0.41–0.70</td><td class="num">≈ 0.45</td></tr>
+          <tr><td>Coastline dimension, with sea</td><td class="num">1.23–1.27</td><td class="num">1.02–1.25</td></tr>
+          <tr><td>Hypsometric integral</td><td class="num">0.18–0.31</td><td class="num">0.35–0.6</td></tr>
+        </tbody>
+      </table>
+      <p>Two misses, stated. The hypsometric integral is low because these regions are mostly foothills, and the
+        coastline is a little rougher than Britain's west coast. The other numbers sit inside Earth's ranges or at their
+        edge.</p>
+      <p>Temperature falls 6.5 °C per kilometre of height, and rain falls on the windward slopes and spares the lee
+        <a class="cite" href="#ref-smith2004">[27]</a>. The region is 10 km across and its summits stand about 1,600 m above the sea, so
+        the forest's bands are now real ones, without the earlier exaggeration. With the sea at 7 °C, broadleaf and
+        conifer mix below about 300 m, conifers run to about 600 m, birch and shrubs above them, and the treeline sits
+        at 700 m, with grass and shrubs to the summits. Warm the climate and the bands climb. Soil grows from the rock and is stripped
+        from steep ground <a class="cite" href="#ref-heimsath1997">[28]</a>. The rock types keep their signatures: strata on
+        sandstone cliffs, columns in basalt, clints and grikes in limestone, rounded granite boulders, scree under every
+        cliff <a class="cite" href="#ref-peytavie2009">[29]</a>.</p>
+      <p>Click anywhere on the region and the camera flies down to a plot there, where the forest of 2.6 grows from that
+        spot's soil, climate and neighbours. Trees die at about one percent a year, faster in shade, and in storms. A
+        storm uproots some trees, leaving a root plate, a pit and a mound that outlast the tree by centuries, and snaps
+        others, leaving snags <a class="cite" href="#ref-cordonnier2017">[30]</a><a class="cite" href="#ref-peytavie2024">[31]</a>.
+        Fallen logs stay where they fell. They decay through five classes at a rate that rises two and a half times with
+        every ten degrees of warmth <a class="cite" href="#ref-mackensen2003">[32]</a>, grow moss, sink into mounds and end
+        as humus, and shade-tolerant seedlings root on the softest of them, as they do on nurse logs. One plot after three centuries: 950 living plants, 81 snags and 984 logs, nearly half of them
+        in the last decay class, 89 pits, and 118 seedlings rooted on logs. Of the 2,012 trees that died there, 85 % died
+        of age, 11 % in storms and 4 % of shade.</p>
+      <p>What is still chosen rather than derived: the pattern of uplift and the erodibility that sets the relief, the
+        geological map, the rates of storms, the thresholds between materials, and every colour. They are listed in the
+        code.</p>
+      <figure>
+        <div id="environment"></div>
+        <figcaption>A 10 km region formed by uplift and river erosion, with lakes, rivers, rock types and a climate that
+          cools with height, its vegetation simulated cell by cell; and a plot you place by clicking, where individual
+          plants grow, die, fall and decay. Both looks, drawing and natural colour, are a toggle. Drag to orbit.</figcaption>
+      </figure>
+
+      <h3 id="ch2-8">2.8 The Spectrum of a Rough World</h3>
       <p>A rough world leaves a signature you can measure on any photograph. Break a picture into layers from the broadest
         shapes to the finest grain and ask how loud each layer is. That is its
         <a class="term" href="#g-spectrum">power spectrum</a>. For a rough world the answer is a straight line on log
         scales: every <a class="term" href="#g-octave">octave</a> finer is quieter by the same factor. Field found
-        power falling as 1/<i>f</i><sup>β</sup> with β close to 2 <a class="cite" href="#ref-field1987">[20]</a>;
-        Ruderman and Bialek measured 1.81 in woodland <a class="cite" href="#ref-ruderman1994">[21]</a>; Torralba and
+        power falling as 1/<i>f</i><sup>β</sup> with β close to 2 <a class="cite" href="#ref-field1987">[33]</a>;
+        Ruderman and Bialek measured 1.81 in woodland <a class="cite" href="#ref-ruderman1994">[34]</a>; Torralba and
         Oliva fitted twelve thousand scenes at 1.8 to 2.4 depending on scene and direction
-        <a class="cite" href="#ref-torralba2003">[22]</a>.</p>
+        <a class="cite" href="#ref-torralba2003">[35]</a>.</p>
       <p>The photograph below is the iris behind eye 26 of the Iris Engine (Lizapopova143, Wikimedia Commons, CC BY 4.0).
         Its texture reads about 2.9 and the whole iris 2.7, steeper than the scene average because one object at one
         distance is smoother than a scene. The carpet reads 2.35. The landscape from 2.3 should read 2<i>H</i> + 2 and
@@ -338,7 +408,7 @@
       <p class="lead">Two tools carry every number in this paper: one finds the edges, the other counts boxes.</p>
       <h3 id="ch3-1">3.1 Difference of Gaussians</h3>
       <p>Blur the image twice with different widths and subtract. What survives is edges, the Marr–Hildreth operator
-        <a class="cite" href="#ref-marr1980">[23]</a>. Here the two blurs are box blurs, a cheap stand-in for the
+        <a class="cite" href="#ref-marr1980">[36]</a>. Here the two blurs are box blurs, a cheap stand-in for the
         Gaussians. Upload your own image, or use the sample: the carpet from 1.2 at level 4.</p>
       <figure>
         <div class="image-container">
@@ -368,13 +438,13 @@
         landscape.</p>
       <h3 id="ch4-1">4.1 The Ising Model and Annealing</h3>
       <p>Spins on a 100 × 100 grid, each up or down, each wanting to match its four neighbours. The Metropolis rule
-        <a class="cite" href="#ref-metropolis1953">[24]</a>: a flip that lowers the energy is always taken, one that
+        <a class="cite" href="#ref-metropolis1953">[37]</a>: a flip that lowers the energy is always taken, one that
         raises it by Δ<i>E</i> is taken with probability exp(−Δ<i>E</i>/<i>T</i>). Onsager solved this grid exactly
-        <a class="cite" href="#ref-onsager1944">[25]</a>: the critical temperature is 2 / ln(1 + √2) = 2.269. The slider
+        <a class="cite" href="#ref-onsager1944">[38]</a>: the critical temperature is 2 / ln(1 + √2) = 2.269. The slider
         starts at 2.3. Below it the domains freeze, above it there is only noise, and at it there are domains of every
         size: the fractal case. Beggs and Plenz measured the same power law in the avalanches of living cortex
-        <a class="cite" href="#ref-beggs2003">[26]</a>. Press Anneal: start hot, cool slowly
-        <a class="cite" href="#ref-kirkpatrick1983">[27]</a>, and the domains grow instead of freezing where they
+        <a class="cite" href="#ref-beggs2003">[39]</a>. Press Anneal: start hot, cool slowly
+        <a class="cite" href="#ref-kirkpatrick1983">[40]</a>, and the domains grow instead of freezing where they
         stand.</p>
       <figure>
         <canvas id="ising-model-canvas" class="square" width="500" height="500"></canvas>
@@ -403,15 +473,15 @@
       </figure>
 
       <h3 id="ch4-3">4.3 The Fitters</h3>
-      <p>The <a href="iris-engine/">Iris Engine</a> <a class="cite" href="#ref-irisengine">[28]</a> fits a procedural
+      <p>The <a href="iris-engine/">Iris Engine</a> <a class="cite" href="#ref-irisengine">[41]</a> fits a procedural
         iris to a photograph: a search over the shape genes, a material inversion per cell, two thousand Gaussian splats
         on the relief by gradient descent, then the layer model. On the four isolated eyes the match score reads 90.35,
         88.12, 91.40 and 88.32, and the shipped files reproduce those renders within one level on every load. That walk
-        has no noise in it. The <a href="iori.html">splat scenes</a> <a class="cite" href="#ref-splats">[29]</a> will be
-        trained with MCMC splatting <a class="cite" href="#ref-kheradmand2024">[30]</a>, which is stochastic gradient
-        Langevin dynamics <a class="cite" href="#ref-welling2011">[31]</a>: gradient plus Brownian noise, the walker from
-        4.2 on millions of parameters. Petri's think tank runs CMA-ES <a class="cite" href="#ref-hansen2001">[32]</a>,
-        Gaussian mutations on a genome. Evolution is the original <a class="cite" href="#ref-kauffman1993">[33]</a>.</p>
+        has no noise in it. The <a href="iori.html">splat scenes</a> <a class="cite" href="#ref-splats">[42]</a> will be
+        trained with MCMC splatting <a class="cite" href="#ref-kheradmand2024">[43]</a>, which is stochastic gradient
+        Langevin dynamics <a class="cite" href="#ref-welling2011">[44]</a>: gradient plus Brownian noise, the walker from
+        4.2 on millions of parameters. Petri's think tank runs CMA-ES <a class="cite" href="#ref-hansen2001">[45]</a>,
+        Gaussian mutations on a genome. Evolution is the original <a class="cite" href="#ref-kauffman1993">[46]</a>.</p>
       <figure class="embed" id="embed-iris" data-src="iris-engine/?eye=26">
         <div class="embed-frame"></div>
         <figcaption>The Iris Engine, eye 26. It loads when it scrolls into view and unloads when it leaves.
@@ -429,7 +499,7 @@
       <div class="plain">
         <h4>The argument without mathematics</h4>
         <ol class="steps">
-          <li><b>Noise is equally loud at every scale.</b> On the spectrum plot of 2.7 it is a flat line.</li>
+          <li><b>Noise is equally loud at every scale.</b> On the spectrum plot of 2.8 it is a flat line.</li>
           <li><b>The world is not.</b> Every scale finer is quieter by the same factor. On the plot, a falling straight
             line.</li>
           <li><b>Noise drowns the quiet scales first.</b> Pour noise on a photograph and the finest grain goes under at
@@ -445,9 +515,9 @@
 
       <h3 id="ch5-1">5.1 Is the Noise in Stable Diffusion Brownian?</h3>
       <p>For the models most people have used, yes. Stable Diffusion 1.x, 2.x and XL add noise in a thousand small
-        Gaussian steps to a compressed 64 × 64 × 4 picture <a class="cite" href="#ref-rombach2022">[34]</a><a class="cite" href="#ref-podell2023">[35]</a>. Those steps are the discrete form of an Ornstein–Uhlenbeck process,
-        Brownian motion with a gentle pull toward zero <a class="cite" href="#ref-ho2020">[36]</a><a class="cite" href="#ref-song2021">[37]</a>. Stable Diffusion 3 and FLUX do not walk. They slide along a straight line from
-        the picture to one draw of noise <a class="cite" href="#ref-esser2024">[38]</a>. What every family shares is the
+        Gaussian steps to a compressed 64 × 64 × 4 picture <a class="cite" href="#ref-rombach2022">[47]</a><a class="cite" href="#ref-podell2023">[48]</a>. Those steps are the discrete form of an Ornstein–Uhlenbeck process,
+        Brownian motion with a gentle pull toward zero <a class="cite" href="#ref-ho2020">[49]</a><a class="cite" href="#ref-song2021">[50]</a>. Stable Diffusion 3 and FLUX do not walk. They slide along a straight line from
+        the picture to one draw of noise <a class="cite" href="#ref-esser2024">[51]</a>. What every family shares is the
         state at each <a class="term" href="#g-sigma">noise level</a>: the picture plus Gaussian noise of a known
         width σ. The proof below is written in σ, so it covers all of them.</p>
 
@@ -502,17 +572,17 @@
         <p><b>(1)</b> For one Gaussian coordinate the posterior mean is</p>
         <p class="eq">E[<i>x<sub>f</sub></i> | <i>y<sub>f</sub></i>] = <i>S</i>(<i>f</i>) / (<i>S</i>(<i>f</i>) + σ²) · <i>y<sub>f</sub></i>.</p>
         <p>Tweedie's formula says the same thing without the Gaussian assumption on the world: the best guess is
-          E[<i>x</i>|<i>y</i>] = <i>y</i> + σ² ∇ log <i>p</i>(<i>y</i>) <a class="cite" href="#ref-efron2011">[39]</a>.
+          E[<i>x</i>|<i>y</i>] = <i>y</i> + σ² ∇ log <i>p</i>(<i>y</i>) <a class="cite" href="#ref-efron2011">[52]</a>.
           Here <i>p</i>(<i>y</i>) is Gaussian with spectrum <i>S</i> + σ², so ∇ log <i>p</i> multiplies frequency
           <i>f</i> by −1/(<i>S</i> + σ²), and <i>y</i> − σ²<i>y</i>/(<i>S</i> + σ²) = <i>S y</i>/(<i>S</i> + σ²). The
           gradient term is the <a class="term" href="#g-score">score</a>, the thing a diffusion network is trained to
-          output; Wiener wrote the filter in 1949 <a class="cite" href="#ref-wiener1949">[40]</a>.</p>
+          output; Wiener wrote the filter in 1949 <a class="cite" href="#ref-wiener1949">[53]</a>.</p>
         <p><b>(2)</b> The gain is ½ where <i>S</i>(<i>f</i>) = σ², that is <i>A f</i><sup>−β</sup> = σ², so
           <i>f</i>* = (<i>A</i>/σ²)<sup>1/β</sup>. What is left unknown about frequency <i>f</i> after seeing <i>y</i> is
           the posterior variance <i>S</i>σ²/(<i>S</i> + σ²): close to σ² (settled up to the noise) below the cutoff,
           close to <i>S</i> (nothing learned) above it.</p>
         <p><b>(3)</b> <i>f</i>* falls as σ grows, so it rises as σ falls. The reverse process of a diffusion model is the
-          time reversal of the forward one, and its drift is the score <a class="cite" href="#ref-anderson1982">[41]</a>.
+          time reversal of the forward one, and its drift is the score <a class="cite" href="#ref-anderson1982">[54]</a>.
           At every point of the reverse path the state is a picture at some level σ, and by (2) only the frequencies
           below <i>f</i>*(σ) are determined there. So they are determined in increasing order.</p>
         <p><b>(4)</b> Write <i>H</i><sub>σ</sub>(<i>f</i>) = <i>S</i>/(<i>S</i> + σ²). Then</p>
@@ -524,14 +594,14 @@
 
       <h3 id="ch5-4">5.4 From the Theorem to Real Pictures</h3>
       <p>Photographs are not Gaussian fields: they have edges and objects. Three things carry the theorem over. The
-        spectrum of photographs is a power law with β near 2, measured, not proved (section 2.7). Trained denoisers act
+        spectrum of photographs is a power law with β near 2, measured, not proved (section 2.8). Trained denoisers act
         like adaptive versions of this filter, keeping coefficients louder than the noise in a basis fitted to the image
-        <a class="cite" href="#ref-kadkhodaie2024">[42]</a>. And the generated order is observed: Rissanen and colleagues
-        reported that diffusion models generate coarse to fine <a class="cite" href="#ref-rissanen2023">[43]</a>, and
-        Dieleman named it spectral autoregression <a class="cite" href="#ref-dieleman2024">[44]</a>.</p>
+        <a class="cite" href="#ref-kadkhodaie2024">[55]</a>. And the generated order is observed: Rissanen and colleagues
+        reported that diffusion models generate coarse to fine <a class="cite" href="#ref-rissanen2023">[56]</a>, and
+        Dieleman named it spectral autoregression <a class="cite" href="#ref-dieleman2024">[57]</a>.</p>
       <p>Where the theorem stands among them. Rissanen gave the additive noise floor, Dieleman the phrase, Falck and
-        colleagues the signal-to-noise picture per frequency <a class="cite" href="#ref-falck2025">[45]</a>, and Hunt,
-        Kamb and Ganguli wrote the power-law Wiener filter and its rescaling <a class="cite" href="#ref-hunt2026">[46]</a>.
+        colleagues the signal-to-noise picture per frequency <a class="cite" href="#ref-falck2025">[58]</a>, and Hunt,
+        Kamb and Ganguli wrote the power-law Wiener filter and its rescaling <a class="cite" href="#ref-hunt2026">[59]</a>.
         None of them states the order of generation as a theorem. The contribution here is that statement with the
         schedule corollary, and figures that let anyone check it.</p>
       <p>Two limits keep it honest. Falck's group built a forward process that noises every frequency equally, and it
@@ -562,7 +632,7 @@
           <i>w</i> = softmax(−|<i>x</i> − <i>x<sub>i</sub></i>|² / 2σ²).</p>
         <p>One reverse step from σ<sub><i>k</i></sub> to σ<sub><i>k</i>+1</sub> is
           <i>x</i> ← <i>x</i> + (σ<sub><i>k</i></sub>² − σ<sub><i>k</i>+1</sub>²) ∇ log <i>p</i> + √(σ<sub><i>k</i></sub>² − σ<sub><i>k</i>+1</sub>²) <i>z</i>,
-          the Euler–Maruyama step of Anderson's reverse equation <a class="cite" href="#ref-song2021">[37]</a>. A
+          the Euler–Maruyama step of Anderson's reverse equation <a class="cite" href="#ref-song2021">[50]</a>. A
           network learns the score; nothing else changes.</p>
       </details>
     </section>
@@ -575,7 +645,7 @@
       <p>Below are a few thousand bodies scattered as Lévy dust, clusters of clusters. Each pulls on every other, so the
         direct sum is one interaction per pair: <i>N</i>². Barnes and Hut group the far bodies into boxes of a quadtree
         and let one box stand for all of its contents when it looks small from where you stand
-        <a class="cite" href="#ref-barnes1986">[47]</a>. The opening angle θ says how small is small. The count falls
+        <a class="cite" href="#ref-barnes1986">[60]</a>. The opening angle θ says how small is small. The count falls
         to about <i>N</i> log <i>N</i>. At 4,000 bodies and θ = 0.5 the tree does 41 times less work for an error of
         0.9 %; at 32,000 bodies, 235 times less for 2 %. The bigger the problem, the bigger the gain. Push θ past 1 and
         the error climbs to 5 and then 10 %: the shortcut only holds while a far box really does look small.</p>
@@ -595,21 +665,21 @@
       <table class="data">
         <thead><tr><th>Method</th><th>Work</th><th>The regularity it needs</th></tr></thead>
         <tbody>
-          <tr><td>Fast Fourier transform <a class="cite" href="#ref-cooley1965">[48]</a></td><td>N² → N log N</td><td>the transform factors into log N sparse layers</td></tr>
-          <tr><td>Multigrid <a class="cite" href="#ref-brandt1977">[49]</a></td><td>→ N</td><td>after smoothing, the error is smooth and a coarser grid can fix it; Petri's pressure solver is one</td></tr>
-          <tr><td>Fast multipole <a class="cite" href="#ref-greengard1987">[50]</a></td><td>N² → N</td><td>a far cluster's pull compresses to a few terms</td></tr>
-          <tr><td>Wavelets <a class="cite" href="#ref-mallat1989">[51]</a></td><td>→ N</td><td>nested scales, each half the last</td></tr>
-          <tr><td>Hierarchical matrices <a class="cite" href="#ref-hackbusch1999">[52]</a></td><td>n³ → n k² log² n</td><td>off-diagonal blocks are nearly low-rank</td></tr>
-          <tr><td>Monarch and butterfly layers <a class="cite" href="#ref-dao2022">[53]</a></td><td>n² → n√n</td><td>a weight matrix close to a product of block-diagonal ones; GPT-2 trained 2× faster</td></tr>
+          <tr><td>Fast Fourier transform <a class="cite" href="#ref-cooley1965">[61]</a></td><td>N² → N log N</td><td>the transform factors into log N sparse layers</td></tr>
+          <tr><td>Multigrid <a class="cite" href="#ref-brandt1977">[62]</a></td><td>→ N</td><td>after smoothing, the error is smooth and a coarser grid can fix it; Petri's pressure solver is one</td></tr>
+          <tr><td>Fast multipole <a class="cite" href="#ref-greengard1987">[63]</a></td><td>N² → N</td><td>a far cluster's pull compresses to a few terms</td></tr>
+          <tr><td>Wavelets <a class="cite" href="#ref-mallat1989">[64]</a></td><td>→ N</td><td>nested scales, each half the last</td></tr>
+          <tr><td>Hierarchical matrices <a class="cite" href="#ref-hackbusch1999">[65]</a></td><td>n³ → n k² log² n</td><td>off-diagonal blocks are nearly low-rank</td></tr>
+          <tr><td>Monarch and butterfly layers <a class="cite" href="#ref-dao2022">[66]</a></td><td>n² → n√n</td><td>a weight matrix close to a product of block-diagonal ones; GPT-2 trained 2× faster</td></tr>
           <tr><td>Instancing (1.3)</td><td>27ⁿ → 20ⁿ</td><td>exact self-similarity</td></tr>
         </tbody>
       </table>
       <p>None of it makes an arbitrary shape faster. Recursion is cheap only where the structure is really there. For
         neural networks the open question is the landscape. Sohl-Dickstein found that the boundary between training that
         converges and training that diverges is fractal in the plane of learning rates, with box dimensions from 1.17 to
-        1.98 <a class="cite" href="#ref-sohldickstein2024">[54]</a>. Stochastic gradient descent behaves, under four
+        1.98 <a class="cite" href="#ref-sohldickstein2024">[67]</a>. Stochastic gradient descent behaves, under four
         stated assumptions, like the walker of 4.2 at a temperature set by learning rate over batch size
-        <a class="cite" href="#ref-mandt2017">[55]</a>. Whether that landscape has a regularity a fast method can use is
+        <a class="cite" href="#ref-mandt2017">[68]</a>. Whether that landscape has a regularity a fast method can use is
         the subject of paper 2.</p>
     </section>
 
@@ -618,11 +688,11 @@
       <h2>7. Consequences</h2>
       <p class="lead">Every fit is the same act: a slow walk of a model toward a rough world.</p>
       <p>The context an organism adapts to is not a problem with a solution. It is a fitness landscape
-        <a class="cite" href="#ref-kauffman1993">[33]</a>, and the landscape is rugged at every scale: a niche as intricate
+        <a class="cite" href="#ref-kauffman1993">[46]</a>, and the landscape is rugged at every scale: a niche as intricate
         at the scale of a biome as at the edge of one leaf. Evolution is not a climb. It is a population
         <a href="mycelium.html">diffusing</a> across that surface, the walk from 2.1 with selection as its drift. The
         butterfly's wing and the <a href="lambda_cognition.html">perceptron's learned weights</a>
-        <a class="cite" href="#ref-lambda">[56]</a> are two snapshots of the same walk: the slow, painful, and finally
+        <a class="cite" href="#ref-lambda">[69]</a> are two snapshots of the same walk: the slow, painful, and finally
         beautiful <span class="accent accent-purple">convergence</span> of a model to a world.</p>
       <p>Every engine on this site is that act. An iris ID, a Dish ID and a flame preset are compact descriptions, and
         each engine regenerates a world from one. What none of them has yet is a sense of which descriptions are likely,
@@ -639,26 +709,26 @@
         and its last section is a pointer to each of the others.</p>
       <h3 id="ch8-1">8.1 Towards the Computational Basis</h3>
       <p>The next paper, <a href="automata.html"><i>Cellular Automata as the Computational Basis</i></a>
-        <a class="cite" href="#ref-automata">[57]</a>, takes local rules as the subject. Conway's rule
-        <a class="cite" href="#ref-gardner1970">[58]</a>: a live cell survives with two or three live neighbours and a dead
-        one is born with three. Langton's ant <a class="cite" href="#ref-langton1986">[59]</a>: on white turn right, on
+        <a class="cite" href="#ref-automata">[70]</a>, takes local rules as the subject. Conway's rule
+        <a class="cite" href="#ref-gardner1970">[71]</a>: a live cell survives with two or three live neighbours and a dead
+        one is born with three. Langton's ant <a class="cite" href="#ref-langton1986">[72]</a>: on white turn right, on
         black turn left, flip the cell, step; ten thousand steps of mess, then a highway.</p>
       <figure>
         <canvas id="game-of-life-canvas" class="square" width="500" height="500"></canvas>
         <div class="controls"><button id="life-play-pause">Play</button><button id="life-reset">Reset</button></div>
         <figcaption>Conway's Game of Life on a 50 × 50 torus seeded at 30 %. The <a href="game-of-life.html">ASCII
-            edition</a> <a class="cite" href="#ref-gameoflife">[60]</a> is the same rule in characters.</figcaption>
+            edition</a> <a class="cite" href="#ref-gameoflife">[73]</a> is the same rule in characters.</figcaption>
       </figure>
       <figure>
         <canvas id="langtons-ant-canvas" class="square" width="500" height="500"></canvas>
         <div class="controls"><button id="ant-play-pause">Play</button><button id="ant-reset">Reset</button></div>
         <figcaption>Langton's ant on a torus: the highway comes back and eats its own trail.</figcaption>
       </figure>
-      <p><a href="flame-strains.html">Flame Strains</a> <a class="cite" href="#ref-flamestrains">[61]</a> burns any 2D
+      <p><a href="flame-strains.html">Flame Strains</a> <a class="cite" href="#ref-flamestrains">[74]</a> burns any 2D
         automaton as a strain inside one volumetric flame. <a href="petri/">Petri</a> runs ten growth kernels and 93
         organisms as data rows, every dish replayable bit for bit. Its first measured result opens the next paper: Tero
         and colleagues let <i>Physarum</i> connect 36 food sources laid out as the cities around Tokyo
-        <a class="cite" href="#ref-tero2010">[62]</a>, and Petri's adaptive Physarum on Tero's own geometry, 21
+        <a class="cite" href="#ref-tero2010">[75]</a>, and Petri's adaptive Physarum on Tero's own geometry, 21
         replicates, bands fixed before the run, lands inside the published spread.</p>
       <table class="data">
         <thead><tr><th></th><th class="num">Petri (n = 21)</th><th class="num">Tero 2010</th></tr></thead>
@@ -668,10 +738,10 @@
           <tr><td>fault tolerance</td><td class="num">0.854 ± 0.050</td><td class="num">0.86 ± 0.04</td></tr>
         </tbody>
       </table>
-      <p><a href="slime-mold.html">Slime Mold</a> <a class="cite" href="#ref-slimemold">[63]</a>,
-        <a href="ember-engine.html">Ember Engine</a> <a class="cite" href="#ref-ember">[64]</a>,
-        <a href="mycelium.html">Mycelium</a> <a class="cite" href="#ref-mycelium">[65]</a> and
-        <a href="liquid-automata.html">Frost</a> <a class="cite" href="#ref-frost">[66]</a> are the single-rule engines
+      <p><a href="slime-mold.html">Slime Mold</a> <a class="cite" href="#ref-slimemold">[76]</a>,
+        <a href="ember-engine.html">Ember Engine</a> <a class="cite" href="#ref-ember">[77]</a>,
+        <a href="mycelium.html">Mycelium</a> <a class="cite" href="#ref-mycelium">[78]</a> and
+        <a href="liquid-automata.html">Frost</a> <a class="cite" href="#ref-frost">[79]</a> are the single-rule engines
         before Petri.</p>
       <figure class="embed" id="embed-flame" data-src="flame-strains.html">
         <div class="embed-frame"></div>
@@ -755,6 +825,19 @@
         <li id="ref-borchert1984">Borchert, R., Honda, H. Control of development in the bifurcating branch system of <i>Tabebuia rosea</i>. <i>Botanical Gazette</i> 145(2) (1984) 184–195. <a href="https://doi.org/10.1086/337445" target="_blank" rel="noopener">doi:10.1086/337445</a></li>
         <li id="ref-makowski2019">Makowski, M., Hädrich, T., Scheffczyk, J., Michels, D. L., Pirk, S., Pałubicki, W. Synthetic silviculture: multi-scale modeling of plant ecosystems. <i>ACM Transactions on Graphics</i> 38(4) (2019) 131. <a href="https://doi.org/10.1145/3306346.3323039" target="_blank" rel="noopener">doi:10.1145/3306346.3323039</a></li>
         <li id="ref-yoda1963">Yoda, K., Kira, T., Ogawa, H., Hozumi, K. Self-thinning in overcrowded pure stands under cultivated and natural conditions. <i>Journal of Biology, Osaka City University</i> 14 (1963) 107–129.</li>
+        <li id="ref-halle1978">Hallé, F., Oldeman, R. A. A., Tomlinson, P. B. <i>Tropical Trees and Forests: An Architectural Analysis</i>. Springer, 1978.</li>
+        <li id="ref-cordonnier2016">Cordonnier, G., Braun, J., Cani, M.-P., Beneš, B., Galin, É., Peytavie, A., Guérin, É. Large scale terrain generation from tectonic uplift and fluvial erosion. <i>Computer Graphics Forum</i> 35(2) (2016) 165–175. <a href="https://doi.org/10.1111/cgf.12820" target="_blank" rel="noopener">doi:10.1111/cgf.12820</a></li>
+        <li id="ref-braun2013">Braun, J., Willett, S. D. A very efficient O(n), implicit and parallel method to solve the stream power equation governing fluvial incision and landscape evolution. <i>Geomorphology</i> 180–181 (2013) 170–179. <a href="https://doi.org/10.1016/j.geomorph.2012.10.008" target="_blank" rel="noopener">doi:10.1016/j.geomorph.2012.10.008</a></li>
+        <li id="ref-cordonnier2018">Cordonnier, G., Cani, M.-P., Beneš, B., Braun, J., Galin, É. Sculpting mountains: interactive terrain modeling based on subsurface geology. <i>IEEE Transactions on Visualization and Computer Graphics</i> 24(5) (2018) 1756–1769.</li>
+        <li id="ref-barnes2014">Barnes, R., Lehman, C., Mulla, D. Priority-flood: an optimal depression-filling and watershed-labeling algorithm for digital elevation models. <i>Computers &amp; Geosciences</i> 62 (2014) 117–127. <a href="https://doi.org/10.1016/j.cageo.2013.04.024" target="_blank" rel="noopener">doi:10.1016/j.cageo.2013.04.024</a></li>
+        <li id="ref-paris2023">Paris, A., Guérin, É., Collon, P., Galin, É. Authoring and simulating meandering rivers. <i>ACM Transactions on Graphics</i> 42(6) (2023). <a href="https://doi.org/10.1145/3618350" target="_blank" rel="noopener">doi:10.1145/3618350</a></li>
+        <li id="ref-dodds1999">Dodds, P. S., Rothman, D. H. Unified view of scaling laws for river networks. <i>Physical Review E</i> 59(5) (1999) 4865–4877. <a href="https://doi.org/10.1103/PhysRevE.59.4865" target="_blank" rel="noopener">doi:10.1103/PhysRevE.59.4865</a></li>
+        <li id="ref-smith2004">Smith, R. B., Barstad, I. A linear theory of orographic precipitation. <i>Journal of the Atmospheric Sciences</i> 61 (2004) 1377–1391.</li>
+        <li id="ref-heimsath1997">Heimsath, A. M., Dietrich, W. E., Nishiizumi, K., Finkel, R. C. The soil production function and landscape equilibrium. <i>Nature</i> 388 (1997) 358–361. <a href="https://doi.org/10.1038/41056" target="_blank" rel="noopener">doi:10.1038/41056</a></li>
+        <li id="ref-peytavie2009">Peytavie, A., Galin, É., Grosjean, J., Mérillou, S. Arches: a framework for modeling complex terrains. <i>Computer Graphics Forum</i> 28(2) (2009) 457–467. <a href="https://doi.org/10.1111/j.1467-8659.2009.01385.x" target="_blank" rel="noopener">doi:10.1111/j.1467-8659.2009.01385.x</a></li>
+        <li id="ref-cordonnier2017">Cordonnier, G., Galin, É., Gain, J., Beneš, B., Guérin, É., Peytavie, A., Cani, M.-P. Authoring landscapes by combining ecosystem and terrain erosion simulation. <i>ACM Transactions on Graphics</i> 36(4) (2017) 134. <a href="https://doi.org/10.1145/3072959.3073667" target="_blank" rel="noopener">doi:10.1145/3072959.3073667</a></li>
+        <li id="ref-peytavie2024">Peytavie, A., Gain, J., Guérin, É., Argudo, O., Galin, É. DeadWood: including disturbance and decay in the depiction of digital nature. <i>ACM Transactions on Graphics</i> 43(2) (2024) 21. <a href="https://doi.org/10.1145/3641816" target="_blank" rel="noopener">doi:10.1145/3641816</a></li>
+        <li id="ref-mackensen2003">Mackensen, J., Bauhus, J., Webber, E. Decomposition rates of coarse woody debris: a review with particular emphasis on Australian tree species. <i>Australian Journal of Botany</i> 51 (2003) 27–37.</li>
         <li id="ref-field1987">Field, D. J. Relations between the statistics of natural images and the response properties of cortical cells. <i>Journal of the Optical Society of America A</i> 4(12) (1987) 2379–2394. <a href="https://doi.org/10.1364/JOSAA.4.002379" target="_blank" rel="noopener">doi:10.1364/JOSAA.4.002379</a></li>
         <li id="ref-ruderman1994">Ruderman, D. L., Bialek, W. Statistics of natural images: scaling in the woods. <i>Physical Review Letters</i> 73 (1994) 814–817. <a href="https://doi.org/10.1103/PhysRevLett.73.814" target="_blank" rel="noopener">doi:10.1103/PhysRevLett.73.814</a></li>
         <li id="ref-torralba2003">Torralba, A., Oliva, A. Statistics of natural image categories. <i>Network: Computation in Neural Systems</i> 14(3) (2003) 391–412.</li>
@@ -819,7 +902,7 @@
           }
       }
     </script>
-  <script type="module" src="papers/fractals/paper.js?v=2"></script>
+  <script type="module" src="papers/fractals/paper.js?v=6"></script>
 <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
 <link rel="stylesheet" href="assets/menu.css">
 <nav id="site-menu" class="site-menu site-menu--tr" aria-label="Site menu">

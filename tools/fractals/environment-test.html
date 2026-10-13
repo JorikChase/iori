@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Environment test</title>
+  <link rel="stylesheet" href="../../papers/fractals/paper.css">
+</head>
+<body>
+  <!-- Harness for createEnvironment: the paper's CSS and figure markup, so sizing matches fractals.html.
+       ?w=800 sets the main column width; ?paused does not start the loop. -->
+  <div class="page">
+    <nav class="toc" aria-label="Contents"></nav>
+    <main>
+      <figure>
+        <div id="environment"></div>
+        <figcaption>Environment harness.</figcaption>
+      </figure>
+    </main>
+  </div>
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    } }
+  </script>
+  <script type="module">
+    import { createEnvironment } from '../../papers/fractals/silviculture.js';
+    const q = new URLSearchParams(location.search);
+    if (q.has('w')) document.querySelector('main').style.maxWidth = q.get('w') + 'px';
+    const fig = createEnvironment(document.getElementById('environment'));
+    window.__fig = fig;
+    window.__sv = fig.debug;
+    if (!q.has('paused')) fig.start();
+    window.__svReady = true;
+  </script>
+</body>
+</html>

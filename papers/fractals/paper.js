@@ -1286,20 +1286,29 @@
     })();
 
     // ===================== 2.6 Synthetic silviculture: loaded when it scrolls into view =====================
-    let sv = null, svWanted = false, svLoading = null;
-    function startSilviculture() {
-      svWanted = true;
-      if (sv) { sv.start(); return; }
-      if (svLoading) return;
-      svLoading = import('./silviculture.js?v=1').then(m => {
-        sv = m.createSilviculture(document.getElementById('silviculture'));
-        if (svWanted) sv.start();
-      }).catch(err => {
-        console.error(err);
-        document.getElementById('silviculture').innerHTML = '<p class="status">The forest could not start in this browser.</p>';
-      });
+    // The forest, the plant windows and the environment share one lazily loaded module; each figure builds
+    // its own instance the first time it scrolls into view, and stops whenever it leaves.
+    let svModule = null;
+    const loadSilviculture = () => (svModule ||= import('./silviculture.js?v=5'));
+    function lazyFigure(id, factory) {
+      let inst = null, wanted = false, loading = false;
+      return {
+        start() {
+          wanted = true;
+          if (inst) { inst.start(); return; }
+          if (loading) return;
+          loading = true;
+          loadSilviculture().then(m => {
+            inst = m[factory](document.getElementById(id));
+            if (wanted) inst.start();
+          }).catch(err => {
+            console.error(err);
+            document.getElementById(id).innerHTML = '<p class="status">This figure could not start in this browser.</p>';
+          });
+        },
+        stop() { wanted = false; if (inst) inst.stop(); }
+      };
     }
-    function stopSilviculture() { svWanted = false; if (sv) sv.stop(); }
 
     // --- Scenes on the viewport controller ---
     registerScene('menger-sponge-canvas-container', { init: initSponge, start: animateSponge, stop: () => cancelAnimationFrame(spongeRaf) });
@@ -1309,7 +1318,9 @@
     registerScene('ising-model-canvas', { start: animateIsing, stop: () => cancelAnimationFrame(isingRaf) });
     registerScene('walker-canvas', { start: animateWalker, stop: () => cancelAnimationFrame(walkerRaf) });
     registerScene('diffusion-canvas', { wanted: () => diffWanted, start: startDiffusion, stop: stopDiffusion });
-    registerScene('silviculture', { start: startSilviculture, stop: stopSilviculture });
+    registerScene('silviculture', lazyFigure('silviculture', 'createSilviculture'));
+    registerScene('specimens', lazyFigure('specimens', 'createSpecimens'));
+    registerScene('environment', lazyFigure('environment', 'createEnvironment'));
     registerScene('game-of-life-canvas', { wanted: () => lifeWanted, start: startLife, stop: stopLife });
     registerScene('langtons-ant-canvas', { wanted: () => antWanted, start: startAnt, stop: stopAnt });
     // Live engines: an iframe exists only while its figure is in view, so three

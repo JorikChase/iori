@@ -181,7 +181,7 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 .series li .state { font-size: 0.78rem; color: var(--muted); margin-left: 0.4rem; }
 .series li p { font-size: 0.92rem; color: var(--ink-2); margin: 0.25rem 0 0.7rem; }
 
-#silviculture { min-height: 18rem; }
+#silviculture, #specimens, #environment { min-height: 18rem; }
 
 /* glossary + references */
 dl.glossary dt { font-weight: 600; margin-top: 0.9rem; }

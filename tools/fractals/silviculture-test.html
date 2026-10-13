@@ -4,25 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Silviculture test</title>
-  <style>
-    :root { --text-color: #212529; --border-color: #dee2e6; --body-font: 'Inter', system-ui, sans-serif; }
-    body { margin: 0; padding: 24px 16px; background: #fff; color: var(--text-color); font-family: var(--body-font); }
-    main { max-width: 860px; margin: 0 auto; }
-    .fig-view { border-radius: 12px; background: #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,.05), 0 2px 4px -1px rgba(0,0,0,.03); margin-bottom: 1.5rem; }
-    .controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1rem; margin: 0 auto 1rem; max-width: 640px; }
-    .controls label { font-size: .9rem; }
-    .controls input[type="range"] { width: 120px; }
-    .controls button { padding: .5em 1em; border: 1px solid var(--border-color); background: #fff; border-radius: 4px; cursor: pointer; font-family: var(--body-font); font-size: .9rem; }
-    .controls select { padding: .4em .6em; border: 1px solid var(--border-color); border-radius: 4px; font-family: var(--body-font); font-size: .9rem; background: #fff; }
-    .chart { margin: .5rem 0; }
-    .status { font-size: .85rem; color: #6c757d; text-align: center; }
-  </style>
+  <title>Forest test</title>
+  <link rel="stylesheet" href="../../papers/fractals/paper.css">
 </head>
 <body>
-  <main>
-    <div id="silviculture"></div>
-  </main>
+  <!-- Harness for createSilviculture: the paper's CSS and figure markup, so sizing matches fractals.html.
+       ?w=800 sets the main column width; ?paused does not start the loop. -->
+  <div class="page">
+    <nav class="toc" aria-label="Contents"></nav>
+    <main>
+      <figure>
+        <div id="silviculture"></div>
+        <figcaption>Forest harness.</figcaption>
+      </figure>
+    </main>
+  </div>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
@@ -32,6 +28,7 @@
   <script type="module">
     import { createSilviculture } from '../../papers/fractals/silviculture.js';
     const q = new URLSearchParams(location.search);
+    if (q.has('w')) document.querySelector('main').style.maxWidth = q.get('w') + 'px';
     const fig = createSilviculture(document.getElementById('silviculture'));
     window.__fig = fig;
     window.__sv = fig.debug;

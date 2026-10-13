@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Terrain test</title>
+  <link rel="stylesheet" href="../../papers/fractals/paper.css">
+  <style>
+    .views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8rem; width: 100%; }
+    main > figure { max-width: 72rem; }
+    @media (max-width: 700px) { .views { grid-template-columns: minmax(0, 1fr); } }
+    .views .fig-view { position: relative; aspect-ratio: 1 / 1; width: 100%; min-width: 0; }
+    .views .fig-view canvas { position: absolute; inset: 0; }
+    .views .tag { position: absolute; left: 0.6rem; top: 0.45rem; font: 0.75rem var(--sans); color: var(--muted); pointer-events: none; }
+    table.stats { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0.8rem; font-variant-numeric: tabular-nums; }
+    table.stats th, table.stats td { text-align: left; padding: 0.22rem 0.4rem; border-bottom: 1px solid var(--rule); }
+    table.stats td.v { text-align: right; }
+    table.stats .ok { color: var(--data); } table.stats .no { color: var(--walk); }
+    .controls input[type="number"] { width: 4.5rem; }
+  </style>
+</head>
+<body>
+  <!-- Harness for landscape-terrain.js / landscape-ground.js / landscape-stats.js.
+       ?seed=3&cells=512&size=10000&sea=0.3&palette=natural&focus=5000,5000&fw=250&T0=14&P0=900&wind=0&H=0.6
+       Click the region to move the focus window. window.__terrain exposes everything. -->
+  <div class="page">
+    <nav class="toc" aria-hidden="true"></nav>
+    <main>
+      <figure>
+        <div class="views">
+          <div class="fig-view" id="regionView"><span class="tag">region</span></div>
+          <div class="fig-view" id="focusView"><span class="tag">focus</span></div>
+        </div>
+        <div class="controls" id="row1"></div>
+        <div class="controls" id="row2"></div>
+        <p class="status" id="status">…</p>
+        <table class="stats" id="stats"></table>
+        <figcaption>Terrain harness: region and focus window, measured statistics against Earth.</figcaption>
+      </figure>
+    </main>
+  </div>
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { generateTerrain, generateTerrainAsync, attachMethods } from '../../papers/fractals/landscape-terrain.js';
+    import { buildGround, PALETTE_BG } from '../../papers/fractals/landscape-ground.js';
+    import { fitDistance, boxPoints } from '../../papers/fractals/silviculture-draw.js';
+
+    const q = new URLSearchParams(location.search);
+    if (q.has('stack')) document.querySelector('.views').style.gridTemplateColumns = 'minmax(0, 1fr)';
+    const num = (k, d) => (q.has(k) ? +q.get(k) : d);
+    const state = {
+      seed: num('seed', 1), cells: num('cells', 512), size: num('size', 10000), sea: q.has('sea') ? +q.get('sea') : null,
+      T0: num('T0', 14), P0: num('P0', 900), wind: num('wind', 0), H: num('H', 0.6),
+      palette: q.get('palette') === 'natural' ? 'natural' : 'drawing', fw: num('fw', 250),
+      focus: q.has('focus') ? q.get('focus').split(',').map(Number) : null,
+    };
+    const $ = (id) => document.getElementById(id);
+    const status = $('status');
+
+    // ---- controls
+    const mk = (row, html) => { const s = document.createElement('span'); s.innerHTML = html; $(row).append(...s.childNodes); };
+    mk('row1', `<label>Seed <input id="seed" type="number" value="${state.seed}"></label><button id="newSeed" type="button">New</button>
+      <label>Size <select id="size"><option value="4000">4 km</option><option value="6000">6 km</option><option value="10000">10 km</option></select></label>
+      <label>Grid <select id="cells"><option>256</option><option>512</option><option>1024</option></select></label>
+      <label><input id="seaOn" type="checkbox"> Sea</label><label>level <input id="sea" type="range" min="0.05" max="0.6" step="0.01" value="${state.sea ?? 0.3}"></label>
+      <button id="pal" type="button">Natural</button>`);
+    mk('row2', `<label>T₀ <input id="T0" type="range" min="-4" max="26" step="1" value="${state.T0}"><span class="value" id="T0v"></span></label>
+      <label>P₀ <input id="P0" type="range" min="150" max="2500" step="50" value="${state.P0}"><span class="value" id="P0v"></span></label>
+      <label>Wind from <input id="wind" type="range" min="0" max="6.28" step="0.1" value="${state.wind}"></label>
+      <label>Roughness H <input id="H" type="range" min="0.3" max="0.9" step="0.05" value="${state.H}"><span class="value" id="Hv"></span></label>
+      <button id="gen" type="button">Generate</button>`);
+    $('size').value = String(state.size); $('cells').value = String(state.cells); $('seaOn').checked = state.sea != null;
+    const showVals = () => { $('T0v').textContent = `${$('T0').value} °C`; $('P0v').textContent = `${$('P0').value} mm`; $('Hv').textContent = (+$('H').value).toFixed(2); };
+    showVals(); for (const id of ['T0', 'P0', 'H']) $(id).oninput = showVals;
+    const read = () => Object.assign(state, { seed: +$('seed').value | 0, size: +$('size').value, cells: +$('cells').value, sea: $('seaOn').checked ? +$('sea').value : null, T0: +$('T0').value, P0: +$('P0').value, wind: +$('wind').value, H: +$('H').value });
+    $('gen').onclick = () => { read(); generate(); };
+    $('newSeed').onclick = () => { $('seed').value = (Math.random() * 1e6) | 0; read(); generate(); };
+    $('seaOn').onchange = $('sea').onchange = () => { read(); generate(); };
+    $('pal').onclick = () => setPalette(state.palette === 'drawing' ? 'natural' : 'drawing');
+
+    // ---- two views
+    function makeView(el, near, far) {
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+      renderer.localClippingEnabled = true;
+      el.append(renderer.domElement);
+      Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block' });
+      const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(32, 1, near, far);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.48;
+      const v = { el, renderer, scene, camera, controls, ground: null };
+      new ResizeObserver(() => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }).observe(el);
+      return v;
+    }
+    const R = makeView($('regionView'), 5, 80000), F = makeView($('focusView'), 0.2, 20000);
+    let terrain = null, crop = null, marker = null;
+
+    function frame(v, cx, cy, h, dist, az = -0.55, el = 0.62, top = -Infinity) {
+      v.controls.target.set(cx, h, -cy);
+      v.camera.position.set(cx + dist * Math.cos(el) * Math.sin(az), Math.max(top, h + dist * Math.sin(el)), -cy + dist * Math.cos(el) * Math.cos(az));
+      v.controls.update();
+    }
+    function setPalette(p) {
+      state.palette = p; $('pal').textContent = p === 'drawing' ? 'Natural' : 'Drawing';
+      for (const v of [R, F]) { if (v.ground) v.ground.setPalette(p); v.scene.background = new THREE.Color(PALETTE_BG[p]); }
+    }
+    function setFocus(x, y) {
+      if (!terrain) return;
+      const w = state.fw, S = terrain.size_m;
+      x = Math.min(S - w, Math.max(0, x - w / 2)); y = Math.min(S - w, Math.max(0, y - w / 2));
+      const t0 = performance.now();
+      crop = terrain.crop(x, y, w, 256);
+      const tc = performance.now() - t0;
+      if (F.ground) { F.scene.remove(F.ground.group); F.ground.dispose(); }
+      F.ground = buildGround(crop, { palette: state.palette, detail: 'focus' });
+      F.scene.add(F.ground.group);
+      let lo = Infinity, hi = -Infinity; for (const v of crop.height) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      // look at the window from its downhill side, so a slope faces the camera
+      let gx = 0, gy = 0; const cn = crop.n;
+      for (let j = 0; j < cn; j += 8) for (let i = 0; i < cn; i += 8) { const h = crop.height[j * cn + i]; gx += h * (i / (cn - 1) - 0.5); gy += h * (j / (cn - 1) - 0.5); }
+      const az = Math.hypot(gx, gy) > 1e-6 ? Math.atan2(-gx, gy) : -0.55;   // camera offset = −gradient (three: x, −z)
+      // frame inside the crop: fit the inner 70 % of the window (its height range) from the downhill side, 40° up,
+      // so the view stays on the plot and never shows the crop's edges or looks into a cliff
+      const n2 = crop.n; let ilo = Infinity, ihi = -Infinity;
+      for (let j = Math.floor(n2 * 0.15); j < n2 * 0.85; j++) for (let i = Math.floor(n2 * 0.15); i < n2 * 0.85; i++) { const v = crop.height[j * n2 + i]; ilo = Math.min(ilo, v); ihi = Math.max(ihi, v); }
+      const el = 0.7, dir = new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+      const tgt = new THREE.Vector3(w / 2, ilo + (ihi - ilo) * 0.4, -w / 2);
+      const d = fitDistance(F.camera, tgt, dir, boxPoints(w * 0.15, w * 0.85, ilo, ihi, -w * 0.85, -w * 0.15), 1.0);
+      F.controls.target.copy(tgt); F.camera.position.copy(tgt).addScaledVector(dir, d); F.controls.update();
+      // marker on the region
+      if (marker) { R.scene.remove(marker); marker.geometry.dispose(); }
+      const pts = [];
+      // the focus window on the region: a terrain-following ink outline (100 points a side, on the water surface
+      // where the edge crosses a lake or the sea), so it reads as a frame and never cuts across the relief
+      for (let k = 0; k <= 400; k++) { const s = k / 100, side = Math.floor(s) % 4, f = s - Math.floor(s);
+        const px = side === 0 ? x + f * w : side === 1 ? x + w : side === 2 ? x + w - f * w : x, py = side === 0 ? y : side === 1 ? y + f * w : side === 2 ? y + w : y + w - f * w;
+        const sm = terrain.sample(px, py);
+        pts.push(new THREE.Vector3(px, Math.max(sm.h, sm.h + sm.water) + 1.5, -py)); }
+      marker = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x212529 }));
+      R.scene.add(marker);
+      state.focus = [x + w / 2, y + w / 2];
+      window.__terrain.crop = crop; window.__terrain.timing.crop_ms = Math.round(tc);
+    }
+    // click on the region: raycast the ground
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+    let down = null;
+    R.renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+    R.renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4 || !R.ground) return;
+      const r = R.renderer.domElement.getBoundingClientRect();
+      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, R.camera);
+      const hit = ray.intersectObject(R.ground.group.getObjectByName('ground'))[0];
+      if (hit) setFocus(hit.point.x, -hit.point.z);
+    });
+
+    function statsTable(t) {
+      const rows = t.stats.table.map((r) => `<tr><td>${r.label}</td><td class="v">${Number.isFinite(r.value) ? r.value.toFixed(3) : '—'}</td><td>${r.target}</td><td class="${r.pass === null ? '' : r.pass || r.near ? 'ok' : 'no'}">${r.pass === null ? '' : r.pass ? 'in range' : r.near ? 'near' : 'outside'}</td><td>${r.url ? `<a href="${r.url}">${r.source}</a>` : r.source}</td></tr>`);
+      $('stats').innerHTML = `<tr><th>Statistic</th><th>Measured</th><th>Earth</th><th></th><th>Source</th></tr>${rows.join('')}`;
+    }
+    async function generate() {
+      const opts = { seed: state.seed, size_m: state.size, cells: state.cells, seaQuantile: state.sea, climate: { T0: state.T0, P0: state.P0, windDir: state.wind }, roughness: state.H, geology: { seed: state.seed } };
+      status.textContent = 'generating…';
+      window.__terrain.ready = false;
+      const t0 = performance.now();
+      let t;
+      try { t = await generateTerrainAsync(opts, (f, stage) => { status.textContent = `${stage} ${(f * 100) | 0} %`; }); }
+      catch (e) { status.textContent = 'worker failed: ' + e.message; t = generateTerrain(opts); }
+      const genMs = performance.now() - t0;
+      terrain = t;
+      const t1 = performance.now();
+      if (R.ground) { R.scene.remove(R.ground.group); R.ground.dispose(); }
+      R.ground = buildGround(t, { palette: state.palette, detail: 'region' });
+      R.scene.add(R.ground.group);
+      const buildMs = performance.now() - t1;
+      const s = t.stats;
+      frame(R, t.size_m / 2, t.size_m / 2, (s.min_m + s.max_m) / 2, t.size_m * 1.25);
+      setPalette(state.palette);
+      window.__terrain.terrain = t;
+      window.__terrain.timing = { generate_ms: Math.round(genMs), worker: t.timing, build_region_ms: Math.round(buildMs) };
+      const f = state.focus || pickFocus(t);
+      setFocus(f[0], f[1]);
+      statsTable(t);
+      status.textContent = `${t.size_m / 1000} km at ${t.n}² (${t.cell_m.toFixed(1)} m) · ${(genMs / 1000).toFixed(2)} s in a worker · relief ${s.relief_m.toFixed(0)} m · ${t.lakes.length} lakes · ${t.rivers.length} river segments · Strahler ${s.maxOrder}${t.seaLevel != null ? ` · sea ${t.seaLevel.toFixed(0)} m, ${t.straits.length} straits` : ''}`;
+      window.__terrain.ready = true;
+    }
+    // default focus: where the largest river meets steep ground
+    function pickFocus(t) {
+      let best = 0, bk = 0;
+      for (let k = 0; k < t.n * t.n; k++) { if (t.waterKind[k] !== 1) continue; const sc = Math.log(t.area[k]) * (0.3 + t.slope[k]); if (sc > best) { best = sc; bk = k; } }
+      return [(bk % t.n) * t.cell_m, Math.floor(bk / t.n) * t.cell_m];
+    }
+
+    let last = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      for (const v of [R, F]) { v.controls.update(); if (v.ground) v.ground.update(dt); v.renderer.render(v.scene, v.camera); }
+      requestAnimationFrame(loop);
+    }
+    window.__terrain = { THREE, R, F, state, generate: (o) => { Object.assign(state, o || {}); return generate(); }, setPalette, setFocus, frame, timing: {}, ready: false,
+      bench: async (cells, size = 10000, seed = 1) => { const t0 = performance.now(); const t = await generateTerrainAsync({ seed, cells, size_m: size }); return { cells, ms: Math.round(performance.now() - t0), timing: t.timing }; } };
+    requestAnimationFrame(loop);
+    generate();
+  </script>
+</body>
+</html>

@@ -114,3 +114,38 @@ generator (it already knows every page).
 (e.g. socci). Consider generating 1200×630 OG cards per experiment
 (screenshot batch via headless browser) and registering paths in
 pages.meta.json `og_image`.
+
+---
+
+## 8. Nature engine (the landscape figure grown into its own engine)
+
+**Status (2026-10-13):** decided by iori: the landscape stays in paper 0 (fractals.html §2.6–2.7) as panels,
+made richer and faster there; the full engine is a later project that will expose its logic back to the paper.
+Current in-paper pieces live in `papers/fractals/` (`silviculture-*.js`, `landscape-*.js`), interface and
+ownership in `papers/fractals/LANDSCAPE.md`.
+
+**Target:** a folder app like Petri and the Iris Engine (e.g. `nature/`, canonical `https://iori.me/nature/`):
+an Earth-like, fully procedural landscape with as few artistic liberties as possible, validated against real
+statistics, exploring regions larger than the paper can hold.
+- Terrain: uplift + stream-power erosion (n = 1, m ≈ 0.45) + hillslope diffusion + talus, strata-driven
+  differential erosion, glacial erosion later; WebGPU compute (FastFlow-style routing), WebGL2 viewer fallback.
+- Water: Priority-Flood lakes, Strahler rivers with hydraulic geometry and meander migration (Paris 2023
+  constants), sea level, coasts, islands, straits, deltas; flow-map water rendering.
+- Geology and materials: lithology regions with signature details (strata, columnar basalt, karst, granite
+  tors, scree, sand, snow); soil production and wetness.
+- Ecosystem: Synthetic Silviculture modules near the camera, Cordonnier 2017 / DeadWood 2024 layers at region
+  scale; Hallé–Oldeman architectures; mortality, windthrow, fire, snags, logs decaying into humus.
+- Scale: three seeded levels (continental noise, eroded 50–100 km region, amplified tiles), geometry clipmaps,
+  vegetation impostors; climate from lapse rate + orographic precipitation + Whittaker biomes.
+- Look: the paper's drawing palette and a natural palette, toggled.
+- Harness: Hack, Horton, τ, concavity, hypsometry, spectrum, coastline dimension against Earth values, and a
+  comparison against a real SRTM/Copernicus tile (needs iori's go-ahead for the download).
+
+**Steps when resuming:**
+1. Read `papers/study/2026-10-13-landscape-research.md` (§6 pipeline and validation table) and
+   `papers/fractals/LANDSCAPE.md`; study what the in-paper version measured and where it took liberties.
+2. Write `nature/study/00-summary-and-spec.md` like Petri's P0 (scope decisions with iori first:
+   region size, WebGPU-only or fallback, which processes first).
+3. Move the generators out of `papers/fractals/` into `nature/` as modules the paper imports back
+   (the paper keeps its panels; the engine owns the logic).
+4. Register `nature/index.html` in `pages.meta.json`, `python3 site.py all`, commit, deploy.

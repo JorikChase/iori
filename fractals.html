@@ -95,8 +95,8 @@
     <section class="abstract">
       <h2>The paper in one paragraph</h2>
       <p>Look closely at a coastline, a tree or a cloud and the detail does not run out. This paper is about that
-        roughness: how to measure it, the simplest machine that makes it, and what it means for the machines that now
-        make pictures. The machine is <a class="term" href="#g-brownian">Brownian motion</a>, a walk of random steps.
+        roughness: how to measure it, the simplest machine that makes it, the forests and rivers that grow it, and what
+        it means for the machines that now make pictures. The machine is <a class="term" href="#g-brownian">Brownian motion</a>, a walk of random steps.
         Run forwards, it roughens. Run backwards, it is what an image generator does when it turns noise into a picture.
         The paper's own result is a short proof of two things everyone who watches a generator notices: it draws the
         large shapes first and the details last, and one recipe works at every zoom. Both follow from one fact about the
@@ -108,9 +108,9 @@
 
     <!-- ================================================================== 1 -->
     <section id="ch1">
-      <h2>1. Fractals</h2>
+      <h2>1. Fractals and How to Measure Them</h2>
       <p class="lead">A fractal is a shape whose detail does not run out when you zoom in. Its
-        <a class="term" href="#g-dimension">dimension</a> says how fast the detail grows.</p>
+        <a class="term" href="#g-dimension">dimension</a> says how fast the detail grows, and two tools measure it.</p>
 
       <h3 id="ch1-1">1.1 How Long Is a Coastline?</h3>
       <p>Richardson measured coastlines with a pair of dividers and found that the answer depends on the dividers. Set
@@ -177,6 +177,30 @@
         </div>
         <figcaption>The Menger sponge, drawn as instances of one cube.</figcaption>
       </figure>
+
+      <h3 id="ch1-4">1.4 Measuring: Difference of Gaussians</h3>
+      <p>Two tools carry every number in this paper: one finds the edges, the other counts boxes. Blur the image twice with different widths and subtract. What survives is edges, the Marr–Hildreth operator
+        <a class="cite" href="#ref-marr1980">[9]</a>. Here the two blurs are box blurs, a cheap stand-in for the
+        Gaussians. Upload your own image, or use the sample: the carpet from 1.2 at level 4.</p>
+      <figure>
+        <div class="image-container">
+          <img id="dog-source-img" alt="Source image for the edge filter: the Sierpinski carpet">
+          <canvas id="dog-canvas"></canvas>
+        </div>
+        <div class="controls"><input type="file" id="image-upload" accept="image/*"></div>
+        <div class="controls">
+          <label>σ₁ <input type="range" id="sigma1" min="0.1" max="5" step="0.1" value="1.0"><span class="value" id="sigma1-val">1.0</span></label>
+          <label>σ₂ <input type="range" id="sigma2" min="0.1" max="5" step="0.1" value="2.0"><span class="value" id="sigma2-val">2.0</span></label>
+        </div>
+        <div class="controls"><button id="calculate-fd-btn">Count boxes</button><span class="status">D = <b id="fd-result">–</b></span></div>
+        <figcaption>Difference of Gaussians, then box counting on the edges.</figcaption>
+      </figure>
+      <h3 id="ch1-5">1.5 Measuring: Box Counting</h3>
+      <p>Cover the edges with boxes of side 2, 4, 8, 16, 32 and 64 pixels, count the boxes that touch an edge, and fit
+        log count against log 1/size. The slope is <i>D</i>. The carpet's answer is known, 1.893; the counter reads 1.81.
+        The gap is the method. The smallest boxes see pixel-wide edges, dimension 1; the largest see the whole image,
+        dimension 2; only the middle of the range sees the carpet. A dimension is never read off one number. It is read
+        off a range of scales, and the range has to be stated.</p>
     </section>
 
     <!-- ================================================================== 2 -->
@@ -184,7 +208,7 @@
       <h2>2. Brownian Motion: The Casebook</h2>
       <p class="lead">Mandelbrot's <i>Fractal Geometry of Nature</i> is a casebook: a chapter per phenomenon. Most of the
         phenomena are one machine, the random walk, with one dial turned.</p>
-      <p>This chapter is that casebook, live <a class="cite" href="#ref-mandelbrot1982">[9]</a>. Each section turns one
+      <p>This chapter is that casebook, live <a class="cite" href="#ref-mandelbrot1982">[10]</a>. Each section turns one
         dial and names the dimension it produces.</p>
 
       <h3 id="ch2-1">2.1 The Random Walk</h3>
@@ -192,7 +216,7 @@
         by √<i>c</i>, so no zoom looks different from any other: the walk is
         <a class="term" href="#g-selfsimilar">self-similar</a> by construction. Its trail has dimension 2 in the plane.
         Measure it: a short walk reads lower and climbs toward 2 as it fills the square.
-        <a href="diffusion-fluid.html">Diffusion Fluid</a> <a class="cite" href="#ref-diffusionfluid">[10]</a> is the
+        <a href="diffusion-fluid.html">Diffusion Fluid</a> <a class="cite" href="#ref-diffusionfluid">[11]</a> is the
         same walk run as a field.</p>
       <figure>
         <canvas id="brownian-motion-canvas" class="square" width="500" height="500"></canvas>
@@ -205,10 +229,10 @@
 
       <h3 id="ch2-2">2.2 Fractional Brownian Motion</h3>
       <p>Mandelbrot and Van Ness put a dial on the walk, the <a class="term" href="#g-hurst">Hurst exponent</a>
-        <i>H</i> <a class="cite" href="#ref-mandelbrot1968">[11]</a>. Above ½ the steps remember each other and the
+        <i>H</i> <a class="cite" href="#ref-mandelbrot1968">[12]</a>. Above ½ the steps remember each other and the
         trace is smooth and persistent; below ½ they contradict each other and it is rough; at ½ it is Brownian. The
         graph has dimension 2 − <i>H</i>. Hurst found the dial in eight centuries of Nile flood records, at
-        <i>H</i> ≈ 0.7 <a class="cite" href="#ref-hurst1951">[12]</a>. The seed below is the same at every <i>H</i>, so
+        <i>H</i> ≈ 0.7 <a class="cite" href="#ref-hurst1951">[13]</a>. The seed below is the same at every <i>H</i>, so
         the slider changes only the roughness.</p>
       <figure>
         <canvas id="fbm-trace-canvas" class="strip" width="800" height="400"></canvas>
@@ -222,7 +246,7 @@
 
       <h3 id="ch2-3">2.3 Brownian Landscapes and Coastlines</h3>
       <p>The same construction on a grid gives Mandelbrot's Brownian landscapes, relief of dimension 3 − <i>H</i>
-        <a class="cite" href="#ref-fournier1982">[13]</a>. Flood it to the mean height and the shore is a coastline of
+        <a class="cite" href="#ref-fournier1982">[14]</a>. Flood it to the mean height and the shore is a coastline of
         dimension 2 − <i>H</i>: section 1.1 again, grown instead of drawn. Every terrain in every game is this
         machine.</p>
       <figure>
@@ -250,10 +274,10 @@
 
       <h3 id="ch2-5">2.5 Diffusion-Limited Aggregation</h3>
       <p>Release a Brownian walker far from a seed, let it stick when it touches the cluster, repeat. Witten and Sander:
-        the aggregate has dimension 1.71 <a class="cite" href="#ref-witten1981">[14]</a>. The button gives three
+        the aggregate has dimension 1.71 <a class="cite" href="#ref-witten1981">[15]</a>. The button gives three
         numbers. Mass against radius reads 1.63 to 1.70 on this small lattice. Box counting reads about 1.5, because at
         two cells a branch is a line. Box counting capped at a quarter of the cluster radius is the lesson
-        <a href="petri/">Petri</a> <a class="cite" href="#ref-petri">[15]</a> paid for: on its grid, boxes near the
+        <a href="petri/">Petri</a> <a class="cite" href="#ref-petri">[16]</a> paid for: on its grid, boxes near the
         cluster's own size dragged the slope toward 2.</p>
       <figure>
         <canvas id="dla-canvas" class="square" width="500" height="500"></canvas>
@@ -264,112 +288,15 @@
         <figcaption>Diffusion-limited aggregation on a 250-cell lattice.</figcaption>
       </figure>
 
-      <h3 id="ch2-6">2.6 Trees and Forests: Synthetic Silviculture</h3>
-      <p>A tree is a branching fractal, but nobody draws it. It grows. Buds compete for light, the well-lit branches get
-        more of the plant's vigour, the shaded ones are shed, and the crown ends up filling the light it can reach.
-        Pałubicki and colleagues grew single trees from those rules <a class="cite" href="#ref-palubicki2009">[16]</a>,
-        with the vigour split between leader and side branch taken from Borchert and Honda's measurements of a tropical
-        tree <a class="cite" href="#ref-borchert1984">[17]</a>. Makowski, Pałubicki and colleagues then grew whole
-        forests and called it synthetic silviculture <a class="cite" href="#ref-makowski2019">[18]</a>: modules of
-        branches grow by the light they receive, every plant shades its neighbours, grown trees seed young ones around
-        them, and plants die of age or of shade.</p>
-      <p>Nothing in the rules says forest. Pioneers that need full light come first; shade-tolerant trees germinate under
-        them and take over; the stand thins as it grows. Foresters measured that thinning long before computers: in a
-        crowded stand, mean plant mass rises as density to the power −3/2 <a class="cite" href="#ref-yoda1963">[19]</a>.
-        Makowski's full model reproduces that law. The reduced one here does not, cleanly: dense even-aged plantations
-        thin at slopes between −2.3 and −3.1, steeper than the foresters' −3/2, and the mixed forest loops in the second
-        chart as pioneer cohorts boom and bust every fifty years or so. It drops the paper's branch prototypes and
-        climate, and adds three rules of its own; the gap is the price of that. A tree is a shape that is also a search,
-        which is where chapter 4 starts.</p>
-      <figure>
-        <div id="silviculture"></div>
-        <figcaption>Synthetic silviculture after Makowski et al. 2019, reduced to run in a page on a 32 m plot: two species
-          from the paper's table, a light-demanding pioneer and a shade-tolerant tree, a shadow field shared by every
-          plant, Borchert–Honda vigour, shedding, seeding and senescence. Three substitutions keep the reduction from
-          growing bare poles: light is counted only on branches that still carry leaves, the vigour split is softened
-          toward even, and height costs a little vigour. Single tree grows one tree for two hundred years. Drag to
-          orbit.</figcaption>
-      </figure>
-      <p>Each species in that forest is a handful of numbers: how strongly the leader dominates its side branches (λ),
-        how determinate the branching is (<i>D</i>), which way the branches lean, how long a tree lives, how much shade
-        it can take. Some trees differ by more than numbers. Hallé and Oldeman sorted the world's trees into some two
-        dozen architectural models by how trunk and branches are built <a class="cite" href="#ref-halle1978">[20]</a>;
-        eight of them grow here, from the layered conifer (Massart's model) to the palm (Corner's) and the candelabra
-        (Leeuwenberg's), with reiteration, a strong branch turning into a new trunk, and sprouting after damage. The
-        windows below grow one plant of each form alone, in open light. Every window is cut to the shape of its
-        plant.</p>
-      <figure>
-        <div id="specimens"></div>
-        <figcaption>One plant per window, each grown alone from seed by the same rules with a different architecture or
-          different numbers from the paper's species table. The labels give the form, its architectural model, its row
-          in the table, λ and <i>D</i>, and the plant's age and height as it grows.</figcaption>
-      </figure>
-
-      <h3 id="ch2-7">2.7 A Landscape Formed by Rivers</h3>
-      <p>The forest needs ground, and the ground is not drawn either. It starts as the Brownian landscape of 2.3, raised by
-        tectonic uplift, and is carved for five million simulated years by the law geomorphologists use for rivers: the
-        ground lowers in proportion to its slope and, roughly, the square root of the area draining through it
-        <a class="cite" href="#ref-cordonnier2016">[21]</a><a class="cite" href="#ref-braun2013">[22]</a>. Hillsides creep,
-        slopes steeper than their angle of repose slide, and hard rock beds erode slower than soft ones, so cliffs and
-        benches form where they alternate <a class="cite" href="#ref-cordonnier2018">[23]</a>. Lakes fill to the height of
-        their spill point <a class="cite" href="#ref-barnes2014">[24]</a>. Rivers take their width from the water they
-        carry, and on low slopes they meander and cut off oxbow lakes <a class="cite" href="#ref-paris2023">[25]</a>.
-        Lower the sea and the region becomes coast, islands and, now and then, a strait.</p>
-      <p>The result can be checked, because river networks on Earth obey tight laws. A river's length grows with its
-        basin's area to a power between 0.57 and 0.60, which is Hack's law; each order of stream gathers three to five
-        tributaries of the order below, which is Horton's <a class="cite" href="#ref-dodds1999">[26]</a>. Measured on
-        three generated regions:</p>
-      <table class="data">
-        <thead><tr><th>Statistic</th><th class="num">Generated</th><th class="num">Earth</th></tr></thead>
-        <tbody>
-          <tr><td>Hack's exponent: river length against basin area</td><td class="num">0.54–0.58</td><td class="num">0.57–0.60</td></tr>
-          <tr><td>Drainage-area exponent τ</td><td class="num">1.36–1.45</td><td class="num">1.43 ± 0.02</td></tr>
-          <tr><td>Horton's bifurcation ratio</td><td class="num">3.1–4.6</td><td class="num">3–5</td></tr>
-          <tr><td>Horton's length ratio</td><td class="num">2.0–2.4</td><td class="num">1.5–3</td></tr>
-          <tr><td>Channel concavity θ</td><td class="num">0.41–0.70</td><td class="num">≈ 0.45</td></tr>
-          <tr><td>Coastline dimension, with sea</td><td class="num">1.23–1.27</td><td class="num">1.02–1.25</td></tr>
-          <tr><td>Hypsometric integral</td><td class="num">0.18–0.31</td><td class="num">0.35–0.6</td></tr>
-        </tbody>
-      </table>
-      <p>Two misses, stated. The hypsometric integral is low because these regions are mostly foothills, and the
-        coastline is a little rougher than Britain's west coast. The other numbers sit inside Earth's ranges or at their
-        edge.</p>
-      <p>Temperature falls 6.5 °C per kilometre of height, and rain falls on the windward slopes and spares the lee
-        <a class="cite" href="#ref-smith2004">[27]</a>. The region is 10 km across and its summits stand about 1,600 m above the sea, so
-        the forest's bands are now real ones, without the earlier exaggeration. With the sea at 7 °C, broadleaf and
-        conifer mix below about 300 m, conifers run to about 600 m, birch and shrubs above them, and the treeline sits
-        at 700 m, with grass and shrubs to the summits. Warm the climate and the bands climb. Soil grows from the rock and is stripped
-        from steep ground <a class="cite" href="#ref-heimsath1997">[28]</a>. The rock types keep their signatures: strata on
-        sandstone cliffs, columns in basalt, clints and grikes in limestone, rounded granite boulders, scree under every
-        cliff <a class="cite" href="#ref-peytavie2009">[29]</a>.</p>
-      <p>Click anywhere on the region and the camera flies down to a plot there, where the forest of 2.6 grows from that
-        spot's soil, climate and neighbours. Trees die at about one percent a year, faster in shade, and in storms. A
-        storm uproots some trees, leaving a root plate, a pit and a mound that outlast the tree by centuries, and snaps
-        others, leaving snags <a class="cite" href="#ref-cordonnier2017">[30]</a><a class="cite" href="#ref-peytavie2024">[31]</a>.
-        Fallen logs stay where they fell. They decay through five classes at a rate that rises two and a half times with
-        every ten degrees of warmth <a class="cite" href="#ref-mackensen2003">[32]</a>, grow moss, sink into mounds and end
-        as humus, and shade-tolerant seedlings root on the softest of them, as they do on nurse logs. One plot after three centuries: 950 living plants, 81 snags and 984 logs, nearly half of them
-        in the last decay class, 89 pits, and 118 seedlings rooted on logs. Of the 2,012 trees that died there, 85 % died
-        of age, 11 % in storms and 4 % of shade.</p>
-      <p>What is still chosen rather than derived: the pattern of uplift and the erodibility that sets the relief, the
-        geological map, the rates of storms, the thresholds between materials, and every colour. They are listed in the
-        code.</p>
-      <figure>
-        <div id="environment"></div>
-        <figcaption>A 10 km region formed by uplift and river erosion, with lakes, rivers, rock types and a climate that
-          cools with height, its vegetation simulated cell by cell; and a plot you place by clicking, where individual
-          plants grow, die, fall and decay. Both looks, drawing and natural colour, are a toggle. Drag to orbit.</figcaption>
-      </figure>
-
-      <h3 id="ch2-8">2.8 The Spectrum of a Rough World</h3>
+      <h3 id="ch2-6">2.6 The Spectrum of a Rough World</h3>
       <p>A rough world leaves a signature you can measure on any photograph. Break a picture into layers from the broadest
         shapes to the finest grain and ask how loud each layer is. That is its
         <a class="term" href="#g-spectrum">power spectrum</a>. For a rough world the answer is a straight line on log
         scales: every <a class="term" href="#g-octave">octave</a> finer is quieter by the same factor. Field found
-        power falling as 1/<i>f</i><sup>β</sup> with β close to 2 <a class="cite" href="#ref-field1987">[33]</a>;
-        Ruderman and Bialek measured 1.81 in woodland <a class="cite" href="#ref-ruderman1994">[34]</a>; Torralba and
+        power falling as 1/<i>f</i><sup>β</sup> with β close to 2 <a class="cite" href="#ref-field1987">[17]</a>;
+        Ruderman and Bialek measured 1.81 in woodland <a class="cite" href="#ref-ruderman1994">[18]</a>; Torralba and
         Oliva fitted twelve thousand scenes at 1.8 to 2.4 depending on scene and direction
-        <a class="cite" href="#ref-torralba2003">[35]</a>.</p>
+        <a class="cite" href="#ref-torralba2003">[19]</a>.</p>
       <p>The photograph below is the iris behind eye 26 of the Iris Engine (Lizapopova143, Wikimedia Commons, CC BY 4.0).
         Its texture reads about 2.9 and the whole iris 2.7, steeper than the scene average because one object at one
         distance is smoother than a scene. The carpet reads 2.35. The landscape from 2.3 should read 2<i>H</i> + 2 and
@@ -404,31 +331,107 @@
 
     <!-- ================================================================== 3 -->
     <section id="ch3">
-      <h2>3. Measuring Roughness</h2>
-      <p class="lead">Two tools carry every number in this paper: one finds the edges, the other counts boxes.</p>
-      <h3 id="ch3-1">3.1 Difference of Gaussians</h3>
-      <p>Blur the image twice with different widths and subtract. What survives is edges, the Marr–Hildreth operator
-        <a class="cite" href="#ref-marr1980">[36]</a>. Here the two blurs are box blurs, a cheap stand-in for the
-        Gaussians. Upload your own image, or use the sample: the carpet from 1.2 at level 4.</p>
+      <h2>3. Growth: Worlds That Build Themselves</h2>
+      <p class="lead">Random walks are not the only machine that makes a rough world. Trees grow one, competing for
+        light, and rivers carve one, competing for ground. Both are searches, and both leave fractals behind.</p>
+
+      <h3 id="ch3-1">3.1 Trees and Forests: Synthetic Silviculture</h3>
+      <p>A tree is a branching fractal, but nobody draws it. It grows. Buds compete for light, the well-lit branches get
+        more of the plant's vigour, the shaded ones are shed, and the crown ends up filling the light it can reach.
+        Pałubicki and colleagues grew single trees from those rules <a class="cite" href="#ref-palubicki2009">[20]</a>,
+        with the vigour split between leader and side branch taken from Borchert and Honda's measurements of a tropical
+        tree <a class="cite" href="#ref-borchert1984">[21]</a>. Makowski, Pałubicki and colleagues then grew whole
+        forests and called it synthetic silviculture <a class="cite" href="#ref-makowski2019">[22]</a>: modules of
+        branches grow by the light they receive, every plant shades its neighbours, grown trees seed young ones around
+        them, and plants die of age or of shade.</p>
+      <p>Nothing in the rules says forest. Pioneers that need full light come first; shade-tolerant trees germinate under
+        them and take over; the stand thins as it grows. Foresters measured that thinning long before computers: in a
+        crowded stand, mean plant mass rises as density to the power −3/2 <a class="cite" href="#ref-yoda1963">[23]</a>.
+        Makowski's full model reproduces that law. The reduced one here does not, cleanly: dense even-aged plantations
+        thin at slopes between −2.3 and −3.1, steeper than the foresters' −3/2, and the mixed forest loops in the second
+        chart as pioneer cohorts boom and bust every fifty years or so. It drops the paper's branch prototypes and
+        climate, and adds three rules of its own; the gap is the price of that. A tree is a shape that is also a search,
+        which is where chapter 4 starts.</p>
       <figure>
-        <div class="image-container">
-          <img id="dog-source-img" alt="Source image for the edge filter: the Sierpinski carpet">
-          <canvas id="dog-canvas"></canvas>
-        </div>
-        <div class="controls"><input type="file" id="image-upload" accept="image/*"></div>
-        <div class="controls">
-          <label>σ₁ <input type="range" id="sigma1" min="0.1" max="5" step="0.1" value="1.0"><span class="value" id="sigma1-val">1.0</span></label>
-          <label>σ₂ <input type="range" id="sigma2" min="0.1" max="5" step="0.1" value="2.0"><span class="value" id="sigma2-val">2.0</span></label>
-        </div>
-        <div class="controls"><button id="calculate-fd-btn">Count boxes</button><span class="status">D = <b id="fd-result">–</b></span></div>
-        <figcaption>Difference of Gaussians, then box counting on the edges.</figcaption>
+        <div id="silviculture"></div>
+        <figcaption>Synthetic silviculture after Makowski et al. 2019, reduced to run in a page on a 32 m plot: two species
+          from the paper's table, a light-demanding pioneer and a shade-tolerant tree, a shadow field shared by every
+          plant, Borchert–Honda vigour, shedding, seeding and senescence. Three substitutions keep the reduction from
+          growing bare poles: light is counted only on branches that still carry leaves, the vigour split is softened
+          toward even, and height costs a little vigour. Single tree grows one tree for two hundred years. Drag to
+          orbit.</figcaption>
       </figure>
-      <h3 id="ch3-2">3.2 Box Counting</h3>
-      <p>Cover the edges with boxes of side 2, 4, 8, 16, 32 and 64 pixels, count the boxes that touch an edge, and fit
-        log count against log 1/size. The slope is <i>D</i>. The carpet's answer is known, 1.893; the counter reads 1.81.
-        The gap is the method. The smallest boxes see pixel-wide edges, dimension 1; the largest see the whole image,
-        dimension 2; only the middle of the range sees the carpet. A dimension is never read off one number. It is read
-        off a range of scales, and the range has to be stated.</p>
+      <p>Each species in that forest is a handful of numbers: how strongly the leader dominates its side branches (λ),
+        how determinate the branching is (<i>D</i>), which way the branches lean, how long a tree lives, how much shade
+        it can take. Some trees differ by more than numbers. Hallé and Oldeman sorted the world's trees into some two
+        dozen architectural models by how trunk and branches are built <a class="cite" href="#ref-halle1978">[24]</a>;
+        eight of them grow here, from the layered conifer (Massart's model) to the palm (Corner's) and the candelabra
+        (Leeuwenberg's), with reiteration, a strong branch turning into a new trunk, and sprouting after damage. The
+        windows below grow one plant of each form alone, in open light. Every window is cut to the shape of its
+        plant.</p>
+      <figure>
+        <div id="specimens"></div>
+        <figcaption>One plant per window, each grown alone from seed by the same rules with a different architecture or
+          different numbers from the paper's species table. The labels give the form, its architectural model, its row
+          in the table, λ and <i>D</i>, and the plant's age and height as it grows.</figcaption>
+      </figure>
+
+      <h3 id="ch3-2">3.2 A Landscape Formed by Rivers</h3>
+      <p>The forest needs ground, and the ground is not drawn either. It starts as the Brownian landscape of 2.3, raised by
+        tectonic uplift, and is carved for five million simulated years by the law geomorphologists use for rivers: the
+        ground lowers in proportion to its slope and, roughly, the square root of the area draining through it
+        <a class="cite" href="#ref-cordonnier2016">[25]</a><a class="cite" href="#ref-braun2013">[26]</a>. Hillsides creep,
+        slopes steeper than their angle of repose slide, and hard rock beds erode slower than soft ones, so cliffs and
+        benches form where they alternate <a class="cite" href="#ref-cordonnier2018">[27]</a>. Lakes fill to the height of
+        their spill point <a class="cite" href="#ref-barnes2014">[28]</a>. Rivers take their width from the water they
+        carry, and on low slopes they meander and cut off oxbow lakes <a class="cite" href="#ref-paris2023">[29]</a>.
+        Lower the sea and the region becomes coast, islands and, now and then, a strait.</p>
+      <p>The result can be checked, because river networks on Earth obey tight laws. A river's length grows with its
+        basin's area to a power between 0.57 and 0.60, which is Hack's law; each order of stream gathers three to five
+        tributaries of the order below, which is Horton's <a class="cite" href="#ref-dodds1999">[30]</a>. Measured on
+        three generated regions:</p>
+      <table class="data">
+        <thead><tr><th>Statistic</th><th class="num">Generated</th><th class="num">Earth</th></tr></thead>
+        <tbody>
+          <tr><td>Hack's exponent: river length against basin area</td><td class="num">0.54–0.58</td><td class="num">0.57–0.60</td></tr>
+          <tr><td>Drainage-area exponent τ</td><td class="num">1.36–1.45</td><td class="num">1.43 ± 0.02</td></tr>
+          <tr><td>Horton's bifurcation ratio</td><td class="num">3.1–4.6</td><td class="num">3–5</td></tr>
+          <tr><td>Horton's length ratio</td><td class="num">2.0–2.4</td><td class="num">1.5–3</td></tr>
+          <tr><td>Channel concavity θ</td><td class="num">0.41–0.70</td><td class="num">≈ 0.45</td></tr>
+          <tr><td>Coastline dimension, with sea</td><td class="num">1.23–1.27</td><td class="num">1.02–1.25</td></tr>
+          <tr><td>Hypsometric integral</td><td class="num">0.18–0.31</td><td class="num">0.35–0.6</td></tr>
+        </tbody>
+      </table>
+      <p>Two misses, stated. The hypsometric integral is low because these regions are mostly foothills, and the
+        coastline is a little rougher than Britain's west coast. The other numbers sit inside Earth's ranges or at their
+        edge.</p>
+      <p>Temperature falls 6.5 °C per kilometre of height, and rain falls on the windward slopes and spares the lee
+        <a class="cite" href="#ref-smith2004">[31]</a>. The region is 10 km across and its summits stand about 1,600 m above the sea, so
+        the forest's bands are now real ones, without the earlier exaggeration. With the sea at 7 °C, broadleaf and
+        conifer mix below about 300 m, conifers run to about 600 m, birch and shrubs above them, and the treeline sits
+        at 700 m, with grass and shrubs to the summits. Warm the climate and the bands climb. Soil grows from the rock and is stripped
+        from steep ground <a class="cite" href="#ref-heimsath1997">[32]</a>. The rock types keep their signatures: strata on
+        sandstone cliffs, columns in basalt, clints and grikes in limestone, rounded granite boulders, scree under every
+        cliff <a class="cite" href="#ref-peytavie2009">[33]</a>.</p>
+      <p>Click anywhere on the region and the camera flies down to a plot there, where the forest of 3.1 grows from that
+        spot's soil, climate and neighbours. Trees die at about one percent a year, faster in shade, and in storms. A
+        storm uproots some trees, leaving a root plate, a pit and a mound that outlast the tree by centuries, and snaps
+        others, leaving snags <a class="cite" href="#ref-cordonnier2017">[34]</a><a class="cite" href="#ref-peytavie2024">[35]</a>.
+        Fallen logs stay where they fell. They decay through five classes at a rate that rises two and a half times with
+        every ten degrees of warmth <a class="cite" href="#ref-mackensen2003">[36]</a>, grow moss, sink into mounds and end
+        as humus, and shade-tolerant seedlings root on the softest of them, as they do on nurse logs. One plot after three centuries: 950 living plants, 81 snags and 984 logs, nearly half of them
+        in the last decay class, 89 pits, and 118 seedlings rooted on logs. Of the 2,012 trees that died there, 85 % died
+        of age, 11 % in storms and 4 % of shade.</p>
+      <p>What is still chosen rather than derived: the pattern of uplift and the erodibility that sets the relief, the
+        geological map, the rates of storms, the thresholds between materials, and every colour. They are listed in the
+        code.</p>
+      <figure>
+        <div id="environment"></div>
+        <figcaption>A 10 km region formed by uplift and river erosion, with lakes, rivers, rock types and a climate that
+          cools with height, its vegetation simulated cell by cell; and a plot you place by clicking, where individual
+          plants grow, die, fall and decay. Both looks, drawing and natural colour, are a toggle. Drag to orbit.</figcaption>
+      </figure>
+
     </section>
 
     <!-- ================================================================== 4 -->
@@ -499,7 +502,7 @@
       <div class="plain">
         <h4>The argument without mathematics</h4>
         <ol class="steps">
-          <li><b>Noise is equally loud at every scale.</b> On the spectrum plot of 2.8 it is a flat line.</li>
+          <li><b>Noise is equally loud at every scale.</b> On the spectrum plot of 2.6 it is a flat line.</li>
           <li><b>The world is not.</b> Every scale finer is quieter by the same factor. On the plot, a falling straight
             line.</li>
           <li><b>Noise drowns the quiet scales first.</b> Pour noise on a photograph and the finest grain goes under at
@@ -594,7 +597,7 @@
 
       <h3 id="ch5-4">5.4 From the Theorem to Real Pictures</h3>
       <p>Photographs are not Gaussian fields: they have edges and objects. Three things carry the theorem over. The
-        spectrum of photographs is a power law with β near 2, measured, not proved (section 2.8). Trained denoisers act
+        spectrum of photographs is a power law with β near 2, measured, not proved (section 2.6). Trained denoisers act
         like adaptive versions of this filter, keeping coefficients louder than the noise in a basis fitted to the image
         <a class="cite" href="#ref-kadkhodaie2024">[55]</a>. And the generated order is observed: Rissanen and colleagues
         reported that diffusion models generate coarse to fine <a class="cite" href="#ref-rissanen2023">[56]</a>, and
@@ -814,6 +817,7 @@
         <li id="ref-nebulabrot"><a href="mandelbrot-gs.html">Image-GS Nebulabrot</a>. iori.me, 2026.</li>
         <li id="ref-ndviewer"><a href="fractal-dimension.html">N-Dimensional Viewer</a>. iori.me, 2026.</li>
         <li id="ref-tesseract"><a href="4cube.html">Binary-Pure Tesseract — Interactive 4D Projection</a>. iori.me, 2026.</li>
+        <li id="ref-marr1980">Marr, D., Hildreth, E. Theory of edge detection. <i>Proceedings of the Royal Society B</i> 207 (1980) 187–217.</li>
         <li id="ref-mandelbrot1982">Mandelbrot, B. B. <i>The Fractal Geometry of Nature</i>. W. H. Freeman, 1982.</li>
         <li id="ref-diffusionfluid"><a href="diffusion-fluid.html">Diffusion Fluid</a>. iori.me, 2026.</li>
         <li id="ref-mandelbrot1968">Mandelbrot, B. B., Van Ness, J. W. Fractional Brownian motions, fractional noises and applications. <i>SIAM Review</i> 10 (1968) 422–437.</li>
@@ -821,6 +825,9 @@
         <li id="ref-fournier1982">Fournier, A., Fussell, D., Carpenter, L. Computer rendering of stochastic models. <i>Communications of the ACM</i> 25 (1982) 371–384.</li>
         <li id="ref-witten1981">Witten, T. A., Sander, L. M. Diffusion-limited aggregation, a kinetic critical phenomenon. <i>Physical Review Letters</i> 47 (1981) 1400–1403.</li>
         <li id="ref-petri"><a href="petri/">Petri — Slime Mold and Colony Growth Engine</a>. iori.me, 2026.</li>
+        <li id="ref-field1987">Field, D. J. Relations between the statistics of natural images and the response properties of cortical cells. <i>Journal of the Optical Society of America A</i> 4(12) (1987) 2379–2394. <a href="https://doi.org/10.1364/JOSAA.4.002379" target="_blank" rel="noopener">doi:10.1364/JOSAA.4.002379</a></li>
+        <li id="ref-ruderman1994">Ruderman, D. L., Bialek, W. Statistics of natural images: scaling in the woods. <i>Physical Review Letters</i> 73 (1994) 814–817. <a href="https://doi.org/10.1103/PhysRevLett.73.814" target="_blank" rel="noopener">doi:10.1103/PhysRevLett.73.814</a></li>
+        <li id="ref-torralba2003">Torralba, A., Oliva, A. Statistics of natural image categories. <i>Network: Computation in Neural Systems</i> 14(3) (2003) 391–412.</li>
         <li id="ref-palubicki2009">Pałubicki, W., Horel, K., Longay, S., Runions, A., Lane, B., Měch, R., Prusinkiewicz, P. Self-organizing tree models for image synthesis. <i>ACM Transactions on Graphics</i> 28(3) (2009) 58. <a href="https://doi.org/10.1145/1531326.1531364" target="_blank" rel="noopener">doi:10.1145/1531326.1531364</a></li>
         <li id="ref-borchert1984">Borchert, R., Honda, H. Control of development in the bifurcating branch system of <i>Tabebuia rosea</i>. <i>Botanical Gazette</i> 145(2) (1984) 184–195. <a href="https://doi.org/10.1086/337445" target="_blank" rel="noopener">doi:10.1086/337445</a></li>
         <li id="ref-makowski2019">Makowski, M., Hädrich, T., Scheffczyk, J., Michels, D. L., Pirk, S., Pałubicki, W. Synthetic silviculture: multi-scale modeling of plant ecosystems. <i>ACM Transactions on Graphics</i> 38(4) (2019) 131. <a href="https://doi.org/10.1145/3306346.3323039" target="_blank" rel="noopener">doi:10.1145/3306346.3323039</a></li>
@@ -838,10 +845,6 @@
         <li id="ref-cordonnier2017">Cordonnier, G., Galin, É., Gain, J., Beneš, B., Guérin, É., Peytavie, A., Cani, M.-P. Authoring landscapes by combining ecosystem and terrain erosion simulation. <i>ACM Transactions on Graphics</i> 36(4) (2017) 134. <a href="https://doi.org/10.1145/3072959.3073667" target="_blank" rel="noopener">doi:10.1145/3072959.3073667</a></li>
         <li id="ref-peytavie2024">Peytavie, A., Gain, J., Guérin, É., Argudo, O., Galin, É. DeadWood: including disturbance and decay in the depiction of digital nature. <i>ACM Transactions on Graphics</i> 43(2) (2024) 21. <a href="https://doi.org/10.1145/3641816" target="_blank" rel="noopener">doi:10.1145/3641816</a></li>
         <li id="ref-mackensen2003">Mackensen, J., Bauhus, J., Webber, E. Decomposition rates of coarse woody debris: a review with particular emphasis on Australian tree species. <i>Australian Journal of Botany</i> 51 (2003) 27–37.</li>
-        <li id="ref-field1987">Field, D. J. Relations between the statistics of natural images and the response properties of cortical cells. <i>Journal of the Optical Society of America A</i> 4(12) (1987) 2379–2394. <a href="https://doi.org/10.1364/JOSAA.4.002379" target="_blank" rel="noopener">doi:10.1364/JOSAA.4.002379</a></li>
-        <li id="ref-ruderman1994">Ruderman, D. L., Bialek, W. Statistics of natural images: scaling in the woods. <i>Physical Review Letters</i> 73 (1994) 814–817. <a href="https://doi.org/10.1103/PhysRevLett.73.814" target="_blank" rel="noopener">doi:10.1103/PhysRevLett.73.814</a></li>
-        <li id="ref-torralba2003">Torralba, A., Oliva, A. Statistics of natural image categories. <i>Network: Computation in Neural Systems</i> 14(3) (2003) 391–412.</li>
-        <li id="ref-marr1980">Marr, D., Hildreth, E. Theory of edge detection. <i>Proceedings of the Royal Society B</i> 207 (1980) 187–217.</li>
         <li id="ref-metropolis1953">Metropolis, N., Rosenbluth, A. W., Rosenbluth, M. N., Teller, A. H., Teller, E. Equation of state calculations by fast computing machines. <i>Journal of Chemical Physics</i> 21 (1953) 1087–1092.</li>
         <li id="ref-onsager1944">Onsager, L. Crystal statistics. I. A two-dimensional model with an order-disorder transition. <i>Physical Review</i> 65 (1944) 117–149.</li>
         <li id="ref-beggs2003">Beggs, J. M., Plenz, D. Neuronal avalanches in neocortical circuits. <i>Journal of Neuroscience</i> 23 (2003) 11167–11177. Lecture: <a href="https://www.youtube.com/watch?v=vwLb3XlPCB4&amp;t=365s" target="_blank" rel="noopener noreferrer">Brain Criticality — Optimizing Neural Computations</a> (video).</li>

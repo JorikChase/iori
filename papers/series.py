@@ -17,9 +17,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The series, in order. (number, slug, title, state, one-paragraph description)
 SERIES = [
     ("0", "fractals.html", "Fractal Optimization Through a Procedural Lens", "October 2026",
-     "Roughness: how to measure it, the simplest machine that makes it, and why image generators draw the big "
-     "shapes first. Mandelbrot's Brownian casebook live, a theorem on the order of generation, and what the "
-     "fractal toolset buys in speed."),
+     "Roughness: how to measure it, the simplest machine that makes it, the forests and rivers that grow it, and "
+     "why image generators draw the big shapes first. Mandelbrot's Brownian casebook live, a forest and a 10 km "
+     "landscape formed by rivers, a theorem on the order of generation, and what the fractal toolset buys in speed."),
     ("1", "automata.html", "Cellular Automata as the Computational Basis", "in preparation",
      "Local rules compute a rough world, measured against known answers: Flame Strains, Petri, the Tero "
      "fixture, the think tank."),

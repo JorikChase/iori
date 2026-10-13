@@ -46,6 +46,7 @@
  *  - Ground cover (ours): grass, herb and fern densities per 4 m cell from ground light, wetness and humus,
  *    updated every 2 years.
  *
+ * Reference individuals: VARIANTS = 4 per species (seeds 5, 982, 1959, 2936), snapshots every 3 years, six kept.
  * OTHER CONSTANTS (ours): STEM_GAP 1.5 m, N_INIT 1400 plants at random equivalent ages, MAX_PLANTS 5000, shade grid
  * 4 m × 3 m × 16 layers following the terrain, crown hash 8 m, K_SH_N 0.35 per leaf-bearing module, SHRINK 2,
  * REF_YEARS 160, initial logs from the region's dead wood (at most 300, random decay states), RAIN_SEEDS 120/yr.
@@ -60,38 +61,41 @@ const P_STORM = 0.06, HU_REF = 3, HUMUS_AT = 0.12, Q10 = 2.53, SUPP = 0.368, MIN
 const BLOCK = [1, 0, 0, 0, 0, 1, 1, 0]; // material: bedrock, scree, soil, wet meadow, sand, snow, water, boulders
 const SHORE_M = 10, CLIFF_RAD = 42 * Math.PI / 180; // bedrock below 42° is thin soil over rock: plants grow at × 0.55 // riparian habitat: within 10 m of a river, lake or sea (ours)
 
-/** Grow every catalogue species alone with the module model; yields between chunks; returns { key: ref } */
-export function* buildRefs(keys = PLANTS.map((p) => p.key)) {
-  const refs = {};
+/**
+ * Grow every catalogue species alone with the module model; yields between chunks; returns { key: ref }.
+ * ref.N/H/R/CB/D: the trajectory of variant 0 (the plant-scale sim moves along it). ref.variants[v]: six skeleton
+ * snapshots (at 6, 15, 30, 50, 75, 100 % of that individual's final leaf-bearing modules) of VARIANTS individuals
+ * grown from different seeds, so no two neighbours need share a silhouette; ref.snaps = ref.variants[0].
+ * One pass per individual: a snapshot is kept every SNAP_EVERY years and the six nearest the targets are chosen.
+ */
+export const VARIANTS = 4, SNAP_EVERY = 3;
+export function* buildRefs(keys = PLANTS.map((p) => p.key), V = VARIANTS) {
+  const refs = {}, fr = [0.06, 0.15, 0.3, 0.5, 0.75, 1.0];
   for (const key of keys) {
     const d = PLANTS.find((p) => p.key === key), sp = speciesOf(d);
     const Y = Math.min(REF_YEARS, Math.round(sp.pmax * 0.9));
-    const ref = { key, N: new Float32Array(Y + 1), H: new Float32Array(Y + 1), R: new Float32Array(Y + 1), CB: new Float32Array(Y + 1), D: new Float32Array(Y + 1), Y, snaps: [] };
-    const sim = new Sim({ seed: 5, mode: 'single', speciesList: [sp], single: 0 });
-    const fr = [0.06, 0.15, 0.3, 0.5, 0.75, 1.0];
-    const snapsAt = new Map();
-    for (let y = 0; y <= Y; y++) {
-      if (y > 0) sim.step();
-      const p = sim.plants[0];
-      if (!p) { for (const a of ['N', 'H', 'R', 'CB', 'D']) ref[a][y] = ref[a][y - 1]; continue; }
-      let n = 0, r = 0.2, cb = Infinity;
-      for (const m of p.mods) if (m.nLive) { n++; r = Math.max(r, Math.hypot(m.cx - p.x, m.cz - p.z) + 0.6 * m.r); cb = Math.min(cb, m.cy - 0.5 * m.r); }
-      ref.N[y] = Math.max(n, y ? ref.N[y - 1] : 1); ref.H[y] = Math.max(p.height, 0.2, y ? ref.H[y - 1] : 0); ref.R[y] = Math.max(r, y ? ref.R[y - 1] : 0);
-      ref.CB[y] = Math.max(0, Math.min(cb === Infinity ? 0 : cb, ref.H[y] * 0.8)); ref.D[y] = Math.max(p.stemD, y ? ref.D[y - 1] : 0);
-      snapsAt.set(y, null);
-      if (y % 8 === 0) { ref._last = snapshot(p); ref._lastY = y; }
-      if (y % 20 === 0) yield key;
+    const ref = { key, N: new Float32Array(Y + 1), H: new Float32Array(Y + 1), R: new Float32Array(Y + 1), CB: new Float32Array(Y + 1), D: new Float32Array(Y + 1), Y, variants: [] };
+    for (let v = 0; v < V; v++) {
+      const sim = new Sim({ seed: 5 + 977 * v, mode: 'single', speciesList: [sp], single: 0 });
+      const kept = []; let Nmax = 1;
+      for (let y = 0; y <= Y; y++) {
+        if (y > 0) sim.step();
+        const p = sim.plants[0];
+        if (!p) { if (v === 0) for (const a of ['N', 'H', 'R', 'CB', 'D']) ref[a][y] = ref[a][y - 1]; continue; }
+        let n = 0, r = 0.2, cb = Infinity;
+        for (const m of p.mods) if (m.nLive) { n++; if (v === 0) { r = Math.max(r, Math.hypot(m.cx - p.x, m.cz - p.z) + 0.6 * m.r); cb = Math.min(cb, m.cy - 0.5 * m.r); } }
+        Nmax = Math.max(Nmax, n);
+        if (v === 0) {
+          ref.N[y] = Math.max(n, y ? ref.N[y - 1] : 1); ref.H[y] = Math.max(p.height, 0.2, y ? ref.H[y - 1] : 0); ref.R[y] = Math.max(r, y ? ref.R[y - 1] : 0);
+          ref.CB[y] = Math.max(0, Math.min(cb === Infinity ? 0 : cb, ref.H[y] * 0.8)); ref.D[y] = Math.max(p.stemD, y ? ref.D[y - 1] : 0);
+        }
+        if (y > 0 && (y % SNAP_EVERY === 0 || y === Y)) kept.push({ year: y, N: Math.max(n, kept.length ? kept[kept.length - 1].N : 0), H: p.height, plant: snapshot(p) });
+        if (y % 20 === 0) yield key;
+      }
+      const snaps = fr.map((f) => { let best = kept[0], bd = Infinity; for (const k of kept) { const dd = Math.abs(k.N - f * Nmax); if (dd < bd) { bd = dd; best = k; } } return best; });
+      ref.variants.push(snaps.filter(Boolean));
     }
-    // skeletons at fixed fractions of the final size: rerun (deterministic) and copy at those years
-    const Nf = ref.N[Y], years = fr.map((f) => { let y = 0; while (y < Y && ref.N[y] < f * Nf) y++; return Math.max(1, y); });
-    const sim2 = new Sim({ seed: 5, mode: 'single', speciesList: [sp], single: 0 });
-    let k = 0;
-    for (let y = 1; y <= Y && k < years.length; y++) {
-      sim2.step();
-      while (k < years.length && years[k] <= y) { const p = sim2.plants[0]; if (p) ref.snaps.push({ year: y, N: ref.N[y], H: p.height, plant: snapshot(p) }); k++; }
-      if (y % 20 === 0) yield key;
-    }
-    delete ref._last; delete ref._lastY;
+    ref.snaps = ref.variants[0];
     refs[key] = ref;
   }
   return refs;

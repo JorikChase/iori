@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Sim, SPECIES, PLOT, HALF, TAU2 } from './silviculture-core.js';
-import { PlantMeshes, fitDistance, boxPoints, guardWheel, el, slider } from './silviculture-draw.js';
+import { PlantMeshes, fitDistance, boxPoints, guardWheel, el, slider, makeOverlay, makeSettings } from './silviculture-draw.js';
 export { createSpecimens } from './silviculture-specimens.js';
 export { createEnvironment } from './silviculture-env.js';
 
@@ -31,9 +31,8 @@ export function createSilviculture(root) {
   const setAspect = () => { view.style.aspectRatio = mq.matches ? '4 / 5' : '16 / 10'; };
   setAspect();
 
-  const row1 = el('div', 'controls'), row2 = el('div', 'controls');
-  const playBtn = el('button', null, 'Pause'), resetBtn = el('button', null, 'Reset'), seedBtn = el('button', null, 'New seed');
-  playBtn.type = resetBtn.type = seedBtn.type = 'button';
+  const resetBtn = el('button', null, 'Reset'), seedBtn = el('button', null, 'New seed');
+  resetBtn.type = seedBtn.type = 'button';
   const modeSel = el('select');
   for (const [v, t] of [['forest', 'Forest'], ['single', 'Single tree']]) { const o = el('option', null, t); o.value = v; modeSel.append(o); }
   modeSel.setAttribute('aria-label', 'Mode');
@@ -43,14 +42,15 @@ export function createSilviculture(root) {
   const speed = slider('Speed', 1, 40, 1, 8, (v) => `${v} yr/s`);
   const mix = slider('Tolerant share', 0, 100, 5, 30, (v) => `${v}%`);
   const stol = slider('Shade tolerance', 0, 100, 5, 45, (v) => (v / 100).toFixed(2));
-  row1.append(playBtn, resetBtn, seedBtn, modeSel, treeSel);
-  row2.append(speed.lab, mix.lab, stol.lab);
-  const chart = el('canvas', 'chart');
+  // the paper's figure family: a quiet overlay bar (play/pause, settings) and a collapsed settings panel
+  const settings = makeSettings([['Stand', modeSel, treeSel], ['Species', mix.lab, stol.lab], ['Time', speed.lab, resetBtn, seedBtn]]);
+  const overlay = makeOverlay(view, { onPlay: () => setPlaying(!playing), onSettings: () => overlay.setSettings(settings.toggle()) });
+  const chart = el('canvas', 'chart sv-chart');
   chart.style.width = '100%'; chart.style.display = 'block';
   chart.setAttribute('role', 'img');
   chart.setAttribute('aria-label', 'Plants and biomass per species over time, and log mean tree mass against log density');
-  const status = el('p', 'status');
-  root.append(view, row1, row2, chart, status);
+  const status = el('p', 'status sv-status');
+  root.append(view, status, settings.panel, chart);
 
   // ---- state
   let seed = 1, sim = null, playing = true, running = false, raf = 0, last = 0, acc = 0;
@@ -257,8 +257,7 @@ export function createSilviculture(root) {
     renderer.render(scene, camera);
   }
 
-  function setPlaying(v) { playing = v; playBtn.textContent = v ? 'Pause' : 'Play'; }
-  playBtn.addEventListener('click', () => setPlaying(!playing));
+  function setPlaying(v) { playing = v; overlay.setPlaying(v); }
   resetBtn.addEventListener('click', () => api.reset());
   seedBtn.addEventListener('click', () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0 || 1; seed %= 100000; api.reset(); });
   modeSel.addEventListener('change', () => { syncVisibility(); speed.input.value = mode() === 'single' ? 4 : 8; speed.input.dispatchEvent(new Event('input')); api.reset(); });

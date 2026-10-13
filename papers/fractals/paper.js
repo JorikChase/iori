@@ -1289,7 +1289,7 @@
     // The forest, the plant windows and the environment share one lazily loaded module; each figure builds
     // its own instance the first time it scrolls into view, and stops whenever it leaves.
     let svModule = null;
-    const loadSilviculture = () => (svModule ||= import('./silviculture.js?v=5'));
+    const loadSilviculture = () => (svModule ||= import('./silviculture.js?v=6'));
     function lazyFigure(id, factory) {
       let inst = null, wanted = false, loading = false;
       return {

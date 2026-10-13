@@ -35,12 +35,12 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PlantMeshes, makeLeafMesh, LEAF_ROT, fitDistance, boxPoints, guardWheel, el, slider, INK, BARK } from './silviculture-draw.js';
+import { PlantMeshes, makeLeafMesh, LEAF_ROT, fitDistance, boxPoints, guardWheel, el, slider, INK, BARK, makeOverlay, makeHint, makeSettings, chip } from './silviculture-draw.js';
 import { makeRng } from './silviculture-core.js';
 import { PLANTS } from './silviculture-plants.js';
 import { RegionSim, PFT, BIOMES } from './silviculture-region.js';
 import { FocusSim, buildRefs } from './silviculture-focus.js';
-import { buildAtlas, makeBillboards, tileFor } from './silviculture-impostors.js';
+import { atlasLayout, atlasJob, makeBillboards, tileFor, largestTile, individual } from './silviculture-impostors.js';
 import * as standInTerrain from './silviculture-terrain.js';
 import * as standInGround from './silviculture-ground.js';
 
@@ -102,28 +102,32 @@ export function createEnvironment(root) {
   Object.assign(view.style, { position: 'relative', width: '100%', overflow: 'hidden' });
   const setAspect = () => { view.style.aspectRatio = mq.matches ? '4 / 5' : '16 / 10'; };
   setAspect();
-  const row1 = el('div', 'controls'), row2 = el('div', 'controls'), row3 = el('div', 'controls');
-  const playBtn = el('button', null, 'Pause'), levelBtn = el('button', null, 'Back to region'), palBtn = el('button', null, 'Natural colour'), terrBtn = el('button', null, 'New terrain'), resetBtn = el('button', null, 'Reset');
-  for (const b of [playBtn, levelBtn, palBtn, terrBtn, resetBtn]) b.type = 'button';
   const speed = slider('Speed', 1, 20, 1, 4, (v) => `${v} yr/s`);
-  const temp = slider('Sea-level temperature', 2, 26, 1, DEFAULTS.T0, (v) => `${v} °C`);
+  const temp = slider('Sea level', 2, 26, 1, DEFAULTS.T0, (v) => `${v} °C`);
   const prec = slider('Precipitation', 300, 2500, 50, 900, (v) => `${v} mm`);
   const rough = slider('Roughness H', 0.4, 0.9, 0.05, 0.6, (v) => v.toFixed(2));
-  row1.append(playBtn, levelBtn, palBtn, terrBtn, resetBtn, speed.lab);
-  row2.append(temp.lab, prec.lab, rough.lab);
-  const toggles = PLANTS.map((d) => { const lab = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.checked = true; lab.append(cb, d.name); row3.append(lab); return cb; });
-  const chart = el('canvas', 'chart');
+  const terrBtn = el('button', null, 'New terrain'), resetBtn = el('button', null, 'Reset');
+  terrBtn.type = resetBtn.type = 'button';
+  const chips = PLANTS.map((d, i) => chip(d.name, true, (on) => { if (focus) focus.enabled[i] = on; }));
+  const settings = makeSettings([['Climate', temp.lab, prec.lab], ['Terrain', rough.lab, terrBtn], ['Time', speed.lab, resetBtn], ['Species', ...chips.map((c) => c.b)]]);
+  const overlay = makeOverlay(view, {
+    onPlay: () => setPlaying(!playing), onBack: () => { if (level === 'focus') flyTo('region'); },
+    palettes: ['drawing', 'natural'], onPalette: (p) => setPalette(p),
+    onSettings: () => { overlay.setSettings(settings.toggle()); chartDirty = true; },
+  });
+  overlay.setPalette('drawing');
+  const hint = makeHint(view, 'Click the land to grow a plot there');
+  const chart = el('canvas', 'chart sv-chart');
   chart.setAttribute('role', 'img'); chart.setAttribute('aria-label', 'Plant types by altitude in the region, and dead wood in the focus plot over time');
-  const status = el('p', 'status');
-  root.append(view, row1, row2, row3, chart, status);
-  levelBtn.disabled = true;
+  const status = el('p', 'status sv-status');
+  root.append(view, status, settings.panel, chart);
 
   // ---------------------------------------------------------------- state
   let renderer, scene, camera, controls, sun, ro, mods = null, snagMesh, pitRing, pitShade, plotBB = null;
   let terrain = null, ground = null, region = null, refs = null, focus = null, plot = null, plotGround = null;
   let gen = null, phase = 'idle', progress = 0, palette = 'drawing', level = 'region', focusAt = null;
   let running = false, raf = 0, last = 0, acc = 0, playing = true, dirtyFocus = true, dirtyRegion = true, chartDirty = true, lastChart = 0, lastDetail = 0, camKey = '';
-  let canopyBuf = null, cropWorker = null, fly = null, detail = null, deadDetail = null, atlas = null, farBB = null, nearBB = null, pitsDone = 0, stage = '', logMesh, moundMesh, plateMesh, gcMesh = {}, outline;
+  let canopyBuf = null, cropWorker = null, refsPromise = null, atlasGen = null, fly = null, detail = null, deadDetail = null, atlas = null, farBB = null, nearBB = null, pitsDone = 0, stage = '', logMesh, moundMesh, plateMesh, gcMesh = {}, outline;
   let frameMs = 0, seed = 1, terrainSeed = DEFAULTS.terrainSeed, regionMs = 0;
   let detailIds = new Set(), deadIds = new Set();
   const timing = { start: 0 }, counts = { far: 0, near: 0 };
@@ -180,12 +184,22 @@ export function createEnvironment(root) {
   }
 
   // ---------------------------------------------------------------- loading (sliced across frames)
+  function refsInWorker() {
+    if (typeof Worker === 'undefined') return null;
+    return new Promise((resolve, reject) => {
+      let w; try { w = new Worker(new URL('./silviculture-worker.js', import.meta.url), { type: 'module' }); } catch (e) { resolve(null); return; }
+      w.onmessage = (ev) => { const m = ev.data; if (m.type === 'progress') { if (phase === 'plants') stage = m.key; return; } w.terminate(); m.type === 'refs' ? resolve(m.refs) : resolve(null); };
+      w.onerror = () => { w.terminate(); resolve(null); };
+      w.postMessage({ type: 'refs' });
+    });
+  }
   async function* loader() {
     phase = 'terrain'; progress = 0; stage = 'loading'; yield;
     mods = mods || await loadModules();
     const opts = { seed: terrainSeed, size_m: REGION.size_m, cells: mods.real ? REGION.cells : 257, seaQuantile: REGION.seaQuantile, roughness: +rough.input.value,
       climate: { T0: +temp.input.value, P0: +prec.input.value, windDir: 0.4 }, geology: { seed: terrainSeed } };
     const t0 = performance.now();
+    if (!refs && !refsPromise) refsPromise = refsInWorker(); // the reference plants grow in parallel with the terrain
     terrain = await mods.T.generateTerrainAsync(opts, (f, st) => { progress = f; if (st) stage = st; });
     timing.terrain = performance.now() - t0;
     terrain.climate = (terrain.opts && terrain.opts.climate) || terrain.climate || opts.climate;
@@ -202,12 +216,21 @@ export function createEnvironment(root) {
     for (let y = 0; y < 150; y++) { region.step(); if (y % 10 === 0) { progress = y / 150; yield; } }
     dirtyRegion = true;
     if (!refs) {
-      phase = 'plants'; const it = buildRefs(); let r = it.next(), k = 0;
-      while (!r.done) { if (++k % 3 === 0) { stage = r.value; yield; } r = it.next(); }
-      refs = r.value;
+      phase = 'plants'; const r0 = performance.now();
+      const got = refsPromise ? await refsPromise.catch(() => null) : null;
+      if (got) refs = got;
+      else { const it = buildRefs(); let r = it.next(), k = 0; while (!r.done) { if (++k % 3 === 0) { stage = r.value; yield; } r = it.next(); } refs = r.value; }
+      timing.refsWait = performance.now() - r0;
     }
     stage = 'impostor atlas'; yield;
-    if (!atlas) { atlas = buildAtlas(renderer, refs, (d) => d.leafSize); farBB = makeBillboards(atlas, 120000); nearBB = makeBillboards(atlas, 60000, { shadow: true }); plotBB = makeBillboards(atlas, 8000, { shadow: true }); scene.add(farBB.mesh, nearBB.mesh, plotBB.mesh); applyBBPalette(); resize(); }
+    if (!atlas) {
+      atlas = atlasLayout(refs);
+      const a0 = performance.now();
+      const job = atlasJob(renderer, atlas, palette); for (let r = job.next(); !r.done; r = job.next()) { progress = r.value; yield; }
+      timing.atlas = performance.now() - a0;
+      farBB = makeBillboards(atlas, 120000); nearBB = makeBillboards(atlas, 60000, { shadow: true }); plotBB = makeBillboards(atlas, 8000, { shadow: true });
+      scene.add(farBB.mesh, nearBB.mesh, plotBB.mesh); applyBBPalette(); resize();
+    }
     phase = 'ready';
     if (!focusAt) focusAt = defaultFocus();
     yield* placeFocus(focusAt.x, focusAt.y, false);
@@ -274,11 +297,12 @@ export function createEnvironment(root) {
     scene.add(outline);
     const at = region.at(focusAt.x, focusAt.y);
     focus = new FocusSim({ seed, plot, refs, region: at, windDir: terrain.climate.windDir || 0.4, dT: 0, Pmul: 1 });
-    focus.enabled = toggles.map((t, i) => t.checked);
+    focus.enabled = chips.map((c) => c.b.getAttribute('aria-pressed') === 'true');
     yield;
     for (let y = 0; y < 60; y++) { focus.step(); if (y % 6 === 0) { progress = y / 60; yield; } }
     dirtyFocus = true; dirtyRegion = true; detailIds = new Set(); deadIds = new Set();
     phase = 'run';
+    if (level === 'region' && !flyDown) hint.show();
     if (flyDown) flyTo('focus'); else if (level === 'focus') frameFocus(true);
   }
   function clipRegion() {
@@ -323,7 +347,7 @@ export function createEnvironment(root) {
   function frameRegion(snap) { const v = regionView(); if (snap) { controls.target.copy(v.target); camera.position.copy(v.pos); camera.lookAt(v.target); } return v; }
   function frameFocus(snap) { const v = focusView(); if (snap) { controls.target.copy(v.target); camera.position.copy(v.pos); camera.lookAt(v.target); } return v; }
   function flyTo(where) {
-    level = where; levelBtn.disabled = where === 'region'; levelBtn.textContent = 'Back to region';
+    level = where; overlay.showBack(where === 'focus'); if (where === 'focus') hint.hide();
     const keep = camera.position.clone(), q = camera.quaternion.clone();
     const v = where === 'focus' ? focusView() : regionView();
     camera.position.copy(keep); camera.quaternion.copy(q);
@@ -367,9 +391,9 @@ export function createEnvironment(root) {
     if (!atlas.dbg) atlas.dbg = 0;
     const place = (bb, i, k, x, y, h, K) => {
       const list = PFT_SPECIES[PFT[k].key]; if (!list) return false;
-      const key = list[Math.floor(rng.next() * list.length)], tl = atlas.tiles[key]; if (!tl) return false;
+      const key = list[Math.floor(rng.next() * list.length)], ind = individual((rng.next() * 4294967296) >>> 0), tl = largestTile(atlas, key, ind.v); if (!tl) return false;
       const f = (0.55 + 0.45 * rng.next()) * K, sc = f * (refs[key].H[refs[key].Y] / tl.H);
-      bb.set(i, x, h - 0.3, -y, tl.w * sc, tl.h * sc, tl.i, 0.88 + 0.24 * rng.next());
+      bb.set(i, x, h - 0.3, -y, tl.w * sc, tl.h * sc, tl.i, ind);
       return true;
     };
     for (let i = 0; i < n * n; i++) {
@@ -410,7 +434,10 @@ export function createEnvironment(root) {
     }
   }
   const sampleH = (x, y) => (terrain.heightAt ? terrain.heightAt(x, y) : terrain.sample(x, y).h);
-  function applyBBPalette() { if (!farBB) return; const bg = ground && ground.background ? ground.background() : (palette === 'natural' ? 0xcfd9e2 : 0xffffff); farBB.setPalette(palette, bg, 30000); nearBB.setPalette(palette, bg, 30000); plotBB.setPalette(palette, bg, 30000); }
+  function applyBBPalette() {
+    if (!farBB) return;
+    if (!atlas.tex[palette] && !atlasGen) { atlasGen = atlasJob(renderer, atlas, palette); return; } // natural atlas on first use, across frames
+    if (!(atlas.ready && atlas.ready[palette])) return; const bg = ground && ground.background ? ground.background() : (palette === 'natural' ? 0xcfd9e2 : 0xffffff); farBB.setPalette(palette, bg, 30000); nearBB.setPalette(palette, bg, 30000); plotBB.setPalette(palette, bg, 30000); }
 
   // ---------------------------------------------------------------- drawing: focus
   const W2R = (lx, ly) => [focusAt.x0 + lx, -(focusAt.y0 + ly)];
@@ -420,9 +447,9 @@ export function createEnvironment(root) {
     let nb = 0;
     for (const p of focus.plants) {
       if (detailIds.has(p.id) || nb >= plotBB.cap) continue;
-      const sp = focus.species[p.s], tl = tileFor(atlas, sp.key, p.N, p.H); if (!tl) continue;
-      const sc = Math.min(1.6, Math.max(0.35, p.H / Math.max(0.3, tl.H))), [wx, wz] = W2R(p.x, p.y);
-      plotBB.set(nb++, wx, p.gy - 0.2, wz, tl.w * sc, tl.h * sc, tl.i, 0.9 + 0.2 * p.jit);
+      const sp = focus.species[p.s], ind = individual(p.id), tl = tileFor(atlas, sp.key, p.N, p.H, ind.v); if (!tl) continue;
+      const sc = Math.min(1.6, Math.max(0.35, p.H / Math.max(0.3, tl.H * ind.hs))), [wx, wz] = W2R(p.x, p.y);
+      plotBB.set(nb++, wx, p.gy - 0.2, wz, tl.w * sc, tl.h * sc, tl.i, ind);
     }
     plotBB.finish(nb);
     writeSnags(); writeLogs(); writeGroundCover(); writeDetail();
@@ -553,22 +580,22 @@ export function createEnvironment(root) {
     detailIds = new Set(near(focus.plants.filter((p) => p.H > 1.2), N_DETAIL, fp).map((p) => p.id));
     deadIds = new Set([...near(focus.snags, 4, fp).map((s) => 's' + s.id), ...near(focus.logs.filter((l) => l.cls <= 2 && l.D >= 0.12), N_DETAIL_DEAD, (l) => { const [x, z] = W2R(l.x, l.y); return [x, focus.groundAt(l.x, l.y), z]; }).map((l) => 'l' + l.id)]);
   }
-  function snapFor(key, N, H = 0) { const sn = refs[key].snaps; let k = sn.length - 1, bd = Infinity; for (let i = 0; i < sn.length; i++) { if (sn[i].H < 0.6 * H) continue; const d = Math.abs(sn[i].N - N); if (d < bd) { bd = d; k = i; } } return sn[k]; }
+  function snapFor(key, N, H = 0, v = 0) { const vs = refs[key].variants || [refs[key].snaps], sn = vs[v % vs.length]; let k = sn.length - 1, bd = Infinity; for (let i = 0; i < sn.length; i++) { if (sn[i].H < 0.6 * H) continue; const d = Math.abs(sn[i].N - N); if (d < bd) { bd = d; k = i; } } return sn[k]; }
   function writeDetail() {
     const live = [], dead = [];
     for (const p of focus.plants) {
       if (!detailIds.has(p.id)) continue;
-      const sp = focus.species[p.s], sn = snapFor(sp.key, p.N, p.H), k = Math.min(1.35, Math.max(0.75, p.H / Math.max(0.5, sn.H))), [wx, wz] = W2R(p.x, p.y);
+      const sp = focus.species[p.s], sn = snapFor(sp.key, p.N, p.H, individual(p.id).v), k = Math.min(1.35, Math.max(0.75, p.H / Math.max(0.5, sn.H))), [wx, wz] = W2R(p.x, p.y);
       live.push({ mods: sn.plant.mods, sp: sn.plant.sp, capF: 1, d: sp.def, xf: { c: Math.cos(p.rot), s: Math.sin(p.rot), k, x: wx, y: p.gy - 0.05, z: wz } });
     }
     for (const s of focus.snags) {
       if (!deadIds.has('s' + s.id)) continue;
-      const sp = focus.species[s.s], sn = snapFor(sp.key, s.N), k = Math.min(2, Math.max(0.5, s.fullH / Math.max(0.5, sn.H))), [wx, wz] = W2R(s.x, s.y);
+      const sp = focus.species[s.s], sn = snapFor(sp.key, s.N, 0, individual(s.id).v), k = Math.min(2, Math.max(0.5, s.fullH / Math.max(0.5, sn.H))), [wx, wz] = W2R(s.x, s.y);
       dead.push({ mods: sn.plant.mods, sp: sn.plant.sp, capF: 1, d: sp.def, prune: 0.01 + s.age * 0.004, minR: 0.02, xf: { c: Math.cos(s.rot), s: Math.sin(s.rot), k, x: wx, y: s.gy - 0.05, z: wz } });
     }
     for (const L of focus.logs) {
       if (!deadIds.has('l' + L.id)) continue;
-      const sp = focus.species[L.s], sn = snapFor(sp.key, L.N), k = Math.min(2, Math.max(0.4, L.L / Math.max(0.5, sn.H))), [wx, wz] = W2R(L.x, L.y);
+      const sp = focus.species[L.s], sn = snapFor(sp.key, L.N, 0, individual(L.id).v), k = Math.min(2, Math.max(0.4, L.L / Math.max(0.5, sn.H))), [wx, wz] = W2R(L.x, L.y);
       // rotation: tree up (0,1,0) → fall direction (cos d, 0, −sin d) in three.js; a roll about the trunk by rot
       const c = Math.cos(L.dir), s = Math.sin(L.dir), ux = c, uz = -s, sx = -uz, sz = ux, rc = Math.cos(L.rot), rs = Math.sin(L.rot);
       // columns: X = side·rc + up·rs, Y = fall direction, Z = side × fall …
@@ -585,24 +612,27 @@ export function createEnvironment(root) {
 
   // ---------------------------------------------------------------- chart
   function drawChart() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1), Wd = Math.max(1, chart.clientWidth), stack = Wd < 560, Hc = stack ? 380 : 200;
+    const dpr = Math.min(2, window.devicePixelRatio || 1), Wd = Math.max(1, chart.clientWidth), stack = Wd < 560, Hc = stack ? 300 : 150;
     chart.style.height = Hc + 'px';
     if (chart.width !== Math.round(Wd * dpr) || chart.height !== Math.round(Hc * dpr)) { chart.width = Math.round(Wd * dpr); chart.height = Math.round(Hc * dpr); }
     const g = chart.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, Wd, Hc);
     g.font = '11px Inter, system-ui, sans-serif'; g.textBaseline = 'middle';
     const ink = '#212529', mute = '#6c757d', rule = '#dee2e6';
-    const pw = stack ? Wd : (Wd - 24) / 2, ph = stack ? (Hc - 10) / 2 : Hc;
-    const boxA = { x: 0, y: 0, w: pw, h: ph }, boxB = stack ? { x: 0, y: ph + 10, w: pw, h: ph } : { x: pw + 24, y: 0, w: pw, h: ph };
+    const pw = stack ? Wd : (Wd - 16) / 2, ph = stack ? (Hc - 8) / 2 : Hc;
+    const boxA = { x: 0, y: 0, w: pw, h: ph }, boxB = stack ? { x: 0, y: ph + 8, w: pw, h: ph } : { x: pw + 16, y: 0, w: pw, h: ph };
+    // compact frame: a small title above the plot, the legend as a short list inside the plot's top-right corner
     const frame = (bx, title, xl, items) => {
-      const gap = 7, tw = g.measureText(title).width, iw = items.reduce((a, [t]) => a + g.measureText(t).width, 0) + gap * Math.max(0, items.length - 1);
-      const two = 40 + tw + 16 + iw > bx.w - 10, lines = two ? (40 + iw > bx.w - 10 ? 2 : 1) : 0;
-      const top = 19 + 14 * lines, x0 = bx.x + 41, y0 = bx.y + top, w = bx.w - 52, h = bx.h - top - 30;
+      const x0 = bx.x + 40, y0 = bx.y + 16, w = bx.w - 50, h = bx.h - 16 - 16;
       g.strokeStyle = rule; g.lineWidth = 1; g.strokeRect(x0 - 0.5, y0 - 0.5, w + 1, h + 1);
-      g.fillStyle = ink; g.textAlign = 'left'; g.fillText(title, bx.x + 40, bx.y + 8);
-      let ix = two ? bx.x + 40 : bx.x + bx.w - 10 - iw, iy = two ? bx.y + 22 : bx.y + 8;
-      for (const [t, c] of items) { const tw2 = g.measureText(t).width; if (two && ix + tw2 > bx.x + bx.w - 6) { ix = bx.x + 40; iy += 14; } g.fillStyle = c; g.fillText(t, ix, iy); ix += tw2 + gap; }
-      g.fillStyle = mute; g.textAlign = 'center'; g.fillText(xl, x0 + w / 2, bx.y + bx.h - 8);
-      return { x0, y0, w, h };
+      g.font = '10.5px Inter, system-ui, sans-serif'; g.fillStyle = '#4a4f55'; g.textAlign = 'left'; g.fillText(title, x0, bx.y + 7);
+      if (xl) { g.fillStyle = mute; g.textAlign = 'center'; g.fillText(xl, x0 + w / 2, bx.y + bx.h - 6); }
+      const legend = (list = items) => { // drawn last, over the data, on a paper backing
+        g.font = '10px Inter, system-ui, sans-serif'; g.textAlign = 'right';
+        const lw = Math.max(0, ...list.map(([t]) => g.measureText(t).width)) + 8;
+        g.fillStyle = 'rgba(255,255,255,0.82)'; g.fillRect(x0 + w - lw - 1, y0 + 1, lw, list.length * 11.5 + 4);
+        list.forEach(([t, c], i) => { g.fillStyle = c; g.fillText(t, x0 + w - 5, y0 + 8 + i * 11.5); });
+      };
+      return { x0, y0, w, h, legend };
     };
     if (!region) return;
     // (a) region: share of each plant type by altitude (now), treeline dashed
@@ -611,8 +641,8 @@ export function createEnvironment(root) {
       const bins = PFT.map(() => new Float32Array(NB)), land = new Float32Array(NB);
       for (let i = 0; i < n * n; i++) { if (t.waterKind[i]) continue; const b = Math.min(NB - 1, Math.floor(t.height[i] / hmax * NB)); land[b]++; for (let k = 0; k < PFT.length; k++) bins[k][b] += region.V[k][i]; }
       const items = PFT.map((f, k) => [f.key, CHART.pft[k]]).filter((_, k) => bins[k].some((v) => v > 1));
-      const box = frame(boxA, 'a  region: plant cover by altitude', 'cover in each 1/24 of the relief', items);
-      g.fillStyle = mute; g.textAlign = 'right'; g.fillText(`${Math.round(hmax)} m`, box.x0 - 4, box.y0 + 4); g.fillText('0', box.x0 - 4, box.y0 + box.h);
+      const box = frame(boxA, 'Region: plant cover by altitude', '', items);
+      g.font = '10px Inter, system-ui, sans-serif'; g.fillStyle = mute; g.textAlign = 'right'; g.fillText(`${Math.round(hmax)} m`, box.x0 - 4, box.y0 + 4); g.fillText('0', box.x0 - 4, box.y0 + box.h);
       const Y = (b) => box.y0 + box.h * (1 - (b + 0.5) / NB);
       for (let k = 0; k < PFT.length; k++) {
         if (!items.find((it) => it[0] === PFT[k].key)) continue;
@@ -620,20 +650,21 @@ export function createEnvironment(root) {
         g.strokeStyle = CHART.pft[k]; g.lineWidth = 1.6; g.stroke();
       }
       const tl = treeline();
-      if (Number.isFinite(tl)) { const py = box.y0 + box.h * (1 - (tl + (terrain.seaLevel || 0)) / hmax); g.setLineDash([4, 3]); g.strokeStyle = ink; g.beginPath(); g.moveTo(box.x0, py); g.lineTo(box.x0 + box.w, py); g.stroke(); g.setLineDash([]); g.fillStyle = ink; g.textAlign = 'right'; g.fillText(`treeline ${Math.round(tl)} m above the sea`, box.x0 + box.w - 4, py - 7); }
+      if (Number.isFinite(tl)) { const py = box.y0 + box.h * (1 - (tl + (terrain.seaLevel || 0)) / hmax); g.setLineDash([4, 3]); g.strokeStyle = ink; g.beginPath(); g.moveTo(box.x0, py); g.lineTo(box.x0 + box.w, py); g.stroke(); g.setLineDash([]); g.fillStyle = ink; g.textAlign = 'left'; g.font = '10px Inter, system-ui, sans-serif'; g.fillText(`treeline ${Math.round(tl)} m`, box.x0 + 4, py - 6); }
+      box.legend();
     }
     // (b) focus: logs by decay class (stacked), snags, humus
     {
-      const items = [['class 1', CHART.cls[0]], ['2', CHART.cls[1]], ['3', CHART.cls[2]], ['4', CHART.cls[3]], ['5', CHART.cls[4]], ['snags', ink], ['humus', '#8a6d3b']];
-      const box = frame(boxB, 'b  focus plot: dead wood', 'years', items);
+      const items = [['logs, decay class 1–5', '#5f6a55'], ['snags', ink], ['humus (dashed)', '#8a6d3b']];
+      const box = frame(boxB, 'Plot: logs by decay class, snags, humus', '', items);
       const H = focus ? focus.hist : [], n = H.length;
       if (n > 1) {
         const xmax = Math.max(100, Math.ceil(H[n - 1].year / 100) * 100), X = (yr) => box.x0 + box.w * yr / xmax;
         let ymax = 10; for (const r of H) ymax = Math.max(ymax, r.cls.reduce((a, b) => a + b, 0), r.snags);
         let hmax = 0.5; for (const r of H) hmax = Math.max(hmax, r.humus);
         const Y = (v) => box.y0 + box.h * (1 - v / ymax);
-        g.fillStyle = mute; g.textAlign = 'right'; g.fillText(String(Math.round(ymax)), box.x0 - 4, box.y0 + 4); g.fillText('0', box.x0 - 4, box.y0 + box.h);
-        g.textAlign = 'center'; g.fillText('0', box.x0, box.y0 + box.h + 9); g.fillText(String(xmax), box.x0 + box.w, box.y0 + box.h + 9);
+        g.font = '10px Inter, system-ui, sans-serif'; g.fillStyle = mute; g.textAlign = 'right'; g.fillText(String(Math.round(ymax)), box.x0 - 4, box.y0 + 4); g.fillText('0', box.x0 - 4, box.y0 + box.h);
+        g.textAlign = 'left'; g.fillText('year 0', box.x0, box.y0 + box.h + 9); g.textAlign = 'right'; g.fillText(String(xmax), box.x0 + box.w, box.y0 + box.h + 9);
         for (let c = 4; c >= 0; c--) {
           g.beginPath();
           for (let i = 0; i < n; i++) { const r = H[i]; let s = 0; for (let j = 0; j <= c; j++) s += r.cls[j]; const px = X(r.year), py = Y(s); i ? g.lineTo(px, py) : g.moveTo(px, py); }
@@ -641,8 +672,8 @@ export function createEnvironment(root) {
         }
         g.beginPath(); H.forEach((r, i) => { const px = X(r.year), py = Y(r.snags); i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.strokeStyle = ink; g.lineWidth = 1.4; g.stroke();
         g.beginPath(); H.forEach((r, i) => { const px = X(r.year), py = box.y0 + box.h * (1 - r.humus / hmax); i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.strokeStyle = '#8a6d3b'; g.setLineDash([4, 3]); g.stroke(); g.setLineDash([]);
-        g.fillStyle = '#8a6d3b'; g.textAlign = 'left'; g.fillText(`humus max ${hmax.toFixed(1)} kg/m²`, box.x0 + 4, box.y0 + 9);
-      }
+        box.legend([['logs, decay class 1–5', '#5f6a55'], ['snags', ink], [`humus, max ${hmax.toFixed(1)} kg/m²`, '#8a6d3b']]);
+      } else box.legend();
     }
   }
   /** region treeline: top of the highest 100 m band (≥ 30 cells) whose tree cover is at least half the forested bands' median */
@@ -658,13 +689,13 @@ export function createEnvironment(root) {
   function drawStatus() {
     if (phase !== 'run') {
       const pc = Math.round(progress * 100);
-      status.textContent = { terrain: `1/4 forming the terrain (uplift, erosion, rivers) — ${stage} ${pc}%`, region: `2/4 growing the region's vegetation ${pc}%`,
-        plants: `3/4 growing one plant of each species with the module model — ${stage}`, focus: `4/4 growing the focus plot ${pc}%`, ready: '4/4 drawing', idle: '' }[phase] || '';
+      status.textContent = { terrain: `1/4 forming the terrain · ${stage} ${pc}%`, region: `2/4 growing the region's vegetation ${pc}%`,
+        plants: `3/4 growing the reference plants · ${stage}`, focus: `4/4 growing the plot ${pc}%`, ready: '4/4 drawing', idle: '' }[phase] || '';
       return;
     }
-    const st = focus.stats, top = focus.species.map((sp, i) => [sp.def.name, st.count[i]]).filter((a) => a[1]).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const tl = treeline(), biome = BIOMES[region.at(focusAt.x, focusAt.y).biome]?.name || '';
-    status.textContent = `year ${focus.year} · ${level === 'region' ? 'click the region to move the plot · ' : ''}${top.map(([n, c]) => `${n} ${c}`).join(' · ')} · snags ${st.snags} · logs ${st.logs} · ${biome} · treeline ${Number.isFinite(tl) ? Math.round(tl) + ' m above the sea' : 'above the summit'} · ${+temp.input.value} °C at sea level, ${+prec.input.value} mm, terrain ${terrainSeed}, plot ${Math.round(focusAt.x)}, ${Math.round(focusAt.y)} m · ${(regionMs + focus.msStep).toFixed(1)} ms/step`;
+    const st = focus.stats, tl = treeline(), biome = BIOMES[region.at(focusAt.x, focusAt.y).biome]?.name || '';
+    status.textContent = `year ${focus.year} · ${biome} · treeline ${Number.isFinite(tl) ? Math.round(tl) + ' m' : 'above the summit'} · ${+temp.input.value} °C at sea level · ${+speed.input.value} yr/s`;
+    if (settings.open) chips.forEach((c, i) => c.setCount(st.count[i] || 0)); // species counts live in the chips
   }
 
   // ---------------------------------------------------------------- loop
@@ -678,6 +709,7 @@ export function createEnvironment(root) {
     raf = requestAnimationFrame(frame);
     const f0 = performance.now(), dt = Math.min(0.1, Math.max(0, (t - last) / 1000)); last = t;
     if (gen) pump(10);
+    if (atlasGen) { const t0a = performance.now(); while (atlasGen && performance.now() - t0a < 6) { if (atlasGen.next().done) { atlasGen = null; applyBBPalette(); dirtyRegion = dirtyFocus = true; } } }
     if (phase === 'run' && playing && !fly) {
       acc += dt * +speed.input.value; const n = Math.floor(acc);
       if (n > 0) {
@@ -705,25 +737,21 @@ export function createEnvironment(root) {
     frameMs = 0.9 * frameMs + 0.1 * (performance.now() - f0);
   }
 
-  function setPlaying(v) { playing = v; playBtn.textContent = v ? 'Pause' : 'Play'; }
+  function setPlaying(v) { playing = v; overlay.setPlaying(v); }
   function setPalette(p) {
-    palette = p; palBtn.textContent = p === 'drawing' ? 'Natural colour' : 'Drawing';
+    palette = p; overlay.setPalette(p);
     if (ground) ground.setPalette(p); if (plotGround) plotGround.setPalette(p);
     renderer.setClearColor(ground && ground.background ? ground.background() : (p === 'natural' ? 0xcfd9e2 : 0xffffff), 1);
     applyBBPalette();
     dirtyRegion = true; dirtyFocus = true;
   }
-  playBtn.addEventListener('click', () => setPlaying(!playing));
-  palBtn.addEventListener('click', () => setPalette(palette === 'drawing' ? 'natural' : 'drawing'));
-  levelBtn.addEventListener('click', () => { if (level === 'focus') flyTo('region'); });
   resetBtn.addEventListener('click', () => api.reset());
   terrBtn.addEventListener('click', () => { terrainSeed = (Math.imul(terrainSeed, 1664525) + 1013904223) >>> 0; terrainSeed %= 100000; focusAt = null; restart(); });
   rough.input.addEventListener('change', () => { focusAt = null; restart(); });
   const climate = () => { if (!region) return; const dT = +temp.input.value - (terrain.climate.T0 ?? 13), Pm = +prec.input.value / (terrain.climate.P0 ?? 900); region.climate(dT, Pm); if (focus) focus.setClimate(dT, Pm); };
   temp.input.addEventListener('input', climate); prec.input.addEventListener('input', climate);
-  toggles.forEach((cb, i) => cb.addEventListener('change', () => { if (focus) focus.enabled[i] = cb.checked; }));
   mq.addEventListener('change', () => { setAspect(); resize(); });
-  function restart() { if (!renderer) return; level = 'region'; levelBtn.disabled = true; focus = null; gen = loader(); }
+  function restart() { if (!renderer) return; level = 'region'; overlay.showBack(false); focus = null; gen = loader(); }
 
   const api = {
     start() {
@@ -734,7 +762,7 @@ export function createEnvironment(root) {
       last = performance.now();
       raf = requestAnimationFrame(frame);
     },
-    stop() { if (!running) return; running = false; cancelAnimationFrame(raf); raf = 0; ro.disconnect(); },
+    stop() { if (!running) return; running = false; cancelAnimationFrame(raf); raf = 0; ro.disconnect(); hint.stop(); },
     reset() {
       if (!renderer || !refs) return;
       gen = (async function* () { region = new RegionSim(terrain, { seed }); for (let y = 0; y < 150; y++) { region.step(); if (y % 10 === 0) yield; } yield* placeFocus(focusAt.x, focusAt.y, false); })();
@@ -744,11 +772,11 @@ export function createEnvironment(root) {
     enumerable: false,
     value: {
       async ready() { if (!renderer) { timing.start = performance.now(); init(); resize(); gen = loader(); } while (gen) { const r = await gen.next(); if (r.done) gen = null; } dirtyRegion = dirtyFocus = true; renderOnce(); return true; },
-      async focusAt(fx, fy) { await this.ready(); gen = (async function* () { yield* placeFocus(fx * terrain.size_m, fy * terrain.size_m, false); })(); while (gen) { const r = await gen.next(); if (r.done) gen = null; } level = 'focus'; levelBtn.disabled = false; frameFocus(true); setShadowFrame(); chooseDetail(); dirtyFocus = true; renderOnce(); return this.counts(); },
+      async focusAt(fx, fy) { await this.ready(); gen = (async function* () { yield* placeFocus(fx * terrain.size_m, fy * terrain.size_m, false); })(); while (gen) { const r = await gen.next(); if (r.done) gen = null; } level = 'focus'; overlay.showBack(true); frameFocus(true); setShadowFrame(); chooseDetail(); dirtyFocus = true; renderOnce(); return this.counts(); },
       async advance(years) { await this.ready(); for (let i = 0; i < years; i++) { const r0 = performance.now(); region.step(); regionMs = 0.9 * regionMs + 0.1 * (performance.now() - r0); focus.step(); } dirtyRegion = dirtyFocus = true; chooseDetail(); renderOnce(); return this.counts(); },
-      view(which) { if (which === 'region') { level = 'region'; frameRegion(true); } else { level = 'focus'; frameFocus(true); } levelBtn.disabled = level === 'region'; setShadowFrame(); chooseDetail(); dirtyFocus = true; renderOnce(); },
+      view(which) { if (which === 'region') { level = 'region'; frameRegion(true); } else { level = 'focus'; frameFocus(true); hint.hide(); } overlay.showBack(level === 'focus'); setShadowFrame(); chooseDetail(); dirtyFocus = true; renderOnce(); },
       orbit(az, elv, distK = 1) { const tg = controls.target, d = camera.position.distanceTo(tg) * distK; camera.position.set(tg.x + d * Math.cos(elv) * Math.cos(az), tg.y + d * Math.sin(elv), tg.z + d * Math.cos(elv) * Math.sin(az)); camera.lookAt(tg); controls.update(); chooseDetail(); dirtyFocus = true; renderOnce(); },
-      setPalette(p) { setPalette(p); renderOnce(); },
+      setPalette(p) { setPalette(p); while (atlasGen) { if (atlasGen.next().done) { atlasGen = null; applyBBPalette(); } } dirtyRegion = dirtyFocus = true; renderOnce(); },
       setClimate(T0, P) { temp.input.value = T0; temp.upd(); if (P) { prec.input.value = P; prec.upd(); } climate(); },
       counts() {
         if (!focus) return { phase };

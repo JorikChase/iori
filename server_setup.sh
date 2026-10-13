@@ -250,7 +250,7 @@ iori.me {
 
     # Compress text responses (HTML/JSON/SVG/XML) and the iris engine's binary eye files (data/NN.iris, served as
     # application/octet-stream, which Caddy's default matcher skips: 3.6 MB on the wire instead of 2.3 — study/15).
-    # A `match` block REPLACES the default list, so the defaults are spelled out; images and media stay uncompressed.
+    # A "match" block REPLACES the default list, so the defaults are spelled out; images and media stay uncompressed.
     encode zstd gzip {
         match {
             header Content-Type text/*

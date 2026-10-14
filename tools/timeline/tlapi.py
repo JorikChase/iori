@@ -13,8 +13,10 @@ class Api:
         self.token = token or os.environ.get("TIMELINE_TOKEN") or self.login()
 
     def login(self):
-        user = input("dash username: ").strip()
-        pw = getpass.getpass("password: ")
+        # prompts go to stderr: stdout may be captured, as in TIMELINE_TOKEN=$(python3 -c "... print(Api(...).token)")
+        sys.stderr.write("dash username: "); sys.stderr.flush()
+        user = sys.stdin.readline().strip()
+        pw = getpass.getpass("password: ", stream=sys.stderr)
         return self.call("POST", "/auth/login", {"username": user, "password": pw, "scope": "timeline"}, auth=False)["token"]
 
     def call(self, method, path, body=None, data=None, ctype="application/json", auth=True):

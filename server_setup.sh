@@ -177,7 +177,7 @@ deploy_api() {
     fi
 
     # Directories
-    mkdir -p /opt/iori-api /var/lib/iori-api /var/www/media /var/www/iori-dash
+    mkdir -p /opt/iori-api /var/lib/iori-api /var/www/media /var/www/iori-dash /var/www/timeline-data
 
     # Deploy API source (exclude local dev artifacts)
     rsync -a --delete \
@@ -185,6 +185,8 @@ deploy_api() {
         --exclude '__pycache__/' \
         --exclude '*.db*' \
         --exclude 'media/' \
+        --exclude 'originals/' \
+        --exclude 'test_*.py' \
         --exclude 'initial-passwords.txt' \
         --exclude '.gitignore' \
         "$SOURCE_DIR/api/" /opt/iori-api/
@@ -200,7 +202,7 @@ deploy_api() {
     /opt/iori-api/venv/bin/pip install -q -r /opt/iori-api/requirements.txt
 
     # Permissions
-    chown -R ioriapi:ioriapi /opt/iori-api /var/lib/iori-api /var/www/media
+    chown -R ioriapi:ioriapi /opt/iori-api /var/lib/iori-api /var/www/media /var/www/timeline-data
     chown -R caddy:caddy /var/www/iori-dash
 
     # systemd unit
@@ -302,6 +304,14 @@ iori.me {
     header @icons Cache-Control "no-cache"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
     header @shortcache Cache-Control "public, max-age=3600"
+
+    # The timeline's published data (written by iori-api on Publish, outside the
+    # webroot so a deploy never wipes it). Media it points to lives on 3die.fr/media.
+    handle_path /timeline/data/* {
+        root * /var/www/timeline-data
+        header Cache-Control "no-cache"
+        file_server
+    }
 
     # --- MAIN SITE CONFIGURATION ---
     handle {

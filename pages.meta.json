@@ -803,6 +803,15 @@
       "type": "experiment",
       "priority": 0.3,
       "hidden": true
+    },
+    "timeline.html": {
+      "title": "Timeline",
+      "description": "iori's life and work from 4 December 2003 onward: places, pictures, sounds, shaders and the things built along the way, one long page.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "hidden": true
     }
   }
 }

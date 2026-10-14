@@ -10,5 +10,6 @@ Disallow: /lili-web.html
 Disallow: /moshine/lab.html
 Disallow: /papers/
 Disallow: /tensor-landscapes.html
+Disallow: /timeline.html
 
 Sitemap: https://3die.fr/sitemap-3die.xml

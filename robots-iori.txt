@@ -10,5 +10,6 @@ Disallow: /lili-web.html
 Disallow: /moshine/lab.html
 Disallow: /papers/
 Disallow: /tensor-landscapes.html
+Disallow: /timeline.html
 
 Sitemap: https://iori.me/sitemap-iori.xml

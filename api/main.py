@@ -12,6 +12,8 @@ Config via environment:
   MEDIA_DIR     (default ./media)
   MEDIA_BASEURL (public URL prefix for media, default /media)
   CORS_ORIGINS  (comma-separated, default https://dash.3die.fr,http://localhost:8000,http://127.0.0.1:8000)
+  TIMELINE_DIR  (published timeline files, served at iori.me/timeline/data/; default ../timeline/data)
+  ORIGINALS_DIR (timeline upload originals, never served; default ./originals)
 """
 
 import json
@@ -33,14 +35,18 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import timeline
+
 PORT = int(os.environ.get("PORT", "3000"))
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "iori.db"))
 MEDIA_DIR = Path(os.environ.get("MEDIA_DIR", os.path.join(os.path.dirname(__file__), "media")))
 MEDIA_BASEURL = os.environ.get("MEDIA_BASEURL", "/media")
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+TIMELINE_DIR = Path(os.environ.get("TIMELINE_DIR", os.path.join(os.path.dirname(__file__), "..", "timeline", "data")))
+ORIGINALS_DIR = Path(os.environ.get("ORIGINALS_DIR", os.path.join(os.path.dirname(__file__), "originals")))
 CORS_ORIGINS = [o.strip() for o in os.environ.get(
     "CORS_ORIGINS",
-    "https://dash.3die.fr,http://localhost:8000,http://127.0.0.1:8000",
+    "https://dash.3die.fr,http://localhost:8000,http://127.0.0.1:8000,http://localhost:8792,http://127.0.0.1:8792",
 ).split(",") if o.strip()]
 
 SESSION_COOKIE = "iori_session"
@@ -179,6 +185,10 @@ def init_db():
             conn.execute("ALTER TABLE posts ADD COLUMN layout TEXT")
         if "embed" not in cols:
             conn.execute("ALTER TABLE posts ADD COLUMN embed TEXT")
+        scols = [r["name"] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+        if "scope" not in scols:
+            # '' = full session (the dash cookie); 'timeline' = a bearer token that only edits the timeline
+            conn.execute("ALTER TABLE sessions ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
         tcols = [r["name"] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()]
         for col, decl in TASK_MIGRATIONS:
             if col not in tcols:
@@ -204,13 +214,22 @@ def init_db():
 
 # ---------------------------------------------------------------- auth
 
+def request_token(request: Request):
+    """The dash cookie, or an Authorization: Bearer token (iori.me's timeline editor —
+    Safari never sends api.3die.fr's cookie from another site)."""
+    auth = request.headers.get("authorization", "")
+    if auth[:7].lower() == "bearer ":
+        return auth[7:].strip()
+    return request.cookies.get(SESSION_COOKIE)
+
+
 def get_session_user(request: Request):
-    token = request.cookies.get(SESSION_COOKIE)
+    token = request_token(request)
     if not token:
         return None
     with db() as conn:
         row = conn.execute(
-            """SELECT u.id, u.username, u.role FROM sessions s
+            """SELECT u.id, u.username, u.role, s.scope FROM sessions s
                JOIN users u ON u.id = s.user_id
                WHERE s.token = ? AND s.expires_at > ?""",
             (token, now()),
@@ -222,6 +241,10 @@ def require_user(request: Request):
     user = get_session_user(request)
     if not user:
         raise HTTPException(401, "not authenticated")
+    if user.get("scope"):
+        # a scoped token (the timeline editor's) never opens the dash
+        raise HTTPException(403, "token not valid here")
+    user.pop("scope", None)
     return user
 
 
@@ -263,20 +286,27 @@ def health():
 class LoginBody(BaseModel):
     username: str
     password: str
+    scope: str = ""        # "timeline": no cookie, a bearer token in the body that only edits the timeline
 
 
 @app.post("/auth/login")
 def login(body: LoginBody):
     with db() as conn:
         row = conn.execute("SELECT * FROM users WHERE username = ?", (body.username.strip().lower(),)).fetchone()
+        if body.scope not in ("", "timeline"):
+            raise HTTPException(400, "unknown scope")
         if not row or not bcrypt.checkpw(body.password.encode(), row["pass_hash"].encode()):
             raise HTTPException(401, "invalid credentials")
         token = secrets.token_urlsafe(32)
         conn.execute(
-            "INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-            (token, row["id"], now(), (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat()),
+            "INSERT INTO sessions(token, user_id, created_at, expires_at, scope) VALUES (?, ?, ?, ?, ?)",
+            (token, row["id"], now(), (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat(),
+             body.scope),
         )
         conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (now(),))
+    if body.scope:
+        # no cookie: it would replace the dash's full session cookie in this browser
+        return {"ok": True, "username": row["username"], "role": row["role"], "token": token, "scope": body.scope}
     resp = JSONResponse({"ok": True, "username": row["username"], "role": row["role"]})
     resp.set_cookie(SESSION_COOKIE, token, max_age=SESSION_DAYS * 86400,
                     httponly=True, secure=True, samesite="none", path="/")
@@ -285,7 +315,7 @@ def login(body: LoginBody):
 
 @app.post("/auth/logout")
 def logout(request: Request):
-    token = request.cookies.get(SESSION_COOKIE)
+    token = request_token(request)
     if token:
         with db() as conn:
             conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
@@ -295,7 +325,11 @@ def logout(request: Request):
 
 
 @app.get("/auth/me")
-def me(user=Depends(require_user)):
+def me(request: Request):
+    # answers for both session kinds, so the timeline editor can check its token
+    user = get_session_user(request)
+    if not user:
+        raise HTTPException(401, "not authenticated")
     return user
 
 
@@ -912,6 +946,11 @@ def delete_post(post_id: int, user=Depends(require_user)):
         conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     return {"ok": True}
 
+
+# the timeline behind iori.me/timeline.html (api/timeline.py)
+Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+app.include_router(timeline.make_router(db, now, get_session_user, MEDIA_DIR, MEDIA_BASEURL,
+                                        TIMELINE_DIR, ORIGINALS_DIR))
 
 # local dev: serve uploaded media (production serves it via Caddy)
 app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")

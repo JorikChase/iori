@@ -62,7 +62,28 @@ State and how to run it: [`study/m8.md`](../study/m8.md). `tools/xbench.mjs` dri
 Zen = Gecko 157 (WebDriver BiDi, `--headed`) and Playwright WebKit. **Chrome, Safari 26.6.2, Zen and WebKit all pass
 41/41 with 0 console errors**; exports (MP4/AAC, WebM/Opus, pass-through) are in sync at 0 ms in each. Fixes on the
 way: exact integer luma, WebKit's AAC descriptor, Opus never shifted, Firefox's VideoFrame copy. Deployed (iori
-`8ff85d6`). Left in M8: an iPhone; cross-engine identity of noise/smooth field ops, the M3 effects and flow.
+`8ff85d6`). Left in M8: an iPhone.
+
+**Exact across browsers (2026-10-11, D45, iori `0dd7db3`):** field ops, effects and the code stage are integer
+arithmetic (`fixed.js` + WGSL twins), every transcendental is computed in JS with `dmath.js`. T0 `crossHashes`
+(39 cases) gives the same hashes in Chrome, Safari, Zen and WebKit, GPU == CPU in each. New invariants: no float
+multiply-add, division, sqrt or trig in a kernel that feeds the mosh; no `Math.sin`/`cos`/`pow`/`hypot`/`exp` in JS
+that feeds a render (use dmath); the CPU effect chain rounds to the GPU's storage format. Only the flow estimator
+("Fluid") still solves in floats.
+
+## Any size and fully exact (2026-10-13/14, D45, D46)
+
+- **Resolution independence** (`scale.js`): `cfg.scale` = working height / sequence height, set by the evaluator; both
+  loop twins apply `scaleRes` after resolving, clip effects `scaleFx`. Block sizes snap to powers of two (4–32).
+  T1 `previewMatchesExport`: half-size render vs the shrunk full render, SSIM ~0.6 scaled against ~0.37 unscaled.
+- **Export window**: sequence, half, 720p–4320p at the sequence aspect (upscaling), or custom W × H with an aspect
+  lock, up to the GPU's `maxTextureDimension2D` (now requested at the adapter's limit); codec picker. Export renders
+  without checkpoints. T4 `slowExportSizes` (`make-media.sh --uhd`): 4K 30 fps HEVC/AV1, 9.5 fps H.264 high; 8K 6 fps.
+- **Exact flow, warp, matcher**: integer Lucas–Kanade; the warp in 1/64 px with 1/64 weights (the smooth field in
+  integers); the matcher averages full blocks (clamped pixels, an exact power-of-two reciprocal) and λ is in 1/2^20.
+- Gotcha: `FIXED_WGSL` defines `h12`, which calls `hash3`: a shader that includes it must include `HASH_WGSL` too, or
+  the pipeline is invalid and the next readback hangs.
+- Gotcha: other sessions use the GPU heavily (poster captures): bench timings then run 10x slow.
 
 ## Open threads, by value
 

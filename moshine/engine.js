@@ -18,6 +18,7 @@ import { hash3 } from './util.js';
 import { normalize } from './config.js';
 import { resolveAll, holdAt } from './params.js';
 import { levelsFor, EDGE, accelScale } from './engine-ref.js';
+import { scaleRes, scaledBlock } from './scale.js';
 
 export function createMoshLoop(gpu, { w, h }, cfg0) {
   let cfg = normalize(cfg0), R = null, S = null;
@@ -43,13 +44,13 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
     for (const k of ['pyr', 'pyr2']) R[k].forEach((x) => x.destroy());
     for (const k of ['pred', 'prevSrc', 'prevFrozen', 'mc', 'codeOut', 'display', 'flow', 'fxIn', 'fxPost', 'pyrH', 'frozen', 'frozenEst', 'cut', 'lockMix', 'match', 'fieldops', 'warp', 'mcWarp', 'code']) R[k].destroy();
   }
-  build(cfg.block);
+  build(scaledBlock(cfg.block, cfg.scale));
 
   const api = {
     get config() { return cfg; },
     get resources() { return R; },
     /** Replace the config. A block-size change rebuilds the resources and restarts the loop. */
-    setConfig(c) { cfg = normalize(c); if (cfg.block !== R.block) { build(cfg.block); if (S) api.begin(S.t0); } },
+    setConfig(c) { cfg = normalize(c); const b = scaledBlock(cfg.block, cfg.scale); if (b !== R.block) { build(b); if (S) api.begin(S.t0); } },
     /** Start (or restart) at frame t0: the next step(t0) is the I-frame. */
     begin(t0 = 0) { S = { t0, started: false, hi: 0, pi: 0, ei: 0, hasPrevEst: false, frozenOk: false, ever2: false, prevIsSrc: false, last: null }; R.fxIn.reset(); R.fxPost.reset(); },
     /**
@@ -57,7 +58,7 @@ export function createMoshLoop(gpu, { w, h }, cfg0) {
      * Returns { out: GPUTexture (the history), display: GPUTexture (after the post chain), field, est, hold, cutThresh }.
      */
     step(t, { src, src2 = null, lock = null }) {
-      const c = resolveAll(cfg, t, cfg.clock), seed = cfg.seed | 0, dev = gpu.device, enc = dev.createCommandEncoder({ label: `mosh f${t}` });
+      const c = scaleRes(resolveAll(cfg, t, cfg.clock)), seed = cfg.seed | 0, dev = gpu.device, enc = dev.createCommandEncoder({ label: `mosh f${t}` });
       const resetSrc = c.reset.source === 'source2' && src2 ? src2 : src;
       const use2 = c.estimate.source === 'source2' && !!src2;
       const resSrc = use2 ? src2 : src;                 // the codec residual belongs to the motion source's stream

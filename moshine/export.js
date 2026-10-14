@@ -260,17 +260,23 @@ export async function exportSequence(o) {
     }
   }
   const enc = await createEncoder({ w, h, fps, container: o.container, codec: o.codec, quality: o.quality, target: o.target, audio, mix });
-  const renderer = createSequenceRenderer(gpu, project, { w, h, sources: o.sources, sequenceId: o.sequenceId });
+  // no checkpoints: the export never seeks, and at 4K or 8K each one is hundreds of MB of copies (M8)
+  const renderer = createSequenceRenderer(gpu, project, { w, h, sources: o.sources, sequenceId: o.sequenceId, checkpoints: false });
   const canvas = new OffscreenCanvas(w, h), present = createPresenter(gpu, canvas), st = { last: t0 };
   let t = 0;
   try {
+    const prof = o.profile ? { render: 0, gpu: 0, present: 0, encode: 0 } : null, now = () => performance.now();
     for (let f = range.in; f < range.out; f++) {
       if (signal?.aborted) throw new DOMException('export cancelled', 'AbortError');
-      const r = await renderer.render(f);
+      let a = now(); const r = await renderer.render(f);
+      if (prof) { prof.render += now() - a; a = now(); await gpu.device.queue.onSubmittedWorkDone(); prof.gpu += now() - a; a = now(); }
       present.draw(r.image); o.onFrame?.(f, r.image);
+      if (prof) { await gpu.device.queue.onSubmittedWorkDone(); prof.present += now() - a; a = now(); }
       await enc.add(canvas, (f - range.in) / fps, 1 / fps);
+      if (prof) prof.encode += now() - a;
       t++; progress(o, t, frames, t0, st);
     }
+    if (prof) o.profile.ms = Object.fromEntries(Object.entries(prof).map(([k, v]) => [k, +(v / t).toFixed(1)]));
     await enc.finish();
   } catch (e) { await enc.cancel(); throw e; }
   finally { await renderer.destroy(); for (const v of opened) v.close?.(); stretcher?.close(); }

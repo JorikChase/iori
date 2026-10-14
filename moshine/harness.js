@@ -104,6 +104,7 @@ export const T0 = {
       ...fx.map((o, k) => [`fx ${o.fx}${k}${k % 2 ? ' post' : ''}`, k % 2 ? { ...base, post: [o] } : { ...base, inLoop: [o] }]),
       ['lfo sine on residual gain', { ...base, residual: { ...base.residual, gain: { value: 0.4, mods: [{ type: 'lfo', mode: 'add', depth: 0.3, params: { shape: 'sine', rate: 0.37, phase: 0.11 } }] } } }],
       ['bloom accel', { ...base, bloom: { ...base.bloom, repeat: 9, every: 13, accel: 1.07 } }],
+      ['Fluid (integer optical flow)', PRESETS['Fluid']], ['H.264 soft (quarter pel)', PRESETS['H.264 soft']],
     ];
     // the residual modes, intra refresh, block refresh and sweep across the 'cut' fixture's scene cut (frame 40)
     const XR = PRESETS['Xvid + residual'], fc = fixture('cut'), nc = 52;
@@ -117,6 +118,7 @@ export const T0 = {
       for (let t = 0; t < n; t++) { upload(g, x, f.frame(t)); r = G.step(t, { src: x }); c = C.step(t, { src: fromHalfArray(toHalfArray(f.frame(t))) }); }
       const got = await readback(g, r.display), want = toHalfArray(c.display || c.out);
       rows[name] = { hash: fnv1a(got).toString(16), cpuEqual: fnv1a(got) === fnv1a(want) };
+      console.log(`crossHashes ${Object.keys(rows).length}/${cases.length} ${name} ${rows[name].cpuEqual ? 'equal' : 'DIFFERS'}`);
       G.destroy(); x.destroy();
     }
     const bad = Object.entries(rows).filter(([, r]) => !r.cpuEqual).map(([k]) => k);
@@ -323,7 +325,7 @@ Object.assign(T0, {
       rows[`${name}@${t}`] = { maxGpuCpu: +md.toFixed(5), truth: fieldEPE(got, f.field(t), f.exactMask(t), f) };
       [A, Bp, F].forEach((x) => x.destroy()); out.destroy(); cut.destroy();
     }
-    return { pass: Object.values(rows).every((r) => r.maxGpuCpu <= 0.01 && r.truth.median <= 0.25), rows };
+    return { pass: Object.values(rows).every((r) => r.maxGpuCpu === 0 && r.truth.median <= 0.25), rows };   // integer flow: exact (D45)
   },
   // a stack with flow, in-loop and post effects (stateful too) replays to identical bits on the GPU
   async fxLoopReplay() {
@@ -660,7 +662,8 @@ export const T1 = {
     const grab = (list) => (t, tex) => { list.push(heldCopy(g, tex)); };
     const a = [], b = [], tA = await openTarget('harness-m4.mp4', 'mp4', 'opfs'), tB = await openTarget('harness-seq.mp4', 'mp4', 'opfs');
     const rA = await exportVideo({ gpu: g, video: v, cfg: PRESETS['Xvid classic'], w, h, container: 'mp4', quality: 'high', audio: true, range: { start: 0, end: n / v.fps }, target: tA, onFrame: grab(a) });
-    const p = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: 'cut', name: 'cut.mp4', info }), frames: 180 });
+    // the sequence at the working size (scale 1): the same loop as the M4 path, pixel for pixel
+    const p = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: 'cut', name: 'cut.mp4', info }), frames: 180, width: w, height: h });
     p.sequences[0].channels[2].clips.push(P.createAudioClip(p.media[0].id, { in: 0, out: 180 }));   // its sound on A1, as an import makes it
     const rB = await exportSequence({ gpu: g, project: p, w, h, range: { in: 0, out: n }, container: 'mp4', quality: 'high', audio: true, target: tB, onFrame: grab(b),
       sources: async () => R.videoReader(await openVideo(blob, 'cut.mp4')), openMedia: async () => openVideo(blob, 'cut.mp4') });
@@ -694,6 +697,26 @@ export const T1 = {
     const changed = new Set(play).size;
     return { pass: Object.values(seeks).every(Boolean) && Object.values(cached).every(Boolean) && same === n && Math.abs(decoded - n) <= 1 && changed > n / 2 && r.audioMode === 'mix' && !!r.audio, frames: n, seeks, cachedSeeks: cached, exportSameAsPreview: same, decoded, audio: r.audio, audioMode: r.audioMode, audioNote: r.audioNote, distinctFrames: changed,
       layout: p.sequences[0].channels.map((c) => `${c.name}: ${c.clips.map((k) => `${k.range.in}-${k.range.out}${k.hold ? ' hold' : ''}${k.role ? ' ' + k.role : ''}`).join(', ')}`) };
+  },
+  // resolution independence: the same mosh rendered at the sequence's size (640x360) and at half (320x180, as a governed
+  // preview would), the full render shrunk to half and compared (SSIM): with the pixel parameters scaled (scale.js) the
+  // half render must look like the export, clearly closer than with them unscaled
+  async previewMatchesExport() {
+    const blob = await clipBlob('cut.mp4'); if (!blob) return { skipped: 'no tests/media/cut.mp4 (run tools/make-media.sh)' };
+    const { openVideo } = await media(), R = await renderMod(), P = await projMod(), { compare } = await import('./metrics.js'), g = M().gpu;
+    const v = await openVideo(blob, 'cut.mp4'), info = v.info(); v.close();
+    const cfg = { ...PRESETS['Xvid classic'], estimate: { ...PRESETS['Xvid classic'].estimate, search: 24 }, ops: [{ op: 'pan', x: 3, y: -1.5 }], post: [{ ...fxDefaults('rgbsplit'), dx: 6 }] };
+    const p = P.fromConfig(cfg, { media: P.mediaFromLibrary({ id: 'cut', name: 'cut.mp4', info }), frames: 80 }), W = p.sequences[0].width, H = p.sequences[0].height;
+    const sources = async () => R.videoReader(await openVideo(blob, 'cut.mp4')), frames = [30, 55, 75];
+    const shot = async (w, h, scaleParams) => { const r = R.createSequenceRenderer(g, p, { w, h, sources, scaleParams }), out = [];
+      for (let t = 0; t <= frames.at(-1); t++) { const im = (await r.render(t)).image; if (frames.includes(t)) out.push(fromHalfArray(await readback(g, im))); } await r.destroy(); return out; };
+    const half = (a) => { const w = W / 2, h = H / 2, o = new Float32Array(w * h * 4);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let k = 0; k < 4; k++) o[(y * w + x) * 4 + k] = (a[((2 * y) * W + 2 * x) * 4 + k] + a[((2 * y) * W + 2 * x + 1) * 4 + k] + a[((2 * y + 1) * W + 2 * x) * 4 + k] + a[((2 * y + 1) * W + 2 * x + 1) * 4 + k]) / 4;
+      return o; };
+    const full = (await shot(W, H, true)).map(half), on = await shot(W / 2, H / 2, true), off = await shot(W / 2, H / 2, false);
+    const ss = (list) => list.map((a, i) => +compare(a, full[i], W / 2, H / 2).ssim.toFixed(4));
+    const sOn = ss(on), sOff = ss(off), mean = (l) => l.reduce((a, b) => a + b, 0) / l.length;
+    return { pass: mean(sOn) > mean(sOff) + 0.02, frames, ssimScaled: sOn, ssimUnscaled: sOff };
   },
   // M7: the mixer on real AAC: a one-clip project's mix equals the decoded samples exactly (48 kHz mono to 48 kHz stereo)
   async soundMix() {
@@ -810,6 +833,27 @@ export const T1 = {
 };
 
 export const T4 = {
+  // export at large sizes (opt-in: tools/make-media.sh --uhd writes uhd4k.mp4 and uhd8k.mp4): the sequence at the clip's
+  // size through Xvid classic with its sound; the encoder this browser picks, speed, and the file decoded back
+  async slowExportSizes() {
+    const { openVideo } = await media(), { exportSequence, openTarget } = await exporter(), P = await projMod(), R = await renderMod(), g = M().gpu, out = {};
+    for (const [name, n] of [['uhd4k.mp4', 30], ['uhd8k.mp4', 20]]) {
+      const blob = await clipBlob(name); if (!blob) { out[name] = { skipped: 'missing (make-media.sh --uhd)' }; continue; }
+      let prof = null;
+      try {
+        const v = await openVideo(blob, name), info = v.info(); v.close();
+        const p = P.fromConfig(PRESETS['Xvid classic'], { media: P.mediaFromLibrary({ id: name, name, info }), frames: n });
+        if (info.audio) p.sequences[0].channels[2].clips.push(P.createAudioClip(p.media[0].id, { in: 0, out: n }));
+        const s = p.sequences[0], target = await openTarget('harness-' + name, 'mp4', 'opfs'), t0 = performance.now();
+        const r = await exportSequence({ gpu: g, project: p, w: s.width, h: s.height, container: 'mp4', quality: 'high', audio: true, target,
+          sources: async () => R.videoReader(await openVideo(blob, name)), openMedia: async () => openVideo(blob, name), profile: (prof = {}) });
+        const secs = (performance.now() - t0) / 1000, file = await r.file(), back = await openVideo(file, 'back.mp4');
+        out[name] = { msPerFrame: prof.ms, size: `${s.width}x${s.height}`, frames: r.frames, codec: r.codec, audio: r.audio, fps: +(r.frames / secs).toFixed(1), MiB: +(file.size / 2 ** 20).toFixed(1), decodedBack: back.frames, backSize: `${back.w}x${back.h}` };
+        back.close(); await target.remove();
+      } catch (e) { out[name] = { error: errText(e).slice(0, 400) }; }
+    }
+    return { pass: Object.values(out).every((x) => x.skipped || (x.frames && Math.abs(x.decodedBack - x.frames) <= 1)), ...out };
+  },
   // the M6 exit criterion (slow, opt-in: node moshine/tools/bench.mjs --only slowScrub5min): 5 minutes of the 1080p
   // clip moshed by Xvid classic, previewed at 960x540 with the editor's budgets (tier 2 GPU half, 1 GiB memory, OPFS);
   // fill by playing through once, then 30 random seeks are timed and each one is checked against the playback pixels

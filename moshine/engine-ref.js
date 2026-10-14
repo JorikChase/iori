@@ -57,8 +57,12 @@ export function pyramid(lum, w, h, levels) {
 const med3 = (a, b, c) => Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
 
 /** Mean absolute luma difference of block b at one pyramid level for candidate vector v (backward: cur(p) vs ref(p - v)). */
+/** λ rounded to 1/2^20 (15 bits over its range): λ x unit x |Δv| is then exact, so a fused multiply-add cannot differ. */
+export const lambdaQ = (l) => Math.round(Math.fround(l) * 1048576) / 1048576;
 function madAt(cur, ref, bx, by, bs, vx, vy) {
-  const W = cur.w, H = cur.h, x0 = bx * bs, y0 = by * bs, x1 = Math.min(x0 + bs, W), y1 = Math.min(y0 + bs, H);
+  // the full block, pixels clamped at the edge: a power-of-two count, so the average is exact everywhere (D45)
+  const W = cur.w, H = cur.h, x0 = bx * bs, y0 = by * bs, x1 = x0 + bs, y1 = y0 + bs;
+  const cv = (x, y) => cur.data[Math.min(y, H - 1) * W + Math.min(x, W - 1)];
   const tap = (x, y) => ref.data[Math.min(Math.max(y, 0), H - 1) * W + Math.min(Math.max(x, 0), W - 1)];
   let acc = fr(0);
   for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
@@ -69,9 +73,9 @@ function madAt(cur, ref, bx, by, bs, vx, vy) {
       const a = tap(fx0, fy0), b = tap(fx0 + 1, fy0), c = tap(fx0, fy0 + 1), d = tap(fx0 + 1, fy0 + 1);
       r = fr(fr(fr(fr(a * fr(1 - ax)) + fr(b * ax)) * fr(1 - ay)) + fr(fr(fr(c * fr(1 - ax)) + fr(d * ax)) * ay));
     }
-    acc = fr(acc + Math.abs(fr(cur.data[y * W + x] - r)));
+    acc = fr(acc + Math.abs(fr(cv(x, y) - r)));
   }
-  return fr(acc / ((x1 - x0) * (y1 - y0)));
+  return fr(acc * (1 / (bs * bs)));
 }
 
 /**
@@ -86,7 +90,7 @@ function madAt(cur, ref, bx, by, bs, vx, vy) {
 export function matchBlocks(curP, refP, { block, search, lambda, pel, cutMad, temporal = null }) {
   const L = curP.length, [bw, bh] = blocksOf(curP[0].w, curP[0].h, block);
   let coarse = null, out = null, cut = 0;
-  const lam = fr(lambda);
+  const lam = fr(lambdaQ(lambda));
   for (let l = L - 1; l >= 0; l--) {
     const cur = curP[l], ref = refP[l], bs = block >> l, unit = fr(2 ** -l), final = l === 0;
     const radius = coarse ? (final ? 1 : 2) : Math.ceil(search / 2 ** (L - 1));
@@ -132,30 +136,41 @@ export function matchBlocks(curP, refP, { block, search, lambda, pel, cutMad, te
  * to 2 px. Same backward convention: cur(p) = ref(p - d). Output vec4 per cell [dx, dy, mad, 0] and the cut count.
  */
 export function flowCells(curP, refP, { block, cutMad }) {
-  const L = curP.length, [bw, bh] = blocksOf(curP[0].w, curP[0].h, block);
+  // integer Lucas–Kanade, twin of nodes/flow.js (D45): 1/64 px displacement, luma x 2^27 taps, 10-bit gradients,
+  // the 2 x 2 solve on sums shifted to 11 bits with an integer division and remainder
+  const L = curP.length, [bw, bh] = blocksOf(curP[0].w, curP[0].h, block), tdiv = (a, b) => Math.trunc(a / b);
   let coarse = null, cut = 0;
   for (let l = L - 1; l >= 0; l--) {
     const cur = curP[l], ref = refP[l], W = cur.w, H = cur.h, bs = Math.max(1, block >> l), res = new Float32Array(bw * bh * 4), M = 2;
-    const tap = (x, y) => ref.data[Math.min(Math.max(y, 0), H - 1) * W + Math.min(Math.max(x, 0), W - 1)];
-    const bil = (sx, sy) => { const x0 = Math.floor(sx), y0 = Math.floor(sy), ax = fr(sx - x0), ay = fr(sy - y0); return fr(fr(fr(fr(tap(x0, y0) * fr(1 - ax)) + fr(tap(x0 + 1, y0) * ax)) * fr(1 - ay)) + fr(fr(fr(tap(x0, y0 + 1) * fr(1 - ax)) + fr(tap(x0 + 1, y0 + 1) * ax)) * ay)); };
-    const J = (x, y) => cur.data[Math.min(Math.max(y, 0), H - 1) * W + Math.min(Math.max(x, 0), W - 1)];
+    // coarse levels hold quarter steps of 1/32768: truncated, as the kernel's i32() does
+    const T15 = (x, y) => Math.trunc(ref.data[Math.min(Math.max(y, 0), H - 1) * W + Math.min(Math.max(x, 0), W - 1)] * 32768);
+    const J15 = (x, y) => Math.trunc(cur.data[Math.min(Math.max(y, 0), H - 1) * W + Math.min(Math.max(x, 0), W - 1)] * 32768);
+    const bil27 = (sx, sy) => { const x0 = sx >> 6, y0 = sy >> 6, fx = sx & 63, fy = sy & 63, gx = 64 - fx, gy = 64 - fy;
+      return (T15(x0, y0) * gx + T15(x0 + 1, y0) * fx) * gy + (T15(x0, y0 + 1) * gx + T15(x0 + 1, y0 + 1) * fx) * fy; };
+    const i10 = (v) => (v + 65536) >> 17;
     for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
       const bi = by * bw + bx, x0 = bx * bs, y0 = by * bs, x1 = Math.min(x0 + bs, W), y1 = Math.min(y0 + bs, H);
-      let dx = coarse ? fr(2 * coarse[bi * 4]) : 0, dy = coarse ? fr(2 * coarse[bi * 4 + 1]) : 0;
+      let dx = coarse ? 2 * Math.trunc(coarse[bi * 4] * 64) : 0, dy = coarse ? 2 * Math.trunc(coarse[bi * 4 + 1] * 64) : 0;
       if (x0 < W && y0 < H) for (let it = 0; it < 4; it++) {
-        let gxx = fr(0), gxy = fr(0), gyy = fr(0), ex = fr(0), ey = fr(0), n = 0;
+        let gxx = 0, gxy = 0, gyy = 0, ex = 0, ey = 0, n = 0;
         for (let y = y0 - M; y < y1 + M; y++) for (let x = x0 - M; x < x1 + M; x++) {
-          const sx = fr(x - dx), sy = fr(y - dy), I = bil(sx, sy), Ix = fr(fr(bil(fr(sx + 1), sy) - bil(fr(sx - 1), sy)) * 0.5), Iy = fr(fr(bil(sx, fr(sy + 1)) - bil(sx, fr(sy - 1))) * 0.5), e = fr(J(x, y) - I);
-          gxx = fr(gxx + fr(Ix * Ix)); gxy = fr(gxy + fr(Ix * Iy)); gyy = fr(gyy + fr(Iy * Iy)); ex = fr(ex + fr(Ix * e)); ey = fr(ey + fr(Iy * e)); n++;
+          const sx = x * 64 - dx, sy = y * 64 - dy, I = i10(bil27(sx, sy));
+          const Ix = i10(bil27(sx + 64, sy)) - i10(bil27(sx - 64, sy)), Iy = i10(bil27(sx, sy + 64)) - i10(bil27(sx, sy - 64)), e = ((J15(x, y) + 16) >> 5) - I;
+          gxx += Ix * Ix; gxy += Ix * Iy; gyy += Iy * Iy; ex += Ix * e; ey += Iy * e; n++;
         }
-        const reg = fr(fr(1e-4) * n), a = fr(gxx + reg), c = fr(gyy + reg), det = fr(fr(a * c) - fr(gxy * gxy));
-        const sx = Math.min(2, Math.max(-2, fr(-fr(fr(fr(c * ex) - fr(gxy * ey)) / det)))), sy = Math.min(2, Math.max(-2, fr(-fr(fr(fr(a * ey) - fr(gxy * ex)) / det))));
-        dx = fr(dx + sx); dy = fr(dy + sy);
+        const a = gxx + 419 * n, c = gyy + 419 * n, mx = Math.max(Math.abs(a), Math.abs(c), Math.abs(gxy), Math.abs(ex), Math.abs(ey)); let sh = 0;
+        while ((mx >> sh) >= 2048) sh++;
+        const A = a >> sh, C = c >> sh, G = gxy >> sh, EX = ex >> sh, EY = ey >> sh, det = A * C - G * G;
+        if (det > 0) {
+          const nx = C * EX - G * EY, ny = A * EY - G * EX, qx = tdiv(nx, det), qy = tdiv(ny, det);
+          const sx = qx * 128 + tdiv((nx - qx * det) * 128, det), sy = qy * 128 + tdiv((ny - qy * det) * 128, det);
+          dx += Math.min(128, Math.max(-128, -sx)); dy += Math.min(128, Math.max(-128, -sy));
+        }
       }
-      res[bi * 4] = dx; res[bi * 4 + 1] = dy;
+      res[bi * 4] = dx / 64; res[bi * 4 + 1] = dy / 64;
       if (l === 0) {
-        let acc = fr(0); for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) acc = fr(acc + Math.abs(fr(J(x, y) - bil(fr(x - dx), fr(y - dy)))));
-        res[bi * 4 + 2] = fr(acc / ((x1 - x0) * (y1 - y0))); if (res[bi * 4 + 2] > fr(cutMad)) cut++;
+        let acc = 0; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) acc += Math.abs(J15(x, y) - ((bil27(x * 64 - dx, y * 64 - dy) + 2048) >> 12));
+        res[bi * 4 + 2] = Math.trunc(acc / Math.max(1, (x1 - x0) * (y1 - y0))) / 32768; if (res[bi * 4 + 2] > fr(cutMad)) cut++;
       }
     }
     coarse = res;
@@ -238,30 +253,34 @@ export function lostAt(bx, by, t, o, seed) {
  * The field may be vec2 per block (M0) or vec4 per block.
  */
 export function warp(prev, field, { w, h, block, edge = EDGE.clamp, sampling = 'nearest', pel = 0, scale = 1, zero = false, interp = 'block' }) {
+  // twin of nodes/warp.js (D45): motion in 1/64 px integers, the smooth field in integers, 1/64 bilinear weights
   const [bw, bh] = blocksOf(w, h, block), stride = field.length === bw * bh * 2 ? 2 : 4, out = new Float32Array(w * h * 4), sc = fr(scale);
-  const q = (m) => (pel > 0 ? fr(Math.floor(fr(fr(m * pel) + 0.5)) / pel) : m);
+  const fq = (bx, by, k) => vq(field[(by * bw + bx) * stride + k]);
+  const mvq = (m) => (pel > 0 ? Math.floor(fr(m * pel) + 0.5) * (64 / pel) : vq(m));
+  const B2 = 2 * block, D = B2 * B2;
   for (let y = 0; y < h; y++) {
     const by = Math.min(Math.floor(y / block), bh - 1);
     for (let x = 0; x < w; x++) {
-      const bx = Math.min(Math.floor(x / block), bw - 1), o = (by * bw + bx) * stride, d = (y * w + x) * 4;
-      let fx = field[o], fy = field[o + 1];
-      if (interp === 'smooth') {     // bilinear between block centres: a per-pixel field (the fluid look)
-        const gx = fr(fr(fr(x + 0.5) / block) - 0.5), gy = fr(fr(fr(y + 0.5) / block) - 0.5), x0 = Math.floor(gx), y0 = Math.floor(gy), ax = fr(gx - x0), ay = fr(gy - y0);
+      const bx = Math.min(Math.floor(x / block), bw - 1), d = (y * w + x) * 4;
+      let fx = fq(bx, by, 0), fy = fq(bx, by, 1);
+      if (interp === 'smooth') {     // bilinear between block centres, in units of 1 / (2 block): a per-pixel field
+        const gx = 2 * x + 1 - block, gy = 2 * y + 1 - block, x0 = fdiv(gx, B2), y0 = fdiv(gy, B2), ax = gx - x0 * B2, ay = gy - y0 * B2;
         const X0 = Math.min(Math.max(x0, 0), bw - 1), X1 = Math.min(Math.max(x0 + 1, 0), bw - 1), Y0 = Math.min(Math.max(y0, 0), bh - 1), Y1 = Math.min(Math.max(y0 + 1, 0), bh - 1);
-        const v = (bxx, byy, k) => field[(byy * bw + bxx) * stride + k];
-        fx = fr(fr(fr(fr(v(X0, Y0, 0) * fr(1 - ax)) + fr(v(X1, Y0, 0) * ax)) * fr(1 - ay)) + fr(fr(fr(v(X0, Y1, 0) * fr(1 - ax)) + fr(v(X1, Y1, 0) * ax)) * ay));
-        fy = fr(fr(fr(fr(v(X0, Y0, 1) * fr(1 - ax)) + fr(v(X1, Y0, 1) * ax)) * fr(1 - ay)) + fr(fr(fr(v(X0, Y1, 1) * fr(1 - ax)) + fr(v(X1, Y1, 1) * ax)) * ay));
+        const s = (k) => (fq(X0, Y0, k) * (B2 - ax) + fq(X1, Y0, k) * ax) * (B2 - ay) + (fq(X0, Y1, k) * (B2 - ax) + fq(X1, Y1, k) * ax) * ay;
+        fx = fdiv(s(0) + D / 2, D); fy = fdiv(s(1) + D / 2, D);
       }
-      const mx = zero ? 0 : q(fr(fx * sc)), my = zero ? 0 : q(fr(fy * sc));
+      const mx = zero ? 0 : mvq(fr(fr(fx / 64) * sc)), my = zero ? 0 : mvq(fr(fr(fy / 64) * sc));
+      const sx = x * 64 - mx, sy = y * 64 - my;
       if (sampling === 'bilinear') {
-        const sx = fr(x - mx), sy = fr(y - my), x0 = Math.floor(sx), y0 = Math.floor(sy), ax = fr(sx - x0), ay = fr(sy - y0);
+        const x0 = sx >> 6, y0 = sy >> 6, ax = sx & 63, ay = sy & 63, gx = 64 - ax, gy = 64 - ay;
+        const w00 = fr((gx * gy) / 4096), w10 = fr((ax * gy) / 4096), w01 = fr((gx * ay) / 4096), w11 = fr((ax * ay) / 4096);
         const ix = [edgeIndex(x0, w, edge), edgeIndex(x0 + 1, w, edge)], iy = [edgeIndex(y0, h, edge), edgeIndex(y0 + 1, h, edge)];
         for (let k = 0; k < 4; k++) {
           const a = prev[(iy[0] * w + ix[0]) * 4 + k], b = prev[(iy[0] * w + ix[1]) * 4 + k], c = prev[(iy[1] * w + ix[0]) * 4 + k], e = prev[(iy[1] * w + ix[1]) * 4 + k];
-          out[d + k] = fr(fr(fr(fr(a * fr(1 - ax)) + fr(b * ax)) * fr(1 - ay)) + fr(fr(fr(c * fr(1 - ax)) + fr(e * ax)) * ay));
+          out[d + k] = fr(fr(fr(a * w00) + fr(b * w10)) + fr(fr(c * w01) + fr(e * w11)));
         }
       } else {
-        const sx = edgeIndex(Math.floor(fr(fr(x - mx) + 0.5)), w, edge), sy = edgeIndex(Math.floor(fr(fr(y - my) + 0.5)), h, edge), s = (sy * w + sx) * 4;
+        const s = (edgeIndex((sy + 32) >> 6, h, edge) * w + edgeIndex((sx + 32) >> 6, w, edge)) * 4;
         out[d] = prev[s]; out[d + 1] = prev[s + 1]; out[d + 2] = prev[s + 2]; out[d + 3] = prev[s + 3];
       }
     }
@@ -314,6 +333,7 @@ export function code(src, resetSrc, pred, field, { w, h, block }, u, mc = null, 
 
 // ------------------------------------------------------------------------------------------------ the loop
 import { resolveAll, f32All, holdAt } from './params.js';
+import { scaleRes, scaledBlock } from './scale.js';
 import { normalize } from './config.js';
 import { fxChain } from './fx-ref.js';
 
@@ -334,19 +354,19 @@ export function maskmixRef(clean, moshed, mask) {
 export function createLoopRef({ w, h }, cfg0, { store = 'f16' } = {}) {
   let cfg = normalize(cfg0), S = null;
   const keep = store === 'f16' ? (a) => fromHalfArray(toHalfArray(a)) : (a) => a;
-  const L = () => levelsFor(cfg.block);
+  const L = () => levelsFor(scaledBlock(cfg.block, cfg.scale));
   return {
     setConfig(c) { cfg = normalize(c); },
     begin(t0 = 0) { S = { t0, history: null, prevP: null, prevP2: null, prevEst: null, frozen: null, frozenEst: null, prevSrc: null, prevFrozen: null, inStates: [], postStates: [] }; },
     /** A checkpoint (M6). Every state field is replaced, never mutated, on a step, so references are enough; the effect
      *  state lists are copied. */
-    snapshot() { return S && S.history ? { block: cfg.block, state: { ...S, inStates: [...S.inStates], postStates: [...S.postStates] } } : null; },
+    snapshot() { return S && S.history ? { block: scaledBlock(cfg.block, cfg.scale), state: { ...S, inStates: [...S.inStates], postStates: [...S.postStates] } } : null; },
     restore(snap) { const st = snap.state; S = { ...st, inStates: [...st.inStates], postStates: [...st.postStates] }; },
     /** inputs: { src: Float32Array, src2?: Float32Array, lock?: Float32Array } -> { out, field, est, hold, cut }. lock is the
      *  keep coverage of the clip's lock masks (1 = free, 0 = locked): locked pixels of the history are refreshed from
      *  src every frame, so nothing builds up under a lock (owner decision 2026-10-10: a lock does nothing). */
     step(t, { src, src2, lock = null }) {
-      const c = f32All(resolveAll(cfg, t, cfg.clock)), block = c.block, seed = cfg.seed | 0, geo = { w, h, block };
+      const c = f32All(scaleRes(resolveAll(cfg, t, cfg.clock))), block = c.block, seed = cfg.seed | 0, geo = { w, h, block };
       const resetSrc = c.reset.source === 'source2' && src2 ? src2 : src;
       const resSrc = c.estimate.source === 'source2' && src2 ? src2 : src;     // the codec residual belongs to the motion source's stream
       const curP = pyramid(luma(src, w, h), w, h, L()), curP2 = src2 ? pyramid(luma(src2, w, h), w, h, L()) : null;

@@ -129,7 +129,7 @@ export function gpuBackend(gpu, { w, h, sources }) {
  * opens a reader for a MediaRef (the app opens
  * the OPFS file with media.openVideo and wraps it in videoReader).
  */
-export function createSequenceRenderer(gpu, project, { w, h, sources, sequenceId, K, budget, cpuBudget, disk, diskBudget, features } = {}) {
+export function createSequenceRenderer(gpu, project, { w, h, sources, sequenceId, K, budget, cpuBudget, disk, diskBudget, features, checkpoints, scaleParams } = {}) {
   const seq = project.sequences.find((s) => s.id === (sequenceId || project.activeSequence));
-  return createEvaluator(project, gpuBackend(gpu, { w: w || seq.width, h: h || seq.height, sources }), { sequenceId, ...(features ? { features } : {}), ...(K ? { K } : {}), ...(budget ? { budget } : {}), ...(cpuBudget ? { cpuBudget } : {}), ...(disk ? { disk } : {}), ...(diskBudget ? { diskBudget } : {}) });
+  return createEvaluator(project, gpuBackend(gpu, { w: w || seq.width, h: h || seq.height, sources }), { sequenceId, ...(features ? { features } : {}), ...(checkpoints === false ? { checkpoints: false } : {}), ...(scaleParams === false ? { scaleParams: false } : {}), ...(K ? { K } : {}), ...(budget ? { budget } : {}), ...(cpuBudget ? { cpuBudget } : {}), ...(disk ? { disk } : {}), ...(diskBudget ? { diskBudget } : {}) });
 }

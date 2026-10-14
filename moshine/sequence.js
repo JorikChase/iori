@@ -11,6 +11,7 @@
 // times it would see as a single clip (M4 semantics). Channel stacks run on sequence time and hold stateless
 // effects only for now (stateful ones reset at each clip in-point).
 import { dsincos } from './dmath.js';
+import { scaledBlock, scaleFx } from './scale.js';
 import { resolveAll, f32All } from './params.js';
 import { EFFECTS } from './project.js';
 import { createLoopRef, maskmixRef } from './engine-ref.js';
@@ -201,11 +202,13 @@ const bytesOf = (x, seen = new Set()) => {
  * cpuBudget (bytes kept in memory after a readback), disk (a disk tier from cache.js) and diskBudget, adaptK (double K,
  * up to 256, when the last tier has to evict). Spilled checkpoints are lossless (D22).
  */
-export function createEvaluator(project, backend, { features, sequenceId, K = 16, budget = 512 * 2 ** 20, cpuBudget = 0, disk = null, diskBudget = Infinity, adaptK = true } = {}) {
+export function createEvaluator(project, backend, { features, sequenceId, K = 16, budget = 512 * 2 ** 20, cpuBudget = 0, disk = null, diskBudget = Infinity, adaptK = true, checkpoints = true, scaleParams = true } = {}) {
   const inst = new Map(), warned = new Set(), ser = backend.serializer || cpuSerializer;
   // audio features: this evaluator's own source, else the editor's registry (read at call time)
   const feat = (h) => (features ? features(h) : audioFeatures.get?.(h));
-  const LC = (e, clip, seq) => loopConfig(e, clip, seq, project, feat), CK = (seq, clip, seed) => clockOf(seq, clip, seed, project, feat);
+  // resolution independence: the working height over the sequence's (scale.js); 1 at the sequence's own size
+  const scaleOf = (seq) => (scaleParams && seq.height ? backend.h / seq.height : 1);
+  const LC = (e, clip, seq) => { const c = loopConfig(e, clip, seq, project, feat), s = scaleOf(seq); return s === 1 ? c : { ...c, scale: s }; }, CK = (seq, clip, seed) => clockOf(seq, clip, seed, project, feat);
   // ---- the checkpoint store (M6): ckpt.get(g) = { g, insts: Map(key -> { snap, at, dep, block }), tier, bytes, packed, file }
   // where g is a sequence frame on the grid of K and every saved state is the one after stepping frame g - 1, i.e.
   // ready to render g. Tiers: 'gpu' (live snapshots), 'cpu' (packed bytes), 'disk' (one file). A janitor demotes the
@@ -235,7 +238,7 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
   }
 
   async function runStack(list, img, { t, clip, ch, onChannel, outs, seq }) {
-    let cur = img, field = null, block = 16;
+    let cur = img, field = null, block = scaledBlock(16, scaleOf(seq));
     for (const e of list || []) {
       if (!e.enabled || !EFFECTS[e.type]) continue;
       const key = keyOf(e, clip, onChannel);
@@ -248,12 +251,12 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
         if (I.at !== t - 1) I.obj.begin(t);
         const src2 = e.inputs?.source2?.channel ? outs.get(e.inputs.source2.channel) || null : null;
         const r = I.obj.step(t, { src: cur, src2, lock: lockOf(seq, clip, t) }); I.at = t; I.meta = { ch, clip, e, onCh: false, f: t + clip.range.in };
-        cur = r.display; field = r.field; block = e.params.block;
+        cur = r.display; field = r.field; block = scaledBlock(e.params.block, scaleOf(seq));
       } else {
         let I = inst.get(key);
         if (!I || I.block !== block) { I?.obj.destroy?.(); inst.set(key, (I = { obj: backend.fx(block), at: null, block })); }
         if (EFFECTS[e.type].stateful && I.at !== t - 1) I.obj.reset();
-        cur = I.obj.apply(cur, [{ fx: e.type, ...resolveAll(e.params, t, CK(seq, onChannel ? null : clip, e.seed)) }], { t, seed: e.seed, field }); I.at = t;
+        cur = I.obj.apply(cur, [scaleFx({ fx: e.type, ...resolveAll(e.params, t, CK(seq, onChannel ? null : clip, e.seed)) }, scaleOf(seq))], { t, seed: e.seed, field }); I.at = t;
         if (EFFECTS[e.type].stateful) I.meta = { ch, clip, e, onCh: onChannel, f: onChannel ? t : t + clip.range.in };
       }
     }
@@ -382,6 +385,7 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
   }
   /** After rendering frame f: on the grid, save every stateful effect that stepped at f (unless a valid checkpoint is there). */
   function deposit(seq, f) {
+    if (!checkpoints) return;                                          // an export renders straight through: nothing to resume
     const g = f + 1; if (g % K) return;
     const have = ckpt.get(g); if (have && valid(seq, have, g)) return;
     const insts = new Map(); let bytes = 0;
@@ -389,7 +393,7 @@ export function createEvaluator(project, backend, { features, sequenceId, K = 16
       if (!I.meta || I.meta.f !== f || I.at === null) continue;
       const snap = I.obj.snapshot?.(); if (!snap) continue;
       const m = I.meta, n = snap.bytes ?? bytesOf(snap); bytes += n;
-      insts.set(key, { snap, at: I.at, block: I.block ?? m.e.params.block, dep: depSig(seq, m.ch, m.clip, m.e, m.onCh, g) });
+      insts.set(key, { snap, at: I.at, block: I.block ?? scaledBlock(m.e.params.block, scaleOf(seq)), dep: depSig(seq, m.ch, m.clip, m.e, m.onCh, g) });
     }
     if (!insts.size) return;
     if (have) drop(g);

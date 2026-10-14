@@ -540,27 +540,57 @@ const applyPreset = (name) => {
 // ------------------------------------------------------------------------------------------------ export window
 // Renders the sequence (or its I-O range) sequentially on a fresh renderer, never the preview (D37), and streams it to
 // a file. Audio is passed through when the range is one untouched clip; otherwise the reason is shown (mix in M7).
-U.exp = { container: 'mp4', quality: 'high', size: 'sequence', range: 'auto', audio: true, ...(U.exp || {}) };
+U.exp = { container: 'mp4', quality: 'high', size: 'sequence', codec: 'auto', range: 'auto', audio: true, ...(U.exp || {}) };
 const expBox = h('div'), expForm = h('div'), expBar = h('div', 'ms-bar'), expTxt = h('div', 'ms-note'), expRow = h('div', 'ms-brow');
 const expGo = h('button', 'ms-b', 'EXPORT'), expStop = h('button', 'ms-b', 'CANCEL'); expStop.disabled = true;
 expBar.innerHTML = '<i style="width:0%"></i>'; expRow.append(expGo, expStop); expBox.append(expForm, expRow, expBar, expTxt);
 let expAbort = null, expPlan = null;
 const sel1 = (label, key, opts, after = refreshExport) => { const r = h('div', 'ms-row ms-row-sel'), x = h('select'); for (const [v, t] of opts) x.append(new Option(t, v)); x.value = U.exp[key]; x.onchange = () => { U.exp[key] = x.value; S.save(); after(); }; r.append(h('span', '', label), x); return r; };
+/** The codec "auto" picks: H.264 up to 1080p (plays everywhere); above it HEVC or AV1 (H.264 at 4K encodes several
+ *  times slower, measured 2026-10-12); WebM: VP9. */
+function autoCodec(container, codecs, w, h) {
+  const order = container === 'webm' ? ['vp9', 'av1', 'vp8'] : w * h > 1920 * 1088 ? ['hevc', 'av1', 'avc'] : ['avc', 'hevc', 'av1'];
+  return order.find((c) => codecs.includes(c)) || codecs[0] || null;
+}
 async function refreshExport() {
   if (!tl) return;
-  const s = seq(), E = U.exp, cap = caps().export, sizes = { sequence: fitSize(s.width, s.height, ...cap), half: fitSize(s.width, s.height, Math.round(s.width / 2), Math.round(s.height / 2)), '720p': fitSize(s.width, s.height, 1280, 720) };
-  const [w, h2] = sizes[E.size] || sizes.sequence, end = sequenceEnd(s), useRange = E.range === 'range' || (E.range === 'auto' && !!s.exportRange);
+  const s = seq(), E = U.exp, A = s.width / s.height, maxTex = gpu.device.limits.maxTextureDimension2D || 8192, cap = caps().export;
+  const even = (v) => Math.max(16, Math.round(v / 2) * 2), at = (hh) => [even(hh * A), even(hh)];
+  // any size: the sequence's, half, standard heights at the sequence's aspect (upscaling too), or custom; the mosh keeps
+  // its look at every size (scale.js)
+  const sizes = { sequence: [even(s.width), even(s.height)], half: [even(s.width / 2), even(s.height / 2)] };
+  for (const hh of [720, 1080, 1440, 2160, 4320]) sizes[hh + 'p'] = at(hh);
+  sizes.custom = [even(E.cw || s.width), even(E.ch || s.height)];
+  for (const k of Object.keys(sizes)) if (k !== 'custom' && Math.max(...sizes[k]) > maxTex) delete sizes[k];
+  let [w, h2] = sizes[E.size] || sizes.sequence; w = Math.min(w, maxTex - (maxTex % 2)); h2 = Math.min(h2, maxTex - (maxTex % 2));
+  const end = sequenceEnd(s), useRange = E.range === 'range' || (E.range === 'auto' && !!s.exportRange);
   const range = useRange && s.exportRange ? { ...s.exportRange } : { in: 0, out: end }, codecs = await encodableCodecs(E.container, w, h2);
+  const auto = autoCodec(E.container, codecs, w, h2), codec = E.codec && E.codec !== 'auto' && codecs.includes(E.codec) ? E.codec : auto;
   const a = audioPlan(project, range), m = a.mediaId && project.media.find((x) => x.id === a.mediaId), ac = a.mode === 'mix' ? await mixCodec(E.container) : null;
-  expPlan = { w, h: h2, range, codec: codecs[0] };
+  expPlan = { w, h: h2, range, codec };
+  const label = (k, [x, y]) => `${k === 'sequence' ? 'sequence' : k} · ${x}×${y}${y > s.height ? ' (up)' : ''}`;
   expForm.innerHTML = '';
-  expForm.append(sel1('container', 'container', [['mp4', 'MP4'], ['webm', 'WebM']]), sel1('size', 'size', Object.entries(sizes).map(([k, [x, y]]) => [k, `${k} · ${x}×${y}`])),
+  expForm.append(sel1('container', 'container', [['mp4', 'MP4'], ['webm', 'WebM']]), sel1('size', 'size', Object.entries(sizes).map(([k, v]) => [k, k === 'custom' ? 'custom…' : label(k, v)])));
+  if (E.size === 'custom') {                                         // width and height; the aspect follows the sequence unless unlocked
+    const r = h('div', 'ms-row ms-row-sel'), box = h('span'), iw = h('input'), ih = h('input'), lock = h('input');
+    for (const [x, v] of [[iw, w], [ih, h2]]) { x.type = 'number'; x.min = 16; x.max = maxTex; x.step = 2; x.value = v; x.style.width = '70px'; }
+    lock.type = 'checkbox'; lock.checked = E.lock !== false; lock.title = 'keep the sequence aspect';
+    const set = (nw, nh) => { U.exp.cw = Math.min(maxTex, even(nw)); U.exp.ch = Math.min(maxTex, even(nh)); S.save(); refreshExport(); };
+    iw.onchange = () => set(+iw.value, lock.checked ? +iw.value / A : +ih.value); ih.onchange = () => set(lock.checked ? +ih.value * A : +iw.value, +ih.value);
+    lock.onchange = () => { U.exp.lock = lock.checked; S.save(); if (lock.checked) set(+iw.value, +iw.value / A); };
+    box.append(iw, ' × ', ih, ' ', lock, ' aspect'); r.append(h('span', '', 'pixels'), box); expForm.append(r);
+  }
+  expForm.append(sel1('codec', 'codec', [['auto', `auto · ${auto ? auto.toUpperCase() : 'none'}`], ...codecs.map((c) => [c, c.toUpperCase()])]),
     sel1('quality', 'quality', QUALITIES.map((q) => [q, q])), sel1('range', 'range', [['auto', s.exportRange ? 'I–O range' : 'whole sequence'], ['whole', 'whole sequence'], ['range', 'I–O range']]),
-    sel1('audio', 'audio', [['true', 'the sequence mix'], ['false', 'none']], () => { U.exp.audio = U.exp.audio === true || U.exp.audio === 'true'; S.save(); refreshExport(); }),
-    h('div', 'ms-kv', [['output', `${w}×${h2} · ${codecs[0] ? codecs[0].toUpperCase() : 'no encoder'} · ${+fpsOf().toFixed(3)} fps`], ['range', `${range.in} – ${range.out} (${range.out - range.in} frames, ${timecode(range.out - range.in, fpsOf(), true)})`],
+    sel1('audio', 'audio', [['true', 'the sequence mix'], ['false', 'none']], () => { U.exp.audio = U.exp.audio === true || U.exp.audio === 'true'; S.save(); refreshExport(); }));
+  const notes = [];
+  if (w * h2 > cap[0] * cap[1]) notes.push(`above this device's comfortable size (${cap[0]}×${cap[1]}): slow, and it may run out of memory`);
+  if (codec === 'avc' && w * h2 > 1920 * 1088 && E.quality !== 'low' && E.quality !== 'very-low') notes.push('H.264 above 1080p encodes slowly at this quality (HEVC or AV1 are several times faster)');
+  if (E.codec && E.codec !== 'auto' && !codecs.includes(E.codec)) notes.push(`${E.codec.toUpperCase()} cannot encode ${w}×${h2} here: using ${(codec || 'none').toUpperCase()}`);
+  expForm.append(h('div', 'ms-kv', [['output', `${w}×${h2} · ${codec ? codec.toUpperCase() : 'no encoder'} · ${+fpsOf().toFixed(3)} fps`], ...(notes.length ? [['note', notes.join('; ')]] : []), ['range', `${range.in} – ${range.out} (${range.out - range.in} frames, ${timecode(range.out - range.in, fpsOf(), true)})`],
       ['audio', !U.exp.audio || U.exp.audio === 'false' ? 'none' : !a.mode ? `none: ${a.reason}` : a.mode === 'pass' ? `${m?.name}: passed through (one untouched clip)` : ac ? `mixed (${a.clips} clip${a.clips > 1 ? 's' : ''}) → ${ac.toUpperCase()} 48 kHz stereo` : `dropped: this browser cannot encode audio for ${E.container.toUpperCase()}`], ['saved to', window.showSaveFilePicker ? 'a file you choose' : 'browser storage, then downloaded'],
-      ['render', 'sequential from the first frame of the range on a fresh renderer (a range starting inside an effect clip replays from its in-point)']].map(([k, x]) => `<span>${k}</span><span>${x}</span>`).join('')));
-  expGo.disabled = !!expAbort || !codecs.length || range.out <= range.in;
+      ['render', 'same look at any size (pixel settings scale); in order from the range start']].map(([k, x]) => `<span>${k}</span><span>${x}</span>`).join('')));
+  expGo.disabled = !!expAbort || !codec || range.out <= range.in;
 }
 async function openMedia(m) {
   if (!m || m.hash.startsWith('fixture:')) return null;

@@ -2,6 +2,7 @@
 // matchBlocks(): same candidates in the same order, strict-less comparisons, data-only sub-pel.
 // Output: vec4 per block [mvx, mvy, mad, 0]; the final level also counts blocks with mad > cutMad.
 import { pipeline, computePipeline, dispatch, uniformBuffer, storageBuffer, L } from '../gpu.js';
+import { lambdaQ } from '../engine-ref.js';
 
 // Candidate-parallel (D42, 2026-10-10): one workgroup per block, one lane per candidate vector. Each lane computes a
 // candidate's MAD exactly as before (the same sequential sum in the same order, so the CPU twin is unchanged), and the
@@ -31,7 +32,7 @@ var<workgroup> pick: vec4f;                          // the chosen vector and it
 fn tap(q: vec2i) -> f32 { return textureLoad(refT, clamp(q, vec2i(0), vec2i(p.dims) - vec2i(1)), 0).r; }
 fn madAt(b: vec2u, v: vec2f) -> f32 {
   let bs = i32(p.bs); let x0 = i32(b.x) * bs; let y0 = i32(b.y) * bs;
-  let x1 = min(x0 + bs, i32(p.dims.x)); let y1 = min(y0 + bs, i32(p.dims.y));
+  let x1 = x0 + bs; let y1 = y0 + bs;      // full block, pixels clamped at the edge (a power-of-two count: exact average)
   var acc = 0.0;
   for (var y = y0; y < y1; y++) {
     for (var x = x0; x < x1; x++) {
@@ -42,12 +43,12 @@ fn madAt(b: vec2u, v: vec2f) -> f32 {
       acc += abs(curS[(y - y0) * bs + (x - x0)] - r);
     }
   }
-  return acc / f32((x1 - x0) * (y1 - y0));
+  return acc * p.pad;                      // p.pad = 1 / bs^2, exact (a power of two)
 }
 // madAt with the reference taps from the window (the same clamped texels, so the same value bit for bit)
 fn madW(b: vec2u, v: vec2f) -> f32 {
   let bs = i32(p.bs); let x0 = i32(b.x) * bs; let y0 = i32(b.y) * bs; let W = bs + 4;
-  let x1 = min(x0 + bs, i32(p.dims.x)); let y1 = min(y0 + bs, i32(p.dims.y));
+  let x1 = x0 + bs; let y1 = y0 + bs;      // full block, pixels clamped at the edge (a power-of-two count: exact average)
   var acc = 0.0;
   for (var y = y0; y < y1; y++) {
     for (var x = x0; x < x1; x++) {
@@ -58,7 +59,7 @@ fn madW(b: vec2u, v: vec2f) -> f32 {
       acc += abs(curS[(y - y0) * bs + (x - x0)] - r);
     }
   }
-  return acc / f32((x1 - x0) * (y1 - y0));
+  return acc * p.pad;                      // p.pad = 1 / bs^2, exact (a power of two)
 }
 fn med3(a: vec2f, b: vec2f, c: vec2f) -> vec2f { return max(min(a, b), min(max(a, b), c)); }
 fn less(c0: f32, i0: u32, c1: f32, i1: u32) -> bool { return c0 < c1 || (c0 == c1 && i0 < i1); }
@@ -71,7 +72,7 @@ fn main(@builtin(workgroup_id) wid: vec3u, @builtin(local_invocation_index) lid:
   { let bs = p.bs; let x0 = b.x * bs; let y0 = b.y * bs;
     for (var k = lid; k < bs * bs; k += WG) {
       let x = x0 + k % bs; let y = y0 + k / bs;
-      if (x < p.dims.x && y < p.dims.y) { curS[k] = textureLoad(curT, vec2i(i32(x), i32(y)), 0).r; }
+      curS[k] = textureLoad(curT, vec2i(i32(min(x, p.dims.x - 1u)), i32(min(y, p.dims.y - 1u))), 0).r;
     } }
   var c = vec2f(0.0); var pr = vec2f(0.0);
   if (hasCoarse) {
@@ -156,7 +157,7 @@ export function createMatcher(gpu, { w, h, block, levels }) {
         const pl = cur.levels[l], top = l === levels - 1, fin = l === 0;
         const u = new ArrayBuffer(48), U32 = new Uint32Array(u), F32 = new Float32Array(u);
         U32.set([pl.width, pl.height, bw, bh, block >> l, top ? Math.ceil(search / 2 ** (levels - 1)) : fin ? 1 : 2, pel | 0, (top ? 0 : 1) | (fin && temporal ? 2 : 0) | (fin ? 4 : 0)]);
-        F32[8] = lambda; F32[9] = 2 ** -l; F32[10] = cutMad;
+        F32[8] = lambdaQ(lambda); F32[9] = 2 ** -l; F32[10] = cutMad; F32[11] = 1 / ((block >> l) * (block >> l));   // exact: blocks are powers of two
         gpu.device.queue.writeBuffer(uni[l], 0, u);
         dispatch(gpu, enc, P, [pl, ref.levels[l], top ? dummy : coarse[l + 1], fin && temporal ? temporal : dummy, fin ? out : coarse[l], cut, uni[l]], bw, bh, `match L${l}`);
       }

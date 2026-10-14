@@ -14,7 +14,9 @@ export async function createGPU({ powerPreference = 'high-performance' } = {}) {
   if (!adapter) { adapter = await navigator.gpu.requestAdapter({ featureLevel: 'compatibility' }); level = 'compatibility'; }
   if (!adapter) throw new Error('No WebGPU adapter');
   const want = ['shader-f16', 'timestamp-query'].filter((f) => adapter.features.has(f));
-  const device = await adapter.requestDevice({ requiredFeatures: want });
+  // the adapter's own texture and buffer limits (the defaults stop at 8192 px a side): exports up to what the GPU holds
+  const lim = {}; for (const k of ['maxTextureDimension2D', 'maxBufferSize', 'maxStorageBufferBindingSize']) if (adapter.limits[k]) lim[k] = adapter.limits[k];
+  let device; try { device = await adapter.requestDevice({ requiredFeatures: want, requiredLimits: lim }); } catch (e) { device = await adapter.requestDevice({ requiredFeatures: want }); }
   device.lost.then((i) => console.warn('moshine: GPU device lost:', i.reason, i.message));
   const gpu = { adapter, device, level, features: new Set(want), info: adapter.info || {}, pipelines: new Map() };
   return gpu;

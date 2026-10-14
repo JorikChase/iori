@@ -2,7 +2,8 @@
 // mv = quantise(field * scale, pel), zeroed on a detected cut when asked. nearest: floor(p - mv + 0.5);
 // bilinear: four taps, edge rule per tap. The field is read with a stride (2 = vec2 per block, 4 = vec4).
 // One parameter set per node per submit: the uniform is a queue write.
-import { pipeline, computePipeline, dispatch, uniformBuffer, storageBuffer, L, EDGE_WGSL, HALF_WGSL, F16 } from '../gpu.js';
+import { pipeline, computePipeline, dispatch, uniformBuffer, storageBuffer, L, EDGE_WGSL, HALF_WGSL, HASH_WGSL, F16 } from '../gpu.js';
+import { FIXED_WGSL } from '../fixed.js';
 
 const WGSL = (fmt) => /* wgsl */`
 struct P { size: vec2u, blocks: vec2u, block: u32, edge: u32, sampling: u32, pel: u32, scale: f32, zeroOnCut: u32, cutThresh: u32, stride: u32, interp: u32, pad0: u32, pad1: u32, pad2: u32 };
@@ -13,30 +14,36 @@ struct P { size: vec2u, blocks: vec2u, block: u32, edge: u32, sampling: u32, pel
 @group(0) @binding(4) var<uniform> p: P;
 ${EDGE_WGSL}
 ${HALF_WGSL(fmt)}
-fn fieldAt(x: u32, y: u32) -> vec2f { let o = (y * p.blocks.x + x) * p.stride; return vec2f(field[o], field[o + 1u]); }
-fn quant(m: f32) -> f32 { if (p.pel == 0u) { return m; } let k = f32(p.pel); return floor(m * k + 0.5) / k; }
+${HASH_WGSL}
+${FIXED_WGSL}
+// D45: motion in 1/64 px (integers), the smooth field interpolated in integers, bilinear taps with 1/64 weights (exact
+// products), so every browser warps to the same bits
+fn fq(x: u32, y: u32) -> vec2i { let o = (y * p.blocks.x + x) * p.stride; return vec2i(vq(field[o]), vq(field[o + 1u])); }
 fn tap(x: i32, y: i32) -> vec4f { return textureLoad(src, vec2i(edgeIndex(x, i32(p.size.x), p.edge), edgeIndex(y, i32(p.size.y), p.edge)), 0); }
+fn mvq(m: f32) -> i32 { if (p.pel == 0u) { return vq(m); } let k = f32(p.pel); return i32(floor(m * k + 0.5)) * (64 / i32(p.pel)); }
 
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= p.size.x || id.y >= p.size.y) { return; }
   let b = min(id.xy / vec2u(p.block), p.blocks - vec2u(1u));
-  let o = (b.y * p.blocks.x + b.x) * p.stride;
-  var fv = vec2f(field[o], field[o + 1u]);
-  if (p.interp == 1u) {     // bilinear between block centres: a per-pixel field
-    let g = (vec2f(id.xy) + vec2f(0.5)) / f32(p.block) - vec2f(0.5); let g0 = floor(g); let a = g - g0; let i0 = vec2i(g0); let mx = vec2i(p.blocks) - vec2i(1);
-    let X0 = u32(clamp(i0.x, 0, mx.x)); let X1 = u32(clamp(i0.x + 1, 0, mx.x)); let Y0 = u32(clamp(i0.y, 0, mx.y)); let Y1 = u32(clamp(i0.y + 1, 0, mx.y));
-    fv = (fieldAt(X0, Y0) * (1.0 - a.x) + fieldAt(X1, Y0) * a.x) * (1.0 - a.y) + (fieldAt(X0, Y1) * (1.0 - a.x) + fieldAt(X1, Y1) * a.x) * a.y;
+  var fv = fq(b.x, b.y);
+  if (p.interp == 1u) {     // bilinear between block centres, in units of 1 / (2 block): a per-pixel field
+    let B2 = 2 * i32(p.block); let gx = 2 * i32(id.x) + 1 - i32(p.block); let gy = 2 * i32(id.y) + 1 - i32(p.block);
+    let x0 = fdiv(gx, B2); let y0 = fdiv(gy, B2); let ax = gx - x0 * B2; let ay = gy - y0 * B2; let mx = vec2i(p.blocks) - vec2i(1);
+    let X0 = u32(clamp(x0, 0, mx.x)); let X1 = u32(clamp(x0 + 1, 0, mx.x)); let Y0 = u32(clamp(y0, 0, mx.y)); let Y1 = u32(clamp(y0 + 1, 0, mx.y));
+    let s = (fq(X0, Y0) * (B2 - ax) + fq(X1, Y0) * ax) * (B2 - ay) + (fq(X0, Y1) * (B2 - ax) + fq(X1, Y1) * ax) * ay; let D = B2 * B2;
+    fv = vec2i(fdiv(s.x + D / 2, D), fdiv(s.y + D / 2, D));
   }
-  var mv = vec2f(0.0);
-  if (!(p.zeroOnCut != 0u && cut[0] > p.cutThresh)) { mv = vec2f(quant(fv.x * p.scale), quant(fv.y * p.scale)); }
+  var mv = vec2i(0);
+  if (!(p.zeroOnCut != 0u && cut[0] > p.cutThresh)) { let f = vec2f(fv) * (1.0 / 64.0); mv = vec2i(mvq(f.x * p.scale), mvq(f.y * p.scale)); }
   var c: vec4f;
+  let sx = i32(id.x) * 64 - mv.x; let sy = i32(id.y) * 64 - mv.y;
   if (p.sampling == 1u) {
-    let s = vec2f(id.xy) - mv; let f = floor(s); let a = s - f; let i = vec2i(f);
-    c = (tap(i.x, i.y) * (1.0 - a.x) + tap(i.x + 1, i.y) * a.x) * (1.0 - a.y) + (tap(i.x, i.y + 1) * (1.0 - a.x) + tap(i.x + 1, i.y + 1) * a.x) * a.y;
+    let x0 = sx >> 6u; let y0 = sy >> 6u; let fx = sx & 63; let fy = sy & 63; let gx = 64 - fx; let gy = 64 - fy;
+    let w00 = f32(gx * gy) / 4096.0; let w10 = f32(fx * gy) / 4096.0; let w01 = f32(gx * fy) / 4096.0; let w11 = f32(fx * fy) / 4096.0;
+    c = (tap(x0, y0) * w00 + tap(x0 + 1, y0) * w10) + (tap(x0, y0 + 1) * w01 + tap(x0 + 1, y0 + 1) * w11);
   } else {
-    let q = vec2i(floor(vec2f(id.xy) - mv + vec2f(0.5)));
-    c = tap(q.x, q.y);
+    c = tap((sx + 32) >> 6u, (sy + 32) >> 6u);
   }
   textureStore(dst, vec2i(id.xy), Q(c));
 }`;

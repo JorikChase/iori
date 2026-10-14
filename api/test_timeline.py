@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from PIL import Image  # noqa: E402
 from starlette.datastructures import Headers  # noqa: E402
 
-client = TestClient(m.app)
+client = TestClient(m.app, base_url="https://testserver")   # the session cookie is Secure
 PUB = Path(os.environ["TIMELINE_DIR"])
 iori = {"id": 1, "username": "iori", "role": "admin", "scope": ""}
 
@@ -70,6 +70,16 @@ assert client.get("/timeline/entries", headers={"Authorization": "Bearer " + r.j
 assert client.post("/auth/login", json={"username": "tladmin", "password": pw, "scope": "root"}).status_code == 400
 cookie_login = client.post("/auth/login", json={"username": "tladmin", "password": pw})
 assert "token" not in cookie_login.json() and "iori_session" in cookie_login.headers.get("set-cookie", "")
+# the dash's TIMELINE button: a full dash session hands out a timeline-only pass
+pass_ = client.post("/auth/timeline-pass")
+assert pass_.status_code == 200 and pass_.json()["scope"] == "timeline", pass_.text
+ptok = {"Authorization": "Bearer " + pass_.json()["token"]}
+client.cookies.clear()
+assert client.get("/timeline/entries", headers=ptok).status_code == 200
+assert client.get("/board", headers=ptok).status_code == 403                 # the pass never opens the dash
+assert client.post("/auth/timeline-pass", headers=ptok).status_code == 403   # a pass cannot mint passes
+client.post("/auth/login", json={"username": "tlmember", "password": pw})
+assert client.post("/auth/timeline-pass").status_code == 403                 # members cannot edit the timeline
 client.cookies.clear()
 assert client.post("/auth/logout", headers=tok).status_code == 200
 assert client.get("/timeline/entries", headers=tok).status_code == 401

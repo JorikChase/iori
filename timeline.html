@@ -63,6 +63,12 @@
   <script>
     (function () {
       try {
+        // a pass from the dash's TIMELINE button: store it and take it out of the address before anything runs
+        var pass = location.hash.match(/^#pass=([\w%-]+)$/);
+        if (pass) {
+          localStorage.setItem('tl-token', decodeURIComponent(pass[1]));
+          history.replaceState(null, '', location.pathname + location.search);
+        }
         var t = localStorage.getItem('tl-theme');
         if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
         var w = { light: [400, 300, 500], regular: [500, 400, 600] }[localStorage.getItem('tl-weight')];
@@ -93,7 +99,7 @@
 
   <button id="type" class="corner" type="button" aria-label="Type and theme" aria-expanded="false" title="Type and theme">Aa</button>
 
-  <script type="module" src="timeline/timeline.js?v=19"></script>
+  <script type="module" src="timeline/timeline.js?v=20"></script>
 </body>
 
 </html>

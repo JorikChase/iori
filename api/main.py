@@ -313,6 +313,22 @@ def login(body: LoginBody):
     return resp
 
 
+@app.post("/auth/timeline-pass")
+def timeline_pass(user=Depends(require_user)):
+    """The dash's TIMELINE button: an admin already signed in to the dash gets a timeline-only bearer
+    token for iori.me's editor, so no password is typed on another site (password managers keep the
+    dash password for dash.3die.fr only)."""
+    if user["role"] != "admin":
+        raise HTTPException(403, "admin only")
+    token = secrets.token_urlsafe(32)
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO sessions(token, user_id, created_at, expires_at, scope) VALUES (?, ?, ?, ?, 'timeline')",
+            (token, user["id"], now(), (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat()),
+        )
+    return {"token": token, "scope": "timeline"}
+
+
 @app.post("/auth/logout")
 def logout(request: Request):
     token = request_token(request)

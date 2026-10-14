@@ -186,6 +186,7 @@ $("#welcome-canvas").addEventListener("click", () => {
 });
 
 function renderWhoami() {
+  $("#timeline-btn").classList.toggle("hidden", state.user.role !== "admin");
   $("#whoami").textContent = state.prefs.display_name || state.user.username;
   const av = $("#me-avatar");
   av.style.setProperty("--u", state.prefs.avatar ? `url("${state.prefs.avatar}")` : (state.prefs.color ? swatchVar(state.prefs.color) : ""));
@@ -207,6 +208,20 @@ $("#login-form").addEventListener("submit", async (e) => {
     showMain();
   } catch (err) {
     $("#login-error").textContent = err.message;
+  }
+});
+
+/* TIMELINE: open iori.me's timeline editor already signed in. The pass travels after the "#", which
+   browsers never send to a server; the editor stores it and removes it from the address at once. */
+$("#timeline-btn").addEventListener("click", async () => {
+  const w = window.open("about:blank", "_blank");   // opened inside the click, so no popup blocker
+  try {
+    const { token } = await api("/auth/timeline-pass", { method: "POST" });
+    const url = `https://iori.me/timeline.html?edit#pass=${encodeURIComponent(token)}`;
+    if (w) w.location = url; else location.href = url;
+  } catch (err) {
+    if (w) w.close();
+    alert(err.message);
   }
 });
 

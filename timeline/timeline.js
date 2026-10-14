@@ -673,7 +673,7 @@ async function boot() {
   else if (!goToHash(location.hash) && S.settings.start === 'now') goTo(S.blocks[S.settings.order === 'desc' ? 0 : S.blocks.length - 1]);
   update();
   document.fonts && document.fonts.ready.then(() => { if (S.blocks.some(b => b.items.some(it => it.measured))) rebuild(); });
-  if (editing) (await import('./editor.js?v=9')).start(TL);
+  if (editing) (await import('./editor.js?v=10')).start(TL);
 }
 
 /* the surface the editor and the catalog use */

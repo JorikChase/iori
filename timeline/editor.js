@@ -947,6 +947,12 @@ function keys(e) {
 /* ================================================================ start */
 export async function start(core) {
   TL = core; S = core.S; MONTHS = core.MONTHS; FONTS = core.FONTS;
+  // a pass from the dash's TIMELINE button: keep it, and take it out of the address right away
+  const pass = location.hash.match(/^#pass=([\w%-]+)$/);
+  if (pass) {
+    try { localStorage.setItem('tl-token', decodeURIComponent(pass[1])); } catch (e) { }
+    history.replaceState(null, '', location.pathname + location.search);
+  }
   const css = h('link'); css.rel = 'stylesheet'; css.href = 'timeline/editor.css?v=10'; document.head.appendChild(css);
   M.user = await whoami() || await login();
   document.documentElement.classList.add('ed-on');

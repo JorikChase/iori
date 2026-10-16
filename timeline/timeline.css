@@ -109,6 +109,8 @@ main { width: 100%; max-width: var(--wide); min-width: 0; }
 @media (pointer: fine) and (max-width: 759px) { .tl-page { padding-right: 5.8rem; } }
 
 .head { max-width: var(--text); margin: 0 auto 5rem; }
+.head:empty { display: none; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .head .meta { margin-bottom: 1.4rem; }
 .head h1 { font-size: clamp(2.6rem, 6vw, 4.4rem); margin-bottom: 1.2rem; letter-spacing: -0.02em; }
 .head .sub { color: var(--ink-2); font-size: 1.05rem; max-width: 32rem; }

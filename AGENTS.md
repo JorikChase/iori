@@ -45,6 +45,7 @@ bash /root/iori/server_setup.sh          # git pull + rsync + api + caddy
 - **The site** (SEO, analytics, the menus, the deploy): `handoffs/2026-09-26-site-seo-analytics.md`
 - **Iris Engine**: `iris-engine/HANDOFF.md`
 - **Petri**: `petri/HANDOFF.md`
+- **Timeline** (iori.me/timeline.html, its editor, API routes and import tools): `handoffs/2026-10-16-timeline.md`
 
 Three tracks run in one working tree. They touch different files; the site track owns `site.py`,
 `pages.meta.json`, the generated regions in every page, `dash/`, `api/` and `tools/seo-audit/`.

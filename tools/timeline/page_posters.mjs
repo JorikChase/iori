@@ -14,13 +14,14 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('../audio-test/node_modules/playwright');
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
-const API = arg('api', 'https://api.3die.fr'), BASE = arg('base', ''), WAIT = +arg('wait', 3500), ONLY = arg('only', '');
+const API = arg('api', 'https://api.3die.fr'), BASE = arg('base', ''), WAIT = +arg('wait', 3500), ONLY = arg('only', ''), EXACT = arg('exact', '');
 const TOKEN = process.env.TIMELINE_TOKEN;
 if (!TOKEN) { console.error('set TIMELINE_TOKEN (log in once with tools/timeline/tlapi.py or the editor)'); process.exit(1); }
 const H = { Authorization: 'Bearer ' + TOKEN };
 
 const { entries } = await (await fetch(API + '/timeline/entries', { headers: H })).json();
-const todo = entries.filter(e => e.kind === 'page' && !e.media.length && e.src && (!ONLY || e.src.includes(ONLY)));
+// --only matches part of the address, --exact the whole of it (the landing pages' path is just "/")
+const todo = entries.filter(e => e.kind === 'page' && !e.media.length && e.src && (!ONLY || e.src.includes(ONLY)) && (!EXACT || e.src === EXACT));
 console.log(`${todo.length} pages without a poster`);
 // --gpu: the machine's GPU through the full Chromium in its new headless mode (fast for WebGL);
 // default: software WebGL (SwiftShader), slower but works anywhere

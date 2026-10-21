@@ -2316,12 +2316,28 @@ function renderHUDTouch() {
 
   for (const k of keep) {
     if (k.isLock) {
-      // the held label sits centred under the ring, within thumb's reach
-      k.s = 1 + 0.5 * touch.lockT;
+      /* The held label hangs off the ring on a leader, the same elbow the
+         desktop cards use: out of the ring at 45 degrees, then level into the
+         label. On a phone a long name does not fit beside the ring at full
+         size, so it shrinks to fit (never below 1x), and failing that it hangs
+         below the elbow on a vertical drop instead. */
+      const q = R * Math.SQRT1_2, knee = 18;
+      const room = W - 8 - (cx + q + knee + 6);      // the same either side: the ring is centred
+      const full = 1 + 0.5 * touch.lockT;
+      const fit = Math.min(full, room / k.cardW);
+      k.hang = fit < 1;
+      k.s = k.hang ? full : fit;
       k.w = k.cardW * k.s; k.h = CARD_H * k.s;
-      k.bx = cx - k.w / 2;
-      k.by = cy + R + 18 + k.h / 2;
-      k.ax = cx; k.ay = cy + R;
+      k.side = 1;
+      k.ax = cx + q; k.ay = cy + q;                  // where the leader leaves the ring
+      k.kx = k.ax + knee; k.ky = k.ay + knee;        // the elbow
+      if (k.hang) {
+        k.bx = k.kx - k.w / 2;
+        k.by = k.ky + 10 + k.h / 2;
+      } else {
+        k.bx = k.kx + 6;
+        k.by = k.ky;
+      }
     } else {
       // the others gather just outside the ring, each on the side of its cell
       k.s = 0.6 + 0.4 * k.t;
@@ -2359,10 +2375,23 @@ function renderHUDTouch() {
     const [r, g, b] = k.c.color;
     const rgb = `${(r * 255) | 0}, ${(g * 255) | 0}, ${(b * 255) | 0}`;
     const op = k.isLock ? 1 : Math.pow(k.t, 0.8);
-    const ex = k.isLock ? cx : (k.bx >= k.ax ? rec.sx : rec.sx + k.w);
-    rec.line.setAttribute('d', `M ${k.p.x} ${k.p.y} L ${ex} ${rec.sy}`);
+    if (k.isLock) {
+      if (k.hang) {
+        const top = rec.sy - k.h / 2;
+        const dropX = Math.max(rec.sx + 6, Math.min(rec.sx + k.w - 6, k.kx));
+        rec.line.setAttribute('d', `M ${k.ax} ${k.ay} L ${k.kx} ${k.ky} L ${dropX} ${k.ky} L ${dropX} ${top}`);
+      } else {
+        rec.line.setAttribute('d', `M ${k.ax} ${k.ay} L ${k.kx} ${rec.sy} L ${rec.sx} ${rec.sy}`);
+      }
+      rec.line.style.opacity = touch.lockT.toFixed(3);
+      rec.line.style.strokeDasharray = 'none';
+    } else {
+      const ex = k.bx >= k.ax ? rec.sx : rec.sx + k.w;
+      rec.line.setAttribute('d', `M ${k.p.x} ${k.p.y} L ${ex} ${rec.sy}`);
+      rec.line.style.opacity = op * 0.8;
+      rec.line.style.strokeDasharray = '';
+    }
     rec.line.style.setProperty('--card-rgb', rgb);
-    rec.line.style.opacity = k.isLock ? 0 : op * 0.8;
     const m = 4;
     rec.ret.setAttribute('d', k.isLock ? '' : `M ${k.p.x - m} ${k.p.y} H ${k.p.x + m} M ${k.p.x} ${k.p.y - m} V ${k.p.y + m}`);
     rec.ret.style.setProperty('--card-rgb', rgb);
@@ -2591,7 +2620,9 @@ function updateCamera(dt) {
   camera.targetZoom = camera.baseZoom * camera.userZoom;
 
   // you can drag the slide, but not lose the specimen off the edge of it
-  const lim = reach * 0.85;   // but you can still pan out over the growth
+  // but you can still pan out over the growth. A cursor can point at the rim
+  // from anywhere; the crosshair has to reach it, so touch gets the full span
+  const lim = touch.on ? reach + 0.25 : reach * 0.85;
   camera.panX = Math.max(-lim, Math.min(lim, camera.panX));
   camera.panY = Math.max(-lim, Math.min(lim, camera.panY));
 

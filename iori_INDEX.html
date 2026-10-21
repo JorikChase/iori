@@ -288,6 +288,30 @@
         }
         #site-index a:hover { color: #FFE600; text-decoration: underline; }
 
+        a.hud-card { display: block; text-decoration: none; -webkit-touch-callout: none; }
+        #route-modal.active { pointer-events: auto; cursor: pointer; }
+
+        /* ---------- touch: the eyepiece ----------
+           On a touchscreen the slide moves under a fixed crosshair. Only the
+           cell it has locked onto can be opened; every other label is read-only
+           and grows in as its cell nears the centre. */
+        #reticle {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 12; display: none;
+        }
+        body.touch-mode #reticle { display: block; }
+        #reticle .hair { stroke: rgba(255, 255, 255, 0.32); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
+        #reticle .lock { stroke: #FFE600; stroke-width: 1; fill: none; }
+        #reticle .hold { stroke: #FFE600; stroke-width: 2.5; fill: none; }
+        #reticle .pip  { fill: #FFE600; }
+        body.touch-mode .hud-card {
+            pointer-events: none; transform-origin: 0 50%;
+            transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        body.touch-mode .hud-card.locked { pointer-events: auto; border-color: #FFE600; }
+        /* the visible label stays small; its hit area is a full fingertip */
+        body.touch-mode .hud-card.locked::before { content: ''; position: absolute; inset: -14px -12px; }
+
         .hud-card.traced {
             border-color: #FFE600;
             box-shadow: 0 6px 20px rgba(0,0,0,0.7), 0 0 16px rgba(255, 230, 0, 0.45);
@@ -296,6 +320,10 @@
         @media (max-width: 900px) {
             #boot-hint { white-space: normal; max-width: 60vw; }
             #live-readout { font-size: 9px; letter-spacing: 1px; }
+        }
+        /* a phone has room for the name and the map count, not the census */
+        @media (max-width: 620px) {
+            #live-readout .extra { display: none; }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -308,11 +336,17 @@
 <div id="canvas-container">
     <canvas id="glcanvas"></canvas>
     <svg id="hud-svg"></svg>
+    <svg id="reticle" aria-hidden="true">
+        <path class="hair" id="ret-hair"></path>
+        <circle class="lock" id="ret-lock" r="0"></circle>
+        <circle class="hold" id="ret-hold" r="0"></circle>
+        <rect class="pip" id="ret-pip" width="2" height="2"></rect>
+    </svg>
     <div id="hud-labels"></div>
 
     <div id="scale-bar"><div id="scale-line"></div><span id="scale-len">50 µm</span></div>
     <div id="live-readout"></div>
-    <div id="boot-hint">TAP A CELL TO SEED &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; PINCH OR SCROLL TO ZOOM &middot; DOUBLE-TAP A CELL TO OPEN IT, THE SLIDE TO RESET</div>
+    <div id="boot-hint">CLICK A CELL TO SEED &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; SCROLL TO ZOOM &middot; CLICK A LABEL TO OPEN IT &middot; DOUBLE-CLICK THE SLIDE TO RESET</div>
 
     <div id="search-box">
         <span>/</span>
@@ -549,7 +583,8 @@ const RAD = [0, 0.80, 1.75, 2.62];   // ring radius by depth
 const R_BY_DEPTH = [0.20, 0.145, 0.108, 0.082];
 
 function labelFor(slug) {
-  return slug.replace('.html', '').replace(/[-_]/g, '_').toUpperCase();
+  // an app in its own folder is named by the folder: audio/index.html -> AUDIO
+  return slug.replace(/\/index\.html$/, '').replace('.html', '').replace(/[-_]/g, '_').toUpperCase();
 }
 
 const FALLBACK_PAGES = [
@@ -630,26 +665,44 @@ function buildStructure(pages) {
 
   CROSS = CURATED.filter(([a, b]) => NODES.has(a) && NODES.has(b) && a !== b);
 
-  /* radial dendrogram: every leaf gets an equal slice, every parent centres
-     over its children. Stable, legible, and it makes the path from any page
-     back to the nucleus a straight run inward. */
-  let leaves = 0;
-  (function count(n) { n.children.length ? n.children.forEach(count) : leaves++; })(ROOT);
-  const step = (Math.PI * 2) / Math.max(1, leaves);
-  let cursor = 0;
-  (function place(n) {
-    if (!n.children.length) { n.angle = cursor * step; cursor++; }
-    else {
-      n.children.forEach(place);
-      const a = n.children.map((c) => c.angle);
-      n.angle = (Math.min(...a) + Math.max(...a)) / 2;
-    }
-    const r = RAD[Math.min(n.depth, 3)];
+  /* radial dendrogram inside each lineage's fixed sector: every leaf gets an
+     equal slice of its sector, every parent centres over its children. The
+     path from any page back to the nucleus stays a straight run inward. */
+  const DEG = Math.PI / 180;
+  const leavesOf = (n) => n.children.length ? n.children.reduce((k, c) => k + leavesOf(c), 0) : 1;
+  const setTarget = (n, r) => {
     // a touch of jitter so the ring doesn't read as a machine-drawn circle
     const j = Math.sin(n.angle * 12.7 + n.depth * 2.1) * 0.045;
     n.tx = Math.cos(n.angle) * (r + j);
     n.ty = Math.sin(n.angle) * (r + j);
-  })(ROOT);
+  };
+  ROOT.angle = 0; ROOT.tx = 0; ROOT.ty = 0;
+  const free = ROOT.children.filter((b) => !LINEAGE_SECTOR[b.slug]);
+  ROOT.children.forEach((branch) => {
+    // a lineage nobody gave a sector (offline fallback, a renamed root) shares
+    // out whatever the fixed four leave: there is none today
+    const sec = LINEAGE_SECTOR[branch.slug] ||
+      { center: 360 * (free.indexOf(branch) + 0.5) / free.length, width: 360 / (free.length * 4) };
+    const n = Math.max(1, leavesOf(branch));
+    const step = (sec.width * DEG) / n;
+    // the outer ring staggers in and out once its leaves get closer than a
+    // cell's width, instead of letting the lineage spill into its neighbour
+    const crowded = step * RAD[3] < 0.21;
+    let cursor = 0;
+    (function place(node) {
+      node.lineage = branch.slug;
+      if (!node.children.length) {
+        node.angle = (sec.center - sec.width / 2) * DEG + (cursor + 0.5) * step;
+        node.stagger = crowded && node.depth >= 3 && (cursor & 1) ? 0.34 : 0;
+        cursor++;
+      } else {
+        node.children.forEach(place);
+        const a = node.children.map((c) => c.angle);
+        node.angle = (Math.min(...a) + Math.max(...a)) / 2;
+      }
+      setTarget(node, RAD[Math.min(node.depth, 3)] + (node.stagger || 0));
+    })(branch);
+  });
 
   structureReady = true;
   return ROOT;
@@ -670,6 +723,39 @@ async function loadStructure() {
 
 const MAX_RENDER = 700;          // hard ceiling on instances drawn per frame
 const MICROBE_CAP = 58;          // carrying capacity for the mortal population
+
+/* Each lineage owns a fixed slice of the compass, so a direction always means
+   the same environment: fractals up-right, the eyes and materials up-left,
+   flames and fluids down-left, the label and its sites down-right. The old
+   layout split the whole circle evenly between all the leaves, so one new page
+   anywhere rotated every lineage and the map never sat the same way twice.
+   Now a new page only re-spaces its own siblings. Widths carry headroom for
+   growth; a lineage that outgrows its slice staggers its outer ring. Degrees,
+   counter-clockwise from east, world y up. */
+const LINEAGE_SECTOR = {
+  'fractals.html':         { center: 30,  width: 72 },
+  'meta-iris.html':        { center: 128, width: 116 },
+  'flame-simulation.html': { center: 220, width: 72 },
+  'portfolio.html':        { center: 310, width: 100 },
+};
+
+/* The pages are placed the same way every time; the free growth must not be.
+   Each visit draws its own temperament: how fertile each lineage is, one
+   favoured direction across the whole slide, and which way the branches curl.
+   Every cell rolls once, when it appears, whether it may ever branch -- so a
+   barren region dead-ends after a step or two and a fertile one keeps
+   spreading, and the shared growth budget lands somewhere new each visit. */
+const RUN = (() => {
+  const fertility = {};
+  for (const k of Object.keys(LINEAGE_SECTOR)) fertility[k] = 0.2 + Math.random() * 1.6;
+  return { fertility, favour: Math.random() * Math.PI * 2, curl: (Math.random() - 0.5) * 0.24 };
+})();
+const fertilityOf = (node) => RUN.fertility[node && node.lineage] ?? 1;
+function rollFertile(node, x, y) {
+  const lobe = 0.5 + 0.5 * Math.cos(Math.atan2(y, x) - RUN.favour);
+  const p = fertilityOf(node) * (0.35 + 0.9 * lobe) * 0.6;
+  return Math.random() < Math.min(0.97, Math.max(0.12, p));
+}
 
 const LINEAGE_HUE = {
   'fractals.html': 188, 'meta-iris.html': 288,
@@ -772,6 +858,10 @@ const THREE_clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 /* ---------- growth of the tissue ---------- */
 let birthClock = 0;
 let pageBirthStall = 0;
+let pagesBorn = 0;      // page cells on the slide, the nucleus included
+// free growth waits for the whole site map: until then every meal goes to
+// revealing pages, so the map assembles first and life spreads from all of it
+const mapComplete = () => pagesBorn >= NODES.size;
 
 function seedNucleus() {
   const n = ROOT;
@@ -782,6 +872,7 @@ function seedNucleus() {
   c.settle = 1;
   tissue.push(c);
   n.cell = c;
+  pagesBorn++;
 }
 
 function tissueColor(node) {
@@ -819,7 +910,9 @@ function birthNode(node) {
     radius: node.radius, color: tissueColor(node),
   });
   node.cell = c;
+  node.fertile = rollFertile(node, node.tx, node.ty);
   tissue.push(c);
+  pagesBorn++;
   bonds.push({ a: p, b: c, kind: 'structural' });
   p.pulse = 1;
   c.flash = 1.3;
@@ -947,7 +1040,7 @@ function grownChildren(node) {
    in single-file chains. Allowing a few branches per node is what turns it into
    a spreading tree. */
 function isOuterCell(c) {
-  if (!c.node || c.kind === 'nucleus') return false;
+  if (!c.node || c.kind === 'nucleus' || !c.node.fertile || !mapComplete()) return false;
   for (const ch of c.node.children) if (!ch.grown) return false;
   return grownChildren(c.node) < SPROUTS_PER_NODE;
 }
@@ -978,20 +1071,21 @@ function sproutFrom(host, color) {
   let off = radial - head;
   while (off > Math.PI) off -= Math.PI * 2;
   while (off < -Math.PI) off += Math.PI * 2;
-  head += off * 0.3;
+  head += off * 0.3 + RUN.curl;
 
   const FAN = [0, 0.46, -0.46, 0.88, -0.88];
   const k = grownChildren(pn);
   const ang = head + (FAN[k] || 0) + (Math.random() - 0.5) * 0.20;
   const step = 0.36 + Math.random() * 0.16;
   const node = {
-    slug: null, label: null, title: null, grown: true,
+    slug: null, label: null, title: null, grown: true, lineage: pn.lineage,
     depth: (pn.depth || 3) + 1,
     children: [], parent: pn,
     tx: pn.tx + Math.cos(ang) * step,
     ty: pn.ty + Math.sin(ang) * step,
     radius: Math.max(0.046, host.radius * 0.80),
   };
+  node.fertile = rollFertile(node, node.tx, node.ty);
   host.node.children.push(node);
   const c = new Cell({
     x: host.x, y: host.y, z: host.z + (Math.random() - 0.5) * 0.22,
@@ -1317,7 +1411,12 @@ function updateTissue(dt) {
         // pages first: a cell that still owes part of the site map spends its
         // meal revealing that, and only starts free growth once it is done
         const pend = pendingPages(c.node);
-        const room = pend.length || (SPROUTS_PER_NODE - grownChildren(c.node));
+        /* A cell can finish its pages while it is still holding a meal (the
+           stall fallback births them too). Sprouting then regardless put free
+           growth on inner page cells and on the nucleus -- whose heading is
+           atan2(0, 0) = 0, so every run grew the same branch due east. Only
+           a real outer cell turns food into growth. */
+        const room = pend.length || (isOuterCell(c) ? SPROUTS_PER_NODE - grownChildren(c.node) : 0);
         let made = 0;
         for (const m of c.held) {
           const ok = made < room &&
@@ -1328,7 +1427,8 @@ function updateTissue(dt) {
         if (made) {
           c.pulse = 1;
           c.flash = 1.2;
-          c.sproutCd = 2.0 + made * 0.7;    // a bigger meal takes longer to digest
+          // a bigger meal takes longer to digest, and a barren lineage longer still
+          c.sproutCd = (2.0 + made * 0.7) / (pend.length ? 1 : fertilityOf(c.node));
         }
         c.held = null;
       }
@@ -1847,14 +1947,20 @@ function makeCard(cell) {
   ret.setAttribute('class', 'hud-reticle');
   svg.appendChild(ret);
 
-  const el = document.createElement('div');
+  /* A real link, so cmd-click and middle-click open a new tab. It opens on
+     click, never on press: a press used to navigate at once, so on a phone
+     any drag that began on a card left the page. */
+  const el = document.createElement('a');
   el.className = 'hud-card';
+  el.href = cell.node.url || cell.node.slug;
   const title = document.createElement('div');
   title.className = 'hud-card-title';
   title.textContent = '> ' + cell.node.label;
   el.appendChild(title);
-  el.addEventListener('pointerdown', (e) => {
-    e.stopPropagation();
+  el.addEventListener('pointerdown', (e) => e.stopPropagation());
+  el.addEventListener('click', (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault();
     showRouteModal(cell.node.slug);
   });
   labelsDiv.appendChild(el);
@@ -1872,6 +1978,7 @@ function dropCard(id) {
 }
 
 function renderHUD() {
+  if (touch.on) return renderHUDTouch();
   const W = innerWidth, H = innerHeight;
   // LOD: label what is nearest the cursor, plus anything big on screen, plus
   // whatever the search or the traced path has selected
@@ -1973,14 +2080,14 @@ function renderInstrument() {
              : searchHit ? searchHit.node.label : 'IORI.ME';
   const mapped = NODES.size ? tissue.filter((c) => c.node && c.node.slug).length : 0;
   el('live-readout').innerHTML =
-    `${name} &nbsp; MAPPED <b>${mapped}/${NODES.size}</b>` +
+    `${name} &nbsp; MAPPED <b>${mapped}/${NODES.size}</b><span class="extra">` +
     ` &nbsp; POP <b>${String(microbes.length).padStart(3, '0')}</b>` +
     ` &nbsp; GEN <b>${stats.generation}</b>` +
     ` &nbsp; <b>+${stats.births}</b> <span class="dead">\u2212${stats.deaths}</span>` +
     ` &nbsp; MIX <b>${stats.merges}</b>` +
     ` &nbsp; ON LINE <b>${stats.riding}</b>` +
     (stats.grown ? ` &nbsp; GROWN <b>${stats.grown}</b>` : '') +
-    (stats.fused ? ` &nbsp; FUSED <b>${stats.fused}</b>` : '');
+    (stats.fused ? ` &nbsp; FUSED <b>${stats.fused}</b>` : '') + '</span>';
 }
 
 /* ---------- the crawlable index ----------
@@ -2025,14 +2132,24 @@ function resetView() {
 }
 
 /* ---------- navigation ---------- */
+// the modal is a beat to change your mind in: tap it or press Escape
+let routeTimer = 0;
 function showRouteModal(route) {
   const modal = el('route-modal');
   el('modal-route').textContent = route;
   modal.classList.add('active');
   const node = NODES.get(route);
   const target = (node && node.url) ? node.url : route;
-  setTimeout(() => { window.location.href = target; }, 650);
+  clearTimeout(routeTimer);
+  routeTimer = setTimeout(() => { window.location.href = target; }, 650);
 }
+function cancelRoute() {
+  clearTimeout(routeTimer);
+  routeTimer = 0;
+  el('route-modal').classList.remove('active');
+}
+// coming back through the history cache would otherwise show the old modal
+addEventListener('pageshow', cancelRoute);
 
 // trace the bond chain from a cell back to the nucleus
 function tracePath(cell) {
@@ -2052,17 +2169,228 @@ function pickCell(wx, wy) {
   return near;
 }
 
+
+/* ================= TOUCH: THE EYEPIECE =================
+   A finger is too blunt to point at a cell and it hides what it touches, so on
+   a touchscreen the pointer is gone. A crosshair is fixed at the centre of the
+   eyepiece and you move the slide under it. The nearest cell inside its reach
+   is drawn in and held -- gently while your finger is down, firmly once you let
+   go -- until you drag it past a wider radius. Only that held cell's label can
+   be tapped; the others are read-only and grow in from nothing as their cells
+   near the centre. Holding still on a held cell feeds it. Mouse and pen keep
+   the hover interface; each event's pointerType decides, so a tablet with a
+   trackpad switches back and forth. */
+const touch = {
+  on: false,
+  locked: null, lockT: 0, ringR: 9,
+  holdStart: 0, holdP: 0,
+  vx: 0, vy: 0, lastMoveT: 0, fling: false,
+};
+const HOLD_TO_FEED = 0.42;   // seconds of stillness before a press feeds the cell
+const FLING_LOCK = 260;      // px/s: faster than this the lock lets cells slide past
+const HINT_DESK = el('boot-hint').textContent;
+const HINT_TOUCH = 'MOVE THE SLIDE UNDER THE CROSSHAIR · TAP THE LABEL TO OPEN · HOLD STILL TO FEED · PINCH TO ZOOM';
+
+function setTouchMode(on) {
+  if (touch.on === on) return;
+  touch.on = on;
+  document.body.classList.toggle('touch-mode', on);
+  for (const id of [...cards.keys()]) dropCard(id);   // the two modes lay cards out differently
+  touch.locked = null; touch.lockT = 0; touch.fling = false;
+  el('boot-hint').textContent = on ? HINT_TOUCH : HINT_DESK;
+}
+
+const lockable = (c) => c.settle >= 0.35 && c.node && c.node.slug;
+const screenRadius = (c) => (c.radius / camera.zoom) * innerHeight;
+
+function updateTouch(dt) {
+  const W = innerWidth, H = innerHeight, cx = 0.5 * W, cy = 0.5 * H;
+  pointer.x = cx; pointer.y = cy;
+  const cw = screenToWorld(cx, cy);
+  pointer.worldX = cw.x; pointer.worldY = cw.y;
+
+  if (touch.fling) {
+    camera.panX -= (touch.vx * dt / H) * camera.zoom;
+    camera.panY += (touch.vy * dt / H) * camera.zoom;
+    const k = Math.exp(-dt * 4.5);
+    touch.vx *= k; touch.vy *= k;
+    if (Math.hypot(touch.vx, touch.vy) < 20) touch.fling = false;
+  }
+  const speed = touch.fling ? Math.hypot(touch.vx, touch.vy) : 0;
+
+  // capture: the cell nearest the centre relative to its own reach
+  let best = null, bestQ = Infinity;
+  for (const c of tissue) {
+    if (!lockable(c)) continue;
+    const p = worldToScreen(c.x, c.y);
+    // inside the cell, or within a fingertip of a small one
+    const reach = Math.max(48, screenRadius(c) * 1.1);
+    const q = Math.hypot(p.x - cx, p.y - cy) / reach;
+    if (q < 1 && q < bestQ) { bestQ = q; best = c; }
+  }
+  const L = touch.locked;
+  if (L) {
+    // release only past a wider radius than capture, so the lock has a detent
+    const p = worldToScreen(L.x, L.y);
+    const d = Math.hypot(p.x - cx, p.y - cy), sr = screenRadius(L);
+    if (!lockable(L) || d > Math.max(92, sr + 50)) touch.locked = null;
+    // a different cell sitting right on the crosshair takes over
+    else if (best && best !== L && bestQ < 0.35 && d > sr) touch.locked = best;
+  }
+  if (!touch.locked && best && speed < FLING_LOCK) touch.locked = best;
+  if (touch.locked !== L) { touch.holdStart = performance.now(); if (navigator.vibrate && touch.locked) navigator.vibrate(4); }
+
+  // draw the slide so the held cell sits under the crosshair
+  const T = touch.locked;
+  if (T && !pointer.seeding) {
+    /* While the finger moves the slide it is in charge; the pull only shows
+       when it slows, which is what reads as a detent rather than glue. */
+    const fingerSlow = performance.now() - touch.lastMoveT > 60 || Math.hypot(touch.vx, touch.vy) < 140;
+    const k = pointer.isDown ? (fingerSlow ? 1.6 : 0) : (speed > FLING_LOCK ? 0 : 5);
+    const a = 1 - Math.exp(-dt * k);
+    camera.panX += (T.x - camera.panX) * a;
+    camera.panY += (T.y - camera.panY) * a;
+  }
+  touch.lockT += ((T ? 1 : 0) - touch.lockT) * Math.min(1, dt * 10);
+
+  // hold still on a held cell to feed it
+  if (pointer.isDown && !pointer.seeding && T && pointer.moved < 10) {
+    touch.holdP = Math.min(1, (performance.now() - touch.holdStart) / 1000 / HOLD_TO_FEED);
+    if (touch.holdP >= 1) {
+      pointer.seeding = T; pointer.seedClock = 0;
+      seedFrom(T, 3);
+      if (navigator.vibrate) navigator.vibrate(8);
+    }
+  } else if (!pointer.seeding) touch.holdP = 0;
+
+  const want = T ? Math.min(80, Math.max(16, screenRadius(T) + 8)) : 9;
+  touch.ringR += (want - touch.ringR) * Math.min(1, dt * 14);
+}
+
+function renderReticle() {
+  const W = innerWidth, H = innerHeight, cx = 0.5 * W, cy = 0.5 * H;
+  const g = touch.ringR + 4, t = 6;
+  // hairlines edge to edge, stopping short of the ring, with a tick where each ends
+  el('ret-hair').setAttribute('d',
+    `M 0 ${cy} H ${cx - g} M ${cx + g} ${cy} H ${W} M ${cx} 0 V ${cy - g} M ${cx} ${cy + g} V ${H}` +
+    ` M ${cx - g} ${cy - t / 2} v ${t} M ${cx + g} ${cy - t / 2} v ${t}` +
+    ` M ${cx - t / 2} ${cy - g} h ${t} M ${cx - t / 2} ${cy + g} h ${t}`);
+  const lock = el('ret-lock');
+  lock.setAttribute('cx', cx); lock.setAttribute('cy', cy);
+  lock.setAttribute('r', touch.ringR);
+  lock.style.opacity = touch.lockT.toFixed(3);
+  const hold = el('ret-hold');
+  const hr = touch.ringR + 5, circ = 2 * Math.PI * hr;
+  const hp = pointer.seeding ? 1 : touch.holdP;
+  hold.setAttribute('cx', cx); hold.setAttribute('cy', cy); hold.setAttribute('r', hr);
+  hold.setAttribute('stroke-dasharray', circ.toFixed(1));
+  hold.setAttribute('stroke-dashoffset', (circ * (1 - hp)).toFixed(1));
+  hold.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+  hold.style.opacity = hp > 0 ? (pointer.seeding ? 0.55 + 0.45 * Math.sin(performance.now() * 0.012) : 1) : 0;
+  const pip = el('ret-pip');
+  pip.setAttribute('x', cx - 1); pip.setAttribute('y', cy - 1);
+}
+
+const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const CARD_H = 20;
+
+function renderHUDTouch() {
+  const W = innerWidth, H = innerHeight, cx = 0.5 * W, cy = 0.5 * H;
+  const far = Math.min(W, H) * 0.44, near = 18;
+  const R = touch.ringR;
+  const cand = [];
+  for (const c of tissue) {
+    if (!lockable(c)) continue;
+    const p = worldToScreen(c.x, c.y);
+    const d = Math.hypot(p.x - cx, p.y - cy);
+    const isLock = c === touch.locked;
+    if (!isLock && d > far) continue;
+    const t = isLock ? 1 : 1 - smoothstep(near, far, d);
+    if (t < 0.04) continue;
+    cand.push({ c, p, d, t, isLock, cardW: 26 + (c.node.label.length + 2) * 6.3 });
+  }
+  cand.sort((a, b) => (b.isLock - a.isLock) || (b.t - a.t));
+  const keep = cand.slice(0, 7);
+  const keepIds = new Set(keep.map((k) => k.c.id));
+  for (const id of [...cards.keys()]) if (!keepIds.has(id)) dropCard(id);
+
+  for (const k of keep) {
+    if (k.isLock) {
+      // the held label sits centred under the ring, within thumb's reach
+      k.s = 1 + 0.5 * touch.lockT;
+      k.w = k.cardW * k.s; k.h = CARD_H * k.s;
+      k.bx = cx - k.w / 2;
+      k.by = cy + R + 18 + k.h / 2;
+      k.ax = cx; k.ay = cy + R;
+    } else {
+      // the others gather just outside the ring, each on the side of its cell
+      k.s = 0.6 + 0.4 * k.t;
+      k.w = k.cardW * k.s; k.h = CARD_H * k.s;
+      const ux = k.d > 1e-3 ? (k.p.x - cx) / k.d : 1, uy = k.d > 1e-3 ? (k.p.y - cy) / k.d : 0;
+      const ra = Math.min(Math.max(k.d, R + 22), R + 22 + 46 * (1 - k.t));
+      k.ax = cx + ux * ra; k.ay = cy + uy * ra;
+      k.bx = ux >= 0 ? k.ax + 6 : k.ax - 6 - k.w;
+      k.by = k.ay;
+    }
+  }
+  // push boxes apart vertically; the held label does not move
+  for (let pass = 0; pass < 8; pass++) {
+    for (let i = 0; i < keep.length; i++) for (let j = i + 1; j < keep.length; j++) {
+      const A = keep[i], B = keep[j];
+      const ox = Math.min(A.bx + A.w, B.bx + B.w) - Math.max(A.bx, B.bx);
+      const need = (A.h + B.h) / 2 + 3, dy = B.by - A.by;
+      if (ox <= 0 || Math.abs(dy) >= need) continue;
+      const push = (need - Math.abs(dy)) * (dy >= 0 ? 1 : -1);
+      if (A.isLock) B.by += push;
+      else if (B.isLock) A.by -= push;
+      else { A.by -= push / 2; B.by += push / 2; }
+    }
+    for (const k of keep) {
+      k.bx = Math.max(8, Math.min(W - k.w - 8, k.bx));
+      k.by = Math.max(18 + k.h / 2, Math.min(H - 52 - k.h / 2, k.by));
+    }
+  }
+
+  for (const k of keep) {
+    const rec = cards.get(k.c.id) || makeCard(k.c);
+    // ease toward the target so labels glide rather than snap when the set changes
+    if (rec.sx === undefined) { rec.sx = k.bx; rec.sy = k.by; }
+    rec.sx += (k.bx - rec.sx) * 0.35; rec.sy += (k.by - rec.sy) * 0.35;
+    const [r, g, b] = k.c.color;
+    const rgb = `${(r * 255) | 0}, ${(g * 255) | 0}, ${(b * 255) | 0}`;
+    const op = k.isLock ? 1 : Math.pow(k.t, 0.8);
+    const ex = k.isLock ? cx : (k.bx >= k.ax ? rec.sx : rec.sx + k.w);
+    rec.line.setAttribute('d', `M ${k.p.x} ${k.p.y} L ${ex} ${rec.sy}`);
+    rec.line.style.setProperty('--card-rgb', rgb);
+    rec.line.style.opacity = k.isLock ? 0 : op * 0.8;
+    const m = 4;
+    rec.ret.setAttribute('d', k.isLock ? '' : `M ${k.p.x - m} ${k.p.y} H ${k.p.x + m} M ${k.p.x} ${k.p.y - m} V ${k.p.y + m}`);
+    rec.ret.style.setProperty('--card-rgb', rgb);
+    rec.ret.style.opacity = op;
+    rec.el.style.transform = `translate(${rec.sx}px, ${rec.sy}px) translateY(-50%) scale(${k.s.toFixed(3)})`;
+    rec.el.style.opacity = op.toFixed(3);
+    rec.el.style.setProperty('--card-rgb', rgb);
+    rec.el.classList.toggle('locked', k.isLock);
+    rec.el.tabIndex = k.isLock ? 0 : -1;
+    rec.el.classList.toggle('traced', focusPath.has(k.c.id));
+  }
+}
+
 function setupInputs() {
   const container = document.getElementById('canvas-container');
 
   // the chrome sits inside the canvas container, so without this a click on a
   // button also reaches the stage and navigates to whatever cell was last hit
-  for (const id of ['search-box', 'index-toggle', 'site-index', 'scale-bar', 'live-readout']) {
+  for (const id of ['search-box', 'index-toggle', 'site-index', 'scale-bar', 'live-readout', 'route-modal']) {
     const node = el(id);
     if (node) node.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
 
+  setTouchMode(matchMedia('(hover: none) and (pointer: coarse)').matches);
+  el('route-modal').addEventListener('click', cancelRoute);
+
   const track = (e) => {
+    if (touch.on) { pointer.seen = true; return; }   // the crosshair is the pointer
     pointer.x = e.clientX; pointer.y = e.clientY; pointer.seen = true;
     const w = screenToWorld(e.clientX, e.clientY);
     pointer.worldX = w.x; pointer.worldY = w.y;
@@ -2072,15 +2400,19 @@ function setupInputs() {
      the stage could not be zoomed and no cell could be opened. Two fingers
      pinch; a quick second tap opens the page. */
   const active = new Map();
-  let pinchDist = 0, lastTap = 0, lastTapX = 0, lastTapY = 0;
+  let pinchDist = 0, pinchMid = null, lastTap = 0, lastTapX = 0, lastTapY = 0;
 
   container.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') setTouchMode(true);
+    else if (e.pointerType === 'mouse') setTouchMode(false);
     active.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (active.size === 2) {
       const [a, b] = [...active.values()];
       pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchMid = { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 };
       pointer.isDown = false;         // two fingers means zoom, not seeding
       pointer.seeding = null;
+      touch.fling = false;
       return;
     }
     track(e);
@@ -2088,27 +2420,53 @@ function setupInputs() {
     pointer.downX = e.clientX; pointer.downY = e.clientY;
     pointer.lastX = e.clientX; pointer.lastY = e.clientY;
     container.setPointerCapture?.(e.pointerId);
+    pointer.seedClock = 0;
+    if (touch.on) {
+      // the finger only moves the slide; feeding waits for a still hold
+      pointer.seeding = null;
+      touch.fling = false; touch.vx = touch.vy = 0;
+      touch.holdStart = touch.lastMoveT = performance.now();
+      return;
+    }
     // press a node and it starts seeding; press empty slide and you pan it
     pointer.seeding = pickCell(pointer.worldX, pointer.worldY);
-    pointer.seedClock = 0;
     if (pointer.seeding) seedFrom(pointer.seeding, 3);
   });
 
   container.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse' && touch.on && !active.size) setTouchMode(false);
     if (active.has(e.pointerId)) active.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (active.size === 2) {
       const [a, b] = [...active.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const mx = (a.x + b.x) * 0.5, my = (a.y + b.y) * 0.5;
       if (pinchDist > 8 && d > 8) {
-        // anchor the pinch on the midpoint between the fingers
-        zoomAbout((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, pinchDist / d);
+        if (touch.on) {
+          // zoom about the crosshair so the held cell stays put; the fingers'
+          // midpoint still carries the slide
+          zoomAbout(0.5 * innerWidth, 0.5 * innerHeight, pinchDist / d);
+          if (pinchMid) {
+            camera.panX -= ((mx - pinchMid.x) / innerHeight) * camera.zoom;
+            camera.panY += ((my - pinchMid.y) / innerHeight) * camera.zoom;
+          }
+        } else {
+          // anchor the pinch on the midpoint between the fingers
+          zoomAbout(mx, my, pinchDist / d);
+        }
       }
       pinchDist = d;
+      pinchMid = { x: mx, y: my };
       return;
     }
     if (pointer.isDown && !pointer.seeding) {
       const dx = e.clientX - pointer.lastX, dy = e.clientY - pointer.lastY;
       pointer.moved += Math.abs(dx) + Math.abs(dy);
+      if (touch.on) {
+        const now = performance.now(), ms = Math.max(1, now - touch.lastMoveT);
+        touch.vx = touch.vx * 0.6 + (dx / ms) * 1000 * 0.4;
+        touch.vy = touch.vy * 0.6 + (dy / ms) * 1000 * 0.4;
+        touch.lastMoveT = now;
+      }
       // drag pans the stage, like moving the slide under the objective
       camera.panX -= (dx / innerHeight) * camera.zoom;
       camera.panY += (dy / innerHeight) * camera.zoom;
@@ -2120,15 +2478,18 @@ function setupInputs() {
 
   const release = (e) => {
     if (e) active.delete(e.pointerId);
-    if (active.size < 2) pinchDist = 0;
-    // double-tap opens a cell, the touch stand-in for dblclick
-    if (e && e.pointerType === 'touch' && pointer.moved < 12) {
+    if (active.size < 2) { pinchDist = 0; pinchMid = null; }
+    // a quick flick keeps the slide coasting; a finger that stopped first does not
+    if (touch.on && pointer.isDown && !pointer.seeding) {
+      touch.fling = pointer.moved > 12 && performance.now() - touch.lastMoveT < 80;
+      if (!touch.fling) touch.vx = touch.vy = 0;
+    }
+    // double-tap the slide to frame the whole specimen; opening is the label's job
+    if (e && e.pointerType === 'touch' && pointer.moved < 12 && !pointer.seeding) {
       const now = performance.now();
       if (now - lastTap < 340 &&
           Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 36) {
-        const hit = pickCell(pointer.worldX, pointer.worldY);
-        if (hit && hit.node && hit.node.slug) showRouteModal(hit.node.slug);
-        else resetView();
+        resetView();
         lastTap = 0;
       } else {
         lastTap = now; lastTapX = e.clientX; lastTapY = e.clientY;
@@ -2142,6 +2503,7 @@ function setupInputs() {
   // a node's label card is the way to its page; double-clicking the cell body
   // itself does the same, so the canvas is not a dead end
   container.addEventListener('dblclick', (e) => {
+    if (touch.on) return;
     track(e);
     const hit = pickCell(pointer.worldX, pointer.worldY);
     // on a cell it opens the page; on empty slide it frames the whole specimen
@@ -2164,6 +2526,7 @@ function setupInputs() {
     if (e.key === '/' && document.activeElement !== search) {
       e.preventDefault(); el('search-box').classList.add('open'); search.focus();
     } else if (e.key === 'Escape') {
+      cancelRoute();
       el('search-box').classList.remove('open'); search.blur();
       search.value = ''; searchHit = null;
     } else if (e.key === '0' && document.activeElement !== search) {
@@ -2241,7 +2604,8 @@ function updateCamera(dt) {
     const my = (0.5 * H - pointer.y) / H;
     cx += mx * camera.zoom * 0.10;
     cy += my * camera.zoom * 0.10;
-    const lean = searchHit || (hoverCell && hoverCell.kind !== 'nucleus' ? hoverCell : null);
+    // on touch the lock already centres the held cell; leaning as well would fight it
+    const lean = touch.on ? null : searchHit || (hoverCell && hoverCell.kind !== 'nucleus' ? hoverCell : null);
     if (lean) { cx += lean.x * 0.22; cy += lean.y * 0.22; }
   } else if (searchHit) {
     cx += searchHit.x * 0.30; cy += searchHit.y * 0.30;
@@ -2266,7 +2630,7 @@ function updateCamera(dt) {
 }
 
 function frame(now) {
-  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  const dt = Math.max(0, Math.min((now - lastTime) / 1000, 0.05));
   lastTime = now;
 
   if (structureReady) {
@@ -2300,8 +2664,11 @@ function frame(now) {
     updateMicrobes(dt, pointer.seen ? { x: pointer.worldX, y: pointer.worldY } : null);
   }
 
-  // whatever is under the cursor sets the focal plane and lights its lineage
-  hoverCell = pickCell(pointer.worldX, pointer.worldY);
+  // whatever is under the cursor sets the focal plane and lights its lineage;
+  // on touch that is the cell the crosshair holds
+  if (touch.on) updateTouch(dt);
+  hoverCell = touch.on ? (touch.locked || pickCell(pointer.worldX, pointer.worldY))
+                       : pickCell(pointer.worldX, pointer.worldY);
   const focusOn = hoverCell || searchHit;
   focusPath = focusOn ? tracePath(focusOn) : new Set();
   const wantFocus = focusOn ? focusOn.z : 0;
@@ -2310,6 +2677,7 @@ function frame(now) {
   updateCamera(dt);
   render(now);
   renderHUD();
+  if (touch.on) renderReticle();
   renderInstrument();
 
   if (!hintShown && tissue.length > 6) {

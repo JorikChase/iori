@@ -1,0 +1,206 @@
+<title>iori.me · 3die.fr Audit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Public+Sans:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --bg: #F8F7EF; --bg2: #EFEDDF; --ink: #16150F; --ink2: #4E4D42; --muted: #7B7A6C;
+    --line: #D6D3C0; --accent: #FFE600; --accent-ink: #14130A; --accent-text: #6E6200;
+    --crit: #B3131F; --crit-bg: #F9E2E3; --warn: #8A5A00; --warn-bg: #F7ECD2; --ok: #1E6B45; --ok-bg: #DDEFE3;
+    --info: #2B4F87; --info-bg: #DFE7F4; --code-bg: #ECEADB;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0C0C0A; --bg2: #16160F; --ink: #F2F0E4; --ink2: #C4C1AE; --muted: #8A8878;
+      --line: #2C2B22; --accent: #FFE600; --accent-ink: #14130A; --accent-text: #FFE600;
+      --crit: #FF6B74; --crit-bg: #3A1216; --warn: #F2B84B; --warn-bg: #3A2A0C; --ok: #6CD49A; --ok-bg: #0F3324;
+      --info: #8FB4F2; --info-bg: #14233B; --code-bg: #171710;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0C0C0A; --bg2: #16160F; --ink: #F2F0E4; --ink2: #C4C1AE; --muted: #8A8878;
+    --line: #2C2B22; --accent: #FFE600; --accent-ink: #14130A; --accent-text: #FFE600;
+    --crit: #FF6B74; --crit-bg: #3A1216; --warn: #F2B84B; --warn-bg: #3A2A0C; --ok: #6CD49A; --ok-bg: #0F3324;
+    --info: #8FB4F2; --info-bg: #14233B; --code-bg: #171710;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Public Sans", system-ui, -apple-system, sans-serif; font-size: 16px; line-height: 1.55; }
+  header.top { border-bottom: 1px solid var(--line); background: var(--bg2); }
+  .wrap { max-width: 76ch; margin: 0 auto; padding: 0 24px; }
+  header .wrap { padding-top: 40px; padding-bottom: 32px; }
+  .eyebrow { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-family: "JetBrains Mono", monospace; font-weight: 800; font-size: clamp(28px, 4.5vw, 40px); line-height: 1.1; margin: 10px 0 14px; text-wrap: balance; letter-spacing: -.01em; }
+  h1 mark { background: var(--accent); color: var(--accent-ink); padding: 0 .18em; }
+  .lede { color: var(--ink2); font-size: 17px; max-width: 64ch; margin: 0; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 18px; font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+  nav.toc { border-bottom: 1px solid var(--line); }
+  nav.toc .wrap { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 12px 24px; font-family: "JetBrains Mono", monospace; font-size: 12.5px; }
+  nav.toc a { color: var(--ink2); text-decoration: none; border-bottom: 1px dotted var(--line); }
+  nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent-text); border-color: currentColor; outline: none; }
+  main .wrap { padding-top: 40px; padding-bottom: 80px; }
+  section { margin: 0 0 56px; }
+  h2 { font-family: "JetBrains Mono", monospace; font-size: 20px; font-weight: 800; margin: 0 0 6px; letter-spacing: -.01em; }
+  h2 .n { color: var(--accent-text); margin-right: .5em; }
+  h3 { font-size: 15px; font-weight: 600; margin: 28px 0 8px; font-family: "JetBrains Mono", monospace; letter-spacing: .02em; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  .verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 22px 0 8px; }
+  .verdict > div { border: 1px solid var(--line); padding: 14px 16px; background: var(--bg2); }
+  .verdict .k { font-family: "JetBrains Mono", monospace; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .verdict .v { font-weight: 600; line-height: 1.35; }
+  .grade { display: inline-block; font-family: "JetBrains Mono", monospace; font-weight: 800; padding: 1px 8px; margin-right: 8px; }
+  .grade.c { background: var(--crit-bg); color: var(--crit); } .grade.w { background: var(--warn-bg); color: var(--warn); } .grade.o { background: var(--ok-bg); color: var(--ok); }
+  ul.findings { list-style: none; padding: 0; margin: 8px 0 0; }
+  ul.findings li { display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+  ul.findings li:last-child { border-bottom: 1px solid var(--line); }
+  .tag { align-self: start; font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; text-align: center; }
+  .tag.crit { background: var(--crit-bg); color: var(--crit); } .tag.warn { background: var(--warn-bg); color: var(--warn); }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); } .tag.info { background: var(--info-bg); color: var(--info); }
+  .f b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .f p { margin: 0; color: var(--ink2); font-size: 15px; }
+  .f p + p { margin-top: 6px; }
+  code { font-family: "JetBrains Mono", monospace; font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 2px; }
+  .tbl { overflow-x: auto; margin: 12px 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: "JetBrains Mono", monospace; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+  td.mono { font-family: "JetBrains Mono", monospace; font-size: 13px; }
+  .s-ok { color: var(--ok); font-weight: 600; } .s-crit { color: var(--crit); font-weight: 600; } .s-warn { color: var(--warn); font-weight: 600; }
+  .was { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .arrow { color: var(--muted); padding: 0 .35em; }
+  .note { border-left: 3px solid var(--accent); padding: 8px 14px; background: var(--bg2); margin: 14px 0 18px; font-size: 15px; }
+  footer { border-top: 1px solid var(--line); }
+  footer .wrap { padding: 20px 24px 40px; font-family: "JetBrains Mono", monospace; font-size: 12.5px; color: var(--muted); }
+  @media (max-width: 560px) { ul.findings li { grid-template-columns: 1fr; gap: 6px; } .tag { justify-self: start; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Second reading — 21 Oct 2026 · first audit 12 Sep</div>
+    <h1>iori.me and 3die.fr: <mark>six weeks on</mark></h1>
+    <p class="lede">The September audit listed nine fixes. Eight shipped. This is what the crawler, Search Console and Analytics say happened afterwards, including the part that got worse.</p>
+    <div class="meta">
+      <span><b>87</b> URLs crawled and inspected</span>
+      <span><b>69%</b> recrawled since the identity fix</span>
+      <span>two clean 28-day windows compared</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#verdict">Verdict</a><a href="#fixed">What shipped</a><a href="#index">Indexing</a><a href="#search">Search</a><a href="#traffic">Traffic</a><a href="#left">What is left</a><a href="#settled">Settled</a>
+</div></nav>
+
+<main><div class="wrap">
+
+<section id="verdict">
+  <h2><span class="n">§1</span>Verdict</h2>
+  <p>The technical side has essentially finished its job. Every critical finding from September is closed: the leaks, the canonicals, the compression, the 63 dead-end pages, the duplicate identity. Search positions roughly halved on both domains, more iori.me pages are being indexed than ever, and the cross-domain duplicates are draining out of the index as intended.</p>
+  <p>What did not happen is people. Clicks went from one to four in a month. Direct traffic fell by a third. The sites are now technically correct and still almost nobody is searching for them, which is not a problem any further SEO work will solve.</p>
+  <div class="verdict">
+    <div><div class="k">Technical SEO</div><div class="v"><span class="grade o">A−</span>was B−; defects closed</div></div>
+    <div><div class="k">Privacy / hygiene</div><div class="v"><span class="grade o">A</span>was F; all leaks 404</div></div>
+    <div><div class="k">Crawlability</div><div class="v"><span class="grade o">A</span>was D; no dead ends left</div></div>
+    <div><div class="k">Indexing</div><div class="v"><span class="grade o">B+</span>70 of 87, no canonical conflicts</div></div>
+    <div><div class="k">Search demand</div><div class="v"><span class="grade c">F</span>10 queries total across both sites</div></div>
+    <div><div class="k">Traffic trend</div><div class="v"><span class="grade w">C</span>down a third, direct channel</div></div>
+  </div>
+</section>
+
+<section id="fixed">
+  <h2><span class="n">§2</span>What shipped, against the September list</h2>
+  <div class="tbl"><table>
+    <tr><th>September finding</th><th class="num">Then</th><th class="num">Now</th><th>State</th></tr>
+    <tr><td>Repo internals served publicly (<code>.readme</code>, <code>api/main.py</code>, scripts, notes)</td><td class="num">8+ URLs</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>No compression on either domain</td><td class="num">81</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>Homepage canonical disagreed with the sitemap</td><td class="num">2</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>Pages with no internal links at all</td><td class="num">60</td><td class="num">0</td><td class="s-ok">fixed, by the menu</td></tr>
+    <tr><td>Pages with no share image</td><td class="num">80</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>Pages not declaring a language</td><td class="num">10</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>Every page declared 3DIE as its identity, iori.me included</td><td class="num">84</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>Both Analytics tags on every page</td><td class="num">84</td><td class="num">0</td><td class="s-ok">fixed</td></tr>
+    <tr><td>Local development recorded as real sessions</td><td class="num">33</td><td class="num">0</td><td class="s-ok">stopped 16 Sep</td></tr>
+    <tr><td>Unversioned three.js from <code>threejs.org/build</code></td><td class="num">13</td><td class="num">11</td><td class="s-warn">open</td></tr>
+    <tr><td>3die.fr ships a 1.4 MB HDR</td><td class="num">1.4 MB</td><td class="num">1.4 MB</td><td class="s-warn">deferred, not shrunk</td></tr>
+  </table></div>
+  <p>The HDR no longer blocks first paint, which was the worst of it, but the file is still 1.4 MB and still fetched. Eleven pages still import three.js from an unversioned URL that changes underneath them.</p>
+  <h3>What the crawler still reports</h3>
+  <p>72 pages without an H1 and 51 with little visible text. Both numbers are true and both are fine: these are full-screen artworks, and the decision not to write filler text into them was deliberate. One page has a description that is now too long, and one image still lacks alt text.</p>
+</section>
+
+<section id="index">
+  <h2><span class="n">§3</span>Indexing</h2>
+  <p>In September only a quarter of pages had been recrawled since the identity fix, so nothing about search was judgeable. That was the blocker, and it has cleared.</p>
+  <div class="tbl"><table>
+    <tr><th>Search Console URL inspection</th><th class="num">26 Sep</th><th class="num">21 Oct</th></tr>
+    <tr><td>URLs in the sitemaps</td><td class="num">85</td><td class="num">87</td></tr>
+    <tr><td>Submitted and indexed</td><td class="num">69</td><td class="num">70</td></tr>
+    <tr><td>Unknown to Google</td><td class="num">7</td><td class="num">4</td></tr>
+    <tr><td>Crawled, not indexed</td><td class="num">3</td><td class="num">7</td></tr>
+    <tr><td>Discovered, not indexed</td><td class="num">6</td><td class="num">6</td></tr>
+    <tr><td>Canonical mismatches</td><td class="num">0</td><td class="num">0</td></tr>
+    <tr><td><b>Recrawled since the 15 Sep fix</b></td><td class="num">21 (25%)</td><td class="num"><b>60 (69%)</b></td></tr>
+  </table></div>
+  <p>Seventeen pages remain outside the index. Most are either brand new and not yet crawled (<code>iris-engine/</code>, <code>petri/</code>, <code>audio/</code>) or thin canvases Google has looked at and declined (<code>webgl.html</code>, <code>liquid-automata.html</code>, <code>fractals.html</code>, <code>lambda_cognition.html</code>). The second group is the honest cost of pages with no readable text, and we chose that trade deliberately.</p>
+</section>
+
+<section id="search">
+  <h2><span class="n">§4</span>Search</h2>
+  <p>Two clean, non-overlapping 28-day windows: 24 Aug to 20 Sep against 21 Sep to 18 Oct.</p>
+  <div class="tbl"><table>
+    <tr><th></th><th class="num">iori.me before</th><th class="num">after</th><th class="num">3die.fr before</th><th class="num">after</th></tr>
+    <tr><td>Average position</td><td class="num was">46.4</td><td class="num s-ok">28.2</td><td class="num was">23.1</td><td class="num s-ok">11.1</td></tr>
+    <tr><td>Clicks</td><td class="num was">1</td><td class="num">3</td><td class="num was">0</td><td class="num">1</td></tr>
+    <tr><td>Impressions</td><td class="num was">33</td><td class="num">34</td><td class="num was">46</td><td class="num">28</td></tr>
+    <tr><td>Pages earning impressions</td><td class="num was">21</td><td class="num s-ok">24</td><td class="num was">16</td><td class="num">5</td></tr>
+  </table></div>
+  <p>The 3die.fr column looks like a collapse and is the opposite. Eleven pages left its results, and eight of them were iori.me experiments that had been wrongly indexed on the 3die domain: aquarium, bismuth-fluid, fractal-dimension, lili, meta-iris, pi, two-body and universe. What remains is five pages that genuinely belong to 3die.fr. Fewer, correct pages at less than half the average position is the cross-domain cleanup doing exactly what it was built to do.</p>
+  <p>On iori.me the reverse happened. Eleven pages entered search results for the first time, including crystalize, death, fluid, fungal-growth, mycelium, multiOS and voxel-terrain. Those are experiment pages that previously had nothing linking to them. The generated menu is getting them crawled.</p>
+  <h3>The brand query has not moved</h3>
+  <p>"3die" went from 19 impressions at position 5.4 to 16 at position 6.2, still no clicks. That is within noise. "iori" still returns nothing at all on iori.me.</p>
+  <div class="note">The whole of search across both domains in the last month is <b>ten distinct queries</b>: eight on iori.me, two on 3die.fr. Everything indexable is indexed and ranking far better than it was. The ceiling now is demand, not technique.</div>
+</section>
+
+<section id="traffic">
+  <h2><span class="n">§5</span>Traffic, and the part that got worse</h2>
+  <div class="tbl"><table>
+    <tr><th>Users, 28 days</th><th class="num">24 Aug – 20 Sep</th><th class="num">21 Sep – 18 Oct</th><th class="num">Change</th></tr>
+    <tr><td>iori.me</td><td class="num">50</td><td class="num">45</td><td class="num">−10%</td></tr>
+    <tr><td>3die.fr</td><td class="num">40</td><td class="num">30</td><td class="num s-warn">−25%</td></tr>
+  </table></div>
+  <p>This is not the local-traffic cleanup reappearing as a fake decline. These figures are filtered by hostname and never contained it. Engagement rose on both sites, 48% to 52% and 48% to 57%, so the people who do arrive are staying longer.</p>
+  <h3>Where it went</h3>
+  <div class="tbl"><table>
+    <tr><th>Channel, users, both sites</th><th class="num">Before</th><th class="num">After</th><th class="num">Change</th></tr>
+    <tr><td>Direct</td><td class="num">72</td><td class="num">47</td><td class="num s-warn">−25</td></tr>
+    <tr><td>Referral</td><td class="num">25</td><td class="num">20</td><td class="num">−5</td></tr>
+    <tr><td>Organic Social</td><td class="num">7</td><td class="num">5</td><td class="num">−2</td></tr>
+    <tr><td>Organic Search</td><td class="num">2</td><td class="num">4</td><td class="num s-ok">+2</td></tr>
+  </table></div>
+  <p>Almost the entire drop is direct traffic, which in practice means links shared in messages and stories, and people returning. Instagram as a source went from 3 users to 0 while Facebook mobile went from 0 to 3. Two referrers that sent a trickle earlier, <code>blog2026.online</code> and <code>sunblog.asia</code>, sent nothing in the later window; both look like referral spam rather than audience.</p>
+  <p>The honest reading is that the sites were shared less in the last month, not that anything broke. Search, the only channel this audit can influence, doubled, from a base of two.</p>
+</section>
+
+<section id="left">
+  <h2><span class="n">§6</span>What is left</h2>
+  <ul class="findings">
+    <li><span class="tag warn">yours</span><div class="f"><b>The label SoundCloud has no link field set.</b><p><code>soundcloud.com/5gmaelstroem</code> says "3Die.FR — We put the D in your DJ" in its description, but that is plain text, not a link. The personal account is done properly: <code>soundcloud.com/ioriori</code> carries <code>iori.me</code> as a real profile link and mentions 3die.fr in the bio. Adding <code>https://3die.fr/</code> to the label profile's link field completes the reciprocal pair that corroborates the Organization identity.</p></div></li>
+    <li><span class="tag info">noted</span><div class="f"><b>Instagram could not be verified from here, and that is fine.</b><p>Instagram serves bio links through scripts and blocks reading, so I can only take your word that they are set. Worth knowing what they do and do not do: Instagram links are marked <code>nofollow</code> and story links are not crawlable at all, so neither passes ranking signal. Their value is identity corroboration and real human traffic, and the traffic is visible in the referrers.</p></div></li>
+    <li><span class="tag warn">yours</span><div class="f"><b><code>www</code> still has no DNS record on either domain.</b><p><code>www.3die.fr</code> and <code>www.iori.me</code> return NXDOMAIN, so anyone typing them sees a failure rather than a redirect. The apex records are fine; the <code>www</code> name was never created. Zones are in different places: Squarespace/Google for 3die.fr, Namecheap for iori.me. Add an A record to 194.182.91.236 and the server redirect can go in the same day.</p></div></li>
+    <li><span class="tag warn">open</span><div class="f"><b>Analytics has no cross-domain linker.</b><p>The two sites are separate streams in one property with no linker configured, so a visitor crossing from iori.me to 3die.fr is counted twice. Sessions are inflated; users are the honest figure and are what this report quotes.</p></div></li>
+    <li><span class="tag info">small</span><div class="f"><b>Eleven pages still import three.js from an unversioned URL</b>, and the 3die.fr HDR is still 1.4 MB although it no longer blocks first paint. Neither is an SEO problem; both are availability and speed.</p></div></li>
+  </ul>
+</section>
+
+<section id="settled">
+  <h2><span class="n">§7</span>Settled — do not reopen</h2>
+  <p>Three recommendations from the September audit were considered and rejected, with reasons that still hold:</p>
+  <ul class="findings">
+    <li><span class="tag ok">no</span><div class="f"><b>Do not add text or headings to the experiment pages.</b><p>This was the first audit's headline recommendation. The menu supplied the internal links instead, which is what actually mattered, and the pages are full-screen canvases whose viewport must not be disturbed.</p></div></li>
+    <li><span class="tag ok">no</span><div class="f"><b>Do not hide an H1 for crawlers.</b><p>Text hidden purely for search engines is the one thing Google treats as deceptive, and an H1 is a minor signal beside the title tag, which every page already has, unique and accurate.</p></div></li>
+    <li><span class="tag ok">no</span><div class="f"><b>Do not speed up the iori.me landing.</b><p>It grows from the first cell by design and reads well on a phone. Crawlers never wait for it: the generated navigation block ships 83 real links in the raw HTML.</p></div></li>
+  </ul>
+  <p>The measured outcome supports all three. Internal links were the lever, not body text; the pages that entered the index this month did so on links alone.</p>
+</section>
+
+</div></main>
+<footer><div class="wrap">Generated 21 Oct 2026 from live responses, Search Console URL inspection of all 87 sitemap URLs, and Analytics property 530756051 filtered by hostname. Tooling and raw output: tools/seo-audit.</div></footer>

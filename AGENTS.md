@@ -42,7 +42,8 @@ bash /root/iori/server_setup.sh          # git pull + rsync + api + caddy
   scp it to /tmp and run from there if server_setup.sh itself changed
 
 ## Handoffs — read the one for your track first
-- **The site** (SEO, analytics, the menus, the deploy): `handoffs/2026-09-26-site-seo-analytics.md`
+- **The site** (SEO, analytics, the menus, the deploy): `handoffs/2026-10-21-site-seo-analytics.md`
+  (durable detail — generated regions, deploy, credentials, traps — in `handoffs/2026-09-26-site-seo-analytics.md`)
 - **Iris Engine**: `iris-engine/HANDOFF.md`
 - **Petri**: `petri/HANDOFF.md`
 - **Timeline** (iori.me/timeline.html, its editor, API routes and import tools): `handoffs/2026-10-16-timeline.md`

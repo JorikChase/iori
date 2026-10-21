@@ -231,21 +231,55 @@
         }
         #boot-hint.fade { opacity: 0; }
 
-        #search-box {
-            position: absolute; top: 16px; left: 50%; transform: translateX(-50%) translateY(-140%);
-            z-index: 15; display: flex; align-items: center; gap: 8px;
-            background: rgba(8, 10, 14, 0.8);
+        /* ---------- find ----------
+           A slash beside INDEX. The field slides out of it along one
+           underline; matches drop under the corner. Picking one flies the
+           slide to that cell. Same on touch and desktop. */
+        #find-tog {
+            position: absolute; top: 16px; right: 92px; z-index: 16;
+            width: 28px; height: 28px; display: grid; place-items: center;
+            background: rgba(8, 10, 14, 0.55);
             backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 230, 0, 0.5); padding: 7px 12px;
-            transition: transform 0.22s ease, opacity 0.22s ease; opacity: 0;
+            border: 1px solid rgba(255, 230, 0, 0.35); color: #FFE600;
+            font-family: monospace; font-size: 12px; line-height: 1; cursor: pointer;
         }
-        #search-box.open { transform: translateX(-50%) translateY(0); opacity: 1; }
-        #search-box span { color: #FFE600; font-family: monospace; font-size: 11px; }
-        #search-input {
-            background: none; border: none; outline: none; color: #fff;
-            font-family: monospace; font-size: 11px; letter-spacing: 1px; width: 200px;
+        #find-tog::before { content: ''; position: absolute; inset: -8px; }
+        #find-tog:hover, #find.open #find-tog { border-color: #FFE600; background: rgba(255, 230, 0, 0.12); }
+        #find-tog:focus-visible { outline: 1px solid #FFE600; outline-offset: 3px; }
+        #find-bar {
+            position: absolute; top: 16px; right: 92px; z-index: 15; height: 28px;
+            display: flex; align-items: center; width: 0; overflow: hidden;
+            border-bottom: 1px solid transparent;
+            transition: width 0.22s ease, border-color 0.22s ease;
         }
-        #search-input::placeholder { color: rgba(255,255,255,0.28); }
+        #find.open #find-bar { width: min(260px, calc(100vw - 140px)); border-bottom-color: #FFE600; }
+        #find-q {
+            width: 100%; padding: 0 38px 0 4px; text-align: right;
+            background: none; border: none; outline: none; color: #fff; caret-color: #FFE600;
+            font-family: monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+            user-select: text; -webkit-user-select: text;
+        }
+        #find-q::placeholder { color: rgba(255, 255, 255, 0.28); }
+        #find-res {
+            position: absolute; top: 52px; right: 16px; z-index: 15; list-style: none;
+            width: min(340px, calc(100vw - 32px));
+            background: rgba(8, 10, 14, 0.62);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-left: 1px solid rgba(255, 230, 0, 0.35);
+        }
+        #find-res li {
+            font-family: monospace; font-size: 10px; line-height: 1; letter-spacing: 0.9px;
+            color: rgba(255, 255, 255, 0.42);
+            padding: 0 10px; height: 30px; display: flex; align-items: center; gap: 10px;
+            white-space: nowrap; cursor: pointer; overflow: hidden;
+        }
+        #find-res .lab { color: rgba(255, 255, 255, 0.86); font-weight: 700; flex: none; }
+        #find-res .lab em { font-style: normal; color: #FFE600; }
+        #find-res .why { color: rgba(255, 255, 255, 0.34); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        #find-res .cat { margin-left: auto; flex: none; color: rgba(255, 255, 255, 0.26); font-size: 9px; letter-spacing: 1.4px; }
+        #find-res li.sel { color: #fff; background: rgba(255, 230, 0, 0.10); box-shadow: inset 2px 0 0 #FFE600; }
+        #find-res li.none { cursor: default; color: rgba(255, 255, 255, 0.3); }
+        @media (pointer: coarse) { #find-res li { height: 40px; } }
 
         #index-toggle {
             position: absolute; top: 16px; right: 16px; z-index: 15;
@@ -348,10 +382,12 @@
     <div id="live-readout"></div>
     <div id="boot-hint">CLICK A CELL TO SEED &middot; HOLD TO KEEP SEEDING &middot; DRAG TO PAN &middot; SCROLL TO ZOOM &middot; CLICK A LABEL TO OPEN IT &middot; DOUBLE-CLICK THE SLIDE TO RESET</div>
 
-    <div id="search-box">
-        <span>/</span>
-        <input id="search-input" type="text" autocomplete="off" spellcheck="false"
-               aria-label="Find a page" placeholder="find a page">
+    <div id="find">
+        <button id="find-tog" aria-label="Find a page" aria-expanded="false" aria-controls="find-res">/</button>
+        <div id="find-bar"><input id="find-q" type="text" autocomplete="off" autocorrect="off" autocapitalize="off"
+               spellcheck="false" enterkeyhint="go" aria-label="Find a page" placeholder="find"
+               role="combobox" aria-expanded="false" aria-controls="find-res"></div>
+        <ul id="find-res" role="listbox" hidden></ul>
     </div>
 
     <button id="index-toggle" aria-controls="site-index">INDEX</button>
@@ -607,6 +643,9 @@ function buildStructure(pages) {
       slug, depth,
       title: p ? p.title : labelFor(slug),
       category: p ? p.category : 'site',
+      description: p ? p.description || '' : '',
+      type: p ? p.type || '' : '',
+      domain: p ? p.domain || '' : '',
       // canonical URL from the registry: pages that live on 3die.fr navigate
       // straight there instead of bouncing through the cross-domain 301
       url: (p && p.url && p.domain && p.domain !== 'iori.me') ? p.url : null,
@@ -716,6 +755,7 @@ async function loadStructure() {
     if (data && Array.isArray(data.pages) && data.pages.length) pages = data.pages;
   } catch (e) { /* offline: the fallback keeps the piece alive */ }
   buildStructure(pages);
+  buildFindIndex();
   buildCrawlableNav(pages);
 }
 
@@ -2182,6 +2222,7 @@ function pickCell(wx, wy) {
    trackpad switches back and forth. */
 const touch = {
   on: false,
+  armed: false,        // a real finger has touched: browsers refuse vibrate before that
   locked: null, lockT: 0, ringR: 9,
   holdStart: 0, holdP: 0,
   vx: 0, vy: 0, lastMoveT: 0, fling: false,
@@ -2238,7 +2279,8 @@ function updateTouch(dt) {
     else if (best && best !== L && bestQ < 0.35 && d > sr) touch.locked = best;
   }
   if (!touch.locked && best && speed < FLING_LOCK) touch.locked = best;
-  if (touch.locked !== L) { touch.holdStart = performance.now(); if (navigator.vibrate && touch.locked) navigator.vibrate(4); }
+  if (fly) touch.locked = fly.cell;   // cells passing under the crosshair mid-flight don't take it
+  if (touch.locked !== L) { touch.holdStart = performance.now(); if (touch.armed && navigator.vibrate && touch.locked) navigator.vibrate(4); }
 
   // draw the slide so the held cell sits under the crosshair
   const T = touch.locked;
@@ -2259,7 +2301,7 @@ function updateTouch(dt) {
     if (touch.holdP >= 1) {
       pointer.seeding = T; pointer.seedClock = 0;
       seedFrom(T, 3);
-      if (navigator.vibrate) navigator.vibrate(8);
+      if (touch.armed && navigator.vibrate) navigator.vibrate(8);
     }
   } else if (!pointer.seeding) touch.holdP = 0;
 
@@ -2405,12 +2447,243 @@ function renderHUDTouch() {
   }
 }
 
+/* ================= FIND =================
+   Fuzzy over everything a page is known by: its name, title, category, type,
+   lineage, description and domain, the name weighted highest. Each word of the
+   query has to land somewhere, and it may land as an exact word, the start of
+   one, a piece inside one, the initials of the name (FS -> FLAME_SIMULATION),
+   a word with a letter or two wrong or swapped, or the letters in order with
+   gaps. Accents fold away. Picking a match flies the slide to its cell -- and
+   summons the cell first if the colony has not grown it yet. */
+const fold = (x) => (x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const wordsOf = (x) => fold(x).split(/[^a-z0-9]+/).filter(Boolean);
+
+function damerau(a, b, max) {
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > max) return max + 1;
+  let prev2 = null, prev = Array.from({ length: lb + 1 }, (_, j) => j);
+  for (let i = 1; i <= la; i++) {
+    const cur = [i]; let rowMin = i;
+    for (let j = 1; j <= lb; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v; if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    prev2 = prev; prev = cur;
+  }
+  return prev[lb];
+}
+
+// letters in order with gaps: tighter spans score higher, word starts help
+function subseqScore(t, text) {
+  if (t.length < 2) return 0;
+  let ti = 0, first = -1, last = -1, starts = 0;
+  for (let i = 0; i < text.length && ti < t.length; i++) {
+    if (text[i] !== t[ti]) continue;
+    if (first < 0) first = i;
+    if (i === 0 || text[i - 1] === ' ') starts++;
+    last = i; ti++;
+  }
+  if (ti < t.length) return 0;
+  return 4.2 * (t.length / (last - first + 1)) + Math.min(0.6, starts * 0.2);
+}
+
+const FIND_FIELDS = [
+  ['label', 1.0], ['title', 0.85], ['category', 0.7], ['type', 0.5],
+  ['lineage', 0.4], ['description', 0.45], ['domain', 0.35],
+];
+let FIND_INDEX = [];
+
+function buildFindIndex() {
+  FIND_INDEX = [];
+  for (const n of NODES.values()) {
+    if (!n.slug) continue;
+    let root = n; while (root.parent && root.parent.parent) root = root.parent;
+    const raw = {
+      label: n.label.replace(/_/g, ' '), title: n.title, category: n.category, type: n.type,
+      lineage: root !== n && root.label ? root.label.replace(/_/g, ' ') : '',
+      description: n.description, domain: n.domain,
+    };
+    const fields = FIND_FIELDS.map(([key, w]) => {
+      const words = wordsOf(raw[key]);
+      return { key, w, words, text: words.join(' '), initials: words.map((x) => x[0]).join('') };
+    });
+    FIND_INDEX.push({ node: n, fields, labelFold: fold(n.label) });
+  }
+}
+
+function tokenInField(t, f) {
+  let best = 0, word = '';
+  const take = (v, w) => { if (v > best) { best = v; word = w; } };
+  for (const w of f.words) {
+    if (w === t) { take(10, w); break; }
+    if (w.startsWith(t)) take(8 - Math.min(2, (w.length - t.length) * 0.15), w);
+    else if (t.length >= 3 && w.includes(t)) take(6, w);
+    else if (t.length >= 3) {
+      const max = t.length >= 7 ? 2 : t.length >= 4 ? 1 : 0;
+      if (max) {
+        const d = Math.min(damerau(t, w, max), w.length > t.length ? damerau(t, w.slice(0, t.length), max) : max + 1);
+        if (d <= max) take(5.5 - d * 1.4, w);
+      }
+    }
+  }
+  if (best < 7 && t.length >= 2 && f.initials.startsWith(t)) take(7, f.words.slice(0, t.length).join(' '));
+  if (best < 5.5 && t.length >= 3 && f.text.replace(/ /g, '').includes(t)) take(5.5, '');
+  if (best < 4.5) take(Math.min(4.5, subseqScore(t, f.text)), '');
+  return { score: best, word };
+}
+
+function findPages(query) {
+  const tokens = wordsOf(query);
+  if (!tokens.length) return [];
+  const compact = tokens.join('');
+  const out = [];
+  for (const e of FIND_INDEX) {
+    let total = 0, matched = 0, why = '';
+    for (const t of tokens) {
+      let best = 0, bestW = 0, bestField = null, bestWord = '';
+      for (const f of e.fields) {
+        const r = tokenInField(t, f);
+        if (r.score * f.w > bestW) { bestW = r.score * f.w; best = r.score; bestField = f; bestWord = r.word; }
+      }
+      if (best >= 1.5) {
+        matched++; total += bestW;
+        if (!why && bestField.key !== 'label' && bestField.key !== 'category')
+          why = bestWord;   // the word that matched, when there is one to show
+      }
+    }
+    if (!matched) continue;
+    const all = matched === tokens.length;
+    if (!all && matched < Math.ceil(tokens.length / 2)) continue;
+    const lab = e.labelFold.replace(/[^a-z0-9]/g, '');
+    if (lab === compact) total += 12;
+    else if (lab.startsWith(compact)) total += 6;
+    total += subseqScore(compact, lab) * 0.6;
+    out.push({ e, score: (all ? total : total * 0.45) - e.node.depth * 0.05 - lab.length * 0.01, why });
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out.slice(0, 6);
+}
+
+// which characters of the displayed name the query explains
+function highlightLabel(label, query) {
+  const L = fold(label), hit = new Set();
+  for (const t of wordsOf(query)) {
+    let i = -1;
+    const re = /[a-z0-9]+/g; let m;
+    while ((m = re.exec(L))) if (m[0].startsWith(t)) { i = m.index; break; }
+    if (i < 0) i = L.indexOf(t);
+    if (i >= 0) { for (let k = 0; k < t.length; k++) hit.add(i + k); continue; }
+    let ti = 0; const pick = [];
+    for (let k = 0; k < L.length && ti < t.length; k++) if (L[k] === t[ti]) { pick.push(k); ti++; }
+    if (ti === t.length) pick.forEach((k) => hit.add(k));
+  }
+  const esc = (ch) => ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
+  return [...label].map((ch, k) => hit.has(k) ? `<em>${esc(ch)}</em>` : esc(ch)).join('');
+}
+
+// a page the colony has not reached yet is grown on the spot, parents first
+function summon(node) {
+  if (!node || node.cell) return node && node.cell;
+  if (node.parent && !node.parent.cell) summon(node.parent);
+  birthNode(node);
+  return node.cell;
+}
+
+/* The flight: pan and zoom ease together, the zoom in log space so it does not
+   lurch, and it only ever closes in -- if you are already nearer, it keeps
+   your zoom. A press or a scroll takes the controls back at once. */
+let fly = null;
+function startFly(cell) {
+  const H = innerHeight || 1;
+  const want = (cell.node.radius * H / 24) / Math.max(1e-3, camera.baseZoom);
+  fly = {
+    cell, t: 0,
+    fromX: camera.panX, fromY: camera.panY,
+    fromZ: camera.userZoom,
+    toZ: Math.min(camera.userZoom, Math.max(0.13, Math.min(4, want))),
+  };
+  camera.manual = true;
+  touch.fling = false;
+  if (touch.on) touch.locked = cell;
+}
+function updateFly(dt) {
+  if (!fly) return;
+  fly.t = Math.min(1, fly.t + dt / 0.8);
+  const t = fly.t, e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  // aim at where the cell is settling, not where it is: a summoned cell is
+  // born at its parent and drifts out, so the two arrive together
+  const n = fly.cell.node, gx = n.tx ?? fly.cell.x, gy = n.ty ?? fly.cell.y;
+  camera.panX = fly.fromX + (gx - fly.fromX) * e;
+  camera.panY = fly.fromY + (gy - fly.fromY) * e;
+  camera.userZoom = Math.exp(Math.log(fly.fromZ) + (Math.log(fly.toZ) - Math.log(fly.fromZ)) * e);
+  if (touch.on) touch.locked = fly.cell;
+  if (t >= 1) fly = null;
+}
+
+const find = { rows: [], sel: 0 };
+function findOpen() {
+  el('find').classList.add('open');
+  el('find-tog').setAttribute('aria-expanded', 'true');
+  setTimeout(() => el('find-q').focus(), 30);
+}
+function findClose() {
+  el('find').classList.remove('open');
+  el('find-tog').setAttribute('aria-expanded', 'false');
+  const q = el('find-q');
+  q.value = ''; q.blur();
+  find.rows = []; findRender();
+}
+const findIsOpen = () => el('find').classList.contains('open');
+
+function findRender() {
+  const res = el('find-res'), q = el('find-q').value;
+  if (!q.trim()) {
+    res.hidden = true; res.innerHTML = '';
+    el('find-q').setAttribute('aria-expanded', 'false');
+    return;
+  }
+  res.hidden = false;
+  el('find-q').setAttribute('aria-expanded', 'true');
+  res.innerHTML = find.rows.length
+    ? find.rows.map((r, i) => {
+        const n = r.e.node;
+        return `<li role="option" id="find-opt-${i}" aria-selected="${i === find.sel}" class="${i === find.sel ? 'sel' : ''}" data-i="${i}">` +
+          `<span>&gt;</span><span class="lab">${highlightLabel(n.label, q)}</span>` +
+          (r.why ? `<span class="why">${r.why}</span>` : '') +
+          `<span class="cat">${(n.category || '').toUpperCase()}</span></li>`;
+      }).join('')
+    : '<li class="none">NO CELL BY THAT NAME</li>';
+  el('find-q').setAttribute('aria-activedescendant', find.rows.length ? `find-opt-${find.sel}` : '');
+}
+
+function findSearch() {
+  find.rows = findPages(el('find-q').value);
+  find.sel = 0;
+  findRender();
+  // the best match lights its lineage while you type, if it has grown yet
+  const top = find.rows[0];
+  searchHit = top && top.e.node.cell ? top.e.node.cell : null;
+}
+
+function findPick(i) {
+  const r = find.rows[i];
+  if (!r) return;
+  const cell = summon(r.e.node);
+  findClose();
+  if (!cell) return;
+  searchHit = cell;
+  startFly(cell);
+}
+
 function setupInputs() {
   const container = document.getElementById('canvas-container');
 
   // the chrome sits inside the canvas container, so without this a click on a
   // button also reaches the stage and navigates to whatever cell was last hit
-  for (const id of ['search-box', 'index-toggle', 'site-index', 'scale-bar', 'live-readout', 'route-modal']) {
+  for (const id of ['find', 'index-toggle', 'site-index', 'scale-bar', 'live-readout', 'route-modal']) {
     const node = el(id);
     if (node) node.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
@@ -2432,8 +2705,11 @@ function setupInputs() {
   let pinchDist = 0, pinchMid = null, lastTap = 0, lastTapX = 0, lastTapY = 0;
 
   container.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch') setTouchMode(true);
+    if (e.pointerType === 'touch') { setTouchMode(true); if (e.isTrusted) touch.armed = true; }
     else if (e.pointerType === 'mouse') setTouchMode(false);
+    fly = null;
+    if (findIsOpen()) findClose();
+    if (!touch.on) searchHit = null;
     active.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (active.size === 2) {
       const [a, b] = [...active.values()];
@@ -2545,42 +2821,39 @@ function setupInputs() {
   container.addEventListener('wheel', (e) => {
     if (e.target.closest && e.target.closest('#site-index')) return;
     if (el('site-index').classList.contains('open')) return;
+    if (e.target.closest && e.target.closest('#find')) return;
     e.preventDefault();
+    fly = null;
     zoomAbout(e.clientX, e.clientY, Math.exp(e.deltaY * 0.0016));
   }, { passive: false });
 
-  // search: "/" to open, Enter to travel
-  const search = el('search-input');
+  // find: "/" opens it from anywhere, arrows choose, Enter flies, Esc closes
+  const fq = el('find-q');
   addEventListener('keydown', (e) => {
-    if (e.key === '/' && document.activeElement !== search) {
-      e.preventDefault(); el('search-box').classList.add('open'); search.focus();
+    const typing = document.activeElement === fq;
+    if (e.key === '/' && !typing) {
+      e.preventDefault(); findOpen();
     } else if (e.key === 'Escape') {
       cancelRoute();
-      el('search-box').classList.remove('open'); search.blur();
-      search.value = ''; searchHit = null;
-    } else if (e.key === '0' && document.activeElement !== search) {
+      if (findIsOpen()) findClose();
+      searchHit = null;
+    } else if (e.key === '0' && !typing) {
       resetView();
-    } else if (e.key === 'i' && document.activeElement !== search) {
+    } else if (e.key === 'i' && !typing) {
       el('site-index').classList.toggle('open');
     }
   });
-  search.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
-    searchHit = null;
-    if (!q) return;
-    let best = null, bestScore = -1;
-    for (const c of tissue) {
-      if (!c.node || !c.node.slug) continue;
-      const hay = (c.node.slug + ' ' + c.node.title).toLowerCase();
-      const i = hay.indexOf(q);
-      if (i < 0) continue;
-      const score = 100 - i - Math.abs(hay.length - q.length) * 0.01;
-      if (score > bestScore) { bestScore = score; best = c; }
-    }
-    searchHit = best;
+  fq.addEventListener('input', findSearch);
+  fq.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); find.sel = Math.min(find.rows.length - 1, find.sel + 1); findRender(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); find.sel = Math.max(0, find.sel - 1); findRender(); }
+    else if (e.key === 'Enter') { e.preventDefault(); findPick(find.sel); }
   });
-  search.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && searchHit) showRouteModal(searchHit.node.slug);
+  el('find-tog').addEventListener('click', () => (findIsOpen() ? findClose() : findOpen()));
+  // pick on press so the field keeps focus until the choice is made
+  el('find-res').addEventListener('pointerdown', (e) => {
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); findPick(+li.dataset.i); }
   });
 
   el('index-toggle').addEventListener('click', () => el('site-index').classList.toggle('open'));
@@ -2622,7 +2895,10 @@ function updateCamera(dt) {
   // you can drag the slide, but not lose the specimen off the edge of it
   // but you can still pan out over the growth. A cursor can point at the rim
   // from anywhere; the crosshair has to reach it, so touch gets the full span
-  const lim = touch.on ? reach + 0.25 : reach * 0.85;
+  // A find can send you to a page out at the rim before the colony has grown
+  // out to it, so while one is in view the limit takes in where it settles.
+  if (searchHit && searchHit.node) reach = Math.max(reach, Math.hypot(searchHit.node.tx || 0, searchHit.node.ty || 0) + 0.3);
+  const lim = (touch.on || searchHit) ? reach + 0.25 : reach * 0.85;
   camera.panX = Math.max(-lim, Math.min(lim, camera.panX));
   camera.panY = Math.max(-lim, Math.min(lim, camera.panY));
 
@@ -2638,8 +2914,9 @@ function updateCamera(dt) {
     // on touch the lock already centres the held cell; leaning as well would fight it
     const lean = touch.on ? null : searchHit || (hoverCell && hoverCell.kind !== 'nucleus' ? hoverCell : null);
     if (lean) { cx += lean.x * 0.22; cy += lean.y * 0.22; }
-  } else if (searchHit) {
-    cx += searchHit.x * 0.30; cy += searchHit.y * 0.30;
+  } else if (searchHit && !touch.on && !fly) {
+    // a gentle lean toward what find is pointing at, measured from where you are
+    cx += (searchHit.x - camera.panX) * 0.30; cy += (searchHit.y - camera.panY) * 0.30;
   }
   camera.targetX = cx; camera.targetY = cy;
 
@@ -2697,6 +2974,7 @@ function frame(now) {
 
   // whatever is under the cursor sets the focal plane and lights its lineage;
   // on touch that is the cell the crosshair holds
+  updateFly(dt);
   if (touch.on) updateTouch(dt);
   hoverCell = touch.on ? (touch.locked || pickCell(pointer.worldX, pointer.worldY))
                        : pickCell(pointer.worldX, pointer.worldY);

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img"><title>3-lens</title><desc>Holding the modifier: the viewport becomes the parameter map of the held op, crosshair at the current point; the field shrinks to an inset.</desc><rect width="1200" height="720" fill="#000"/><g fill="#b8237a" opacity=".55"><ellipse cx="640" cy="380" rx="230" ry="260"/><circle cx="390" cy="380" r="100"/><ellipse cx="640" cy="380" rx="170" ry="200" opacity=".9"/><circle cx="640" cy="100" r="36"/><circle cx="640" cy="660" r="36"/><circle cx="290" cy="380" r="26"/><circle cx="500" cy="150" r="22"/><circle cx="500" cy="610" r="22"/></g>
+<path d="M100 380h1000M640 60v600" fill="none" stroke="#fff" stroke-width="0.75" opacity=".25"/>
+<g fill="none" stroke="#fff" stroke-width="0.75"><path d="M470 300h24M470 300v24"/></g><circle cx="470" cy="300" r="2" fill="#fff"/>
+<g fill="none" stroke="#fff" stroke-width="0.75" opacity=".6"><rect x="1090" y="374" width="12" height="12"/><path d="M1090 380h12"/><circle cx="640" cy="40" r="6"/><circle cx="640" cy="40" r="2.4"/></g>
+<clipPath id="in"><circle cx="1040" cy="600" r="70"/></clipPath><g clip-path="url(#in)"><rect x="960" y="520" width="160" height="160" fill="#000"/><g fill="#b8237a">
+<ellipse cx="1040.0" cy="600.0" rx="103" ry="73" opacity="0.12"/>
+<ellipse cx="1041.5" cy="600.8" rx="88" ry="60" opacity="0.12"/>
+<ellipse cx="1043.0" cy="601.6" rx="73" ry="49" opacity="0.14"/>
+<ellipse cx="1044.5" cy="602.4" rx="58" ry="38" opacity="0.16"/>
+<ellipse cx="1046.0" cy="603.2" rx="44" ry="28" opacity="0.18"/>
+<ellipse cx="1047.5" cy="604.0" rx="31" ry="19" opacity="0.2"/>
+<ellipse cx="1049.0" cy="604.8" rx="20" ry="12" opacity="0.22"/>
+</g>
+<g fill="#1fb3a0"><ellipse cx="1035" cy="597" rx="11" ry="6" opacity=".5"/><ellipse cx="1034" cy="596" rx="5" ry="3" opacity=".8"/></g></g>
+<circle cx="1040" cy="600" r="70" fill="none" stroke="#fff" stroke-width="0.75" opacity=".7"/><path d="M24 44V24h20M1156 24h20v20M24 676v20h20M1156 696h20v-20" fill="none" stroke="#fff" stroke-width="0.75" opacity=".55"/></svg>

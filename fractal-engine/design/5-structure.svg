@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img"><title>5-structure</title><desc>Structure toggle on: the depth ruler, the op glyph strip with the hybrid schedule, the lineage tree, the terrace rings.</desc><rect width="1200" height="720" fill="#000"/><g fill="#b8237a">
+<ellipse cx="660.0" cy="380.0" rx="470" ry="330" opacity="0.12"/>
+<ellipse cx="661.5" cy="380.8" rx="400" ry="275" opacity="0.12"/>
+<ellipse cx="663.0" cy="381.6" rx="330" ry="222" opacity="0.14"/>
+<ellipse cx="664.5" cy="382.4" rx="262" ry="172" opacity="0.16"/>
+<ellipse cx="666.0" cy="383.2" rx="200" ry="128" opacity="0.18"/>
+<ellipse cx="667.5" cy="384.0" rx="142" ry="88" opacity="0.2"/>
+<ellipse cx="669.0" cy="384.8" rx="90" ry="54" opacity="0.22"/>
+</g>
+<g fill="#1fb3a0"><ellipse cx="655" cy="377" rx="48" ry="28" opacity=".5"/><ellipse cx="654" cy="376" rx="22" ry="12" opacity=".8"/></g>
+<g fill="none" stroke="#fff" stroke-width="0.75" opacity=".28">
+<ellipse cx="660" cy="380" rx="470" ry="330"/>
+<ellipse cx="660" cy="380" rx="330" ry="222"/>
+<ellipse cx="660" cy="380" rx="200" ry="128"/>
+<ellipse cx="660" cy="380" rx="90" ry="54"/>
+</g><path d="M24 44V24h20M1156 24h20v20M24 676v20h20M1156 696h20v-20" fill="none" stroke="#fff" stroke-width="0.75" opacity=".55"/><g fill="none" stroke="#fff" stroke-width="0.75" opacity=".6"><path d="M60 120V600"/><path d="M56 160h8M56 200h8M56 240h8M56 280h8M56 320h8M56 360h8M56 400h8M56 440h8M56 480h8M56 520h8M56 560h8"/></g>
+<path d="M50 360h20" stroke="#fff" stroke-width="1.5"/>
+<text x="76" y="364" fill="#fff" font-family="ui-monospace,Menlo,monospace" font-size="11" opacity=".8">12</text>
+<g fill="none" stroke="#fff" stroke-width="0.75" opacity=".55"><rect x="1112" y="252" width="28" height="28"/><path d="M1112 266h28"/><circle cx="1126" cy="322" r="14"/><circle cx="1126" cy="322" r="6"/><rect x="1112" y="364" width="28" height="28"/><rect x="1119" y="371" width="14" height="14"/><path d="M1112 434a14 14 0 1 1 10 24"/><path d="M1122 458l4-6l-7-1"/><circle cx="1126" cy="518" r="2"/><path d="M1126 504v8M1126 524v8M1112 518h8M1132 518h8"/></g>
+<rect x="1110" y="250" width="32" height="32" fill="none" stroke="#fff" stroke-width="1.5" opacity=".9"/>
+<text x="1126" y="580" fill="#fff" font-family="ui-monospace,Menlo,monospace" font-size="11" opacity=".6" text-anchor="middle">×12</text>
+<g fill="none" stroke="#fff" stroke-width="0.75" opacity=".5"><path d="M80 640h60M140 640l24-16M140 640l24 16M164 624h40M164 656h40M204 624l20-12"/></g>
+<g fill="#fff"><circle cx="80" cy="640" r="1.5" opacity=".5"/><circle cx="140" cy="640" r="1.5" opacity=".5"/><circle cx="164" cy="624" r="1.5" opacity=".5"/><circle cx="164" cy="656" r="1.5" opacity=".5"/><circle cx="204" cy="624" r="1.5" opacity=".5"/><circle cx="204" cy="656" r="1.5" opacity=".5"/><circle cx="224" cy="612" r="2.5"/></g></svg>

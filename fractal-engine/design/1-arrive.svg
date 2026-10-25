@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img"><title>1-arrive</title><desc>Black field, the fractal drifting slowly, camera inside it. Nothing else on screen but the four corner marks.</desc><rect width="1200" height="720" fill="#000"/><g fill="#b8237a">
+<ellipse cx="660.0" cy="380.0" rx="470" ry="330" opacity="0.12"/>
+<ellipse cx="661.5" cy="380.8" rx="400" ry="275" opacity="0.12"/>
+<ellipse cx="663.0" cy="381.6" rx="330" ry="222" opacity="0.14"/>
+<ellipse cx="664.5" cy="382.4" rx="262" ry="172" opacity="0.16"/>
+<ellipse cx="666.0" cy="383.2" rx="200" ry="128" opacity="0.18"/>
+<ellipse cx="667.5" cy="384.0" rx="142" ry="88" opacity="0.2"/>
+<ellipse cx="669.0" cy="384.8" rx="90" ry="54" opacity="0.22"/>
+</g>
+<g fill="#1fb3a0"><ellipse cx="655" cy="377" rx="48" ry="28" opacity=".5"/><ellipse cx="654" cy="376" rx="22" ry="12" opacity=".8"/></g><path d="M24 44V24h20M1156 24h20v20M24 676v20h20M1156 696h20v-20" fill="none" stroke="#fff" stroke-width="0.75" opacity=".55"/></svg>

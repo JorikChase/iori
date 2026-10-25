@@ -88,6 +88,7 @@ export function createProject({ name = 'Untitled', seed = 1, now = new Date().to
 /** A MediaRef from a media-library entry (media.js openLibrary; info from openVideo().info()). */
 export function mediaFromLibrary(entry, { id = newId('m') } = {}) {
   const i = entry.info || {};
+  if (i.kind === 'image') return { id, name: entry.name, hash: entry.id, kind: 'image', width: i.w | 0, height: i.h | 0, hasAudio: false, storage: 'opfs' };   // a still: every frame is the picture
   return { id, name: entry.name, hash: entry.id, kind: 'video', width: i.w | 0, height: i.h | 0,
     ...(i.rate ? { fps: { num: i.rate.num, den: i.rate.den } } : i.fps ? { fps: toRational(i.fps) } : {}), ...(i.frames ? { durationFrames: i.frames } : {}), hasAudio: !!i.audio, storage: 'opfs' };
 }

@@ -483,7 +483,7 @@ Object.assign(T0, {
     app.tl.exec('setValue', { id: loop.id, path: ['params', 'residual', 'gain'], value: 0.5 }); const red = kinds().includes('red');
     await wait(650); app.seek(90); while (app.play.busy || app.play.shown !== 90) await wait(20);
     const R = await renderMod(), cv = document.getElementById('ms-view'), shown = await (async () => { while (app.play.busy) await wait(20); app.play.busy = true; try { return fnv1a(await readback(M().gpu, (await app.renderer.render(90)).image)); } finally { app.play.busy = false; } })();   // under the editor's render lock
-    const fresh = R.createSequenceRenderer(M().gpu, app.project, { w: cv.width, h: cv.height, sources: async () => ({ w: 320, h: 180, frame: async (i) => fixture('cut').frame(Math.min(i, 119)) }) });
+    const fresh = R.createSequenceRenderer(M().gpu, app.project, { w: cv.width, h: cv.height, sources: async () => ({ w: 320, h: 180, frame: async (i) => fixture('demo', { count: 120 }).frame(Math.min(i, 119)) }) });   // the editor's demo clip
     const same = shown === fnv1a(await readback(M().gpu, (await fresh.render(90)).image)); await fresh.destroy();
     await settle(20000); const filled = kinds().every((k) => k === 'green');
     return { pass: filled0 && red && same && filled, filledAtStart: filled0, redAfterEdit: red, seekDuringFillSame: same, filledAgain: filled, cache: app.renderer.cache().frames };
@@ -544,6 +544,28 @@ Object.assign(T0, {
     await root.removeEntry('harness-frames-dir', { recursive: true });
     const want = Array.from({ length: 12 }, (_, i) => `harness-frames_${String(i).padStart(6, '0')}.png`);
     return { pass: rz.frames === 12 && rz.codec === 'png' && ok && names.join() === want.join() && files.length === 12, frames: rz.frames, zipEntries: names.length, pngSignatures: ok, folderFiles: files.length, audio: rz.audio || rz.audioNote };
+  },
+  // layers (2026-10-25): a video and a mosh layer from the Layer actions; a PNG, opaque red on its left half and
+  // transparent on its right, imported as a still lands on its own layer: its left half covers the picture, its right
+  // half shows the layers below unchanged; deleting layers and undo restore the project
+  async editorLayers() {
+    const app = window.__app; if (!app || !app.view || !app.A?.addLayer) return { skipped: 'not the editor page' };
+    const P = await projMod(), g = M().gpu, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    app.useProject(app.demoProject()); await wait(100); const before = P.stringify(app.project), s = () => app.project.sequences[0];
+    const px = async (u) => { while (app.play.busy) await wait(20); app.play.busy = true; let img; try { app.renderer.invalidate(); img = await readback(g, (await app.renderer.render(10)).image); } finally { app.play.busy = false; }
+      const W = s().width, H = s().height, i = (Math.round(H / 2) * W + Math.round(u * W)) * 4; return [...img.slice(i, i + 3)]; };   // half-float bits: 0x3c00 = 1.0
+    const plainR = await px(0.75);
+    app.A.addLayer('video'); app.A.addLayer('effect'); const kinds = s().channels.map((c) => c.kind).join();
+    const fxClip = s().channels.find((c, i) => c.kind === 'effect' && i > 1)?.clips[0];
+    app.tl.undo(); app.tl.undo();                                   // back to the demo before the still
+    const c = new OffscreenCanvas(320, 180), cx = c.getContext('2d'); cx.fillStyle = '#ff0000'; cx.fillRect(0, 0, 160, 180);
+    app.tl.select(null); app.seek(10); await app.importFile(new File([await c.convertToBlob({ type: 'image/png' })], 'half.png', { type: 'image/png' })); await wait(300);
+    const top = s().channels.filter((ch) => ch.kind !== 'audio').pop(), still = top?.clips[0], m = still && app.project.media.find((x) => x.id === still.mediaId);
+    const left = await px(0.25), right = await px(0.75);
+    const same = (a, b) => a.every((v, k) => v === b[k]);
+    while (app.tl.undo()); const restored = P.stringify(app.project) === before;
+    return { pass: kinds === 'video,effect,video,effect,audio' && !!fxClip && m?.kind === 'image' && same(left, [0x3c00, 0, 0]) && same(right, plainR) && restored,
+      kinds, moshLayerClip: !!fxClip, still: m?.kind, left, right, plainRight: plainR, restored };
   },
   // the tour (help.js): every step's target exists, is on screen and is the element a click at its centre lands on (a
   // window over it fades and lets clicks through); doing a step moves on; Esc ends it and leaves nothing behind

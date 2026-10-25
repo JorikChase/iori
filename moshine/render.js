@@ -90,6 +90,7 @@ export function gpuBackend(gpu, { w, h, sources }) {
           c.getContext('2d').putImageData(d, 0, 0); const vf = new VideoFrame(c, { timestamp: 0 }); ingest.ingest(vf, tex); vf.close();
         }
       }
+      else if (f?.image) ingest.ingest(f.image, tex, { alpha: true });               // a still (ImageBitmap), transparency kept
       else if (f) { const vf = f.toVideoFrame(); ingest.ingest(vf, tex); vf.close(); }
       clipSrc.set(clip.id, { i, tex });
       return tex;

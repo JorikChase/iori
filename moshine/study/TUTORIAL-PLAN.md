@@ -88,3 +88,20 @@ offer → **H2** the drawings → **H3** harness row, screenshots at desktop and
 - **H3** harness rows `exportFrames` and `editorTour` (T0): pass in Chrome, Playwright WebKit and Safari 26.6.
   Zen under WebDriver has no WebGPU adapter, so Firefox is untested; Playwright's Firefox build is not installed.
 - Also fixed: opening Export from the dock left its form empty (the shell now sends `ms-open` when a window opens).
+
+## Owner round 2 (2026-10-25 evening)
+
+- **Layers:** Layer menu + `+ LAYER` in the timeline caption: video / mosh (an effect channel with an Xvid classic clip
+  over the whole sequence) / audio layer, import video or image, delete layer. Stills (PNG, JPG, WebP, GIF, AVIF) are
+  library media of kind `image`; a still lands on a new layer above the picture for 5 s. Transparency is kept: images
+  are copied from an ImageBitmap (a VideoFrame drops alpha in WebKit) through the alpha variant of the ingest.
+- **Brush:** SIZE is labelled, log slider 0.5 %–60 % of the height; an outline follows the pointer at the real size;
+  the wheel over the picture and `[` / `]` (with a brush on) resize. PUSH and add/replace show only with VECTOR.
+  Not done: pen pressure (a stroke has one radius).
+- **Demo:** `fixtures.js` `demo` (bars pan and discs drift from frame 0, cut at 45); old saved demos (`fixture:cut`)
+  play it too. Golden hashes gained `demo` only.
+- **Logo:** the caption's corner box shows the 3die icon as a VGA bitmap and opens the site links (shell.js, as in
+  the Iris Engine); `#site-menu` is hidden.
+- **Resizing:** desk dividers (Stack column, timeline height; `U.split`, double-click = automatic) and a corner grip on
+  every floating window (`U.layout[k].w/h`, double-click = natural size).
+- Harness: `editorLayers` (T0).

@@ -15,7 +15,9 @@ body.ms-touch { --row: 38px; --cap: 30px; --menuh: 34px; --fs: 14px; --dock: 40p
 #ms-cap, #ms-menubar, .ms, .ms-menu, #ms-dock, #ms-desk { font: 700 var(--fs)/1 var(--font); color: #000; cursor: default; user-select: none; -webkit-user-select: none; }
 #ms-cap { position: fixed; left: 0; right: 0; top: 0; height: var(--cap); z-index: 200; background: var(--navy); color: #fff; border-bottom: 1px solid #000; display: flex; align-items: stretch; line-height: var(--cap); }
 .ms-capt0 { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
-.ms-ctl { width: var(--cap); padding: 0; background: #000; border: 0; border-right: 1px solid #000; border-radius: 0; flex: none; }   /* site burger at the move (site.py menu) */
+.ms-ctl { width: var(--cap); padding: 0; background: #000; border: 0; border-right: 1px solid #000; border-radius: 0; flex: none; }
+.ms-ctl.ms-site { background: #000 center / 100% 100% no-repeat; image-rendering: pixelated; cursor: pointer; }   /* the site menu: the 3die icon (shell.js) */
+#site-menu { display: none !important; }   /* the floating burger: its links open from the caption's corner box */
 #ms-menubar { position: fixed; left: 0; right: 0; top: calc(var(--cap) + 1px); height: var(--menuh); display: flex; align-items: stretch; background: #fff; border-bottom: 1px solid #000; z-index: 200; }
 .ms-mtop { padding: 0 8px; line-height: var(--menuh); } .ms-mtop.open { background: var(--navy); color: #fff; }
 #ms-status { margin-left: auto; padding: 0 8px; line-height: var(--menuh); font-weight: 400; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
@@ -211,3 +213,13 @@ body.ms-phone #ms-transport { padding: 3px 4px; gap: 3px; } body.ms-phone .mk-to
 @media (prefers-reduced-motion: reduce) { #tour-ring, #tour-win, #tour-offer { transition: none; } }
 .ms.tour-under { opacity: .15; pointer-events: none; transition: opacity .15s ease; }
 #tour-win.tour-dock .ms-brow { padding-right: 84px; }   /* the site menu button sits bottom-right */
+.ms-wcap .tl-add { height: calc(var(--cap) - 2px); margin: 1px 2px 0 0; padding: 0 6px; font-size: 11px; flex: none; }   /* + LAYER in the timeline caption */
+.mk-l { display: inline-flex; align-items: center; gap: 4px; font: 700 10px/1 var(--font); } .mk-l input { width: 80px; } .mk-vonly { display: inline-flex; gap: 4px; align-items: center; } .mk-vonly[hidden] { display: none; }
+/* resizing: desk dividers (ui.js) and the floating windows' corner grip (shell.js) */
+.ms-split { position: absolute; z-index: 5; touch-action: none; } .ms-split[hidden] { display: none; }
+.ms-split-v { width: 6px; cursor: col-resize; } .ms-split-h { left: 4px; right: 4px; height: 6px; cursor: row-resize; }
+.ms-split:hover, .ms-split.on { background: rgba(0, 0, 128, .55); }
+.ms-grip { position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; cursor: nwse-resize; touch-action: none;
+  background: linear-gradient(135deg, transparent 0 45%, #808080 45% 52%, #fff 52% 58%, transparent 58% 66%, #808080 66% 73%, #fff 73% 79%, transparent 79%); }
+.ms.ms-sized.open { display: flex; flex-direction: column; } .ms.ms-sized > .ms-in { flex: 1; min-height: 0; } .ms.ms-sized .ms-body { flex: 1; min-height: 0; max-height: none; }
+body.ms-phone .ms-grip, body.ms-phone .ms-split { display: none; }

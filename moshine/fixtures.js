@@ -75,6 +75,37 @@ export const FIXTURES = {
     },
     mv(x, y, t) { return t <= cut ? [0, 0] : this.inside(x, y, t) ? v : pan; }, layer(t, x, y) { return t < cut ? 2 : this.inside(x, y, t) ? 1 : 0; },
   }),
+  /** The editor's demo clip (2026-10-25: "move even in the beginning so we can test right away"): the colour bars
+   *  pan from frame 0 and the two discs drift on their own paths, then at `cut` the scene changes to the panning
+   *  texture with the moving square, as in 'cut'. Every frame has motion, so any look moshes from the first play. */
+  demo: ({ w = 320, h = 180, count = 150, block = 16, seed = 3, cut = 45, pan = [2, 0], d1 = [1, -1], d2 = [-2, 1], v = [-3, 1], size = 72, at = [200, 40] } = {}) => make({
+    name: 'demo', w, h, count, block, cut,
+    disc(x, y, t) {                                        // 1 = dark disc, 2 = magenta disc, 0 = bars
+      const r1 = h * 0.18, r2 = h * 0.12, c1 = [w * 0.3 + d1[0] * t, h * 0.62 + d1[1] * t], c2 = [w * 0.72 + d2[0] * t, h * 0.35 + d2[1] * t];
+      return (x - c1[0]) ** 2 + (y - c1[1]) ** 2 < r1 * r1 ? 1 : (x - c2[0]) ** 2 + (y - c2[1]) ** 2 < r2 * r2 ? 2 : 0;
+    },
+    inside(x, y, t) { const k = t - cut, sx = at[0] + v[0] * k, sy = at[1] + v[1] * k; return x >= sx && x < sx + size && y >= sy && y < sy + size; },
+    pixel(out, i, x, y, t) {
+      if (t < cut) {
+        const d = this.disc(x, y, t);
+        if (d === 1) { out[i] = out[i + 1] = out[i + 2] = 0.05; out[i + 3] = 1; return; }
+        if (d === 2) { out[i] = 0.95; out[i + 1] = 0.1; out[i + 2] = 0.6; out[i + 3] = 1; return; }
+        const bx = (((x - pan[0] * t) % w) + w) % w, bars = [[1, 1, 1], [1, 1, 0], [0, 1, 1], [0, 1, 0], [1, 0, 1], [1, 0, 0], [0, 0, 1], [0.1, 0.1, 0.1]], c = bars[Math.min(7, Math.floor((bx * 8) / w))];
+        const g = 0.12 * hash3(bx >> 2, y >> 2, 99);
+        for (let k = 0; k < 3; k++) out[i + k] = Math.min(1, 0.15 + 0.75 * c[k] + g);
+        out[i + 3] = 1; return;
+      }
+      const k = t - cut;
+      if (this.inside(x, y, t)) put(out, i, noiseTex(x - v[0] * k, y - v[1] * k, seed + 50, 8), SQ);
+      else put(out, i, noiseTex(x - pan[0] * k, y - pan[1] * k, seed), A);
+    },
+    mv(x, y, t) {
+      if (t === 0 || t === cut) return [0, 0];
+      if (t < cut) { const d = this.disc(x, y, t); return d === 1 ? d1 : d === 2 ? d2 : pan; }
+      return this.inside(x, y, t) ? v : pan;
+    },
+    layer(t, x, y) { return t < cut ? (this.disc(x, y, t) ? 2 : 1) : this.inside(x, y, t) ? 1 : 0; },
+  }),
   /** Static colour bars: chroma-subsampling, DCT and deblocking fixtures. Field is zero. */
   bars: ({ w = 320, h = 180, count = 8, block = 16 } = {}) => make({
     name: 'bars', w, h, count, block, cut: null,

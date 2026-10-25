@@ -36,7 +36,7 @@ test('values stay in [0, 1] with opaque alpha', () => {
 });
 
 // The convention test: warping frame t-1 by the true field must reproduce frame t wherever the field is exact.
-for (const [name, t] of [['pan', 7], ['square', 9], ['cut', 47]]) {
+for (const [name, t] of [['pan', 7], ['square', 9], ['cut', 47], ['demo', 12], ['demo', 50]]) {
   test(`ground truth: warp(${name}[${t - 1}], field[${t}]) == ${name}[${t}] on the exact mask`, () => {
     const f = fixture(name), mask = f.exactMask(t);
     const got = warp(f.frame(t - 1), f.field(t), f), want = f.frame(t);

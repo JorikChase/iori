@@ -49,21 +49,27 @@ try { ckDisk = await openDiskCache(); const est = await navigator.storage.estima
 const autosave = createAutosave((p, text) => store?.saveText(p, text), { onError: (e) => note('autosave failed: ' + e.message) });
 
 // ------------------------------------------------------------------------------------------------ media sources
-const DEMO = fixture('cut');
+// the demo clip moves from frame 0 (fixtures.js 'demo'); projects saved with the older 'cut' demo show it too
+const DEMO = fixture('demo', { count: 120 });
 function demoProject() {
-  const media = { id: newId('m'), name: 'demo fixture: cut', hash: 'fixture:cut', kind: 'video', width: DEMO.w, height: DEMO.h, fps: { num: 30, den: 1 }, durationFrames: DEMO.count, hasAudio: false, storage: 'url' };
+  const media = { id: newId('m'), name: 'demo clip', hash: 'fixture:demo', kind: 'video', width: DEMO.w, height: DEMO.h, fps: { num: 30, den: 1 }, durationFrames: DEMO.count, hasAudio: false, storage: 'url' };
   const p = fromConfig(PRESETS['Xvid classic'], { media, name: 'Demo', width: DEMO.w, height: DEMO.h, timebase: { num: 30, den: 1 } });
   p.sequences[0].markers.push({ id: newId('m'), frame: 52, color: 'yellow', note: 'try H for a mosh hit', hit: false });
   p.sequences[0].channels[1].clips[0].label = 'Xvid classic';
   return p;
 }
 async function sources(m) {
-  if (m.hash === 'fixture:cut') return { w: DEMO.w, h: DEMO.h, frame: async (i) => DEMO.frame(Math.min(i, DEMO.count - 1)) };
+  if (m.hash === 'fixture:demo' || m.hash === 'fixture:cut') return { w: DEMO.w, h: DEMO.h, frame: async (i) => DEMO.frame(Math.min(i, DEMO.count - 1)) };
   const entry = lib?.list().find((e) => e.id === m.hash) || session.get(m.hash);
   if (!entry) throw new Error(`media "${m.name}" is not in this browser's library (import it again)`);
   const file = entry.file || (await lib.file(entry));
+  if (m.kind === 'image') {                                          // a still: the same picture for every frame
+    const bm = await createImageBitmap(file);
+    return { w: bm.width, h: bm.height, frame: async () => ({ image: bm }), close: () => bm.close() };   // copied as an ImageBitmap: a VideoFrame drops alpha in WebKit
+  }
   return videoReader(await openVideo(file, entry.name));
 }
+const isImage = (f) => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(f.name);
 const session = new Map();                                              // imports that could not be stored in OPFS
 
 // ------------------------------------------------------------------------------------------------ audio features (M7)
@@ -73,7 +79,7 @@ const featureTables = new Map(), analysing = new Map();
 audioFeatures.get = (hash) => featureTables.get(hash);                // the clock reads audio modulators' features from here
 function ensureFeatures(hash) {
   if (featureTables.has(hash) || analysing.has(hash) || hash.startsWith('fixture:')) return analysing.get(hash) || null;
-  const entry = lib?.list().find((e) => e.id === hash) || session.get(hash); if (!entry) return null;
+  const entry = lib?.list().find((e) => e.id === hash) || session.get(hash); if (!entry || entry.info?.kind === 'image') return null;
   const job = (async () => {
     try {
       let t = lib && !entry.file ? await lib.features(entry) : null; const r = entry.info?.rate;
@@ -217,8 +223,9 @@ const insBody = stackPane.querySelector('.ins'), tlBody = tlPane.querySelector('
 S.transport.innerHTML = `<button class="ms-b" id="ms-home" title="to start (Home)">⏮</button><button class="ms-b" id="ms-back" title="reverse (J)">◀</button><button class="ms-b" id="ms-play" title="play / pause (space, K)">▶</button>
   <button class="ms-b" id="ms-step" title="one frame (→)">|▶</button><button class="ms-b" id="ms-end" title="to end (End)">⏭</button><button class="ms-b" id="ms-loop" title="loop the export range">LOOP</button>
   <span class="ms-sp"></span><span class="mk-tools"><button class="ms-b" id="mk-inc" title="mask brush: paint where the mosh applies (G)">MASK</button><button class="ms-b" id="mk-lock" title="lock brush: paint where the mosh never goes (Shift+G)">LOCK</button>
-  <button class="ms-b" id="mk-vec" title="vector brush: paint motion along your drag (V)">VECTOR</button><input type="range" id="mk-push" min="0.002" max="0.08" step="0.001" title="vector push (per frame)"><select id="mk-vmode" title="vectors add to the motion, or replace it"><option value="add">add</option><option value="replace">replace</option></select>
-  <input type="range" id="mk-size" min="0.01" max="0.3" step="0.005" title="brush size"><button class="ms-b" id="mk-show" title="show the mask (dims where the mosh does not reach)">SHOW</button><button class="ms-b" id="mk-clear" title="clear the active brush's mask">CLEAR</button></span>
+  <button class="ms-b" id="mk-vec" title="vector brush: paint motion along your drag (V)">VECTOR</button>
+  <label class="mk-l" title="brush size: also the mouse wheel over the picture, or [ and ] while a brush is on">SIZE<input type="range" id="mk-size" min="0" max="1000" step="1"></label>
+  <span class="mk-vonly" hidden><label class="mk-l" title="how hard the painted vectors push (per frame)">PUSH<input type="range" id="mk-push" min="0.002" max="0.08" step="0.001"></label><select id="mk-vmode" title="vectors add to the motion, or replace it"><option value="add">add</option><option value="replace">replace</option></select></span><button class="ms-b" id="mk-show" title="show the mask (dims where the mosh does not reach)">SHOW</button><button class="ms-b" id="mk-clear" title="clear the active brush's mask">CLEAR</button></span>
   <button class="ms-b" id="ms-sound" title="sound on / off while playing">SOUND</button><button class="ms-b" id="ms-hit" title="mosh hit at the playhead (H)">HIT</button><button class="ms-b" id="ms-split" title="split at the playhead (⌘B)">SPLIT</button>`;
 // ------------------------------------------------------------------------------------------------ R4: Looks strip + empty state
 // Every preset as a card with a live thumbnail of the clip at the playhead; one click applies it (lookTarget). The
@@ -271,7 +278,10 @@ const syncEmpty = () => { emptyEl.hidden = seq().channels.some((c) => c.clips.le
 // not reach, from the same raster the renderer uses.
 const mk = { tool: null, size: U.mkSize || 0.06, push: U.mkPush || 0.015, vmode: 'add', show: false, pts: null };
 const fitBox = $('ms-fit'), ovl = S.overlay;
-$('mk-size').value = mk.size; $('mk-size').oninput = () => { mk.size = +$('mk-size').value; U.mkSize = mk.size; S.save(); };
+// brush size: 0.5 % to 60 % of the picture height, on a log slider so small brushes keep their resolution
+const SZ0 = 0.005, SZ1 = 0.6, toSlider = (v) => Math.round((1000 * Math.log(v / SZ0)) / Math.log(SZ1 / SZ0)), fromSlider = (x) => SZ0 * (SZ1 / SZ0) ** (x / 1000);
+const setSize = (v, fromInput = false) => { mk.size = Math.min(SZ1, Math.max(SZ0, v)); if (!fromInput) $('mk-size').value = toSlider(mk.size); U.mkSize = mk.size; S.save(); drawMaskOverlay(); };
+$('mk-size').value = toSlider(mk.size); $('mk-size').oninput = () => setSize(fromSlider(+$('mk-size').value), true);
 const setTool = (t) => { mk.tool = mk.tool === t ? null : t; syncMaskUi(); drawMaskOverlay(); };
 $('mk-inc').onclick = () => setTool('include'); $('mk-lock').onclick = () => setTool('lock'); $('mk-vec').onclick = () => setTool('vector');
 $('mk-push').value = mk.push; $('mk-push').oninput = () => { mk.push = +$('mk-push').value; U.mkPush = mk.push; S.save(); };
@@ -284,6 +294,7 @@ $('mk-clear').onclick = () => {
 function syncMaskUi() {
   $('mk-inc').classList.toggle('on', mk.tool === 'include'); $('mk-lock').classList.toggle('on', mk.tool === 'lock'); $('mk-vec').classList.toggle('on', mk.tool === 'vector'); $('mk-show').classList.toggle('on', mk.show);
   fitBox.classList.toggle('painting', !!mk.tool); ovl.style.pointerEvents = mk.tool ? 'auto' : 'none';
+  document.querySelector('.mk-vonly').hidden = mk.tool !== 'vector';
 }
 const toUV = (e) => { const r = fitBox.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
 ovl.addEventListener('pointerdown', (e) => {
@@ -291,8 +302,12 @@ ovl.addEventListener('pointerdown', (e) => {
   const T = lookTarget(); if (!T) { note('pick a look first: masks belong to a mosh'); return; }
   try { ovl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointers (tests) */ } mk.pts = [...toUV(e)]; mk.clip = T.clip.id; mk.eff = T.e.id; drawMaskOverlay();
 });
+// the brush outline follows the pointer at its real size; the wheel over the picture resizes it
+ovl.addEventListener('pointermove', (e) => { if (mk.tool && !mk.pts) { mk.hover = toUV(e); drawMaskOverlay(); } });
+ovl.addEventListener('pointerleave', () => { mk.hover = null; drawMaskOverlay(); });
+ovl.addEventListener('wheel', (e) => { if (!mk.tool) return; e.preventDefault(); mk.hover = toUV(e); setSize(mk.size * Math.exp(-e.deltaY * 0.002)); }, { passive: false });
 ovl.addEventListener('pointermove', (e) => {
-  if (!mk.pts) return; const [u, v] = toUV(e), n = mk.pts.length, A = seq().width / seq().height;
+  if (!mk.pts) return; const [u, v] = toUV(e), n = mk.pts.length, A = seq().width / seq().height; mk.hover = [u, v];
   if (Math.hypot((u - mk.pts[n - 2]) * A, v - mk.pts[n - 1]) > mk.size / 4) { mk.pts.push(u, v); drawMaskOverlay(); }
 });
 const endStroke = () => {
@@ -306,6 +321,11 @@ function drawMaskOverlay() {
   const r = fitBox.getBoundingClientRect(), d = devicePixelRatio || 1, ctx = ovl.getContext('2d');
   ovl.width = Math.max(1, Math.round(r.width * d)); ovl.height = Math.max(1, Math.round(r.height * d)); ctx.clearRect(0, 0, ovl.width, ovl.height);
   if (!(mk.show || mk.tool) || !project) return;
+  if (mk.tool && mk.hover) {                                            // the brush: radius = size × picture height, as the stroke
+    const x = mk.hover[0] * ovl.width, y = mk.hover[1] * ovl.height, rr = Math.max(2, mk.size * ovl.height);
+    ctx.lineWidth = 1.5 * d; for (const [c, dash] of [['#000', []], ['#fff', [4 * d, 4 * d]]]) { ctx.strokeStyle = c; ctx.setLineDash(dash); ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.setLineDash([]);
+  }
   const T = lookTarget(); if (!T) return;
   const res = mk.tool === 'vector' ? [] : resolveMasks(T.clip.masks, play.want - T.clip.range.in, clockOf(seq(), T.clip));
   if (res.length) {
@@ -350,6 +370,31 @@ function relayout() {
 }
 addEventListener('resize', () => { relayout(); densify(); });
 
+// Dividers: drag between the preview and the Stack column, or above the timeline, to size them (remembered; a
+// double-click gives the automatic fit of D41 back).
+const splitV = h('div', 'ms-split ms-split-v'), splitH = h('div', 'ms-split ms-split-h');
+splitV.title = splitH.title = 'drag to resize · double-click: automatic';
+$('ms-desk').append(splitV, splitH);
+function placeSplits() {
+  const desk = $('ms-desk'), D = desk.getBoundingClientRect(), P = $('ms-preview').getBoundingClientRect(), T = tlPane.getBoundingClientRect();
+  splitV.hidden = layout !== 'desktop'; splitH.hidden = layout === 'phone';
+  Object.assign(splitV.style, { left: P.right - D.left - 1 + 'px', top: P.top - D.top + 'px', height: P.height + 'px' });
+  Object.assign(splitH.style, { top: T.top - D.top - 5 + 'px' });
+}
+for (const [el, key] of [[splitV, 'stackw'], [splitH, 'tlh']]) {
+  let on = false;
+  el.addEventListener('pointerdown', (e) => { on = true; el.setPointerCapture(e.pointerId); el.classList.add('on'); });
+  el.addEventListener('pointermove', (e) => {
+    if (!on) return; const D = $('ms-desk').getBoundingClientRect();
+    U.split = { ...(U.split || {}), [key]: key === 'stackw' ? D.right - 4 - e.clientX - 2 : D.bottom - 4 - e.clientY - 2 };
+    densify(); placeSplits();
+  });
+  el.addEventListener('pointerup', () => { if (!on) return; on = false; el.classList.remove('on'); S.save(); });
+  el.addEventListener('dblclick', () => { if (U.split) delete U.split[key]; S.save(); densify(); placeSplits(); });
+}
+new ResizeObserver(() => placeSplits()).observe($('ms-desk'));
+new ResizeObserver(() => placeSplits()).observe(tlPane); new ResizeObserver(() => placeSplits()).observe($('ms-preview'));
+
 /**
  * D41 (owner, 2026-10-10): no empty space. The timeline pane is as tall as its rows (at most 45 % of the desk), the
  * preview and stack get the rest, and on desktop the stack column takes the width the picture would otherwise
@@ -360,11 +405,11 @@ function densify() {
   const desk = $('ms-desk'); if (!desk || layout === 'phone' || !view) return;
   const D = desk.getBoundingClientRect(); if (!D.height) return;
   const cap = tlPane.querySelector('.ms-wcap')?.offsetHeight || 18;
-  const tlh = Math.round(Math.min(D.height * 0.45, Math.max(118, cap + view.contentH + 12)));
+  const tlh = U.split?.tlh ? Math.round(Math.max(90, Math.min(D.height - 160, U.split.tlh))) : Math.round(Math.min(D.height * 0.45, Math.max(118, cap + view.contentH + 12)));
   if (Math.abs(tlh - dense.tlh) > 1) { dense.tlh = tlh; desk.style.setProperty('--tlh', tlh + 'px'); }
   if (layout !== 'desktop') return;
   const stage = $('ms-stage'), s = seq(), A = s.width / s.height, sh = stage.clientHeight; if (!sh) return;
-  const want = Math.round(Math.min(480, D.width * 0.5, Math.max(330, D.width - sh * A - 10)));
+  const want = U.split?.stackw ? Math.round(Math.max(240, Math.min(D.width - 320, U.split.stackw))) : Math.round(Math.min(480, D.width * 0.5, Math.max(330, D.width - sh * A - 10)));
   if (Math.abs(want - dense.stackw) > 2) { dense.stackw = want; desk.style.setProperty('--stackw', want + 'px'); }
 }
 
@@ -382,14 +427,15 @@ async function refreshMedia() {
     add.style.height = del.style.height = '18px'; add.onclick = () => addToTimeline(e);
     del.onclick = async () => { if (lib && !e.file) await lib.remove(e); session.delete(e.id); refreshMedia(); };
     const tools = h('span'); tools.append(add, del);
-    row.append(h('span', '', `<b>${e.name}</b><br>${i ? `${i.w}×${i.h} · ${fmtDur(i.duration)} · ${Math.round(i.fps)} fps · ${i.codec}${i.audio ? ' · ' + i.audio.split(' ')[0] : ''} · ` : ''}${fmtBytes(e.size)}`), tools);
+    row.append(h('span', '', `<b>${e.name}</b><br>${i?.kind === 'image' ? `${i.w}×${i.h} · image · ` : i ? `${i.w}×${i.h} · ${fmtDur(i.duration)} · ${Math.round(i.fps)} fps · ${i.codec}${i.audio ? ' · ' + i.audio.split(' ')[0] : ''} · ` : ''}${fmtBytes(e.size)}`), tools);
     mediaList.append(row);
   }
   if (lib) { const u = await lib.usage(); persistBtn.disabled = u.persisted; }
 }
 persistBtn.onclick = async () => { const ok = await lib?.persist(); note(ok ? 'storage is now persistent' : 'the browser declined persistent storage'); refreshMedia(); };
-impBtn.onclick = () => { const i = h('input'); i.type = 'file'; i.accept = 'video/*,.mp4,.mov,.webm,.mkv,.m4v'; i.onchange = () => i.files[0] && importFile(i.files[0]); i.click(); };
+impBtn.onclick = () => { const i = h('input'); i.type = 'file'; i.accept = 'video/*,image/*,.mp4,.mov,.webm,.mkv,.m4v,.png,.jpg,.jpeg,.webp,.gif,.avif'; i.onchange = () => i.files[0] && importFile(i.files[0]); i.click(); };
 async function importFile(file, { auto = false, add = true } = {}) {
+  if (isImage(file)) return importImage(file, { add });
   play.on = false; note('reading ' + file.name);
   let video; try { video = await openVideo(file, file.name); } catch (e) { note('cannot open ' + file.name + ': ' + e.message); return null; }
   const info = video.info(), lim = importLimits({ w: video.w, h: video.h, seconds: video.duration, fps: video.fps }, tierOf(), caps(), PM || {}); video.close();
@@ -399,6 +445,18 @@ async function importFile(file, { auto = false, add = true } = {}) {
   else { entry = { id: 'session-' + newId(), name: file.name, size: file.size, info, file }; session.set(entry.id, entry); }
   refreshMedia();
   if (add) addToTimeline(entry, { maxSeconds: choice === 'trim' ? lim.maxSeconds : Infinity });
+  return entry;
+}
+/** A still image (PNG, JPG, WebP, GIF, AVIF): kept in the library like a video, placed as a 5 s clip on its own layer. */
+async function importImage(file, { add = true } = {}) {
+  play.on = false; note('reading ' + file.name);
+  let bm; try { bm = await createImageBitmap(file); } catch (e) { note('cannot open ' + file.name + ': ' + e.message); return null; }
+  const info = { kind: 'image', w: bm.width, h: bm.height, codec: (file.type || 'image').replace('image/', '') }; bm.close();
+  let entry;
+  if (lib && lib.canWrite) { entry = await lib.import(file); await lib.setInfo(entry, info); entry = lib.list().find((x) => x.id === entry.id); }
+  else { entry = { id: 'session-' + newId(), name: file.name, size: file.size, info, file }; session.set(entry.id, entry); }
+  refreshMedia();
+  if (add) addToTimeline(entry);
   return entry;
 }
 function gate(file, info, lim) {
@@ -425,15 +483,19 @@ function addToTimeline(entry, { maxSeconds = Infinity } = {}) {
   const s = seq(), m = mediaFromLibrary(entry), empty = s.channels.every((c) => !c.clips.length);
   try {
     return tl.transaction('Add clip', () => {
-      if (empty && m.fps) {
-        tl.exec('setValue', { id: s.id, path: ['timebase'], value: m.fps });
+      if (empty && (m.fps || m.kind === 'image')) {
+        if (m.fps) tl.exec('setValue', { id: s.id, path: ['timebase'], value: m.fps });
         const [w, h2] = fitSize(m.width, m.height, 7680, 4320); tl.exec('setValue', { id: s.id, path: ['width'], value: w }); tl.exec('setValue', { id: s.id, path: ['height'], value: h2 });
       }
       const mediaId = tl.exec('addMedia', { media: m });
       const ref = project.media.find((x) => x.id === mediaId), tb = s.timebase;
-      let n = ref.durationFrames && ref.fps ? Math.floor((ref.durationFrames * tb.num * ref.fps.den) / (tb.den * ref.fps.num)) : 10 * Math.round(fpsOf());
+      let n = ref.kind === 'image' ? 5 * Math.round(fpsOf()) : ref.durationFrames && ref.fps ? Math.floor((ref.durationFrames * tb.num * ref.fps.den) / (tb.den * ref.fps.num)) : 10 * Math.round(fpsOf());
       if (Number.isFinite(maxSeconds)) n = Math.min(n, Math.round(maxSeconds * fpsOf()));
-      const sel = indexProject(project).get(tl.selectedClips()[0]), ch = sel && sel.ch.kind === 'video' ? sel.ch : s.channels.find((c) => c.kind === 'video' && !c.locked);
+      const sel = indexProject(project).get(tl.selectedClips()[0]);
+      // a still goes on a new layer above the picture (an overlay) unless a video clip is selected; a video on the selected channel or V1
+      let ch = sel && sel.ch.kind === 'video' ? sel.ch : null;
+      if (!ch && ref.kind === 'image' && !empty) { const id = tl.exec('addChannel', { kind: 'video', index: topVisual() + 1 }); ch = s.channels.find((c) => c.id === id); }
+      ch ??= s.channels.find((c) => c.kind === 'video' && !c.locked);
       if (!ch) throw new Error('no unlocked video channel');
       const at = empty ? 0 : play.want, id = tl.exec('addClip', { channelId: ch.id, clip: createMediaClip(mediaId, { in: at, out: at + Math.max(1, n) }) });
       const ach = ref.hasAudio && s.channels.find((c) => c.kind === 'audio' && !c.locked);          // its sound, linked by position on A1 (M7)
@@ -658,6 +720,42 @@ async function openMoshID(id) {
 }
 function rename() { const n = prompt('Project name', project.name); if (n && n !== project.name) run('setValue', { id: project.id, path: ['name'], value: n }); }
 
+// ------------------------------------------------------------------------------------------------ layers
+// Video and image layers stack upwards (a higher layer covers the ones below, through its opacity and blend mode); a
+// mosh layer is an effect channel whose clip moshes everything below it; audio layers sit at the top of the list.
+function topVisual() { const cs = seq().channels; let i = -1; cs.forEach((c, k) => { if (c.kind !== 'audio') i = k; }); return i; }
+Object.assign(A, {
+  addLayer: (kind) => {
+    const s = seq();
+    try {
+      tl.transaction(`Add ${kind === 'effect' ? 'mosh' : kind} layer`, () => {
+        const id = tl.exec('addChannel', { kind, index: kind === 'audio' ? s.channels.length : topVisual() + 1 }), ch = s.channels.find((c) => c.id === id);
+        if (kind === 'effect') {                                     // useful at once: a mosh over the whole sequence
+          const params = normalize(ALL['Xvid classic']); delete params.seed;
+          const ec = createEffectClip({ in: 0, out: Math.max(1, sequenceEnd(s)) }, { stack: [createEffect('moshLoop', { params, seed: 1 + Math.floor(Math.random() * 9999) })] }); ec.label = 'Xvid classic';
+          tl.select(tl.exec('addClip', { channelId: id, clip: ec }));
+        }
+        note(`${ch.name} added${kind === 'video' ? ': ADD media from the Media window, or import an image' : kind === 'effect' ? ': it moshes every layer below it; pick a look' : ''}`);
+      });
+    } catch (e) { note(e.message); }
+  },
+  /** Delete the layer of the selected clip, else the topmost empty layer. */
+  deleteLayer: () => {
+    const s = seq(), v = indexProject(project).get(tl.selectedClips()[0]), ch = v?.ch || [...s.channels].reverse().find((c) => !c.clips.length);
+    if (!ch) { note('select a clip on the layer to delete'); return; }
+    if (s.channels.filter((c) => c.kind === 'video').length === 1 && ch.kind === 'video') { note('the last video layer stays'); return; }
+    run('deleteChannel', { id: ch.id }, `layer ${ch.name} deleted`);
+  },
+  importImage: () => { const i = h('input'); i.type = 'file'; i.accept = 'image/*,.png,.jpg,.jpeg,.webp,.gif,.avif'; i.onchange = () => i.files[0] && importFile(i.files[0]); i.click(); },
+});
+const layerItems = () => [
+  { label: 'Add video layer', run: () => A.addLayer('video') }, { label: 'Add mosh layer (moshes the layers below)', run: () => A.addLayer('effect') }, { label: 'Add audio layer', run: () => A.addLayer('audio') }, '-',
+  { label: 'Import video…', run: () => impBtn.click() }, { label: 'Import image…', run: A.importImage }, '-',
+  { label: 'Delete layer', run: A.deleteLayer },
+];
+const tlAdd = h('button', 'ms-b tl-add', '+ LAYER'); tlAdd.title = 'add a video, image, mosh or audio layer'; tlPane.querySelector('.ms-wcap').append(tlAdd);
+S.menu(null, layerItems, tlAdd);
+
 // ------------------------------------------------------------------------------------------------ the tour (help.js)
 // Windows the tour opens it also closes again; ones the user had open stay open.
 const tourOpened = new Set();
@@ -681,6 +779,7 @@ S.menu('Edit', () => [{ label: tl.undoLabel ? `Undo ${tl.undoLabel}` : 'Undo', k
   { label: 'Split at playhead', key: '⌘B', run: A.split }, { label: 'Blade tool', key: 'B', chk: view.tool === 'blade', run: () => { view.tool = view.tool === 'blade' ? 'select' : 'blade'; } }, { label: 'Snapping', key: 'N', chk: view.snap, run: () => { view.snap = !view.snap; } }, '-',
   { label: 'Add marker', key: 'M', run: A.marker }, { label: 'Add mosh hit', key: 'H', run: A.hit }, { label: 'Bloom Insert (1 s)', key: '⇧B', run: A.bloomInsert }, { label: 'Mosh Cut at the nearest join', key: '⇧C', run: A.moshCut }, '-',
   { label: 'Range in', key: 'I', run: A.setIn }, { label: 'Range out', key: 'O', run: A.setOut }, { label: 'Clear range', run: A.clearRange }]);
+S.menu('Layer', layerItems);
 S.menu('Effects', () => [{ label: 'Effects browser…', key: '⌘E', run: () => S.toggleWin('effects', true) }, { label: 'Mosh the selection (Xvid classic)', key: 'E', run: () => A.moshSelection() }, '-', { head: 'Styles → selection' }, ...Object.keys(PRESETS).map((n) => ({ label: n, run: () => applyPreset(n) })), '-', { head: 'Legacy DATAMOSHINE' }, ...Object.keys(LEGACY).map((n) => ({ label: n, run: () => applyPreset(n) }))]);
 S.menu('View', () => [...scaleItems(), '-', { label: 'Fit the sequence', key: '⇧Z', run: () => view.fit() }, { label: 'Zoom in', key: '⌘+', run: () => view.zoom(1.5) }, { label: 'Zoom out', key: '⌘−', run: () => view.zoom(1 / 1.5) }, { label: 'Loop the range', chk: loopRange, run: () => { loopRange = !loopRange; refresh(); } }]);
 S.menu('Export', () => [{ label: 'Export video…', key: '⌘⇧E', run: () => { S.toggleWin('export', true); refreshExport(); } }]);
@@ -717,7 +816,7 @@ deviceWindow(S, P, gpu);
 testsWindow(S, { pause: () => { play.on = false; } });
 S.win('keys', 'Keyboard map', h('div', 'ms-kv', [['space / K', 'play · pause'], ['J / L', 'reverse · forward'], ['← →', 'frame step'], ['Home / End', 'start · end'], ['⌘B', 'split at playhead'], ['B', 'blade tool'], ['N', 'snapping'],
   ['M / H', 'marker · mosh hit'], ['⇧B', 'Bloom Insert'], ['⇧C', 'Mosh Cut'], ['E', 'mosh the selection'], ['I / O', 'range in · out'], ['⌘Z / ⇧⌘Z', 'undo · redo'], ['⌘C ⌘V ⌘D ⌫', 'copy · paste · duplicate · delete'],
-  ['[ / ]', 'previous · next key of the shown parameter'], ['G / ⇧G', 'mask brush · lock brush (Esc ends)'], ['V', 'vector brush: paint motion along the drag'], ['⇧Z', 'fit'], ['⌘+ / ⌘−', 'zoom'], ['wheel', 'scroll (⇧ horizontal, ⌘/pinch zoom)']].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')), { x: 120, y: 90, w: 360 });
+  ['[ / ]', 'previous · next key of the shown parameter'], ['G / ⇧G', 'mask brush · lock brush (Esc ends)'], ['[ / ] or wheel', 'with a brush on: brush size'], ['V', 'vector brush: paint motion along the drag'], ['⇧Z', 'fit'], ['⌘+ / ⌘−', 'zoom'], ['wheel', 'scroll (⇧ horizontal, ⌘/pinch zoom)']].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')), { x: 120, y: 90, w: 360 });
 S.win('about', 'About MOSHINE', (() => { const d = h('div'); d.append(
   h('div', 'ms-note', '<b>MOSHINE</b> — state-of-the-art datamoshing in the browser: a simulated codec on WebGPU, scored against real MPEG-4 and H.264 moshes, every parameter keyframeable and modulatable, deterministic.'),
   h('div', 'ms-note', 'Milestone 5: the timeline. Channels composite bottom-up; an effect clip moshes everything below it. Seeking replays from the effect clip’s in-point until the checkpoint cache (M6); the red bar on the ruler marks where that happens.'),
@@ -764,8 +863,8 @@ addEventListener('keydown', (e) => {
   else if (k === 'i') A.setIn();
   else if (k === 'o') A.setOut();
   else if (k === 'z' && e.shiftKey) view.fit();
-  else if (e.key === '[') A.key(-1);
-  else if (e.key === ']') A.key(1);
+  else if (e.key === '[') { if (mk.tool) setSize(mk.size / 1.25); else A.key(-1); }      // with a brush on: its size (paint-app keys)
+  else if (e.key === ']') { if (mk.tool) setSize(mk.size * 1.25); else A.key(1); }
   else if (e.key === 'Escape') { if (mk.tool) setTool(mk.tool); else { tl.select(null); view.tool = 'select'; } }
   else hit = false;
   if (hit) { e.preventDefault(); refresh(); }
@@ -774,7 +873,7 @@ addEventListener('dragover', (e) => e.preventDefault());
 addEventListener('drop', (e) => {
   e.preventDefault(); const files = [...(e.dataTransfer?.files || [])];
   const m = files.find((x) => /\.mosh$/i.test(x.name)); if (m) { readFile(m).then((p) => { useProject(p); autosave.touch(p); }).catch((err) => note('cannot open: ' + err.message)); return; }
-  const f = files.find((x) => /^video\//.test(x.type) || /\.(mp4|mov|webm|mkv|m4v)$/i.test(x.name)); if (f) importFile(f);
+  const f = files.find((x) => /^video\//.test(x.type) || /\.(mp4|mov|webm|mkv|m4v)$/i.test(x.name) || isImage(x)); if (f) importFile(f);
 });
 addEventListener('pagehide', () => { autosave.flush(); });
 
@@ -787,7 +886,7 @@ useProject(start || demoProject());
 if (location.hash.startsWith('#P1.')) await openMoshID(location.hash.slice(1));
 refreshMedia(); refresh();
 // library entries imported before 2026-10-22 were probed at 30 fps whatever their rate (no info.rate): probe them again
-if (lib) (async () => { let n = 0; for (const e of lib.list().filter((x) => x.info && !x.info.rate)) { try { const v = await openVideo(await lib.file(e), e.name); await lib.setInfo(e, v.info()); v.close(); n++; } catch (err) {} } if (n) refreshMedia(); })();
+if (lib) (async () => { let n = 0; for (const e of lib.list().filter((x) => x.info && !x.info.rate && x.info.kind !== 'image')) { try { const v = await openVideo(await lib.file(e), e.name); await lib.setInfo(e, v.info()); v.close(); n++; } catch (err) {} } if (n) refreshMedia(); })();
 window.__app = { tour, sources, openMedia, sound, decodeAudio, featureTables, ensureFeatures, mk, setTool, drawMaskOverlay, lookTarget, refreshLooks, fillStep, coverageNow, runExport, refreshExport, get project() { return project; }, get tl() { return tl; }, get play() { return play; }, get view() { return view; }, get renderer() { return renderer; }, importFile, addToTimeline, seek, pump, A, applyPreset, useProject, demoProject, refresh, inspector };
 requestAnimationFrame(tick);
 $('ms-dock').insertBefore(tourBtn, $('ms-dock').querySelector('.hint'));   // last in the dock, after every window's button

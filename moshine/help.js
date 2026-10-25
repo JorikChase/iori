@@ -22,7 +22,7 @@ export const STEPS = [
     prepare: (a) => a.openWin('media'), target: () => $('.ms[data-key=media].open') ? [...$('.ms[data-key=media]').querySelectorAll('.ms-b')].find((b) => /^IMPORT/.test(b.textContent)) : $('#ms-empty:not([hidden]) .em-box'),
     start: (a) => a.project.media.length, poll: (a, n) => a.project.media.length > n, art: artImport },
   { id: 'timeline', title: 'Your clip, and the mosh above it',
-    text: 'The grey bar is your clip. The <b>orange bar</b> above it is the mosh: it only happens where the orange bar is. Drag its ends to choose where.',
+    text: 'The grey bar is your clip. The <b>orange bar</b> above it is the mosh: it only happens where the orange bar is. Drag its ends to choose where. <b>+ LAYER</b> adds more video, image or mosh layers.',
     prepare: (a) => a.closeWin('media'), target: () => $('#ms-tlpane'), art: artTimeline },
   { id: 'looks', title: 'Pick a look',
     text: 'Each card shows your clip with that style. <b>Click one</b> and the preview changes.',

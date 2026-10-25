@@ -157,6 +157,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let uv = (vec2f(id.xy) + vec2f(0.5)) / vec2f(d);
   textureStore(dst, vec2i(id.xy), Q(vec4f(textureSampleLevel(src, smp, uv, 0.0).rgb, 1.0)));
 }`;
+/** The same with the source's alpha kept (straight, not premultiplied): still images with transparency. */
+const TEXA_WGSL = TEX_WGSL.replace('textureSampleLevel(src, smp, uv, 0.0).rgb, 1.0)', 'textureSampleLevel(src, smp, uv, 0.0))');
 
 /**
  * Ingest VideoFrames into rgba16float textures of any size (bilinear resample on the GPU). mode 'auto' tries the
@@ -173,23 +175,30 @@ export function createIngest(gpu, { mode = 'auto' } = {}) {
     const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: S, texture: { sampleType: 'float' } }, { binding: 1, visibility: S, sampler: { type: 'filtering' } }, { binding: 2, visibility: S, storageTexture: { access: 'write-only', format: F16 } }] });
     return { layout, pipe: device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }), compute: { module: device.createShaderModule({ code: TEX_WGSL }), entryPoint: 'main' } }) };
   });
+  const PA = pipeline(gpu, 'ingest:texa', () => {
+    const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: S, texture: { sampleType: 'float' } }, { binding: 1, visibility: S, sampler: { type: 'filtering' } }, { binding: 2, visibility: S, storageTexture: { access: 'write-only', format: F16 } }] });
+    return { layout, pipe: device.createComputePipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }), compute: { module: device.createShaderModule({ code: TEXA_WGSL }), entryPoint: 'main' } }) };
+  });
   let staging = null, viaCanvas = false, cv = null, cx = null, used = mode === 'auto' ? (typeof device.importExternalTexture === 'function' ? 'external' : 'copy') : mode;
   const run = (P, entries, dst) => { const enc = device.createCommandEncoder(), pass = enc.beginComputePass(); pass.setPipeline(P.pipe); pass.setBindGroup(0, device.createBindGroup({ layout: P.layout, entries })); pass.dispatchWorkgroups(Math.ceil(dst.width / 8), Math.ceil(dst.height / 8)); pass.end(); device.queue.submit([enc.finish()]); };
-  const viaCopy = (frame, dst) => {
-    const w = frame.displayWidth, h = frame.displayHeight;
+  const viaCopy = (frame, dst, alpha = false) => {
+    const w = frame.displayWidth ?? frame.width, h = frame.displayHeight ?? frame.height;   // a VideoFrame or an ImageBitmap
     if (!staging || staging.width !== w || staging.height !== h) { staging?.destroy(); staging = device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT }); }
     // Firefox (Gecko 157) refuses a VideoFrame as a copy source: draw it into a canvas first, and keep doing so
     if (!viaCanvas) { try { device.queue.copyExternalImageToTexture({ source: frame }, { texture: staging }, [w, h]); } catch (e) { viaCanvas = true; } }
     if (viaCanvas) {
       if (!cv || cv.width !== w || cv.height !== h) { cv = new OffscreenCanvas(w, h); cx = cv.getContext('2d'); }
+      if (alpha) cx.clearRect(0, 0, w, h);
       cx.drawImage(frame, 0, 0, w, h); device.queue.copyExternalImageToTexture({ source: cv }, { texture: staging }, [w, h]);
     }
-    run(PT, [{ binding: 0, resource: staging.createView() }, { binding: 1, resource: smp }, { binding: 2, resource: dst.createView() }], dst);
+    run(alpha ? PA : PT, [{ binding: 0, resource: staging.createView() }, { binding: 1, resource: smp }, { binding: 2, resource: dst.createView() }], dst);
   };
   return {
     get mode() { return used; },
-    /** Resample a VideoFrame (or VideoSample's frame) into dst (rgba16float). The caller still owns the frame. */
-    ingest(frame, dst) {
+    /** Resample a VideoFrame (or VideoSample's frame) into dst (rgba16float). The caller still owns the frame.
+     *  alpha: keep the source's transparency (stills); video is opaque and takes the zero-copy path. */
+    ingest(frame, dst, { alpha = false } = {}) {
+      if (alpha) { viaCopy(frame, dst, true); return; }
       if (used === 'external') {
         try { run(PE, [{ binding: 0, resource: device.importExternalTexture({ source: frame }) }, { binding: 1, resource: smp }, { binding: 2, resource: dst.createView() }], dst); return; }
         catch (e) { if (mode !== 'auto') throw e; console.warn('moshine: zero-copy ingest failed, using the copy path', e); used = 'copy'; }

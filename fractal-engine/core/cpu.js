@@ -54,15 +54,18 @@ export function iterate(formula, p0, c = [0, 0, 0], opts = {}) {
 }
 
 // Distance estimate. Formulas with a power (bulb / power) use the escape-time estimate
-// 0.5·r·log r / dr; folding formulas use r / |dr|, which is what the Mandelbox literature does.
-// Both are lower bounds only where the formula is pullSafe.
+// 0.5·r·log r / dr, and 0 for orbits that stay (inside). Folding formulas use r / |dr| whether or not
+// the orbit escaped, which is what the Mandelbox / KIFS literature does: with few iterations most
+// points near the surface never reach the bail radius. Both are lower bounds only where the formula
+// is pullSafe. The GPU interpreter (gpu/wgsl.js) computes exactly this.
+export const hasPower = (f) => f.slots.some((s) => s.some((q) => q.op === 'bulb' || q.op === 'power'));
+
 export function de(formula, p, c = p, opts = {}) {
   const f = normalize(formula);
   const o = iterate(f, p, c, opts);
-  const hasPower = f.slots.some((s) => s.some((q) => q.op === 'bulb' || q.op === 'power'));
   if (!(o.dr > 0) || o.r === 0) return 0;
-  if (hasPower) return o.escaped ? (0.5 * Math.log(o.r) * o.r) / o.dr : 0;
-  return o.escaped ? o.r / Math.abs(o.dr) : 0;
+  if (hasPower(f)) return o.escaped && o.r > 1 ? (0.5 * Math.log(o.r) * o.r) / o.dr : 0;
+  return o.r / Math.abs(o.dr);
 }
 
 // Jacobian of one op at p: analytic when the op provides one, central differences otherwise

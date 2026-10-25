@@ -812,6 +812,16 @@
       "type": "experiment",
       "priority": 0.5,
       "hidden": true
+    },
+    "fractal-engine/index.html": {
+      "title": "Fractal Engine — Procedural Fractal Designer",
+      "description": "A WebGPU fractal designer: fly inside Mandelboxes, folds and flames, where every formula is a line of notation and the controls are the maths itself.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6,
+      "hidden": true,
+      "_note": "in development (P1 of fractal-engine/DESIGN.md) — drop hidden to publish"
     }
   }
 }

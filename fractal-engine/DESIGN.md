@@ -197,7 +197,42 @@ what a laptop does.
 
 Measured: the Sierpiński push keeps 100 % of 400 samples in the set after the branch-redraw fix
 (4 % before it, because a reflected preimage often lies on a side the next fold never produces).
-Next: P1 (WebGPU interpreter, pull into a density field, camera inside, the arrive state).
+
+**P1 done 2026-10-25** — the arrive state, live at `fractal-engine/` (registered hidden, noindex):
+
+- `gpu/pack.js` packs a formula into an op buffer (16 floats per op, rotations and plane normals
+  resolved on the CPU) and a uniform head (iters, schedule, slot table, flags). Structure edits
+  rewrite buffers; nothing recompiles.
+- `gpu/wgsl.js` is the interpreter: `iterate()` with the trace (final point, dr, iterations, escape,
+  orbit trap, branch-record colour), `deOf()`, `de()`. Same DE rule as the CPU, which changed in
+  P1: fold formulas use r/|dr| whether or not the orbit escaped (with 12 iterations most points near
+  the surface never reach the bail radius), power formulas keep 0.5·r·log r/dr outside, 0 inside.
+- `gpu/render.js`: one compute pass marches one jittered sample per pixel and blends it into an
+  rgba32float ping-pong; a display pass does bilinear upscale, ACES, sRGB, dither. Lighting is a
+  coloured lamp carried just off the camera with distance falloff — a sun-style directional light
+  failed inside enclosed caves (shadows blackened nearly everything). Soft shadows and 5-tap AO only
+  when still; moving frames use a 2-tap AO stand-in so stopping does not flash. Thin-lens DOF with
+  CPU autofocus on the centre ray; fog and glow scaled to the clearance at the camera.
+- `app.js`: fly only. Drag looks, scroll/pinch moves, WASD QE fly; every speed is the distance
+  estimate at the camera, so a hall and a crevice feel the same under the hand; moves that would
+  enter the surface are refused. Drift starts 4 s after the last input and steers toward the most
+  open of five directions; space toggles it. The governor submits a frame only after the GPU
+  finished the last one (a stalled queue froze this Mac once) and sets the internal resolution from
+  measured GPU time. URL hash = notation `&c=` camera. No text on screen: the four corner marks,
+  and a hairline "no" glyph when WebGPU is missing.
+- Default: `fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100` from inside a room found by
+  sphere-tracing 14 directions from random points, facing a terraced amphitheatre
+  (`design/shots/p1-arrive.jpg`).
+- `test/parity.html` (open in a WebGPU browser; result in `window.__parity`): 8 formulas × 4096
+  points, GPU vs CPU. Measured: zero iteration-count or escape mismatches; median relative DE error
+  ≤ 2.5e-5; p99 ≤ 2e-4 except the Mandelbox (0.4–0.9 %, float32 branch flips at fold edges). PASS.
+- `__fe` hooks (`setCamera`, `setLook`, `hold`, `run(n, scale)`) drive frames without animation
+  frames; a hidden Browser pane gets none.
+
+Measured in the hidden pane (unreliable timing): still frames with shadows ~150 ms at 0.6 internal
+scale of a 1706×1786 canvas; moving frames ~25 ms at 0.35. Not yet: WebGL2 fallback, the capture
+rig, look controls (P4/P5 bring handles), real frame timing with the pane visible.
+Next: P2 (push: chaos game to histogram + Jacobian splats; the pull/push toggle).
 
 ## Sources
 

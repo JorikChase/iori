@@ -142,6 +142,7 @@ sync_website_files() {
         --exclude 'iris-engine/ref-staging/' \
         --exclude 'iris-engine/tools/' \
         --exclude 'fractal-engine/test/' \
+        --exclude 'fractal-engine/design/' \
         --exclude 'tools/' \
         --exclude 'dash/' \
         --exclude 'api/' \

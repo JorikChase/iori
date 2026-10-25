@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>fractal engine — GPU / CPU parity</title>
+<style>body { background: #000; color: #ccc; font: 12px ui-monospace, Menlo, monospace; padding: 16px; } .bad { color: #f66; }</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script type="module">
+// The WGSL interpreter must compute the same orbit as core/cpu.js. For each formula: N random points,
+// the GPU's distance estimate, iteration count and escape flag, compared with the CPU's.
+// Result in window.__parity: { ok, rows: [{ formula, n, maxRel, iterMismatch, escMismatch }] }.
+import { parse, iterate, de, makeRng } from '../core/index.js';
+import { INTERP } from '../gpu/wgsl.js';
+import { pack, MAX_OPS, REC, HEAD_BYTES } from '../gpu/pack.js';
+
+const FORMULAS = [
+  ['power 2 · +c ×64', 2.2],
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100', 5],
+  ['fold.box 1 · fold.sphere .5 1 · scale -1.5 · +c ×14 bail=100', 4],
+  ['fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ×16 bail=16', 2],
+  ['abs · sort · scale 3 · + -2 -2 0 ×8 bail=50', 2],
+  ['bulb 8 · +c ×10 bail=2', 1.3],
+  ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 ×10 bail=30', 3],
+  ['abs · sort · scale 3 · + -2 -2 0 | bulb 8 · +c ×9 AAB bail=40', 2],
+];
+const N = 4096;
+
+const SHADER = INTERP + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts)) { return; }
+  let p = pts[i].xyz;
+  let t = iterate(p, p);
+  outp[i] = vec4f(deOf(t), f32(t.n), select(0.0, 1.0, t.escaped), t.dr);
+}`;
+
+const out = document.getElementById('out');
+async function run() {
+  const adapter = await navigator.gpu.requestAdapter();
+  const device = await adapter.requestDevice();
+  const module = device.createShaderModule({ code: SHADER });
+  const info = await module.getCompilationInfo();
+  const errs = info.messages.filter((m) => m.type === 'error');
+  if (errs.length) throw new Error(errs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
+  const pipe = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+  const rows = [];
+  for (const [text, R] of FORMULAS) {
+    const f = parse(text);
+    const pk = pack(f);
+    const rng = makeRng(5);
+    const pts = new Float32Array(N * 4);
+    for (let i = 0; i < N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
+    const mk = (size, usage) => device.createBuffer({ size, usage });
+    const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    const ops = mk(MAX_OPS * REC * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const pb = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const ob = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+    const rb = mk(pts.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+    device.queue.writeBuffer(head, 0, pk.head);
+    device.queue.writeBuffer(ops, 0, pk.ops);
+    device.queue.writeBuffer(pb, 0, pts);
+    const bg = device.createBindGroup({
+      layout: pipe.getBindGroupLayout(0),
+      entries: [head, ops, pb, ob].map((b, i) => ({ binding: i, resource: { buffer: b } })),
+    });
+    const enc = device.createCommandEncoder();
+    const cp = enc.beginComputePass();
+    cp.setPipeline(pipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(N / 64)); cp.end();
+    enc.copyBufferToBuffer(ob, 0, rb, 0, pts.byteLength);
+    device.queue.submit([enc.finish()]);
+    await rb.mapAsync(GPUMapMode.READ);
+    const g = new Float32Array(rb.getMappedRange().slice(0));
+    rb.unmap();
+
+    // compare in float32 terms: single precision drifts along chaotic orbits, so the DE is compared
+    // only where both orbits did the same number of iterations, and the mismatch rates are reported
+    let maxRel = 0, iterMismatch = 0, escMismatch = 0, compared = 0;
+    const rels = [];
+    for (let i = 0; i < N; i++) {
+      const p = [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]];
+      const o = iterate(f, p, p);
+      const d = de(f, p, p);
+      if (o.n !== g[i * 4 + 1]) { iterMismatch++; continue; }
+      if (o.escaped !== (g[i * 4 + 2] > 0.5)) { escMismatch++; continue; }
+      const gd = g[i * 4];
+      const rel = Math.abs(gd - d) / Math.max(Math.abs(d), 1e-6);
+      rels.push(rel); compared++;
+      maxRel = Math.max(maxRel, rel);
+    }
+    rels.sort((a, b) => a - b);
+    const median = rels[Math.floor(rels.length / 2)] || 0;
+    const p99 = rels[Math.floor(rels.length * 0.99)] || 0;
+    rows.push({ formula: text, n: N, compared, median, p99, maxRel, iterMismatch, escMismatch });
+    [head, ops, pb, ob, rb].forEach((b) => b.destroy());
+  }
+  // pass: the median agrees to float precision, 99 % of points within 2 %, and fewer than 2 % of
+  // orbits diverge in iteration count. The tail is float32, not a bug: a point within rounding of a
+  // fold edge takes the other branch on one side (measured 2026-10-25: Mandelbox p99 0.4–0.9 %, every
+  // other formula p99 ≤ 2e-4, zero iteration or escape mismatches anywhere). The marcher steps at
+  // 0.9 of the estimate, so a 2 % error never crosses a surface.
+  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02);
+  window.__parity = { ok, rows };
+  out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
+    `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n');
+}
+run().catch((e) => { out.textContent = 'ERROR ' + e.message; window.__parity = { ok: false, error: e.message }; });
+</script>
+</body>
+</html>

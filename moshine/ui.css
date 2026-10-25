@@ -189,3 +189,25 @@ body.ms-touch .look { width: 92px; } body.ms-touch .look canvas { width: 88px; h
 body.ms-phone #ms-transport { padding: 3px 4px; gap: 3px; } body.ms-phone .mk-tools input[type=range] { width: 56px; }
 #ms-dock { overflow-x: auto; scrollbar-width: none; } #ms-dock::-webkit-scrollbar { display: none; } #ms-dock button { flex: none; }
 #ms-transport { padding: 3px 5px; } #ms-looks { padding: 3px 5px 4px; }
+
+/* the tour (help.js): a ring that dims everything else and lets every click through, a window in the shell's style */
+#tour-ring { position: fixed; z-index: 8000; pointer-events: none; box-sizing: border-box; border: 2px solid var(--navy); outline: 2px solid #fff; border-radius: 3px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45); transition: left .2s ease, top .2s ease, width .2s ease, height .2s ease; }
+#tour-ring[hidden] { display: none; }
+#tour-win { z-index: 8001; width: 300px; transition: left .2s ease, top .2s ease, opacity .15s ease; }
+#tour-win.tour-in { opacity: .35; }
+#tour-win canvas { display: block; width: 168px; height: 76px; margin: 2px auto 8px; background: #fff; border: 1px solid #000; image-rendering: auto; }
+#tour-win .tour-t { font-weight: 700; font-size: calc(var(--fs) + 2px); margin-bottom: 4px; }
+#tour-win .tour-p { line-height: 1.4; margin-bottom: 10px; }
+#tour-win .ms-capt { cursor: default; }
+#tour-win.tour-ok .ms-capt::after { content: "  \2713"; }
+#tour-win .tour-x::after { content: "\00d7"; border: 0; margin: 0; font: 700 14px/1 var(--font); color: #000; }
+#tour-win.tour-dock { left: 0 !important; right: 0; top: auto !important; bottom: var(--dock); width: auto; }
+#tour-win.tour-dock canvas { display: none; }
+#tour-offer { z-index: 8001; width: 250px; left: 10px; bottom: calc(var(--dock) + 10px); top: auto;   /* bottom-left: the site menu sits bottom-right */
+  transition: opacity .35s ease; }
+#tour-offer .ms-body { line-height: 1.4; } #tour-offer .ms-brow { margin-top: 8px; }
+#tour-offer.tour-fade { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { #tour-ring, #tour-win, #tour-offer { transition: none; } }
+.ms.tour-under { opacity: .15; pointer-events: none; transition: opacity .15s ease; }
+#tour-win.tour-dock .ms-brow { padding-right: 84px; }   /* the site menu button sits bottom-right */

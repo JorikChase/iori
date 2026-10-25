@@ -11,6 +11,7 @@ import { createSequenceRenderer } from './render.js';
 import { mixBlock, audibleClips } from './mix.js';
 import { createStretcher } from './stretch.js';
 import { createAudioDecoder } from './media.js';
+import { createFrameSink } from './frames.js';
 
 export const QUALITIES = ['very-low', 'low', 'medium', 'high', 'very-high'];
 const isSafari = () => /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -222,6 +223,7 @@ export async function mixCodec(container, sampleRate = 48000, nch = 2) {
  * Export a sequence (M5): a fresh sequence renderer (never the preview's, D37) renders the range sequentially from its
  * first frame — a range that starts inside an effect clip replays from that clip's in-point, as in the preview — and
  * every frame is encoded as it is made, so memory stays flat.
+ * container 'png' writes an image sequence instead (frames.js: o.target from openSequenceTarget, the sound as a WAV).
  * o: { gpu, project, sequenceId?, w, h, sources (media -> reader), openMedia(media) -> video (for audio), container,
  *      codec?, quality, range { in, out } (frames; default the export range, else the whole sequence), audio (bool),
  *      target, onProgress, onFrame(t, image)?, signal }
@@ -234,18 +236,19 @@ export async function exportSequence(o) {
   const range = o.range || seq.exportRange || { in: 0, out: end }, frames = Math.max(0, range.out - range.in);
   if (!frames) throw new Error('nothing to export: the range is empty');
   let audio = null, mix = null, audioNote = o.audio ? null : 'audio off';
-  const opened = [], decoders = new Map(), container = o.container || 'mp4'; let stretcher = null;
+  const opened = [], decoders = new Map(), container = o.container || 'mp4', pngSeq = container === 'png'; let stretcher = null;
   const open = async (m) => { const v = await o.openMedia(m); if (v) opened.push(v); return v; };
   if (o.audio) {
     const a = audioPlan(project, range, o.sequenceId);
     if (!a.mode) audioNote = a.reason;
+    if (a.mode && pngSeq) a.mode = 'mix';                   // an image sequence carries its sound as a WAV: always mixed
     if (a.mode === 'pass') {
       const v = await open(project.media.find((m) => m.id === a.mediaId));
       if (v?.audio && AUDIO_OK[container].includes(v.audio.codec)) audio = { track: v.audio.track, codec: v.audio.codec, start: v.start + a.start, end: v.start + a.end };
       else a.mode = 'mix';                                   // the codec does not fit the container: mix and encode instead
     }
     if (a.mode === 'mix') {
-      const sr = 48000, nch = 2, codec = await mixCodec(container, sr, nch);
+      const sr = 48000, nch = 2, codec = pngSeq ? 'wav' : await mixCodec(container, sr, nch);
       if (!codec) audioNote = `this browser cannot encode audio for ${container.toUpperCase()}`;
       else {
         const decode = async (m, t0, t1) => {
@@ -259,7 +262,7 @@ export async function exportSequence(o) {
       }
     }
   }
-  const enc = await createEncoder({ w, h, fps, container: o.container, codec: o.codec, quality: o.quality, target: o.target, audio, mix });
+  const enc = pngSeq ? createFrameSink(o.target, { mix }) : await createEncoder({ w, h, fps, container: o.container, codec: o.codec, quality: o.quality, target: o.target, audio, mix });
   // no checkpoints: the export never seeks, and at 4K or 8K each one is hundreds of MB of copies (M8)
   const renderer = createSequenceRenderer(gpu, project, { w, h, sources: o.sources, sequenceId: o.sequenceId, checkpoints: false });
   const canvas = new OffscreenCanvas(w, h), present = createPresenter(gpu, canvas), st = { last: t0 };
@@ -280,5 +283,5 @@ export async function exportSequence(o) {
     await enc.finish();
   } catch (e) { await enc.cancel(); throw e; }
   finally { await renderer.destroy(); for (const v of opened) v.close?.(); stretcher?.close(); }
-  return { frames: t, seconds: (performance.now() - t0) / 1000, codec: enc.codec, audio: enc.audio, audioMode: enc.audio ? (mix ? 'mix' : 'pass') : null, audioNote: enc.audio ? null : audioNote, file: o.target.file };
+  return { frames: t, seconds: (performance.now() - t0) / 1000, codec: enc.codec, audio: enc.audio, audioMode: enc.audio ? (mix ? 'mix' : 'pass') : null, audioNote: enc.audio ? null : audioNote, file: o.target.file, fps };
 }

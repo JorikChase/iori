@@ -13,6 +13,8 @@ import { openLibrary, openVideo, analyseAudio, createAudioDecoder } from './medi
 import { createAudioPlayer } from './audioplay.js';
 import { importLimits, fitSize, SCALES, createGovernor, AUDIO_OK } from './governor.js';
 import { exportSequence, openTarget, encodableCodecs, audioPlan, mixCodec, QUALITIES } from './export.js';
+import { openSequenceTarget } from './frames.js';
+import { createTour } from './help.js';
 import { createAudioClip, createProject, fromConfig, mediaFromLibrary, createMediaClip, createEffectClip, createEffect, openProjectStore, createAutosave, saveFile, readFile, newId, sequenceEnd, toMoshID, fromMoshID, EFFECTS } from './project.js';
 import { createTimeline, indexProject } from './timeline.js';
 import { createSequenceRenderer, videoReader } from './render.js';
@@ -108,6 +110,7 @@ function rebuildRenderer() {
   S.setAspect(s.width / s.height); gov.setBudget(1000 / Math.min(60, fpsOf())); play.dirty = true; requestAnimationFrame(densify);
 }
 function onChange(what) {
+  tour?.notify(what, tl.undoLabel);
   if (what !== 'selection' && sound.playing) { sound.clearCache(); sound.start(play.t); }   // the mix changed
   if (typeof refreshLooks === 'function') { syncEmpty(); refreshLooks(); drawMaskOverlay(); }
   if (what !== 'selection') { autosave.touch(project); renderer.invalidate(); covDirty = true; touchActivity(); play.dirty = true; pump(); title(); if (U.open.export && !exporting) refreshExport(); }
@@ -541,6 +544,7 @@ const applyPreset = (name) => {
 // ------------------------------------------------------------------------------------------------ export window
 // Renders the sequence (or its I-O range) sequentially on a fresh renderer, never the preview (D37), and streams it to
 // a file. Audio is passed through when the range is one untouched clip; otherwise the reason is shown (mix in M7).
+const EXPORT_PRESETS = { editing: { container: 'png', size: 'sequence', range: 'auto', audio: true }, sharing: { container: 'mp4', size: 'sequence', codec: 'auto', quality: 'high', range: 'auto', audio: true } };
 U.exp = { container: 'mp4', quality: 'high', size: 'sequence', codec: 'auto', range: 'auto', audio: true, ...(U.exp || {}) };
 const expBox = h('div'), expForm = h('div'), expBar = h('div', 'ms-bar'), expTxt = h('div', 'ms-note'), expRow = h('div', 'ms-brow');
 const expGo = h('button', 'ms-b', 'EXPORT'), expStop = h('button', 'ms-b', 'CANCEL'); expStop.disabled = true;
@@ -565,13 +569,20 @@ async function refreshExport() {
   for (const k of Object.keys(sizes)) if (k !== 'custom' && Math.max(...sizes[k]) > maxTex) delete sizes[k];
   let [w, h2] = sizes[E.size] || sizes.sequence; w = Math.min(w, maxTex - (maxTex % 2)); h2 = Math.min(h2, maxTex - (maxTex % 2));
   const end = sequenceEnd(s), useRange = E.range === 'range' || (E.range === 'auto' && !!s.exportRange);
-  const range = useRange && s.exportRange ? { ...s.exportRange } : { in: 0, out: end }, codecs = await encodableCodecs(E.container, w, h2);
-  const auto = autoCodec(E.container, codecs, w, h2), codec = E.codec && E.codec !== 'auto' && codecs.includes(E.codec) ? E.codec : auto;
-  const a = audioPlan(project, range), m = a.mediaId && project.media.find((x) => x.id === a.mediaId), ac = a.mode === 'mix' ? await mixCodec(E.container) : null;
+  const png = E.container === 'png', range = useRange && s.exportRange ? { ...s.exportRange } : { in: 0, out: end }, codecs = png ? ['png'] : await encodableCodecs(E.container, w, h2);
+  const auto = png ? 'png' : autoCodec(E.container, codecs, w, h2), codec = !png && E.codec && E.codec !== 'auto' && codecs.includes(E.codec) ? E.codec : auto;
+  const a = audioPlan(project, range), m = a.mediaId && project.media.find((x) => x.id === a.mediaId), ac = png ? 'wav' : a.mode === 'mix' ? await mixCodec(E.container) : null;
   expPlan = { w, h: h2, range, codec };
   const label = (k, [x, y]) => `${k === 'sequence' ? 'sequence' : k} · ${x}×${y}${y > s.height ? ' (up)' : ''}`;
   expForm.innerHTML = '';
-  expForm.append(sel1('container', 'container', [['mp4', 'MP4'], ['webm', 'WebM']]), sel1('size', 'size', Object.entries(sizes).map(([k, v]) => [k, k === 'custom' ? 'custom…' : label(k, v)])));
+  const presets = h('div', 'ms-brow exp-presets');
+  for (const [k, label, tip] of [['editing', 'FOR EDITING', 'lossless PNG frames + WAV at the sequence size, to bring back into Premiere, Resolve or Final Cut'], ['sharing', 'FOR SHARING', 'one MP4 (H.264, high quality) that plays everywhere']]) {
+    const b = h('button', 'ms-b', label); b.title = tip; b.dataset.preset = k;
+    b.classList.toggle('on', k === 'editing' ? png && E.size === 'sequence' : E.container === 'mp4' && E.codec === 'auto' && E.quality === 'high');
+    b.onclick = () => { Object.assign(U.exp, EXPORT_PRESETS[k]); S.save(); refreshExport(); };
+    presets.append(b);
+  }
+  expForm.append(presets, sel1('container', 'container', [['mp4', 'MP4'], ['webm', 'WebM'], ['png', 'PNG sequence (lossless)']]), sel1('size', 'size', Object.entries(sizes).map(([k, v]) => [k, k === 'custom' ? 'custom…' : label(k, v)])));
   if (E.size === 'custom') {                                         // width and height; the aspect follows the sequence unless unlocked
     const r = h('div', 'ms-row ms-row-sel'), box = h('span'), iw = h('input'), ih = h('input'), lock = h('input');
     for (const [x, v] of [[iw, w], [ih, h2]]) { x.type = 'number'; x.min = 16; x.max = maxTex; x.step = 2; x.value = v; x.style.width = '70px'; }
@@ -581,15 +592,17 @@ async function refreshExport() {
     lock.onchange = () => { U.exp.lock = lock.checked; S.save(); if (lock.checked) set(+iw.value, +iw.value / A); };
     box.append(iw, ' × ', ih, ' ', lock, ' aspect'); r.append(h('span', '', 'pixels'), box); expForm.append(r);
   }
-  expForm.append(sel1('codec', 'codec', [['auto', `auto · ${auto ? auto.toUpperCase() : 'none'}`], ...codecs.map((c) => [c, c.toUpperCase()])]),
-    sel1('quality', 'quality', QUALITIES.map((q) => [q, q])), sel1('range', 'range', [['auto', s.exportRange ? 'I–O range' : 'whole sequence'], ['whole', 'whole sequence'], ['range', 'I–O range']]),
+  if (!png) expForm.append(sel1('codec', 'codec', [['auto', `auto · ${auto ? auto.toUpperCase() : 'none'}`], ...codecs.map((c) => [c, c.toUpperCase()])]), sel1('quality', 'quality', QUALITIES.map((q) => [q, q])));
+  expForm.append(sel1('range', 'range', [['auto', s.exportRange ? 'I–O range' : 'whole sequence'], ['whole', 'whole sequence'], ['range', 'I–O range']]),
     sel1('audio', 'audio', [['true', 'the sequence mix'], ['false', 'none']], () => { U.exp.audio = U.exp.audio === true || U.exp.audio === 'true'; S.save(); refreshExport(); }));
   const notes = [];
   if (w * h2 > cap[0] * cap[1]) notes.push(`above this device's comfortable size (${cap[0]}×${cap[1]}): slow, and it may run out of memory`);
   if (codec === 'avc' && w * h2 > 1920 * 1088 && E.quality !== 'low' && E.quality !== 'very-low') notes.push('H.264 above 1080p encodes slowly at this quality (HEVC or AV1 are several times faster)');
   if (E.codec && E.codec !== 'auto' && !codecs.includes(E.codec)) notes.push(`${E.codec.toUpperCase()} cannot encode ${w}×${h2} here: using ${(codec || 'none').toUpperCase()}`);
-  expForm.append(h('div', 'ms-kv', [['output', `${w}×${h2} · ${codec ? codec.toUpperCase() : 'no encoder'} · ${+fpsOf().toFixed(3)} fps`], ...(notes.length ? [['note', notes.join('; ')]] : []), ['range', `${range.in} – ${range.out} (${range.out - range.in} frames, ${timecode(range.out - range.in, fpsOf(), true)})`],
-      ['audio', !U.exp.audio || U.exp.audio === 'false' ? 'none' : !a.mode ? `none: ${a.reason}` : a.mode === 'pass' ? `${m?.name}: passed through (one untouched clip)` : ac ? `mixed (${a.clips} clip${a.clips > 1 ? 's' : ''}) → ${ac.toUpperCase()} 48 kHz stereo` : `dropped: this browser cannot encode audio for ${E.container.toUpperCase()}`], ['saved to', window.showSaveFilePicker ? 'a file you choose' : 'browser storage, then downloaded'],
+  const fpsTxt = +fpsOf().toFixed(3);
+  expForm.append(h('div', 'ms-kv', [['output', png ? `${w}×${h2} · PNG frames${U.exp.audio && U.exp.audio !== 'false' && a.mode ? ' + WAV (24-bit, 48 kHz)' : ''} · ${fpsTxt} fps` : `${w}×${h2} · ${codec ? codec.toUpperCase() : 'no encoder'} · ${fpsTxt} fps`], ...(notes.length ? [['note', notes.join('; ')]] : []), ['range', `${range.in} – ${range.out} (${range.out - range.in} frames, ${timecode(range.out - range.in, fpsOf(), true)})`],
+      ['audio', !U.exp.audio || U.exp.audio === 'false' ? 'none' : !a.mode ? `none: ${a.reason}` : png && a.mode ? 'the sequence mix as a WAV beside the frames' : a.mode === 'pass' ? `${m?.name}: passed through (one untouched clip)` : ac ? `mixed (${a.clips} clip${a.clips > 1 ? 's' : ''}) → ${ac.toUpperCase()} 48 kHz stereo` : `dropped: this browser cannot encode audio for ${E.container.toUpperCase()}`], ['saved to', png ? (window.showDirectoryPicker ? 'a folder you choose' : 'one ZIP, then downloaded') : window.showSaveFilePicker ? 'a file you choose' : 'browser storage, then downloaded'],
+      ...(png ? [['in your edit', `import the first frame as an image sequence at ${fpsTxt} fps (Premiere: tick Image Sequence; Resolve and Final Cut read the numbered frames as one clip), then add the WAV`]] : []),
       ['render', 'same look at any size (pixel settings scale); in order from the range start']].map(([k, x]) => `<span>${k}</span><span>${x}</span>`).join('')));
   expGo.disabled = !!expAbort || !codec || range.out <= range.in;
 }
@@ -601,16 +614,18 @@ async function openMedia(m) {
 async function runExport({ where = 'auto' } = {}) {
   await refreshExport(); if (!expPlan) return null;
   play.on = false; refresh();
-  const E = U.exp, name = `${project.name.replace(/[^\w .-]+/g, '_')}-moshine.${E.container}`;
-  let target; try { target = await openTarget(name, E.container, where); } catch (e) { if (e.name !== 'AbortError') note('cannot open the output file: ' + e.message); return null; }
+  const E = U.exp, base = `${project.name.replace(/[^\w .-]+/g, '_')}-moshine`, png = E.container === 'png', name = png ? base : `${base}.${E.container}`;
+  let target; try { target = png ? await openSequenceTarget(base, where) : await openTarget(name, E.container, where); } catch (e) { if (e.name !== 'AbortError') note('cannot open the output ' + (png ? 'folder' : 'file') + ': ' + e.message); return null; }
   expAbort = new AbortController(); exporting = true; expGo.disabled = true; expStop.disabled = false;
   try {
     const r = await exportSequence({ gpu, project, w: expPlan.w, h: expPlan.h, range: expPlan.range, container: E.container, codec: expPlan.codec, quality: E.quality, audio: E.audio === true || E.audio === 'true',
       sources, openMedia, target, signal: expAbort.signal,
       onProgress: (p) => { expBar.firstChild.style.width = (100 * p.frame) / p.frames + '%'; expTxt.textContent = `${p.frame} / ${p.frames} frames · ${p.fps.toFixed(1)} fps · ${timecode(Math.round(p.eta * fpsOf()), fpsOf())} left`; } });
+    const head = `Done: ${r.frames} frames in ${r.seconds.toFixed(1)} s · ${r.codec.toUpperCase()}${r.audio ? ' + ' + r.audio.toUpperCase() : ''}${r.audioNote ? ' · audio ' + r.audioNote : ''}`;
+    if (target.kind === 'folder') { expTxt.textContent = `${head} · in ${target.name}`; return { ...r, target }; }
     const file = await r.file();
-    expTxt.innerHTML = `Done: ${r.frames} frames in ${r.seconds.toFixed(1)} s · ${r.codec.toUpperCase()}${r.audio ? ' + ' + r.audio : ''}${r.audioNote ? ' · audio ' + r.audioNote : ''} · ${fmtBytes(file.size)}`;
-    if (target.kind === 'opfs') { const a = h('a', 'ms-b', 'DOWNLOAD'); a.style.cssText = 'display:inline-grid;text-decoration:none;margin-left:8px;padding:0 8px'; a.href = URL.createObjectURL(file); a.download = name; expTxt.append(a); }
+    expTxt.innerHTML = `${head} · ${fmtBytes(file.size)}`;
+    if (target.kind === 'opfs' || target.storage === 'opfs') { const a = h('a', 'ms-b', 'DOWNLOAD'); a.style.cssText = 'display:inline-grid;text-decoration:none;margin-left:8px;padding:0 8px'; a.href = URL.createObjectURL(file); a.download = file.name; expTxt.append(a); }
     return { ...r, size: file.size, target };
   } catch (e) { expTxt.textContent = e.name === 'AbortError' ? 'Export cancelled.' : 'Export failed: ' + e.message; return null; }
   finally { expAbort = null; exporting = false; expStop.disabled = true; refreshExport(); }
@@ -643,6 +658,16 @@ async function openMoshID(id) {
 }
 function rename() { const n = prompt('Project name', project.name); if (n && n !== project.name) run('setValue', { id: project.id, path: ['name'], value: n }); }
 
+// ------------------------------------------------------------------------------------------------ the tour (help.js)
+// Windows the tour opens it also closes again; ones the user had open stay open.
+const tourOpened = new Set();
+const tour = createTour({ S, mk, get play() { return play; }, get project() { return project; },
+  openWin: (k) => { if (!U.open[k]) { tourOpened.add(k); S.toggleWin(k, true); } },
+  closeWin: (k) => { if (tourOpened.delete(k)) S.toggleWin(k, false); },
+  closeOpened: () => { for (const k of tourOpened) if (k !== 'export') S.toggleWin(k, false); tourOpened.clear(); } });   // Export stays: the tour ends there
+const tourBtn = h('button', 'ms-b', '?'); tourBtn.title = 'the 1-minute tour'; tourBtn.id = 'ms-tourbtn';
+tourBtn.onclick = () => (tour.active ? tour.stop() : tour.start(0));
+
 // ------------------------------------------------------------------------------------------------ menus, windows, keys
 const scaleItems = () => [{ label: 'Preview: auto (governor)', chk: U.pin === null, run: () => { U.pin = null; S.save(); gov.pin(null); rebuildRenderer(); pump(); } },
   ...SCALES.map((sc, i) => ({ label: `Preview: ${Math.round(sc * 100)} %`, chk: U.pin === i, run: () => { U.pin = i; S.save(); gov.pin(i); rebuildRenderer(); pump(); } }))];
@@ -660,7 +685,7 @@ S.menu('Effects', () => [{ label: 'Effects browser…', key: '⌘E', run: () => 
 S.menu('View', () => [...scaleItems(), '-', { label: 'Fit the sequence', key: '⇧Z', run: () => view.fit() }, { label: 'Zoom in', key: '⌘+', run: () => view.zoom(1.5) }, { label: 'Zoom out', key: '⌘−', run: () => view.zoom(1 / 1.5) }, { label: 'Loop the range', chk: loopRange, run: () => { loopRange = !loopRange; refresh(); } }]);
 S.menu('Export', () => [{ label: 'Export video…', key: '⌘⇧E', run: () => { S.toggleWin('export', true); refreshExport(); } }]);
 S.menu('Lab', () => [{ label: 'Open the algorithm lab', run: () => { location.href = 'lab.html'; } }, { label: 'Run tests', run: () => S.toggleWin('tests', true) }, { label: 'Device', run: () => S.toggleWin('device', true) }]);
-S.menu('Help', () => [{ label: 'Keyboard map', run: () => S.toggleWin('keys', true) }, { label: 'About MOSHINE', run: () => S.toggleWin('about', true) }]);
+S.menu('Help', () => [{ label: 'Tour (1 minute)', run: () => tour.start(0) }, ...(tour.saved ? [{ label: `Resume the tour (step ${tour.saved + 1})`, run: () => tour.start(tour.saved) }] : []), '-', { label: 'Keyboard map', run: () => S.toggleWin('keys', true) }, { label: 'About MOSHINE', run: () => S.toggleWin('about', true) }]);
 S.onAction(refresh);
 function refresh() {
   if (!tl) return;
@@ -687,7 +712,7 @@ function refreshFx() {
 }
 fxFind.oninput = refreshFx; fxBox.append(fxFind, fxList, h('div', 'ms-note', 'Double-click or ADD puts the effect on the selected clip. CLIP makes an effect clip over the selected media (or 2 s at the playhead) that processes every channel below it. Field ops, in-loop and post effects live inside a Mosh Loop (its stack panel).'));
 S.win('effects', 'Effects', fxBox, { x: 400, y: 70, w: 360 }); refreshFx();
-S.win('export', 'Export', expBox, { x: -16, y: 70, w: 360 });
+S.win('export', 'Export', expBox, { x: -16, y: 70, w: 360 }).addEventListener('ms-open', () => refreshExport());
 deviceWindow(S, P, gpu);
 testsWindow(S, { pause: () => { play.on = false; } });
 S.win('keys', 'Keyboard map', h('div', 'ms-kv', [['space / K', 'play · pause'], ['J / L', 'reverse · forward'], ['← →', 'frame step'], ['Home / End', 'start · end'], ['⌘B', 'split at playhead'], ['B', 'blade tool'], ['N', 'snapping'],
@@ -763,6 +788,8 @@ if (location.hash.startsWith('#P1.')) await openMoshID(location.hash.slice(1));
 refreshMedia(); refresh();
 // library entries imported before 2026-10-22 were probed at 30 fps whatever their rate (no info.rate): probe them again
 if (lib) (async () => { let n = 0; for (const e of lib.list().filter((x) => x.info && !x.info.rate)) { try { const v = await openVideo(await lib.file(e), e.name); await lib.setInfo(e, v.info()); v.close(); n++; } catch (err) {} } if (n) refreshMedia(); })();
-window.__app = { sound, decodeAudio, featureTables, ensureFeatures, mk, setTool, drawMaskOverlay, lookTarget, refreshLooks, fillStep, coverageNow, runExport, refreshExport, get project() { return project; }, get tl() { return tl; }, get play() { return play; }, get view() { return view; }, get renderer() { return renderer; }, importFile, addToTimeline, seek, pump, A, applyPreset, useProject, demoProject, refresh, inspector };
+window.__app = { tour, sources, openMedia, sound, decodeAudio, featureTables, ensureFeatures, mk, setTool, drawMaskOverlay, lookTarget, refreshLooks, fillStep, coverageNow, runExport, refreshExport, get project() { return project; }, get tl() { return tl; }, get play() { return play; }, get view() { return view; }, get renderer() { return renderer; }, importFile, addToTimeline, seek, pump, A, applyPreset, useProject, demoProject, refresh, inspector };
 requestAnimationFrame(tick);
+$('ms-dock').insertBefore(tourBtn, $('ms-dock').querySelector('.hint'));   // last in the dock, after every window's button
+if (!qs.has('bench') && !qs.has('harness')) { if (qs.has('tour')) tour.start(0); else setTimeout(() => tour.offer(), 1500); }
 if (!qs.has('bench')) setTimeout(async () => { PM = await measure(gpu, P); note(`probe: Mosh Loop ~${PM.loop1080Ms} ms per 1080p frame · H.264 encode ${PM.encFps} / decode ${PM.decFps} fps · tier ${PM.tier}`); rebuildRenderer(); pump(); refresh(); }, 800);

@@ -67,8 +67,10 @@ export function createShell({ key, title, state = {} }) {
   function toggleWin(wkey, on) {
     const w = wins[wkey]; on = on ?? !w.el.classList.contains('open');
     if (on && document.body.classList.contains('ms-phone')) for (const k of Object.keys(wins)) if (k !== wkey && wins[k].el.classList.contains('open')) toggleWin(k, false);
+    const was = w.el.classList.contains('open');
     w.el.classList.toggle('open', on); w.btn.classList.toggle('on', on); if (on) focusWin(w.el);
     U.open[wkey] = on; save();
+    if (on && !was) w.el.dispatchEvent(new CustomEvent('ms-open'));        // a window can fill itself however it was opened
   }
 
   // ---- the stage: fit the image rect so the overlay canvas lines up with the picture

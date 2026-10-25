@@ -523,6 +523,49 @@ Object.assign(T0, {
     return { pass: !!op && op.strokes.length === 1 && label === 'Vector stroke' && painted !== plain && undone === plain && P.stringify(app.project) === before,
       strokePoints: op ? op.strokes[0].pts.length / 2 : 0, label, changed: painted !== plain, undoRestoresPixels: undone === plain };
   },
+  // the editing round trip (frames.js): 12 frames of the demo as a PNG sequence, once as a ZIP and once as a folder,
+  // both in OPFS; the ZIP's central directory lists the frames in order and every file starts with the PNG signature
+  async exportFrames() {
+    const app = window.__app; if (!app || !app.view) return { skipped: 'not the editor page' };
+    const { exportSequence } = await import('./export.js'), { openSequenceTarget } = await import('./frames.js'), g = M().gpu;
+    app.useProject(app.demoProject()); await new Promise((r) => setTimeout(r, 100));
+    const run = (target) => exportSequence({ gpu: g, project: app.project, w: 160, h: 90, range: { in: 0, out: 12 }, container: 'png', audio: true, target, sources: app.sources, openMedia: app.openMedia });
+    const tz = await openSequenceTarget('harness-frames', 'opfs'), rz = await run(tz), zip = new Uint8Array(await (await tz.file()).arrayBuffer());
+    const v = new DataView(zip.buffer), dec = new TextDecoder(), names = []; let ok = true;
+    let e = zip.length - 22; while (e > 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+    for (let p = v.getUint32(e + 16, true), n = v.getUint16(e + 10, true); n--; ) {
+      const nl = v.getUint16(p + 28, true), xl = v.getUint16(p + 30, true), off = v.getUint32(p + 42, true), name = dec.decode(zip.subarray(p + 46, p + 46 + nl)); names.push(name);
+      const data = off + 30 + v.getUint16(off + 26, true); if (name.endsWith('.png')) ok = ok && zip[data] === 0x89 && zip[data + 1] === 0x50 && zip[data + 2] === 0x4e && zip[data + 3] === 0x47;
+      p += 46 + nl + xl;
+    }
+    const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('moshine-exports'); await root.removeEntry(tz.name);
+    const tf = await openSequenceTarget('harness-frames-dir', 'opfs-folder'); await run(tf); const files = [];
+    for await (const [k] of tf.dir.entries()) files.push(k);
+    await root.removeEntry('harness-frames-dir', { recursive: true });
+    const want = Array.from({ length: 12 }, (_, i) => `harness-frames_${String(i).padStart(6, '0')}.png`);
+    return { pass: rz.frames === 12 && rz.codec === 'png' && ok && names.join() === want.join() && files.length === 12, frames: rz.frames, zipEntries: names.length, pngSignatures: ok, folderFiles: files.length, audio: rz.audio || rz.audioNote };
+  },
+  // the tour (help.js): every step's target exists, is on screen and is the element a click at its centre lands on (a
+  // window over it fades and lets clicks through); doing a step moves on; Esc ends it and leaves nothing behind
+  async editorTour() {
+    const app = window.__app; if (!app || !app.view || !app.tour) return { skipped: 'not the editor page' };
+    const P = await projMod(), T = app.tour, wait = (ms) => new Promise((r) => setTimeout(r, ms)), saved = localStorage.getItem('moshine.tour');
+    app.useProject(app.demoProject()); await wait(100); const before = P.stringify(app.project), steps = {}, blocked = {};
+    for (let i = 0; i < T.steps().length - 1; i++) {
+      T.start(i); await wait(450); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));   // after the 0.2 s glide
+      const s = T.steps()[i], tg = [s.target()].flat().filter(Boolean), r = T.rectOf(s.target());
+      const c = tg[0]?.getBoundingClientRect(), hit = c && document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
+      steps[s.id] = !!r && r.left >= -4 && r.top >= -4 && r.left + r.width <= innerWidth + 4 && r.top + r.height <= innerHeight + 4 && tg.some((t) => t.contains(hit));
+      if (!steps[s.id]) blocked[s.id] = hit ? `${hit.tagName}#${hit.id}.${String(hit.className?.baseVal ?? hit.className).slice(0, 40)} in ${hit.closest('.ms, .ms-pane')?.dataset.key || hit.closest('[id]')?.id || '?'}` : 'nothing';
+    }
+    T.start(2); await wait(50); document.querySelector('#ms-looks .look:not(.on)').click(); await wait(900); const lookMoves = T.step === 3;
+    T.start(4); await wait(50); document.getElementById('ms-hit').click(); await wait(900); const hitMoves = T.step === 5;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(50);
+    const clean = !T.active && !document.getElementById('tour-ring') && !document.getElementById('tour-win') && !document.querySelector('.tour-under');
+    while (app.tl.undo()); const restored = P.stringify(app.project) === before;
+    try { saved === null ? localStorage.removeItem('moshine.tour') : localStorage.setItem('moshine.tour', saved); } catch (e) {}
+    return { pass: Object.values(steps).every(Boolean) && lookMoves && hitMoves && clean && restored, steps, blocked, lookMoves, hitMoves, clean, restored };
+  },
   // seeking on the GPU replays from the in-point and lands on the playback pixels; a second seek after invalidate() too
   async sequenceSeek() {
     const R = await renderMod(), X = await seqFixture({ layered: true }), a = R.createSequenceRenderer(M().gpu, X.p, { sources: X.gpuSources });

@@ -89,7 +89,7 @@ export function createProject({ name = 'Untitled', seed = 1, now = new Date().to
 export function mediaFromLibrary(entry, { id = newId('m') } = {}) {
   const i = entry.info || {};
   return { id, name: entry.name, hash: entry.id, kind: 'video', width: i.w | 0, height: i.h | 0,
-    ...(i.fps ? { fps: toRational(i.fps) } : {}), ...(i.frames ? { durationFrames: i.frames } : {}), hasAudio: !!i.audio, storage: 'opfs' };
+    ...(i.rate ? { fps: { num: i.rate.num, den: i.rate.den } } : i.fps ? { fps: toRational(i.fps) } : {}), ...(i.frames ? { durationFrames: i.frames } : {}), hasAudio: !!i.audio, storage: 'opfs' };
 }
 
 /** A one-clip project from a Mosh Loop config (a Mosh ID or a preset): media clip on V1, the loop on FX1 over the

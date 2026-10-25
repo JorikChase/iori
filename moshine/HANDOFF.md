@@ -1,6 +1,6 @@
 # MOSHINE — handoff
 
-**Latest session handoff: [handoffs/2026-10-10b-decisions-m7-perf-density.md](handoffs/2026-10-10b-decisions-m7-perf-density.md)** (previous: [2026-10-10-m5-m7-timeline-cache-audio.md](handoffs/2026-10-10-m5-m7-timeline-cache-audio.md), [2026-10-09-m0-m4-engine-to-timeline.md](handoffs/2026-10-09-m0-m4-engine-to-timeline.md)) — state, invariants, gotchas, open threads. This file is the per-milestone file map.
+**Latest session handoff: [handoffs/2026-10-14-m8-exact-any-size.md](handoffs/2026-10-14-m8-exact-any-size.md)**, plus the fix [handoffs/2026-10-22-import-frame-rate.md](handoffs/2026-10-22-import-frame-rate.md) (imports keep their frame rate) and [handoffs/2026-10-25-export-hang.md](handoffs/2026-10-25-export-hang.md) (the long-export "hang" was the headless rig; `bench.mjs --out`) (previous: [2026-10-10b-decisions-m7-perf-density.md](handoffs/2026-10-10b-decisions-m7-perf-density.md), [2026-10-10-m5-m7-timeline-cache-audio.md](handoffs/2026-10-10-m5-m7-timeline-cache-audio.md), [2026-10-09-m0-m4-engine-to-timeline.md](handoffs/2026-10-09-m0-m4-engine-to-timeline.md)) — state, invariants, gotchas, open threads. This file is the per-milestone file map.
 
 Start here. Design and decisions: `study/SPEC.md` (§0 decision log, §13 milestones, §15 open items). Lab: http://localhost:8772/moshine/lab.html
 Effect set: `study/CATALOG-REVIEW.md`. Agreed UI: `study/ux/wireframe.html`. Evidence: `study/research/`.

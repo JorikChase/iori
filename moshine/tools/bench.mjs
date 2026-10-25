@@ -6,6 +6,7 @@
 //   node moshine/tools/bench.mjs --only warpParity,moshReplay
 //   node moshine/tools/bench.mjs --expr "window.__moshine.probe"
 //   node moshine/tools/bench.mjs --page lab.html --expr "await __lab.seek(50)" --shot lab.png --size 1400x900
+//   node moshine/tools/bench.mjs --page index.html --expr "<driver returning { opfs: name }>" --out mosh.mp4   (any length)
 //
 // Uses the Chrome already installed (no downloads): headless with WebGPU on Metal, background throttling
 // off, driven over the DevTools protocol with Node's built-in WebSocket. It starts its own serve.py on a
@@ -87,7 +88,9 @@ const evaluate = async (expression) => {
   if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
   return r.result.value;
 };
-for (let i = 0; !(await evaluate(args.page ? '!!window.__moshine' : '!!(window.__moshineHarness && window.__moshine)')); i++) {
+// the app (index.html) sets window.__app after more start-up awaits than window.__moshine; --expr drivers need it
+const ready = args.page ? `!!(window.__moshine && (window.__app || !/(^|\\/)(index\\.html)?$/.test(location.pathname)))` : '!!(window.__moshineHarness && window.__moshine)';
+for (let i = 0; !(await evaluate(ready)); i++) {
   if (i > 200) throw new Error('harness did not load (WebGPU unavailable headless?)');
   await sleep(100);
 }
@@ -101,6 +104,22 @@ let result;
 if (args.expr || args.shot) {
   if (args.expr) result = await evaluate(`(async () => { ${args.expr.includes('return') ? args.expr : 'return ' + args.expr} })()`);
   if (result !== undefined) console.log(JSON.stringify(result, null, 1));
+  // --out file: the expr returns { opfs: '<name>' } (an export made with runExport({ where: 'opfs' })) and the file is
+  // pulled from moshine-exports/ in 8 MB pieces. Never return a whole export as one string: past ~100 MB the DevTools
+  // socket stalls for good (a 1000-frame 1080p mosh, 2026-10-25), which looked like an export hang.
+  if (args.out && result?.opfs) {
+    const fs = await import('node:fs'), fd = fs.openSync(String(args.out), 'w'), name = JSON.stringify(result.opfs), CH = 8 << 20;
+    const file = `(await (await (await navigator.storage.getDirectory()).getDirectoryHandle('moshine-exports')).getFileHandle(${name})).getFile()`;
+    const size = await evaluate(`(async () => (await ${file}).size)()`);
+    for (let at = 0; at < size; at += CH) {
+      const b64 = await evaluate(`(async () => { const b = new Uint8Array(await (await ${file}).slice(${at}, ${at + CH}).arrayBuffer()); let s = '';
+        for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); })()`);
+      fs.writeSync(fd, Buffer.from(b64, 'base64'));
+    }
+    fs.closeSync(fd);
+    await evaluate(`(async () => { await (await (await navigator.storage.getDirectory()).getDirectoryHandle('moshine-exports')).removeEntry(${name}); return true; })()`);
+    console.log(`wrote ${args.out} ${size} bytes`);
+  }
   if (args.shot) {
     const [w, h] = String(args.size || '1400x900').split('x').map(Number);
     await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }, sessionId); await sleep(600);

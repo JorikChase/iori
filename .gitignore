@@ -91,3 +91,7 @@ iris-engine/study/casebook/*-[0-9][0-9].png
 # timeline page data: fake locally (tools/timeline/sample_data.py), written by the API on the server
 timeline/data/
 tools/timeline/local/
+
+# MOSHINE local test footage and reference decoder (moshine/tools/make-media.sh, build-mvtool.sh)
+moshine/tests/media/
+moshine/tools/bin/

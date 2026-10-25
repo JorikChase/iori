@@ -13,7 +13,7 @@ import { openLibrary, openVideo, analyseAudio, createAudioDecoder } from './medi
 import { createAudioPlayer } from './audioplay.js';
 import { importLimits, fitSize, SCALES, createGovernor, AUDIO_OK } from './governor.js';
 import { exportSequence, openTarget, encodableCodecs, audioPlan, mixCodec, QUALITIES } from './export.js';
-import { createAudioClip, toRational, createProject, fromConfig, mediaFromLibrary, createMediaClip, createEffectClip, createEffect, openProjectStore, createAutosave, saveFile, readFile, newId, sequenceEnd, toMoshID, fromMoshID, EFFECTS } from './project.js';
+import { createAudioClip, createProject, fromConfig, mediaFromLibrary, createMediaClip, createEffectClip, createEffect, openProjectStore, createAutosave, saveFile, readFile, newId, sequenceEnd, toMoshID, fromMoshID, EFFECTS } from './project.js';
 import { createTimeline, indexProject } from './timeline.js';
 import { createSequenceRenderer, videoReader } from './render.js';
 import { createTimelineView, timecode } from './tlview.js';
@@ -74,10 +74,11 @@ function ensureFeatures(hash) {
   const entry = lib?.list().find((e) => e.id === hash) || session.get(hash); if (!entry) return null;
   const job = (async () => {
     try {
-      let t = lib && !entry.file ? await lib.features(entry) : null;
+      let t = lib && !entry.file ? await lib.features(entry) : null; const r = entry.info?.rate;
+      if (t && r && t.fps.num * r.den !== r.num * t.fps.den) t = null;           // analysed at a wrong rate (before 2026-10-22)
       if (!t) {
         const v = await openVideo(entry.file || (await lib.file(entry)), entry.name);
-        try { if (!v.audio) return; note(`analysing the audio of ${entry.name}…`); t = await analyseAudio(v, toRational(v.fps), { onProgress: (a, b) => note(`analysing the audio of ${entry.name}: ${Math.round((100 * a) / b)} %`) }); } finally { v.close(); }
+        try { if (!v.audio) return; note(`analysing the audio of ${entry.name}…`); t = await analyseAudio(v, v.rate, { onProgress: (a, b) => note(`analysing the audio of ${entry.name}: ${Math.round((100 * a) / b)} %`) }); } finally { v.close(); }
         if (t && lib && !entry.file) await lib.setFeatures(entry, t);
       }
       if (t) { featureTables.set(hash, t); note(`audio features ready for ${entry.name}`); renderer?.invalidate(); play.dirty = true; pump(); }
@@ -760,6 +761,8 @@ relayout(); requestAnimationFrame(() => { densify(); requestAnimationFrame(densi
 useProject(start || demoProject());
 if (location.hash.startsWith('#P1.')) await openMoshID(location.hash.slice(1));
 refreshMedia(); refresh();
+// library entries imported before 2026-10-22 were probed at 30 fps whatever their rate (no info.rate): probe them again
+if (lib) (async () => { let n = 0; for (const e of lib.list().filter((x) => x.info && !x.info.rate)) { try { const v = await openVideo(await lib.file(e), e.name); await lib.setInfo(e, v.info()); v.close(); n++; } catch (err) {} } if (n) refreshMedia(); })();
 window.__app = { sound, decodeAudio, featureTables, ensureFeatures, mk, setTool, drawMaskOverlay, lookTarget, refreshLooks, fillStep, coverageNow, runExport, refreshExport, get project() { return project; }, get tl() { return tl; }, get play() { return play; }, get view() { return view; }, get renderer() { return renderer; }, importFile, addToTimeline, seek, pump, A, applyPreset, useProject, demoProject, refresh, inspector };
 requestAnimationFrame(tick);
 if (!qs.has('bench')) setTimeout(async () => { PM = await measure(gpu, P); note(`probe: Mosh Loop ~${PM.loop1080Ms} ms per 1080p frame · H.264 encode ${PM.encFps} / decode ${PM.decFps} fps · tier ${PM.tier}`); rebuildRenderer(); pump(); refresh(); }, 800);

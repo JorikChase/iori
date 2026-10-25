@@ -8,6 +8,7 @@
 import { pipeline, computePipeline, dispatch, uniformBuffer, HALF_WGSL, F16 } from './gpu.js';
 import { contentIdPlan } from './governor.js';
 import { createFeatureExtractor, encodeFeatures, decodeFeatures } from './features.js';
+import { toRational } from './project.js';
 
 export const mb = () => import('./vendor/mediabunny-1.61.3.min.mjs');
 
@@ -55,22 +56,33 @@ export async function openLibrary() {
 }
 
 // ------------------------------------------------------------------------------------------------ open + probe
+/**
+ * Timing of a Mediabunny video track (no decoding, works in node): { duration, start, rate, fps, frames }. The rate is
+ * Mediabunny's packet rate over the first 120 packets (count / presentation span), snapped to a rational by
+ * toRational (25/1, 24000/1001, ...), and fps = rate.num / rate.den exactly. Mediabunny 1.61 reports it as
+ * `averagePacketRate`; reading `averageFrameRate` (absent) made every import 30 fps until 2026-10-22.
+ */
+export async function probeTiming(track) {
+  const [duration, stats, start] = await Promise.all([track.computeDuration(), track.computePacketStats(120), track.getFirstTimestamp()]);
+  const measured = stats.averagePacketRate, rate = measured > 0 && Number.isFinite(measured) ? toRational(measured) : { num: 30, den: 1 };
+  const fps = rate.num / rate.den;
+  return { duration, start, rate, fps, frames: Math.max(1, Math.round((duration - start) * fps)) };
+}
+
 /** Open a video Blob/File: tracks, size, duration, frame rate, decodability, and decoding iterators. */
 export async function openVideo(blob, name = blob.name || 'video') {
   const M = await mb(), input = new M.Input({ formats: M.ALL_FORMATS, source: new M.BlobSource(blob) });
   const track = await input.getPrimaryVideoTrack(); if (!track) throw new Error('no video track');
   const canDecode = await track.canDecode(); if (!canDecode) throw new Error(`this browser cannot decode ${track.codec || 'this codec'} (WASM decode arrives in M8)`);
-  const [duration, stats, first] = await Promise.all([track.computeDuration(), track.computePacketStats(120), track.getFirstTimestamp()]);
-  const fps = stats.averageFrameRate || 30, audioTrack = await input.getPrimaryAudioTrack();
+  const { duration, start: first, rate, fps, frames } = await probeTiming(track), audioTrack = await input.getPrimaryAudioTrack();
   const sink = new M.VideoSampleSink(track);
   return {
-    name, input, track, codec: track.codec, w: track.displayWidth, h: track.displayHeight, duration, start: first, fps,
-    frames: Math.max(1, Math.round((duration - first) * fps)), constantRate: stats.frameRateIsConstant,
+    name, input, track, codec: track.codec, w: track.displayWidth, h: track.displayHeight, duration, start: first, fps, rate, frames,
     audio: audioTrack ? { track: audioTrack, codec: audioTrack.codec, sampleRate: audioTrack.sampleRate, channels: audioTrack.numberOfChannels } : null,
     /** Async iterator of VideoSample in presentation order from `from` seconds (callers must close() each sample). */
     samples: (from = first, to = Infinity) => sink.samples(from, to),
     sampleAt: (t) => sink.getSample(t),
-    info() { return { codec: this.codec, w: this.w, h: this.h, duration: +duration.toFixed(3), fps: +fps.toFixed(3), frames: this.frames, audio: this.audio ? `${this.audio.codec} ${this.audio.sampleRate} Hz ×${this.audio.channels}` : null }; },
+    info() { return { codec: this.codec, w: this.w, h: this.h, duration: +duration.toFixed(3), fps: +fps.toFixed(3), rate: { ...rate }, frames: this.frames, audio: this.audio ? `${this.audio.codec} ${this.audio.sampleRate} Hz ×${this.audio.channels}` : null }; },
     close() { try { input.dispose?.(); } catch (e) {} },
   };
 }

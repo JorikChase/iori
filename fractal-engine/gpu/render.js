@@ -84,7 +84,7 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
   let unsafeScale = select(1.0, 0.3, (head.flags & FLAG_UNSAFE) != 0u);
   for (var i = 0; i < maxSteps; i++) {
     let p = ro + rd * t;
-    tr = iterate(p, p);
+    tr = iterate(p, cFor(p));
     let d = deOf(tr) * view.tune.x * unsafeScale;
     let eps = max(t * pixelAngle * view.tune.z, 1e-6);
     // near-misses emit: the glow is the field's density seen edge-on
@@ -320,5 +320,9 @@ export async function createRenderer(canvas) {
     device.queue.submit([enc.finish()]);
   }
 
-  return { device, resize, setFormula, frame, present, get size() { return [w, h]; }, get packed() { return packed; } };
+  // the push engine shares the device, the canvas and the formula buffers
+  return {
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present,
+    get size() { return [w, h]; }, get packed() { return packed; },
+  };
 }

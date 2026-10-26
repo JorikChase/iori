@@ -1,14 +1,17 @@
-// The app shell for P1: the arrive state. A living field, the camera inside it, fly only.
+// The app shell: the arrive state. A living field, the camera inside it, fly only.
 //
 //   drag            look              scroll / pinch    move along the view, speed ∝ distance to surface
 //   WASD QE arrows  fly               shift             faster
 //   space           drift on / off (it resumes on its own after a pause otherwise)
+//   P, double-click pull ⇄ push: the same formula forward per pixel (the cave) or backward per sample
+//                   (the nebula). Without a fixed c, push shows the Julia set of the point you look at.
 //
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
 import { parse, format, validate, de as cpuDe } from './core/index.js';
 import { createRenderer } from './gpu/render.js';
+import { createPush } from './gpu/push.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
 // keeping the enclosed ones), turned toward a terraced amphitheatre
@@ -38,6 +41,11 @@ const LOOK = {
   lamp: [1.6, 1.1, -0.4],  // key lamp offset from the camera, in clearances along right, up, forward
   lampRange: 3,            // falloff distance, in clearances
   lampPower: 3,
+  // push
+  pushGain: 1,
+  pushExposure: 0.9,
+  pushSteps: 24,
+  splatMax: 4,          // px; the kernel is shrunk (energy kept) beyond this
 };
 
 const canvas = document.getElementById('field');
@@ -54,6 +62,7 @@ const state = {
   scale: 0.6,           // internal resolution / canvas resolution, set by the governor
   frame: 0,
   maxSamples: 384,
+  mode: 'pull',         // 'pull' | 'push'
 };
 
 // ---------- camera ---------------------------------------------------------------------------------
@@ -147,8 +156,17 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 const keys = new Set();
+function toggleMode() {
+  if (!P) return;
+  state.mode = state.mode === 'pull' ? 'push' : 'pull';
+  touched();
+  writeHash();
+}
+canvas.addEventListener('dblclick', toggleMode);
+
 addEventListener('keydown', (e) => {
   if (e.code === 'Space') { state.drift = !state.drift; touched(); e.preventDefault(); return; }
+  if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
   keys.add(e.code);
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
@@ -195,8 +213,9 @@ function drift(dt) {
 function readHash() {
   const h = decodeURIComponent(location.hash.replace(/^#/, ''));
   if (!h) return null;
-  const [text, camPart] = h.split('&c=');
-  const out = { text };
+  const [rest, modePart] = h.split('&m=');
+  const [text, camPart] = rest.split('&c=');
+  const out = { text, mode: modePart === 'push' ? 'push' : 'pull' };
   if (camPart) {
     const v = camPart.split(',').map(Number);
     if (v.length >= 5 && v.every(Number.isFinite)) out.cam = { pos: v.slice(0, 3), yaw: v[3], pitch: v[4] };
@@ -209,14 +228,15 @@ function writeHash() {
   clearTimeout(hashTimer);
   hashTimer = setTimeout(() => {
     const c = state.cam, r = (x) => +x.toFixed(5);
-    const h = '#' + encodeURIComponent(state.text) + '&c=' + [...c.pos.map(r), r(c.yaw), r(c.pitch)].join(',');
+    const h = '#' + encodeURIComponent(state.text) + '&c=' + [...c.pos.map(r), r(c.yaw), r(c.pitch)].join(',')
+      + (state.mode === 'push' ? '&m=push' : '');
     history.replaceState(null, '', h);
   }, 600);
 }
 
 // ---------- main loop -------------------------------------------------------------------------------
 
-let R = null;
+let R = null, P = null;
 
 function setFormula(text) {
   const f = parse(text);
@@ -225,6 +245,7 @@ function setFormula(text) {
   state.formula = f;
   state.text = format(f);
   if (R) R.setFormula(f);
+  if (P) P.resetWalkers();
   touched();
 }
 
@@ -272,7 +293,9 @@ async function step() {
   const moving = interacting || drifting;
   govern(moving);
 
-  if (R.resize(canvas.width * state.scale, canvas.height * state.scale)) state.n = 0;
+  if (!P) state.mode = 'pull';
+  const E = state.mode === 'push' ? P : R;
+  if (E.resize(canvas.width * state.scale, canvas.height * state.scale)) state.n = 0;
   if (!moving && state.n >= state.maxSamples) return false;
 
   if (moving || state.dirty) {
@@ -287,7 +310,9 @@ async function step() {
   const L = state.look;
   const clear = Math.max(deAt(state.cam.pos), 1e-5);
   const lamp = [0, 1, 2].map((i) => state.cam.pos[i] + (b.right[i] * L.lamp[0] + b.up[i] * L.lamp[1] + b.fwd[i] * L.lamp[2]) * clear);
-  R.frame({
+  if (state.mode === 'push') {
+    pushFrame(b, clear, moving, drifting && !interacting);
+  } else R.frame({
     pos: state.cam.pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360),
     right: b.right, aperture: L.aperture * Math.max(state.focus, 1e-4),
     up: b.up, focus: Math.max(state.focus, 1e-4),
@@ -307,6 +332,27 @@ async function step() {
   return true;
 }
 
+// Push: the constant for +c is the formula's own, or the point the camera looks at. The base splat
+// size ε is one pixel's footprint at the focus distance; the walk then stretches each splat to the
+// cell of the attractor it stands for.
+function pushFrame(b, clear, moving, drifting) {
+  const L = state.look;
+  const th = Math.tan((L.fovDeg * Math.PI) / 360);
+  const [, ih] = P.size;
+  const focus = Math.max(state.focus, 1e-4);
+  const c = state.formula.c || add(state.cam.pos, b.fwd, focus);
+  P.frame({
+    pos: state.cam.pos, tanHalfFov: th, right: b.right, aperture: L.aperture * focus,
+    up: b.up, focus, fwd: b.fwd, near: 1e-4,
+    frame: state.frame, steps: moving ? L.pushSteps : L.pushSteps * 2,
+    c, eps: (focus * 2 * th) / ih * 0.7,
+    hue: L.hue, iridescence: L.iridescence, spread: L.spread, maxRadius: moving ? L.splatMax * 0.6 : L.splatMax,
+    key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: 1,
+    decay: state.n === 0 ? 0 : drifting ? 0.85 : 1,
+    gain: L.pushGain, exposure: L.pushExposure,
+  }, canvas);
+}
+
 // ---------- hooks for the capture rig and tests ----------------------------------------------------
 
 window.__fe = {
@@ -314,6 +360,7 @@ window.__fe = {
   setFormula,
   setCamera(pos, yaw, pitch) { state.cam = { pos: [...pos], yaw, pitch }; touched(); state.lastInput = -1e9; },
   setLook(o) { Object.assign(state.look, o); touched(); state.lastInput = -1e9; },
+  setMode(m) { state.mode = m; touched(); state.lastInput = -1e9; },
   hold(on = true) { state.drift = !on; touched(); state.lastInput = -1e9; },
   waitSamples(n) {
     return new Promise((res) => { const chk = () => (state.n >= n ? res(state.n) : setTimeout(chk, 50)); chk(); });
@@ -338,6 +385,7 @@ async function start() {
     setFormula(DEFAULT.formula);
   }
   if (fromHash && fromHash.cam) state.cam = fromHash.cam;
+  if (fromHash) state.mode = fromHash.mode;
   try {
     R = await createRenderer(canvas);
   } catch (e) {
@@ -347,6 +395,14 @@ async function start() {
     return;
   }
   R.setFormula(state.formula);
+  try {
+    P = await createPush(R);
+  } catch (e) {
+    // pull still works without push
+    console.error(e);
+    window.__fe.error = String(e.message || e);
+    state.mode = 'pull';
+  }
   R.device.lost.then((info) => { console.error('device lost', info.message); document.getElementById('nogpu').hidden = false; });
   window.__fe.ready = true;
   requestAnimationFrame(tick);

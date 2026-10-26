@@ -232,7 +232,38 @@ Measured: the Sierpiński push keeps 100 % of 400 samples in the set after the b
 Measured in the hidden pane (unreliable timing): still frames with shadows ~150 ms at 0.6 internal
 scale of a 1706×1786 canvas; moving frames ~25 ms at 0.35. Not yet: WebGL2 fallback, the capture
 rig, look controls (P4/P5 bring handles), real frame timing with the pane visible.
-Next: P2 (push: chaos game to histogram + Jacobian splats; the pull/push toggle).
+
+**P2 done 2026-10-26** — push, and the toggle (P or double-click; `&m=push` in the URL):
+
+- `gpu/wgsl.js` now holds one op table read two ways: `opFwd` (pull's `iterate`) and `opInv` (one
+  random preimage or failure). The bulb inverse enumerates its valid polar branches analytically
+  (every t = (±θ + 2πk)/n inside [0, π], φ shifted by π for −).
+- `gpu/push.js`: 32,768 walkers × 24 steps a frame (48 still). Each sample is a Gaussian splat whose
+  covariance rides the walk, Σ ← JΣJᵀ + ε²I, J the inverse step's Jacobian by replayed-seed finite
+  differences (a jump across a fold edge restarts Σ); ε is one pixel's footprint at the focus
+  distance. The projected covariance gets the thin-lens circle of confusion added, so depth of field
+  is free; the footprint is capped (energy kept). Fixed-point atomic histogram → float accumulation
+  (decay while drifting) → flame log-density tonemap: colour = mean colour landed, brightness = log
+  of how much, density gain normalised by samples per pixel.
+- The chaos game backs up instead of retrying: one random attempt per step, a dead end pops a
+  16-deep history. Retrying in place picks uniformly among a point's live preimages, so thin branches
+  swallow the walk — the Sierpiński tetrahedron collapsed onto one edge, the KIFS
+  `abs · sort · scale 3 · + -2 -2 0` produced no samples. Measured on the CPU (24³ voxel entropy of
+  30k samples): tetrahedron 4.6 → 10.2 bits at ~2 steps per sample; that KIFS 0 samples → 11.8 bits.
+  Same walk in `core/cpu.js push()` (unit test: coverage entropy) and on the GPU.
+- `c=x,y,z` in the notation fixes the constant (a Julia set) for both engines. Without it pull uses
+  c = the point (Mandelbrot type) and push uses the point the camera looks at, so push shows the
+  Julia set of where you are. Formulas without `+c` are the same set in both modes.
+- Parity: forward unchanged after the refactor; inverse — the GPU's preimage of a forward image,
+  mapped forward on the CPU, returns to it: 0 wrong over 6 formulas × 4096, error ≤ 3e-6.
+- Shots: `design/shots/p2-kifs-pull.jpg` / `p2-kifs-push.jpg` (one formula, mineral and nebula),
+  `p2-tetra-push.jpg`, `p2-mandelbox-julia-push.jpg` (inside the Julia Mandelbox of the arrive view).
+
+Measured with the pane visible: push ~22 ms a frame at 0.5 internal scale. Not yet: the toggle is
+instant (P6 brings computed transitions); in push, fly speed and collision still read pull's
+distance estimate, which for `+c` formulas is the Mandelbrot-type set, not the Julia set shown;
+autofocus likewise.
+Next: P3 (dual numbers: normals, DE, Lyapunov, the parameter metric).
 
 ## Sources
 

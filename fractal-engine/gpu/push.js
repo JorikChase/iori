@@ -1,0 +1,390 @@
+// Push renderer: the same formula run backwards. Walkers play the chaos game through the inverse
+// branches, backing up out of dead ends through a short history (core/cpu.js push(), on the GPU); every sample is a Gaussian splat whose covariance is
+// carried along the walk, Σ ← J Σ Jᵀ + ε²I, with J the Jacobian of the inverse step — so a splat
+// takes the size and stretch of the cell of the attractor it stands for. Splats land in a fixed-point
+// histogram (atomics), are resolved into a float accumulation, and shown with flame-style
+// log-density tonemapping. Depth of field is free: the circle of confusion is added to the projected
+// covariance.
+//
+// For a formula with +c and no fixed c, push needs one constant: the app passes the point the camera
+// looks at, so push shows the Julia set of where you are.
+
+import { INTERP, INVERSE } from './wgsl.js';
+
+const WALKER_BYTES = 48;
+const HISTORY = 16;       // as core/cpu.js: the walk backs up out of dead ends through this history
+const PV_FLOATS = 36;
+const SCALE = 1024; // fixed-point scale of the histogram
+
+const WALK = INTERP + /* wgsl */ `
+var<private> rngState: u32;
+fn pcg(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn rnd() -> f32 { rngState = pcg(rngState); return f32(rngState >> 8u) / 16777216.0; }
+fn pick(n: u32) -> u32 { return min(u32(rnd() * f32(n)), max(n, 1u) - 1u); }
+` + INVERSE + /* wgsl */ `
+struct PView {
+  pos: vec4f,    // xyz camera, w tan(fov/2)
+  right: vec4f,  // xyz, w aperture radius
+  up: vec4f,     // xyz, w focus distance
+  fwd: vec4f,    // xyz, w near plane
+  res: vec4f,    // xy histogram size, z frame, w steps per walker per frame
+  cpush: vec4f,  // xyz the constant for +c, w base splat size ε (world units)
+  look: vec4f,   // x hue, y iridescence, z colour spread, w max splat radius (px)
+  key: vec4f,    // rgb key colour, w fog density
+  misc: vec4f,   // x burn-in steps, y seed, z respawn radius, w unused
+};
+
+struct Walker {
+  top: u32, depth: u32, age: u32, pad: u32,  // ring-buffer top, entries held, steps since spawn
+  sd: vec3f, x: f32,     // Σ diagonal xx yy zz
+  so: vec3f, rng: u32,   // Σ off-diagonal xy xz yz
+};
+const HISTORY = ${HISTORY}u;
+
+@group(1) @binding(0) var<uniform> pv: PView;
+@group(1) @binding(1) var<storage, read_write> walkers: array<Walker>;
+@group(1) @binding(2) var<storage, read_write> hist: array<atomic<u32>>;
+@group(1) @binding(3) var<storage, read_write> stacks: array<vec4f>;   // HISTORY entries per walker: p, colour
+
+struct Inv { p: vec3f, col: f32, ok: bool };
+
+// one inverse iteration of a slot: its ops in reverse order
+fn invStep(slot: u32, q: vec3f, col0: f32) -> Inv {
+  var r: Inv;
+  r.p = q; r.col = col0; r.ok = true;
+  let start = head.starts[slot];
+  let len = head.lens[slot];
+  for (var j = 0u; j < len; j++) {
+    let oi = start + len - 1u - j;
+    let s = opInv(oi, r.p, pv.cpush.xyz);
+    if (!s.ok) { r.ok = false; return r; }
+    r.p = s.p;
+    if (s.branch != 0u) { r.col = branchColour(r.col, oi, s.branch); }
+  }
+  return r;
+}
+
+fn tint(col: f32, cosv: f32) -> vec3f {
+  let base = pv.key.rgb;
+  let film = 0.5 + 0.5 * cos(6.2831853 * (vec3f(0.0, 0.33, 0.67) + col * pv.look.z + cosv * 0.35 + pv.look.x));
+  return mix(base, film * length(base), pv.look.y);
+}
+
+fn splat(p: vec3f, S: mat3x3f, col: f32) {
+  let d = p - pv.pos.xyz;
+  let z = dot(d, pv.fwd.xyz);
+  if (z < pv.fwd.w) { return; }
+  let x = dot(d, pv.right.xyz);
+  let y = dot(d, pv.up.xyz);
+  let W = pv.res.x;
+  let H = pv.res.y;
+  let k = H / (2.0 * pv.pos.w);
+  let cx = W * 0.5 + k * x / z;
+  let cy = H * 0.5 - k * y / z;
+  if (cx < -8.0 || cy < -8.0 || cx > W + 8.0 || cy > H + 8.0) { return; }
+  // project the covariance: rows of the screen Jacobian
+  let du = k * (pv.right.xyz - (x / z) * pv.fwd.xyz) / z;
+  let dv = -k * (pv.up.xyz - (y / z) * pv.fwd.xyz) / z;
+  let Su = S * du;
+  let Sv = S * dv;
+  // circle of confusion from the thin lens, in pixels
+  let coc = pv.right.w * abs(z - pv.up.w) / z * k / max(pv.up.w, 1e-6);
+  var a = dot(du, Su) + coc * coc + 0.25;
+  var b = dot(du, Sv);
+  var c = dot(dv, Sv) + coc * coc + 0.25;
+  // cap the footprint: shrink the kernel, keep its energy
+  let tr = a + c;
+  let lmax = 0.5 * tr + sqrt(max(0.25 * tr * tr - (a * c - b * b), 0.0));
+  let R = pv.look.w;
+  let rad = 3.0 * sqrt(lmax);
+  if (rad > R) { let f = (R / rad) * (R / rad); a = a * f; b = b * f; c = c * f; }
+  if (!(rad == rad) || !(a > 0.0) || !(c > 0.0)) { return; }
+  let det = max(a * c - b * b, 1e-8);
+  let ia = c / det;
+  let ib = -b / det;
+  let ic = a / det;
+  let ext = i32(ceil(min(rad, R)));
+  let x0 = i32(floor(cx));
+  let y0 = i32(floor(cy));
+  let fog = exp(-z * pv.key.w);
+  let rgb = tint(col, 0.0) * fog;
+  // normalise over the pixels actually covered so every sample carries the same energy
+  var sum = 0.0;
+  for (var j = -ext; j <= ext; j++) {
+    for (var i = -ext; i <= ext; i++) {
+      let ox = f32(x0 + i) + 0.5 - cx;
+      let oy = f32(y0 + j) + 0.5 - cy;
+      sum = sum + exp(-0.5 * (ia * ox * ox + 2.0 * ib * ox * oy + ic * oy * oy));
+    }
+  }
+  if (!(sum > 1e-6)) { return; }
+  for (var j = -ext; j <= ext; j++) {
+    for (var i = -ext; i <= ext; i++) {
+      let px = x0 + i;
+      let py = y0 + j;
+      if (px < 0 || py < 0 || px >= i32(W) || py >= i32(H)) { continue; }
+      let ox = f32(px) + 0.5 - cx;
+      let oy = f32(py) + 0.5 - cy;
+      let w = exp(-0.5 * (ia * ox * ox + 2.0 * ib * ox * oy + ic * oy * oy)) / sum;
+      let idx = (u32(py) * u32(W) + u32(px)) * 4u;
+      let v = w * ${SCALE}.0;
+      atomicAdd(&hist[idx], u32(v * rgb.r + 0.5));
+      atomicAdd(&hist[idx + 1u], u32(v * rgb.g + 0.5));
+      atomicAdd(&hist[idx + 2u], u32(v * rgb.b + 0.5));
+      atomicAdd(&hist[idx + 3u], u32(v + 0.5));
+    }
+  }
+}
+
+fn respawn(wi: u32, w: ptr<function, Walker>) {
+  var p = vec3f(1.0);
+  for (var i = 0; i < 8; i++) {
+    p = vec3f(rnd(), rnd(), rnd()) * 2.0 - 1.0;
+    if (dot(p, p) <= 1.0) { break; }
+  }
+  (*w).top = 0u; (*w).depth = 1u; (*w).age = 0u;
+  stacks[wi * HISTORY] = vec4f(p * pv.misc.z, rnd());
+  let e2 = pv.cpush.w * pv.cpush.w;
+  (*w).sd = vec3f(e2); (*w).so = vec3f(0.0);
+}
+
+@compute @workgroup_size(64)
+fn walk(@builtin(global_invocation_id) gid: vec3u) {
+  let wi = gid.x;
+  if (wi >= arrayLength(&walkers)) { return; }
+  var w = walkers[wi];
+  rngState = w.rng;
+  if (rngState == 0u || w.depth == 0u) {
+    if (rngState == 0u) { rngState = pcg(wi * 9781u + u32(pv.misc.y) * 6271u + 1u); }
+    respawn(wi, &w);
+  }
+  let e2 = pv.cpush.w * pv.cpush.w;
+  let steps = u32(pv.res.w);
+  for (var s = 0u; s < steps; s++) {
+    let cur = stacks[wi * HISTORY + w.top];
+    let q = cur.xyz;
+    let slot = schedAt(head.iters - 1u - (w.age % head.iters));
+    // one random attempt; a dead end backs up instead of retrying (see core/cpu.js push)
+    let seed = rngState;
+    let res = invStep(slot, q, cur.w);
+    let after = rngState;
+    if (!res.ok || any(res.p != res.p) || dot(res.p, res.p) > head.bail * head.bail) {
+      w.depth = w.depth - 1u;
+      if (w.depth == 0u) { respawn(wi, &w); continue; }
+      w.top = (w.top + HISTORY - 1u) % HISTORY;
+      w.age = max(w.age, 1u) - 1u;
+      w.sd = vec3f(e2); w.so = vec3f(0.0);
+      continue;
+    }
+    // Jacobian of the step, its branch choices held fixed by replaying the seed
+    let h = 1e-3 * max(length(q), 0.05);
+    rngState = seed; let cx = invStep(slot, q + vec3f(h, 0.0, 0.0), cur.w).p;
+    rngState = seed; let cy = invStep(slot, q + vec3f(0.0, h, 0.0), cur.w).p;
+    rngState = seed; let cz = invStep(slot, q + vec3f(0.0, 0.0, h), cur.w).p;
+    rngState = after;
+    var J = mat3x3f((cx - res.p) / h, (cy - res.p) / h, (cz - res.p) / h);
+    // a perturbed point can fall on another branch (near a fold edge); its difference quotient is then
+    // a jump, not a derivative. Such a step restarts the splat at the base size.
+    let jn = max(max(length(J[0]), length(J[1])), length(J[2]));
+    if (!(jn < 16.0)) { J = mat3x3f(vec3f(0.0), vec3f(0.0), vec3f(0.0)); }
+    let Sig = mat3x3f(vec3f(w.sd.x, w.so.x, w.so.y), vec3f(w.so.x, w.sd.y, w.so.z), vec3f(w.so.y, w.so.z, w.sd.z));
+    let Sn = J * Sig * transpose(J);
+    w.sd = vec3f(Sn[0][0], Sn[1][1], Sn[2][2]) + vec3f(e2);
+    w.so = vec3f(Sn[1][0], Sn[2][0], Sn[2][1]);
+    w.top = (w.top + 1u) % HISTORY;
+    stacks[wi * HISTORY + w.top] = vec4f(res.p, res.col);
+    w.depth = min(w.depth + 1u, HISTORY);
+    w.age = w.age + 1u;
+    if (f32(w.age) > pv.misc.x) {
+      let S = mat3x3f(vec3f(w.sd.x, w.so.x, w.so.y), vec3f(w.so.x, w.sd.y, w.so.z), vec3f(w.so.y, w.so.z, w.sd.z));
+      splat(res.p, S, res.col);
+    }
+  }
+  w.rng = rngState;
+  walkers[wi] = w;
+}
+`;
+
+const RESOLVE = /* wgsl */ `
+struct RV { size: vec4f };   // x width, y height, z decay of the old accumulation
+@group(0) @binding(0) var<uniform> rv: RV;
+@group(0) @binding(1) var<storage, read_write> hist: array<atomic<u32>>;
+@group(0) @binding(2) var<storage, read_write> accum: array<vec4f>;
+@compute @workgroup_size(64)
+fn resolve(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  let n = u32(rv.size.x) * u32(rv.size.y);
+  if (i >= n) { return; }
+  let v = vec4f(f32(atomicExchange(&hist[i * 4u], 0u)), f32(atomicExchange(&hist[i * 4u + 1u], 0u)),
+                f32(atomicExchange(&hist[i * 4u + 2u], 0u)), f32(atomicExchange(&hist[i * 4u + 3u], 0u))) / ${SCALE}.0;
+  accum[i] = accum[i] * rv.size.z + v;
+}
+`;
+
+const DISPLAY = /* wgsl */ `
+struct D { size: vec4f, tone: vec4f };  // size: canvas wh, hist wh; tone: x 1/Σweights, y gain, z exposure
+@group(0) @binding(0) var<uniform> disp: D;
+@group(0) @binding(1) var<storage, read> accum: array<vec4f>;
+@vertex
+fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  let p = vec2f(f32((i << 1u) & 2u), f32(i & 2u));
+  return vec4f(p * 2.0 - 1.0, 0.0, 1.0);
+}
+fn toSrgb(c: vec3f) -> vec3f {
+  return select(1.055 * pow(c, vec3f(1.0 / 2.4)) - 0.055, c * 12.92, c <= vec3f(0.0031308));
+}
+fn at(q: vec2i) -> vec4f {
+  let wh = vec2i(disp.size.zw);
+  let c = clamp(q, vec2i(0), wh - 1);
+  return accum[u32(c.y) * u32(wh.x) + u32(c.x)];
+}
+@fragment
+fn fs(@builtin(position) fc: vec4f) -> @location(0) vec4f {
+  let q = fc.xy / disp.size.xy * disp.size.zw - 0.5;
+  let i0 = vec2i(floor(q));
+  let f = fract(q);
+  let s = mix(mix(at(i0), at(i0 + vec2i(1, 0)), f.x), mix(at(i0 + vec2i(0, 1)), at(i0 + vec2i(1, 1)), f.x), f.y) * disp.tone.x;
+  // flame tonemapping: colour is the mean colour of what landed here, brightness the log of how much
+  let dens = s.a * disp.tone.y;
+  var o = vec3f(0.0);
+  if (s.a > 1e-9) { o = (s.rgb / s.a) * log(1.0 + dens) * disp.tone.z; }
+  o = toSrgb(clamp(o / (1.0 + o * 0.25), vec3f(0.0), vec3f(1.0)));
+  let n = fract(sin(dot(fc.xy, vec2f(12.9898, 78.233))) * 43758.5453);
+  return vec4f(o + (n - 0.5) / 255.0, 1.0);
+}
+`;
+
+export async function createPush(R, { walkers = 32768 } = {}) {
+  const { device, ctx, format, headBuf, opsBuf, formulaLayout } = R;
+
+  const viewLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+      { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  const resolveLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  const dispLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+    ],
+  });
+
+  const compile = async (code) => {
+    const m = device.createShaderModule({ code });
+    const errs = (await m.getCompilationInfo()).messages.filter((x) => x.type === 'error');
+    if (errs.length) throw new Error('wgsl: ' + errs.map((x) => `${x.lineNum}:${x.linePos} ${x.message}`).join('\n'));
+    return m;
+  };
+  const walkPipe = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, viewLayout] }),
+    compute: { module: await compile(WALK), entryPoint: 'walk' },
+  });
+  const resolvePipe = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [resolveLayout] }),
+    compute: { module: await compile(RESOLVE), entryPoint: 'resolve' },
+  });
+  const dispModule = await compile(DISPLAY);
+  const dispPipe = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [dispLayout] }),
+    vertex: { module: dispModule, entryPoint: 'vs' },
+    fragment: { module: dispModule, entryPoint: 'fs', targets: [{ format }] },
+    primitive: { topology: 'triangle-list' },
+  });
+
+  const formulaGroup = device.createBindGroup({
+    layout: formulaLayout,
+    entries: [{ binding: 0, resource: { buffer: headBuf } }, { binding: 1, resource: { buffer: opsBuf } }],
+  });
+  const pvBuf = device.createBuffer({ size: PV_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const rvBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const dispBuf = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const walkerBuf = device.createBuffer({ size: walkers * WALKER_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const stackBuf = device.createBuffer({ size: walkers * HISTORY * 16, usage: GPUBufferUsage.STORAGE });
+
+  let w = 0, h = 0, hist = null, accum = null, walkGroup, resolveGroup, dispGroup;
+  let weight = 0; // Σ of the decay weights in the accumulation
+
+  function resize(iw, ih) {
+    iw = Math.max(8, iw | 0); ih = Math.max(8, ih | 0);
+    if (iw === w && ih === h) return false;
+    w = iw; h = ih;
+    if (hist) { hist.destroy(); accum.destroy(); }
+    hist = device.createBuffer({ size: w * h * 16, usage: GPUBufferUsage.STORAGE });
+    accum = device.createBuffer({ size: w * h * 16, usage: GPUBufferUsage.STORAGE });
+    walkGroup = device.createBindGroup({
+      layout: viewLayout,
+      entries: [
+        { binding: 0, resource: { buffer: pvBuf } }, { binding: 1, resource: { buffer: walkerBuf } },
+        { binding: 2, resource: { buffer: hist } }, { binding: 3, resource: { buffer: stackBuf } },
+      ],
+    });
+    resolveGroup = device.createBindGroup({
+      layout: resolveLayout,
+      entries: [{ binding: 0, resource: { buffer: rvBuf } }, { binding: 1, resource: { buffer: hist } }, { binding: 2, resource: { buffer: accum } }],
+    });
+    dispGroup = device.createBindGroup({
+      layout: dispLayout,
+      entries: [{ binding: 0, resource: { buffer: dispBuf } }, { binding: 1, resource: { buffer: accum } }],
+    });
+    weight = 0;
+    return true;
+  }
+
+  // new formula: walkers forget where they were
+  function resetWalkers() {
+    device.queue.writeBuffer(walkerBuf, 0, new Uint8Array(walkers * WALKER_BYTES));
+  }
+
+  const pv = new Float32Array(PV_FLOATS);
+  // v: camera as in the pull renderer, plus c, eps, steps, burn, seed, spawn, maxRadius, decay, gain
+  function frame(v, canvas) {
+    pv.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.near,
+      w, h, v.frame, v.steps, ...v.c, v.eps, v.hue, v.iridescence, v.spread, v.maxRadius,
+      ...v.key, v.fog, v.burn, v.seed, v.spawn, 0]);
+    device.queue.writeBuffer(pvBuf, 0, pv);
+    weight = weight * v.decay + 1;
+    device.queue.writeBuffer(rvBuf, 0, new Float32Array([w, h, v.decay, 0]));
+    // density gain: one unit when the frame's samples are spread evenly over the image
+    const samplesPerFrame = walkers * v.steps;
+    const gain = v.gain * (w * h) / samplesPerFrame;
+    device.queue.writeBuffer(dispBuf, 0, new Float32Array([canvas.width, canvas.height, w, h, 1 / weight, gain, v.exposure, 0]));
+
+    const enc = device.createCommandEncoder();
+    const cp = enc.beginComputePass();
+    cp.setPipeline(walkPipe);
+    cp.setBindGroup(0, formulaGroup);
+    cp.setBindGroup(1, walkGroup);
+    cp.dispatchWorkgroups(Math.ceil(walkers / 64));
+    cp.setPipeline(resolvePipe);
+    cp.setBindGroup(0, resolveGroup);
+    cp.dispatchWorkgroups(Math.ceil((w * h) / 64));
+    cp.end();
+    const rp = enc.beginRenderPass({
+      colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }],
+    });
+    rp.setPipeline(dispPipe);
+    rp.setBindGroup(0, dispGroup);
+    rp.draw(3);
+    rp.end();
+    device.queue.submit([enc.finish()]);
+  }
+
+  resetWalkers();
+  return { resize, frame, resetWalkers, walkers, get size() { return [w, h]; } };
+}
+
+export { WALK };

@@ -41,6 +41,20 @@ test('notation details: aliases, keyed values, separators, trailing defaults', (
   assert.throws(() => parse('scale 2 | ×3'), /empty slot/);
 });
 
+test('a fixed c makes a Julia set, in the notation and in the orbit', () => {
+  const f = parse('power 2 · +c ×100 c=-.75,.1,0');
+  assert.deepEqual(f.c, [-0.75, 0.1, 0]);
+  assert.equal(format(f), 'power · +c ×100 c=-.75,.1,0');
+  assert.ok(validate(f).ok);
+  assert.notEqual(hash(f), hash(parse('power 2 · +c ×100')));
+  // z0 = 0 under the Julia set of c = −0.75+0.1i escapes (c is outside the Mandelbrot set) …
+  assert.equal(iterate(f, [0, 0, 0], f.c).escaped, true);
+  // … and de() reads c from the formula instead of using the point
+  assert.ok(de(f, [0, 0, 0]) > 0);
+  assert.equal(de(parse('power 2 · +c ×100'), [0, 0, 0]), 0);
+  assert.ok(validate({ ...normalize(f), c: [1, 2] }).errors.some((e) => e.includes('c must')));
+});
+
 test('URL hash carries the formula', () => {
   const f = parse(MANDELBOX);
   assert.deepEqual(normalize(fromURLHash(toURLHash(f))), normalize(f));
@@ -156,6 +170,28 @@ test('push samples of the Sierpiński formula lie in the set the pull engine kee
   // and it is the same stream every time
   const again = push(f, 5, { burn: 32 });
   assert.deepEqual(again.map((s) => s.p), push(f, 5, { burn: 32 }).map((s) => s.p));
+});
+
+test('push covers the set evenly instead of collapsing onto a branch', () => {
+  // voxel entropy of the samples over their bounding box, 16³ voxels
+  const entropy = (pts) => {
+    const lo = [0, 1, 2].map((k) => Math.min(...pts.map((q) => q[k]))), hi = [0, 1, 2].map((k) => Math.max(...pts.map((q) => q[k])));
+    const h = new Map();
+    for (const q of pts) {
+      const key = q.map((x, k) => Math.min(15, Math.floor(((x - lo[k]) / (hi[k] - lo[k] + 1e-12)) * 16))).join(',');
+      h.set(key, (h.get(key) || 0) + 1);
+    }
+    let e = 0;
+    for (const v of h.values()) { const pr = v / pts.length; e -= pr * Math.log2(pr); }
+    return e;
+  };
+  const tetra = push(parse(SIERPINSKI), 8000, { jacobians: false }).map((s) => s.p);
+  assert.equal(tetra.length, 8000);
+  // the Sierpiński tetrahedron has dimension 2: at 16³ about 4^(log2 16)=256 voxels, 8 bits if even
+  assert.ok(entropy(tetra) > 7, `tetrahedron entropy ${entropy(tetra)}`);
+  const menger = push(parse('abs · sort · scale 3 · + -2 -2 0 ×8 bail=50'), 4000, { jacobians: false });
+  assert.equal(menger.length, 4000);
+  assert.ok(entropy(menger.map((s) => s.p)) > 7.5);
 });
 
 test('Lyapunov exponents have the right sign', () => {

@@ -19,9 +19,9 @@ export const OPCODE = {
 export const MAX_OPS = 64;
 export const MAX_SCHEDULE = 64;
 export const REC = 16;
-export const FLAG_POWER = 1, FLAG_UNSAFE = 2;
+export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4;
 
-// head layout (u32/f32 words; 4 + 4 + 4 + 64 = 76 words → 304 bytes, rounded to 320)
+// head layout (u32/f32 words): 4 + 4 + 4 + 64 schedule words, then c (vec4f) at word 76 → 320 bytes
 export const HEAD_BYTES = 320;
 
 function record(o) {
@@ -63,7 +63,8 @@ export function pack(formula) {
   const u = new Uint32Array(head), fl = new Float32Array(head);
   u[0] = f.iters;
   u[1] = sched.length;
-  u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE);
+  u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0);
+  if (f.c) fl.set(f.c, 76);
   fl[3] = f.bail;
   for (let i = 0; i < 4; i++) { u[4 + i] = starts[i]; u[8 + i] = lens[i]; }
   sched.forEach((s, i) => { u[12 + i] = s; });

@@ -6,6 +6,9 @@
 //   iters: 12,             iterations of the schedule
 //   schedule: 'A',         word of slot letters, repeated to fill iters ('AAB' → A A B A A B …)
 //   bail: 4,               escape radius for pull; orbits beyond it have left
+//   c: [x, y, z],          optional. Fixed constant for +c (a Julia set). Absent: pull uses c = the
+//                          point itself (a Mandelbrot-type set); push, which has no single point,
+//                          uses the point the camera looks at, so it shows the Julia set of where you are
 //   slots: [[{ op: 'fold.box', p: { l: 1 } }, …], …]   up to four op lists, A–D
 // }
 //
@@ -24,6 +27,7 @@ export function normalize(f) {
     iters: f.iters === undefined ? 12 : f.iters,
     schedule: f.schedule || 'A',
     bail: f.bail === undefined ? 4 : f.bail,
+    ...(Array.isArray(f.c) ? { c: f.c.map(Number) } : {}),
     slots: (f.slots || []).map((s) => s.map((o) => {
       const def = getOp(o.op);
       return { op: def ? def.name : o.op, p: def ? fillParams(def, o.p || {}) : { ...(o.p || {}) } };
@@ -40,6 +44,7 @@ export function validate(f) {
   if (!Number.isInteger(f.seed)) err('seed must be an integer');
   if (!Number.isInteger(f.iters) || f.iters < 1 || f.iters > MAX_ITERS) err(`iters must be 1..${MAX_ITERS}`);
   if (!(typeof f.bail === 'number' && f.bail > 0 && Number.isFinite(f.bail))) err('bail must be a positive number');
+  if (f.c !== undefined && !(Array.isArray(f.c) && f.c.length === 3 && f.c.every(Number.isFinite))) err('c must be three finite numbers');
   if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > 4) err('slots must hold 1..4 op lists');
   else {
     let count = 0;
@@ -73,7 +78,7 @@ export function pullSafe(f) {
 export function canonical(f) {
   const g = normalize(f);
   return JSON.stringify({
-    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail,
+    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}),
     slots: g.slots.map((s) => s.map((o) => ({ op: o.op, p: Object.fromEntries(getOp(o.op).params.map((q) => [q.k, o.p[q.k]])) }))),
   });
 }

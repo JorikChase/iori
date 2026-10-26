@@ -60,9 +60,9 @@ export function iterate(formula, p0, c = [0, 0, 0], opts = {}) {
 // is pullSafe. The GPU interpreter (gpu/wgsl.js) computes exactly this.
 export const hasPower = (f) => f.slots.some((s) => s.some((q) => q.op === 'bulb' || q.op === 'power'));
 
-export function de(formula, p, c = p, opts = {}) {
+export function de(formula, p, c, opts = {}) {
   const f = normalize(formula);
-  const o = iterate(f, p, c, opts);
+  const o = iterate(f, p, c || f.c || p, opts);
   if (!(o.dr > 0) || o.r === 0) return 0;
   if (hasPower(f)) return o.escaped && o.r > 1 ? (0.5 * Math.log(o.r) * o.r) / o.dr : 0;
   return o.r / Math.abs(o.dr);
@@ -140,34 +140,49 @@ export function stepInverse(s, slot, rng, tries = 8) {
 
 // Chaos game. Yields samples { p, J, k } where J is the Jacobian of the inverse step that produced
 // the sample (its singular directions are the splat's axes) and k the step's operator norm.
+//
+// The walk goes down the tree of preimages with one random attempt per step, and backs up out of
+// dead ends through a short history instead of retrying or respawning. A fold's preimage often lies
+// on a side the next fold never produces; retrying in place picks uniformly among a point's live
+// preimages, which lets thin branches swallow the walk (a Sierpiński tetrahedron collapsed onto one
+// edge, a Menger formula produced no samples at all). Backing up weights each branch by whether it
+// can be continued, recursively. Measured 2026-10-26 (24³ voxel entropy of 30k samples): tetrahedron
+// 4.6 → 10.2 bits at ~2 steps per sample, Menger 0 samples → 11.8 bits.
+export const HISTORY = 16;
+
 export function push(formula, count, opts = {}) {
   const f = normalize(formula);
   const rng = opts.rng || makeRng(f.seed);
-  const c = opts.c || [0, 0, 0];
+  const c = opts.c || f.c || [0, 0, 0];
   const burn = opts.burn === undefined ? 24 : opts.burn;
   const samples = [];
-  let s = { p: rng.ball(), c: [...c], dr: 1 }, i = 0, stuck = 0;
-  while (samples.length < count && stuck < 1000) {
-    const slot = slotAt(f, f.iters - 1 - (i % f.iters));
+  let stack = [{ p: rng.ball(), i: 0 }], respawns = 0;
+  while (samples.length < count && respawns < 1000) {
+    const top = stack[stack.length - 1];
+    const slot = slotAt(f, f.iters - 1 - (top.i % f.iters));
     const rec = recordingRng(rng);
-    const before = [...s.p];
-    const q = stepInverse(s, slot, rec);
-    if (!q || !q.every(Number.isFinite)) { s = { p: rng.ball(), c: [...c], dr: 1 }; stuck++; i = 0; continue; }
-    stuck = 0;
-    i++;
-    if (i <= burn) continue;
+    const s = { p: [...top.p], c: [...c], dr: 1 };
+    const q = stepInverse(s, slot, rec, 1);
+    if (!q || !q.every(Number.isFinite) || Math.hypot(...q) > f.bail) {
+      stack.pop();
+      if (!stack.length) { stack = [{ p: rng.ball(), i: 0 }]; respawns++; }
+      continue;
+    }
+    stack.push({ p: [...q], i: top.i + 1 });
+    if (stack.length > HISTORY) stack.shift();
+    if (top.i + 1 <= burn) continue;
     let J = null, k = 1;
     if (opts.jacobians !== false) {
       J = new Array(9);
       for (let j = 0; j < 3; j++) {
-        const a = { p: [...before], c, dr: 1 }, b = { p: [...before], c, dr: 1 };
+        const a = { p: [...top.p], c, dr: 1 }, b = { p: [...top.p], c, dr: 1 };
         a.p[j] += FD_H; b.p[j] -= FD_H;
-        const qa = stepInverse(a, slot, replayRng(rec.log)), qb = stepInverse(b, slot, replayRng(rec.log));
+        const qa = stepInverse(a, slot, replayRng(rec.log), 1), qb = stepInverse(b, slot, replayRng(rec.log), 1);
         for (let r = 0; r < 3; r++) J[r * 3 + j] = qa && qb ? (qa[r] - qb[r]) / (2 * FD_H) : 0;
       }
       k = specNorm(J);
     }
-    samples.push({ p: [...s.p], J, k });
+    samples.push({ p: [...q], J, k });
   }
   return samples;
 }

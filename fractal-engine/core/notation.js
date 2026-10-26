@@ -6,7 +6,7 @@
 //   op       name followed by positional numbers, or key=value
 //   ·  ;  ⏎  separate ops           |  separates slots (A, B, C, D in order)
 //   ×N or xN iterations, optionally followed by the schedule, a word of slot letters repeated
-//   seed=N   bail=R  anywhere
+//   seed=N   bail=R   c=x,y,z (a fixed constant: the Julia set)   anywhere
 //
 // parse(text) → formula JSON (see formula.js); format(formula) → text. Both are exact inverses on
 // normalised formulas.
@@ -43,6 +43,7 @@ export function parse(text) {
     if ((m = t.match(/^(?:×|x)(\d+)$/))) { closeOp(); f.iters = parseInt(m[1], 10); tail = true; continue; }
     if ((m = t.match(/^seed=(-?\d+)$/))) { f.seed = parseInt(m[1], 10); continue; }
     if ((m = t.match(/^bail=([\d.e+-]+)$/i))) { f.bail = parseFloat(m[1]); continue; }
+    if ((m = t.match(/^c=([-+\d.e]+),([-+\d.e]+),([-+\d.e]+)$/i))) { f.c = [m[1], m[2], m[3]].map(parseFloat); continue; }
     if (tail && /^[A-D]+$/.test(t)) { f.schedule = t; continue; }
     if (cur && isNumber(t)) {
       const q = cur.def.params[cur.n++];
@@ -88,6 +89,7 @@ export function format(f) {
   if (f.schedule && f.schedule !== 'A') tail += ` ${f.schedule}`;
   if (f.seed) tail += ` seed=${f.seed}`;
   if (f.bail !== undefined && f.bail !== 4) tail += ` bail=${fmtNum(f.bail)}`;
+  if (f.c) tail += ` c=${f.c.map(fmtNum).join(',')}`;
   return `${slots} ${tail}`;
 }
 

@@ -121,6 +121,11 @@
     <priority>0.5</priority>
   </url>
   <url>
+    <loc>https://iori.me/fractal-engine/</loc>
+    <lastmod>2026-10-26</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://iori.me/fractals.html</loc>
     <lastmod>2026-10-13</lastmod>
     <priority>0.6</priority>

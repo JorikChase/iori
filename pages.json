@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-25",
+  "generated": "2026-10-26",
   "pages": [
     {
       "slug": "4cube.html",
@@ -299,6 +299,17 @@
       "lastmod": "2026-09-27"
     },
     {
+      "slug": "fractal-engine/index.html",
+      "title": "Fractal Engine — Procedural Fractal Designer",
+      "description": "A WebGPU fractal designer in four dimensions: fly inside Mandelboxes and bulbs, breed and blend families on a map, edit the formula as a network.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/fractal-engine/",
+      "og_image": null,
+      "lastmod": "2026-10-26"
+    },
+    {
       "slug": "fractals.html",
       "title": "Fractal Optimization Through a Procedural Lens",
       "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
@@ -351,7 +362,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/game_multiplayer.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-10-26"
     },
     {
       "slug": "indent.html",
@@ -739,7 +750,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/start.html",
       "og_image": null,
-      "lastmod": "2026-10-10"
+      "lastmod": "2026-10-26"
     },
     {
       "slug": "sudoku.html",

@@ -47,6 +47,7 @@ bash /root/iori/server_setup.sh          # git pull + rsync + api + caddy
 - **Iris Engine**: `iris-engine/HANDOFF.md`
 - **Petri**: `petri/HANDOFF.md`
 - **Timeline** (iori.me/timeline.html, its editor, API routes and import tools): `handoffs/2026-10-16-timeline.md`
+- **RPG Tennis multiplayer** (3die.fr/game_multiplayer.html, its test rig in `tools/tennis-mp/`): `handoffs/2026-10-26-rpg-tennis-multiplayer.md`
 
 Three tracks run in one working tree. They touch different files; the site track owns `site.py`,
 `pages.meta.json`, the generated regions in every page, `dash/`, `api/` and `tools/seo-audit/`.

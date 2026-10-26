@@ -290,7 +290,37 @@ autofocus likewise.
 
 Not yet: push has no λ or metric (the sensing pass reads pull's surface); the metric is RMS over
 the whole view, not per region — P4's attention editing will want it local to the cursor.
-Next: P4 (grab — on-canvas handles, the reticle with Lyapunov ticks, the orbit, attention editing).
+
+**P4 done 2026-10-26** — the grab (`design/shots/p4-grab.png`):
+
+- A press held still (≤ 5 px) for 280 ms becomes a grab at the cursor; the camera does not turn
+  while it decides, drift stops while it lasts, release ends it, Esc reverts it. A grab whose press
+  was released while its sensing pass ran is dropped (it used to arrive orphaned and edit on the
+  next move).
+- Attention: `gpu/sense.js` now takes arbitrary rays. 5×5 rays within ±8 px of the cursor give every
+  parameter's local speed (px per unit); ranked by speed × the parameter's own scale (|value|, at
+  least 0.1, or 10 for angles) so lengths and degrees compete fairly. The first is the attention
+  op; scroll passes attention along the ranking. Sideways drag sets value₀ + Δx / local px-per-unit:
+  one pixel of hand motion moves the surface about one pixel, whichever parameter it is.
+- `ui/overlay.js` draws, in hairlines over the field: the attention op's handle as its own geometry
+  in world space at the first iteration (plane quad + normal, box edges, the sphere fold's two radii,
+  scale as nested squares |s| : 1, rotated vs unrotated axes, the translation arrow, the power's ring
+  and n petals, the twist helix; flame variations fall back to their glyph); the reticle — outer ring
+  plus the world axes' great circles through the held point — with 24 Lyapunov ticks sampled on the
+  ring (length and brightness by λ about the view's median); the point's orbit, compressed radially
+  into the reticle (true direction and order, distance through R·tanh(d/1.5R), since iterates leave
+  the frame within a step or two), branch changes in teal; a dimension line with the op's glyph and
+  the value — the only number on screen. `ui/glyphs.js`: one hairline glyph per op.
+- Verified in the pane by dispatched pointer events: hold → grab (box limit first on the arrive
+  view, 1,593 px per unit there), +40 px → l 1 → 1.025, attention passes to the sphere's rfix, Esc
+  restores the formula, a click released mid-sensing leaves no grab, jitter inside the slop does not
+  turn the camera. Every handle checked in Node for real on-screen geometry.
+
+Not yet: hover preview (the handle appears only on hold); a handle is drawn where its op acts on the
+first iteration, so an op whose geometry is behind the camera (the box at the origin, seen from
+inside the box) shows only its dimension line; editing in push (the sensing reads pull's surface);
+vertical drag does nothing yet.
+Next: P5 (the atlas lens, the lineage tree, the structure toggle).
 
 ## Sources
 

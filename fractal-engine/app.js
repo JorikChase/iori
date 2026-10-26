@@ -6,14 +6,18 @@
 //   P, double-click pull ⇄ push: the same formula forward per pixel (the cave) or backward per sample
 //                   (the nebula). Without a fixed c, push shows the Julia set of the point you look at.
 //   L               the Lyapunov channel: where nearby orbits separate the surface runs hot and glows
+//   hold            (still for 280 ms) grab what is under the cursor: the op that moves the surface most
+//                   there shows its handle, the reticle and the point's orbit; drag sideways to edit it at
+//                   a constant pixels-per-pixel rate, scroll to pass attention to the next op, Esc undoes
 //
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
-import { parse, format, validate, normalize, de as cpuDe } from './core/index.js';
+import { parse, format, validate, normalize, iterate, getOp, de as cpuDe } from './core/index.js';
 import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
 import { createSense } from './gpu/sense.js';
+import { makeCamera, drawGrab, clearGrab } from './ui/overlay.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
 // keeping the enclosed ones), turned toward a terraced amphitheatre
@@ -116,16 +120,144 @@ function traceCentre() {
 
 function touched() { state.lastInput = performance.now(); state.dirty = true; state.n = 0; state.senseDue = true; }
 
+// ---------- grab: hold to edit what is under the cursor ---------------------------------------------
+// A press that stays within 5 px for 280 ms becomes a grab. A sensing pass under the cursor ranks every
+// parameter by how far it moves the surface there (pixels per unit, made comparable by the parameter's
+// own scale): the first is the attention op. Sideways drag edits it at the local metric, so one pixel of
+// hand motion moves the surface about one pixel whatever the parameter; scroll passes attention on.
+
+const HOLD_MS = 280, HOLD_SLOP = 5, RING = 24, RETICLE = 96;
+const overlay = document.getElementById('grab');
+let hold = null;   // a press that may become a grab
+let grab = null;   // the grab being edited
+
+function pixelRay(x, y) {
+  const b = basis(state.cam), th = Math.tan((state.look.fovDeg * Math.PI) / 360), aspect = innerWidth / innerHeight;
+  const u = (x / innerWidth) * 2 - 1, v = (y / innerHeight) * 2 - 1;
+  const d = [0, 1, 2].map((k) => b.fwd[k] + b.right[k] * u * th * aspect - b.up[k] * v * th);
+  const l = Math.hypot(...d);
+  return { dir: d.map((q) => q / l), uv: [u, v] };
+}
+
+function traceRay(dir) {
+  let t = 0;
+  const pa = (2 * Math.tan((state.look.fovDeg * Math.PI) / 360)) / innerHeight;
+  for (let i = 0; i < 160; i++) {
+    const d = deAt(add(state.cam.pos, dir, t));
+    if (d < Math.max(t * pa * 0.5, 1e-6)) return t;
+    t += d * 0.9;
+    if (t > state.look.maxDist) return null;
+  }
+  return null;
+}
+
+// a parameter's scale, so lengths and angles compete fairly: px for a step of its own size
+const ownScale = (p) => Math.max(Math.abs(p.value), p.op === 'rotate' || p.op === 'twist' ? 10 : 0.1);
+
+// press: the hold that asked for this grab; if it was released while sensing ran, there is no grab
+async function enterGrab(x, y, press = null) {
+  if (!S || state.mode !== 'pull') return false;  // push has no surface to sense yet
+  const { dir, uv } = pixelRay(x, y);
+  const t = traceRay(dir);
+  if (t == null) return false;
+  const hit = add(state.cam.pos, dir, t);
+  // 5×5 rays within ±8 px of the cursor, then the reticle's ring
+  const uvs = [];
+  for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) uvs.push(uv[0] + (i * 4 * 2) / innerWidth, uv[1] + (j * 4 * 2) / innerHeight);
+  for (let k = 0; k < RING; k++) {
+    const a = (k / RING) * Math.PI * 2;
+    uvs.push(((x + Math.cos(a) * RETICLE) / innerWidth) * 2 - 1, ((y + Math.sin(a) * RETICLE) / innerHeight) * 2 - 1);
+  }
+  let r = null;
+  // the whole-view pass may be running (it is slower with many parameters): wait for it, up to 3 s
+  for (let tries = 0; tries < 120 && !r; tries++) {
+    r = await S.sense(state.formula, senseView(), innerHeight, new Float32Array(uvs));
+    if (!r) await new Promise((res) => setTimeout(res, 25));
+  }
+  if (!r || (press && hold !== press)) return false;
+  const local = r.rays.slice(0, 25).filter((q) => q.hit);
+  if (!local.length) return false;
+  const ranked = r.params.map((p, j) => {
+    let sum = 0;
+    for (const q of local) sum += q.speeds[j] * q.speeds[j];
+    const pxPerUnit = Math.sqrt(sum / local.length);
+    return { ...p, pxPerUnit, score: pxPerUnit * ownScale(p) };
+  }).filter((p) => p.pxPerUnit > 0).sort((a, b) => b.score - a.score);
+  if (!ranked.length) return false;
+  grab = {
+    x, y, hit, t, ranked, k: 0, x0: x, value0: ranked[0].value, text0: state.text,
+    ring: r.rays.slice(25).map((q, k) => ({ angle: (k / RING) * Math.PI * 2, lambda: q.hit ? q.lambda : null })),
+    lyap: state.sensed ? state.sensed.lyap : r.lyap,
+  };
+  state.lastInput = performance.now();
+  drawGrabNow();
+  return true;
+}
+
+function drawGrabNow() {
+  if (!grab) return;
+  const att = grab.ranked[grab.k];
+  const f = normalize(state.formula);
+  const o = f.slots.flat()[att.oi];
+  att.value = o.p[att.key];
+  const b = basis(state.cam);
+  const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
+  const orbit = iterate(f, grab.hit, f.c || grab.hit);
+  drawGrab(overlay, C, {
+    screen: [grab.x, grab.y], hit: grab.hit, t: grab.t,
+    attention: { op: att.op, key: att.key, value: att.value, glyph: getOp(att.op).glyph },
+    params: o.p, ring: grab.ring, lyap: grab.lyap,
+    orbit: { points: orbit.points, branches: orbit.branches },
+  });
+}
+
+function editGrab(x) {
+  const att = grab.ranked[grab.k];
+  const q = getOp(att.op).params.find((p) => p.k === att.key);
+  let v = grab.value0 + (x - grab.x0) / att.pxPerUnit;
+  if (q.min !== undefined) v = Math.max(q.min, v);
+  if (q.max !== undefined) v = Math.min(q.max, v);
+  setFormula(format(withParam(state.formula, att.oi, att.key, +v.toPrecision(6))));
+  drawGrabNow();
+}
+
+function passAttention(step, x) {
+  grab.k = (grab.k + step + grab.ranked.length) % grab.ranked.length;
+  const att = grab.ranked[grab.k];
+  grab.value0 = normalize(state.formula).slots.flat()[att.oi].p[att.key];
+  grab.x0 = x;
+  drawGrabNow();
+}
+
+function exitGrab(revert = false) {
+  if (!grab) return;
+  if (revert) setFormula(grab.text0);
+  grab = null;
+  clearGrab(overlay);
+  state.senseDue = true;
+  writeHash();
+}
+
 let drag = null;
 const pointers = new Map();
 canvas.addEventListener('pointerdown', (e) => {
-  canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size === 1) { drag = { x: e.clientX, y: e.clientY }; document.body.classList.add('grab'); }
+  if (pointers.size === 1) {
+    drag = { x: e.clientX, y: e.clientY };
+    const h = { x: e.clientX, y: e.clientY };
+    h.timer = setTimeout(() => { if (hold === h) enterGrab(h.x, h.y, h).then((ok) => { if (ok) drag = null; }); }, HOLD_MS);
+    hold = h;
+    document.body.classList.add('grab');
+  } else if (hold) { clearTimeout(hold.timer); hold = null; }
 });
 canvas.addEventListener('pointermove', (e) => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
+  if (grab) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); editGrab(e.clientX); return; }
+  // still deciding: a press that becomes a grab must not turn the camera meanwhile
+  if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) <= HOLD_SLOP) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
+  if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > HOLD_SLOP) { clearTimeout(hold.timer); hold = null; }
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     const before = Math.hypot(a.x - b.x, a.y - b.y);
@@ -147,13 +279,19 @@ canvas.addEventListener('pointermove', (e) => {
 });
 const release = (e) => {
   pointers.delete(e.pointerId);
-  if (pointers.size === 0) { drag = null; document.body.classList.remove('grab'); }
+  if (pointers.size === 0) {
+    drag = null;
+    if (hold) { clearTimeout(hold.timer); hold = null; }
+    exitGrab();
+    document.body.classList.remove('grab');
+  }
 };
 canvas.addEventListener('pointerup', release);
 canvas.addEventListener('pointercancel', release);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (grab) { passAttention(e.deltaY > 0 ? 1 : -1, e.clientX); return; }
   const { fwd } = basis(state.cam);
   const notches = Math.max(-4, Math.min(4, -e.deltaY / 100));
   moveBy(fwd, notches * 0.3 * deAt(state.cam.pos));
@@ -170,6 +308,7 @@ function toggleMode() {
 canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && grab) { exitGrab(true); return; }
   if (e.code === 'Space') { state.drift = !state.drift; touched(); e.preventDefault(); return; }
   if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
   if (e.code === 'KeyL' && !e.repeat) { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); return; }
@@ -199,7 +338,7 @@ function flyKeys(dt) {
 // distance estimate a short way ahead in a ring of directions.
 
 function drift(dt) {
-  if (!state.drift || performance.now() - state.lastInput < 4000) return false;
+  if (!state.drift || grab || performance.now() - state.lastInput < 4000) return false;
   const c = state.cam, here = deAt(c.pos);
   let best = { s: -1, dy: 0, dp: 0 };
   for (const [dy, dp] of [[0, 0], [0.25, 0], [-0.25, 0], [0, 0.18], [0, -0.18]]) {
@@ -427,6 +566,12 @@ window.__fe = {
   setLook(o) { Object.assign(state.look, o); touched(); state.lastInput = -1e9; },
   setMode(m) { state.mode = m; touched(); state.lastInput = -1e9; },
   sense: () => senseNow(),
+  // the grab, driven without a pointer (tests, the capture rig)
+  grabAt: (x, y) => enterGrab(x, y),
+  grabDrag: (dx) => { if (grab) editGrab(grab.x0 + dx); return grab && grab.ranked[grab.k]; },
+  grabPass: (step = 1) => { if (grab) passAttention(step, grab.x0); return grab && grab.ranked[grab.k]; },
+  grabEnd: (revert = false) => exitGrab(revert),
+  get grab() { return grab; },
   metric: () => state.sensed && state.sensed.params,
   nudge,
   metricCheck,

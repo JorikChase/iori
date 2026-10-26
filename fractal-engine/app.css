@@ -32,6 +32,23 @@ body.grab #field { cursor: grabbing; }
 #grab .ln .dot { fill: #fff; stroke: none; }
 #grab text.l { text-anchor: start; }
 
+/* the graph: folded in the structure layer as the strip, unfolded over the dimmed field (ui/graph.js) */
+:is(#structure, #grab) .gr .ed { stroke-width: 0.75; opacity: 0.5; }
+:is(#structure, #grab) .gr .ed.on { opacity: 1; stroke-width: 1.5; }
+:is(#structure, #grab) .gr .br { opacity: 0.45; }
+:is(#structure, #grab) .gr .io, :is(#structure, #grab) .gr .fk { fill: #fff; stroke: none; opacity: 0.7; }
+:is(#structure, #grab) .gr .nd path { opacity: 0.85; }
+:is(#structure, #grab) .gr .nd.fd path { opacity: 1; }
+:is(#structure, #grab) .gr .nd.hv path { stroke-width: 1.5; }
+:is(#structure, #grab) .gr .zn { opacity: 0.25; }
+:is(#structure, #grab) .gr .lp { opacity: 0.4; }
+:is(#structure, #grab) .gr .att { opacity: 0.9; }
+:is(#structure, #grab) .gr text { fill: #fff; stroke: none; font: 11px ui-monospace, Menlo, monospace; text-anchor: middle; opacity: 0.8; }
+:is(#structure, #grab) .gr .pm path { opacity: 0.6; }
+:is(#structure, #grab) .gr .pm.held path { opacity: 1; stroke-width: 1.2; }
+:is(#structure, #grab) .gr .tb { opacity: 0.8; }
+#grab .gv { fill: #000; stroke: none; opacity: 0.55; }
+
 /* the Metasurface (M): the families' cells over the dimmed field (ui/metasurface.js) */
 #grab .ms .veil { fill: #000; stroke: none; opacity: 0.55; }
 #grab .ms .cell { opacity: 0.4; }
@@ -68,5 +85,6 @@ body.grab #field { cursor: grabbing; }
 #grab .rg .sel { stroke-width: 1.5; }
 #grab .rg .far { stroke-dasharray: 2 3; }
 #structure .ex { opacity: 0.6; }
+#structure > .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
 #structure .ex .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
 #structure .pg { stroke-width: 1.5; opacity: 0.9; }

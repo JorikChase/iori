@@ -637,3 +637,33 @@ everywhere); site placement by hand (Q3's Metasurface); drawn fields; tissue-of-
 Not yet: moving sites or dropping the current formula onto the surface as a new site; touch gestures
 for strokes (desktop modifiers only); pseudo-Kleinian's own estimate; walls are drawn as cell edges,
 not as the soft band they are.
+
+**Q4 built 2026-10-26 — the graph.** Decided with iori: today's formula as an editable network now,
+with the hooks formula v2 needs; it unfolds from the strip; ops come from a radial picker; a node's
+thumbnail is the field without it.
+- *core/graph.js* (unit-tested): `tree(f)` puts each chimera's species back where they belong;
+  `flatten` is its exact inverse; ids are paths (`B3` op 3 of chain B, `B3.1` its species 1,
+  `B3.1.0` that species' first op); `ports(n)` types every port (point in/out, number or int per
+  parameter, per-species point ports and a field weight on a chimera) — the v2 hook. Edits by id:
+  insert, remove (the last op of a species takes the species; a chimera left with one dissolves;
+  a scheduled chain is never emptied), move (no chimera inside a chimera), setParam (clamped), fork (the
+  op there and its copy as two species — the orbit is unchanged until one changes), addSpecies,
+  setField (shared parameters kept), unwrap, setIters, bypass (for thumbnails).
+- *One drawing, two scales* (ui/graph.js): chains top to bottom side by side, a chimera's fork, its
+  species, the join at its field's glyph, the repeat zone with its loop up the right side and
+  `×N schedule` below. Folded, it is the structure layer's strip — so the strip always shows the real
+  network (species, fields, schedule); click it, or G, and it unfolds leftward over the dimmed field.
+- *Editing:* hover a node — the field without it, as a thumbnail; click — selected, its parameters as
+  dimension lines to its left (no words: a tick for a bounded value, the number while held), dragged
+  at the sensed metric; drag a node onto an edge — moved there; Delete — removed; hold an edge — the
+  ring of 22 op glyphs and the mix glyph (fork), release on one; hold a field — the ring of nine
+  fields and the plus (another species); drag the count — iterations, one per 12 px. Every edit is
+  one lineage node; G, Esc or a press outside folds it.
+- Verified in the app with real and synthetic input: the thumbnail without `scale`, a parameter drag
+  (3 → 3.71), rotate4 inserted from the picker, a fourth species from the field ring, abs moved below
+  sort, Delete, ×9 → ×12; the strip redrawn with four species after folding. `__fe.dry` keeps test
+  edits out of the lineage (shared through localStorage).
+
+Not yet: formula v2 itself (fields or node outputs driving parameters, reused subgraphs); adding or
+removing scheduled chains and editing the schedule word in the graph (the notation does it); the unfold
+animation is timer-driven and stalls while the pane is hidden; touch.

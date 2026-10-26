@@ -2,19 +2,28 @@
 //
 //   ruler    left: one notch per iteration (one octave each), the bright notch is the depth reached at
 //            the centre of the view, with its number — the Richardson ruler of paper 0
-//   strip    right: the op stack as glyphs, slots separated by a gap, the attention op framed, the
-//            iteration count and schedule below
+//   strip    right: the formula's graph drawn small — chains, species forks, fields, the repeat zone
+//            with the iteration count and schedule; the attention op framed; click to unfold it
 //   lineage  bottom left: every formula as a dot, its parent as a hairline; the big dot is now. Hover a
 //            dot for its thumbnail, click it to return there
 //
 // Nothing here has words. Coordinates are CSS pixels.
 
-import { glyphPath, EXPORT_GLYPHS } from './glyphs.js';
-import { getOp } from '../core/ops.js';
+import { EXPORT_GLYPHS } from './glyphs.js';
+import { tree } from '../core/graph.js';
+import { layout, place, drawGraph } from './graph.js';
+
+// the strip's placement: one unit per row up to 52 px, fitting the height and a 170 px column
+export function stripPlacement(f, W, H) {
+  const L = layout(tree(f));
+  const u = Math.min(52, (H - 260) / (L.h + 1), 170 / (L.w + 0.9));
+  return place(L, u, W - 50, H / 2 - 10);
+}
 
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
 
 // s: { W, H, formula (normalized), depth (iterations at the centre), attention (op index or null),
+//      unfolded (the graph is open: leave the strip to it),
 //      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions),
 //      progress (0..1 while an export runs, else null) }
 export function drawStructure(svg, s) {
@@ -32,22 +41,14 @@ export function drawStructure(svg, s) {
   const at = top + (Math.min(s.depth, n) / n) * shown * step;
   out.push(`<path class="now" d="M50 ${f1(at)}h20"/><text x="76" y="${f1(at + 4)}">${s.depth}</text></g>`);
 
-  // the op stack
-  const ops = [];
-  f.slots.forEach((slot, si) => slot.forEach((o, j) => ops.push({ o, si, gap: j === 0 && si > 0 })));
-  const pitch = 52;
-  const total = ops.length * pitch + ops.filter((q) => q.gap).length * 24;
-  let y = Math.max(80, (H - total) / 2);
-  const x = W - 74;
-  out.push('<g class="st">');
-  ops.forEach((q, i) => {
-    if (q.gap) { out.push(`<path class="sep" d="M${x - 10} ${f1(y + 4)}h20"/>`); y += 24; }
-    out.push(glyphPath(getOp(q.o.op).glyph, x, y + 14, 26));
-    if (s.attention === i) out.push(`<rect class="att" x="${x - 17}" y="${f1(y - 3)}" width="34" height="34"/>`);
-    y += pitch;
-  });
-  const sched = f.schedule && f.schedule !== 'A' ? ` ${f.schedule}` : '';
-  out.push(`<text x="${x}" y="${f1(y + 12)}">×${f.iters}${sched}</text></g>`);
+  // the op stack: the formula's graph drawn small (ui/graph.js), the same network the unfolded graph
+  // edits — chains, species forks, fields, the repeat zone. Click it to unfold it (the app does).
+  if (!s.unfolded) {
+    const P = stripPlacement(f, W, H);
+    out.push(drawGraph(P, { attention: s.attention }));
+    const [zx0, zy0, zx1, zy1] = P.zone;
+    out.push(`<rect class="hit" data-graph="1" x="${f1(zx0 - 8)}" y="${f1(zy0 - 8)}" width="${f1(zx1 - zx0 + 24)}" height="${f1(zy1 - zy0 + 30)}"/>`);
+  }
 
   // the lineage
   const L = s.lineage;

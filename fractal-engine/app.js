@@ -46,6 +46,10 @@ import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
 import { drawSurface } from './ui/metasurface.js';
+import { layout as graphLayout, place as graphPlace, between as graphBetween, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt } from './ui/graph.js';
+import { stripPlacement } from './ui/structure.js';
+import * as G from './core/graph.js';
+import { glyphPath } from './ui/glyphs.js';
 import { createSurface, formulaAt, weightsAt, strokeField, cells } from './core/metasurface.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
@@ -129,6 +133,8 @@ const lineage = createLineage();
 const structureSvg = document.getElementById('structure');
 
 function remember() {
+  // test code sets __fe.dry so its edits never land in the lineage (it is shared through localStorage)
+  if (window.__fe && window.__fe.dry) return;
   const node = lineage.commit({ text: state.text, cam: { pos: [...state.cam.pos], yaw: state.cam.yaw, pitch: state.cam.pitch }, mode: state.mode });
   if (!node.thumb) state.thumbDue = node.id;
   drawStructureNow();
@@ -223,7 +229,7 @@ function drawStructureNow() {
   const centre = add(state.cam.pos, b.fwd, Math.max(state.focus, 1e-4));
   const depth = iterate(f, centre, f.c || lift(f, centre)).n;
   drawStructure(structureSvg, {
-    W: innerWidth, H: innerHeight, formula: f, depth,
+    W: innerWidth, H: innerHeight, formula: f, depth, unfolded: !!gv,
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
     lineage: lineage.layout(), hover: state.hoverNode,
     progress: state.exporting ? state.exporting.progress : null,
@@ -248,6 +254,7 @@ structureSvg.addEventListener('pointermove', (e) => {
 });
 structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; drawStructureNow(); });
 structureSvg.addEventListener('click', (e) => {
+  if (e.target && e.target.dataset && e.target.dataset.graph) { openGraph(); return; }
   const ex = e.target && e.target.dataset ? e.target.dataset.export : null;
   if (ex) { exportAs(ex); return; }
   const id = e.target && e.target.dataset ? e.target.dataset.id : null;
@@ -457,6 +464,251 @@ function layField(pts, scr) {
   frameAt(r.view);
   writeHash();
   remember();
+}
+
+// ---------- the graph (G, or click the strip): the formula as a network, edited -----------------------
+// The strip of the structure layer unfolds leftward into the same drawing at full size over the dimmed
+// field (ui/graph.js). Hover a node: the field without it, as a thumbnail. Click: select it — its
+// parameters as dimension lines to its left, dragged at the sensed metric. Drag a node: move it along
+// its chain or into another. Delete removes it. Hold on an edge: the ring of ops, release on one to
+// put it there (the mix glyph forks the chain). Hold on a field: the ring of fields and the plus of
+// another species. Drag the count: the iterations. G or Esc folds it back.
+let gv = null;   // { P, t0, from, hover, selected, press, drag, param, picker, thumbs, drift }
+const GRAPH_UNFOLD_MS = 260, GRAPH_HOLD_MS = 300;
+const PICK_OPS = ['translate', 'scale', 'rotate', 'rotate4', '+c', 'fold.plane', 'fold.box', 'fold.sphere', 'abs', 'sort', 'sort4',
+  'bulb', 'bulb4', 'power', 'quat', 'invert', 'twist', 'spherical', 'swirl', 'sin', 'horseshoe', 'polar'];
+const PICK_FIELDS = ['mix', 'mix.axis', 'mix.sphere', 'mix.noise', 'mix.tissue', 'mix.trap', 'mix.depth', 'mix.lyap', 'mix.blend'];
+
+function graphPlacement() {
+  const f = normalize(state.formula), L = graphLayout(G.tree(f));
+  const u = Math.min(64, (innerHeight - 220) / (L.h + 1), (innerWidth * 0.55) / (L.w + 0.9));
+  return graphPlace(L, u, innerWidth - 50, innerHeight / 2 - 10);
+}
+
+function openGraph() {
+  if (gv) return;
+  exitGrab();
+  const P = graphPlacement();
+  gv = { P, from: stripPlacement(normalize(state.formula), innerWidth, innerHeight), t0: performance.now(), hover: null, selected: null, press: null, drag: null, param: null, picker: null, thumbs: new Map(), drift: state.drift };
+  state.drift = false;
+  drawStructureNow();
+  const tick = () => { if (!gv || !gv.from) return; drawGraphNow(); if (performance.now() - gv.t0 < GRAPH_UNFOLD_MS) setTimeout(tick, 16); else { gv.from = null; drawGraphNow(); } };
+  tick();
+}
+
+function closeGraph() {
+  if (!gv) return;
+  state.drift = gv.drift;
+  gv = null;
+  clearGrab(overlay);
+  drawStructureNow();
+}
+
+// after the formula changed: the new network, the selection kept where it still exists
+function refreshGraph() {
+  if (!gv) return;
+  gv.P = graphPlacement();
+  if (gv.selected && !gv.P.items.some((q) => q.id === gv.selected)) gv.selected = null;
+  drawGraphNow();
+}
+
+// a node's parameters as dimension lines to its left: a tick where a bounded value sits in its range
+function paramHandles(q) {
+  const def = getOp(q.n.op), shown = def.params.filter((r) => !r.hidden);
+  const g = Math.max(10, Math.min(26, gv.P.u * 0.5)), x2 = q.x - g - 22, x1 = x2 - 150;
+  return shown.map((r, i) => {
+    const v = q.n.p[r.k], y = q.y + (i - (shown.length - 1) / 2) * 15;
+    const held = gv.param && gv.param.id === q.id && gv.param.key === r.k;
+    return { key: r.k, x1, x2, y, v: held ? fmtValue(v) : '', value: v, held, q: r };
+  });
+}
+const fmtValue = (v) => (Number.isInteger(v) ? String(v) : Number(v.toPrecision(4)).toString());
+
+function drawGraphNow() {
+  if (!gv) return;
+  const t = gv.from ? Math.min(1, (performance.now() - gv.t0) / GRAPH_UNFOLD_MS) : 1;
+  const P = gv.from ? graphBetween(gv.from, gv.P, t) : gv.P;
+  const sel = gv.selected && P.items.find((q) => q.id === gv.selected);
+  const hv = gv.hover && gv.thumbs.get(gv.hover + '|' + state.text);
+  const hq = gv.hover && P.items.find((q) => q.id === gv.hover);
+  let svg = `<rect class="gv" x="0" y="0" width="${innerWidth}" height="${innerHeight}" style="opacity:${(0.55 * t).toFixed(2)}"/>`;
+  svg += drawGraph(P, {
+    full: true, hover: gv.hover, selected: gv.selected, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : null,
+    params: sel && !gv.from ? paramHandles(sel) : [],
+    thumb: hv && hq && !gv.drag && !gv.picker ? { x: hq.x - (sel && sel.id === hq.id ? 190 : 0), y: hq.y, href: hv } : null,
+  });
+  if (gv.drag) svg += `<g class="gr full"><g class="nd hv">${glyphPath(gv.drag.glyph, gv.drag.x, gv.drag.y, 26)}</g></g>`;
+  if (gv.picker) svg += drawPicker(gv.picker);
+  overlay.innerHTML = svg;
+  overlay.classList.add('on');
+}
+
+function drawPicker(k) {
+  const [x, y] = k.at, R = 96;
+  let s = `<g class="gr full pk"><circle cx="${x}" cy="${y}" r="26"/>`;
+  k.items.forEach((it, i) => {
+    const a = (i / k.items.length) * Math.PI * 2 - Math.PI / 2, gx = x + Math.cos(a) * R, gy = y + Math.sin(a) * R;
+    it.angle = a;
+    s += `<g class="nd${i === k.sel ? ' sel' : ''}">${glyphPath(it.glyph, gx, gy, i === k.sel ? 26 : 20)}</g>`;
+    if (i === k.sel) s += `<circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="18"/>`;
+  });
+  return s + '</g>';
+}
+
+function openPicker(press) {
+  const q = press.node;
+  if (q && q.field) {
+    // the fields, and the plus of another species
+    const items = PICK_FIELDS.map((name) => ({ glyph: getOp(name).glyph, act: () => G.setField(state.formula, q.id, name) }));
+    items.push({ glyph: 'plus', act: () => G.addSpecies(state.formula, q.id) });
+    gv.picker = { at: [press.x, press.y], items, sel: -1 };
+  } else if (press.edge) {
+    const e = press.edge, scheduled = !e.chain.includes('.');
+    const items = PICK_OPS.map((name) => ({ glyph: getOp(name).glyph, act: () => G.insert(state.formula, e.chain, e.index, name) }));
+    if (scheduled) items.push({ glyph: 'mix', act: () => G.fork(state.formula, e.chain, e.index) });
+    gv.picker = { at: [press.x, press.y], items, sel: -1 };
+  }
+  drawGraphNow();
+}
+
+// commit an edit: the formula, a lineage node, the network again
+function graphEdit(fn) {
+  let f;
+  try { f = fn(); } catch (err) { console.warn('graph:', err.message); return false; }
+  if (!f) return false;
+  setFormula(format(f));
+  writeHash();
+  remember();
+  refreshGraph();
+  return true;
+}
+
+function graphDown(e) {
+  if (gv.from) return;
+  const x = e.clientX, y = e.clientY;
+  // a parameter handle of the selected node
+  const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
+  if (sel) {
+    const h = paramHandles(sel).find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+    if (h) {
+      const m = state.sensed && state.sensed.params.find((p) => p.oi === sel.oi && p.key === h.key);
+      gv.param = { id: sel.id, key: h.key, x0: x, v0: sel.n.p[h.key], q: h.q, perPx: m && m.pxPerUnit > 0 ? 1 / m.pxPerUnit : 0.005 * Math.max(1, Math.abs(sel.n.p[h.key])), text0: state.text };
+      drawGraphNow();
+      return;
+    }
+  }
+  // the count below the repeat zone: the iterations
+  const [zx0, , zx1, zy1] = gv.P.zone;
+  if (Math.abs(y - (zy1 + 12)) < 12 && Math.abs(x - (zx0 + zx1) / 2) < 40) {
+    gv.param = { iters: true, x0: x, v0: state.formula.iters, text0: state.text };
+    return;
+  }
+  const node = graphNodeAt(gv.P, x, y), edge = node ? null : graphEdgeAt(gv.P, x, y);
+  if (!node && !edge) {
+    // outside the zone folds the graph; inside it, a press on nothing clears the selection
+    if (x < zx0 - 30 || x > zx1 + 30 || y < gv.P.zone[1] - 30 || y > zy1 + 40) { closeGraph(); return; }
+    gv.selected = null; drawGraphNow();
+    return;
+  }
+  const press = { x, y, node, edge, moved: false };
+  press.timer = setTimeout(() => { if (gv && gv.press === press && !press.moved && (edge || (node && node.field))) openPicker(press); }, GRAPH_HOLD_MS);
+  gv.press = press;
+  drawGraphNow();
+}
+
+function graphMove(e) {
+  const x = e.clientX, y = e.clientY;
+  if (gv.picker) {
+    const [cx, cy] = gv.picker.at;
+    if (Math.hypot(x - cx, y - cy) < 30) gv.picker.sel = -1;
+    else {
+      const a = Math.atan2(y - cy, x - cx), n = gv.picker.items.length;
+      gv.picker.sel = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
+    }
+    drawGraphNow();
+    return;
+  }
+  if (gv.param) {
+    const p = gv.param, dx = x - p.x0;
+    let f;
+    try {
+      if (p.iters) f = G.setIters(state.formula, p.v0 + Math.round(dx / 12));
+      else f = G.setParam(state.formula, p.id, p.key, p.q.discrete ? p.v0 + Math.round(dx / 14) : p.v0 + dx * p.perPx);
+    } catch { return; }
+    setFormula(format(f), true);
+    touched();
+    refreshGraph();
+    return;
+  }
+  const pr = gv.press;
+  if (pr) {
+    if (!pr.moved && Math.hypot(x - pr.x, y - pr.y) > 6) { pr.moved = true; clearTimeout(pr.timer); }
+    if (pr.moved && pr.node) {
+      gv.drag = { id: pr.node.id, glyph: pr.node.glyph, x, y, edge: graphEdgeAt(gv.P, x, y) };
+      gv.press.edge = gv.drag.edge;
+      drawGraphNow();
+    }
+    return;
+  }
+  // hover: which node, and its thumbnail once the pointer rests
+  const q = graphNodeAt(gv.P, x, y), id = q ? q.id : null;
+  if (id !== gv.hover) {
+    gv.hover = id;
+    drawGraphNow();
+    if (id) {
+      const key = id + '|' + state.text;
+      clearTimeout(gv.thumbTimer);
+      gv.thumbTimer = setTimeout(async () => {
+        if (!gv || gv.hover !== id || gv.thumbs.has(key) || !R) return;
+        const without = G.bypass(state.formula, id);
+        if (!without) return;
+        const href = await R.renderThumb(without, thumbView(basis(state.cam)), 168, 112, 6).catch(() => null);
+        if (!gv || !href) return;
+        gv.thumbs.set(key, href);
+        drawGraphNow();
+      }, 180);
+    }
+  }
+}
+
+function graphUp(e) {
+  if (gv.picker) {
+    const k = gv.picker;
+    gv.picker = null; gv.press = null;
+    if (k.sel >= 0) graphEdit(k.items[k.sel].act); else drawGraphNow();
+    return;
+  }
+  if (gv.param) {
+    const p = gv.param;
+    gv.param = null;
+    if (state.text !== p.text0) { setFormula(state.text); writeHash(); remember(); }
+    refreshGraph();
+    return;
+  }
+  const pr = gv.press;
+  gv.press = null;
+  if (!pr) return;
+  clearTimeout(pr.timer);
+  if (gv.drag) {
+    const d = gv.drag;
+    gv.drag = null;
+    if (d.edge && !(d.edge.chain === pr.node.chain && (d.edge.index === pr.node.index || d.edge.index === pr.node.index + 1))) graphEdit(() => G.move(state.formula, d.id, d.edge.chain, d.edge.index));
+    else drawGraphNow();
+    return;
+  }
+  if (pr.node && !pr.moved) { gv.selected = gv.selected === pr.node.id ? null : pr.node.id; drawGraphNow(); return; }
+  drawGraphNow();
+}
+
+// keys while the graph is open; true when used
+function graphKey(e) {
+  if (e.code === 'Escape') {
+    if (gv.picker) { gv.picker = null; gv.press = null; drawGraphNow(); } else if (gv.selected) { gv.selected = null; drawGraphNow(); } else closeGraph();
+    return true;
+  }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.selected) { const id = gv.selected; gv.selected = null; graphEdit(() => G.remove(state.formula, id)); return true; }
+  if (e.code === 'KeyG' && !e.repeat) { closeGraph(); return true; }
+  return false;
 }
 
 // ---------- input -----------------------------------------------------------------------------------
@@ -700,6 +952,7 @@ canvas.addEventListener('pointerdown', (e) => {
   stopReplay();
   try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
   if (surf) { surfDown(e); return; }
+  if (gv) { graphDown(e); return; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
     drag = { x: e.clientX, y: e.clientY };
@@ -715,6 +968,7 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 canvas.addEventListener('pointermove', (e) => {
   if (surf) { surfMove(e); return; }
+  if (gv) { graphMove(e); return; }
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   if (ring) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointRing(e.clientX, e.clientY); return; }
@@ -773,6 +1027,7 @@ function sliceDrag(dx, dy) {
 
 const release = (e) => {
   if (surf) { surfUp(e); return; }
+  if (gv) { graphUp(e); return; }
   pointers.delete(e.pointerId);
   if (pointers.size === 0) {
     drag = null;
@@ -816,6 +1071,8 @@ canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && surf) { closeSurface(); return; }
+  if (gv && graphKey(e)) return;
+  if (e.code === 'KeyG' && !e.repeat && !grab && !ring && !lens && !surf) { openGraph(); return; }
   if (e.code === 'KeyM' && !e.repeat && !grab && !ring && !lens) { if (surf) closeSurface(); else openSurface(); return; }
   if (e.code === 'Escape' && ring) { closeRing(false); return; }
   if (e.code === 'Escape' && grab) { exitGrab(true); return; }
@@ -864,7 +1121,7 @@ function flyKeys(dt) {
 // distance estimate a short way ahead in a ring of directions.
 
 function drift(dt) {
-  if (!state.drift || grab || surf || performance.now() - state.lastInput < 4000) return false;
+  if (!state.drift || grab || surf || gv || performance.now() - state.lastInput < 4000) return false;
   herd(dt);
   if (state.mode === 'loop') { if (state.loopWin) rollLoop(dt * 0.03); return true; }
   const c = state.cam, here = deAt(c.pos);
@@ -1480,6 +1737,8 @@ window.__fe = {
     return state.text;
   },
   get surfaceThumbs() { return SURF.sites.filter((s) => s.thumb).length; },
+  graph: (on = true) => { if (on) openGraph(); else closeGraph(); return !!gv; },
+  get graphView() { return gv && { items: gv.P.items.filter((q) => q.kind === 'op').map((q) => ({ id: q.id, op: q.n.op, x: q.x, y: q.y })), edges: gv.P.edges.map((e) => ({ chain: e.chain, index: e.index, x: (e.x1 + e.x2) / 2, y: (e.y1 + e.y2) / 2 })), zone: gv.P.zone, selected: gv.selected, picker: !!gv.picker }; },
   slice: (dw = 0, dx = 0, dy = 0) => { if (dw) sliceBy(dw, null); if (dx || dy) sliceDrag(dx, dy); sliceMoved = false; return state.formula.slice; },
   lineage: () => lineage.layout(200).map((n) => ({ id: n.id, parent: n.parent, text: n.text, current: n.current, thumb: !!n.thumb })),
   back: () => { const n = lineage.parent(); if (n) restore(lineage.jump(n.id)); return n && n.id; },

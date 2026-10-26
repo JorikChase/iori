@@ -500,3 +500,60 @@ test('Metasurface: a site is its family, a cell breeds, a wall blends, strokes l
   assert.equal(sf.f.slots[1].map((o) => o.op).join(), 'bulb,+c');
   assert.equal(sf.f.slots[k].map((o) => o.op).join(), sier.f.slots[0].map((o) => o.op).join());
 });
+
+test('graph: the formula as a tree with path ids and typed ports, and every edit', async () => {
+  const G = await import('../core/graph.js');
+  const texts = [MANDELBOX, HYBRID, 'abs | [scale 2 · abs ‖ invert ‖ bulb] tissue 5 · +c ×6 AB',
+    '[fold.box 1 · scale 2 ‖ bulb 8] noise .5 1 · +c ×10 slice=.2,10,0,0 c=.1,.2,.3,.4'];
+  for (const text of texts) {
+    const f = normalize(parse(text));
+    assert.equal(format(G.flatten(G.tree(f))), format(f), text);
+    assert.deepEqual(G.flatten(G.tree(f)), f);
+  }
+  const t = G.tree(parse('abs | [scale 2 · abs ‖ invert ‖ bulb] tissue 5 · +c ×6 AB'));
+  assert.deepEqual(t.chains.map((c) => c.id), ['A', 'B']);
+  assert.equal(t.chains[1].nodes[0].id, 'B0');
+  assert.deepEqual(t.chains[1].nodes[0].species.map((s) => s.id), ['B0.0', 'B0.1', 'B0.2']);
+  assert.equal(t.chains[1].nodes[0].species[0].nodes[1].id, 'B0.0.1');
+  const pt = G.ports(t.chains[1].nodes[0]);
+  assert.ok(pt.some((q) => q.name === 'weight' && q.type === 'field'));
+  assert.ok(pt.some((q) => q.name === 'seed' && q.type === 'int'));
+  assert.ok(pt.some((q) => q.name === 'out2' && q.type === 'point'));
+  assert.ok(!pt.some((q) => q.name === 's'));
+
+  const f0 = parse(MANDELBOX);
+  // insert, move, set, remove
+  let f = G.insert(f0, 'A', 2, 'rotate');
+  assert.equal(format(f), 'fold.box · fold.sphere · rotate · scale · +c ×12 bail=64');
+  f = G.move(f, 'A2', 'A', 0);
+  assert.equal(format(f), 'rotate · fold.box · fold.sphere · scale · +c ×12 bail=64');
+  f = G.setParam(f, 'A0', 'x', 30);
+  assert.equal(f.slots[0][0].p.x, 30);
+  assert.equal(G.setParam(f, 'A3', 's', 999).slots[0][3].p.s, 64);
+  f = G.remove(f, 'A0');
+  assert.equal(format(f), format(f0));
+  assert.throws(() => G.remove(parse('abs ×3'), 'A0'), /emptied/);
+  // fork: nothing changes in the orbit until a species does
+  const fk = G.fork(f0, 'A', 2);
+  assert.equal(format(fk), 'fold.box · fold.sphere · [scale ‖ scale] · +c ×12 bail=64');
+  const p = [0.3, -0.2, 0.5];
+  assert.ok(near(de(fk, p), de(f0, p), 1e-12));
+  // species edits, the field, unwrap
+  let g = G.setParam(fk, 'A2.1.0', 's', 3);
+  g = G.addSpecies(g, 'A2');
+  assert.equal(G.tree(g).chains[0].nodes[2].species.length, 3);
+  g = G.setField(g, 'A2', 'mix.tissue');
+  assert.equal(g.slots[0][2].op, 'mix.tissue');
+  assert.equal(g.slots[0][2].p.s, 3);
+  g = G.remove(g, 'A2.2.0');
+  assert.equal(G.tree(g).chains[0].nodes[2].species.length, 2);
+  g = G.remove(g, 'A2.1.0');
+  assert.equal(format(g), format(f0));
+  assert.equal(format(G.unwrap(fk, 'A2', 1)), format(f0));
+  assert.throws(() => G.move(parse('abs | [scale 2 ‖ abs] ×3 AB'), 'B0', 'B0.0', 0), /inside a chimera/);
+  // bypass: the formula without one node
+  assert.equal(format(G.bypass(f0, 'A1')), 'fold.box · scale · +c ×12 bail=64');
+  assert.equal(format(G.bypass(fk, 'A2')), format(f0));
+  assert.equal(G.bypass(parse('abs ×3'), 'A0'), null);
+  assert.equal(G.setIters(f0, 30).iters, 30);
+});

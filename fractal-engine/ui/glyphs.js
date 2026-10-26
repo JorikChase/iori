@@ -38,10 +38,13 @@ export const GLYPHS = {
 };
 
 export function glyphPath(id, x, y, size = 24) {
-  const d = GLYPHS[id] || GLYPHS.c;
+  const d = GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : GLYPHS.c);
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
+
+// the graph's own: another species (a plus)
+export const PLUS_GLYPH = 'M12 5v14M5 12h14';
 
 // export glyphs (the structure layer): a still, a film, splats, a mesh
 export const EXPORT_GLYPHS = {

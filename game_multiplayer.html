@@ -59,84 +59,503 @@
     </script>
     <!-- SEO:END -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-
-    <!-- Primary Meta Tags -->
-
-    <!-- Open Graph / Facebook -->
-
-    <!-- Twitter -->
-
-    <!-- iOS and Android PWA & New Favicons -->
-
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-        <link
-            type="text/css"
-            rel="stylesheet"
-            href="/assets/main.css"
-        />
+        <link type="text/css" rel="stylesheet" href="/assets/main.css" />
         <style>
             @font-face {
                 font-family: bitBoy;
                 src: url(/assets/dogica.ttf);
             }
+            :root {
+                --ink: #fff;
+                --dim: rgba(255, 255, 255, 0.6);
+                --accent: rgb(255, 251, 0);
+                --panel: rgba(0, 0, 0, 0.78);
+                --line: rgba(255, 255, 255, 0.28);
+            }
+            html, body {
+                height: 100%;
+                overflow: hidden;
+                overscroll-behavior: none;
+            }
             body {
-                font-family: bitBoy;
+                font-family: bitBoy, monospace;
+                font-size: 10px;
+                line-height: 1.7;
+                color: var(--ink);
+                background: #000;
+                touch-action: none;
+                -webkit-user-select: none;
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+            #container canvas {
+                position: fixed;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 0;
+                image-rendering: pixelated;
+            }
+            #splats {
+                position: fixed;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 1;
+                pointer-events: none;
+                image-rendering: pixelated;
+            }
+            #labels {
+                position: fixed;
+                inset: 0;
+                z-index: 2;
+                pointer-events: none;
+                overflow: hidden;
+            }
+            .label {
+                position: absolute;
+                left: 0;
+                top: 0;
+                font-size: 8px;
+                white-space: nowrap;
+                padding: 1px 4px;
+                background: rgba(0, 0, 0, 0.55);
+                will-change: transform;
+            }
+            #crosshair {
+                position: fixed;
+                left: 50%;
+                top: 50%;
+                width: 4px;
+                height: 4px;
+                margin: -2px 0 0 -2px;
+                background: var(--accent);
+                z-index: 3;
+                pointer-events: none;
+            }
+            #hitText {
+                position: fixed;
+                left: 50%;
+                top: calc(50% + 18px);
+                transform: translateX(-50%);
+                z-index: 3;
+                pointer-events: none;
+                color: var(--accent);
+                opacity: 0;
+                transition: opacity 0.4s;
+            }
+            #hitText.on {
+                opacity: 1;
+                transition: none;
+            }
+            #hud {
+                position: fixed;
+                left: calc(12px + env(safe-area-inset-left));
+                top: calc(12px + env(safe-area-inset-top));
+                z-index: 4;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                max-width: 52vw;
+            }
+            #board {
+                background: rgba(0, 0, 0, 0.45);
+                padding: 4px 8px;
+            }
+            #board:empty {
+                display: none;
+            }
+            .row {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            .row .name {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .row.me .name {
+                color: var(--accent);
+            }
+            .sw {
+                width: 8px;
+                height: 8px;
+                flex: none;
+            }
+            .tag {
+                color: var(--dim);
+                font-size: 8px;
+            }
+            #net {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                color: var(--dim);
+                font-size: 8px;
+            }
+            #net i {
+                width: 6px;
+                height: 6px;
+                background: #777;
+                flex: none;
+            }
+            #net.ok i { background: #3dff6e; }
+            #net.wait i { background: var(--accent); }
+            #net.bad i { background: #ff3b3b; }
+            #hudButtons {
+                display: flex;
+                gap: 6px;
+            }
+            #hudButtons button {
+                padding: 5px 8px;
+                font-size: 8px;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: var(--panel);
+                border: 1px solid var(--line);
+                padding: 9px 14px;
+                cursor: pointer;
+                touch-action: manipulation;
+            }
+            button:hover, button:focus-visible {
+                border-color: var(--accent);
+                color: var(--accent);
+                outline: none;
+            }
+            button:disabled {
+                opacity: 0.4;
+                cursor: default;
+                border-color: var(--line);
+                color: inherit;
+            }
+            button.on {
+                color: var(--accent);
+                border-color: var(--accent);
+            }
+            #toasts {
+                position: fixed;
+                left: 50%;
+                top: calc(14px + env(safe-area-inset-top));
+                transform: translateX(-50%);
+                z-index: 6;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+                pointer-events: none;
+            }
+            .toast {
+                background: var(--panel);
+                padding: 4px 10px;
+                white-space: nowrap;
+            }
+            .screen {
+                position: fixed;
+                inset: 0;
+                z-index: 20;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 16px;
+            }
+            .hidden {
+                display: none !important;
+            }
+            .card {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                padding: 20px;
+                width: min(440px, 100%);
+                max-height: 100%;
+                overflow: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                touch-action: pan-y;
+            }
+            .card h1 {
+                font-size: 18px;
+                line-height: 1.3;
+                color: var(--accent);
+            }
+            .card h2 {
+                font-size: 12px;
+                color: var(--accent);
+                margin: 0;
+            }
+            .card p {
+                margin: 0;
+            }
+            .sub, .help {
+                color: var(--dim);
+                font-size: 8px;
+            }
+            .help {
+                margin: 0;
+                padding: 0;
+            }
+            .help b {
+                color: var(--ink);
+                font-weight: normal;
+            }
+            #loadBar {
+                height: 6px;
+                background: rgba(255, 255, 255, 0.12);
+            }
+            #loadBar i {
+                display: block;
+                height: 100%;
+                width: 0;
+                background: var(--accent);
+                transition: width 0.2s;
+            }
+            .field {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .field input[type="text"], .field select {
+                flex: 1;
+                min-width: 0;
+                font: inherit;
+                color: var(--ink);
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid var(--line);
+                padding: 7px 8px;
+                -webkit-user-select: text;
+                user-select: text;
+            }
+            .field input[type="range"] {
+                flex: 1;
+                accent-color: var(--accent);
+            }
+            .field input[type="checkbox"] {
+                accent-color: var(--accent);
+                width: 16px;
+                height: 16px;
+            }
+            .actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .actions button {
+                flex: 1;
+            }
+            #playBtn {
+                font-size: 14px;
+                padding: 12px;
+                color: var(--accent);
+                border-color: var(--accent);
+            }
+            .touchOnly { display: none; }
+            body.touch .touchOnly { display: revert; }
+            body.touch .deskOnly { display: none; }
+            body.touch #crosshair { width: 6px; height: 6px; margin: -3px 0 0 -3px; }
+            body.hoverLook #container canvas { cursor: crosshair; }
+            #touch {
+                position: fixed;
+                inset: 0;
+                z-index: 5;
+                pointer-events: none;
+                display: none;
+            }
+            body.touch.playing #touch {
+                display: block;
+            }
+            #joy {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 110px;
+                height: 110px;
+                margin: -55px 0 0 -55px;
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                background: rgba(255, 255, 255, 0.07);
+                border-radius: 50%;
+                opacity: 0.55;
+            }
+            #joy.active {
+                opacity: 1;
+            }
+            #joyKnob {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 44px;
+                height: 44px;
+                margin: -22px 0 0 -22px;
+                background: rgba(255, 255, 255, 0.45);
+                border-radius: 50%;
+            }
+            .tbtn {
+                position: absolute;
+                pointer-events: auto;
+                border-radius: 50%;
+                border: 2px solid rgba(255, 255, 255, 0.35);
+                background: rgba(255, 255, 255, 0.12);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 8px;
+                color: rgba(255, 255, 255, 0.85);
+                padding: 0;
+            }
+            .tbtn.down {
+                background: rgba(255, 251, 0, 0.35);
+                border-color: var(--accent);
+            }
+            #tSwing {
+                right: calc(22px + env(safe-area-inset-right));
+                bottom: calc(26px + env(safe-area-inset-bottom));
+                width: 92px;
+                height: 92px;
+            }
+            #tToss {
+                right: calc(124px + env(safe-area-inset-right));
+                bottom: calc(30px + env(safe-area-inset-bottom));
+                width: 58px;
+                height: 58px;
+            }
+            #tJump {
+                right: calc(40px + env(safe-area-inset-right));
+                bottom: calc(130px + env(safe-area-inset-bottom));
+                width: 58px;
+                height: 58px;
             }
         </style>
-        <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-</head>
-    <body>
-        <div id="container"></div>
-
-        <!-- Import maps polyfill -->
-        <!-- Remove this when import maps will be widely supported -->
-        <script
-            async
-            src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"
-        ></script>
-
+        <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" defer></script>
         <script type="importmap">
             {
                 "imports": {
-                    "three": "https://threejs.org/build/three.module.js",
-                    "three/addons/": "https://threejs.org/examples/jsm/"
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+                    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
                 }
             }
         </script>
+</head>
+    <body>
+        <div id="container"></div>
+        <canvas id="splats"></canvas>
+        <div id="labels"></div>
+        <div id="crosshair" class="hidden"></div>
+        <div id="hitText"></div>
+        <div id="toasts"></div>
+
+        <div id="hud" class="hidden">
+            <div id="board"></div>
+            <div id="net"><i></i><span id="netText">offline</span></div>
+            <div id="hudButtons">
+                <button id="hudPause" type="button">pause</button>
+                <button id="hudVoice" type="button">voice off</button>
+                <button id="hudMusic" type="button">music</button>
+            </div>
+        </div>
+
+        <div id="touch">
+            <div id="joy"><div id="joyKnob"></div></div>
+            <button class="tbtn" id="tSwing" type="button">swing</button>
+            <button class="tbtn" id="tToss" type="button">toss</button>
+            <button class="tbtn" id="tJump" type="button">jump</button>
+        </div>
+
+        <div id="start" class="screen">
+            <div class="card">
+                <h1>RPG TENNIS<br>multiplayer</h1>
+                <p class="sub">one room for everyone online. hit balls at the others: every clean hit splats your colour over their face.</p>
+                <div id="loadBar"><i></i></div>
+                <p id="loadText" class="sub">loading the world…</p>
+                <label class="field">name <input id="nameInput" type="text" maxlength="14" autocomplete="off" spellcheck="false"></label>
+                <label class="field"><input id="voiceCheck" type="checkbox"> voice chat (asks for your mic)</label>
+                <button id="playBtn" type="button" disabled>PLAY</button>
+                <p id="startStatus" class="sub"></p>
+                <ul class="help deskOnly">
+                    <li><b>click</b> lock the mouse · <b>WASD</b> move · <b>space</b> jump</li>
+                    <li><b>left click</b> swing: time it, the ball has to meet the strings</li>
+                    <li><b>move the mouse up</b> while swinging for topspin, <b>down</b> for slice</li>
+                    <li><b>E</b> or <b>right click</b> toss a ball · <b>V</b> voice · <b>esc</b> pause</li>
+                </ul>
+                <ul class="help touchOnly">
+                    <li><b>left thumb</b> move · <b>drag anywhere else</b> look</li>
+                    <li><b>swing</b> time it: the ball has to meet the strings</li>
+                    <li><b>slide up</b> on swing for topspin, <b>down</b> for slice · <b>toss</b> a ball</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="pause" class="screen hidden">
+            <div class="card">
+                <h2>paused</h2>
+                <p class="sub">you are still in the room. the others can still hit you.</p>
+                <button id="resumeBtn" type="button">RESUME</button>
+                <label class="field">look speed <input id="sensRange" type="range" min="0.3" max="2.5" step="0.05"></label>
+                <label class="field">quality
+                    <select id="qualitySelect">
+                        <option value="auto">auto</option>
+                        <option value="2">high</option>
+                        <option value="1">medium</option>
+                        <option value="0">low</option>
+                    </select>
+                </label>
+                <div class="actions">
+                    <button id="pauseVoice" type="button">voice off</button>
+                    <button id="pauseMusic" type="button">music</button>
+                </div>
+                <button id="leaveBtn" type="button">leave the room</button>
+            </div>
+        </div>
+
+        <audio id="music" loop preload="none" src="/assets/tennis_sound.mp3"></audio>
 
         <script type="module">
             import * as THREE from "three";
-
             import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-
             import { Octree } from "three/addons/math/Octree.js";
-            import { OctreeHelper } from "three/addons/helpers/OctreeHelper.js";
-
             import { Capsule } from "three/addons/math/Capsule.js";
-
-            import { GUI } from "three/addons/libs/lil-gui.module.min.js";
-
             import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
             import { RenderPixelatedPass } from "three/addons/postprocessing/RenderPixelatedPass.js";
+            import { DecalGeometry } from "three/addons/geometries/DecalGeometry.js";
+            import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
-            let composer;
+            const $ = (id) => document.getElementById(id);
+            const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+            const store = {
+                get(k, d) {
+                    try {
+                        const v = localStorage.getItem("rpgt." + k);
+                        return v === null ? d : JSON.parse(v);
+                    } catch (e) {
+                        return d;
+                    }
+                },
+                set(k, v) {
+                    try {
+                        localStorage.setItem("rpgt." + k, JSON.stringify(v));
+                    } catch (e) {}
+                },
+            };
 
+            const isTouch = matchMedia("(pointer: coarse)").matches;
+            if (isTouch) document.body.classList.add("touch");
+
+            // ---------------------------------------------------------------
+            // Renderer. One pass only: the pixelated pass renders the scene
+            // itself, so there is no separate renderer.render() per frame.
+            // ---------------------------------------------------------------
             const clock = new THREE.Clock();
 
             const scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
             scene.fog = new THREE.Fog(0x000000, 0, 25);
 
-            const camera = new THREE.PerspectiveCamera(
-                70,
-                window.innerWidth / window.innerHeight,
-                0.1,
-                1000,
-            );
+            const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 1000);
             camera.rotation.order = "YXZ";
-
-            // Add camera to scene so its children (like the local racket) are rendered
-            scene.add(camera);
+            scene.add(camera); // the first-person racket is a child of the camera
 
             const directionalLight = new THREE.DirectionalLight(0xffffff, 30);
             directionalLight.position.set(-5, 25, -1);
@@ -147,71 +566,104 @@
             directionalLight.shadow.camera.left = -30;
             directionalLight.shadow.camera.top = 30;
             directionalLight.shadow.camera.bottom = -30;
-            directionalLight.shadow.mapSize.width = 1024;
-            directionalLight.shadow.mapSize.height = 1024;
-            directionalLight.shadow.radius = 4;
-            directionalLight.shadow.bias = -0.00006;
+            directionalLight.shadow.bias = -0.0005;
             scene.add(directionalLight);
 
-            const container = document.getElementById("container");
-
-            const renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            const container = $("container");
+            // the image is pixelated to 4 CSS px blocks anyway, so a device
+            // pixel ratio above 1 and antialiasing would only cost fill rate
+            const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setPixelRatio(1);
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.VSMShadowMap;
-            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.shadowMap.type = THREE.PCFShadowMap;
+            renderer.shadowMap.autoUpdate = false; // the pass renders twice; shadows once
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             container.appendChild(renderer.domElement);
 
-            composer = new EffectComposer(renderer);
-            const renderPixelatedPass = new RenderPixelatedPass(
-                8,
-                scene,
-                camera,
-            );
+            const composer = new EffectComposer(renderer);
+            composer.setPixelRatio(1);
+            const renderPixelatedPass = new RenderPixelatedPass(4, scene, camera);
             composer.addPass(renderPixelatedPass);
-            composer.setSize(window.innerWidth, window.innerHeight);
 
-            const GRAVITY = 30;
+            // quality levels: pixel block size (CSS px) and shadow map size
+            const QUALITY = [
+                { pixel: 6, shadow: 0 },
+                { pixel: 5, shadow: 512 },
+                { pixel: 4, shadow: 1024 },
+            ];
+            const quality = {
+                mode: store.get("quality", "auto"),
+                level: -1,
+                avg: 16,
+                timer: 0,
+                fails: [0, 0, 0],
+            };
 
-            const NUM_SPHERES = 100;
-            const SPHERE_RADIUS = 0.2;
-
-            const STEPS_PER_FRAME = 5;
-
-            const sphereGeometry = new THREE.IcosahedronGeometry(
-                SPHERE_RADIUS,
-                5,
-            );
-            const tennisMaterial = new THREE.TextureLoader().load(
-                "/assets/tennis.jpg",
-            );
-            const sphereMaterial = new THREE.MeshLambertMaterial({
-                map: tennisMaterial,
-                emissiveMap: tennisMaterial,
-                emissive: 0x858585,
-            });
-
-            const spheres = [];
-            let sphereIdx = 0;
-
-            for (let i = 0; i < NUM_SPHERES; i++) {
-                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-                sphere.castShadow = true;
-                sphere.receiveShadow = true;
-
-                scene.add(sphere);
-
-                spheres.push({
-                    mesh: sphere,
-                    collider: new THREE.Sphere(
-                        new THREE.Vector3(0, -100, 0),
-                        SPHERE_RADIUS,
-                    ),
-                    velocity: new THREE.Vector3(),
-                });
+            function setQuality(level) {
+                if (level === quality.level) return;
+                quality.level = level;
+                const q = QUALITY[level];
+                renderPixelatedPass.setPixelSize(q.pixel);
+                directionalLight.castShadow = q.shadow > 0;
+                if (q.shadow > 0 && directionalLight.shadow.mapSize.x !== q.shadow) {
+                    directionalLight.shadow.mapSize.set(q.shadow, q.shadow);
+                    if (directionalLight.shadow.map) {
+                        directionalLight.shadow.map.dispose();
+                        directionalLight.shadow.map = null;
+                    }
+                }
             }
+            setQuality(quality.mode === "auto" ? (isTouch ? 1 : 2) : +quality.mode);
+
+            // frame-time governor: steps down when frames run long, steps back
+            // up after a long calm stretch, and stops retrying a level that
+            // failed twice
+            function governQuality(frameSeconds) {
+                if (quality.mode !== "auto" || frameSeconds > 0.1) return;
+                quality.avg += (frameSeconds * 1000 - quality.avg) * 0.05;
+                quality.timer += frameSeconds;
+                if (quality.timer < 2) return;
+                if (quality.avg > 24 && quality.level > 0) {
+                    quality.fails[quality.level]++;
+                    setQuality(quality.level - 1);
+                    quality.timer = 0;
+                } else if (
+                    quality.avg < 18 &&
+                    quality.timer > 10 &&
+                    quality.level < 2 &&
+                    quality.fails[quality.level + 1] < 2
+                ) {
+                    setQuality(quality.level + 1);
+                    quality.timer = 0;
+                }
+            }
+
+            function onWindowResize() {
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                if (!w || !h) return; // hidden at load: wait for a real size
+                camera.aspect = w / h;
+                // tall screens: keep at least 50° across, and bring the racket in
+                const minV = (2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(25)) / camera.aspect) * 180) / Math.PI;
+                camera.fov = Math.max(70, minV);
+                camera.updateProjectionMatrix();
+                const narrow = 1 - clamp(camera.aspect / 1.33, 0.35, 1);
+                viewRig.position.set(-0.2 * narrow, 0, -0.3 * narrow);
+                renderer.setSize(w, h);
+                composer.setSize(w, h);
+                resizeSplats(w, h);
+            }
+            window.addEventListener("resize", onWindowResize);
+
+            // ---------------------------------------------------------------
+            // World physics
+            // ---------------------------------------------------------------
+            const GRAVITY = 30;
+            const STEPS_PER_FRAME = 5;
+            const NUM_BALLS = 60;
+            const BALL_RADIUS = 0.2;
+            const MAGNUS = 0.35;
+            const SPLAT_SPEED = 8;
 
             const worldOctree = new Octree();
 
@@ -220,648 +672,1996 @@
                 new THREE.Vector3(0, 1, 0),
                 0.35,
             );
-
             const playerVelocity = new THREE.Vector3();
             const playerDirection = new THREE.Vector3();
-
             let playerOnFloor = false;
-            let mouseTime = 0;
 
             const keyStates = {};
+            const UP = new THREE.Vector3(0, 1, 0);
+            const _a = new THREE.Vector3();
+            const _b = new THREE.Vector3();
+            const _c = new THREE.Vector3();
+            const _n = new THREE.Vector3();
+            const _seg = new THREE.Vector3();
+            const _m = new THREE.Matrix4();
+            const _q = new THREE.Quaternion();
+            const _s = new THREE.Vector3();
+            const _e = new THREE.Euler();
+            const _o = new THREE.Object3D();
 
-            const vector1 = new THREE.Vector3();
-            const vector2 = new THREE.Vector3();
-            const vector3 = new THREE.Vector3();
+            // balls: one instanced mesh, low-poly (the pixel pass hides facets)
+            const tennisTexture = new THREE.TextureLoader().load("/assets/tennis.jpg");
+            const ballMesh = new THREE.InstancedMesh(
+                new THREE.IcosahedronGeometry(BALL_RADIUS, 2),
+                new THREE.MeshLambertMaterial({
+                    map: tennisTexture,
+                    emissiveMap: tennisTexture,
+                    emissive: 0x6a6a6a,
+                }),
+                NUM_BALLS,
+            );
+            ballMesh.castShadow = true;
+            ballMesh.receiveShadow = true;
+            ballMesh.frustumCulled = false;
+            scene.add(ballMesh);
 
-            // --- Racket Creation ---
-            function createRacketMesh(frameColor = 0xff3333) {
-                const group = new THREE.Group();
+            const WHITE = new THREE.Color(0xffffff);
+            const _col = new THREE.Color();
+            const balls = [];
+            for (let i = 0; i < NUM_BALLS; i++) {
+                balls.push({
+                    c: new THREE.Sphere(new THREE.Vector3(0, -100, 0), BALL_RADIUS),
+                    v: new THREE.Vector3(),
+                    w: new THREE.Vector3(), // spin, for the Magnus force
+                    off: new THREE.Vector3(), // client-side correction, eased out
+                    owner: -1, // slot of the last hitter; -1 = harmless
+                    asleep: true,
+                    still: 0,
+                    tail: 0, // host: keep sending this many ticks after sleep
+                    lockUntil: 0, // client: ignore host updates after a local hit
+                    tint: -2,
+                });
+                ballMesh.setColorAt(i, WHITE);
+            }
+            let ballIdx = 0;
 
-                // Frame
-                const torusGeom = new THREE.TorusGeometry(0.18, 0.015, 8, 24);
-                const frameMat = new THREE.MeshStandardMaterial({ color: frameColor, metalness: 0.8, roughness: 0.2 });
-                const frame = new THREE.Mesh(torusGeom, frameMat);
-                frame.position.y = 0.25;
-                frame.castShadow = true;
-                frame.receiveShadow = true;
-                group.add(frame);
-
-                // Strings
-                const stringGeom = new THREE.CylinderGeometry(0.002, 0.002, 0.36);
-                const stringMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
-                for (let i = -4; i <= 4; i++) {
-                    if (i === 0) continue;
-                    const s1 = new THREE.Mesh(stringGeom, stringMat);
-                    s1.position.set(i * 0.035, 0.25, 0);
-                    group.add(s1);
-
-                    const s2 = new THREE.Mesh(stringGeom, stringMat);
-                    s2.rotation.z = Math.PI / 2;
-                    s2.position.set(0, 0.25 + i * 0.035, 0);
-                    group.add(s2);
+            function stepBall(b, dt) {
+                if (b.asleep) return;
+                b.c.center.addScaledVector(b.v, dt);
+                const result = worldOctree.sphereIntersect(b.c);
+                let grounded = false;
+                if (result) {
+                    b.v.addScaledVector(result.normal, -result.normal.dot(b.v) * 1.5);
+                    b.c.center.add(result.normal.multiplyScalar(result.depth));
+                    b.w.multiplyScalar(0.6);
+                    grounded = result.normal.y > 0.5;
+                } else {
+                    b.v.y -= GRAVITY * dt;
+                    // topspin dips, slice floats
+                    _a.crossVectors(b.w, b.v).multiplyScalar(MAGNUS * dt);
+                    b.v.add(_a);
                 }
-
-                // Handle
-                const shaftGeom = new THREE.CylinderGeometry(0.012, 0.015, 0.25);
-                const handleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-                const shaft = new THREE.Mesh(shaftGeom, handleMat);
-                shaft.position.y = 0.05;
-                shaft.castShadow = true;
-                shaft.receiveShadow = true;
-                group.add(shaft);
-
-                return group;
-            }
-
-            // Local Racket Viewmodel
-            const localRacket = createRacketMesh(0xff3333);
-            localRacket.position.set(0.3, -0.25, -0.5);
-            localRacket.rotation.set(0.2, -0.3, 0);
-            camera.add(localRacket);
-
-            let isSwinging = false;
-            let swingStartTime = 0;
-
-            // --- Multiplayer Networking (PeerJS) ---
-            let isHost = false;
-            let peer = null;
-            let conn = null; // Client's connection to Host
-            const clients = new Map(); // Host's map of peerId -> connection & avatar data
-
-            function initNetworking() {
-                // Try to host first
-                peer = new Peer('krutart-tennis-global-host');
-
-                peer.on('open', (id) => {
-                    isHost = true;
-                    console.log('Hosting as', id);
-
-                    peer.on('connection', (c) => {
-                        console.log('Client connected:', c.peer);
-                        setupHostConnection(c);
-                    });
-                });
-
-                peer.on('error', (err) => {
-                    if (err.type === 'unavailable-id') {
-                        console.log('Host already exists, connecting as client...');
-                        peer.destroy();
-                        initAsClient();
-                    } else {
-                        console.error('PeerJS error:', err);
-                    }
-                });
-            }
-
-            function initAsClient() {
-                isHost = false;
-                peer = new Peer();
-
-                peer.on('open', (id) => {
-                    console.log('Client ID registered:', id);
-                    conn = peer.connect('krutart-tennis-global-host', { reliable: false });
-
-                    conn.on('open', () => {
-                        console.log('Connected to host!');
-                    });
-
-                    conn.on('data', (data) => {
-                        handleClientMessage(data);
-                    });
-
-                    conn.on('close', () => {
-                        console.log('Disconnected from host.');
-                    });
-                });
-            }
-
-            // Host receives client updates
-            function setupHostConnection(c) {
-                clients.set(c.peer, {
-                    connection: c,
-                    pos: new THREE.Vector3(0, 0, 0),
-                    rot: new THREE.Vector3(0, 0, 0),
-                    swing: false,
-                    swingTime: 0,
-                    avatar: createPlayerAvatar(0x00aaff),
-                    collider: new Capsule(
-                        new THREE.Vector3(0, 0.35, 0),
-                        new THREE.Vector3(0, 1, 0),
-                        0.35
-                    )
-                });
-
-                c.on('data', (data) => {
-                    const clientData = clients.get(c.peer);
-                    if (!clientData) return;
-
-                    if (data.type === 'update') {
-                        clientData.pos.copy(data.pos);
-                        clientData.rot.copy(data.rot);
-                        // Update collider positions
-                        if (clientData.collider) {
-                            clientData.collider.start.copy(data.pos);
-                            clientData.collider.start.y -= 0.65;
-                            clientData.collider.end.copy(data.pos);
-                        }
-                    } else if (data.type === 'swing') {
-                        clientData.swing = true;
-                        clientData.swingTime = performance.now();
-                        // Check if client swings and hits any balls
-                        checkClientSwingHit(clientData);
-                        // Broadcast swing event to other clients
-                        broadcast({ type: 'swing', id: c.peer });
-                    } else if (data.type === 'throw') {
-                        throwBallAt(data.pos, data.dir, data.impulse);
-                    }
-                });
-
-                c.on('close', () => {
-                    const clientData = clients.get(c.peer);
-                    if (clientData && clientData.avatar) {
-                        scene.remove(clientData.avatar);
-                    }
-                    clients.delete(c.peer);
-                    broadcast({ type: 'remove_player', id: c.peer });
-                });
-            }
-
-            function handleClientMessage(data) {
-                if (data.type === 'state') {
-                    // Update ball positions/velocities
-                    data.balls.forEach((b) => {
-                        const sphere = spheres[b.i];
-                        if (sphere) {
-                            sphere.collider.center.copy(b.p);
-                            sphere.velocity.copy(b.v);
-                        }
-                    });
-
-                    // Update player positions
-                    data.players.forEach((p) => {
-                        if (p.id === peer.id) return;
-                        let clientData = clients.get(p.id);
-                        if (!clientData) {
-                            clientData = {
-                                avatar: createPlayerAvatar(0x33ff33)
-                            };
-                            clients.set(p.id, clientData);
-                        }
-                        clientData.avatar.position.copy(p.p);
-                        clientData.avatar.rotation.y = p.r.y;
-                        
-                        // Handle racket rotation for external players
-                        const rack = clientData.avatar.userData.racket;
-                        if (rack) {
-                            rack.rotation.x = p.r.x;
-                        }
-                    });
-                } else if (data.type === 'swing') {
-                    const clientData = clients.get(data.id);
-                    if (clientData) {
-                        clientData.swing = true;
-                        clientData.swingTime = performance.now();
-                    }
-                    // Play hit sound
-                    const audio = document.getElementById("backgroundMusic");
-                    if (audio) {
-                        audio.currentTime = 0;
-                        audio.volume = 0.2;
-                        audio.play();
-                    }
-                } else if (data.type === 'knockback') {
-                    playerVelocity.add(new THREE.Vector3(data.velocity.x, data.velocity.y, data.velocity.z));
-                } else if (data.type === 'remove_player') {
-                    const clientData = clients.get(data.id);
-                    if (clientData && clientData.avatar) {
-                        scene.remove(clientData.avatar);
-                    }
-                    clients.delete(data.id);
+                b.v.multiplyScalar(Math.exp(-1.5 * dt));
+                b.w.multiplyScalar(Math.exp(-0.4 * dt));
+                if (b.c.center.y < -50) {
+                    b.asleep = true;
+                    b.c.center.set(0, -100, 0);
+                    b.v.set(0, 0, 0);
+                    b.owner = -1;
+                    return;
                 }
-            }
-
-            function broadcast(msg) {
-                clients.forEach((c) => {
-                    if (c.connection.open) {
-                        c.connection.send(msg);
-                    }
-                });
-            }
-
-            function createPlayerAvatar(colorHex) {
-                const group = new THREE.Group();
-
-                // Body representation
-                const bodyGeom = new THREE.CapsuleGeometry(0.35, 0.65, 4, 8);
-                const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.5 });
-                const body = new THREE.Mesh(bodyGeom, bodyMat);
-                body.position.y = 0.325;
-                body.castShadow = true;
-                body.receiveShadow = true;
-                group.add(body);
-
-                // Head representation
-                const headGeom = new THREE.SphereGeometry(0.2, 8, 8);
-                const head = new THREE.Mesh(headGeom, bodyMat);
-                head.position.y = 0.8;
-                head.castShadow = true;
-                group.add(head);
-
-                // Racket held by player
-                const racket = createRacketMesh(colorHex);
-                racket.position.set(0.35, 0.3, 0.2);
-                racket.rotation.set(0, 0, -Math.PI / 6);
-                group.add(racket);
-                group.userData = { racket };
-
-                scene.add(group);
-                return group;
-            }
-
-            initNetworking();
-
-            window.addEventListener('mobileshoot', () => {
-                triggerSwing();
-            });
-
-            document.addEventListener("keydown", (event) => {
-                keyStates[event.code] = true;
-            });
-
-            document.addEventListener("keyup", (event) => {
-                keyStates[event.code] = false;
-            });
-
-            container.addEventListener("mousedown", () => {
-                document.body.requestPointerLock();
-                mouseTime = performance.now();
-            });
-
-            document.addEventListener("mouseup", () => {
-                if (document.pointerLockElement !== null) {
-                    triggerSwing();
-                }
-            });
-
-            document.body.addEventListener("mousemove", (event) => {
-                if (document.pointerLockElement === document.body) {
-                    camera.rotation.y -= event.movementX / 500;
-                    camera.rotation.x -= event.movementY / 500;
-                }
-            });
-            // Mobile Touch Events from aquarium.html model
-            let lastTouchX = 0;
-            let lastTouchY = 0;
-            let touchHolding = false;
-
-            window.addEventListener('touchstart', (e) => {
-                if (e.target.closest('#mobileShootBtn')) return;
-                if (e.touches.length > 0) {
-                    lastTouchX = e.touches[0].clientX;
-                    lastTouchY = e.touches[0].clientY;
-                    touchHolding = true;
-                    mouseTime = performance.now();
-                }
-            }, { passive: true });
-
-            window.addEventListener('touchmove', (e) => {
-                if (e.target.closest('#mobileShootBtn')) return;
-                if (touchHolding && e.touches.length > 0) {
-                    const dx = e.touches[0].clientX - lastTouchX;
-                    const dy = e.touches[0].clientY - lastTouchY;
-                    camera.rotation.y -= dx / 350;
-                    camera.rotation.x -= dy / 350;
-                    lastTouchX = e.touches[0].clientX;
-                    lastTouchY = e.touches[0].clientY;
-                }
-            }, { passive: true });
-
-            window.addEventListener('touchend', (e) => {
-                touchHolding = false;
-            }, { passive: true });
-
-            window.addEventListener("resize", onWindowResize);
-
-            function onWindowResize() {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }
-
-            function triggerSwing() {
-                if (isSwinging) return;
-                isSwinging = true;
-                swingStartTime = performance.now();
-
-                // Hitbox check
-                const dir = new THREE.Vector3();
-                camera.getWorldDirection(dir);
-                const hitboxCenter = new THREE.Vector3()
-                    .copy(playerCollider.end)
-                    .addScaledVector(dir, 1.4);
-
-                let hitAny = false;
-
-                spheres.forEach((sphere, idx) => {
-                    const dist = sphere.collider.center.distanceTo(hitboxCenter);
-                    if (dist < 1.6) {
-                        hitAny = true;
-                        const hitVelocity = dir.clone().normalize();
-                        hitVelocity.y += 0.28; // Add realistic lift
-                        hitVelocity.normalize().multiplyScalar(25).addScaledVector(playerVelocity, 0.4);
-
-                        if (isHost) {
-                            sphere.velocity.copy(hitVelocity);
-                        } else if (conn && conn.open) {
-                            // Request host to apply hit force
-                            conn.send({
-                                type: 'swing',
-                                hitIndex: idx,
-                                hitVelocity: { x: hitVelocity.x, y: hitVelocity.y, z: hitVelocity.z }
-                            });
-                        }
-
-                        // Play hit audio
-                        const audio = document.getElementById("backgroundMusic");
-                        if (audio) {
-                            audio.currentTime = 0;
-                            audio.volume = 0.2;
-                            audio.play();
-                        }
-                    }
-                });
-
-                if (!hitAny) {
-                    // Throw a new ball if nothing was hit
-                    const impulse = 15 + 30 * (1 - Math.exp((mouseTime - performance.now()) * 0.001));
-                    camera.getWorldDirection(playerDirection);
-
-                    if (isHost) {
-                        throwBallAt(playerCollider.end, playerDirection, impulse);
-                    } else if (conn && conn.open) {
-                        conn.send({
-                            type: 'throw',
-                            pos: { x: playerCollider.end.x, y: playerCollider.end.y, z: playerCollider.end.z },
-                            dir: { x: playerDirection.x, y: playerDirection.y, z: playerDirection.z },
-                            impulse: impulse
-                        });
+                if (grounded && b.v.lengthSq() < 0.25) {
+                    b.still += dt;
+                    if (b.still > 0.4) {
+                        b.asleep = true;
+                        b.v.set(0, 0, 0);
+                        b.w.set(0, 0, 0);
+                        b.owner = -1;
+                        b.tail = 15;
                     }
                 } else {
-                    // Send swing event to others
-                    if (isHost) {
-                        broadcast({ type: 'swing', id: 'host' });
-                    } else if (conn && conn.open) {
-                        conn.send({ type: 'swing' });
+                    b.still = 0;
+                }
+            }
+
+            function wake(b) {
+                b.asleep = false;
+                b.still = 0;
+            }
+
+            function ballsCollide() {
+                for (let i = 0; i < NUM_BALLS; i++) {
+                    const s1 = balls[i];
+                    if (s1.c.center.y < -50) continue;
+                    for (let j = i + 1; j < NUM_BALLS; j++) {
+                        const s2 = balls[j];
+                        if (s1.asleep && s2.asleep) continue;
+                        const d2 = s1.c.center.distanceToSquared(s2.c.center);
+                        const r = s1.c.radius + s2.c.radius;
+                        if (d2 >= r * r || d2 < 1e-8) continue;
+                        const normal = _a.subVectors(s1.c.center, s2.c.center).normalize();
+                        const v1 = _b.copy(normal).multiplyScalar(normal.dot(s1.v));
+                        const v2 = _c.copy(normal).multiplyScalar(normal.dot(s2.v));
+                        s1.v.add(v2).sub(v1);
+                        s2.v.add(v1).sub(v2);
+                        const d = (r - Math.sqrt(d2)) / 2;
+                        s1.c.center.addScaledVector(normal, d);
+                        s2.c.center.addScaledVector(normal, -d);
+                        wake(s1);
+                        wake(s2);
                     }
                 }
             }
 
-            function checkClientSwingHit(client) {
-                const dir = new THREE.Vector3();
-                dir.setFromEuler(new THREE.Euler(client.rot.x, client.rot.y, 0, 'YXZ'));
-                const hitboxCenter = new THREE.Vector3()
-                    .copy(client.pos)
-                    .addScaledVector(dir, 1.4);
-
-                spheres.forEach((sphere) => {
-                    const dist = sphere.collider.center.distanceTo(hitboxCenter);
-                    if (dist < 1.6) {
-                        const hitVelocity = dir.clone().normalize();
-                        hitVelocity.y += 0.28;
-                        hitVelocity.normalize().multiplyScalar(25);
-                        sphere.velocity.copy(hitVelocity);
-                    }
-                });
+            // closest-point capsule test; leaves the push normal in _n
+            function capsuleHit(cap, b) {
+                _seg.subVectors(cap.end, cap.start);
+                const t = clamp(_a.subVectors(b.c.center, cap.start).dot(_seg) / _seg.lengthSq(), 0, 1);
+                _b.copy(cap.start).addScaledVector(_seg, t);
+                _n.subVectors(b.c.center, _b);
+                const dist = _n.length();
+                const r = cap.radius + b.c.radius;
+                if (dist >= r || dist < 1e-6) return 0;
+                _n.multiplyScalar(1 / dist);
+                return r - dist;
             }
 
-            function throwBallAt(startPos, dirVec, impulse) {
-                const sphere = spheres[sphereIdx];
-                const dir = new THREE.Vector3(dirVec.x, dirVec.y, dirVec.z);
-                const pos = new THREE.Vector3(startPos.x, startPos.y, startPos.z);
-
-                sphere.collider.center.copy(pos).addScaledVector(dir, playerCollider.radius * 1.5);
-                sphere.velocity.copy(dir).multiplyScalar(impulse);
-
-                sphereIdx = (sphereIdx + 1) % spheres.length;
-            }
-
-            function throwBall() {
-                // Retained signature just in case, logic migrated to throwBallAt
+            // ball bounces off a body; returns the closing speed
+            function bounceOffBody(cap, bodyVel, b) {
+                const depth = capsuleHit(cap, b);
+                if (!depth) return -1;
+                b.c.center.addScaledVector(_n, depth);
+                const vn = _c.subVectors(b.v, bodyVel).dot(_n);
+                if (vn < 0) b.v.addScaledVector(_n, -1.6 * vn);
+                wake(b);
+                return vn < 0 ? -vn : 0;
             }
 
             function playerCollisions() {
                 const result = worldOctree.capsuleIntersect(playerCollider);
-
                 playerOnFloor = false;
-
                 if (result) {
                     playerOnFloor = result.normal.y > 0;
-
                     if (!playerOnFloor) {
-                        playerVelocity.addScaledVector(
-                            result.normal,
-                            -result.normal.dot(playerVelocity),
-                        );
+                        playerVelocity.addScaledVector(result.normal, -result.normal.dot(playerVelocity));
                     }
-
-                    playerCollider.translate(
-                        result.normal.multiplyScalar(result.depth),
-                    );
+                    playerCollider.translate(result.normal.multiplyScalar(result.depth));
                 }
             }
 
             function updatePlayer(deltaTime) {
                 let damping = Math.exp(-4 * deltaTime) - 1;
-
                 if (!playerOnFloor) {
                     playerVelocity.y -= GRAVITY * deltaTime;
-
-                    // small air resistance
-                    damping *= 0.1;
+                    damping *= 0.1; // small air resistance
                 }
-
                 playerVelocity.addScaledVector(playerVelocity, damping);
-
-                const deltaPosition = playerVelocity
-                    .clone()
-                    .multiplyScalar(deltaTime);
-                playerCollider.translate(deltaPosition);
-
+                playerCollider.translate(_a.copy(playerVelocity).multiplyScalar(deltaTime));
                 playerCollisions();
-
                 camera.position.copy(playerCollider.end);
             }
 
-            function playerSphereCollision(sphere) {
-                const center = vector1
-                    .addVectors(playerCollider.start, playerCollider.end)
-                    .multiplyScalar(0.5);
-
-                const sphere_center = sphere.collider.center;
-
-                const r = playerCollider.radius + sphere.collider.radius;
-                const r2 = r * r;
-
-                for (const point of [
-                    playerCollider.start,
-                    playerCollider.end,
-                    center,
-                ]) {
-                    const d2 = point.distanceToSquared(sphere_center);
-
-                    if (d2 < r2) {
-                        const normal = vector1
-                            .subVectors(point, sphere_center)
-                            .normalize();
-                        const v1 = vector2
-                            .copy(normal)
-                            .multiplyScalar(normal.dot(playerVelocity));
-                        const v2 = vector3
-                            .copy(normal)
-                            .multiplyScalar(normal.dot(sphere.velocity));
-
-                        playerVelocity.add(v2).sub(v1);
-                        sphere.velocity.add(v1).sub(v2);
-
-                        const d = (r - Math.sqrt(d2)) / 2;
-                        sphere_center.addScaledVector(normal, -d);
-                    }
+            function teleportPlayerIfOob() {
+                if (camera.position.y <= -25) {
+                    playerCollider.start.set(0, 0.35, 0);
+                    playerCollider.end.set(0, 1, 0);
+                    playerVelocity.set(0, 0, 0);
+                    camera.position.copy(playerCollider.end);
+                    camera.rotation.set(0, 0, 0);
                 }
             }
 
-            function spheresCollisions() {
-                for (let i = 0, length = spheres.length; i < length; i++) {
-                    const s1 = spheres[i];
+            // one physics substep. Everyone simulates the balls so they move
+            // smoothly between snapshots; only the host decides splats.
+            function stepWorld(dt) {
+                for (let i = 0; i < NUM_BALLS; i++) {
+                    const b = balls[i];
+                    stepBall(b, dt);
+                    if (b.c.center.y < -50) continue;
 
-                    for (let j = i + 1; j < length; j++) {
-                        const s2 = spheres[j];
+                    const speed = bounceOffBody(playerCollider, playerVelocity, b);
+                    if (speed >= 0) {
+                        playerVelocity.addScaledVector(_n, -speed * 0.12);
+                        if (net.isHost) maybeSplat(b, self, speed);
+                    }
 
-                        const d2 = s1.collider.center.distanceToSquared(
-                            s2.collider.center,
-                        );
-                        const r = s1.collider.radius + s2.collider.radius;
-                        const r2 = r * r;
-
-                        if (d2 < r2) {
-                            const normal = vector1
-                                .subVectors(
-                                    s1.collider.center,
-                                    s2.collider.center,
-                                )
-                                .normalize();
-                            const v1 = vector2
-                                .copy(normal)
-                                .multiplyScalar(normal.dot(s1.velocity));
-                            const v2 = vector3
-                                .copy(normal)
-                                .multiplyScalar(normal.dot(s2.velocity));
-
-                            s1.velocity.add(v2).sub(v1);
-                            s2.velocity.add(v1).sub(v2);
-
-                            const d = (r - Math.sqrt(d2)) / 2;
-
-                            s1.collider.center.addScaledVector(normal, d);
-                            s2.collider.center.addScaledVector(normal, -d);
+                    if (!net.isHost) continue;
+                    for (let k = 0; k < remotes.length; k++) {
+                        const p = remotes[k];
+                        if (!p.seen) continue;
+                        const sp = bounceOffBody(p.cap, p.vel, b);
+                        if (sp < 0) continue;
+                        if (!maybeSplat(b, p, sp) && sp > 4 && now() - p.kbAt > 150) {
+                            p.kbAt = now();
+                            sendTo(p, { t: "kb", v: [-_n.x * sp * 0.25, 0.5, -_n.z * sp * 0.25] });
                         }
                     }
                 }
+                ballsCollide();
             }
 
-            function updateSpheres(deltaTime) {
-                spheres.forEach((sphere) => {
-                    // Physics only simulated by host to prevent desync
-                    if (isHost) {
-                        sphere.collider.center.addScaledVector(
-                            sphere.velocity,
-                            deltaTime,
-                        );
+            // host: a ball someone hit lands on another player
+            function maybeSplat(b, target, speed) {
+                if (b.owner < 0 || b.owner === target.slot) return false;
+                const total = b.v.length() + speed;
+                if (total < SPLAT_SPEED) return false;
+                const by = bySlot(b.owner);
+                b.owner = -1;
+                if (!by) return false;
+                by.score++;
+                const big = total > 26 ? 1 : 0;
+                const msg = {
+                    t: "splat",
+                    to: target.id,
+                    by: by.id,
+                    s: by.score,
+                    d: [_n.x, _n.y, _n.z],
+                    big,
+                    seed: (Math.random() * 1e9) | 0,
+                };
+                broadcast(msg);
+                onSplat(msg);
+                const kb = total * 0.45 + 5;
+                if (target === self) {
+                    playerVelocity.x -= _n.x * kb;
+                    playerVelocity.z -= _n.z * kb;
+                    playerVelocity.y += 3.5;
+                } else {
+                    target.kbAt = now();
+                    sendTo(target, { t: "kb", v: [-_n.x * kb, 3.5, -_n.z * kb] });
+                }
+                return true;
+            }
 
-                        const result = worldOctree.sphereIntersect(sphere.collider);
+            // ---------------------------------------------------------------
+            // Racket: stylised low-poly. Origin at the hand, head along +y,
+            // string bed facing +z. Three draw calls: frame, grip, strings.
+            // ---------------------------------------------------------------
+            const HEAD_W = 0.125;
+            const HEAD_H = 0.16;
+            const HEAD_Y = 0.43;
 
-                        if (result) {
-                            sphere.velocity.addScaledVector(
-                                result.normal,
-                                -result.normal.dot(sphere.velocity) * 1.5,
-                            );
-                            sphere.collider.center.add(
-                                result.normal.multiplyScalar(result.depth),
-                            );
+            function ellipsePoint(t, out) {
+                return out.set(Math.cos(t) * HEAD_W, HEAD_Y + Math.sin(t) * HEAD_H, 0);
+            }
+
+            const racketParts = (() => {
+                const pts = [];
+                for (let i = 0; i < 20; i++) pts.push(ellipsePoint((i / 20) * Math.PI * 2, new THREE.Vector3()));
+                const head = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 40, 0.011, 5, true);
+                // open throat: two arms from the head down into the shaft
+                const throatTop = 0.2;
+                const arm = (t) =>
+                    new THREE.TubeGeometry(
+                        new THREE.CatmullRomCurve3([
+                            ellipsePoint(t, new THREE.Vector3()),
+                            new THREE.Vector3(Math.cos(t) * HEAD_W * 0.45, throatTop + 0.035, 0),
+                            new THREE.Vector3(0, throatTop, 0),
+                        ]),
+                        8,
+                        0.009,
+                        5,
+                        false,
+                    );
+                const shaft = new THREE.CylinderGeometry(0.011, 0.013, 0.11, 6);
+                shaft.translate(0, 0.15, 0);
+                const frame = mergeGeometries([head, arm(-Math.PI / 2 - 0.62), arm(-Math.PI / 2 + 0.62), shaft]);
+
+                const grip = new THREE.CylinderGeometry(0.016, 0.0165, 0.19, 8);
+                grip.translate(0, 0.0, 0);
+                const butt = new THREE.CylinderGeometry(0.019, 0.019, 0.016, 8);
+                butt.translate(0, -0.1, 0);
+                const handle = mergeGeometries([grip, butt]);
+
+                const strings = new THREE.CircleGeometry(1, 20);
+                strings.scale(HEAD_W - 0.006, HEAD_H - 0.006, 1);
+                strings.translate(0, HEAD_Y, 0);
+
+                const sc = document.createElement("canvas");
+                sc.width = sc.height = 64;
+                const g = sc.getContext("2d");
+                g.fillStyle = "#fff";
+                for (let i = 4; i < 64; i += 9) {
+                    g.fillRect(i, 0, 2, 64);
+                    g.fillRect(0, i, 64, 2);
+                }
+                const stringTex = new THREE.CanvasTexture(sc);
+                stringTex.magFilter = THREE.NearestFilter;
+                stringTex.minFilter = THREE.NearestFilter;
+
+                const gc = document.createElement("canvas");
+                gc.width = 8;
+                gc.height = 32;
+                const gg = gc.getContext("2d");
+                gg.fillStyle = "#060606";
+                gg.fillRect(0, 0, 8, 32);
+                gg.fillStyle = "#141414";
+                for (let y = 0; y < 32; y += 6) gg.fillRect(0, y, 8, 2);
+                const gripTex = new THREE.CanvasTexture(gc);
+                gripTex.magFilter = THREE.NearestFilter;
+                gripTex.wrapS = gripTex.wrapT = THREE.RepeatWrapping;
+                gripTex.repeat.set(1, 3);
+
+                return {
+                    frame,
+                    handle,
+                    strings,
+                    handleMat: new THREE.MeshLambertMaterial({ map: gripTex }),
+                    stringMat: new THREE.MeshBasicMaterial({
+                        color: 0xe8e8d8,
+                        map: stringTex,
+                        alphaMap: stringTex,
+                        alphaTest: 0.5,
+                        side: THREE.DoubleSide,
+                    }),
+                    frameMats: new Map(),
+                };
+            })();
+
+            function racketMat(color) {
+                let mat = racketParts.frameMats.get(color);
+                if (!mat) {
+                    mat = new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.15 });
+                    racketParts.frameMats.set(color, mat);
+                }
+                return mat;
+            }
+
+            function makeRacket(color, shadows) {
+                const group = new THREE.Group();
+                const frame = new THREE.Mesh(racketParts.frame, racketMat(color));
+                const handle = new THREE.Mesh(racketParts.handle, racketParts.handleMat);
+                const strings = new THREE.Mesh(racketParts.strings, racketParts.stringMat);
+                for (const m of [frame, handle, strings]) {
+                    m.castShadow = shadows;
+                    m.receiveShadow = shadows;
+                    group.add(m);
+                }
+                group.userData.frame = frame;
+                return group;
+            }
+
+            // first-person racket and its swing, as key poses in camera space
+            const viewRig = new THREE.Group(); // shifts the racket on narrow screens
+            camera.add(viewRig);
+            const viewRacket = makeRacket(0xff3b3b, false);
+            viewRacket.scale.setScalar(0.72);
+            viewRig.add(viewRacket);
+
+            const SW_BACK = 0.09; // backswing
+            const SW_HIT = 0.16; // ideal contact
+            const SW_FWD = 0.23; // end of the hitting window
+            const SW_FOLLOW = 0.34;
+            const SW_END = 0.5;
+
+            const POSES = [
+                // t, position, rotation
+                [0, [0.36, -0.42, -0.62], [-0.55, 0.4, 0.4]],
+                [SW_BACK, [0.48, -0.36, -0.58], [-0.3, -0.5, -0.9]],
+                [SW_HIT, [0.26, -0.32, -0.62], [-0.1, -0.5, 1.45]],
+                [SW_FWD, [0.0, -0.28, -0.62], [-0.3, 0.2, 1.55]],
+                [SW_FOLLOW, [-0.24, -0.1, -0.55], [0.8, 0.3, 0.9]],
+                [SW_END, [0.36, -0.42, -0.62], [-0.55, 0.4, 0.4]],
+            ];
+            function buildPoses(side) {
+                return POSES.map(([t, p, r]) => ({
+                    t,
+                    p: new THREE.Vector3(p[0] * side, p[1], p[2]),
+                    q: new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1] * side, r[2] * side)),
+                }));
+            }
+            const POSE_SIDES = { 1: buildPoses(1), "-1": buildPoses(-1) };
+
+            function poseRacket(obj, side, t) {
+                const keys = POSE_SIDES[side];
+                let k = 0;
+                while (k < keys.length - 2 && t > keys[k + 1].t) k++;
+                const a = keys[k];
+                const b = keys[k + 1];
+                let u = clamp((t - a.t) / (b.t - a.t), 0, 1);
+                u = u * u * (3 - 2 * u);
+                obj.position.lerpVectors(a.p, b.p, u);
+                obj.quaternion.slerpQuaternions(a.q, b.q, u);
+            }
+            poseRacket(viewRacket, 1, 0);
+
+            const swing = {
+                active: false,
+                t: 0,
+                side: 1,
+                hit: false,
+                spin: 0,
+                freeze: 0,
+                kick: 0,
+                phi: 0, // where the strings were last frame, as an angle
+            };
+
+            function startSwing() {
+                if (!playing || paused) return;
+                if (swing.active && swing.t < SW_FOLLOW) return;
+                swing.active = true;
+                swing.t = 0;
+                swing.hit = false;
+                swing.spin = 0;
+                // forehand or backhand: whichever side the nearest ball ahead is on
+                swing.side = 1;
+                camera.getWorldDirection(_a);
+                _b.crossVectors(_a, UP).normalize(); // camera right
+                let best = 25;
+                for (let i = 0; i < NUM_BALLS; i++) {
+                    if (balls[i].asleep) continue; // resting balls don't choose the stroke
+                    const bc = balls[i].c.center;
+                    _c.subVectors(bc, camera.position);
+                    const d2 = _c.lengthSq();
+                    if (d2 > best || _c.dot(_a) < 0) continue;
+                    best = d2;
+                    swing.side = _c.dot(_b) < 0 ? -1 : 1;
+                }
+                swing.phi = swing.side * ARC;
+                sendEvent({ t: "swing", side: swing.side });
+                sfx.whoosh();
+            }
+
+            // The strings sweep an arc in front of the player, from the swing
+            // side (angle +ARC on a forehand) across to the other side, at
+            // STRING_R from the eye and STRING_Y below it. A ball inside that
+            // band is struck when the arc passes its angle.
+            const ARC = 1.25;
+            const STRING_R = 0.95;
+            const STRING_Y = -0.32;
+            const BAND = 0.55; // radial slack
+            const BAND_LOW = -0.72; // eye-relative; a ball resting on the floor sits lower
+            const BAND_HIGH = 0.4;
+            const _view = new THREE.Matrix4();
+
+            function updateSwing(dt) {
+                camera.updateMatrixWorld();
+                if (!swing.active) {
+                    poseRacket(viewRacket, 1, 0);
+                    return;
+                }
+                if (swing.freeze > 0) {
+                    swing.freeze -= dt; // hit-stop
+                } else {
+                    swing.t += dt;
+                }
+                if (swing.t >= SW_END) {
+                    swing.active = false;
+                    poseRacket(viewRacket, 1, 0);
+                    return;
+                }
+                poseRacket(viewRacket, swing.side, swing.t);
+                if (swing.kick > 0) {
+                    swing.kick = Math.max(0, swing.kick - dt * 6);
+                    viewRacket.position.z += swing.kick * 0.08;
+                }
+
+                if (swing.hit || swing.t < SW_BACK || swing.t > SW_FWD) return;
+                const u = (swing.t - SW_BACK) / (SW_FWD - SW_BACK);
+                const phi = swing.side * ARC * (1 - 2 * u);
+                _view.copy(camera.matrixWorld).invert();
+                let best = -1;
+                let bestD = Infinity;
+                let bestPhi = 0;
+                for (let i = 0; i < NUM_BALLS; i++) {
+                    const b = balls[i];
+                    if (b.c.center.y < -50) continue;
+                    const l = _a.copy(b.c.center).applyMatrix4(_view);
+                    const r = Math.hypot(l.x, l.z);
+                    if (Math.abs(r - STRING_R) > BAND || l.y < BAND_LOW || l.y > BAND_HIGH) continue;
+                    const phiBall = Math.atan2(l.x, -l.z);
+                    if ((swing.phi - phiBall) * (phi - phiBall) > 0) continue; // not crossed yet
+                    const d = (r - STRING_R) * (r - STRING_R) + (l.y - STRING_Y) * (l.y - STRING_Y);
+                    if (d < bestD) {
+                        bestD = d;
+                        best = i;
+                        bestPhi = phiBall;
+                    }
+                }
+                swing.phi = phi;
+                if (best >= 0) hitBall(best, (1 - swing.side * (bestPhi / ARC)) / 2);
+            }
+
+            const _dir = new THREE.Vector3();
+            function hitBall(i, u) {
+                const b = balls[i];
+                swing.hit = true;
+                const err = u - 0.5; // <0 met on the swing side (late), >0 across the body (early)
+                const quality = 1 - Math.pow(Math.min(1, Math.abs(err) / 0.5), 1.3);
+                const spin = clamp(swing.spin, -1, 1);
+
+                camera.getWorldDirection(_dir);
+                const yaw = Math.atan2(-_dir.x, -_dir.z) + err * 1.1 * swing.side; // late pushes out, early pulls across
+                const pitch = clamp(Math.asin(clamp(_dir.y, -1, 1)) + 0.14 + spin * 0.08, -0.4, 1.1);
+                _dir.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+                const power = 14 + 16 * quality;
+
+                b.v.copy(_dir).multiplyScalar(power).addScaledVector(playerVelocity, 0.35);
+                b.w.crossVectors(UP, _dir).normalize().multiplyScalar(spin * 1.4);
+                b.owner = self.slot;
+                b.off.set(0, 0, 0);
+                b.lockUntil = now() + Math.max(250, net.ping * 1.5 + 120);
+                wake(b);
+
+                swing.freeze = 0.045;
+                swing.kick = 1;
+                const label = Math.abs(err) < 0.12 ? "PERFECT" : err < 0 ? "late" : "early";
+                const spinLabel = spin > 0.3 ? " · topspin" : spin < -0.3 ? " · slice" : "";
+                flashHitText(label + spinLabel);
+                sfx.pock(0.6 + quality * 0.6, 1 + quality * 0.2);
+
+                if (!net.isHost) {
+                    sendEvent({
+                        t: "hit",
+                        i,
+                        p: [b.c.center.x, b.c.center.y, b.c.center.z],
+                        v: [b.v.x, b.v.y, b.v.z],
+                        w: [b.w.x, b.w.y, b.w.z],
+                    });
+                }
+            }
+
+            let tossAt = 0;
+            function toss() {
+                if (!playing || paused || now() - tossAt < 400) return;
+                tossAt = now();
+                camera.getWorldDirection(_dir);
+                _dir.y = 0;
+                _dir.normalize();
+                _a.copy(camera.position).addScaledVector(_dir, 0.8);
+                _a.y -= 0.1;
+                _b.set(_dir.x * 0.6, 6.5, _dir.z * 0.6).addScaledVector(playerVelocity, 0.8);
+                if (net.isHost) spawnBall(_a, _b);
+                else sendEvent({ t: "toss", p: [_a.x, _a.y, _a.z], v: [_b.x, _b.y, _b.z] });
+            }
+
+            function spawnBall(p, v) {
+                const b = balls[ballIdx];
+                ballIdx = (ballIdx + 1) % NUM_BALLS;
+                b.c.center.copy(p);
+                b.v.copy(v);
+                b.w.set(0, 0, 0);
+                b.owner = -1;
+                b.off.set(0, 0, 0);
+                wake(b);
+                return b;
+            }
+
+            function updateBallMeshes(dt) {
+                const ease = Math.exp(-12 * dt);
+                for (let i = 0; i < NUM_BALLS; i++) {
+                    const b = balls[i];
+                    b.off.multiplyScalar(ease);
+                    _a.addVectors(b.c.center, b.off);
+                    _s.setScalar(b.c.center.y < -50 ? 0 : 1);
+                    _m.compose(_a, _q.identity(), _s);
+                    ballMesh.setMatrixAt(i, _m);
+                    if (b.tint !== b.owner) {
+                        b.tint = b.owner;
+                        const p = b.owner >= 0 ? bySlot(b.owner) : null;
+                        ballMesh.setColorAt(i, p ? _col.setHex(p.color).lerp(WHITE, 0.25) : WHITE);
+                        ballMesh.instanceColor.needsUpdate = true;
+                    }
+                }
+                ballMesh.instanceMatrix.needsUpdate = true;
+            }
+
+            // ---------------------------------------------------------------
+            // Players
+            // ---------------------------------------------------------------
+            const COLOURS = [0xff3b3b, 0x33a8ff, 0x3dff6e, 0xffd23b, 0xd04dff, 0xff8a1f, 0x2ff0e0, 0xff5fb0];
+            const colourOf = (slot) => COLOURS[slot % COLOURS.length];
+            const hex = (c) => "#" + c.toString(16).padStart(6, "0");
+
+            const self = {
+                id: null,
+                slot: 0,
+                name: "",
+                color: COLOURS[0],
+                score: 0,
+                voice: false,
+                isSelf: true,
+            };
+            const players = new Map(); // id -> player (self included)
+            let remotes = []; // the others, as an array for allocation-free loops
+
+            const AV_BODY = new THREE.CapsuleGeometry(0.3, 0.22, 3, 8);
+            const AV_HEAD = new THREE.IcosahedronGeometry(0.22, 1);
+            const AV_VISOR = new THREE.BoxGeometry(0.3, 0.08, 0.1);
+            const VISOR_MAT = new THREE.MeshLambertMaterial({ color: 0x111111 });
+
+            function makeAvatar(p) {
+                const group = new THREE.Group();
+                const mat = new THREE.MeshLambertMaterial({ color: p.color });
+                const body = new THREE.Mesh(AV_BODY, mat);
+                body.position.y = 0.46;
+                const head = new THREE.Mesh(AV_HEAD, mat);
+                head.position.y = 1.02;
+                const visor = new THREE.Mesh(AV_VISOR, VISOR_MAT);
+                visor.position.set(0, 0.03, -0.17);
+                head.add(visor);
+                const pivot = new THREE.Group(); // right shoulder
+                pivot.position.set(0.3, 0.72, 0);
+                const racket = makeRacket(p.color, true);
+                racket.position.set(0, -0.12, -0.3);
+                pivot.add(racket);
+                for (const m of [body, head, visor]) {
+                    m.castShadow = true;
+                    m.receiveShadow = true;
+                }
+                group.add(body, head, pivot);
+                scene.add(group);
+
+                const label = document.createElement("div");
+                label.className = "label";
+                label.style.color = hex(p.color);
+                label.textContent = p.name;
+                $("labels").appendChild(label);
+
+                p.avatar = { group, body, head, pivot, racket, mat, label, decals: [] };
+            }
+
+            function removeAvatar(p) {
+                if (!p.avatar) return;
+                scene.remove(p.avatar.group);
+                p.avatar.mat.dispose();
+                for (const d of p.avatar.decals) d.mesh.geometry.dispose();
+                p.avatar.label.remove();
+                p.avatar = null;
+            }
+
+            function newPlayer(id) {
+                return {
+                    id,
+                    slot: -1,
+                    name: "",
+                    color: COLOURS[0],
+                    score: 0,
+                    voice: false,
+                    // pose: eye position + look
+                    pos: new THREE.Vector3(0, 1, 0),
+                    shown: new THREE.Vector3(0, 1, 0),
+                    vel: new THREE.Vector3(),
+                    yaw: 0,
+                    pitch: 0,
+                    seen: false,
+                    swingT: -1,
+                    swingSide: 1,
+                    cap: new Capsule(new THREE.Vector3(0, 0.35, 0), new THREE.Vector3(0, 1, 0), 0.35),
+                    kbAt: 0,
+                    ev: null,
+                    st: null,
+                    avatar: null,
+                    call: null,
+                    audio: null,
+                };
+            }
+
+            function setPose(p, x, y, z, yaw, pitch) {
+                if (!p.seen) p.shown.set(x, y, z);
+                p.vel.set(x - p.pos.x, y - p.pos.y, z - p.pos.z).multiplyScalar(30);
+                p.pos.set(x, y, z);
+                p.yaw = yaw;
+                p.pitch = pitch;
+                p.seen = true;
+                p.cap.end.copy(p.pos);
+                p.cap.start.copy(p.pos);
+                p.cap.start.y -= 0.65;
+            }
+
+            function bySlot(slot) {
+                if (self.slot === slot) return self;
+                for (let k = 0; k < remotes.length; k++) if (remotes[k].slot === slot) return remotes[k];
+                return null;
+            }
+
+            function rebuildRemotes() {
+                remotes = [];
+                for (const p of players.values()) {
+                    if (p.isSelf) continue;
+                    remotes.push(p);
+                    if (!p.avatar && p.slot >= 0) makeAvatar(p);
+                    if (p.avatar) {
+                        p.avatar.mat.color.setHex(p.color);
+                        if (p.avatar.label.textContent !== p.name) {
+                            p.avatar.label.textContent = p.name;
+                            p.avatar.label._w = 0;
+                        }
+                        p.avatar.label.style.color = hex(p.color);
+                        p.avatar.racket.userData.frame.material = racketMat(p.color);
+                    }
+                }
+                viewRacket.userData.frame.material = racketMat(self.color);
+                renderBoard();
+                syncVoice();
+            }
+
+            const AV_TIMES = [0, SW_BACK, SW_HIT, SW_FOLLOW, SW_END];
+            const AV_YAW = [0.35, -1.9, 0, 1.6, 0.35];
+
+            function updateAvatars(dt) {
+                const ease = 1 - Math.exp(-14 * dt);
+                for (let k = 0; k < remotes.length; k++) {
+                    const p = remotes[k];
+                    const av = p.avatar;
+                    if (!av) continue;
+                    av.group.visible = p.seen;
+                    p.shown.lerp(p.pos, ease);
+                    av.group.position.set(p.shown.x, p.shown.y - 1, p.shown.z);
+                    av.group.rotation.y = p.yaw;
+                    av.head.rotation.x = clamp(p.pitch, -0.8, 0.8);
+
+                    // racket: a sweep around the shoulder, mirrored for backhands
+                    let yaw = 0.35;
+                    let lay = 0;
+                    if (p.swingT >= 0) {
+                        p.swingT += dt;
+                        const t = p.swingT;
+                        if (t >= SW_END) {
+                            p.swingT = -1;
                         } else {
-                            sphere.velocity.y -= GRAVITY * deltaTime;
+                            let s = 0;
+                            while (s < AV_TIMES.length - 2 && t > AV_TIMES[s + 1]) s++;
+                            let u = clamp((t - AV_TIMES[s]) / (AV_TIMES[s + 1] - AV_TIMES[s]), 0, 1);
+                            u = u * u * (3 - 2 * u);
+                            yaw = (AV_YAW[s] + (AV_YAW[s + 1] - AV_YAW[s]) * u) * p.swingSide;
+                            lay = Math.sin((t / SW_END) * Math.PI);
                         }
+                    }
+                    av.pivot.rotation.y = yaw;
+                    av.racket.rotation.x = -0.35 - lay * 1.2;
+                    av.racket.rotation.z = -lay * 0.6 * p.swingSide;
 
-                        const damping = Math.exp(-1.5 * deltaTime) - 1;
-                        sphere.velocity.addScaledVector(sphere.velocity, damping);
+                    for (let d = av.decals.length - 1; d >= 0; d--) {
+                        const dec = av.decals[d];
+                        if (now() - dec.born > 25000) {
+                            av.body.remove(dec.mesh);
+                            dec.mesh.geometry.dispose();
+                            av.decals.splice(d, 1);
+                        }
+                    }
+                }
+            }
 
-                        playerSphereCollision(sphere);
+            const _lp = new THREE.Vector3();
+            function updateLabels() {
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                for (let k = 0; k < remotes.length; k++) {
+                    const p = remotes[k];
+                    if (!p.avatar) continue;
+                    const el = p.avatar.label;
+                    _lp.set(p.shown.x, p.shown.y + 0.42, p.shown.z);
+                    const far = _lp.distanceToSquared(camera.position) > 1600;
+                    _lp.project(camera);
+                    const show = p.seen && !far && _lp.z < 1 && Math.abs(_lp.x) < 1.1 && Math.abs(_lp.y) < 1.1;
+                    if (show !== el._show) {
+                        el.style.display = show ? "" : "none";
+                        el._show = show;
+                    }
+                    if (show) {
+                        el.style.transform =
+                            "translate(" + ((_lp.x * 0.5 + 0.5) * w - (el._w || (el._w = el.offsetWidth)) / 2).toFixed(0) + "px," +
+                            ((-_lp.y * 0.5 + 0.5) * h).toFixed(0) + "px)";
+                    }
+                }
+            }
 
-                        // Client colliders check
-                        clients.forEach((client, peerId) => {
-                            if (client.collider) {
-                                const center = vector1
-                                    .addVectors(client.collider.start, client.collider.end)
-                                    .multiplyScalar(0.5);
+            // ---------------------------------------------------------------
+            // Splats: paint on the target's body for everyone, paint over
+            // the target's own screen
+            // ---------------------------------------------------------------
+            // seeded so a splat redraws the same shape every frame
+            let rndState = 0;
+            function seedRnd(seed) {
+                rndState = seed | 0;
+            }
+            function rnd() {
+                rndState = (rndState + 0x6d2b79f5) | 0;
+                let t = Math.imul(rndState ^ (rndState >>> 15), 1 | rndState);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            }
 
-                                const sphere_center = sphere.collider.center;
-                                const r = client.collider.radius + sphere.collider.radius;
-                                const r2 = r * r;
+            const splatTex = (() => {
+                const c = document.createElement("canvas");
+                c.width = c.height = 32;
+                const g = c.getContext("2d");
+                g.fillStyle = "#fff";
+                seedRnd(7);
+                blob(g, 16, 16, 7);
+                const t = new THREE.CanvasTexture(c);
+                t.magFilter = THREE.NearestFilter;
+                t.minFilter = THREE.NearestFilter;
+                return t;
+            })();
+            const splatMats = new Map();
 
-                                for (const point of [
-                                    client.collider.start,
-                                    client.collider.end,
-                                    center,
-                                ]) {
-                                    const d2 = point.distanceToSquared(sphere_center);
+            // paint splat: a core, lobes on its rim, droplets flung further out
+            function blob(g, x, y, r, drip = 0) {
+                g.beginPath();
+                g.arc(x, y, r, 0, Math.PI * 2);
+                g.fill();
+                const lobes = 7 + ((rnd() * 4) | 0);
+                for (let i = 0; i < lobes; i++) {
+                    const a = rnd() * Math.PI * 2;
+                    const d = r * (0.65 + rnd() * 0.3);
+                    const rr = r * (0.22 + rnd() * 0.25);
+                    g.beginPath();
+                    g.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, rr, 0, Math.PI * 2);
+                    g.fill();
+                }
+                const drops = 6 + ((rnd() * 6) | 0);
+                for (let i = 0; i < drops; i++) {
+                    const a = rnd() * Math.PI * 2;
+                    const d = r * (1.2 + rnd() * 0.9);
+                    const rr = Math.max(1, r * (0.04 + rnd() * 0.09));
+                    g.beginPath();
+                    g.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, rr, 0, Math.PI * 2);
+                    g.fill();
+                }
+                for (let i = 0; i < 3; i++) {
+                    const dx = (rnd() - 0.5) * r * 1.4;
+                    const len = drip * r * (0.6 + rnd() * 1.6);
+                    const wd = Math.max(1, r * (0.12 + rnd() * 0.12));
+                    g.fillRect(x + dx - wd / 2, y, wd, len);
+                    g.beginPath();
+                    g.arc(x + dx, y + len, wd * 0.8, 0, Math.PI * 2);
+                    g.fill();
+                }
+            }
 
-                                    if (d2 < r2) {
-                                        const normal = vector1
-                                            .subVectors(point, sphere_center)
-                                            .normalize();
-                                        
-                                        // Calculate knockback velocity based on normal and ball velocity
-                                        const knockbackStrength = sphere.velocity.length() * 0.45 + 5.0;
-                                        const knockbackVel = normal.clone().multiplyScalar(knockbackStrength);
-                                        knockbackVel.y += 3.5; // Upward launch
+            function addDecal(p, dx, dy, dz, big) {
+                const av = p.avatar;
+                if (!av) return;
+                av.group.updateMatrixWorld(true);
+                _a.set(dx, dy, dz).normalize();
+                _b.copy(p.shown).addScaledVector(_a, 0.3);
+                _b.y -= 0.35;
+                _o.position.copy(_b);
+                _o.lookAt(_c.copy(_b).add(_a));
+                _o.rotation.z = Math.random() * Math.PI * 2;
+                const size = big ? 0.7 : 0.48;
+                const geo = new DecalGeometry(av.body, _b, _e.copy(_o.rotation), _s.set(size, size, size));
+                geo.applyMatrix4(_m.copy(av.body.matrixWorld).invert());
+                const mesh = new THREE.Mesh(geo, splatMat(p.lastSplatBy));
+                av.body.add(mesh);
+                av.decals.push({ mesh, born: now() });
+                if (av.decals.length > 8) {
+                    const old = av.decals.shift();
+                    av.body.remove(old.mesh);
+                    old.mesh.geometry.dispose();
+                }
+            }
 
-                                        // Apply impact force back to the ball
-                                        const vSphere = vector3
-                                            .copy(normal)
-                                            .multiplyScalar(normal.dot(sphere.velocity));
-                                        sphere.velocity.sub(vSphere);
+            function splatMat(color) {
+                let mat = splatMats.get(color);
+                if (!mat) {
+                    mat = new THREE.MeshLambertMaterial({
+                        color,
+                        emissive: color,
+                        emissiveIntensity: 0.3,
+                        map: splatTex,
+                        alphaTest: 0.5,
+                        depthWrite: false,
+                        polygonOffset: true,
+                        polygonOffsetFactor: -4,
+                    });
+                    splatMats.set(color, mat);
+                }
+                return mat;
+            }
 
-                                        const d = (r - Math.sqrt(d2)) / 2;
-                                        sphere_center.addScaledVector(normal, -d);
+            // screen overlay: drawn at 1/4 resolution so it matches the pixels
+            const splatCanvas = $("splats");
+            const sg = splatCanvas.getContext("2d");
+            const scratch = document.createElement("canvas");
+            const xg = scratch.getContext("2d");
+            const screenSplats = [];
+            let splatsDirty = false;
+            const SPLAT_SCALE = 4;
 
-                                        // Send knockback command to the specific client
-                                        if (client.connection && client.connection.open) {
-                                            client.connection.send({
-                                                type: 'knockback',
-                                                velocity: { x: knockbackVel.x, y: knockbackVel.y, z: knockbackVel.z }
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        });
+            function resizeSplats(w, h) {
+                scratch.width = splatCanvas.width = Math.ceil(w / SPLAT_SCALE);
+                scratch.height = splatCanvas.height = Math.ceil(h / SPLAT_SCALE);
+                splatsDirty = true;
+            }
+
+            function addScreenSplat(color, big, seed) {
+                seedRnd(seed);
+                const W = splatCanvas.width;
+                const H = splatCanvas.height;
+                screenSplats.push({
+                    x: W * (0.2 + rnd() * 0.6),
+                    y: H * (0.18 + rnd() * 0.55),
+                    r: Math.min(W, H) * (big ? 0.24 : 0.15) * (0.8 + rnd() * 0.4),
+                    color: hex(color),
+                    seed,
+                    born: now(),
+                });
+                if (screenSplats.length > 6) screenSplats.shift();
+                splatsDirty = true;
+            }
+
+            const SPLAT_HOLD = 3500;
+            const SPLAT_LIFE = 7500;
+            function drawSplats() {
+                if (!screenSplats.length && !splatsDirty) return;
+                sg.clearRect(0, 0, splatCanvas.width, splatCanvas.height);
+                splatsDirty = false;
+                const t = now();
+                for (let i = screenSplats.length - 1; i >= 0; i--) {
+                    const s = screenSplats[i];
+                    const age = t - s.born;
+                    if (age > SPLAT_LIFE) {
+                        screenSplats.splice(i, 1);
+                        splatsDirty = true;
+                        continue;
+                    }
+                    xg.clearRect(0, 0, scratch.width, scratch.height);
+                    xg.fillStyle = s.color;
+                    seedRnd(s.seed);
+                    blob(xg, s.x, s.y, s.r, Math.min(1, age / 2500));
+                    sg.globalAlpha = age < SPLAT_HOLD ? 0.96 : 0.96 * (1 - (age - SPLAT_HOLD) / (SPLAT_LIFE - SPLAT_HOLD));
+                    sg.drawImage(scratch, 0, 0);
+                }
+                sg.globalAlpha = 1;
+            }
+
+            function onSplat(m) {
+                const by = players.get(m.by);
+                const to = players.get(m.to);
+                if (by) by.score = m.s;
+                if (!by || !to) return;
+                if (to.isSelf) {
+                    addScreenSplat(by.color, m.big, m.seed);
+                    toast(by.name + " splatted you", by.color);
+                    sfx.splat(1);
+                } else {
+                    to.lastSplatBy = by.color;
+                    addDecal(to, m.d[0], m.d[1], m.d[2], m.big);
+                    if (by.isSelf) toast("you splatted " + to.name, by.color);
+                    sfx.splat(distGain(to));
+                }
+                renderBoard();
+            }
+
+            // ---------------------------------------------------------------
+            // Sound: synthesized hits, the track as optional music
+            // ---------------------------------------------------------------
+            let actx = null;
+            function audioCtx() {
+                if (!actx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) actx = new AC();
+                }
+                if (actx && actx.state === "suspended") actx.resume();
+                return actx;
+            }
+            let noiseBuf = null;
+            function noise(ctx) {
+                if (!noiseBuf) {
+                    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.4, ctx.sampleRate);
+                    const d = noiseBuf.getChannelData(0);
+                    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+                }
+                const src = ctx.createBufferSource();
+                src.buffer = noiseBuf;
+                return src;
+            }
+            function env(ctx, gain, attack, decay) {
+                const g = ctx.createGain();
+                const t = ctx.currentTime;
+                g.gain.setValueAtTime(0.0001, t);
+                g.gain.exponentialRampToValueAtTime(gain, t + attack);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+                g.connect(ctx.destination);
+                return g;
+            }
+            const sfx = {
+                pock(gain = 1, pitch = 1) {
+                    const ctx = actx;
+                    if (!ctx || gain <= 0.01) return;
+                    const t = ctx.currentTime;
+                    const o = ctx.createOscillator();
+                    o.type = "triangle";
+                    o.frequency.setValueAtTime(620 * pitch, t);
+                    o.frequency.exponentialRampToValueAtTime(190, t + 0.07);
+                    o.connect(env(ctx, 0.5 * gain, 0.002, 0.09));
+                    o.start(t);
+                    o.stop(t + 0.12);
+                    const n = noise(ctx);
+                    const f = ctx.createBiquadFilter();
+                    f.type = "bandpass";
+                    f.frequency.value = 2400;
+                    n.connect(f).connect(env(ctx, 0.35 * gain, 0.001, 0.035));
+                    n.start(t);
+                    n.stop(t + 0.05);
+                },
+                whoosh() {
+                    const ctx = actx;
+                    if (!ctx) return;
+                    const t = ctx.currentTime;
+                    const n = noise(ctx);
+                    const f = ctx.createBiquadFilter();
+                    f.type = "bandpass";
+                    f.Q.value = 0.8;
+                    f.frequency.setValueAtTime(500, t);
+                    f.frequency.exponentialRampToValueAtTime(1800, t + 0.18);
+                    n.connect(f).connect(env(ctx, 0.08, 0.06, 0.14));
+                    n.start(t);
+                    n.stop(t + 0.25);
+                },
+                splat(gain = 1) {
+                    const ctx = actx;
+                    if (!ctx || gain <= 0.01) return;
+                    const t = ctx.currentTime;
+                    const n = noise(ctx);
+                    const f = ctx.createBiquadFilter();
+                    f.type = "lowpass";
+                    f.frequency.setValueAtTime(1400, t);
+                    f.frequency.exponentialRampToValueAtTime(180, t + 0.25);
+                    n.connect(f).connect(env(ctx, 0.7 * gain, 0.004, 0.26));
+                    n.start(t);
+                    n.stop(t + 0.32);
+                },
+            };
+            function distGain(p) {
+                return clamp(1 - (p.shown.distanceTo(camera.position) - 3) / 30, 0, 1);
+            }
+
+            const music = $("music");
+            music.volume = 0.18;
+            let musicOn = store.get("music", true);
+            function setMusic(on) {
+                musicOn = on;
+                store.set("music", on);
+                if (on && playing && !document.hidden) music.play().catch(() => {});
+                else music.pause();
+                for (const id of ["hudMusic", "pauseMusic"]) {
+                    $(id).textContent = on ? "music on" : "music off";
+                    $(id).classList.toggle("on", on);
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // Networking: one global room on the public PeerJS broker. The
+            // tab that holds HOST_ID runs the authoritative world; when it
+            // leaves or goes to the background, the next player takes over.
+            // Every player also has a random personal id: it names them in
+            // the roster, survives a takeover and carries voice calls.
+            // ---------------------------------------------------------------
+            const params = new URLSearchParams(location.search);
+            const room = (params.get("room") || "").replace(/[^a-z0-9-]/gi, "").slice(0, 24);
+            const HOST_ID = "krutart-tennis-global-host-v2" + (room ? "-" + room : "");
+            const SEND_HZ = 30;
+            const now = () => performance.now();
+
+            const net = {
+                me: null,
+                hostPeer: null,
+                isHost: false,
+                ev: null,
+                st: null,
+                state: "offline",
+                lastState: 0,
+                ping: 0,
+                sendAcc: 0,
+                tries: 0,
+                retry: 0,
+                oldHost: null,
+                joined: false,
+                joinTimer: 0,
+            };
+            const stateBuf = new Float32Array(2 + 32 * 6 + NUM_BALLS * 11);
+            const upBuf = new Float32Array(8);
+            let keyframe = 0;
+
+            function setNet(state, text) {
+                net.state = state;
+                const el = $("net");
+                el.className = state;
+                $("netText").textContent = text;
+                $("startStatus").textContent = playing ? "" : text;
+            }
+
+            function netLine() {
+                const n = players.size;
+                const who = n === 1 ? "just you so far" : n + " players";
+                if (net.isHost) setNet("ok", "hosting · " + who);
+                else setNet("ok", "connected · " + who + (net.ping ? " · " + Math.round(net.ping) + " ms" : ""));
+            }
+
+            function connect() {
+                if (!window.Peer) {
+                    setNet("bad", "could not load the network library — check your connection");
+                    return;
+                }
+                setNet("wait", "connecting…");
+                net.me = new Peer();
+                net.me.on("open", (id) => {
+                    self.id = id;
+                    players.set(id, self);
+                    tryHost();
+                });
+                net.me.on("call", onCall);
+                net.me.on("disconnected", () => {
+                    if (net.me && !net.me.destroyed) net.me.reconnect();
+                });
+                net.me.on("error", (err) => {
+                    if (err.type === "peer-unavailable") {
+                        if (!net.isHost) hostLost("nobody is hosting — taking over…");
+                    } else if (err.type === "network" || err.type === "server-error" || err.type === "socket-error") {
+                        // the broker only introduces players; open games carry on without it
+                        if (net.isHost || (net.ev && net.ev.open)) {
+                            setTimeout(() => {
+                                if (net.me && net.me.disconnected && !net.me.destroyed) net.me.reconnect();
+                            }, 3000);
+                            return;
+                        }
+                        setNet("bad", "can't reach the matchmaking server — retrying…");
+                        clearTimeout(net.retry);
+                        net.retry = setTimeout(() => {
+                            if (!playing) return;
+                            disconnect(true);
+                            connect();
+                        }, 4000);
+                    } else {
+                        console.warn("PeerJS:", err.type, err);
                     }
                 });
+            }
 
-                if (isHost) {
-                    spheresCollisions();
+            function tryHost() {
+                if (!playing) return;
+                const hp = new Peer(HOST_ID);
+                net.hostPeer = hp;
+                hp.on("open", () => becomeHost());
+                hp.on("connection", hostAccept);
+                hp.on("disconnected", () => {
+                    if (net.isHost && !hp.destroyed) hp.reconnect();
+                });
+                hp.on("error", (err) => {
+                    if (err.type === "unavailable-id") {
+                        hp.destroy();
+                        if (net.hostPeer === hp) net.hostPeer = null;
+                        joinHost();
+                    } else if (!net.isHost) {
+                        hp.destroy();
+                        if (net.hostPeer === hp) net.hostPeer = null;
+                        scheduleTakeover("can't host right now — retrying…");
+                    }
+                });
+            }
+
+            function becomeHost() {
+                net.isHost = true;
+                net.tries = 0;
+                if (self.slot < 0 || self.slot >= COLOURS.length) self.slot = 0;
+                self.color = colourOf(self.slot);
+                // the others come back with hello; keep them until they do or time out
+                for (const p of remotes) {
+                    p.ev = p.st = null;
+                    p.seen = false;
+                    p.pendingSince = now();
                 }
+                rebuildRemotes();
+                netLine();
+            }
 
-                for (const sphere of spheres) {
-                    sphere.mesh.position.copy(sphere.collider.center);
+            function hostAccept(c) {
+                if (!net.isHost) {
+                    c.close();
+                    return;
+                }
+                c.on("open", () => {
+                    let p = players.get(c.peer);
+                    if (!p) {
+                        p = newPlayer(c.peer);
+                        players.set(c.peer, p);
+                    }
+                    if (c.label === "st") p.st = c;
+                    else p.ev = c;
+                });
+                c.on("data", (data) => {
+                    const p = players.get(c.peer);
+                    if (!p) return;
+                    if (c.label === "st") {
+                        const f = new Float32Array(data);
+                        if (f.length < 5 || p.slot < 0) return;
+                        setPose(p, f[0], f[1], f[2], f[3], f[4]);
+                    } else {
+                        hostHandle(p, data);
+                    }
+                });
+                c.on("close", () => {
+                    const p = players.get(c.peer);
+                    if (p && c.label !== "st" && p.ev === c) dropPlayer(p);
+                });
+            }
+
+            function freeSlot(want, who) {
+                const used = new Set();
+                for (const p of players.values()) if (p !== who && p.slot >= 0) used.add(p.slot);
+                if (want >= 0 && want < COLOURS.length && !used.has(want)) return want;
+                for (let s = 0; s < 32; s++) if (!used.has(s)) return s;
+                return 31;
+            }
+
+            function rosterMsg() {
+                const list = [];
+                for (const p of players.values()) {
+                    if (p.slot < 0 || (!p.isSelf && !p.ev)) continue;
+                    list.push([p.id, p.slot, p.name, p.voice ? 1 : 0, p.score]);
+                }
+                return { t: "roster", list, host: self.id };
+            }
+
+            function hostHandle(p, m) {
+                switch (m.t) {
+                    case "hello": {
+                        p.name = String(m.name || "player").slice(0, 14);
+                        p.voice = !!m.voice;
+                        p.score = Math.max(p.score, m.score | 0);
+                        p.pendingSince = 0;
+                        p.slot = freeSlot(m.slot, p);
+                        p.color = colourOf(p.slot);
+                        sendTo(p, { t: "welcome", slot: p.slot });
+                        rebuildRemotes();
+                        broadcast(rosterMsg());
+                        if (playing) toast(p.name + " joined", p.color);
+                        netLine();
+                        break;
+                    }
+                    case "hit": {
+                        const b = balls[m.i];
+                        if (!b) return;
+                        _a.fromArray(m.p);
+                        if (_a.distanceToSquared(b.c.center) < 9) b.c.center.copy(_a);
+                        b.v.fromArray(m.v);
+                        b.w.fromArray(m.w);
+                        b.owner = p.slot;
+                        wake(b);
+                        break;
+                    }
+                    case "toss":
+                        spawnBall(_a.fromArray(m.p), _b.fromArray(m.v));
+                        break;
+                    case "swing":
+                        p.swingT = 0;
+                        p.swingSide = m.side === -1 ? -1 : 1;
+                        broadcast({ t: "swing", id: p.id, side: p.swingSide }, p);
+                        break;
+                    case "voice":
+                        p.voice = !!m.on;
+                        rebuildRemotes();
+                        broadcast(rosterMsg());
+                        break;
+                    case "ping":
+                        sendTo(p, { t: "pong", c: m.c });
+                        break;
                 }
             }
+
+            function dropPlayer(p) {
+                if (p.isSelf) return;
+                if (p.call) p.call.close();
+                removeAvatar(p);
+                players.delete(p.id);
+                rebuildRemotes();
+                if (net.isHost) {
+                    broadcast(rosterMsg());
+                    if (playing && p.name) toast(p.name + " left", p.color);
+                    netLine();
+                }
+            }
+
+            function joinHost() {
+                if (!playing) return;
+                net.isHost = false;
+                setNet("wait", net.tries ? "joining the new host…" : "joining the room…");
+                const ev = net.me.connect(HOST_ID, { label: "ev", reliable: true, serialization: "json" });
+                const st = net.me.connect(HOST_ID, { label: "st", reliable: false, serialization: "raw" });
+                net.ev = ev;
+                net.st = st;
+                net.joined = false;
+                // a host id the broker still holds but nobody answers on
+                // raises no error, so give up on it after a while
+                clearTimeout(net.joinTimer);
+                net.joinTimer = setTimeout(() => {
+                    if (net.ev === ev && !ev.open) hostLost("no answer from the host — taking over…");
+                }, 8000);
+                ev.on("open", () => {
+                    net.tries = 0;
+                    net.lastState = now();
+                    ev.send({ t: "hello", name: self.name, voice: voice.on, slot: self.slot, score: self.score });
+                });
+                ev.on("data", clientHandle);
+                ev.on("close", () => {
+                    if (net.ev === ev) hostLost("the host left — taking over…");
+                });
+                st.on("data", applyState);
+            }
+
+            function hostLost(text) {
+                if (!playing || net.isHost) return;
+                const old = net.oldHost && players.get(net.oldHost);
+                if (old && !old.isSelf) dropPlayer(old);
+                if (net.ev) net.ev.close();
+                if (net.st) net.st.close();
+                net.ev = net.st = null;
+                scheduleTakeover(text);
+            }
+
+            // the longest-standing player tries first; the rest wait their turn
+            function scheduleTakeover(text) {
+                setNet("wait", text);
+                clearTimeout(net.retry);
+                const ids = [];
+                for (const p of players.values()) if (p.id !== net.oldHost) ids.push(p.id);
+                ids.sort();
+                const rank = Math.max(0, ids.indexOf(self.id));
+                net.tries++;
+                const wait = Math.min(8000, rank * 1500 + 800 + Math.random() * 400 + (net.tries > 3 ? 2000 : 0));
+                net.retry = setTimeout(tryHost, wait);
+            }
+
+            function clientHandle(m) {
+                switch (m.t) {
+                    case "welcome":
+                        self.slot = m.slot;
+                        self.color = colourOf(m.slot);
+                        rebuildRemotes();
+                        break;
+                    case "roster": {
+                        net.oldHost = m.host;
+                        const seen = new Set();
+                        for (const [id, slot, name, v, score] of m.list) {
+                            seen.add(id);
+                            let p = players.get(id);
+                            if (!p) {
+                                p = newPlayer(id);
+                                players.set(id, p);
+                                if (net.joined) toast(name + " joined", colourOf(slot));
+                            }
+                            if (p.isSelf) {
+                                self.score = score;
+                                continue;
+                            }
+                            p.slot = slot;
+                            p.color = colourOf(slot);
+                            p.name = name;
+                            p.voice = !!v;
+                            p.score = score;
+                        }
+                        for (const p of [...players.values()]) if (!seen.has(p.id) && !p.isSelf) dropPlayer(p);
+                        net.joined = true;
+                        rebuildRemotes();
+                        netLine();
+                        break;
+                    }
+                    case "swing": {
+                        const p = players.get(m.id);
+                        if (p) {
+                            p.swingT = 0;
+                            p.swingSide = m.side;
+                        }
+                        break;
+                    }
+                    case "splat":
+                        onSplat(m);
+                        break;
+                    case "kb":
+                        playerVelocity.x += m.v[0];
+                        playerVelocity.y += m.v[1];
+                        playerVelocity.z += m.v[2];
+                        break;
+                    case "pong":
+                        net.ping = net.ping ? net.ping * 0.7 + (now() - m.c) * 0.3 : now() - m.c;
+                        netLine();
+                        break;
+                    case "bye":
+                        hostLost("the host left — taking over…");
+                        break;
+                }
+            }
+
+            // snapshot from the host: [nPlayers, nBalls, players…, balls…]
+            function applyState(data) {
+                const f = new Float32Array(data);
+                net.lastState = now();
+                const np = f[0];
+                const nb = f[1];
+                let o = 2;
+                for (let k = 0; k < np; k++, o += 6) {
+                    const p = bySlot(f[o]);
+                    if (p && !p.isSelf) setPose(p, f[o + 1], f[o + 2], f[o + 3], f[o + 4], f[o + 5]);
+                }
+                const t = now();
+                for (let k = 0; k < nb; k++, o += 11) {
+                    const b = balls[f[o]];
+                    if (!b || t < b.lockUntil) continue;
+                    _a.set(f[o + 1], f[o + 2], f[o + 3]);
+                    // keep what is on screen, ease the error away
+                    b.off.add(b.c.center).sub(_a);
+                    if (b.off.lengthSq() > 9 || b.c.center.y < -50 || _a.y < -50) b.off.set(0, 0, 0);
+                    b.c.center.copy(_a);
+                    b.v.set(f[o + 4], f[o + 5], f[o + 6]);
+                    b.w.set(f[o + 7], f[o + 8], f[o + 9]);
+                    b.owner = f[o + 10];
+                    b.asleep = b.v.lengthSq() < 1e-6;
+                    b.still = 0;
+                }
+            }
+
+            function packState() {
+                let o = 2;
+                let np = 0;
+                for (const p of players.values()) {
+                    if (p.slot < 0) continue;
+                    const isSelf = p.isSelf;
+                    if (!isSelf && !p.seen) continue;
+                    stateBuf[o] = p.slot;
+                    if (isSelf) {
+                        stateBuf[o + 1] = playerCollider.end.x;
+                        stateBuf[o + 2] = playerCollider.end.y;
+                        stateBuf[o + 3] = playerCollider.end.z;
+                        stateBuf[o + 4] = camera.rotation.y;
+                        stateBuf[o + 5] = camera.rotation.x;
+                    } else {
+                        stateBuf[o + 1] = p.pos.x;
+                        stateBuf[o + 2] = p.pos.y;
+                        stateBuf[o + 3] = p.pos.z;
+                        stateBuf[o + 4] = p.yaw;
+                        stateBuf[o + 5] = p.pitch;
+                    }
+                    o += 6;
+                    if (++np >= 32) break;
+                }
+                // moving balls, balls that just stopped, and a few resting
+                // ones each tick so late joiners get the whole picture
+                let nb = 0;
+                for (let i = 0; i < NUM_BALLS; i++) {
+                    const b = balls[i];
+                    const rest = (i + keyframe) % 15 === 0;
+                    if (b.asleep && b.tail <= 0 && !rest) continue;
+                    if (b.asleep && b.tail > 0) b.tail--;
+                    stateBuf[o] = i;
+                    stateBuf[o + 1] = b.c.center.x;
+                    stateBuf[o + 2] = b.c.center.y;
+                    stateBuf[o + 3] = b.c.center.z;
+                    stateBuf[o + 4] = b.v.x;
+                    stateBuf[o + 5] = b.v.y;
+                    stateBuf[o + 6] = b.v.z;
+                    stateBuf[o + 7] = b.w.x;
+                    stateBuf[o + 8] = b.w.y;
+                    stateBuf[o + 9] = b.w.z;
+                    stateBuf[o + 10] = b.owner;
+                    o += 11;
+                    nb++;
+                }
+                keyframe++;
+                stateBuf[0] = np;
+                stateBuf[1] = nb;
+                return stateBuf.slice(0, o).buffer;
+            }
+
+            function netTick(dt) {
+                if (!playing || !net.me) return;
+                net.sendAcc += dt;
+                if (net.sendAcc < 1 / SEND_HZ) return;
+                net.sendAcc = 0;
+                if (net.isHost) {
+                    if (!remotes.length) return;
+                    const packet = packState();
+                    for (let k = 0; k < remotes.length; k++) {
+                        const p = remotes[k];
+                        if (p.st && p.st.open) p.st.send(packet);
+                        // clients that never said hello again after a takeover
+                        if (p.pendingSince && now() - p.pendingSince > 10000) dropPlayer(p);
+                    }
+                } else if (net.st && net.st.open) {
+                    upBuf[0] = playerCollider.end.x;
+                    upBuf[1] = playerCollider.end.y;
+                    upBuf[2] = playerCollider.end.z;
+                    upBuf[3] = camera.rotation.y;
+                    upBuf[4] = camera.rotation.x;
+                    net.st.send(upBuf.buffer.slice(0));
+                    if (net.ev && net.ev.open && now() - net.lastState > 6000) hostLost("the host stopped answering — taking over…");
+                }
+            }
+
+            setInterval(() => {
+                if (playing && !net.isHost && net.ev && net.ev.open) net.ev.send({ t: "ping", c: now() });
+            }, 2000);
+
+            function sendTo(p, msg) {
+                if (p.ev && p.ev.open) p.ev.send(msg);
+            }
+            function broadcast(msg, except) {
+                for (let k = 0; k < remotes.length; k++) if (remotes[k] !== except) sendTo(remotes[k], msg);
+            }
+            function sendEvent(msg) {
+                if (net.isHost) {
+                    if (msg.t === "swing") broadcast({ t: "swing", id: self.id, side: msg.side });
+                } else if (net.ev && net.ev.open) {
+                    net.ev.send(msg);
+                }
+            }
+
+            function disconnect(keepPlaying) {
+                clearTimeout(net.retry);
+                if (net.isHost) broadcast({ t: "bye" });
+                if (!keepPlaying) setVoice(false, false);
+                for (const p of [...players.values()]) if (!p.isSelf) dropPlayer(p);
+                if (net.hostPeer) net.hostPeer.destroy();
+                if (net.me) net.me.destroy();
+                net.me = net.hostPeer = net.ev = net.st = null;
+                net.isHost = false;
+                players.clear();
+                remotes = [];
+                if (!keepPlaying) setNet("", "offline");
+            }
+
+            // a host in a background tab would freeze the room (its loop
+            // stops), so it hands the room over
+            let hiddenTimer = 0;
+            document.addEventListener("visibilitychange", () => {
+                if (document.hidden) {
+                    music.pause();
+                    if (net.isHost && remotes.length) {
+                        hiddenTimer = setTimeout(() => {
+                            if (!document.hidden || !net.isHost) return;
+                            broadcast({ t: "bye" });
+                            net.oldHost = self.id;
+                            net.isHost = false;
+                            const hp = net.hostPeer;
+                            net.hostPeer = null;
+                            setTimeout(() => {
+                                if (hp) hp.destroy();
+                                setTimeout(joinHost, 2500);
+                            }, 300);
+                        }, 2500);
+                    }
+                } else {
+                    clearTimeout(hiddenTimer);
+                    clock.getDelta();
+                    if (musicOn && playing) music.play().catch(() => {});
+                }
+            });
+            window.addEventListener("pagehide", () => {
+                if (net.isHost) broadcast({ t: "bye" });
+            });
+
+            // ---------------------------------------------------------------
+            // Voice chat: opt-in. Players with voice on call each other
+            // directly (the lower id calls); volume falls off with distance.
+            // ---------------------------------------------------------------
+            const voice = { on: false, stream: null };
+
+            async function setVoice(on, persist = true) {
+                if (on === voice.on) return;
+                if (on) {
+                    try {
+                        voice.stream = await navigator.mediaDevices.getUserMedia({
+                            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                        });
+                    } catch (e) {
+                        toast("no mic access — voice stays off", 0xff3b3b);
+                        voiceButtons();
+                        return;
+                    }
+                    voice.on = true;
+                } else {
+                    voice.on = false;
+                    if (voice.stream) for (const tr of voice.stream.getTracks()) tr.stop();
+                    voice.stream = null;
+                    for (const p of players.values()) if (p.call) p.call.close();
+                }
+                self.voice = voice.on;
+                if (persist) store.set("voice", voice.on);
+                voiceButtons();
+                if (net.isHost) {
+                    rebuildRemotes();
+                    broadcast(rosterMsg());
+                } else {
+                    sendEvent({ t: "voice", on: voice.on });
+                }
+                syncVoice();
+            }
+
+            function voiceButtons() {
+                for (const id of ["hudVoice", "pauseVoice"]) {
+                    $(id).textContent = voice.on ? "voice on" : "voice off";
+                    $(id).classList.toggle("on", voice.on);
+                }
+            }
+
+            function syncVoice() {
+                for (let k = 0; k < remotes.length; k++) {
+                    const p = remotes[k];
+                    const want = voice.on && p.voice && net.me;
+                    if (!want && p.call) p.call.close();
+                    else if (want && !p.call && self.id < p.id) bindCall(p, net.me.call(p.id, voice.stream));
+                }
+            }
+
+            function onCall(call) {
+                const p = players.get(call.peer);
+                if (!voice.on || !p) {
+                    call.close();
+                    return;
+                }
+                if (p.call) p.call.close();
+                call.answer(voice.stream);
+                bindCall(p, call);
+            }
+
+            function bindCall(p, call) {
+                p.call = call;
+                call.on("stream", (stream) => {
+                    if (!p.audio) p.audio = new Audio();
+                    p.audio.srcObject = stream;
+                    p.audio.play().catch(() => {});
+                });
+                const end = () => {
+                    if (p.call !== call) return;
+                    p.call = null;
+                    if (p.audio) {
+                        p.audio.pause();
+                        p.audio.srcObject = null;
+                    }
+                };
+                call.on("close", end);
+                call.on("error", end);
+            }
+
+            setInterval(() => {
+                for (let k = 0; k < remotes.length; k++) {
+                    const p = remotes[k];
+                    if (p.audio) p.audio.volume = clamp(1 - (p.shown.distanceTo(camera.position) - 4) / 30, 0.15, 1);
+                }
+            }, 200);
+
+            // ---------------------------------------------------------------
+            // HUD
+            // ---------------------------------------------------------------
+            function renderBoard() {
+                const board = $("board");
+                board.textContent = "";
+                if (!playing) return;
+                const list = [...players.values()].filter((p) => p.slot >= 0 || p.isSelf);
+                list.sort((a, b) => b.score - a.score);
+                for (const p of list) {
+                    const row = document.createElement("div");
+                    row.className = "row" + (p.isSelf ? " me" : "");
+                    const sw = document.createElement("span");
+                    sw.className = "sw";
+                    sw.style.background = hex(p.color);
+                    const name = document.createElement("span");
+                    name.className = "name";
+                    name.textContent = p.name + (p.isSelf ? " (you)" : "");
+                    const tag = document.createElement("span");
+                    tag.className = "tag";
+                    tag.textContent = p.voice ? "voice" : "";
+                    const score = document.createElement("span");
+                    score.textContent = p.score;
+                    row.append(sw, name, tag, score);
+                    board.appendChild(row);
+                }
+            }
+
+            function toast(text, color) {
+                const el = document.createElement("div");
+                el.className = "toast";
+                el.textContent = text;
+                if (color !== undefined) el.style.color = hex(color);
+                const box = $("toasts");
+                box.appendChild(el);
+                while (box.children.length > 3) box.firstChild.remove();
+                setTimeout(() => el.remove(), 3200);
+            }
+
+            let hitTextTimer = 0;
+            function flashHitText(text) {
+                const el = $("hitText");
+                el.textContent = text;
+                el.classList.add("on");
+                clearTimeout(hitTextTimer);
+                hitTextTimer = setTimeout(() => el.classList.remove("on"), 450);
+            }
+
+            // ---------------------------------------------------------------
+            // Start, pause, leave
+            // ---------------------------------------------------------------
+            let playing = false;
+            let paused = false;
+            let worldReady = false;
+
+            const nameInput = $("nameInput");
+            nameInput.value = store.get("name", "player" + ((Math.random() * 90 + 10) | 0));
+            $("voiceCheck").checked = store.get("voice", false);
+            const sens = { v: store.get("sens", 1) };
+            $("sensRange").value = sens.v;
+            $("qualitySelect").value = String(quality.mode);
+
+            function play() {
+                if (!worldReady || playing) return;
+                audioCtx();
+                self.name = (nameInput.value.trim() || "player").slice(0, 14);
+                store.set("name", self.name);
+                self.score = 0;
+                self.slot = -1;
+                playing = true;
+                paused = false;
+                document.body.classList.add("playing");
+                $("start").classList.add("hidden");
+                $("hud").classList.remove("hidden");
+                $("crosshair").classList.remove("hidden");
+                camera.rotation.set(0, camera.rotation.y, 0);
+                setMusic(musicOn);
+                if ($("voiceCheck").checked) setVoice(true);
+                connect();
+                lockPointer();
+                renderBoard();
+            }
+
+            function setPaused(on) {
+                if (!playing) return;
+                paused = on;
+                $("pause").classList.toggle("hidden", !on);
+                if (on) for (const k in keyStates) keyStates[k] = false;
+                joyReset();
+            }
+
+            function resume() {
+                if (isTouch || mouse.hover) setPaused(false);
+                else lockPointer();
+            }
+
+            function leave() {
+                disconnect(false);
+                playing = false;
+                paused = false;
+                document.body.classList.remove("playing");
+                $("pause").classList.add("hidden");
+                $("hud").classList.add("hidden");
+                $("crosshair").classList.add("hidden");
+                $("start").classList.remove("hidden");
+                $("startStatus").textContent = "";
+                music.pause();
+                screenSplats.length = 0;
+                splatsDirty = true;
+                if (document.pointerLockElement) document.exitPointerLock();
+            }
+
+            $("playBtn").addEventListener("click", play);
+            nameInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") play();
+                e.stopPropagation();
+            });
+            $("resumeBtn").addEventListener("click", resume);
+            $("leaveBtn").addEventListener("click", leave);
+            $("hudPause").addEventListener("click", () => setPaused(true));
+            for (const id of ["hudVoice", "pauseVoice"]) $(id).addEventListener("click", () => setVoice(!voice.on));
+            for (const id of ["hudMusic", "pauseMusic"]) $(id).addEventListener("click", () => setMusic(!musicOn));
+            $("sensRange").addEventListener("input", (e) => {
+                sens.v = +e.target.value;
+                store.set("sens", sens.v);
+            });
+            $("qualitySelect").addEventListener("change", (e) => {
+                quality.mode = e.target.value;
+                store.set("quality", quality.mode);
+                quality.fails = [0, 0, 0];
+                quality.timer = 0;
+                if (quality.mode !== "auto") setQuality(+quality.mode);
+            });
+            setMusic(musicOn);
+            voiceButtons();
+
+            // ---------------------------------------------------------------
+            // Input: desktop
+            // ---------------------------------------------------------------
+            document.addEventListener("keydown", (event) => {
+                if (event.target.tagName === "INPUT") return;
+                keyStates[event.code] = true;
+                if (!playing) return;
+                if (event.code === "KeyE" || event.code === "KeyQ") toss();
+                if (event.code === "KeyV" && !event.repeat) setVoice(!voice.on);
+                if (event.code === "KeyP" && !event.repeat) paused ? resume() : (document.pointerLockElement ? document.exitPointerLock() : setPaused(true));
+                // with the mouse locked, the browser takes Esc itself to unlock
+                if (event.code === "Escape" && mouse.hover && !event.repeat) paused ? resume() : setPaused(true);
+            });
+            document.addEventListener("keyup", (event) => {
+                keyStates[event.code] = false;
+            });
+
+            // Mouse look wants pointer lock. Where the browser refuses it (embedded
+            // frames, some privacy settings), the plain cursor steers instead:
+            // moving it turns the view, and resting it near an edge keeps turning.
+            const mouse = { hover: false, everLocked: false, x: 0, y: 0, inside: false };
+
+            function lockPointer() {
+                if (isTouch || mouse.hover) return;
+                const el = renderer.domElement;
+                if (!el.requestPointerLock) {
+                    useHoverLook();
+                    return;
+                }
+                const req = el.requestPointerLock();
+                if (req && req.catch) req.catch(() => {}); // pointerlockerror reports it
+            }
+
+            function useHoverLook() {
+                if (mouse.hover) return;
+                mouse.hover = true;
+                document.body.classList.add("hoverLook");
+                toast("mouse lock is blocked here: move the mouse to look, hold it at an edge to keep turning");
+            }
+
+            // edge zone: the outer 12% of the screen on each side
+            const EDGE = 0.76;
+            function edgeTurn(dt) {
+                if (!mouse.hover || !mouse.inside || paused || !playing) return;
+                const nx = (mouse.x / window.innerWidth) * 2 - 1;
+                const ny = (mouse.y / window.innerHeight) * 2 - 1;
+                const ex = clamp((Math.abs(nx) - EDGE) / (1 - EDGE), 0, 1);
+                const ey = clamp((Math.abs(ny) - EDGE) / (1 - EDGE), 0, 1);
+                if (ex || ey) look(Math.sign(nx) * ex * ex * 2.4 * dt, Math.sign(ny) * ey * ey * 1.2 * dt);
+            }
+
+            document.addEventListener("pointerlockerror", () => {
+                if (!playing || isTouch) return;
+                if (!mouse.everLocked) useHoverLook();
+                else if (paused) toast("click resume again to lock the mouse");
+            });
+
+            renderer.domElement.addEventListener("mousedown", (event) => {
+                if (!playing || isTouch || paused) return;
+                if (!mouse.hover && document.pointerLockElement !== renderer.domElement) {
+                    lockPointer();
+                    return;
+                }
+                if (event.button === 0) startSwing();
+                else if (event.button === 2) toss();
+            });
+            renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
+
+            document.addEventListener("pointerlockchange", () => {
+                if (isTouch || !playing || mouse.hover) return;
+                const locked = document.pointerLockElement === renderer.domElement;
+                if (locked) mouse.everLocked = true;
+                setPaused(!locked);
+            });
+
+            document.addEventListener("mousemove", (event) => {
+                mouse.x = event.clientX;
+                mouse.y = event.clientY;
+                // over the HUD or the menu the cursor is for clicking, not steering
+                mouse.inside = !event.target.closest("#hud, #site-menu, .screen");
+                if (paused) return;
+                if (document.pointerLockElement === renderer.domElement) {
+                    look(event.movementX / 500, event.movementY / 500);
+                } else if (mouse.hover && mouse.inside) {
+                    look(event.movementX / 500, event.movementY / 500);
+                } else {
+                    return;
+                }
+                if (swing.active && swing.t < SW_FWD) swing.spin -= event.movementY / 120;
+            });
+
+            document.documentElement.addEventListener("mouseleave", () => {
+                mouse.inside = false;
+            });
+            window.addEventListener("blur", () => {
+                mouse.inside = false;
+            });
+
+            function look(dx, dy) {
+                camera.rotation.y -= dx * sens.v;
+                camera.rotation.x = clamp(camera.rotation.x - dy * sens.v, -1.45, 1.45);
+            }
+
+            // ---------------------------------------------------------------
+            // Input: touch. Left third moves (a floating stick), anywhere else
+            // looks; each finger is tracked on its own pointer id.
+            // ---------------------------------------------------------------
+            const joy = { id: -1, x: 0, y: 0, mx: 0, my: 0 };
+            const lookTouch = { id: -1, x: 0, y: 0 };
+            const joyEl = $("joy");
+            const knobEl = $("joyKnob");
+
+            function joyHome() {
+                joyEl.style.left = 24 + 55 + "px";
+                joyEl.style.top = window.innerHeight - 30 - 55 + "px";
+            }
+            function joyReset() {
+                joy.id = -1;
+                joy.mx = joy.my = 0;
+                knobEl.style.transform = "";
+                joyEl.classList.remove("active");
+                joyHome();
+                lookTouch.id = -1;
+            }
+            joyHome();
+            window.addEventListener("resize", joyHome);
+
+            window.addEventListener("pointerdown", (e) => {
+                if (e.pointerType !== "touch") return;
+                if (!document.body.classList.contains("touch")) document.body.classList.add("touch");
+                if (!playing || paused || e.target.closest("button, .card, #site-menu")) return;
+                if (joy.id < 0 && e.clientX < window.innerWidth * 0.38 && e.clientY > window.innerHeight * 0.3) {
+                    joy.id = e.pointerId;
+                    joy.x = e.clientX;
+                    joy.y = e.clientY;
+                    joyEl.style.left = e.clientX + "px";
+                    joyEl.style.top = e.clientY + "px";
+                    joyEl.classList.add("active");
+                } else if (lookTouch.id < 0) {
+                    lookTouch.id = e.pointerId;
+                    lookTouch.x = e.clientX;
+                    lookTouch.y = e.clientY;
+                }
+            });
+            window.addEventListener("pointermove", (e) => {
+                if (e.pointerId === joy.id) {
+                    let dx = e.clientX - joy.x;
+                    let dy = e.clientY - joy.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d > 44) {
+                        dx *= 44 / d;
+                        dy *= 44 / d;
+                    }
+                    knobEl.style.transform = "translate(" + dx + "px," + dy + "px)";
+                    joy.mx = dx / 44;
+                    joy.my = -dy / 44;
+                } else if (e.pointerId === lookTouch.id) {
+                    look((e.clientX - lookTouch.x) / 350, (e.clientY - lookTouch.y) / 350);
+                    lookTouch.x = e.clientX;
+                    lookTouch.y = e.clientY;
+                } else if (e.pointerId === swingTouch.id) {
+                    if (swing.active && swing.t < SW_FWD) swing.spin -= (e.clientY - swingTouch.y) / 50;
+                    swingTouch.y = e.clientY;
+                }
+            });
+            function pointerEnd(e) {
+                if (e.pointerId === joy.id) joyReset();
+                if (e.pointerId === lookTouch.id) lookTouch.id = -1;
+                if (e.pointerId === swingTouch.id) {
+                    swingTouch.id = -1;
+                    $("tSwing").classList.remove("down");
+                }
+            }
+            window.addEventListener("pointerup", pointerEnd);
+            window.addEventListener("pointercancel", pointerEnd);
+
+            const swingTouch = { id: -1, y: 0 };
+            function touchButton(id, onDown) {
+                const el = $(id);
+                el.addEventListener("pointerdown", (e) => {
+                    e.preventDefault();
+                    el.classList.add("down");
+                    onDown(e);
+                });
+                const up = () => el.classList.remove("down");
+                el.addEventListener("pointerup", up);
+                el.addEventListener("pointercancel", up);
+                el.addEventListener("pointerleave", up);
+            }
+            touchButton("tSwing", (e) => {
+                swingTouch.id = e.pointerId;
+                swingTouch.y = e.clientY;
+                startSwing();
+            });
+            touchButton("tToss", toss);
+            touchButton("tJump", () => {
+                if (playerOnFloor && playing && !paused) playerVelocity.y = 15;
+            });
 
             function getForwardVector() {
                 camera.getWorldDirection(playerDirection);
                 playerDirection.y = 0;
                 playerDirection.normalize();
-
                 return playerDirection;
             }
 
@@ -870,305 +2670,90 @@
                 playerDirection.y = 0;
                 playerDirection.normalize();
                 playerDirection.cross(camera.up);
-
                 return playerDirection;
             }
 
-            let mobileMoveX = 0;
-            let mobileMoveY = 0;
-            window.addEventListener('mobilemove', (e) => {
-                mobileMoveX = e.detail.x;
-                mobileMoveY = e.detail.y;
-            });
-
             function controls(deltaTime) {
+                if (!playing || paused) return;
                 const speedDelta = deltaTime * (playerOnFloor ? 25 : 8);
-
-                if (keyStates["KeyW"]) {
-                    playerVelocity.add(
-                        getForwardVector().multiplyScalar(speedDelta),
-                    );
-                }
-
-                if (keyStates["KeyS"]) {
-                    playerVelocity.add(
-                        getForwardVector().multiplyScalar(-speedDelta),
-                    );
-                }
-
-                if (keyStates["KeyA"]) {
-                    playerVelocity.add(
-                        getSideVector().multiplyScalar(-speedDelta),
-                    );
-                }
-
-                if (keyStates["KeyD"]) {
-                    playerVelocity.add(
-                        getSideVector().multiplyScalar(speedDelta),
-                    );
-                }
-
-                // Mobile Joystick Movement
-                if (mobileMoveY !== 0) {
-                    playerVelocity.add(
-                        getForwardVector().multiplyScalar(speedDelta * mobileMoveY),
-                    );
-                }
-                if (mobileMoveX !== 0) {
-                    playerVelocity.add(
-                        getSideVector().multiplyScalar(speedDelta * mobileMoveX),
-                    );
-                }
-
-                if (playerOnFloor) {
-                    if (keyStates["Space"]) {
-                        playerVelocity.y = 15;
-                    }
-                }
+                let fwd = joy.my;
+                let side = joy.mx;
+                if (keyStates["KeyW"] || keyStates["ArrowUp"]) fwd += 1;
+                if (keyStates["KeyS"] || keyStates["ArrowDown"]) fwd -= 1;
+                if (keyStates["KeyA"] || keyStates["ArrowLeft"]) side -= 1;
+                if (keyStates["KeyD"] || keyStates["ArrowRight"]) side += 1;
+                if (fwd) playerVelocity.addScaledVector(getForwardVector(), speedDelta * clamp(fwd, -1, 1));
+                if (side) playerVelocity.addScaledVector(getSideVector(), speedDelta * clamp(side, -1, 1));
+                if (playerOnFloor && keyStates["Space"]) playerVelocity.y = 15;
             }
 
-            const loader = new GLTFLoader().setPath(
-                "/assets/obj/",
+            // ---------------------------------------------------------------
+            // Load and loop
+            // ---------------------------------------------------------------
+            const loader = new GLTFLoader().setPath("/assets/obj/");
+            loader.load(
+                "col-wld.glb",
+                (gltf) => {
+                    scene.add(gltf.scene);
+                    worldOctree.fromGraphNode(gltf.scene);
+                    gltf.scene.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            if (child.material.map) child.material.map.anisotropy = 4;
+                        }
+                    });
+                    worldReady = true;
+                    $("loadBar").firstElementChild.style.width = "100%";
+                    $("loadText").textContent = "ready";
+                    $("playBtn").disabled = false;
+                    $("playBtn").focus({ preventScroll: true });
+                },
+                (e) => {
+                    if (e.total) $("loadBar").firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + "%";
+                },
+                () => {
+                    $("loadText").textContent = "the world failed to load — reload the page to try again";
+                },
             );
 
-            loader.load("col-wld.glb", (gltf) => {
-                scene.add(gltf.scene);
-
-                worldOctree.fromGraphNode(gltf.scene);
-
-                gltf.scene.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        if (child.material.map) {
-                            child.material.map.anisotropy = 4;
-                        }
-                    }
-                });
-
-                const helper = new OctreeHelper(worldOctree);
-                helper.visible = false;
-                scene.add(helper);
-
-                animate();
-            });
-
-            function teleportPlayerIfOob() {
-                if (camera.position.y <= -25) {
-                    playerCollider.start.set(0, 0.35, 0);
-                    playerCollider.end.set(0, 1, 0);
-                    playerCollider.radius = 0.35;
-                    camera.position.copy(playerCollider.end);
-                    camera.rotation.set(0, 0, 0);
-                }
-            }
-
+            let lastW = 0;
+            let lastH = 0;
             function animate() {
-                const deltaTime =
-                    Math.min(0.05, clock.getDelta()) / STEPS_PER_FRAME;
-
-                for (let i = 0; i < STEPS_PER_FRAME; i++) {
-                    controls(deltaTime);
-
-                    updatePlayer(deltaTime);
-
-                    updateSpheres(deltaTime);
-
-                    teleportPlayerIfOob();
-                }
-
-                // Local viewmodel racket swing animation
-                if (isSwinging) {
-                    const elapsed = performance.now() - swingStartTime;
-                    if (elapsed > 180) {
-                        isSwinging = false;
-                        localRacket.position.set(0.3, -0.25, -0.5);
-                        localRacket.rotation.set(0.2, -0.3, 0);
-                    } else {
-                        const progress = elapsed / 180;
-                        localRacket.position.x = 0.3 - 0.6 * Math.sin(progress * Math.PI);
-                        localRacket.position.y = -0.25 + 0.3 * Math.sin(progress * Math.PI);
-                        localRacket.position.z = -0.5 + 0.1 * Math.cos(progress * Math.PI);
-                        localRacket.rotation.x = 0.2 + 1.8 * Math.sin(progress * Math.PI);
-                        localRacket.rotation.y = -0.3 - 1.2 * Math.sin(progress * Math.PI);
-                    }
-                }
-
-                // Send position updates / Broadcast scene state
-                if (isHost) {
-                    // Update client avatars in Host scene
-                    clients.forEach((client, peerId) => {
-                        if (client.avatar) {
-                            client.avatar.position.copy(client.pos);
-                            // Adjust head & body
-                            client.avatar.rotation.y = client.rot.y;
-                            
-                            // Animate other clients' rackets when swinging
-                            const rack = client.avatar.userData.racket;
-                            if (rack) {
-                                if (client.swing) {
-                                    const elapsed = performance.now() - client.swingTime;
-                                    if (elapsed > 180) {
-                                        client.swing = false;
-                                        rack.position.set(0.35, 0.3, 0.2);
-                                        rack.rotation.set(0, 0, -Math.PI / 6);
-                                    } else {
-                                        const progress = elapsed / 180;
-                                        rack.rotation.x = -Math.PI / 6 + 2.0 * Math.sin(progress * Math.PI);
-                                        rack.rotation.y = -Math.PI / 6 - 1.5 * Math.sin(progress * Math.PI);
-                                    }
-                                } else {
-                                    rack.rotation.x = client.rot.x;
-                                }
-                            }
-                        }
-                    });
-
-                    // Prepare sync message
-                    const stateMsg = {
-                        type: 'state',
-                        balls: spheres.map((s, idx) => ({
-                            i: idx,
-                            p: { x: s.collider.center.x, y: s.collider.center.y, z: s.collider.center.z },
-                            v: { x: s.velocity.x, y: s.velocity.y, z: s.velocity.z }
-                        })),
-                        players: Array.from(clients.entries()).map(([id, client]) => ({
-                            id: id,
-                            p: { x: client.pos.x, y: client.pos.y, z: client.pos.z },
-                            r: { x: client.rot.x, y: client.rot.y, z: client.rot.z }
-                        })).concat([{
-                            id: 'host',
-                            p: { x: playerCollider.end.x, y: playerCollider.end.y, z: playerCollider.end.z },
-                            r: { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z }
-                        }])
-                    };
-                    broadcast(stateMsg);
-                } else {
-                    // Client sends update to Host
-                    if (conn && conn.open) {
-                        conn.send({
-                            type: 'update',
-                            pos: { x: playerCollider.end.x, y: playerCollider.end.y, z: playerCollider.end.z },
-                            rot: { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z }
-                        });
-                    }
-                    // Interpolate client updates for host/other players
-                    clients.forEach((client, peerId) => {
-                        if (client.avatar) {
-                            const rack = client.avatar.userData.racket;
-                            if (client.swing && rack) {
-                                const elapsed = performance.now() - client.swingTime;
-                                if (elapsed > 180) {
-                                    client.swing = false;
-                                    rack.position.set(0.35, 0.3, 0.2);
-                                    rack.rotation.set(0, 0, -Math.PI / 6);
-                                } else {
-                                    const progress = elapsed / 180;
-                                    rack.rotation.x = -Math.PI / 6 + 2.0 * Math.sin(progress * Math.PI);
-                                    rack.rotation.y = -Math.PI / 6 - 1.5 * Math.sin(progress * Math.PI);
-                                }
-                            }
-                        }
-                    });
-                }
-
-                renderer.render(scene, camera);
-
                 requestAnimationFrame(animate);
+                if (window.innerWidth !== lastW || window.innerHeight !== lastH) {
+                    lastW = window.innerWidth;
+                    lastH = window.innerHeight;
+                    onWindowResize();
+                }
+                const frame = clock.getDelta();
+                const raw = Math.min(0.05, frame);
+                const deltaTime = raw / STEPS_PER_FRAME;
 
+                if (worldReady) {
+                    for (let i = 0; i < STEPS_PER_FRAME; i++) {
+                        controls(deltaTime);
+                        updatePlayer(deltaTime);
+                        stepWorld(deltaTime);
+                        teleportPlayerIfOob();
+                    }
+                }
+                if (!playing) camera.rotation.y += raw * 0.06; // slow look-around behind the start screen
+
+                edgeTurn(raw);
+                updateSwing(raw);
+                updateAvatars(raw);
+                updateBallMeshes(raw);
+                netTick(raw);
+                updateLabels();
+                drawSplats();
+                governQuality(frame);
+
+                if (directionalLight.castShadow) renderer.shadowMap.needsUpdate = true;
                 composer.render();
             }
+            animate();
         </script>
-        <div id="mobileShootBtn" style="position: absolute; bottom: 2em; right: 2em; width: 80px; height: 80px; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; display: none; justify-content: center; align-items: center; z-index: 10000; touch-action: none; user-select: none;">
-            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.4); border-radius: 50%;"></div>
-        </div>
-
-        <audio autoplay id="backgroundMusic">
-            <source src="/assets/tennis_sound.mp3" />
-        </audio>
-
-        <div id="joystickContainer" style="position: absolute; bottom: 2em; left: 2em; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.25); border-radius: 50%; display: none; justify-content: center; align-items: center; z-index: 10000; touch-action: none; user-select: none; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);">
-            <div id="joystickKnob" style="width: 44px; height: 44px; background: rgba(255,255,255,0.45); border-radius: 50%; pointer-events: none; transition: transform 0.05s ease;"></div>
-        </div>
-
-        <script>
-            var audio = document.getElementById("backgroundMusic");
-            audio.volume = 0.2;
-
-            // Show mobile controls if touch device is detected
-            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-                var btn = document.getElementById('mobileShootBtn');
-                if (btn) {
-                    btn.style.display = 'flex';
-                    btn.addEventListener('touchstart', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.dispatchEvent(new CustomEvent('mobileshoot'));
-                    }, { passive: false });
-                }
-
-                // Joystick Implementation
-                var joyContainer = document.getElementById('joystickContainer');
-                var joyKnob = document.getElementById('joystickKnob');
-                if (joyContainer && joyKnob) {
-                    joyContainer.style.display = 'flex';
-
-                    var joyActive = false;
-                    var joyCenterX = 0;
-                    var joyCenterY = 0;
-
-                    joyContainer.addEventListener('touchstart', function(e) {
-                        e.preventDefault();
-                        joyActive = true;
-                        var rect = joyContainer.getBoundingClientRect();
-                        joyCenterX = rect.left + rect.width / 2;
-                        joyCenterY = rect.top + rect.height / 2;
-                        updateJoystick(e.targetTouches[0]);
-                    }, { passive: false });
-
-                    window.addEventListener('touchmove', function(e) {
-                        if (!joyActive) return;
-                        // Match corresponding touch on joystick
-                        for (var i = 0; i < e.touches.length; i++) {
-                            var touch = e.touches[i];
-                            var rect = joyContainer.getBoundingClientRect();
-                            if (touch.clientX >= rect.left - 50 && touch.clientX <= rect.right + 50 &&
-                                touch.clientY >= rect.top - 50 && touch.clientY <= rect.bottom + 50) {
-                                updateJoystick(touch);
-                                break;
-                            }
-                        }
-                    }, { passive: true });
-
-                    window.addEventListener('touchend', function(e) {
-                        if (joyActive && e.touches.length === 0) {
-                            joyActive = false;
-                            joyKnob.style.transform = 'translate(0px, 0px)';
-                            window.dispatchEvent(new CustomEvent('mobilemove', { detail: { x: 0, y: 0 } }));
-                        }
-                    }, { passive: true });
-
-                    function updateJoystick(touch) {
-                        var dx = touch.clientX - joyCenterX;
-                        var dy = touch.clientY - joyCenterY;
-                        var dist = Math.sqrt(dx * dx + dy * dy);
-                        var maxDist = 40;
-
-                        if (dist > maxDist) {
-                            dx = (dx / dist) * maxDist;
-                            dy = (dy / dist) * maxDist;
-                        }
-
-                        joyKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
-                        window.dispatchEvent(new CustomEvent('mobilemove', { detail: { x: dx / maxDist, y: -dy / maxDist } }));
-                    }
-                }
-            }
-        </script>
-        <!-- <p style="position: absolute; bottom: 2em; left: 2em">
-      3 other player/s online
-    </p>-->
     <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
 <link rel="stylesheet" href="assets/menu.css">
 <nav id="site-menu" class="site-menu site-menu--tr" aria-label="Site menu">

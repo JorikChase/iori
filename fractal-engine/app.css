@@ -50,3 +50,8 @@ body.grab #field { cursor: grabbing; }
 #grab .kb .tk { opacity: 0.5; }
 #structure .pn { opacity: 0.8; }
 #structure .pn .pd { fill: #fff; stroke: none; }
+#grab .rg { opacity: 0.9; }
+#grab .rg .sp { opacity: 0.35; }
+#grab .rg .dot { fill: #fff; stroke: none; }
+#grab .rg .sel { stroke-width: 1.5; }
+#grab .rg .far { stroke-dasharray: 2 3; }

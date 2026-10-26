@@ -418,11 +418,13 @@ export async function createRenderer(canvas) {
   // v: { pos, right, up, fwd, tanHalfFov, aperture, focus, blend, light, glow, hue, fog, exposure,
   //      terrace, stepScale, maxDist, epsScale, frame, key, ambient, maxSteps, glowWidth,
   //      iridescence, spread, shadowK }
+  const packView = (out, v, vw, vh) => out.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.blend,
+    ...v.light, v.glow, v.hue, v.fog, v.exposure, v.terrace, v.stepScale, v.maxDist, v.epsScale, v.frame,
+    ...v.key, v.ambient, vw, vh, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, v.lyapMix || 0, 0,
+    v.lyapCentre || 0, v.lyapScale || 1, 0, 0]);
+
   function frame(v) {
-    viewData.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.blend,
-      ...v.light, v.glow, v.hue, v.fog, v.exposure, v.terrace, v.stepScale, v.maxDist, v.epsScale, v.frame,
-      ...v.key, v.ambient, w, h, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, v.lyapMix || 0, 0,
-      v.lyapCentre || 0, v.lyapScale || 1, 0, 0]);
+    packView(viewData, v, w, h);
     device.queue.writeBuffer(viewBuf, 0, viewData);
     lastExposure = v.exposure;
 
@@ -451,9 +453,73 @@ export async function createRenderer(canvas) {
     device.queue.submit([enc.finish()]);
   }
 
+  // A thumbnail of another formula: its own small accumulation, the shared formula buffers borrowed
+  // for the length of one synchronous submission and given back before anything else can run, then a
+  // readback. Returns a data URL. v is a frame view (see frame()); the view is rendered as a moving
+  // frame (no shadows) for speed.
+  const thumbViewBuf = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const thumbDispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  async function renderThumb(f, v, tw, th, samples = 8) {
+    const tp = pack(f);
+    const ttex = [0, 1].map(() => device.createTexture({ size: [tw, th], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING }));
+    const groups = [0, 1].map((i) => device.createBindGroup({
+      layout: viewLayout,
+      entries: [{ binding: 0, resource: { buffer: thumbViewBuf } }, { binding: 1, resource: ttex[i].createView() }, { binding: 2, resource: ttex[1 - i].createView() }],
+    }));
+    const out = device.createTexture({ size: [tw, th], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+    const bpr = Math.ceil((tw * 4) / 256) * 256;
+    const rb = device.createBuffer({ size: bpr * th, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(headBuf, 0, tp.head);
+    device.queue.writeBuffer(opsBuf, 0, tp.ops);
+    const vd = new Float32Array(VIEW_FLOATS);
+    let c = 0;
+    for (let i = 0; i < samples; i++) {
+      packView(vd, { ...v, blend: 1 / (i + 1), frame: 9973 + i, quality: 0 }, tw, th);
+      device.queue.writeBuffer(thumbViewBuf, 0, vd);
+      const enc = device.createCommandEncoder();
+      const cp = enc.beginComputePass();
+      cp.setPipeline(marchPipe);
+      cp.setBindGroup(0, formulaGroup);
+      cp.setBindGroup(1, groups[c]);
+      cp.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(th / 8));
+      cp.end();
+      device.queue.submit([enc.finish()]);
+      c = 1 - c;
+    }
+    device.queue.writeBuffer(thumbDispBuf, 0, new Float32Array([tw, th, tw, th, v.exposure, 0, 0, 0, 0, 0, 0, 0]));
+    const dg = device.createBindGroup({
+      layout: dispLayout,
+      entries: [{ binding: 0, resource: { buffer: thumbDispBuf } }, { binding: 1, resource: ttex[c].createView() }, { binding: 2, resource: lensTex.createView() }],
+    });
+    const enc = device.createCommandEncoder();
+    const rp = enc.beginRenderPass({ colorAttachments: [{ view: out.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+    rp.setPipeline(dispPipe);
+    rp.setBindGroup(0, dg);
+    rp.draw(3);
+    rp.end();
+    enc.copyTextureToBuffer({ texture: out }, { buffer: rb, bytesPerRow: bpr }, [tw, th]);
+    device.queue.submit([enc.finish()]);
+    // give the formula buffers back
+    if (packed) { device.queue.writeBuffer(headBuf, 0, packed.head); device.queue.writeBuffer(opsBuf, 0, packed.ops); }
+    await rb.mapAsync(GPUMapMode.READ);
+    const src = new Uint8Array(rb.getMappedRange());
+    const img = new ImageData(tw, th);
+    const bgra = format.startsWith('bgra');
+    for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+      const i = y * bpr + x * 4, o = (y * tw + x) * 4;
+      img.data[o] = src[i + (bgra ? 2 : 0)]; img.data[o + 1] = src[i + 1]; img.data[o + 2] = src[i + (bgra ? 0 : 2)]; img.data[o + 3] = 255;
+    }
+    rb.unmap();
+    [rb, out, ...ttex].forEach((t) => t.destroy());
+    const cv = document.createElement('canvas');
+    cv.width = tw; cv.height = th;
+    cv.getContext('2d').putImageData(img, 0, 0);
+    return cv.toDataURL('image/jpeg', 0.8);
+  }
+
   // the push engine shares the device, the canvas and the formula buffers
   return {
-    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens,
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens, renderThumb,
     // the latest pull image, for the loop engine to start from
     accumView: () => (tex.length ? tex[cur].createView() : null),
     get size() { return [w, h]; }, get packed() { return packed; },

@@ -1,23 +1,35 @@
 // The lineage: every formula you made, as a tree. Nothing is ever overwritten — going back and editing
 // starts a branch, so yesterday's fern is always one click away. Each node keeps the formula, the camera,
 // the mode and a thumbnail. Kept in this browser's localStorage (a per-viewer convenience; the formula
-// itself always travels in the URL).
+// itself always travels in the URL). Several tabs share it: ids are unique across tabs and every save
+// merges with what is stored, so one tab never overwrites another's nodes.
 
 const KEY = 'fractal-engine.lineage.v1';
 const MAX_NODES = 600;
 const MAX_THUMBS = 160;
 
 export function createLineage() {
-  let nodes = [], cur = null, nextId = 1;
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (raw && Array.isArray(raw.nodes)) { nodes = raw.nodes; cur = raw.cur; nextId = raw.nextId || nodes.length + 1; }
-  } catch { /* private window or blocked storage: the lineage lives for this page only */ }
+  let nodes = [], cur = null;
+  const stored = () => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+      return raw && Array.isArray(raw.nodes) ? raw : null;
+    } catch { return null; } // private window or blocked storage: the lineage lives for this page only
+  };
+  const first = stored();
+  if (first) { nodes = first.nodes; cur = first.cur; }
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-  const byId = (id) => nodes.find((n) => n.id === id) || null;
+  const byId = (id) => nodes.find((n) => String(n.id) === String(id)) || null;
   const same = (a, b) => a && b && a.text === b.text && a.mode === b.mode;
 
   function save() {
+    // merge with what other tabs stored since: theirs first, ours win on the same id
+    const other = stored();
+    if (other) {
+      const mine = new Set(nodes.map((n) => String(n.id)));
+      nodes = [...other.nodes.filter((n) => !mine.has(String(n.id))), ...nodes].sort((a, b) => (a.t || 0) - (b.t || 0));
+    }
     // keep the newest nodes and thumbnails; a pruned parent turns its children into roots
     if (nodes.length > MAX_NODES) {
       const keep = new Set(nodes.slice(-MAX_NODES).map((n) => n.id));
@@ -26,14 +38,14 @@ export function createLineage() {
     }
     const withThumb = nodes.filter((n) => n.thumb);
     for (const n of withThumb.slice(0, Math.max(0, withThumb.length - MAX_THUMBS))) delete n.thumb;
-    try { localStorage.setItem(KEY, JSON.stringify({ nodes, cur, nextId })); } catch { /* full or blocked */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ nodes, cur })); } catch { /* full or blocked */ }
   }
 
   // snap: { text, cam, mode }. The same formula and mode as the current node only refreshes its camera.
   function commit(snap) {
     const c = byId(cur);
     if (same(c, snap)) { c.cam = snap.cam; save(); return c; }
-    const n = { id: nextId++, parent: c ? c.id : null, text: snap.text, cam: snap.cam, mode: snap.mode, t: Date.now() };
+    const n = { id: newId(), parent: c ? c.id : null, text: snap.text, cam: snap.cam, mode: snap.mode, t: Date.now() };
     nodes.push(n);
     cur = n.id;
     save();
@@ -43,7 +55,7 @@ export function createLineage() {
   function jump(id) { const n = byId(id); if (n) { cur = id; save(); } return n; }
   const parent = () => { const c = byId(cur); return c && c.parent != null ? byId(c.parent) : null; };
   const child = () => {
-    const kids = nodes.filter((n) => n.parent === cur);
+    const kids = nodes.filter((n) => n.parent != null && String(n.parent) === String(cur));
     return kids.length ? kids[kids.length - 1] : null;
   };
   function setThumb(id, url) { const n = byId(id); if (n) { n.thumb = url; save(); } }
@@ -70,7 +82,7 @@ export function createLineage() {
       ch.forEach((k) => walk(k, depth + 1));
     };
     roots.forEach((r) => walk(r, 0));
-    return shown.map((n) => ({ ...n, ...pos.get(n.id), current: n.id === cur }));
+    return shown.map((n) => ({ ...n, ...pos.get(n.id), current: String(n.id) === String(cur) }));
   }
 
   return { commit, jump, parent, child, setThumb, layout, get cur() { return cur; }, get size() { return nodes.length; }, byId };

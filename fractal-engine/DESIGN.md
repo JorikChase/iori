@@ -379,7 +379,40 @@ does not follow an edit made inside it; the strip and ruler are not interactive.
 
 Not yet: a sparse 3-D loop; knobs on touch need the hold (no MIDI); the flow from push starts from the
 last pull image, not the push image; pins are per page (not saved in the lineage).
-Next: P7 (breed — MAP-Elites archive, the neighbour ring, constant-speed walks).
+
+**P7 done 2026-10-26** — breeding (`design/shots/p7-ring.jpg`):
+
+- `core/breed.js` (unit-tested): `mutate` steps D on-screen pixels in a random direction across the
+  unpinned parameters (each moves D·zₖ / its px-per-unit, z a random unit vector), so a neighbour is a
+  known visual distance away (tested at 10, 40, 120 px); `distancePx` measures two formulas apart by the
+  metric; `features` takes a sensing pass to {surface fraction, median λ, quality = spread of hit depths
+  ÷ their mean, penalised for an empty or full view}; `createArchive` is MAP-Elites 8×8 over (surface
+  fraction, λ about the view's own median ± its spread × 3); `spread` picks elites far apart in feature
+  space (farthest-point).
+- The renderer can now draw and sense formulas that are not on screen: `renderThumb` borrows the
+  formula buffers for one synchronous submission into its own small accumulation and gives them back
+  before anything else can run, then reads back a JPEG; `sense(…, other = true)` does the same.
+- The archive grows in the background whenever the hand is off (drift included): one candidate every
+  150 ms — a parent (an elite 60 %, else the formula on screen), a step of 30–220 px, a 16×10 sensing
+  pass. It belongs to one structure and roughly one view. Measured: 40 candidates in 129 ms filled 19
+  of 64 cells (surface 6–97 %, λ 0.48–1.11).
+- The ring (hold still 1.2 s, pull or push): four near neighbours (35, 60, 90, 130 px) and four archive
+  elites chosen for spread (filled by far mutations when the archive is thin), placed around the
+  cursor in the cyclic order of their feature direction (surface fraction → right, λ → down), evenly
+  spaced; spoke length 110 + 110·tanh(D/160) px; thumbnails fill in as they render. Point to select,
+  release to walk there, release at the centre or Esc to stay, scroll for farther or nearer. Measured:
+  open with eight thumbnails in 196 ms.
+- Walks keep a constant visual speed: parameters linear in time for D / 150 px/s (an archive elite
+  224 px away took 1.7 s), then a lineage node. R replays the lineage from its root to here as a chain
+  of walks along the existing nodes, adding none; any input stops it.
+- Lineage across tabs: ids are now unique across tabs and every save merges with what is stored (two
+  tabs used to overwrite each other's nodes). Before the replay fix, one test replay added ~12 duplicate
+  nodes to the shared lineage; they are ordinary branches repeating history.
+
+Not yet: structural mutations (adding, removing or swapping ops) — neighbours vary parameters only;
+the archive's features are view-dependent, so it restarts after a flight; recorded animation paths
+beyond lineage replay (P8 brings export).
+Next: P8 (final render — JIT WGSL, 4K tiles, video, splat and mesh export).
 
 ## Sources
 

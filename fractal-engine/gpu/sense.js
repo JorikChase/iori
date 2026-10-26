@@ -9,7 +9,7 @@
 // and around the cursor it draws the reticle's ticks.
 
 import { INTERP, DUAL } from './wgsl.js';
-import { paramTangents } from './pack.js';
+import { paramTangents, pack } from './pack.js';
 
 const SENSE = INTERP + DUAL + /* wgsl */ `
 struct SV {
@@ -94,10 +94,12 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
   // returns { params: [{ oi, op, key, value, pxPerUnit }], rays: [{ uv, hit, t, x, grad, lambda,
   //   speeds }], lyap: { median, p10, p90 }, hits, points, pixelAngle }
   // speeds are in units of pixelHeight (pass CSS pixels for hand motion)
-  async function sense(formula, v, pixelHeight, uvs = grid) {
+  // other: the formula is not the one on screen — upload it for this pass and give the buffers back
+  async function sense(formula, v, pixelHeight, uvs = grid, other = false) {
     if (busy) return null;
     busy = true;
     try {
+      if (other) { const pk = pack(formula); device.queue.writeBuffer(headBuf, 0, pk.head); device.queue.writeBuffer(opsBuf, 0, pk.ops); }
       const tg = paramTangents(formula);
       const nRows = Math.max(1, tg.list.length);
       const n = uvs.length / 2;
@@ -126,6 +128,7 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
       cp.end();
       enc.copyBufferToBuffer(outBuf, 0, readBuf, 0, n * nRows * 16);
       device.queue.submit([enc.finish()]);
+      if (other && R.packed) { device.queue.writeBuffer(headBuf, 0, R.packed.head); device.queue.writeBuffer(opsBuf, 0, R.packed.ops); }
       await readBuf.mapAsync(GPUMapMode.READ);
       const o = new Float32Array(readBuf.getMappedRange().slice(0));
       readBuf.unmap();

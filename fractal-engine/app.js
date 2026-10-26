@@ -4,6 +4,11 @@
 //   WASD QE arrows  fly               shift             faster
 //   space           drift on / off: after a pause the camera glides and every unpinned parameter wanders
 //                   a few pixels about its home value (herding); it resumes on its own otherwise
+//   long hold       (still for 1.2 s) the breed ring: eight neighbours around the cursor — four near, four
+//                   from the archive of variety — placed by their feature direction, spoke length their
+//                   visual distance; release on one to walk there at constant visual speed, scroll for
+//                   farther or nearer neighbours, release at the centre to stay
+//   R               replay the lineage from its root to here, at constant visual speed
 //   F (in a grab)   pin this region: the parameters that move it stop wandering; F on a pin unpins it
 //   in the loop      scroll zooms its window, drag pans it, shift-drag rolls it (the optical machine's
 //                   distance, offset and roll); drift turns it slowly
@@ -28,7 +33,9 @@ import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
 import { createSense } from './gpu/sense.js';
 import { createLoop } from './gpu/loop.js';
-import { makeCamera, drawGrab, clearGrab, drawLens, drawKnobs } from './ui/overlay.js';
+import { makeCamera, drawGrab, clearGrab, drawLens, drawKnobs, drawRing } from './ui/overlay.js';
+import { mutate, distancePx, features, createArchive, spread } from './core/breed.js';
+import { gridUVs } from './gpu/sense.js';
 import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
@@ -120,7 +127,7 @@ function remember() {
 // Transitions never crossfade. Between formulas of the same structure the parameters and the camera
 // move (350 ms, eased), so every frame between is a real fractal. Across structures or modes the old
 // image flows through the new formula's map in the loop engine (380 ms), then the new mode takes over.
-const MORPH_MS = 350, FLOW_MS = 380;
+const MORPH_MS = 350, FLOW_MS = 380, WALK_PX_S = 150;
 const structureOf = (g) => JSON.stringify([g.slots.map((sl) => sl.map((o) => o.op)), g.schedule, g.iters, g.c || null]);
 
 function restore(node) {
@@ -141,6 +148,18 @@ function restore(node) {
   drawStructureNow();
 }
 
+// walk to a formula of the same structure at constant visual speed: parameters linear in time, the
+// duration its distance by the metric over WALK_PX_S. then: called on arrival
+function walkTo(text, then, commit = true) {
+  const to = normalize(parse(text));
+  const from = normalize(state.formula);
+  if (structureOf(to) !== structureOf(from)) { setFormula(text); flowTo(state.mode); if (then) then(); return; }
+  const m = state.sensed ? state.sensed.params : [];
+  const D = m.length ? distancePx(from, to, m) : 100;
+  const dur = Math.max(250, Math.min(3000, (D / WALK_PX_S) * 1000));
+  state.trans = { kind: 'walk', t0: performance.now(), dur, from: { f: from, cam: JSON.parse(JSON.stringify(state.cam)) }, to: { f: to, cam: JSON.parse(JSON.stringify(state.cam)) }, then, commit };
+}
+
 function flowTo(mode) {
   if (!LP) { state.mode = mode; return; }
   state.loopSeed = 1;
@@ -151,8 +170,10 @@ function flowTo(mode) {
 function advanceTransition(now) {
   const T = state.trans;
   if (!T) return;
-  const s = Math.min(1, (now - T.t0) / T.dur), e = s * s * (3 - 2 * s);
-  if (T.kind === 'morph') {
+  const s = Math.min(1, (now - T.t0) / T.dur);
+  // a walk keeps a constant speed; a morph eases in and out
+  const e = T.kind === 'walk' ? s : s * s * (3 - 2 * s);
+  if (T.kind === 'morph' || T.kind === 'walk') {
     const a = T.from.f, b = T.to.f;
     const g = JSON.parse(JSON.stringify(b));
     g.slots.forEach((sl, i) => sl.forEach((o, j) => {
@@ -161,7 +182,12 @@ function advanceTransition(now) {
     setFormula(format(g), true);
     const c0 = T.from.cam, c1 = T.to.cam;
     state.cam = { pos: c0.pos.map((v, i) => v + (c1.pos[i] - v) * e), yaw: c0.yaw + (c1.yaw - c0.yaw) * e, pitch: c0.pitch + (c1.pitch - c0.pitch) * e };
-    if (s >= 1) { setFormula(format(b), true); state.cam = c1; state.trans = null; state.home = null; }
+    if (s >= 1) {
+      setFormula(format(b), true); state.cam = c1; state.trans = null; state.home = null;
+      if (T.kind === 'walk' && T.commit) remember();
+      if (T.kind === 'walk') writeHash();
+      if (T.then) T.then();
+    }
   } else if (s >= 1) {
     state.mode = T.then;
     state.trans = null;
@@ -206,13 +232,13 @@ function toggleStructure() {
 }
 
 structureSvg.addEventListener('pointermove', (e) => {
-  const id = e.target && e.target.dataset ? +e.target.dataset.id || null : null;
+  const id = e.target && e.target.dataset ? e.target.dataset.id || null : null;
   if (id !== state.hoverNode) { state.hoverNode = id; drawStructureNow(); }
 });
 structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; drawStructureNow(); });
 structureSvg.addEventListener('click', (e) => {
-  const id = e.target && e.target.dataset ? +e.target.dataset.id : NaN;
-  if (Number.isFinite(id)) restore(lineage.jump(id));
+  const id = e.target && e.target.dataset ? e.target.dataset.id : null;
+  if (id) restore(lineage.jump(id));
 });
 
 // ---------- camera ---------------------------------------------------------------------------------
@@ -492,25 +518,36 @@ function exitGrab(revert = false) {
 let drag = null;
 const pointers = new Map();
 canvas.addEventListener('pointerdown', (e) => {
+  stopReplay();
   try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
     drag = { x: e.clientX, y: e.clientY };
     const h = { x: e.clientX, y: e.clientY };
     h.timer = setTimeout(() => { if (hold === h) enterGrab(h.x, h.y, h).then((ok) => { if (ok) drag = null; }); }, HOLD_MS);
+    // still longer: the breed ring (pull and push; the loop's hold is its knobs)
+    h.ringTimer = setTimeout(() => {
+      if (hold === h && state.mode !== 'loop' && !(grab && grab.moved)) { drag = null; openRing(h.x, h.y); }
+    }, RING_MS);
     hold = h;
     document.body.classList.add('grab');
-  } else if (hold) { clearTimeout(hold.timer); hold = null; }
+  } else if (hold) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
 });
 canvas.addEventListener('pointermove', (e) => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
+  if (ring) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointRing(e.clientX, e.clientY); return; }
   if (lens) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moveLens(e.clientX, e.clientY); return; }
   if (grab && grab.knobs) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); turnKnobs(e.clientX, e.clientY); return; }
-  if (grab) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); editGrab(e.clientX); return; }
+  if (grab) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (Math.abs(e.clientX - grab.x0) > HOLD_SLOP) grab.moved = true;
+    editGrab(e.clientX);
+    return;
+  }
   // still deciding: a press that becomes a grab must not turn the camera meanwhile
   if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) <= HOLD_SLOP) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
-  if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > HOLD_SLOP) { clearTimeout(hold.timer); hold = null; }
+  if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > HOLD_SLOP) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     const before = Math.hypot(a.x - b.x, a.y - b.y);
@@ -540,7 +577,8 @@ const release = (e) => {
   pointers.delete(e.pointerId);
   if (pointers.size === 0) {
     drag = null;
-    if (hold) { clearTimeout(hold.timer); hold = null; }
+    if (hold) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
+    closeRing(true);
     exitGrab();
     document.body.classList.remove('grab');
   }
@@ -550,6 +588,7 @@ canvas.addEventListener('pointercancel', release);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (ring) { const at = ring.at, sc = ring.scale * (e.deltaY > 0 ? 1.5 : 1 / 1.5); ring = null; openRing(at[0], at[1], sc); return; }
   if (grab && grab.knobs) { nextKnobs(e.deltaY > 0 ? 1 : -1, e.clientX, e.clientY); return; }
   if (grab) { passAttention(e.deltaY > 0 ? 1 : -1, e.clientX); return; }
   if (state.mode === 'loop') { zoomLoop(Math.exp(Math.max(-4, Math.min(4, e.deltaY / 100)) * 0.08)); touched(); return; }
@@ -576,7 +615,10 @@ function toggleMode() {
 canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && ring) { closeRing(false); return; }
   if (e.code === 'Escape' && grab) { exitGrab(true); return; }
+  if (e.code === 'KeyR' && !e.repeat && !grab && !ring) { replay(); return; }
+  stopReplay();
   if (e.code === 'KeyF' && grab && !e.repeat) { togglePin(); return; }
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && grab && !grab.knobs && !e.repeat) { openLens(); return; }
   if (e.code === 'Tab') { e.preventDefault(); toggleStructure(); return; }
@@ -810,6 +852,7 @@ async function step() {
     lyapScale: state.sensed ? 1 / Math.max((state.sensed.lyap.p90 - state.sensed.lyap.p10) / 2, 0.05) : 2,
   });
   if (!moving && state.senseDue && S) { state.senseDue = false; senseNow(); }
+  else if (!interacting && mode === 'pull' && state.sensed && !state.senseDue) growArchive();
   state.n++;
   if (state.thumbDue != null && state.n >= 16) {
     const url = captureThumb();
@@ -884,6 +927,127 @@ function loopFrame(b) {
   }, canvas);
 }
 
+// ---------- breeding: the archive and the ring -------------------------------------------------------
+// The archive fills in the background while the hand is still: a parent (an elite, or the formula on
+// screen), a step of 30–220 px by the metric, a small sensing pass of the candidate for its features.
+// It belongs to one structure and roughly one view (the camera to a quarter unit and a fifth of a radian):
+// a new structure or a flight elsewhere starts it over; drift does not.
+
+const archive = createArchive({ bins: 8 });
+const SMALL = gridUVs(16, 10);
+let archiveBusy = false, lastArchive = 0;
+const viewKey = () => structureOf(normalize(state.formula)) + '|' + state.cam.pos.map((v) => Math.round(v * 4)).join(',') + ',' + Math.round(state.cam.yaw * 5) + ',' + Math.round(state.cam.pitch * 5);
+const rnd = () => Math.random();
+
+async function growArchive() {
+  if (archiveBusy || !S || !state.sensed || grab || state.trans) return;
+  const now = performance.now();
+  if (now - lastArchive < 150) return;
+  lastArchive = now;
+  archiveBusy = true;
+  try {
+    const key = viewKey();
+    if (archive.structure !== key) archive.reset(key, state.sensed.lyap);
+    const elites = archive.elites();
+    const parent = elites.length && rnd() < 0.6 ? normalize(parse(elites[Math.floor(rnd() * elites.length)].text)) : state.formula;
+    const cand = mutate(parent, state.sensed.params, pinned(), 30 + rnd() * 190, rnd);
+    const r = await S.sense(cand, senseView(), innerHeight, SMALL, true);
+    if (r && archive.structure === key) archive.offer({ text: format(cand), features: features(r) });
+  } finally { archiveBusy = false; }
+}
+
+const RING_MS = 1200, LOCAL_D = [35, 60, 90, 130], FAR_D = [170, 230, 300, 380];
+let ring = null;
+
+function thumbView(b) {
+  const L = state.look;
+  const clear = Math.max(deAt(state.cam.pos), 1e-5);
+  const lamp = [0, 1, 2].map((i) => state.cam.pos[i] + (b.right[i] * L.lamp[0] + b.up[i] * L.lamp[1] + b.fwd[i] * L.lamp[2]) * clear);
+  return {
+    pos: state.cam.pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360), right: b.right, aperture: 0, up: b.up,
+    focus: Math.max(state.focus, 1e-4), fwd: b.fwd, blend: 1, light: lamp, glow: L.glow, lampRange: L.lampRange * clear,
+    lampPower: L.lampPower, hue: L.hue, fog: L.fog / Math.max(clear * 8, 1e-4), exposure: L.exposure, terrace: L.terrace,
+    stepScale: L.stepScale, maxDist: L.maxDist, epsScale: L.epsScale, frame: 0, key: L.key, ambient: L.ambient,
+    maxSteps: 160, glowWidth: L.glowWidth, iridescence: L.iridescence, spread: L.spread, shadowK: L.shadowK, quality: 0,
+  };
+}
+
+async function openRing(x, y, scale = 1) {
+  if (!S || !state.sensed || !R) return false;
+  exitGrab();
+  const metric = state.sensed.params;
+  const pins = pinned();
+  const f0 = normalize(state.formula);
+  const here = await S.sense(f0, senseView(), innerHeight, SMALL, true).catch(() => null);
+  const ft0 = here ? features(here) : { density: 0.5, chaos: state.sensed.lyap.median };
+  const locals = LOCAL_D.map((D) => ({ f: mutate(f0, metric, pins, D * scale, rnd), local: true }));
+  const fromArchive = spread(archive.elites(), ft0, 4).map((e) => ({ f: normalize(parse(e.text)), local: false, features: e.features }));
+  const fars = FAR_D.slice(fromArchive.length).map((D) => ({ f: mutate(f0, metric, pins, D * scale, rnd), local: false }));
+  const items = [...locals, ...fromArchive, ...fars].slice(0, 8);
+  ring = { at: [x, y], items, sel: -1, scale };
+  // features for the angle, then the layout: the cyclic order of feature directions, evenly spaced
+  for (const it of items) {
+    if (!it.features) { const r = await S.sense(it.f, senseView(), innerHeight, SMALL, true).catch(() => null); it.features = r ? features(r) : ft0; }
+    it.D = distancePx(f0, it.f, metric);
+    it.dir = Math.atan2(it.features.chaos - ft0.chaos, (it.features.density - ft0.density) * 4) || Math.random() * 6.28;
+    it.len = 110 + 110 * Math.tanh(it.D / 160);
+  }
+  if (!ring) return false;
+  const order = items.map((it, i) => i).sort((a, b) => items[a].dir - items[b].dir);
+  const base = items[order[0]].dir;
+  order.forEach((i, k) => { items[i].angle = base + (k / items.length) * Math.PI * 2; });
+  drawRingNow();
+  const b = basis(state.cam);
+  for (const it of items) {
+    if (!ring) return true;
+    it.thumb = await R.renderThumb(it.f, thumbView(b), 168, 112, 6).catch(() => null);
+    drawRingNow();
+  }
+  return true;
+}
+
+function drawRingNow() { if (ring) drawRing(overlay, { at: ring.at, items: ring.items.filter((it) => it.angle !== undefined), sel: ring.sel }); }
+
+function pointRing(x, y) {
+  const [cx, cy] = ring.at;
+  if (Math.hypot(x - cx, y - cy) < 40) ring.sel = -1;
+  else {
+    const a = Math.atan2(y - cy, x - cx);
+    let best = -1, bd = 9;
+    ring.items.forEach((it, i) => { if (it.angle === undefined) return; const d = Math.abs(Math.atan2(Math.sin(a - it.angle), Math.cos(a - it.angle))); if (d < bd) { bd = d; best = i; } });
+    ring.sel = best;
+  }
+  drawRingNow();
+}
+
+function closeRing(choose) {
+  if (!ring) return;
+  const pick = choose && ring.sel >= 0 ? ring.items[ring.sel] : null;
+  ring = null;
+  clearGrab(overlay);
+  if (pick) walkTo(format(pick.f));
+}
+
+// replay the lineage from its root to the current node, each step a walk (or a flow across structures)
+// along the existing nodes — nothing is committed; any input stops it where it is
+let replayToken = 0;
+function replay() {
+  const path = [];
+  for (let n = lineage.byId(lineage.cur); n; n = n.parent != null ? lineage.byId(n.parent) : null) path.unshift(n);
+  if (path.length < 2) return;
+  const token = ++replayToken;
+  let i = 0;
+  lineage.jump(path[0].id);
+  setFormula(path[0].text);
+  const next = () => {
+    if (token !== replayToken) return;
+    i++;
+    if (i < path.length) { lineage.jump(path[i].id); walkTo(path[i].text, next, false); } else drawStructureNow();
+  };
+  next();
+}
+const stopReplay = () => { if (replayToken) { replayToken++; if (state.trans && state.trans.kind === 'walk' && !state.trans.commit) state.trans = null; } };
+
 // ---------- the parameter metric ----------------------------------------------------------------
 // How many CSS pixels the surface moves per unit of each parameter, measured from this view. A control
 // moved by Δ pixels of hand motion changes its parameter by Δ / pxPerUnit, so every control feels the
@@ -946,6 +1110,14 @@ window.__fe = {
   setCamera(pos, yaw, pitch) { state.cam = { pos: [...pos], yaw, pitch }; touched(); state.lastInput = -1e9; },
   setLook(o) { Object.assign(state.look, o); touched(); state.lastInput = -1e9; },
   pin: () => { togglePin(); return state.pins; },
+  archive: () => ({ size: archive.size, elites: archive.elites().map((e) => ({ cell: e.cell, q: +e.features.quality.toFixed(3), d: +e.features.density.toFixed(2), l: +e.features.chaos.toFixed(3) })) }),
+  growArchive: async (n = 20) => { for (let i = 0; i < n; i++) { lastArchive = 0; await growArchive(); } return archive.size; },
+  ringOpen: (x, y) => openRing(x, y),
+  ringPoint: (x, y) => { if (ring) pointRing(x, y); return ring && ring.sel; },
+  ringClose: (choose = true) => closeRing(choose),
+  ringItems: () => ring && ring.items.map((it) => ({ D: +(it.D || 0).toFixed(1), local: it.local, thumb: !!it.thumb, angle: it.angle && +it.angle.toFixed(2) })),
+  replay: () => replay(),
+  stopReplay: () => stopReplay(),
   herd: (seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) herd(dt); return state.text; },
   transition: () => state.trans && { kind: state.trans.kind, then: state.trans.then },
   setMode(m) { state.mode = m; if (m === 'loop') { state.loopSeed = 2; placeLoopWindow(); } touched(); state.lastInput = -1e9; },

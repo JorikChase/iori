@@ -68,7 +68,7 @@ export function drawStructure(svg, s) {
       out.push(`<circle class="node${q.current ? ' cur' : ''}" data-id="${q.id}" cx="${f1(px)}" cy="${f1(py)}" r="${q.current ? 3 : 1.6}"/>`);
       out.push(`<circle class="hit" data-id="${q.id}" cx="${f1(px)}" cy="${f1(py)}" r="7"/>`);
     }
-    const hv = s.hover != null && L.find((q) => q.id === s.hover);
+    const hv = s.hover != null && L.find((q) => String(q.id) === String(s.hover));
     if (hv && hv.thumb && P.has(hv.id)) {
       const [px, py] = P.get(hv.id);
       const tw = 120, th = 80, tx = Math.max(16, px - tw / 2), ty = py - th - 16;

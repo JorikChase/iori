@@ -246,3 +246,28 @@ export function drawKnobs(svg, k) {
   svg.innerHTML = s.join('');
   svg.classList.add('on');
 }
+
+// ---------- the breed ring --------------------------------------------------------------------------
+// r: { at:[x,y], items:[{ angle, len, thumb|null, local }], sel (index or -1) } — neighbours around the
+// cursor in the order of their feature direction; spoke length is their visual distance
+export function drawRing(svg, r) {
+  const [x, y] = r.at;
+  const R = 38;
+  const s = ['<g class="rg"><defs>'];
+  r.items.forEach((it, i) => {
+    const cx = x + Math.cos(it.angle) * it.len, cy = y + Math.sin(it.angle) * it.len;
+    it.cx = cx; it.cy = cy;
+    s.push(`<clipPath id="rc${i}"><circle cx="${f2(cx)}" cy="${f2(cy)}" r="${R}"/></clipPath>`);
+  });
+  s.push('</defs>');
+  s.push(`<circle cx="${f2(x)}" cy="${f2(y)}" r="40"/><circle cx="${f2(x)}" cy="${f2(y)}" r="1.5" class="dot"/>`);
+  r.items.forEach((it, i) => {
+    const c = Math.cos(it.angle), sn = Math.sin(it.angle);
+    s.push(`<path class="sp" d="M${f2(x + c * 40)} ${f2(y + sn * 40)}L${f2(it.cx - c * R)} ${f2(it.cy - sn * R)}"/>`);
+    if (it.thumb) s.push(`<image href="${it.thumb}" x="${f2(it.cx - R * 1.5)}" y="${f2(it.cy - R)}" width="${R * 3}" height="${R * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#rc${i})"/>`);
+    s.push(`<circle class="${i === r.sel ? 'sel' : ''}${it.local ? '' : ' far'}" cx="${f2(it.cx)}" cy="${f2(it.cy)}" r="${R}"/>`);
+  });
+  s.push('</g>');
+  svg.innerHTML = s.join('');
+  svg.classList.add('on');
+}

@@ -218,3 +218,27 @@ test('references for the GPU duals: gradient, parameter derivative, Lyapunov', (
   assert.ok(Math.abs(deParam(parse(MANDELBOX), [3.1, 0.4, -0.2], 2, 's')) > 1e-3);
 });
 
+
+test('breeding: a neighbour is the asked visual distance away; the archive keeps one elite per cell', async () => {
+  const { mutate, distancePx, createArchive, spread } = await import('../core/breed.js');
+  const f = parse(MANDELBOX);
+  const metric = [{ oi: 0, key: 'l', pxPerUnit: 1600 }, { oi: 1, key: 'rmin', pxPerUnit: 500 }, { oi: 1, key: 'rfix', pxPerUnit: 750 }, { oi: 2, key: 's', pxPerUnit: 290 }];
+  const rng = makeRng(4);
+  for (const D of [10, 40, 120]) {
+    const g = mutate(f, metric, new Set(), D, rng.float);
+    assert.ok(Math.abs(distancePx(f, g, metric) - D) < 0.05 * D + 0.01, `D ${D} → ${distancePx(f, g, metric)}`);
+  }
+  // pinned parameters do not move
+  const g = mutate(f, metric, new Set(['0.l', '2.s']), 50, rng.float);
+  assert.equal(g.slots.flat()[0].p.l, 1);
+  assert.equal(g.slots.flat()[2].p.s, 2);
+  const A = createArchive({ bins: 4 });
+  A.reset('x', { median: 1, p10: 0.9, p90: 1.1 });
+  assert.equal(A.offer({ text: 'a', features: { density: 0.5, chaos: 1, quality: 0.2 } }), true);
+  assert.equal(A.offer({ text: 'b', features: { density: 0.52, chaos: 1.01, quality: 0.1 } }), false);
+  assert.equal(A.offer({ text: 'c', features: { density: 0.53, chaos: 1.02, quality: 0.3 } }), true);
+  assert.equal(A.offer({ text: 'd', features: { density: 0.9, chaos: 1.5, quality: 0.1 } }), true);
+  assert.equal(A.size, 2);
+  const picks = spread(A.elites(), { density: 0.5, chaos: 1 }, 1);
+  assert.equal(picks[0].text, 'd');
+});

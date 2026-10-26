@@ -446,7 +446,9 @@ function passAttention(step, x) {
 // drag across the screen reaches at the local metric, so the map and the hand agree. Rotation angles and
 // plane normals are not offered: their records are not linear in them and the lens varies records.
 
-const NONLINEAR = (p) => p.op === 'rotate' || (p.op === 'fold.plane' && p.key !== 'd');
+// parameters whose packed record is not linear in them (the lens varies records linearly). A chimera's
+// field parameters all enter its record linearly.
+const NONLINEAR = (p) => p.op === 'rotate' || p.op === 'rotate4' || (p.op === 'fold.plane' && p.key !== 'd');
 const INSET_R = 70;
 let lens = null;
 

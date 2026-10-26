@@ -15,7 +15,7 @@
 export const INTERP = /* wgsl */ `
 struct Head {
   iters: u32, schedLen: u32, flags: u32, bail: f32,
-  starts: vec4u, lens: vec4u,
+  starts: array<vec4u, 2>, lens: array<vec4u, 2>,   // eight slots
   sched: array<vec4u, 16>,
   c: vec4f,        // the fixed constant when FLAG_JULIA is set
   slice: mat4x4f,  // the world's place in 4-D: x₄ = slice · (x, y, z, sliceW.x)
@@ -50,16 +50,26 @@ var<private> ovD: vec2f = vec2f(0.0);
 var<private> ovRec0: array<vec4f, 5>;
 var<private> ovRec1: array<vec4f, 5>;
 
+// The dual numbers' selected parameter (DUAL): its op and d record / dθ. A chimera differentiates its
+// field through the record by central differences, reading it nudged by tanEps · tanRec.
+var<private> tanOi: u32 = 0xffffffffu;
+var<private> tanRec: array<vec4f, 5>;
+var<private> tanEps: f32 = 0.0;
+
 fn rec(oi: u32, k: u32) -> vec4f {
   var r = ops[oi * REC4 + k];
   if (oi == ov0) { r = r + ovD.x * ovRec0[k]; }
   if (oi == ov1) { r = r + ovD.y * ovRec1[k]; }
+  if (oi == tanOi) { r = r + tanEps * tanRec[k]; }
   return r;
 }
 
 fn embed(x: vec3f) -> vec4f { return head.slice * vec4f(x, head.sliceW.x); }
 // back to the world: xyz along the slice's axes, w how far off the slice
 fn unembed(x4: vec4f) -> vec4f { let v = transpose(head.slice) * x4; return vec4f(v.xyz, v.w - head.sliceW.x); }
+
+fn slotStart(s: u32) -> u32 { return head.starts[s / 4u][s % 4u]; }
+fn slotLen(s: u32) -> u32 { return head.lens[s / 4u][s % 4u]; }
 
 fn schedAt(i: u32) -> u32 {
   let k = i % head.schedLen;
@@ -201,24 +211,145 @@ fn opFwd(oi: u32, p: vec4f, c: vec4f) -> Step {
 }
 
 // ---------- the chimera -------------------------------------------------------------------------
+// k species (up to seven sub-stacks) blended by a field's weights (core/fields.js, bit for bit).
 const MIX = 22u;
-// record: [22, w, k, r], n̂, [slot A, slot B, 0, 0]
-// ω(p) = σ(logit w + k·(n̂·p) + r·(|p| − 1)), and its gradient (core/ops.js mixWeight)
-struct MixW { w: f32, g: vec4f };
-fn mixW(oi: u32, p: vec4f) -> MixW {
+const MAXK = 8u;
+
+// The orbit's running context, which the fields read: set by whoever runs an orbit (iterate, the
+// dual loop, the JIT, the loop engine, the push walk). fP0 the start (the world frame), fTrap the least
+// |p|² so far (the start included), fIter the iteration under way of fIters.
+var<private> fP0: vec4f;
+var<private> fTrap: f32 = 0.0;
+var<private> fIter: f32 = 0.0;
+var<private> fIters: f32 = 1.0;
+fn startOrbit(p0: vec4f) { fP0 = p0; fTrap = dot(p0, p0); fIter = 0.0; fIters = f32(head.iters); }
+
+// the field library's hash and noise
+fn fhash(v: u32) -> u32 {
+  let s = v * 747796405u + 2891336453u;
+  let w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+fn funit(h: u32) -> f32 { return f32(h >> 8u) / 16777216.0; }
+fn lattice(i: vec4i, seed: u32) -> f32 {
+  let h = (bitcast<u32>(i.x) * 0x8da6b343u) ^ (bitcast<u32>(i.y) * 0xd8163841u) ^ (bitcast<u32>(i.z) * 0xcb1ab31fu)
+        ^ (bitcast<u32>(i.w) * 0x165667b1u) ^ (seed * 0x27d4eb2fu);
+  return funit(fhash(h)) * 2.0 - 1.0;
+}
+struct Noise { n: f32, g: vec4f };
+// 4-D value noise with the quintic fade, and its gradient
+fn noise4(x: vec4f, seed: u32) -> Noise {
+  let fi = floor(x);
+  let i = vec4i(fi);
+  let t = x - fi;
+  let u = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+  let du = 30.0 * t * t * (t - 1.0) * (t - 1.0);
+  var o: Noise;
+  o.n = 0.0; o.g = vec4f(0.0);
+  for (var c = 0u; c < 16u; c++) {
+    let b = vec4u(c & 1u, (c >> 1u) & 1u, (c >> 2u) & 1u, (c >> 3u) & 1u);
+    let v = lattice(i + vec4i(b), seed);
+    let on = b == vec4u(1u);
+    let f = select(1.0 - u, u, on);
+    let df = select(-du, du, on);
+    o.n = o.n + v * f.x * f.y * f.z * f.w;
+    o.g = o.g + v * vec4f(df.x * f.y * f.z * f.w, f.x * df.y * f.z * f.w, f.x * f.y * df.z * f.w, f.x * f.y * f.z * df.w);
+  }
+  return o;
+}
+fn fbm(x: vec4f, freq: f32, octaves: u32, seed: u32) -> Noise {
+  var o: Noise;
+  o.n = 0.0; o.g = vec4f(0.0);
+  var a = 1.0;
+  var f = freq;
+  for (var k = 0u; k < octaves; k++) {
+    let r = noise4(x * f + 17.3 * f32(k) * vec4f(1.0, 2.0, 3.0, 4.0), seed + k);
+    o.n = o.n + a * r.n;
+    o.g = o.g + a * f * r.g;
+    a = a * 0.5; f = f * 2.0;
+  }
+  return o;
+}
+fn site(seed: u32, j: u32, size: f32) -> vec4f {
+  var y = vec4f(0.0);
+  for (var a = 0u; a < 4u; a++) { y[a] = size * (2.0 * funit(fhash((seed * 0x9e3779b9u) ^ ((j * 4u + a + 1u) * 0x85ebca6bu))) - 1.0); }
+  return y;
+}
+
+// The weights of the species at x: w, their gradients G in x, their derivatives S in the reading.
+// record: [22, kind, at, first species slot], [k, w, g, 0], a vector, [scalars] (gpu/pack.js)
+struct MixW { w: array<f32, 8>, G: array<vec4f, 8>, S: array<f32, 8>, k: u32 };
+fn mixWeights(oi: u32, x: vec4f, dr: f32) -> MixW {
   let a = rec(oi, 0u);
-  let n = rec(oi, 1u);
+  let b = rec(oi, 1u);
+  let v = rec(oi, 2u);
+  let q = rec(oi, 3u);
+  let kind = u32(a.y);
+  let k = u32(b.x);
   var m: MixW;
-  m.g = vec4f(0.0);
-  if (a.y <= 0.0) { m.w = 0.0; return m; }
-  if (a.y >= 1.0) { m.w = 1.0; return m; }
-  let r = length(p);
-  var pr = vec4f(0.0);
-  if (r > 0.0) { pr = p / r; }
-  let s = log(a.y / (1.0 - a.y)) + a.z * dot(n, p) + a.w * (r - 1.0);
-  m.w = 1.0 / (1.0 + exp(-s));
-  m.g = m.w * (1.0 - m.w) * (a.z * n + a.w * pr);
+  m.k = k;
+  if (kind == 4u) {
+    // tissue: a softmax over the sites' squared distances; site j is species j mod k
+    let n = min(u32(round(q.x)), 16u);
+    let size = q.y;
+    let tau = max(q.z * size, 1e-9);
+    let seed = u32(round(q.w));
+    var ys: array<vec4f, 16>;
+    var emax = -1e30;
+    for (var j = 0u; j < n; j++) { ys[j] = site(seed, j, size); let d = x - ys[j]; emax = max(emax, -dot(d, d) / tau); }
+    var Z = 0.0;
+    for (var j = 0u; j < n; j++) {
+      let d = x - ys[j];
+      let pi = exp(-dot(d, d) / tau - emax);
+      Z = Z + pi;
+      let i = j % k;
+      m.w[i] = m.w[i] + pi;
+      m.G[i] = m.G[i] - pi * 2.0 * d / tau;
+    }
+    var ebar = vec4f(0.0);
+    for (var i = 0u; i < k; i++) { m.w[i] = m.w[i] / Z; m.G[i] = m.G[i] / Z; ebar = ebar + m.G[i]; }
+    for (var i = 0u; i < k; i++) { m.G[i] = m.G[i] - m.w[i] * ebar; }
+    return m;
+  }
+  let w = b.y;
+  if (w <= 0.0) { m.w[0] = 1.0; return m; }
+  if (w >= 1.0) { m.w[k - 1u] = 1.0; return m; }
+  var s = 0.0;
+  var gs = vec4f(0.0);
+  var sr = 0.0;
+  switch kind {
+    case 1u: { let nl = length(v); var n = vec4f(0.0); if (nl > 0.0) { n = v / nl; } s = b.z * dot(n, x); gs = b.z * n; }
+    case 2u: { let d = x - v; let r = length(d); s = b.z * (r - q.x); if (r > 0.0) { gs = b.z * d / r; } }
+    case 3u: { let f = fbm(x, q.x, u32(round(q.y)), u32(round(q.z))); s = b.z * f.n; gs = b.z * f.g; }
+    case 5u: { s = b.z * (fTrap - q.x); sr = b.z; }
+    case 6u: { s = b.z * (fIter / fIters - 0.5); sr = b.z; }
+    case 7u: { s = b.z * log(max(dr, 1e-30)) / (fIter + 1.0); sr = b.z; }
+    default: {}
+  }
+  let sg = 1.0 / (1.0 + exp(-(log(w / (1.0 - w)) + s)));
+  let u = f32(k - 1u) * sg;
+  let du = f32(k - 1u) * sg * (1.0 - sg);
+  let i0 = min(u32(max(floor(u), 0.0)), k - 2u);
+  let t = u - f32(i0);
+  m.w[i0] = 1.0 - t; m.w[i0 + 1u] = t;
+  m.G[i0] = -du * gs; m.G[i0 + 1u] = du * gs;
+  m.S[i0] = -du * sr; m.S[i0 + 1u] = du * sr;
   return m;
+}
+
+// an orbit-frame field read within the ball of radius FIELD_R and on its sphere beyond (core/fields.js)
+const FIELD_R = 2.0;
+fn orbitWeights(oi: u32, x: vec4f, dr: f32) -> MixW {
+  let r = length(x);
+  if (!(r > FIELD_R)) { return mixWeights(oi, x, dr); }
+  var m = mixWeights(oi, x * (FIELD_R / r), dr);
+  let xh = x / r;
+  for (var i = 0u; i < m.k; i++) { m.G[i] = (FIELD_R / r) * (m.G[i] - xh * dot(xh, m.G[i])); }
+  return m;
+}
+fn fieldAt(oi: u32, p: vec4f, dr: f32, world: bool) -> MixW {
+  if (world) { return mixWeights(oi, fP0, dr); }
+  return orbitWeights(oi, p, dr);
 }
 
 struct Fwd { p: vec4f, dr: f32, branch: u32 };
@@ -227,8 +358,8 @@ struct Fwd { p: vec4f, dr: f32, branch: u32 };
 fn runKid(slot: u32, p0: vec4f, c: vec4f, dr0: f32) -> Fwd {
   var o: Fwd;
   o.p = p0; o.dr = dr0; o.branch = 0u;
-  let start = head.starts[slot];
-  for (var j = 0u; j < head.lens[slot]; j++) {
+  let start = slotStart(slot);
+  for (var j = 0u; j < slotLen(slot); j++) {
     let s = opFwd(start + j, o.p, c);
     o.p = s.p;
     if (s.k < 0.0) { o.dr = o.dr + 1.0; } else { o.dr = o.dr * s.k; }
@@ -236,17 +367,34 @@ fn runKid(slot: u32, p0: vec4f, c: vec4f, dr0: f32) -> Fwd {
   return o;
 }
 
-// (1 − ω)F_A + ωF_B; dr the larger branch's plus |F_B − F_A|·|∇ω|·dr; the branch is the leading species
-fn mixFwd(oi: u32, p: vec4f, c: vec4f, dr: f32) -> Fwd {
-  let kids = rec(oi, 2u);
-  let A = runKid(u32(kids.x), p, c, dr);
-  let B = runKid(u32(kids.y), p, c, dr);
-  let m = mixW(oi, p);
+// The blend of the species' results (kp, kd: each species' point and dr): Σ ωᵢFᵢ; dr = Σ ωᵢ drᵢ
+// (core/ops.js says why the field's stretch is not in it); the branch the leading species.
+// The interpreter and the JIT both end here.
+fn mixCombine(oi: u32, p: vec4f, dr: f32, kp0: array<vec4f, 8>, kd0: array<f32, 8>) -> Fwd {
+  var kp = kp0;
+  var kd = kd0;
+  let world = rec(oi, 0u).z > 0.5;
+  let m = fieldAt(oi, p, dr, world);
   var o: Fwd;
-  o.p = mix(A.p, B.p, m.w);
-  o.dr = max(A.dr, B.dr) + length(B.p - A.p) * length(m.g) * dr;
-  o.branch = select(1u, 2u, m.w > 0.5);
+  o.p = vec4f(0.0);
+  o.dr = 0.0;
+  var lead = 0u;
+  for (var i = 0u; i < m.k; i++) {
+    o.p = o.p + m.w[i] * kp[i];
+    o.dr = o.dr + m.w[i] * kd[i];
+    if (m.w[i] > m.w[lead]) { lead = i; }
+  }
+  o.branch = 1u + lead;
   return o;
+}
+
+fn mixFwd(oi: u32, p: vec4f, c: vec4f, dr: f32) -> Fwd {
+  let a = rec(oi, 0u);
+  let k = u32(rec(oi, 1u).x);
+  var kp: array<vec4f, 8>;
+  var kd: array<f32, 8>;
+  for (var i = 0u; i < k; i++) { let r = runKid(u32(a.w) + i, p, c, dr); kp[i] = r.p; kd[i] = r.dr; }
+  return mixCombine(oi, p, dr, kp, kd);
 }
 
 // one op of a scheduled slot: the chimera, or any other op with its dr rule applied
@@ -263,10 +411,12 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
   var t: Trace;
   t.p = p0; t.dr = 1.0; t.n = 0u; t.escaped = false; t.trap = 1e20; t.col = 0.0;
   let bail2 = head.bail * head.bail;
+  startOrbit(p0);
   for (var i = 0u; i < head.iters; i++) {
     let slot = schedAt(i);
-    let start = head.starts[slot];
-    for (var j = 0u; j < head.lens[slot]; j++) {
+    let start = slotStart(slot);
+    fIter = f32(i);
+    for (var j = 0u; j < slotLen(slot); j++) {
       let s = fwdAt(start + j, t.p, c, t.dr);
       t.p = s.p;
       t.dr = s.dr;
@@ -275,6 +425,7 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
     t.n = i + 1u;
     let r2 = dot(t.p, t.p);
     t.trap = min(t.trap, r2);
+    fTrap = min(fTrap, r2);
     if (!(r2 <= bail2)) { t.escaped = true; break; }
   }
   return t;
@@ -329,8 +480,8 @@ fn invAt(oi: u32, q: vec4f, c: vec4f) -> Step {
 fn kidInv(slot: u32, q: vec4f, c: vec4f) -> Step {
   var s: Step;
   s.p = q; s.k = 1.0; s.branch = 0u; s.ok = true;
-  let start = head.starts[slot];
-  let len = head.lens[slot];
+  let start = slotStart(slot);
+  let len = slotLen(slot);
   for (var j = 0u; j < len; j++) {
     let r = opInv(start + len - 1u - j, s.p, c);
     if (!r.ok) { s.ok = false; return s; }
@@ -367,7 +518,7 @@ fn solve4(M: mat4x4f, y: vec4f) -> Solve {
 }
 
 // The blend's preimage (core/cpu.js mixInv): one species inverted for a first guess, then Newton on the
-// blend with its exact Jacobian from the tangents; up to four guesses, alternating species from a pick
+// blend with its exact Jacobian from the tangents; up to four guesses, cycling the species from a pick
 const MIX_NEWTON = 8u;
 const MIX_GUESSES = 4u;
 
@@ -383,11 +534,16 @@ var<private> mixJ: mat4x4f;
 var<private> mixBranch: u32;
 var<private> mixRng: u32;   // the random state after the solve, so ops inverted later pick as they did
 
+// The inverse has no start point: a world-frame field is read at the point solved for (fP0 = x, and
+// its column moves with x); the self-fields at the context the walk set (fTrap, fIter).
+fn mixAt(oi: u32, x: vec4f, c: vec4f) -> vec4f { fP0 = x; return mixFwd(oi, x, c, 1.0).p; }
 fn mixJacobian(oi: u32, x: vec4f, c: vec4f) -> mat4x4f {
-  return mat4x4f(mixTan(oi, x, c, 1.0, vec4f(1.0, 0.0, 0.0, 0.0), 0.0, vec4f(0.0), false).v,
-                 mixTan(oi, x, c, 1.0, vec4f(0.0, 1.0, 0.0, 0.0), 0.0, vec4f(0.0), false).v,
-                 mixTan(oi, x, c, 1.0, vec4f(0.0, 0.0, 1.0, 0.0), 0.0, vec4f(0.0), false).v,
-                 mixTan(oi, x, c, 1.0, vec4f(0.0, 0.0, 0.0, 1.0), 0.0, vec4f(0.0), false).v);
+  fP0 = x;
+  let z = vec4f(0.0);
+  let I = array<vec4f, 5>(vec4f(1.0, 0.0, 0.0, 0.0), vec4f(0.0, 1.0, 0.0, 0.0), vec4f(0.0, 0.0, 1.0, 0.0), vec4f(0.0, 0.0, 0.0, 1.0), z);
+  let t = mixTan(oi, x, c, 1.0, 4u, I, array<f32, 5>(0.0, 0.0, 0.0, 0.0, 0.0), array<vec4f, 5>(z, z, z, z, z), I,
+                 array<f32, 5>(0.0, 0.0, 0.0, 0.0, 0.0), 99u);
+  return mat4x4f(t.v[0], t.v[1], t.v[2], t.v[3]);
 }
 
 fn mixInv(oi: u32, q: vec4f, c: vec4f) -> Step {
@@ -399,19 +555,20 @@ fn mixInv(oi: u32, q: vec4f, c: vec4f) -> Step {
     rngState = mixRng;
     return s;
   }
-  let kids = rec(oi, 2u);
-  let first = pick(2u);
+  let a = rec(oi, 0u);
+  let k = u32(rec(oi, 1u).x);
+  let first = pick(k);
   let tol = 3e-6 * (1.0 + length(q));
   for (var g = 0u; g < MIX_GUESSES; g++) {
-    let which = (first + g) & 1u;
-    let guess = kidInv(select(u32(kids.x), u32(kids.y), which == 1u), q, c);
+    let which = (first + g) % k;
+    let guess = kidInv(u32(a.w) + which, q, c);
     if (!guess.ok) { continue; }
     var x = guess.p;
     var best = 1e30;
     var bestX = x;
     var stall = 0u;
     for (var i = 0u; i <= MIX_NEWTON; i++) {
-      let F = mixFwd(oi, x, c, 1.0).p - q;
+      let F = mixAt(oi, x, c) - q;
       let e = length(F);
       // a guess outside Newton's basin shows soon: two steps without the residual shrinking (one is
       // allowed — crossing a fold's edge can cost a step)
@@ -660,9 +817,6 @@ fn opInv(oi: u32, q: vec4f, c: vec4f) -> Step {
 // slice's first three columns), one for the selected parameter (the metric), one renormalised at
 // fixed c (the Lyapunov exponent).
 export const DUAL = /* wgsl */ `
-var<private> tanOi: u32 = 0xffffffffu;
-var<private> tanRec: array<vec4f, 5>;
-
 struct Tan { v: vec4f, dk: f32 };
 
 fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan {
@@ -882,8 +1036,8 @@ struct KidT { p: vec4f, dr: f32, v: vec4f, ddr: f32 };
 fn kidTan(slot: u32, p0: vec4f, c: vec4f, dr0: f32, v0: vec4f, ddr0: f32, dc: vec4f, withRec: bool) -> KidT {
   var o: KidT;
   o.p = p0; o.dr = dr0; o.v = v0; o.ddr = ddr0;
-  let start = head.starts[slot];
-  for (var j = 0u; j < head.lens[slot]; j++) {
+  let start = slotStart(slot);
+  for (var j = 0u; j < slotLen(slot); j++) {
     let s = opFwd(start + j, o.p, c);
     let t = opTan(start + j, o.p, c, o.v, dc, withRec);
     if (s.k >= 0.0) { o.ddr = s.k * o.ddr + t.dk * o.dr; o.dr = o.dr * s.k; } else { o.dr = o.dr + 1.0; }
@@ -894,44 +1048,71 @@ fn kidTan(slot: u32, p0: vec4f, c: vec4f, dr0: f32, v0: vec4f, ddr0: f32, dc: ve
 }
 
 struct MixT { v: vec4f, ddr: f32 };
-fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, v: vec4f, ddr: f32, dc: vec4f, withRec: bool) -> MixT {
-  let kids = rec(oi, 2u);
-  let A = kidTan(u32(kids.x), p, c, dr, v, ddr, dc, withRec);
-  let B = kidTan(u32(kids.y), p, c, dr, v, ddr, dc, withRec);
-  let a = rec(oi, 0u);
-  let n = rec(oi, 1u);
-  let m = mixW(oi, p);
-  let w = m.w;
-  let r = length(p);
-  var pr = vec4f(0.0);
-  if (r > 0.0) { pr = p / r; }
-  // ds: the logistic argument's derivative; dh: of its gradient h = k n̂ + r p̂
-  var ds = 0.0;
-  var dh = vec4f(0.0);
-  if (w > 0.0 && w < 1.0) {
-    ds = a.z * dot(n, v) + a.w * dot(pr, v);
-    if (r > 0.0) { dh = a.w * (v - pr * dot(pr, v)) / r; }
-    if (withRec && oi == tanOi) {
-      let da = tanRec[0];
-      let dn = tanRec[1];
-      ds = ds + da.y / (a.y * (1.0 - a.y)) + da.z * dot(n, p) + a.z * dot(dn, p) + da.w * (r - 1.0);
-      dh = dh + da.z * n + a.z * dn + da.w * pr;
-    }
+// the step for central differences through a record: small against the record's values
+fn recStep(oi: u32) -> f32 {
+  var rv = 1.0;
+  var dv = 1e-12;
+  for (var k = 1u; k < 4u; k++) {
+    let r = abs(rec(oi, k));
+    let d = abs(tanRec[k]);
+    rv = max(rv, max(max(r.x, r.y), max(r.z, r.w)));
+    dv = max(dv, max(max(d.x, d.y), max(d.z, d.w)));
   }
-  let dw = w * (1.0 - w) * ds;
-  let d = B.p - A.p;
-  var o: MixT;
-  o.v = mix(A.v, B.v, w) + d * dw;
-  let h = a.z * n + a.w * pr;
-  let g = w * (1.0 - w) * h;
-  let dg = dw * (1.0 - 2.0 * w) * h + w * (1.0 - w) * dh;
-  let dl = length(d);
-  let gl = length(g);
-  var ddl = 0.0;
-  if (dl > 0.0) { ddl = dot(d, B.v - A.v) / dl; }
-  var dgl = 0.0;
-  if (gl > 0.0) { dgl = dot(g, dg) / gl; }
-  o.ddr = select(A.ddr, B.ddr, B.dr > A.dr) + ddl * gl * dr + dl * dgl * dr + dl * gl * ddr;
+  return 1e-3 * rv / dv;
+}
+// The blend along up to five tangent columns at once (one call site keeps the shader small: the field
+// code would otherwise be inlined for every column). Per column j: vs[j] the tangent, ddrs[j] its dr
+// derivative, dcs[j] its derivative of c, v0s[j] its value at the orbit's start (what a world-frame
+// field sees move), dts[j] its derivative of the trap reading; column recCol also carries the selected
+// parameter's record derivative. The weights move by ∇ωᵢ·v (or ·v0) plus ∂ωᵢ/∂reading · dreading plus,
+// for the field's own parameter, the record's central difference. dr = Σ ωᵢ drᵢ moves with both.
+struct MixCols { v: array<vec4f, 5>, ddr: array<f32, 5> };
+fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, n: u32, vs0: array<vec4f, 5>, ddrs0: array<f32, 5>,
+          dcs0: array<vec4f, 5>, v0s0: array<vec4f, 5>, dts0: array<f32, 5>, recCol: u32) -> MixCols {
+  var vs = vs0;
+  var ddrs = ddrs0;
+  var dcs = dcs0;
+  var v0s = v0s0;
+  var dts = dts0;
+  let a = rec(oi, 0u);
+  let k = u32(rec(oi, 1u).x);
+  let kind = u32(a.y);
+  let world = a.z > 0.5;
+  let m = fieldAt(oi, p, dr, world);
+  let own = recCol < n && oi == tanOi;
+  // the field's own parameter: its weights nudged ±
+  var pw: array<array<f32, 8>, 2>;
+  var eps = 1.0;
+  if (own) {
+    eps = recStep(oi);
+    for (var e = 0u; e < 2u; e++) {
+      tanEps = select(-eps, eps, e == 0u);
+      let me = fieldAt(oi, p, dr, world);
+      for (var i = 0u; i < k; i++) { pw[e][i] = me.w[i]; }
+    }
+    tanEps = 0.0;
+  }
+  var o: MixCols;
+  var A: array<KidT, 8>;
+  for (var j = 0u; j < n; j++) {
+    let v = vs[j];
+    let withRec = j == recCol;
+    for (var i = 0u; i < k; i++) { A[i] = kidTan(u32(a.w) + i, p, c, dr, v, ddrs[j], dcs[j], withRec); }
+    let vx = select(v, v0s[j], world);
+    var dread = 0.0;
+    if (kind == 5u) { dread = dts[j]; }
+    if (kind == 7u) { dread = ddrs[j] / (max(dr, 1e-30) * (fIter + 1.0)); }
+    var V = vec4f(0.0);
+    var D = 0.0;
+    for (var i = 0u; i < k; i++) {
+      var dw = dot(m.G[i], vx) + m.S[i] * dread;
+      if (withRec && own) { dw = dw + (pw[0][i] - pw[1][i]) / (2.0 * eps); }
+      V = V + m.w[i] * A[i].v + dw * A[i].p;
+      D = D + m.w[i] * A[i].ddr + dw * A[i].dr;
+    }
+    o.v[j] = V;
+    o.ddr[j] = D;
+  }
   return o;
 }
 
@@ -961,23 +1142,31 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
   let dc1 = g1 * k;
   let dc2 = g2 * k;
   let bail2 = head.bail * head.bail;
+  // the chimera's context and its tangents: the start's columns (a world field sees them), and the
+  // trap reading's derivative along each column, which follows the iterate that set it
+  startOrbit(p0);
+  let s0 = g0;
+  let s1 = g1;
+  let s2 = g2;
+  var dft = 2.0 * vec3f(dot(p0, g0), dot(p0, g1), dot(p0, g2));
+  var dftq = 0.0;
   for (var i = 0u; i < head.iters; i++) {
     let slot = schedAt(i);
-    let start = head.starts[slot];
-    for (var j = 0u; j < head.lens[slot]; j++) {
+    let start = slotStart(slot);
+    fIter = f32(i);
+    for (var j = 0u; j < slotLen(slot); j++) {
       let oi = start + j;
       let p = d.t.p;
       if (u32(rec(oi, 0u).x) == MIX) {
         let dr = d.t.dr;
         let f = mixFwd(oi, p, c, dr);
-        let m0 = mixTan(oi, p, c, dr, g0, gdr.x, dc0, false);
-        let m1 = mixTan(oi, p, c, dr, g1, gdr.y, dc1, false);
-        let m2 = mixTan(oi, p, c, dr, g2, gdr.z, dc2, false);
-        let mq = mixTan(oi, p, c, dr, q, qdr, vec4f(0.0), true);
-        let ml = mixTan(oi, p, c, dr, lv, 0.0, vec4f(0.0), false);
-        g0 = m0.v; g1 = m1.v; g2 = m2.v; q = mq.v; lv = ml.v;
-        gdr = vec3f(m0.ddr, m1.ddr, m2.ddr);
-        qdr = mq.ddr;
+        let z = vec4f(0.0);
+        let mt = mixTan(oi, p, c, dr, 5u, array<vec4f, 5>(g0, g1, g2, q, lv), array<f32, 5>(gdr.x, gdr.y, gdr.z, qdr, 0.0),
+                        array<vec4f, 5>(dc0, dc1, dc2, z, z), array<vec4f, 5>(s0, s1, s2, z, z),
+                        array<f32, 5>(dft.x, dft.y, dft.z, dftq, 0.0), 3u);
+        g0 = mt.v[0]; g1 = mt.v[1]; g2 = mt.v[2]; q = mt.v[3]; lv = mt.v[4];
+        gdr = vec3f(mt.ddr[0], mt.ddr[1], mt.ddr[2]);
+        qdr = mt.ddr[3];
         d.t.dr = f.dr;
         d.t.p = f.p;
         d.t.col = branchColour(d.t.col, oi, f.branch);
@@ -1006,6 +1195,7 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
     if (l > 0.0 && l < 1e30) { lsum = lsum + log(l); lv = lv / l; }
     let r2 = dot(d.t.p, d.t.p);
     d.t.trap = min(d.t.trap, r2);
+    if (r2 < fTrap) { fTrap = r2; dft = 2.0 * vec3f(dot(d.t.p, g0), dot(d.t.p, g1), dot(d.t.p, g2)); dftq = 2.0 * dot(d.t.p, q); }
     if (!(r2 <= bail2)) { d.t.escaped = true; break; }
   }
   d.g0 = g0; d.g1 = g1; d.g2 = g2;

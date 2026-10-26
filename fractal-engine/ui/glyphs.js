@@ -19,6 +19,14 @@ export const GLYPHS = {
   quat: 'M12 4a8 8 0 1 0 .01 0M12 4v16M5.1 8l13.8 8M18.9 8L5.1 16',
   // the chimera: two species overlapping, the field's wall through their lens
   mix: 'M9 12a6 6 0 1 0 .01 0M15 12a6 6 0 1 0 .01 0M12 4v16',
+  // the fields: the two species, and what weighs them
+  'mix.axis': 'M9 12a5 5 0 1 0 .01 0M15 12a5 5 0 1 0 .01 0M2 21L22 3',
+  'mix.sphere': 'M9 12a4 4 0 1 0 .01 0M15 12a4 4 0 1 0 .01 0M12 1a11 11 0 1 0 .01 0',
+  'mix.noise': 'M9 9a5 5 0 1 0 .01 0M15 9a5 5 0 1 0 .01 0M2 20c2-3 3-3 5 0s3 3 5 0 3-3 5 0 3 3 5 0',
+  'mix.tissue': 'M2 7l6 2 1 7-6 4M8 9l6-6M9 16l7 1 4-6-6-8M16 17l2 6M20 11l3-1',
+  'mix.trap': 'M9 12a5 5 0 1 0 .01 0M15 12a5 5 0 1 0 .01 0M12 11.2a.8.8 0 1 0 .01 0M12 3v4M12 17v4',
+  'mix.depth': 'M9 8a5 5 0 1 0 .01 0M15 8a5 5 0 1 0 .01 0M4 17h16M7 20h10M10 23h4',
+  'mix.lyap': 'M9 12a5 5 0 1 0 .01 0M15 12a5 5 0 1 0 .01 0M1 12h3M20 12h3M12 1v3M12 20v3',
   power: 'M12 12a2 2 0 1 1 2 2 5 5 0 1 1-5-5 8 8 0 1 1-6 7',
   invert: 'M12 3a9 9 0 1 0 .01 0M12 11a1 1 0 1 0 .01 0M5 19L19 5',
   twist: 'M6 3c12 3 0 15 12 18M18 3C6 6 18 18 6 21',

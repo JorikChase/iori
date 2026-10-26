@@ -57,8 +57,10 @@ fn load(t: texture_2d<f32>, q: vec2f) -> vec3f {
 
 fn applySlot(slot: u32, x0: vec4f, c: vec4f) -> vec4f {
   var x = x0;
-  let start = head.starts[slot];
-  for (var j = 0u; j < head.lens[slot]; j++) { x = fwdAt(start + j, x, c, 1.0).p; }
+  // one step from the window's point: it is the orbit's start (a chimera's fields read it)
+  fP0 = x0; fTrap = dot(x0, x0); fIter = 0.0; fIters = 1.0;
+  let start = slotStart(slot);
+  for (var j = 0u; j < slotLen(slot); j++) { x = fwdAt(start + j, x, c, 1.0).p; }
   return x;
 }
 

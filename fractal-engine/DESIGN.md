@@ -560,3 +560,44 @@ same point in the same iteration and blended, p → (1 − ω)F_A(p) + ωF_B(p) 
 Not yet: k-way tissue and spatial (world-point) fields — Q2; the glyph strip shows the sub-stacks as
 plain slots (the graph in Q4 nests them); breeding mutates w/k/r like any parameter but never adds or
 removes a mix.
+
+**Q2 built 2026-10-26 — fields and tissue.** The chimera takes two to seven species, `[A ‖ B ‖ …]`, and
+a field after the bracket weighs them (core/fields.js, the WGSL a bit-for-bit copy):
+- *Kinds* — one op each, so parameters, sensing, the lens, the grab and breeding all work unchanged:
+  `.3` (mix, constant), `axis w g nx ny nz nw at`, `sphere w g r cx cy cz cw at`, `noise w g f o seed at`
+  (4-D value-noise fBm), `tissue n size soft seed at` (Voronoi: n sites in a box of half-size `size`,
+  site j a cell of species j mod k, soft walls from a softmax over −|x − xⱼ|²/(soft·size)), and the
+  self-fields `trap w g t` (least |p|² so far, the start included), `depth w g` (iteration i/n — a sharp
+  depth is a schedule; checked against AAABB), `lyap w g` (the running stretch log dr/(i+1)).
+- *Scalar fields to species:* u = (k − 1)·σ(logit w + s(x)), shared between the two species u falls
+  between; for two species ω_B = σ(logit w + s), and w = 0 or 1 is one pure species.
+- *Frames:* `at` 0 reads the field at the orbit point every iteration (new dynamics); `at` 1 at the
+  world point the orbit started from (a spatial tissue; tissue's default). The orbit frame reads the
+  field inside the ball of radius 2 and on its sphere beyond, so an escaping orbit sees it change with
+  direction only: noise read far out met species |p| apart and float32 orbits lost each other in a few
+  iterations (CPU vs GPU 0.4 apart after 12 at gain 2; with the clamp 2e-4). Gains ≥ 2 inside the
+  ball are still float32-sensitive in their tails — that is the species, not the code.
+- *Eight slots* (A–H; head 432 bytes, `slotStart`/`slotLen`); sub-stacks are the trailing slots, the
+  species count a hidden parameter `s` the brackets set. Counts, seeds, octaves and frames are
+  `discrete`: never sensed, lensed, grabbed or bred.
+- *DE, revised:* dr after a mix is Σ ωᵢ·drᵢ — the bound on |Σ ωᵢJᵢ|. Q1's "larger dr" was looser and
+  wrong in pure cells (a bulb-3 cell beside bulb-8 took 8r⁷: estimate 260× too small, camera "inside").
+  The field's own stretch Σ Fᵢ∇ωᵢᵀ is *not* in dr: the strict term grows with |p| along escaping orbits
+  and drove the estimate to 1e-15 far outside the set. Steep walls can therefore be overstepped a
+  little (visible as flares at tissue seams); the Jacobian (Lyapunov, push Newton) keeps the term.
+- *Duals:* one `mixTan` call for all five columns (calling it per column inlined the field code ~25×
+  and Metal compiled the parity shader for minutes, hanging the page). A world field moves with the
+  start's columns, trap with the iterate that set it (tracked per column), lyap with ddr; the field's
+  own parameter by a central difference through the record (`tanEps`).
+- *Push:* a world field is read at the preimage itself; self-fields at the walk's iteration, with the
+  walk point's own trap. Tissue push of bulb 8/bulb 3: 785 ms a frame at scale .5.
+- Parity (all PASS, async pipelines and progress in the console now): forward medians ≤ 3.4e-5 for
+  every kind and frame; inverse 0 wrong (tissue both frames, noise, trap; 54–90 % found); dual
+  gradients 0.000° median, parameters ≤ 3.2e-5, λ ≤ 1.5e-6; lens overrides on tissue size/soft, noise
+  f/g, trap t/w exact. 21 unit tests (gradients of every kind against differences, the radius clamp's
+  chain rule, the tissue Jacobian, world vs orbit frame, depth as a schedule, push through a tissue).
+- Seen in the app: bulb 8 / bulb 3 tissue (cells and seams), a noise-driven bulb chimera (organic),
+  the metric senses tissue size and soft, the grab edits them (ranges clamp: soft ≤ 2, size ≤ 32 …).
+
+Not yet: a strict, usable bound for steep walls (a per-field Lipschitz safety factor would cost speed
+everywhere); site placement by hand (Q3's Metasurface); drawn fields; tissue-of-tissues.

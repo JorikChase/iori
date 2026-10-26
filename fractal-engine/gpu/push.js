@@ -62,8 +62,8 @@ struct Inv { p: vec4f, col: f32, ok: bool };
 fn invStep(slot: u32, q: vec4f, col0: f32) -> Inv {
   var r: Inv;
   r.p = q; r.col = col0; r.ok = true;
-  let start = head.starts[slot];
-  let len = head.lens[slot];
+  let start = slotStart(slot);
+  let len = slotLen(slot);
   for (var j = 0u; j < len; j++) {
     let oi = start + len - 1u - j;
     let s = invAt(oi, r.p, pv.c4);
@@ -186,7 +186,10 @@ fn walk(@builtin(global_invocation_id) gid: vec3u) {
     let at = (wi * HISTORY + w.top) * 2u;
     let q = stacks[at];
     let col = stacks[at + 1u].x;
-    let slot = schedAt(head.iters - 1u - (w.age % head.iters));
+    let iter = head.iters - 1u - (w.age % head.iters);
+    let slot = schedAt(iter);
+    // a chimera's self-fields: the walk knows the iteration it inverts; the trap it reads is the point's own
+    fIter = f32(iter); fIters = f32(head.iters); fTrap = dot(q, q);
     // one random attempt; a dead end backs up instead of retrying (see core/cpu.js push)
     let seed = rngState;
     mixKeep = true;

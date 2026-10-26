@@ -441,30 +441,38 @@ def({
 });
 
 // ---------- the chimera -------------------------------------------------------------------------
-// [A ‖ B]: two sub-stacks run on the same point in the same iteration and their results blended,
-//   p → (1 − ω(p))·F_A(p) + ω(p)·F_B(p)
-// — new dynamics, not a collage of finished shapes. The weight is a field over the orbit point: a
-// logistic of w's logit plus a linear ramp along n and a radial ramp, so k = r = 0 is the constant w
-// exactly, w = 0 or 1 is one pure species, and anything else is a smooth wall between the species:
-//   ω(p) = σ(logit w + k·(n̂·p) + r·(|p| − 1))
-// dr after the mix is the larger of the two branches' plus |F_B − F_A|·|∇ω|·dr: a bound on the blend's
-// stretch (its Jacobian is (1 − ω)J_A + ωJ_B + (F_B − F_A)∇ωᵀ). The sub-stacks are slots of their own
-// (formula.js mixKids); the maps that run them live in core/cpu.js, the GPU's in gpu/wgsl.js.
-const logit = (w) => Math.log(w / (1 - w));
-export function mixWeight(q, P) {
-  // w = 0 or 1: one pure species, whatever the field
-  if (P.w <= 0 || P.w >= 1) return { w: P.w <= 0 ? 0 : 1, g: [0, 0, 0, 0] };
-  const n = normalize([P.nx, P.ny, P.nz, P.nw]), r = len(q);
-  const sArg = logit(P.w) + P.k * dot(n, q) + P.r * (r - 1);
-  const w = 1 / (1 + Math.exp(-sArg)), ww = w * (1 - w);
-  const g = n.map((x, i) => ww * (P.k * x + (r > 0 ? (P.r * q[i]) / r : 0)));
-  return { w, g };
-}
-def({
-  name: 'mix', glyph: 'mix', wRule: 'mix',
-  params: [p('w', 0.5, 0, 1), p('k', 0), p('nx', 1), p('ny', 0), p('nz', 0), p('nw', 0), p('r', 0)],
-  inv: null,
-});
+// [A ‖ B ‖ …] field: up to seven sub-stacks run on the same point in the same iteration and their
+// results blended by weights from a field (core/fields.js),
+//   p → Σ ωᵢ(x)·Fᵢ(p)
+// — new dynamics, not a collage of finished shapes. One op per field kind; all share the maps that
+// run the sub-stacks (core/cpu.js, gpu/wgsl.js), and differ only in their weights.
+// dr after the mix is Σ ωᵢ·drᵢ, the bound on |Σ ωᵢJᵢ| (the largest branch's would be looser still, and
+// wrong in a pure cell: a bulb-3 cell beside a bulb-8 one took the 8's 8r⁷ and its estimate fell 260×).
+// The blend's full Jacobian is Σ ωᵢJᵢ + Σ Fᵢ∇ωᵢᵀ, and the second term is left out of dr on purpose: a
+// strict bound would add Σ |Fᵢ − p'|·|∇ωᵢ|·dr every iteration,
+// which grows with |p| along an escaping orbit wherever the field keeps varying (noise never
+// saturates) and drove the estimate to 1e-15 at points far outside the set (measured 2026-10-26). So
+// the estimate is the species' own, and steep field walls can be overstepped by the marcher. The
+// Jacobian (Lyapunov, push) keeps the field term.
+// Parameters:
+//   s       how many species: the brackets say it (hidden from the notation, never edited)
+//   w       where the scalar fields sit on the line of species: 0 the first, 1 the last
+//   g       the field's gain
+//   at      the frame: 0 the orbit point every iteration, 1 the world point the orbit started from
+// Discrete parameters (counts, seeds, the frame) are never sensed, lensed, grabbed or bred.
+const dq = (k, d, min, max) => ({ k, d, min, max, discrete: true });
+const SPECIES = { k: 's', d: 2, min: 2, max: 7, discrete: true, hidden: true };
+const AT = (d) => dq('at', d, 0, 1);
+const mixDef = (name, glyph, params) => def({ name, glyph, wRule: 'mix', params: [...params, SPECIES], inv: null });
+mixDef('mix', 'mix', [p('w', 0.5, 0, 1)]);
+mixDef('mix.axis', 'mix.axis', [p('w', 0.5, 0, 1), p('g', 1, -64, 64), p('nx', 1), p('ny', 0), p('nz', 0), p('nw', 0), AT(0)]);
+mixDef('mix.sphere', 'mix.sphere', [p('w', 0.5, 0, 1), p('g', 1, -64, 64), p('r', 1, 0, 16), p('cx', 0), p('cy', 0), p('cz', 0), p('cw', 0), AT(0)]);
+mixDef('mix.noise', 'mix.noise', [p('w', 0.5, 0, 1), p('g', 2, -16, 16), p('f', 1, 0, 16), dq('o', 2, 1, 4), dq('seed', 0, 0, 65535), AT(0)]);
+mixDef('mix.tissue', 'mix.tissue', [dq('n', 6, 2, 16), p('size', 1.5, 1e-3, 32), p('soft', 0.1, 1e-4, 2), dq('seed', 0, 0, 65535), AT(1)]);
+mixDef('mix.trap', 'mix.trap', [p('w', 0.5, 0, 1), p('g', 4, -64, 64), p('t', 0.5, 0, 64)]);
+mixDef('mix.depth', 'mix.depth', [p('w', 0.5, 0, 1), p('g', 6, -256, 256)]);
+mixDef('mix.lyap', 'mix.lyap', [p('w', 0.5, 0, 1), p('g', 2, -64, 64)]);
+export const isMix = (name) => name === 'mix' || name.startsWith('mix.');
 
 // ---------- lookup -----------------------------------------------------------------------------
 

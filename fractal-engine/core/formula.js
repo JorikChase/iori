@@ -12,20 +12,22 @@
 //   slice: { w, tilt: [xw, yw, zw] }   optional. Where the 3-D world sits in the orbit's 4-D space:
 //                          x₄ = T·(x, y, z, w), T the rotation by the tilt (degrees) in the xw, yw, zw
 //                          planes. Absent: w = 0, no tilt — a 3-D formula sees exactly the 3-D world
-//   slots: [[{ op: 'fold.box', p: { l: 1 } }, …], …]   up to four op lists, A–D
+//   slots: [[{ op: 'fold.box', p: { l: 1 } }, …], …]   up to eight op lists, A–H
 // }
 //
-// A chimera's two sub-stacks are slots too, kept after the scheduled ones: with m `mix` ops in the
-// formula, the last 2m slots are theirs, two per mix in the order the mixes appear (slot by slot, op
-// by op). The schedule names only the first slots. So the JSON needs no references — mixKids reads them.
+// A chimera's sub-stacks are slots too, kept after the scheduled ones: each mix op owns as many slots
+// as it has species (its hidden parameter s), consecutive, in the order the mixes appear (slot by slot,
+// op by op), at the end of the list. The schedule names only the first slots. So the JSON needs no
+// references — mixKids reads them.
 //
 // normalize fills defaults; validate returns every problem it finds; canonical/hash make the id.
 
-import { getOp, fillParams } from './ops.js';
+import { getOp, fillParams, isMix } from './ops.js';
 import { parse, format, slotIndex } from './notation.js';
 
 export const MAX_ITERS = 4096;
 export const MAX_OPS = 64;
+export const MAX_SLOTS = 8;
 
 export function normalize(f) {
   const g = {
@@ -42,17 +44,18 @@ export function normalize(f) {
     })),
   };
   // every mix op is handed its two sub-stacks (not enumerable: JSON and the hash never see them)
-  for (const m of mixKids(g).mixes) if (m.kids[1] < g.slots.length) Object.defineProperty(g.slots[m.si][m.j], 'kids', { value: m.kids.map((k) => g.slots[k]) });
+  for (const m of mixKids(g).mixes) if (m.kids.every((k) => k >= 0 && k < g.slots.length)) Object.defineProperty(g.slots[m.si][m.j], 'kids', { value: m.kids.map((k) => g.slots[k]) });
   return g;
 }
 
-// the mix ops in order of appearance, each with the two slot indices it blends; top = how many slots
+// the mix ops in order of appearance, each with the slot indices of its species; top = how many slots
 // the schedule may name
 export function mixKids(f) {
   const mixes = [];
-  f.slots.forEach((sl, si) => sl.forEach((o, j) => { if (o.op === 'mix') mixes.push({ si, j }); }));
-  const top = f.slots.length - 2 * mixes.length;
-  return { top, mixes: mixes.map((m, i) => ({ ...m, kids: [top + 2 * i, top + 2 * i + 1] })) };
+  f.slots.forEach((sl, si) => sl.forEach((o, j) => { if (isMix(o.op)) mixes.push({ si, j, k: Math.round((o.p && o.p.s) || 2) }); }));
+  const top = f.slots.length - mixes.reduce((n, m) => n + m.k, 0);
+  let next = top;
+  return { top, mixes: mixes.map((m) => ({ ...m, kids: Array.from({ length: m.k }, () => next++) })) };
 }
 
 export function validate(f) {
@@ -65,7 +68,7 @@ export function validate(f) {
   if (!(typeof f.bail === 'number' && f.bail > 0 && Number.isFinite(f.bail))) err('bail must be a positive number');
   if (f.c !== undefined && !(Array.isArray(f.c) && (f.c.length === 3 || f.c.length === 4) && f.c.every(Number.isFinite))) err('c must be three or four finite numbers');
   if (f.slice !== undefined && !(f.slice && Number.isFinite(f.slice.w || 0) && Array.isArray(f.slice.tilt || [0, 0, 0]) && (f.slice.tilt || [0, 0, 0]).length === 3 && (f.slice.tilt || [0, 0, 0]).every(Number.isFinite))) err('slice must be { w, tilt: [xw, yw, zw] }');
-  if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > 4) err('slots must hold 1..4 op lists');
+  if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > MAX_SLOTS) err(`slots must hold 1..${MAX_SLOTS} op lists`);
   else {
     let count = 0;
     f.slots.forEach((s, si) => {
@@ -77,6 +80,7 @@ export function validate(f) {
         for (const q of def.params) {
           const v = o.p ? o.p[q.k] : undefined;
           if (typeof v !== 'number' || !Number.isFinite(v)) { err(`${def.name}.${q.k} must be a finite number`); continue; }
+          if (q.discrete && !Number.isInteger(v)) err(`${def.name}.${q.k} must be a whole number`);
           if (q.min !== undefined && v < q.min) err(`${def.name}.${q.k} below ${q.min}`);
           if (q.max !== undefined && v > q.max) err(`${def.name}.${q.k} above ${q.max}`);
         }
@@ -85,9 +89,9 @@ export function validate(f) {
     });
     if (count > MAX_OPS) err(`more than ${MAX_OPS} ops`);
     const { top, mixes } = mixKids(f);
-    if (top < 1) err('every mix needs two slots of its own after the scheduled ones');
+    if (top < 1) err('every mix needs a slot of its own per species, after the scheduled ones');
     else for (const m of mixes) if (m.si >= top) err('a mix cannot sit inside another mix');
-    if (typeof f.schedule !== 'string' || !/^[A-D]+$/.test(f.schedule)) err('schedule must be a word of A–D');
+    if (typeof f.schedule !== 'string' || !/^[A-H]+$/.test(f.schedule)) err('schedule must be a word of A–H');
     else for (const ch of f.schedule) if (slotIndex(ch) >= Math.max(top, 0)) err(`schedule names slot ${ch} which does not exist`);
   }
   return { ok: errors.length === 0, errors };

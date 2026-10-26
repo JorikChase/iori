@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  OPS, getOp, parse, format, normalize, validate, hash, pullSafe, toURLHash, fromURLHash,
+  OPS, getOp, parse, format, normalize, validate, hash, pullSafe, toURLHash, fromURLHash, weights, orbitWeights,
   iterate, de, jacobian, opJacobian, lyapunov, push, makeRng, deGrad, deParam, lyapunovOrbit,
   stepInverse, slotAt,
 } from '../core/index.js';
@@ -306,11 +306,11 @@ test('4-D: the slice embeds the world, quaternion Julia sets, and 3-D formulas u
 
 test('chimera: [A ‖ B] w blends two species inside the iteration', () => {
   const BOX = 'fold.box 1 · fold.sphere .5 1 · scale 2';
-  const text = `[${BOX} ‖ bulb 8] .3 2 0 1 · +c ×10 bail=8`;
+  const text = `[${BOX} ‖ bulb 8] axis .3 2 0 1 · +c ×10 bail=8`;
   const f = parse(text);
   assert.ok(validate(f).ok, validate(f).errors.join('; '));
   assert.equal(f.slots.length, 3);
-  assert.equal(format(f), '[fold.box · fold.sphere · scale ‖ bulb] .3 2 0 1 · +c ×10 bail=8');
+  assert.equal(format(f), '[fold.box · fold.sphere · scale ‖ bulb] axis .3 2 0 1 · +c ×10 bail=8');
   assert.deepEqual(normalize(parse(format(f))), normalize(f));
   assert.equal(format(parse('[abs || scale 3] · +c ×4')), '[abs ‖ scale 3] · +c ×4');
   // a chimera in the second scheduled slot: its sub-stacks still come after both
@@ -331,16 +331,15 @@ test('chimera: [A ‖ B] w blends two species inside the iteration', () => {
   }
 
   // the blend's Jacobian, field included, against differences
-  const m = normalize(parse(`[${BOX} · rotate4 10 20 0 5 ‖ bulb4 3 · translate .1] .4 1.5 1 2 -1 .5 .8 ×1`));
-  const mixOp = { ...m.slots[0][0] };
-  Object.defineProperty(mixOp, 'kids', { value: [m.slots[1], m.slots[2]] });
+  const m = normalize(parse(`[${BOX} · rotate4 10 20 0 5 ‖ bulb4 3 · translate .1] sphere .4 1.5 .8 .2 -.1 0 .1 ×1`));
+  const mixOp = m.slots[0][0];
   for (const q of [[0.3, -0.2, 0.7, 0.4], [1.2, 0.2, -0.3, -0.3], [0.05, 0.6, 0.2, 0.07]]) {
     const J = opJacobian(mixOp, q, [0, 0, 0, 0]), N = opJacobian(mixOp, q, [0, 0, 0, 0], true);
     assert.ok(matNear(J, N, 1e-4), `mix at ${q}: ${J} vs ${N}`);
   }
 
   // push finds genuine preimages of the blend (Newton from one species' inverse)
-  const pushF = parse('[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0] .5 .8 ×16 bail=16');
+  const pushF = parse('[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 .8 ×16 bail=16');
   const pf = normalize(pushF);
   const samples = push(pushF, 400, { burn: 8 });
   assert.equal(samples.length, 400);
@@ -357,4 +356,86 @@ test('chimera: [A ‖ B] w blends two species inside the iteration', () => {
     checked++;
   }
   assert.ok(checked > 20, `only ${checked} preimages found`);
+});
+
+test('fields: weights sum to one, their gradients and reading derivatives match differences', () => {
+  const ctx = { p0: [0.2, 0.1, -0.3, 0.1], trap: 0.4, i: 3, n: 10, dr: 7 };
+  const cases = [
+    ['mix.axis', { w: 0.4, g: 1.7, nx: 1, ny: 2, nz: -1, nw: 0.5 }],
+    ['mix.sphere', { w: 0.6, g: 3, r: 0.8, cx: 0.1, cy: 0, cz: -0.2, cw: 0.1 }],
+    ['mix.noise', { w: 0.5, g: 2, f: 1.3, o: 3, seed: 5 }],
+    ['mix.tissue', { n: 7, size: 1.2, soft: 0.15, seed: 3 }],
+    ['mix.trap', { w: 0.5, g: 4, t: 0.3 }],
+  ];
+  for (const k of [2, 3, 5]) for (const [op, P] of cases) {
+    for (const x of [[0.3, -0.2, 0.7, 0.4], [1.1, 0.4, -0.5, -0.2], [-0.2, 0.05, 0.3, 0.6]]) {
+      const W = weights(op, P, k, x, ctx);
+      assert.ok(near(W.w.reduce((a, b) => a + b, 0), 1, 1e-9), `${op} sums to ${W.w}`);
+      for (let a = 0; a < 4; a++) {
+        const h = 1e-6, xp = [...x], xm = [...x];
+        xp[a] += h; xm[a] -= h;
+        const wp = weights(op, P, k, xp, ctx).w, wm = weights(op, P, k, xm, ctx).w;
+        wp.forEach((v, i) => assert.ok(Math.abs((v - wm[i]) / (2 * h) - W.G[i][a]) < 1e-5 * Math.max(1, Math.abs(W.G[i][a])), `${op} k=${k} ∂ω${i}/∂x${a}`));
+      }
+      // read at the orbit point: within radius 2 as it is, beyond on the sphere (the chain rule checked)
+      const xf = x.map((v) => v * 2.3), WO = orbitWeights(op, P, k, xf, ctx);
+      for (let a = 0; a < 4; a++) {
+        const h = 1e-6, xp = [...xf], xm = [...xf];
+        xp[a] += h; xm[a] -= h;
+        const wp = orbitWeights(op, P, k, xp, ctx).w, wm = orbitWeights(op, P, k, xm, ctx).w;
+        wp.forEach((v, i) => assert.ok(Math.abs((v - wm[i]) / (2 * h) - WO.G[i][a]) < 1e-5 * Math.max(1, Math.abs(WO.G[i][a])), `${op} beyond R ∂ω${i}/∂x${a}`));
+      }
+      if (op === 'mix.trap') {
+        const h = 1e-6, wp = weights(op, P, k, x, { ...ctx, trap: ctx.trap + h }).w, wm = weights(op, P, k, x, { ...ctx, trap: ctx.trap - h }).w;
+        wp.forEach((v, i) => assert.ok(Math.abs((v - wm[i]) / (2 * h) - W.S[i]) < 1e-5, `trap ∂ω${i}/∂trap`));
+      }
+    }
+  }
+});
+
+test('tissue: k species, frames, self-fields', () => {
+  // three species in Voronoi cells; the notation round-trips and the cells' blend has an honest Jacobian
+  const t = parse('[fold.box 1 · scale 2 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 3] tissue 7 1.2 .2 4 0 · +c ×8 bail=20');
+  assert.ok(validate(t).ok, validate(t).errors.join('; '));
+  assert.equal(t.slots.length, 4);
+  assert.equal(format(parse(format(t))), format(t));
+  const mt = normalize(t).slots[0][0];
+  for (const q of [[0.3, -0.2, 0.7, 0.4], [1.1, 0.4, -0.5, -0.2]]) {
+    const ctx = { p0: q, trap: 0.5, i: 0, n: 8 };
+    const J = opJacobian(mt, q, [0, 0, 0, 0], false, ctx), N = opJacobian(mt, q, [0, 0, 0, 0], true, ctx);
+    assert.ok(matNear(J, N, 1e-4), `tissue at ${q}`);
+  }
+  // eight slots: seven species and the scheduled one
+  const seven = parse('[abs ‖ scale 2 ‖ bulb ‖ quat ‖ invert ‖ sort ‖ bulb4] tissue · +c ×4');
+  assert.equal(seven.slots.length, 8);
+  assert.ok(validate(seven).ok);
+  assert.throws(() => parse('[abs ‖ scale 2 ‖ bulb ‖ quat ‖ invert ‖ sort ‖ bulb4 ‖ abs] ×4'), /seven/);
+
+  // world frame: far along the axis the start point decides, and the whole orbit runs one species
+  const world = (x) => iterate(parse('[scale 2 ‖ scale 3] axis .5 40 1 0 0 0 1 ×3 bail=100'), x).points.at(-1);
+  assert.ok(near(world([1, 0, 0])[0], 27, 1e-9) && near(world([-1, 0, 0])[0], -8, 1e-9));
+  // …while the orbit frame reads each iterate: the first step at x = .1 is a blend
+  const orbit = iterate(parse('[scale 2 ‖ scale 3] axis .5 4 1 0 0 0 ×1'), [0.1, 0, 0]).points[1][0];
+  const wB = 1 / (1 + Math.exp(-0.4));
+  assert.ok(near(orbit, 0.1 * (2 * (1 - wB) + 3 * wB), 1e-12));
+
+  // depth: a sharp switch is a schedule
+  const d = iterate(parse('[scale 2 · translate .1 ‖ translate 1 · abs] depth .5 100 ×5'), [0.3, -0.2, 0.1]).points.at(-1);
+  const sch = iterate(parse('scale 2 · translate .1 | translate 1 · abs ×5 AAABB'), [0.3, -0.2, 0.1]).points.at(-1);
+  assert.ok(d.every((x, i) => near(x, sch[i], 1e-3)), `${d} vs ${sch}`);
+
+  // push through a three-species tissue in the orbit frame: genuine preimages
+  const pf = normalize(parse('[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ fold.box 1 · scale 2] tissue 6 1.5 .3 1 0 ×16 bail=16'));
+  const samples = push(pf, 200, { burn: 6 });
+  assert.equal(samples.length, 200);
+  const rng = makeRng(9);
+  let checked = 0;
+  for (const sm of samples.slice(0, 100)) {
+    const pre = stepInverse({ p: [...sm.p], c: [0, 0, 0, 0], dr: 1 }, slotAt(pf, 0), rng);
+    if (!pre) continue;
+    const back = iterate(pf, pre, [0, 0, 0, 0], { iters: 1 }).points[1];
+    assert.ok(back.every((x, i) => near(x, sm.p[i], 1e-7)), `${pre} → ${back} ≠ ${sm.p}`);
+    checked++;
+  }
+  assert.ok(checked > 10, `only ${checked} preimages found`);
 });

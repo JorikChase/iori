@@ -7,7 +7,8 @@
 // Julia constant, and the slice (a 4×4, column-major for WGSL, and the offset along w).
 
 import { normalize, pullSafe, mixKids } from '../core/formula.js';
-import { getOp } from '../core/ops.js';
+import { getOp, isMix } from '../core/ops.js';
+import { FIELD_KIND } from '../core/fields.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
 import { rotationXYZ, rotation4, lift4, sliceMatrix, normalize as nrm } from '../core/vec.js';
@@ -16,7 +17,9 @@ export const OPCODE = {
   'translate': 0, '+c': 1, 'scale': 2, 'rotate': 3, 'fold.plane': 4, 'fold.box': 5, 'fold.sphere': 6,
   'abs': 7, 'sort': 8, 'bulb': 9, 'power': 10, 'invert': 11, 'twist': 12,
   'spherical': 13, 'swirl': 14, 'sin': 15, 'horseshoe': 16, 'polar': 17,
-  'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21, 'mix': 22,
+  'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21,
+  // every chimera is one code; its field kind is in the record (core/fields.js FIELD_KIND)
+  'mix': 22, 'mix.axis': 22, 'mix.sphere': 22, 'mix.noise': 22, 'mix.tissue': 22, 'mix.trap': 22, 'mix.depth': 22, 'mix.lyap': 22,
 };
 
 export const MAX_OPS = 64;
@@ -24,11 +27,15 @@ export const MAX_SCHEDULE = 64;
 export const REC = 20;
 export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4;
 
-// head layout (u32/f32 words): 4 + 4 + 4 + 64 schedule words, c (vec4f) at word 76, the slice
-// (mat4x4f) at word 80, its w offset at word 96 → 400 bytes
-export const HEAD_BYTES = 400;
+// head layout (u32/f32 words): 4, eight slot starts, eight lengths, 64 schedule words, c (vec4f) at
+// word 84, the slice (mat4x4f) at word 88, its w offset at word 104 → 432 bytes
+export const HEAD_BYTES = 432;
 
-// kids: a mix's two sub-stack slots (pack reads them from the formula; a parameter tangent needs none)
+// kids: a mix's sub-stack slots (pack reads them from the formula; a parameter tangent needs none)
+//
+// A chimera's record: [22, kind, at, first species slot], [species, w, g, 0], a vector (axis normal as
+// given, sphere centre), [scalars]: sphere r; noise f, octaves, seed; tissue n, size, soft, seed; trap t.
+// Every continuous parameter enters it linearly, so the lens and the sensing pass can vary any of them.
 function record(o, out = new Float32Array(REC), kids = [0, 0]) {
   const r = out;
   r[0] = OPCODE[o.op];
@@ -43,8 +50,16 @@ function record(o, out = new Float32Array(REC), kids = [0, 0]) {
     case 'fold.sphere': r.set([P.rmin, P.rfix], 1); break;
     case 'bulb': case 'bulb4': case 'power': r[1] = P.n; break;
     case 'twist': r[1] = (P.a * Math.PI) / 180; break;
-    case 'mix': r.set([P.w, P.k, P.r, ...nrm([P.nx, P.ny, P.nz, P.nw]), kids[0], kids[1]], 1); break;
-    default: break;
+    default:
+      if (isMix(o.op)) {
+        r.set([FIELD_KIND[o.op], P.at || 0, kids[0], P.s, P.w ?? 0, P.g ?? 0, 0], 1);
+        if (o.op === 'mix.axis') r.set([P.nx, P.ny, P.nz, P.nw], 8);
+        if (o.op === 'mix.sphere') { r.set([P.cx, P.cy, P.cz, P.cw], 8); r[12] = P.r; }
+        if (o.op === 'mix.noise') r.set([P.f, P.o, P.seed], 12);
+        if (o.op === 'mix.tissue') r.set([P.n, P.size, P.soft, P.seed], 12);
+        if (o.op === 'mix.trap') r[12] = P.t;
+      }
+      break;
   }
   return r;
 }
@@ -52,7 +67,7 @@ function record(o, out = new Float32Array(REC), kids = [0, 0]) {
 export function pack(formula) {
   const f = normalize(formula);
   const ops = new Float32Array(MAX_OPS * REC);
-  const starts = [0, 0, 0, 0], lens = [0, 0, 0, 0];
+  const starts = new Array(8).fill(0), lens = new Array(8).fill(0);
   let n = 0;
   const kidsOf = new Map(mixKids(f).mixes.map((m) => [`${m.si}.${m.j}`, m.kids]));
   f.slots.forEach((s, si) => {
@@ -72,14 +87,14 @@ export function pack(formula) {
   u[0] = f.iters;
   u[1] = sched.length;
   u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0);
-  if (f.c) fl.set(f.c, 76);
+  if (f.c) fl.set(f.c, 84);
   // the slice, column by column, and its w offset
   const T = sliceMatrix(f.slice || {});
-  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) fl[80 + j * 4 + i] = T[i * 4 + j];
-  fl[96] = (f.slice && f.slice.w) || 0;
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) fl[88 + j * 4 + i] = T[i * 4 + j];
+  fl[104] = (f.slice && f.slice.w) || 0;
   fl[3] = f.bail;
-  for (let i = 0; i < 4; i++) { u[4 + i] = starts[i]; u[8 + i] = lens[i]; }
-  sched.forEach((s, i) => { u[12 + i] = s; });
+  for (let i = 0; i < 8; i++) { u[4 + i] = starts[i]; u[12 + i] = lens[i]; }
+  sched.forEach((s, i) => { u[20 + i] = s; });
   return { ops, head, opCount: n, formula: f };
 }
 
@@ -95,7 +110,8 @@ export function paramTangents(formula) {
   const list = [];
   let oi = 0;
   f.slots.forEach((slot, si) => slot.forEach((o, j) => {
-    for (const q of getOp(o.op).params) {
+    // counts, seeds and frames are not sensed: they have no derivative
+    for (const q of getOp(o.op).params.filter((x) => !x.discrete)) {
       const v = o.p[q.k], h = 1e-5 * Math.max(1, Math.abs(v));
       const plus = record({ op: o.op, p: { ...o.p, [q.k]: v + h } }, new Float64Array(REC));
       const minus = record({ op: o.op, p: { ...o.p, [q.k]: v - h } }, new Float64Array(REC));

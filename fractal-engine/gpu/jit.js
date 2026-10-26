@@ -112,20 +112,16 @@ function opCode(o, oi) {
   }
 }
 
-// the chimera inline: both sub-stacks unrolled on copies of (p, dr), blended by the weight field read
-// from the record (one path for both kinds: a literal JIT runs only while the buffer holds its values).
-// Their branches are not coloured; the mix colours by the leading species, as the interpreter does.
-function mixCode(oi, kidA, kidB) {
-  return `{ let pm = p; let drm = t.dr;
-${kidA}
-      let pA = p; let drA = t.dr;
-      p = pm; t.dr = drm;
-${kidB}
-      let pB = p; let drB = t.dr;
-      let m = mixW(${oi}u, pm);
-      p = mix(pA, pB, m.w);
-      t.dr = max(drA, drB) + length(pB - pA) * length(m.g) * drm;
-      br = select(1u, 2u, m.w > 0.5); }`;
+// the chimera inline: every species unrolled on a copy of (p, dr), blended by mixCombine (gpu/wgsl.js),
+// which reads the field from the record (one path for both kinds: a literal JIT runs only while the
+// buffer holds its values). The species' branches are not coloured; the mix colours by the leading
+// species, as the interpreter does.
+function mixCode(oi, kids) {
+  return `{ let pm = p; let drm = t.dr; var kp: array<vec4f, 8>; var kd: array<f32, 8>;
+${kids.map((code, i) => `${code}
+      kp[${i}] = p; kd[${i}] = t.dr; p = pm; t.dr = drm;`).join('\n')}
+      let fm = mixCombine(${oi}u, pm, drm, kp, kd);
+      p = fm.p; t.dr = fm.dr; br = fm.branch; }`;
 }
 
 // the WGSL `iterate` for one formula, replacing the interpreter's. kind: 'literal' | 'structure'
@@ -140,7 +136,7 @@ export function jitIterate(formula, kind = 'literal') {
   const slots = f.slots.map((s, si) => s.map((o, j) => {
     const oi = base[si] + j;
     const kids = kidsOf.get(`${si}.${j}`);
-    const code = kids ? mixCode(oi, bare(kids[0]), bare(kids[1])) : gen(o, oi);
+    const code = kids ? mixCode(oi, kids.map(bare)) : gen(o, oi);
     const branchy = /br =|br = br/.test(code);
     const line = branchy
       ? `br = 0u; ${code}\n      if (br != 0u) { t.col = branchColour(t.col, ${oi}u, br); }`
@@ -157,11 +153,14 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
   t.p = p0; t.dr = 1.0; t.n = 0u; t.escaped = false; t.trap = 1e20; t.col = 0.0;
   var p = p0;
   var br = 0u;
+  startOrbit(p0);
   for (var i = 0u; i < ${f.iters}u; i++) {
+    fIter = f32(i);
 ${body}
     t.n = i + 1u;
     let r2 = dot(p, p);
     t.trap = min(t.trap, r2);
+    fTrap = min(fTrap, r2);
     if (!(r2 <= ${kind === 'structure' ? 'head.bail * head.bail' : L(f.bail * f.bail)})) { t.escaped = true; break; }
   }
   t.p = p;

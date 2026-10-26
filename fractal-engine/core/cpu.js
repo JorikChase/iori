@@ -11,7 +11,8 @@
 //   push      chaos game: inverse orbit with random branches; each sample carries its Jacobian
 //   stepInverse  one inverse iteration (exposed for tests)
 
-import { getOp, mixWeight } from './ops.js';
+import { getOp, isMix } from './ops.js';
+import { weights, orbitWeights } from './fields.js';
 import { normalize, pullSafe } from './formula.js';
 import { slotIndex } from './notation.js';
 import { makeRng, recordingRng, replayRng } from './rng.js';
@@ -34,16 +35,34 @@ export function slotAt(f, i) {
   return f.slots[slotIndex(f.schedule[i % f.schedule.length])];
 }
 
-// ---------- the chimera (ops.js mix): two sub-stacks on the same point, blended ----------------------
+// ---------- the chimera (ops.js mix.*): k sub-stacks on the same point, blended -------------------
+// The orbit's running context, which the fields read: p0 the start (the world frame), trap the least
+// |p|² so far (the start included), i the iteration under way of n. A state without one (a single
+// step, as tests and the inverse check take it) is its own start.
+const ctxOf = (s) => s.ctx || { p0: s.p, trap: dot4(s.p, s.p), i: 0, n: 1 };
+const dot4 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+export const startCtx = (f, p) => ({ p0: [...p], trap: dot4(p, p), i: 0, n: f.iters });
+function endIteration(s) { if (s.ctx) s.ctx.trap = Math.min(s.ctx.trap, dot4(s.p, s.p)); }
+
+// the species run, their weights, the blend. asOrbit: a world-frame field read at the point itself
+// (the inverse, which has no start point, solves for a point that is its own start)
+function mixEval(o, p, c, dr, ctx, asOrbit = false) {
+  const k = o.kids.length;
+  const runs = o.kids.map((kid) => { const a = { p: [...p], c, dr }; stepForward(a, kid); return a; });
+  const world = o.p.at && !asOrbit;
+  // (asOrbit reads a world field at the point itself, as it is, the way the GPU's inverse does)
+  const W = o.p.at ? weights(o.op, o.p, k, world ? ctx.p0 : p, { ...ctx, dr }) : orbitWeights(o.op, o.p, k, p, { ...ctx, dr });
+  const out = [0, 0, 0, 0];
+  runs.forEach((r, i) => { for (let a = 0; a < 4; a++) out[a] += W.w[i] * r.p[a]; });
+  // dr: the species' own, weighted (see ops.js mix: the field's own stretch is not in it)
+  return { p: out, dr: runs.reduce((a, r, i) => a + W.w[i] * r.dr, 0), runs, W, world };
+}
+
 function mixFwd(s, o) {
-  const [A, B] = o.kids;
-  const a = { p: [...s.p], c: s.c, dr: s.dr }, b = { p: [...s.p], c: s.c, dr: s.dr };
-  stepForward(a, A); stepForward(b, B);
-  const { w, g } = mixWeight(s.p, o.p);
-  s.dr = Math.max(a.dr, b.dr) + len(sub(b.p, a.p)) * len(g) * s.dr;
-  s.p = add(mul(a.p, 1 - w), mul(b.p, w));
+  const m = mixEval(o, s.p, s.c, s.dr, ctxOf(s));
+  s.p = m.p; s.dr = m.dr;
   // the branch records the species that leads
-  return w > 0.5 ? 2 : 1;
+  return 1 + m.W.w.indexOf(Math.max(...m.W.w));
 }
 
 function stackJacobian(ops, p, c) {
@@ -53,11 +72,15 @@ function stackJacobian(ops, p, c) {
   return { J, p: s.p };
 }
 
-// (1 − ω)J_A + ωJ_B + (F_B − F_A)∇ωᵀ
-function mixJacobian(o, p, c) {
-  const a = stackJacobian(o.kids[0], p, c), b = stackJacobian(o.kids[1], p, c);
-  const { w, g } = mixWeight(p, o.p), d = sub(b.p, a.p);
-  return a.J.map((x, i) => (1 - w) * x + w * b.J[i] + d[i >> 2] * g[i & 3]);
+// Σ ωᵢJᵢ + Σ Fᵢ∇ωᵢᵀ at fixed context (the self-fields' readings and a world field's start held still)
+function mixJacobian(o, p, c, ctx, asOrbit = false) {
+  const m = mixEval(o, p, c, ctx.dr ?? 1, ctx, asOrbit);
+  const J = new Array(16).fill(0);
+  o.kids.forEach((kid, i) => {
+    const sj = stackJacobian(kid, p, c);
+    for (let r = 0; r < 16; r++) J[r] += m.W.w[i] * sj.J[r] + (m.world ? 0 : sj.p[r >> 2] * m.W.G[i][r & 3]);
+  });
+  return J;
 }
 
 // solve the 4×4 system A x = y by elimination with partial pivoting; null when singular
@@ -77,27 +100,26 @@ function solve4(A, y) {
 }
 
 // A preimage of the blend: invert one species for a first guess, then Newton on the blend itself. Up
-// to MIX_GUESSES guesses, alternating species from a coin's pick and redrawing their branches; a point
-// none of them reaches is a dead end, which the chaos game backs out of.
+// to MIX_GUESSES guesses, cycling through the species from a random one and redrawing their branches;
+// a point none of them reaches is a dead end, which the chaos game backs out of. A world-frame field is
+// read at the preimage itself; the self-fields at the context given (the walk knows its iteration).
 export const MIX_NEWTON = 8, MIX_GUESSES = 4;
 function mixInv(q, o, rng, s0) {
-  const first = rng.pick(2);
+  const k = o.kids.length, first = rng.pick(k), ctx = ctxOf(s0);
   const tol = 1e-9 * (1 + len(q));
   for (let g = 0; g < MIX_GUESSES; g++) {
     const s = { p: [...q], c: s0.c, dr: 1 };
-    let x = stepInverse(s, o.kids[(first + g) & 1], rng, 1);
+    let x = stepInverse(s, o.kids[(first + g) % k], rng, 1);
     if (!x) continue;
     let best = Infinity, stall = 0;
     for (let i = 0; i <= MIX_NEWTON; i++) {
-      const t = { p: [...x], c: s0.c, dr: 1 };
-      mixFwd(t, o);
-      const F = sub(t.p, q), e = len(F);
+      const F = sub(mixEval(o, x, s0.c, 1, ctx, true).p, q), e = len(F);
       if (e <= tol) return x;
       // a guess outside Newton's basin shows soon: two steps without the residual shrinking (one is
       // allowed — crossing a fold's edge can cost a step)
       if (e < 0.9 * best) { best = e; stall = 0; } else stall++;
       if (i === MIX_NEWTON || stall >= 2 || !Number.isFinite(e)) break;
-      const dx = solve4(mixJacobian(o, x, s0.c), F);
+      const dx = solve4(mixJacobian(o, x, s0.c, ctx, true), F);
       if (!dx) break;
       x = sub(x, dx);
     }
@@ -106,7 +128,7 @@ function mixInv(q, o, rng, s0) {
 }
 
 function applyOp(s, o) {
-  if (o.op === 'mix') return mixFwd(s, o);
+  if (isMix(o.op)) return mixFwd(s, o);
   const def = getOp(o.op);
   const r = def.fwd(s, o.p);
   if (def.wRule === 'mul') s.dr *= r.k;
@@ -124,10 +146,13 @@ export function iterate(formula, p0, c = [0, 0, 0, 0], opts = {}) {
   const iters = opts.iters || f.iters;
   const bail2 = f.bail * f.bail;
   const s = { p: lift(f, p0), c: pad4(c), dr: 1 };
+  s.ctx = startCtx(f, s.p);
   const points = [[...s.p]], drs = [1], branches = [];
   let escaped = false, n = 0;
   for (let i = 0; i < iters; i++) {
+    s.ctx.i = i;
     branches.push(stepForward(s, slotAt(f, i)));
+    endIteration(s);
     n = i + 1;
     points.push([...s.p]);
     drs.push(s.dr);
@@ -155,13 +180,15 @@ export function de(formula, p, c, opts = {}) {
 }
 
 // Jacobian of one op at p: analytic when the op provides one, central differences otherwise
-export function opJacobian(o, p, c, numeric = false) {
-  if (o.op === 'mix' && !numeric) return mixJacobian(o, p, c);
+// ctx: the orbit's running context, which a chimera's field reads (held still: see mixJacobian)
+export function opJacobian(o, p, c, numeric = false, ctx = null) {
+  if (isMix(o.op) && !numeric) return mixJacobian(o, p, c, ctx || { p0: p, trap: dot4(p, p), i: 0, n: 1 });
   const def = getOp(o.op);
   if (def.jac && !numeric) return def.jac(p, o.p);
   const J = new Array(16);
   for (let j = 0; j < 4; j++) {
-    const a = { p: [...p], c, dr: 1 }, b = { p: [...p], c, dr: 1 };
+    const a = { p: [...p], c, dr: 1, ctx }, b = { p: [...p], c, dr: 1, ctx };
+    if (!ctx) { a.ctx = { p0: p, trap: dot4(p, p), i: 0, n: 1 }; b.ctx = a.ctx; }
     a.p[j] += FD_H; b.p[j] -= FD_H;
     applyOp(a, o); applyOp(b, o);
     for (let i = 0; i < 4; i++) J[i * 4 + j] = (a.p[i] - b.p[i]) / (2 * FD_H);
@@ -173,9 +200,10 @@ export function opJacobian(o, p, c, numeric = false) {
 export function jacobian(formula, p, c = [0, 0, 0, 0], iter = 0) {
   const f = normalize(formula);
   const s = { p: lift(f, p), c: pad4(c), dr: 1 };
+  s.ctx = { ...startCtx(f, s.p), i: iter };
   let J = I4();
   for (const o of slotAt(f, iter)) {
-    J = matMul(opJacobian(o, s.p, s.c), J);
+    J = matMul(opJacobian(o, s.p, s.c, false, { ...s.ctx, dr: s.dr }), J);
     applyOp(s, o);
   }
   return J;
@@ -192,12 +220,15 @@ const worldTangent = (f) => {
 export function lyapunov(formula, p0, c = [0, 0, 0, 0], n = 64) {
   const f = normalize(formula);
   const s = { p: lift(f, p0), c: pad4(c), dr: 1 };
+  s.ctx = startCtx(f, s.p);
   let v = worldTangent(f), sum = 0, k = 0;
   for (let i = 0; i < n; i++) {
+    s.ctx.i = i;
     for (const o of slotAt(f, i)) {
-      v = matVec(opJacobian(o, s.p, s.c), v);
+      v = matVec(opJacobian(o, s.p, s.c, false, { ...s.ctx, dr: s.dr }), v);
       applyOp(s, o);
     }
+    endIteration(s);
     const l = len(v);
     if (!(l > 0) || !Number.isFinite(l)) break;
     sum += Math.log(l); k++;
@@ -218,7 +249,7 @@ export function stepInverse(s, slot, rng, tries = 8) {
     let ok = true;
     for (let i = slot.length - 1; i >= 0 && ok; i--) {
       const o = slot[i], def = getOp(o.op);
-      if (o.op === 'mix') {
+      if (isMix(o.op)) {
         const q = mixInv(s.p, o, rng, s);
         if (q) s.p = q; else ok = false;
       } else if (def.inv) {
@@ -258,9 +289,12 @@ export function push(formula, count, opts = {}) {
   const maxSteps = 1000 * (count + burn + 10);
   while (samples.length < count && respawns < 1000 && steps++ < maxSteps) {
     const top = stack[stack.length - 1];
-    const slot = slotAt(f, f.iters - 1 - (top.i % f.iters));
+    const iter = f.iters - 1 - (top.i % f.iters);
+    const slot = slotAt(f, iter);
     const rec = recordingRng(rng);
-    const s = { p: [...top.p], c: [...c], dr: 1 };
+    // the walk knows which iteration it inverts; the trap it reads is the point's own
+    const ctx = { p0: top.p, trap: dot4(top.p, top.p), i: iter, n: f.iters };
+    const s = { p: [...top.p], c: [...c], dr: 1, ctx };
     const q = stepInverse(s, slot, rec, 1);
     if (!q || !q.every(Number.isFinite) || Math.hypot(...q) > f.bail) {
       stack.pop();
@@ -274,7 +308,7 @@ export function push(formula, count, opts = {}) {
     if (opts.jacobians !== false) {
       J = new Array(16);
       for (let j = 0; j < 4; j++) {
-        const a = { p: [...top.p], c, dr: 1 }, b = { p: [...top.p], c, dr: 1 };
+        const a = { p: [...top.p], c, dr: 1, ctx }, b = { p: [...top.p], c, dr: 1, ctx };
         a.p[j] += FD_H; b.p[j] -= FD_H;
         const qa = stepInverse(a, slot, replayRng(rec.log), 1), qb = stepInverse(b, slot, replayRng(rec.log), 1);
         for (let r = 0; r < 4; r++) J[r * 4 + j] = qa && qb ? (qa[r] - qb[r]) / (2 * FD_H) : 0;
@@ -323,12 +357,15 @@ export function lyapunovOrbit(formula, p0) {
   const p4 = lift(f, p0);
   const c = f.c || [...p4];
   const s = { p: p4, c, dr: 1 };
+  s.ctx = startCtx(f, s.p);
   let v = worldTangent(f), sum = 0, n = 0;
   for (let i = 0; i < f.iters; i++) {
+    s.ctx.i = i;
     for (const o of slotAt(f, i)) {
-      v = matVec(opJacobian(o, s.p, s.c), v);
+      v = matVec(opJacobian(o, s.p, s.c, false, { ...s.ctx, dr: s.dr }), v);
       applyOp(s, o);
     }
+    endIteration(s);
     n++;
     const l = len(v);
     if (l > 0 && l < 1e30) { sum += Math.log(l); v = mul(v, 1 / l); }

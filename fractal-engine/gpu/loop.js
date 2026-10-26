@@ -58,7 +58,7 @@ fn load(t: texture_2d<f32>, q: vec2f) -> vec3f {
 fn applySlot(slot: u32, x0: vec4f, c: vec4f) -> vec4f {
   var x = x0;
   let start = head.starts[slot];
-  for (var j = 0u; j < head.lens[slot]; j++) { x = opFwd(start + j, x, c).p; }
+  for (var j = 0u; j < head.lens[slot]; j++) { x = fwdAt(start + j, x, c, 1.0).p; }
   return x;
 }
 

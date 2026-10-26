@@ -9,7 +9,7 @@
 // For a formula with +c and no fixed c, push needs one constant: the app passes the point the camera
 // looks at, so push shows the Julia set of where you are.
 
-import { INTERP, INVERSE } from './wgsl.js';
+import { INTERP, INVERSE, DUAL } from './wgsl.js';
 
 const WALKER_BYTES = 64;
 const HISTORY = 16;       // as core/cpu.js: the walk backs up out of dead ends through this history
@@ -25,7 +25,7 @@ fn pcg(v: u32) -> u32 {
 }
 fn rnd() -> f32 { rngState = pcg(rngState); return f32(rngState >> 8u) / 16777216.0; }
 fn pick(n: u32) -> u32 { return min(u32(rnd() * f32(n)), max(n, 1u) - 1u); }
-` + INVERSE + /* wgsl */ `
+` + INVERSE + DUAL + /* wgsl */ `
 struct PView {
   pos: vec4f,    // xyz camera, w tan(fov/2)
   right: vec4f,  // xyz, w aperture radius
@@ -66,7 +66,7 @@ fn invStep(slot: u32, q: vec4f, col0: f32) -> Inv {
   let len = head.lens[slot];
   for (var j = 0u; j < len; j++) {
     let oi = start + len - 1u - j;
-    let s = opInv(oi, r.p, pv.c4);
+    let s = invAt(oi, r.p, pv.c4);
     if (!s.ok) { r.ok = false; return r; }
     r.p = s.p;
     if (s.branch != 0u) { r.col = branchColour(r.col, oi, s.branch); }
@@ -189,7 +189,9 @@ fn walk(@builtin(global_invocation_id) gid: vec3u) {
     let slot = schedAt(head.iters - 1u - (w.age % head.iters));
     // one random attempt; a dead end backs up instead of retrying (see core/cpu.js push)
     let seed = rngState;
+    mixKeep = true;
     let res = invStep(slot, q, col);
+    mixKeep = false;
     let after = rngState;
     if (!res.ok || any(res.p != res.p) || dot(res.p, res.p) > head.bail * head.bail) {
       w.depth = w.depth - 1u;
@@ -201,10 +203,13 @@ fn walk(@builtin(global_invocation_id) gid: vec3u) {
     }
     // Jacobian of the step, its branch choices held fixed by replaying the seed
     let h = 1e-3 * max(length(q), 0.05);
+    // (a chimera answers the replays from its kept solution: see mixReplay in gpu/wgsl.js)
+    mixReplay = true;
     rngState = seed; let c0 = invStep(slot, q + vec4f(h, 0.0, 0.0, 0.0), col).p;
     rngState = seed; let c1 = invStep(slot, q + vec4f(0.0, h, 0.0, 0.0), col).p;
     rngState = seed; let c2 = invStep(slot, q + vec4f(0.0, 0.0, h, 0.0), col).p;
     rngState = seed; let c3 = invStep(slot, q + vec4f(0.0, 0.0, 0.0, h), col).p;
+    mixReplay = false;
     rngState = after;
     var J = mat4x4f((c0 - res.p) / h, (c1 - res.p) / h, (c2 - res.p) / h, (c3 - res.p) / h);
     // a perturbed point can fall on another branch (near a fold edge); its difference quotient is then

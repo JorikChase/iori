@@ -11,11 +11,11 @@
 //   push      chaos game: inverse orbit with random branches; each sample carries its Jacobian
 //   stepInverse  one inverse iteration (exposed for tests)
 
-import { getOp } from './ops.js';
+import { getOp, mixWeight } from './ops.js';
 import { normalize, pullSafe } from './formula.js';
 import { slotIndex } from './notation.js';
 import { makeRng, recordingRng, replayRng } from './rng.js';
-import { I4, len, matMul, matVec, mul, specNorm, embed, sliceMatrix, normalize as nrm } from './vec.js';
+import { I4, len, add, sub, matMul, matVec, mul, specNorm, embed, sliceMatrix, normalize as nrm } from './vec.js';
 
 // a world point through the slice, or an orbit point as it is; constants are padded with w = 0
 export const lift = (f, x) => (x.length === 4 ? [...x] : embed(f.slice || {}, x));
@@ -34,7 +34,79 @@ export function slotAt(f, i) {
   return f.slots[slotIndex(f.schedule[i % f.schedule.length])];
 }
 
+// ---------- the chimera (ops.js mix): two sub-stacks on the same point, blended ----------------------
+function mixFwd(s, o) {
+  const [A, B] = o.kids;
+  const a = { p: [...s.p], c: s.c, dr: s.dr }, b = { p: [...s.p], c: s.c, dr: s.dr };
+  stepForward(a, A); stepForward(b, B);
+  const { w, g } = mixWeight(s.p, o.p);
+  s.dr = Math.max(a.dr, b.dr) + len(sub(b.p, a.p)) * len(g) * s.dr;
+  s.p = add(mul(a.p, 1 - w), mul(b.p, w));
+  // the branch records the species that leads
+  return w > 0.5 ? 2 : 1;
+}
+
+function stackJacobian(ops, p, c) {
+  const s = { p: [...p], c, dr: 1 };
+  let J = I4();
+  for (const o of ops) { J = matMul(opJacobian(o, s.p, c), J); applyOp(s, o); }
+  return { J, p: s.p };
+}
+
+// (1 − ω)J_A + ωJ_B + (F_B − F_A)∇ωᵀ
+function mixJacobian(o, p, c) {
+  const a = stackJacobian(o.kids[0], p, c), b = stackJacobian(o.kids[1], p, c);
+  const { w, g } = mixWeight(p, o.p), d = sub(b.p, a.p);
+  return a.J.map((x, i) => (1 - w) * x + w * b.J[i] + d[i >> 2] * g[i & 3]);
+}
+
+// solve the 4×4 system A x = y by elimination with partial pivoting; null when singular
+function solve4(A, y) {
+  const M = [0, 1, 2, 3].map((i) => [...A.slice(i * 4, i * 4 + 4), y[i]]);
+  for (let k = 0; k < 4; k++) {
+    let piv = k;
+    for (let i = k + 1; i < 4; i++) if (Math.abs(M[i][k]) > Math.abs(M[piv][k])) piv = i;
+    if (!(Math.abs(M[piv][k]) > 1e-12)) return null;
+    [M[k], M[piv]] = [M[piv], M[k]];
+    for (let i = 0; i < 4; i++) if (i !== k) {
+      const f = M[i][k] / M[k][k];
+      for (let j = k; j < 5; j++) M[i][j] -= f * M[k][j];
+    }
+  }
+  return M.map((r, i) => r[4] / r[i]);
+}
+
+// A preimage of the blend: invert one species for a first guess, then Newton on the blend itself. Up
+// to MIX_GUESSES guesses, alternating species from a coin's pick and redrawing their branches; a point
+// none of them reaches is a dead end, which the chaos game backs out of.
+export const MIX_NEWTON = 8, MIX_GUESSES = 4;
+function mixInv(q, o, rng, s0) {
+  const first = rng.pick(2);
+  const tol = 1e-9 * (1 + len(q));
+  for (let g = 0; g < MIX_GUESSES; g++) {
+    const s = { p: [...q], c: s0.c, dr: 1 };
+    let x = stepInverse(s, o.kids[(first + g) & 1], rng, 1);
+    if (!x) continue;
+    let best = Infinity, stall = 0;
+    for (let i = 0; i <= MIX_NEWTON; i++) {
+      const t = { p: [...x], c: s0.c, dr: 1 };
+      mixFwd(t, o);
+      const F = sub(t.p, q), e = len(F);
+      if (e <= tol) return x;
+      // a guess outside Newton's basin shows soon: two steps without the residual shrinking (one is
+      // allowed — crossing a fold's edge can cost a step)
+      if (e < 0.9 * best) { best = e; stall = 0; } else stall++;
+      if (i === MIX_NEWTON || stall >= 2 || !Number.isFinite(e)) break;
+      const dx = solve4(mixJacobian(o, x, s0.c), F);
+      if (!dx) break;
+      x = sub(x, dx);
+    }
+  }
+  return null;
+}
+
 function applyOp(s, o) {
+  if (o.op === 'mix') return mixFwd(s, o);
   const def = getOp(o.op);
   const r = def.fwd(s, o.p);
   if (def.wRule === 'mul') s.dr *= r.k;
@@ -84,13 +156,14 @@ export function de(formula, p, c, opts = {}) {
 
 // Jacobian of one op at p: analytic when the op provides one, central differences otherwise
 export function opJacobian(o, p, c, numeric = false) {
+  if (o.op === 'mix' && !numeric) return mixJacobian(o, p, c);
   const def = getOp(o.op);
   if (def.jac && !numeric) return def.jac(p, o.p);
   const J = new Array(16);
   for (let j = 0; j < 4; j++) {
     const a = { p: [...p], c, dr: 1 }, b = { p: [...p], c, dr: 1 };
     a.p[j] += FD_H; b.p[j] -= FD_H;
-    def.fwd(a, o.p); def.fwd(b, o.p);
+    applyOp(a, o); applyOp(b, o);
     for (let i = 0; i < 4; i++) J[i * 4 + j] = (a.p[i] - b.p[i]) / (2 * FD_H);
   }
   return J;
@@ -145,7 +218,10 @@ export function stepInverse(s, slot, rng, tries = 8) {
     let ok = true;
     for (let i = slot.length - 1; i >= 0 && ok; i--) {
       const o = slot[i], def = getOp(o.op);
-      if (def.inv) {
+      if (o.op === 'mix') {
+        const q = mixInv(s.p, o, rng, s);
+        if (q) s.p = q; else ok = false;
+      } else if (def.inv) {
         const q = def.inv(s.p, o.p, rng, s);
         if (q) s.p = q; else ok = false;
       } else {
@@ -177,7 +253,10 @@ export function push(formula, count, opts = {}) {
   const burn = opts.burn === undefined ? 24 : opts.burn;
   const samples = [];
   let stack = [{ p: ball4(rng), i: 0 }], respawns = 0;
-  while (samples.length < count && respawns < 1000) {
+  // a formula whose preimages always escape after a step or two never empties the stack: cap the walk
+  let steps = 0;
+  const maxSteps = 1000 * (count + burn + 10);
+  while (samples.length < count && respawns < 1000 && steps++ < maxSteps) {
     const top = stack[stack.length - 1];
     const slot = slotAt(f, f.iters - 1 - (top.i % f.iters));
     const rec = recordingRng(rng);

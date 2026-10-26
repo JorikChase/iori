@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   OPS, getOp, parse, format, normalize, validate, hash, pullSafe, toURLHash, fromURLHash,
   iterate, de, jacobian, opJacobian, lyapunov, push, makeRng, deGrad, deParam, lyapunovOrbit,
+  stepInverse, slotAt,
 } from '../core/index.js';
 
 const MANDELBROT = 'power 2 · +c ×200';
@@ -73,7 +74,7 @@ test('validate finds every problem', () => {
 test('every op has params with defaults, a glyph, a wRule, and inv is a function or null', () => {
   for (const o of Object.values(OPS)) {
     assert.ok(o.glyph, o.name);
-    assert.ok(['unchanged', 'mul', 'plus', 'none'].includes(o.wRule), o.name);
+    assert.ok(['unchanged', 'mul', 'plus', 'none', 'mix'].includes(o.wRule), o.name);
     assert.ok(o.params.every((q) => typeof q.d === 'number'), o.name);
     assert.ok(o.inv === null || typeof o.inv === 'function', o.name);
     assert.equal(getOp(o.name), o);
@@ -302,3 +303,58 @@ test('4-D: the slice embeds the world, quaternion Julia sets, and 3-D formulas u
   assert.ok([0.3, -0.2, 0.5, 0.4].every((v, i) => near(v, b[i], 1e-9)), `${b}`);
 });
 
+
+test('chimera: [A ‖ B] w blends two species inside the iteration', () => {
+  const BOX = 'fold.box 1 · fold.sphere .5 1 · scale 2';
+  const text = `[${BOX} ‖ bulb 8] .3 2 0 1 · +c ×10 bail=8`;
+  const f = parse(text);
+  assert.ok(validate(f).ok, validate(f).errors.join('; '));
+  assert.equal(f.slots.length, 3);
+  assert.equal(format(f), '[fold.box · fold.sphere · scale ‖ bulb] .3 2 0 1 · +c ×10 bail=8');
+  assert.deepEqual(normalize(parse(format(f))), normalize(f));
+  assert.equal(format(parse('[abs || scale 3] · +c ×4')), '[abs ‖ scale 3] · +c ×4');
+  // a chimera in the second scheduled slot: its sub-stacks still come after both
+  const two = parse('abs | [scale 2 ‖ invert] .7 · +c ×6 AB');
+  assert.equal(two.slots.length, 4);
+  assert.equal(format(parse(format(two))), format(two));
+  assert.throws(() => parse('[abs ‖ [scale 2 ‖ abs]]'), /inside another mix/);
+  assert.throws(() => parse('[abs] ×3'), /\[ A ‖ B \]/);
+  assert.ok(!validate({ ...parse('[abs ‖ scale 2] · +c ×3'), schedule: 'B' }).ok);
+
+  // w = 0 and w = 1 are the pure species
+  const pt = [0.4, -0.3, 0.5];
+  for (const [w, alone] of [[0, `${BOX} · +c ×10 bail=8`], [1, 'bulb 8 · +c ×10 bail=8']]) {
+    const a = iterate(parse(`[${BOX} ‖ bulb 8] ${w} · +c ×10 bail=8`), pt, [0.4, -0.3, 0.5, 0]);
+    const b = iterate(parse(alone), pt, [0.4, -0.3, 0.5, 0]);
+    assert.equal(a.n, b.n);
+    assert.ok(a.points.at(-1).every((x, i) => near(x, b.points.at(-1)[i], 1e-9)), `w=${w}`);
+  }
+
+  // the blend's Jacobian, field included, against differences
+  const m = normalize(parse(`[${BOX} · rotate4 10 20 0 5 ‖ bulb4 3 · translate .1] .4 1.5 1 2 -1 .5 .8 ×1`));
+  const mixOp = { ...m.slots[0][0] };
+  Object.defineProperty(mixOp, 'kids', { value: [m.slots[1], m.slots[2]] });
+  for (const q of [[0.3, -0.2, 0.7, 0.4], [1.2, 0.2, -0.3, -0.3], [0.05, 0.6, 0.2, 0.07]]) {
+    const J = opJacobian(mixOp, q, [0, 0, 0, 0]), N = opJacobian(mixOp, q, [0, 0, 0, 0], true);
+    assert.ok(matNear(J, N, 1e-4), `mix at ${q}: ${J} vs ${N}`);
+  }
+
+  // push finds genuine preimages of the blend (Newton from one species' inverse)
+  const pushF = parse('[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0] .5 .8 ×16 bail=16');
+  const pf = normalize(pushF);
+  const samples = push(pushF, 400, { burn: 8 });
+  assert.equal(samples.length, 400);
+  // each sample is a genuine preimage: the forward step from it lands on a point the walk held
+  const rng = makeRng(3);
+  let checked = 0;
+  for (let k = 0; k < 200; k++) {
+    const q = samples[k].p;
+    const s = { p: [...q], c: [0, 0, 0, 0], dr: 1 };
+    const pre = stepInverse(s, slotAt(pf, 0), rng);
+    if (!pre) continue;
+    const t = iterate(pf, pre, [0, 0, 0, 0], { iters: 1 }).points[1];
+    assert.ok(t.every((x, i) => near(x, q[i], 1e-7)), `${pre} → ${t} ≠ ${q}`);
+    checked++;
+  }
+  assert.ok(checked > 20, `only ${checked} preimages found`);
+});

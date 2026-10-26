@@ -34,7 +34,8 @@ export function makeRng(seed = 0) {
 }
 
 // Replays a recorded sequence of picks — used to differentiate an inverse step numerically while
-// holding its branch choices fixed.
+// holding its branch choices fixed. A nudged point can ask for more picks than were made (a chimera's
+// inverse trying another guess); past the log it picks 0 and the difference reads as a dead end.
 export function recordingRng(rng) {
   const log = [];
   return {
@@ -52,6 +53,6 @@ export function replayRng(log) {
     float: () => 0.5,
     range: (lo, hi) => (lo + hi) / 2,
     ball: () => [0, 0, 0],
-    pick: () => log[i++],
+    pick: (n) => (i < log.length ? log[i++] : 0) % Math.max(n, 1),
   };
 }

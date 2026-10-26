@@ -15,6 +15,10 @@
 //   slots: [[{ op: 'fold.box', p: { l: 1 } }, …], …]   up to four op lists, A–D
 // }
 //
+// A chimera's two sub-stacks are slots too, kept after the scheduled ones: with m `mix` ops in the
+// formula, the last 2m slots are theirs, two per mix in the order the mixes appear (slot by slot, op
+// by op). The schedule names only the first slots. So the JSON needs no references — mixKids reads them.
+//
 // normalize fills defaults; validate returns every problem it finds; canonical/hash make the id.
 
 import { getOp, fillParams } from './ops.js';
@@ -37,7 +41,18 @@ export function normalize(f) {
       return { op: def ? def.name : o.op, p: def ? fillParams(def, o.p || {}) : { ...(o.p || {}) } };
     })),
   };
+  // every mix op is handed its two sub-stacks (not enumerable: JSON and the hash never see them)
+  for (const m of mixKids(g).mixes) if (m.kids[1] < g.slots.length) Object.defineProperty(g.slots[m.si][m.j], 'kids', { value: m.kids.map((k) => g.slots[k]) });
   return g;
+}
+
+// the mix ops in order of appearance, each with the two slot indices it blends; top = how many slots
+// the schedule may name
+export function mixKids(f) {
+  const mixes = [];
+  f.slots.forEach((sl, si) => sl.forEach((o, j) => { if (o.op === 'mix') mixes.push({ si, j }); }));
+  const top = f.slots.length - 2 * mixes.length;
+  return { top, mixes: mixes.map((m, i) => ({ ...m, kids: [top + 2 * i, top + 2 * i + 1] })) };
 }
 
 export function validate(f) {
@@ -69,8 +84,11 @@ export function validate(f) {
       });
     });
     if (count > MAX_OPS) err(`more than ${MAX_OPS} ops`);
+    const { top, mixes } = mixKids(f);
+    if (top < 1) err('every mix needs two slots of its own after the scheduled ones');
+    else for (const m of mixes) if (m.si >= top) err('a mix cannot sit inside another mix');
     if (typeof f.schedule !== 'string' || !/^[A-D]+$/.test(f.schedule)) err('schedule must be a word of A–D');
-    else for (const ch of f.schedule) if (slotIndex(ch) >= f.slots.length) err(`schedule names slot ${ch} which does not exist`);
+    else for (const ch of f.schedule) if (slotIndex(ch) >= Math.max(top, 0)) err(`schedule names slot ${ch} which does not exist`);
   }
   return { ok: errors.length === 0, errors };
 }

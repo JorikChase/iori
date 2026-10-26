@@ -17,6 +17,8 @@ export const GLYPHS = {
   bulb: 'M12 6a6 6 0 1 0 .01 0M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
   bulb4: 'M12 6a6 6 0 1 0 .01 0M12 9a3 3 0 1 0 .01 0M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
   quat: 'M12 4a8 8 0 1 0 .01 0M12 4v16M5.1 8l13.8 8M18.9 8L5.1 16',
+  // the chimera: two species overlapping, the field's wall through their lens
+  mix: 'M9 12a6 6 0 1 0 .01 0M15 12a6 6 0 1 0 .01 0M12 4v16',
   power: 'M12 12a2 2 0 1 1 2 2 5 5 0 1 1-5-5 8 8 0 1 1-6 7',
   invert: 'M12 3a9 9 0 1 0 .01 0M12 11a1 1 0 1 0 .01 0M5 19L19 5',
   twist: 'M6 3c12 3 0 15 12 18M18 3C6 6 18 18 6 21',

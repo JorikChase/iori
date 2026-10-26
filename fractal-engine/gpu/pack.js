@@ -6,7 +6,7 @@
 // head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word, the
 // Julia constant, and the slice (a 4×4, column-major for WGSL, and the offset along w).
 
-import { normalize, pullSafe } from '../core/formula.js';
+import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { getOp } from '../core/ops.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
@@ -16,7 +16,7 @@ export const OPCODE = {
   'translate': 0, '+c': 1, 'scale': 2, 'rotate': 3, 'fold.plane': 4, 'fold.box': 5, 'fold.sphere': 6,
   'abs': 7, 'sort': 8, 'bulb': 9, 'power': 10, 'invert': 11, 'twist': 12,
   'spherical': 13, 'swirl': 14, 'sin': 15, 'horseshoe': 16, 'polar': 17,
-  'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21,
+  'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21, 'mix': 22,
 };
 
 export const MAX_OPS = 64;
@@ -28,7 +28,8 @@ export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4;
 // (mat4x4f) at word 80, its w offset at word 96 → 400 bytes
 export const HEAD_BYTES = 400;
 
-function record(o, out = new Float32Array(REC)) {
+// kids: a mix's two sub-stack slots (pack reads them from the formula; a parameter tangent needs none)
+function record(o, out = new Float32Array(REC), kids = [0, 0]) {
   const r = out;
   r[0] = OPCODE[o.op];
   const P = o.p;
@@ -42,6 +43,7 @@ function record(o, out = new Float32Array(REC)) {
     case 'fold.sphere': r.set([P.rmin, P.rfix], 1); break;
     case 'bulb': case 'bulb4': case 'power': r[1] = P.n; break;
     case 'twist': r[1] = (P.a * Math.PI) / 180; break;
+    case 'mix': r.set([P.w, P.k, P.r, ...nrm([P.nx, P.ny, P.nz, P.nw]), kids[0], kids[1]], 1); break;
     default: break;
   }
   return r;
@@ -52,12 +54,13 @@ export function pack(formula) {
   const ops = new Float32Array(MAX_OPS * REC);
   const starts = [0, 0, 0, 0], lens = [0, 0, 0, 0];
   let n = 0;
+  const kidsOf = new Map(mixKids(f).mixes.map((m) => [`${m.si}.${m.j}`, m.kids]));
   f.slots.forEach((s, si) => {
     starts[si] = n;
     lens[si] = s.length;
-    for (const o of s) {
+    for (const [j, o] of s.entries()) {
       if (n >= MAX_OPS) throw new Error('too many ops for the GPU interpreter');
-      ops.set(record(o), n * REC);
+      ops.set(record(o, undefined, kidsOf.get(`${si}.${j}`)), n * REC);
       n++;
     }
   });

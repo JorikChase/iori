@@ -7,7 +7,7 @@
 //              editing, drift, walks, and every frame of a video
 // test/parity.html diffs both against the interpreter.
 
-import { normalize, pullSafe } from '../core/formula.js';
+import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { slotIndex } from '../core/notation.js';
 import { rotationXYZ, rotation4, lift4, normalize as nrm } from '../core/vec.js';
 
@@ -107,22 +107,44 @@ function opCode(o, oi) {
     case 'sin': return 'p = vec4f(sin(p.x), sin(p.y), p.z, p.w);';
     case 'horseshoe': return '{ let r = length(p.xy); if (r > 0.0) { p = vec4f((p.x - p.y) * (p.x + p.y) / r, 2.0 * p.x * p.y / r, p.z, p.w); } }';
     case 'polar': return 'p = vec4f(atan2(p.x, p.y) / PI, length(p.xy) - 1.0, p.z, p.w);';
+    // a mix is unrolled by jitIterate, which knows its sub-stacks
     default: throw new Error(`no JIT for ${o.op}`);
   }
+}
+
+// the chimera inline: both sub-stacks unrolled on copies of (p, dr), blended by the weight field read
+// from the record (one path for both kinds: a literal JIT runs only while the buffer holds its values).
+// Their branches are not coloured; the mix colours by the leading species, as the interpreter does.
+function mixCode(oi, kidA, kidB) {
+  return `{ let pm = p; let drm = t.dr;
+${kidA}
+      let pA = p; let drA = t.dr;
+      p = pm; t.dr = drm;
+${kidB}
+      let pB = p; let drB = t.dr;
+      let m = mixW(${oi}u, pm);
+      p = mix(pA, pB, m.w);
+      t.dr = max(drA, drB) + length(pB - pA) * length(m.g) * drm;
+      br = select(1u, 2u, m.w > 0.5); }`;
 }
 
 // the WGSL `iterate` for one formula, replacing the interpreter's. kind: 'literal' | 'structure'
 export function jitIterate(formula, kind = 'literal') {
   const f = normalize(formula);
   const gen = kind === 'structure' ? opCodeBuffered : opCode;
-  let oi = 0;
-  const slots = f.slots.map((s) => s.map((o) => {
-    const code = gen(o, oi);
+  // every op's index in the flat op table, slot by slot
+  const base = [];
+  f.slots.reduce((n, s, si) => { base[si] = n; return n + s.length; }, 0);
+  const kidsOf = new Map(mixKids(f).mixes.map((m) => [`${m.si}.${m.j}`, m.kids]));
+  const bare = (si) => f.slots[si].map((o, j) => '      ' + gen(o, base[si] + j)).join('\n');
+  const slots = f.slots.map((s, si) => s.map((o, j) => {
+    const oi = base[si] + j;
+    const kids = kidsOf.get(`${si}.${j}`);
+    const code = kids ? mixCode(oi, bare(kids[0]), bare(kids[1])) : gen(o, oi);
     const branchy = /br =|br = br/.test(code);
     const line = branchy
       ? `br = 0u; ${code}\n      if (br != 0u) { t.col = branchColour(t.col, ${oi}u, br); }`
       : code;
-    oi++;
     return '      ' + line;
   }).join('\n'));
   const sched = [...f.schedule].map(slotIndex);

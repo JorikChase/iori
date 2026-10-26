@@ -440,6 +440,32 @@ def({
   inv: null,
 });
 
+// ---------- the chimera -------------------------------------------------------------------------
+// [A ‖ B]: two sub-stacks run on the same point in the same iteration and their results blended,
+//   p → (1 − ω(p))·F_A(p) + ω(p)·F_B(p)
+// — new dynamics, not a collage of finished shapes. The weight is a field over the orbit point: a
+// logistic of w's logit plus a linear ramp along n and a radial ramp, so k = r = 0 is the constant w
+// exactly, w = 0 or 1 is one pure species, and anything else is a smooth wall between the species:
+//   ω(p) = σ(logit w + k·(n̂·p) + r·(|p| − 1))
+// dr after the mix is the larger of the two branches' plus |F_B − F_A|·|∇ω|·dr: a bound on the blend's
+// stretch (its Jacobian is (1 − ω)J_A + ωJ_B + (F_B − F_A)∇ωᵀ). The sub-stacks are slots of their own
+// (formula.js mixKids); the maps that run them live in core/cpu.js, the GPU's in gpu/wgsl.js.
+const logit = (w) => Math.log(w / (1 - w));
+export function mixWeight(q, P) {
+  // w = 0 or 1: one pure species, whatever the field
+  if (P.w <= 0 || P.w >= 1) return { w: P.w <= 0 ? 0 : 1, g: [0, 0, 0, 0] };
+  const n = normalize([P.nx, P.ny, P.nz, P.nw]), r = len(q);
+  const sArg = logit(P.w) + P.k * dot(n, q) + P.r * (r - 1);
+  const w = 1 / (1 + Math.exp(-sArg)), ww = w * (1 - w);
+  const g = n.map((x, i) => ww * (P.k * x + (r > 0 ? (P.r * q[i]) / r : 0)));
+  return { w, g };
+}
+def({
+  name: 'mix', glyph: 'mix', wRule: 'mix',
+  params: [p('w', 0.5, 0, 1), p('k', 0), p('nx', 1), p('ny', 0), p('nz', 0), p('nw', 0), p('r', 0)],
+  inv: null,
+});
+
 // ---------- lookup -----------------------------------------------------------------------------
 
 export const ALIASES = {};

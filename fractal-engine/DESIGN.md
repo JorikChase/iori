@@ -528,3 +528,35 @@ carries a vec4.
 
 Not yet: N > 4; a tilt stored as a full frame (three plane angles cannot reach every 3-plane in ℝ⁴
 without composition order mattering); a hairline readout of w while it moves.
+
+**Q1 built 2026-10-26 — the chimera.** `[A ‖ B] w k nx ny nz nw r` (also `||`): two op lists run on the
+same point in the same iteration and blended, p → (1 − ω)F_A(p) + ωF_B(p) — new species, not a collage.
+- *The weight* is a field over the orbit point (Q2 adds the field library and spatial tissue):
+  ω = σ(logit w + k·(n̂·p) + r·(|p| − 1)). k = r = 0 is the constant w exactly; w = 0 or 1 is one pure
+  species whatever the field; k and r draw a smooth wall (linear along n̂, radial around |p| = 1).
+- *IR.* The sub-stacks are slots after the scheduled ones, two per mix in order of appearance, so the
+  JSON stays `{op: 'mix', p}` with no references (`mixKids` in core/formula.js derives them; normalize
+  hands each mix its `kids`, not enumerable). Four slots allow one mix per formula; no mix inside a mix.
+- *DE.* dr after the mix is the larger branch's plus |F_B − F_A|·|∇ω|·dr — a bound on the blend's
+  stretch, its Jacobian being (1 − ω)J_A + ωJ_B + (F_B − F_A)∇ωᵀ. The colour index records the species
+  that leads (branch 1 or 2), not the sub-stacks' own branches.
+- *Inverse (push).* No closed form: one species' inverse is a first guess, Newton on the blend refines
+  it (exact Jacobian from the tangents), up to four guesses alternating species, giving up after two
+  non-shrinking steps. Push's splat Jacobian replays answer by linearisation from the kept solution
+  (`mixKeep`/`mixReplay`, the RNG restored after) instead of solving Newton five times: box×bulb
+  928 → 205 ms a frame at scale 0.5 (box alone 7, bulb 21). Push still costs ×10 on chimeras.
+- *GPU.* WGSL has no recursion, so the mix is never an opFwd/opInv/opTan case: `fwdAt`, `invAt` and the
+  dual loop dispatch on code 22 and run the sub-stacks with the per-op functions (`runKid`, `kidInv`,
+  `kidTan`, `mixTan`). Shaders with INVERSE include DUAL. Both JIT kinds unroll the sub-stacks inline
+  on copies of (p, dr) and read the weight from the record.
+- Parity (all PASS) with chimera cases in every suite: forward DE median ≤ 6e-7 (constant blend,
+  field walls, a chimera in the second slot of an AAB schedule); inverse 0 wrong (KIFS×Sierpiński,
+  affine with a 4-D rotation, box×bulb; 47–100 % found by one attempt); dual gradient 0.000° median;
+  lens overrides on w and k exact; JIT literal/structure identical. 19 unit tests (notation, pure
+  species at w = 0/1, the blend's Jacobian against differences, push preimages verified).
+- The CPU push walk now caps its total steps: a formula whose preimages always escape after a step
+  or two never empties the stack and looped forever (pre-existing, found by a contracting test formula).
+
+Not yet: k-way tissue and spatial (world-point) fields — Q2; the glyph strip shows the sub-stacks as
+plain slots (the graph in Q4 nests them); breeding mutates w/k/r like any parameter but never adds or
+removes a mix.

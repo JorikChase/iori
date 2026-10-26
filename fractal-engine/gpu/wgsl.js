@@ -7,6 +7,10 @@
 // test/parity.html diffs all three against the CPU.
 //
 // Records: five vec4f per op, [code, p0 … p18]. Rotations (3-D and 4-D) are packed as one row-major 4×4.
+//
+// The chimera (mix, code 22) runs two sub-stacks — slots of their own — on the same point and blends
+// them. WGSL has no recursion, so it is never an opFwd/opInv/opTan case: fwdAt, invAt and the dual
+// loop dispatch on it and call the per-op functions for its sub-stacks, which hold no mix.
 
 export const INTERP = /* wgsl */ `
 struct Head {
@@ -196,6 +200,65 @@ fn opFwd(oi: u32, p: vec4f, c: vec4f) -> Step {
   return s;
 }
 
+// ---------- the chimera -------------------------------------------------------------------------
+const MIX = 22u;
+// record: [22, w, k, r], n̂, [slot A, slot B, 0, 0]
+// ω(p) = σ(logit w + k·(n̂·p) + r·(|p| − 1)), and its gradient (core/ops.js mixWeight)
+struct MixW { w: f32, g: vec4f };
+fn mixW(oi: u32, p: vec4f) -> MixW {
+  let a = rec(oi, 0u);
+  let n = rec(oi, 1u);
+  var m: MixW;
+  m.g = vec4f(0.0);
+  if (a.y <= 0.0) { m.w = 0.0; return m; }
+  if (a.y >= 1.0) { m.w = 1.0; return m; }
+  let r = length(p);
+  var pr = vec4f(0.0);
+  if (r > 0.0) { pr = p / r; }
+  let s = log(a.y / (1.0 - a.y)) + a.z * dot(n, p) + a.w * (r - 1.0);
+  m.w = 1.0 / (1.0 + exp(-s));
+  m.g = m.w * (1.0 - m.w) * (a.z * n + a.w * pr);
+  return m;
+}
+
+struct Fwd { p: vec4f, dr: f32, branch: u32 };
+
+// a sub-stack's ops on (p, dr); branches are not coloured (the mix colours by species)
+fn runKid(slot: u32, p0: vec4f, c: vec4f, dr0: f32) -> Fwd {
+  var o: Fwd;
+  o.p = p0; o.dr = dr0; o.branch = 0u;
+  let start = head.starts[slot];
+  for (var j = 0u; j < head.lens[slot]; j++) {
+    let s = opFwd(start + j, o.p, c);
+    o.p = s.p;
+    if (s.k < 0.0) { o.dr = o.dr + 1.0; } else { o.dr = o.dr * s.k; }
+  }
+  return o;
+}
+
+// (1 − ω)F_A + ωF_B; dr the larger branch's plus |F_B − F_A|·|∇ω|·dr; the branch is the leading species
+fn mixFwd(oi: u32, p: vec4f, c: vec4f, dr: f32) -> Fwd {
+  let kids = rec(oi, 2u);
+  let A = runKid(u32(kids.x), p, c, dr);
+  let B = runKid(u32(kids.y), p, c, dr);
+  let m = mixW(oi, p);
+  var o: Fwd;
+  o.p = mix(A.p, B.p, m.w);
+  o.dr = max(A.dr, B.dr) + length(B.p - A.p) * length(m.g) * dr;
+  o.branch = select(1u, 2u, m.w > 0.5);
+  return o;
+}
+
+// one op of a scheduled slot: the chimera, or any other op with its dr rule applied
+fn fwdAt(oi: u32, p: vec4f, c: vec4f, dr: f32) -> Fwd {
+  if (u32(rec(oi, 0u).x) == MIX) { return mixFwd(oi, p, c, dr); }
+  let s = opFwd(oi, p, c);
+  var o: Fwd;
+  o.p = s.p; o.branch = s.branch;
+  if (s.k < 0.0) { o.dr = dr + 1.0; } else { o.dr = dr * s.k; }
+  return o;
+}
+
 fn iterate(p0: vec4f, c: vec4f) -> Trace {
   var t: Trace;
   t.p = p0; t.dr = 1.0; t.n = 0u; t.escaped = false; t.trap = 1e20; t.col = 0.0;
@@ -204,9 +267,9 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
     let slot = schedAt(i);
     let start = head.starts[slot];
     for (var j = 0u; j < head.lens[slot]; j++) {
-      let s = opFwd(start + j, t.p, c);
+      let s = fwdAt(start + j, t.p, c, t.dr);
       t.p = s.p;
-      if (s.k < 0.0) { t.dr = t.dr + 1.0; } else { t.dr = t.dr * s.k; }
+      t.dr = s.dr;
       if (s.branch != 0u) { t.col = branchColour(t.col, start + j, s.branch); }
     }
     t.n = i + 1u;
@@ -235,7 +298,7 @@ fn de(x: vec3f) -> f32 { let q = embed(x); return deOf(iterate(q, cFor(q))); }
 `;
 
 // The inverse half, for push. Needs a random source: the includer defines
-//   fn pick(n: u32) -> u32   (uniform in [0, n))
+//   var<private> rngState: u32   and   fn pick(n: u32) -> u32   (uniform in [0, n), advancing rngState)
 export const INVERSE = /* wgsl */ `
 // the k-th permutation of four, by the factorial number system
 fn perm4(k0: u32) -> vec4u {
@@ -253,6 +316,119 @@ fn perm4(k0: u32) -> vec4u {
     left = left - 1u;
   }
   return out;
+}
+
+// one preimage of q under op oi of a scheduled slot: the chimera's, or opInv's. The chimera needs the
+// dual numbers (mixTan) for its Newton steps, so a shader with INVERSE includes DUAL too.
+fn invAt(oi: u32, q: vec4f, c: vec4f) -> Step {
+  if (u32(rec(oi, 0u).x) == MIX) { return mixInv(oi, q, c); }
+  return opInv(oi, q, c);
+}
+
+// a sub-stack inverted: its ops in reverse order
+fn kidInv(slot: u32, q: vec4f, c: vec4f) -> Step {
+  var s: Step;
+  s.p = q; s.k = 1.0; s.branch = 0u; s.ok = true;
+  let start = head.starts[slot];
+  let len = head.lens[slot];
+  for (var j = 0u; j < len; j++) {
+    let r = opInv(start + len - 1u - j, s.p, c);
+    if (!r.ok) { s.ok = false; return s; }
+    s.p = r.p;
+  }
+  return s;
+}
+
+// x with M x = y, by elimination with partial pivoting; ok = false when M is singular
+struct Solve { x: vec4f, ok: bool };
+fn solve4(M: mat4x4f, y: vec4f) -> Solve {
+  // rows of M with y appended (M is column-major)
+  var A = array<vec4f, 4>(vec4f(M[0][0], M[1][0], M[2][0], M[3][0]), vec4f(M[0][1], M[1][1], M[2][1], M[3][1]),
+                          vec4f(M[0][2], M[1][2], M[2][2], M[3][2]), vec4f(M[0][3], M[1][3], M[2][3], M[3][3]));
+  var b = y;
+  var o: Solve;
+  o.ok = false;
+  for (var k = 0u; k < 4u; k++) {
+    var piv = k;
+    for (var i = k + 1u; i < 4u; i++) { if (abs(A[i][k]) > abs(A[piv][k])) { piv = i; } }
+    if (!(abs(A[piv][k]) > 1e-20)) { return o; }
+    let tr = A[k]; A[k] = A[piv]; A[piv] = tr;
+    let tb = b[k]; b[k] = b[piv]; b[piv] = tb;
+    for (var i = 0u; i < 4u; i++) {
+      if (i == k) { continue; }
+      let f = A[i][k] / A[k][k];
+      A[i] = A[i] - f * A[k];
+      b[i] = b[i] - f * b[k];
+    }
+  }
+  o.x = vec4f(b[0] / A[0][0], b[1] / A[1][1], b[2] / A[2][2], b[3] / A[3][3]);
+  o.ok = true;
+  return o;
+}
+
+// The blend's preimage (core/cpu.js mixInv): one species inverted for a first guess, then Newton on the
+// blend with its exact Jacobian from the tangents; up to four guesses, alternating species from a pick
+const MIX_NEWTON = 8u;
+const MIX_GUESSES = 4u;
+
+// The push walk differentiates each step by replaying it at four nudged points. For the chimera that
+// would solve Newton five times; instead the walk keeps the solution and the blend's Jacobian there
+// (mixKeep), and the replays answer by linearisation (mixReplay): x* + J⁻¹(q − q*), the exact
+// derivative of the preimage. A formula holds at most one mix (four slots), so one set suffices.
+var<private> mixKeep: bool = false;
+var<private> mixReplay: bool = false;
+var<private> mixX: vec4f;
+var<private> mixQ: vec4f;
+var<private> mixJ: mat4x4f;
+var<private> mixBranch: u32;
+var<private> mixRng: u32;   // the random state after the solve, so ops inverted later pick as they did
+
+fn mixJacobian(oi: u32, x: vec4f, c: vec4f) -> mat4x4f {
+  return mat4x4f(mixTan(oi, x, c, 1.0, vec4f(1.0, 0.0, 0.0, 0.0), 0.0, vec4f(0.0), false).v,
+                 mixTan(oi, x, c, 1.0, vec4f(0.0, 1.0, 0.0, 0.0), 0.0, vec4f(0.0), false).v,
+                 mixTan(oi, x, c, 1.0, vec4f(0.0, 0.0, 1.0, 0.0), 0.0, vec4f(0.0), false).v,
+                 mixTan(oi, x, c, 1.0, vec4f(0.0, 0.0, 0.0, 1.0), 0.0, vec4f(0.0), false).v);
+}
+
+fn mixInv(oi: u32, q: vec4f, c: vec4f) -> Step {
+  var s: Step;
+  s.p = q; s.k = 1.0; s.branch = 0u; s.ok = false;
+  if (mixReplay) {
+    let d = solve4(mixJ, q - mixQ);
+    s.ok = d.ok; s.p = mixX + d.x; s.branch = mixBranch;
+    rngState = mixRng;
+    return s;
+  }
+  let kids = rec(oi, 2u);
+  let first = pick(2u);
+  let tol = 3e-6 * (1.0 + length(q));
+  for (var g = 0u; g < MIX_GUESSES; g++) {
+    let which = (first + g) & 1u;
+    let guess = kidInv(select(u32(kids.x), u32(kids.y), which == 1u), q, c);
+    if (!guess.ok) { continue; }
+    var x = guess.p;
+    var best = 1e30;
+    var bestX = x;
+    var stall = 0u;
+    for (var i = 0u; i <= MIX_NEWTON; i++) {
+      let F = mixFwd(oi, x, c, 1.0).p - q;
+      let e = length(F);
+      // a guess outside Newton's basin shows soon: two steps without the residual shrinking (one is
+      // allowed — crossing a fold's edge can cost a step)
+      if (e < 0.9 * best) { best = e; bestX = x; stall = 0u; } else { stall++; }
+      if (best <= tol || i == MIX_NEWTON || stall >= 2u || !(e == e)) { break; }
+      let d = solve4(mixJacobian(oi, x, c), F);
+      if (!d.ok) { break; }
+      x = x - d.x;
+    }
+    // float32 stalls a little above the CPU's tolerance: accept what Newton brought within 30×
+    if (best <= 30.0 * tol) {
+      s.ok = true; s.p = bestX; s.branch = 1u + which;
+      if (mixKeep) { mixX = bestX; mixQ = q; mixJ = mixJacobian(oi, bestX, c); mixBranch = s.branch; mixRng = rngState; }
+      return s;
+    }
+  }
+  return s;
 }
 
 // one preimage of q under op oi, choosing a branch with pick(); ok = false when q has none
@@ -697,6 +873,68 @@ fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan
   return o;
 }
 
+// ---------- the chimera's tangent ---------------------------------------------------------------
+// A sub-stack along a tangent (v, ddr: the tangent of p and of dr), and the blend's (core/cpu.js
+// mixJacobian, and the derivative of its dr bound):
+//   v' = (1 − ω)v_A + ωv_B + (F_B − F_A)·dω
+//   dr' = max(dr_A, dr_B) + |F_B − F_A|·|∇ω|·dr, differentiated term by term
+struct KidT { p: vec4f, dr: f32, v: vec4f, ddr: f32 };
+fn kidTan(slot: u32, p0: vec4f, c: vec4f, dr0: f32, v0: vec4f, ddr0: f32, dc: vec4f, withRec: bool) -> KidT {
+  var o: KidT;
+  o.p = p0; o.dr = dr0; o.v = v0; o.ddr = ddr0;
+  let start = head.starts[slot];
+  for (var j = 0u; j < head.lens[slot]; j++) {
+    let s = opFwd(start + j, o.p, c);
+    let t = opTan(start + j, o.p, c, o.v, dc, withRec);
+    if (s.k >= 0.0) { o.ddr = s.k * o.ddr + t.dk * o.dr; o.dr = o.dr * s.k; } else { o.dr = o.dr + 1.0; }
+    o.v = t.v;
+    o.p = s.p;
+  }
+  return o;
+}
+
+struct MixT { v: vec4f, ddr: f32 };
+fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, v: vec4f, ddr: f32, dc: vec4f, withRec: bool) -> MixT {
+  let kids = rec(oi, 2u);
+  let A = kidTan(u32(kids.x), p, c, dr, v, ddr, dc, withRec);
+  let B = kidTan(u32(kids.y), p, c, dr, v, ddr, dc, withRec);
+  let a = rec(oi, 0u);
+  let n = rec(oi, 1u);
+  let m = mixW(oi, p);
+  let w = m.w;
+  let r = length(p);
+  var pr = vec4f(0.0);
+  if (r > 0.0) { pr = p / r; }
+  // ds: the logistic argument's derivative; dh: of its gradient h = k n̂ + r p̂
+  var ds = 0.0;
+  var dh = vec4f(0.0);
+  if (w > 0.0 && w < 1.0) {
+    ds = a.z * dot(n, v) + a.w * dot(pr, v);
+    if (r > 0.0) { dh = a.w * (v - pr * dot(pr, v)) / r; }
+    if (withRec && oi == tanOi) {
+      let da = tanRec[0];
+      let dn = tanRec[1];
+      ds = ds + da.y / (a.y * (1.0 - a.y)) + da.z * dot(n, p) + a.z * dot(dn, p) + da.w * (r - 1.0);
+      dh = dh + da.z * n + a.z * dn + da.w * pr;
+    }
+  }
+  let dw = w * (1.0 - w) * ds;
+  let d = B.p - A.p;
+  var o: MixT;
+  o.v = mix(A.v, B.v, w) + d * dw;
+  let h = a.z * n + a.w * pr;
+  let g = w * (1.0 - w) * h;
+  let dg = dw * (1.0 - 2.0 * w) * h + w * (1.0 - w) * dh;
+  let dl = length(d);
+  let gl = length(g);
+  var ddl = 0.0;
+  if (dl > 0.0) { ddl = dot(d, B.v - A.v) / dl; }
+  var dgl = 0.0;
+  if (gl > 0.0) { dgl = dot(g, dg) / gl; }
+  o.ddr = select(A.ddr, B.ddr, B.dr > A.dr) + ddl * gl * dr + dl * dgl * dr + dl * gl * ddr;
+  return o;
+}
+
 struct Dual {
   t: Trace,
   g0: vec4f, g1: vec4f, g2: vec4f,  // ∂p/∂x along the world's axes (through c too when c is the point)
@@ -729,6 +967,22 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
     for (var j = 0u; j < head.lens[slot]; j++) {
       let oi = start + j;
       let p = d.t.p;
+      if (u32(rec(oi, 0u).x) == MIX) {
+        let dr = d.t.dr;
+        let f = mixFwd(oi, p, c, dr);
+        let m0 = mixTan(oi, p, c, dr, g0, gdr.x, dc0, false);
+        let m1 = mixTan(oi, p, c, dr, g1, gdr.y, dc1, false);
+        let m2 = mixTan(oi, p, c, dr, g2, gdr.z, dc2, false);
+        let mq = mixTan(oi, p, c, dr, q, qdr, vec4f(0.0), true);
+        let ml = mixTan(oi, p, c, dr, lv, 0.0, vec4f(0.0), false);
+        g0 = m0.v; g1 = m1.v; g2 = m2.v; q = mq.v; lv = ml.v;
+        gdr = vec3f(m0.ddr, m1.ddr, m2.ddr);
+        qdr = mq.ddr;
+        d.t.dr = f.dr;
+        d.t.p = f.p;
+        d.t.col = branchColour(d.t.col, oi, f.branch);
+        continue;
+      }
       let s = opFwd(oi, p, c);
       let t0 = opTan(oi, p, c, g0, dc0, false);
       let t1 = opTan(oi, p, c, g1, dc1, false);

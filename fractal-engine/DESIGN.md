@@ -263,7 +263,34 @@ Measured with the pane visible: push ~22 ms a frame at 0.5 internal scale. Not y
 instant (P6 brings computed transitions); in push, fly speed and collision still read pull's
 distance estimate, which for `+c` formulas is the Mandelbrot-type set, not the Julia set shown;
 autofocus likewise.
-Next: P3 (dual numbers: normals, DE, Lyapunov, the parameter metric).
+
+**P3 done 2026-10-26** — dual numbers, the Lyapunov channel (L), the parameter metric:
+
+- `gpu/wgsl.js` `DUAL`: `opTan` is every op's tangent map — the derivative of `opFwd` along a
+  direction, through c, and, for the op owning the selected parameter, through its packed record.
+  `pack.js paramTangents()` differentiates each record by its parameter on the CPU in float64, so
+  Euler angles and normalised normals need no derivative code on the GPU. `iterateDual` carries five
+  columns through one orbit: three for the position gradient (c follows the point when it is the
+  point), one for the selected parameter, one renormalised each iteration at fixed c for the
+  Lyapunov exponent; `deTan` / `deGrad` differentiate the estimate exactly as `deOf` computes it.
+- Pull normals are now the gradient of the distance estimate from one dual orbit (finite-difference
+  normals remain only as a fallback); the same orbit gives λ at every hit. The L channel colours by
+  λ about this view's own median (calm cool and dark, chaotic hot and glowing): on the arrive view
+  the sphere-fold pits run hot, the box faces calm (`design/shots/p3-lyapunov.jpg`).
+- `gpu/sense.js`: a 32×20 ray grid marched to the surface; per parameter, the surface's normal speed
+  (∂DE/∂θ)/|∇DE| over the pixel footprint gives pixels per unit; RMS over the hits is the metric.
+  Runs when the camera settles. `__fe.nudge(oi, key, px)` moves a parameter by on-screen pixels;
+  P4's handles will use it.
+- Parity (`test/parity.html`, 7 formulas × 1024 points outside the set, vs CPU float64 central
+  differences in `core/cpu.js deGrad / deParam / lyapunovOrbit`): gradient angle median 0.000°,
+  ∂DE/∂θ median relative error ≤ 6e-5 over 39 parameters, λ median error ≤ 5e-7. PASS.
+- The metric, measured (`__fe.metricCheck(3)` on the arrive view): raw sensitivities span 6×
+  (scale 291, sphere rmin 490, rfix 749, box l 1,772 px per unit); a step sized by the metric for
+  3 px moved the surface 2.5–3.2 px on all four (first order: the box limit under-predicts most).
+
+Not yet: push has no λ or metric (the sensing pass reads pull's surface); the metric is RMS over
+the whole view, not per region — P4's attention editing will want it local to the cursor.
+Next: P4 (grab — on-canvas handles, the reticle with Lyapunov ticks, the orbit, attention editing).
 
 ## Sources
 

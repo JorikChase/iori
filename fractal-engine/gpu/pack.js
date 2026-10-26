@@ -6,6 +6,7 @@
 // head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word.
 
 import { normalize, pullSafe } from '../core/formula.js';
+import { getOp } from '../core/ops.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
 import { rotationXYZ, normalize as nrm } from '../core/vec.js';
@@ -24,8 +25,8 @@ export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4;
 // head layout (u32/f32 words): 4 + 4 + 4 + 64 schedule words, then c (vec4f) at word 76 → 320 bytes
 export const HEAD_BYTES = 320;
 
-function record(o) {
-  const r = new Float32Array(REC);
+function record(o, out = new Float32Array(REC)) {
+  const r = out;
   r[0] = OPCODE[o.op];
   const P = o.p;
   switch (o.op) {
@@ -69,4 +70,31 @@ export function pack(formula) {
   for (let i = 0; i < 4; i++) { u[4 + i] = starts[i]; u[8 + i] = lens[i]; }
   sched.forEach((s, i) => { u[12 + i] = s; });
   return { ops, head, opCount: n, formula: f };
+}
+
+// Parameter tangents for the dual-number pass: for every parameter of every op, the derivative of
+// its packed record with respect to that parameter, by central differences in float64 on the CPU.
+// The shader then differentiates only through the record, so rotations (Euler angles → matrix) and
+// plane normals (normalised) need no derivative code on the GPU.
+export const MAX_PARAMS = 64;
+export const TAN_FLOATS = 20; // [opIndex, 0, 0, 0] + 16 record derivatives
+
+export function paramTangents(formula) {
+  const f = normalize(formula);
+  const list = [];
+  let oi = 0;
+  f.slots.forEach((slot, si) => slot.forEach((o, j) => {
+    for (const q of getOp(o.op).params) {
+      const v = o.p[q.k], h = 1e-5 * Math.max(1, Math.abs(v));
+      const plus = record({ op: o.op, p: { ...o.p, [q.k]: v + h } }, new Float64Array(REC));
+      const minus = record({ op: o.op, p: { ...o.p, [q.k]: v - h } }, new Float64Array(REC));
+      const drec = new Float64Array(REC).map((_, i) => (plus[i] - minus[i]) / (2 * h));
+      list.push({ oi, slot: si, index: j, op: o.op, key: q.k, value: v, drec });
+    }
+    oi++;
+  }));
+  if (list.length > MAX_PARAMS) list.length = MAX_PARAMS;
+  const buf = new Float32Array(Math.max(1, list.length) * TAN_FLOATS);
+  list.forEach((t, i) => { buf[i * TAN_FLOATS] = t.oi; buf.set(t.drec, i * TAN_FLOATS + 4); });
+  return { list, buf };
 }

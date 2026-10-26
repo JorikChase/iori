@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   OPS, getOp, parse, format, normalize, validate, hash, pullSafe, toURLHash, fromURLHash,
-  iterate, de, jacobian, opJacobian, lyapunov, push, makeRng,
+  iterate, de, jacobian, opJacobian, lyapunov, push, makeRng, deGrad, deParam, lyapunovOrbit,
 } from '../core/index.js';
 
 const MANDELBROT = 'power 2 · +c ×200';
@@ -205,3 +205,16 @@ test('Lyapunov exponents have the right sign', () => {
   const J = jacobian(parse('scale 2 · rotate 0 0 90 ×1'), [1, 0, 0]);
   assert.ok(matNear(J, [0, -2, 0, 2, 0, 0, 0, 0, 2], 1e-9), `${J}`);
 });
+
+test('references for the GPU duals: gradient, parameter derivative, Lyapunov', () => {
+  // the tetrahedron map doubles every tangent: λ = log 2 per iteration, whatever the point
+  assert.ok(near(lyapunovOrbit(parse(SIERPINSKI), [0.9, 0.95, 1]), Math.log(2), 1e-9));
+  // one step of scale 2 gives DE = |2p| / 2 = |p|: its gradient is the unit outward direction
+  const f = parse('scale 2 ×1 bail=1');
+  const g = deGrad(f, [3, 0, 0]);
+  assert.ok(near(g[0], 1, 1e-6) && Math.abs(g[1]) < 1e-6, `${g}`);
+  // DE = |2p|/2 = |p| for one step of scale s: ∂DE/∂s = 0 (|sp|/|s|); with +c it is not
+  assert.ok(Math.abs(deParam(f, [3, 0, 0], 0, 's')) < 1e-6);
+  assert.ok(Math.abs(deParam(parse(MANDELBOX), [3.1, 0.4, -0.2], 2, 's')) > 1e-3);
+});
+

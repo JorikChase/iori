@@ -5,13 +5,15 @@
 //   space           drift on / off (it resumes on its own after a pause otherwise)
 //   P, double-click pull ⇄ push: the same formula forward per pixel (the cave) or backward per sample
 //                   (the nebula). Without a fixed c, push shows the Julia set of the point you look at.
+//   L               the Lyapunov channel: where nearby orbits separate the surface runs hot and glows
 //
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
-import { parse, format, validate, de as cpuDe } from './core/index.js';
+import { parse, format, validate, normalize, de as cpuDe } from './core/index.js';
 import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
+import { createSense } from './gpu/sense.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
 // keeping the enclosed ones), turned toward a terraced amphitheatre
@@ -46,6 +48,7 @@ const LOOK = {
   pushExposure: 0.9,
   pushSteps: 24,
   splatMax: 4,          // px; the kernel is shrunk (energy kept) beyond this
+  lyapMix: 0,           // the Lyapunov channel, 0 off, 1 on (L)
 };
 
 const canvas = document.getElementById('field');
@@ -63,6 +66,8 @@ const state = {
   frame: 0,
   maxSamples: 384,
   mode: 'pull',         // 'pull' | 'push'
+  sensed: null,         // the last sensing pass: parameter metric and λ statistics for this view
+  senseDue: true,
 };
 
 // ---------- camera ---------------------------------------------------------------------------------
@@ -109,7 +114,7 @@ function traceCentre() {
 
 // ---------- input -----------------------------------------------------------------------------------
 
-function touched() { state.lastInput = performance.now(); state.dirty = true; state.n = 0; }
+function touched() { state.lastInput = performance.now(); state.dirty = true; state.n = 0; state.senseDue = true; }
 
 let drag = null;
 const pointers = new Map();
@@ -167,6 +172,7 @@ canvas.addEventListener('dblclick', toggleMode);
 addEventListener('keydown', (e) => {
   if (e.code === 'Space') { state.drift = !state.drift; touched(); e.preventDefault(); return; }
   if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
+  if (e.code === 'KeyL' && !e.repeat) { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); return; }
   keys.add(e.code);
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
@@ -236,7 +242,7 @@ function writeHash() {
 
 // ---------- main loop -------------------------------------------------------------------------------
 
-let R = null, P = null;
+let R = null, P = null, S = null;
 
 function setFormula(text) {
   const f = parse(text);
@@ -322,7 +328,12 @@ async function step() {
     stepScale: L.stepScale, maxDist: L.maxDist, epsScale: L.epsScale, frame: state.frame,
     key: L.key, ambient: L.ambient, maxSteps: L.maxSteps, glowWidth: L.glowWidth,
     iridescence: L.iridescence, spread: L.spread, shadowK: L.shadowK, quality: moving ? 0 : 1,
+    lyapMix: L.lyapMix,
+    // centre the λ colours on this view's median, half-width from its spread (calibrated by sensing)
+    lyapCentre: state.sensed ? state.sensed.lyap.median : 0.9,
+    lyapScale: state.sensed ? 1 / Math.max((state.sensed.lyap.p90 - state.sensed.lyap.p10) / 2, 0.05) : 2,
   });
+  if (!moving && state.senseDue && S) { state.senseDue = false; senseNow(); }
   state.n++;
   busy = true;
   const t0 = performance.now();
@@ -353,6 +364,60 @@ function pushFrame(b, clear, moving, drifting) {
   }, canvas);
 }
 
+// ---------- the parameter metric ----------------------------------------------------------------
+// How many CSS pixels the surface moves per unit of each parameter, measured from this view. A control
+// moved by Δ pixels of hand motion changes its parameter by Δ / pxPerUnit, so every control feels the
+// same and slows down near the cliffs where the fractal is sensitive.
+
+function senseView() {
+  const b = basis(state.cam), L = state.look;
+  return {
+    pos: state.cam.pos, right: b.right, up: b.up, fwd: b.fwd,
+    tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360), aspect: canvas.width / canvas.height,
+    maxDist: L.maxDist, stepScale: L.stepScale, maxSteps: L.maxSteps, epsScale: L.epsScale,
+  };
+}
+
+async function senseNow() {
+  const r = await S.sense(state.formula, senseView(), innerHeight);
+  if (r) { state.sensed = r; if (state.look.lyapMix > 0) { state.n = 0; } }
+  return r;
+}
+
+function withParam(f, oi, key, value) {
+  const g = JSON.parse(JSON.stringify(normalize(f)));
+  let n = 0;
+  for (const s of g.slots) for (const o of s) { if (n === oi) o.p[key] = value; n++; }
+  return g;
+}
+
+// move a parameter by a number of on-screen pixels
+function nudge(oi, key, px) {
+  const m = state.sensed && state.sensed.params.find((q) => q.oi === oi && q.key === key);
+  if (!m || !(m.pxPerUnit > 0)) return false;
+  const next = withParam(state.formula, oi, key, m.value + px / m.pxPerUnit);
+  setFormula(format(next));
+  return true;
+}
+
+// does a step of px pixels, as the metric predicts it, move the surface by px pixels? Measured on
+// the CPU at the sensed hit points: the change of the distance estimate over its gradient is how far
+// the surface moved along its normal, over the pixel footprint at that depth.
+function metricCheck(px = 3) {
+  const r = state.sensed;
+  if (!r) return null;
+  return r.params.map((m) => {
+    if (!(m.pxPerUnit > 0)) return { ...m, predicted: px, measured: 0 };
+    const g = withParam(state.formula, m.oi, m.key, m.value + px / m.pxPerUnit);
+    let sum = 0, n = 0;
+    for (const q of r.points) {
+      const moved = (cpuDe(g, q.x) - cpuDe(state.formula, q.x)) / q.grad / (q.t * r.pixelAngle);
+      if (Number.isFinite(moved)) { sum += moved * moved; n++; }
+    }
+    return { op: m.op, key: m.key, pxPerUnit: m.pxPerUnit, predicted: px, measured: Math.sqrt(sum / Math.max(n, 1)) };
+  });
+}
+
 // ---------- hooks for the capture rig and tests ----------------------------------------------------
 
 window.__fe = {
@@ -361,6 +426,10 @@ window.__fe = {
   setCamera(pos, yaw, pitch) { state.cam = { pos: [...pos], yaw, pitch }; touched(); state.lastInput = -1e9; },
   setLook(o) { Object.assign(state.look, o); touched(); state.lastInput = -1e9; },
   setMode(m) { state.mode = m; touched(); state.lastInput = -1e9; },
+  sense: () => senseNow(),
+  metric: () => state.sensed && state.sensed.params,
+  nudge,
+  metricCheck,
   hold(on = true) { state.drift = !on; touched(); state.lastInput = -1e9; },
   waitSamples(n) {
     return new Promise((res) => { const chk = () => (state.n >= n ? res(state.n) : setTimeout(chk, 50)); chk(); });
@@ -403,6 +472,7 @@ async function start() {
     window.__fe.error = String(e.message || e);
     state.mode = 'pull';
   }
+  try { S = await createSense(R); } catch (e) { console.error(e); }
   R.device.lost.then((info) => { console.error('device lost', info.message); document.getElementById('nogpu').hidden = false; });
   window.__fe.ready = true;
   requestAnimationFrame(tick);

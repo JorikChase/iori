@@ -11,9 +11,9 @@
 // The WGSL interpreter must compute the same orbit as core/cpu.js. For each formula: N random points,
 // the GPU's distance estimate, iteration count and escape flag, compared with the CPU's.
 // Result in window.__parity: { ok, rows: [{ formula, n, maxRel, iterMismatch, escMismatch }] }.
-import { parse, iterate, de, makeRng, normalize, stepForward, slotAt } from '../core/index.js';
-import { INTERP, INVERSE } from '../gpu/wgsl.js';
-import { pack, MAX_OPS, REC, HEAD_BYTES } from '../gpu/pack.js';
+import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit } from '../core/index.js';
+import { INTERP, INVERSE, DUAL } from '../gpu/wgsl.js';
+import { pack, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES } from '../gpu/pack.js';
 
 const FORMULAS = [
   ['power 2 · +c ×64', 2.2],
@@ -75,6 +75,37 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     p = s.p;
   }
   outp[i] = vec4f(p, ok);
+}`;
+
+// Dual numbers: the shader's gradient, parameter derivatives and Lyapunov exponent against the CPU's
+// float64 central differences, at points outside the set (where the DE is differentiable).
+const DUAL_FORMULAS = [
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100', 4],
+  ['fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ×16 bail=16', 2],
+  ['abs · sort · scale 3 · + -2 -2 0 ×8 bail=50', 2],
+  ['bulb 8 · +c ×10 bail=2', 1.3],
+  ['power 2 · +c ×64', 2.2],
+  ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 ×10 bail=30', 3],
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 c=.3,.2,.1', 3],
+];
+const DN = 1024;
+const DUAL_SHADER = INTERP + DUAL + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@group(0) @binding(4) var<storage, read> tans: array<vec4f>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  let np = arrayLength(&pts);
+  if (i >= np) { return; }
+  let j = gid.y;
+  tanOi = u32(tans[j * 5u].x);
+  for (var k = 0u; k < 4u; k++) { tanRec[k] = tans[j * 5u + 1u + k]; }
+  let p = pts[i].xyz;
+  let d = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
+  let o = (j * np + i) * 2u;
+  outp[o] = vec4f(deGrad(d), deOf(d.t));
+  outp[o + 1u] = vec4f(deTan(d.t, d.q, d.qdr), d.lyap, 0.0, 0.0);
 }`;
 
 const out = document.getElementById('out');
@@ -192,6 +223,70 @@ async function run() {
     [head, ops, pb, ob, rb].forEach((b) => b.destroy());
   }
 
+  // dual numbers
+  const dualModule = device.createShaderModule({ code: DUAL_SHADER });
+  const dualErrs = (await dualModule.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+  if (dualErrs.length) throw new Error(dualErrs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
+  const dualPipe = device.createComputePipeline({ layout: 'auto', compute: { module: dualModule, entryPoint: 'main' } });
+  const dualRows = [];
+  for (const [text, R] of DUAL_FORMULAS) {
+    const f = normalize(parse(text));
+    const pk = pack(f);
+    const tg = paramTangents(f);
+    const rows = Math.max(1, tg.list.length);
+    const rng = makeRng(13);
+    // points just outside the set: positive DE, not too far
+    const pts = new Float32Array(DN * 4);
+    for (let i = 0; i < DN;) {
+      const p = rng.ball().map((x) => x * R);
+      const d = de(f, p);
+      if (d > 1e-4 && d < 0.5 * R) { pts.set(p, i * 4); i++; }
+    }
+    const mk = (size, usage) => device.createBuffer({ size, usage });
+    const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    const ops = mk(MAX_OPS * REC * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const pb = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const outBytes = DN * rows * 32;
+    const ob = mk(outBytes, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+    const rb = mk(outBytes, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+    const tb = mk(tg.buf.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    device.queue.writeBuffer(head, 0, pk.head);
+    device.queue.writeBuffer(ops, 0, pk.ops);
+    device.queue.writeBuffer(pb, 0, pts);
+    device.queue.writeBuffer(tb, 0, tg.buf);
+    const bg = device.createBindGroup({
+      layout: dualPipe.getBindGroupLayout(0),
+      entries: [head, ops, pb, ob, tb].map((b, i) => ({ binding: i, resource: { buffer: b } })),
+    });
+    const enc = device.createCommandEncoder();
+    const cp = enc.beginComputePass();
+    cp.setPipeline(dualPipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(DN / 64), rows); cp.end();
+    enc.copyBufferToBuffer(ob, 0, rb, 0, outBytes);
+    device.queue.submit([enc.finish()]);
+    await rb.mapAsync(GPUMapMode.READ);
+    const g = new Float32Array(rb.getMappedRange().slice(0));
+    rb.unmap();
+    // gradient: angle between GPU and CPU gradients; parameters: relative error of ∂DE/∂θ; λ: absolute
+    const ang = [], prel = [], lerr = [];
+    for (let i = 0; i < DN; i++) {
+      const p = [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]];
+      const cg = deGrad(f, p), gg = [g[i * 8], g[i * 8 + 1], g[i * 8 + 2]];
+      const nc = Math.hypot(...cg), ng = Math.hypot(...gg);
+      if (nc > 1e-6 && ng > 0) ang.push(Math.acos(Math.max(-1, Math.min(1, (cg[0] * gg[0] + cg[1] * gg[1] + cg[2] * gg[2]) / (nc * ng)))) * 180 / Math.PI);
+      lerr.push(Math.abs(lyapunovOrbit(f, p) - g[i * 8 + 5]));
+      tg.list.forEach((t, j) => {
+        if (i % 4) return; // a quarter of the points per parameter is plenty
+        const cpu = deParam(f, p, t.oi, t.key), gpu = g[(j * DN + i) * 2 * 4 + 4];
+        prel.push(Math.abs(gpu - cpu) / Math.max(Math.abs(cpu), 1e-3 * de(f, p) + 1e-6));
+      });
+    }
+    const med = (a) => (a.sort((x, y) => x - y), a[Math.floor(a.length / 2)] || 0);
+    const p90 = (a) => (a.sort((x, y) => x - y), a[Math.floor(a.length * 0.9)] || 0);
+    dualRows.push({ formula: text, params: tg.list.length, gradDegMed: med(ang), gradDegP90: p90(ang),
+      paramRelMed: med(prel), paramRelP90: p90(prel), lyapAbsMed: med(lerr), lyapAbsP90: p90(lerr) });
+    [head, ops, pb, ob, rb, tb].forEach((b) => b.destroy());
+  }
+
   // pass: the median agrees to float precision, 99 % of points within 2 %, and fewer than 2 % of
   // orbits diverge in iteration count. The tail is float32, not a bug: a point within rounding of a
   // fold edge takes the other branch on one side (measured 2026-10-25: Mandelbox p99 0.4–0.9 %, every
@@ -200,12 +295,17 @@ async function run() {
   // inverse: a preimage the GPU returns is a preimage (fewer than 1 % wrong — float32 at fold edges),
   // and a single random attempt finds one for at least a third of the points
   const invOk = invRows.every((r) => r.wrong / Math.max(r.found, 1) < 0.01 && r.found / N > 0.33);
-  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk;
-  window.__parity = { ok, rows, invRows };
+  // duals: gradients within a degree and parameter derivatives within 1 % for most points, λ within
+  // 0.01 (the tails are fold edges, where a derivative jumps and central differences straddle it)
+  const dualOk = dualRows.every((r) => r.gradDegMed < 1 && r.paramRelMed < 0.01 && r.lyapAbsMed < 0.01);
+  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk;
+  window.__parity = { ok, rows, invRows, dualRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
     `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n')
     + '\n\ninverse steps (GPU preimage → CPU forward)\n\n' + invRows.map((r) =>
-    `${r.formula}\n  found ${r.found}/${N}  wrong ${r.wrong}  p99 err ${r.p99.toExponential(2)}`).join('\n\n');
+    `${r.formula}\n  found ${r.found}/${N}  wrong ${r.wrong}  p99 err ${r.p99.toExponential(2)}`).join('\n\n')
+    + '\n\ndual numbers (GPU tangents vs CPU central differences)\n\n' + dualRows.map((r) =>
+    `${r.formula}\n  gradient angle median ${r.gradDegMed.toFixed(3)}° p90 ${r.gradDegP90.toFixed(2)}°   ∂DE/∂θ (${r.params} params) median rel ${r.paramRelMed.toExponential(2)} p90 ${r.paramRelP90.toExponential(2)}   λ median |err| ${r.lyapAbsMed.toExponential(2)} p90 ${r.lyapAbsP90.toExponential(2)}`).join('\n\n');
 }
 run().catch((e) => { out.textContent = 'ERROR ' + e.message; window.__parity = { ok: false, error: e.message }; });
 </script>

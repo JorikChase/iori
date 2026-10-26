@@ -5,12 +5,12 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP } from './wgsl.js';
+import { INTERP, DUAL } from './wgsl.js';
 import { pack, MAX_OPS, REC, HEAD_BYTES } from './pack.js';
 
-const VIEW_FLOATS = 44;
+const VIEW_FLOATS = 48;
 
-export const MARCH = INTERP + /* wgsl */ `
+export const MARCH = INTERP + DUAL + /* wgsl */ `
 struct View {
   pos: vec4f,    // xyz camera, w tan(fov/2)
   right: vec4f,  // xyz, w aperture radius
@@ -22,7 +22,8 @@ struct View {
   key: vec4f,    // rgb key colour, w ambient
   res: vec4f,    // xy internal resolution, z max steps, w glow width
   extra: vec4f,  // x iridescence, y colour spread, z shadow softness, w quality (0 moving, 1 still)
-  lamp: vec4f,   // x falloff range, y intensity
+  lamp: vec4f,   // x falloff range, y intensity, z Lyapunov channel mix, w unused
+  lyap: vec4f,   // x centre of the λ colour scale, y 1/half-width
 };
 
 @group(1) @binding(0) var<uniform> view: View;
@@ -100,7 +101,13 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
   if (hit) {
     let p = ro + rd * t;
     let eps = max(t * pixelAngle * view.tune.z, 1e-6);
-    let n = normalAt(p, eps * 0.5);
+    // the normal is the gradient of the distance estimate, carried by dual numbers through one orbit
+    // (four extra orbits by finite differences before); the same orbit yields the Lyapunov exponent
+    let dd = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
+    var n = deGrad(dd);
+    let nl = length(n);
+    if (nl > 0.0 && nl < 1e30) { n = n / nl; } else { n = normalAt(p, eps * 0.5); }
+    let lam = dd.lyap;
     let toL = view.light.xyz - p;
     let dist = length(toL);
     let L = toL / max(dist, 1e-6);
@@ -125,7 +132,17 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
       alb = alb * (0.55 + 0.45 * step(0.5, band));
     }
     let rim = pow(1.0 - max(dot(n, -rd), 0.0), 4.0);
-    c = alb * (diff * sh * fall * view.lamp.y + view.key.w * ao) + alb * rim * 0.15 * ao * fall;
+    var emit = vec3f(0.0);
+    if (view.lamp.z > 0.0) {
+      // Lyapunov channel: calm (orbits converge) cool and dark, chaotic (they separate) hot and glowing;
+      // the scale is centred on this view's own median λ
+      let x = clamp((lam - view.lyap.x) * view.lyap.y, -1.0, 1.0);
+      let hot = view.key.rgb * 1.4 + vec3f(0.25, 0.2, 0.05);
+      let heat = mix(vec3f(0.06, 0.08, 0.28), hot, 0.5 + 0.5 * x);
+      alb = mix(alb, heat, view.lamp.z);
+      emit = view.lamp.z * max(x, 0.0) * max(x, 0.0) * hot * 0.35;
+    }
+    c = alb * (diff * sh * fall * view.lamp.y + view.key.w * ao) + alb * rim * 0.15 * ao * fall + emit;
   }
   let gl = tint(glowCol, 0.0) * glow * view.light.w;
   return c * absorb + gl * mix(1.0, absorb, 0.6);
@@ -294,7 +311,8 @@ export async function createRenderer(canvas) {
   function frame(v) {
     viewData.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.blend,
       ...v.light, v.glow, v.hue, v.fog, v.exposure, v.terrace, v.stepScale, v.maxDist, v.epsScale, v.frame,
-      ...v.key, v.ambient, w, h, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, 0, 0]);
+      ...v.key, v.ambient, w, h, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, v.lyapMix || 0, 0,
+      v.lyapCentre || 0, v.lyapScale || 1, 0, 0]);
     device.queue.writeBuffer(viewBuf, 0, viewData);
     device.queue.writeBuffer(dispBuf, 0, new Float32Array([canvas.width, canvas.height, w, h, v.exposure, 0, 0, 0]));
 

@@ -187,4 +187,55 @@ export function push(formula, count, opts = {}) {
   return samples;
 }
 
+// ---------- references for the GPU's dual numbers ------------------------------------------------
+// Central differences in float64: slow and exact enough to check the shader's derivatives against.
+
+const FD = 1e-6;
+
+// gradient of the distance estimate at p (c follows p unless the formula fixes it)
+export function deGrad(formula, p) {
+  const f = normalize(formula);
+  return [0, 1, 2].map((i) => {
+    const a = [...p], b = [...p];
+    a[i] += FD; b[i] -= FD;
+    return (de(f, a) - de(f, b)) / (2 * FD);
+  });
+}
+
+// derivative of the distance estimate at p with respect to one parameter of op number oi (counted
+// across slots in order)
+export function deParam(formula, p, oi, key) {
+  const f = normalize(formula);
+  const at = (delta) => {
+    const g = JSON.parse(JSON.stringify(f));
+    let n = 0;
+    for (const s of g.slots) for (const o of s) { if (n === oi) o.p[key] += delta; n++; }
+    return de(g, p);
+  };
+  const v = Math.abs(f.slots.flat()[oi].p[key]);
+  const h = FD * Math.max(1, v);
+  return (at(h) - at(-h)) / (2 * h);
+}
+
+// Lyapunov exponent with the GPU's semantics: the formula's iterations, stopping at escape, mean log
+// stretch per iteration of a tangent at fixed c (c = the point unless the formula fixes it)
+export function lyapunovOrbit(formula, p0) {
+  const f = normalize(formula);
+  const c = f.c || [...p0];
+  const s = { p: [...p0], c, dr: 1 };
+  let v = [0.6, 0.48, 0.64], sum = 0, n = 0;
+  const l0 = len(v); v = mul(v, 1 / l0);
+  for (let i = 0; i < f.iters; i++) {
+    for (const o of slotAt(f, i)) {
+      v = matVec(opJacobian(o, s.p, s.c), v);
+      applyOp(s, o);
+    }
+    n++;
+    const l = len(v);
+    if (l > 0 && l < 1e30) { sum += Math.log(l); v = mul(v, 1 / l); }
+    if (!(len(s.p) <= f.bail)) break;
+  }
+  return sum / Math.max(n, 1);
+}
+
 export { pullSafe, makeRng };

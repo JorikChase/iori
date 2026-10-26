@@ -7,7 +7,7 @@
 //   ·  ;  ⏎  separate ops           |  separates slots (A, B, C … H in order)
 //   [A ‖ B ‖ …] field …   the chimera: two to seven op lists blended inside the iteration (‖ or ||),
 //            the field after the bracket — a bare number is the constant w, or a field word and its
-//            values: axis, sphere, noise, tissue, trap, depth, lyap (ops.js mix.*). The sub-stacks
+//            values: axis, sphere, noise, tissue, trap, depth, lyap, blend (ops.js mix.*). The sub-stacks
 //            become slots after the scheduled ones, in order of appearance
 //   ×N or xN iterations, optionally followed by the schedule, a word of slot letters repeated
 //   seed=N   bail=R   c=x,y,z[,w] (a fixed constant: the Julia set)
@@ -20,7 +20,7 @@
 import { getOp, fillParams, isMix } from './ops.js';
 
 const SLOT_LETTERS = 'ABCDEFGH';
-const FIELD_WORDS = new Set(['axis', 'sphere', 'noise', 'tissue', 'trap', 'depth', 'lyap']);
+const FIELD_WORDS = new Set(['axis', 'sphere', 'noise', 'tissue', 'trap', 'depth', 'lyap', 'blend']);
 
 export function tokenize(text) {
   return text

@@ -9,6 +9,7 @@
 //             u = (k − 1)·σ(logit w + s)
 //           and shared between the two species u falls between (hat functions). For two species that
 //           is ω_B = σ(logit w + s): w = 0 or 1 is one pure species whatever the field.
+//   blend   constant weights, one per species (the Metasurface's junctions)
 //   tissue  Voronoi cells: n sites in a box of half-size `size`, site j a cell of species j mod k,
 //           soft walls from a softmax over −|x − x_j|² / (soft·size)
 //
@@ -18,7 +19,8 @@
 //
 // The hash is the WGSL one (gpu/wgsl.js FIELDS) bit for bit, so CPU and GPU draw the same sites and noise.
 
-export const FIELD_KIND = { mix: 0, 'mix.axis': 1, 'mix.sphere': 2, 'mix.noise': 3, 'mix.tissue': 4, 'mix.trap': 5, 'mix.depth': 6, 'mix.lyap': 7 };
+export const FIELD_KIND = { mix: 0, 'mix.axis': 1, 'mix.sphere': 2, 'mix.noise': 3, 'mix.tissue': 4, 'mix.trap': 5, 'mix.depth': 6, 'mix.lyap': 7, 'mix.blend': 8 };
+export const BLEND_KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'h'];
 export const SELF_KINDS = new Set(['mix.trap', 'mix.depth', 'mix.lyap']);
 
 // PCG hash on u32
@@ -117,6 +119,12 @@ export function weights(op, P, k, x, ctx) {
       for (let a = 0; a < 4; a++) G[i][a] += pi[j] * (-2 * (x[a] - y[a]) / tau);
     });
     for (let i = 0; i < k; i++) for (let a = 0; a < 4; a++) G[i][a] -= w[i] * ebar[a];
+    return { w, G, S };
+  }
+  if (op === 'mix.blend') {
+    // constant relative weights; all zero is an even blend
+    const a = BLEND_KEYS.slice(0, k).map((key) => Math.max(P[key], 0)), sum = a.reduce((x, y) => x + y, 0);
+    a.forEach((v, i) => { w[i] = sum > 0 ? v / sum : 1 / k; });
     return { w, G, S };
   }
   // scalar fields: s and its gradient (in x) or its derivative in the reading

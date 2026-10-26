@@ -471,6 +471,8 @@ mixDef('mix.noise', 'mix.noise', [p('w', 0.5, 0, 1), p('g', 2, -16, 16), p('f', 
 mixDef('mix.tissue', 'mix.tissue', [dq('n', 6, 2, 16), p('size', 1.5, 1e-3, 32), p('soft', 0.1, 1e-4, 2), dq('seed', 0, 0, 65535), AT(1)]);
 mixDef('mix.trap', 'mix.trap', [p('w', 0.5, 0, 1), p('g', 4, -64, 64), p('t', 0.5, 0, 64)]);
 mixDef('mix.depth', 'mix.depth', [p('w', 0.5, 0, 1), p('g', 6, -256, 256)]);
+// constant weights for every species (the Metasurface's junctions, where three cells meet); relative
+mixDef('mix.blend', 'mix', ['a', 'b', 'c', 'd', 'e', 'f', 'h'].map((k) => p(k, 1, 0, 64)));
 mixDef('mix.lyap', 'mix.lyap', [p('w', 0.5, 0, 1), p('g', 2, -64, 64)]);
 export const isMix = (name) => name === 'mix' || name.startsWith('mix.');
 

@@ -45,6 +45,8 @@ import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
+import { drawSurface } from './ui/metasurface.js';
+import { createSurface, formulaAt, weightsAt, strokeField, cells } from './core/metasurface.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
 // keeping the enclosed ones), turned toward a terraced amphitheatre
@@ -294,6 +296,169 @@ function traceCentre() {
   return Math.min(t, state.look.maxDist);
 }
 
+// ---------- the Metasurface (M): the families as cells ------------------------------------------------
+// The surface lies over the dimmed field as hairlines (core/metasurface.js says what a point means).
+// Drag: the formula follows the crosshair live, framed by the families' views; release keeps it.
+// Shift-drag draws a stroke played in time (a walk along it); Option-drag a stroke laid in space (its
+// species ordered across the world along the stroke's own direction on screen). M or Esc closes.
+const SURF = createSurface();
+let surf = null;       // { x, drag, moved, stroke: { pts, scr, kind }, drift }
+let surfAt = null;     // where the crosshair was last
+let surfWalk = 0;      // the walk under way (a token: anything else stops it)
+
+const surfFrame = () => { const L = Math.min(innerWidth, innerHeight) * 0.84; return { cx: innerWidth / 2, cy: innerHeight / 2, L }; };
+const toScreen = (x) => { const F = surfFrame(); return [F.cx + (x[0] * F.L) / 2, F.cy - (x[1] * F.L) / 2]; };
+const toSurface = (px, py) => {
+  const F = surfFrame(), c = (v) => Math.max(-1, Math.min(1, v));
+  return [c((px - F.cx) / (F.L / 2)), c(-(py - F.cy) / (F.L / 2))];
+};
+const siteGlyph = (s) => getOp((s.f.slots[0].find((o) => o.op !== '+c' && o.op !== 'abs') || s.f.slots[0][0]).op).glyph;
+const structureKey = (f) => normalize(f).slots[0].map((o) => o.op).join(' ');
+
+function openSurface() {
+  if (surf) return;
+  exitGrab();
+  // the crosshair where we were, or on the site of the formula's own family
+  const own = SURF.sites.find((s) => normalize(state.formula).slots.length === 1 && s.key === structureKey(state.formula));
+  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, drift: state.drift };
+  state.drift = false;
+  drawSurfaceNow();
+  surfaceThumbs();
+}
+
+async function surfaceThumbs() {
+  for (const s of SURF.sites) {
+    if (s.thumb || !surf || !R) continue;
+    const cam = { yaw: 0.55, pitch: 0.3 }, b = basis(cam), pos = b.fwd.map((v) => -v * s.view);
+    s.thumb = await R.renderThumb(s.f, thumbView(b, pos, s.view * 0.35), 168, 112, 6).catch(() => null);
+    drawSurfaceNow();
+  }
+}
+
+function closeSurface() {
+  if (!surf) return;
+  surfWalk++;
+  state.drift = surf.drift;
+  surf = null;
+  clearGrab(overlay);
+}
+
+function drawSurfaceNow() {
+  if (!surf) return;
+  const F = surfFrame(), ws = weightsAt(SURF, surf.x);
+  drawSurface(overlay, {
+    w: innerWidth, h: innerHeight,
+    cells: cells(SURF).map((c) => c.map(toScreen)),
+    sites: SURF.sites.map((s, j) => {
+      const [x, y] = toScreen(s.at);
+      return { x, y, thumb: s.thumb, glyph: siteGlyph(s), axes: s.axes.map(() => (s.R * F.L) / 2 * 0.85), active: ws.some((e) => e.j === j) };
+    }),
+    spokes: ws.map((e) => { const [x, y] = toScreen(SURF.sites[e.j].at); return { x, y, w: e.w }; }),
+    cross: toScreen(surf.x),
+    stroke: surf.stroke && surf.stroke.scr, strokeKind: surf.stroke && surf.stroke.kind,
+  });
+}
+
+// frame the origin from the current direction at the given distance
+function frameAt(view) {
+  const { fwd } = basis(state.cam);
+  state.cam.pos = fwd.map((v) => -v * view);
+  state.home = null;
+}
+
+function surfaceTo(x) {
+  surf.x = x; surfAt = x;
+  const r = formulaAt(SURF, x);
+  setFormula(format(r.f), true);
+  frameAt(r.view);
+  touched();
+  drawSurfaceNow();
+}
+
+function surfDown(e) {
+  surfWalk++;
+  const x = toSurface(e.clientX, e.clientY);
+  if (e.shiftKey || e.altKey) {
+    surf.stroke = { pts: [x], scr: [[e.clientX, e.clientY]], kind: e.altKey ? 'field' : 'walk' };
+    drawSurfaceNow();
+    return;
+  }
+  surf.drag = true; surf.moved = true;
+  surfaceTo(x);
+}
+
+let surfLast = 0;
+function surfMove(e) {
+  if (surf.stroke) {
+    const scr = surf.stroke.scr.at(-1);
+    if (Math.hypot(e.clientX - scr[0], e.clientY - scr[1]) < 3) return;
+    surf.stroke.pts.push(toSurface(e.clientX, e.clientY));
+    surf.stroke.scr.push([e.clientX, e.clientY]);
+    drawSurfaceNow();
+    return;
+  }
+  if (!surf.drag) return;
+  // at most every 30 ms: each move repacks the formula
+  const now = performance.now();
+  if (now - surfLast < 30) return;
+  surfLast = now;
+  surfaceTo(toSurface(e.clientX, e.clientY));
+}
+
+function surfUp(e) {
+  if (surf.stroke) {
+    const st = surf.stroke;
+    surf.stroke = null;
+    if (st.pts.length < 2) { drawSurfaceNow(); return; }
+    if (st.kind === 'walk') walkSurface(st.pts); else layField(st.pts, st.scr);
+    return;
+  }
+  if (surf.drag) {
+    surfaceTo(toSurface(e.clientX, e.clientY));
+    surf.drag = false;
+    writeHash();
+    remember();
+  }
+}
+
+// a stroke played in time: the crosshair travels it at half the surface's width a second
+function walkSurface(pts) {
+  const token = ++surfWalk;
+  const acc = [0];
+  for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const len = acc.at(-1), dur = Math.max(0.6, len / 0.5) * 1000, t0 = performance.now();
+  const along = (u) => {
+    const t = u * len;
+    let i = 1;
+    while (i < pts.length - 1 && acc[i] < t) i++;
+    const r = Math.min(1, Math.max(0, (t - acc[i - 1]) / ((acc[i] - acc[i - 1]) || 1)));
+    return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * r, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * r];
+  };
+  const tick = () => {
+    if (token !== surfWalk || !surf) return;
+    const u = Math.min(1, (performance.now() - t0) / dur);
+    surfaceTo(along(u));
+    if (u < 1) setTimeout(tick, 33);
+    else { writeHash(); remember(); }
+  };
+  tick();
+}
+
+// a stroke laid in space: species along it, ordered across the visible world in the stroke's direction
+function layField(pts, scr) {
+  const b = basis(state.cam);
+  const dx = scr.at(-1)[0] - scr[0][0], dy = scr.at(-1)[1] - scr[0][1];
+  const n = [0, 1, 2].map((i) => b.right[i] * dx - b.up[i] * dy);
+  const th = Math.tan((state.look.fovDeg * Math.PI) / 360), aspect = innerWidth / innerHeight;
+  const view = strokeField(SURF, pts, n, 1).view;
+  const r = strokeField(SURF, pts, n, 2 * th * view * aspect);
+  closeSurface();
+  setFormula(format(r.f));
+  frameAt(r.view);
+  writeHash();
+  remember();
+}
+
 // ---------- input -----------------------------------------------------------------------------------
 
 function touched() { state.lastInput = performance.now(); state.dirty = true; state.n = 0; state.senseDue = true; }
@@ -534,6 +699,7 @@ const pointers = new Map();
 canvas.addEventListener('pointerdown', (e) => {
   stopReplay();
   try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
+  if (surf) { surfDown(e); return; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
     drag = { x: e.clientX, y: e.clientY };
@@ -548,6 +714,7 @@ canvas.addEventListener('pointerdown', (e) => {
   } else if (hold) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (surf) { surfMove(e); return; }
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   if (ring) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointRing(e.clientX, e.clientY); return; }
@@ -605,6 +772,7 @@ function sliceDrag(dx, dy) {
 }
 
 const release = (e) => {
+  if (surf) { surfUp(e); return; }
   pointers.delete(e.pointerId);
   if (pointers.size === 0) {
     drag = null;
@@ -647,6 +815,8 @@ function toggleMode() {
 canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && surf) { closeSurface(); return; }
+  if (e.code === 'KeyM' && !e.repeat && !grab && !ring && !lens) { if (surf) closeSurface(); else openSurface(); return; }
   if (e.code === 'Escape' && ring) { closeRing(false); return; }
   if (e.code === 'Escape' && grab) { exitGrab(true); return; }
   if (e.code === 'KeyR' && !e.repeat && !grab && !ring) { replay(); return; }
@@ -694,7 +864,7 @@ function flyKeys(dt) {
 // distance estimate a short way ahead in a ring of directions.
 
 function drift(dt) {
-  if (!state.drift || grab || performance.now() - state.lastInput < 4000) return false;
+  if (!state.drift || grab || surf || performance.now() - state.lastInput < 4000) return false;
   herd(dt);
   if (state.mode === 'loop') { if (state.loopWin) rollLoop(dt * 0.03); return true; }
   const c = state.cam, here = deAt(c.pos);
@@ -982,12 +1152,12 @@ async function growArchive() {
 const RING_MS = 1200, LOCAL_D = [35, 60, 90, 130], FAR_D = [170, 230, 300, 380];
 let ring = null;
 
-function thumbView(b) {
+function thumbView(b, pos = state.cam.pos, clear0 = null) {
   const L = state.look;
-  const clear = Math.max(deAt(state.cam.pos), 1e-5);
-  const lamp = [0, 1, 2].map((i) => state.cam.pos[i] + (b.right[i] * L.lamp[0] + b.up[i] * L.lamp[1] + b.fwd[i] * L.lamp[2]) * clear);
+  const clear = Math.max(clear0 ?? deAt(pos), 1e-5);
+  const lamp = [0, 1, 2].map((i) => pos[i] + (b.right[i] * L.lamp[0] + b.up[i] * L.lamp[1] + b.fwd[i] * L.lamp[2]) * clear);
   return {
-    pos: state.cam.pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360), right: b.right, aperture: 0, up: b.up,
+    pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360), right: b.right, aperture: 0, up: b.up,
     focus: Math.max(state.focus, 1e-4), fwd: b.fwd, blend: 1, light: lamp, glow: L.glow, lampRange: L.lampRange * clear,
     lampPower: L.lampPower, hue: L.hue, fog: L.fog / Math.max(clear * 8, 1e-4), exposure: L.exposure, terrace: L.terrace,
     stepScale: L.stepScale, maxDist: L.maxDist, epsScale: L.epsScale, frame: 0, key: L.key, ambient: L.ambient,
@@ -1301,6 +1471,15 @@ window.__fe = {
   lensMove: (dx, dy) => { if (lens) { if (lens.x0 === null) moveLens(0, 0); moveLens(lens.x0 + dx, lens.y0 + dy); } return lens && lens.params.map((p) => p.op + '.' + p.key); },
   lensClose: () => closeLens(),
   structure: () => { toggleStructure(); return state.structure; },
+  surface: (on = true) => { if (on) openSurface(); else closeSurface(); return !!surf; },
+  surfaceTo: (x, y) => { if (surf) surfaceTo([x, y]); return state.text; },
+  surfaceStroke: (pts, kind = 'walk') => {
+    if (!surf) return null;
+    const scr = pts.map(toScreen);
+    if (kind === 'walk') walkSurface(pts); else layField(pts, scr);
+    return state.text;
+  },
+  get surfaceThumbs() { return SURF.sites.filter((s) => s.thumb).length; },
   slice: (dw = 0, dx = 0, dy = 0) => { if (dw) sliceBy(dw, null); if (dx || dy) sliceDrag(dx, dy); sliceMoved = false; return state.formula.slice; },
   lineage: () => lineage.layout(200).map((n) => ({ id: n.id, parent: n.parent, text: n.text, current: n.current, thumb: !!n.thumb })),
   back: () => { const n = lineage.parent(); if (n) restore(lineage.jump(n.id)); return n && n.id; },

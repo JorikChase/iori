@@ -120,6 +120,11 @@ test('Sierpiński tetrahedron: vertices stay, the centre of a face escapes', () 
   assert.ok(de(f, [5, 5, 5]) > 0);
 });
 
+test('every op reaches the GPU: an opcode for each (a missing one packs as NaN)', async () => {
+  const { OPCODE } = await import('../gpu/pack.js');
+  for (const name of Object.keys(OPS)) assert.ok(Number.isInteger(OPCODE[name]), `no opcode for ${name}`);
+});
+
 test('analytic Jacobians agree with finite differences', () => {
   const pts = [[0.3, -0.2, 0.7, 0.4], [1.4, 0.2, -0.9, -0.3], [0.05, 0.1, 0.02, 0.07], [-2, 1.5, 0.4, 0.9]];
   for (const o of Object.values(OPS)) {
@@ -438,4 +443,60 @@ test('tissue: k species, frames, self-fields', () => {
     checked++;
   }
   assert.ok(checked > 10, `only ${checked} preimages found`);
+});
+
+test('presets: every family parses, is pull-safe, single-slot, and names real breeding axes', async () => {
+  const { PRESETS } = await import('../core/presets.js');
+  assert.ok(PRESETS.length >= 10);
+  for (const P of PRESETS) {
+    const f = normalize(parse(P.text));
+    assert.ok(validate(f).ok, P.id);
+    assert.ok(pullSafe(f), P.id);
+    assert.equal(f.slots.length, 1, P.id);
+    for (const [oi, key] of P.axes) assert.ok(f.slots[0][oi] && key in f.slots[0][oi].p, `${P.id} axis ${oi}.${key}`);
+    // something is there: the estimate at the camera is positive and less than the distance to the origin
+    const d = de(f, [0, 0, -P.view]);
+    assert.ok(d > 0 && d <= P.view + 1e-9, `${P.id} de ${d}`);
+  }
+});
+
+test('Metasurface: a site is its family, a cell breeds, a wall blends, strokes lay species in space', async () => {
+  const M = await import('../core/metasurface.js');
+  const S = M.createSurface();
+  const same = (a, b) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+  // at a site: the preset itself
+  for (const s of S.sites) assert.ok(same(M.formulaAt(S, s.at).f, s.f), s.id);
+  // inside a cell: the structure stays, the axis parameter sweeps
+  const box = S.sites.find((s) => s.id === 'mandelbox');
+  const right = M.formulaAt(S, [box.at[0] + box.R * 0.5, box.at[1]]).f;
+  assert.equal(right.slots.length, 1);
+  assert.ok(near(right.slots[0][2].p.s, 2.5 + 0.6 * 0.5, 1e-6), `scale ${right.slots[0][2].p.s}`);
+  // across a wall between different structures: a chimera of constant weights, valid and even at the bisector
+  const bulb = S.sites.find((s) => s.id === 'mandelbulb'), sier = S.sites.find((s) => s.id === 'sierpinski');
+  const mid = [(bulb.at[0] + sier.at[0]) / 2, (bulb.at[1] + sier.at[1]) / 2];
+  const m = M.formulaAt(S, mid);
+  assert.ok(validate(m.f).ok, validate(m.f).errors.join('; '));
+  assert.equal(m.f.slots[0][0].op, 'mix.blend');
+  assert.ok(m.species.length >= 2);
+  // continuity: the estimate at a point moves little for a small step across the wall
+  const p = [0.3, 0.2, -0.4];
+  let prev = null;
+  for (let t = -0.06; t <= 0.06; t += 0.004) {
+    const x = [mid[0] + t * (sier.at[0] - bulb.at[0]), mid[1] + t * (sier.at[1] - bulb.at[1])];
+    const d = de(M.formulaAt(S, x).f, p);
+    if (prev !== null) assert.ok(Math.abs(d - prev) < 0.08, `jump ${prev} → ${d} at ${t}`);
+    prev = d;
+  }
+  // the cells tile the square
+  const area = (poly) => Math.abs(poly.reduce((a, q, i) => { const r = poly[(i + 1) % poly.length]; return a + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
+  assert.ok(near(M.cells(S).reduce((a, c) => a + area(c), 0), 4, 1e-9));
+  // a stroke from the bulb to the Sierpiński cell laid along x: species in order, a world-frame ramp
+  const sf = M.strokeField(S, [bulb.at, mid, sier.at], [1, 0, 0], 4);
+  assert.ok(validate(sf.f).ok, validate(sf.f).errors.join('; '));
+  assert.equal(sf.f.slots[0][0].op, 'mix.axis');
+  assert.equal(sf.f.slots[0][0].p.at, 1);
+  const k = sf.f.slots[0][0].p.s;
+  assert.ok(k >= 2 && sf.f.slots.length === k + 1);
+  assert.equal(sf.f.slots[1].map((o) => o.op).join(), 'bulb,+c');
+  assert.equal(sf.f.slots[k].map((o) => o.op).join(), sier.f.slots[0].map((o) => o.op).join());
 });

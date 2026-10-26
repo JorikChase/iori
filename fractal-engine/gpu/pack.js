@@ -8,7 +8,7 @@
 
 import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
-import { FIELD_KIND } from '../core/fields.js';
+import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
 import { rotationXYZ, rotation4, lift4, sliceMatrix, normalize as nrm } from '../core/vec.js';
@@ -19,7 +19,7 @@ export const OPCODE = {
   'spherical': 13, 'swirl': 14, 'sin': 15, 'horseshoe': 16, 'polar': 17,
   'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21,
   // every chimera is one code; its field kind is in the record (core/fields.js FIELD_KIND)
-  'mix': 22, 'mix.axis': 22, 'mix.sphere': 22, 'mix.noise': 22, 'mix.tissue': 22, 'mix.trap': 22, 'mix.depth': 22, 'mix.lyap': 22,
+  'mix': 22, 'mix.axis': 22, 'mix.sphere': 22, 'mix.noise': 22, 'mix.tissue': 22, 'mix.trap': 22, 'mix.depth': 22, 'mix.lyap': 22, 'mix.blend': 22,
 };
 
 export const MAX_OPS = 64;
@@ -34,7 +34,8 @@ export const HEAD_BYTES = 432;
 // kids: a mix's sub-stack slots (pack reads them from the formula; a parameter tangent needs none)
 //
 // A chimera's record: [22, kind, at, first species slot], [species, w, g, 0], a vector (axis normal as
-// given, sphere centre), [scalars]: sphere r; noise f, octaves, seed; tissue n, size, soft, seed; trap t.
+// given, sphere centre), [scalars]: sphere r; noise f, octaves, seed; tissue n, size, soft, seed; trap t;
+// blend: its seven weights over both.
 // Every continuous parameter enters it linearly, so the lens and the sensing pass can vary any of them.
 function record(o, out = new Float32Array(REC), kids = [0, 0]) {
   const r = out;
@@ -58,6 +59,7 @@ function record(o, out = new Float32Array(REC), kids = [0, 0]) {
         if (o.op === 'mix.noise') r.set([P.f, P.o, P.seed], 12);
         if (o.op === 'mix.tissue') r.set([P.n, P.size, P.soft, P.seed], 12);
         if (o.op === 'mix.trap') r[12] = P.t;
+        if (o.op === 'mix.blend') r.set(BLEND_KEYS.map((k) => P[k]), 8);
       }
       break;
   }

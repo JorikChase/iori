@@ -601,3 +601,39 @@ a field after the bracket weighs them (core/fields.js, the WGSL a bit-for-bit co
 
 Not yet: a strict, usable bound for steep walls (a per-field Lipschitz safety factor would cost speed
 everywhere); site placement by hand (Q3's Metasurface); drawn fields; tissue-of-tissues.
+
+**Q3 built 2026-10-26 — families and the Metasurface.**
+- *Families* (core/presets.js, unit-tested and raymarch-checked on the CPU: each fills 21–75 % of its
+  framed view): Mandelbulb, 4-D bulb, quaternion Mandelbrot, quaternion Julia, Mandelbox, Mandelbox
+  −1.5, Amazing Surf (x/y box folds as plane pairs), 4-D-rotated Mandelbox, Menger (the conditional
+  z-fold is `fold.plane 0 0 -1 -1`: after the next abs, reflecting equals subtracting 2), Sierpiński,
+  KIFS. All single-slot; Julia types add their constant by `translate`, so every family composes with
+  every other. Each names its camera distance and one or two breeding axes. Pseudo-Kleinian needs its
+  own slab estimate (with r/dr it fills space) — not yet; flames are push-only — not on the surface.
+- *The Metasurface* (core/metasurface.js, ui/metasurface.js; M or Esc): the families as Voronoi cells
+  on a square over the dimmed field — hairline cells, each site its family's thumbnail, its breeding
+  axes as ticks, the crosshair with hairline spokes to the sites it draws on.
+  - Inside a cell: the family bred — its axes sweep ± span/2 with the offset from the site across the
+    cell's radius (horizontal, vertical).
+  - Across a wall: soft weights πⱼ ∝ exp(−(dⱼ − d_min)/0.035) (a cell is pure until ~0.1 from its
+    wall); sites of one structure blend their parameters (exact breeding), different structures become
+    a chimera with constant weights — the new field `blend a b c …` (relative weight per species;
+    also in the notation). At most four species; iterations blend linearly, bail and view
+    geometrically. Pure at every site; continuous across a wall (unit-tested on the estimate).
+  - Drag: the formula follows the crosshair live (≤ every 30 ms), the camera reframes the origin at
+    the blended view; release keeps it (one lineage node).
+  - Shift-drag: a stroke played in time — the crosshair travels it at half the surface a second,
+    every step a formula (a box → Amazing Surf walk passed 11), one node at the end.
+  - Option-drag: a stroke laid in space — 2–7 species sampled evenly along it (the leading species at
+    each sample, bred), ordered across the visible world along the stroke's own screen direction by a
+    world-frame `axis` ramp spanning the view. A bulb → Sierpiński → Menger stroke laid the bulb
+    upper right and the sponge lower left.
+- *Estimate type, revised:* a chimera uses the escape-time estimate only if every species is a power
+  family; a mixed one (an IFS beside a bulb) uses r/dr — escape-time read the IFS's bounded orbits as
+  inside (estimate 0) and the blend rendered almost black.
+- *Fixed:* `mix.blend` had no opcode and packed as NaN (the shader silently skipped the op); a unit
+  test now checks every op has one. Parity (all PASS) gained blend cases in every suite. 24 unit tests.
+
+Not yet: moving sites or dropping the current formula onto the surface as a new site; touch gestures
+for strokes (desktop modifiers only); pseudo-Kleinian's own estimate; walls are drawn as cell edges,
+not as the soft band they are.

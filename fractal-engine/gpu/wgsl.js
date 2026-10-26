@@ -311,6 +311,13 @@ fn mixWeights(oi: u32, x: vec4f, dr: f32) -> MixW {
     for (var i = 0u; i < k; i++) { m.G[i] = m.G[i] - m.w[i] * ebar; }
     return m;
   }
+  if (kind == 8u) {
+    // blend: constant relative weights, all zero an even blend
+    var sum = 0.0;
+    for (var i = 0u; i < k; i++) { let a = max(select(q[i % 4u], v[i % 4u], i < 4u), 0.0); m.w[i] = a; sum = sum + a; }
+    for (var i = 0u; i < k; i++) { m.w[i] = select(1.0 / f32(k), m.w[i] / sum, sum > 0.0); }
+    return m;
+  }
   let w = b.y;
   if (w <= 0.0) { m.w[0] = 1.0; return m; }
   if (w >= 1.0) { m.w[k - 1u] = 1.0; return m; }

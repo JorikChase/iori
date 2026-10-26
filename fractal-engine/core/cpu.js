@@ -13,7 +13,7 @@
 
 import { getOp, isMix } from './ops.js';
 import { weights, orbitWeights } from './fields.js';
-import { normalize, pullSafe } from './formula.js';
+import { normalize, pullSafe, mixKids } from './formula.js';
 import { slotIndex } from './notation.js';
 import { makeRng, recordingRng, replayRng } from './rng.js';
 import { I4, len, add, sub, matMul, matVec, mul, specNorm, embed, sliceMatrix, normalize as nrm } from './vec.js';
@@ -167,8 +167,16 @@ export function iterate(formula, p0, c = [0, 0, 0, 0], opts = {}) {
 // the orbit escaped, which is what the Mandelbox / KIFS literature does: with few iterations most
 // points near the surface never reach the bail radius. Both are lower bounds only where the formula
 // is pullSafe. The GPU interpreter (gpu/wgsl.js) computes exactly this.
+// A chimera is a power formula only if every species is: one whose species are an IFS and a bulb
+// would read the IFS's bounded orbits as inside (escape-time gives 0 there) and lose its surfaces;
+// r / dr serves both kinds.
 const POWERS = new Set(['bulb', 'bulb4', 'power', 'quat']);
-export const hasPower = (f) => f.slots.some((s) => s.some((q) => POWERS.has(q.op)));
+const slotPower = (f, slot) => slot.some((q) => POWERS.has(q.op) || (isMix(q.op) && q.kids && q.kids.every((k) => slotPower(f, k))));
+export const hasPower = (f) => {
+  const g = f.slots.some((s) => s.some((q) => isMix(q.op))) && !f.slots.some((s) => s.some((q) => q.kids)) ? normalize(f) : f;
+  const { top } = mixKids(g);
+  return g.slots.slice(0, Math.max(top, 1)).some((s) => slotPower(g, s));
+};
 
 export function de(formula, p, c, opts = {}) {
   const f = normalize(formula);

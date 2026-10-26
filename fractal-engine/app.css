@@ -32,6 +32,18 @@ body.grab #field { cursor: grabbing; }
 #grab .ln .dot { fill: #fff; stroke: none; }
 #grab text.l { text-anchor: start; }
 
+/* the Metasurface (M): the families' cells over the dimmed field (ui/metasurface.js) */
+#grab .ms .veil { fill: #000; stroke: none; opacity: 0.55; }
+#grab .ms .cell { opacity: 0.4; }
+#grab .ms .axis { opacity: 0.35; }
+#grab .ms .spoke { stroke-width: 0.5; }
+#grab .ms .site { opacity: 0.55; }
+#grab .ms .site.on { opacity: 1; }
+#grab .ms .gl path { opacity: 0.6; }
+#grab .ms .stroke { stroke-width: 1.5; opacity: 0.9; }
+#grab .ms .stroke.field { stroke-dasharray: 2 4; }
+#grab .ms .cross .dot { fill: #fff; stroke: none; }
+
 /* the structure layer (Tab): ruler, op strip, lineage (ui/structure.js) */
 #structure { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 #structure path, #structure circle, #structure rect { fill: none; stroke: #fff; stroke-width: 0.75; }

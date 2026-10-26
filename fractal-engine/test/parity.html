@@ -42,6 +42,7 @@ const FORMULAS = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] trap .5 3 .5 · +c ×12 bail=100', 5],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] depth .5 6 · +c ×10 bail=8', 1.6],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] lyap .5 1 · +c ×12 bail=100', 5],
+  ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5],
 ];
 const N = 4096;
 
@@ -77,6 +78,7 @@ const INV_FORMULAS = [
   ['[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0] tissue 5 1 .2 2 ×16 bail=16', 1.5],
   ['[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0] noise .5 2 .7 2 1 ×16 bail=16', 1.5],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] trap .4 3 .5 · +c ×10 bail=8 c=.1,.2,.3', 1.2],
+  ['[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ fold.box 1 · scale 2] blend .6 .3 .1 ×16 bail=16', 1.5],
 ];
 const INV_SHADER = INTERP + DUAL + `
 var<private> rngState: u32;
@@ -133,6 +135,7 @@ const DUAL_FORMULAS = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] trap .5 3 .5 · +c ×12 bail=100', 8],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] lyap .5 1 · +c ×12 bail=100', 8],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] sphere .4 2 1.5 .3 · +c ×12 bail=100', 16],
+  ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5],
 ];
 const DN = 1024;
 const DUAL_SHADER = INTERP + DUAL + `
@@ -166,6 +169,7 @@ const OV_CASES = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ fold.box 1 · scale 2] tissue 7 2 .2 3 · +c ×12 bail=100', 4, [[0, 'size'], [0, 'soft']]],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] noise .5 1 .5 2 3 · +c ×12 bail=100', 4, [[0, 'f'], [0, 'g']]],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] trap .5 3 .5 · +c ×12 bail=100', 4, [[0, 't'], [0, 'w']]],
+  ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5, [[0, 'a'], [0, 'c']]],
 ];
 const OV_SHADER = INTERP + `
 @group(0) @binding(2) var<storage, read> pts: array<vec4f>;

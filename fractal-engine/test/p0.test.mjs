@@ -43,7 +43,7 @@ test('notation details: aliases, keyed values, separators, trailing defaults', (
 
 test('a fixed c makes a Julia set, in the notation and in the orbit', () => {
   const f = parse('power 2 · +c ×100 c=-.75,.1,0');
-  assert.deepEqual(f.c, [-0.75, 0.1, 0]);
+  assert.deepEqual(f.c, [-0.75, 0.1, 0, 0]);
   assert.equal(format(f), 'power · +c ×100 c=-.75,.1,0');
   assert.ok(validate(f).ok);
   assert.notEqual(hash(f), hash(parse('power 2 · +c ×100')));
@@ -120,15 +120,16 @@ test('Sierpiński tetrahedron: vertices stay, the centre of a face escapes', () 
 });
 
 test('analytic Jacobians agree with finite differences', () => {
-  const pts = [[0.3, -0.2, 0.7], [1.4, 0.2, -0.9], [0.05, 0.1, 0.02], [-2, 1.5, 0.4]];
+  const pts = [[0.3, -0.2, 0.7, 0.4], [1.4, 0.2, -0.9, -0.3], [0.05, 0.1, 0.02, 0.07], [-2, 1.5, 0.4, 0.9]];
   for (const o of Object.values(OPS)) {
     if (!o.jac) continue;
     const q = { op: o.name, p: Object.fromEntries(o.params.map((x) => [x.k, x.d])) };
-    if (o.name === 'fold.plane') q.p = { nx: 1, ny: 1, nz: 0, d: 0.1 };
+    if (o.name === 'fold.plane') q.p = { nx: 1, ny: 1, nz: 0, d: 0.1, nw: 0.5 };
+    if (o.name === 'rotate4') q.p = { xy: 10, xz: -20, xw: 30, yz: 15, yw: -25, zw: 40 };
     if (o.name === 'rotate') q.p = { x: 20, y: -35, z: 60 };
     for (const pt of pts) {
       const analytic = o.jac(pt, q.p);
-      const numeric = opJacobian(q, pt, [0, 0, 0], true);
+      const numeric = opJacobian(q, pt, [0, 0, 0, 0], true);
       assert.ok(matNear(analytic, numeric, 1e-4), `${o.name} at ${pt}: ${analytic} vs ${numeric}`);
     }
   }
@@ -136,20 +137,21 @@ test('analytic Jacobians agree with finite differences', () => {
 
 test('inverses are preimages of the forward map, on every branch', () => {
   const rng = makeRng(11);
-  const pts = [[0.3, -0.2, 0.7], [1.4, 0.2, -0.9], [0.6, 0.1, 0.02], [-2, 1.5, 0.4], [0.2, 0.3, 0.1]];
+  const pts = [[0.3, -0.2, 0.7, 0.2], [1.4, 0.2, -0.9, -0.5], [0.6, 0.1, 0.02, 0.3], [-2, 1.5, 0.4, -0.1], [0.2, 0.3, 0.1, 0.05]];
   for (const o of Object.values(OPS)) {
     if (!o.inv) continue;
     const P = Object.fromEntries(o.params.map((x) => [x.k, x.d]));
-    if (o.name === 'fold.plane') Object.assign(P, { nx: 1, ny: 1, nz: 0, d: 0 });
+    if (o.name === 'fold.plane') Object.assign(P, { nx: 1, ny: 1, nz: 0, d: 0, nw: 0.5 });
+    if (o.name === 'rotate4') Object.assign(P, { xy: 10, xz: -20, xw: 30, yz: 15, yw: -25, zw: 40 });
     for (const pt of pts) {
       // push pt forward first so we ask for preimages of a point that has some
-      const s0 = { p: [...pt], c: [0.1, 0.2, 0.3], dr: 1 };
+      const s0 = { p: [...pt], c: [0.1, 0.2, 0.3, -0.2], dr: 1 };
       o.fwd(s0, P);
       const target = s0.p;
       for (let k = 0; k < 12; k++) {
-        const pre = o.inv([...target], P, rng, { c: [0.1, 0.2, 0.3] });
+        const pre = o.inv([...target], P, rng, { c: [0.1, 0.2, 0.3, -0.2] });
         if (!pre) continue;
-        const s = { p: [...pre], c: [0.1, 0.2, 0.3], dr: 1 };
+        const s = { p: [...pre], c: [0.1, 0.2, 0.3, -0.2], dr: 1 };
         o.fwd(s, P);
         assert.ok(s.p.every((x, i) => near(x, target[i], 1e-6)), `${o.name}: inv ${pre} → fwd ${s.p} ≠ ${target}`);
       }
@@ -203,7 +205,7 @@ test('Lyapunov exponents have the right sign', () => {
   assert.ok(lyapunov(parse(MANDELBROT), [0.01, 0, 0], [0, 0, 0], 20) < 0);
   // a Jacobian of a whole iteration composes the ops
   const J = jacobian(parse('scale 2 · rotate 0 0 90 ×1'), [1, 0, 0]);
-  assert.ok(matNear(J, [0, -2, 0, 2, 0, 0, 0, 0, 2], 1e-9), `${J}`);
+  assert.ok(matNear(J, [0, -2, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2], 1e-9), `${J}`);
 });
 
 test('references for the GPU duals: gradient, parameter derivative, Lyapunov', () => {
@@ -278,3 +280,25 @@ test('exports: surface nets of a sphere, STL size, splat covariance round trip',
   const ply = splatsToPly([{ p: [0, 0, 0], cov: [1, 0, 0, 1, 0, 1], rgb: [0.5, 0.5, 0.5] }]);
   assert.ok(new TextDecoder().decode(new Uint8Array(ply, 0, 200)).startsWith('ply\nformat binary_little_endian'));
 });
+
+test('4-D: the slice embeds the world, quaternion Julia sets, and 3-D formulas unchanged on the default slice', () => {
+  // default slice: a 3-D point is itself with w = 0
+  const f = parse(MANDELBOX);
+  assert.deepEqual(iterate(f, [3.1, 0.4, -0.2]).points[0], [3.1, 0.4, -0.2, 0]);
+  // a tilted slice in the xw plane by 90° sends the world's x axis to w
+  const g = parse('scale 2 ×1 bail=100 slice=0,90,0,0');
+  const p0 = iterate(g, [1, 0, 0]).points[0];
+  assert.ok(Math.abs(p0[0]) < 1e-12 && Math.abs(Math.abs(p0[3]) - 1) < 1e-12, `${p0}`);
+  assert.equal(format(g), 'scale ×1 bail=100 slice=0,90,0,0');
+  // the quaternion Julia set of c = −1 contains 0 (its orbit 0 → −1 → 0 cycles) and escapes far away
+  const q = parse('quat · +c ×64 bail=4 c=-1,0,0,0');
+  assert.equal(iterate(q, [0, 0, 0], q.c).escaped, false);
+  assert.equal(iterate(q, [2, 0, 0], q.c).escaped, true); // beyond the golden ratio, where the basilica ends
+  // q² agrees with complex squaring on the (x, y) plane
+  const sq = iterate(parse('quat ×1 bail=100'), [0.3, 0.4, 0, 0]).points[1];
+  assert.ok(near(sq[0], 0.09 - 0.16) && near(sq[1], 0.24), `${sq}`);
+  // the 4-D bulb with n = 1 is the identity
+  const b = iterate(parse('bulb4 1 ×1 bail=100'), [0.3, -0.2, 0.5, 0.4]).points[1];
+  assert.ok([0.3, -0.2, 0.5, 0.4].every((v, i) => near(v, b[i], 1e-9)), `${b}`);
+});
+

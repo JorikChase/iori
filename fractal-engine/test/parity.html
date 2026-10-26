@@ -11,7 +11,7 @@
 // The WGSL interpreter must compute the same orbit as core/cpu.js. For each formula: N random points,
 // the GPU's distance estimate, iteration count and escape flag, compared with the CPU's.
 // Result in window.__parity: { ok, rows: [{ formula, n, maxRel, iterMismatch, escMismatch }] }.
-import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit } from '../core/index.js';
+import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit, lift } from '../core/index.js';
 import { INTERP, INVERSE, DUAL } from '../gpu/wgsl.js';
 import { pack, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES } from '../gpu/pack.js';
 import { withJit } from '../gpu/jit.js';
@@ -25,6 +25,11 @@ const FORMULAS = [
   ['bulb 8 · +c ×10 bail=2', 1.3],
   ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 ×10 bail=30', 3],
   ['abs · sort · scale 3 · + -2 -2 0 | bulb 8 · +c ×9 AAB bail=40', 2],
+  // 4-D: the quaternion Julia set, the 4-D bulb, a 4-D KIFS, a 3-D formula on a tilted, offset slice
+  ['quat · +c ×12 bail=4 c=-.2,.6,.2,.1', 1.6],
+  ['bulb4 8 · +c ×8 bail=2', 1.2],
+  ['rotate4 10 0 25 15 0 30 · abs · sort4 · scale 3 · + -2 -2 0 -1 ×8 bail=50', 2],
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 slice=.3,20,10,0', 5],
 ];
 const N = 4096;
 
@@ -35,7 +40,7 @@ const SHADER = INTERP + `
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= arrayLength(&pts)) { return; }
-  let p = pts[i].xyz;
+  let p = embed(pts[i].xyz);
   let t = iterate(p, cFor(p));
   outp[i] = vec4f(deOf(t), f32(t.n), select(0.0, 1.0, t.escaped), t.dr);
 }`;
@@ -49,6 +54,9 @@ const INV_FORMULAS = [
   ['bulb 8 · +c ×10 bail=2 c=.1,.2,-.1', 1.1],
   ['power 3 · +c ×20 c=-.5,.4,0', 1.2],
   ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 · invert ×10 bail=30', 1.5],
+  ['quat · +c ×12 bail=4 c=-.2,.6,.2,.1', 1.2],
+  ['bulb4 8 · +c ×8 bail=2 c=.1,-.2,.1,.15', 1.0],
+  ['rotate4 10 0 25 15 0 30 · abs · sort4 · scale 3 · + -2 -2 0 -1 ×8 bail=50', 1.5],
 ];
 const INV_SHADER = INTERP + `
 var<private> rngState: u32;
@@ -66,16 +74,17 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= arrayLength(&pts)) { return; }
   rngState = pcg(i * 7919u + 17u);
-  var p = pts[i].xyz;
+  var p = pts[i];
   var ok = 1.0;
   let start = head.starts[0];
   let len = head.lens[0];
   for (var j = 0u; j < len; j++) {
-    let s = opInv(start + len - 1u - j, p, head.c.xyz);
+    let s = opInv(start + len - 1u - j, p, head.c);
     if (!s.ok) { ok = 0.0; break; }
     p = s.p;
   }
-  outp[i] = vec4f(p, ok);
+  outp[i] = p;
+  outp[arrayLength(&pts) + i] = vec4f(ok);
 }`;
 
 // Dual numbers: the shader's gradient, parameter derivatives and Lyapunov exponent against the CPU's
@@ -88,6 +97,11 @@ const DUAL_FORMULAS = [
   ['power 2 · +c ×64', 2.2],
   ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 ×10 bail=30', 3],
   ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 c=.3,.2,.1', 3],
+  // 4-D: the quaternion Julia set, the 4-D bulb, a 4-D KIFS, a 3-D formula on a tilted, offset slice
+  ['quat · +c ×12 bail=4 c=-.2,.6,.2,.1', 1.6],
+  ['bulb4 8 · +c ×8 bail=2', 1.2],
+  ['rotate4 10 0 25 15 0 30 · abs · sort4 · scale 3 · + -2 -2 0 -1 ×8 bail=50', 2],
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 slice=.3,20,10,0', 5],
 ];
 const DN = 1024;
 const DUAL_SHADER = INTERP + DUAL + `
@@ -100,9 +114,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let np = arrayLength(&pts);
   if (i >= np) { return; }
   let j = gid.y;
-  tanOi = u32(tans[j * 5u].x);
-  for (var k = 0u; k < 4u; k++) { tanRec[k] = tans[j * 5u + 1u + k]; }
-  let p = pts[i].xyz;
+  tanOi = u32(tans[j * 6u].x);
+  for (var k = 0u; k < 5u; k++) { tanRec[k] = tans[j * 6u + 1u + k]; }
+  let p = embed(pts[i].xyz);
   let d = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
   let o = (j * np + i) * 2u;
   outp[o] = vec4f(deGrad(d), deOf(d.t));
@@ -128,7 +142,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   ov0 = u32(ov[0].x);
   ov1 = select(0xffffffffu, u32(ov[0].y), ov[0].z > 1.5);
   ovD = ov[1].xy;
-  for (var k = 0u; k < 4u; k++) { ovRec0[k] = ov[2u + k]; ovRec1[k] = ov[6u + k]; }
+  for (var k = 0u; k < 5u; k++) { ovRec0[k] = ov[2u + k]; ovRec1[k] = ov[7u + k]; }
   let p = pts[i].xyz;
   outp[i] = vec4f(de(p), 0.0, 0.0, 0.0);
 }`;
@@ -194,8 +208,8 @@ async function run() {
     const rels = [];
     for (let i = 0; i < N; i++) {
       const p = [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]];
-      const o = iterate(f, p, p);
-      const d = de(f, p, p);
+      const o = iterate(f, p, f.c || lift(f, p));
+      const d = de(f, p);
       if (o.n !== g[i * 4 + 1]) { iterMismatch++; continue; }
       if (o.escaped !== (g[i * 4 + 2] > 0.5)) { escMismatch++; continue; }
       const gd = g[i * 4];
@@ -223,7 +237,7 @@ async function run() {
     // q = the forward image of a random point, so q has at least one preimage
     const qs = new Float32Array(N * 4);
     for (let i = 0; i < N; i++) {
-      const s = { p: rng.ball().map((x) => x * R), c: f.c || [0, 0, 0], dr: 1 };
+      const s = { p: [...rng.ball(), rng.float() * 2 - 1].map((x) => x * R * 0.85), c: f.c || [0, 0, 0, 0], dr: 1 };
       stepForward(s, slot);
       qs.set(s.p, i * 4);
     }
@@ -231,8 +245,9 @@ async function run() {
     const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     const ops = mk(MAX_OPS * REC * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
     const pb = mk(qs.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-    const ob = mk(qs.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
-    const rb = mk(qs.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+    // the preimages, then a success flag per point
+    const ob = mk(qs.byteLength * 2, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+    const rb = mk(qs.byteLength * 2, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
     device.queue.writeBuffer(head, 0, pk.head);
     device.queue.writeBuffer(ops, 0, pk.ops);
     device.queue.writeBuffer(pb, 0, qs);
@@ -243,7 +258,7 @@ async function run() {
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
     cp.setPipeline(invPipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(N / 64)); cp.end();
-    enc.copyBufferToBuffer(ob, 0, rb, 0, qs.byteLength);
+    enc.copyBufferToBuffer(ob, 0, rb, 0, qs.byteLength * 2);
     device.queue.submit([enc.finish()]);
     await rb.mapAsync(GPUMapMode.READ);
     const g = new Float32Array(rb.getMappedRange().slice(0));
@@ -251,11 +266,11 @@ async function run() {
     let found = 0, wrong = 0;
     const errs = [];
     for (let i = 0; i < N; i++) {
-      if (g[i * 4 + 3] < 0.5) continue;
+      if (g[(N + i) * 4] < 0.5) continue;
       found++;
-      const s = { p: [g[i * 4], g[i * 4 + 1], g[i * 4 + 2]], c: f.c || [0, 0, 0], dr: 1 };
+      const s = { p: [g[i * 4], g[i * 4 + 1], g[i * 4 + 2], g[i * 4 + 3]], c: f.c || [0, 0, 0, 0], dr: 1 };
       stepForward(s, slot);
-      const q = [qs[i * 4], qs[i * 4 + 1], qs[i * 4 + 2]];
+      const q = [qs[i * 4], qs[i * 4 + 1], qs[i * 4 + 2], qs[i * 4 + 3]];
       const e = Math.hypot(s.p[0] - q[0], s.p[1] - q[1], s.p[2] - q[2]) / Math.max(1, Math.hypot(...q));
       errs.push(e);
       if (e > 1e-3) wrong++;
@@ -343,9 +358,9 @@ async function run() {
     const g = JSON.parse(JSON.stringify(f));
     const flat = g.slots.flat();
     params.forEach(([oi, key], i) => { flat[oi].p[key] += ds[i]; });
-    const ovData = new Float32Array(40);
+    const ovData = new Float32Array(48);
     ovData.set([params[0][0], params[1] ? params[1][0] : 0, params.length, 0, ds[0], ds[1] || 0, 0, 0]);
-    params.forEach(([oi, key], i) => ovData.set(tg.find((t) => t.oi === oi && t.key === key).drec, 8 + i * 16));
+    params.forEach(([oi, key], i) => ovData.set(tg.find((t) => t.oi === oi && t.key === key).drec, 8 + i * 20));
     const rng = makeRng(21);
     const pts = new Float32Array(N * 4);
     for (let i = 0; i < N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);

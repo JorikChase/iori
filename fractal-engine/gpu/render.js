@@ -88,7 +88,8 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
   let unsafeScale = select(1.0, 0.3, (head.flags & FLAG_UNSAFE) != 0u);
   for (var i = 0; i < maxSteps; i++) {
     let p = ro + rd * t;
-    tr = iterate(p, cFor(p));
+    let q4 = embed(p);
+    tr = iterate(q4, cFor(q4));
     let d = deOf(tr) * view.tune.x * unsafeScale;
     let eps = max(t * pixelAngle * view.tune.z, 1e-6);
     // near-misses emit: the glow is the field's density seen edge-on
@@ -106,7 +107,8 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
     let eps = max(t * pixelAngle * view.tune.z, 1e-6);
     // the normal is the gradient of the distance estimate, carried by dual numbers through one orbit
     // (four extra orbits by finite differences before); the same orbit yields the Lyapunov exponent
-    let dd = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
+    let p4 = embed(p);
+    let dd = iterateDual(p4, cFor(p4), (head.flags & FLAG_JULIA) == 0u);
     var n = deGrad(dd);
     let nl = length(n);
     if (nl > 0.0 && nl < 1e30) { n = n / nl; } else { n = normalAt(p, eps * 0.5); }
@@ -194,7 +196,7 @@ struct LV {
   key: vec4f,    // rgb key colour
 };
 @group(1) @binding(0) var<uniform> lv: LV;
-@group(1) @binding(1) var<storage, read> drecs: array<vec4f, 8>;
+@group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
 @group(1) @binding(2) var lensOut: texture_storage_2d<rgba16float, write>;
 
 @compute @workgroup_size(8, 8)
@@ -202,11 +204,11 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   if (f32(gid.x) >= lv.span.z || f32(gid.y) >= lv.span.w) { return; }
   ov0 = lv.ov.x;
   ov1 = select(0xffffffffu, lv.ov.y, lv.ov.z > 1u);
-  for (var k = 0u; k < 4u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[4u + k]; }
+  for (var k = 0u; k < 5u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[5u + k]; }
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
   let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
   ovD = vec2f(u * lv.span.x, v * lv.span.y);
-  let x = lv.x.xyz;
+  let x = embed(lv.x.xyz);
   let t = iterate(x, cFor(x));
   var px = deOf(t) / lv.x.w;
   if ((head.flags & FLAG_POWER) != 0u && !t.escaped) { px = 0.0; }
@@ -345,7 +347,7 @@ export async function createRenderer(canvas) {
     compute: { module: lensModule, entryPoint: 'lensMap' },
   });
   const lvBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const drecBuf = device.createBuffer({ size: 128, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const drecBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const mkLensTex = (lw, lh) => device.createTexture({
     size: [lw, lh], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
   });
@@ -388,7 +390,7 @@ export async function createRenderer(canvas) {
   }
 
   // L: { x (held point), foot (world size of a CSS px there), spans [s1, s2?], ops [oi0, oi1?],
-  //      drecs [Float64Array(16), …] (one per parameter), size [lw, lh], key }
+  //      drecs [Float64Array(20), …] (one per parameter), size [lw, lh], key }
   function lens(L) {
     if (lensTex.width !== L.size[0] || lensTex.height !== L.size[1]) { lensTex.destroy(); lensTex = mkLensTex(...L.size); makeDispGroups(); }
     const lvd = new ArrayBuffer(64), f = new Float32Array(lvd), u = new Uint32Array(lvd);
@@ -396,8 +398,8 @@ export async function createRenderer(canvas) {
     u[8] = L.ops[0]; u[9] = L.ops[1] ?? 0xffffffff; u[10] = L.drecs.length;
     f.set([...L.key, 0], 12);
     device.queue.writeBuffer(lvBuf, 0, lvd);
-    const d = new Float32Array(32);
-    L.drecs.forEach((r, i) => d.set(r, i * 16));
+    const d = new Float32Array(40);
+    L.drecs.forEach((r, i) => d.set(r, i * 20));
     device.queue.writeBuffer(drecBuf, 0, d);
     const group = device.createBindGroup({
       layout: lensLayout,

@@ -6,9 +6,12 @@
 //   iters: 12,             iterations of the schedule
 //   schedule: 'A',         word of slot letters, repeated to fill iters ('AAB' → A A B A A B …)
 //   bail: 4,               escape radius for pull; orbits beyond it have left
-//   c: [x, y, z],          optional. Fixed constant for +c (a Julia set). Absent: pull uses c = the
+//   c: [x, y, z, w],       optional. Fixed constant for +c (a Julia set). Absent: pull uses c = the
 //                          point itself (a Mandelbrot-type set); push, which has no single point,
 //                          uses the point the camera looks at, so it shows the Julia set of where you are
+//   slice: { w, tilt: [xw, yw, zw] }   optional. Where the 3-D world sits in the orbit's 4-D space:
+//                          x₄ = T·(x, y, z, w), T the rotation by the tilt (degrees) in the xw, yw, zw
+//                          planes. Absent: w = 0, no tilt — a 3-D formula sees exactly the 3-D world
 //   slots: [[{ op: 'fold.box', p: { l: 1 } }, …], …]   up to four op lists, A–D
 // }
 //
@@ -27,7 +30,8 @@ export function normalize(f) {
     iters: f.iters === undefined ? 12 : f.iters,
     schedule: f.schedule || 'A',
     bail: f.bail === undefined ? 4 : f.bail,
-    ...(Array.isArray(f.c) ? { c: f.c.map(Number) } : {}),
+    ...(Array.isArray(f.c) ? { c: [0, 1, 2, 3].map((i) => Number(f.c[i] || 0)) } : {}),
+    ...(f.slice && (f.slice.w || (f.slice.tilt || []).some(Boolean)) ? { slice: { w: Number(f.slice.w || 0), tilt: [0, 1, 2].map((i) => Number((f.slice.tilt || [])[i] || 0)) } } : {}),
     slots: (f.slots || []).map((s) => s.map((o) => {
       const def = getOp(o.op);
       return { op: def ? def.name : o.op, p: def ? fillParams(def, o.p || {}) : { ...(o.p || {}) } };
@@ -44,7 +48,8 @@ export function validate(f) {
   if (!Number.isInteger(f.seed)) err('seed must be an integer');
   if (!Number.isInteger(f.iters) || f.iters < 1 || f.iters > MAX_ITERS) err(`iters must be 1..${MAX_ITERS}`);
   if (!(typeof f.bail === 'number' && f.bail > 0 && Number.isFinite(f.bail))) err('bail must be a positive number');
-  if (f.c !== undefined && !(Array.isArray(f.c) && f.c.length === 3 && f.c.every(Number.isFinite))) err('c must be three finite numbers');
+  if (f.c !== undefined && !(Array.isArray(f.c) && (f.c.length === 3 || f.c.length === 4) && f.c.every(Number.isFinite))) err('c must be three or four finite numbers');
+  if (f.slice !== undefined && !(f.slice && Number.isFinite(f.slice.w || 0) && Array.isArray(f.slice.tilt || [0, 0, 0]) && (f.slice.tilt || [0, 0, 0]).length === 3 && (f.slice.tilt || [0, 0, 0]).every(Number.isFinite))) err('slice must be { w, tilt: [xw, yw, zw] }');
   if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > 4) err('slots must hold 1..4 op lists');
   else {
     let count = 0;
@@ -78,7 +83,7 @@ export function pullSafe(f) {
 export function canonical(f) {
   const g = normalize(f);
   return JSON.stringify({
-    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}),
+    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}), ...(g.slice ? { slice: g.slice } : {}),
     slots: g.slots.map((s) => s.map((o) => ({ op: o.op, p: Object.fromEntries(getOp(o.op).params.map((q) => [q.k, o.p[q.k]])) }))),
   });
 }

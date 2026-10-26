@@ -31,7 +31,7 @@
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
-import { parse, format, validate, normalize, iterate, getOp, de as cpuDe } from './core/index.js';
+import { parse, format, validate, normalize, iterate, getOp, lift, de as cpuDe } from './core/index.js';
 import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
 import { createSense } from './gpu/sense.js';
@@ -39,6 +39,7 @@ import { createLoop } from './gpu/loop.js';
 import { makeCamera, drawGrab, clearGrab, drawLens, drawKnobs, drawRing } from './ui/overlay.js';
 import { mutate, distancePx, features, createArchive, spread } from './core/breed.js';
 import { gridUVs } from './gpu/sense.js';
+import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
@@ -77,6 +78,7 @@ const LOOK = {
   pushGain: 1,
   pushExposure: 0.9,
   pushSteps: 24,
+  pushSlab: 0.1,        // push draws the 4-D attractor within this distance of the slice (0: its whole shadow)
   splatMax: 4,          // px; the kernel is shrunk (energy kept) beyond this
   lyapMix: 0,           // the Lyapunov channel, 0 off, 1 on (L)
   // loop: the monitor's knobs, per pass
@@ -217,7 +219,7 @@ function drawStructureNow() {
   const f = normalize(state.formula);
   const b = basis(state.cam);
   const centre = add(state.cam.pos, b.fwd, Math.max(state.focus, 1e-4));
-  const depth = iterate(f, centre, f.c || centre).n;
+  const depth = iterate(f, centre, f.c || lift(f, centre)).n;
   drawStructure(structureSvg, {
     W: innerWidth, H: innerHeight, formula: f, depth,
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
@@ -411,12 +413,13 @@ function drawGrabNow() {
   att.value = o.p[att.key];
   const b = basis(state.cam);
   const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
-  const orbit = iterate(f, grab.hit, f.c || grab.hit);
+  const orbit = iterate(f, grab.hit, f.c || lift(f, grab.hit));
   drawGrab(overlay, C, {
     screen: [grab.x, grab.y], hit: grab.hit, t: grab.t,
     attention: { op: att.op, key: att.key, value: att.value, glyph: getOp(att.op).glyph },
     params: o.p, ring: grab.ring, lyap: grab.lyap,
-    orbit: { points: orbit.points, branches: orbit.branches },
+    // the orbit lives in 4-D: drawn where each iterate sits along the slice's axes
+    orbit: { points: orbit.points.map((x4) => project(f.slice || {}, x4).x), branches: orbit.branches },
   });
 }
 
@@ -570,6 +573,7 @@ canvas.addEventListener('pointermove', (e) => {
   }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!drag) return;
+  if (e.altKey) { sliceDrag(e.clientX - drag.x, e.clientY - drag.y); drag = { x: e.clientX, y: e.clientY }; return; }
   if (state.mode === 'loop') {
     if (e.shiftKey) rollLoop((e.clientX - drag.x) * 0.006); else panLoop(e.clientX - drag.x, e.clientY - drag.y);
     drag = { x: e.clientX, y: e.clientY };
@@ -582,6 +586,22 @@ canvas.addEventListener('pointermove', (e) => {
   drag = { x: e.clientX, y: e.clientY };
   touched();
 });
+// ---------- the slice: where the 3-D world cuts the 4-D orbit space --------------------------------
+// Option + wheel moves the cut along w; Option + drag tilts it toward w in the plane of the camera's
+// right (sideways) or up (vertical) direction. The camera stays put; the object turns through it.
+let sliceMoved = false;
+function sliceBy(dw, tiltDeg) {
+  const sl = state.formula.slice || {}, t = [...(sl.tilt || [0, 0, 0])];
+  if (tiltDeg) for (let i = 0; i < 3; i++) t[i] = +(t[i] + tiltDeg[i]).toFixed(3);
+  const w = +((sl.w || 0) + dw).toPrecision(6);
+  setFormula(format({ ...state.formula, slice: { w, tilt: t } }));
+  sliceMoved = true;
+}
+function sliceDrag(dx, dy) {
+  const { right, up } = basis(state.cam), k = 0.25;
+  sliceBy(0, right.map((r, i) => r * dx * k - up[i] * dy * k));
+}
+
 const release = (e) => {
   pointers.delete(e.pointerId);
   if (pointers.size === 0) {
@@ -600,6 +620,7 @@ canvas.addEventListener('wheel', (e) => {
   if (ring) { const at = ring.at, sc = ring.scale * (e.deltaY > 0 ? 1.5 : 1 / 1.5); ring = null; openRing(at[0], at[1], sc); return; }
   if (grab && grab.knobs) { nextKnobs(e.deltaY > 0 ? 1 : -1, e.clientX, e.clientY); return; }
   if (grab) { passAttention(e.deltaY > 0 ? 1 : -1, e.clientX); return; }
+  if (e.altKey) { sliceBy(Math.max(-4, Math.min(4, -e.deltaY / 100)) * 0.1 * Math.max(0.02, deAt(state.cam.pos)), null); return; }
   if (state.mode === 'loop') { zoomLoop(Math.exp(Math.max(-4, Math.min(4, e.deltaY / 100)) * 0.08)); touched(); return; }
   const { fwd } = basis(state.cam);
   const notches = Math.max(-4, Math.min(4, -e.deltaY / 100));
@@ -646,6 +667,7 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => {
   keys.delete(e.code);
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && lens) closeLens();
+  if ((e.code === 'AltLeft' || e.code === 'AltRight') && sliceMoved) { sliceMoved = false; writeHash(); remember(); }
 });
 addEventListener('blur', () => keys.clear());
 
@@ -875,12 +897,13 @@ function pushView(b, clear, moving, drifting) {
   const th = Math.tan((L.fovDeg * Math.PI) / 360);
   const [, ih] = P.size;
   const focus = Math.max(state.focus, 1e-4);
-  const c = state.formula.c || add(state.cam.pos, b.fwd, focus);
+  // the constant: the formula's own, or the point the camera looks at, carried into 4-D by the slice
+  const c = state.formula.c || lift(state.formula, add(state.cam.pos, b.fwd, focus));
   return {
     pos: state.cam.pos, tanHalfFov: th, right: b.right, aperture: L.aperture * focus,
     up: b.up, focus, fwd: b.fwd, near: 1e-4,
     frame: state.frame, steps: moving ? L.pushSteps : L.pushSteps * 2,
-    c, eps: (focus * 2 * th) / ih * 0.7,
+    c, eps: (focus * 2 * th) / ih * 0.7, slab: L.pushSlab,
     hue: L.hue, iridescence: L.iridescence, spread: L.spread, maxRadius: moving ? L.splatMax * 0.6 : L.splatMax,
     key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: 1,
     decay: state.n === 0 ? 0 : drifting ? 0.85 : 1,
@@ -1276,6 +1299,7 @@ window.__fe = {
   lensMove: (dx, dy) => { if (lens) { if (lens.x0 === null) moveLens(0, 0); moveLens(lens.x0 + dx, lens.y0 + dy); } return lens && lens.params.map((p) => p.op + '.' + p.key); },
   lensClose: () => closeLens(),
   structure: () => { toggleStructure(); return state.structure; },
+  slice: (dw = 0, dx = 0, dy = 0) => { if (dw) sliceBy(dw, null); if (dx || dy) sliceDrag(dx, dy); sliceMoved = false; return state.formula.slice; },
   lineage: () => lineage.layout(200).map((n) => ({ id: n.id, parent: n.parent, text: n.text, current: n.current, thumb: !!n.thumb })),
   back: () => { const n = lineage.parent(); if (n) restore(lineage.jump(n.id)); return n && n.id; },
   forward: () => { const n = lineage.child(); if (n) restore(lineage.jump(n.id)); return n && n.id; },

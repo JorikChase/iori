@@ -30,8 +30,8 @@ fn sense(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= n) { return; }
   let j = gid.y;
-  tanOi = u32(tans[j * 5u].x);
-  for (var k = 0u; k < 4u; k++) { tanRec[k] = tans[j * 5u + 1u + k]; }
+  tanOi = u32(tans[j * 6u].x);
+  for (var k = 0u; k < 5u; k++) { tanRec[k] = tans[j * 6u + 1u + k]; }
   let uv = uvs[i];
   let th = sv.pos.w;
   let rd = normalize(sv.fwd.xyz + sv.right.xyz * uv.x * th * sv.right.w - sv.up.xyz * uv.y * th);
@@ -48,7 +48,8 @@ fn sense(@builtin(global_invocation_id) gid: vec3u) {
   let o = j * n + i;
   if (!hit) { outp[o] = vec4f(t, 0.0, 0.0, 0.0); return; }
   let p = sv.pos.xyz + rd * t;
-  let d = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
+  let p4 = embed(p);
+  let d = iterateDual(p4, cFor(p4), (head.flags & FLAG_JULIA) == 0u);
   let g = length(deGrad(d));
   outp[o] = vec4f(t, deTan(d.t, d.q, d.qdr), d.lyap, max(g, 1e-12));
 }

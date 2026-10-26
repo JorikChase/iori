@@ -55,7 +55,7 @@ fn load(t: texture_2d<f32>, q: vec2f) -> vec3f {
   return o;
 }
 
-fn applySlot(slot: u32, x0: vec3f, c: vec3f) -> vec3f {
+fn applySlot(slot: u32, x0: vec4f, c: vec4f) -> vec4f {
   var x = x0;
   let start = head.starts[slot];
   for (var j = 0u; j < head.lens[slot]; j++) { x = opFwd(start + j, x, c).p; }
@@ -73,12 +73,15 @@ fn loopStep(@builtin(global_invocation_id) gid: vec3u) {
   let hh = lv.up.w;
   let hw = hh * lv.right.w;
   let x = o + lv.right.xyz * uv.x * hw - lv.up.xyz * uv.y * hh;
-  let c = cFor(x);
+  // into the orbit's 4-D space through the slice, and back along it
+  let x4 = embed(x);
+  let c = cFor(x4);
   var acc = vec3f(0.0);
   let n = u32(lv.fwd.w);
   for (var s = 0u; s < n; s++) {
-    let y = applySlot(lv.slots[s], x, c);
-    if (any(y != y)) { continue; }
+    let y4 = applySlot(lv.slots[s], x4, c);
+    if (any(y4 != y4)) { continue; }
+    let y = unembed(y4).xyz;
     let d = y - o;
     let q = (vec2f(dot(d, lv.right.xyz) / hw, -dot(d, lv.up.xyz) / hh) * 0.5 + 0.5) * vec2f(W, H);
     // the lens: a small cross of taps

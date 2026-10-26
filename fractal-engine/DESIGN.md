@@ -464,3 +464,67 @@ Light Herder: thelightherder.com (build chronology 2020–2026), Hackaday 2026-0
 fractbox-engine (op-list IR with per-op derivative rules, WebGPU). Hvidtfeldt's *Distance Estimated
 3D Fractals* series. Munafo on perturbation and bilinear approximation. MERL Design Galleries;
 Draves, Electric Sheep; Lomas, Species Explorer; MAP-Elites. Territory Studio, Blade Runner 2049.
+
+## Next stretch (Q) — species, tissue, dimensions, the graph
+
+Decided 2026-10-26: **tissue** means Voronoi tissue (cells, each its own family, soft walls); **new
+species first** — chimeras mixed inside the iteration, before collages of finished shapes; **4-D and
+multidimensionality are the base**, not an add-on; the **graph opens over the field in hairlines**.
+
+The three ways to mix, kept distinct: *breed* (same structure, parameters interpolated — exact),
+*chimera* (different structures, the point blended inside every iteration: p ← mix(F_A(p), F_B(p), w)
+— new dynamics, distance estimate conservative via the larger dr), *collage* (finished distance
+estimates joined by a field-weighted smooth-min — designed seams, later).
+
+**The dimension model.** The orbit lives in ℝᴺ; the camera stays in 3-D. A *slice* — an origin O and
+an orthonormal frame E (N×3) — embeds the world: x_N = O + E·x₃. Rotating the slice through the
+higher axes is a control like any other (flying through the fourth dimension). 3-D formulas are N-D
+formulas whose ops leave the extra axes alone. Quaternion and hypercomplex families become ordinary ops.
+
+**Fields.** w(x) for every mix is a field: constant, axis, sphere, drawn gradient, fBm (paper 0's
+Brownian noise), Voronoi tissue (k sites, each cell a species, soft walls of adjustable width), and
+the fractal's own readings (orbit trap, escape depth, λ) — a formula that mixes itself by its own
+dynamics. A tissue of k species generalises the mix to k branches weighted by the cells.
+
+**Phases**
+- **Q0 — N-D base.** State becomes a point in ℝᴺ through every layer: core ops (arrays, N×N
+  Jacobians), the WGSL interpreter, duals, inverse branches, JIT, sensing, push, loop; the slice in
+  the formula JSON and the notation; 4-D forms of every op (4-D rotation's six planes, 4-D folds, the
+  hyperspherical bulb) plus quaternion ops (q², q·c). All parity suites re-run in N-D.
+- **Q1 — chimera.** A `mix` op holding two (later k) sub-stacks run in the same iteration, weight from
+  a field; DE by the larger dr; JIT codegen for nested stacks; the notation `[A ‖ B] w` and its JSON.
+- **Q2 — fields and tissue.** The field library; Voronoi tissue with per-cell species and soft walls;
+  self-fields (trap, depth, λ); the lens and the metric extend to field parameters.
+- **Q3 — the family surface.** Presets for Mandelbulb, Mandelbox, Menger (conditional z-fold),
+  Sierpiński, pseudo-Kleinian, Amazing Surf, KIFS, quaternion Julia, 4-D bulbs, flames; a Metasurface
+  (natural-neighbour weights over Voronoi cells of presets) as a gesture surface: inside a cell, breed;
+  across a wall, chimera; a stroke is a path — played in time (a walk) or laid in space (a field).
+- **Q4 — the graph.** Formula v2 as a graph; the glyph strip unfolds into it over the field; glyph
+  nodes, hairline edges, a repeat zone for the iteration body, a radial picker, live node thumbnails;
+  compiled by the JIT; a register-machine interpreter so editing never waits for a compile.
+
+**Q0 built 2026-10-26 — 4-D native.** N-D up to 8 stays a later representation change; every layer now
+carries a vec4.
+- *The slice.* `slice=w,xw,yw,zw` in the notation, `slice: {w, tilt:[3]}` in JSON: x₄ = T·(x, y, z, w₀),
+  T the rotation by the three tilt angles (degrees) in the xw, yw, zw planes. `c` takes three or four
+  numbers. With the default slice every 3-D formula is unchanged (all P-stretch parity holds as before).
+- *Ops.* All ops act on four components (translate/fold.plane gain a w parameter, placed last so old
+  formulas parse; fold.box, sphere, abs and invert act on w; sort, bulb and the flames leave it alone).
+  New: `rotate4` (six plane angles), `sort4`, `bulb4` (hyperspherical, analytic inverse enumeration —
+  every candidate verified, 218,800 of 218,800), `quat` (q², inverse ±√q computed from the imaginary
+  size first when q₀ < 0, which removed float32 cancellation: 15 of 4096 wrong → 0).
+- *GPU.* REC4 = 5 vec4 per op record, rotations packed as 4×4; the head carries the slice matrix and w₀;
+  duals have three 4-D gradient columns started on the slice's axes; push walkers carry a symmetric
+  4×4 Σ, splats project back through the slice with a Gaussian slab weight (`pushSlab` 0.1) on the
+  distance off it; the loop maps each pixel through the slice and back; both JIT kinds emit vec4.
+- *Gesture.* Option + wheel moves the slice along w (step scaled by the distance estimate at the
+  camera); Option + drag tilts it toward w in the camera's right/up plane (the drag adds right/up's
+  components to the three tilt angles — a small-angle composition, exact enough by hand). One lineage
+  node when Option is released. `__fe.slice(dw, dx, dy)` drives it in tests.
+- *Glyphs.* rotate4, sort4, bulb4, quat — the 3-D glyph with an inner second figure.
+- Parity (all PASS): forward DE median ≤ 2e-6 on the 4-D formulas (quat Julia, bulb4, rotate4/sort4
+  KIFS, a tilted Mandelbox slice); inverse 0 wrong on every op; dual gradient 0.000° median; JIT
+  literal/structure identical to the interpreter, quat Julia ×19.8 compiled. 18 unit tests.
+
+Not yet: N > 4; a tilt stored as a full frame (three plane angles cannot reach every 3-plane in ℝ⁴
+without composition order mattering); a hairline readout of w while it moves.

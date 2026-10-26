@@ -1,42 +1,46 @@
 // Packs a formula into the buffers the WGSL interpreter reads. Structure changes rewrite a buffer;
 // they never recompile a shader.
 //
-// ops buffer: one record of 16 floats per op — [code, p0 … p14]. Rotations and plane normals are
-// resolved here so the shader does no trigonometry it can avoid.
-// head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word.
+// ops buffer: one record of 20 floats (five vec4) per op — [code, p0 … p18]. Rotations (3-D and 4-D,
+// one row-major 4×4) and plane normals are resolved here so the shader does no trigonometry it can avoid.
+// head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word, the
+// Julia constant, and the slice (a 4×4, column-major for WGSL, and the offset along w).
 
 import { normalize, pullSafe } from '../core/formula.js';
 import { getOp } from '../core/ops.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
-import { rotationXYZ, normalize as nrm } from '../core/vec.js';
+import { rotationXYZ, rotation4, lift4, sliceMatrix, normalize as nrm } from '../core/vec.js';
 
 export const OPCODE = {
   'translate': 0, '+c': 1, 'scale': 2, 'rotate': 3, 'fold.plane': 4, 'fold.box': 5, 'fold.sphere': 6,
   'abs': 7, 'sort': 8, 'bulb': 9, 'power': 10, 'invert': 11, 'twist': 12,
   'spherical': 13, 'swirl': 14, 'sin': 15, 'horseshoe': 16, 'polar': 17,
+  'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21,
 };
 
 export const MAX_OPS = 64;
 export const MAX_SCHEDULE = 64;
-export const REC = 16;
+export const REC = 20;
 export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4;
 
-// head layout (u32/f32 words): 4 + 4 + 4 + 64 schedule words, then c (vec4f) at word 76 → 320 bytes
-export const HEAD_BYTES = 320;
+// head layout (u32/f32 words): 4 + 4 + 4 + 64 schedule words, c (vec4f) at word 76, the slice
+// (mat4x4f) at word 80, its w offset at word 96 → 400 bytes
+export const HEAD_BYTES = 400;
 
 function record(o, out = new Float32Array(REC)) {
   const r = out;
   r[0] = OPCODE[o.op];
   const P = o.p;
   switch (o.op) {
-    case 'translate': r.set([P.x, P.y, P.z], 1); break;
+    case 'translate': r.set([P.x, P.y, P.z, P.w], 1); break;
     case 'scale': r[1] = P.s; break;
-    case 'rotate': r.set(rotationXYZ(P.x, P.y, P.z), 1); break;
-    case 'fold.plane': r.set([...nrm([P.nx, P.ny, P.nz]), P.d], 1); break;
+    case 'rotate': r.set(lift4(rotationXYZ(P.x, P.y, P.z)), 1); break;
+    case 'rotate4': r.set(rotation4([P.xy, P.xz, P.xw, P.yz, P.yw, P.zw]), 1); break;
+    case 'fold.plane': r.set([...nrm([P.nx, P.ny, P.nz, P.nw]), P.d], 1); break;
     case 'fold.box': r[1] = P.l; break;
     case 'fold.sphere': r.set([P.rmin, P.rfix], 1); break;
-    case 'bulb': case 'power': r[1] = P.n; break;
+    case 'bulb': case 'bulb4': case 'power': r[1] = P.n; break;
     case 'twist': r[1] = (P.a * Math.PI) / 180; break;
     default: break;
   }
@@ -66,6 +70,10 @@ export function pack(formula) {
   u[1] = sched.length;
   u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0);
   if (f.c) fl.set(f.c, 76);
+  // the slice, column by column, and its w offset
+  const T = sliceMatrix(f.slice || {});
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) fl[80 + j * 4 + i] = T[i * 4 + j];
+  fl[96] = (f.slice && f.slice.w) || 0;
   fl[3] = f.bail;
   for (let i = 0; i < 4; i++) { u[4 + i] = starts[i]; u[8 + i] = lens[i]; }
   sched.forEach((s, i) => { u[12 + i] = s; });
@@ -77,7 +85,7 @@ export function pack(formula) {
 // The shader then differentiates only through the record, so rotations (Euler angles → matrix) and
 // plane normals (normalised) need no derivative code on the GPU.
 export const MAX_PARAMS = 64;
-export const TAN_FLOATS = 20; // [opIndex, 0, 0, 0] + 16 record derivatives
+export const TAN_FLOATS = 24; // [opIndex, 0, 0, 0] + 20 record derivatives (six vec4)
 
 export function paramTangents(formula) {
   const f = normalize(formula);

@@ -1,19 +1,25 @@
 // The WGSL interpreter: the same orbit as core/cpu.js, with the trace statistics the look layer reads.
-// Two directions over one op table, exactly as in core/ops.js:
+// The orbit lives in 4-D (vec4f); the world reaches it through the slice: embed(x) = head.slice·(x, w₀).
+// Three readings of one op table, exactly as in core/ops.js:
 //   opFwd  — the forward map (pull: per pixel, iterate() / de())
 //   opInv  — one random preimage, or failure (push: per sample, invStep())
-// Every op here must match its fwd/inv in core/ops.js; test/parity.html diffs the two.
+//   opTan  — the forward map's derivative along a tangent (the dual numbers)
+// test/parity.html diffs all three against the CPU.
+//
+// Records: five vec4f per op, [code, p0 … p18]. Rotations (3-D and 4-D) are packed as one row-major 4×4.
 
 export const INTERP = /* wgsl */ `
 struct Head {
   iters: u32, schedLen: u32, flags: u32, bail: f32,
   starts: vec4u, lens: vec4u,
   sched: array<vec4u, 16>,
-  c: vec4f,      // the fixed constant when FLAG_JULIA is set
+  c: vec4f,        // the fixed constant when FLAG_JULIA is set
+  slice: mat4x4f,  // the world's place in 4-D: x₄ = slice · (x, y, z, sliceW.x)
+  sliceW: vec4f,
 };
 
 struct Trace {
-  p: vec3f,      // final point
+  p: vec4f,      // final point
   dr: f32,       // running derivative
   n: u32,        // iterations done
   escaped: bool,
@@ -28,6 +34,7 @@ const FLAG_POWER = 1u;
 const FLAG_UNSAFE = 2u;
 const FLAG_JULIA = 4u;
 const PI = 3.14159265;
+const REC4 = 5u;
 
 // Per-invocation parameter overrides: a record reads as its packed value plus d · (d record / dθ)
 // for up to two parameters. The atlas lens varies two parameters across its pixels this way. Exact for
@@ -36,15 +43,19 @@ const PI = 3.14159265;
 var<private> ov0: u32 = 0xffffffffu;
 var<private> ov1: u32 = 0xffffffffu;
 var<private> ovD: vec2f = vec2f(0.0);
-var<private> ovRec0: array<vec4f, 4>;
-var<private> ovRec1: array<vec4f, 4>;
+var<private> ovRec0: array<vec4f, 5>;
+var<private> ovRec1: array<vec4f, 5>;
 
 fn rec(oi: u32, k: u32) -> vec4f {
-  var r = ops[oi * 4u + k];
+  var r = ops[oi * REC4 + k];
   if (oi == ov0) { r = r + ovD.x * ovRec0[k]; }
   if (oi == ov1) { r = r + ovD.y * ovRec1[k]; }
   return r;
 }
+
+fn embed(x: vec3f) -> vec4f { return head.slice * vec4f(x, head.sliceW.x); }
+// back to the world: xyz along the slice's axes, w how far off the slice
+fn unembed(x4: vec4f) -> vec4f { let v = transpose(head.slice) * x4; return vec4f(v.xyz, v.w - head.sliceW.x); }
 
 fn schedAt(i: u32) -> u32 {
   let k = i % head.schedLen;
@@ -57,34 +68,50 @@ fn branchColour(col: f32, opIndex: u32, branch: u32) -> f32 {
   return mix(col, own, 0.5);
 }
 
-struct Step { p: vec3f, k: f32, branch: u32, ok: bool };
+// the packed 4×4 of a rotation as a matrix whose columns are its rows: p · M = R p, M · q = Rᵀ q
+fn rowsOf(oi: u32) -> mat4x4f {
+  let a = rec(oi, 0u); let b = rec(oi, 1u); let c = rec(oi, 2u); let d = rec(oi, 3u); let e = rec(oi, 4u);
+  return mat4x4f(vec4f(a.yzw, b.x), vec4f(b.yzw, c.x), vec4f(c.yzw, d.x), vec4f(d.yzw, e.x));
+}
+
+// the 4-D bulb's forward map (hyperspherical coordinates, every angle and the radius to the n)
+fn bulb4(p: vec4f, n: f32) -> vec4f {
+  let r = length(p);
+  let r1 = length(p.yzw);
+  let t1 = acos(clamp(p.x / r, -1.0, 1.0)) * n;
+  var t2 = 0.0;
+  if (r1 > 0.0) { t2 = acos(clamp(p.y / r1, -1.0, 1.0)) * n; }
+  let f = atan2(p.w, p.z) * n;
+  let R = pow(r, n);
+  return R * vec4f(cos(t1), sin(t1) * cos(t2), sin(t1) * sin(t2) * cos(f), sin(t1) * sin(t2) * sin(f));
+}
+
+struct Step { p: vec4f, k: f32, branch: u32, ok: bool };
 
 // ---------- forward ----------------------------------------------------------------------------
 // returns the new point; k multiplies dr (wRule 'mul'), k < 0 means dr += 1 (the +c rule)
-fn opFwd(oi: u32, p: vec3f, c: vec3f) -> Step {
+fn opFwd(oi: u32, p: vec4f, c: vec4f) -> Step {
   let a = rec(oi, 0u);
   let b = rec(oi, 1u);
-  let cc = rec(oi, 2u);
   var s: Step;
   s.p = p; s.k = 1.0; s.branch = 0u; s.ok = true;
   switch u32(a.x) {
-    case 0u: { s.p = p + a.yzw; }
+    case 0u: { s.p = p + vec4f(a.yzw, b.x); }
     case 1u: { s.p = p + c; s.k = -1.0; }
     case 2u: { s.p = p * a.y; s.k = abs(a.y); }
-    case 3u: {
-      // the matrix is packed row-major from p0: a.yzw | b.xyz | b.w cc.xy
-      s.p = vec3f(dot(a.yzw, p), dot(b.xyz, p), dot(vec3f(b.w, cc.xy), p));
-    }
+    case 3u: { s.p = p * rowsOf(oi); }
     case 4u: {
-      let d = dot(p, a.yzw) - b.x;
-      if (d < 0.0) { s.p = p - 2.0 * d * a.yzw; s.branch = 1u; }
+      let n = vec4f(a.yzw, b.x);
+      let d = dot(p, n) - b.y;
+      if (d < 0.0) { s.p = p - 2.0 * d * n; s.branch = 1u; }
     }
     case 5u: {
       let l = a.y;
       s.branch = select(0u, 1u, p.x > l) + select(0u, 2u, p.x < -l)
                + select(0u, 3u, p.y > l) + select(0u, 6u, p.y < -l)
-               + select(0u, 9u, p.z > l) + select(0u, 18u, p.z < -l);
-      s.p = clamp(p, vec3f(-l), vec3f(l)) * 2.0 - p;
+               + select(0u, 9u, p.z > l) + select(0u, 18u, p.z < -l)
+               + select(0u, 27u, p.w > l) + select(0u, 54u, p.w < -l);
+      s.p = clamp(p, vec4f(-l), vec4f(l)) * 2.0 - p;
     }
     case 6u: {
       let r2 = dot(p, p);
@@ -95,24 +122,24 @@ fn opFwd(oi: u32, p: vec3f, c: vec3f) -> Step {
       else { s.branch = 2u; }
     }
     case 7u: {
-      s.branch = select(0u, 1u, p.x < 0.0) + select(0u, 2u, p.y < 0.0) + select(0u, 4u, p.z < 0.0);
+      s.branch = select(0u, 1u, p.x < 0.0) + select(0u, 2u, p.y < 0.0) + select(0u, 4u, p.z < 0.0) + select(0u, 8u, p.w < 0.0);
       s.p = abs(p);
     }
     case 8u: {
-      var x = p;
+      var x = p.xyz;
       if (x.x < x.y) { x = x.yxz; s.branch = s.branch + 1u; }
       if (x.y < x.z) { x = x.xzy; s.branch = s.branch + 2u; }
       if (x.x < x.y) { x = x.yxz; s.branch = s.branch + 4u; }
-      s.p = x;
+      s.p = vec4f(x, p.w);
     }
     case 9u: {
-      let r = length(p);
+      let r = length(p.xyz);
       if (r > 0.0) {
         let n = a.y;
         let theta = acos(clamp(p.z / r, -1.0, 1.0)) * n;
         let phi = atan2(p.y, p.x) * n;
         s.k = n * pow(r, n - 1.0);
-        s.p = pow(r, n) * vec3f(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+        s.p = vec4f(pow(r, n) * vec3f(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)), p.w);
       } else { s.k = 0.0; }
     }
     case 10u: {
@@ -121,7 +148,7 @@ fn opFwd(oi: u32, p: vec3f, c: vec3f) -> Step {
         let n = a.y;
         let ang = atan2(p.y, p.x) * n;
         s.k = n * pow(r, n - 1.0);
-        s.p = vec3f(pow(r, n) * cos(ang), pow(r, n) * sin(ang), p.z);
+        s.p = vec4f(pow(r, n) * cos(ang), pow(r, n) * sin(ang), p.z, p.w);
       } else { s.k = 0.0; }
     }
     case 11u: {
@@ -130,28 +157,46 @@ fn opFwd(oi: u32, p: vec3f, c: vec3f) -> Step {
     }
     case 12u: {
       let ang = a.y * p.z;
-      s.p = vec3f(cos(ang) * p.x - sin(ang) * p.y, sin(ang) * p.x + cos(ang) * p.y, p.z);
+      s.p = vec4f(cos(ang) * p.x - sin(ang) * p.y, sin(ang) * p.x + cos(ang) * p.y, p.z, p.w);
     }
     case 13u: {
       let r2 = dot(p.xy, p.xy);
-      if (r2 > 0.0) { s.p = vec3f(p.xy / r2, p.z); s.k = 1.0 / r2; }
+      if (r2 > 0.0) { s.p = vec4f(p.xy / r2, p.zw); s.k = 1.0 / r2; }
     }
     case 14u: {
       let r2 = dot(p.xy, p.xy);
-      s.p = vec3f(p.x * sin(r2) - p.y * cos(r2), p.x * cos(r2) + p.y * sin(r2), p.z);
+      s.p = vec4f(p.x * sin(r2) - p.y * cos(r2), p.x * cos(r2) + p.y * sin(r2), p.z, p.w);
     }
-    case 15u: { s.p = vec3f(sin(p.x), sin(p.y), p.z); }
+    case 15u: { s.p = vec4f(sin(p.x), sin(p.y), p.z, p.w); }
     case 16u: {
       let r = length(p.xy);
-      if (r > 0.0) { s.p = vec3f((p.x - p.y) * (p.x + p.y) / r, 2.0 * p.x * p.y / r, p.z); }
+      if (r > 0.0) { s.p = vec4f((p.x - p.y) * (p.x + p.y) / r, 2.0 * p.x * p.y / r, p.z, p.w); }
     }
-    case 17u: { s.p = vec3f(atan2(p.x, p.y) / PI, length(p.xy) - 1.0, p.z); }
+    case 17u: { s.p = vec4f(atan2(p.x, p.y) / PI, length(p.xy) - 1.0, p.z, p.w); }
+    case 19u: {
+      // descending sort of four values by a five-swap network; the branch records each swap
+      var x = p;
+      if (x.x < x.y) { x = x.yxzw; s.branch = s.branch + 1u; }
+      if (x.z < x.w) { x = x.xywz; s.branch = s.branch + 2u; }
+      if (x.x < x.z) { x = x.zyxw; s.branch = s.branch + 4u; }
+      if (x.y < x.w) { x = x.xwzy; s.branch = s.branch + 8u; }
+      if (x.y < x.z) { x = x.xzyw; s.branch = s.branch + 16u; }
+      s.p = x;
+    }
+    case 20u: {
+      let r = length(p);
+      if (r > 0.0) { let n = a.y; s.k = n * pow(r, n - 1.0); s.p = bulb4(p, n); } else { s.k = 0.0; }
+    }
+    case 21u: {
+      s.k = 2.0 * length(p);
+      s.p = vec4f(p.x * p.x - dot(p.yzw, p.yzw), 2.0 * p.x * p.yzw);
+    }
     default: {}
   }
   return s;
 }
 
-fn iterate(p0: vec3f, c: vec3f) -> Trace {
+fn iterate(p0: vec4f, c: vec4f) -> Trace {
   var t: Trace;
   t.p = p0; t.dr = 1.0; t.n = 0u; t.escaped = false; t.trap = 1e20; t.col = 0.0;
   let bail2 = head.bail * head.bail;
@@ -183,38 +228,54 @@ fn deOf(t: Trace) -> f32 {
 }
 
 // pull: the constant is the point itself unless the formula fixes it
-fn cFor(p: vec3f) -> vec3f { return select(p, head.c.xyz, (head.flags & FLAG_JULIA) != 0u); }
+fn cFor(p: vec4f) -> vec4f { return select(p, head.c, (head.flags & FLAG_JULIA) != 0u); }
 
-fn de(p: vec3f) -> f32 { return deOf(iterate(p, cFor(p))); }
+// the distance estimate at a world point
+fn de(x: vec3f) -> f32 { let q = embed(x); return deOf(iterate(q, cFor(q))); }
 `;
 
 // The inverse half, for push. Needs a random source: the includer defines
 //   fn pick(n: u32) -> u32   (uniform in [0, n))
 export const INVERSE = /* wgsl */ `
+// the k-th permutation of four, by the factorial number system
+fn perm4(k0: u32) -> vec4u {
+  var pool = array<u32, 4>(0u, 1u, 2u, 3u);
+  var out = vec4u(0u);
+  var k = k0;
+  var left = 4u;
+  for (var i = 0u; i < 4u; i++) {
+    var f = 1u;
+    for (var m = 1u; m < left; m++) { f = f * m; }
+    let idx = k / f;
+    k = k % f;
+    out[i] = pool[idx];
+    for (var m = idx; m + 1u < left; m++) { pool[m] = pool[m + 1u]; }
+    left = left - 1u;
+  }
+  return out;
+}
+
 // one preimage of q under op oi, choosing a branch with pick(); ok = false when q has none
-fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
+fn opInv(oi: u32, q: vec4f, c: vec4f) -> Step {
   let a = rec(oi, 0u);
   let b = rec(oi, 1u);
-  let cc = rec(oi, 2u);
   var s: Step;
   s.p = q; s.k = 1.0; s.branch = 0u; s.ok = true;
   switch u32(a.x) {
-    case 0u: { s.p = q - a.yzw; }
+    case 0u: { s.p = q - vec4f(a.yzw, b.x); }
     case 1u: { s.p = q - c; }
     case 2u: { if (a.y == 0.0) { s.ok = false; } else { s.p = q / a.y; } }
-    case 3u: {
-      // Rᵀ q: the rows of R as columns
-      s.p = q.x * a.yzw + q.y * b.xyz + q.z * vec3f(b.w, cc.xy);
-    }
+    case 3u: { s.p = rowsOf(oi) * q; }
     case 4u: {
-      let t = dot(q, a.yzw) - b.x;
+      let n = vec4f(a.yzw, b.x);
+      let t = dot(q, n) - b.y;
       if (t < 0.0) { s.ok = false; }
-      else if (pick(2u) == 1u) { s.p = q - 2.0 * t * a.yzw; s.branch = 1u; }
+      else if (pick(2u) == 1u) { s.p = q - 2.0 * t * n; s.branch = 1u; }
     }
     case 5u: {
       let l = a.y;
-      var o = vec3f(0.0);
-      for (var i = 0u; i < 3u; i++) {
+      var o = vec4f(0.0);
+      for (var i = 0u; i < 4u; i++) {
         let y = q[i];
         // candidates in a fixed order: y itself (inside), 2l − y (came from above), −2l − y (below)
         var cand = array<f32, 3>(0.0, 0.0, 0.0);
@@ -233,7 +294,7 @@ fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
       let m2 = a.y * a.y;
       let f2 = a.z * a.z;
       let k0 = f2 / m2;
-      var cand = array<vec3f, 3>(q, q, q);
+      var cand = array<vec4f, 3>(q, q, q);
       var m = 0u;
       if (r / k0 < a.y) { cand[m] = q / k0; m++; }
       if (r > a.z && r <= f2 / a.y) { cand[m] = q * (f2 / (r * r)); m++; }
@@ -241,30 +302,43 @@ fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
       if (m == 0u) { s.ok = false; } else { let k = pick(m); s.p = cand[k]; s.branch = k; }
     }
     case 7u: {
-      if (any(q < vec3f(0.0))) { s.ok = false; }
+      if (any(q < vec4f(0.0))) { s.ok = false; }
       else {
-        s.branch = pick(8u);
-        s.p = q * vec3f(select(1.0, -1.0, (s.branch & 1u) != 0u), select(1.0, -1.0, (s.branch & 2u) != 0u), select(1.0, -1.0, (s.branch & 4u) != 0u));
+        s.branch = pick(16u);
+        s.p = q * vec4f(select(1.0, -1.0, (s.branch & 1u) != 0u), select(1.0, -1.0, (s.branch & 2u) != 0u),
+                        select(1.0, -1.0, (s.branch & 4u) != 0u), select(1.0, -1.0, (s.branch & 8u) != 0u));
       }
     }
     case 8u: {
       if (!(q.x >= q.y && q.y >= q.z)) { s.ok = false; }
       else {
         s.branch = pick(6u);
+        var x = q.xyz;
         switch s.branch {
-          case 0u: { s.p = q.xyz; }
-          case 1u: { s.p = q.xzy; }
-          case 2u: { s.p = q.yxz; }
-          case 3u: { s.p = q.zxy; }
-          case 4u: { s.p = q.yzx; }
-          default: { s.p = q.zyx; }
+          case 0u: { x = q.xyz; }
+          case 1u: { x = q.xzy; }
+          case 2u: { x = q.yxz; }
+          case 3u: { x = q.zxy; }
+          case 4u: { x = q.yzx; }
+          default: { x = q.zyx; }
         }
+        s.p = vec4f(x, q.w);
+      }
+    }
+    case 19u: {
+      if (!(q.x >= q.y && q.y >= q.z && q.z >= q.w)) { s.ok = false; }
+      else {
+        s.branch = pick(24u);
+        let pm = perm4(s.branch);
+        var o = vec4f(0.0);
+        for (var i = 0u; i < 4u; i++) { o[pm[i]] = q[i]; }
+        s.p = o;
       }
     }
     case 9u: {
       // every t = (±θ + 2πk)/n inside [0, π] is a preimage polar angle (with φ shifted by π for −);
       // every azimuth (φ + 2πj)/n is valid
-      let r = length(q);
+      let r = length(q.xyz);
       if (r > 0.0) {
         let n = a.y;
         let ni = u32(max(1.0, round(n)));
@@ -293,7 +367,66 @@ fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
           let j = pick(ni);
           let f = (phi + flip + 2.0 * PI * f32(j)) / n;
           let rn = pow(r, 1.0 / n);
-          s.p = rn * vec3f(sin(tt) * cos(f), sin(tt) * sin(f), cos(tt));
+          s.p = vec4f(rn * vec3f(sin(tt) * cos(f), sin(tt) * sin(f), cos(tt)), q.w);
+          s.branch = j;
+        }
+      }
+    }
+    case 20u: {
+      // with s₁ the sign of sin(nθ₁'), a preimage needs cos(nθ₂') = s₁ cos θ₂ and the azimuth shifted
+      // by π when s₁·s₂ = −1; every (s₁, k, s₂, m) with both angles in [0, π] is one (checked on the
+      // CPU: 218,800 candidates over n = 2, 3, 8, all genuine)
+      let r = length(q);
+      if (r > 0.0) {
+        let n = a.y;
+        let ni = u32(max(1.0, round(n)));
+        let r1 = length(q.yzw);
+        let T1 = acos(clamp(q.x / r, -1.0, 1.0));
+        var T2 = 0.0;
+        if (r1 > 0.0) { T2 = acos(clamp(q.y / r1, -1.0, 1.0)); }
+        let F = atan2(q.w, q.z);
+        var count = 0u;
+        for (var i1 = 0u; i1 < 2u; i1++) {
+          let s1 = select(1.0, -1.0, i1 == 1u);
+          let base2 = select(PI - T2, T2, i1 == 0u);
+          for (var k = 0u; k <= ni; k++) {
+            let t1 = (s1 * T1 + 2.0 * PI * f32(k)) / n;
+            if (t1 < 0.0 || t1 > PI) { continue; }
+            for (var i2 = 0u; i2 < 2u; i2++) {
+              let s2 = select(1.0, -1.0, i2 == 1u);
+              for (var m = 0u; m <= ni; m++) {
+                let t2 = (s2 * base2 + 2.0 * PI * f32(m)) / n;
+                if (t2 >= 0.0 && t2 <= PI) { count++; }
+              }
+            }
+          }
+        }
+        if (count == 0u) { s.ok = false; }
+        else {
+          var want = pick(count);
+          var t1o = 0.0; var t2o = 0.0; var shift = 0.0;
+          var found = false;
+          for (var i1 = 0u; i1 < 2u && !found; i1++) {
+            let s1 = select(1.0, -1.0, i1 == 1u);
+            let base2 = select(PI - T2, T2, i1 == 0u);
+            for (var k = 0u; k <= ni && !found; k++) {
+              let t1 = (s1 * T1 + 2.0 * PI * f32(k)) / n;
+              if (t1 < 0.0 || t1 > PI) { continue; }
+              for (var i2 = 0u; i2 < 2u && !found; i2++) {
+                let s2 = select(1.0, -1.0, i2 == 1u);
+                for (var m = 0u; m <= ni && !found; m++) {
+                  let t2 = (s2 * base2 + 2.0 * PI * f32(m)) / n;
+                  if (t2 < 0.0 || t2 > PI) { continue; }
+                  if (want == 0u) { t1o = t1; t2o = t2; shift = select(0.0, PI, s1 * s2 < 0.0); found = true; }
+                  else { want--; }
+                }
+              }
+            }
+          }
+          let j = pick(ni);
+          let f = (F + shift + 2.0 * PI * f32(j)) / n;
+          let rn = pow(r, 1.0 / n);
+          s.p = rn * vec4f(cos(t1o), sin(t1o) * cos(t2o), sin(t1o) * sin(t2o) * cos(f), sin(t1o) * sin(t2o) * sin(f));
           s.branch = j;
         }
       }
@@ -305,16 +438,33 @@ fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
         let j = pick(u32(max(1.0, round(n))));
         let ang = (atan2(q.y, q.x) + 2.0 * PI * f32(j)) / n;
         let rn = pow(r, 1.0 / n);
-        s.p = vec3f(rn * cos(ang), rn * sin(ang), q.z);
+        s.p = vec4f(rn * cos(ang), rn * sin(ang), q.z, q.w);
         s.branch = j;
       }
+    }
+    case 21u: {
+      // ±√q; on the negative real axis, ±√(−q₀)·i. For q₀ < 0 the imaginary size comes first,
+      // (r − q₀)/2, so r + q₀ never cancels in float32
+      let r = length(q);
+      let vl = length(q.yzw);
+      var root = vec4f(0.0);
+      if (vl == 0.0 && q.x < 0.0) { root = vec4f(0.0, sqrt(-q.x), 0.0, 0.0); }
+      else if (q.x >= 0.0) {
+        let x = sqrt((r + q.x) * 0.5);
+        if (x > 0.0) { root = vec4f(x, q.yzw / (2.0 * x)); }
+      } else {
+        let y = sqrt((r - q.x) * 0.5);
+        root = vec4f(vl / (2.0 * y), q.yzw * (y / vl));
+      }
+      s.branch = pick(2u);
+      s.p = select(root, -root, s.branch == 1u);
     }
     case 11u: { let r2 = dot(q, q); if (r2 > 0.0) { s.p = q / r2; } }
     case 12u: {
       let ang = -a.y * q.z;
-      s.p = vec3f(cos(ang) * q.x - sin(ang) * q.y, sin(ang) * q.x + cos(ang) * q.y, q.z);
+      s.p = vec4f(cos(ang) * q.x - sin(ang) * q.y, sin(ang) * q.x + cos(ang) * q.y, q.z, q.w);
     }
-    case 13u: { let r2 = dot(q.xy, q.xy); if (r2 > 0.0) { s.p = vec3f(q.xy / r2, q.z); } }
+    case 13u: { let r2 = dot(q.xy, q.xy); if (r2 > 0.0) { s.p = vec4f(q.xy / r2, q.zw); } }
     default: {
       // no inverse (flame variations): push applies the forward map, as flames do
       s = opFwd(oi, q, c);
@@ -330,44 +480,45 @@ fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
 // that owns the selected parameter, the derivative through its packed record (tanRec = d record / dθ,
 // computed on the CPU, so Euler angles and normalised normals need no derivative code here), plus the
 // derivative through c. dk is the derivative of the op's dr factor.
-// iterateDual carries five columns: three for the position gradient (normals, the DE's gradient),
-// one for the selected parameter (the metric), one renormalised at fixed c (the Lyapunov exponent).
+// iterateDual carries five columns: three for the position gradient along the world's axes (the
+// slice's first three columns), one for the selected parameter (the metric), one renormalised at
+// fixed c (the Lyapunov exponent).
 export const DUAL = /* wgsl */ `
 var<private> tanOi: u32 = 0xffffffffu;
-var<private> tanRec: array<vec4f, 4>;
+var<private> tanRec: array<vec4f, 5>;
 
-struct Tan { v: vec3f, dk: f32 };
+struct Tan { v: vec4f, dk: f32 };
 
-fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan {
+fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan {
   let a = rec(oi, 0u);
   let b = rec(oi, 1u);
-  let cc = rec(oi, 2u);
   var da = vec4f(0.0);
   var db = vec4f(0.0);
-  var dcc = vec4f(0.0);
-  if (withRec && oi == tanOi) { da = tanRec[0]; db = tanRec[1]; dcc = tanRec[2]; }
+  var drows = mat4x4f(vec4f(0.0), vec4f(0.0), vec4f(0.0), vec4f(0.0));
+  if (withRec && oi == tanOi) {
+    da = tanRec[0]; db = tanRec[1];
+    drows = mat4x4f(vec4f(tanRec[0].yzw, tanRec[1].x), vec4f(tanRec[1].yzw, tanRec[2].x), vec4f(tanRec[2].yzw, tanRec[3].x), vec4f(tanRec[3].yzw, tanRec[4].x));
+  }
   var o: Tan;
   o.v = v; o.dk = 0.0;
   switch u32(a.x) {
-    case 0u: { o.v = v + da.yzw; }
+    case 0u: { o.v = v + vec4f(da.yzw, db.x); }
     case 1u: { o.v = v + dc; }
     case 2u: { o.v = a.y * v + da.y * p; o.dk = sign(a.y) * da.y; }
-    case 3u: {
-      o.v = vec3f(dot(a.yzw, v), dot(b.xyz, v), dot(vec3f(b.w, cc.xy), v))
-          + vec3f(dot(da.yzw, p), dot(db.xyz, p), dot(vec3f(db.w, dcc.xy), p));
-    }
+    case 3u: { o.v = v * rowsOf(oi) + p * drows; }
     case 4u: {
-      let n = a.yzw;
-      let t = dot(p, n) - b.x;
+      let n = vec4f(a.yzw, b.x);
+      let t = dot(p, n) - b.y;
       if (t < 0.0) {
-        let dt = dot(v, n) + dot(p, da.yzw) - db.x;
-        o.v = v - 2.0 * (dt * n + t * da.yzw);
+        let dn = vec4f(da.yzw, db.x);
+        let dt = dot(v, n) + dot(p, dn) - db.y;
+        o.v = v - 2.0 * (dt * n + t * dn);
       }
     }
     case 5u: {
       let l = a.y;
       let dl = da.y;
-      for (var i = 0u; i < 3u; i++) {
+      for (var i = 0u; i < 4u; i++) {
         if (p[i] > l) { o.v[i] = 2.0 * dl - v[i]; }
         else if (p[i] < -l) { o.v[i] = -2.0 * dl - v[i]; }
       }
@@ -387,22 +538,32 @@ fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan
         o.v = k * v + o.dk * p;
       }
     }
-    case 7u: { o.v = v * select(vec3f(1.0), vec3f(-1.0), p < vec3f(0.0)); }
+    case 7u: { o.v = v * select(vec4f(1.0), vec4f(-1.0), p < vec4f(0.0)); }
     case 8u: {
-      var x = p;
-      var w = v;
+      var x = p.xyz;
+      var w = v.xyz;
       if (x.x < x.y) { x = x.yxz; w = w.yxz; }
       if (x.y < x.z) { x = x.xzy; w = w.xzy; }
       if (x.x < x.y) { x = x.yxz; w = w.yxz; }
+      o.v = vec4f(w, v.w);
+    }
+    case 19u: {
+      var x = p;
+      var w = v;
+      if (x.x < x.y) { x = x.yxzw; w = w.yxzw; }
+      if (x.z < x.w) { x = x.xywz; w = w.xywz; }
+      if (x.x < x.z) { x = x.zyxw; w = w.zyxw; }
+      if (x.y < x.w) { x = x.xwzy; w = w.xwzy; }
+      if (x.y < x.z) { x = x.xzyw; w = w.xzyw; }
       o.v = w;
     }
     case 9u: {
-      let r = length(p);
+      let r = length(p.xyz);
       if (r > 0.0) {
         let n = a.y;
         let dn = da.y;
         let rxy2 = dot(p.xy, p.xy);
-        let drr = dot(p, v) / r;
+        let drr = dot(p.xyz, v.xyz) / r;
         let th = acos(clamp(p.z / r, -1.0, 1.0));
         let ph = atan2(p.y, p.x);
         var dth = 0.0;
@@ -419,11 +580,52 @@ fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan
         let dT = n * dth + th * dn;
         let dF = n * dph + ph * dn;
         let u = vec3f(sin(T) * cos(F), sin(T) * sin(F), cos(T));
-        o.v = dR * u + R * vec3f(cos(T) * cos(F) * dT - sin(T) * sin(F) * dF,
-                                 cos(T) * sin(F) * dT + sin(T) * cos(F) * dF,
-                                 -sin(T) * dT);
+        o.v = vec4f(dR * u + R * vec3f(cos(T) * cos(F) * dT - sin(T) * sin(F) * dF,
+                                       cos(T) * sin(F) * dT + sin(T) * cos(F) * dF,
+                                       -sin(T) * dT), v.w);
         o.dk = n * (n - 1.0) * pow(r, n - 2.0) * drr + pow(r, n - 1.0) * (1.0 + n * lr) * dn;
-      } else { o.v = vec3f(0.0); }
+      } else { o.v = vec4f(0.0, 0.0, 0.0, v.w); }
+    }
+    case 20u: {
+      let r = length(p);
+      if (r > 0.0) {
+        let n = a.y;
+        let dn = da.y;
+        let r1 = length(p.yzw);
+        let r2 = length(p.zw);
+        let drr = dot(p, v) / r;
+        let t1 = acos(clamp(p.x / r, -1.0, 1.0));
+        var t2 = 0.0;
+        var dt1 = 0.0;
+        var dt2 = 0.0;
+        var dph = 0.0;
+        if (r1 > 0.0) {
+          t2 = acos(clamp(p.y / r1, -1.0, 1.0));
+          dt1 = (p.x * drr - r * v.x) / (r * r1);
+          let dr1 = dot(p.yzw, v.yzw) / r1;
+          if (r2 > 0.0) { dt2 = (p.y * dr1 - r1 * v.y) / (r1 * r2); dph = (p.z * v.w - p.w * v.z) / (r2 * r2); }
+        }
+        let ph = atan2(p.w, p.z);
+        let R = pow(r, n);
+        let A = n * t1; let B = n * t2; let G = n * ph;
+        let lr = log(r);
+        let dR = n * pow(r, n - 1.0) * drr + R * lr * dn;
+        let dA = n * dt1 + t1 * dn;
+        let dB = n * dt2 + t2 * dn;
+        let dG = n * dph + ph * dn;
+        let u = vec4f(cos(A), sin(A) * cos(B), sin(A) * sin(B) * cos(G), sin(A) * sin(B) * sin(G));
+        let du = vec4f(-sin(A) * dA,
+                       cos(A) * cos(B) * dA - sin(A) * sin(B) * dB,
+                       cos(A) * sin(B) * cos(G) * dA + sin(A) * cos(B) * cos(G) * dB - sin(A) * sin(B) * sin(G) * dG,
+                       cos(A) * sin(B) * sin(G) * dA + sin(A) * cos(B) * sin(G) * dB + sin(A) * sin(B) * cos(G) * dG);
+        o.v = dR * u + R * du;
+        o.dk = n * (n - 1.0) * pow(r, n - 2.0) * drr + pow(r, n - 1.0) * (1.0 + n * lr) * dn;
+      } else { o.v = vec4f(0.0); }
+    }
+    case 21u: {
+      o.v = 2.0 * vec4f(p.x * v.x - dot(p.yzw, v.yzw), p.x * v.yzw + v.x * p.yzw);
+      let r = length(p);
+      if (r > 0.0) { o.dk = 2.0 * dot(p, v) / r; }
     }
     case 10u: {
       let r = length(p.xy);
@@ -438,9 +640,9 @@ fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan
         let A = n * al;
         let dR = n * pow(r, n - 1.0) * drr + R * lr * dn;
         let dA = n * dal + al * dn;
-        o.v = vec3f(dR * cos(A) - R * sin(A) * dA, dR * sin(A) + R * cos(A) * dA, v.z);
+        o.v = vec4f(dR * cos(A) - R * sin(A) * dA, dR * sin(A) + R * cos(A) * dA, v.z, v.w);
         o.dk = n * (n - 1.0) * pow(r, n - 2.0) * drr + pow(r, n - 1.0) * (1.0 + n * lr) * dn;
-      } else { o.v = vec3f(0.0, 0.0, v.z); }
+      } else { o.v = vec4f(0.0, 0.0, v.z, v.w); }
     }
     case 11u: {
       let r2 = dot(p, p);
@@ -455,14 +657,14 @@ fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan
       let dang = a.y * v.z + p.z * da.y;
       let cs = cos(ang);
       let sn = sin(ang);
-      o.v = vec3f(cs * v.x - sn * v.y - (sn * p.x + cs * p.y) * dang,
-                  sn * v.x + cs * v.y + (cs * p.x - sn * p.y) * dang, v.z);
+      o.v = vec4f(cs * v.x - sn * v.y - (sn * p.x + cs * p.y) * dang,
+                  sn * v.x + cs * v.y + (cs * p.x - sn * p.y) * dang, v.z, v.w);
     }
     case 13u: {
       let r2 = dot(p.xy, p.xy);
       if (r2 > 0.0) {
         let dr2 = 2.0 * dot(p.xy, v.xy);
-        o.v = vec3f(v.xy / r2 - p.xy * dr2 / (r2 * r2), v.z);
+        o.v = vec4f(v.xy / r2 - p.xy * dr2 / (r2 * r2), v.zw);
         o.dk = -dr2 / (r2 * r2);
       }
     }
@@ -471,23 +673,23 @@ fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan
       let dr2 = 2.0 * dot(p.xy, v.xy);
       let cs = cos(r2);
       let sn = sin(r2);
-      o.v = vec3f(v.x * sn - v.y * cs + (p.x * cs + p.y * sn) * dr2,
-                  v.x * cs + v.y * sn + (-p.x * sn + p.y * cs) * dr2, v.z);
+      o.v = vec4f(v.x * sn - v.y * cs + (p.x * cs + p.y * sn) * dr2,
+                  v.x * cs + v.y * sn + (-p.x * sn + p.y * cs) * dr2, v.z, v.w);
     }
-    case 15u: { o.v = vec3f(cos(p.x) * v.x, cos(p.y) * v.y, v.z); }
+    case 15u: { o.v = vec4f(cos(p.x) * v.x, cos(p.y) * v.y, v.z, v.w); }
     case 16u: {
       let r = length(p.xy);
       if (r > 0.0) {
         let drr = dot(p.xy, v.xy) / r;
-        o.v = vec3f((2.0 * p.x * v.x - 2.0 * p.y * v.y) / r - (p.x * p.x - p.y * p.y) * drr / (r * r),
-                    2.0 * (p.y * v.x + p.x * v.y) / r - 2.0 * p.x * p.y * drr / (r * r), v.z);
+        o.v = vec4f((2.0 * p.x * v.x - 2.0 * p.y * v.y) / r - (p.x * p.x - p.y * p.y) * drr / (r * r),
+                    2.0 * (p.y * v.x + p.x * v.y) / r - 2.0 * p.x * p.y * drr / (r * r), v.z, v.w);
       }
     }
     case 17u: {
       let r2 = dot(p.xy, p.xy);
       if (r2 > 0.0) {
         let r = sqrt(r2);
-        o.v = vec3f((p.y * v.x - p.x * v.y) / r2 / PI, dot(p.xy, v.xy) / r, v.z);
+        o.v = vec4f((p.y * v.x - p.x * v.y) / r2 / PI, dot(p.xy, v.xy) / r, v.z, v.w);
       }
     }
     default: {}
@@ -497,28 +699,29 @@ fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan
 
 struct Dual {
   t: Trace,
-  g: mat3x3f,     // ∂p/∂p0, columns x y z (through c too when c is the point itself)
-  gdr: vec3f,     // ∂dr/∂p0
-  q: vec3f,       // ∂p/∂θ for the selected parameter
-  qdr: f32,       // ∂dr/∂θ
-  lyap: f32,      // mean log stretch per iteration of a tangent at fixed c
+  g0: vec4f, g1: vec4f, g2: vec4f,  // ∂p/∂x along the world's axes (through c too when c is the point)
+  gdr: vec3f,                       // ∂dr/∂x
+  q: vec4f,                         // ∂p/∂θ for the selected parameter
+  qdr: f32,                         // ∂dr/∂θ
+  lyap: f32,                        // mean log stretch per iteration of a tangent at fixed c
 };
 
-fn iterateDual(p0: vec3f, c: vec3f, cIsP: bool) -> Dual {
+fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
   var d: Dual;
   d.t.p = p0; d.t.dr = 1.0; d.t.n = 0u; d.t.escaped = false; d.t.trap = 1e20; d.t.col = 0.0;
-  var g0 = vec3f(1.0, 0.0, 0.0);
-  var g1 = vec3f(0.0, 1.0, 0.0);
-  var g2 = vec3f(0.0, 0.0, 1.0);
+  // the world's axes in 4-D: the slice's first three columns
+  var g0 = head.slice[0];
+  var g1 = head.slice[1];
+  var g2 = head.slice[2];
   var gdr = vec3f(0.0);
-  var q = vec3f(0.0);
+  var q = vec4f(0.0);
   var qdr = 0.0;
-  var lv = normalize(vec3f(0.6, 0.48, 0.64));
+  var lv = head.slice * vec4f(normalize(vec3f(0.6, 0.48, 0.64)), 0.0);
   var lsum = 0.0;
   let k = select(0.0, 1.0, cIsP);
-  let dc0 = vec3f(k, 0.0, 0.0);
-  let dc1 = vec3f(0.0, k, 0.0);
-  let dc2 = vec3f(0.0, 0.0, k);
+  let dc0 = g0 * k;
+  let dc1 = g1 * k;
+  let dc2 = g2 * k;
   let bail2 = head.bail * head.bail;
   for (var i = 0u; i < head.iters; i++) {
     let slot = schedAt(i);
@@ -530,8 +733,8 @@ fn iterateDual(p0: vec3f, c: vec3f, cIsP: bool) -> Dual {
       let t0 = opTan(oi, p, c, g0, dc0, false);
       let t1 = opTan(oi, p, c, g1, dc1, false);
       let t2 = opTan(oi, p, c, g2, dc2, false);
-      let tq = opTan(oi, p, c, q, vec3f(0.0), true);
-      let tl = opTan(oi, p, c, lv, vec3f(0.0), false);
+      let tq = opTan(oi, p, c, q, vec4f(0.0), true);
+      let tl = opTan(oi, p, c, lv, vec4f(0.0), false);
       let dr = d.t.dr;
       if (s.k >= 0.0) {
         gdr = s.k * gdr + vec3f(t0.dk, t1.dk, t2.dk) * dr;
@@ -551,7 +754,7 @@ fn iterateDual(p0: vec3f, c: vec3f, cIsP: bool) -> Dual {
     d.t.trap = min(d.t.trap, r2);
     if (!(r2 <= bail2)) { d.t.escaped = true; break; }
   }
-  d.g = mat3x3f(g0, g1, g2);
+  d.g0 = g0; d.g1 = g1; d.g2 = g2;
   d.gdr = gdr;
   d.q = q;
   d.qdr = qdr;
@@ -560,7 +763,7 @@ fn iterateDual(p0: vec3f, c: vec3f, cIsP: bool) -> Dual {
 }
 
 // derivative of the distance estimate along a tangent (dp, ddr), matching deOf()
-fn deTan(t: Trace, dp: vec3f, ddr: f32) -> f32 {
+fn deTan(t: Trace, dp: vec4f, ddr: f32) -> f32 {
   let r = length(t.p);
   if (!(t.dr > 0.0) || r == 0.0) { return 0.0; }
   let dr_ = dot(t.p, dp) / r;
@@ -573,7 +776,8 @@ fn deTan(t: Trace, dp: vec3f, ddr: f32) -> f32 {
   return dr_ / t.dr - r * ddr / (t.dr * t.dr);
 }
 
+// the gradient of the distance estimate along the world's axes
 fn deGrad(d: Dual) -> vec3f {
-  return vec3f(deTan(d.t, d.g[0], d.gdr.x), deTan(d.t, d.g[1], d.gdr.y), deTan(d.t, d.g[2], d.gdr.z));
+  return vec3f(deTan(d.t, d.g0, d.gdr.x), deTan(d.t, d.g1, d.gdr.y), deTan(d.t, d.g2, d.gdr.z));
 }
 `;

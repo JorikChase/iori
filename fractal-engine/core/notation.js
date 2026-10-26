@@ -6,7 +6,9 @@
 //   op       name followed by positional numbers, or key=value
 //   ·  ;  ⏎  separate ops           |  separates slots (A, B, C, D in order)
 //   ×N or xN iterations, optionally followed by the schedule, a word of slot letters repeated
-//   seed=N   bail=R   c=x,y,z (a fixed constant: the Julia set)   anywhere
+//   seed=N   bail=R   c=x,y,z[,w] (a fixed constant: the Julia set)
+//   slice=w,xw,yw,zw (where the world sits in 4-D: the offset along w and the tilt into it, degrees)
+//                                                                                  anywhere
 //
 // parse(text) → formula JSON (see formula.js); format(formula) → text. Both are exact inverses on
 // normalised formulas.
@@ -43,7 +45,8 @@ export function parse(text) {
     if ((m = t.match(/^(?:×|x)(\d+)$/))) { closeOp(); f.iters = parseInt(m[1], 10); tail = true; continue; }
     if ((m = t.match(/^seed=(-?\d+)$/))) { f.seed = parseInt(m[1], 10); continue; }
     if ((m = t.match(/^bail=([\d.e+-]+)$/i))) { f.bail = parseFloat(m[1]); continue; }
-    if ((m = t.match(/^c=([-+\d.e]+),([-+\d.e]+),([-+\d.e]+)$/i))) { f.c = [m[1], m[2], m[3]].map(parseFloat); continue; }
+    if ((m = t.match(/^c=([-+\d.e]+),([-+\d.e]+),([-+\d.e]+)(?:,([-+\d.e]+))?$/i))) { f.c = [m[1], m[2], m[3], m[4] || '0'].map(parseFloat); continue; }
+    if ((m = t.match(/^slice=([-+\d.e]+),([-+\d.e]+),([-+\d.e]+),([-+\d.e]+)$/i))) { f.slice = { w: parseFloat(m[1]), tilt: [m[2], m[3], m[4]].map(parseFloat) }; continue; }
     if (tail && /^[A-D]+$/.test(t)) { f.schedule = t; continue; }
     if (cur && isNumber(t)) {
       const q = cur.def.params[cur.n++];
@@ -89,7 +92,8 @@ export function format(f) {
   if (f.schedule && f.schedule !== 'A') tail += ` ${f.schedule}`;
   if (f.seed) tail += ` seed=${f.seed}`;
   if (f.bail !== undefined && f.bail !== 4) tail += ` bail=${fmtNum(f.bail)}`;
-  if (f.c) tail += ` c=${f.c.map(fmtNum).join(',')}`;
+  if (f.c) tail += ` c=${(f.c[3] ? f.c : f.c.slice(0, 3)).map(fmtNum).join(',')}`;
+  if (f.slice && (f.slice.w || f.slice.tilt.some(Boolean))) tail += ` slice=${[f.slice.w, ...f.slice.tilt].map(fmtNum).join(',')}`;
   return `${slots} ${tail}`;
 }
 

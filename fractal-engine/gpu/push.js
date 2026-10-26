@@ -11,9 +11,9 @@
 
 import { INTERP, INVERSE } from './wgsl.js';
 
-const WALKER_BYTES = 48;
+const WALKER_BYTES = 64;
 const HISTORY = 16;       // as core/cpu.js: the walk backs up out of dead ends through this history
-const PV_FLOATS = 36;
+const PV_FLOATS = 44;
 const SCALE = 1024; // fixed-point scale of the histogram
 
 const WALK = INTERP + /* wgsl */ `
@@ -32,37 +32,41 @@ struct PView {
   up: vec4f,     // xyz, w focus distance
   fwd: vec4f,    // xyz, w near plane
   res: vec4f,    // xy histogram size, z frame, w steps per walker per frame
-  cpush: vec4f,  // xyz the constant for +c, w base splat size ε (world units)
+  cpush: vec4f,  // w base splat size ε (world units)
   look: vec4f,   // x hue, y iridescence, z colour spread, w max splat radius (px)
   key: vec4f,    // rgb key colour, w fog density
   misc: vec4f,   // x burn-in steps, y seed, z respawn radius, w 1 while capturing splats
+  c4: vec4f,     // the constant for +c, in 4-D
+  slab: vec4f,   // x the slab's half-width along w around the slice (world units; 0: the whole shadow)
 };
 
+// the walk lives in 4-D: its point, its history and its covariance (10 numbers of a symmetric 4×4)
 struct Walker {
-  top: u32, depth: u32, age: u32, pad: u32,  // ring-buffer top, entries held, steps since spawn
-  sd: vec3f, x: f32,     // Σ diagonal xx yy zz
-  so: vec3f, rng: u32,   // Σ off-diagonal xy xz yz
+  top: u32, depth: u32, age: u32, rng: u32,  // ring-buffer top, entries held, steps since spawn
+  sd: vec4f,             // Σ diagonal xx yy zz ww
+  soA: vec4f,            // Σ off-diagonal xy xz xw yz
+  soB: vec4f,            // Σ off-diagonal yw zw
 };
 const HISTORY = ${HISTORY}u;
 
 @group(1) @binding(0) var<uniform> pv: PView;
 @group(1) @binding(1) var<storage, read_write> walkers: array<Walker>;
 @group(1) @binding(2) var<storage, read_write> hist: array<atomic<u32>>;
-@group(1) @binding(3) var<storage, read_write> stacks: array<vec4f>;   // HISTORY entries per walker: p, colour
-@group(1) @binding(4) var<storage, read_write> capture: array<vec4f>;  // 3 per sample: p + colour, Σ diagonal, Σ off-diagonal
+@group(1) @binding(3) var<storage, read_write> stacks: array<vec4f>;   // HISTORY entries per walker, two vec4 each: p, (colour)
+@group(1) @binding(4) var<storage, read_write> capture: array<vec4f>;  // 3 per sample, in the world: p + colour, Σ diagonal + weight, Σ off-diagonal
 @group(1) @binding(5) var<storage, read_write> captured: array<atomic<u32>>;
 
-struct Inv { p: vec3f, col: f32, ok: bool };
+struct Inv { p: vec4f, col: f32, ok: bool };
 
 // one inverse iteration of a slot: its ops in reverse order
-fn invStep(slot: u32, q: vec3f, col0: f32) -> Inv {
+fn invStep(slot: u32, q: vec4f, col0: f32) -> Inv {
   var r: Inv;
   r.p = q; r.col = col0; r.ok = true;
   let start = head.starts[slot];
   let len = head.lens[slot];
   for (var j = 0u; j < len; j++) {
     let oi = start + len - 1u - j;
-    let s = opInv(oi, r.p, pv.cpush.xyz);
+    let s = opInv(oi, r.p, pv.c4);
     if (!s.ok) { r.ok = false; return r; }
     r.p = s.p;
     if (s.branch != 0u) { r.col = branchColour(r.col, oi, s.branch); }
@@ -76,7 +80,7 @@ fn tint(col: f32, cosv: f32) -> vec3f {
   return mix(base, film * length(base), pv.look.y);
 }
 
-fn splat(p: vec3f, S: mat3x3f, col: f32) {
+fn splat(p: vec3f, S: mat3x3f, col: f32, weight: f32) {
   let d = p - pv.pos.xyz;
   let z = dot(d, pv.fwd.xyz);
   if (z < pv.fwd.w) { return; }
@@ -113,7 +117,7 @@ fn splat(p: vec3f, S: mat3x3f, col: f32) {
   let x0 = i32(floor(cx));
   let y0 = i32(floor(cy));
   let fog = exp(-z * pv.key.w);
-  let rgb = tint(col, 0.0) * fog;
+  let rgb = tint(col, 0.0) * fog * weight;
   // normalise over the pixels actually covered so every sample carries the same energy
   var sum = 0.0;
   for (var j = -ext; j <= ext; j++) {
@@ -142,16 +146,28 @@ fn splat(p: vec3f, S: mat3x3f, col: f32) {
   }
 }
 
+fn sigmaOf(w: Walker) -> mat4x4f {
+  return mat4x4f(vec4f(w.sd.x, w.soA.x, w.soA.y, w.soA.z),
+                 vec4f(w.soA.x, w.sd.y, w.soA.w, w.soB.x),
+                 vec4f(w.soA.y, w.soA.w, w.sd.z, w.soB.y),
+                 vec4f(w.soA.z, w.soB.x, w.soB.y, w.sd.w));
+}
+
+fn resetSigma(w: ptr<function, Walker>) {
+  let e2 = pv.cpush.w * pv.cpush.w;
+  (*w).sd = vec4f(e2); (*w).soA = vec4f(0.0); (*w).soB = vec4f(0.0);
+}
+
 fn respawn(wi: u32, w: ptr<function, Walker>) {
-  var p = vec3f(1.0);
-  for (var i = 0; i < 8; i++) {
-    p = vec3f(rnd(), rnd(), rnd()) * 2.0 - 1.0;
+  var p = vec4f(1.0);
+  for (var i = 0; i < 12; i++) {
+    p = vec4f(rnd(), rnd(), rnd(), rnd()) * 2.0 - 1.0;
     if (dot(p, p) <= 1.0) { break; }
   }
   (*w).top = 0u; (*w).depth = 1u; (*w).age = 0u;
-  stacks[wi * HISTORY] = vec4f(p * pv.misc.z, rnd());
-  let e2 = pv.cpush.w * pv.cpush.w;
-  (*w).sd = vec3f(e2); (*w).so = vec3f(0.0);
+  stacks[wi * HISTORY * 2u] = p * pv.misc.z;
+  stacks[wi * HISTORY * 2u + 1u] = vec4f(rnd(), 0.0, 0.0, 0.0);
+  resetSigma(w);
 }
 
 @compute @workgroup_size(64)
@@ -167,49 +183,63 @@ fn walk(@builtin(global_invocation_id) gid: vec3u) {
   let e2 = pv.cpush.w * pv.cpush.w;
   let steps = u32(pv.res.w);
   for (var s = 0u; s < steps; s++) {
-    let cur = stacks[wi * HISTORY + w.top];
-    let q = cur.xyz;
+    let at = (wi * HISTORY + w.top) * 2u;
+    let q = stacks[at];
+    let col = stacks[at + 1u].x;
     let slot = schedAt(head.iters - 1u - (w.age % head.iters));
     // one random attempt; a dead end backs up instead of retrying (see core/cpu.js push)
     let seed = rngState;
-    let res = invStep(slot, q, cur.w);
+    let res = invStep(slot, q, col);
     let after = rngState;
     if (!res.ok || any(res.p != res.p) || dot(res.p, res.p) > head.bail * head.bail) {
       w.depth = w.depth - 1u;
       if (w.depth == 0u) { respawn(wi, &w); continue; }
       w.top = (w.top + HISTORY - 1u) % HISTORY;
       w.age = max(w.age, 1u) - 1u;
-      w.sd = vec3f(e2); w.so = vec3f(0.0);
+      resetSigma(&w);
       continue;
     }
     // Jacobian of the step, its branch choices held fixed by replaying the seed
     let h = 1e-3 * max(length(q), 0.05);
-    rngState = seed; let cx = invStep(slot, q + vec3f(h, 0.0, 0.0), cur.w).p;
-    rngState = seed; let cy = invStep(slot, q + vec3f(0.0, h, 0.0), cur.w).p;
-    rngState = seed; let cz = invStep(slot, q + vec3f(0.0, 0.0, h), cur.w).p;
+    rngState = seed; let c0 = invStep(slot, q + vec4f(h, 0.0, 0.0, 0.0), col).p;
+    rngState = seed; let c1 = invStep(slot, q + vec4f(0.0, h, 0.0, 0.0), col).p;
+    rngState = seed; let c2 = invStep(slot, q + vec4f(0.0, 0.0, h, 0.0), col).p;
+    rngState = seed; let c3 = invStep(slot, q + vec4f(0.0, 0.0, 0.0, h), col).p;
     rngState = after;
-    var J = mat3x3f((cx - res.p) / h, (cy - res.p) / h, (cz - res.p) / h);
+    var J = mat4x4f((c0 - res.p) / h, (c1 - res.p) / h, (c2 - res.p) / h, (c3 - res.p) / h);
     // a perturbed point can fall on another branch (near a fold edge); its difference quotient is then
     // a jump, not a derivative. Such a step restarts the splat at the base size.
-    let jn = max(max(length(J[0]), length(J[1])), length(J[2]));
-    if (!(jn < 16.0)) { J = mat3x3f(vec3f(0.0), vec3f(0.0), vec3f(0.0)); }
-    let Sig = mat3x3f(vec3f(w.sd.x, w.so.x, w.so.y), vec3f(w.so.x, w.sd.y, w.so.z), vec3f(w.so.y, w.so.z, w.sd.z));
-    let Sn = J * Sig * transpose(J);
-    w.sd = vec3f(Sn[0][0], Sn[1][1], Sn[2][2]) + vec3f(e2);
-    w.so = vec3f(Sn[1][0], Sn[2][0], Sn[2][1]);
+    let jn = max(max(length(J[0]), length(J[1])), max(length(J[2]), length(J[3])));
+    if (!(jn < 16.0)) { J = mat4x4f(vec4f(0.0), vec4f(0.0), vec4f(0.0), vec4f(0.0)); }
+    let Sn = J * sigmaOf(w) * transpose(J);
+    w.sd = vec4f(Sn[0][0], Sn[1][1], Sn[2][2], Sn[3][3]) + vec4f(e2);
+    w.soA = vec4f(Sn[1][0], Sn[2][0], Sn[3][0], Sn[2][1]);
+    w.soB = vec4f(Sn[3][1], Sn[3][2], 0.0, 0.0);
     w.top = (w.top + 1u) % HISTORY;
-    stacks[wi * HISTORY + w.top] = vec4f(res.p, res.col);
+    let nat = (wi * HISTORY + w.top) * 2u;
+    stacks[nat] = res.p;
+    stacks[nat + 1u] = vec4f(res.col, 0.0, 0.0, 0.0);
     w.depth = min(w.depth + 1u, HISTORY);
     w.age = w.age + 1u;
     if (f32(w.age) > pv.misc.x) {
-      let S = mat3x3f(vec3f(w.sd.x, w.so.x, w.so.y), vec3f(w.so.x, w.sd.y, w.so.z), vec3f(w.so.y, w.so.z, w.sd.z));
-      splat(res.p, S, res.col);
-      if (pv.misc.w > 0.5) {
-        let k = atomicAdd(&captured[0], 1u);
-        if (k < arrayLength(&capture) / 3u) {
-          capture[k * 3u] = vec4f(res.p, res.col);
-          capture[k * 3u + 1u] = vec4f(w.sd, 0.0);
-          capture[k * 3u + 2u] = vec4f(w.so, 0.0);
+      // back to the world: the sample's place along the slice's axes, and a weight by its distance off
+      // the slice — a slab of the 4-D attractor around the world, or its whole shadow when slab = 0
+      let u = unembed(res.p);
+      var weight = 1.0;
+      if (pv.slab.x > 0.0) { weight = exp(-0.5 * (u.w / pv.slab.x) * (u.w / pv.slab.x)); }
+      if (weight > 0.02) {
+        // the covariance seen in the world: Eᵀ Σ E over the slice's three axes
+        let S4 = sigmaOf(w);
+        let E = mat3x4f(head.slice[0], head.slice[1], head.slice[2]);
+        let S = transpose(E) * S4 * E;
+        splat(u.xyz, S, res.col, weight);
+        if (pv.misc.w > 0.5) {
+          let k = atomicAdd(&captured[0], 1u);
+          if (k < arrayLength(&capture) / 3u) {
+            capture[k * 3u] = vec4f(u.xyz, res.col);
+            capture[k * 3u + 1u] = vec4f(S[0][0], S[1][1], S[2][2], weight);
+            capture[k * 3u + 2u] = vec4f(S[1][0], S[2][0], S[2][1], 0.0);
+          }
         }
       }
     }
@@ -325,7 +355,7 @@ export async function createPush(R, { walkers = 32768 } = {}) {
   const rvBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const dispBuf = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const walkerBuf = device.createBuffer({ size: walkers * WALKER_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-  const stackBuf = device.createBuffer({ size: walkers * HISTORY * 16, usage: GPUBufferUsage.STORAGE });
+  const stackBuf = device.createBuffer({ size: walkers * HISTORY * 32, usage: GPUBufferUsage.STORAGE });
   // capture targets: a dummy pair when not capturing
   let capBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
   let capCount = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
@@ -417,8 +447,9 @@ export async function createPush(R, { walkers = 32768 } = {}) {
   // v: camera as in the pull renderer, plus c, eps, steps, burn, seed, spawn, maxRadius, decay, gain
   function frame(v, canvas) {
     pv.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.near,
-      w, h, v.frame, v.steps, ...v.c, v.eps, v.hue, v.iridescence, v.spread, v.maxRadius,
-      ...v.key, v.fog, v.burn, v.seed, v.spawn, capturing ? 1 : 0]);
+      w, h, v.frame, v.steps, 0, 0, 0, v.eps, v.hue, v.iridescence, v.spread, v.maxRadius,
+      ...v.key, v.fog, v.burn, v.seed, v.spawn, capturing ? 1 : 0,
+      ...[0, 1, 2, 3].map((i) => v.c[i] || 0), v.slab || 0, 0, 0, 0]);
     device.queue.writeBuffer(pvBuf, 0, pv);
     weight = weight * v.decay + 1;
     device.queue.writeBuffer(rvBuf, 0, new Float32Array([w, h, v.decay, 0]));

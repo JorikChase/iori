@@ -36,6 +36,7 @@ body.grab #field { cursor: grabbing; }
 :is(#structure, #grab) .gr .ed { stroke-width: 0.75; opacity: 0.5; }
 :is(#structure, #grab) .gr .ed.on { opacity: 1; stroke-width: 1.5; }
 :is(#structure, #grab) .gr .br { opacity: 0.45; }
+:is(#structure, #grab) .gr .ps { stroke-width: 1.2; opacity: 0.9; }
 :is(#structure, #grab) .gr .io, :is(#structure, #grab) .gr .fk { fill: #fff; stroke: none; opacity: 0.7; }
 :is(#structure, #grab) .gr .nd path { opacity: 0.85; }
 :is(#structure, #grab) .gr .nd.fd path { opacity: 1; }

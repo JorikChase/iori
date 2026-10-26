@@ -533,7 +533,8 @@ function drawGraphNow() {
   const hq = gv.hover && P.items.find((q) => q.id === gv.hover);
   let svg = `<rect class="gv" x="0" y="0" width="${innerWidth}" height="${innerHeight}" style="opacity:${(0.55 * t).toFixed(2)}"/>`;
   svg += drawGraph(P, {
-    full: true, hover: gv.hover, selected: gv.selected, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : null,
+    full: true, hover: gv.hover, selected: gv.selected, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : gv.hoverEdge || null,
+    plus: !gv.press && !gv.picker && gv.hoverEdge ? gv.hoverEdge : null,
     params: sel && !gv.from ? paramHandles(sel) : [],
     thumb: hv && hq && !gv.drag && !gv.picker ? { x: hq.x - (sel && sel.id === hq.id ? 190 : 0), y: hq.y, href: hv } : null,
   });
@@ -650,8 +651,11 @@ function graphMove(e) {
     }
     return;
   }
-  // hover: which node, and its thumbnail once the pointer rests
+  // hover: which node, and its thumbnail once the pointer rests; off the nodes, the edge a hold would
+  // insert on (it shows a plus)
   const q = graphNodeAt(gv.P, x, y), id = q ? q.id : null;
+  const he = q ? null : graphEdgeAt(gv.P, x, y);
+  if (he !== gv.hoverEdge) { gv.hoverEdge = he; drawGraphNow(); }
   if (id !== gv.hover) {
     gv.hover = id;
     drawGraphNow();
@@ -1120,6 +1124,8 @@ function flyKeys(dt) {
 // After a pause the camera glides forward and steers toward the most open direction, sensed by the
 // distance estimate a short way ahead in a ring of directions.
 
+const steer = { dy: 0, dp: 0 };   // the drift's heading, low-passed
+
 function drift(dt) {
   if (!state.drift || grab || surf || gv || performance.now() - state.lastInput < 4000) return false;
   herd(dt);
@@ -1131,39 +1137,51 @@ function drift(dt) {
     const s = deAt(add(c.pos, b.fwd, here * 3));
     if (s > best.s) best = { s, dy, dp };
   }
-  c.yaw += best.dy * dt * 0.35 + Math.sin(state.frame * 0.003) * dt * 0.02;
-  c.pitch = Math.max(-1.2, Math.min(1.2, c.pitch * (1 - dt * 0.05) + best.dp * dt * 0.35));
+  // the most open way changes its mind from frame to frame where two are nearly equal: steer toward it
+  // through a low-pass (≈1.5 s), never by the frame's own choice
+  const k = Math.min(1, dt * 0.7);
+  steer.dy += (best.dy - steer.dy) * k;
+  steer.dp += (best.dp - steer.dp) * k;
+  c.yaw += steer.dy * dt * 0.35 + Math.sin(state.frame * 0.003) * dt * 0.02;
+  c.pitch = Math.max(-1.2, Math.min(1.2, c.pitch * (1 - dt * 0.05) + steer.dp * dt * 0.35));
   moveBy(basis(c).fwd, here * 0.08 * dt);
   state.dirty = true;
   return true;
 }
 
-// Herding: each unpinned parameter does an Ornstein–Uhlenbeck walk about its home value, its noise in
-// pixels per √s divided by the parameter's metric — so every parameter wanders the same few pixels on
-// screen (σ/√(2κ) ≈ 8 px), calm or chaotic. Needs the metric of a sensing pass; until then it waits.
-const HERD_PX = 6, HERD_K = 0.3;
-let gauss = null;
-const randn = () => {
-  if (gauss !== null) { const g = gauss; gauss = null; return g; }
-  const u = Math.random() || 1e-9, v = Math.random(), r = Math.sqrt(-2 * Math.log(u));
-  gauss = r * Math.sin(2 * Math.PI * v);
-  return r * Math.cos(2 * Math.PI * v);
-};
+// Herding: each unpinned parameter wanders smoothly about its home value — a sum of three slow sines
+// (periods 11–50 s, random phases, zero when the drift starts) in pixels on screen divided by the
+// parameter's metric when the wander began, so every parameter moves the same few pixels, calm or
+// chaotic. (It was an Ornstein–Uhlenbeck walk: a fresh random step every frame, which read as a
+// shiver, not a drift.) Needs the metric of a sensing pass; until then it waits.
+const HERD_PX = 8;
 const pinned = () => new Set(state.pins.flatMap((p) => p.keys));
+let herdT = 0;
+const wander = new Map();   // parameter id → { scale (units per px), waves: [{ f, ph }] }
 
 function herd(dt) {
   const m = state.sensed && state.sensed.params;
   if (!m || !m.length) return;
   let f = normalize(state.formula);
-  if (!state.home) state.home = Object.fromEntries(m.map((p) => [p.oi + '.' + p.key, f.slots.flat()[p.oi].p[p.key]]));
+  if (!state.home) {
+    state.home = Object.fromEntries(m.map((p) => [p.oi + '.' + p.key, f.slots.flat()[p.oi].p[p.key]]));
+    herdT = 0;
+    wander.clear();
+  }
+  herdT += dt;
   const pins = pinned();
   let changed = false;
   for (const p of m) {
     const id = p.oi + '.' + p.key;
     if (pins.has(id) || !(p.pxPerUnit > 0) || state.home[id] === undefined) continue;
+    let w = wander.get(id);
+    if (!w) {
+      w = { scale: 1 / p.pxPerUnit, waves: [0, 1, 2].map(() => ({ f: 0.02 + Math.random() * 0.07, ph: Math.random() * Math.PI * 2 })) };
+      wander.set(id, w);
+    }
+    const off = w.waves.reduce((a, q) => a + Math.sin(2 * Math.PI * q.f * herdT + q.ph) - Math.sin(q.ph), 0) / Math.sqrt(3);
     const q = getOp(p.op).params.find((r) => r.k === p.key);
-    const v = f.slots.flat()[p.oi].p[p.key];
-    let nv = v - HERD_K * (v - state.home[id]) * dt + (HERD_PX / p.pxPerUnit) * Math.sqrt(dt) * randn();
+    let nv = state.home[id] + HERD_PX * w.scale * off;
     if (q.min !== undefined) nv = Math.max(q.min, nv);
     if (q.max !== undefined) nv = Math.min(q.max, nv);
     f = withParam(f, p.oi, p.key, +nv.toPrecision(7));

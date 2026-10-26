@@ -91,12 +91,18 @@ export function between(a, b, t) {
   return { ...b, u: m(a.u, b.u), items, edges, zone: a.zone.map((v, i) => m(v, b.zone[i])) };
 }
 
-// o: { attention (op index), hover (node id), selected (node id), edge (the edge under a held press),
+// o: { attention (op index), hover (node id), selected (node id), edge (the edge under a held press or
+//      the pointer), plus (the hovered edge: a plus beside it),
 //      full (unfolded: bigger glyphs, the edges as targets), params: [{ x1, x2, y, v, key, held }] }
 export function drawGraph(P, o = {}) {
   const s = [];
   const g = Math.max(10, Math.min(26, P.u * 0.5));
   for (const e of P.edges) s.push(`<path class="ed${o.edge === e ? ' on' : ''}" d="M${f1(e.x1)} ${f1(e.y1 + g * 0.6)}L${f1(e.x2)} ${f1(e.y2 - g * 0.6)}"/>`);
+  // the edge under the pointer: a plus beside it, where a hold inserts (the ring of ops)
+  if (o.plus) {
+    const e = o.plus, mx = (e.x1 + e.x2) / 2 + 14, my = (e.y1 + e.y2) / 2;
+    s.push(`<path class="ps" d="M${f1(mx - 4)} ${f1(my)}h8M${f1(mx)} ${f1(my - 4)}v8"/>`);
+  }
   for (const q of P.items) {
     if (q.kind === 'branch') s.push(`<path class="br" d="M${f1(q.x1)} ${f1(q.y1)}L${f1(q.x2)} ${f1(q.y2)}"/>`);
     else if (q.kind === 'in' || q.kind === 'out') s.push(`<circle class="io" cx="${f1(q.x)}" cy="${f1(q.y)}" r="${q.kind === 'in' ? 2 : 1.2}"/>`);

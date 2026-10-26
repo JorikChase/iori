@@ -557,3 +557,45 @@ test('graph: the formula as a tree with path ids and typed ports, and every edit
   assert.equal(G.bypass(parse('abs ×3'), 'A0'), null);
   assert.equal(G.setIters(f0, 30).iters, 30);
 });
+
+test('state in exported files: PLY header comments and a PNG chunk round-trip, and tampering is refused', async () => {
+  const S = await import('../core/state.js');
+  const { splatsToPly } = await import('../core/export.js');
+  const f = parse('abs | [bulb 8 ‖ quat ‖ fold.box 1 · scale 2] tissue 6 1.5 .1 · +c ×9 AAB bail=40 slice=.2,10,0,0');
+  const doc = S.stateDoc({ formula: f, cam: { pos: [0.1, -0.2, -3], yaw: 0.3, pitch: -0.1 }, mode: 'push', look: { hue: 0.2, key: [1, 0.5, 0.8] }, focus: 1.7, pins: [{ x: [0, 0, 0], keys: ['0.l'] }], export: { kind: 'splats', count: 3 }, created: '2026-10-26T00:00:00Z' });
+  const comments = S.plyComments(doc);
+  assert.ok(comments.every((l) => l.length <= 140 && /^[\x20-\x7e]+$/.test(l)), 'short ASCII lines');
+  const samples = [0, 1, 2].map((i) => ({ p: [i, 0, 0], cov: [0.01, 0, 0, 0.01, 0, 0.01], rgb: [0.5, 0.5, 0.5] }));
+  const ply = splatsToPly(samples, 0.6, comments);
+  const back = S.readPlyState(ply);
+  assert.equal(back.id, hash(f));
+  assert.equal(format(back.formula), format(f));
+  assert.deepEqual(back.cam, doc.cam);
+  assert.deepEqual(back.look, doc.look);
+  assert.equal(back.mode, 'push');
+  // the splats are untouched: the vertex count and the body after the header
+  const text = new TextDecoder('latin1').decode(new Uint8Array(ply));
+  assert.ok(text.includes('element vertex 3\n'));
+  assert.equal(ply.byteLength - (text.indexOf('end_header\n') + 11), 3 * 17 * 4);
+  // a file without a state, a flipped character, a formula that is not its id
+  assert.equal(S.readPlyState(splatsToPly(samples)), null);
+  const bytes = new Uint8Array(ply.slice(0));
+  const at = text.indexOf('b64 ') + 10;
+  bytes[at] = bytes[at] === 65 ? 66 : 65;
+  assert.throws(() => S.readPlyState(bytes.buffer), /checksum|length|JSON|state/);
+  const forged = { ...doc, id: '00000000000000' };
+  assert.throws(() => S.readPlyState(splatsToPly(samples, 0.6, S.plyComments(forged))), /does not match its id/);
+  const broken = { ...doc, formula: { ...doc.formula, iters: -3 } };
+  assert.throws(() => S.readPlyState(splatsToPly(samples, 0.6, S.plyComments(broken))), /invalid formula/);
+  // PNG: a minimal file, the chunk before IEND
+  const chunk = (type, data) => {
+    const out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
+    dv.setUint32(0, data.length); out.set([...type].map((c) => c.charCodeAt(0)), 4); out.set(data, 8);
+    return out;
+  };
+  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, ...chunk('IHDR', new Uint8Array(13)), ...chunk('IEND', new Uint8Array(0))]);
+  assert.equal(S.readPngState(png.buffer), null);
+  const withState = S.pngWithState(png.buffer, doc);
+  assert.equal(S.readPngState(withState.buffer).id, hash(f));
+  assert.equal(String.fromCharCode(...withState.subarray(withState.length - 8, withState.length - 4)), 'IEND');
+});

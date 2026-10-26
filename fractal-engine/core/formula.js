@@ -110,9 +110,9 @@ export function canonical(f) {
   });
 }
 
-// cyrb53: a 53-bit string hash, printed as 14 hex digits
-export function hash(f) {
-  const str = canonical(f);
+// cyrb53: a 53-bit string hash, printed as 14 hex digits — a formula's id is that of its canonical JSON
+export const hash = (f) => hashString(canonical(f));
+export function hashString(str) {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < str.length; i++) {
     const ch = str.charCodeAt(i);

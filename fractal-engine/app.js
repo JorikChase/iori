@@ -41,6 +41,7 @@ import { mutate, distancePx, features, createArchive, spread } from './core/bree
 import { gridUVs } from './gpu/sense.js';
 import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
+import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
 import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
@@ -1539,6 +1540,50 @@ function pullView(b, clear, blend = 1, moving = false) {
 // ---------- exports ---------------------------------------------------------------------------------
 // The live view pauses while one runs; the hairline at the bottom of the Tab layer shows how far it is.
 
+// the scene's state, for the file an export writes (core/state.js): drop that file back to return here
+const sceneDoc = (exp) => stateDoc({ formula: state.formula, cam: state.cam, mode: state.mode, look: state.look, focus: state.focus, pins: state.pins, export: exp });
+
+// a file dropped on the engine: a splat cloud or a still it exported brings back the state that made it
+async function importFile(buffer, name = '') {
+  const b = new Uint8Array(buffer, 0, Math.min(8, buffer.byteLength));
+  const isPng = b[0] === 0x89 && b[1] === 0x50, isPly = b[0] === 0x70 && b[1] === 0x6c && b[2] === 0x79;
+  const doc = isPng ? readPngState(buffer) : isPly ? readPlyState(buffer) : null;
+  if (!doc) throw new Error(`no fractal-engine state in ${name || 'the file'}`);
+  restoreDoc(doc);
+  return doc;
+}
+
+function restoreDoc(doc) {
+  setFormula(format(doc.formula));
+  state.cam = { pos: [...doc.cam.pos], yaw: doc.cam.yaw, pitch: doc.cam.pitch };
+  if (doc.mode && MODES.includes(doc.mode) && doc.mode !== state.mode) {
+    state.mode = doc.mode;
+    if (doc.mode === 'loop') { state.loopSeed = 2; placeLoopWindow(); }
+  }
+  // only the look's own keys, and only numbers and number lists
+  if (doc.look) for (const [k, v] of Object.entries(doc.look)) {
+    if (!(k in state.look)) continue;
+    if (typeof v === 'number' && Number.isFinite(v)) state.look[k] = v;
+    else if (Array.isArray(v) && v.every((x) => typeof x === 'number' && Number.isFinite(x))) state.look[k] = [...v];
+  }
+  if (typeof doc.focus === 'number' && doc.focus > 0) state.focus = doc.focus;
+  if (Array.isArray(doc.pins)) state.pins = doc.pins.filter((q) => q && Array.isArray(q.x) && Array.isArray(q.keys)).map((q) => ({ x: q.x.slice(0, 3).map(Number), keys: q.keys.map(String) }));
+  state.home = null;
+  touched();
+  state.lastInput = performance.now();
+  writeHash();
+  remember();
+  drawStructureNow();
+}
+
+addEventListener('dragover', (e) => { e.preventDefault(); });
+addEventListener('drop', async (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+  try { await importFile(await file.arrayBuffer(), file.name); } catch (err) { console.warn(err.message); }
+});
+
 function download(blob, name) {
   window.__fe.lastExport = { blob, name };
   const a = document.createElement('a');
@@ -1565,7 +1610,8 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
       await R.compileJit(state.formula).catch(() => {});
       const [W, H] = stillSize(3840);
       const img = await R.renderStill(pullView(b, clear), W, H, { tile: 512, samples: 64, onProgress: progress });
-      const blob = await img.convertToBlob({ type: 'image/png' });
+      const png = await (await img.convertToBlob({ type: 'image/png' })).arrayBuffer();
+      const blob = new Blob([pngWithState(png, sceneDoc({ kind: 'still', width: W, height: H, samples: 64 }))], { type: 'image/png' });
       download(blob, `${baseName()}-${W}x${H}.png`);
       return { W, H, bytes: blob.size, jit: R.jitReady };
     }
@@ -1582,7 +1628,8 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
         const rgb = L.key.map((k, i) => Math.min(1, k + (film[i] * len - k) * L.iridescence));
         return { p: q.p, cov: q.cov, rgb };
       });
-      const blob = new Blob([splatsToPly(samples)], { type: 'application/octet-stream' });
+      const doc = sceneDoc({ kind: 'splats', count: samples.length, opacity: 0.6, slab: state.look.pushSlab, requested: 200000 });
+      const blob = new Blob([splatsToPly(samples, 0.6, plyComments(doc))], { type: 'application/octet-stream' });
       download(blob, `${baseName()}-splats.ply`);
       return { splats: samples.length, bytes: blob.size };
     }
@@ -1729,6 +1776,7 @@ window.__fe = {
   ringItems: () => ring && ring.items.map((it) => ({ D: +(it.D || 0).toFixed(1), local: it.local, thumb: !!it.thumb, angle: it.angle && +it.angle.toFixed(2) })),
   replay: () => replay(),
   export: (kind, where, maxFrames) => exportAs(kind, where, maxFrames),
+  importFile: (buffer, name) => importFile(buffer, name),
   get jitReady() { return R && R.jitReady; },
   get pipeline() { return R && R.pipelineKind; },
   stopReplay: () => stopReplay(),

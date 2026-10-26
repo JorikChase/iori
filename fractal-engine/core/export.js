@@ -104,9 +104,10 @@ function quatOf(R) {
 }
 
 // samples: [{ p:[x,y,z], cov:[xx, xy, xz, yy, yz, zz], rgb:[r,g,b] (0..1) }] → 3DGS PLY (degree-0 SH)
-export function splatsToPly(samples, opacity = 0.6) {
+// comments: extra header comment lines (core/state.js puts the scene's state there)
+export function splatsToPly(samples, opacity = 0.6, comments = []) {
   const props = ['x', 'y', 'z', 'nx', 'ny', 'nz', 'f_dc_0', 'f_dc_1', 'f_dc_2', 'opacity', 'scale_0', 'scale_1', 'scale_2', 'rot_0', 'rot_1', 'rot_2', 'rot_3'];
-  const header = `ply\nformat binary_little_endian 1.0\ncomment fractal engine push samples: covariance carried along the chaos game\nelement vertex ${samples.length}\n${props.map((p) => `property float ${p}`).join('\n')}\nend_header\n`;
+  const header = `ply\nformat binary_little_endian 1.0\ncomment fractal engine push samples: covariance carried along the chaos game\n${comments.map((c) => c + '\n').join('')}element vertex ${samples.length}\n${props.map((p) => `property float ${p}`).join('\n')}\nend_header\n`;
   const hb = new TextEncoder().encode(header);
   const buf = new ArrayBuffer(hb.length + samples.length * props.length * 4);
   new Uint8Array(buf).set(hb);

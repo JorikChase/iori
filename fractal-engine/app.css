@@ -46,3 +46,7 @@ body.grab #field { cursor: grabbing; }
 #structure .lg .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
 #structure text { fill: #fff; stroke: none; font: 11px ui-monospace, Menlo, monospace; opacity: 0.8; }
 #structure .st text { text-anchor: middle; }
+#grab .kb { opacity: 0.8; }
+#grab .kb .tk { opacity: 0.5; }
+#structure .pn { opacity: 0.8; }
+#structure .pn .pd { fill: #fff; stroke: none; }

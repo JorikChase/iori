@@ -221,3 +221,28 @@ export function drawLens(svg, l) {
   svg.innerHTML = s.join('');
   svg.classList.add('on');
 }
+
+// ---------- the loop's knobs ----------------------------------------------------------------------
+// k: { at:[x,y], knobs:[{ value, min, max }, { value, min, max }] } — two hairline knobs at the cursor,
+// horizontal drag turns the first, vertical the second; the pointer's angle is the value in its range
+export function drawKnobs(svg, k) {
+  const [x, y] = k.at;
+  const s = ['<g class="kb">'];
+  k.knobs.forEach((q, i) => {
+    const cx = x + (i ? 44 : -44), cy = y - 70, r = 22;
+    const t = (q.value - q.min) / (q.max - q.min);
+    const a = (-225 + 270 * Math.max(0, Math.min(1, t))) * Math.PI / 180;
+    s.push(`<circle cx="${cx}" cy="${cy}" r="${r}"/>`);
+    let ticks = '';
+    for (let j = 0; j <= 10; j++) {
+      const b = (-225 + 27 * j) * Math.PI / 180;
+      ticks += `M${f2(cx + Math.cos(b) * (r + 4))} ${f2(cy + Math.sin(b) * (r + 4))}L${f2(cx + Math.cos(b) * (r + (j % 5 ? 7 : 10)))} ${f2(cy + Math.sin(b) * (r + (j % 5 ? 7 : 10)))}`;
+    }
+    s.push(`<path class="tk" d="${ticks}"/>`);
+    s.push(`<path d="M${cx} ${cy}L${f2(cx + Math.cos(a) * (r - 4))} ${f2(cy + Math.sin(a) * (r - 4))}"/>`);
+    s.push(`<text x="${cx}" y="${cy + r + 22}">${fmtNum(+q.value.toPrecision(3))}</text>`);
+  });
+  s.push(`<path d="M${x - 6} ${y}h12M${x} ${y - 6}v12"/></g>`);
+  svg.innerHTML = s.join('');
+  svg.classList.add('on');
+}

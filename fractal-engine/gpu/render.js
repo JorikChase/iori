@@ -454,6 +454,8 @@ export async function createRenderer(canvas) {
   // the push engine shares the device, the canvas and the formula buffers
   return {
     device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens,
+    // the latest pull image, for the loop engine to start from
+    accumView: () => (tex.length ? tex[cur].createView() : null),
     get size() { return [w, h]; }, get packed() { return packed; },
   };
 }

@@ -348,7 +348,38 @@ vertical drag does nothing yet.
 
 Not yet: lens on touch (it needs a modifier key); the lens map is computed once when it opens, so it
 does not follow an edit made inside it; the strip and ruler are not interactive.
-Next: P6 (the loop engine — texture feedback; drift and herding; engine-computed transitions).
+
+**P6 done 2026-10-26** — the loop, herding, transitions:
+
+- `gpu/loop.js`: Crutchfield's feedback map I′(y) = T(blur(I(A·y))) with the formula's forward map F as
+  the optics A — the Hutchinson operator of F's inverse branches acting on images, so the escape-time
+  picture grows frame by frame out of its seed instead of being computed. Formulas with two slots sum
+  both pull-backs (the beam splitter). The screen is a window on a plane, sampled orthographically:
+  exact for planar maps; for 3-D formulas the shadow of the dynamics (filled silhouettes with halos —
+  the 3-D structure needs a sparse 3-D loop, not built). Through the camera's perspective instead, an
+  expanding 3-D map sent almost every pull-back off-screen and the loop died to noise.
+- Tone per pass (the monitor's knobs): hue rotation, saturation, gain, contrast about a pivot in the
+  dark, decay, a 5-tap blur; seeds of noise sparks and the field (fed in every pass as a secondary
+  input; the whole image on entry). Measured on the Douady rabbit: gain × decay just below 1 gives
+  nested escape-time halos (`design/shots/p6-loop-rabbit-halos.jpg`); at or above 1 the set saturates
+  (`p6-loop-rabbit.jpg`); contrast about mid-grey kills a dark image (its steady state is negative).
+- Loop is the third mode (P cycles pull → push → loop; `&m=loop`). Its window is its own camera:
+  scroll zooms, drag pans, shift-drag rolls (the optical machine's distance, offset, roll); drift
+  rolls it slowly. A hold grabs two hairline knobs at a time (gain/hue, contrast/blur,
+  saturation/decay, noise/field), drag turns them, scroll moves to the next pair.
+- Herding: when drift is on and the hand is still, every unpinned parameter does an Ornstein–Uhlenbeck
+  walk about its home value (reset at every edit) with noise of 6 px/√s over its metric — every
+  parameter wanders the same ~8 px on screen. Measured over 30 s: 0.5–11.8 px. F in a grab pins the
+  region: the parameters scoring at least a quarter of the top one there stop wandering (on the arrive
+  view: box l, rfix, scale frozen; rmin kept moving); F on a pin removes it; pins show with Tab.
+- Transitions, never a crossfade: a lineage jump within one structure morphs parameters and camera
+  (350 ms eased; measured 6 intermediate formulas); a jump across structures or a mode change flows —
+  the old image runs through the new formula's map in the loop for 380 ms (measured 32 frames), then
+  the new mode takes over.
+
+Not yet: a sparse 3-D loop; knobs on touch need the hold (no MIDI); the flow from push starts from the
+last pull image, not the push image; pins are per page (not saved in the lineage).
+Next: P7 (breed — MAP-Elites archive, the neighbour ring, constant-speed walks).
 
 ## Sources
 

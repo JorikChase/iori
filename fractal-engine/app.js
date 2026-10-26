@@ -2,9 +2,15 @@
 //
 //   drag            look              scroll / pinch    move along the view, speed ∝ distance to surface
 //   WASD QE arrows  fly               shift             faster
-//   space           drift on / off (it resumes on its own after a pause otherwise)
-//   P, double-click pull ⇄ push: the same formula forward per pixel (the cave) or backward per sample
-//                   (the nebula). Without a fixed c, push shows the Julia set of the point you look at.
+//   space           drift on / off: after a pause the camera glides and every unpinned parameter wanders
+//                   a few pixels about its home value (herding); it resumes on its own otherwise
+//   F (in a grab)   pin this region: the parameters that move it stop wandering; F on a pin unpins it
+//   in the loop      scroll zooms its window, drag pans it, shift-drag rolls it (the optical machine's
+//                   distance, offset and roll); drift turns it slowly
+//   P, double-click pull → push → loop: the same formula forward per pixel (the cave), backward per
+//                   sample (the nebula), or as optical feedback through its own map (the loop, which
+//                   starts from the field you were looking at). Without a fixed c, push shows the Julia
+//                   set of the point you look at.
 //   L               the Lyapunov channel: where nearby orbits separate the surface runs hot and glows
 //   shift (in a grab) the atlas lens: the view becomes the map of two of the op's parameters, coloured by
 //                   how far the surface would be from the held point; move to travel it, let go to close
@@ -21,7 +27,8 @@ import { parse, format, validate, normalize, iterate, getOp, de as cpuDe } from 
 import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
 import { createSense } from './gpu/sense.js';
-import { makeCamera, drawGrab, clearGrab, drawLens } from './ui/overlay.js';
+import { createLoop } from './gpu/loop.js';
+import { makeCamera, drawGrab, clearGrab, drawLens, drawKnobs } from './ui/overlay.js';
 import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
@@ -60,6 +67,16 @@ const LOOK = {
   pushSteps: 24,
   splatMax: 4,          // px; the kernel is shrunk (energy kept) beyond this
   lyapMix: 0,           // the Lyapunov channel, 0 off, 1 on (L)
+  // loop: the monitor's knobs, per pass
+  loopHue: 0.045,       // hue rotation, radians
+  loopSaturation: 1.03,
+  loopGain: 0.99,       // with decay: below 1 nested escape-time halos, at or above 1 the set saturates
+  loopContrast: 1.0,
+  loopPivot: 0.15,      // contrast pivots here, in the dark
+  loopDecay: 0.97,
+  loopBlur: 0.6,        // texels
+  loopNoise: 0.6,       // seed: sparks of the key colour
+  loopField: 0.08,      // the field fed in every pass, the loop's secondary input (0 none)
 };
 
 const canvas = document.getElementById('field');
@@ -76,12 +93,17 @@ const state = {
   scale: 0.6,           // internal resolution / canvas resolution, set by the governor
   frame: 0,
   maxSamples: 384,
-  mode: 'pull',         // 'pull' | 'push'
+  mode: 'pull',         // 'pull' | 'push' | 'loop'
+  loopSeed: 0,          // frames left during which the loop is (re)seeded from the field
+  loopWin: null,        // the loop's window: { o, e1, e2, n, hh } on the plane where the view was focused
   sensed: null,         // the last sensing pass: parameter metric and λ statistics for this view
   senseDue: true,
   structure: false,     // Tab: ruler, op strip, lineage, and terraces on the surface
   thumbDue: null,       // lineage node waiting for its thumbnail
   hoverNode: null,
+  home: null,           // parameter values drift wanders about (set at every edit)
+  pins: [],             // [{ x (world point), keys: ['oi.key', …] }]
+  trans: null,          // a transition in progress (morph or flow)
 };
 
 // ---------- lineage and the structure layer -------------------------------------------------------
@@ -95,15 +117,57 @@ function remember() {
   drawStructureNow();
 }
 
+// Transitions never crossfade. Between formulas of the same structure the parameters and the camera
+// move (350 ms, eased), so every frame between is a real fractal. Across structures or modes the old
+// image flows through the new formula's map in the loop engine (380 ms), then the new mode takes over.
+const MORPH_MS = 350, FLOW_MS = 380;
+const structureOf = (g) => JSON.stringify([g.slots.map((sl) => sl.map((o) => o.op)), g.schedule, g.iters, g.c || null]);
+
 function restore(node) {
   if (!node) return;
   exitGrab();
-  setFormula(node.text);
-  state.cam = { pos: [...node.cam.pos], yaw: node.cam.yaw, pitch: node.cam.pitch };
-  if (node.mode === 'push' && !P) state.mode = 'pull'; else state.mode = node.mode;
+  const mode = node.mode === 'push' && !P ? 'pull' : node.mode;
+  const to = normalize(parse(node.text));
+  const cam = { pos: [...node.cam.pos], yaw: node.cam.yaw, pitch: node.cam.pitch };
+  if (mode === state.mode && structureOf(to) === structureOf(normalize(state.formula))) {
+    state.trans = { kind: 'morph', t0: performance.now(), dur: MORPH_MS, from: { f: normalize(state.formula), cam: JSON.parse(JSON.stringify(state.cam)) }, to: { f: to, cam } };
+  } else {
+    setFormula(node.text);
+    state.cam = cam;
+    flowTo(mode);
+  }
   touched();
   writeHash();
   drawStructureNow();
+}
+
+function flowTo(mode) {
+  if (!LP) { state.mode = mode; return; }
+  state.loopSeed = 1;
+  placeLoopWindow();
+  state.trans = { kind: 'flow', t0: performance.now(), dur: FLOW_MS, then: mode };
+}
+
+function advanceTransition(now) {
+  const T = state.trans;
+  if (!T) return;
+  const s = Math.min(1, (now - T.t0) / T.dur), e = s * s * (3 - 2 * s);
+  if (T.kind === 'morph') {
+    const a = T.from.f, b = T.to.f;
+    const g = JSON.parse(JSON.stringify(b));
+    g.slots.forEach((sl, i) => sl.forEach((o, j) => {
+      for (const k of Object.keys(o.p)) o.p[k] = a.slots[i][j].p[k] + (b.slots[i][j].p[k] - a.slots[i][j].p[k]) * e;
+    }));
+    setFormula(format(g), true);
+    const c0 = T.from.cam, c1 = T.to.cam;
+    state.cam = { pos: c0.pos.map((v, i) => v + (c1.pos[i] - v) * e), yaw: c0.yaw + (c1.yaw - c0.yaw) * e, pitch: c0.pitch + (c1.pitch - c0.pitch) * e };
+    if (s >= 1) { setFormula(format(b), true); state.cam = c1; state.trans = null; state.home = null; }
+  } else if (s >= 1) {
+    state.mode = T.then;
+    state.trans = null;
+    state.n = 0;
+    if (state.mode === 'loop') state.loopSeed = 0;
+  }
 }
 
 // a small JPEG of the canvas, taken right after a frame was submitted
@@ -124,8 +188,12 @@ function drawStructureNow() {
   const depth = iterate(f, centre, f.c || centre).n;
   drawStructure(structureSvg, {
     W: innerWidth, H: innerHeight, formula: f, depth,
-    attention: typeof grab !== 'undefined' && grab ? grab.ranked[grab.k].oi : null,
+    attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
     lineage: lineage.layout(), hover: state.hoverNode,
+    pins: (() => {
+      const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
+      return state.pins.map((p) => C.project(p.x)).filter(Boolean);
+    })(),
   });
 }
 
@@ -227,8 +295,40 @@ function traceRay(dir) {
 // a parameter's scale, so lengths and angles compete fairly: px for a step of its own size
 const ownScale = (p) => Math.max(Math.abs(p.value), p.op === 'rotate' || p.op === 'twist' ? 10 : 0.1);
 
+// In the loop a hold grabs the monitor's knobs instead, two at a time: drag sideways for the first,
+// up and down for the second, scroll for the next pair. One pixel turns a knob by its range / 600.
+const KNOBS = [
+  [['loopGain', 0.9, 1.1], ['loopHue', -0.3, 0.3]],
+  [['loopContrast', 0.6, 1.6], ['loopBlur', 0, 3]],
+  [['loopSaturation', 0.6, 1.4], ['loopDecay', 0.85, 1.0]],
+  [['loopNoise', 0, 2], ['loopField', 0, 0.5]],
+];
+
+function knobGrab(x, y) {
+  grab = { knobs: true, x, y, x0: x, y0: y, k: 0, v0: KNOBS[0].map(([key]) => state.look[key]), text0: state.text, look0: { ...state.look } };
+  drawKnobsNow();
+  return true;
+}
+function drawKnobsNow() {
+  drawKnobs(overlay, { at: [grab.x, grab.y], knobs: KNOBS[grab.k].map(([key, min, max]) => ({ value: state.look[key], min, max })) });
+}
+function turnKnobs(x, y) {
+  KNOBS[grab.k].forEach(([key, min, max], i) => {
+    const d = i ? -(y - grab.y0) : x - grab.x0;
+    state.look[key] = Math.max(min, Math.min(max, grab.v0[i] + (d * (max - min)) / 600));
+  });
+  drawKnobsNow();
+}
+function nextKnobs(step, x, y) {
+  grab.k = (grab.k + step + KNOBS.length) % KNOBS.length;
+  grab.v0 = KNOBS[grab.k].map(([key]) => state.look[key]);
+  grab.x0 = x; grab.y0 = y;
+  drawKnobsNow();
+}
+
 // press: the hold that asked for this grab; if it was released while sensing ran, there is no grab
 async function enterGrab(x, y, press = null) {
+  if (state.mode === 'loop') return knobGrab(x, y);
   if (!S || state.mode !== 'pull') return false;  // push has no surface to sense yet
   const { dir, uv } = pixelRay(x, y);
   const t = traceRay(dir);
@@ -269,6 +369,7 @@ async function enterGrab(x, y, press = null) {
 
 function drawGrabNow() {
   if (!grab) return;
+  if (grab.knobs) { drawKnobsNow(); return; }
   const att = grab.ranked[grab.k];
   const f = normalize(state.formula);
   const o = f.slots.flat()[att.oi];
@@ -312,7 +413,7 @@ const INSET_R = 70;
 let lens = null;
 
 function openLens() {
-  if (!grab || lens) return false;
+  if (!grab || grab.knobs || lens) return false;
   const att = grab.ranked[grab.k];
   const linear = grab.ranked.filter((p) => !NONLINEAR(p));
   const p1 = !NONLINEAR(att) ? att : linear[0];
@@ -379,6 +480,7 @@ function closeLens() {
 function exitGrab(revert = false) {
   closeLens();
   if (!grab) return;
+  if (grab.knobs && revert) Object.assign(state.look, grab.look0);
   if (revert) setFormula(grab.text0);
   else if (state.text !== grab.text0) remember();
   grab = null;
@@ -404,6 +506,7 @@ canvas.addEventListener('pointermove', (e) => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   if (lens) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moveLens(e.clientX, e.clientY); return; }
+  if (grab && grab.knobs) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); turnKnobs(e.clientX, e.clientY); return; }
   if (grab) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); editGrab(e.clientX); return; }
   // still deciding: a press that becomes a grab must not turn the camera meanwhile
   if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) <= HOLD_SLOP) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
@@ -421,6 +524,12 @@ canvas.addEventListener('pointermove', (e) => {
   }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!drag) return;
+  if (state.mode === 'loop') {
+    if (e.shiftKey) rollLoop((e.clientX - drag.x) * 0.006); else panLoop(e.clientX - drag.x, e.clientY - drag.y);
+    drag = { x: e.clientX, y: e.clientY };
+    touched();
+    return;
+  }
   const k = (state.look.fovDeg / 70) * 0.0035;
   state.cam.yaw -= (e.clientX - drag.x) * k;
   state.cam.pitch = Math.max(-1.5, Math.min(1.5, state.cam.pitch - (e.clientY - drag.y) * k));
@@ -441,7 +550,9 @@ canvas.addEventListener('pointercancel', release);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (grab && grab.knobs) { nextKnobs(e.deltaY > 0 ? 1 : -1, e.clientX, e.clientY); return; }
   if (grab) { passAttention(e.deltaY > 0 ? 1 : -1, e.clientX); return; }
+  if (state.mode === 'loop') { zoomLoop(Math.exp(Math.max(-4, Math.min(4, e.deltaY / 100)) * 0.08)); touched(); return; }
   const { fwd } = basis(state.cam);
   const notches = Math.max(-4, Math.min(4, -e.deltaY / 100));
   moveBy(fwd, notches * 0.3 * deAt(state.cam.pos));
@@ -449,9 +560,15 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 const keys = new Set();
+const MODES = ['pull', 'push', 'loop'];
 function toggleMode() {
   if (!P) return;
-  state.mode = state.mode === 'pull' ? 'push' : 'pull';
+  const next = MODES[(MODES.indexOf(state.mode) + 1) % MODES.length];
+  if (next === 'loop' && !LP) { state.mode = 'pull'; }
+  else if (next === 'loop') {
+    // the loop starts from the field just seen, through a window placed where the view was focused
+    state.mode = 'loop'; state.loopSeed = 2; placeLoopWindow();
+  } else flowTo(next);
   touched();
   writeHash();
   remember();
@@ -460,7 +577,8 @@ canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && grab) { exitGrab(true); return; }
-  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && grab && !e.repeat) { openLens(); return; }
+  if (e.code === 'KeyF' && grab && !e.repeat) { togglePin(); return; }
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && grab && !grab.knobs && !e.repeat) { openLens(); return; }
   if (e.code === 'Tab') { e.preventDefault(); toggleStructure(); return; }
   if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault();
@@ -501,6 +619,8 @@ function flyKeys(dt) {
 
 function drift(dt) {
   if (!state.drift || grab || performance.now() - state.lastInput < 4000) return false;
+  herd(dt);
+  if (state.mode === 'loop') { if (state.loopWin) rollLoop(dt * 0.03); return true; }
   const c = state.cam, here = deAt(c.pos);
   let best = { s: -1, dy: 0, dp: 0 };
   for (const [dy, dp] of [[0, 0], [0.25, 0], [-0.25, 0], [0, 0.18], [0, -0.18]]) {
@@ -515,6 +635,53 @@ function drift(dt) {
   return true;
 }
 
+// Herding: each unpinned parameter does an Ornstein–Uhlenbeck walk about its home value, its noise in
+// pixels per √s divided by the parameter's metric — so every parameter wanders the same few pixels on
+// screen (σ/√(2κ) ≈ 8 px), calm or chaotic. Needs the metric of a sensing pass; until then it waits.
+const HERD_PX = 6, HERD_K = 0.3;
+let gauss = null;
+const randn = () => {
+  if (gauss !== null) { const g = gauss; gauss = null; return g; }
+  const u = Math.random() || 1e-9, v = Math.random(), r = Math.sqrt(-2 * Math.log(u));
+  gauss = r * Math.sin(2 * Math.PI * v);
+  return r * Math.cos(2 * Math.PI * v);
+};
+const pinned = () => new Set(state.pins.flatMap((p) => p.keys));
+
+function herd(dt) {
+  const m = state.sensed && state.sensed.params;
+  if (!m || !m.length) return;
+  let f = normalize(state.formula);
+  if (!state.home) state.home = Object.fromEntries(m.map((p) => [p.oi + '.' + p.key, f.slots.flat()[p.oi].p[p.key]]));
+  const pins = pinned();
+  let changed = false;
+  for (const p of m) {
+    const id = p.oi + '.' + p.key;
+    if (pins.has(id) || !(p.pxPerUnit > 0) || state.home[id] === undefined) continue;
+    const q = getOp(p.op).params.find((r) => r.k === p.key);
+    const v = f.slots.flat()[p.oi].p[p.key];
+    let nv = v - HERD_K * (v - state.home[id]) * dt + (HERD_PX / p.pxPerUnit) * Math.sqrt(dt) * randn();
+    if (q.min !== undefined) nv = Math.max(q.min, nv);
+    if (q.max !== undefined) nv = Math.min(q.max, nv);
+    f = withParam(f, p.oi, p.key, +nv.toPrecision(7));
+    changed = true;
+  }
+  if (changed) setFormula(format(f), true);
+}
+
+// a pin freezes the parameters that move the held region: those scoring at least a quarter of the top
+function togglePin() {
+  if (!grab || grab.knobs) return;
+  const C = makeCamera(state.cam, basis(state.cam), Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
+  const near = state.pins.findIndex((p) => { const q = C.project(p.x); return q && Math.hypot(q[0] - grab.x, q[1] - grab.y) < 30; });
+  if (near >= 0) state.pins.splice(near, 1);
+  else {
+    const top = grab.ranked[0].score;
+    state.pins.push({ x: [...grab.hit], keys: grab.ranked.filter((p) => p.score >= top / 4).map((p) => p.oi + '.' + p.key) });
+  }
+  drawStructureNow();
+}
+
 // ---------- URL -------------------------------------------------------------------------------------
 
 function readHash() {
@@ -522,7 +689,7 @@ function readHash() {
   if (!h) return null;
   const [rest, modePart] = h.split('&m=');
   const [text, camPart] = rest.split('&c=');
-  const out = { text, mode: modePart === 'push' ? 'push' : 'pull' };
+  const out = { text, mode: MODES.includes(modePart) ? modePart : 'pull' };
   if (camPart) {
     const v = camPart.split(',').map(Number);
     if (v.length >= 5 && v.every(Number.isFinite)) out.cam = { pos: v.slice(0, 3), yaw: v[3], pitch: v[4] };
@@ -536,24 +703,27 @@ function writeHash() {
   hashTimer = setTimeout(() => {
     const c = state.cam, r = (x) => +x.toFixed(5);
     const h = '#' + encodeURIComponent(state.text) + '&c=' + [...c.pos.map(r), r(c.yaw), r(c.pitch)].join(',')
-      + (state.mode === 'push' ? '&m=push' : '');
+      + (state.mode !== 'pull' ? '&m=' + state.mode : '');
     history.replaceState(null, '', h);
   }, 600);
 }
 
 // ---------- main loop -------------------------------------------------------------------------------
 
-let R = null, P = null, S = null;
+let R = null, P = null, S = null, LP = null;
 
-function setFormula(text) {
+function setFormula(text, quiet = false) {
   const f = parse(text);
   const v = validate(f);
   if (!v.ok) throw new Error(v.errors.join('; '));
+  const structure = (g) => g && JSON.stringify([g.slots.map((sl) => sl.map((o) => o.op)), g.schedule, g.iters, g.c || null]);
+  const same = structure(normalize(f)) === structure(state.formula && normalize(state.formula));
   state.formula = f;
   state.text = format(f);
   if (R) R.setFormula(f);
-  if (P) P.resetWalkers();
-  touched();
+  // walkers stay on a slowly changing attractor; a new structure scatters them
+  if (P && !same) P.resetWalkers();
+  if (quiet) { state.n = 0; state.dirty = true; } else { touched(); state.home = null; }
 }
 
 function sizeCanvas() {
@@ -596,14 +766,17 @@ async function step() {
   if (!canvas.width || !canvas.height) return false; // a page with no size has no swapchain
   const interacting = !!drag || keys.size > 0 || now - state.lastInput < 150;
   flyKeys(dt);
-  const drifting = drift(dt);
-  const moving = interacting || drifting;
+  advanceTransition(now);
+  const drifting = !state.trans && drift(dt);
+  const moving = interacting || drifting || !!state.trans;
+  // a flow renders in the loop engine whatever mode it is heading for
+  const mode = state.trans && state.trans.kind === 'flow' ? 'loop' : state.mode;
   govern(moving);
 
-  if (!P) state.mode = 'pull';
-  const E = state.mode === 'push' ? P : R;
+  if (!P || (state.mode === 'loop' && !LP)) state.mode = 'pull';
+  const E = mode === 'push' ? P : mode === 'loop' ? LP : R;
   if (E.resize(canvas.width * state.scale, canvas.height * state.scale)) state.n = 0;
-  if (!moving && state.n >= state.maxSamples) return false;
+  if (!moving && state.n >= state.maxSamples && mode !== 'loop') return false;
 
   if (moving || state.dirty) {
     state.focus += (traceCentre() - state.focus) * (moving ? 0.35 : 1);
@@ -617,8 +790,10 @@ async function step() {
   const L = state.look;
   const clear = Math.max(deAt(state.cam.pos), 1e-5);
   const lamp = [0, 1, 2].map((i) => state.cam.pos[i] + (b.right[i] * L.lamp[0] + b.up[i] * L.lamp[1] + b.fwd[i] * L.lamp[2]) * clear);
-  if (state.mode === 'push') {
+  if (mode === 'push') {
     pushFrame(b, clear, moving, drifting && !interacting);
+  } else if (mode === 'loop') {
+    loopFrame(b);
   } else R.frame({
     pos: state.cam.pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360),
     right: b.right, aperture: L.aperture * Math.max(state.focus, 1e-4),
@@ -669,6 +844,43 @@ function pushFrame(b, clear, moving, drifting) {
     key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: 1,
     decay: state.n === 0 ? 0 : drifting ? 0.85 : 1,
     gain: L.pushGain, exposure: L.pushExposure,
+  }, canvas);
+}
+
+// Loop: the formula's forward map as the optics of a feedback loop (gpu/loop.js). It never converges —
+// it is alive — so it renders every frame, still or not.
+function placeLoopWindow() {
+  const b = basis(state.cam);
+  const th = Math.tan((state.look.fovDeg * Math.PI) / 360);
+  const focus = Math.max(state.focus, 1e-3);
+  state.loopWin = { o: add(state.cam.pos, b.fwd, focus), e1: [...b.right], e2: [...b.up], n: [...b.fwd], hh: focus * th };
+}
+
+function panLoop(dx, dy) {
+  const w = state.loopWin, k = (2 * w.hh) / innerHeight;
+  w.o = add(add(w.o, w.e1, -dx * k), w.e2, dy * k);
+}
+function zoomLoop(f) { state.loopWin.hh *= f; }
+function rollLoop(a) {
+  const w = state.loopWin, c = Math.cos(a), s = Math.sin(a);
+  const e1 = [0, 1, 2].map((i) => c * w.e1[i] + s * w.e2[i]);
+  const e2 = [0, 1, 2].map((i) => -s * w.e1[i] + c * w.e2[i]);
+  w.e1 = e1; w.e2 = e2;
+}
+
+function loopFrame(b) {
+  const L = state.look;
+  const f = normalize(state.formula);
+  const slots = [...new Set([...f.schedule].map((ch) => 'ABCD'.indexOf(ch)))].slice(0, 2);
+  const seeding = state.loopSeed > 0;
+  if (seeding) state.loopSeed--;
+  if (!state.loopWin) placeLoopWindow();
+  const w = state.loopWin;
+  LP.frame({
+    o: w.o, e1: w.e1, e2: w.e2, n: w.n, hh: w.hh, aspect: canvas.width / canvas.height, slots,
+    hue: L.loopHue, saturation: L.loopSaturation, gain: L.loopGain, contrast: L.loopContrast, pivot: L.loopPivot,
+    decay: L.loopDecay, blur: L.loopBlur, noise: L.loopNoise, frame: state.frame,
+    field: seeding || L.loopField > 0 ? R.accumView() : null, fieldSeed: seeding ? 1 : L.loopField, key: L.key,
   }, canvas);
 }
 
@@ -733,7 +945,11 @@ window.__fe = {
   setFormula,
   setCamera(pos, yaw, pitch) { state.cam = { pos: [...pos], yaw, pitch }; touched(); state.lastInput = -1e9; },
   setLook(o) { Object.assign(state.look, o); touched(); state.lastInput = -1e9; },
-  setMode(m) { state.mode = m; touched(); state.lastInput = -1e9; },
+  pin: () => { togglePin(); return state.pins; },
+  herd: (seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) herd(dt); return state.text; },
+  transition: () => state.trans && { kind: state.trans.kind, then: state.trans.then },
+  setMode(m) { state.mode = m; if (m === 'loop') { state.loopSeed = 2; placeLoopWindow(); } touched(); state.lastInput = -1e9; },
+  loopWindow(o, hh) { placeLoopWindow(); if (o) state.loopWin.o = [...o]; if (hh) state.loopWin.hh = hh; touched(); return state.loopWin; },
   sense: () => senseNow(),
   // the grab, driven without a pointer (tests, the capture rig)
   grabAt: (x, y) => enterGrab(x, y),
@@ -795,6 +1011,7 @@ async function start() {
     state.mode = 'pull';
   }
   try { S = await createSense(R); } catch (e) { console.error(e); }
+  try { LP = await createLoop(R); } catch (e) { console.error(e); window.__fe.error = String(e.message || e); }
   R.device.lost.then((info) => { console.error('device lost', info.message); document.getElementById('nogpu').hidden = false; });
   remember();
   window.__fe.ready = true;

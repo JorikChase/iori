@@ -15,7 +15,7 @@ import { getOp } from '../core/ops.js';
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
 
 // s: { W, H, formula (normalized), depth (iterations at the centre), attention (op index or null),
-//      lineage (layout nodes), hover (node id or null) }
+//      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions) }
 export function drawStructure(svg, s) {
   const out = [];
   const { W, H, formula: f } = s;
@@ -77,6 +77,9 @@ export function drawStructure(svg, s) {
     }
     out.push('</g>');
   }
+
+  // pins: where the composition is held still
+  for (const [px, py] of s.pins || []) out.push(`<g class="pn"><circle cx="${f1(px)}" cy="${f1(py)}" r="6"/><circle class="pd" cx="${f1(px)}" cy="${f1(py)}" r="1.5"/></g>`);
 
   svg.innerHTML = out.join('');
 }

@@ -75,6 +75,7 @@
             href="/assets/main.css"
         />
         <link type="text/css" rel="stylesheet" href="/assets/star-menu.css" />
+        <link type="text/css" rel="stylesheet" href="/assets/star-tree.css" />
 </head>
     <body>
         <!-- shader for bird's position -->
@@ -939,89 +940,18 @@
         <div class="center-nav" id="center-nav" aria-label="Site menu">
             <div class="quad">
                 <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
-                <!-- up: eye experiments, simplest to most sophisticated -->
-                <span class="dropdown">
-                    <a class="label" href="https://iori.me/iris-engine/" aria-haspopup="true">eyes<small>iris</small></a>
-                    <ul class="dropdown-nav">
-                        <li><a href="https://iori.me/iris.html">procedural iris</a></li>
-                        <li><a href="https://iori.me/meta-iris.html">meta iris</a></li>
-                        <li><a href="https://iori.me/iris-engine/">iris engine</a></li>
-                    </ul>
-                </span>
             </div>
             <div class="quad">
                 <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
-                <span class="dropdown">
-                    <a class="label" href="/game.html" aria-haspopup="true">interactive<small>games + tools</small></a>
-                    <ul class="dropdown-nav">
-                        <li><a href="/game.html">RPG Tennis</a></li>
-                        <li><a href="https://iori.me/webgl.html">Webgl</a></li>
-                        <li><a href="/tboi2.html">tboi 2</a></li>
-                        <li><a href="/blackjach/">blackjach</a></li>
-                        <li><a href="/audio/">audio tools</a></li>
-                    </ul>
-                </span>
             </div>
             <div class="quad">
                 <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
-                <span class="dropdown">
-                    <a class="label" href="/websites.html" aria-haspopup="true">websites<small>all sites</small></a>
-                    <ul class="dropdown-nav">
-                        <li><a href="/websites.html">client websites</a></li>
-                        <li><a href="https://iori.me/web.html">node web</a></li>
-                        <li><a href="https://iori.me/web3d.html">3d node web</a></li>
-                        <li><a href="https://iori.me/portfolio.html">portfolio</a></li>
-                    </ul>
-                </span>
             </div>
             <div class="quad">
                 <div class="sub"><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div><div class="star"><div class="sub"><div class="star"></div><div class="star"></div><div class="star"></div><div class="star"></div></div></div></div>
-                <span class="dropdown">
-                    <a class="label" href="https://iori.me/disphere-ray.html" aria-haspopup="true">works<small>dispheres</small></a>
-                    <ul class="dropdown-nav">
-                        <li><a href="https://iori.me/disphere-ray.html">disphere raycast</a></li>
-                        <li><a href="https://iori.me/disphere.html">sphere</a></li>
-                        <li><a href="https://iori.me/fluid.html">fluid test</a></li>
-                    </ul>
-                </span>
             </div>
         </div>
     </div>
-    <script>
-        /* touch has no hover: the first tap blooms the star, the second follows a
-           link; tapping anywhere else folds it again */
-        (function () {
-            const nav = document.getElementById("center-nav");
-            if (!nav) return;
-            nav.addEventListener("pointerdown", (e) => {
-                if (e.pointerType === "mouse" || nav.classList.contains("open")) return;
-                e.preventDefault();
-                nav.classList.add("open");
-            }, { passive: false });
-            document.addEventListener("pointerdown", (e) => {
-                if (!nav.contains(e.target)) nav.classList.remove("open");
-            });
-        })();
-    </script>
-    <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
-<link rel="stylesheet" href="assets/menu.css">
-<nav id="site-menu" class="site-menu site-menu--tl" aria-label="Site menu">
-  <div class="menuToggle">
-    <input type="checkbox" id="site-menu-check" aria-label="Menu" aria-controls="site-menu-panel">
-    <span></span>
-    <span></span>
-    <span></span>
-    <ul class="menuItem" id="site-menu-panel">
-      <li><a href="https://3die.fr/">3die</a></li>
-      <li><a href="https://3die.fr/start.html" aria-current="page">start</a></li>
-      <li><a href="https://3die.fr/shop.html">shop</a></li>
-      <li><a href="https://3die.fr/info.html">info</a></li>
-      <li><a href="https://iori.me/">iori</a></li>
-      <li class="site-menu__social"><a href="https://soundcloud.com/5gmaelstroem" rel="me">soundcloud</a></li>
-    </ul>
-  </div>
-</nav>
-<script src="assets/menu.js" defer></script>
-<!-- MENU:END -->
-</body>
+    <script src="/assets/star-tree.js" defer></script>
+    </body>
 </html>

@@ -1,0 +1,93 @@
+{
+  "_": "The start page's linktree: four directions, three links each, nearest the star first. Draft for iori to edit.",
+  "genres": [
+    {
+      "dir": "up",
+      "t": "engines",
+      "s": "the deep end",
+      "links": [
+        {
+          "t": "iris engine",
+          "h": "https://iori.me/iris-engine/",
+          "n": "photoreal iris"
+        },
+        {
+          "t": "petri",
+          "h": "https://iori.me/petri/",
+          "n": "webgpu colonies"
+        },
+        {
+          "t": "flame strains",
+          "h": "https://iori.me/flame-strains.html",
+          "n": "volumetric fire"
+        }
+      ]
+    },
+    {
+      "dir": "right",
+      "t": "tools",
+      "s": "work tools",
+      "links": [
+        {
+          "t": "audio tools",
+          "h": "/audio/",
+          "n": "eight instruments"
+        },
+        {
+          "t": "moshine",
+          "h": "https://iori.me/moshine/",
+          "n": "datamosh editor"
+        },
+        {
+          "t": "node web",
+          "h": "https://iori.me/web.html",
+          "n": "site map"
+        }
+      ]
+    },
+    {
+      "dir": "down",
+      "t": "art + games",
+      "s": "play + look",
+      "links": [
+        {
+          "t": "crow_archduke",
+          "h": "/crow_archduke.html",
+          "n": "jáchym"
+        },
+        {
+          "t": "iori",
+          "h": "https://iori.me/",
+          "n": "iori.me"
+        },
+        {
+          "t": "rpg tennis online",
+          "h": "/game_multiplayer.html",
+          "n": "multiplayer"
+        }
+      ]
+    },
+    {
+      "dir": "left",
+      "t": "studio",
+      "s": "work with us",
+      "links": [
+        {
+          "t": "websites",
+          "h": "/websites.html",
+          "n": "client work"
+        },
+        {
+          "t": "github",
+          "h": "https://github.com/JorikChase",
+          "n": "source"
+        },
+        {
+          "t": "inquiry",
+          "h": "/info.html",
+          "n": "write to us"
+        }
+      ]
+    }
+  ]
+}

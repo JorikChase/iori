@@ -1,0 +1,23 @@
+/* star-tree — the start page's linktree (assets/star-tree.js) on top of the star in star-menu.css: the
+   overlay the link names are drawn in, the focus state, and the size of the bloom. */
+#sn {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 5; overflow: visible;
+}
+.sn-t { font-family: "Milksea", "Tilt Neon", sans-serif; letter-spacing: .06em; }
+
+/* the names sit on the bloomed star's tips; the side tips reach .858 R up from the centre (R = .701 s, so
+   .6015 s); a chosen name ("rpg tennis online") runs ~190px along their diagonal, ~145px of height, so
+   the bloom leaves 160px and fits the shorter half screen */
+.center-nav { --s: min(440px, calc((50vmin - 160px) / .6015)); }
+/* a direction in focus brightens; the other three arms stay as they are */
+.center-nav.sn-focus .quad.sn-on { opacity: 1 !important; }
+
+/* the page is one drag surface on touch: nothing scrolls or bounces under the finger */
+html, body { touch-action: none; overscroll-behavior: none; }
+
+/* every link as a plain list, off screen */
+.sn-sr {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}

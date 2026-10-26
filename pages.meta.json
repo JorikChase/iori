@@ -588,7 +588,7 @@
       "domain": "3die.fr",
       "type": "experiment",
       "priority": 0.6,
-      "menu_pos": "tl"
+      "menu": false
     },
     "sudoku.html": {
       "title": "SUDOKU Minimal",

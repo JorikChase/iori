@@ -1174,6 +1174,8 @@ async function exportVideo(b, clear, where, maxFrames = Infinity) {
   const target = await openSequenceTarget(baseName() + '-walk', where);
   const sink = createFrameSink(target);
   const [W, H] = stillSize(1920);
+  // every frame has new values but one structure: one structure JIT serves the whole walk
+  await R.compileStructureJit(frames[0]).catch(() => {});
   try {
     for (let i = 0; i < frames.length; i++) {
       R.setFormula(frames[i]);
@@ -1258,6 +1260,7 @@ window.__fe = {
   replay: () => replay(),
   export: (kind, where, maxFrames) => exportAs(kind, where, maxFrames),
   get jitReady() { return R && R.jitReady; },
+  get pipeline() { return R && R.pipelineKind; },
   stopReplay: () => stopReplay(),
   herd: (seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) herd(dt); return state.text; },
   transition: () => state.trans && { kind: state.trans.kind, then: state.trans.then },

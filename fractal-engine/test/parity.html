@@ -431,13 +431,18 @@ async function run() {
     };
     const a = await runOne(timedDE);
     const b = await runOne(withJit(timedDE, f));
-    const rels = [];
-    for (let i = 0; i < JIT_N; i += 16) {
-      const x = a.g[i * 4], y = b.g[i * 4];
-      rels.push(Math.abs(x - y) / Math.max(Math.abs(x), 1e-6));
-    }
-    rels.sort((p, q) => p - q);
-    jitRows.push({ formula: text, median: rels[rels.length >> 1], p99: rels[Math.floor(rels.length * 0.99)], interpMs: a.ms, jitMs: b.ms, speedup: a.ms / b.ms });
+    const sj = await runOne(withJit(timedDE, f, 'structure'));
+    const relsOf = (g) => {
+      const rels = [];
+      for (let i = 0; i < JIT_N; i += 16) rels.push(Math.abs(a.g[i * 4] - g[i * 4]) / Math.max(Math.abs(a.g[i * 4]), 1e-6));
+      return rels.sort((p, q) => p - q);
+    };
+    const rl = relsOf(b.g), rs = relsOf(sj.g);
+    jitRows.push({
+      formula: text, median: rl[rl.length >> 1], p99: rl[Math.floor(rl.length * 0.99)],
+      sMedian: rs[rs.length >> 1], sP99: rs[Math.floor(rs.length * 0.99)],
+      interpMs: a.ms, jitMs: b.ms, structMs: sj.ms, speedup: a.ms / b.ms, structSpeedup: a.ms / sj.ms,
+    });
     [head, ops, pb].forEach((q) => q.destroy());
   }
 
@@ -454,7 +459,7 @@ async function run() {
   const dualOk = dualRows.every((r) => r.gradDegMed < 1 && r.paramRelMed < 0.01 && r.lyapAbsMed < 0.01);
   const ovOk = ovRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2);
   // the JIT is the same arithmetic in another order: float precision, the same fold-edge tails
-  const jitOk = jitRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2);
+  const jitOk = jitRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.sMedian < 1e-4 && r.sP99 < 2e-2);
   const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk;
   window.__parity = { ok, rows, invRows, dualRows, ovRows, jitRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
@@ -462,7 +467,7 @@ async function run() {
     + '\n\ninverse steps (GPU preimage → CPU forward)\n\n' + invRows.map((r) =>
     `${r.formula}\n  found ${r.found}/${N}  wrong ${r.wrong}  p99 err ${r.p99.toExponential(2)}`).join('\n\n')
     + '\n\nJIT vs interpreter (' + JIT_N + ' points × 9 estimates)\n\n' + jitRows.map((r) =>
-    `${r.formula}\n  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  interpreter ${r.interpMs.toFixed(2)} ms  JIT ${r.jitMs.toFixed(2)} ms  ×${r.speedup.toFixed(2)}`).join('\n\n')
+    `${r.formula}\n  literal: median rel ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)}  structure: median rel ${r.sMedian.toExponential(2)} p99 ${r.sP99.toExponential(2)}\n  interpreter ${r.interpMs.toFixed(2)} ms  literal ${r.jitMs.toFixed(2)} ms ×${r.speedup.toFixed(2)}  structure ${r.structMs.toFixed(2)} ms ×${r.structSpeedup.toFixed(2)}`).join('\n\n')
     + '\n\noverrides (lens): GPU record + d · d record/dθ vs CPU with the value changed\n\n' + ovRows.map((r) =>
     `${r.formula}  [${r.params}]\n  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}`).join('\n\n')
     + '\n\ndual numbers (GPU tangents vs CPU central differences)\n\n' + dualRows.map((r) =>

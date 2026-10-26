@@ -6,7 +6,7 @@
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
 import { INTERP, DUAL } from './wgsl.js';
-import { withJit } from './jit.js';
+import { withJit, structureKey } from './jit.js';
 import { canonical } from '../core/formula.js';
 import { pack, MAX_OPS, REC, HEAD_BYTES } from './pack.js';
 
@@ -417,6 +417,8 @@ export async function createRenderer(canvas) {
   let packed = null;
   function setFormula(f) {
     packed = pack(f);
+    // a new structure gets its JIT in the background; the interpreter draws until it is ready
+    compileStructureJit(packed.formula).catch((e) => console.warn(e.message));
     device.queue.writeBuffer(headBuf, 0, packed.head);
     device.queue.writeBuffer(opsBuf, 0, packed.ops);
   }
@@ -430,27 +432,40 @@ export async function createRenderer(canvas) {
     ...v.key, v.ambient, vw, vh, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, v.lyapMix || 0, 0,
     v.lyapCentre || 0, v.lyapScale || 1, 0, 0, ...(v.tile || [0, 0, 0, 0])]);
 
-  // The JIT: a march pipeline compiled for one formula (gpu/jit.js), built in the background and used
-  // for still frames and final renders once it is ready; live editing keeps the interpreter.
-  let jit = null, jitKey = null, jitBuilding = null;
-  async function compileJit(f) {
-    const key = canonical(f);
-    if (jitKey === key || jitBuilding === key) return jitKey === key;
-    jitBuilding = key;
+  // The JIT (gpu/jit.js), two caches built in the background:
+  //   literal    compiled for one set of values — still frames and stills of that exact formula
+  //   structure  compiled for one structure, values from the buffer — everything else: live editing,
+  //              drift, walks, every frame of a video; rebuilt only when the ops, schedule or
+  //              iteration count change
+  // Until one is ready the interpreter draws, so nothing ever waits for a compile.
+  const jits = { literal: { pipe: null, key: null, building: null }, structure: { pipe: null, key: null, building: null } };
+  async function buildJit(f, kind) {
+    const J = jits[kind];
+    const key = kind === 'literal' ? canonical(f) : structureKey(f);
+    if (J.key === key || J.building === key) return J.key === key;
+    J.building = key;
     try {
-      const module = device.createShaderModule({ code: withJit(MARCH, f) });
+      const module = device.createShaderModule({ code: withJit(MARCH, f, kind) });
       const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
       if (errs.length) throw new Error('wgsl jit: ' + errs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
       const pipe = await device.createComputePipelineAsync({
         layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, viewLayout] }),
         compute: { module, entryPoint: 'march' },
       });
-      if (jitBuilding !== key) return false;  // the formula moved on while it compiled
-      jit = pipe; jitKey = key;
+      if (J.building !== key) return false;  // the formula moved on while it compiled
+      J.pipe = pipe; J.key = key;
       return true;
-    } finally { if (jitBuilding === key) jitBuilding = null; }
+    } finally { if (J.building === key) J.building = null; }
   }
-  const jitFor = (f) => (f && jit && jitKey === canonical(f) ? jit : null);
+  const compileJit = (f) => buildJit(f, 'literal');
+  const compileStructureJit = (f) => buildJit(f, 'structure');
+  // the fastest pipeline that is valid for f: literal (when allowed) → structure → interpreter
+  function pipeFor(f, allowLiteral) {
+    if (f && allowLiteral && jits.literal.pipe && jits.literal.key === canonical(f)) return jits.literal.pipe;
+    if (f && jits.structure.pipe && jits.structure.key === structureKey(f)) return jits.structure.pipe;
+    return marchPipe;
+  }
+  const jitFor = (f) => (f && jits.literal.pipe && jits.literal.key === canonical(f) ? jits.literal.pipe : null);
 
   function frame(v) {
     packView(viewData, v, w, h);
@@ -459,7 +474,7 @@ export async function createRenderer(canvas) {
 
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline((v.quality > 0 && packed && jitFor(packed.formula)) || marchPipe);
+    cp.setPipeline(pipeFor(packed && packed.formula, v.quality > 0));
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, viewGroups[cur]);
     cp.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
@@ -553,7 +568,7 @@ export async function createRenderer(canvas) {
   async function renderStill(v, W, H, { tile = 512, samples = 64, onProgress = () => {}, cancelled = () => false } = {}) {
     const outCanvas = new OffscreenCanvas(W, H);
     const g2 = outCanvas.getContext('2d');
-    const pipe = (packed && jitFor(packed.formula)) || marchPipe;
+    const pipe = pipeFor(packed && packed.formula, true);
     const vb = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const db = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const vd = new Float32Array(VIEW_FLOATS);
@@ -677,7 +692,13 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
   // the push engine shares the device, the canvas and the formula buffers
   return {
     device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens, renderThumb,
-    compileJit, renderStill, deGrid, get jitReady() { return !!(packed && jitFor(packed.formula)); },
+    compileJit, compileStructureJit, renderStill, deGrid,
+    get jitReady() { return !!(packed && jitFor(packed.formula)); },
+    // which pipeline a frame of the current formula would use
+    get pipelineKind() {
+      const f = packed && packed.formula, p = pipeFor(f, true);
+      return p === marchPipe ? 'interpreter' : p === jits.literal.pipe ? 'literal' : 'structure';
+    },
     // the latest pull image, for the loop engine to start from
     accumView: () => (tex.length ? tex[cur].createView() : null),
     get size() { return [w, h]; }, get packed() { return packed; },

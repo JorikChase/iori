@@ -443,8 +443,19 @@ beyond lineage replay (P8 brings export).
   triangles, 22.5 MB, 0.4 s.
 - The live view pauses during an export; a hairline at the bottom of the Tab layer fills as it runs.
 
-Not yet: a parameter-buffered JIT for fast video; MP4/WebM encoding (the sequence is for an editor);
-splats with higher-order SH; a mesh region other than the focus cube.
+Not yet: MP4/WebM encoding (the sequence is for an editor); splats with higher-order SH; a mesh
+region other than the focus cube.
+
+**Structure JIT, 2026-10-26.** A second JIT kind keeps everything the literal one bakes in — op types,
+the unrolled schedule, the iteration count, no opcode switch — but reads parameter values from the op
+buffer through `rec()` (so lens overrides still apply) and the bail radius from the head. Keyed by
+`structureKey` (ops, schedule, iterations), it is rebuilt only when the structure changes, in the
+background from `R.setFormula`; until it is ready the interpreter draws. Pipeline choice, every
+frame: the literal JIT when the exact values match and the frame is still → the structure JIT →
+the interpreter (`__fe.pipeline` says which). So live editing, drift, walks and every video frame now
+run compiled. Parity: identical error to the literal JIT; ×2.1–×6.7 over the interpreter in the same
+run where the literal JIT measured ×2.1–×8.1 (GPU timings vary run to run). The 4-frame video test:
+2.2 s a frame, from 10.9 s.
 
 ## Sources
 

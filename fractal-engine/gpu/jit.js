@@ -1,7 +1,11 @@
-// The JIT: one formula compiled into its own WGSL `iterate`, every parameter a literal, no op-table
-// reads and no switch — the same orbit as the interpreter (gpu/wgsl.js opFwd), statement for
-// statement, so final renders can use it and live editing keeps the interpreter (which never
-// recompiles). test/parity.html diffs the two.
+// The JIT: a formula compiled into its own WGSL `iterate` — the same orbit as the interpreter
+// (gpu/wgsl.js opFwd), statement for statement, with the op types and the schedule unrolled and no
+// switch on opcodes. Two kinds:
+//   literal    every parameter a literal too: the fastest, but one compile per set of values
+//   structure  parameters read from the op buffer (through rec(), so lens overrides still apply):
+//              one compile per structure (ops, schedule, iterations) serves every value — live
+//              editing, drift, walks, and every frame of a video
+// test/parity.html diffs both against the interpreter.
 
 import { normalize, pullSafe } from '../core/formula.js';
 import { slotIndex } from '../core/notation.js';
@@ -13,6 +17,42 @@ const L = (x) => {
   return /[.e]/.test(s) ? s : s + '.0';
 };
 const V = (a) => `vec3f(${a.map(L).join(', ')})`;
+
+// one op as WGSL statements on `p`, `t.dr`, `br`, reading its packed record from the buffer
+function opCodeBuffered(o, oi) {
+  const a = `rec(${oi}u, 0u)`, b = `rec(${oi}u, 1u)`, cc = `rec(${oi}u, 2u)`;
+  switch (o.op) {
+    case 'translate': return `p = p + ${a}.yzw;`;
+    case '+c': return 'p = p + c; t.dr = t.dr + 1.0;';
+    case 'scale': return `{ let s = ${a}.y; p = p * s; t.dr = t.dr * abs(s); }`;
+    case 'rotate': return `{ let A = ${a}; let B = ${b}; let C = ${cc};
+      p = vec3f(dot(A.yzw, p), dot(B.xyz, p), dot(vec3f(B.w, C.xy), p)); }`;
+    case 'fold.plane': return `{ let n = ${a}.yzw; let d = dot(p, n) - ${b}.x; if (d < 0.0) { p = p - 2.0 * d * n; br = 1u; } }`;
+    case 'fold.box': return `{ let l = ${a}.y;
+      br = select(0u, 1u, p.x > l) + select(0u, 2u, p.x < -l) + select(0u, 3u, p.y > l) + select(0u, 6u, p.y < -l) + select(0u, 9u, p.z > l) + select(0u, 18u, p.z < -l);
+      p = clamp(p, vec3f(-l), vec3f(l)) * 2.0 - p; }`;
+    case 'fold.sphere': return `{ let A = ${a}; let r2 = dot(p, p); let m2 = A.y * A.y; let f2 = A.z * A.z;
+      if (r2 < m2) { let k = f2 / m2; p = p * k; t.dr = t.dr * k; }
+      else if (r2 < f2) { let k = f2 / r2; p = p * k; t.dr = t.dr * k; br = 1u; }
+      else { br = 2u; } }`;
+    case 'bulb': return `{ let n = ${a}.y; let r = length(p);
+      if (r > 0.0) {
+        let theta = acos(clamp(p.z / r, -1.0, 1.0)) * n;
+        let phi = atan2(p.y, p.x) * n;
+        t.dr = t.dr * n * pow(r, n - 1.0);
+        p = pow(r, n) * vec3f(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+      } else { t.dr = 0.0; } }`;
+    case 'power': return `{ let n = ${a}.y; let r = length(p.xy);
+      if (r > 0.0) {
+        let ang = atan2(p.y, p.x) * n;
+        t.dr = t.dr * n * pow(r, n - 1.0);
+        p = vec3f(pow(r, n) * cos(ang), pow(r, n) * sin(ang), p.z);
+      } else { t.dr = 0.0; } }`;
+    case 'twist': return `{ let ang = ${a}.y * p.z; p = vec3f(cos(ang) * p.x - sin(ang) * p.y, sin(ang) * p.x + cos(ang) * p.y, p.z); }`;
+    // the rest have no parameters: the literal code is the same code
+    default: return opCode(o, oi);
+  }
+}
 
 // one op as WGSL statements on `p`, `t.dr`, `br`; oi is its index (for the branch colour)
 function opCode(o, oi) {
@@ -77,12 +117,13 @@ function opCode(o, oi) {
   }
 }
 
-// the WGSL `iterate` for one formula, replacing the interpreter's
-export function jitIterate(formula) {
+// the WGSL `iterate` for one formula, replacing the interpreter's. kind: 'literal' | 'structure'
+export function jitIterate(formula, kind = 'literal') {
   const f = normalize(formula);
+  const gen = kind === 'structure' ? opCodeBuffered : opCode;
   let oi = 0;
   const slots = f.slots.map((s) => s.map((o) => {
-    const code = opCode(o, oi);
+    const code = gen(o, oi);
     const branchy = /br =|br = br/.test(code);
     const line = branchy
       ? `br = 0u; ${code}\n      if (br != 0u) { t.col = branchColour(t.col, ${oi}u, br); }`
@@ -105,7 +146,7 @@ ${body}
     t.n = i + 1u;
     let r2 = dot(p, p);
     t.trap = min(t.trap, r2);
-    if (!(r2 <= ${L(f.bail * f.bail)})) { t.escaped = true; break; }
+    if (!(r2 <= ${kind === 'structure' ? 'head.bail * head.bail' : L(f.bail * f.bail)})) { t.escaped = true; break; }
   }
   t.p = p;
   return t;
@@ -116,9 +157,15 @@ ${body}
 // a shader source with the interpreter's iterate renamed out of the way and the JIT's in its place;
 // everything else (de, deOf, the dual numbers, which still read the op table) is untouched
 const SIG = 'fn iterate(p0: vec3f, c: vec3f) -> Trace {';
-export function withJit(source, formula) {
+export function withJit(source, formula, kind = 'literal') {
   if (!source.includes(SIG)) throw new Error('no interpreter iterate to replace');
-  return source.replace(SIG, 'fn iterateInterpreted(p0: vec3f, c: vec3f) -> Trace {') + jitIterate(formula);
+  return source.replace(SIG, 'fn iterateInterpreted(p0: vec3f, c: vec3f) -> Trace {') + jitIterate(formula, kind);
+}
+
+// what a structure JIT depends on: the ops in order, the schedule, the iteration count
+export function structureKey(formula) {
+  const f = normalize(formula);
+  return JSON.stringify([f.slots.map((s) => s.map((o) => o.op)), f.schedule, f.iters]);
 }
 
 export { pullSafe };

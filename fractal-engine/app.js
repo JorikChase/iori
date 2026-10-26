@@ -9,6 +9,9 @@
 //                   visual distance; release on one to walk there at constant visual speed, scroll for
 //                   farther or nearer neighbours, release at the centre to stay
 //   R               replay the lineage from its root to here, at constant visual speed
+//   ⌘S              a 4K still (3840 px on the long side, the view's aspect) — and in the Tab layer, bottom
+//                   right: still, video (the lineage walked at constant speed, a PNG sequence), splats
+//                   (push samples as 3D Gaussians, .ply), mesh (surface nets of the field around the focus, .stl)
 //   F (in a grab)   pin this region: the parameters that move it stop wandering; F on a pin unpins it
 //   in the loop      scroll zooms its window, drag pans it, shift-drag rolls it (the optical machine's
 //                   distance, offset and roll); drift turns it slowly
@@ -36,6 +39,8 @@ import { createLoop } from './gpu/loop.js';
 import { makeCamera, drawGrab, clearGrab, drawLens, drawKnobs, drawRing } from './ui/overlay.js';
 import { mutate, distancePx, features, createArchive, spread } from './core/breed.js';
 import { gridUVs } from './gpu/sense.js';
+import { surfaceNets, toStl, splatsToPly } from './core/export.js';
+import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
@@ -111,6 +116,7 @@ const state = {
   home: null,           // parameter values drift wanders about (set at every edit)
   pins: [],             // [{ x (world point), keys: ['oi.key', …] }]
   trans: null,          // a transition in progress (morph or flow)
+  exporting: null,      // { kind, progress } while an export runs; the live view pauses
 };
 
 // ---------- lineage and the structure layer -------------------------------------------------------
@@ -216,6 +222,7 @@ function drawStructureNow() {
     W: innerWidth, H: innerHeight, formula: f, depth,
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
     lineage: lineage.layout(), hover: state.hoverNode,
+    progress: state.exporting ? state.exporting.progress : null,
     pins: (() => {
       const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
       return state.pins.map((p) => C.project(p.x)).filter(Boolean);
@@ -237,6 +244,8 @@ structureSvg.addEventListener('pointermove', (e) => {
 });
 structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; drawStructureNow(); });
 structureSvg.addEventListener('click', (e) => {
+  const ex = e.target && e.target.dataset ? e.target.dataset.export : null;
+  if (ex) { exportAs(ex); return; }
   const id = e.target && e.target.dataset ? e.target.dataset.id : null;
   if (id) restore(lineage.jump(id));
 });
@@ -621,6 +630,7 @@ addEventListener('keydown', (e) => {
   stopReplay();
   if (e.code === 'KeyF' && grab && !e.repeat) { togglePin(); return; }
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && grab && !grab.knobs && !e.repeat) { openLens(); return; }
+  if (e.code === 'KeyS' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); exportAs('still'); return; }
   if (e.code === 'Tab') { e.preventDefault(); toggleStructure(); return; }
   if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault();
@@ -798,7 +808,7 @@ function tick() {
 // one frame; returns false when there was nothing to do. The capture rig calls it directly, since a
 // hidden page gets no animation frames.
 async function step() {
-  if (busy || !R) return false;
+  if (busy || !R || state.exporting) return false;
   const now = performance.now();
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -836,21 +846,8 @@ async function step() {
     pushFrame(b, clear, moving, drifting && !interacting);
   } else if (mode === 'loop') {
     loopFrame(b);
-  } else R.frame({
-    pos: state.cam.pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360),
-    right: b.right, aperture: L.aperture * Math.max(state.focus, 1e-4),
-    up: b.up, focus: Math.max(state.focus, 1e-4),
-    fwd: b.fwd, blend,
-    light: lamp, glow: L.glow, lampRange: L.lampRange * clear, lampPower: L.lampPower,
-    hue: L.hue, fog: L.fog / Math.max(clear * 8, 1e-4), exposure: L.exposure, terrace: L.terrace,
-    stepScale: L.stepScale, maxDist: L.maxDist, epsScale: L.epsScale, frame: state.frame,
-    key: L.key, ambient: L.ambient, maxSteps: L.maxSteps, glowWidth: L.glowWidth,
-    iridescence: L.iridescence, spread: L.spread, shadowK: L.shadowK, quality: moving ? 0 : 1,
-    lyapMix: L.lyapMix,
-    // centre the λ colours on this view's median, half-width from its spread (calibrated by sensing)
-    lyapCentre: state.sensed ? state.sensed.lyap.median : 0.9,
-    lyapScale: state.sensed ? 1 / Math.max((state.sensed.lyap.p90 - state.sensed.lyap.p10) / 2, 0.05) : 2,
-  });
+  } else R.frame(pullView(b, clear, blend, moving));
+  if (!moving && !state.trans && mode === 'pull' && R.compileJit) R.compileJit(state.formula).catch((e) => console.warn(e.message));
   if (!moving && state.senseDue && S) { state.senseDue = false; senseNow(); }
   else if (!interacting && mode === 'pull' && state.sensed && !state.senseDue) growArchive();
   state.n++;
@@ -872,13 +869,14 @@ async function step() {
 // Push: the constant for +c is the formula's own, or the point the camera looks at. The base splat
 // size ε is one pixel's footprint at the focus distance; the walk then stretches each splat to the
 // cell of the attractor it stands for.
-function pushFrame(b, clear, moving, drifting) {
+function pushFrame(b, clear, moving, drifting) { P.frame(pushView(b, clear, moving, drifting), canvas); }
+function pushView(b, clear, moving, drifting) {
   const L = state.look;
   const th = Math.tan((L.fovDeg * Math.PI) / 360);
   const [, ih] = P.size;
   const focus = Math.max(state.focus, 1e-4);
   const c = state.formula.c || add(state.cam.pos, b.fwd, focus);
-  P.frame({
+  return {
     pos: state.cam.pos, tanHalfFov: th, right: b.right, aperture: L.aperture * focus,
     up: b.up, focus, fwd: b.fwd, near: 1e-4,
     frame: state.frame, steps: moving ? L.pushSteps : L.pushSteps * 2,
@@ -887,7 +885,7 @@ function pushFrame(b, clear, moving, drifting) {
     key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: 1,
     decay: state.n === 0 ? 0 : drifting ? 0.85 : 1,
     gain: L.pushGain, exposure: L.pushExposure,
-  }, canvas);
+  };
 }
 
 // Loop: the formula's forward map as the optics of a feedback loop (gpu/loop.js). It never converges —
@@ -1048,6 +1046,147 @@ function replay() {
 }
 const stopReplay = () => { if (replayToken) { replayToken++; if (state.trans && state.trans.kind === 'walk' && !state.trans.commit) state.trans = null; } };
 
+// the pull frame's view (also the still renderer's and the video's)
+function pullView(b, clear, blend = 1, moving = false) {
+  const L = state.look;
+  const lamp = [0, 1, 2].map((i) => state.cam.pos[i] + (b.right[i] * L.lamp[0] + b.up[i] * L.lamp[1] + b.fwd[i] * L.lamp[2]) * clear);
+  return {
+    pos: state.cam.pos, tanHalfFov: Math.tan((L.fovDeg * Math.PI) / 360),
+    right: b.right, aperture: L.aperture * Math.max(state.focus, 1e-4),
+    up: b.up, focus: Math.max(state.focus, 1e-4),
+    fwd: b.fwd, blend,
+    light: lamp, glow: L.glow, lampRange: L.lampRange * clear, lampPower: L.lampPower,
+    hue: L.hue, fog: L.fog / Math.max(clear * 8, 1e-4), exposure: L.exposure, terrace: L.terrace,
+    stepScale: L.stepScale, maxDist: L.maxDist, epsScale: L.epsScale, frame: state.frame,
+    key: L.key, ambient: L.ambient, maxSteps: L.maxSteps, glowWidth: L.glowWidth,
+    iridescence: L.iridescence, spread: L.spread, shadowK: L.shadowK, quality: moving ? 0 : 1,
+    lyapMix: L.lyapMix,
+    lyapCentre: state.sensed ? state.sensed.lyap.median : 0.9,
+    lyapScale: state.sensed ? 1 / Math.max((state.sensed.lyap.p90 - state.sensed.lyap.p10) / 2, 0.05) : 2,
+  };
+}
+
+// ---------- exports ---------------------------------------------------------------------------------
+// The live view pauses while one runs; the hairline at the bottom of the Tab layer shows how far it is.
+
+function download(blob, name) {
+  window.__fe.lastExport = { blob, name };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+const baseName = () => 'fractal-' + hash(state.formula);
+const progress = (p) => { if (state.exporting) { state.exporting.progress = p; drawStructureNow(); } };
+const stillSize = (long) => (canvas.width >= canvas.height ? [long, Math.round((long * canvas.height) / canvas.width)] : [Math.round((long * canvas.width) / canvas.height), long]);
+
+// where: for the video, 'auto' (a folder or a ZIP the user picks) or 'opfs' (browser storage; tests)
+// maxFrames: for the video, stop after this many frames (tests)
+async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
+  if (state.exporting || !R) return null;
+  state.exporting = { kind, progress: 0 };
+  drawStructureNow();
+  const snapshot = { text: state.text, mode: state.mode, cam: JSON.parse(JSON.stringify(state.cam)) };
+  try {
+    const b = basis(state.cam), clear = Math.max(deAt(state.cam.pos), 1e-5);
+    if (kind === 'still') {
+      await R.compileJit(state.formula).catch(() => {});
+      const [W, H] = stillSize(3840);
+      const img = await R.renderStill(pullView(b, clear), W, H, { tile: 512, samples: 64, onProgress: progress });
+      const blob = await img.convertToBlob({ type: 'image/png' });
+      download(blob, `${baseName()}-${W}x${H}.png`);
+      return { W, H, bytes: blob.size, jit: R.jitReady };
+    }
+    if (kind === 'video') return await exportVideo(b, clear, where, maxFrames);
+    if (kind === 'splats') {
+      if (!P) throw new Error('no push engine');
+      // the push engine may never have run (pull mode): give it a histogram first
+      P.resize(canvas.width * state.scale, canvas.height * state.scale);
+      const v = pushView(b, clear, false, false);
+      const raw = await P.captureSplats(v, canvas, 200000, progress);
+      const L = state.look, len = Math.hypot(...L.key);
+      const samples = raw.map((q) => {
+        const film = [0, 0.33, 0.67].map((o) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (o + q.col * L.spread + L.hue)));
+        const rgb = L.key.map((k, i) => Math.min(1, k + (film[i] * len - k) * L.iridescence));
+        return { p: q.p, cov: q.cov, rgb };
+      });
+      const blob = new Blob([splatsToPly(samples)], { type: 'application/octet-stream' });
+      download(blob, `${baseName()}-splats.ply`);
+      return { splats: samples.length, bytes: blob.size };
+    }
+    if (kind === 'mesh') {
+      // the cube the camera sees at its focus distance, centred where it looks
+      const focus = Math.max(state.focus, 1e-3), half = focus * Math.tan((state.look.fovDeg * Math.PI) / 360);
+      const centre = add(state.cam.pos, b.fwd, focus);
+      const lo = centre.map((x) => x - half), hi = centre.map((x) => x + half);
+      const n = 128;
+      progress(0.1);
+      const field = await R.deGrid(lo, hi, n);
+      progress(0.6);
+      const step = (2 * half) / (n - 1);
+      // the surface sits half a cell out from where the estimate reaches zero
+      for (let i = 0; i < field.length; i++) field[i] -= step * 0.5;
+      const mesh = surfaceNets(field, n, lo, [step, step, step]);
+      progress(0.9);
+      const blob = new Blob([toStl(mesh)], { type: 'model/stl' });
+      download(blob, `${baseName()}-mesh.stl`);
+      return { triangles: mesh.indices.length / 3, bytes: blob.size, half };
+    }
+    return null;
+  } finally {
+    // the export may have borrowed the formula and the mode; give them back
+    if (state.text !== snapshot.text) setFormula(snapshot.text, true);
+    if (R) R.setFormula(state.formula);
+    state.mode = snapshot.mode;
+    state.cam = snapshot.cam;
+    state.exporting = null;
+    state.n = 0;
+    drawStructureNow();
+  }
+}
+
+// The lineage from its root to here, walked at constant visual speed (WALK_PX_S) at 30 frames a second,
+// rendered offline (16 samples a frame, 1920 px on the long side) into a PNG sequence — a folder or a
+// streamed ZIP, the same files moshine exports for editing. A change of structure is a cut.
+async function exportVideo(b, clear, where, maxFrames = Infinity) {
+  const path = [];
+  for (let n = lineage.byId(lineage.cur); n; n = n.parent != null ? lineage.byId(n.parent) : null) path.unshift(n);
+  if (path.length < 2) throw new Error('the lineage has one formula: nothing to walk');
+  const metric = state.sensed ? state.sensed.params : [];
+  const frames = [];
+  for (let i = 0; i < path.length; i++) {
+    const to = normalize(parse(path[i].text));
+    if (i === 0) { frames.push(to); continue; }
+    const from = normalize(parse(path[i - 1].text));
+    if (structureOf(from) !== structureOf(to) || !metric.length) { for (let k = 0; k < 15; k++) frames.push(to); continue; }
+    const steps = Math.max(1, Math.round((distancePx(from, to, metric) / WALK_PX_S) * 30));
+    for (let k = 1; k <= steps; k++) {
+      const g = JSON.parse(JSON.stringify(to));
+      g.slots.forEach((sl, si) => sl.forEach((o, j) => { for (const key of Object.keys(o.p)) o.p[key] = from.slots[si][j].p[key] + (to.slots[si][j].p[key] - from.slots[si][j].p[key]) * (k / steps); }));
+      frames.push(g);
+    }
+  }
+  // moshine's sequence target and frame sink, loaded only now: the engine does not depend on them
+  const { openSequenceTarget, createFrameSink } = await import('../moshine/frames.js');
+  if (frames.length > maxFrames) frames.length = maxFrames;
+  const target = await openSequenceTarget(baseName() + '-walk', where);
+  const sink = createFrameSink(target);
+  const [W, H] = stillSize(1920);
+  try {
+    for (let i = 0; i < frames.length; i++) {
+      R.setFormula(frames[i]);
+      state.formula = frames[i];
+      const img = await R.renderStill(pullView(b, clear), W, H, { tile: 1024, samples: 16 });
+      await sink.add(img);
+      progress((i + 1) / frames.length);
+    }
+    await sink.finish();
+  } catch (e) { await sink.cancel(); throw e; }
+  return { frames: frames.length, W, H, target: target.name };
+}
+
 // ---------- the parameter metric ----------------------------------------------------------------
 // How many CSS pixels the surface moves per unit of each parameter, measured from this view. A control
 // moved by Δ pixels of hand motion changes its parameter by Δ / pxPerUnit, so every control feels the
@@ -1117,6 +1256,8 @@ window.__fe = {
   ringClose: (choose = true) => closeRing(choose),
   ringItems: () => ring && ring.items.map((it) => ({ D: +(it.D || 0).toFixed(1), local: it.local, thumb: !!it.thumb, angle: it.angle && +it.angle.toFixed(2) })),
   replay: () => replay(),
+  export: (kind, where, maxFrames) => exportAs(kind, where, maxFrames),
+  get jitReady() { return R && R.jitReady; },
   stopReplay: () => stopReplay(),
   herd: (seconds, dt = 1 / 30) => { for (let t = 0; t < seconds; t += dt) herd(dt); return state.text; },
   transition: () => state.trans && { kind: state.trans.kind, then: state.trans.then },

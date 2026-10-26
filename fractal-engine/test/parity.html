@@ -14,6 +14,7 @@
 import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit } from '../core/index.js';
 import { INTERP, INVERSE, DUAL } from '../gpu/wgsl.js';
 import { pack, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES } from '../gpu/pack.js';
+import { withJit } from '../gpu/jit.js';
 
 const FORMULAS = [
   ['power 2 · +c ×64', 2.2],
@@ -130,6 +131,23 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   for (var k = 0u; k < 4u; k++) { ovRec0[k] = ov[2u + k]; ovRec1[k] = ov[6u + k]; }
   let p = pts[i].xyz;
   outp[i] = vec4f(de(p), 0.0, 0.0, 0.0);
+}`;
+
+// JIT: the same estimate from a shader compiled for the formula, and how much faster it runs
+const JIT_N = 1 << 18;
+const timedDE = INTERP + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts)) { return; }
+  // the JIT reads no op table; keep the binding alive so both versions take the same bind group
+  _ = ops[0];
+  // eight nearby points per thread, so the timing is the iteration and not the memory
+  var acc = 0.0;
+  for (var k = 0u; k < 8u; k++) { acc = acc + de(pts[i].xyz + vec3f(f32(k) * 1e-3, 0.0, 0.0)); }
+  outp[i] = vec4f(de(pts[i].xyz), acc, 0.0, 0.0);
 }`;
 
 const out = document.getElementById('out');
@@ -365,6 +383,64 @@ async function run() {
     [head, ops, pb, ob, rb, vb].forEach((b) => b.destroy());
   }
 
+  // JIT vs interpreter
+  const jitRows = [];
+  for (const [text, R] of FORMULAS) {
+    const f = normalize(parse(text));
+    const pk = pack(f);
+    const rng = makeRng(31);
+    const pts = new Float32Array(JIT_N * 4);
+    for (let i = 0; i < JIT_N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
+    const mk = (size, usage) => device.createBuffer({ size, usage });
+    const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    const ops = mk(MAX_OPS * REC * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const pb = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    device.queue.writeBuffer(head, 0, pk.head);
+    device.queue.writeBuffer(ops, 0, pk.ops);
+    device.queue.writeBuffer(pb, 0, pts);
+    const runOne = async (code) => {
+      const module = device.createShaderModule({ code });
+      const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+      if (errs.length) throw new Error('jit: ' + errs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
+      const pipe = await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+      const ob = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+      const rb = mk(pts.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+      const bg = device.createBindGroup({
+        layout: pipe.getBindGroupLayout(0),
+        entries: [head, ops, pb, ob].map((b, i) => ({ binding: i, resource: { buffer: b } })),
+      });
+      const go = () => {
+        const enc = device.createCommandEncoder();
+        const cp = enc.beginComputePass();
+        cp.setPipeline(pipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(JIT_N / 64)); cp.end();
+        device.queue.submit([enc.finish()]);
+        return device.queue.onSubmittedWorkDone();
+      };
+      await go(); // warm
+      const t0 = performance.now();
+      for (let k = 0; k < 4; k++) await go();
+      const ms = (performance.now() - t0) / 4;
+      const enc = device.createCommandEncoder();
+      enc.copyBufferToBuffer(ob, 0, rb, 0, pts.byteLength);
+      device.queue.submit([enc.finish()]);
+      await rb.mapAsync(GPUMapMode.READ);
+      const g = new Float32Array(rb.getMappedRange().slice(0));
+      rb.unmap();
+      ob.destroy(); rb.destroy();
+      return { g, ms };
+    };
+    const a = await runOne(timedDE);
+    const b = await runOne(withJit(timedDE, f));
+    const rels = [];
+    for (let i = 0; i < JIT_N; i += 16) {
+      const x = a.g[i * 4], y = b.g[i * 4];
+      rels.push(Math.abs(x - y) / Math.max(Math.abs(x), 1e-6));
+    }
+    rels.sort((p, q) => p - q);
+    jitRows.push({ formula: text, median: rels[rels.length >> 1], p99: rels[Math.floor(rels.length * 0.99)], interpMs: a.ms, jitMs: b.ms, speedup: a.ms / b.ms });
+    [head, ops, pb].forEach((q) => q.destroy());
+  }
+
   // pass: the median agrees to float precision, 99 % of points within 2 %, and fewer than 2 % of
   // orbits diverge in iteration count. The tail is float32, not a bug: a point within rounding of a
   // fold edge takes the other branch on one side (measured 2026-10-25: Mandelbox p99 0.4–0.9 %, every
@@ -377,12 +453,16 @@ async function run() {
   // 0.01 (the tails are fold edges, where a derivative jumps and central differences straddle it)
   const dualOk = dualRows.every((r) => r.gradDegMed < 1 && r.paramRelMed < 0.01 && r.lyapAbsMed < 0.01);
   const ovOk = ovRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2);
-  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk;
-  window.__parity = { ok, rows, invRows, dualRows, ovRows };
+  // the JIT is the same arithmetic in another order: float precision, the same fold-edge tails
+  const jitOk = jitRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2);
+  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk;
+  window.__parity = { ok, rows, invRows, dualRows, ovRows, jitRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
     `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n')
     + '\n\ninverse steps (GPU preimage → CPU forward)\n\n' + invRows.map((r) =>
     `${r.formula}\n  found ${r.found}/${N}  wrong ${r.wrong}  p99 err ${r.p99.toExponential(2)}`).join('\n\n')
+    + '\n\nJIT vs interpreter (' + JIT_N + ' points × 9 estimates)\n\n' + jitRows.map((r) =>
+    `${r.formula}\n  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  interpreter ${r.interpMs.toFixed(2)} ms  JIT ${r.jitMs.toFixed(2)} ms  ×${r.speedup.toFixed(2)}`).join('\n\n')
     + '\n\noverrides (lens): GPU record + d · d record/dθ vs CPU with the value changed\n\n' + ovRows.map((r) =>
     `${r.formula}  [${r.params}]\n  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}`).join('\n\n')
     + '\n\ndual numbers (GPU tangents vs CPU central differences)\n\n' + dualRows.map((r) =>

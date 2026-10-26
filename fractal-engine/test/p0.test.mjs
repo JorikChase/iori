@@ -242,3 +242,39 @@ test('breeding: a neighbour is the asked visual distance away; the archive keeps
   const picks = spread(A.elites(), { density: 0.5, chaos: 1 }, 1);
   assert.equal(picks[0].text, 'd');
 });
+
+test('exports: surface nets of a sphere, STL size, splat covariance round trip', async () => {
+  const { surfaceNets, toStl, eigenSym3, splatsToPly } = await import('../core/export.js');
+  // a sphere of radius 0.8 on a 24³ grid over [-1, 1]³
+  const n = 24, lo = [-1, -1, -1], step = [2 / (n - 1), 2 / (n - 1), 2 / (n - 1)];
+  const field = new Float32Array(n * n * n);
+  for (let z = 0; z < n; z++) for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    field[x + n * (y + n * z)] = Math.hypot(lo[0] + x * step[0], lo[1] + y * step[1], lo[2] + z * step[2]) - 0.8;
+  }
+  const m = surfaceNets(field, n, lo, step);
+  assert.ok(m.indices.length > 0 && m.indices.length % 3 === 0);
+  // every vertex sits near the sphere
+  for (let i = 0; i < m.positions.length; i += 3) {
+    const r = Math.hypot(m.positions[i], m.positions[i + 1], m.positions[i + 2]);
+    assert.ok(Math.abs(r - 0.8) < step[0], `vertex at r ${r}`);
+  }
+  // closed: every edge is shared by exactly two triangles
+  const edges = new Map();
+  for (let t = 0; t < m.indices.length; t += 3) for (let k = 0; k < 3; k++) {
+    const a = m.indices[t + k], b = m.indices[t + ((k + 1) % 3)];
+    const key = a < b ? a + ',' + b : b + ',' + a;
+    edges.set(key, (edges.get(key) || 0) + 1);
+  }
+  assert.ok([...edges.values()].every((c) => c === 2), 'watertight');
+  assert.equal(toStl(m).byteLength, 84 + (m.indices.length / 3) * 50);
+  // eigen: values and vectors reproduce the matrix
+  const A = [2, 0.3, 0.1, 0.3, 1, -0.2, 0.1, -0.2, 0.5];
+  const { values, vectors: V } = eigenSym3(A);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+    let s = 0;
+    for (let k = 0; k < 3; k++) s += V[i][k] * values[k] * V[j][k];
+    assert.ok(near(s, A[i * 3 + j], 1e-9), `A[${i}][${j}]`);
+  }
+  const ply = splatsToPly([{ p: [0, 0, 0], cov: [1, 0, 0, 1, 0, 1], rgb: [0.5, 0.5, 0.5] }]);
+  assert.ok(new TextDecoder().decode(new Uint8Array(ply, 0, 200)).startsWith('ply\nformat binary_little_endian'));
+});

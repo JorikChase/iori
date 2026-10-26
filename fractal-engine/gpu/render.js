@@ -6,9 +6,11 @@
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
 import { INTERP, DUAL } from './wgsl.js';
+import { withJit } from './jit.js';
+import { canonical } from '../core/formula.js';
 import { pack, MAX_OPS, REC, HEAD_BYTES } from './pack.js';
 
-const VIEW_FLOATS = 48;
+const VIEW_FLOATS = 52;
 
 export const MARCH = INTERP + DUAL + /* wgsl */ `
 struct View {
@@ -24,6 +26,7 @@ struct View {
   extra: vec4f,  // x iridescence, y colour spread, z shadow softness, w quality (0 moving, 1 still)
   lamp: vec4f,   // x falloff range, y intensity, z Lyapunov channel mix, w unused
   lyap: vec4f,   // x centre of the λ colour scale, y 1/half-width
+  tile: vec4f,   // a tile of a larger image: xy its offset, zw the whole image's size (0: no tile)
 };
 
 @group(1) @binding(0) var<uniform> view: View;
@@ -152,10 +155,14 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
 fn march(@builtin(global_invocation_id) gid: vec3u) {
   let res = vec2u(view.res.xy);
   if (gid.x >= res.x || gid.y >= res.y) { return; }
-  seed = pcg(gid.x + pcg(gid.y + pcg(u32(view.tune.w))));
-  let aspect = f32(res.x) / f32(res.y);
+  // a tile is an off-axis window of the whole image: its pixels keep their place in the full frame
+  let tiled = view.tile.z > 0.0;
+  let full = select(vec2f(res), view.tile.zw, tiled);
+  let at = vec2f(gid.xy) + select(vec2f(0.0), view.tile.xy, tiled);
+  seed = pcg(u32(at.x) + pcg(u32(at.y) + pcg(u32(view.tune.w))));
+  let aspect = full.x / full.y;
   let jitter = vec2f(rnd(), rnd());
-  let uv = ((vec2f(gid.xy) + jitter) / vec2f(res)) * 2.0 - 1.0;
+  let uv = ((at + jitter) / full) * 2.0 - 1.0;
   let th = view.pos.w;
   let dir = normalize(view.fwd.xyz + view.right.xyz * uv.x * th * aspect - view.up.xyz * uv.y * th);
   // thin lens
@@ -165,7 +172,7 @@ fn march(@builtin(global_invocation_id) gid: vec3u) {
   let focal = view.pos.xyz + dir * (view.up.w / dot(dir, view.fwd.xyz));
   let ro = view.pos.xyz + lens;
   let rd = normalize(focal - ro);
-  let pixelAngle = 2.0 * th / f32(res.y);
+  let pixelAngle = 2.0 * th / full.y;
   var c = shade(ro, rd, pixelAngle);
   if (!(c.x == c.x && c.y == c.y && c.z == c.z)) { c = vec3f(0.0); }
   c = min(c, vec3f(64.0));
@@ -421,7 +428,29 @@ export async function createRenderer(canvas) {
   const packView = (out, v, vw, vh) => out.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.blend,
     ...v.light, v.glow, v.hue, v.fog, v.exposure, v.terrace, v.stepScale, v.maxDist, v.epsScale, v.frame,
     ...v.key, v.ambient, vw, vh, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, v.lyapMix || 0, 0,
-    v.lyapCentre || 0, v.lyapScale || 1, 0, 0]);
+    v.lyapCentre || 0, v.lyapScale || 1, 0, 0, ...(v.tile || [0, 0, 0, 0])]);
+
+  // The JIT: a march pipeline compiled for one formula (gpu/jit.js), built in the background and used
+  // for still frames and final renders once it is ready; live editing keeps the interpreter.
+  let jit = null, jitKey = null, jitBuilding = null;
+  async function compileJit(f) {
+    const key = canonical(f);
+    if (jitKey === key || jitBuilding === key) return jitKey === key;
+    jitBuilding = key;
+    try {
+      const module = device.createShaderModule({ code: withJit(MARCH, f) });
+      const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+      if (errs.length) throw new Error('wgsl jit: ' + errs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
+      const pipe = await device.createComputePipelineAsync({
+        layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, viewLayout] }),
+        compute: { module, entryPoint: 'march' },
+      });
+      if (jitBuilding !== key) return false;  // the formula moved on while it compiled
+      jit = pipe; jitKey = key;
+      return true;
+    } finally { if (jitBuilding === key) jitBuilding = null; }
+  }
+  const jitFor = (f) => (f && jit && jitKey === canonical(f) ? jit : null);
 
   function frame(v) {
     packView(viewData, v, w, h);
@@ -430,7 +459,7 @@ export async function createRenderer(canvas) {
 
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline(marchPipe);
+    cp.setPipeline((v.quality > 0 && packed && jitFor(packed.formula)) || marchPipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, viewGroups[cur]);
     cp.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
@@ -517,9 +546,138 @@ export async function createRenderer(canvas) {
     return cv.toDataURL('image/jpeg', 0.8);
   }
 
+  // A still of any size, in off-axis tiles so no buffer is ever larger than a tile: each tile
+  // accumulates its samples (with the JIT when it is ready), is tonemapped and read back, and lands in
+  // its place in an OffscreenCanvas. The queue is drained after every few samples so the page stays
+  // responsive and nothing piles up. onProgress(fraction); returns the canvas.
+  async function renderStill(v, W, H, { tile = 512, samples = 64, onProgress = () => {}, cancelled = () => false } = {}) {
+    const outCanvas = new OffscreenCanvas(W, H);
+    const g2 = outCanvas.getContext('2d');
+    const pipe = (packed && jitFor(packed.formula)) || marchPipe;
+    const vb = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const db = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const vd = new Float32Array(VIEW_FLOATS);
+    const tiles = [];
+    for (let y = 0; y < H; y += tile) for (let x = 0; x < W; x += tile) tiles.push([x, y, Math.min(tile, W - x), Math.min(tile, H - y)]);
+    let done = 0;
+    for (const [ox, oy, tw, th] of tiles) {
+      if (cancelled()) break;
+      const tt = [0, 1].map(() => device.createTexture({ size: [tw, th], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING }));
+      const groups = [0, 1].map((i) => device.createBindGroup({
+        layout: viewLayout,
+        entries: [{ binding: 0, resource: { buffer: vb } }, { binding: 1, resource: tt[i].createView() }, { binding: 2, resource: tt[1 - i].createView() }],
+      }));
+      let c = 0;
+      for (let s = 0; s < samples; s++) {
+        packView(vd, { ...v, blend: 1 / (s + 1), frame: 7919 + s * 131, quality: 1, tile: [ox, oy, W, H] }, tw, th);
+        device.queue.writeBuffer(vb, 0, vd);
+        const enc = device.createCommandEncoder();
+        const cp = enc.beginComputePass();
+        cp.setPipeline(pipe);
+        cp.setBindGroup(0, formulaGroup);
+        cp.setBindGroup(1, groups[c]);
+        cp.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(th / 8));
+        cp.end();
+        device.queue.submit([enc.finish()]);
+        c = 1 - c;
+        if (s % 4 === 3) await device.queue.onSubmittedWorkDone();
+      }
+      const out = device.createTexture({ size: [tw, th], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+      const bpr = Math.ceil((tw * 4) / 256) * 256;
+      const rb = device.createBuffer({ size: bpr * th, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      device.queue.writeBuffer(db, 0, new Float32Array([tw, th, tw, th, v.exposure, 0, 0, 0, 0, 0, 0, 0]));
+      const dg = device.createBindGroup({
+        layout: dispLayout,
+        entries: [{ binding: 0, resource: { buffer: db } }, { binding: 1, resource: tt[c].createView() }, { binding: 2, resource: lensTex.createView() }],
+      });
+      const enc = device.createCommandEncoder();
+      const rp = enc.beginRenderPass({ colorAttachments: [{ view: out.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+      rp.setPipeline(dispPipe);
+      rp.setBindGroup(0, dg);
+      rp.draw(3);
+      rp.end();
+      enc.copyTextureToBuffer({ texture: out }, { buffer: rb, bytesPerRow: bpr }, [tw, th]);
+      device.queue.submit([enc.finish()]);
+      await rb.mapAsync(GPUMapMode.READ);
+      const src = new Uint8Array(rb.getMappedRange());
+      const img = new ImageData(tw, th);
+      const bgra = format.startsWith('bgra');
+      for (let yy = 0; yy < th; yy++) for (let xx = 0; xx < tw; xx++) {
+        const i = yy * bpr + xx * 4, o = (yy * tw + xx) * 4;
+        img.data[o] = src[i + (bgra ? 2 : 0)]; img.data[o + 1] = src[i + 1]; img.data[o + 2] = src[i + (bgra ? 0 : 2)]; img.data[o + 3] = 255;
+      }
+      rb.unmap();
+      g2.putImageData(img, ox, oy);
+      [rb, out, ...tt].forEach((t) => t.destroy());
+      done++;
+      onProgress(done / tiles.length);
+    }
+    vb.destroy(); db.destroy();
+    return outCanvas;
+  }
+
+  // The distance estimate on an n³ grid over [lo, hi] (the mesh export), in slabs so no buffer is huge.
+  const GRID = MARCH.slice(0, MARCH.indexOf('struct View')) + /* wgsl */ `
+struct G { lo: vec4f, step: vec4f, n: vec4u };
+@group(1) @binding(0) var<uniform> gv: G;
+@group(1) @binding(1) var<storage, read_write> gout: array<f32>;
+@compute @workgroup_size(4, 4, 4)
+fn grid(@builtin(global_invocation_id) gid: vec3u) {
+  let n = gv.n.x;
+  let zs = gv.n.y;   // slab depth
+  if (gid.x >= n || gid.y >= n || gid.z >= zs) { return; }
+  let z = gid.z + gv.n.z;
+  let p = gv.lo.xyz + vec3f(f32(gid.x), f32(gid.y), f32(z)) * gv.step.xyz;
+  gout[(gid.z * n + gid.y) * n + gid.x] = de(p);
+}`;
+  const gridLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  let gridPipe = null;
+  async function deGrid(lo, hi, n) {
+    if (!gridPipe) {
+      const module = device.createShaderModule({ code: GRID });
+      const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+      if (errs.length) throw new Error('wgsl grid: ' + errs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
+      gridPipe = await device.createComputePipelineAsync({ layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, gridLayout] }), compute: { module, entryPoint: 'grid' } });
+    }
+    const field = new Float32Array(n * n * n);
+    const slab = Math.max(1, Math.floor((1 << 22) / (n * n)));
+    const step = [0, 1, 2].map((k) => (hi[k] - lo[k]) / (n - 1));
+    const ub = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    for (let z0 = 0; z0 < n; z0 += slab) {
+      const zs = Math.min(slab, n - z0), bytes = n * n * zs * 4;
+      const ob = device.createBuffer({ size: bytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+      const rb = device.createBuffer({ size: bytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      const ud = new ArrayBuffer(48), uf = new Float32Array(ud), uu = new Uint32Array(ud);
+      uf.set([...lo, 0, ...step, 0]); uu[8] = n; uu[9] = zs; uu[10] = z0;
+      device.queue.writeBuffer(ub, 0, ud);
+      const bg = device.createBindGroup({ layout: gridLayout, entries: [{ binding: 0, resource: { buffer: ub } }, { binding: 1, resource: { buffer: ob } }] });
+      const enc = device.createCommandEncoder();
+      const cp = enc.beginComputePass();
+      cp.setPipeline(gridPipe);
+      cp.setBindGroup(0, formulaGroup);
+      cp.setBindGroup(1, bg);
+      cp.dispatchWorkgroups(Math.ceil(n / 4), Math.ceil(n / 4), Math.ceil(zs / 4));
+      cp.end();
+      enc.copyBufferToBuffer(ob, 0, rb, 0, bytes);
+      device.queue.submit([enc.finish()]);
+      await rb.mapAsync(GPUMapMode.READ);
+      field.set(new Float32Array(rb.getMappedRange()), z0 * n * n);
+      rb.unmap();
+      ob.destroy(); rb.destroy();
+    }
+    ub.destroy();
+    return field;
+  }
+
   // the push engine shares the device, the canvas and the formula buffers
   return {
     device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens, renderThumb,
+    compileJit, renderStill, deGrid, get jitReady() { return !!(packed && jitFor(packed.formula)); },
     // the latest pull image, for the loop engine to start from
     accumView: () => (tex.length ? tex[cur].createView() : null),
     get size() { return [w, h]; }, get packed() { return packed; },

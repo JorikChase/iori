@@ -27,3 +27,11 @@ export function glyphPath(id, x, y, size = 24) {
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
+
+// export glyphs (the structure layer): a still, a film, splats, a mesh
+export const EXPORT_GLYPHS = {
+  still: 'M3 5h18v14H3zM3 15l5-5 4 4 3-3 6 6',
+  video: 'M2 5h20v14H2zM5 5v14M19 5v14M2 9h3M2 15h3M19 9h3M19 15h3M10 9l5 3-5 3z',
+  splats: 'M7 8a2.5 2.5 0 1 0 .01 0M16 6a1.5 1.5 0 1 0 .01 0M15 15a3.5 2 30 1 0 .01 0M7 17a1.5 1.5 0 1 0 .01 0M12 11a1 1 0 1 0 .01 0',
+  mesh: 'M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12v10M12 12L3 7',
+};

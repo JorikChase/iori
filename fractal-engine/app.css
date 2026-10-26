@@ -55,3 +55,6 @@ body.grab #field { cursor: grabbing; }
 #grab .rg .dot { fill: #fff; stroke: none; }
 #grab .rg .sel { stroke-width: 1.5; }
 #grab .rg .far { stroke-dasharray: 2 3; }
+#structure .ex { opacity: 0.6; }
+#structure .ex .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
+#structure .pg { stroke-width: 1.5; opacity: 0.9; }

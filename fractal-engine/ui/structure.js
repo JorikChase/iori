@@ -9,13 +9,14 @@
 //
 // Nothing here has words. Coordinates are CSS pixels.
 
-import { glyphPath } from './glyphs.js';
+import { glyphPath, EXPORT_GLYPHS } from './glyphs.js';
 import { getOp } from '../core/ops.js';
 
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
 
 // s: { W, H, formula (normalized), depth (iterations at the centre), attention (op index or null),
-//      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions) }
+//      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions),
+//      progress (0..1 while an export runs, else null) }
 export function drawStructure(svg, s) {
   const out = [];
   const { W, H, formula: f } = s;
@@ -77,6 +78,16 @@ export function drawStructure(svg, s) {
     }
     out.push('</g>');
   }
+
+  // exports, bottom right: still, video, splats, mesh — click one; a hairline at the bottom fills as it runs
+  out.push('<g class="ex">');
+  ['still', 'video', 'splats', 'mesh'].forEach((k, i) => {
+    const ex = W - 190 + i * 44, ey = H - 52;
+    out.push(`<path d="${EXPORT_GLYPHS[k]}" transform="translate(${ex - 12} ${ey - 12})"/>`);
+    out.push(`<rect class="hit" data-export="${k}" x="${ex - 18}" y="${ey - 18}" width="36" height="36"/>`);
+  });
+  out.push('</g>');
+  if (s.progress != null) out.push(`<path class="pg" d="M0 ${H - 1}H${f1(W * s.progress)}"/>`);
 
   // pins: where the composition is held still
   for (const [px, py] of s.pins || []) out.push(`<g class="pn"><circle cx="${f1(px)}" cy="${f1(py)}" r="6"/><circle class="pd" cx="${f1(px)}" cy="${f1(py)}" r="1.5"/></g>`);

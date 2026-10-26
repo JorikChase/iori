@@ -35,7 +35,7 @@ struct PView {
   cpush: vec4f,  // xyz the constant for +c, w base splat size ε (world units)
   look: vec4f,   // x hue, y iridescence, z colour spread, w max splat radius (px)
   key: vec4f,    // rgb key colour, w fog density
-  misc: vec4f,   // x burn-in steps, y seed, z respawn radius, w unused
+  misc: vec4f,   // x burn-in steps, y seed, z respawn radius, w 1 while capturing splats
 };
 
 struct Walker {
@@ -49,6 +49,8 @@ const HISTORY = ${HISTORY}u;
 @group(1) @binding(1) var<storage, read_write> walkers: array<Walker>;
 @group(1) @binding(2) var<storage, read_write> hist: array<atomic<u32>>;
 @group(1) @binding(3) var<storage, read_write> stacks: array<vec4f>;   // HISTORY entries per walker: p, colour
+@group(1) @binding(4) var<storage, read_write> capture: array<vec4f>;  // 3 per sample: p + colour, Σ diagonal, Σ off-diagonal
+@group(1) @binding(5) var<storage, read_write> captured: array<atomic<u32>>;
 
 struct Inv { p: vec3f, col: f32, ok: bool };
 
@@ -202,6 +204,14 @@ fn walk(@builtin(global_invocation_id) gid: vec3u) {
     if (f32(w.age) > pv.misc.x) {
       let S = mat3x3f(vec3f(w.sd.x, w.so.x, w.so.y), vec3f(w.so.x, w.sd.y, w.so.z), vec3f(w.so.y, w.so.z, w.sd.z));
       splat(res.p, S, res.col);
+      if (pv.misc.w > 0.5) {
+        let k = atomicAdd(&captured[0], 1u);
+        if (k < arrayLength(&capture) / 3u) {
+          capture[k * 3u] = vec4f(res.p, res.col);
+          capture[k * 3u + 1u] = vec4f(w.sd, 0.0);
+          capture[k * 3u + 2u] = vec4f(w.so, 0.0);
+        }
+      }
     }
   }
   w.rng = rngState;
@@ -267,6 +277,8 @@ export async function createPush(R, { walkers = 32768 } = {}) {
       { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
       { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
       { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+      { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+      { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
     ],
   });
   const resolveLayout = device.createBindGroupLayout({
@@ -314,6 +326,10 @@ export async function createPush(R, { walkers = 32768 } = {}) {
   const dispBuf = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const walkerBuf = device.createBuffer({ size: walkers * WALKER_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const stackBuf = device.createBuffer({ size: walkers * HISTORY * 16, usage: GPUBufferUsage.STORAGE });
+  // capture targets: a dummy pair when not capturing
+  let capBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+  let capCount = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+  let capturing = false;
 
   let w = 0, h = 0, hist = null, accum = null, walkGroup, resolveGroup, dispGroup;
   let weight = 0; // Σ of the decay weights in the accumulation
@@ -325,13 +341,7 @@ export async function createPush(R, { walkers = 32768 } = {}) {
     if (hist) { hist.destroy(); accum.destroy(); }
     hist = device.createBuffer({ size: w * h * 16, usage: GPUBufferUsage.STORAGE });
     accum = device.createBuffer({ size: w * h * 16, usage: GPUBufferUsage.STORAGE });
-    walkGroup = device.createBindGroup({
-      layout: viewLayout,
-      entries: [
-        { binding: 0, resource: { buffer: pvBuf } }, { binding: 1, resource: { buffer: walkerBuf } },
-        { binding: 2, resource: { buffer: hist } }, { binding: 3, resource: { buffer: stackBuf } },
-      ],
-    });
+    makeWalkGroup();
     resolveGroup = device.createBindGroup({
       layout: resolveLayout,
       entries: [{ binding: 0, resource: { buffer: rvBuf } }, { binding: 1, resource: { buffer: hist } }, { binding: 2, resource: { buffer: accum } }],
@@ -344,6 +354,60 @@ export async function createPush(R, { walkers = 32768 } = {}) {
     return true;
   }
 
+  function makeWalkGroup() {
+    if (!hist) return;
+    walkGroup = device.createBindGroup({
+      layout: viewLayout,
+      entries: [
+        { binding: 0, resource: { buffer: pvBuf } }, { binding: 1, resource: { buffer: walkerBuf } },
+        { binding: 2, resource: { buffer: hist } }, { binding: 3, resource: { buffer: stackBuf } },
+        { binding: 4, resource: { buffer: capBuf } }, { binding: 5, resource: { buffer: capCount } },
+      ],
+    });
+  }
+
+  // Splats: run frames with capture on until `count` samples (past burn-in) are recorded, then read
+  // them back: { p, col, cov } per sample, cov = [xx, xy, xz, yy, yz, zz] — the walk's own Σ.
+  async function captureSplats(v, canvas, count, onProgress = () => {}) {
+    capBuf.destroy(); capCount.destroy();
+    capBuf = device.createBuffer({ size: count * 48, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    capCount = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(capCount, 0, new Uint32Array(4));
+    makeWalkGroup();
+    capturing = true;
+    const rb = device.createBuffer({ size: 16, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    let got = 0;
+    try {
+      for (let i = 0; i < 400 && got < count; i++) {
+        frame({ ...v, frame: v.frame + i, decay: 1 }, canvas);
+        const enc = device.createCommandEncoder();
+        enc.copyBufferToBuffer(capCount, 0, rb, 0, 16);
+        device.queue.submit([enc.finish()]);
+        await rb.mapAsync(GPUMapMode.READ);
+        got = new Uint32Array(rb.getMappedRange())[0];
+        rb.unmap();
+        onProgress(Math.min(1, got / count));
+      }
+      const n = Math.min(got, count);
+      const out = device.createBuffer({ size: Math.max(48, n * 48), usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      const enc = device.createCommandEncoder();
+      enc.copyBufferToBuffer(capBuf, 0, out, 0, Math.max(48, n * 48));
+      device.queue.submit([enc.finish()]);
+      await out.mapAsync(GPUMapMode.READ);
+      const d = new Float32Array(out.getMappedRange().slice(0));
+      out.unmap(); out.destroy();
+      const samples = [];
+      for (let k = 0; k < n; k++) {
+        const o = k * 12;
+        samples.push({ p: [d[o], d[o + 1], d[o + 2]], col: d[o + 3], cov: [d[o + 4], d[o + 8], d[o + 9], d[o + 5], d[o + 10], d[o + 6]] });
+      }
+      return samples;
+    } finally {
+      capturing = false;
+      rb.destroy();
+    }
+  }
+
   // new formula: walkers forget where they were
   function resetWalkers() {
     device.queue.writeBuffer(walkerBuf, 0, new Uint8Array(walkers * WALKER_BYTES));
@@ -354,7 +418,7 @@ export async function createPush(R, { walkers = 32768 } = {}) {
   function frame(v, canvas) {
     pv.set([...v.pos, v.tanHalfFov, ...v.right, v.aperture, ...v.up, v.focus, ...v.fwd, v.near,
       w, h, v.frame, v.steps, ...v.c, v.eps, v.hue, v.iridescence, v.spread, v.maxRadius,
-      ...v.key, v.fog, v.burn, v.seed, v.spawn, 0]);
+      ...v.key, v.fog, v.burn, v.seed, v.spawn, capturing ? 1 : 0]);
     device.queue.writeBuffer(pvBuf, 0, pv);
     weight = weight * v.decay + 1;
     device.queue.writeBuffer(rvBuf, 0, new Float32Array([w, h, v.decay, 0]));
@@ -384,7 +448,7 @@ export async function createPush(R, { walkers = 32768 } = {}) {
   }
 
   resetWalkers();
-  return { resize, frame, resetWalkers, walkers, get size() { return [w, h]; } };
+  return { resize, frame, resetWalkers, captureSplats, walkers, get size() { return [w, h]; } };
 }
 
 export { WALK };

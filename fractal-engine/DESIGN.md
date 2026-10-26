@@ -412,7 +412,39 @@ last pull image, not the push image; pins are per page (not saved in the lineage
 Not yet: structural mutations (adding, removing or swapping ops) — neighbours vary parameters only;
 the archive's features are view-dependent, so it restarts after a flight; recorded animation paths
 beyond lineage replay (P8 brings export).
-Next: P8 (final render — JIT WGSL, 4K tiles, video, splat and mesh export).
+
+**P8 done 2026-10-26** — final render and export:
+
+- `gpu/jit.js`: one formula compiled into its own `iterate` — every parameter a literal, rotations
+  and normals resolved, the schedule unrolled, no op-table reads, no switch; the same statements as
+  the interpreter's `opFwd`. `withJit` swaps it into any shader source. Built in the background
+  (`createComputePipelineAsync`) once the view is still, used for still frames and stills; live
+  editing keeps the interpreter. Parity (`test/parity.html`, 2¹⁸ points × 9 estimates, 8 formulas):
+  median relative error ≤ 6e-7, the same fold-edge tails; ×1.8–×12.5 faster (Mandelboxes ×9 and ×12.5,
+  folds and powers ×2–3).
+- Stills (⌘S or the frame glyph): 3840 px on the long side at the view's aspect, 64 samples, shadows,
+  JIT; rendered as 512² off-axis tiles (the View gained a tile offset and full size, so each tile is
+  exactly its window of the full frame) and assembled in an OffscreenCanvas → PNG download. Measured on
+  the arrive view (3754×3840 in the tall test pane): seams invisible — the step across tile boundaries
+  13.4 vs 12.7 between ordinary neighbouring columns; it took over 45 s.
+- Video (film glyph): the lineage from its root to here, walked at 150 px/s by the metric at 30 fps
+  (a structure change is a cut), rendered offline at 1920 px long side and 16 samples per frame into a
+  PNG sequence through moshine's sink (`moshine/frames.js`, loaded only when a video starts: a folder
+  the user picks, or a streamed ZIP64). Verified: a 4-frame test ZIP with four valid PNGs. Slow: ~11 s
+  a frame, because every frame has new parameters and so runs on the interpreter (a JIT that keeps the
+  structure but reads parameters from the buffer would fix it).
+- Splats (dots glyph): push samples captured on the GPU with their walk covariance (an atomic append
+  buffer bound to the walk), Σ eigendecomposed into scales and a rotation, branch colour through the
+  key tint → 3DGS binary PLY, degree-0 SH (`core/export.js splatsToPly`). Verified on the tetrahedron:
+  200,000 splats in 0.7 s, 13.6 MB, every one in the pull set, unit quaternions.
+- Mesh (cube glyph): the distance estimate on a 128³ grid over the cube the camera sees at its focus
+  distance (`R.deGrid`, in slabs), shifted half a cell, surface nets → binary STL
+  (`core/export.js`, unit-tested watertight on a sphere). Verified on the arrive view: 451,048
+  triangles, 22.5 MB, 0.4 s.
+- The live view pauses during an export; a hairline at the bottom of the Tab layer fills as it runs.
+
+Not yet: a parameter-buffered JIT for fast video; MP4/WebM encoding (the sequence is for an editor);
+splats with higher-order SH; a mesh region other than the focus cube.
 
 ## Sources
 

@@ -108,6 +108,30 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   outp[o + 1u] = vec4f(deTan(d.t, d.q, d.qdr), d.lyap, 0.0, 0.0);
 }`;
 
+// Overrides (the atlas lens): the GPU's estimate with two parameters varied through ovD · d record/dθ
+// against the CPU's estimate of the formula with those values actually changed. Linear parameters only.
+const OV_CASES = [
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100', 4, [[0, 'l'], [1, 'rfix']]],
+  ['fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100', 4, [[2, 's'], [1, 'rmin']]],
+  ['abs · sort · scale 3 · + -2 -2 0 ×8 bail=50', 2, [[2, 's'], [3, 'x']]],
+  ['bulb 8 · +c ×10 bail=2', 1.3, [[0, 'n']]],
+];
+const OV_SHADER = INTERP + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@group(0) @binding(4) var<storage, read> ov: array<vec4f>;   // [oi0, oi1, n, 0], d (xy per point in pts.w? no: global), recs
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts)) { return; }
+  ov0 = u32(ov[0].x);
+  ov1 = select(0xffffffffu, u32(ov[0].y), ov[0].z > 1.5);
+  ovD = ov[1].xy;
+  for (var k = 0u; k < 4u; k++) { ovRec0[k] = ov[2u + k]; ovRec1[k] = ov[6u + k]; }
+  let p = pts[i].xyz;
+  outp[i] = vec4f(de(p), 0.0, 0.0, 0.0);
+}`;
+
 const out = document.getElementById('out');
 async function run() {
   const adapter = await navigator.gpu.requestAdapter();
@@ -287,6 +311,60 @@ async function run() {
     [head, ops, pb, ob, rb, tb].forEach((b) => b.destroy());
   }
 
+  // overrides
+  const ovModule = device.createShaderModule({ code: OV_SHADER });
+  const ovErrs = (await ovModule.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+  if (ovErrs.length) throw new Error(ovErrs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
+  const ovPipe = device.createComputePipeline({ layout: 'auto', compute: { module: ovModule, entryPoint: 'main' } });
+  const ovRows = [];
+  for (const [text, R, params] of OV_CASES) {
+    const f = normalize(parse(text));
+    const pk = pack(f);
+    const tg = paramTangents(f).list;
+    const ds = params.map((_, i) => [0.07, -0.05][i]);
+    const g = JSON.parse(JSON.stringify(f));
+    const flat = g.slots.flat();
+    params.forEach(([oi, key], i) => { flat[oi].p[key] += ds[i]; });
+    const ovData = new Float32Array(40);
+    ovData.set([params[0][0], params[1] ? params[1][0] : 0, params.length, 0, ds[0], ds[1] || 0, 0, 0]);
+    params.forEach(([oi, key], i) => ovData.set(tg.find((t) => t.oi === oi && t.key === key).drec, 8 + i * 16));
+    const rng = makeRng(21);
+    const pts = new Float32Array(N * 4);
+    for (let i = 0; i < N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
+    const mk = (size, usage) => device.createBuffer({ size, usage });
+    const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    const ops = mk(MAX_OPS * REC * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const pb = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const ob = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+    const rb = mk(pts.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+    const vb = mk(ovData.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    device.queue.writeBuffer(head, 0, pk.head);
+    device.queue.writeBuffer(ops, 0, pk.ops);
+    device.queue.writeBuffer(pb, 0, pts);
+    device.queue.writeBuffer(vb, 0, ovData);
+    const bg = device.createBindGroup({
+      layout: ovPipe.getBindGroupLayout(0),
+      entries: [head, ops, pb, ob, vb].map((b, i) => ({ binding: i, resource: { buffer: b } })),
+    });
+    const enc = device.createCommandEncoder();
+    const cp = enc.beginComputePass();
+    cp.setPipeline(ovPipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(N / 64)); cp.end();
+    enc.copyBufferToBuffer(ob, 0, rb, 0, pts.byteLength);
+    device.queue.submit([enc.finish()]);
+    await rb.mapAsync(GPUMapMode.READ);
+    const gd = new Float32Array(rb.getMappedRange().slice(0));
+    rb.unmap();
+    const rels = [];
+    for (let i = 0; i < N; i++) {
+      const p = [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]];
+      const c = de(g, p);
+      rels.push(Math.abs(gd[i * 4] - c) / Math.max(Math.abs(c), 1e-4));
+    }
+    rels.sort((a, b) => a - b);
+    ovRows.push({ formula: text, params: params.map((q) => q.join('.')).join(' '), median: rels[N >> 1], p99: rels[Math.floor(N * 0.99)] });
+    [head, ops, pb, ob, rb, vb].forEach((b) => b.destroy());
+  }
+
   // pass: the median agrees to float precision, 99 % of points within 2 %, and fewer than 2 % of
   // orbits diverge in iteration count. The tail is float32, not a bug: a point within rounding of a
   // fold edge takes the other branch on one side (measured 2026-10-25: Mandelbox p99 0.4–0.9 %, every
@@ -298,12 +376,15 @@ async function run() {
   // duals: gradients within a degree and parameter derivatives within 1 % for most points, λ within
   // 0.01 (the tails are fold edges, where a derivative jumps and central differences straddle it)
   const dualOk = dualRows.every((r) => r.gradDegMed < 1 && r.paramRelMed < 0.01 && r.lyapAbsMed < 0.01);
-  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk;
-  window.__parity = { ok, rows, invRows, dualRows };
+  const ovOk = ovRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2);
+  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk;
+  window.__parity = { ok, rows, invRows, dualRows, ovRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
     `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n')
     + '\n\ninverse steps (GPU preimage → CPU forward)\n\n' + invRows.map((r) =>
     `${r.formula}\n  found ${r.found}/${N}  wrong ${r.wrong}  p99 err ${r.p99.toExponential(2)}`).join('\n\n')
+    + '\n\noverrides (lens): GPU record + d · d record/dθ vs CPU with the value changed\n\n' + ovRows.map((r) =>
+    `${r.formula}  [${r.params}]\n  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}`).join('\n\n')
     + '\n\ndual numbers (GPU tangents vs CPU central differences)\n\n' + dualRows.map((r) =>
     `${r.formula}\n  gradient angle median ${r.gradDegMed.toFixed(3)}° p90 ${r.gradDegP90.toFixed(2)}°   ∂DE/∂θ (${r.params} params) median rel ${r.paramRelMed.toExponential(2)} p90 ${r.paramRelP90.toExponential(2)}   λ median |err| ${r.lyapAbsMed.toExponential(2)} p90 ${r.lyapAbsP90.toExponential(2)}`).join('\n\n');
 }

@@ -6,6 +6,10 @@
 //   P, double-click pull ⇄ push: the same formula forward per pixel (the cave) or backward per sample
 //                   (the nebula). Without a fixed c, push shows the Julia set of the point you look at.
 //   L               the Lyapunov channel: where nearby orbits separate the surface runs hot and glows
+//   shift (in a grab) the atlas lens: the view becomes the map of two of the op's parameters, coloured by
+//                   how far the surface would be from the held point; move to travel it, let go to close
+//   tab             the structure layer: depth ruler, op strip, lineage (click a dot to return there)
+//   ⌘Z / ⇧⌘Z        back to the parent formula / forward to the newest child (ctrl on other systems)
 //   hold            (still for 280 ms) grab what is under the cursor: the op that moves the surface most
 //                   there shows its handle, the reticle and the point's orbit; drag sideways to edit it at
 //                   a constant pixels-per-pixel rate, scroll to pass attention to the next op, Esc undoes
@@ -17,7 +21,10 @@ import { parse, format, validate, normalize, iterate, getOp, de as cpuDe } from 
 import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
 import { createSense } from './gpu/sense.js';
-import { makeCamera, drawGrab, clearGrab } from './ui/overlay.js';
+import { makeCamera, drawGrab, clearGrab, drawLens } from './ui/overlay.js';
+import { paramTangents } from './gpu/pack.js';
+import { createLineage } from './ui/lineage.js';
+import { drawStructure } from './ui/structure.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
 // keeping the enclosed ones), turned toward a terraced amphitheatre
@@ -72,7 +79,73 @@ const state = {
   mode: 'pull',         // 'pull' | 'push'
   sensed: null,         // the last sensing pass: parameter metric and λ statistics for this view
   senseDue: true,
+  structure: false,     // Tab: ruler, op strip, lineage, and terraces on the surface
+  thumbDue: null,       // lineage node waiting for its thumbnail
+  hoverNode: null,
 };
+
+// ---------- lineage and the structure layer -------------------------------------------------------
+
+const lineage = createLineage();
+const structureSvg = document.getElementById('structure');
+
+function remember() {
+  const node = lineage.commit({ text: state.text, cam: { pos: [...state.cam.pos], yaw: state.cam.yaw, pitch: state.cam.pitch }, mode: state.mode });
+  if (!node.thumb) state.thumbDue = node.id;
+  drawStructureNow();
+}
+
+function restore(node) {
+  if (!node) return;
+  exitGrab();
+  setFormula(node.text);
+  state.cam = { pos: [...node.cam.pos], yaw: node.cam.yaw, pitch: node.cam.pitch };
+  if (node.mode === 'push' && !P) state.mode = 'pull'; else state.mode = node.mode;
+  touched();
+  writeHash();
+  drawStructureNow();
+}
+
+// a small JPEG of the canvas, taken right after a frame was submitted
+function captureThumb() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 192; c.height = Math.round(192 * canvas.height / canvas.width);
+    c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.7);
+  } catch { return null; }
+}
+
+function drawStructureNow() {
+  if (!state.structure || !state.formula) { structureSvg.innerHTML = ''; return; }
+  const f = normalize(state.formula);
+  const b = basis(state.cam);
+  const centre = add(state.cam.pos, b.fwd, Math.max(state.focus, 1e-4));
+  const depth = iterate(f, centre, f.c || centre).n;
+  drawStructure(structureSvg, {
+    W: innerWidth, H: innerHeight, formula: f, depth,
+    attention: typeof grab !== 'undefined' && grab ? grab.ranked[grab.k].oi : null,
+    lineage: lineage.layout(), hover: state.hoverNode,
+  });
+}
+
+function toggleStructure() {
+  state.structure = !state.structure;
+  // terrace bands appear with the structure, not before
+  state.look.terrace = state.structure ? 1.5 : 0;
+  touched();
+  drawStructureNow();
+}
+
+structureSvg.addEventListener('pointermove', (e) => {
+  const id = e.target && e.target.dataset ? +e.target.dataset.id || null : null;
+  if (id !== state.hoverNode) { state.hoverNode = id; drawStructureNow(); }
+});
+structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; drawStructureNow(); });
+structureSvg.addEventListener('click', (e) => {
+  const id = e.target && e.target.dataset ? +e.target.dataset.id : NaN;
+  if (Number.isFinite(id)) restore(lineage.jump(id));
+});
 
 // ---------- camera ---------------------------------------------------------------------------------
 
@@ -229,9 +302,85 @@ function passAttention(step, x) {
   drawGrabNow();
 }
 
+// ---------- the atlas lens --------------------------------------------------------------------------
+// Two parameters of the attention op (or the next in the ranking) span the view; their ranges are what a
+// drag across the screen reaches at the local metric, so the map and the hand agree. Rotation angles and
+// plane normals are not offered: their records are not linear in them and the lens varies records.
+
+const NONLINEAR = (p) => p.op === 'rotate' || (p.op === 'fold.plane' && p.key !== 'd');
+const INSET_R = 70;
+let lens = null;
+
+function openLens() {
+  if (!grab || lens) return false;
+  const att = grab.ranked[grab.k];
+  const linear = grab.ranked.filter((p) => !NONLINEAR(p));
+  const p1 = !NONLINEAR(att) ? att : linear[0];
+  if (!p1) return false;
+  const p2 = linear.find((p) => p !== p1 && p.oi === p1.oi) || linear.find((p) => p !== p1);
+  const tg = paramTangents(state.formula).list;
+  const drecOf = (p) => tg.find((t) => t.oi === p.oi && t.key === p.key).drec;
+  const f = normalize(state.formula);
+  const valueOf = (p) => f.slots.flat()[p.oi].p[p.key];
+  const th = Math.tan((state.look.fovDeg * Math.PI) / 360);
+  const foot = grab.t * (2 * th) / innerHeight;
+  const dpr = canvas.width / innerWidth;
+  const params = p2 ? [p1, p2] : [p1];
+  R.lens({
+    x: grab.hit, foot, spans: [innerWidth / p1.pxPerUnit, p2 ? innerHeight / p2.pxPerUnit : 0],
+    ops: params.map((p) => p.oi), drecs: params.map(drecOf),
+    size: [Math.round(canvas.width / 2), Math.round(canvas.height / 2)], key: state.look.key,
+  });
+  const inset = [innerWidth - INSET_R - 30, innerHeight - INSET_R - 30, INSET_R];
+  R.setLens(true, inset.map((v) => v * dpr));
+  lens = { params, v0: params.map(valueOf), x0: null, y0: null, at: [innerWidth / 2, innerHeight / 2], inset };
+  drawLensNow();
+  return true;
+}
+
+function moveLens(x, y) {
+  if (lens.x0 === null) { lens.x0 = x; lens.y0 = y; }
+  const dx = x - lens.x0, dy = y - lens.y0;
+  lens.at = [innerWidth / 2 + dx, innerHeight / 2 + dy];
+  let g = state.formula;
+  lens.params.forEach((p, i) => {
+    const q = getOp(p.op).params.find((r) => r.k === p.key);
+    let v = lens.v0[i] + (i === 0 ? dx : -dy) / p.pxPerUnit;
+    if (q.min !== undefined) v = Math.max(q.min, v);
+    if (q.max !== undefined) v = Math.min(q.max, v);
+    g = withParam(g, p.oi, p.key, +v.toPrecision(6));
+  });
+  setFormula(format(g));
+  drawLensNow();
+}
+
+function drawLensNow() {
+  const f = normalize(state.formula);
+  drawLens(overlay, {
+    W: innerWidth, H: innerHeight, at: lens.at, inset: lens.inset,
+    glyphs: lens.params.map((p) => getOp(p.op).glyph),
+    values: lens.params.map((p) => f.slots.flat()[p.oi].p[p.key]),
+  });
+}
+
+function closeLens() {
+  if (!lens) return;
+  lens = null;
+  R.setLens(false);
+  if (grab) {
+    // the grab carries on from where the lens left the formula
+    const att = grab.ranked[grab.k];
+    grab.value0 = normalize(state.formula).slots.flat()[att.oi].p[att.key];
+    grab.x0 = pointers.size ? [...pointers.values()][0].x : grab.x0;
+    drawGrabNow();
+  } else clearGrab(overlay);
+}
+
 function exitGrab(revert = false) {
+  closeLens();
   if (!grab) return;
   if (revert) setFormula(grab.text0);
+  else if (state.text !== grab.text0) remember();
   grab = null;
   clearGrab(overlay);
   state.senseDue = true;
@@ -254,6 +403,7 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
+  if (lens) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moveLens(e.clientX, e.clientY); return; }
   if (grab) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); editGrab(e.clientX); return; }
   // still deciding: a press that becomes a grab must not turn the camera meanwhile
   if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) <= HOLD_SLOP) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
@@ -304,17 +454,29 @@ function toggleMode() {
   state.mode = state.mode === 'pull' ? 'push' : 'pull';
   touched();
   writeHash();
+  remember();
 }
 canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && grab) { exitGrab(true); return; }
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && grab && !e.repeat) { openLens(); return; }
+  if (e.code === 'Tab') { e.preventDefault(); toggleStructure(); return; }
+  if (e.code === 'KeyZ' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    const n = e.shiftKey ? lineage.child() : lineage.parent();
+    if (n) restore(lineage.jump(n.id));
+    return;
+  }
   if (e.code === 'Space') { state.drift = !state.drift; touched(); e.preventDefault(); return; }
   if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
   if (e.code === 'KeyL' && !e.repeat) { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); return; }
   keys.add(e.code);
 });
-addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('keyup', (e) => {
+  keys.delete(e.code);
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && lens) closeLens();
+});
 addEventListener('blur', () => keys.clear());
 
 function flyKeys(dt) {
@@ -474,6 +636,13 @@ async function step() {
   });
   if (!moving && state.senseDue && S) { state.senseDue = false; senseNow(); }
   state.n++;
+  if (state.thumbDue != null && state.n >= 16) {
+    const url = captureThumb();
+    if (url) lineage.setThumb(state.thumbDue, url);
+    state.thumbDue = null;
+    drawStructureNow();
+  }
+  if (state.structure && (moving || state.n === 1)) drawStructureNow();
   busy = true;
   const t0 = performance.now();
   await R.device.queue.onSubmittedWorkDone();
@@ -571,6 +740,14 @@ window.__fe = {
   grabDrag: (dx) => { if (grab) editGrab(grab.x0 + dx); return grab && grab.ranked[grab.k]; },
   grabPass: (step = 1) => { if (grab) passAttention(step, grab.x0); return grab && grab.ranked[grab.k]; },
   grabEnd: (revert = false) => exitGrab(revert),
+  lensOpen: () => openLens(),
+  lensMove: (dx, dy) => { if (lens) { if (lens.x0 === null) moveLens(0, 0); moveLens(lens.x0 + dx, lens.y0 + dy); } return lens && lens.params.map((p) => p.op + '.' + p.key); },
+  lensClose: () => closeLens(),
+  structure: () => { toggleStructure(); return state.structure; },
+  lineage: () => lineage.layout(200).map((n) => ({ id: n.id, parent: n.parent, text: n.text, current: n.current, thumb: !!n.thumb })),
+  back: () => { const n = lineage.parent(); if (n) restore(lineage.jump(n.id)); return n && n.id; },
+  forward: () => { const n = lineage.child(); if (n) restore(lineage.jump(n.id)); return n && n.id; },
+  jump: (id) => restore(lineage.jump(id)),
   get grab() { return grab; },
   metric: () => state.sensed && state.sensed.params,
   nudge,
@@ -619,6 +796,7 @@ async function start() {
   }
   try { S = await createSense(R); } catch (e) { console.error(e); }
   R.device.lost.then((info) => { console.error('device lost', info.message); document.getElementById('nogpu').hidden = false; });
+  remember();
   window.__fe.ready = true;
   requestAnimationFrame(tick);
 }

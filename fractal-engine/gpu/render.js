@@ -175,10 +175,48 @@ fn march(@builtin(global_invocation_id) gid: vec3u) {
 }
 `;
 
+// The atlas lens: for two parameters, every pixel of the map is one parameter pair, coloured by how
+// many on-screen pixels the surface would be from the held point under it — the held point's own
+// "Mandelbrot set" (the Mandelbrot set is this map for the Julia family at z = 0). The span is set by
+// the metric, so the map covers exactly what a drag across the screen would reach.
+export const LENS = INTERP + /* wgsl */ `
+struct LV {
+  x: vec4f,      // xyz the held point, w world size of one CSS pixel at its depth
+  span: vec4f,   // x first parameter across the width, y second across the height, z w, w h (texels)
+  ov: vec4u,     // x op of the first parameter, y op of the second, z how many (1 or 2)
+  key: vec4f,    // rgb key colour
+};
+@group(1) @binding(0) var<uniform> lv: LV;
+@group(1) @binding(1) var<storage, read> drecs: array<vec4f, 8>;
+@group(1) @binding(2) var lensOut: texture_storage_2d<rgba16float, write>;
+
+@compute @workgroup_size(8, 8)
+fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
+  if (f32(gid.x) >= lv.span.z || f32(gid.y) >= lv.span.w) { return; }
+  ov0 = lv.ov.x;
+  ov1 = select(0xffffffffu, lv.ov.y, lv.ov.z > 1u);
+  for (var k = 0u; k < 4u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[4u + k]; }
+  let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
+  let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
+  ovD = vec2f(u * lv.span.x, v * lv.span.y);
+  let x = lv.x.xyz;
+  let t = iterate(x, cFor(x));
+  var px = deOf(t) / lv.x.w;
+  if ((head.flags & FLAG_POWER) != 0u && !t.escaped) { px = 0.0; }
+  // on the surface: the key colour; away from it: dark, with a hairline at every doubling of distance
+  let near = exp(-px / 3.0);
+  let band = fract(log2(1.0 + px));
+  let line = 1.0 - smoothstep(0.0, 0.05, min(band, 1.0 - band));
+  let col = lv.key.rgb * (0.04 + 1.2 * near) + vec3f(line * 0.16 * (1.0 - near));
+  textureStore(lensOut, vec2i(gid.xy), vec4f(col, 1.0));
+}
+`;
+
 const DISPLAY = /* wgsl */ `
-struct Disp { size: vec4f, look: vec4f };
+struct Disp { size: vec4f, look: vec4f, inset: vec4f };  // look: x exposure, y lens on; inset: cx cy r (px)
 @group(0) @binding(0) var<uniform> disp: Disp;
 @group(0) @binding(1) var accum: texture_2d<f32>;
+@group(0) @binding(2) var lensTex: texture_2d<f32>;
 
 @vertex
 fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
@@ -195,9 +233,22 @@ fn toSrgb(c: vec3f) -> vec3f {
 
 @fragment
 fn fs(@builtin(position) fc: vec4f) -> @location(0) vec4f {
+  // lens open: the map fills the view and the field shrinks into the inset circle
+  var at = fc.xy;
+  if (disp.look.y > 0.5) {
+    let d = fc.xy - disp.inset.xy;
+    if (length(d) > disp.inset.z) {
+      let lsz = vec2f(textureDimensions(lensTex));
+      let lq = vec2i(clamp(fc.xy / disp.size.xy * lsz, vec2f(0.0), lsz - 1.0));
+      var o = toSrgb(clamp(textureLoad(lensTex, lq, 0).rgb, vec3f(0.0), vec3f(1.0)));
+      let n = fract(sin(dot(fc.xy, vec2f(12.9898, 78.233))) * 43758.5453);
+      return vec4f(o + (n - 0.5) / 255.0, 1.0);
+    }
+    at = disp.size.xy * 0.5 + d / disp.inset.z * min(disp.size.x, disp.size.y) * 0.5;
+  }
   // bilinear from the internal resolution to the canvas
   let src = disp.size.zw;
-  let q = fc.xy / disp.size.xy * src - 0.5;
+  let q = at / disp.size.xy * src - 0.5;
   let i0 = vec2i(floor(q));
   let f = fract(q);
   let mx = vec2i(src) - 1;
@@ -226,7 +277,7 @@ export async function createRenderer(canvas) {
   const headBuf = device.createBuffer({ size: HEAD_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const opsBuf = device.createBuffer({ size: MAX_OPS * REC * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const viewBuf = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const dispBuf = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const dispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
   const formulaLayout = device.createBindGroupLayout({
     entries: [
@@ -245,6 +296,7 @@ export async function createRenderer(canvas) {
     entries: [
       { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
       { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
     ],
   });
 
@@ -270,6 +322,29 @@ export async function createRenderer(canvas) {
     entries: [{ binding: 0, resource: { buffer: headBuf } }, { binding: 1, resource: { buffer: opsBuf } }],
   });
 
+  // the lens map: computed once when the lens opens, then composited every frame while it is open
+  const lensLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba16float' } },
+    ],
+  });
+  const lensModule = device.createShaderModule({ code: LENS });
+  const lensErrs = (await lensModule.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+  if (lensErrs.length) throw new Error('wgsl lens: ' + lensErrs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
+  const lensPipe = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, lensLayout] }),
+    compute: { module: lensModule, entryPoint: 'lensMap' },
+  });
+  const lvBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const drecBuf = device.createBuffer({ size: 128, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const mkLensTex = (lw, lh) => device.createTexture({
+    size: [lw, lh], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+  });
+  let lensTex = mkLensTex(1, 1);
+  const lensState = { on: false, inset: [0, 0, 0] };
+
   let tex = [], viewGroups = [], dispGroups = [], w = 0, h = 0, cur = 0;
 
   function resize(iw, ih) {
@@ -289,13 +364,48 @@ export async function createRenderer(canvas) {
         { binding: 2, resource: tex[1 - i].createView() },
       ],
     }));
-    dispGroups = [0, 1].map((i) => device.createBindGroup({
-      layout: dispLayout,
-      entries: [{ binding: 0, resource: { buffer: dispBuf } }, { binding: 1, resource: tex[i].createView() }],
-    }));
+    makeDispGroups();
     cur = 0;
     return true;
   }
+
+  function makeDispGroups() {
+    if (!tex.length) return;
+    dispGroups = [0, 1].map((i) => device.createBindGroup({
+      layout: dispLayout,
+      entries: [
+        { binding: 0, resource: { buffer: dispBuf } }, { binding: 1, resource: tex[i].createView() },
+        { binding: 2, resource: lensTex.createView() },
+      ],
+    }));
+  }
+
+  // L: { x (held point), foot (world size of a CSS px there), spans [s1, s2?], ops [oi0, oi1?],
+  //      drecs [Float64Array(16), …] (one per parameter), size [lw, lh], key }
+  function lens(L) {
+    if (lensTex.width !== L.size[0] || lensTex.height !== L.size[1]) { lensTex.destroy(); lensTex = mkLensTex(...L.size); makeDispGroups(); }
+    const lvd = new ArrayBuffer(64), f = new Float32Array(lvd), u = new Uint32Array(lvd);
+    f.set([...L.x, L.foot, L.spans[0], L.spans[1] || 0, L.size[0], L.size[1]]);
+    u[8] = L.ops[0]; u[9] = L.ops[1] ?? 0xffffffff; u[10] = L.drecs.length;
+    f.set([...L.key, 0], 12);
+    device.queue.writeBuffer(lvBuf, 0, lvd);
+    const d = new Float32Array(32);
+    L.drecs.forEach((r, i) => d.set(r, i * 16));
+    device.queue.writeBuffer(drecBuf, 0, d);
+    const group = device.createBindGroup({
+      layout: lensLayout,
+      entries: [{ binding: 0, resource: { buffer: lvBuf } }, { binding: 1, resource: { buffer: drecBuf } }, { binding: 2, resource: lensTex.createView() }],
+    });
+    const enc = device.createCommandEncoder();
+    const cp = enc.beginComputePass();
+    cp.setPipeline(lensPipe);
+    cp.setBindGroup(0, formulaGroup);
+    cp.setBindGroup(1, group);
+    cp.dispatchWorkgroups(Math.ceil(L.size[0] / 8), Math.ceil(L.size[1] / 8));
+    cp.end();
+    device.queue.submit([enc.finish()]);
+  }
+  function setLens(on, inset = [0, 0, 0]) { lensState.on = on; lensState.inset = inset; }
 
   let packed = null;
   function setFormula(f) {
@@ -314,7 +424,7 @@ export async function createRenderer(canvas) {
       ...v.key, v.ambient, w, h, v.maxSteps, v.glowWidth, v.iridescence, v.spread, v.shadowK, v.quality, v.lampRange, v.lampPower, v.lyapMix || 0, 0,
       v.lyapCentre || 0, v.lyapScale || 1, 0, 0]);
     device.queue.writeBuffer(viewBuf, 0, viewData);
-    device.queue.writeBuffer(dispBuf, 0, new Float32Array([canvas.width, canvas.height, w, h, v.exposure, 0, 0, 0]));
+    lastExposure = v.exposure;
 
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
@@ -327,7 +437,10 @@ export async function createRenderer(canvas) {
     present(enc);
   }
 
+  let lastExposure = 1;
   function present(enc = device.createCommandEncoder()) {
+    device.queue.writeBuffer(dispBuf, 0, new Float32Array([canvas.width, canvas.height, w, h,
+      lastExposure, lensState.on ? 1 : 0, 0, 0, ...lensState.inset, 0]));
     const rp = enc.beginRenderPass({
       colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }],
     });
@@ -340,7 +453,7 @@ export async function createRenderer(canvas) {
 
   // the push engine shares the device, the canvas and the formula buffers
   return {
-    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present,
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens,
     get size() { return [w, h]; }, get packed() { return packed; },
   };
 }

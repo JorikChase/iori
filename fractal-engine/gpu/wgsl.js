@@ -29,6 +29,23 @@ const FLAG_UNSAFE = 2u;
 const FLAG_JULIA = 4u;
 const PI = 3.14159265;
 
+// Per-invocation parameter overrides: a record reads as its packed value plus d · (d record / dθ)
+// for up to two parameters. The atlas lens varies two parameters across its pixels this way. Exact for
+// every parameter whose record is linear in it (all but rotation angles and plane normals, which the
+// lens does not offer).
+var<private> ov0: u32 = 0xffffffffu;
+var<private> ov1: u32 = 0xffffffffu;
+var<private> ovD: vec2f = vec2f(0.0);
+var<private> ovRec0: array<vec4f, 4>;
+var<private> ovRec1: array<vec4f, 4>;
+
+fn rec(oi: u32, k: u32) -> vec4f {
+  var r = ops[oi * 4u + k];
+  if (oi == ov0) { r = r + ovD.x * ovRec0[k]; }
+  if (oi == ov1) { r = r + ovD.y * ovRec1[k]; }
+  return r;
+}
+
 fn schedAt(i: u32) -> u32 {
   let k = i % head.schedLen;
   return head.sched[k / 4u][k % 4u];
@@ -45,9 +62,9 @@ struct Step { p: vec3f, k: f32, branch: u32, ok: bool };
 // ---------- forward ----------------------------------------------------------------------------
 // returns the new point; k multiplies dr (wRule 'mul'), k < 0 means dr += 1 (the +c rule)
 fn opFwd(oi: u32, p: vec3f, c: vec3f) -> Step {
-  let a = ops[oi * 4u];
-  let b = ops[oi * 4u + 1u];
-  let cc = ops[oi * 4u + 2u];
+  let a = rec(oi, 0u);
+  let b = rec(oi, 1u);
+  let cc = rec(oi, 2u);
   var s: Step;
   s.p = p; s.k = 1.0; s.branch = 0u; s.ok = true;
   switch u32(a.x) {
@@ -176,9 +193,9 @@ fn de(p: vec3f) -> f32 { return deOf(iterate(p, cFor(p))); }
 export const INVERSE = /* wgsl */ `
 // one preimage of q under op oi, choosing a branch with pick(); ok = false when q has none
 fn opInv(oi: u32, q: vec3f, c: vec3f) -> Step {
-  let a = ops[oi * 4u];
-  let b = ops[oi * 4u + 1u];
-  let cc = ops[oi * 4u + 2u];
+  let a = rec(oi, 0u);
+  let b = rec(oi, 1u);
+  let cc = rec(oi, 2u);
   var s: Step;
   s.p = q; s.k = 1.0; s.branch = 0u; s.ok = true;
   switch u32(a.x) {
@@ -322,9 +339,9 @@ var<private> tanRec: array<vec4f, 4>;
 struct Tan { v: vec3f, dk: f32 };
 
 fn opTan(oi: u32, p: vec3f, c: vec3f, v: vec3f, dc: vec3f, withRec: bool) -> Tan {
-  let a = ops[oi * 4u];
-  let b = ops[oi * 4u + 1u];
-  let cc = ops[oi * 4u + 2u];
+  let a = rec(oi, 0u);
+  let b = rec(oi, 1u);
+  let cc = rec(oi, 2u);
   var da = vec4f(0.0);
   var db = vec4f(0.0);
   var dcc = vec4f(0.0);

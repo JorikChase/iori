@@ -27,3 +27,22 @@ body.grab #field { cursor: grabbing; }
 #grab .ob circle { stroke: none; }
 #grab .dm { opacity: 0.8; }
 #grab text { fill: #fff; stroke: none; font: 11px ui-monospace, Menlo, monospace; text-anchor: middle; }
+#grab .ln { opacity: 0.85; }
+#grab .ln .axis { opacity: 0.3; }
+#grab .ln .dot { fill: #fff; stroke: none; }
+#grab text.l { text-anchor: start; }
+
+/* the structure layer (Tab): ruler, op strip, lineage (ui/structure.js) */
+#structure { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+#structure path, #structure circle, #structure rect { fill: none; stroke: #fff; stroke-width: 0.75; }
+#structure .ru { opacity: 0.6; }
+#structure .ru .now { stroke-width: 1.5; opacity: 1; }
+#structure .st { opacity: 0.55; }
+#structure .st .att { stroke-width: 1.5; opacity: 1; }
+#structure .st .sep { opacity: 0.4; }
+#structure .lg path { opacity: 0.45; }
+#structure .lg .node { fill: #fff; stroke: none; opacity: 0.55; }
+#structure .lg .node.cur { opacity: 1; }
+#structure .lg .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
+#structure text { fill: #fff; stroke: none; font: 11px ui-monospace, Menlo, monospace; opacity: 0.8; }
+#structure .st text { text-anchor: middle; }

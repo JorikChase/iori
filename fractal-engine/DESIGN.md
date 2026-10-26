@@ -320,7 +320,35 @@ Not yet: hover preview (the handle appears only on hold); a handle is drawn wher
 first iteration, so an op whose geometry is behind the camera (the box at the origin, seen from
 inside the box) shows only its dimension line; editing in push (the sensing reads pull's surface);
 vertical drag does nothing yet.
-Next: P5 (the atlas lens, the lineage tree, the structure toggle).
+
+**P5 done 2026-10-26** — the atlas lens, the lineage, the structure layer:
+
+- Overrides: every op record is now read through `rec()`, which adds ovD · (d record/dθ) for up to two
+  parameters per invocation. Exact for parameters whose record is linear in them — all but rotation
+  angles and plane normals (not offered by the lens). Parity: GPU with overrides vs CPU with the value
+  changed, median relative error ≤ 7e-6 over four parameter pairs.
+- The lens (Shift during a grab): the view becomes the map of two parameters — the attention one and a
+  second from the same op if it has one, else the next in the ranking. Each pixel is a parameter pair
+  coloured by how many CSS pixels the surface would be from the held point under it (the key colour on
+  the surface, dark away from it, a hairline at every doubling of distance) — the held point's own
+  Mandelbrot set. Its span is the screen over the local metric, so the map covers exactly what a drag
+  across the screen reaches. Moving travels it (both parameters change, the field updates live in a
+  circular inset at bottom right); releasing Shift closes it and the grab continues from there.
+  `design/shots/p5-lens.jpg`: box limit × sphere rfix on the arrive view.
+- `ui/lineage.js`: every formula as a node {text, camera, mode, thumbnail}; going back and editing
+  starts a branch, nothing is overwritten. Commits on the end of an edit and on a mode toggle;
+  ⌘Z / ⇧⌘Z go to the parent / newest child; thumbnails are 192 px JPEGs drawn from the canvas 16
+  frames after the commit. Kept in localStorage (`fractal-engine.lineage.v1`, 600 nodes, 160
+  thumbnails), a per-browser convenience — the URL still carries the formula. Verified: 1 → 2 → 3,
+  back to 2, edit → 4 as a branch of 2; thumbnails non-blank.
+- `ui/structure.js` (Tab): the depth ruler (one notch per iteration, the bright notch the depth reached
+  at the view's centre, with its number), the op strip (glyphs, slot gaps, the attention op framed,
+  ×N and schedule), the lineage (dots and hairlines, the big dot is now; hover for a thumbnail, click to
+  return). Terrace bands switch on with it and off without it.
+
+Not yet: lens on touch (it needs a modifier key); the lens map is computed once when it opens, so it
+does not follow an edit made inside it; the strip and ruler are not interactive.
+Next: P6 (the loop engine — texture feedback; drift and herding; engine-computed transitions).
 
 ## Sources
 

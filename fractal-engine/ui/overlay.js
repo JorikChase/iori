@@ -204,3 +204,20 @@ export function drawGrab(svg, C, g) {
 export function clearGrab(svg) {
   svg.classList.remove('on');
 }
+
+// ---------- the atlas lens ------------------------------------------------------------------------
+// l: { W, H, at:[x,y] (crosshair), glyphs:[g1, g2?], values:[v1, v2?], inset:[cx, cy, r] } in CSS px
+export function drawLens(svg, l) {
+  const s = [];
+  const cx = l.W / 2, cy = l.H / 2;
+  s.push(`<g class="ln"><path class="axis" d="M24 ${cy}H${l.W - 24}${l.glyphs[1] ? `M${cx} 24V${l.H - 24}` : ''}"/>`);
+  s.push(`<circle cx="${f2(l.inset[0])}" cy="${f2(l.inset[1])}" r="${f2(l.inset[2])}"/>`);
+  s.push(glyphPath(l.glyphs[0], l.W - 40, cy - 18, 16));
+  if (l.glyphs[1]) s.push(glyphPath(l.glyphs[1], cx + 18, 40, 16));
+  // the crosshair: where the formula is now
+  const [x, y] = l.at;
+  s.push(`<path d="M${f2(x)} ${f2(y)}h24M${f2(x)} ${f2(y)}v24"/><circle cx="${f2(x)}" cy="${f2(y)}" r="2" class="dot"/>`);
+  s.push(`<text x="${f2(x + 30)}" y="${f2(y - 8)}" class="l">${l.values.map((v) => fmtNum(+v.toPrecision(4))).join('  ')}</text></g>`);
+  svg.innerHTML = s.join('');
+  svg.classList.add('on');
+}

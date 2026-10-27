@@ -29,6 +29,7 @@ struct Trace {
   escaped: bool,
   trap: f32,     // min |p|² along the orbit
   col: f32,      // branch record: flame-style colour index in [0, 1)
+  sp: f32,       // the leading species of the last chimera ÷ (k − 1); 0 without one (a shading reading)
 };
 
 @group(0) @binding(0) var<uniform> head: Head;
@@ -37,6 +38,7 @@ struct Trace {
 const FLAG_POWER = 1u;
 const FLAG_UNSAFE = 2u;
 const FLAG_JULIA = 4u;
+const FLAG_SHADE = 8u;
 const PI = 3.14159265;
 const REC4 = 5u;
 
@@ -359,7 +361,7 @@ fn fieldAt(oi: u32, p: vec4f, dr: f32, world: bool) -> MixW {
   return orbitWeights(oi, p, dr);
 }
 
-struct Fwd { p: vec4f, dr: f32, branch: u32 };
+struct Fwd { p: vec4f, dr: f32, branch: u32, sp: f32 };
 
 // a sub-stack's ops on (p, dr); branches are not coloured (the mix colours by species)
 fn runKid(slot: u32, p0: vec4f, c: vec4f, dr0: f32) -> Fwd {
@@ -392,6 +394,7 @@ fn mixCombine(oi: u32, p: vec4f, dr: f32, kp0: array<vec4f, 8>, kd0: array<f32, 
     if (m.w[i] > m.w[lead]) { lead = i; }
   }
   o.branch = 1u + lead;
+  o.sp = f32(lead) / max(f32(m.k) - 1.0, 1.0);
   return o;
 }
 
@@ -409,7 +412,7 @@ fn fwdAt(oi: u32, p: vec4f, c: vec4f, dr: f32) -> Fwd {
   if (u32(rec(oi, 0u).x) == MIX) { return mixFwd(oi, p, c, dr); }
   let s = opFwd(oi, p, c);
   var o: Fwd;
-  o.p = s.p; o.branch = s.branch;
+  o.p = s.p; o.branch = s.branch; o.sp = -1.0;
   if (s.k < 0.0) { o.dr = dr + 1.0; } else { o.dr = dr * s.k; }
   return o;
 }
@@ -427,6 +430,7 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
       let s = fwdAt(start + j, t.p, c, t.dr);
       t.p = s.p;
       t.dr = s.dr;
+      if (s.sp >= 0.0) { t.sp = s.sp; }
       if (s.branch != 0u) { t.col = branchColour(t.col, start + j, s.branch); }
     }
     t.n = i + 1u;
@@ -453,6 +457,196 @@ fn cFor(p: vec4f) -> vec4f { return select(p, head.c, (head.flags & FLAG_JULIA) 
 
 // the distance estimate at a world point
 fn de(x: vec3f) -> f32 { let q = embed(x); return deOf(iterate(q, cFor(q))); }
+
+// ---------- shading: the formula's colour graph (core/shade.js, operation for operation) ------------
+// The program sits after the op records (gpu/pack.js SHADE_AT): a header [n, colour node, glow node,
+// glow is a colour], three vec4 per node, then the stops. One vec4 register per node.
+const SH_BASE = 320u;            // MAX_OPS · REC / 4
+const SH_STOPS = 417u;           // SH_BASE + 1 + 32 · 3
+struct Readings { col: f32, trap: f32, depth: f32, lyap: f32, facing: f32, species: f32, w: f32 };
+struct ShadeOut { color: vec4f, glow: vec4f, glowIsColour: bool, hasGlow: bool };
+
+fn shRgb2hsv(c: vec3f) -> vec3f {
+  let mx = max(c.x, max(c.y, c.z));
+  let mn = min(c.x, min(c.y, c.z));
+  let d = mx - mn;
+  var h = 0.0;
+  if (d > 0.0) {
+    if (mx == c.x) { h = ((c.y - c.z) / d) / 6.0; }
+    else if (mx == c.y) { h = ((c.z - c.x) / d + 2.0) / 6.0; }
+    else { h = ((c.x - c.y) / d + 4.0) / 6.0; }
+    h = h - floor(h);
+  }
+  return vec3f(h, select(0.0, d / mx, mx > 0.0), mx);
+}
+fn shHsv2rgb(c: vec3f) -> vec3f {
+  let hh = (c.x - floor(c.x)) * 6.0;
+  let i = u32(floor(hh)) % 6u;
+  let f = hh - floor(hh);
+  let v = c.z;
+  let p = v * (1.0 - c.y);
+  let q = v * (1.0 - c.y * f);
+  let t = v * (1.0 - c.y * (1.0 - f));
+  switch i {
+    case 0u: { return vec3f(v, t, p); }
+    case 1u: { return vec3f(q, v, p); }
+    case 2u: { return vec3f(p, v, t); }
+    case 3u: { return vec3f(p, q, v); }
+    case 4u: { return vec3f(t, p, v); }
+    default: { return vec3f(v, p, q); }
+  }
+}
+fn shCbrt(x: f32) -> f32 { return sign(x) * pow(abs(x), 1.0 / 3.0); }
+fn shRgb2oklab(c: vec3f) -> vec3f {
+  let l = shCbrt(0.4122214708 * c.x + 0.5363325363 * c.y + 0.0514459929 * c.z);
+  let m = shCbrt(0.2119034982 * c.x + 0.6806995451 * c.y + 0.1073969566 * c.z);
+  let s = shCbrt(0.0883024619 * c.x + 0.2817188376 * c.y + 0.6299787005 * c.z);
+  return vec3f(0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s);
+}
+fn shOklab2rgb(c: vec3f) -> vec3f {
+  let l3 = c.x + 0.3963377774 * c.y + 0.2158037573 * c.z;
+  let m3 = c.x - 0.1055613458 * c.y - 0.0638541728 * c.z;
+  let s3 = c.x - 0.0894841775 * c.y - 1.2914855480 * c.z;
+  let L = l3 * l3 * l3;
+  let M = m3 * m3 * m3;
+  let S = s3 * s3 * s3;
+  return vec3f(4.0767416621 * L - 3.3077115913 * M + 0.2309699292 * S, -1.2684380046 * L + 2.6097574011 * M - 0.3413193965 * S, -0.0041960863 * L - 0.7034186147 * M + 1.7076147010 * S);
+}
+fn shToSpace(c: vec3f, sp: u32) -> vec3f {
+  if (sp == 1u) { return shRgb2hsv(c); }
+  if (sp == 2u) { return shRgb2oklab(c); }
+  return c;
+}
+fn shFromSpace(c: vec3f, sp: u32) -> vec3f {
+  if (sp == 1u) { return shHsv2rgb(vec3f(c.x - floor(c.x), clamp(c.y, 0.0, 1.0), clamp(c.z, 0.0, 1.0))); }
+  if (sp == 2u) { return shOklab2rgb(c); }
+  return c;
+}
+fn shT(j: u32) -> f32 { return ops[SH_STOPS + 2u * j].x; }
+fn shC(j: u32) -> vec4f { return ops[SH_STOPS + 2u * j + 1u]; }
+
+// log2 → · scale + offset → clamp / repeat / mirror → invert
+fn shMap(x: f32, m: vec4f) -> f32 {
+  var v = x;
+  let fl = u32(m.w);
+  if ((fl & 1u) != 0u) { v = log2(max(v, 1e-12)); }
+  v = v * m.x + m.y;
+  let mode = u32(m.z);
+  if (mode == 0u) { v = clamp(v, 0.0, 1.0); }
+  else if (mode == 1u) { v = v - floor(v); }
+  else { v = v - 2.0 * floor(v * 0.5); if (v > 1.0) { v = 2.0 - v; } }
+  if ((fl & 2u) != 0u) { v = 1.0 - v; }
+  return v;
+}
+
+fn shRamp(b: vec4f, m: vec4f, x: f32) -> vec4f {
+  let s0 = u32(b.x);
+  let n = u32(b.y);
+  let interp = u32(b.z);
+  let sp = u32(b.w);
+  let t = shMap(x, m);
+  if (n <= 1u || t <= shT(s0)) { return clamp(shC(s0), vec4f(0.0), vec4f(1.0)); }
+  if (t >= shT(s0 + n - 1u)) { return clamp(shC(s0 + n - 1u), vec4f(0.0), vec4f(1.0)); }
+  var i = 0u;
+  for (var j = 0u; j < n; j++) { if (shT(s0 + j) <= t) { i = j; } }
+  if (interp == 0u) { return clamp(shC(s0 + i), vec4f(0.0), vec4f(1.0)); }
+  let i1 = min(i + 1u, n - 1u);
+  let ta = shT(s0 + i);
+  let tb = shT(s0 + i1);
+  var f = select(0.0, (t - ta) / (tb - ta), tb > ta);
+  var idx = array<u32, 4>(i, i1, i1, i1);
+  var w = vec4f(1.0 - f, f, 0.0, 0.0);
+  var count = 2u;
+  if (interp == 2u) { f = f * f * (3.0 - 2.0 * f); w = vec4f(1.0 - f, f, 0.0, 0.0); }
+  if (interp >= 3u) {
+    idx = array<u32, 4>(select(i - 1u, 0u, i == 0u), i, i1, min(i + 2u, n - 1u));
+    count = 4u;
+    let f2 = f * f;
+    let f3 = f2 * f;
+    if (interp == 3u) { w = vec4f((1.0 - f) * (1.0 - f) * (1.0 - f) / 6.0, (3.0 * f3 - 6.0 * f2 + 4.0) / 6.0, (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0) / 6.0, f3 / 6.0); }
+    else { w = 0.5 * vec4f(-f3 + 2.0 * f2 - f, 3.0 * f3 - 5.0 * f2 + 2.0, -3.0 * f3 + 4.0 * f2 + f, f3 - f2); }
+  }
+  var cs: array<vec3f, 4>;
+  for (var k = 0u; k < count; k++) { cs[k] = shToSpace(shC(s0 + idx[k]).rgb, sp); }
+  if (sp == 1u) {
+    // hues the shortest way round, relative to the segment's first stop
+    let hue0 = cs[select(1u, 0u, count == 2u)].x;
+    for (var k = 0u; k < count; k++) { cs[k].x = cs[k].x - round(cs[k].x - hue0); }
+  }
+  var mixed = vec3f(0.0);
+  var alpha = 0.0;
+  for (var k = 0u; k < count; k++) { mixed = mixed + w[k] * cs[k]; alpha = alpha + w[k] * shC(s0 + idx[k]).w; }
+  return vec4f(clamp(shFromSpace(mixed, sp), vec3f(0.0), vec3f(1.0)), clamp(alpha, 0.0, 1.0));
+}
+
+fn shMath(op: u32, a: f32, b: f32) -> f32 {
+  switch op {
+    case 0u: { return a + b; }
+    case 1u: { return a - b; }
+    case 2u: { return a * b; }
+    case 3u: { return min(a, b); }
+    case 4u: { return max(a, b); }
+    case 5u: { return pow(max(a, 0.0), b); }
+    case 6u: { return 0.5 + 0.5 * sin(6.2831853 * a * b); }
+    case 7u: { return select(a, floor(a / b) * b, b > 0.0); }
+    default: { return a; }
+  }
+}
+
+fn shMix(mode: u32, a: vec4f, b: vec4f, f: f32) -> vec4f {
+  var rgb = mix(a.rgb, b.rgb, f);
+  if (mode == 1u) { rgb = mix(a.rgb, a.rgb * b.rgb, f); }
+  else if (mode == 2u) { rgb = mix(a.rgb, 1.0 - (1.0 - a.rgb) * (1.0 - b.rgb), f); }
+  else if (mode == 3u) { rgb = a.rgb + b.rgb * f; }
+  return vec4f(rgb, mix(a.w, b.w, f));
+}
+
+fn shadeRun(r: Readings) -> ShadeOut {
+  var reg: array<vec4f, 32>;
+  let h = ops[SH_BASE];
+  let n = min(u32(h.x), 32u);
+  for (var i = 0u; i < n; i++) {
+    let a = ops[SH_BASE + 1u + i * 3u];
+    let b = ops[SH_BASE + 2u + i * 3u];
+    let c = ops[SH_BASE + 3u + i * 3u];
+    let ty = u32(a.x);
+    let i0 = i32(a.y);
+    let i1 = i32(a.z);
+    let i2 = i32(a.w);
+    var v = vec4f(0.0);
+    switch ty {
+      case 1u: { v.x = r.col; }
+      case 2u: { v.x = r.trap; }
+      case 3u: { v.x = r.depth; }
+      case 4u: { v.x = r.lyap; }
+      case 5u: { v.x = r.facing; }
+      case 6u: { v.x = r.species; }
+      case 7u: { v.x = r.w; }
+      case 10u: { var x = 0.0; if (i0 >= 0) { x = reg[i0].x; } v = shRamp(b, c, x); }
+      case 11u: {
+        var x = 0.0; if (i0 >= 0) { x = reg[i0].x; }
+        var y = b.y; if (i1 >= 0) { y = reg[i1].x; }
+        v.x = shMath(u32(b.x), x, y);
+      }
+      case 12u: {
+        var f = b.y; if (i2 >= 0) { f = reg[i2].x; }
+        var ca = vec4f(0.0); if (i0 >= 0) { ca = reg[i0]; }
+        var cb = vec4f(0.0); if (i1 >= 0) { cb = reg[i1]; }
+        v = shMix(u32(b.x), ca, cb, f);
+      }
+      default: {}
+    }
+    reg[i] = v;
+  }
+  var o: ShadeOut;
+  let ci = i32(h.y);
+  let gi = i32(h.z);
+  if (ci >= 0) { o.color = reg[ci]; }
+  o.hasGlow = gi >= 0;
+  if (gi >= 0) { o.glow = reg[gi]; }
+  o.glowIsColour = h.w > 0.5;
+  return o;
+}
 `;
 
 // The inverse half, for push. Needs a random source: the includer defines
@@ -1176,6 +1370,7 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
         qdr = mt.ddr[3];
         d.t.dr = f.dr;
         d.t.p = f.p;
+        d.t.sp = f.sp;
         d.t.col = branchColour(d.t.col, oi, f.branch);
         continue;
       }

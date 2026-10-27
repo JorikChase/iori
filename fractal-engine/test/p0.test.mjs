@@ -624,3 +624,90 @@ test('graph: chains and the schedule — add a copy, remove one, edit the word',
   assert.equal(ch.schedule, 'ABC');
   assert.equal(format(G.removeChain(ch, 'B')), 'abs | [scale ‖ invert] · +c ×6 AB');
 });
+
+test('shading: the graph in the formula, the notation and the hash; ramps, maps, maths, mixes, presets', async () => {
+  const S = await import('../core/shade.js');
+  // without shade every formula keeps its id and its text
+  for (const t of [MANDELBOX, HYBRID]) assert.equal(format(parse(format(parse(t)))), format(parse(t)));
+  const idBefore = hash(parse(MANDELBOX));
+  const shade = {
+    nodes: [
+      { id: 'c', type: 'col' }, { id: 'tr', type: 'trap' },
+      { id: 'r1', type: 'ramp', in: { v: 'c' }, p: S.rampPreset('fire') },
+      { id: 'r2', type: 'ramp', in: { v: 'tr' }, p: { ...S.rampPreset('ice'), map: { scale: 0.25, offset: 0.5, mode: 'mirror', log: true, invert: false } } },
+      { id: 'b', type: 'math', in: { a: 'tr' }, p: { op: 'bands', c: 0.5 } },
+      { id: 'm', type: 'mixc', in: { a: 'r1', b: 'r2', f: 'b' }, p: { mode: 'screen' } },
+    ],
+    out: { color: 'm', glow: 'r1' },
+  };
+  const f = { ...normalize(parse(MANDELBOX)), shade };
+  const g = normalize(f);
+  assert.ok(validate(g).ok, validate(g).errors.join('; '));
+  assert.notEqual(hash(g), idBefore);
+  assert.equal(hash(parse(MANDELBOX)), idBefore);
+  const text = format(g);
+  assert.match(text, / shade=[A-Za-z0-9_-]+/);
+  const back = parse(text);
+  assert.deepEqual(normalize(back), g);
+  assert.equal(hash(back), hash(g));
+  assert.equal(format(back), text);
+  // the graph view and the exported state carry it untouched
+  const G = await import('../core/graph.js');
+  assert.deepEqual(G.flatten(G.tree(g)).shade, g.shade);
+  const ST = await import('../core/state.js');
+  assert.deepEqual(normalize(ST.stateDoc({ formula: g, cam: { pos: [0, 0, -3], yaw: 0, pitch: 0 } }).formula).shade, g.shade);
+
+  // validation
+  const bad = (sh) => validate({ ...normalize(parse(MANDELBOX)), shade: sh }).errors.join('; ');
+  assert.match(bad({ nodes: [{ id: 'r', type: 'ramp', in: { v: 'x' }, p: S.rampPreset('fire') }], out: { color: 'r' } }), /not an earlier node/);
+  assert.match(bad({ nodes: [{ id: 'c', type: 'col' }], out: { color: 'c' } }), /out.color must name a colour node/);
+  assert.match(bad({ nodes: [{ id: 'c', type: 'col' }, { id: 'r', type: 'ramp', in: { v: 'c' }, p: S.rampPreset('fire') }, { id: 'm', type: 'mixc', in: { a: 'r', b: 'c' } }], out: { color: 'm' } }), /wants a colour/);
+  assert.match(bad({ nodes: [{ id: 'q', type: 'quux' }], out: {} }), /unknown type/);
+  assert.match(bad({ nodes: [{ id: 'c', type: 'col' }, { id: 'r', type: 'ramp', in: { v: 'c' }, p: { stops: [] } }], out: { color: 'r' } }), /1..16 stops/);
+
+  // ramps: each interpolation at known points
+  const two = (interp, space = 'rgb') => S.normShade({ nodes: [{ id: 'r', type: 'ramp', in: { v: 'x' }, p: { stops: [{ t: 0, c: [0, 0, 0, 1] }, { t: 1, c: [1, 0.5, 0, 0] }], interp, space } }], out: { color: 'r' } }).nodes[0].p;
+  const close = (a, b) => a.every((x, i) => Math.abs(x - b[i]) < 1e-9);
+  assert.ok(close(S.rampAt(two('linear'), 0.25), [0.25, 0.125, 0, 0.75]));
+  assert.ok(close(S.rampAt(two('constant'), 0.75), [0, 0, 0, 1]));
+  assert.ok(close(S.rampAt(two('ease'), 0.25), [0.15625, 0.078125, 0, 0.84375]));
+  // with two stops the four-point weights fall on the ends: B-spline at 0.5 is ⅙·0 + ⅔·0 … it averages
+  const bs = S.rampAt(two('bspline'), 0.5), cr = S.rampAt(two('cardinal'), 0.5);
+  assert.ok(Math.abs(bs[0] - 0.5) < 1e-9 && Math.abs(cr[0] - 0.5) < 1e-9);
+  // HSV: red to blue the short way round goes through magenta, not green
+  const hsv = S.normShade({ nodes: [{ id: 'r', type: 'ramp', in: { v: 'x' }, p: { stops: [{ t: 0, c: [1, 0, 0, 1] }, { t: 1, c: [0, 0, 1, 1] }], interp: 'linear', space: 'hsv' } }], out: { color: 'r' } }).nodes[0].p;
+  const mid = S.rampAt(hsv, 0.5);
+  assert.ok(mid[0] > 0.9 && mid[2] > 0.9 && mid[1] < 1e-9, `hsv midpoint ${mid}`);
+  // Oklab: the midpoint is perceptually half way, which in linear light is far below RGB's 0.5
+  const ok = S.rampAt(two('linear', 'oklab'), 0.5);
+  assert.ok(ok[0] > 0.05 && ok[0] < 0.3, `oklab midpoint ${ok}`);
+  // (the published Oklab matrices are inverses to about 1e-7)
+  assert.ok(S.oklab2rgb(S.rgb2oklab([0.2, 0.5, 0.9])).every((x, i) => Math.abs(x - [0.2, 0.5, 0.9][i]) < 1e-5));
+  assert.ok(close(S.hsv2rgb(S.rgb2hsv([0.2, 0.5, 0.9])), [0.2, 0.5, 0.9]));
+  // mapping
+  const M = (o) => ({ scale: 1, offset: 0, mode: 'clamp', log: false, invert: false, ...o });
+  assert.equal(S.mapInput(1.7, M()), 1);
+  assert.ok(Math.abs(S.mapInput(1.7, M({ mode: 'repeat' })) - 0.7) < 1e-12);
+  assert.ok(Math.abs(S.mapInput(1.7, M({ mode: 'mirror' })) - 0.3) < 1e-12);
+  assert.equal(S.mapInput(8, M({ log: true, scale: 0.25 })), 0.75);
+  assert.equal(S.mapInput(0.2, M({ invert: true })), 0.8);
+  // presets and today's look
+  for (const name of Object.keys(S.RAMP_PRESETS)) assert.equal(S.validateShade(S.normShade({ nodes: [{ id: 'c', type: 'col' }, { id: 'r', type: 'ramp', in: { v: 'c' }, p: S.rampPreset(name) }], out: { color: 'r' } })).length, 0, name);
+  const d = S.defaultShade();
+  assert.equal(S.validateShade(d).length, 0);
+  const film = (t) => [0, 0.33, 0.67].map((o) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (o + t)));
+  const kl = Math.hypot(1, 0.22, 0.55), want = [1, 0.22, 0.55].map((k, i) => k + (film(0.8)[i] * kl - k) * 0.35);
+  const got = S.evalShade(d, { col: 0.5 }).color;
+  assert.ok(got.slice(0, 3).every((x, i) => Math.abs(x - Math.min(1, Math.max(0, want[i]))) < 0.08), `default ${got} vs ${want}`);
+  // a small graph end to end
+  const out = S.evalShade(shade, { col: 0.3, trap: 0.7 });
+  assert.equal(out.color.length, 4);
+  assert.equal(out.glow.length, 3);
+  assert.ok(out.color.every((x) => x >= 0 && x <= 1));
+  // the program for the GPU: header, a ramp's stops in place
+  const prog = S.packShade(shade);
+  assert.equal(prog[0], 6);
+  assert.equal(prog[1], 5);
+  assert.equal(prog[2], 2);
+  assert.equal(prog[3], 1);
+});

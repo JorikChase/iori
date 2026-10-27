@@ -23,6 +23,7 @@
 // normalize fills defaults; validate returns every problem it finds; canonical/hash make the id.
 
 import { getOp, fillParams, isMix } from './ops.js';
+import { normShade, validateShade } from './shade.js';
 import { parse, format, slotIndex } from './notation.js';
 
 export const MAX_ITERS = 4096;
@@ -38,6 +39,7 @@ export function normalize(f) {
     bail: f.bail === undefined ? 4 : f.bail,
     ...(Array.isArray(f.c) ? { c: [0, 1, 2, 3].map((i) => Number(f.c[i] || 0)) } : {}),
     ...(f.slice && (f.slice.w || (f.slice.tilt || []).some(Boolean)) ? { slice: { w: Number(f.slice.w || 0), tilt: [0, 1, 2].map((i) => Number((f.slice.tilt || [])[i] || 0)) } } : {}),
+    ...(f.shade ? { shade: normShade(f.shade) } : {}),
     slots: (f.slots || []).map((s) => s.map((o) => {
       const def = getOp(o.op);
       return { op: def ? def.name : o.op, p: def ? fillParams(def, o.p || {}) : { ...(o.p || {}) } };
@@ -67,6 +69,7 @@ export function validate(f) {
   if (!Number.isInteger(f.iters) || f.iters < 1 || f.iters > MAX_ITERS) err(`iters must be 1..${MAX_ITERS}`);
   if (!(typeof f.bail === 'number' && f.bail > 0 && Number.isFinite(f.bail))) err('bail must be a positive number');
   if (f.c !== undefined && !(Array.isArray(f.c) && (f.c.length === 3 || f.c.length === 4) && f.c.every(Number.isFinite))) err('c must be three or four finite numbers');
+  if (f.shade !== undefined) errors.push(...validateShade(f.shade));
   if (f.slice !== undefined && !(f.slice && Number.isFinite(f.slice.w || 0) && Array.isArray(f.slice.tilt || [0, 0, 0]) && (f.slice.tilt || [0, 0, 0]).length === 3 && (f.slice.tilt || [0, 0, 0]).every(Number.isFinite))) err('slice must be { w, tilt: [xw, yw, zw] }');
   if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > MAX_SLOTS) err(`slots must hold 1..${MAX_SLOTS} op lists`);
   else {
@@ -105,7 +108,7 @@ export function pullSafe(f) {
 export function canonical(f) {
   const g = normalize(f);
   return JSON.stringify({
-    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}), ...(g.slice ? { slice: g.slice } : {}),
+    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}), ...(g.slice ? { slice: g.slice } : {}), ...(g.shade ? { shade: g.shade } : {}),
     slots: g.slots.map((s) => s.map((o) => ({ op: o.op, p: Object.fromEntries(getOp(o.op).params.map((q) => [q.k, o.p[q.k]])) }))),
   });
 }

@@ -1,7 +1,7 @@
 // Packs a formula into the buffers the WGSL interpreter reads. Structure changes rewrite a buffer;
 // they never recompile a shader.
 //
-// ops buffer: one record of 20 floats (five vec4) per op — [code, p0 … p18]. Rotations (3-D and 4-D,
+// ops buffer: one record of 20 floats (five vec4) per op — [code, p0 … p18] — then the shading program. Rotations (3-D and 4-D,
 // one row-major 4×4) and plane normals are resolved here so the shader does no trigonometry it can avoid.
 // head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word, the
 // Julia constant, and the slice (a 4×4, column-major for WGSL, and the offset along w).
@@ -9,6 +9,7 @@
 import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
 import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
+import { packShade, SHADE_VEC4 } from '../core/shade.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
 import { rotationXYZ, rotation4, lift4, sliceMatrix, normalize as nrm } from '../core/vec.js';
@@ -25,7 +26,10 @@ export const OPCODE = {
 export const MAX_OPS = 64;
 export const MAX_SCHEDULE = 64;
 export const REC = 20;
-export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4;
+// the ops buffer: the op records, then the shading program (core/shade.js packShade), when there is one
+export const SHADE_AT = MAX_OPS * REC;
+export const OPS_FLOATS = SHADE_AT + SHADE_VEC4 * 4;
+export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4, FLAG_SHADE = 8;
 
 // head layout (u32/f32 words): 4, eight slot starts, eight lengths, 64 schedule words, c (vec4f) at
 // word 84, the slice (mat4x4f) at word 88, its w offset at word 104 → 432 bytes
@@ -68,7 +72,8 @@ function record(o, out = new Float32Array(REC), kids = [0, 0]) {
 
 export function pack(formula) {
   const f = normalize(formula);
-  const ops = new Float32Array(MAX_OPS * REC);
+  const ops = new Float32Array(OPS_FLOATS);
+  if (f.shade) ops.set(packShade(f.shade), SHADE_AT);
   const starts = new Array(8).fill(0), lens = new Array(8).fill(0);
   let n = 0;
   const kidsOf = new Map(mixKids(f).mixes.map((m) => [`${m.si}.${m.j}`, m.kids]));
@@ -88,7 +93,7 @@ export function pack(formula) {
   const u = new Uint32Array(head), fl = new Float32Array(head);
   u[0] = f.iters;
   u[1] = sched.length;
-  u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0);
+  u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0) | (f.shade ? FLAG_SHADE : 0);
   if (f.c) fl.set(f.c, 84);
   // the slice, column by column, and its w offset
   const T = sliceMatrix(f.slice || {});

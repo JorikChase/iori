@@ -36,7 +36,7 @@ export function tree(formula) {
       }),
     };
   });
-  return { v: f.v, seed: f.seed, iters: f.iters, schedule: f.schedule, bail: f.bail, ...(f.c ? { c: f.c } : {}), ...(f.slice ? { slice: f.slice } : {}), chains };
+  return { v: f.v, seed: f.seed, iters: f.iters, schedule: f.schedule, bail: f.bail, ...(f.c ? { c: f.c } : {}), ...(f.slice ? { slice: f.slice } : {}), ...(f.shade ? { shade: f.shade } : {}), chains };
 }
 
 export function flatten(t) {
@@ -47,7 +47,7 @@ export function flatten(t) {
     if (n.species) { o.p.s = n.species.length; kids.push(...n.species.map((sp) => sp.nodes.map(strip))); }
     return o;
   }));
-  const f = { v: t.v, seed: t.seed, iters: t.iters, schedule: t.schedule, bail: t.bail, ...(t.c ? { c: t.c } : {}), ...(t.slice ? { slice: t.slice } : {}), slots: [...slots, ...kids] };
+  const f = { v: t.v, seed: t.seed, iters: t.iters, schedule: t.schedule, bail: t.bail, ...(t.c ? { c: t.c } : {}), ...(t.slice ? { slice: t.slice } : {}), ...(t.shade ? { shade: t.shade } : {}), slots: [...slots, ...kids] };
   return normalize(f);
 }
 

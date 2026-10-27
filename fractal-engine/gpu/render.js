@@ -8,7 +8,7 @@
 import { INTERP, DUAL } from './wgsl.js';
 import { withJit, structureKey } from './jit.js';
 import { canonical } from '../core/formula.js';
-import { pack, MAX_OPS, REC, HEAD_BYTES } from './pack.js';
+import { pack, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS } from './pack.js';
 
 const VIEW_FLOATS = 52;
 
@@ -131,6 +131,13 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
       sh = 0.3 * ao;
     }
     var alb = tint(tr.col, dot(n, -rd));
+    if ((head.flags & FLAG_SHADE) != 0u) {
+      // the formula's own colour graph, fed the orbit's readings at the hit
+      var rr: Readings;
+      rr.col = tr.col; rr.trap = tr.trap; rr.depth = f32(tr.n) / f32(max(head.iters, 1u)); rr.lyap = lam;
+      rr.facing = dot(n, -rd); rr.species = tr.sp; rr.w = p4.w;
+      alb = shadeRun(rr).color.rgb;
+    }
     if (view.look.w > 0.0) {
       // terraces: quantised orbit-trap bands
       let band = fract(log2(max(tr.trap, 1e-12)) * view.look.w);
@@ -149,7 +156,15 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
     }
     c = alb * (diff * sh * fall * view.lamp.y + view.key.w * ao) + alb * rim * 0.15 * ao * fall + emit;
   }
-  let gl = tint(glowCol, 0.0) * glow * view.light.w;
+  var glc = tint(glowCol, 0.0);
+  if ((head.flags & FLAG_SHADE) != 0u) {
+    // the glow: the graph's glow output (a colour tints, a number scales), else its surface colour
+    var gr: Readings;
+    gr.col = glowCol;
+    let so = shadeRun(gr);
+    if (so.hasGlow) { if (so.glowIsColour) { glc = so.glow.rgb; } else { glc = glc * so.glow.x; } } else { glc = so.color.rgb; }
+  }
+  let gl = glc * glow * view.light.w;
   return c * absorb + gl * mix(1.0, absorb, 0.6);
 }
 
@@ -284,7 +299,7 @@ export async function createRenderer(canvas) {
   ctx.configure({ device, format, alphaMode: 'opaque' });
 
   const headBuf = device.createBuffer({ size: HEAD_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const opsBuf = device.createBuffer({ size: MAX_OPS * REC * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const opsBuf = device.createBuffer({ size: OPS_FLOATS * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const viewBuf = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const dispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 

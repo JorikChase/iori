@@ -75,6 +75,12 @@ fn invStep(slot: u32, q: vec4f, col0: f32) -> Inv {
 }
 
 fn tint(col: f32, cosv: f32) -> vec3f {
+  if ((head.flags & FLAG_SHADE) != 0u) {
+    // the formula's colour graph; a splat knows only its fold colour index
+    var r: Readings;
+    r.col = col;
+    return shadeRun(r).color.rgb * length(pv.key.rgb);
+  }
   let base = pv.key.rgb;
   let film = 0.5 + 0.5 * cos(6.2831853 * (vec3f(0.0, 0.33, 0.67) + col * pv.look.z + cosv * 0.35 + pv.look.x));
   return mix(base, film * length(base), pv.look.y);

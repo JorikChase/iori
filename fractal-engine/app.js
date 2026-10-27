@@ -42,6 +42,7 @@ import { gridUVs } from './gpu/sense.js';
 import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
+import { evalShade } from './core/shade.js';
 import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
@@ -1678,7 +1679,10 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
       const v = pushView(b, clear, false, false);
       const raw = await P.captureSplats(v, canvas, 200000, progress);
       const L = state.look, len = Math.hypot(...L.key);
+      const shade = normalize(state.formula).shade;
       const samples = raw.map((q) => {
+        // the formula's colour graph when it has one (a splat knows only its fold colour index)
+        if (shade) return { p: q.p, cov: q.cov, rgb: evalShade(shade, { col: q.col }).color.slice(0, 3) };
         const film = [0, 0.33, 0.67].map((o) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (o + q.col * L.spread + L.hue)));
         const rgb = L.key.map((k, i) => Math.min(1, k + (film[i] * len - k) * L.iridescence));
         return { p: q.p, cov: q.cov, rgb };

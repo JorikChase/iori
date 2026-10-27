@@ -121,7 +121,7 @@ function mixCode(oi, kids) {
 ${kids.map((code, i) => `${code}
       kp[${i}] = p; kd[${i}] = t.dr; p = pm; t.dr = drm;`).join('\n')}
       let fm = mixCombine(${oi}u, pm, drm, kp, kd);
-      p = fm.p; t.dr = fm.dr; br = fm.branch; }`;
+      p = fm.p; t.dr = fm.dr; br = fm.branch; t.sp = fm.sp; }`;
 }
 
 // the WGSL `iterate` for one formula, replacing the interpreter's. kind: 'literal' | 'structure'

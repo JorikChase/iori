@@ -11,6 +11,7 @@
 //            become slots after the scheduled ones, in order of appearance
 //   ×N or xN iterations, optionally followed by the schedule, a word of slot letters repeated
 //   seed=N   bail=R   c=x,y,z[,w] (a fixed constant: the Julia set)
+//   shade=…  the shading graph (core/shade.js) as base64url of its canonical JSON
 //   slice=w,xw,yw,zw (where the world sits in 4-D: the offset along w and the tilt into it, degrees)
 //                                                                                  anywhere
 //
@@ -18,6 +19,16 @@
 // normalised formulas.
 
 import { getOp, fillParams, isMix } from './ops.js';
+import { normShade } from './shade.js';
+
+// the shading graph rides in the notation as base64url of its canonical JSON (DESIGN.md Shading)
+const b64url = (str) => {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+const unb64url = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
 
 const SLOT_LETTERS = 'ABCDEFGH';
 const FIELD_WORDS = new Set(['axis', 'sphere', 'noise', 'tissue', 'trap', 'depth', 'lyap', 'blend']);
@@ -83,6 +94,7 @@ export function parse(text) {
     if ((m = t.match(/^seed=(-?\d+)$/))) { f.seed = parseInt(m[1], 10); continue; }
     if ((m = t.match(/^bail=([\d.e+-]+)$/i))) { f.bail = parseFloat(m[1]); continue; }
     if ((m = t.match(/^c=([-+\d.e]+),([-+\d.e]+),([-+\d.e]+)(?:,([-+\d.e]+))?$/i))) { f.c = [m[1], m[2], m[3], m[4] || '0'].map(parseFloat); continue; }
+    if ((m = t.match(/^shade=([A-Za-z0-9_-]+)$/))) { f.shade = JSON.parse(unb64url(m[1])); continue; }
     if ((m = t.match(/^slice=([-+\d.e]+),([-+\d.e]+),([-+\d.e]+),([-+\d.e]+)$/i))) { f.slice = { w: parseFloat(m[1]), tilt: [m[2], m[3], m[4]].map(parseFloat) }; continue; }
     if (tail && /^[A-D]+$/.test(t)) { f.schedule = t; continue; }
     if (cur && isNumber(t)) {
@@ -146,6 +158,7 @@ export function format(f) {
   if (f.bail !== undefined && f.bail !== 4) tail += ` bail=${fmtNum(f.bail)}`;
   if (f.c) tail += ` c=${(f.c[3] ? f.c : f.c.slice(0, 3)).map(fmtNum).join(',')}`;
   if (f.slice && (f.slice.w || f.slice.tilt.some(Boolean))) tail += ` slice=${[f.slice.w, ...f.slice.tilt].map(fmtNum).join(',')}`;
+  if (f.shade) tail += ` shade=${b64url(JSON.stringify(normShade(f.shade)))}`;
   return `${slots} ${tail}`;
 }
 

@@ -15,6 +15,7 @@ import { getOp, isMix } from './ops.js';
 import { weights, orbitWeights } from './fields.js';
 import { normalize, pullSafe, mixKids } from './formula.js';
 import { slotIndex } from './notation.js';
+import { driveRuntime, readingsOf } from './drive.js';
 import { makeRng, recordingRng, replayRng } from './rng.js';
 import { I4, len, add, sub, matMul, matVec, mul, specNorm, embed, sliceMatrix, normalize as nrm } from './vec.js';
 
@@ -44,11 +45,26 @@ const dot4 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 export const startCtx = (f, p) => ({ p0: [...p], trap: dot4(p, p), i: 0, n: f.iters });
 function endIteration(s) { if (s.ctx) s.ctx.trap = Math.min(s.ctx.trap, dot4(s.p, s.p)); }
 
+// ---------- drivers (core/drive.js) -----------------------------------------------------------------
+// The running drivers ride on the context (ctx.drv: op → its parameters with the driven values in);
+// an op not in it runs on its own. Without a drive nothing here touches the orbit.
+const drvOf = (s) => s.drv || (s.ctx && s.ctx.drv);
+const paramsOf = (s, o) => { const D = drvOf(s); return (D && D.get(o)) || o.p; };
+// a mix op with its driven parameters, keeping its sub-stacks
+const drivenOp = (s, o) => { const P = paramsOf(s, o); return P === o.p ? o : { op: o.op, p: P, kids: o.kids }; };
+// start the drivers of an orbit at its start point (hoisted nodes computed here)
+function startDrive(f, s, time) {
+  const D = driveRuntime(f, s.ctx.p0, time || 0);
+  if (D) { s.ctx.drv = D.map; s.ctx.drive = D; }
+}
+// before iteration i: the orbit readings feed the per-iteration drivers
+function stepDrive(s, i) { if (s.ctx.drive) s.ctx.drive.step(readingsOf(s, i, s.ctx.n)); }
+
 // the species run, their weights, the blend. asOrbit: a world-frame field read at the point itself
 // (the inverse, which has no start point, solves for a point that is its own start)
 function mixEval(o, p, c, dr, ctx, asOrbit = false) {
   const k = o.kids.length;
-  const runs = o.kids.map((kid) => { const a = { p: [...p], c, dr }; stepForward(a, kid); return a; });
+  const runs = o.kids.map((kid) => { const a = { p: [...p], c, dr, drv: ctx.drv }; stepForward(a, kid); return a; });
   const world = o.p.at && !asOrbit;
   // (asOrbit reads a world field at the point itself, as it is, the way the GPU's inverse does)
   const W = o.p.at ? weights(o.op, o.p, k, world ? ctx.p0 : p, { ...ctx, dr }) : orbitWeights(o.op, o.p, k, p, { ...ctx, dr });
@@ -59,25 +75,26 @@ function mixEval(o, p, c, dr, ctx, asOrbit = false) {
 }
 
 function mixFwd(s, o) {
-  const m = mixEval(o, s.p, s.c, s.dr, ctxOf(s));
+  const m = mixEval(drivenOp(s, o), s.p, s.c, s.dr, ctxOf(s));
   s.p = m.p; s.dr = m.dr;
   // the branch records the species that leads
   return 1 + m.W.w.indexOf(Math.max(...m.W.w));
 }
 
-function stackJacobian(ops, p, c) {
-  const s = { p: [...p], c, dr: 1 };
+function stackJacobian(ops, p, c, drv) {
+  const s = { p: [...p], c, dr: 1, drv };
   let J = I4();
-  for (const o of ops) { J = matMul(opJacobian(o, s.p, c), J); applyOp(s, o); }
+  for (const o of ops) { J = matMul(opJacobian(o, s.p, c, false, drv ? { drv } : null), J); applyOp(s, o); }
   return { J, p: s.p };
 }
 
 // Σ ωᵢJᵢ + Σ Fᵢ∇ωᵢᵀ at fixed context (the self-fields' readings and a world field's start held still)
 function mixJacobian(o, p, c, ctx, asOrbit = false) {
+  o = drivenOp({ ctx }, o);
   const m = mixEval(o, p, c, ctx.dr ?? 1, ctx, asOrbit);
   const J = new Array(16).fill(0);
   o.kids.forEach((kid, i) => {
-    const sj = stackJacobian(kid, p, c);
+    const sj = stackJacobian(kid, p, c, ctx.drv);
     for (let r = 0; r < 16; r++) J[r] += m.W.w[i] * sj.J[r] + (m.world ? 0 : sj.p[r >> 2] * m.W.G[i][r & 3]);
   });
   return J;
@@ -105,10 +122,11 @@ function solve4(A, y) {
 // read at the preimage itself; the self-fields at the context given (the walk knows its iteration).
 export const MIX_NEWTON = 8, MIX_GUESSES = 4;
 function mixInv(q, o, rng, s0) {
+  o = drivenOp(s0, o);
   const k = o.kids.length, first = rng.pick(k), ctx = ctxOf(s0);
   const tol = 1e-9 * (1 + len(q));
   for (let g = 0; g < MIX_GUESSES; g++) {
-    const s = { p: [...q], c: s0.c, dr: 1 };
+    const s = { p: [...q], c: s0.c, dr: 1, drv: ctx.drv };
     let x = stepInverse(s, o.kids[(first + g) % k], rng, 1);
     if (!x) continue;
     let best = Infinity, stall = 0;
@@ -130,7 +148,7 @@ function mixInv(q, o, rng, s0) {
 function applyOp(s, o) {
   if (isMix(o.op)) return mixFwd(s, o);
   const def = getOp(o.op);
-  const r = def.fwd(s, o.p);
+  const r = def.fwd(s, paramsOf(s, o));
   if (def.wRule === 'mul') s.dr *= r.k;
   else if (def.wRule === 'plus') s.dr += 1;
   return r.branch;
@@ -147,10 +165,12 @@ export function iterate(formula, p0, c = [0, 0, 0, 0], opts = {}) {
   const bail2 = f.bail * f.bail;
   const s = { p: lift(f, p0), c: pad4(c), dr: 1 };
   s.ctx = startCtx(f, s.p);
+  startDrive(f, s, opts.time);
   const points = [[...s.p]], drs = [1], branches = [];
   let escaped = false, n = 0;
   for (let i = 0; i < iters; i++) {
     s.ctx.i = i;
+    stepDrive(s, i);
     branches.push(stepForward(s, slotAt(f, i)));
     endIteration(s);
     n = i + 1;
@@ -192,7 +212,7 @@ export function de(formula, p, c, opts = {}) {
 export function opJacobian(o, p, c, numeric = false, ctx = null) {
   if (isMix(o.op) && !numeric) return mixJacobian(o, p, c, ctx || { p0: p, trap: dot4(p, p), i: 0, n: 1 });
   const def = getOp(o.op);
-  if (def.jac && !numeric) return def.jac(p, o.p);
+  if (def.jac && !numeric) return def.jac(p, ctx ? paramsOf({ ctx }, o) : o.p);
   const J = new Array(16);
   for (let j = 0; j < 4; j++) {
     const a = { p: [...p], c, dr: 1, ctx }, b = { p: [...p], c, dr: 1, ctx };
@@ -205,10 +225,12 @@ export function opJacobian(o, p, c, numeric = false, ctx = null) {
 }
 
 // Jacobian of a whole slot (one iteration) at p — chain rule along the ops
-export function jacobian(formula, p, c = [0, 0, 0, 0], iter = 0) {
+export function jacobian(formula, p, c = [0, 0, 0, 0], iter = 0, opts = {}) {
   const f = normalize(formula);
   const s = { p: lift(f, p), c: pad4(c), dr: 1 };
   s.ctx = { ...startCtx(f, s.p), i: iter };
+  startDrive(f, s, opts.time);
+  stepDrive(s, iter);
   let J = I4();
   for (const o of slotAt(f, iter)) {
     J = matMul(opJacobian(o, s.p, s.c, false, { ...s.ctx, dr: s.dr }), J);
@@ -225,13 +247,15 @@ const worldTangent = (f) => {
   return [0, 1, 2, 3].map((i) => T[i * 4] * d[0] + T[i * 4 + 1] * d[1] + T[i * 4 + 2] * d[2]);
 };
 
-export function lyapunov(formula, p0, c = [0, 0, 0, 0], n = 64) {
+export function lyapunov(formula, p0, c = [0, 0, 0, 0], n = 64, opts = {}) {
   const f = normalize(formula);
   const s = { p: lift(f, p0), c: pad4(c), dr: 1 };
   s.ctx = startCtx(f, s.p);
+  startDrive(f, s, opts.time);
   let v = worldTangent(f), sum = 0, k = 0;
   for (let i = 0; i < n; i++) {
     s.ctx.i = i;
+    stepDrive(s, i);
     for (const o of slotAt(f, i)) {
       v = matVec(opJacobian(o, s.p, s.c, false, { ...s.ctx, dr: s.dr }), v);
       applyOp(s, o);
@@ -261,10 +285,10 @@ export function stepInverse(s, slot, rng, tries = 8) {
         const q = mixInv(s.p, o, rng, s);
         if (q) s.p = q; else ok = false;
       } else if (def.inv) {
-        const q = def.inv(s.p, o.p, rng, s);
+        const q = def.inv(s.p, paramsOf(s, o), rng, s);
         if (q) s.p = q; else ok = false;
       } else {
-        def.fwd(s, o.p);
+        def.fwd(s, paramsOf(s, o));
       }
     }
     if (ok) return s.p;
@@ -303,6 +327,8 @@ export function push(formula, count, opts = {}) {
     // the walk knows which iteration it inverts; the trap it reads is the point's own
     const ctx = { p0: top.p, trap: dot4(top.p, top.p), i: iter, n: f.iters };
     const s = { p: [...top.p], c: [...c], dr: 1, ctx };
+    // drivers: world and hoisted ones read at the walk point, orbit readings at the walk's iteration
+    if (f.drive) { startDrive(f, s, opts.time); stepDrive(s, iter); }
     const q = stepInverse(s, slot, rec, 1);
     if (!q || !q.every(Number.isFinite) || Math.hypot(...q) > f.bail) {
       stack.pop();
@@ -360,15 +386,17 @@ export function deParam(formula, p, oi, key) {
 
 // Lyapunov exponent with the GPU's semantics: the formula's iterations, stopping at escape, mean log
 // stretch per iteration of a tangent at fixed c (c = the point unless the formula fixes it)
-export function lyapunovOrbit(formula, p0) {
+export function lyapunovOrbit(formula, p0, opts = {}) {
   const f = normalize(formula);
   const p4 = lift(f, p0);
   const c = f.c || [...p4];
   const s = { p: p4, c, dr: 1 };
   s.ctx = startCtx(f, s.p);
+  startDrive(f, s, opts.time);
   let v = worldTangent(f), sum = 0, n = 0;
   for (let i = 0; i < f.iters; i++) {
     s.ctx.i = i;
+    stepDrive(s, i);
     for (const o of slotAt(f, i)) {
       v = matVec(opJacobian(o, s.p, s.c, false, { ...s.ctx, dr: s.dr }), v);
       applyOp(s, o);

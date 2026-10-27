@@ -12,10 +12,13 @@
 //
 // Ids are paths: 'B3' is op 3 of scheduled chain B; 'B3.1' species 1 of the chimera B3; 'B3.1.0' its
 // first op. Edits take ids, return a new normalised formula, and throw when the result is not valid.
+// The drivers (core/drive.js) name parameters by these ids; every edit carries them along — a moved op
+// keeps its bindings, a copied one gets copies, a removed one takes its own away.
 
 import { normalize, mixKids, validate } from './formula.js';
 import { getOp, fillParams, isMix } from './ops.js';
 import { slotLetter } from './notation.js';
+import { remapDrive, normDrive, splitTarget, targetParam, opPaths, emptyDrive } from './drive.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const opNode = (o, id) => ({ id, op: o.op, p: { ...o.p } });
@@ -36,7 +39,10 @@ export function tree(formula) {
       }),
     };
   });
-  return { v: f.v, seed: f.seed, iters: f.iters, schedule: f.schedule, bail: f.bail, ...(f.c ? { c: f.c } : {}), ...(f.slice ? { slice: f.slice } : {}), ...(f.shade ? { shade: f.shade } : {}), chains };
+  const t = { v: f.v, seed: f.seed, iters: f.iters, schedule: f.schedule, bail: f.bail, ...(f.c ? { c: f.c } : {}), ...(f.slice ? { slice: f.slice } : {}), ...(f.shade ? { shade: f.shade } : {}), ...(f.drive ? { drive: f.drive } : {}), chains };
+  // the parameters as they were, for a param driver whose op an edit removes
+  if (f.drive) Object.defineProperty(t, 'was', { value: opPaths(f) });
+  return t;
 }
 
 export function flatten(t) {
@@ -47,7 +53,7 @@ export function flatten(t) {
     if (n.species) { o.p.s = n.species.length; kids.push(...n.species.map((sp) => sp.nodes.map(strip))); }
     return o;
   }));
-  const f = { v: t.v, seed: t.seed, iters: t.iters, schedule: t.schedule, bail: t.bail, ...(t.c ? { c: t.c } : {}), ...(t.slice ? { slice: t.slice } : {}), ...(t.shade ? { shade: t.shade } : {}), slots: [...slots, ...kids] };
+  const f = { v: t.v, seed: t.seed, iters: t.iters, schedule: t.schedule, bail: t.bail, ...(t.c ? { c: t.c } : {}), ...(t.slice ? { slice: t.slice } : {}), ...(t.shade ? { shade: t.shade } : {}), ...(t.drive ? { drive: t.drive } : {}), slots: [...slots, ...kids] };
   return normalize(f);
 }
 
@@ -86,8 +92,21 @@ function nodeById(t, id) {
   return found;
 }
 
+// the ids the nodes had when the tree was made (fresh ones have none) → their ids now
+function idMap(t, f) {
+  const old = [], now = [], ids = new Map();
+  walk(t, (n) => old.push(n.id));
+  walk(tree({ ...f, drive: undefined }), (n) => now.push(n.id));
+  old.forEach((id, i) => { if (id) ids.set(id, [...(ids.get(id) || []), now[i]]); });
+  return ids;
+}
+
 const finish = (t) => {
-  const f = flatten(t);
+  let f = flatten(t);
+  if (t.drive) {
+    const was = (to) => { const { path, key } = splitTarget(to), o = t.was && t.was.get(path); return o ? o.p[key] : 0; };
+    f = normalize({ ...f, drive: remapDrive(t.drive, idMap(t, f), f, was) });
+  }
   const v = validate(f);
   if (!v.ok) throw new Error(v.errors.join('; '));
   return f;
@@ -236,4 +255,53 @@ export function setSchedule(formula, word) {
   for (const ch of w) if (LETTERS.indexOf(ch) >= t.chains.length) throw new Error(`no chain ${ch}`);
   t.schedule = w;
   return finish(t);
+}
+
+// ---------- drivers -------------------------------------------------------------------------------
+
+// drive a parameter ('<id>.<param>') from a driver node, over the band [lo, hi]; binding a bound
+// parameter replaces its binding
+export function bind(formula, to, from, lo = 0, hi = 1) {
+  const f = normalize(formula), d = normDrive(f.drive || {});
+  if (!targetParam(opPaths(f), to)) throw new Error(`${to} cannot be driven`);
+  if (!d.nodes.some((m) => m.id === from)) throw new Error(`no driver ${from}`);
+  d.bind = [...d.bind.filter((b) => b.to !== to), { to, from, lo, hi }];
+  return checked({ ...f, drive: d });
+}
+
+export function unbind(formula, to) {
+  const f = normalize(formula);
+  if (!f.drive) return f;
+  return checked({ ...f, drive: { ...f.drive, bind: f.drive.bind.filter((b) => b.to !== to) } });
+}
+
+// a binding's band
+export function setBand(formula, to, lo, hi) {
+  const f = normalize(formula);
+  const b = f.drive && f.drive.bind.find((x) => x.to === to);
+  if (!b) throw new Error(`${to} is not bound`);
+  return checked({ ...f, drive: { ...f.drive, bind: f.drive.bind.map((x) => (x === b ? { ...x, lo, hi } : x)) } });
+}
+
+// a driver node added (after the others) or replaced in place
+export function setDriver(formula, node) {
+  const f = normalize(formula), d = normDrive(f.drive || {});
+  const i = d.nodes.findIndex((m) => m.id === node.id);
+  if (i >= 0) d.nodes[i] = node; else d.nodes.push(node);
+  return checked({ ...f, drive: d });
+}
+
+// a driver node removed with the bindings it feeds; nodes reading it lose that input
+export function removeDriver(formula, id) {
+  const f = normalize(formula), d = normDrive(f.drive || {});
+  d.nodes = d.nodes.filter((m) => m.id !== id).map((m) => ({ ...m, in: Object.fromEntries(Object.entries(m.in).filter(([, r]) => r !== id)) }));
+  d.bind = d.bind.filter((b) => b.from !== id);
+  return checked({ ...f, drive: d });
+}
+
+function checked(f) {
+  const g = normalize(emptyDrive(f.drive) ? { ...f, drive: undefined } : f);
+  const v = validate(g);
+  if (!v.ok) throw new Error(v.errors.join('; '));
+  return g;
 }

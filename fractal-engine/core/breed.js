@@ -7,13 +7,18 @@
 
 import { normalize } from './formula.js';
 import { getOp } from './ops.js';
+import { driveParams, getDriveParam, setDriveParam } from './drive.js';
 
 const flat = (f) => f.slots.flat();
+// a metric entry names an op parameter (oi, key) or a driver's (drive: a core/drive.js ref — a band's
+// lo or hi, a driver node's parameter); the drivers' structure is never bred
+const pinKey = (m) => (m.drive ? m.drive : m.oi + '.' + m.key);
+const valueOf = (f, ops, m) => (m.drive ? (f.drive ? getDriveParam(f.drive, m.drive) : undefined) : ops[m.oi].p[m.key]);
 
-// metric: [{ oi, key, pxPerUnit }]; pins: Set('oi.key'); rnd: () => uniform [0, 1)
+// metric: [{ oi, key, pxPerUnit } | { drive, pxPerUnit }]; pins: Set('oi.key' | drive ref); rnd: () => uniform [0, 1)
 export function mutate(formula, metric, pins, D, rnd) {
   const f = JSON.parse(JSON.stringify(normalize(formula)));
-  const free = metric.filter((m) => m.pxPerUnit > 0 && !pins.has(m.oi + '.' + m.key));
+  const free = metric.filter((m) => m.pxPerUnit > 0 && !pins.has(pinKey(m)) && valueOf(f, flat(f), m) !== undefined);
   if (!free.length) return f;
   // a uniform direction: normalised Gaussians
   const z = free.map(() => {
@@ -22,7 +27,16 @@ export function mutate(formula, metric, pins, D, rnd) {
   });
   const n = Math.hypot(...z) || 1;
   const ops = flat(f);
+  const drv = new Map(driveParams(f.drive).map((q) => [q.ref, q]));
   free.forEach((m, i) => {
+    if (m.drive) {
+      const q = drv.get(m.drive);
+      let v = getDriveParam(f.drive, m.drive) + (D * z[i]) / n / m.pxPerUnit;
+      if (q && q.min !== undefined) v = Math.max(q.min, v);
+      if (q && q.max !== undefined) v = Math.min(q.max, v);
+      setDriveParam(f.drive, m.drive, +v.toPrecision(6));
+      return;
+    }
     const o = ops[m.oi];
     const q = getOp(o.op).params.find((p) => p.k === m.key);
     let v = o.p[m.key] + (D * z[i]) / n / m.pxPerUnit;
@@ -35,10 +49,10 @@ export function mutate(formula, metric, pins, D, rnd) {
 
 // how far apart two formulas of one structure look, in pixels, by the metric (first order)
 export function distancePx(a, b, metric) {
-  const A = flat(normalize(a)), B = flat(normalize(b));
+  const fa = normalize(a), fb = normalize(b), A = flat(fa), B = flat(fb);
   let s = 0;
   for (const m of metric) {
-    const d = (B[m.oi].p[m.key] - A[m.oi].p[m.key]) * m.pxPerUnit;
+    const d = (valueOf(fb, B, m) - valueOf(fa, A, m)) * m.pxPerUnit;
     if (Number.isFinite(d)) s += d * d;
   }
   return Math.sqrt(s);

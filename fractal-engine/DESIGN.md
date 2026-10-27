@@ -795,3 +795,39 @@ Time-driven formulas never count as still (the governor keeps rendering; idle dr
 
 Open: whether shading may read driver outputs as readings (cheap once both programs share registers);
 instances/subgraphs next.
+
+**V1 built 2026-10-27 — the drivers on the CPU.** core/drive.js (the IR, normalize/validate, the
+reference evaluator `evalDrive`, the orbit runtime `driveRuntime`, path ids `opPaths`, `remapDrive`,
+the drivers' continuous parameters `driveParams`); `drive=` in the notation (base64url of the canonical
+JSON, like `shade=`); JSON, hash and exported state carry it; an empty drive is no drive (same id).
+- *Settled in building:* orbit readings are read once at the **start** of each iteration, before its
+  ops (not before each op) — every driven op in an iteration, species included, sees the same values,
+  and the GPU fills the registers once per iteration. A driven value is clamped to its parameter's range.
+  `remap` maps [lo, hi] → 0..1 (the band maps it back). World fields as numbers: axis g·n̂·x, sphere
+  g·(|x − c| − r), noise g·fBm, tissue `out` cell (the softmax-weighted cell index ÷ (n − 1),
+  continuous) or wall (gap of the two nearest site distances ÷ size). `time` waves saw, sine, tri.
+  Bindings are stored sorted by target (the same drive written in another order has the same id).
+- *core/cpu.js:* the running drivers ride on the orbit context (`ctx.drv`: op → its driven parameters);
+  every forward, inverse, Jacobian and chimera path reads parameters through it, so a formula without a
+  drive runs exactly as before. iterate/de/lyapunov/lyapunovOrbit/jacobian take `opts.time`. Push: the
+  hoisted drivers are read at the walk point and the orbit readings at the walk's iteration and point —
+  an approximation for world drivers (the true start is unknown mid-walk), as Q2's world fields are.
+- *core/graph.js:* every edit maps old path ids to new ones by walking the tree before and after (nodes
+  keep their old `id` through an edit), so bindings follow moved ops, copies (fork, addSpecies, addChain)
+  get copies — a fork still changes nothing — and removed ops or parameters (setField) take theirs
+  away; a `param` driver whose op is gone becomes a `math` constant of the value it last read. New edits:
+  bind, unbind, setBand, setDriver, removeDriver.
+- *core/breed.js:* metric entries may name a driver parameter (`{ drive: 'bind/A2.s/lo' | 'node/n/f' }`);
+  mutate and distancePx move them, pins by the same ref; structure is never bred.
+- Tests: test/drive.test.mjs (6) — a bulb driven by `i` equals the hand-unrolled ABCDEF schedule bit
+  for bit; |p|-driven scale replayed by hand; world, start, time, param and chimera-species/field-weight
+  drivers equal the plain formula with the value written in; Lyapunov and Jacobian see driven values;
+  undriven and own-value bands leave orbits and the push walk identical; notation/hash/state round
+  trips; every validation error; every graph edit; breeding. 35 tests pass in all.
+
+V2 must add: the drive program in the ops buffer and its interpreter (registers once per orbit for
+hoisted nodes, once per iteration for the rest); the driven-bit rebuilds; duals (∇θ: fields' analytic
+gradients, readings through the iterate's columns); push; JIT; the step factor; parity against
+`evalDrive`/`iterate` with driven cases. Sensing (gpu/pack.js paramTangents, gpu/sense.js) enumerates
+op parameters only — the lens, grab and breeding metric need the drivers' parameters (driveParams) as
+sensed entries, and a sensed op parameter that is bound should be skipped (its own value does nothing).

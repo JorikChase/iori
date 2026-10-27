@@ -1,0 +1,13 @@
+# the raw export (~100 MB); the page ships theatre-mask/mask.glb, rebuilt from it with gltf-transform
+web/
+__pycache__/
+# third-party reference photos (Commons, CC BY / CC BY-SA): working material, not ours to redistribute
+refs/
+# individual renders are reproducible from build.py; only the review sheets are kept
+renders/*
+!renders/draft1_sheet.png
+!renders/draft2_sheet.png
+!renders/d4_sheet.png
+!renders/d5_sheet.png
+!renders/closed_check.png
+!renders/facecap_probe.png

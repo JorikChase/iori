@@ -1,0 +1,121 @@
+{
+ "keys": [
+  "brow_inner_up",
+  "brow_inner_up_w",
+  "brow_outer_up",
+  "brow_outer_up_w",
+  "brow_down",
+  "brow_down_w",
+  "lid_raise",
+  "cheek_raise",
+  "cheek_raise_w",
+  "smile",
+  "smile_w",
+  "frown",
+  "frown_w",
+  "chin_raise",
+  "chin_raise_w",
+  "jaw_drop",
+  "lip_stretch",
+  "lip_round",
+  "upper_lip_raise",
+  "upper_lip_raise_w",
+  "nose_wrinkle",
+  "nose_wrinkle_w",
+  "lid_tighten",
+  "lid_tighten_w",
+  "lip_press",
+  "lip_press_w",
+  "dimpler_L",
+  "dimpler_L_w",
+  "lips_close"
+ ],
+ "emotions": {
+  "neutral": {},
+  "surprise": {
+   "brow_inner_up": 1.0,
+   "brow_outer_up": 1.0,
+   "lid_raise": 1.0,
+   "jaw_drop": 0.9,
+   "lip_round": 0.6
+  },
+  "tragedy": {
+   "brow_inner_up": 1.0,
+   "brow_down": 0.7,
+   "frown": 1.0,
+   "jaw_drop": 0.75,
+   "lip_stretch": 0.4,
+   "upper_lip_raise": 0.5,
+   "chin_raise": 0.4
+  },
+  "comedy": {
+   "cheek_raise": 1.0,
+   "smile": 1.0,
+   "jaw_drop": 0.6,
+   "upper_lip_raise": 0.15,
+   "nose_wrinkle": 0.35,
+   "brow_outer_up": 0.15,
+   "lip_stretch": 0.3
+  },
+  "fear": {
+   "brow_inner_up": 1.0,
+   "brow_outer_up": 0.5,
+   "brow_down": 0.45,
+   "lid_raise": 1.0,
+   "lid_tighten": 0.3,
+   "lip_stretch": 1.3,
+   "jaw_drop": 0.45
+  },
+  "anger": {
+   "brow_down": 1.0,
+   "lid_raise": 0.6,
+   "lid_tighten": 0.8,
+   "lips_close": 1.0,
+   "lip_press": 0.7,
+   "nose_wrinkle": 0.3,
+   "chin_raise": 0.6
+  },
+  "disgust": {
+   "nose_wrinkle": 1.0,
+   "upper_lip_raise": 1.0,
+   "lid_tighten": 0.6,
+   "brow_down": 0.4,
+   "chin_raise": 0.6,
+   "frown": 0.5,
+   "cheek_raise": 0.25,
+   "lip_press": 0.2
+  },
+  "contempt": {
+   "dimpler_L": 1.0,
+   "lid_tighten": 0.3,
+   "lips_close": 1.0,
+   "lip_press": 0.4,
+   "brow_outer_up": 0.15
+  },
+  "serenity": {
+   "smile": 0.55,
+   "cheek_raise": 0.45,
+   "lips_close": 1.0,
+   "brow_outer_up": 0.1
+  },
+  "sorrow": {
+   "brow_inner_up": 0.9,
+   "brow_down": 0.35,
+   "frown": 0.7,
+   "chin_raise": 0.7,
+   "lips_close": 1.0,
+   "lid_tighten": 0.2
+  },
+  "resolve": {
+   "brow_down": 0.45,
+   "lid_tighten": 0.5,
+   "lips_close": 1.0,
+   "lip_press": 0.6,
+   "chin_raise": 0.4
+  }
+ },
+ "wrinkle_onset": [
+  0.15,
+  0.85
+ ]
+}

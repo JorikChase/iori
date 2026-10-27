@@ -813,6 +813,16 @@
       "priority": 0.5,
       "hidden": true
     },
+    "theatre-mask/index.html": {
+      "title": "Theatre Mask — Emotion Surface",
+      "description": "An ivory theatre mask that morphs between ten emotions: drag across the surface and comedy folds into serenity, tragedy into sorrow, wrinkles and all.",
+      "category": "client",
+      "domain": "3die.fr",
+      "type": "client",
+      "priority": 0.5,
+      "hidden": true,
+      "_note": "drama-lessons client focal point, unlisted — drop hidden to list it"
+    },
     "fractal-engine/index.html": {
       "title": "Fractal Engine — Procedural Fractal Designer",
       "description": "A WebGPU fractal designer in four dimensions: fly inside Mandelboxes and bulbs, breed and blend families on a map, edit the formula as a network.",

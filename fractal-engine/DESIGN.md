@@ -667,3 +667,41 @@ thumbnail is the field without it.
 Not yet: formula v2 itself (fields or node outputs driving parameters, reused subgraphs); adding or
 removing scheduled chains and editing the schedule word in the graph (the notation does it); the unfold
 animation is timer-driven and stalls while the pane is hidden; touch.
+
+## Shading (Q5) — decided 2026-10-27
+
+iori: shading nodes for colour and a ramp node with full functionality. Decisions:
+- **Placement:** next to the formula graph, visually its own frame, but in principle the same chain:
+  the formula's readings flow out of the repeat zone into the shading network (one IR, one strip).
+- **Ramp:** stops (add, drag, delete, any number up to 16, colour and alpha each), interpolation
+  (constant, linear, ease, B-spline, cardinal) in a colour space (RGB, HSV, Oklab), input mapping
+  (scale, offset, clamp / repeat / mirror, log, invert), and presets (fire, ice, film, mono — iori's
+  taste runs to one hue with highlights, or iridescent).
+- **Colour picking:** a hairline hue ring around a held stop — angle is hue, distance from the stop is
+  saturation, scroll is lightness. No panels.
+- **Storage:** in the formula (JSON `shade`, the notation's `shade=` token, the hash) — so the URL,
+  lineage, breeding and exported splats/stills reproduce the colour exactly.
+
+**IR — a typed dataflow (the first real formula-v2 graph).** `formula.shade = { nodes, out }`:
+nodes in topological order, each `{ id, type, in: { port: nodeId }, p: {…} }`; `out = { color, glow }`
+name the nodes feeding the outputs. Types:
+- readings (no inputs, one number out): `col` (the fold colour index, 0..1), `trap` (least |p|²),
+  `depth` (iterations done ÷ iterations), `lyap` (λ along the orbit), `facing` (n·v), `species` (the
+  leading chimera species ÷ (k − 1), 0 without a chimera), `w` (the hit point's place in 4-D along w)
+- `ramp`: number in → colour (rgba) out; p: stops [{ t, c: [r, g, b, a] }], interp, space, map
+  { scale, offset, mode, log, invert }
+- `math`: numbers a, b → number; p: op (add, sub, mul, min, max, pow, sin, bands — terraces of the
+  input in steps of b), c (a constant used when b is unconnected)
+- `mixc`: colours a, b, number f → colour; p: mode (mix, multiply, screen, add)
+- the outputs: `color` (surface albedo, a colour) and `glow` (a number scaling the glow, or a colour
+  tinting it). Without `shade` the formula renders as before (the key colour tinted by the fold index).
+
+**GPU:** the shading program packed after the op records in the ops buffer (no new binding) and run
+by a small register interpreter in the shading step (one vec4 register per node). Push splats take
+the same program with the readings they have (col; the others 0). Parity: the CPU evaluator against
+the GPU's on random readings.
+
+**Phases:** S1 core (IR, notation, CPU evaluator, ramp maths, presets, tests) → S2 GPU (interpreter,
+readings incl. species, push colour, parity) → S3 UI (the shading frame beside the graph, wiring by
+hold-on-port rings, the ramp editor: bar, stops, hue ring, glyph toggles for interpolation / space /
+mode, mapping as dimension lines, preset ring) → S4 verify, docs, deploy.

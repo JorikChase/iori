@@ -199,6 +199,32 @@ export function setCollageDriver(collage, node) {
   return checked({ ...c, drive: d });
 }
 
+// a driver node out: its bindings go, what read it is left unconnected — and a node that cannot be
+// (a remap with nothing to read) goes with it, as core/drive-edit.js removeDriverNode does
+const REQUIRED = { remap: ['a'] };
+export function removeCollageDriver(collage, id) {
+  const c = normCollage(collage);
+  if (!c.drive) return c;
+  const gone = new Set([id]);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const m of c.drive.nodes) {
+      if (gone.has(m.id)) continue;
+      if ((REQUIRED[m.type] || []).some((port) => gone.has(m.in[port]))) { gone.add(m.id); changed = true; }
+    }
+  }
+  const nodes = c.drive.nodes.filter((m) => !gone.has(m.id)).map((m) => ({ ...m, in: Object.fromEntries(Object.entries(m.in || {}).filter(([, r]) => !gone.has(r))) }));
+  return checked({ ...c, drive: { nodes, bind: c.drive.bind.filter((b) => !gone.has(b.from)) } });
+}
+
+// a link from driver `from` into input `port` of driver `to`
+export function connectCollageDriver(collage, from, to, port) {
+  const c = normCollage(collage), d = normDrive(c.drive || {});
+  const m = d.nodes.find((q) => q.id === to);
+  if (!m || !d.nodes.some((q) => q.id === from) || from === to) throw new Error(`no link ${from} → ${to}.${port}`);
+  return setCollageDriver(c, { ...m, in: { ...m.in, [port]: from } });
+}
+
 // ---------- parameters for breeding, the lens and the grab -----------------------------------------
 
 // every continuous collage number: [{ ref: 'P0.tx' | 'J1.r' …, value, min, max }] — the joins' numbers

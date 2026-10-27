@@ -28,6 +28,12 @@
 //                   there shows its handle, the reticle and the point's orbit; drag sideways to edit it at
 //                   a constant pixels-per-pixel rate, scroll to pass attention to the next op, Esc undoes
 //
+//   a collage       drag a lineage dot (or a breed ring's neighbour, carried out past its thumbnail) onto the
+//                   field, or hold a Metasurface site: its formula joins what is on screen as a piece. Click a
+//                   surface: its piece is picked and its frame drawn (an axis moves it, the ring turns it, the
+//                   corner scales it, shift snaps); G: the collage's graph (pieces, joins, its shading, its
+//                   drivers). The full list where the collage's section starts, below
+//
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
@@ -58,6 +64,14 @@ import * as SE from './core/shade-edit.js';
 import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
+import { isCollage, isCollageText, normCollage, formatCollage, parseAny, formatAny, hashCollage, collageAt, toPiece, repFold, MAX_PIECES, KERNELS, JOIN_OPS, PLACE, REP, JOIN, collageTarget } from './core/collage.js';
+import * as CE from './core/collage-edit.js';
+import { collageStructure, lerpCollage, mutateCollage, collageDistancePx, metricId, metricValue, withMetric } from './core/collage-breed.js';
+import { senseCollage } from './core/collage-sense.js';
+import { layoutCollage, placeCollage, drawCollage, joinGlyph, seamLine, pieceAt as collagePieceAt, joinAt as collageJoinAt, seamAt as collageSeamAt, outAt as collageOutAt } from './ui/collagegraph.js';
+import { gizmoGeometry, gizmoHit, drawGizmo, eulerXYZ, axisAngle } from './ui/gizmo.js';
+import { rotationXYZ, matMul } from './core/vec.js';
+import { ORBIT as DRIVE_ORBIT } from './core/drive.js';
 import { createSurface, formulaAt, weightsAt, strokeField, wallBands, hardWalls, BAND_LEVELS, layoutOf, isDefault, addSite, moveSite, removeSite, resetLayout, axesFromSensed, MAX_SITES } from './core/metasurface.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
@@ -109,8 +123,10 @@ const LOOK = {
 
 const canvas = document.getElementById('field');
 const state = {
-  formula: null,
-  text: '',
+  formula: null,        // the formula on screen — in a collage, the picked piece's (piece 0 when none is)
+  text: '',             // the document's text: a formula's notation, or a collage's
+  collage: null,        // the collage on screen (core/collage.js, normalised), or null for a formula
+  pick: null,           // in a collage: the piece selected (its index), 'C' (the collage's own shading), or null
   cam: { pos: [...DEFAULT.cam.pos], yaw: DEFAULT.cam.yaw, pitch: DEFAULT.cam.pitch },
   look: { ...LOOK },
   focus: 0.5,
@@ -153,17 +169,18 @@ function remember() {
 // image flows through the new formula's map in the loop engine (380 ms), then the new mode takes over.
 const MORPH_MS = 350, FLOW_MS = 380, WALK_PX_S = 150;
 const structureOf = (g) => JSON.stringify([g.slots.map((sl) => sl.map((o) => o.op)), g.schedule, g.iters, g.c || null]);
+const normDoc = (x) => (isCollage(x) ? normCollage(x) : normalize(x));
 
 function restore(node) {
   if (!node) return;
   exitGrab();
   const mode = node.mode === 'push' && !P ? 'pull' : node.mode;
-  const to = normalize(parse(node.text));
+  const to = normDoc(parseAny(node.text));
   const cam = { pos: [...node.cam.pos], yaw: node.cam.yaw, pitch: node.cam.pitch };
-  if (mode === state.mode && structureOf(to) === structureOf(normalize(state.formula))) {
-    state.trans = { kind: 'morph', t0: performance.now(), dur: MORPH_MS, from: { f: normalize(state.formula), cam: JSON.parse(JSON.stringify(state.cam)) }, to: { f: to, cam } };
+  if (mode === state.mode && docStructure(to) === docStructure(doc())) {
+    state.trans = { kind: 'morph', t0: performance.now(), dur: MORPH_MS, from: { f: normDoc(doc()), cam: JSON.parse(JSON.stringify(state.cam)) }, to: { f: to, cam } };
   } else {
-    setFormula(node.text);
+    setDoc(node.text);
     state.cam = cam;
     flowTo(mode);
   }
@@ -175,17 +192,18 @@ function restore(node) {
 // walk to a formula of the same structure at constant visual speed: parameters linear in time, the
 // duration its distance by the metric over WALK_PX_S. then: called on arrival
 function walkTo(text, then, commit = true) {
-  const to = normalize(parse(text));
-  const from = normalize(state.formula);
-  if (structureOf(to) !== structureOf(from)) { setFormula(text); flowTo(state.mode); if (then) then(); return; }
+  const to = normDoc(parseAny(text));
+  const from = normDoc(doc());
+  if (docStructure(to) !== docStructure(from)) { setDoc(text); flowTo(state.mode); if (then) then(); return; }
   const m = state.sensed ? state.sensed.params : [];
-  const D = m.length ? distancePx(from, to, m) : 100;
+  const D = m.length ? (isCollage(to) ? collageDistancePx(from, to, m) : distancePx(from, to, m)) : 100;
   const dur = Math.max(250, Math.min(3000, (D / WALK_PX_S) * 1000));
   state.trans = { kind: 'walk', t0: performance.now(), dur, from: { f: from, cam: JSON.parse(JSON.stringify(state.cam)) }, to: { f: to, cam: JSON.parse(JSON.stringify(state.cam)) }, then, commit };
 }
 
 function flowTo(mode) {
-  if (!LP) { state.mode = mode; return; }
+  // the flow runs through the formula's map in the loop engine: a collage has none, so it cuts
+  if (!LP || state.collage) { state.mode = mode === 'loop' && state.collage ? 'pull' : mode; if (state.trans && state.trans.kind === 'flow') state.trans = null; return; }
   state.loopSeed = 1;
   placeLoopWindow();
   state.trans = { kind: 'flow', t0: performance.now(), dur: FLOW_MS, then: mode };
@@ -199,15 +217,19 @@ function advanceTransition(now) {
   const e = T.kind === 'walk' ? s : s * s * (3 - 2 * s);
   if (T.kind === 'morph' || T.kind === 'walk') {
     const a = T.from.f, b = T.to.f;
-    const g = JSON.parse(JSON.stringify(b));
-    g.slots.forEach((sl, i) => sl.forEach((o, j) => {
-      for (const k of Object.keys(o.p)) o.p[k] = a.slots[i][j].p[k] + (b.slots[i][j].p[k] - a.slots[i][j].p[k]) * e;
-    }));
-    setFormula(format(g), true);
+    // a collage walks piece by piece (core/collage-breed.js), a formula op by op
+    if (isCollage(b)) setCollage(lerpCollage(a, b, e), true);
+    else {
+      const g = JSON.parse(JSON.stringify(b));
+      g.slots.forEach((sl, i) => sl.forEach((o, j) => {
+        for (const k of Object.keys(o.p)) o.p[k] = a.slots[i][j].p[k] + (b.slots[i][j].p[k] - a.slots[i][j].p[k]) * e;
+      }));
+      setDoc(format(g), true);
+    }
     const c0 = T.from.cam, c1 = T.to.cam;
     state.cam = { pos: c0.pos.map((v, i) => v + (c1.pos[i] - v) * e), yaw: c0.yaw + (c1.yaw - c0.yaw) * e, pitch: c0.pitch + (c1.pitch - c0.pitch) * e };
     if (s >= 1) {
-      setFormula(format(b), true); state.cam = c1; state.trans = null; state.home = null;
+      setDoc(formatAny(b), true); state.cam = c1; state.trans = null; state.home = null;
       if (T.kind === 'walk' && T.commit) remember();
       if (T.kind === 'walk') writeHash();
       if (T.then) T.then();
@@ -232,12 +254,18 @@ function captureThumb() {
 
 function drawStructureNow() {
   if (!state.structure || !state.formula) { structureSvg.innerHTML = ''; return; }
-  const f = normalize(state.formula);
   const b = basis(state.cam);
-  const centre = add(state.cam.pos, b.fwd, Math.max(state.focus, 1e-4));
+  let centre = add(state.cam.pos, b.fwd, Math.max(state.focus, 1e-4));
+  // in a collage the ruler reads the piece that leads at the centre, at the point it reaches there
+  let f = normalize(state.formula);
+  if (shownCollage) {
+    const pc = shownCollage.pieces[collageAt(shownCollage, centre).lead];
+    f = pc.f; centre = repFold(pc.rep, toPiece(pc.place, centre));
+  }
   const depth = iterate(f, centre, f.c || lift(f, centre)).n;
   drawStructure(structureSvg, {
-    W: innerWidth, H: innerHeight, formula: f, depth, unfolded: !!gv,
+    W: innerWidth, H: innerHeight, formula: f, depth, unfolded: !!gv || !!cv,
+    strip: state.collage ? collageStrip() : null,
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
     lineage: lineage.layout(), hover: state.hoverNode,
     progress: state.exporting ? state.exporting.progress : null,
@@ -263,6 +291,8 @@ structureSvg.addEventListener('pointermove', (e) => {
 });
 structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; drawStructureNow(); });
 structureSvg.addEventListener('click', (e) => {
+  // the end of a lineage thumbnail's drag onto the field is not a click
+  if (ldragDone) { ldragDone = false; return; }
   if (e.target && e.target.dataset && e.target.dataset.graph) { openGraph(); return; }
   const ex = e.target && e.target.dataset ? e.target.dataset.export : null;
   if (ex) { exportAs(ex); return; }
@@ -286,7 +316,7 @@ const basis = (c) => {
   return { fwd, right, up };
 };
 
-// a collage shown through __fe.collage (K2: drawn by code only, the app's tools still edit the formula)
+// the collage on screen, prepared for the CPU (core/collage.js prepare), or null
 let shownCollage = null;
 const deAt = (p) => (shownCollage ? collageDE(shownCollage, p) : cpuDe(state.formula, p));
 const add = (a, b, s = 1) => [a[0] + b[0] * s, a[1] + b[1] * s, a[2] + b[2] * s];
@@ -381,6 +411,8 @@ function closeSurface() {
   if (!surf) return;
   surfWalk++;
   if (surf.press) clearTimeout(surf.press.timer);
+  if (surf.site) clearTimeout(surf.site.timer);
+  gizmoDue = true;
   state.drift = surf.drift;
   surf = null;
   clearGrab(overlay);
@@ -413,7 +445,7 @@ function drawSurfaceNow() {
     spokes: ws.map((e) => { const [x, y] = toScreen(SURF.sites[e.j].at); return { x, y, w: e.w }; }),
     cross: toScreen(surf.x),
     stroke: surf.stroke && surf.stroke.scr, strokeKind: surf.stroke && surf.stroke.kind,
-    ring: p && !p.full && !p.done && p.u > 0.08 ? { x: p.sx, y: p.sy, u: p.u } : null,
+    ring: p && !p.full && !p.done && p.u > 0.08 ? { x: p.sx, y: p.sy, u: p.u } : held && !held.moved && held.u > 0.15 ? { x: toScreen(SURF.sites[held.j].at)[0], y: toScreen(SURF.sites[held.j].at)[1], u: held.u } : null,
   });
 }
 
@@ -434,8 +466,9 @@ function frameAt(view) {
 function surfaceTo(x) {
   surf.x = x; surfAt = x;
   const r = formulaAt(SURF, x);
+  // in a collage the crosshair swaps the picked piece's formula (the camera stays with the collage)
   setFormula(format(r.f), true);
-  frameAt(r.view);
+  if (!state.collage) frameAt(r.view);
   touched();
   drawSurfaceNow();
 }
@@ -476,7 +509,18 @@ function surfDown(e) {
   }
   const j = siteHit(e.clientX, e.clientY);
   if (j >= 0) {
-    surf.site = { j, sx: e.clientX, sy: e.clientY, scr: [e.clientX, e.clientY], moved: false, off: false, text0: state.text };
+    // a site: a click goes there, a drag moves it, a still hold adds its formula to the field as a
+    // collage's piece (DESIGN.md "Collage (K)", K3) — the ring fills around it as the hold runs
+    const h = surf.site = { j, sx: e.clientX, sy: e.clientY, scr: [e.clientX, e.clientY], moved: false, off: false, text0: state.text, t0: performance.now(), u: 0, done: false };
+    const full = state.collage && state.collage.pieces.length >= MAX_PIECES;
+    const tick = () => {
+      if (!surf || surf.site !== h || h.moved) return;
+      h.u = (performance.now() - h.t0) / SURF_HOLD_MS;
+      if (h.u >= 1) { h.done = true; const f = SURF.sites[h.j].f; closeSurface(); dropPiece(format(f), h.sx, h.sy); return; }
+      drawSurfaceNow();
+      h.timer = setTimeout(tick, 16);
+    };
+    if (!full) h.timer = setTimeout(tick, 16);
     drawSurfaceNow();
     return;
   }
@@ -507,6 +551,7 @@ function surfMove(e) {
     const h = surf.site;
     if (!h.moved && Math.hypot(e.clientX - h.sx, e.clientY - h.sy) < 4) return;
     h.moved = true;
+    clearTimeout(h.timer);
     h.scr = [e.clientX, e.clientY];
     h.off = offSquare(e.clientX, e.clientY);
     const now = performance.now();
@@ -597,7 +642,7 @@ function layField(pts, scr) {
   const view = strokeField(SURF, pts, n, 1).view;
   const r = strokeField(SURF, pts, n, 2 * th * view * aspect);
   closeSurface();
-  setFormula(format(r.f));
+  setDoc(format(r.f));
   frameAt(r.view);
   writeHash();
   remember();
@@ -629,6 +674,8 @@ function graphPlacement() {
 
 function openGraph() {
   if (gv) return;
+  // a collage's graph is its pieces and joins; a piece's own graph opens from there (drillInto)
+  if (state.collage && !drilling) { openCollageGraph(); return; }
   exitGrab();
   const P = graphPlacement();
   gv = { P, from: stripPlacement(normalize(state.formula), innerWidth, innerHeight), t0: performance.now(), hover: null, selected: null, press: null, drag: null, param: null, picker: null, thumbs: new Map(), drift: state.drift };
@@ -641,9 +688,16 @@ function openGraph() {
 function closeGraph() {
   if (!gv) return;
   state.drift = gv.drift;
+  const back = gv.back;
   gv = null;
   clearGrab(overlay);
+  gizmoDue = true;
   drawStructureNow();
+  // out of a piece's graph (or the collage's shading): back to the collage's graph
+  if (back && state.collage) {
+    if (state.pick === 'C') setPick(back.pick === 'C' ? null : back.pick);
+    openCollageGraph();
+  }
 }
 
 // after the formula changed: the new network, the selection kept where it still exists
@@ -937,7 +991,12 @@ function drawGraphNow() {
   const hq = gv.hover && P.items.find((q) => q.id === gv.hover);
   let svg = `<rect class="gv" x="0" y="0" width="${innerWidth}" height="${innerHeight}" style="opacity:${(0.55 * t).toFixed(2)}"/>`;
   const handles = sel && !gv.from ? paramHandles(sel) : [];
-  svg += drawGraph(P, {
+  // the collage's own shading (pick 'C'): the shading frame beside the collage's output, no formula
+  const own = state.pick === 'C';
+  if (own) {
+    const [x0, y0, x1, y1] = P.zone;
+    svg += `<g class="gr full"><path class="zn" d="M${x0} ${y0}H${x1}V${y1}H${x0}Z"/><g class="nd">${glyphPath('out.color', (x0 + x1) / 2, (y0 + y1) / 2, 22)}</g></g>`;
+  } else svg += drawGraph(P, {
     driven: DE.drivenOps(normalize(state.formula)),
     full: true, hover: gv.hover, selected: gv.selected, schedSel: gv.schedSel ?? null, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : gv.hoverEdge || null,
     plus: !gv.press && !gv.picker && gv.hoverEdge ? gv.hoverEdge : null,
@@ -946,7 +1005,7 @@ function drawGraphNow() {
   });
   if (gv.drag) svg += `<g class="gr full"><g class="nd hv">${glyphPath(gv.drag.glyph, gv.drag.x, gv.drag.y, 26)}</g></g>`;
   if (!gv.from) svg += drawShadeNow(P);
-  if (!gv.from) svg += drawDriveNow(P, handles, sel);
+  if (!gv.from && !own) svg += drawDriveNow(P, handles, sel);
   if (gv.pull) svg += `<g class="gr full"><g class="nd hv">${glyphPath('drv.param', gv.pull.x, gv.pull.y, 22)}</g></g>`;
   if (gv.picker) svg += drawPicker(gv.picker);
   overlay.innerHTML = svg;
@@ -973,7 +1032,8 @@ function drawPicker(k) {
         const a0 = Math.PI * (0.75 + (j / it.colours.length) * 1.5), a1 = Math.PI * (0.75 + ((j + 1) / it.colours.length) * 1.5);
         s += `<path class="pa" style="stroke:${c}" d="M${(gx + Math.cos(a0) * r).toFixed(1)} ${(gy + Math.sin(a0) * r).toFixed(1)}A${r} ${r} 0 0 1 ${(gx + Math.cos(a1) * r).toFixed(1)} ${(gy + Math.sin(a1) * r).toFixed(1)}"/>`;
       });
-    } else s += `<g class="nd${i === k.sel ? ' sel' : ''}">${glyphPath(it.glyph, gx, gy, i === k.sel ? 26 : 20)}</g>`;
+    } else if (it.join) s += `<g class="nd${i === k.sel ? ' sel' : ''}"><path d="${joinGlyph(it.join, gx, gy, i === k.sel ? 26 : 20)}"/></g>`;
+    else s += `<g class="nd${i === k.sel ? ' sel' : ''}">${glyphPath(it.glyph, gx, gy, i === k.sel ? 26 : 20)}</g>`;
     if (i === k.sel) s += `<circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="18"/>`;
   });
   return s + '</g>';
@@ -1018,6 +1078,8 @@ function graphDown(e) {
   if (gv.from) return;
   const x = e.clientX, y = e.clientY;
   if (shadeDown(x, y)) return;
+  // the collage's own shading has only its frame: anything else goes back to the collage
+  if (state.pick === 'C') { closeGraph(); return; }
   if (driveDown(x, y)) return;
   // a parameter handle of the selected node
   const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
@@ -1070,7 +1132,7 @@ function graphDown(e) {
 function graphMove(e) {
   const x = e.clientX, y = e.clientY;
   if (shadeMove(x, y)) return;
-  if (driveMove(x, y)) return;
+  if (state.pick !== 'C' && driveMove(x, y)) return;
   if (gv.picker) {
     const [cx, cy] = gv.picker.at;
     if (Math.hypot(x - cx, y - cy) < 30) gv.picker.sel = -1;
@@ -1111,6 +1173,7 @@ function graphMove(e) {
     }
     return;
   }
+  if (state.pick === 'C') return;
   // hover: which node, and its thumbnail once the pointer rests; off the nodes, the edge a hold would
   // insert on (it shows a plus)
   const q = graphNodeAt(gv.P, x, y), id = q ? q.id : null;
@@ -1137,7 +1200,7 @@ function graphMove(e) {
 
 function graphUp(e) {
   if (shadeUp(e.clientX, e.clientY)) return;
-  if (driveUp(e.clientX, e.clientY)) return;
+  if (state.pick !== 'C' && driveUp(e.clientX, e.clientY)) return;
   if (gv.picker) {
     const k = gv.picker;
     gv.picker = null; gv.press = null;
@@ -1521,6 +1584,583 @@ function graphKey(e) {
   return false;
 }
 
+// ---------- the collage (DESIGN.md "Collage (K)", K3): starting one, picking, placing, its graph ------
+// Drag a thumbnail from the lineage or the breed ring onto the field, or hold on a Metasurface site: the
+// formula on screen becomes piece 1 and the dropped one lands on the surface under the cursor (else at
+// the view's focus), a quarter of the view across, joined by a quad smooth union a tenth of its size
+// wide. Up to eight pieces; a collage dropped on a collage is refused (they do not nest).
+// Click a surface: the piece that leads there is picked and its affine frame drawn (ui/gizmo.js) — an
+// axis moves it along itself, the ring turns it about the line of sight, the corner scales it, Shift
+// snaps (a tenth of the frame, 15°, two figures). Click open ground: nothing is picked.
+// G (or the strip): the collage's graph (ui/collagegraph.js) over the dimmed field — click a piece: picked,
+// its placement and repetition as dimension lines below; click one of its ops then: its own formula graph
+// opens (G or Esc comes back); hold a piece: the ring of repetitions. Click a join: its numbers; hold it:
+// the ring of ops and kernels (a new cutter grows a tenth of its size); drag its seam line: the seam's
+// width, as wide on screen as the seam is at the focus. Click the output: the collage's own shading.
+// The collage's drivers sit in a row above the pieces: hold the row for the ring of drivers, drag from a
+// driver's dot onto a line (or the seam line): bound; onto another's input: linked. Delete removes the
+// picked piece, the selected driver or band.
+
+function docTimeDriven() {
+  if (!state.collage) return timeDriven(state.formula);
+  const c = state.collage;
+  return c.pieces.some((q) => timeDriven(q.f)) || !!(c.drive && c.drive.bind.length && c.drive.nodes.some((m) => m.type === 'time'));
+}
+
+// a collage number's glyph: a placement's, a repetition's, a join's
+function refGlyph(ref) {
+  const { path, key } = splitTarget(ref);
+  if (path[0] === 'J') return key === 'w' ? 'mixc.mix' : key === 'n' ? 'math.bands' : 'seam';
+  if (/^t[xyz]$/.test(key)) return 'translate';
+  if (/^r[xyz]$/.test(key)) return 'rotate';
+  if (key === 's') return 'scale';
+  if (key === 'g') return 'cl.grow';
+  const pc = state.collage && state.collage.pieces[+path.slice(1)];
+  return pc && pc.rep ? `rep.${pc.rep.kind}` : 'rep.none';
+}
+
+// a formula's natural radius: how far out its surface is, marched in from 16 along the six axes
+const radii = new Map();
+function naturalRadius(f) {
+  const key = format(normalize(f));
+  if (radii.has(key)) return radii.get(key);
+  let R0 = 0;
+  for (const a of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+    let t = 0;
+    for (let i = 0; i < 200 && t < 16; i++) {
+      const d = cpuDe(f, a.map((v) => v * (16 - t)));
+      if (d < 1e-3) { R0 = Math.max(R0, 16 - t); break; }
+      t += Math.max(d * 0.9, 1e-3);
+    }
+  }
+  R0 = R0 || 1;
+  radii.set(key, R0);
+  return R0;
+}
+
+// pixels a world unit is at the view's focus
+const pxAtFocus = () => innerHeight / (2 * Math.tan((state.look.fovDeg * Math.PI) / 360) * Math.max(state.focus, 1e-4));
+
+// a formula's text dropped at screen point (sx, sy): added to the collage (one is started); false when refused
+function dropPiece(text, sx, sy) {
+  let f;
+  try { f = parseAny(text); } catch { return false; }
+  if (isCollage(f)) return false;
+  const c0 = state.collage || normCollage({ pieces: [{ f: normalize(state.formula) }], joins: [] });
+  if (c0.pieces.length >= MAX_PIECES) return false;
+  const { dir } = pixelRay(sx, sy);
+  const t = traceRay(dir) ?? Math.max(state.focus, 1e-3);
+  const at = add(state.cam.pos, dir, t), R0 = naturalRadius(f), th = Math.tan((state.look.fovDeg * Math.PI) / 360);
+  const s = +Math.max(PLACE.s.min, (0.25 * t * th) / R0).toPrecision(3), r = +(0.1 * s * R0).toPrecision(3);
+  let c;
+  try { c = CE.addPiece(c0, normalize(f), null, { op: 'union', k: 'quad', r }, { tx: +at[0].toPrecision(6), ty: +at[1].toPrecision(6), tz: +at[2].toPrecision(6), s }); }
+  catch (e) { console.warn('collage:', e.message); return false; }
+  exitGrab();
+  setCollage(c);
+  setPick(c.pieces.length - 1);
+  writeHash();
+  remember();
+  return true;
+}
+
+// a join's op or kernel changed; a new cutter (the piece after a subtraction or intersection) with no
+// growth grows a tenth of its size, so it carves at once
+function withJoin(c, k, change) {
+  let g = CE.setJoin(c, k, change);
+  const j = g.joins[k], pc = g.pieces[k + 1];
+  if ((j.op === 'sub' || j.op === 'inter') && !(pc.place.g > 0)) g = CE.setPlace(g, k + 1, 'g', +(0.1 * pc.place.s * naturalRadius(pc.f)).toPrecision(3));
+  return g;
+}
+
+// ---------- picking and the gizmo ------------------------------------------------------------------
+
+let gz = null;          // a gizmo drag: { kind, k, x0, y0, place0, G, a0, value, text0 }
+let gizmoG = null;      // the gizmo's geometry as last drawn
+let gizmoShown = false, gizmoDue = false;
+
+const overlayBusy = () => !!(gv || cv || surf || grab || ring || lens || (ldrag && ldrag.moved));
+
+function drawGizmoNow() {
+  gizmoDue = false;
+  const show = state.collage && typeof state.pick === 'number' && state.mode !== 'loop' && !overlayBusy();
+  if (!show) {
+    gizmoG = null;
+    if (gizmoShown && !overlayBusy()) clearGrab(overlay);
+    gizmoShown = false;
+    return;
+  }
+  const pc = state.collage.pieces[state.pick], R0 = naturalRadius(pc.f);
+  const C = makeCamera(state.cam, basis(state.cam), Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
+  gizmoG = gizmoGeometry(C, pc.place, R0);
+  drawGizmo(overlay, C, gizmoG, { place: pc.place, rep: pc.rep, R0, drag: gz && { kind: gz.kind, k: gz.k, from: gz.G.O, value: gz.value, a0: gz.a0, a1: gz.a1 } });
+  gizmoShown = true;
+}
+
+// a click on the field: the piece that leads at the surface under it, or none
+function pickAt(x, y) {
+  const { dir } = pixelRay(x, y);
+  const t = traceRay(dir);
+  setPick(t == null ? null : collageAt(shownCollage, add(state.cam.pos, dir, t)).lead);
+}
+
+function gizmoDown(x, y) {
+  const h = gizmoHit(gizmoG, x, y);
+  if (!h) return false;
+  const pc = state.collage.pieces[state.pick];
+  gz = { ...h, x0: x, y0: y, place0: { ...pc.place }, G: gizmoG, a0: Math.atan2(y - gizmoG.O[1], x - gizmoG.O[0]), value: '', text0: state.text };
+  gz.a1 = gz.a0;
+  drawGizmoNow();
+  return true;
+}
+
+const sig = (v, n = 4) => +v.toPrecision(n);
+function gizmoMove(x, y, snap) {
+  const g = gz, pl = { ...g.place0 }, G0 = g.G;
+  if (g.kind === 'axis') {
+    const v = G0.axes[g.k].v, e = G0.e[g.k];
+    let d = ((x - g.x0) * v[0] + (y - g.y0) * v[1]) / (v[0] * v[0] + v[1] * v[1] || 1);
+    if (snap) { const st = Math.pow(10, Math.floor(Math.log10(G0.A / 2))); d = Math.round(d / st) * st; }
+    pl.tx = sig(pl.tx + e[0] * d, 6); pl.ty = sig(pl.ty + e[1] * d, 6); pl.tz = sig(pl.tz + e[2] * d, 6);
+    g.value = fmtValue(sig(d));
+  } else if (g.kind === 'ring') {
+    let a = Math.atan2(y - G0.O[1], x - G0.O[0]) - g.a0;
+    a = Math.atan2(Math.sin(a), Math.cos(a));
+    if (snap) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+    g.a1 = g.a0 + a;
+    const R = matMul(axisAngle(basis(state.cam).fwd, a), rotationXYZ(pl.rx, pl.ry, pl.rz)), [rx, ry, rz] = eulerXYZ(R);
+    Object.assign(pl, { rx: sig(rx, 5), ry: sig(ry, 5), rz: sig(rz, 5) });
+    g.value = `${Math.round((a * 180) / Math.PI)}°`;
+  } else {
+    const r0 = Math.hypot(g.x0 - G0.O[0], g.y0 - G0.O[1]) || 1, r1 = Math.hypot(x - G0.O[0], y - G0.O[1]);
+    pl.s = Math.max(PLACE.s.min, Math.min(PLACE.s.max, pl.s * (r1 / r0)));
+    pl.s = snap ? +pl.s.toPrecision(2) : sig(pl.s, 5);
+    g.value = `×${fmtValue(pl.s)}`;
+  }
+  const c = JSON.parse(JSON.stringify(state.collage));
+  c.pieces[state.pick].place = pl;
+  try { setCollage(c, true); } catch { return; }
+  touched();
+  drawGizmoNow();
+}
+
+function gizmoUp() {
+  const g = gz;
+  gz = null;
+  if (state.text !== g.text0) { writeHash(); remember(); }
+  drawGizmoNow();
+}
+
+// ---------- dragging a thumbnail onto the field: the lineage's, the breed ring's -------------------
+
+let ldrag = null, ldragDone = false;   // { id, x0, y0, x, y, moved, thumb }
+
+function drawDragNow(thumb, x, y) {
+  const tw = 120, th = 80;
+  overlay.innerHTML = `<g class="dg">${thumb ? `<image href="${thumb}" x="${(x + 14).toFixed(1)}" y="${(y + 14).toFixed(1)}" width="${tw}" height="${th}" preserveAspectRatio="xMidYMid slice" opacity="0.8"/><rect x="${(x + 14).toFixed(1)}" y="${(y + 14).toFixed(1)}" width="${tw}" height="${th}"/>` : ''}<path d="M${x - 14} ${y}h10M${x + 4} ${y}h10M${x} ${y - 14}v10M${x} ${y + 4}v10"/></g>`;
+  overlay.classList.add('on');
+}
+
+// the press lands on a lineage dot; the hand is followed on the window (hovering redraws the structure
+// layer, so the dot pressed is gone by the first move)
+structureSvg.addEventListener('pointerdown', (e) => {
+  const id = e.target && e.target.dataset ? e.target.dataset.id : null;
+  if (!id) return;
+  const n = lineage.byId(id);
+  ldrag = { id, x0: e.clientX, y0: e.clientY, moved: false, thumb: n && n.thumb, text: n && n.text };
+});
+addEventListener('pointermove', (e) => {
+  if (!ldrag) return;
+  if (!ldrag.moved && Math.hypot(e.clientX - ldrag.x0, e.clientY - ldrag.y0) < 8) return;
+  ldrag.moved = true;
+  drawDragNow(ldrag.thumb, e.clientX, e.clientY);
+});
+addEventListener('pointerup', (e) => {
+  const d = ldrag;
+  ldrag = null;
+  if (!d || !d.moved) return;
+  // the click that may follow the release is not one
+  ldragDone = true;
+  setTimeout(() => { ldragDone = false; }, 0);
+  clearGrab(overlay);
+  // dropped back on the lineage: nothing
+  if (!(e.clientY > innerHeight - 110 && e.clientX < 420) && d.text) dropPiece(d.text, e.clientX, e.clientY);
+  gizmoDue = true;
+});
+
+// ---------- the collage's graph ----------------------------------------------------------------------
+
+let cv = null;   // { PC, sel, press, param, picker, band, bandSel, dvSel, dvDrag, dvParam, hover, drift }
+const COLLAGE_DRIVERS = DRIVE_TYPES.filter((t) => !DRIVE_ORBIT.includes(t) && t !== 'param');
+const REP_DEFAULTS = (R0) => ({ grid: { cx: +(2.5 * R0).toPrecision(3), nx: 1 }, mirror: { mx: 1, ox: +(1.2 * R0).toPrecision(3) }, polar: { n: 6, r: +(2 * R0).toPrecision(3), axis: 1 } });
+const repGlyphs = (c) => c.pieces.map((q) => (q.rep ? `rep.${q.rep.kind}` : null));
+
+// the collage's drivers in a row above its pieces (ui/drivegraph.js draws them)
+function placeCollageDrive(drive, PC) {
+  const u = PC.u, g = Math.max(10, Math.min(22, u * 0.42));
+  const items = ((drive && drive.nodes) || []).map((m, i) => ({ id: m.id, n: m, type: m.type, glyph: driverGlyph(m), x: PC.zone[0] + (0.5 + i * 1.1) * u, y: PC.zone[1] - 1.3 * u, hw: g / 2, hh: g / 2 }));
+  const byId = new Map(items.map((q) => [q.id, q]));
+  const inPort = (q, k, of) => [q.x + (of > 1 ? (k - (of - 1) / 2) * 9 : 0), q.y - q.hh - 3];
+  const outPort = (q) => [q.x, q.y + q.hh + 3];
+  const links = [];
+  for (const q of items) DE.driverPorts(q.type).forEach((port, k, all) => {
+    const src = q.n.in[port];
+    if (src == null || !byId.has(src)) return;
+    const [x1, y1] = outPort(byId.get(src)), [x2, y2] = inPort(q, k, all.length);
+    links.push({ from: src, to: q.id, port, x1, y1, x2, y2 });
+  });
+  return { u, g, items, links, byId, inPort, outPort, lane: null, top: [PC.zone[0] - 10, PC.zone[1] - 2.4 * u, PC.zone[2] + 10, PC.zone[1] - 0.3 * u] };
+}
+
+function collagePlacement(full) {
+  const c = state.collage, L = layoutCollage(c);
+  const u = full ? Math.min(56, (innerHeight - 340) / (L.out.y + 3.5), (innerWidth * 0.8) / (L.w + 1)) : Math.min(30, (innerHeight - 260) / (L.out.y + 3), 230 / (L.w + 1));
+  const PC = placeCollage(L, u, innerWidth - 50, innerHeight / 2 - (full ? 60 : 10));
+  PC.dv = placeCollageDrive(c.drive, PC);
+  return PC;
+}
+
+// the Tab strip: the collage drawn small, a click unfolds it
+function collageStrip() {
+  const PC = collagePlacement(false), [x0, y0, x1, y1] = PC.zone;
+  return drawCollage(PC, { pxPerUnit: pxAtFocus(), repGlyph: repGlyphs(state.collage), shaded: !!state.collage.shade, selected: typeof state.pick === 'number' ? { kind: 'piece', i: state.pick } : null })
+    + `<rect class="hit" data-graph="1" x="${(x0 - 8).toFixed(1)}" y="${(y0 - 8).toFixed(1)}" width="${(x1 - x0 + 16).toFixed(1)}" height="${(y1 - y0 + 16).toFixed(1)}"/>`;
+}
+
+function openCollageGraph() {
+  if (cv || !state.collage) return;
+  exitGrab();
+  cv = { PC: collagePlacement(true), sel: typeof state.pick === 'number' ? { kind: 'piece', i: state.pick } : null, drift: state.drift };
+  state.drift = false;
+  drawStructureNow();
+  drawCvNow();
+}
+
+function closeCollageGraph() {
+  if (!cv) return;
+  state.drift = cv.drift;
+  cv = null;
+  clearGrab(overlay);
+  gizmoDue = true;
+  drawStructureNow();
+}
+
+function cvRefresh() {
+  if (!cv) return;
+  cv.PC = collagePlacement(true);
+  const c = state.collage;
+  if (cv.sel && ((cv.sel.kind === 'piece' && !c.pieces[cv.sel.i]) || (cv.sel.kind === 'join' && !c.joins[cv.sel.k]))) cv.sel = null;
+  if (cv.dvSel && !cv.PC.dv.byId.has(cv.dvSel)) cv.dvSel = null;
+  if (cv.bandSel && !cBindOf(cv.bandSel)) cv.bandSel = null;
+  drawCvNow();
+}
+
+const cBindOf = (to) => { const d = state.collage && state.collage.drive; return d ? d.bind.find((b) => b.to === to) || null : null; };
+
+// an edit of the collage: committed (a lineage node), or live while a hand is down
+function cvEdit(fn) {
+  let c;
+  try { c = fn(state.collage); } catch (err) { console.warn('collage:', err.message); return false; }
+  if (!c) return false;
+  setCollage(c);
+  writeHash();
+  remember();
+  cvRefresh();
+  return true;
+}
+function cvLive(fn) {
+  try { setCollage(fn(state.collage), true); } catch { return; }
+  touched();
+  cvRefresh();
+}
+
+// the selection's numbers as dimension lines below the output, a glyph at the head of each group
+function cvLines() {
+  if (!cv || !cv.sel) return [];
+  const c = state.collage, PC = cv.PC, px = pxAtFocus(), out = [];
+  let cx, groups = [];
+  if (cv.sel.kind === 'piece') {
+    const i = cv.sel.i, pc = c.pieces[i], P = PC.pieces[i];
+    cx = (P.zone[0] + P.zone[2]) / 2;
+    const world = 1 / px, own = world / pc.place.s;
+    groups = [
+      ['translate', ['tx', 'ty', 'tz'].map((k) => [k, PLACE[k], world])],
+      ['rotate', ['rx', 'ry', 'rz'].map((k) => [k, PLACE[k], 0.5])],
+      ['scale', [['s', PLACE.s, 'mul']]],
+      ['cl.grow', [['g', PLACE.g, world]]],
+    ];
+    if (pc.rep) groups.push([`rep.${pc.rep.kind}`, Object.entries(REP[pc.rep.kind]).map(([k, q]) => [k, q, q.discrete ? 'step' : own])]);
+    groups = groups.map(([glyph, keys]) => [glyph, keys.map(([k, q, per]) => ({ to: `P${i}.${k}`, key: k, q, per, value: k in pc.place ? pc.place[k] : pc.rep[k] }))]);
+  } else if (cv.sel.kind === 'join') {
+    const k = cv.sel.k, j = c.joins[k], q = PC.joins[k];
+    cx = q.x;
+    const keys = j.op === 'morph' ? [['w', 1 / 150]] : j.k === 'hard' ? [] : j.k === 'stairs' ? [['r', 1 / px], ['n', 'step']] : [['r', 1 / px]];
+    groups = keys.map(([key, per]) => [refGlyph(`J${k}.${key}`), [{ to: `J${k}.${key}`, key, q: JOIN[key], per, value: j[key] }]]);
+  } else return [];
+  const x2 = Math.max(190, Math.min(innerWidth - 24, cx + 75)), x1 = x2 - 150;
+  let y = PC.out.y + PC.g + 30;
+  for (const [glyph, keys] of groups) {
+    keys.forEach((h, n) => {
+      const held = cv.param && cv.param.to === h.to;
+      const ranged = h.q.min !== undefined && h.q.max !== undefined && h.q.max - h.q.min < 1e4;
+      const line = { ...h, x1, x2, y, held, v: held ? fmtValue(h.value) : '', tick: ranged ? x1 + ((h.value - h.q.min) / (h.q.max - h.q.min)) * (x2 - x1) : null, glyph: n === 0 ? glyph : null, gx: x1 - 16 };
+      const b = cBindOf(h.to);
+      if (b && !h.q.discrete) {
+        const M = cv.band && cv.band.to === h.to ? cv.band.M : bandMap(b, x1, x2), clip = (v) => Math.max(x1, Math.min(x2, v));
+        line.band = { x0: clip(M.x(b.lo)), x1: clip(M.x(b.hi)), sel: cv.bandSel === h.to, M, b };
+        if (cv.band && cv.band.to === h.to) { line.held = true; line.v = `${fmtValue(+b.lo.toPrecision(4))} ${fmtValue(+b.hi.toPrecision(4))}`; }
+      }
+      out.push(line);
+      y += 15;
+    });
+    y += 6;
+  }
+  return out;
+}
+
+// the selected driver's numbers and switches (as ui/drivegraph.js draws a formula's), below the lines
+function cvDriverHandles(q) {
+  const spec = DRIVE_PARAMS[q.type] || {}, P = q.n.p;
+  const x2 = Math.max(190, Math.min(innerWidth - 24, q.x + 75)), x1 = x2 - 150;
+  let y = cv.PC.out.y + cv.PC.g + 30;
+  const out = [], sw = Object.entries(spec).filter(([, s]) => Array.isArray(s) || typeof s === 'boolean');
+  sw.forEach(([key, s], i) => {
+    const glyph = key === 'op' ? `math.${P.op}` : key === 'wave' ? `drv.wave.${P.wave}` : key === 'out' ? `drv.out.${P.out}` : `drv.${key}`;
+    out.push({ key, glyph, gx: x1 + 8 + i * 28, y, off: typeof s === 'boolean' && !P[key], cycle: Array.isArray(s) ? s : null });
+  });
+  if (sw.length) y += 22;
+  for (const [key, s] of Object.entries(spec)) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) continue;
+    const held = cv.dvParam && cv.dvParam.id === q.id && cv.dvParam.key === key;
+    const ranged = s.min !== undefined && s.max !== undefined && s.max - s.min < 1e4;
+    out.push({ key, line: true, x1, x2, y, q: s, value: P[key], held, v: held ? fmtValue(P[key]) : '', tick: ranged ? x1 + ((P[key] - s.min) / (s.max - s.min)) * (x2 - x1) : null });
+    y += 15;
+  }
+  return out;
+}
+
+// the bindings' far ends: a visible line's band, else the join's glyph or the piece's zone corner
+function cvBinds(lines) {
+  const d = state.collage.drive, PC = cv.PC;
+  return ((d && d.bind) || []).flatMap((b) => {
+    const h = lines.find((r) => r.to === b.to), { path } = splitTarget(b.to), on = cv.bandSel === b.to || cv.dvSel === b.from;
+    if (h) return [{ to: b.to, from: b.from, x2: h.band ? (h.band.x0 + h.band.x1) / 2 : (h.x1 + h.x2) / 2, y2: h.y, on }];
+    if (path[0] === 'J') { const q = PC.joins[+path.slice(1)]; return q ? [{ to: b.to, from: b.from, x2: q.x + PC.g * 0.7, y2: q.y, on }] : []; }
+    const p = PC.pieces[+path.slice(1)];
+    return p ? [{ to: b.to, from: b.from, x2: p.zone[2], y2: p.zone[1], on }] : [];
+  });
+}
+
+function drawCvNow() {
+  if (!cv) return;
+  const PC = cv.PC, lines = cvLines(), V = PC.dv, dsel = cv.dvSel && V.byId.get(cv.dvSel);
+  let svg = `<rect class="gv" x="0" y="0" width="${innerWidth}" height="${innerHeight}" style="opacity:0.55"/>`;
+  svg += drawCollage(PC, {
+    full: true, selected: cv.sel, hover: cv.hover, pxPerUnit: pxAtFocus(), held: cv.param && cv.param.seam ? cv.param.seam : null,
+    value: cv.param ? fmtValue(cv.param.cur ?? cv.param.v0) : '', lines: dsel ? [] : lines, repGlyph: repGlyphs(state.collage), shaded: !!state.collage.shade,
+  });
+  cv.binds = cvBinds(dsel ? [] : lines);
+  svg += drawDrive(V, { hover: cv.dvHover, selected: cv.dvSel, drag: cv.dvDrag, binds: cv.binds, params: dsel ? cvDriverHandles(dsel) : [] });
+  if (cv.picker) svg += drawPicker(cv.picker);
+  overlay.innerHTML = svg;
+  overlay.classList.add('on');
+}
+
+// into a piece's own formula graph (or the collage's shading, pick 'C'); G or Esc comes back
+let drilling = false;
+function drillInto(pick, nodeId = null) {
+  const back = { pick: state.pick };
+  closeCollageGraph();
+  setPick(pick);
+  drilling = true;
+  try { openGraph(); } finally { drilling = false; }
+  gv.back = back;
+  if (nodeId) { gv.selected = nodeId; drawGraphNow(); }
+}
+
+function cvDown(x, y) {
+  const PC = cv.PC, V = PC.dv, c = state.collage;
+  // the drivers: the selected one's numbers and switches, an output dot, a node, the row
+  const dsel = cv.dvSel && V.byId.get(cv.dvSel);
+  if (dsel) for (const h of cvDriverHandles(dsel)) {
+    if (h.glyph && Math.hypot(x - h.gx, y - h.y) < 11) {
+      const v = h.cycle ? h.cycle[(h.cycle.indexOf(dsel.n.p[h.key]) + 1) % h.cycle.length] : !dsel.n.p[h.key];
+      cvEdit((g) => CE.setCollageDriver(g, { ...dsel.n, p: { ...dsel.n.p, [h.key]: v } }));
+      return;
+    }
+    if (h.line && x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y - h.y) < 7) { cv.dvParam = { id: dsel.id, key: h.key, x0: x, v0: dsel.n.p[h.key], q: h.q, text0: state.text }; drawCvNow(); return; }
+  }
+  const from = driveOutPortAt(V, x, y);
+  if (from) { const [x1, y1] = V.outPort(from); cv.dvDrag = { from: from.id, x1, y1, x2: x, y2: y }; drawCvNow(); return; }
+  const dnode = driveNodeAt(V, x, y);
+  const inRow = inTop(V, x, y);
+  // the selection's lines
+  const lines = dsel ? [] : cvLines();
+  const h = lines.find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+  if (h && h.band) {
+    const B = h.band, end = Math.abs(x - B.x0) < 6 ? 'lo' : Math.abs(x - B.x1) < 6 ? 'hi' : 'both';
+    cv.band = { to: h.to, end, M: B.M, x0: x, lo: B.b.lo, hi: B.b.hi, from: B.b.from, text0: state.text, moved: false };
+    drawCvNow();
+    return;
+  }
+  if (h) { cv.param = { to: h.to, x0: x, v0: h.value, q: h.q, per: h.per, text0: state.text }; drawCvNow(); return; }
+  // a join's seam line: its width (a morph's weight)
+  const sk = collageSeamAt(PC, x, y, pxAtFocus());
+  if (sk >= 0 && collageJoinAt(PC, x, y) < 0) {
+    const j = c.joins[sk], key = j.op === 'morph' ? 'w' : 'r';
+    cv.param = { to: `J${sk}.${key}`, seam: `J${sk}`, x0: x, v0: j[key], q: JOIN[key], per: key === 'w' ? 1 / 60 : 2 / pxAtFocus(), text0: state.text };
+    drawCvNow();
+    return;
+  }
+  const k = collageJoinAt(PC, x, y), i = k >= 0 ? -1 : collagePieceAt(PC, x, y), out = k < 0 && i < 0 && collageOutAt(PC, x, y);
+  if (k < 0 && i < 0 && !out && !dnode && !inRow) {
+    // outside everything folds the graph; inside the zone a press clears the selection
+    const [zx0, zy0, zx1, zy1] = PC.zone;
+    if (x < zx0 - 30 || x > zx1 + 30 || y < zy0 - 2.6 * PC.u || y > zy1 + 40) { closeCollageGraph(); return; }
+    cv.sel = null; cv.dvSel = null; cv.bandSel = null; drawCvNow();
+    return;
+  }
+  const press = { x, y, k, i, out, dnode, node: i >= 0 ? graphNodeAt(PC.pieces[i].P, x, y) : null, moved: false };
+  press.timer = setTimeout(() => {
+    if (!cv || cv.press !== press || press.moved) return;
+    if (k >= 0) {
+      // the ring of joins: the four ops (with this kernel), then the seven kernels (with this op)
+      const j = c.joins[k], op = j.op === 'morph' ? 'union' : j.op;
+      const items = [...JOIN_OPS.map((o) => ({ join: { op: o, k: j.k, n: j.n, w: 0.5 }, act: (g) => withJoin(g, k, { op: o }) })),
+        ...KERNELS.map((kk) => ({ join: { op, k: kk, n: j.n }, act: (g) => withJoin(g, k, { op, k: kk }) }))];
+      cv.picker = { at: pickerAt(x, y), from: [x, y], items, sel: -1 };
+    } else if (i >= 0) {
+      const R0 = naturalRadius(c.pieces[i].f), D = REP_DEFAULTS(R0);
+      cv.picker = { at: pickerAt(x, y), from: [x, y], items: [{ glyph: 'rep.none', act: (g) => CE.setRep(g, i, null) }, ...['grid', 'mirror', 'polar'].map((kind) => ({ glyph: `rep.${kind}`, act: (g) => CE.setRep(g, i, kind, D[kind]) }))], sel: -1 };
+    } else if (inRow && !dnode) {
+      cv.picker = { at: pickerAt(x, y), from: [x, y], items: COLLAGE_DRIVERS.map((t) => ({ glyph: typeGlyph(t), act: (g) => addCollageDriver(g, t) })), sel: -1 };
+    }
+    drawCvNow();
+  }, GRAPH_HOLD_MS);
+  cv.press = press;
+}
+
+// a fresh collage driver, as core/drive-edit.js makes a formula's (a math node the constant ½)
+function addCollageDriver(c, type) {
+  const nodes = (c.drive && c.drive.nodes) || [];
+  let n = 0;
+  while (nodes.some((m) => m.id === `${type}${n}`)) n++;
+  const id = `${type}${n}`;
+  cv.newDriver = id;
+  // a remap reads the driver before it (there is no iteration to read in a collage)
+  if (type === 'remap' && !nodes.length) throw new Error('a remap reads another driver: add one first');
+  return CE.setCollageDriver(c, { id, type, in: type === 'remap' ? { a: nodes[nodes.length - 1].id } : {}, p: type === 'math' ? { op: 'add', c: 0.5 } : type === 'remap' ? { lo: 0, hi: 1, clamp: false } : {} });
+}
+
+function cvMove(x, y) {
+  if (cv.picker) {
+    const [cx, cy] = cv.picker.at;
+    if (Math.hypot(x - cx, y - cy) < 30) cv.picker.sel = -1;
+    else { const a = Math.atan2(y - cy, x - cx), n = cv.picker.items.length; cv.picker.sel = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n; }
+    drawCvNow();
+    return;
+  }
+  if (cv.param) {
+    const p = cv.param, dx = x - p.x0;
+    const v = p.per === 'step' ? p.v0 + Math.round(dx / 14) : p.per === 'mul' ? p.v0 * Math.exp(dx * 0.005) : p.v0 + dx * p.per;
+    p.cur = p.q.discrete ? Math.round(v) : sig(v, 5);
+    cvLive((g) => CE.setCollageParam(g, p.to, p.cur));
+    return;
+  }
+  if (cv.dvParam) {
+    const p = cv.dvParam, dx = x - p.x0, v = p.q.discrete ? p.v0 + Math.round(dx / 14) : sig(p.v0 + dx * 0.005 * Math.max(1, Math.abs(p.v0)), 5);
+    const n = cv.PC.dv.byId.get(p.id).n;
+    cvLive((g) => CE.setCollageDriver(g, { ...n, p: { ...n.p, [p.key]: v } }));
+    return;
+  }
+  if (cv.band) {
+    const B = cv.band, dv = B.M.v(x) - B.M.v(B.x0);
+    if (Math.abs(x - B.x0) > 2) B.moved = true;
+    const lo = B.end === 'hi' ? B.lo : B.lo + dv, hi = B.end === 'lo' ? B.hi : B.hi + dv;
+    cvLive((g) => CE.bindCollage(g, B.to, B.from, sig(lo, 5), sig(hi, 5)));
+    return;
+  }
+  if (cv.dvDrag) { cv.dvDrag.x2 = x; cv.dvDrag.y2 = y; drawCvNow(); return; }
+  if (cv.press) {
+    if (!cv.press.moved && Math.hypot(x - cv.press.x, y - cv.press.y) > 6) { cv.press.moved = true; clearTimeout(cv.press.timer); }
+    return;
+  }
+  const k = collageJoinAt(cv.PC, x, y), dn = driveNodeAt(cv.PC.dv, x, y);
+  const hv = k >= 0 ? { kind: 'join', k } : null, dh = dn ? dn.id : null;
+  if (JSON.stringify(hv) !== JSON.stringify(cv.hover) || dh !== cv.dvHover) { cv.hover = hv; cv.dvHover = dh; drawCvNow(); }
+}
+
+function cvCommit(text0) { if (state.text !== text0) { setCollage(state.collage); writeHash(); remember(); } cvRefresh(); }
+
+function cvUp(x, y) {
+  if (cv.picker) {
+    const kk = cv.picker;
+    cv.picker = null;
+    if (cv.press) clearTimeout(cv.press.timer);
+    cv.press = null;
+    if (kk.sel >= 0 && cvEdit(kk.items[kk.sel].act) && cv.newDriver) { cv.dvSel = cv.newDriver; cv.sel = null; }
+    cv.newDriver = null;
+    drawCvNow();
+    return;
+  }
+  if (cv.param) { const p = cv.param; cv.param = null; cvCommit(p.text0); return; }
+  if (cv.dvParam) { const p = cv.dvParam; cv.dvParam = null; cvCommit(p.text0); return; }
+  if (cv.band) {
+    const B = cv.band;
+    cv.band = null;
+    if (state.text !== B.text0) cvCommit(B.text0);
+    else { if (!B.moved) cv.bandSel = cv.bandSel === B.to ? null : B.to; drawCvNow(); }
+    return;
+  }
+  if (cv.dvDrag) {
+    const d = cv.dvDrag;
+    cv.dvDrag = null;
+    const to = driveInPortAt(cv.PC.dv, x, y);
+    if (to) { cvEdit((g) => CE.connectCollageDriver(g, d.from, to.node, to.port)); return; }
+    // onto a line of the selection, or a seam line: bound over the line's own range (a bound one keeps its band)
+    const h = cvLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 8 && !r.q.discrete);
+    const sk = h ? -1 : collageSeamAt(cv.PC, x, y, pxAtFocus());
+    const target = h ? { to: h.to, value: h.value, per: h.per === 'mul' ? 0.005 * h.value : h.per, q: h.q } : sk >= 0 ? (() => { const j = state.collage.joins[sk], key = j.op === 'morph' ? 'w' : 'r'; return { to: `J${sk}.${key}`, value: j[key], per: key === 'w' ? 1 / 150 : 1 / pxAtFocus(), q: JOIN[key] }; })() : null;
+    if (target && collageTarget(state.collage, target.to)) {
+      const old = cBindOf(target.to), [lo, hi] = old ? [old.lo, old.hi] : DE.handleRange(target.value, target.per, target.q);
+      cvEdit((g) => CE.bindCollage(g, target.to, d.from, lo, hi));
+      return;
+    }
+    drawCvNow();
+    return;
+  }
+  const pr = cv.press;
+  cv.press = null;
+  if (!pr) return;
+  clearTimeout(pr.timer);
+  if (pr.moved) return;
+  if (pr.dnode) { cv.dvSel = cv.dvSel === pr.dnode.id ? null : pr.dnode.id; cv.bandSel = null; drawCvNow(); return; }
+  if (pr.k >= 0) { cv.sel = cv.sel && cv.sel.kind === 'join' && cv.sel.k === pr.k ? null : { kind: 'join', k: pr.k }; cv.dvSel = null; drawCvNow(); return; }
+  if (pr.out) { drillInto('C'); return; }
+  if (pr.i >= 0) {
+    // a second click on a picked piece's op: its own graph
+    if (cv.sel && cv.sel.kind === 'piece' && cv.sel.i === pr.i && pr.node) { drillInto(pr.i, pr.node.id); return; }
+    cv.sel = { kind: 'piece', i: pr.i };
+    cv.dvSel = null;
+    setPick(pr.i);
+    drawCvNow();
+  }
+}
+
+function cvKey(e) {
+  if (e.code === 'Escape' || (e.code === 'KeyG' && !e.repeat)) { closeCollageGraph(); return true; }
+  if (e.code !== 'Delete' && e.code !== 'Backspace') return false;
+  if (cv.bandSel) { const to = cv.bandSel; cv.bandSel = null; cvEdit((g) => CE.unbindCollage(g, to)); return true; }
+  if (cv.dvSel) { const id = cv.dvSel; cv.dvSel = null; cvEdit((g) => CE.removeCollageDriver(g, id)); return true; }
+  if (cv.sel && cv.sel.kind === 'piece' && state.collage.pieces.length > 1) {
+    const i = cv.sel.i;
+    cv.sel = null;
+    setPick(null);
+    cvEdit((g) => CE.removePiece(g, i));
+    return true;
+  }
+  return true;
+}
+
 // ---------- input -----------------------------------------------------------------------------------
 
 function touched() { state.lastInput = performance.now(); state.dirty = true; state.n = 0; state.senseDue = true; }
@@ -1593,7 +2233,7 @@ function nextKnobs(step, x, y) {
 // press: the hold that asked for this grab; if it was released while sensing ran, there is no grab
 async function enterGrab(x, y, press = null) {
   if (state.mode === 'loop') return knobGrab(x, y);
-  if (!S || state.mode !== 'pull') return false;  // push has no surface to sense yet
+  if ((!S && !state.collage) || state.mode !== 'pull') return false;  // push has no surface to sense yet
   const { dir, uv } = pixelRay(x, y);
   const t = traceRay(dir);
   if (t == null) return false;
@@ -1606,7 +2246,9 @@ async function enterGrab(x, y, press = null) {
     uvs.push(((x + Math.cos(a) * RETICLE) / innerWidth) * 2 - 1, ((y + Math.sin(a) * RETICLE) / innerHeight) * 2 - 1);
   }
   let r = null;
-  // the whole-view pass may be running (it is slower with many parameters): wait for it, up to 3 s
+  // a collage is sensed on the CPU (core/collage-sense.js); a formula on the GPU, where the whole-view
+  // pass may be running (it is slower with many parameters): wait for it, up to 3 s
+  if (state.collage) r = senseCollage(state.collage, senseView(), innerHeight, new Float32Array(uvs), { lyap: false });
   for (let tries = 0; tries < 120 && !r; tries++) {
     r = await S.sense(state.formula, senseView(), innerHeight, new Float32Array(uvs));
     if (!r) await new Promise((res) => setTimeout(res, 25));
@@ -1636,11 +2278,23 @@ function drawGrabNow() {
   if (!grab) return;
   if (grab.knobs) { drawKnobsNow(); return; }
   const att = grab.ranked[grab.k];
+  const b = basis(state.cam);
+  const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
+  if (state.collage) {
+    // a collage's number: a placement's or a join's glyph, or the piece's op; the piece's orbit is in its
+    // own frame, so none is drawn
+    att.value = valueOf(state.collage, att);
+    const pf = att.piece != null ? state.collage.pieces[att.piece].f : null, o = pf ? pf.slots.flat()[att.oi] : null;
+    drawGrab(overlay, C, {
+      screen: [grab.x, grab.y], hit: grab.hit, t: grab.t,
+      attention: { op: att.op || null, key: att.key || att.ref, value: att.value, glyph: att.ref ? refGlyph(att.ref) : getOp(att.op).glyph },
+      params: o ? o.p : {}, ring: grab.ring, lyap: grab.lyap, orbit: { points: [], branches: [] },
+    });
+    return;
+  }
   const f = normalize(state.formula);
   const o = att.drive ? null : f.slots.flat()[att.oi];
   att.value = valueOf(f, att);
-  const b = basis(state.cam);
-  const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
   const orbit = iterate(f, grab.hit, f.c || lift(f, grab.hit));
   drawGrab(overlay, C, {
     screen: [grab.x, grab.y], hit: grab.hit, t: grab.t,
@@ -1655,14 +2309,14 @@ function drawGrabNow() {
 function editGrab(x) {
   const att = grab.ranked[grab.k];
   const v = grab.value0 + (x - grab.x0) / att.pxPerUnit;
-  setFormula(format(withAny(state.formula, att, +v.toPrecision(6))));
+  setDoc(formatAny(withAny(doc(), att, +v.toPrecision(6))));
   drawGrabNow();
 }
 
 function passAttention(step, x) {
   grab.k = (grab.k + step + grab.ranked.length) % grab.ranked.length;
   const att = grab.ranked[grab.k];
-  grab.value0 = valueOf(state.formula, att);
+  grab.value0 = valueOf(doc(), att);
   grab.x0 = x;
   drawGrabNow();
 }
@@ -1679,7 +2333,8 @@ const INSET_R = 70;
 let lens = null;
 
 function openLens() {
-  if (!grab || grab.knobs || lens) return false;
+  // the lens varies a formula's op records in one pass: a collage has no such pass yet
+  if (!grab || grab.knobs || lens || state.collage) return false;
   const att = grab.ranked[grab.k];
   // a driver's parameter is not offered: the lens varies op records, the drivers' program is not one
   const linear = grab.ranked.filter((p) => !p.drive && !NONLINEAR(p));
@@ -1738,7 +2393,7 @@ function closeLens() {
   if (grab) {
     // the grab carries on from where the lens left the formula
     const att = grab.ranked[grab.k];
-    grab.value0 = valueOf(state.formula, att);
+    grab.value0 = valueOf(doc(), att);
     grab.x0 = pointers.size ? [...pointers.values()][0].x : grab.x0;
     drawGrabNow();
   } else clearGrab(overlay);
@@ -1753,10 +2408,12 @@ function exitGrab(revert = false) {
   grab = null;
   clearGrab(overlay);
   state.senseDue = true;
+  gizmoDue = true;
   writeHash();
 }
 
 let drag = null;
+let clickAt = null;   // a press that may be a click (in a collage: picks the piece under it)
 const pointers = new Map();
 // The drift greets an arrival; the first real input turns it off so the field holds still while it is
 // worked on (Space turns it back on)
@@ -1768,7 +2425,11 @@ canvas.addEventListener('pointerdown', (e) => {
   try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
   if (surf) { surfDown(e); return; }
   if (gv) { graphDown(e); return; }
+  if (cv) { cvDown(e.clientX, e.clientY); return; }
+  // the picked piece's frame: an axis, the ring or the corner
+  if (pointers.size === 0 && state.collage && gizmoG && gizmoDown(e.clientX, e.clientY)) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  clickAt = pointers.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
   if (pointers.size === 1) {
     drag = { x: e.clientX, y: e.clientY };
     const h = { x: e.clientX, y: e.clientY };
@@ -1784,8 +2445,11 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   if (surf) { surfMove(e); return; }
   if (gv) { graphMove(e); return; }
+  if (cv) { cvMove(e.clientX, e.clientY); return; }
+  if (gz) { gizmoMove(e.clientX, e.clientY, e.shiftKey); return; }
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
+  if (clickAt && Math.hypot(e.clientX - clickAt.x, e.clientY - clickAt.y) > HOLD_SLOP) clickAt = null;
   if (ring) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointRing(e.clientX, e.clientY); return; }
   if (lens) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moveLens(e.clientX, e.clientY); return; }
   if (grab && grab.knobs) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); turnKnobs(e.clientX, e.clientY); return; }
@@ -1843,7 +2507,13 @@ function sliceDrag(dx, dy) {
 const release = (e) => {
   if (surf) { surfUp(e); return; }
   if (gv) { graphUp(e); return; }
+  if (cv) { cvUp(e.clientX, e.clientY); return; }
+  if (gz) { pointers.delete(e.pointerId); gizmoUp(); return; }
   pointers.delete(e.pointerId);
+  // a click (short and still) in a collage: the piece under it
+  const click = clickAt && performance.now() - clickAt.t < HOLD_MS && !grab && !ring && !lens;
+  clickAt = null;
+  if (click && state.collage && pointers.size === 0) pickAt(e.clientX, e.clientY);
   if (pointers.size === 0) {
     drag = null;
     if (hold) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
@@ -1875,7 +2545,7 @@ const MODES = ['pull', 'push', 'loop'];
 function toggleMode() {
   if (!P) return;
   const next = MODES[(MODES.indexOf(state.mode) + 1) % MODES.length];
-  if (next === 'loop' && !LP) { state.mode = 'pull'; }
+  if (next === 'loop' && (!LP || state.collage)) { state.mode = 'pull'; }
   else if (next === 'loop') {
     // the loop starts from the field just seen, through a window placed where the view was focused
     state.mode = 'loop'; state.loopSeed = 2; placeLoopWindow();
@@ -1890,7 +2560,9 @@ addEventListener('keydown', (e) => {
   if (e.code !== 'Space') engage();
   if (e.code === 'Escape' && surf) { closeSurface(); return; }
   if (gv && graphKey(e)) return;
+  if (cv && cvKey(e)) return;
   if (e.code === 'KeyG' && !e.repeat && !grab && !ring && !lens && !surf) { openGraph(); return; }
+  if (e.code === 'Escape' && state.collage && typeof state.pick === 'number' && !grab && !ring) { setPick(null); return; }
   if (e.code === 'KeyM' && !e.repeat && !grab && !ring && !lens) { if (surf) closeSurface(); else openSurface(); return; }
   if (e.code === 'Escape' && ring) { closeRing(false); return; }
   if (e.code === 'Escape' && grab) { exitGrab(true); return; }
@@ -1977,7 +2649,7 @@ function herd(dt) {
   // the ops' parameters and the drivers' wander alike
   const m = state.sensed && metricOf(state.sensed);
   if (!m || !m.length) return;
-  let f = normalize(state.formula);
+  let f = normDoc(doc());
   if (!state.home) {
     state.home = Object.fromEntries(m.map((p) => [pid(p), valueOf(f, p)]));
     herdT = 0;
@@ -1999,7 +2671,7 @@ function herd(dt) {
     f = withAny(f, p, +nv.toPrecision(7));
     changed = true;
   }
-  if (changed) setFormula(format(f), true);
+  if (changed) setDoc(formatAny(f), true);
 }
 
 // a pin freezes the parameters that move the held region: those scoring at least a quarter of the top
@@ -2045,12 +2717,29 @@ function writeHash() {
 
 let R = null, P = null, S = null, LP = null;
 
-function setFormula(text, quiet = false) {
+// The document on screen is a formula or a collage (DESIGN.md "Collage (K)"). setDoc replaces it with
+// either; setFormula is the formula tools' edit — on a formula it is setDoc, on a collage it lands in the
+// picked piece (piece 0 when none is), or in the collage's own shading while that is open (pick 'C').
+const doc = () => state.collage || state.formula;
+const docStructure = (x) => (isCollage(x) ? 'C' + collageStructure(x) : structureOf(normalize(x)));
+const hashDoc = (x) => (isCollage(x) ? hashCollage(x) : hash(x));
+
+// the collage's own shading as a formula the shading frame can edit: one +c, the collage's shade. It
+// reads no drivers (a collage's shade reading drivers is iori's to decide: DESIGN.md "K3 built")
+const PROXY = 'translate ×1';
+const noDrivers = (sh) => sh && { ...sh, bind: [], nodes: sh.nodes.map((m) => ({ ...m, in: Object.fromEntries(Object.entries(m.in || {}).filter(([, r]) => !String(r).startsWith('d:'))) })) };
+function pickedFormula(c, pick) {
+  if (pick === 'C') return normalize({ ...parse(PROXY), ...(c.shade ? { shade: noDrivers(c.shade) } : {}) });
+  return normalize(c.pieces[typeof pick === 'number' ? pick : 0].f);
+}
+
+function setDoc(text, quiet = false) {
+  if (isCollageText(text)) { setCollage(parseAny(text), quiet); return; }
   const f = parse(text);
   const v = validate(f);
   if (!v.ok) throw new Error(v.errors.join('; '));
-  const structure = (g) => g && JSON.stringify([g.slots.map((sl) => sl.map((o) => o.op)), g.schedule, g.iters, g.c || null]);
-  const same = structure(normalize(f)) === structure(state.formula && normalize(state.formula));
+  const same = !state.collage && !!state.formula && structureOf(normalize(f)) === structureOf(normalize(state.formula));
+  if (state.collage) { state.collage = null; state.pick = null; cv = null; }
   state.formula = f;
   state.text = format(f);
   shownCollage = null;
@@ -2058,6 +2747,46 @@ function setFormula(text, quiet = false) {
   // walkers stay on a slowly changing attractor; a new structure scatters them
   if (P && !same) P.resetWalkers();
   if (quiet) { state.n = 0; state.dirty = true; } else { touched(); state.home = null; }
+  gizmoDue = true;
+}
+
+function setCollage(c, quiet = false) {
+  const v = validateCollage(c);
+  if (!v.ok) throw new Error(v.errors.join('; '));
+  const was = state.collage;
+  state.collage = normCollage(c);
+  const N = state.collage.pieces.length;
+  if (typeof state.pick === 'number' && state.pick >= N) state.pick = null;
+  state.formula = pickedFormula(state.collage, state.pick);
+  state.text = formatCollage(state.collage);
+  shownCollage = prepareCollage(state.collage);
+  if (R) R.setCollage(shownCollage);
+  if (P && (!was || collageStructure(was) !== collageStructure(state.collage))) P.resetWalkers();
+  if (quiet) { state.n = 0; state.dirty = true; } else { touched(); state.home = null; }
+  gizmoDue = true;
+}
+
+function setFormula(text, quiet = false) {
+  if (!state.collage || isCollageText(text)) { setDoc(text, quiet); return; }
+  const f = parse(text);
+  const v = validate(f);
+  if (!v.ok) throw new Error(v.errors.join('; '));
+  const c = JSON.parse(JSON.stringify(state.collage));
+  if (state.pick === 'C') { if (f.shade) c.shade = noDrivers(normalize(f).shade); else delete c.shade; }
+  else c.pieces[typeof state.pick === 'number' ? state.pick : 0].f = normalize(f);
+  setCollage(c, quiet);
+}
+
+// the renderer draws a document (exports borrow it frame by frame)
+const showDoc = (x) => (isCollage(x) ? R.setCollage(prepareCollage(x)) : R.setFormula(x));
+
+// the pick changed: the formula the tools edit follows it
+function setPick(pick) {
+  if (!state.collage) return;
+  state.pick = pick;
+  state.formula = pickedFormula(state.collage, pick);
+  gizmoDue = true;
+  drawStructureNow();
 }
 
 function sizeCanvas() {
@@ -2117,7 +2846,7 @@ async function step() {
   advanceTransition(now);
   const drifting = !state.trans && drift(dt);
   // a formula driven by the clock animates on its own: never still, its frames a soft trail
-  const animated = timeDriven(state.formula);
+  const animated = docTimeDriven();
   if (animated) R.setClock((now - clock0) / 1000);
   // the open graph's bands follow the clock: their ticks redrawn a few times a second while nothing is held
   if (animated && gv && !gv.from && now - (gv.liveAt || 0) > 150 && !gv.param && !gv.dvParam && !gv.band && !gv.picker && !gv.dvDrag) { gv.liveAt = now; drawGraphNow(); }
@@ -2126,7 +2855,8 @@ async function step() {
   const mode = state.trans && state.trans.kind === 'flow' ? 'loop' : state.mode;
   govern(moving);
 
-  if (!P || (state.mode === 'loop' && !LP)) state.mode = 'pull';
+  // a collage has no one map for the loop to feed back through
+  if (!P || (state.mode === 'loop' && (!LP || state.collage))) state.mode = 'pull';
   const E = mode === 'push' ? P : mode === 'loop' ? LP : R;
   if (E.resize(canvas.width * state.scale, canvas.height * state.scale)) state.n = 0;
   if (!moving && state.n >= state.maxSamples && mode !== 'loop') return false;
@@ -2148,7 +2878,8 @@ async function step() {
   } else if (mode === 'loop') {
     loopFrame(b);
   } else R.frame(pullView(b, clear, blend, moving));
-  if (!moving && !state.trans && mode === 'pull' && R.compileJit) R.compileJit(state.formula).catch((e) => console.warn(e.message));
+  // no JIT for collages yet: the interpreter draws them
+  if (!moving && !state.trans && mode === 'pull' && R.compileJit && !state.collage) R.compileJit(state.formula).catch((e) => console.warn(e.message));
   if (!moving && state.senseDue && S) { state.senseDue = false; senseNow(); }
   else if (!interacting && mode === 'pull' && state.sensed && !state.senseDue) growArchive();
   state.n++;
@@ -2159,6 +2890,7 @@ async function step() {
     drawStructureNow();
   }
   if (state.structure && (moving || state.n === 1)) drawStructureNow();
+  if (moving || gizmoDue) drawGizmoNow();
   busy = true;
   const t0 = performance.now();
   await R.device.queue.onSubmittedWorkDone();
@@ -2236,11 +2968,11 @@ function loopFrame(b) {
 const archive = createArchive({ bins: 8 });
 const SMALL = gridUVs(16, 10);
 let archiveBusy = false, lastArchive = 0;
-const viewKey = () => structureOf(normalize(state.formula)) + '|' + state.cam.pos.map((v) => Math.round(v * 4)).join(',') + ',' + Math.round(state.cam.yaw * 5) + ',' + Math.round(state.cam.pitch * 5);
+const viewKey = () => docStructure(doc()) + '|' + state.cam.pos.map((v) => Math.round(v * 4)).join(',') + ',' + Math.round(state.cam.yaw * 5) + ',' + Math.round(state.cam.pitch * 5);
 const rnd = () => Math.random();
 
 async function growArchive() {
-  if (archiveBusy || !S || !state.sensed || grab || state.trans) return;
+  if (archiveBusy || (!S && !state.collage) || !state.sensed || grab || state.trans) return;
   const now = performance.now();
   if (now - lastArchive < 150) return;
   lastArchive = now;
@@ -2249,12 +2981,15 @@ async function growArchive() {
     const key = viewKey();
     if (archive.structure !== key) archive.reset(key, state.sensed.lyap);
     const elites = archive.elites();
-    const parent = elites.length && rnd() < 0.6 ? normalize(parse(elites[Math.floor(rnd() * elites.length)].text)) : state.formula;
-    const cand = mutate(parent, metricOf(state.sensed), pinned(), 30 + rnd() * 190, rnd);
-    const r = await S.sense(cand, senseView(), innerHeight, SMALL, true);
-    if (r && archive.structure === key) archive.offer({ text: format(cand), features: features(r) });
+    const parent = elites.length && rnd() < 0.6 ? normDoc(parseAny(elites[Math.floor(rnd() * elites.length)].text)) : doc();
+    const cand = isCollage(parent) ? mutateCollage(parent, metricOf(state.sensed), pinned(), 30 + rnd() * 190, rnd) : mutate(parent, metricOf(state.sensed), pinned(), 30 + rnd() * 190, rnd);
+    const r = await senseOther(cand);
+    if (r && archive.structure === key) archive.offer({ text: formatAny(cand), features: features(r) });
   } finally { archiveBusy = false; }
 }
+
+// a small sensing pass of another document: a formula on the GPU, a collage on the CPU (no parameters)
+const senseOther = (x) => (isCollage(x) ? Promise.resolve(senseCollage(x, senseView(), innerHeight, SMALL, { params: false })) : S.sense(x, senseView(), innerHeight, SMALL, true));
 
 const RING_MS = 1200, LOCAL_D = [35, 60, 90, 130], FAR_D = [170, 230, 300, 380];
 let ring = null;
@@ -2273,22 +3008,25 @@ function thumbView(b, pos = state.cam.pos, clear0 = null) {
 }
 
 async function openRing(x, y, scale = 1) {
-  if (!S || !state.sensed || !R) return false;
+  if ((!S && !state.collage) || !state.sensed || !R) return false;
   exitGrab();
   const metric = metricOf(state.sensed);
   const pins = pinned();
-  const f0 = normalize(state.formula);
-  const here = await S.sense(f0, senseView(), innerHeight, SMALL, true).catch(() => null);
+  // a collage breeds piece by piece, its placements and joins too (core/collage-breed.js)
+  const f0 = normDoc(doc()), col = isCollage(f0);
+  const step = (D) => (col ? mutateCollage(f0, metric, pins, D * scale, rnd) : mutate(f0, metric, pins, D * scale, rnd));
+  const here = await senseOther(f0).catch(() => null);
   const ft0 = here ? features(here) : { density: 0.5, chaos: state.sensed.lyap.median };
-  const locals = LOCAL_D.map((D) => ({ f: mutate(f0, metric, pins, D * scale, rnd), local: true }));
-  const fromArchive = spread(archive.elites(), ft0, 4).map((e) => ({ f: normalize(parse(e.text)), local: false, features: e.features }));
-  const fars = FAR_D.slice(fromArchive.length).map((D) => ({ f: mutate(f0, metric, pins, D * scale, rnd), local: false }));
+  const locals = LOCAL_D.map((D) => ({ f: step(D), local: true }));
+  // the archive serves the view it was grown for (another structure's elites, a formula's in a collage, are not neighbours)
+  const fromArchive = spread(archive.structure === viewKey() ? archive.elites() : [], ft0, 4).map((e) => ({ f: normDoc(parseAny(e.text)), local: false, features: e.features }));
+  const fars = FAR_D.slice(fromArchive.length).map((D) => ({ f: step(D), local: false }));
   const items = [...locals, ...fromArchive, ...fars].slice(0, 8);
   ring = { at: [x, y], items, sel: -1, scale };
   // features for the angle, then the layout: the cyclic order of feature directions, evenly spaced
   for (const it of items) {
-    if (!it.features) { const r = await S.sense(it.f, senseView(), innerHeight, SMALL, true).catch(() => null); it.features = r ? features(r) : ft0; }
-    it.D = distancePx(f0, it.f, metric);
+    if (!it.features) { const r = await senseOther(it.f).catch(() => null); it.features = r ? features(r) : ft0; }
+    it.D = col ? collageDistancePx(f0, it.f, metric) : distancePx(f0, it.f, metric);
     it.dir = Math.atan2(it.features.chaos - ft0.chaos, (it.features.density - ft0.density) * 4) || Math.random() * 6.28;
     it.len = 110 + 110 * Math.tanh(it.D / 160);
   }
@@ -2306,7 +3044,15 @@ async function openRing(x, y, scale = 1) {
   return true;
 }
 
-function drawRingNow() { if (ring) drawRing(overlay, { at: ring.at, items: ring.items.filter((it) => it.angle !== undefined), sel: ring.sel }); }
+function drawRingNow() {
+  if (!ring) return;
+  drawRing(overlay, { at: ring.at, items: ring.items.filter((it) => it.angle !== undefined), sel: ring.sel });
+  // a neighbour carried out past its thumbnail: it follows the hand, to be dropped as a piece
+  if (ring.drop) {
+    const it = ring.items[ring.sel], [x, y] = ring.drop;
+    overlay.insertAdjacentHTML('beforeend', `<g class="dg">${it.thumb ? `<image href="${it.thumb}" x="${x + 14}" y="${y + 14}" width="120" height="80" preserveAspectRatio="xMidYMid slice" opacity="0.8"/><rect x="${x + 14}" y="${y + 14}" width="120" height="80"/>` : ''}<path d="M${x - 14} ${y}h10M${x + 4} ${y}h10M${x} ${y - 14}v10M${x} ${y + 4}v10"/></g>`);
+  }
+}
 
 function pointRing(x, y) {
   const [cx, cy] = ring.at;
@@ -2317,15 +3063,20 @@ function pointRing(x, y) {
     ring.items.forEach((it, i) => { if (it.angle === undefined) return; const d = Math.abs(Math.atan2(Math.sin(a - it.angle), Math.cos(a - it.angle))); if (d < bd) { bd = d; best = i; } });
     ring.sel = best;
   }
+  const it = ring.sel >= 0 && ring.items[ring.sel];
+  ring.drop = it && it.len && Math.hypot(x - cx, y - cy) > it.len + 60 && !isCollage(it.f) ? [x, y] : null;
   drawRingNow();
 }
 
 function closeRing(choose) {
   if (!ring) return;
-  const pick = choose && ring.sel >= 0 ? ring.items[ring.sel] : null;
+  const pick = choose && ring.sel >= 0 ? ring.items[ring.sel] : null, drop = ring.drop;
   ring = null;
   clearGrab(overlay);
-  if (pick) walkTo(format(pick.f));
+  gizmoDue = true;
+  // carried out past its thumbnail: the neighbour is dropped there as a piece; else walked to
+  if (pick && drop) dropPiece(formatAny(pick.f), drop[0], drop[1]);
+  else if (pick) walkTo(formatAny(pick.f));
 }
 
 // replay the lineage from its root to the current node, each step a walk (or a flow across structures)
@@ -2338,7 +3089,7 @@ function replay() {
   const token = ++replayToken;
   let i = 0;
   lineage.jump(path[0].id);
-  setFormula(path[0].text);
+  setDoc(path[0].text);
   const next = () => {
     if (token !== replayToken) return;
     i++;
@@ -2372,7 +3123,7 @@ function pullView(b, clear, blend = 1, moving = false) {
 // The live view pauses while one runs; the hairline at the bottom of the Tab layer shows how far it is.
 
 // the scene's state, for the file an export writes (core/state.js): drop that file back to return here
-const sceneDoc = (exp) => stateDoc({ formula: state.formula, cam: state.cam, mode: state.mode, look: state.look, focus: state.focus, pins: state.pins, export: exp });
+const sceneDoc = (exp) => stateDoc({ formula: doc(), cam: state.cam, mode: state.mode, look: state.look, focus: state.focus, pins: state.pins, export: exp });
 
 // a file dropped on the engine: a splat cloud or a still it exported brings back the state that made it
 async function importFile(buffer, name = '') {
@@ -2385,7 +3136,7 @@ async function importFile(buffer, name = '') {
 }
 
 function restoreDoc(doc) {
-  setFormula(format(doc.formula));
+  setDoc(formatAny(doc.formula));
   state.cam = { pos: [...doc.cam.pos], yaw: doc.cam.yaw, pitch: doc.cam.pitch };
   if (doc.mode && MODES.includes(doc.mode) && doc.mode !== state.mode) {
     state.mode = doc.mode;
@@ -2424,7 +3175,7 @@ function download(blob, name) {
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
-const baseName = () => 'fractal-' + hash(state.formula);
+const baseName = () => 'fractal-' + hashDoc(doc());
 const progress = (p) => { if (state.exporting) { state.exporting.progress = p; drawStructureNow(); } };
 const stillSize = (long) => (canvas.width >= canvas.height ? [long, Math.round((long * canvas.height) / canvas.width)] : [Math.round((long * canvas.width) / canvas.height), long]);
 
@@ -2438,7 +3189,7 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
   try {
     const b = basis(state.cam), clear = Math.max(deAt(state.cam.pos), 1e-5);
     if (kind === 'still') {
-      await R.compileJit(state.formula).catch(() => {});
+      if (!state.collage) await R.compileJit(state.formula).catch(() => {});
       const [W, H] = stillSize(3840);
       const img = await R.renderStill(pullView(b, clear), W, H, { tile: 512, samples: 64, onProgress: progress });
       const png = await (await img.convertToBlob({ type: 'image/png' })).arrayBuffer();
@@ -2454,7 +3205,8 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
       const v = pushView(b, clear, false, false);
       const raw = await P.captureSplats(v, canvas, 200000, progress);
       const L = state.look, len = Math.hypot(...L.key);
-      const fs = normalize(state.formula), shade = fs.shade;
+      // a collage's splats take its own shading (it reads no drivers), else the engine's colour
+      const fs = state.collage ? { ...normalize(parse(PROXY)), ...(state.collage.shade ? { shade: noDrivers(state.collage.shade) } : {}) } : normalize(state.formula), shade = fs.shade;
       // drivers the colour reads: at the splat's point, as the walk reads them at its own (its iteration
       // unknown here: the point's readings as at an orbit's start)
       const ownOf = (to) => { const { path, key } = splitTarget(to), o = opPaths(fs).get(path); return o ? o.p[key] : 0; };
@@ -2496,8 +3248,9 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
     return null;
   } finally {
     // the export may have borrowed the formula and the mode; give them back
-    if (state.text !== snapshot.text) setFormula(snapshot.text, true);
-    if (R) R.setFormula(state.formula);
+    if (state.text !== snapshot.text) setDoc(snapshot.text, true);
+    if (state.collage) state.formula = pickedFormula(state.collage, state.pick);
+    if (R) showDoc(doc());
     state.mode = snapshot.mode;
     state.cam = snapshot.cam;
     state.exporting = null;
@@ -2516,10 +3269,17 @@ async function exportVideo(b, clear, where, maxFrames = Infinity) {
   const metric = state.sensed ? state.sensed.params : [];
   const frames = [];
   for (let i = 0; i < path.length; i++) {
-    const to = normalize(parse(path[i].text));
+    const to = normDoc(parseAny(path[i].text));
     if (i === 0) { frames.push(to); continue; }
-    const from = normalize(parse(path[i - 1].text));
-    if (structureOf(from) !== structureOf(to) || !metric.length) { for (let k = 0; k < 15; k++) frames.push(to); continue; }
+    const from = normDoc(parseAny(path[i - 1].text));
+    if (docStructure(from) !== docStructure(to) || !metric.length) { for (let k = 0; k < 15; k++) frames.push(to); continue; }
+    if (isCollage(to)) {
+      // a collage walks piece by piece; the metric is a formula's or a collage's, whichever was sensed last
+      const D = metric.some((m) => m.ref || m.piece != null) ? collageDistancePx(from, to, metric) : 100;
+      const steps = Math.max(1, Math.round((D / WALK_PX_S) * 30));
+      for (let k = 1; k <= steps; k++) frames.push(lerpCollage(from, to, k / steps));
+      continue;
+    }
     const steps = Math.max(1, Math.round((distancePx(from, to, metric) / WALK_PX_S) * 30));
     for (let k = 1; k <= steps; k++) {
       const g = JSON.parse(JSON.stringify(to));
@@ -2534,12 +3294,12 @@ async function exportVideo(b, clear, where, maxFrames = Infinity) {
   const sink = createFrameSink(target);
   const [W, H] = stillSize(1920);
   // every frame has new values but one structure: one structure JIT serves the whole walk
-  await R.compileStructureJit(frames[0]).catch(() => {});
+  if (!isCollage(frames[0])) await R.compileStructureJit(frames[0]).catch(() => {});
   try {
     for (let i = 0; i < frames.length; i++) {
-      R.setFormula(frames[i]);
+      showDoc(frames[i]);
       R.setClock(i / 30);
-      state.formula = frames[i];
+      if (!isCollage(frames[i])) state.formula = frames[i];
       const img = await R.renderStill(pullView(b, clear), W, H, { tile: 1024, samples: 16 });
       await sink.add(img);
       progress((i + 1) / frames.length);
@@ -2564,8 +3324,18 @@ function senseView() {
 }
 
 async function senseNow() {
-  // the sensing pass knows formulas only
-  if (shownCollage) return;
+  // a collage is sensed on the CPU (core/collage-sense.js) over a coarser grid; a driven one's step
+  // factor is measured on the GPU at the hits (gpu/render.js collageStep)
+  if (state.collage) {
+    const c = state.collage, r = senseCollage(c, senseView(), innerHeight, COLLAGE_GRID, { time: docTimeDriven() ? (performance.now() - clock0) / 1000 : 0 });
+    if (state.collage !== c) return r;
+    state.sensed = r;
+    if (c.drive && c.drive.bind.length && r.points.length && R.collageStep) {
+      const m = await R.collageStep(r.points.map((q) => q.x)).catch(() => null);
+      if (m && state.collage === c) { r.step = m.step; R.setStep(m.step); }
+    } else R.setStep(1);
+    return r;
+  }
   const r = await S.sense(state.formula, senseView(), innerHeight);
   if (r) {
     state.sensed = r;
@@ -2576,17 +3346,21 @@ async function senseNow() {
   return r;
 }
 
+const COLLAGE_GRID = gridUVs(12, 8);
+
 // the breeding metric: the ops' parameters and the drivers' (bands, driver nodes)
 const metricOf = (sensed) => sensed.params.concat(sensed.driveParams || []);
 
 // a sensed parameter, an op's ({ oi, op, key }) or a driver's ({ drive: a core/drive.js ref }): its id,
 // its value in a formula, the formula with it set (clamped to its range)
-const pid = (p) => p.drive || p.oi + '.' + p.key;
+const pid = (p) => (p.ref || p.piece != null ? metricId(p) : p.drive || p.oi + '.' + p.key);
 function valueOf(f, p) {
+  if (isCollage(f)) return metricValue(f, p);
   const g = normalize(f);
   return p.drive ? getDriveParam(g.drive, p.drive) : g.slots.flat()[p.oi].p[p.key];
 }
 function withAny(f, p, v) {
+  if (isCollage(f)) return withMetric(f, p, v);
   if (!p.drive) {
     const q = getOp(p.op).params.find((r) => r.k === p.key);
     if (q.min !== undefined) v = Math.max(q.min, v);
@@ -2643,7 +3417,8 @@ function metricCheck(px = 3) {
 
 window.__fe = {
   state,
-  setFormula,
+  // a formula's or a collage's text, in place of what is on screen (tests: set __fe.dry first)
+  setFormula: (text, quiet) => setDoc(text, quiet),
   setCamera(pos, yaw, pitch) { state.cam = { pos: [...pos], yaw, pitch }; touched(); state.lastInput = -1e9; },
   setLook(o) { Object.assign(state.look, o); touched(); state.lastInput = -1e9; },
   pin: () => { togglePin(); return state.pins; },
@@ -2737,26 +3512,53 @@ window.__fe = {
   // a collage (its notation or document) drawn in place of the formula, pull and push, until the next
   // formula; null goes back to the formula. Resolves once its shaders are compiled. Tests set __fe.dry.
   async collage(c) {
-    if (c == null) { setFormula(state.text, true); return null; }
+    if (c == null) { if (state.collage) setDoc(format(state.collage.pieces[0].f), true); return null; }
     const doc = typeof c === 'string' ? parseCollage(c) : c, v = validateCollage(doc);
     if (!v.ok) throw new Error(v.errors.join('; '));
-    shownCollage = prepareCollage(doc);
-    R.setCollage(shownCollage);
-    if (P) P.resetWalkers();
-    touched();
+    setCollage(doc);
     await R.collageReady();
     return true;
   },
+  // K3: starting, picking, placing (tests drive what the hand does; nothing here is remembered when dry)
+  collageDrop: (text, x, y) => dropPiece(text, x, y),
+  pick: (i) => { setPick(i); drawGizmoNow(); return state.pick; },
+  pickAt: (x, y) => { pickAt(x, y); return state.pick; },
+  get gizmo() { drawGizmoNow(); return gizmoG && { O: gizmoG.O, axes: gizmoG.axes.map((a) => a && a.tip), ring: gizmoG.ring, corner: gizmoG.corner }; },
+  gizmoDrag(handle, dx, dy, snap = false) {
+    // handle: 'x' | 'y' | 'z' | 'ring' | 'corner' — pressed where it is drawn, moved by (dx, dy), released
+    drawGizmoNow();
+    const G = gizmoG;
+    if (!G) return null;
+    const at = handle === 'ring' ? [G.O[0] + G.ring, G.O[1]] : handle === 'corner' ? G.corner : (() => { const t = G.axes['xyz'.indexOf(handle)].tip; return [G.O[0] + (t[0] - G.O[0]) * 0.8, G.O[1] + (t[1] - G.O[1]) * 0.8]; })();
+    if (!gizmoDown(at[0], at[1])) return null;
+    gizmoMove(at[0] + dx, at[1] + dy, snap);
+    const value = gz.value;
+    gizmoUp();
+    return { value, place: state.collage.pieces[state.pick].place };
+  },
+  collageGraph: (on = true) => { if (on) openCollageGraph(); else closeCollageGraph(); return !!cv; },
+  get collageView() {
+    if (!cv) return null;
+    const PC = cv.PC;
+    return {
+      pieces: PC.pieces.map((p) => ({ i: p.i, zone: p.zone, ops: p.P.items.filter((q) => q.kind === 'op').map((q) => ({ id: q.id, x: q.x, y: q.y })) })),
+      joins: PC.joins.map((q) => ({ k: q.k, x: q.x, y: q.y, seam: seamLine(PC, q, pxAtFocus()) })), out: PC.out, top: PC.dv.top,
+      drivers: PC.dv.items.map((q) => ({ id: q.id, x: q.x, y: q.y, out: PC.dv.outPort(q) })),
+      lines: cvLines().map((h) => ({ to: h.to, x1: h.x1, x2: h.x2, y: h.y, band: h.band ? { x0: h.band.x0, x1: h.band.x1 } : null })),
+      sel: cv.sel, dvSel: cv.dvSel || null, picker: cv.picker ? cv.picker.items.length : 0,
+    };
+  },
+  naturalRadius: (text) => naturalRadius(parse(text)),
   get gpuMs() { return gpuMs; },
 };
 
 async function start() {
   const fromHash = readHash();
   try {
-    setFormula(fromHash ? fromHash.text : DEFAULT.formula);
+    setDoc(fromHash ? fromHash.text : DEFAULT.formula);
   } catch (e) {
     console.warn('formula in the URL did not parse:', e.message);
-    setFormula(DEFAULT.formula);
+    setDoc(DEFAULT.formula);
   }
   if (fromHash && fromHash.cam) state.cam = fromHash.cam;
   if (fromHash) state.mode = fromHash.mode;
@@ -2768,7 +3570,7 @@ async function start() {
     window.__fe.error = String(e.message || e);
     return;
   }
-  R.setFormula(state.formula);
+  showDoc(doc());
   try {
     P = await createPush(R);
   } catch (e) {

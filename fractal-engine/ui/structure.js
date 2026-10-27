@@ -2,7 +2,7 @@
 //
 //   ruler    left: one notch per iteration (one octave each), the bright notch is the depth reached at
 //            the centre of the view, with its number — the Richardson ruler of paper 0
-//   strip    right: the formula's graph drawn small — chains, species forks, fields, the repeat zone
+//   strip    right: the formula's graph drawn small (a collage's: its pieces side by side and their joins) — chains, species forks, fields, the repeat zone
 //            with the iteration count and schedule; the attention op framed; click to unfold it
 //   lineage  bottom left: every formula as a dot, its parent as a hairline; the big dot is now. Hover a
 //            dot for its thumbnail, click it to return there
@@ -31,7 +31,8 @@ const f1 = (x) => (Math.round(x * 10) / 10).toString();
 // s: { W, H, formula (normalized), depth (iterations at the centre), attention (op index or null),
 //      unfolded (the graph is open: leave the strip to it),
 //      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions),
-//      progress (0..1 while an export runs, else null), step (the drivers' step factor L, or null) }
+//      progress (0..1 while an export runs, else null), step (the drivers' step factor L, or null),
+//      strip (a collage's strip, drawn by the caller with its hit rectangle, in place of the formula's) }
 export function drawStructure(svg, s) {
   const out = [];
   const { W, H, formula: f } = s;
@@ -49,7 +50,8 @@ export function drawStructure(svg, s) {
 
   // the op stack: the formula's graph drawn small (ui/graph.js), the same network the unfolded graph
   // edits — chains, species forks, fields, the repeat zone. Click it to unfold it (the app does).
-  if (!s.unfolded) {
+  if (!s.unfolded && s.strip) out.push(s.strip);
+  else if (!s.unfolded) {
     const P = stripPlacement(f, W, H);
     out.push(drawGraph(P, { attention: s.attention, driven: drivenOps(f) }));
     // a driven formula: the step factor L as a hairline under the count — a tick from 1 (left) to 16

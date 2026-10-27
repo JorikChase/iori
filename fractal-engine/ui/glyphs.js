@@ -38,7 +38,7 @@ export const GLYPHS = {
 };
 
 export function glyphPath(id, x, y, size = 24) {
-  const d = GLYPHS[id] || SHADE_GLYPHS[id] || DRIVE_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
+  const d = GLYPHS[id] || SHADE_GLYPHS[id] || DRIVE_GLYPHS[id] || COLLAGE_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
@@ -100,6 +100,16 @@ export const DRIVE_GLYPHS = {
   'drv.wave.saw': 'M2 18L9 6v12l7-12v12l6-10', 'drv.wave.sine': 'M2 12c3-8 6-8 10 0s7 8 10 0', 'drv.wave.tri': 'M2 18l5-12 5 12 5-12 5 12',
   'drv.out.cell': 'M2 7l6 2 1 7-6 4M8 9l6-6M9 16l7 1 4-6-6-8M12 11a.8.8 0 1 0 .01 0', 'drv.out.wall': 'M12 2v20M8 6v12M16 6v12',
   'drv.clamp': 'M3 6v12M21 6v12M3 12h18',
+};
+
+// a collage's placement and repetition (DESIGN.md "Collage (K)"): the growth (an outline pushed out),
+// the repetition's kinds (none, a grid's cells, a mirror's plane, polar spokes)
+export const COLLAGE_GLYPHS = {
+  'cl.grow': 'M12 7a5 5 0 1 0 .01 0M12 2a10 10 0 1 0 .01 0M12 7V2',
+  'rep.none': 'M12 12m-5 0a5 5 0 1 0 10 0a5 5 0 1 0 -10 0',
+  'rep.grid': 'M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18',
+  'rep.mirror': 'M12 2v20M9 7l-6 5 6 5M15 7l6 5-6 5',
+  'rep.polar': 'M12 12L12 3M12 12l7.8 4.5M12 12l-7.8 4.5M12 10.5a1.5 1.5 0 1 0 .01 0',
 };
 
 // the graph's own: another species (a plus)

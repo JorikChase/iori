@@ -4,7 +4,7 @@
 //   { engine: 'fractal-engine', v: 1, id, notation, formula, cam, mode, look, focus, pins, export, created }
 //
 // formula the canonical JSON and id its hash (the formula's own id), notation the same formula as text
-// for a human reading the file, export what made the file (sample counts, opacity, size).
+// for a human reading the file (a collage rides in the same field, its own canonical JSON and hash), export what made the file (sample counts, opacity, size).
 //
 // In a PLY it rides in the header as comment lines, which every splat viewer skips: one line with the
 // document's checksum and byte length, then its UTF-8 bytes in base64, 96 characters a line — ASCII
@@ -14,6 +14,7 @@
 
 import { normalize, validate, canonical, hashString, hash } from './formula.js';
 import { format } from './notation.js';
+import { isCollage, normCollage, validateCollage, canonicalCollage, hashCollage, formatCollage } from './collage.js';
 
 export const STATE_V = 1;
 const TAG = 'fractal-engine';
@@ -29,9 +30,9 @@ const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 // the document for a state: { formula, cam, mode, look, focus, pins, export }
 export function stateDoc(s) {
-  const f = normalize(s.formula);
+  const col = isCollage(s.formula), f = col ? normCollage(s.formula) : normalize(s.formula);
   return {
-    engine: TAG, v: STATE_V, id: hash(f), notation: format(f), formula: JSON.parse(canonical(f)),
+    engine: TAG, v: STATE_V, id: col ? hashCollage(f) : hash(f), notation: col ? formatCollage(f) : format(f), formula: JSON.parse(col ? canonicalCollage(f) : canonical(f)),
     cam: { pos: [...s.cam.pos], yaw: s.cam.yaw, pitch: s.cam.pitch }, mode: s.mode || 'pull',
     look: s.look ? { ...s.look } : null, focus: s.focus ?? null, pins: s.pins ? JSON.parse(JSON.stringify(s.pins)) : [],
     export: s.export || null, created: s.created || new Date().toISOString(),
@@ -57,10 +58,10 @@ function accept(json, sum, length) {
   if (sum !== undefined && hashString(json) !== sum) throw new Error('state: checksum mismatch');
   const doc = JSON.parse(json);
   if (!doc || doc.engine !== TAG || typeof doc.v !== 'number' || doc.v > STATE_V) throw new Error('state: not a fractal-engine state');
-  const f = normalize(doc.formula);
-  const v = validate(f);
+  const col = isCollage(doc.formula), f = col ? normCollage(doc.formula) : normalize(doc.formula);
+  const v = col ? validateCollage(f) : validate(f);
   if (!v.ok) throw new Error('state: invalid formula: ' + v.errors.join('; '));
-  if (hash(f) !== doc.id) throw new Error('state: formula does not match its id');
+  if ((col ? hashCollage(f) : hash(f)) !== doc.id) throw new Error('state: formula does not match its id');
   const num = (x) => typeof x === 'number' && Number.isFinite(x);
   if (!doc.cam || !Array.isArray(doc.cam.pos) || doc.cam.pos.length !== 3 || !doc.cam.pos.every(num) || !num(doc.cam.yaw) || !num(doc.cam.pitch)) throw new Error('state: bad camera');
   return { ...doc, formula: f };

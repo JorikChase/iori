@@ -8,7 +8,7 @@
 import { INTERP, DUAL, COLLAGE, withDrive, withCollage } from './wgsl.js';
 import { withJit, structureKey } from './jit.js';
 import { canonical } from '../core/formula.js';
-import { MAX_PIECES } from '../core/collage.js';
+import { MAX_PIECES, isCollage } from '../core/collage.js';
 import { pack, drives, shapes, packCollage, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from './pack.js';
 
 const VIEW_FLOATS = 52;
@@ -684,15 +684,17 @@ export async function createRenderer(canvas) {
     device.queue.submit([enc.finish()]);
   }
 
-  // A thumbnail of another formula: its own small accumulation, the shared formula buffers borrowed
+  // A thumbnail of another formula (or collage): its own small accumulation, the shared formula buffers borrowed
   // for the length of one synchronous submission and given back before anything else can run, then a
   // readback. Returns a data URL. v is a frame view (see frame()); the view is rendered as a moving
   // frame (no shadows) for speed.
   const thumbViewBuf = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const thumbDispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   async function renderThumb(f, v, tw, th, samples = 8) {
-    const tp = pack(f);
-    const thumbPipe = drives(tp.formula) ? (await variant.ready(...driveMarch())) || marchPipe : marchPipe;
+    // a collage draws in its own march (compiled once per drive-ness, shared with the live view)
+    const tp = isCollage(f) ? packCollage(f) : pack(f);
+    const thumbPipe = tp.collage ? await variant.ready(...collageMarch(tp)) : drives(tp.formula) ? (await variant.ready(...driveMarch())) || marchPipe : marchPipe;
+    if (!thumbPipe) return null;
     const ttex = [0, 1].map(() => device.createTexture({ size: [tw, th], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING }));
     const groups = [0, 1].map((i) => device.createBindGroup({
       layout: viewLayout,

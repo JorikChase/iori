@@ -1274,3 +1274,102 @@ runs in shader variants of its own, written from the formula's by one rewrite.
   piece's shade that reads its drivers sees whatever registers the last piece left); push colour
   readings beyond the fold index (piece and seam on splats); the neighbour across the nearest cell wall
   for repetitions wider than their cell (K1's note).
+
+**K3 built 2026-10-27 — the collage in the app.** The app's document is a formula or a collage; every
+tool that knew formulas now knows both, and K3's decisions above are all in.
+- *The document* (app.js): `state.collage` (normalised) beside `state.formula`, which in a collage is the
+  picked piece's formula (piece 0 when none is). `setDoc(text)` replaces the document with either;
+  `setFormula(text)` is the formula tools' edit — on a collage it lands in the picked piece, so the grab's
+  op parameters, a piece's own graph, the slice (Option-drag) and the Metasurface's crosshair all edit a
+  piece with their existing code. `state.pick` is the piece (an index), `'C'` (the collage's own shading:
+  a one-op proxy formula carries its shade into the shading frame) or null. Hash and URL carry the
+  collage's notation; `restore`, the walk, the morph, replay, the video and the exports read either
+  (core/state.js: a PLY or PNG state may hold a collage, its own canonical JSON and hash). `__fe.setFormula`
+  replaces the document (tests load collages through it too).
+- *Starting:* `dropPiece(text, x, y)` — from a lineage dot dragged onto the field (followed on the window:
+  hovering redraws the structure layer), a breed-ring neighbour carried out past its thumbnail (60 px
+  beyond it: it follows the hand; formulas only), or a Metasurface site held still for 450 ms (the drop ring
+  fills around the site; a click still goes there, a drag still moves it). The piece lands centred on the
+  surface under the cursor (else at the focus), sized to a quarter of the view there by its natural radius
+  (the surface marched in from 16 along the six axes, cached), joined by a quad union a tenth of its size.
+  Eight pieces at most; a collage dropped on a collage is refused.
+- *Picking and placing* (ui/gizmo.js): a click (still, under 280 ms) traces the CPU collage and picks the
+  piece that leads there; open ground unpicks, as Esc does. The frame: three axes along the piece's turned
+  frame, as long as the piece (natural radius × size) but kept 50–170 px on screen, the bars at their tips
+  saying x, y, z (one, two, three); a ring in the screen's plane; a corner bracket between x and y. An
+  axis drag moves along that axis (the screen drag projected on the axis), the ring turns about the line of
+  sight (Rodrigues, back to Rz·Ry·Rx degrees by `eulerXYZ`), the corner scales by the distance from the
+  origin; Shift snaps a move to a tenth of the frame's length (a power of ten), a turn to 15°, a size to two
+  figures. While dragging: the move as a dimension line from where it started, the turn as an arc in
+  degrees, the size along the corner. The lines carry a faint dark halo of themselves (a bright piece
+  swallowed white hairlines).
+- *Repetition while a piece is picked:* `repCells` — a grid's boxes (a zero cell width spans the piece's
+  radius on that axis), a mirror's planes, polar's axis, spokes and sector walls; the original's cell and
+  frame solid, the copies' cells and small frames ghosted (dashed); 125 cells at most, nearest first.
+- *The graph* (ui/collagegraph.js; G, or the Tab strip): pieces side by side, each its own formula drawn
+  as the strip draws one (its repeat zone, ×iterations, a repetition's glyph at the zone's corner); the
+  fold as hairlines into a join node under each neighbouring pair; the output below the last join. A
+  join's glyph is the join itself — marching squares of the kernel's zero set over two half planes meeting
+  at a right angle (union, intersection, subtraction corners, the fillet, the stairs, the bevel, a morph's
+  tilted line) — and under it the seam width as a dimension line exactly as wide as the seam is on screen
+  at the focus (clamped 6–140 px; the stairs' steps as ticks; a morph's weight on a fixed line). Drag it:
+  the end follows the hand. Click a join: its numbers below (r, n, w); hold it: the ring of the four ops
+  (with its kernel) and the seven kernels (with its op), each drawn as its own contour. Click a piece:
+  picked, its placement and repetition as dimension lines below, grouped behind glyphs (translate,
+  rotate, scale, grow, the repetition's kind); translation and growth move a world pixel at the focus per
+  pixel, turns ½° a pixel, size 0.5 % a pixel, counts a step per 14 px. Hold a piece: the ring of
+  repetitions (none, grid 2.5 radii, mirror x 1.2 radii out, polar 6 at 2 radii). Click a picked piece's
+  op: its own formula graph opens on that op (the existing editor, editing the piece); G or Esc comes back.
+  Click the output: the collage's shading in the existing shading frame (pick 'C'). Delete removes the
+  picked piece. Every edit goes through core/collage-edit.js. A new subtraction's or intersection's
+  cutter with no growth grows a tenth of its size (`withJoin`).
+- *The collage's drivers:* a row above the pieces (ui/drivegraph.js draws it; no lane). Hold the row:
+  the ring of the drivers a collage may have (start x y z w, the four fields, time, math, remap — a remap
+  reads the driver before it); drag a driver's dot onto a selected line or a seam line: bound over the
+  line's own range (a band, its ends dragged); onto another's input: linked. Click a driver: its numbers
+  and switches below; Delete removes it (and a remap left with nothing to read), or the selected band.
+  core/collage-edit.js gained `removeCollageDriver` and `connectCollageDriver`.
+- *Breeding* (core/collage-breed.js): `lerpCollage(a, b, t)` — same count only; a piece of one structure
+  interpolates as a formula does (`lerpFormula`: parameters, c, slice, bail; its drivers and shading from
+  the nearer parent), of two structures comes whole from the nearer parent; placements, a repetition of
+  one kind and a join of one op and kernel interpolate (counts rounded); a differing kernel, op or
+  repetition kind comes from the nearer parent (a below ½). It drives the walk and the morph between two
+  collages of one `collageStructure`. `mutateCollage` steps D pixels across the metric — the collage's own
+  numbers (`{ ref: 'P0.tx' | 'J0.r' }`) and every piece's op parameters (`{ piece, oi, key }`) — so the
+  breed ring, the archive and the drift's herding work on collages unchanged.
+- *Sensing* (core/collage-sense.js, the minimum): a CPU pass over the collage — sphere-traced rays,
+  central differences of the estimate in x and in every parameter, speed = |∂D/∂θ| / |∇D| / (t · pixel
+  angle) as the GPU's duals measure it; λ the leading piece's Lyapunov exponent at its point. 12×8 rays
+  for the view (~30 ms for two pieces), 16×10 without parameters for the archive and the ring (~7 ms), the
+  grab's 25 + 24 rays at the cursor. A driven collage's step factor is the GPU's (`R.collageStep` at the
+  hits, then `R.setStep`). The grab ranks and edits collage numbers and pieces' op parameters (no orbit is
+  drawn: the piece's orbit lives in its own frame). Thumbnails: `R.renderThumb` draws collages (the
+  collage march, compiled once and shared with the live view); the lineage's are the canvas as before.
+- *Left out on purpose:* the loop (a collage has no one map to feed back through: P skips it, a flow into
+  or out of a collage cuts) and the JIT (the interpreter draws collages).
+- *Tests:* test/collage-k3.test.mjs (7): breeding (ends exact, placements and parameters at t, the kernel
+  and the repetition's kind from one parent, counts and formulas refused, structure), the metric and
+  mutation (ids, values, clamping, a neighbour exactly D px away, pins), the CPU sensing (hits, the lead,
+  every parameter, 3 px by the metric moving the surface ~3 px), the state document carrying a collage, the
+  graph (layout, hit tests, the seam line, every kernel's contour), the gizmo's maths (Euler round trips,
+  Rodrigues, every repetition's cells), the drive edits. 77 tests pass; parity 196 rows pass.
+- *Seen in the app* (the Browser pane, a scratchpad mirror, `__fe.dry`, synthetic pointer events through
+  the real handlers, the field and overlays composited by the page): a box dropped on a bulb; the axis drag
+  with its dimension line; ring 30° snapped, corner, Shift; a grid's cells; the graph with the repetition
+  ring, the join ring (sub → the cutter grew 0.026), the seam line dragged; a piece's own graph editing
+  its op; the collage's shading on (a ramp reading `piece`); an axis driver bound to the seam width with its
+  band; the breed ring of collages and a walk; the grab on a collage, Esc reverting; a lineage thumbnail
+  dragged onto the field; a Metasurface site held into a third piece; a breed neighbour carried out of the
+  ring; a collage's lineage node restored by ⌘Z / ⇧⌘Z; the collage from the URL on reload. Shots:
+  `design/shots/k3-*.jpg` (dropped + frame + strip, the axis drag, grid cells, the join ring, the drivers'
+  band, a site held on the Metasurface, a neighbour carried out of the ring).
+- *Open (K3 leaves):* **what a collage's shade may read of drivers** — iori's to decide (asked
+  2026-10-27): until then its shade reads none (the shading frame's proxy strips `d:` inputs and
+  bindings; CPU and GPU agree on none). The lens refuses collages (it varies one formula's op records in
+  one pass); grab and breeding run on the CPU sensing pass — a GPU sensing pass for collages (the duals
+  through the joins: an exact normal and the metric of every number at once) would replace it, and would
+  let the drivers' parameters of pieces into the metric (they are not measured now). The JIT per piece;
+  piece and seam readings on push splats (an exported splat cloud of a collage takes the collage's shading
+  with col only, else the engine's colour); the neighbour across the nearest cell wall; dropping a collage
+  onto a collage (its pieces could join, re-placed). The ring of drivers has no param node (a collage
+  number's param node would come from pulling a line off itself, as a formula's does).

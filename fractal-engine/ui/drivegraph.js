@@ -67,8 +67,8 @@ export function placeDrive(D, P) {
 //      bindings' far ends, from the app), params: the selected driver's handles, notch }
 export function drawDrive(V, o = {}) {
   const s = [];
-  // the lane: a hairline down the zone, left of it
-  s.push(`<path class="lnr" d="M${f1(V.lane[0])} ${f1(V.lane[1] + 6)}V${f1(V.lane[3] - 6)}"/>`);
+  // the lane: a hairline down the zone, left of it (a collage's drivers have none: V.lane null)
+  if (V.lane) s.push(`<path class="lnr" d="M${f1(V.lane[0])} ${f1(V.lane[1] + 6)}V${f1(V.lane[3] - 6)}"/>`);
   for (const l of V.links) {
     const my = (l.y1 + l.y2) / 2;
     s.push(`<path class="ln${o.link && o.link.to === l.to && o.link.port === l.port ? ' on' : ''}" d="M${f1(l.x1)} ${f1(l.y1)}C${f1(l.x1)} ${f1(my)} ${f1(l.x2)} ${f1(my)} ${f1(l.x2)} ${f1(l.y2)}"/>`);
@@ -142,5 +142,5 @@ export function driveLinkAt(V, x, y, binds = []) {
   return best;
 }
 const inside = (r, x, y) => x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3];
-export const inLane = (V, x, y) => inside(V.lane, x, y);
+export const inLane = (V, x, y) => !!V.lane && inside(V.lane, x, y);
 export const inTop = (V, x, y) => inside(V.top, x, y);

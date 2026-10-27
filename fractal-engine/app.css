@@ -135,3 +135,23 @@ body.grab #field { cursor: grabbing; }
 #structure > .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
 #structure .ex .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
 #structure .pg { stroke-width: 1.5; opacity: 0.9; }
+
+/* a collage (ui/collagegraph.js, ui/gizmo.js): the joins' own contours, the folding links, the selected
+   piece's affine frame and its repetition's cells */
+:is(#structure, #grab) .cg .cl { opacity: 0.45; }
+:is(#structure, #grab) .cg .jn path { opacity: 0.9; }
+:is(#structure, #grab) .cg .jn.hv path, :is(#structure, #grab) .cg .jn.sel path { stroke-width: 1.5; }
+:is(#structure, #grab) .cg .psel { opacity: 0.9; }
+:is(#structure, #grab) .cg .rp path { opacity: 0.6; }
+:is(#structure, #grab) .cg .sm path { opacity: 0.7; }
+#grab .gz .fx { opacity: 0.85; }
+#grab .gz .fx.on, #grab .gz .ri.on, #grab .gz .co.on { stroke-width: 1.5; opacity: 1; }
+#grab .gz .ri { opacity: 0.4; }
+#grab .gz .co { opacity: 0.85; }
+#grab .gz .od { fill: #fff; stroke: none; }
+#grab .gz .dl { opacity: 0.8; }
+#grab .gz .rc { stroke-width: 0.6; opacity: 0.8; }
+#grab .gz .rc.gh { opacity: 0.5; stroke-dasharray: 3 3; }
+#grab .gz.halo path, #grab .gz.halo circle { stroke: #000; stroke-width: 2.5; opacity: 0.35; }
+#grab .gz.halo .rc.gh { opacity: 0.25; }
+#grab .gz.halo .od { fill: #000; }

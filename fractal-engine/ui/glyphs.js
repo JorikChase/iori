@@ -38,10 +38,43 @@ export const GLYPHS = {
 };
 
 export function glyphPath(id, x, y, size = 24) {
-  const d = GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
+  const d = GLYPHS[id] || SHADE_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
+
+// the shading network (DESIGN.md "Shading"): the orbit's readings, the maths, the mixes, the ramp's
+// own toggles — technical drawing like the rest
+export const SHADE_GLYPHS = {
+  // readings
+  col: 'M4 18l8-12 8 12M8 12h8M12 6v-3',                                   // the fold index: a fold's crease
+  trap: 'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0M12 4v4', // closest approach
+  depth: 'M4 5h16M6 9h12M8 13h8M10 17h4M12 21v-1',                      // iterations going down
+  lyap: 'M2 12h4M18 12h4M12 2v4M12 18v4M7 7l2 2M15 15l2 2M17 7l-2 2M7 17l2-2', // the reticle's ticks
+  facing: 'M3 20h18M12 20V6M8 10l4-4 4 4M5 14l7-8',                       // the normal toward the eye
+  species: 'M8 12a5 5 0 1 0 .01 0M16 12a5 5 0 1 0 .01 0M12 3v4M12 17v4',  // which species leads
+  w: 'M4 20L20 4M4 4h6M4 4v6M20 20h-6M20 20v-6M12 12h0',                  // the fourth axis
+  // maths
+  'math.add': 'M12 5v14M5 12h14', 'math.sub': 'M5 12h14', 'math.mul': 'M6 6l12 12M18 6L6 18',
+  'math.min': 'M4 8h7l2 8h7', 'math.max': 'M4 16h7l2-8h7', 'math.pow': 'M3 20C10 20 16 14 21 3',
+  'math.sin': 'M2 12c3-8 6-8 10 0s7 8 10 0', 'math.bands': 'M3 20h4v-5h5v-5h5V5h4',
+  // colour mixes
+  'mixc.mix': 'M9 12a6 6 0 1 0 .01 0M15 12a6 6 0 1 0 .01 0',
+  'mixc.multiply': 'M9 12a6 6 0 1 0 .01 0M15 12a6 6 0 1 0 .01 0M12 7.5v9',
+  'mixc.screen': 'M9 12a6 6 0 1 0 .01 0M15 12a6 6 0 1 0 .01 0M12 3v3M12 18v3',
+  'mixc.add': 'M9 12a6 6 0 1 0 .01 0M15 12a6 6 0 1 0 .01 0M12 9v6M9 12h6',
+  // the ramp's toggles: interpolation, colour space, mapping mode, log, invert
+  'interp.constant': 'M2 18h7v-7h6V5h7', 'interp.linear': 'M2 19L22 5', 'interp.ease': 'M2 19C12 19 12 5 22 5',
+  'interp.bspline': 'M2 19C7 19 7 9 12 11s5-6 10-6', 'interp.cardinal': 'M2 19C6 4 9 4 12 12s6 7 10-7',
+  'space.rgb': 'M8 9a4 4 0 1 0 .01 0M16 9a4 4 0 1 0 .01 0M12 16a4 4 0 1 0 .01 0',
+  'space.hsv': 'M12 3a9 9 0 1 0 .01 0M12 12h9M12 12l-4.5 7.8',
+  'space.oklab': 'M4 20V4M4 20h16M4 20L16 8M16 8h-4M16 8v4',
+  'mode.clamp': 'M3 6v12M21 6v12M3 12h18', 'mode.repeat': 'M2 18L9 6v12l7-12v12l6-10', 'mode.mirror': 'M2 18L8 6l6 12 6-12',
+  log: 'M3 20C4 9 9 5 21 4M3 20h18', invert: 'M3 8h18l-4-4M21 16H3l4 4',
+  // the outputs: the surface's colour, the glow
+  'out.color': 'M12 12m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0', 'out.glow': 'M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M12 2v4M12 18v4M2 12h4M18 12h4',
+  shade: 'M4 12h16M12 4v16M6 6l12 12',
+};
 
 // the graph's own: another species (a plus)
 export const PLUS_GLYPH = 'M12 5v14M5 12h14';

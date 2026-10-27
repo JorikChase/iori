@@ -12,13 +12,18 @@
 import { EXPORT_GLYPHS } from './glyphs.js';
 import { tree } from '../core/graph.js';
 import { layout, place, drawGraph } from './graph.js';
+import { layoutShade, placeShade, drawShade } from './shadegraph.js';
 
 // the strip's placement: one unit per row up to 52 px, fitting the height and a 170 px column
+// (the shading network beside it, small: one strip, two parts)
 export function stripPlacement(f, W, H) {
-  const L = layout(tree(f));
-  const u = Math.min(52, (H - 260) / (L.h + 1), 170 / (L.w + 0.9));
-  return place(L, u, W - 50, H / 2 - 10);
+  const L = layout(tree(f)), S = layoutShade(f.shade);
+  const u = Math.min(52, (H - 260) / (Math.max(L.h, S.h) + 1), 230 / (L.w + 0.9 + SHADE_GAP + S.w + 0.6));
+  const P = place(L, u, W - 50, H / 2 - 10);
+  P.sh = placeShade(S, u, P.zone[0] - SHADE_GAP * u, P.zone[1], f.shade);
+  return P;
 }
+export const SHADE_GAP = 1.2;
 
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
 
@@ -46,8 +51,9 @@ export function drawStructure(svg, s) {
   if (!s.unfolded) {
     const P = stripPlacement(f, W, H);
     out.push(drawGraph(P, { attention: s.attention }));
-    const [zx0, zy0, zx1, zy1] = P.zone;
-    out.push(`<rect class="hit" data-graph="1" x="${f1(zx0 - 8)}" y="${f1(zy0 - 8)}" width="${f1(zx1 - zx0 + 24)}" height="${f1(zy1 - zy0 + 30)}"/>`);
+    out.push(drawShade(P.sh, { compact: true, bus: [P.zone[0], P.zone[1] + 4] }));
+    const [zx0, zy0, zx1, zy1] = P.zone, sx0 = P.sh.frame[0], sy1 = Math.max(zy1, P.sh.frame[3]);
+    out.push(`<rect class="hit" data-graph="1" x="${f1(sx0 - 8)}" y="${f1(zy0 - 8)}" width="${f1(zx1 - sx0 + 24)}" height="${f1(sy1 - zy0 + 30)}"/>`);
   }
 
   // the lineage

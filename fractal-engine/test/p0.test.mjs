@@ -711,3 +711,69 @@ test('shading: the graph in the formula, the notation and the hash; ramps, maps,
   assert.equal(prog[2], 2);
   assert.equal(prog[3], 1);
 });
+
+test('shading edits: start, insert on links, connect with types, remove by bypass, stops, ramp options, presets', async () => {
+  const E = await import('../core/shade-edit.js');
+  const { evalShade } = await import('../core/shade.js');
+  const f0 = parse(MANDELBOX);
+  assert.throws(() => E.addNode(f0, 'ramp'), /no shading yet/);
+  let f = E.shadeOn(f0);
+  assert.ok(validate(f).ok);
+  assert.equal(format(parse(format(f))), format(f));
+  assert.notEqual(hash(f), hash(f0));
+  assert.equal(format(E.shadeOff(f)), format(f0));
+  const c0 = evalShade(f.shade, { col: 0.3 }).color;
+  // a × 1 on the ramp's input changes nothing; a mix of the colour with itself neither
+  let g = E.addNode(f, 'math', { node: 'ramp', port: 'v' });
+  const m = g.shade.nodes.find((n) => n.type === 'math');
+  assert.equal(m.in.a, 'col');
+  assert.equal(g.shade.nodes.find((n) => n.id === 'ramp').in.v, m.id);
+  assert.ok(evalShade(g.shade, { col: 0.3 }).color.every((x, i) => near(x, c0[i], 1e-9)));
+  g = E.addNode(g, 'mixc', { node: 'out', port: 'color' });
+  assert.equal(g.shade.out.color, 'mixc0');
+  assert.ok(evalShade(g.shade, { col: 0.3 }).color.every((x, i) => near(x, c0[i], 1e-9)));
+  // a new ramp on trap, mixed in; types are checked and loops refused
+  g = E.addNode(g, 'trap');
+  g = E.addNode(g, 'ramp');
+  assert.throws(() => E.connect(g, 'trap0', 'mixc0', 'b'), /wants a colour/);
+  g = E.connect(g, 'trap0', 'ramp0', 'v');
+  g = E.connect(g, 'ramp0', 'mixc0', 'b');
+  assert.ok(validate(g).ok, validate(g).errors.join('; '));
+  assert.throws(() => E.connect(g, 'mixc0', 'mixc0', 'a'), /loop/);
+  assert.throws(() => E.connect(E.connect(g, 'math0', 'mixc0', 'f'), 'mixc0', 'ramp', 'v'), /number|colour/);
+  // nodes keep topological order whatever order they were made in
+  const ids = g.shade.nodes.map((n) => n.id);
+  assert.ok(ids.indexOf('trap0') < ids.indexOf('ramp0') && ids.indexOf('ramp0') < ids.indexOf('mixc0'));
+  // remove: the math node is bypassed (the ramp reads col again), the mix takes its own a
+  let r = E.removeNode(g, 'math0');
+  assert.equal(r.shade.nodes.find((n) => n.id === 'ramp').in.v, 'col');
+  r = E.removeNode(r, 'mixc0');
+  assert.equal(r.shade.out.color, 'ramp');
+  assert.throws(() => E.removeNode(r, 'col'), /unconnected/);
+  // optional inputs disconnect, required ones stay
+  const withF = E.connect(g, 'trap0', 'mixc0', 'f');
+  assert.equal(E.disconnect(withF, 'mixc0', 'f').shade.nodes.find((n) => n.id === 'mixc0').in.f, undefined);
+  assert.throws(() => E.disconnect(withF, 'mixc0', 'a'), /stays connected/);
+  // stops: add (sampled from the ramp), move past another (sorted again), recolour, remove
+  let s = E.addStop(g, 'ramp0', 0.5);
+  let st = s.shade.nodes.find((n) => n.id === 'ramp0').p.stops;
+  assert.equal(st.length, 3);
+  assert.ok(st[1].c.every((x, i) => near(x, E.rampColourAt(g.shade.nodes.find((n) => n.id === 'ramp0').p, 0.5)[i], 1e-3)));
+  s = E.moveStop(s, 'ramp0', 1, 0.95);
+  st = s.shade.nodes.find((n) => n.id === 'ramp0').p.stops;
+  assert.equal(E.stopIndex(s, 'ramp0', 0.95), 1);
+  s = E.setStopColour(s, 'ramp0', 1, [1, 0, 0, 0.5]);
+  assert.deepEqual(s.shade.nodes.find((n) => n.id === 'ramp0').p.stops[1].c, [1, 0, 0, 0.5]);
+  s = E.removeStop(s, 'ramp0', 1);
+  assert.equal(s.shade.nodes.find((n) => n.id === 'ramp0').p.stops.length, 2);
+  // ramp options and presets
+  s = E.setRamp(s, 'ramp0', 'interp', 'bspline');
+  s = E.setRamp(s, 'ramp0', 'map.mode', 'mirror');
+  s = E.setRamp(s, 'ramp0', 'map.log', true);
+  const p = s.shade.nodes.find((n) => n.id === 'ramp0').p;
+  assert.equal(p.interp, 'bspline'); assert.equal(p.map.mode, 'mirror'); assert.equal(p.map.log, true);
+  assert.throws(() => E.setRamp(s, 'ramp0', 'interp', 'wobbly'), /interp/);
+  s = E.applyPreset(s, 'ramp0', 'fire');
+  assert.equal(s.shade.nodes.find((n) => n.id === 'ramp0').p.stops.length, 5);
+  assert.equal(format(parse(format(s))), format(s));
+});

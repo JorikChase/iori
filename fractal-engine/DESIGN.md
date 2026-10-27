@@ -705,3 +705,21 @@ the GPU's on random readings.
 readings incl. species, push colour, parity) → S3 UI (the shading frame beside the graph, wiring by
 hold-on-port rings, the ramp editor: bar, stops, hue ring, glyph toggles for interpolation / space /
 mode, mapping as dimension lines, preset ring) → S4 verify, docs, deploy.
+
+**S3 built 2026-10-27 — the shading frame.** core/shade-edit.js (unit-tested): shadeOn/Off, addNode
+(free, or inserted on an input's link — the old source becomes its input where the kinds allow, unfed
+required inputs take the fold index or the surface colour), connect (type-checked; nodes re-sorted
+topologically, loops refused), disconnect (optional inputs only), removeNode (a bypass: its own input
+takes its place), setNodeParam, stops (add sampled from the ramp, move, remove, recolour), setRamp,
+applyPreset. ui/shadegraph.js draws the frame left of the formula's repeat zone (scaled together),
+the readings bus out of the zone along its top, readings as glyphs, ramps as their own gradients,
+maths and mixes by op, the outputs (colour, glow) at the bottom, ports as dots, links as curves; the
+folded strip carries it small beside the formula's.
+Editing: plus in an empty frame starts it; click selects; drag from an output dot to an input dot
+links; hold a link or input dot — a ring of only the types that fit it; hold empty frame — a free
+node; hold a ramp — the presets as colour arcs; Delete removes a node or the selected stop. A selected
+math or mix shows its op glyph (click cycles) and its constant as a dimension line. A selected ramp
+opens its editor below the frame: the bar (click adds a stop), stop ticks with swatches (drag moves,
+hold opens the hue ring: angle hue, distance saturation, scroll lightness, shift-scroll alpha, live),
+scale and offset as dimension lines, and a row of toggles: interpolation, colour space, mapping mode,
+log, invert. `__fe.shadeView` exposes the placed frame for tests.

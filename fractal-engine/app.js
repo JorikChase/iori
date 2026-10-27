@@ -49,7 +49,10 @@ import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
 import { drawSurface } from './ui/metasurface.js';
 import { layout as graphLayout, place as graphPlace, between as graphBetween, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt, scheduleLayout } from './ui/graph.js';
-import { stripPlacement } from './ui/structure.js';
+import { stripPlacement, SHADE_GAP } from './ui/structure.js';
+import { layoutShade, placeShade, drawShade, editorLayout, shadeNodeAt, shadeInPortAt, shadeOutPortAt, shadeLinkAt, inFrame, toSRGB, hsvToCss, RING_R } from './ui/shadegraph.js';
+import * as SE from './core/shade-edit.js';
+import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
 import { createSurface, formulaAt, weightsAt, strokeField, cells } from './core/metasurface.js';
@@ -481,10 +484,13 @@ const PICK_OPS = ['translate', 'scale', 'rotate', 'rotate4', '+c', 'fold.plane',
   'bulb', 'bulb4', 'power', 'quat', 'invert', 'twist', 'spherical', 'swirl', 'sin', 'horseshoe', 'polar'];
 const PICK_FIELDS = ['mix', 'mix.axis', 'mix.sphere', 'mix.noise', 'mix.tissue', 'mix.trap', 'mix.depth', 'mix.lyap', 'mix.blend'];
 
+// the formula's network and, to its left in its own frame, the shading network, scaled together
 function graphPlacement() {
-  const f = normalize(state.formula), L = graphLayout(G.tree(f));
-  const u = Math.min(64, (innerHeight - 220) / (L.h + 1), (innerWidth * 0.55) / (L.w + 0.9));
-  return graphPlace(L, u, innerWidth - 50, innerHeight / 2 - 10);
+  const f = normalize(state.formula), L = graphLayout(G.tree(f)), S = layoutShade(f.shade);
+  const u = Math.min(64, (innerHeight - 260) / (Math.max(L.h, S.h) + 1), (innerWidth * 0.8) / (L.w + 0.9 + SHADE_GAP + S.w + 0.6));
+  const P = graphPlace(L, u, innerWidth - 50, innerHeight / 2 - 10);
+  P.sh = placeShade(S, u, P.zone[0] - SHADE_GAP * u, P.zone[1], f.shade);
+  return P;
 }
 
 function openGraph() {
@@ -511,6 +517,7 @@ function refreshGraph() {
   if (!gv) return;
   gv.P = graphPlacement();
   if (gv.selected && !gv.P.items.some((q) => q.id === gv.selected)) gv.selected = null;
+  if (gv.shSel && !gv.P.sh.items.some((q) => q.id === gv.shSel)) { gv.shSel = null; gv.stopSel = null; }
   drawGraphNow();
 }
 
@@ -541,6 +548,7 @@ function drawGraphNow() {
     thumb: hv && hq && !gv.drag && !gv.picker ? { x: hq.x - (sel && sel.id === hq.id ? 190 : 0), y: hq.y, href: hv } : null,
   });
   if (gv.drag) svg += `<g class="gr full"><g class="nd hv">${glyphPath(gv.drag.glyph, gv.drag.x, gv.drag.y, 26)}</g></g>`;
+  if (!gv.from) svg += drawShadeNow(P);
   if (gv.picker) svg += drawPicker(gv.picker);
   overlay.innerHTML = svg;
   overlay.classList.add('on');
@@ -559,7 +567,14 @@ function drawPicker(k) {
   k.items.forEach((it, i) => {
     const a = (i / k.items.length) * Math.PI * 2 - Math.PI / 2, gx = x + Math.cos(a) * R, gy = y + Math.sin(a) * R;
     it.angle = a;
-    s += `<g class="nd${i === k.sel ? ' sel' : ''}">${glyphPath(it.glyph, gx, gy, i === k.sel ? 26 : 20)}</g>`;
+    if (it.colours) {
+      // a ramp preset: its colours along a short arc
+      const r = i === k.sel ? 15 : 12;
+      it.colours.forEach((c, j) => {
+        const a0 = Math.PI * (0.75 + (j / it.colours.length) * 1.5), a1 = Math.PI * (0.75 + ((j + 1) / it.colours.length) * 1.5);
+        s += `<path class="pa" style="stroke:${c}" d="M${(gx + Math.cos(a0) * r).toFixed(1)} ${(gy + Math.sin(a0) * r).toFixed(1)}A${r} ${r} 0 0 1 ${(gx + Math.cos(a1) * r).toFixed(1)} ${(gy + Math.sin(a1) * r).toFixed(1)}"/>`;
+      });
+    } else s += `<g class="nd${i === k.sel ? ' sel' : ''}">${glyphPath(it.glyph, gx, gy, i === k.sel ? 26 : 20)}</g>`;
     if (i === k.sel) s += `<circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="18"/>`;
   });
   return s + '</g>';
@@ -603,6 +618,7 @@ function graphEdit(fn) {
 function graphDown(e) {
   if (gv.from) return;
   const x = e.clientX, y = e.clientY;
+  if (shadeDown(x, y)) return;
   // a parameter handle of the selected node
   const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
   if (sel) {
@@ -643,6 +659,7 @@ function graphDown(e) {
 
 function graphMove(e) {
   const x = e.clientX, y = e.clientY;
+  if (shadeMove(x, y)) return;
   if (gv.picker) {
     const [cx, cy] = gv.picker.at;
     if (Math.hypot(x - cx, y - cy) < 30) gv.picker.sel = -1;
@@ -700,6 +717,7 @@ function graphMove(e) {
 }
 
 function graphUp(e) {
+  if (shadeUp(e.clientX, e.clientY)) return;
   if (gv.picker) {
     const k = gv.picker;
     gv.picker = null; gv.press = null;
@@ -728,6 +746,202 @@ function graphUp(e) {
   drawGraphNow();
 }
 
+// ---------- the shading frame (DESIGN.md "Shading"): beside the formula, the same chain -----------------
+// Click a node: select it (a ramp opens its editor; maths and mixes show their op and constant). Drag
+// from a node's output dot to an input: a link. Hold on a link or an input dot: the ring of node types,
+// inserted there; hold on empty frame: a free node; hold on a ramp: the ring of presets. Delete removes
+// the selected node (or the selected stop). The ramp editor: click the bar for a stop, drag a stop, hold a
+// stop for the hue ring (angle hue, distance saturation, scroll lightness, shift-scroll alpha), click the
+// toggles (interpolation, colour space, mapping mode, log, invert), drag scale and offset.
+const SHADE_TYPES = [...SHADE_READINGS, 'ramp', 'math', 'mixc'];
+const shadeGlyph = (t) => (t === 'ramp' ? 'shade' : t === 'math' ? 'math.mul' : t === 'mixc' ? 'mixc.mix' : t);
+const presetColours = (name) => Array.from({ length: 10 }, (_, j) => { const c = SE.rampColourAt(RAMP_PRESETS[name], j / 9); return `rgb(${c.slice(0, 3).map((x) => Math.round(255 * Math.min(1, toSRGB(x)))).join(',')})`; });
+const linearToHsv = (c) => rgb2hsv(c.slice(0, 3).map((x) => Math.min(1, Math.max(0, toSRGB(x)))));
+const hsvToLinear = (h, sat, v) => hsv2rgb([h, sat, v]).map((x) => (x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+
+// the selected math or mix node's op and constant, as a toggle glyph and a dimension line to its left
+function shadeHandles(q) {
+  const x2 = q.x - q.hw - 24, x1 = x2 - 110;
+  if (q.type === 'math') return [{ key: 'c', x1, x2, y: q.y, v: fmtValue(q.n.p.c), held: gv.shParam && gv.shParam.key === 'c', glyph: `math.${q.n.p.op}`, cycle: ['op', MATH_OPS] }];
+  if (q.type === 'mixc') return [{ key: 'f', x1, x2, y: q.y, v: fmtValue(q.n.p.f), held: gv.shParam && gv.shParam.key === 'f', glyph: `mixc.${q.n.p.mode}`, cycle: ['mode', MIX_MODES] }];
+  return [];
+}
+
+function drawShadeNow(P) {
+  const S = P.sh, sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
+  let editor = null;
+  if (sel && sel.ramp) {
+    editor = editorLayout(sel, innerWidth, innerHeight, S.frame);
+    editor.selStop = gv.stopSel && gv.stopSel.id === sel.id ? gv.stopSel.i : null;
+    editor.held = gv.shParam && gv.shParam.id === sel.id ? gv.shParam.key : null;
+  }
+  return drawShade(S, {
+    bus: [P.zone[0], P.zone[1] + 4], hover: gv.shHover, selected: gv.shSel, link: gv.shPress && gv.shPress.link,
+    drag: gv.shDrag, params: sel && !sel.ramp ? shadeHandles(sel) : [], editor, ring: gv.hue,
+  });
+}
+
+// a live change while a hand is down (quiet: no lineage), and its commit on release
+function shadeLive(fn) {
+  let f;
+  try { f = fn(); } catch { return; }
+  setFormula(format(f), true);
+  touched();
+  refreshGraph();
+}
+function shadeCommit() { setFormula(state.text); writeHash(); remember(); refreshGraph(); }
+
+function shadeDown(x, y) {
+  const S = gv.P.sh;
+  // the selected ramp's editor: toggles, scale and offset, stops, the bar
+  const sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
+  if (sel && sel.ramp) {
+    const E = editorLayout(sel, innerWidth, innerHeight, S.frame), p = sel.n.p;
+    const tg = E.toggles.find((t) => Math.hypot(x - t.x, y - t.y) < 11);
+    if (tg) {
+      const next = (list, v) => list[(list.indexOf(v) + 1) % list.length];
+      if (tg.key === 'interp') graphEdit(() => SE.setRamp(state.formula, sel.id, 'interp', next(INTERPS, p.interp)));
+      if (tg.key === 'space') graphEdit(() => SE.setRamp(state.formula, sel.id, 'space', next(SPACES, p.space)));
+      if (tg.key === 'mode') graphEdit(() => SE.setRamp(state.formula, sel.id, 'map.mode', next(MAP_MODES, p.map.mode)));
+      if (tg.key === 'log') graphEdit(() => SE.setRamp(state.formula, sel.id, 'map.log', !p.map.log));
+      if (tg.key === 'invert') graphEdit(() => SE.setRamp(state.formula, sel.id, 'map.invert', !p.map.invert));
+      return true;
+    }
+    const h = E.handles.find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+    if (h) { gv.shParam = { id: sel.id, key: h.key, x0: x, v0: h.v, text0: state.text }; drawGraphNow(); return true; }
+    const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y + E.h - 2 && y < E.y + E.h + 22);
+    if (st) {
+      gv.stopSel = { id: sel.id, i: st.i };
+      const press = { stop: true, id: sel.id, i: st.i, x, y, t0: st.t, c: st.c, moved: false, text0: state.text };
+      // held still: the hue ring around the stop
+      press.timer = setTimeout(() => {
+        if (!gv || gv.shStop !== press || press.moved) return;
+        const [hh, ss, vv] = linearToHsv(press.c);
+        gv.hue = { id: sel.id, i: press.i, x: st.x, y: st.y, h: hh, s: ss, v: vv, a: press.c[3], css: hsvToCss(hh, ss, vv), text0: state.text };
+        drawGraphNow();
+      }, GRAPH_HOLD_MS);
+      gv.shStop = press;
+      drawGraphNow();
+      return true;
+    }
+    if (x >= E.x && x <= E.x + E.w && y >= E.y && y <= E.y + E.h) {
+      const t = (x - E.x) / E.w;
+      if (graphEdit(() => SE.addStop(state.formula, sel.id, t))) gv.stopSel = { id: sel.id, i: SE.stopIndex(state.formula, sel.id, +t.toFixed(4)) };
+      drawGraphNow();
+      return true;
+    }
+  }
+  // a selected math or mix node: its op glyph cycles, its constant drags
+  if (sel && !sel.ramp) {
+    const h = shadeHandles(sel).find((r) => Math.abs(y - r.y) < 9 && x >= r.x1 - 24 && x <= r.x2 + 6);
+    if (h) {
+      if (x < h.x1 - 6) { const [key, list] = h.cycle; graphEdit(() => SE.setNodeParam(state.formula, sel.id, key, list[(list.indexOf(sel.n.p[key]) + 1) % list.length])); }
+      else gv.shParam = { id: sel.id, key: h.key, x0: x, v0: sel.n.p[h.key], text0: state.text };
+      drawGraphNow();
+      return true;
+    }
+  }
+  if (!inFrame(S, x, y)) return false;
+  if (S.empty) {
+    const [fx0, fy0, fx1, fy1] = S.frame;
+    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < 16) graphEdit(() => SE.shadeOn(state.formula));
+    return true;
+  }
+  // from an output dot: a link being drawn
+  const from = shadeOutPortAt(S, x, y);
+  if (from) { const [x1, y1] = S.outPort(from); gv.shDrag = { from: from.id, x1, y1, x2: x, y2: y }; drawGraphNow(); return true; }
+  const node = shadeNodeAt(S, x, y), port = node ? null : shadeInPortAt(S, x, y), link = node || port ? null : shadeLinkAt(S, x, y);
+  const press = { x, y, node, port, link, moved: false };
+  press.timer = setTimeout(() => {
+    if (!gv || gv.shPress !== press || press.moved) return;
+    const at = port || (link ? { node: link.to, port: link.port } : null);
+    if (node && node.ramp) {
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: Object.keys(RAMP_PRESETS).map((name) => ({ colours: presetColours(name), act: () => SE.applyPreset(state.formula, node.id, name) })), sel: -1 };
+    } else if (!node) {
+      // only what fits the held input: colours on a colour link, numbers on a number link
+      const want = SE.wantsAt(state.formula, at);
+      const types = SHADE_TYPES.filter((t) => !want || (want === 'colour') === (t === 'ramp' || t === 'mixc'));
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
+    }
+    drawGraphNow();
+  }, GRAPH_HOLD_MS);
+  gv.shPress = press;
+  drawGraphNow();
+  return true;
+}
+
+function shadeMove(x, y) {
+  if (gv.hue) {
+    const r = gv.hue, d = Math.hypot(x - r.x, y - r.y);
+    r.h = ((Math.atan2(y - r.y, x - r.x) / (Math.PI * 2)) % 1 + 1) % 1;
+    r.s = Math.min(1, d / RING_R);
+    r.css = hsvToCss(r.h, r.s, r.v);
+    shadeLive(() => SE.setStopColour(state.formula, r.id, r.i, [...hsvToLinear(r.h, r.s, r.v), r.a]));
+    return true;
+  }
+  if (gv.shParam) {
+    const p = gv.shParam, dx = x - p.x0;
+    const v = p.key === 'map.scale' ? p.v0 * Math.exp(dx / 120) : p.key === 'map.offset' ? p.v0 + dx / 200 : p.v0 + dx * 0.005 * Math.max(1, Math.abs(p.v0));
+    shadeLive(() => SE.setNodeParam(state.formula, p.id, p.key, +v.toPrecision(5)));
+    return true;
+  }
+  if (gv.shStop) {
+    const st = gv.shStop;
+    if (!st.moved && Math.abs(x - st.x) > 4) { st.moved = true; clearTimeout(st.timer); }
+    if (st.moved) {
+      const t = Math.min(1, Math.max(0, st.t0 + (x - st.x) / 260));
+      shadeLive(() => SE.moveStop(state.formula, st.id, st.i, t));
+      st.i = SE.stopIndex(state.formula, st.id, +t.toFixed(4), st.c);
+      gv.stopSel = { id: st.id, i: st.i };
+    }
+    return true;
+  }
+  if (gv.shDrag) { gv.shDrag.x2 = x; gv.shDrag.y2 = y; drawGraphNow(); return true; }
+  if (gv.shPress && !gv.picker) {
+    if (!gv.shPress.moved && Math.hypot(x - gv.shPress.x, y - gv.shPress.y) > 6) { gv.shPress.moved = true; clearTimeout(gv.shPress.timer); }
+    return true;
+  }
+  if (gv.picker && gv.shPress) return false; // the ring is pointed by the formula code
+  // hover
+  const q = inFrame(gv.P.sh, x, y) ? shadeNodeAt(gv.P.sh, x, y) : null, id = q ? q.id : null;
+  if (id !== gv.shHover) { gv.shHover = id; drawGraphNow(); }
+  return false;
+}
+
+function shadeUp(x, y) {
+  if (gv.hue) { gv.hue = null; gv.shStop = null; shadeCommit(); return true; }
+  if (gv.shParam) { const p = gv.shParam; gv.shParam = null; if (state.text !== p.text0) shadeCommit(); else drawGraphNow(); return true; }
+  if (gv.shStop) { const st = gv.shStop; clearTimeout(st.timer); gv.shStop = null; if (state.text !== st.text0) shadeCommit(); else drawGraphNow(); return true; }
+  if (gv.shDrag) {
+    const d = gv.shDrag, to = shadeInPortAt(gv.P.sh, x, y);
+    gv.shDrag = null;
+    if (to) graphEdit(() => SE.connect(state.formula, d.from, to.node, to.port)); else drawGraphNow();
+    return true;
+  }
+  const pr = gv.shPress;
+  if (!pr) return false;
+  clearTimeout(pr.timer);
+  gv.shPress = null;
+  if (gv.picker) {
+    const k = gv.picker;
+    gv.picker = null;
+    if (k.sel >= 0) graphEdit(k.items[k.sel].act); else drawGraphNow();
+    return true;
+  }
+  if (pr.node && !pr.moved) { gv.shSel = gv.shSel === pr.node.id ? null : pr.node.id; gv.stopSel = null; gv.selected = null; }
+  else if (!pr.node && !pr.moved) { gv.shSel = null; gv.stopSel = null; }
+  drawGraphNow();
+  return true;
+}
+
+// the hue ring's scroll: lightness; with shift, alpha
+function hueWheel(e) {
+  const r = gv.hue, d = -Math.max(-4, Math.min(4, e.deltaY / 100)) * 0.04;
+  if (e.shiftKey) r.a = Math.min(1, Math.max(0, r.a + d)); else r.v = Math.min(1, Math.max(0, r.v + d));
+  r.css = hsvToCss(r.h, r.s, r.v);
+  shadeLive(() => SE.setStopColour(state.formula, r.id, r.i, [...hsvToLinear(r.h, r.s, r.v), r.a]));
+}
+
 // keys while the graph is open; true when used
 function graphKey(e) {
   // a selected schedule letter: a letter key sets it, Delete drops it
@@ -744,9 +958,14 @@ function graphKey(e) {
     if (e.code === 'Escape') { gv.schedSel = null; drawGraphNow(); return true; }
   }
   if (e.code === 'Escape') {
-    if (gv.picker) { gv.picker = null; gv.press = null; drawGraphNow(); } else if (gv.selected) { gv.selected = null; drawGraphNow(); } else closeGraph();
+    if (gv.picker) { gv.picker = null; gv.press = null; gv.shPress = null; drawGraphNow(); }
+    else if (gv.stopSel) { gv.stopSel = null; drawGraphNow(); }
+    else if (gv.shSel) { gv.shSel = null; drawGraphNow(); }
+    else if (gv.selected) { gv.selected = null; drawGraphNow(); } else closeGraph();
     return true;
   }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.stopSel) { const st = gv.stopSel; gv.stopSel = null; graphEdit(() => SE.removeStop(state.formula, st.id, st.i)); return true; }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.shSel) { const id = gv.shSel; gv.shSel = null; graphEdit(() => SE.removeNode(state.formula, id)); return true; }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.selected) { const id = gv.selected; gv.selected = null; graphEdit(() => G.remove(state.formula, id)); return true; }
   if (e.code === 'KeyG' && !e.repeat) { closeGraph(); return true; }
   return false;
@@ -1089,6 +1308,7 @@ canvas.addEventListener('pointercancel', release);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   engage();
+  if (gv && gv.hue) { hueWheel(e); return; }
   if (ring) { const at = ring.at, sc = ring.scale * (e.deltaY > 0 ? 1.5 : 1 / 1.5); ring = null; openRing(at[0], at[1], sc); return; }
   if (grab && grab.knobs) { nextKnobs(e.deltaY > 0 ? 1 : -1, e.clientX, e.clientY); return; }
   if (grab) { passAttention(e.deltaY > 0 ? 1 : -1, e.clientX); return; }
@@ -1863,6 +2083,15 @@ window.__fe = {
   },
   get surfaceThumbs() { return SURF.sites.filter((s) => s.thumb).length; },
   graph: (on = true) => { if (on) openGraph(); else closeGraph(); return !!gv; },
+  get shadeView() {
+    if (!gv) return null;
+    const S = gv.P.sh;
+    return {
+      frame: S.frame, outs: S.outs.map((o) => ({ port: o.port, x: o.x, y: o.y })), selected: gv.shSel, stop: gv.stopSel, hue: !!gv.hue,
+      items: S.items.map((q) => ({ id: q.id, type: q.type, x: q.x, y: q.y, out: S.outPort(q), ins: SE.portsOf(q.type).map((port, k, all) => ({ port, at: S.inPort(q, k, all.length) })) })),
+      editor: (() => { const q = gv.shSel && S.items.find((r) => r.id === gv.shSel); if (!q || !q.ramp) return null; const E = editorLayout(q, innerWidth, innerHeight, S.frame); return { x: E.x, y: E.y, w: E.w, h: E.h, stops: E.stops.map((t) => ({ i: t.i, x: t.x, y: t.y, t: t.t })), toggles: E.toggles.map((t) => ({ key: t.key, x: t.x, y: t.y })), handles: E.handles.map((h) => ({ key: h.key, x: (h.x1 + h.x2) / 2, y: h.y })) }; })(),
+    };
+  },
   get graphView() { return gv && { items: gv.P.items.filter((q) => q.kind === 'op').map((q) => ({ id: q.id, op: q.n.op, x: q.x, y: q.y })), edges: gv.P.edges.map((e) => ({ chain: e.chain, index: e.index, x: (e.x1 + e.x2) / 2, y: (e.y1 + e.y2) / 2 })), zone: gv.P.zone, selected: gv.selected, picker: !!gv.picker }; },
   slice: (dw = 0, dx = 0, dy = 0) => { if (dw) sliceBy(dw, null); if (dx || dy) sliceDrag(dx, dy); sliceMoved = false; return state.formula.slice; },
   lineage: () => lineage.layout(200).map((n) => ({ id: n.id, parent: n.parent, text: n.text, current: n.current, thumb: !!n.thumb })),

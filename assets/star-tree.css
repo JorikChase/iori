@@ -6,15 +6,17 @@
 }
 .sn-t { font-family: "Milksea", "Tilt Neon", sans-serif; letter-spacing: .06em; }
 
-/* the names sit on the bloomed star's tips; the side tips reach .858 R up from the centre (R = .701 s, so
-   .6015 s); a chosen name ("rpg tennis online") runs ~190px along their diagonal, ~145px of height, so
-   the bloom leaves 160px and fits the shorter half screen */
-.center-nav { --s: min(440px, calc((50vmin - 160px) / .6015)); }
+/* the bloom's size until star-tree.js fits it to the screen from the measured names (it sets --s inline) */
+.center-nav { --s: min(440px, 60vmin); }
 /* a direction in focus brightens; the other three arms stay as they are */
 .center-nav.sn-focus .quad.sn-on { opacity: 1 !important; }
 
-/* the page is one drag surface on touch: nothing scrolls or bounces under the finger */
-html, body { touch-action: none; overscroll-behavior: none; }
+/* the page is one drag surface on touch: nothing scrolls, bounces, selects or flashes under the finger */
+html, body {
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
 
 /* every link as a plain list, off screen */
 .sn-sr {

@@ -1,4 +1,6 @@
-/* star menu — the astroid navigator on 3die.fr/start.html. iori.me/star.html
+/* star menu — the astroid navigator on 3die.fr/start.html. It blooms only on .open, which
+   assets/star-tree.js sets for the mouse and for touch alike: a CSS :hover bloom stuck open after a
+   tap on phones, which keep the tapped element hovered. iori.me/star.html
    was a second copy of the same page and has been merged into it (the old URL
    301s there); keep the menu styles here, not inline. */
 html, body { margin: 0; padding: 0; }
@@ -22,7 +24,7 @@ html, body { margin: 0; padding: 0; }
     transition: transform .6s cubic-bezier(.2, .9, .25, 1), opacity .4s ease;
     filter: drop-shadow(0 0 24px rgba(255, 255, 255, .25));
 }
-.center-nav:hover, .center-nav:focus-within, .center-nav.open {
+.center-nav:focus-within, .center-nav.open {
     opacity: .96; transform: rotate(45deg) scale(1);
 }
 .quad {
@@ -31,10 +33,10 @@ html, body { margin: 0; padding: 0; }
     opacity: 0; transform: rotate(-45deg) scale(.6);
     transition: opacity .35s ease .08s, transform .55s cubic-bezier(.2, .9, .25, 1) .08s;
 }
-.center-nav:hover .quad, .center-nav:focus-within .quad, .center-nav.open .quad {
+.center-nav:focus-within .quad, .center-nav.open .quad {
     opacity: .82; transform: rotate(-45deg) scale(1);
 }
-.quad:hover, .quad:focus-within { opacity: 1 !important; z-index: 3; }
+.quad:focus-within { opacity: 1 !important; z-index: 3; }
 
 /* fractal repetitions (decorative, never catch the pointer) */
 .sub {
@@ -48,10 +50,10 @@ html, body { margin: 0; padding: 0; }
     --d: .22s;
 }
 .star .star { transform: rotate(-45deg) scale(.4); --d: .38s; }
-.center-nav:hover .star, .center-nav:focus-within .star, .center-nav.open .star {
+.center-nav:focus-within .star, .center-nav.open .star {
     opacity: .55; transform: rotate(45deg) scale(1);
 }
-.center-nav:hover .star .star, .center-nav:focus-within .star .star, .center-nav.open .star .star {
+.center-nav:focus-within .star .star, .center-nav.open .star .star {
     opacity: .42; transform: rotate(-45deg) scale(1);
 }
 

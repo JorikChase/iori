@@ -42,21 +42,81 @@
         '<feGaussianBlur in="SourceAlpha" stdDeviation="5" result="b"/><feFlood flood-color="#fff" flood-opacity=".45"/>' +
         '<feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
 
-    let G = [], C = { x: 0, y: 0 }, R = 200, PX = 15;
+    let G = [], W = 0, H = 0, C = { x: 0, y: 0 }, R = 200, PX = 15, fitKey = '';
+    let turnH = false, turnV = false; // names on the side / up-down arms turned across the narrow axis
     const S = { open: false, p: null, touch: false, down: false, g: -1, li: -1, gF: [0, 0, 0, 0], hF: {}, outT: 0, tx: null };
     window.__starTree = S; // for the test rig: frames stop while the page is hidden
 
     function geo() {
-        C = { x: innerWidth / 2, y: innerHeight / 2 };
+        W = innerWidth; H = innerHeight;
+        C = { x: W / 2, y: H / 2 };
+        PX = clamp(Math.min(W, H) * 0.036, 12, 17);
+        fit();
         R = CUSP * (nav.offsetWidth || 280);
-        PX = clamp(R * 0.06, 12, 18);
     }
-    /* tip i of direction g: where it is, which way it points, and its angle about the star's centre */
-    function tip(g, i) {
+    /* tip i of direction g as a multiple of R from the centre, the way it points, and its angle */
+    function tipK(g, i) {
         const th = ((g - 1) * Math.PI) / 2, ta = th + [0, -Math.PI / 4, Math.PI / 4][i];
-        const x = i ? Math.cos(th) * 0.5044 * R + Math.cos(ta) * 0.5 * R : Math.cos(th) * R;
-        const y = i ? Math.sin(th) * 0.5044 * R + Math.sin(ta) * 0.5 * R : Math.sin(th) * R;
-        return { x: C.x + x, y: C.y + y, vx: Math.cos(ta), vy: Math.sin(ta), a: Math.atan2(y, x) };
+        const x = i ? Math.cos(th) * 0.5044 + Math.cos(ta) * 0.5 : Math.cos(th);
+        const y = i ? Math.sin(th) * 0.5044 + Math.sin(ta) * 0.5 : Math.sin(th);
+        return { x, y, vx: Math.cos(ta), vy: Math.sin(ta), a: Math.atan2(y, x) };
+    }
+    function tip(g, i) { const k = tipK(g, i); return { x: C.x + k.x * R, y: C.y + k.y * R, vx: k.vx, vy: k.vy, a: k.a }; }
+    /* where a name sits relative to its tip. It reads outward along the tip; straight up and down read level.
+       When the screen is narrow one way (a phone), the names on the arms that point along the narrow axis turn
+       across it, so it does not cap the star: on the side arms they stand upright (reading bottom to top), the
+       main one centred past the tip, the side-tip ones running up or down away from the arm; on the up and
+       down arms the side-tip names lie level, running sideways away from the arm */
+    function place(T, h, g, tH = turnH, tV = turnV) {
+        const off = 8 + 3 * h;
+        if (Math.abs(T.vx) < 0.01) return { x: 0, y: T.vy * (off + PX * 0.55), rot: 0, anchor: 'middle', kind: 'level' };
+        if (tH && g % 2 === 1) {
+            if (Math.abs(T.vy) < 0.01) return { x: T.vx * (off + PX * 0.6), y: 0, rot: -90, anchor: 'middle', kind: 'up' };
+            return { x: Math.sign(T.vx) * PX * 0.7, y: T.vy * off, rot: -90, anchor: T.vy < 0 ? 'start' : 'end', kind: T.vy < 0 ? 'upS' : 'upE' };
+        }
+        if (tV && g % 2 === 0) return { x: T.vx * off, y: Math.sign(T.vy) * PX * 0.6, rot: 0, anchor: T.vx > 0 ? 'start' : 'end', kind: T.vx > 0 ? 'lvS' : 'lvE' };
+        const deg = (Math.atan2(T.vy, T.vx) * 180) / Math.PI, flip = Math.abs(deg) > 90;
+        return { x: T.vx * off, y: T.vy * off, rot: flip ? deg + 180 : deg, anchor: flip ? 'end' : 'start', kind: 'out' };
+    }
+    /* the largest star (at most the CSS 440px) for which every name, chosen size, stays on screen: each name's
+       box is fixed relative to its tip, and the tip moves out linearly with R, so each edge bounds R */
+    const meas = mk('text', { x: -9999, y: -9999, class: 'sn-t' }, svg);
+    function fit() {
+        const key = W + 'x' + H + ':' + G.length;
+        if (!G.length || key === fitKey) return;
+        fitKey = key;
+        const hp = PX * 1.2;
+        meas.setAttribute('font-size', hp);
+        meas.setAttribute('letter-spacing', '.1em');
+        const widths = G.map((g) => g.links.map((l) => { meas.textContent = l.t; return meas.getComputedTextLength(); }));
+        // keep the diagonals unless turning the names across the narrow axis grows the star by over 15%
+        const tH = W < H, tV = !tH, diag = biggest(widths, false, false), turned = biggest(widths, tH, tV);
+        const turn = turned > diag * 1.15;
+        turnH = turn && tH; turnV = turn && tV;
+        nav.style.setProperty('--s', f1(Math.max(40, turn ? turned : diag) / CUSP) + 'px');
+    }
+    function biggest(widths, tH, tV) {
+        const m = 10, hh = PX * 1.2 * 0.65;
+        let best = CUSP * 440;
+        G.forEach((g, gi) => g.links.forEach((l, i) => {
+            const w = widths[gi][i], k = tipK(gi, i), L = place(k, 1, gi, tH, tV);
+            let x0, x1, y0, y1;
+            if (L.kind === 'level') { x0 = -w / 2; x1 = w / 2; y0 = L.y - hh; y1 = L.y + hh; }
+            else if (L.kind === 'up') { x0 = L.x - hh; x1 = L.x + hh; y0 = -w / 2; y1 = w / 2; }
+            else if (L.kind === 'upS') { x0 = L.x - hh; x1 = L.x + hh; y0 = L.y - w; y1 = L.y; }
+            else if (L.kind === 'upE') { x0 = L.x - hh; x1 = L.x + hh; y0 = L.y; y1 = L.y + w; }
+            else if (L.kind === 'lvS') { x0 = L.x; x1 = L.x + w; y0 = L.y - hh; y1 = L.y + hh; }
+            else if (L.kind === 'lvE') { x0 = L.x - w; x1 = L.x; y0 = L.y - hh; y1 = L.y + hh; }
+            else {
+                const ex = L.x + k.vx * w, ey = L.y + k.vy * w, px = Math.abs(k.vy) * hh, py = Math.abs(k.vx) * hh;
+                x0 = Math.min(L.x, ex) - px; x1 = Math.max(L.x, ex) + px; y0 = Math.min(L.y, ey) - py; y1 = Math.max(L.y, ey) + py;
+            }
+            if (k.x > 1e-6) best = Math.min(best, (W - m - C.x - x1) / k.x);
+            if (k.x < -1e-6) best = Math.min(best, (C.x + x0 - m) / -k.x);
+            if (k.y > 1e-6) best = Math.min(best, (H - m - C.y - y1) / k.y);
+            if (k.y < -1e-6) best = Math.min(best, (C.y + y0 - m) / -k.y);
+        }));
+        return best;
     }
 
     /* ---------- control */
@@ -100,16 +160,8 @@
             g.links.forEach((l, i) => {
                 const key = gi + '.' + i, hot = on && S.li === i;
                 S.hF[key] = sp(S.hF[key] || 0, hot ? 1 : 0, 16, dt);
-                const h = S.hF[key], n = nodes[gi * 3 + i], T = tip(gi, i);
-                // the button sits on its tip and reads outward along it; straight up and down read level
-                const off = 8 + 3 * h, vert = Math.abs(T.vx) < 0.01;
-                let L;
-                if (vert) L = { x: T.x, y: T.y + T.vy * (off + PX * 0.55), rot: 0, anchor: 'middle' };
-                else {
-                    const deg = (Math.atan2(T.vy, T.vx) * 180) / Math.PI, flip = Math.abs(deg) > 90;
-                    L = { x: T.x + T.vx * off, y: T.y + T.vy * off, rot: flip ? deg + 180 : deg, anchor: flip ? 'end' : 'start' };
-                }
-                at(n.g, 'transform', 'translate(' + f1(L.x) + ' ' + f1(L.y) + ') rotate(' + f1(L.rot) + ')');
+                const h = S.hF[key], n = nodes[gi * 3 + i], T = tip(gi, i), L = place(T, h, gi);
+                at(n.g, 'transform', 'translate(' + f1(T.x + L.x) + ' ' + f1(T.y + L.y) + ') rotate(' + f1(L.rot) + ')');
                 at(n.g, 'opacity', f2(S.gF[gi] * (0.65 + 0.35 * h)));
                 at(n.t, 'font-size', f1(PX * (1 + 0.2 * h)));
                 at(n.t, 'text-anchor', L.anchor);
@@ -182,6 +234,8 @@
         list.setAttribute('aria-label', 'Links');
         list.innerHTML = G.map((g) => '<h2>' + g.t + '</h2><ul>' + g.links.map((l) => '<li><a href="' + l.h + '">' + l.t + '</a></li>').join('') + '</ul>').join('');
         document.body.appendChild(list);
+        // names measure wider in Milksea than in the fallback: fit again once it has loaded
+        if (document.fonts) document.fonts.ready.then(() => { fitKey = ''; });
         geo();
         requestAnimationFrame(frame);
     });

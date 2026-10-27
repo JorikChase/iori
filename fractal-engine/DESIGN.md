@@ -636,7 +636,44 @@ everywhere); site placement by hand (Q3's Metasurface); drawn fields; tissue-of-
 
 Not yet: moving sites or dropping the current formula onto the surface as a new site; touch gestures
 for strokes (desktop modifiers only); pseudo-Kleinian's own estimate; walls are drawn as cell edges,
-not as the soft band they are.
+not as the soft band they are. (Sites and soft walls: Q3.1 below.)
+
+**Q3.1 — your sites, moved sites, soft walls. Decided with iori 2026-10-27, built the same day.**
+- *Drop.* Hold still on open ground (450 ms): a hairline ring fills clockwise around the cursor; full,
+  the formula you had becomes a site there — its own thumbnail (the current view), its breeding axes
+  its two most sensed parameters (score pxPerUnit × own scale, as the grab ranks them; each spans
+  ~240 px of change across the cell; sensed on the spot when no pass has run). Moving > 5 px first
+  makes it an ordinary drag; a click moves the crosshair. The drop changes no formula: no lineage node.
+- *Move.* Drag a site's disc: it moves, the formula under the crosshair follows live, one node on
+  release if it changed. A click on a disc puts the crosshair on the site (the pure formula).
+- *Remove.* Drag a disc off the square (24 px past its edge): yours is crossed out and gone on release;
+  a family shows a dashed line to its home and goes back there.
+- *Reset.* Double-click a corner mark: the families home, your sites stay. The corner marks are bright
+  while the layout differs from the default.
+- *Any formula can be a site* — a hybrid schedule unrolls into one iteration (iterations ÷ the word's
+  length), a fixed c becomes a translate, drivers/shading/slice stay with it at its own site and drop
+  across its walls. Same structure as a neighbour (ops, schedule, drivers, shading): parameters blend
+  (c and slice too).
+- *Chimera sites are hard* (the format allows no mix inside a mix, and the GPU interpreter has one
+  level): a chimera is the whole of its cell and none of anyone else's — crossing its wall is a cut at
+  the bisector, drawn as one hard hairline. Exception: a chimera whose whole chain is a constant-weight
+  `blend` stays soft — its species join the wall's blend at its weight × theirs (exact). A stroke laid
+  in space lays a chimera's first species (the heaviest, for a blend) in its place.
+- *At most 24 sites* (11 families + 13 yours); at 24 the ring does not appear.
+- *Stored* in this browser's localStorage (`fractal-engine.surface.v1`: moved families by id, your
+  sites whole with their thumbnails), beside the lineage; `__fe.dry` writes nothing.
+- *Soft walls.* The walls are drawn as the band they are: marching-squares contours of the leading
+  weight max πⱼ at 0.6, 0.8, 0.95 (faint where the blend is even, brighter where a cell turns pure;
+  ±2.5, 8.5, 18 px off a wall at 700 px), 160² grid (96² while a site moves). Hard edges are gone except
+  around chimeras.
+- Tests (test/metasurface.test.mjs): hard chimera cut and drawing, a blend chimera spliced and
+  continuous, same-structure parameter blend, schedule unroll and c → translate, move/remove/home/reset,
+  layout round-trip, the 24 cap, coincident sites, sensed axes, contours where πⱼ says. Verified in the
+  page: hold-drop, drag, fling off (yours gone, a family home), corner reset, sensed axes; lineage untouched.
+
+Not yet: touch for drop/move (a hold on touch already belongs to the crosshair drag start; desktop
+decides); a chimera that blends softly through a field mix
+(needs one more level of mix nesting in the interpreter).
 
 **Q4 built 2026-10-26 — the graph.** Decided with iori: today's formula as an editable network now,
 with the hooks formula v2 needs; it unfolds from the strip; ops come from a radial picker; a node's

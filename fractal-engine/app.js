@@ -50,7 +50,7 @@ import * as DE from './core/drive-edit.js';
 import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveInPortAt, driveLinkAt, inLane, inTop, typeGlyph, driverGlyph } from './ui/drivegraph.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
-import { drawSurface } from './ui/metasurface.js';
+import { drawSurface, bandPath, SITE_R } from './ui/metasurface.js';
 import { layout as graphLayout, place as graphPlace, between as graphBetween, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt, scheduleLayout } from './ui/graph.js';
 import { stripPlacement, SHADE_GAP } from './ui/structure.js';
 import { layoutShade, placeShade, drawShade, editorLayout, shadeNodeAt, shadeInPortAt, shadeOutPortAt, shadeLinkAt, inFrame, toSRGB, hsvToCss, RING_R } from './ui/shadegraph.js';
@@ -58,7 +58,7 @@ import * as SE from './core/shade-edit.js';
 import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
-import { createSurface, formulaAt, weightsAt, strokeField, cells } from './core/metasurface.js';
+import { createSurface, formulaAt, weightsAt, strokeField, wallBands, hardWalls, BAND_LEVELS, layoutOf, isDefault, addSite, moveSite, removeSite, resetLayout, axesFromSensed, MAX_SITES } from './core/metasurface.js';
 
 // a room inside the scale-2.5 Mandelbox (found by sphere-tracing 14 directions from random points and
 // keeping the enclosed ones), turned toward a terraced amphitheatre
@@ -312,15 +312,30 @@ function traceCentre() {
   return Math.min(t, state.look.maxDist);
 }
 
-// ---------- the Metasurface (M): the families as cells ------------------------------------------------
+// ---------- the Metasurface (M): the sites as cells ---------------------------------------------------
 // The surface lies over the dimmed field as hairlines (core/metasurface.js says what a point means).
-// Drag: the formula follows the crosshair live, framed by the families' views; release keeps it.
+// Drag: the formula follows the crosshair live, framed by the sites' views; release keeps it.
 // Shift-drag draws a stroke played in time (a walk along it); Option-drag a stroke laid in space (its
 // species ordered across the world along the stroke's own direction on screen). M or Esc closes.
-const SURF = createSurface();
-let surf = null;       // { x, drag, moved, stroke: { pts, scr, kind }, drift }
+// Hold still on open ground: the ring fills and the formula you had drops there as a site of its own.
+// Drag a site's disc: it moves (the formula under the crosshair follows); off the square, yours is
+// gone and a family goes home. A chimera's site is hard: its walls are cuts (core/metasurface.js). Double-click a corner mark: the families home. The layout (moved
+// families, your sites with their thumbnails) is kept in this browser's localStorage.
+const SURF_KEY = 'fractal-engine.surface.v1';
+const SURF_HOLD_MS = 450, SURF_OFF_PX = 24;
+const SURF = createSurface(undefined, undefined, (() => {
+  try { return JSON.parse(localStorage.getItem(SURF_KEY) || 'null'); } catch { return null; }
+})());
+let surf = null;       // { x, drag, moved, stroke: { pts, scr, kind }, press, site, bands, drift }
 let surfAt = null;     // where the crosshair was last
 let surfWalk = 0;      // the walk under way (a token: anything else stops it)
+let surfCorner = 0;    // when a corner mark was last pressed (two within 350 ms: the families home)
+
+function saveSurface() {
+  // test code sets __fe.dry: the layout, like the lineage, is iori's
+  if (window.__fe && window.__fe.dry) return;
+  try { localStorage.setItem(SURF_KEY, JSON.stringify(layoutOf(SURF))); } catch { /* full or blocked: this page only */ }
+}
 
 const surfFrame = () => { const L = Math.min(innerWidth, innerHeight) * 0.84; return { cx: innerWidth / 2, cy: innerHeight / 2, L }; };
 const toScreen = (x) => { const F = surfFrame(); return [F.cx + (x[0] * F.L) / 2, F.cy - (x[1] * F.L) / 2]; };
@@ -328,15 +343,23 @@ const toSurface = (px, py) => {
   const F = surfFrame(), c = (v) => Math.max(-1, Math.min(1, v));
   return [c((px - F.cx) / (F.L / 2)), c(-(py - F.cy) / (F.L / 2))];
 };
-const siteGlyph = (s) => getOp((s.f.slots[0].find((o) => o.op !== '+c' && o.op !== 'abs') || s.f.slots[0][0]).op).glyph;
+const offSquare = (px, py) => { const F = surfFrame(); return Math.max(Math.abs(px - F.cx), Math.abs(py - F.cy)) > F.L / 2 + SURF_OFF_PX; };
+const siteGlyph = (s) => getOp((s.f.slots.flat().find((o) => o.op !== '+c' && o.op !== 'abs') || s.f.slots[0][0]).op).glyph;
 const structureKey = (f) => normalize(f).slots[0].map((o) => o.op).join(' ');
+// the site whose disc is under the pointer, nearest first
+const siteHit = (px, py) => {
+  let best = -1, bd = SITE_R;
+  SURF.sites.forEach((s, j) => { const [x, y] = toScreen(s.at), d = Math.hypot(px - x, py - y); if (d <= bd) { bd = d; best = j; } });
+  return best;
+};
+const cornerHit = (px, py) => { const F = surfFrame(); return Math.abs(Math.abs(px - F.cx) - F.L / 2) < 16 && Math.abs(Math.abs(py - F.cy) - F.L / 2) < 16; };
 
 function openSurface() {
   if (surf) return;
   exitGrab();
   // the crosshair where we were, or on the site of the formula's own family
-  const own = SURF.sites.find((s) => normalize(state.formula).slots.length === 1 && s.key === structureKey(state.formula));
-  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, drift: state.drift };
+  const own = SURF.sites.find((s) => normalize(state.formula).slots.length === 1 && s.f.slots.length === 1 && s.f.slots[0].map((o) => o.op).join(' ') === structureKey(state.formula));
+  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, press: null, site: null, bands: null, drift: state.drift };
   state.drift = false;
   drawSurfaceNow();
   surfaceThumbs();
@@ -347,6 +370,7 @@ async function surfaceThumbs() {
     if (s.thumb || !surf || !R) continue;
     const cam = { yaw: 0.55, pitch: 0.3 }, b = basis(cam), pos = b.fwd.map((v) => -v * s.view);
     s.thumb = await R.renderThumb(s.f, thumbView(b, pos, s.view * 0.35), 168, 112, 6).catch(() => null);
+    if (s.user && s.thumb) saveSurface();
     drawSurfaceNow();
   }
 }
@@ -354,6 +378,7 @@ async function surfaceThumbs() {
 function closeSurface() {
   if (!surf) return;
   surfWalk++;
+  if (surf.press) clearTimeout(surf.press.timer);
   state.drift = surf.drift;
   surf = null;
   clearGrab(overlay);
@@ -362,17 +387,39 @@ function closeSurface() {
 function drawSurfaceNow() {
   if (!surf) return;
   const F = surfFrame(), ws = weightsAt(SURF, surf.x);
+  // the walls: contours of the leading weight, recomputed when a site moves (coarser while it does) or
+  // the window does
+  const n = surf.site && surf.site.moved ? 96 : 160, at = `${n} ${F.L} ${F.cx} ${F.cy}`;
+  if (!surf.bands || surf.bands.at !== at) {
+    surf.bands = { at, hard: bandPath(hardWalls(SURF), toScreen), list: wallBands(SURF, n).map((b) => ({ d: bandPath(b.segs, toScreen), opacity: 0.18 + 0.32 * (b.level - BAND_LEVELS[0]) / (BAND_LEVELS.at(-1) - BAND_LEVELS[0]) })) };
+  }
+  const held = surf.site;
+  const p = surf.press;
   drawSurface(overlay, {
     w: innerWidth, h: innerHeight,
-    cells: cells(SURF).map((c) => c.map(toScreen)),
+    bands: surf.bands.list, hard: surf.bands.hard,
+    corners: { x0: F.cx - F.L / 2, y0: F.cy - F.L / 2, x1: F.cx + F.L / 2, y1: F.cy + F.L / 2, on: !isDefault(SURF) },
     sites: SURF.sites.map((s, j) => {
-      const [x, y] = toScreen(s.at);
-      return { x, y, thumb: s.thumb, glyph: siteGlyph(s), axes: s.axes.map(() => (s.R * F.L) / 2 * 0.85), active: ws.some((e) => e.j === j) };
+      let [x, y] = toScreen(s.at);
+      const isHeld = held && held.j === j, off = isHeld && held.off;
+      if (off) [x, y] = held.scr;
+      return {
+        x, y, thumb: s.thumb, glyph: siteGlyph(s), axes: (s.axes || []).map(() => (s.R * F.L) / 2 * 0.85), active: ws.some((e) => e.j === j),
+        held: isHeld, off, home: off && !s.user ? toScreen(s.home) : null,
+      };
     }),
     spokes: ws.map((e) => { const [x, y] = toScreen(SURF.sites[e.j].at); return { x, y, w: e.w }; }),
     cross: toScreen(surf.x),
     stroke: surf.stroke && surf.stroke.scr, strokeKind: surf.stroke && surf.stroke.kind,
+    ring: p && !p.full && !p.done && p.u > 0.08 ? { x: p.sx, y: p.sy, u: p.u } : null,
   });
+}
+
+// the layout changed: the walls again, the store, the formula under the crosshair
+function surfaceLayout(live) {
+  surf.bands = null;
+  if (!live) saveSurface();
+  surfaceTo(surf.x);
 }
 
 // frame the origin from the current direction at the given distance
@@ -391,6 +438,27 @@ function surfaceTo(x) {
   drawSurfaceNow();
 }
 
+// the formula you had becomes a site at x: its own thumbnail, its two most sensed parameters as axes
+function dropSite(x) {
+  const f = normalize(state.formula);
+  const s = addSite(SURF, { f, view: Math.hypot(...state.cam.pos), axes: axesFromSensed(f, state.sensed && state.sensed.params), at: x });
+  if (!s) return null;
+  surf.x = [...s.at]; surfAt = surf.x;
+  surf.bands = null;
+  saveSurface();
+  drawSurfaceNow();
+  if (R) R.renderThumb(f, thumbView(basis(state.cam)), 168, 112, 6).then((url) => { if (url) { s.thumb = url; saveSurface(); drawSurfaceNow(); } }).catch(() => {});
+  // no sensing pass of this formula yet: measure it now (the formula is still the one dropped)
+  const text = state.text;
+  if (!s.axes.length && S) senseNow().then((r) => {
+    if (!r || state.text !== text || !SURF.sites.includes(s)) return;
+    s.axes = axesFromSensed(f, r.params);
+    saveSurface();
+    drawSurfaceNow();
+  }).catch(() => {});
+  return s;
+}
+
 function surfDown(e) {
   surfWalk++;
   const x = toSurface(e.clientX, e.clientY);
@@ -399,8 +467,28 @@ function surfDown(e) {
     drawSurfaceNow();
     return;
   }
-  surf.drag = true; surf.moved = true;
-  surfaceTo(x);
+  if (cornerHit(e.clientX, e.clientY)) {
+    const now = performance.now();
+    if (now - surfCorner < 350) { surfCorner = 0; resetLayout(SURF); surfaceLayout(false); writeHash(); remember(); } else surfCorner = now;
+    return;
+  }
+  const j = siteHit(e.clientX, e.clientY);
+  if (j >= 0) {
+    surf.site = { j, sx: e.clientX, sy: e.clientY, scr: [e.clientX, e.clientY], moved: false, off: false, text0: state.text };
+    drawSurfaceNow();
+    return;
+  }
+  // open ground: a click moves the crosshair, a drag carries it, a still hold drops the formula there
+  const p = { x, sx: e.clientX, sy: e.clientY, t0: performance.now(), u: 0, full: SURF.sites.length >= MAX_SITES, done: false };
+  const tick = () => {
+    if (!surf || surf.press !== p) return;
+    p.u = (performance.now() - p.t0) / SURF_HOLD_MS;
+    if (p.u >= 1 && !p.full) { p.done = true; dropSite(p.x); return; }
+    drawSurfaceNow();
+    if (!p.full) p.timer = setTimeout(tick, 16);
+  };
+  surf.press = p;
+  if (!p.full) p.timer = setTimeout(tick, 16);
 }
 
 let surfLast = 0;
@@ -412,6 +500,25 @@ function surfMove(e) {
     surf.stroke.scr.push([e.clientX, e.clientY]);
     drawSurfaceNow();
     return;
+  }
+  if (surf.site) {
+    const h = surf.site;
+    if (!h.moved && Math.hypot(e.clientX - h.sx, e.clientY - h.sy) < 4) return;
+    h.moved = true;
+    h.scr = [e.clientX, e.clientY];
+    h.off = offSquare(e.clientX, e.clientY);
+    const now = performance.now();
+    if (now - surfLast < 30) { drawSurfaceNow(); return; }
+    surfLast = now;
+    if (!h.off) { moveSite(SURF, h.j, toSurface(e.clientX, e.clientY)); surfaceLayout(true); } else drawSurfaceNow();
+    return;
+  }
+  if (surf.press) {
+    const p = surf.press;
+    if (p.done || Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 5) return;
+    clearTimeout(p.timer);
+    surf.press = null;
+    surf.drag = true; surf.moved = true;
   }
   if (!surf.drag) return;
   // at most every 30 ms: each move repacks the formula
@@ -427,6 +534,25 @@ function surfUp(e) {
     surf.stroke = null;
     if (st.pts.length < 2) { drawSurfaceNow(); return; }
     if (st.kind === 'walk') walkSurface(st.pts); else layField(st.pts, st.scr);
+    return;
+  }
+  if (surf.site) {
+    const h = surf.site;
+    surf.site = null;
+    if (!h.moved) surfaceTo([...SURF.sites[h.j].at]);
+    else if (offSquare(e.clientX, e.clientY)) { removeSite(SURF, h.j); surfaceLayout(false); }
+    else { moveSite(SURF, h.j, toSurface(e.clientX, e.clientY)); surfaceLayout(false); }
+    if (state.text !== h.text0) { writeHash(); remember(); }
+    return;
+  }
+  if (surf.press) {
+    const p = surf.press;
+    clearTimeout(p.timer);
+    surf.press = null;
+    if (p.done) { drawSurfaceNow(); return; }
+    surfaceTo(p.x);
+    writeHash();
+    remember();
     return;
   }
   if (surf.drag) {
@@ -2544,6 +2670,12 @@ window.__fe = {
   structure: () => { toggleStructure(); return state.structure; },
   surface: (on = true) => { if (on) openSurface(); else closeSurface(); return !!surf; },
   surfaceTo: (x, y) => { if (surf) surfaceTo([x, y]); return state.text; },
+  // the sites: drop the current formula at (x, y), move site j, take it off, send the families home
+  surfaceSites: () => SURF.sites.map((s) => ({ id: s.id, user: s.user, at: [...s.at], axes: s.axes, thumb: !!s.thumb })),
+  surfaceDrop: (x, y) => { const s = surf && dropSite([x, y]); return s ? s.id : null; },
+  surfaceMove: (j, x, y) => { if (!surf) return null; moveSite(SURF, j, [x, y]); surfaceLayout(false); return state.text; },
+  surfaceRemove: (j) => { if (!surf) return null; const r = removeSite(SURF, j); surfaceLayout(false); return r; },
+  surfaceReset: () => { if (!surf) return null; resetLayout(SURF); surfaceLayout(false); return state.text; },
   surfaceStroke: (pts, kind = 'walk') => {
     if (!surf) return null;
     const scr = pts.map(toScreen);

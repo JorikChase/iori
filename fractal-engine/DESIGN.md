@@ -1152,6 +1152,23 @@ Placement words: `at tx ty tz`, `turn rx ry rz`, `size s`, `grow g`, `grid cx cy
   hash, lineage and breeding learn the collage document.
 - **K4** verify in the app, docs, deploy when iori asks.
 
+**K3 decided with iori, 2026-10-27:**
+- **Starting a collage:** drag a thumbnail from the lineage or the breed archive onto the field, or hold
+  on a Metasurface site (Q3.1's hold-to-drop, but the site's formula is *added*, not swapped in). The
+  formula on screen becomes piece 1; the new one lands where it was dropped (on the surface under the
+  cursor, else at the view's focus), joined by a quad smooth union of a modest r. Up to 8 pieces.
+- **Placing by hand:** click a surface to select the piece that leads there (the `piece` reading);
+  its affine frame appears in hairlines — drag an axis to move along it, the ring to turn, the frame's
+  corner to scale, Shift snaps. The numbers show as dimension lines while dragging. A new cutter
+  (sub/inter) gets a visible default grow g (a fraction of its size).
+- **Repetition while editing:** with a piece selected, its repetition cells are drawn as hairlines —
+  grid boxes, mirror planes, polar spokes — the original's frame solid, the copies' ghosted. The render
+  itself already shows every copy; nothing else is dimmed.
+- **Breeding:** two collages with the same piece count breed piece by piece (each piece as a formula
+  breeds today), placements and join numbers interpolated; a differing kernel or op is taken from one
+  parent. Different counts, or a collage × a formula, do not breed. Collages go into the hash, URL and
+  lineage like formulas.
+
 **K1 built 2026-10-27 — the collage on the CPU.** core/collage.js (IR, normCollage/validateCollage,
 canonical and hash, the kernels `smin`/`joinEval` with their partials, `toPiece`/`fromPiece`,
 `repFold`/`repCopies`, `pieceDE`, `collageAt` → { d, dists, w, piece, seam, lead }, `collageGrad`

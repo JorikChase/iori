@@ -723,3 +723,75 @@ opens its editor below the frame: the bar (click adds a stop), stop ticks with s
 hold opens the hue ring: angle hue, distance saturation, scroll lightness, shift-scroll alpha, live),
 scale and offset as dimension lines, and a row of toggles: interpolation, colour space, mapping mode,
 log, invert. `__fe.shadeView` exposes the placed frame for tests.
+
+## Formula v2 — drivers (V), decided 2026-10-27
+
+iori chose formula v2 over collage, own Metasurface sites and shading polish. Decisions:
+- **What drives a parameter — all four:** orbit readings (per iteration, inside the loop: new
+  dynamics), world fields (read at the start point: the shape varies across space), time (a clock:
+  parameters animate on their own) and other parameters (one op's value feeding another's, through
+  maths).
+- **The distance estimate:** an automatic step factor — the engine measures how steep the drivers are
+  and shortens the raymarch step where they are, so driven shapes stay correct at the cost of speed
+  only where they vary.
+- **Wiring:** select an op, its parameters are dimension lines; drag from a driver's output dot onto a
+  line and the line becomes a port. A driven line shows its range as a band.
+- **Reused subgraphs (instances): later** — the next stretch once the driver dataflow is proven.
+
+**IR — the shading dataflow's form, a second program.** `formula.drive = { nodes, bind }`, nodes in
+topological order exactly as in `shade` (`{ id, type, in: { port: nodeId }, p }`), and
+`bind: [{ to: '<graph path id>.<param>', from: nodeId, lo, hi }]` — the parameter becomes
+lo + v·(hi − lo), so the band drawn on the line *is* [lo, hi] (a param-to-param link is the band
+[0, 1], the identity). One binding per parameter; the op keeps its own value for when it is unbound.
+Node types (numbers only):
+- orbit readings, evaluated before each driven op every iteration: `i` (iteration ÷ iterations),
+  `r` (|p|), `trap` (least |p|² so far), `lyap` (running λ), `px py pz pw` (the point's coordinates)
+- world fields, evaluated once at the orbit's start: `axis`, `sphere`, `noise`, `tissue` (core/fields.js
+  read as scalars — tissue gives the cell index ÷ (n − 1) and a wall distance), `x y z w` (the start)
+- `time`: seconds, with p { rate, wave (saw, sine, tri), phase } → 0..1 — the video exporter feeds it
+  the frame's time, lineage and URLs store the program, never the clock
+- `param`: another op's own (unbound) value, by path id — the link between parameters
+- `math`: shared with shading (add, sub, mul, min, max, pow, sin, bands), plus `remap` (lo, hi, clamp)
+Static classification: a binding whose sources are all world/time/param is per-pixel and hoisted out of
+the loop; only orbit readings run per iteration. Limits: 32 nodes, 16 bindings.
+Notation `drive=…` (alongside `shade=`), JSON, hash; graph path ids survive edits (insert/remove/move
+rewrite the bindings' targets; removing a bound op drops its bindings). Breeding and the lens treat lo,
+hi and every driver's parameters as ordinary parameters; structure (bindings, node types) is never bred.
+
+**Evaluation and the GPU.** A third program in the ops buffer after the shading program, run by the
+same register interpreter (one f32 register per node, readings filled per iteration). Before a driven
+op runs, the interpreter overwrites its record's slot with the driven value. Parameters that pack
+resolves non-linearly (rotate/rotate4 angles → matrix, fold.plane normal → unit vector, twist degrees)
+gain a shader-side rebuild used only when the record carries a "driven" bit, so undriven formulas cost
+nothing. Duals: the driver's gradient wrt the point (world fields' analytic gradients from Q2; orbit
+readings through the iterate's columns) enters the Jacobian as ∂F/∂θ·∇θ — the same form as the
+chimera's field stretch. JIT: driven parameters become live expressions, hoisted ones computed once.
+Push: world, time and param drivers exact (read at the preimage, like Q2's world frame); orbit
+readings from the walk's own iteration and point (the Q2 self-field rule).
+
+**The step factor.** Like Q2, ∂F/∂θ·∇θ stays out of dr (it destroyed the estimate far outside the set);
+instead the raymarch divides its step by L = 1 + Σ |∂DE/∂θᵢ|·|∇θᵢ| — the sensing pass already computes
+∂DE/∂θ per parameter, the drivers' gradients come from the duals. First cut: L per screen tile from
+the previous frame's sense pass (the governor smooths it), measured against a brute-force CPU march on
+driven test formulas; a hairline readout of L in the structure layer. If tiles flicker, fall back to
+one L for the frame.
+
+**UI.** Drivers live in a lane inside the repeat zone, right of the chain (orbit readings belong in
+the loop); world fields, time and param nodes on the zone's outside edge, top. Hold empty lane — a ring
+of driver types; drag from an output dot onto a selected op's dimension line — bound (band = the line's
+current visible range); drag the band's ends to set lo and hi; a live tick on the band shows the value
+under the cursor; Delete on a band unbinds. The folded strip marks a driven op with a small notch.
+Time-driven formulas never count as still (the governor keeps rendering; idle drift stays off).
+
+**Phases**
+- **V1 core** — core/drive.js: IR, normalize, notation `drive=`, CPU evaluator inside the CPU orbit
+  (per-iteration and hoisted), graph.js edits keep bindings, breeding/lens on bands, tests (a driven
+  bulb power by `i` equals a hand-unrolled schedule; world-driven parameters against differences).
+- **V2 GPU** — the drive program packed and interpreted, the driven-bit rebuilds, duals, push, JIT,
+  the step factor; parity (forward, inverse, dual) with driven cases in every suite.
+- **V3 UI** — the driver lane, rings, drag-to-line binding, bands, the strip notch, time in the
+  governor and the video exporter.
+- **V4** verify in the app, docs, deploy when iori asks.
+
+Open: whether shading may read driver outputs as readings (cheap once both programs share registers);
+instances/subgraphs next.

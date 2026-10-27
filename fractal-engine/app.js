@@ -31,7 +31,7 @@
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
-import { parse, format, validate, normalize, iterate, getOp, lift, de as cpuDe } from './core/index.js';
+import { parse, format, validate, normalize, iterate, getOp, lift, de as cpuDe, parseCollage, validateCollage, prepare as prepareCollage, collageDE } from './core/index.js';
 import { createRenderer } from './gpu/render.js';
 import { createPush } from './gpu/push.js';
 import { createSense } from './gpu/sense.js';
@@ -286,7 +286,9 @@ const basis = (c) => {
   return { fwd, right, up };
 };
 
-const deAt = (p) => cpuDe(state.formula, p);
+// a collage shown through __fe.collage (K2: drawn by code only, the app's tools still edit the formula)
+let shownCollage = null;
+const deAt = (p) => (shownCollage ? collageDE(shownCollage, p) : cpuDe(state.formula, p));
 const add = (a, b, s = 1) => [a[0] + b[0] * s, a[1] + b[1] * s, a[2] + b[2] * s];
 
 // move without entering the surface: refuse steps that would end closer than a fraction of the
@@ -2051,6 +2053,7 @@ function setFormula(text, quiet = false) {
   const same = structure(normalize(f)) === structure(state.formula && normalize(state.formula));
   state.formula = f;
   state.text = format(f);
+  shownCollage = null;
   if (R) R.setFormula(f);
   // walkers stay on a slowly changing attractor; a new structure scatters them
   if (P && !same) P.resetWalkers();
@@ -2561,6 +2564,8 @@ function senseView() {
 }
 
 async function senseNow() {
+  // the sensing pass knows formulas only
+  if (shownCollage) return;
   const r = await S.sense(state.formula, senseView(), innerHeight);
   if (r) {
     state.sensed = r;
@@ -2729,6 +2734,19 @@ window.__fe = {
     return state.n;
   },
   release() { lastScaleChange = 0; },
+  // a collage (its notation or document) drawn in place of the formula, pull and push, until the next
+  // formula; null goes back to the formula. Resolves once its shaders are compiled. Tests set __fe.dry.
+  async collage(c) {
+    if (c == null) { setFormula(state.text, true); return null; }
+    const doc = typeof c === 'string' ? parseCollage(c) : c, v = validateCollage(doc);
+    if (!v.ok) throw new Error(v.errors.join('; '));
+    shownCollage = prepareCollage(doc);
+    R.setCollage(shownCollage);
+    if (P) P.resetWalkers();
+    touched();
+    await R.collageReady();
+    return true;
+  },
   get gpuMs() { return gpuMs; },
 };
 

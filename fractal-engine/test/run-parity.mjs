@@ -10,6 +10,7 @@
      node fractal-engine/test/run-parity.mjs --compile-only
      node fractal-engine/test/run-parity.mjs --rows         # every row, not only failing ones
      node fractal-engine/test/run-parity.mjs --json out.json --timeout 600
+     node fractal-engine/test/run-parity.mjs --only collage # one suite (parity.html?suite=collage)
 
    Playwright comes from tools/audio-test/node_modules (npm i there once); a worktree without it falls
    back to the main checkout's copy, or set PLAYWRIGHT_DIR to a folder whose node_modules has it.
@@ -60,7 +61,7 @@ function serve() {
 }
 
 // the page's thresholds, per suite (see the header: the page's ok decides)
-const N = 4096, SH_N = 4096;
+const N = 4096, SH_N = 4096, CL_STEP_N = 384;
 const drv = (r) => r.formula.includes('drive=');
 const SUITES = [
   ['forward', 'rows', (r) => r.median < (drv(r) ? 3e-4 : 1e-4) && r.p99 < (drv(r) ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02,
@@ -75,6 +76,17 @@ const SUITES = [
     (r) => `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} ×${r.speedup.toFixed(2)} / ×${r.structSpeedup.toFixed(2)}`],
   ['shade', 'shadeRows', (r) => r.median < 1e-5 && r.off / SH_N < 0.005,
     (r) => `median ${r.median.toExponential(2)} off ${r.off}`],
+  // the collage (K2): forward rows (estimate, shares, colour), the push keep rule, the step factor
+  ['collage', 'collageRows', (r) => (r.kind === 'compile' ? r.ok : r.kind === 'forward'
+    ? r.median < (r.drv ? 3e-4 : 1e-4) && r.p99 < (r.drv ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02 && r.wOff / Math.max(1, r.compared) < 0.03 && r.colOff / Math.max(1, r.compared) < 0.03 && r.wMedian < 1e-4 && r.colMedian < 1e-4
+    : r.kind === 'keep'
+      ? r.okMismatch / r.n < 0.01 && r.keepMismatch / r.n < 0.01 && r.pMax < 1e-3 && r.aMedian < 1e-4 && r.aP99 < 2e-2 && r.kept > 0
+      : r.n > CL_STEP_N / 2 && r.median < 0.02 && r.p90 < 0.1),
+    (r) => (r.kind === 'compile' ? (r.ok ? `compiled in ${r.ms.toFixed(0)} ms` : r.error) : r.kind === 'forward'
+      ? `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} iter≠ ${r.iterMismatch}/${r.n} shares off ${r.wOff} colour off ${r.colOff}`
+      : r.kind === 'keep'
+        ? `kept ${r.kept}/${r.n} fold≠ ${r.okMismatch} keep≠ ${r.keepMismatch} place ${r.pMax.toExponential(2)} share p99 ${r.aP99.toExponential(2)}`
+        : `L p90 cpu ${r.cpuP90.toFixed(3)} gpu ${r.gpuP90.toFixed(3)} err median ${r.median.toExponential(2)} (${r.n} points)`)],
 ];
 const label = (r) => r.formula ?? `#${r.graph} ${r.nodes}`;
 
@@ -141,7 +153,7 @@ let ok = true, fatal = false;
 try {
   if (!flag('--compile-only')) {
     console.log(`${secs()}  parity.html`);
-    const res = await runPage(browser, base, 'parity.html', () => window.__parity,
+    const res = await runPage(browser, base, 'parity.html' + (opt('--only') ? `?suite=${opt('--only')}` : ''), () => window.__parity,
       (t) => { if (t.startsWith('parity ')) { const [, sec, s, ...rest] = t.split(' '); const txt = rest.join(' ').replace(/(shade=)\S{12,}/g, '$1…'); console.log(`${secs()}  ${pad(sec, 9)} page ${s}s  ${txt.length > 150 ? txt.slice(0, 149) + '…' : txt}`); } });
     if (res.error) fatal = true;
     ok = reportParity(res) && ok;

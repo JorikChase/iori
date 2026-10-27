@@ -54,6 +54,8 @@ export const SHADE_GLYPHS = {
   facing: 'M3 20h18M12 20V6M8 10l4-4 4 4M5 14l7-8',                       // the normal toward the eye
   species: 'M8 12a5 5 0 1 0 .01 0M16 12a5 5 0 1 0 .01 0M12 3v4M12 17v4',  // which species leads
   w: 'M4 20L20 4M4 4h6M4 4v6M20 20h-6M20 20v-6M12 12h0',                  // the fourth axis
+  piece: 'M3 6h8v12H3zM13 6h8v12h-8z',                                     // a collage's pieces side by side
+  seam: 'M3 6c6 0 6 12 9 12s3-12 9-12M12 3v3',                             // the fillet between two pieces
   // maths
   'math.add': 'M12 5v14M5 12h14', 'math.sub': 'M5 12h14', 'math.mul': 'M6 6l12 12M18 6L6 18',
   'math.min': 'M4 8h7l2 8h7', 'math.max': 'M4 16h7l2-8h7', 'math.pow': 'M3 20C10 20 16 14 21 3',

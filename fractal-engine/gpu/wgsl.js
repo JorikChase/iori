@@ -14,6 +14,8 @@
 
 // a shader source's drivers switched on (gpu/pack.js drives(f) says which variant a formula needs)
 import { SH_STOPS_AT, SH_BINDS_AT, SH_NODE_VEC4, SHADE_VEC4 } from '../core/shade.js';
+import { MAX_PIECES } from '../core/collage.js';
+import { REGION4, CL_AT } from './pack.js';
 
 export const withDrive = (source) => source.replace('const DRIVE_ON = false;', 'const DRIVE_ON = true;');
 
@@ -741,7 +743,8 @@ const SH_NODES = SH_BASE + 2u;
 const SH_NODE4 = ${SH_NODE_VEC4}u;
 const SH_STOPS = ${320 + SH_STOPS_AT}u;
 const SH_BINDS = ${320 + SH_BINDS_AT}u;
-struct Readings { col: f32, trap: f32, depth: f32, lyap: f32, facing: f32, species: f32, w: f32 };
+// piece and seam: a collage's own shade (gpu/wgsl.js COLLAGE); 0 for a formula
+struct Readings { col: f32, trap: f32, depth: f32, lyap: f32, facing: f32, species: f32, w: f32, piece: f32, seam: f32 };
 struct ShadeOut { color: vec4f, glow: vec4f, glowIsColour: bool, hasGlow: bool, gain: f32 };
 // up to four driven stops: their places among all stops (−1 none) and their driven t
 var<private> shOvI: vec4i = vec4i(-1);
@@ -957,6 +960,8 @@ fn shadeRun(r: Readings) -> ShadeOut {
       case 5u: { v.x = r.facing; }
       case 6u: { v.x = r.species; }
       case 7u: { v.x = r.w; }
+      case 8u: { v.x = r.piece; }
+      case 9u: { v.x = r.seam; }
       case 10u: { v = shRamp(b, c, shNum(&reg, i0, 0.0), d.x); }
       case 11u: { v.x = shMath(u32(b.x), shNum(&reg, i0, 0.0), shNum(&reg, i1, b.y)); }
       case 12u: {
@@ -1957,5 +1962,364 @@ fn deTan(t: Trace, dp: vec4f, ddr: f32) -> f32 {
 // the gradient of the distance estimate along the world's axes
 fn deGrad(d: Dual) -> vec3f {
   return vec3f(deTan(d.t, d.g0, d.gdr.x), deTan(d.t, d.g1, d.gdr.y), deTan(d.t, d.g2, d.gdr.z));
+}
+`;
+
+// ---------- the collage (core/collage.js) ------------------------------------------------------------
+// A collage's shaders are the formula's with two private indices in front of the head and the ops
+// buffer (withCollage below): hp picks a piece's head, pb its ops region (gpu/pack.js packCollage), so
+// every function above runs on whichever piece is selected. WGSL has no recursion, and an op never
+// reaches another piece: the pieces are dispatched from the collage's own loop (collageAt), never from
+// inside opFwd — one call site of iterate, however many pieces.
+export function withCollage(source) {
+  const BIND = '@group(0) @binding(0) var<uniform> head: Head;';
+  if (!source.includes(BIND)) throw new Error('no head binding to replace');
+  return source
+    .replace(BIND, `@group(0) @binding(0) var<uniform> heads: array<Head, ${MAX_PIECES + 1}>;
+var<private> hp: u32 = 0u;   // the selected piece's head
+var<private> pb: u32 = 0u;   // and its ops region (vec4)`)
+    .replace(/\bhead\./g, 'heads[hp].')
+    .replace(/\bops\[/g, 'ops[pb + ')
+    // the collage's own estimate and step factor take these names (COLLAGE)
+    .replace('fn de(x: vec3f) -> f32 {', 'fn deFormula(x: vec3f) -> f32 {')
+    .replace('fn drvStep() -> f32 {', 'fn drvStepFormula() -> f32 {');
+}
+
+// After withCollage(source). The collage program (gpu/pack.js packCollage) is read with absolute
+// indices: this code is not rewritten. The includer defines
+//   fn clFallback(i: u32, col: f32, facing: f32) -> vec4f   a piece's colour when it has no shade
+export const COLLAGE = /* wgsl */ `
+const CL_REGION = ${REGION4}u;
+const CL_OWN = ${MAX_PIECES}u;              // the collage's own region and head: its shade and drive programs
+const CL_BASE = ${CL_AT / 4}u;
+const CL_PIECES = CL_BASE + 2u;
+const CL_JOINS = CL_PIECES + ${MAX_PIECES * 4}u;
+const CL_BINDS = CL_JOINS + ${(MAX_PIECES - 1) * 2}u;
+const CL_MAXP = ${MAX_PIECES}u;
+const CL_CIRC = 3.41421356;                 // 1 / (1 − √½)
+const CL_SQRT_HALF = 0.70710678;
+
+var<private> clV: array<f32, 16>;           // the collage drive's values at the point
+var<private> clNB: u32 = 0u;
+var<private> clFreeze: bool = false;        // hold the drive's values (the step factor's frozen estimate)
+// each piece's orbit at the last point (its trace, its 4-D start): the colour reads them
+var<private> clTr: array<Trace, ${MAX_PIECES}>;
+var<private> clQ: array<vec4f, ${MAX_PIECES}>;
+
+fn clSelect(i: u32) { hp = i; pb = i * CL_REGION; }
+fn clGmod(x: f32, y: f32) -> f32 { return x - y * floor(x / y); }
+
+// the drive at world point x: its nodes (as a formula's drive program, read in the collage's region),
+// then every binding's value, clamped to its parameter's range (core/collage.js drivenAt)
+fn clDrive(x: vec3f) {
+  if (clFreeze) { return; }
+  let h = ops[CL_BASE];
+  clNB = select(0u, min(u32(h.z), 16u), h.w > 0.5);
+  if (clNB == 0u) { return; }
+  clSelect(CL_OWN);
+  drvStart = vec4f(x, 0.0);
+  var rd: DrvRead;
+  let nn = min(u32(ops[pb + DR_BASE].x), 32u);
+  for (var k = 0u; k < nn; k++) { drvReg[k] = drvNode(k, ops[pb + DR_NODES + k * 3u], rd).v; }
+  for (var b = 0u; b < clNB; b++) {
+    let B = ops[CL_BINDS + 2u * b];
+    let C = ops[CL_BINDS + 2u * b + 1u];
+    clV[b] = clamp(B.z + drvReg[u32(B.y)] * (B.w - B.z), C.x, C.y);
+  }
+  clSelect(0u);
+}
+
+// one vec4 of the program with the driven values in (flat: the program index of its first number)
+fn clRead(at: u32, flat: u32) -> vec4f {
+  var v = ops[at];
+  for (var b = 0u; b < clNB; b++) {
+    let t = u32(ops[CL_BINDS + 2u * b].x);
+    if (t >= flat && t < flat + 4u) { v[t - flat] = clV[b]; }
+  }
+  return v;
+}
+
+// Rz·Ry·Rx in degrees (core/vec.js rotationXYZ); u * R = Rᵀu
+fn clRot(a: vec3f) -> mat3x3f {
+  let r = a * (PI / 180.0);
+  let cx = cos(r.x); let sx = sin(r.x);
+  let cy = cos(r.y); let sy = sin(r.y);
+  let cz = cos(r.z); let sz = sin(r.z);
+  let Rx = mat3x3f(vec3f(1.0, 0.0, 0.0), vec3f(0.0, cx, sx), vec3f(0.0, -sx, cx));
+  let Ry = mat3x3f(vec3f(cy, 0.0, -sy), vec3f(0.0, 1.0, 0.0), vec3f(sy, 0.0, cy));
+  let Rz = mat3x3f(vec3f(cz, sz, 0.0), vec3f(-sz, cz, 0.0), vec3f(0.0, 0.0, 1.0));
+  return Rz * Ry * Rx;
+}
+
+// the plane of a polar repetition: the two axes other than its own, right-handed
+fn clPlane(axis: u32) -> vec2u { return select(select(vec2u(0u, 1u), vec2u(2u, 0u), axis == 1u), vec2u(1u, 2u), axis == 0u); }
+
+// the domain fold (core/collage.js repFold): a point of the piece's frame → its point in the drawn copy.
+// A = [kind, three numbers], B = [the last three, 0]
+fn clFold(A: vec4f, B: vec4f, v: vec3f) -> vec3f {
+  var q = v;
+  let kind = u32(A.x);
+  if (kind == 1u) {
+    for (var k = 0u; k < 3u; k++) {
+      let c = A[k + 1u];
+      if (c > 0.0) { q[k] = q[k] - c * clamp(floor(q[k] / c + 0.5), -B[k], B[k]); }
+    }
+  } else if (kind == 2u) {
+    for (var k = 0u; k < 3u; k++) { if (A[k + 1u] > 0.5) { q[k] = abs(q[k]) - B[k]; } }
+  } else if (kind == 3u) {
+    let uw = clPlane(u32(A.w));
+    let sec = 6.2831853 / A.y;
+    let th = clGmod(atan2(q[uw.y], q[uw.x]) + sec * 0.5, sec) - sec * 0.5;
+    let rho = length(vec2f(q[uw.x], q[uw.y]));
+    q[uw.x] = rho * cos(th) - A.z;
+    q[uw.y] = rho * sin(th);
+  }
+  return q;
+}
+
+// The repetition's copies (core/collage.js repCopies): how many, and copy k's map — the drawn copy's
+// point q is at L·q + o in the piece's frame
+fn clCopies(A: vec4f, B: vec4f) -> u32 {
+  let kind = u32(A.x);
+  if (kind == 1u) {
+    var n = 1u;
+    for (var k = 0u; k < 3u; k++) { if (A[k + 1u] > 0.0) { n = n * (2u * u32(B[k]) + 1u); } }
+    return n;
+  }
+  if (kind == 2u) { return 1u << u32(A.y + A.z + A.w); }
+  if (kind == 3u) { return u32(A.y); }
+  return 1u;
+}
+struct ClCopy { L: mat3x3f, o: vec3f };
+fn clCopy(A: vec4f, B: vec4f, k0: u32) -> ClCopy {
+  var c: ClCopy;
+  c.L = mat3x3f(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0));
+  c.o = vec3f(0.0);
+  let kind = u32(A.x);
+  if (kind == 1u) {
+    // the copies nest x, then y, then z (z the innermost)
+    var k = k0;
+    for (var a = 2; a >= 0; a--) {
+      let ax = u32(a);
+      if (A[ax + 1u] > 0.0) { let m = 2u * u32(B[ax]) + 1u; c.o[ax] = (f32(k % m) - B[ax]) * A[ax + 1u]; k = k / m; }
+    }
+  } else if (kind == 2u) {
+    // each mirrored axis doubles the list, the last one mirrored the lowest bit: p_a = σ_a·(q_a + o_a)
+    var bit = 0u;
+    var s = vec3f(1.0);
+    for (var a = 2; a >= 0; a--) {
+      let ax = u32(a);
+      if (A[ax + 1u] > 0.5) { if (((k0 >> bit) & 1u) != 0u) { s[ax] = -1.0; } bit = bit + 1u; }
+    }
+    c.L = mat3x3f(vec3f(s.x, 0.0, 0.0), vec3f(0.0, s.y, 0.0), vec3f(0.0, 0.0, s.z));
+    c.o = s * B.xyz * A.yzw;
+  } else if (kind == 3u) {
+    let uw = clPlane(u32(A.w));
+    let t = f32(k0) * 6.2831853 / A.y;
+    let cs = cos(t); let sn = sin(t);
+    // columns: L[u][u] = c, L[w][u] = s, L[u][w] = −s, L[w][w] = c
+    c.L[uw.x][uw.x] = cs; c.L[uw.x][uw.y] = sn; c.L[uw.y][uw.x] = -sn; c.L[uw.y][uw.y] = cs;
+    c.o[uw.x] = cs * A.z; c.o[uw.y] = sn * A.z;
+  }
+  return c;
+}
+
+// the kernels (core/collage.js smin): [d, ∂d/∂a, ∂d/∂b]; k in KERNELS order (6 hard)
+fn clToward(d: f32, g: f32, aLow: bool) -> vec3f { return select(vec3f(d, 1.0 - g, g), vec3f(d, g, 1.0 - g), aLow); }
+fn clSmin(k: u32, a: f32, b: f32, r: f32, steps: f32) -> vec3f {
+  let aLow = a <= b;
+  let lo = select(vec3f(b, 0.0, 1.0), vec3f(a, 1.0, 0.0), aLow);
+  if (k == 6u || !(r > 0.0)) { return lo; }
+  let m = lo.x;
+  let x = abs(a - b);
+  var o = lo;
+  switch k {
+    case 0u: { let h = clamp(0.5 + 0.5 * (b - a) / r, 0.0, 1.0); o = vec3f(b + (a - b) * h - r * h * (1.0 - h), h, 1.0 - h); }
+    case 1u: { let h = max(r - x, 0.0) / r; o = clToward(m - h * h * h * r / 6.0, 1.0 - h * h / 2.0, aLow); }
+    case 2u: { let e = exp(-x / r); o = clToward(m - r * log(1.0 + e), 1.0 / (1.0 + e), aLow); }
+    case 3u: {
+      let R = r * CL_CIRC;
+      let h = max(R - x, 0.0) / R;
+      let s = sqrt(1.0 + 2.0 * h - h * h);
+      o = clToward(m - R * 0.5 * (1.0 + h - s), 1.0 - 0.5 * (1.0 - (1.0 - h) / s), aLow);
+    }
+    case 4u: {
+      let st = r / max(steps, 1.0);
+      let u = b - r;
+      let z = clGmod(u - a + st, 2.0 * st) - st;
+      let v = 0.5 * (u + a + abs(z));
+      if (v < m) { let sg = select(-1.0, 1.0, z >= 0.0); o = vec3f(v, 0.5 * (1.0 - sg), 0.5 * (1.0 + sg)); }
+    }
+    case 5u: { let v = (a - r + b) * CL_SQRT_HALF; if (v < m) { o = vec3f(v, CL_SQRT_HALF, CL_SQRT_HALF); } }
+    default: {}
+  }
+  return o;
+}
+
+// one join (core/collage.js joinEval): [d, ∂d/∂a, ∂d/∂b, seam]. J0 = [op, kernel, r, n], J1 = [w]
+fn clJoin(J0: vec4f, J1: vec4f, a: f32, b: f32) -> vec4f {
+  let op = u32(J0.x);
+  let k = u32(J0.y);
+  let r = J0.z;
+  if (op == 3u) { let w = clamp(J1.x, 0.0, 1.0); return vec4f((1.0 - w) * a + w * b, 1.0 - w, w, 4.0 * w * (1.0 - w)); }
+  var o: vec4f;
+  var x = a - b;
+  if (op == 1u) { let s = clSmin(k, -a, -b, r, J0.w); o = vec4f(-s.x, s.y, s.z, 0.0); }
+  else if (op == 2u) { let s = clSmin(k, -a, b, r, J0.w); o = vec4f(-s.x, s.y, -s.z, 0.0); x = a + b; }
+  else { o = vec4f(clSmin(k, a, b, r, J0.w), 0.0); }
+  if (k != 6u && r > 0.0) { o.w = clamp(1.0 - abs(x) / r, 0.0, 1.0); }
+  return o;
+}
+
+struct ClPlace { t: vec3f, s: f32, R: mat3x3f, g: f32, A: vec4f, B: vec4f };
+fn clPlace(i: u32) -> ClPlace {
+  let at = CL_PIECES + i * 4u;
+  let P0 = clRead(at, i * 16u);
+  let P1 = clRead(at + 1u, i * 16u + 4u);
+  var o: ClPlace;
+  o.t = P0.xyz; o.s = P0.w; o.R = clRot(P1.xyz); o.g = P1.w;
+  o.A = clRead(at + 2u, i * 16u + 8u);
+  o.B = clRead(at + 3u, i * 16u + 12u);
+  return o;
+}
+
+// Everything the collage knows at world point x (core/collage.js collageAt): d, each piece's own
+// estimate, its share (summing to 1), piece (Σ wᵢ·i/(n − 1)), seam, the leading piece, and the fold
+// colour index blended by the shares (the glow's)
+struct ClAt { d: f32, piece: f32, seam: f32, lead: u32, col: f32, n: u32, w: array<f32, ${MAX_PIECES}>, dist: array<f32, ${MAX_PIECES}> };
+fn collageAt(x: vec3f) -> ClAt {
+  var o: ClAt;
+  let np = min(u32(ops[CL_BASE].x), CL_MAXP);
+  o.n = np;
+  clDrive(x);
+  for (var i = 0u; i < np; i++) {
+    let P = clPlace(i);
+    let v = clFold(P.A, P.B, ((x - P.t) * P.R) / P.s);
+    clSelect(i);
+    let q = embed(v);
+    let t = iterate(q, cFor(q));
+    clTr[i] = t;
+    clQ[i] = q;
+    o.dist[i] = P.s * deOf(t) - P.g;
+  }
+  clSelect(0u);
+  var D = o.dist[0];
+  o.w[0] = 1.0;
+  for (var j = 0u; j + 1u < np; j++) {
+    let J0 = clRead(CL_JOINS + 2u * j, 128u + 8u * j);
+    let J1 = clRead(CL_JOINS + 2u * j + 1u, 128u + 8u * j + 4u);
+    let r = clJoin(J0, J1, D, o.dist[j + 1u]);
+    let A = abs(r.y);
+    let B = abs(r.z);
+    let share = select(0.5, A / (A + B), A + B > 0.0);
+    for (var k = 0u; k <= j; k++) { o.w[k] = o.w[k] * share; }
+    o.w[j + 1u] = 1.0 - share;
+    D = r.x;
+    o.seam = max(o.seam, r.w);
+  }
+  o.d = D;
+  var best = -1.0;
+  for (var i = 0u; i < np; i++) {
+    if (np > 1u) { o.piece = o.piece + o.w[i] * f32(i) / f32(np - 1u); }
+    o.col = o.col + o.w[i] * clTr[i].col;
+    if (o.w[i] > best) { best = o.w[i]; o.lead = i; }
+  }
+  return o;
+}
+
+fn de(x: vec3f) -> f32 { return collageAt(x).d; }
+
+// the march's step factor: the static one (the chamfers, an unsafe piece) times the measured 1 / L
+// (the head's step word, gpu/render.js setStep)
+fn clStep() -> f32 { return ops[CL_BASE + 1u].x * heads[CL_OWN].sliceW.z; }
+fn drvStep() -> f32 { return clStep(); }
+
+// piece i's readings at the last collageAt (core/shade.js READINGS; lyap the caller's)
+fn clReadings(i: u32, facing: f32, lyap: f32) -> Readings {
+  let t = clTr[i];
+  var r: Readings;
+  r.col = t.col; r.trap = t.trap; r.depth = f32(t.n) / f32(max(heads[i].iters, 1u)); r.lyap = lyap;
+  r.facing = facing; r.species = t.sp; r.w = clQ[i].w;
+  return r;
+}
+
+// The colour at a hit (core/collage.js collageColour): the collage's own shade, read with the
+// share-weighted readings plus piece and seam; otherwise every piece's colour (its shade, or the
+// engine's own: clFallback) blended by the shares. One call site of shadeRun.
+fn collageColour(at: ClAt, facing: f32, lyap: array<f32, ${MAX_PIECES}>) -> vec4f {
+  let own = ops[CL_BASE].y > 0.5;
+  var m: Readings;
+  if (own) {
+    for (var i = 0u; i < at.n; i++) {
+      let w = at.w[i];
+      let r = clReadings(i, facing, lyap[i]);
+      m.col = m.col + w * r.col; m.trap = m.trap + w * r.trap; m.depth = m.depth + w * r.depth; m.lyap = m.lyap + w * r.lyap;
+      m.facing = m.facing + w * r.facing; m.species = m.species + w * r.species; m.w = m.w + w * r.w;
+    }
+    m.piece = at.piece; m.seam = at.seam;
+  }
+  var out = vec4f(0.0);
+  let n = select(at.n, 1u, own);
+  for (var k = 0u; k < n; k++) {
+    var wt = 1.0;
+    var r = m;
+    var reg = CL_OWN;
+    if (!own) {
+      wt = at.w[k];
+      if (!(wt > 0.0)) { continue; }
+      r = clReadings(k, facing, lyap[k]);
+      reg = k;
+    }
+    clSelect(reg);
+    var c: vec4f;
+    if ((heads[hp].flags & FLAG_SHADE) != 0u) { c = shadeRun(r).color; } else { c = clFallback(k, r.col, facing); }
+    out = out + wt * c;
+  }
+  clSelect(0u);
+  return out;
+}
+
+// Push (core/collage.js collagePush): a sample x4 of piece i's own walk goes through its slice into its
+// frame, to copy k of its repetition (dropped when it does not fold back to the drawn copy: it lies in
+// another copy's cell) and through the placement into the world, where the collage keeps it by the
+// piece's share. G maps the piece's slice frame into the world (s·R·L): the splat's covariance is
+// G Σ Gᵀ. Leaves the piece selected.
+struct ClKeep { p: vec3f, off: f32, a: f32, ok: bool, G: mat3x3f };
+fn clKeep(i: u32, x4: vec4f, k: u32) -> ClKeep {
+  var o: ClKeep;
+  clSelect(i);
+  let u = unembed(x4);
+  o.off = u.w;
+  let P = clPlace(i);
+  let cp = clCopy(P.A, P.B, k % clCopies(P.A, P.B));
+  let v = cp.L * u.xyz + cp.o;
+  let back = clFold(P.A, P.B, v);
+  o.ok = length(back - u.xyz) <= 1e-4 * max(1.0, length(u.xyz));
+  o.p = P.R * (v * P.s) + P.t;
+  o.G = P.s * (P.R * cp.L);
+  if (o.ok) { let at = collageAt(o.p); o.a = at.w[i]; }
+  clSelect(i);
+  return o;
+}
+
+// the step factor's measurement (gpu/render.js collageStep): |∇D| at x, then with the drive's values
+// held at x's own — their ratio is the steepness the drive adds (core/collage.js says why it exists)
+fn clSteep(x: vec3f, h: f32) -> vec2f {
+  var g = vec3f(0.0);
+  var g0 = vec3f(0.0);
+  for (var a = 0u; a < 3u; a++) {
+    var e = vec3f(0.0);
+    e[a] = h;
+    g[a] = (de(x + e) - de(x - e)) / (2.0 * h);
+  }
+  clDrive(x);
+  clFreeze = true;
+  for (var a = 0u; a < 3u; a++) {
+    var e = vec3f(0.0);
+    e[a] = h;
+    g0[a] = (de(x + e) - de(x - e)) / (2.0 * h);
+  }
+  clFreeze = false;
+  return vec2f(length(g), length(g0));
 }
 `;

@@ -5,10 +5,11 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP, DUAL, withDrive } from './wgsl.js';
+import { INTERP, DUAL, COLLAGE, withDrive, withCollage } from './wgsl.js';
 import { withJit, structureKey } from './jit.js';
 import { canonical } from '../core/formula.js';
-import { pack, drives, shapes, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD } from './pack.js';
+import { MAX_PIECES } from '../core/collage.js';
+import { pack, drives, shapes, packCollage, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from './pack.js';
 
 const VIEW_FLOATS = 52;
 
@@ -201,6 +202,117 @@ fn march(@builtin(global_invocation_id) gid: vec3u) {
 }
 `;
 
+// The collage's march (core/collage.js; gpu/wgsl.js COLLAGE): the formula's helpers (the view, normals,
+// shadows, occlusion, the tint) around a shade() of its own — the march steps by the collage's estimate,
+// the hit takes its normal by differences of it (the duals do not cross the joins), every piece with a
+// share runs its dual orbit once for λ, and the colour is the pieces' blended by the shares or the
+// collage's own shade. The JIT does not know collages: the interpreter draws them.
+const MARCH_VIEW = MARCH.slice(MARCH.indexOf('struct View'), MARCH.indexOf('fn shade(ro: vec3f'));
+const MARCH_ENTRY = MARCH.slice(MARCH.indexOf('@compute @workgroup_size(8, 8)\nfn march'));
+const COLLAGE_SHADE = /* wgsl */ `
+fn clFallback(i: u32, col: f32, facing: f32) -> vec4f { return vec4f(tint(col, facing), 1.0); }
+
+fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
+  var t = 0.0;
+  var glow = 0.0;
+  var glowCol = 0.0;
+  var hit = false;
+  let maxSteps = i32(view.res.z);
+  let k = clStep();
+  for (var i = 0; i < maxSteps; i++) {
+    let at = collageAt(ro + rd * t);
+    let d = at.d * view.tune.x * k;
+    let eps = max(t * pixelAngle * view.tune.z, 1e-6);
+    let g = exp(-d / max(view.res.w * (t + 0.05), 1e-6));
+    glow = glow + g * 0.04;
+    glowCol = mix(glowCol, at.col, g * 0.1);
+    if (d < eps) { hit = true; break; }
+    t = t + d;
+    if (t > view.tune.y) { break; }
+  }
+  let absorb = exp(-t * view.look.y);
+  var c = vec3f(0.0);
+  if (hit) {
+    let p = ro + rd * t;
+    let eps = max(t * pixelAngle * view.tune.z, 1e-6);
+    let n = normalAt(p, eps * 0.5);
+    // the pieces' orbits at the hit (the normal's taps moved them), then λ where a piece has a share
+    let at = collageAt(p);
+    var lams: array<f32, ${MAX_PIECES}>;
+    var lam = 0.0;
+    for (var i = 0u; i < at.n; i++) {
+      if (!(at.w[i] > 1e-3)) { continue; }
+      clSelect(i);
+      let q = clQ[i];
+      let dd = iterateDual(q, cFor(q), (heads[hp].flags & FLAG_JULIA) == 0u);
+      lams[i] = dd.lyap;
+      lam = lam + at.w[i] * dd.lyap;
+    }
+    clSelect(0u);
+    let toL = view.light.xyz - p;
+    let dist = length(toL);
+    let L = toL / max(dist, 1e-6);
+    let fall = 1.0 / (1.0 + (dist * dist) / (view.lamp.x * view.lamp.x));
+    let diff = max(dot(n, L), 0.0);
+    var sh = 1.0;
+    var ao = 1.0;
+    if (view.extra.w > 0.5) {
+      sh = 0.0;
+      if (diff > 0.0) { sh = softShadow(p + n * eps * 2.0, L, eps * 4.0, dist); }
+      ao = ambientOcclusion(p, n, max(eps * 4.0, 0.002 * t + eps), 5);
+    } else {
+      ao = ambientOcclusion(p, n, max(eps * 4.0, 0.002 * t + eps), 2);
+      sh = 0.3 * ao;
+    }
+    var alb = collageColour(at, dot(n, -rd), lams).rgb;
+    if (view.look.w > 0.0) {
+      let band = fract(log2(max(clTr[at.lead].trap, 1e-12)) * view.look.w);
+      alb = alb * (0.55 + 0.45 * step(0.5, band));
+    }
+    let rim = pow(1.0 - max(dot(n, -rd), 0.0), 4.0);
+    var emit = vec3f(0.0);
+    if (view.lamp.z > 0.0) {
+      let x = clamp((lam - view.lyap.x) * view.lyap.y, -1.0, 1.0);
+      let hot = view.key.rgb * 1.4 + vec3f(0.25, 0.2, 0.05);
+      let heat = mix(vec3f(0.06, 0.08, 0.28), hot, 0.5 + 0.5 * x);
+      alb = mix(alb, heat, view.lamp.z);
+      emit = view.lamp.z * max(x, 0.0) * max(x, 0.0) * hot * 0.35;
+    }
+    c = alb * (diff * sh * fall * view.lamp.y + view.key.w * ao) + alb * rim * 0.15 * ao * fall + emit;
+  }
+  var glc = tint(glowCol, 0.0);
+  if (ops[CL_BASE].y > 0.5) {
+    // the collage's own shade colours the glow as a formula's does
+    clSelect(CL_OWN);
+    var gr: Readings;
+    gr.col = glowCol;
+    let so = shadeRun(gr);
+    clSelect(0u);
+    if (so.hasGlow) { if (so.glowIsColour) { glc = so.glow.rgb; } else { glc = glc * so.glow.x; } } else { glc = so.color.rgb; }
+    glc = glc * so.gain;
+  }
+  let gl = glc * glow * view.light.w;
+  return c * absorb + gl * mix(1.0, absorb, 0.6);
+}
+`;
+export const COLLAGE_MARCH = withCollage(INTERP + DUAL) + COLLAGE + MARCH_VIEW + COLLAGE_SHADE + MARCH_ENTRY;
+
+// the step factor's measurement for a driven collage: at world points (on or near its surface),
+// |∇D| and |∇D| with the drive held there (gpu/wgsl.js clSteep)
+export const COLLAGE_STEP = withCollage(INTERP) + COLLAGE + /* wgsl */ `
+fn clFallback(i: u32, col: f32, facing: f32) -> vec4f { return vec4f(1.0); }
+struct CS { n: vec4u, h: vec4f };
+@group(1) @binding(0) var<uniform> cs: CS;
+@group(1) @binding(1) var<storage, read> cpts: array<vec4f>;
+@group(1) @binding(2) var<storage, read_write> cout: array<vec4f>;
+@compute @workgroup_size(64)
+fn steep(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= cs.n.x) { return; }
+  let p = cpts[i].xyz;
+  cout[i] = vec4f(clSteep(p, cs.h.x * max(1.0, length(p))), de(p), 0.0);
+}`;
+
 // The atlas lens: for two parameters, every pixel of the map is one parameter pair, coloured by how
 // many on-screen pixels the surface would be from the held point under it — the held point's own
 // "Mandelbrot set" (the Mandelbrot set is this map for the Julia family at z = 0). The span is set by
@@ -300,8 +412,9 @@ export async function createRenderer(canvas) {
   const format = navigator.gpu.getPreferredCanvasFormat();
   ctx.configure({ device, format, alphaMode: 'opaque' });
 
-  const headBuf = device.createBuffer({ size: HEAD_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const opsBuf = device.createBuffer({ size: OPS_FLOATS * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  // sized for a collage (a head and an ops region per piece, gpu/pack.js packCollage); a formula uses the first
+  const headBuf = device.createBuffer({ size: COLLAGE_HEAD_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const opsBuf = device.createBuffer({ size: COLLAGE_OPS_FLOATS * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const viewBuf = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const dispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
@@ -370,6 +483,8 @@ export async function createRenderer(canvas) {
   const variant = (...a) => variantEntry(...a).pipe;
   variant.ready = async (...a) => { const v = variantEntry(...a); await v.building; return v.pipe; };
   const driveMarch = () => [`march`, withDrive(MARCH), [formulaLayout, viewLayout], 'march'];
+  // a collage's march, in the drivers' variant when a piece's own drive program runs
+  const collageMarch = (pk) => [pk.drives ? 'cmarch+drive' : 'cmarch', pk.drives ? withDrive(COLLAGE_MARCH) : COLLAGE_MARCH, [formulaLayout, viewLayout], 'march'];
 
   // the lens map: computed once when the lens opens, then composited every frame while it is open
   const lensLayout = device.createBindGroupLayout({
@@ -457,13 +572,16 @@ export async function createRenderer(canvas) {
   function setLens(on, inset = [0, 0, 0]) { lensState.on = on; lensState.inset = inset; }
 
   let packed = null;
-  // the drivers' clock (seconds) and the step factor 1 / L live in the head, kept across formulas
+  // the drivers' clock (seconds) and the step factor 1 / L live in the head (every head of a collage),
+  // kept across formulas
   const drive = { clock: 0, step: 1 };
-  function driveWords(head) { const fl = new Float32Array(head); fl[CLOCK_WORD] = drive.clock; fl[STEP_WORD] = drive.step; }
+  function driveWords(head) {
+    for (let o = 0; o < head.byteLength; o += HEAD_BYTES) { const fl = new Float32Array(head, o, HEAD_BYTES / 4); fl[CLOCK_WORD] = drive.clock; fl[STEP_WORD] = drive.step; }
+  }
   function setDriveWords() {
     if (!packed) return;
     driveWords(packed.head);
-    device.queue.writeBuffer(headBuf, CLOCK_WORD * 4, new Float32Array([drive.clock, drive.step]));
+    for (let o = 0; o < packed.head.byteLength; o += HEAD_BYTES) device.queue.writeBuffer(headBuf, o + CLOCK_WORD * 4, new Float32Array([drive.clock, drive.step]));
   }
   // t: seconds (the app's clock, or a video frame's time)
   function setClock(t) { if (drive.clock === t) return; drive.clock = t; setDriveWords(); }
@@ -478,6 +596,16 @@ export async function createRenderer(canvas) {
     device.queue.writeBuffer(headBuf, 0, packed.head);
     device.queue.writeBuffer(opsBuf, 0, packed.ops);
   }
+  // a collage (core/collage.js) in place of the formula: packed.collage is set and packed.formula null
+  // until the next setFormula. Its march compiles in the background; until then nothing is drawn.
+  function setCollage(c) {
+    packed = { ...packCollage(c), formula: null };
+    driveWords(packed.head);
+    variant(...collageMarch(packed));
+    device.queue.writeBuffer(headBuf, 0, packed.head);
+    device.queue.writeBuffer(opsBuf, 0, packed.ops);
+  }
+  const collageReady = async () => (packed && packed.collage ? variant.ready(...collageMarch(packed)) : null);
 
   const viewData = new Float32Array(VIEW_FLOATS);
   // v: { pos, right, up, fwd, tanHalfFov, aperture, focus, blend, light, glow, hue, fog, exposure,
@@ -529,9 +657,11 @@ export async function createRenderer(canvas) {
     device.queue.writeBuffer(viewBuf, 0, viewData);
     lastExposure = v.exposure;
 
+    const pipe = packed && packed.collage ? variant(...collageMarch(packed)) : pipeFor(packed && packed.formula, v.quality > 0);
+    if (!pipe) { present(); return; }
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline(pipeFor(packed && packed.formula, v.quality > 0));
+    cp.setPipeline(pipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, viewGroups[cur]);
     cp.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
@@ -627,7 +757,8 @@ export async function createRenderer(canvas) {
     const outCanvas = new OffscreenCanvas(W, H);
     const g2 = outCanvas.getContext('2d');
     if (packed && drives(packed.formula)) await variant.ready(...driveMarch());
-    const pipe = pipeFor(packed && packed.formula, true);
+    const pipe = packed && packed.collage ? await collageReady() : pipeFor(packed && packed.formula, true);
+    if (!pipe) throw new Error('the collage march did not compile');
     const vb = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const db = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const vd = new Float32Array(VIEW_FLOATS);
@@ -711,8 +842,13 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
     ],
   });
   let gridPipe = null;
+  // a collage's grid: its estimate in place of the formula's
+  const COLLAGE_GRID = withCollage(INTERP + DUAL) + COLLAGE + 'fn clFallback(i: u32, col: f32, facing: f32) -> vec4f { return vec4f(1.0); }\n' + GRID.slice(GRID.indexOf('struct G {'));
   async function deGrid(lo, hi, n) {
-    const drivenGrid = packed && shapes(packed.formula) ? await variant.ready('grid', withDrive(GRID), [formulaLayout, gridLayout], 'grid') : null;
+    const drivenGrid = packed && packed.collage
+      ? await variant.ready(packed.drives ? 'cgrid+drive' : 'cgrid', packed.drives ? withDrive(COLLAGE_GRID) : COLLAGE_GRID, [formulaLayout, gridLayout], 'grid')
+      : packed && packed.formula && shapes(packed.formula) ? await variant.ready('grid', withDrive(GRID), [formulaLayout, gridLayout], 'grid') : null;
+    if (packed && packed.collage && !drivenGrid) throw new Error('the collage grid did not compile');
     if (!gridPipe) {
       const module = device.createShaderModule({ code: GRID });
       const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
@@ -749,13 +885,58 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
     return field;
   }
 
+  // The collage's step factor L (gpu/wgsl.js clSteep): at world points on or near its surface (the
+  // caller's: sensed hits, a mesh's vertices), how much steeper the driven estimate is than the same
+  // estimate with its drive held — the 90th percentile, at least 1, as gpu/sense.js measures a formula's.
+  // Returns { step, ratios, de } (null for a formula); the caller hands step to setStep.
+  const stepLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    ],
+  });
+  async function collageStep(points, h = 1e-4) {
+    if (!packed || !packed.collage) return null;
+    const pipe = await variant.ready(packed.drives ? 'cstep+drive' : 'cstep', packed.drives ? withDrive(COLLAGE_STEP) : COLLAGE_STEP, [formulaLayout, stepLayout], 'steep');
+    if (!pipe) throw new Error('the collage step pass did not compile');
+    const n = points.length;
+    const pts = new Float32Array(Math.max(1, n) * 4);
+    points.forEach((p, i) => pts.set(p, i * 4));
+    const mk = (size, usage) => device.createBuffer({ size, usage });
+    const ub = mk(32, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), pb = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const ob = mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC), rb = mk(pts.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+    const ud = new ArrayBuffer(32);
+    new Uint32Array(ud)[0] = n; new Float32Array(ud)[4] = h;
+    device.queue.writeBuffer(ub, 0, ud);
+    device.queue.writeBuffer(pb, 0, pts);
+    const bg = device.createBindGroup({ layout: stepLayout, entries: [ub, pb, ob].map((b, i) => ({ binding: i, resource: { buffer: b } })) });
+    const enc = device.createCommandEncoder();
+    const cp = enc.beginComputePass();
+    cp.setPipeline(pipe); cp.setBindGroup(0, formulaGroup); cp.setBindGroup(1, bg); cp.dispatchWorkgroups(Math.ceil(n / 64)); cp.end();
+    enc.copyBufferToBuffer(ob, 0, rb, 0, pts.byteLength);
+    device.queue.submit([enc.finish()]);
+    await rb.mapAsync(GPUMapMode.READ);
+    const o = new Float32Array(rb.getMappedRange().slice(0));
+    rb.unmap();
+    [ub, pb, ob, rb].forEach((b) => b.destroy());
+    const ratios = [], de = [];
+    for (let i = 0; i < n; i++) {
+      de.push(o[i * 4 + 2]);
+      if (o[i * 4] > 0 && o[i * 4 + 1] > 0) ratios.push(Math.max(1, o[i * 4] / o[i * 4 + 1]));
+    }
+    const sorted = [...ratios].sort((a, b) => a - b);
+    return { step: Math.min(16, sorted.length ? sorted[Math.floor(sorted.length * 0.9)] : 1), ratios, de };
+  }
+
   // the push engine shares the device, the canvas and the formula buffers
   return {
-    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens, renderThumb, variant,
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, setCollage, collageReady, collageStep, frame, present, lens, setLens, renderThumb, variant,
     compileJit, compileStructureJit, renderStill, deGrid,
     get jitReady() { return !!(packed && jitFor(packed.formula)); },
     // which pipeline a frame of the current formula would use
     get pipelineKind() {
+      if (packed && packed.collage) return 'collage';
       const f = packed && packed.formula, p = pipeFor(f, true);
       return p === marchPipe ? 'interpreter' : p === jits.literal.pipe ? 'literal' : 'structure';
     },

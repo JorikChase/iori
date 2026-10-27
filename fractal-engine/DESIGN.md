@@ -1199,3 +1199,78 @@ formula.js's own URL hash do not know collages yet (K2/K3).
 
 K2 needs from the shading session: `piece` and `seam` in shade.js READINGS (collageColour already passes
 them in the readings object; evalShade ignores them until then).
+
+**K2 built 2026-10-27 — the collage on the GPU.** Nothing of a formula's shaders changed: a collage
+runs in shader variants of its own, written from the formula's by one rewrite.
+- *Layout* (gpu/pack.js packCollage): every piece packs as the formula it is — its head, and its ops
+  region (op records, shading and drive programs, OPS_FLOATS each) behind the piece index; a ninth
+  region and head are the collage's own (its shade, its drive's nodes, laid out as a formula's); after
+  the nine regions the collage program — header, four vec4 per piece (placement, repetition), two per
+  join, two per binding. A binding names a flat program index (collageSlot: piece i's numbers at
+  16·i + their place, join j's at 128 + 8·j + theirs), so the GPU overlays driven values on the vec4 it
+  reads (clRead). The renderer's head and ops buffers are sized for eight pieces; a formula uses the
+  first head and region.
+- *The rewrite* (gpu/wgsl.js withCollage): `head.` → `heads[hp].`, `ops[` → `ops[pb + `, the uniform
+  becomes `array<Head, 9>`, and `de` / `drvStep` are renamed out of the way. hp and pb are private
+  indices that clSelect(i) sets, so every function of the interpreter, the duals, the inverse and the
+  shading runs on whichever piece is selected; the collage's own code (COLLAGE, appended after the
+  rewrite) reads its program by absolute index. One call site of `iterate`: collageAt loops over the
+  pieces (placement, fold, slice, the orbit, s·DE − g), then folds the joins (clJoin/clSmin — every
+  kernel, the complements, the morph) into the shares, piece, seam and lead, as collageAt does.
+- *The drive* (clDrive): at the world point, the drive's nodes through the formula's own node
+  evaluator (drvNode, the collage's region selected, drvStart = (x, 0)), then every binding clamped to
+  its parameter's range; time reads the clock every head carries (setClock writes them all).
+- *Readings:* `piece` (8) and `seam` (9) in core/shade.js READINGS and TYPE_CODE, in the GPU's
+  Readings and shadeRun; a formula reads 0. ui/glyphs.js has a glyph for each. collageColour on the GPU:
+  the collage's shade with the share-weighted readings plus piece and seam, or every piece's own shade
+  (its region selected) or the engine's colour (clFallback, the includer's: render's tint) blended by
+  the shares — one call site of shadeRun.
+- *Pull* (gpu/render.js COLLAGE_MARCH, setCollage, collageReady): the march steps by the collage's
+  estimate × clStep; the hit takes its normal by central differences of the collage (normalAt — the
+  duals do not cross the joins and folds yet), every piece with a share > 1e-3 runs its dual orbit once
+  for λ (blended by the shares), terraces read the lead piece's trap, the glow the shares' fold index
+  (and the collage's shade when it has one). No JIT for collages: the interpreter draws them. deGrid
+  (the mesh export) and renderStill work on a collage; the lens, the sensing pass and thumbnails do not.
+- *Push* (gpu/push.js COLLAGE_WALK, entry cwalk): walker wi walks piece wi mod n (every piece its own
+  attractor, the walkers shared alike); a sample goes through clKeep — the piece's slice (off for the
+  slab weight), copy (age mod copies: round robin) of its repetition, dropped when it does not fold back,
+  the placement — and is kept when its share there is ≥ 1e-3; the splat's weight is slab × share, its
+  covariance G·Σ·Gᵀ with G = s·R·L (the M of collagePush, the slice part applied by the walk). A piece
+  with its own c walks with it, the others with the app's (core/cpu.js push would take opts.c over the
+  piece's: on the GPU a Julia piece keeps its own, the choice closest to what the CPU draws when no c is
+  forced). The collage's own shade colours every splat (a splat reads only its fold index). Captured
+  samples carry weight and piece.
+- *The step factor:* static (collageStepFactor, packed): √½ per chamfer join (√2 on its bevel,
+  compounding join by join) and 0.3 if any piece is not pull-safe, as a formula's march does. Measured
+  (R.collageStep(points) → { step, ratios }): at the caller's points, clSteep's |∇D| with the drive
+  live over |∇D| with its values held at the point (central differences, clFreeze) — the 90th
+  percentile, ≥ 1, capped at 16; the caller hands it to setStep (written into every head; the march
+  reads the collage's own head). It covers the collage's drive only: a piece's own drive program is not
+  measured inside a collage (sense.js measures a formula alone).
+- *App:* `__fe.collage(textOrDoc)` draws a collage in place of the formula (pull and push) until the next
+  setFormula (`__fe.collage(null)` goes back), resolving once the march has compiled; deAt (the camera's
+  clearance) reads the CPU collage, the sensing pass is skipped meanwhile. Nothing else in the app knows.
+  Seen drawing headless (Playwright, `__fe.dry`): a bulb ∪ shrunk Mandelbox ∖ grown bulb in pull and push.
+- *Tests:* test/collage-cases.js (19 collages: every kernel, inter/sub with grown cutters, the morph,
+  three pieces with turn + polar + chamfer cut, grid, mirror, chimera and sliced pieces, a driven piece,
+  the collage drive — axis → seam, time → placement, tissue → morph, a param link — its own shade
+  reading piece/seam/depth, the pieces' own shades); parity.html's collage suite (34 rows: the six
+  collage shaders compile in both variants; forward — median rel error 1–8e-7, p99 ≤ 2.3e-4 (the driven
+  piece 9e-4), no iteration, share or colour mismatches beyond 2 colour points of 2048; keep — no fold
+  or keep disagreement, places to 1e-7; step — L to 1e-5, an undriven collage exactly 1);
+  `run-parity.mjs --only collage` runs it alone (~45 s); test/collage-gpu.test.mjs (5: the pack against
+  pack() of every piece, binding slots, the static step, the rewrite, the readings). Compile times on
+  this Mac: march 4.5 s (drive 8.9 s), walk 3.9 s (14.6 s), step 1.5 s (2.5 s).
+- *Traps:* JS's Math.round rounds halves up, WGSL's round() to even — the grid fold uses floor(x + ½).
+  The rewrite would also hit code appended after it, so the collage's own code must be appended after
+  withCollage, and the copied walk body rewritten by hand (`head.` only — it has no op reads). A
+  WGSL-side fold-back tolerance of 1e-4·max(1, |q|) (the CPU's 1e-6 is below float32). The CPU's push of
+  the box ‖ bulb blend chimera finds no preimages (the keep rows use a KIFS ‖ abs·sort chimera).
+- *K3 needs:* the UI (graph nodes, gizmo, ghosted copies) and the app's hash, lineage, breeding, grab
+  and lens learning the collage document; a sensing pass for collages (hits for collageStep, the metric
+  of placement and join parameters — the duals through the joins would give both, and an exact normal);
+  the JIT per piece (the structure JIT keyed by every piece's structure); a decision on what a collage's
+  shade may read of drivers (core/collage.js collageColour passes none, so GPU and CPU agree on none; a
+  piece's shade that reads its drivers sees whatever registers the last piece left); push colour
+  readings beyond the fold index (piece and seam on splats); the neighbour across the nearest cell wall
+  for repetitions wider than their cell (K1's note).

@@ -45,6 +45,7 @@ import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from 
 import { evalShade } from './core/shade.js';
 import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
+import { timeDriven } from './core/drive.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
 import { drawSurface } from './ui/metasurface.js';
@@ -1546,6 +1547,7 @@ function govern(moving) {
 }
 
 let last = performance.now(), busy = false;
+const clock0 = performance.now();
 function tick() {
   requestAnimationFrame(tick);
   step();
@@ -1566,7 +1568,10 @@ async function step() {
   flyKeys(dt);
   advanceTransition(now);
   const drifting = !state.trans && drift(dt);
-  const moving = interacting || drifting || !!state.trans;
+  // a formula driven by the clock animates on its own: never still, its frames a soft trail
+  const animated = timeDriven(state.formula);
+  if (animated) R.setClock((now - clock0) / 1000);
+  const moving = interacting || drifting || !!state.trans || animated;
   // a flow renders in the loop engine whatever mode it is heading for
   const mode = state.trans && state.trans.kind === 'flow' ? 'loop' : state.mode;
   govern(moving);
@@ -1583,7 +1588,7 @@ async function step() {
   state.dirty = false;
 
   // drift blends a short history (a soft trail); stillness converges
-  const blend = drifting && !interacting ? Math.max(1 / (state.n + 1), 1 / 8) : 1 / (state.n + 1);
+  const blend = (drifting || animated) && !interacting ? Math.max(1 / (state.n + 1), 1 / 8) : 1 / (state.n + 1);
   const b = basis(state.cam);
   const L = state.look;
   const clear = Math.max(deAt(state.cam.pos), 1e-5);
@@ -1695,7 +1700,7 @@ async function growArchive() {
     if (archive.structure !== key) archive.reset(key, state.sensed.lyap);
     const elites = archive.elites();
     const parent = elites.length && rnd() < 0.6 ? normalize(parse(elites[Math.floor(rnd() * elites.length)].text)) : state.formula;
-    const cand = mutate(parent, state.sensed.params, pinned(), 30 + rnd() * 190, rnd);
+    const cand = mutate(parent, metricOf(state.sensed), pinned(), 30 + rnd() * 190, rnd);
     const r = await S.sense(cand, senseView(), innerHeight, SMALL, true);
     if (r && archive.structure === key) archive.offer({ text: format(cand), features: features(r) });
   } finally { archiveBusy = false; }
@@ -1720,7 +1725,7 @@ function thumbView(b, pos = state.cam.pos, clear0 = null) {
 async function openRing(x, y, scale = 1) {
   if (!S || !state.sensed || !R) return false;
   exitGrab();
-  const metric = state.sensed.params;
+  const metric = metricOf(state.sensed);
   const pins = pinned();
   const f0 = normalize(state.formula);
   const here = await S.sense(f0, senseView(), innerHeight, SMALL, true).catch(() => null);
@@ -1975,6 +1980,7 @@ async function exportVideo(b, clear, where, maxFrames = Infinity) {
   try {
     for (let i = 0; i < frames.length; i++) {
       R.setFormula(frames[i]);
+      R.setClock(i / 30);
       state.formula = frames[i];
       const img = await R.renderStill(pullView(b, clear), W, H, { tile: 1024, samples: 16 });
       await sink.add(img);
@@ -2001,9 +2007,17 @@ function senseView() {
 
 async function senseNow() {
   const r = await S.sense(state.formula, senseView(), innerHeight);
-  if (r) { state.sensed = r; if (state.look.lyapMix > 0) { state.n = 0; } }
+  if (r) {
+    state.sensed = r;
+    if (state.look.lyapMix > 0) { state.n = 0; }
+    // the drivers' steepness: the raymarch shortens its steps by it (1 without drivers)
+    R.setStep(r.step);
+  }
   return r;
 }
+
+// the breeding metric: the ops' parameters and the drivers' (bands, driver nodes)
+const metricOf = (sensed) => sensed.params.concat(sensed.driveParams || []);
 
 function withParam(f, oi, key, value) {
   const g = JSON.parse(JSON.stringify(normalize(f)));

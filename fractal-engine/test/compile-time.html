@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>fractal engine — shader compile times</title></head>
+<body style="background:#000;color:#ccc;font:12px ui-monospace,Menlo,monospace;padding:16px">
+<pre id="out">compiling…</pre>
+<script type="module">
+// How long the shaders take to compile (Metal's compile time grows with every inlined copy of a big
+// function — a trap DESIGN.md records twice). window.__compile: { [name]: ms }
+import * as W from '../gpu/wgsl.js';
+const { INTERP, INVERSE, DUAL } = W;
+import { MARCH } from '../gpu/render.js';
+const RNG = `
+var<private> rngState: u32;
+fn pick(n: u32) -> u32 { rngState = rngState * 747796405u + 1u; return rngState % max(n, 1u); }
+`;
+const MAIN = (body) => `
+@group(0) @binding(2) var<storage, read_write> outp: array<vec4f>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) { ${body} }`;
+const SHADERS = {
+  interp: INTERP + MAIN('outp[gid.x] = vec4f(de(vec3f(f32(gid.x))));'),
+  dual: INTERP + DUAL + MAIN('tanSelect(outp[0]); let d = iterateDual(vec4f(f32(gid.x)), vec4f(0.0), true); outp[gid.x] = vec4f(deGrad(d), d.lyap);'),
+  inverse: INTERP + DUAL + RNG + INVERSE + MAIN('outp[gid.x] = invAt(0u, vec4f(f32(gid.x)), vec4f(0.0)).p;'),
+  march: MARCH,
+};
+// and with the drivers compiled in
+if (W.withDrive) for (const k of Object.keys(SHADERS)) SHADERS[k + '+drive'] = W.withDrive(SHADERS[k]);
+const out = document.getElementById('out');
+(async () => {
+  const device = await (await navigator.gpu.requestAdapter()).requestDevice();
+  const res = {};
+  for (const [name, code] of Object.entries(SHADERS)) {
+    const t0 = performance.now();
+    // a nonce the compiler cannot strip: the browser caches compiled shaders (by the generated code)
+    const nonce = Math.floor(Math.random() * 1e9);
+    const module = device.createShaderModule({ code: code.replace('fn pcg(v: u32) -> u32 {', `fn pcg(v: u32) -> u32 {\n  if (v == ${nonce}u) { return 7u; }`).replace('gid: vec3u) { ', `gid: vec3u) { if (gid.x == ${nonce}u) { return; } `) });
+    const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+    if (errs.length) { res[name] = 'ERROR ' + errs.map((m) => `${m.lineNum}: ${m.message}`).join('; '); continue; }
+    const entryPoint = name.startsWith('march') ? 'march' : 'main';
+    await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } }).catch((e) => { res[name] = 'ERROR ' + e.message; });
+    if (!res[name]) res[name] = Math.round(performance.now() - t0);
+    out.textContent = JSON.stringify(res, null, 1);
+  }
+  window.__compile = res;
+})();
+</script>
+</body>
+</html>

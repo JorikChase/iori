@@ -10,6 +10,7 @@
 import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { slotIndex } from '../core/notation.js';
 import { rotationXYZ, rotation4, lift4, normalize as nrm } from '../core/vec.js';
+import { driveBinds } from './pack.js';
 
 const L = (x) => {
   if (!Number.isFinite(x)) throw new Error('non-finite literal');
@@ -125,9 +126,12 @@ ${kids.map((code, i) => `${code}
 }
 
 // the WGSL `iterate` for one formula, replacing the interpreter's. kind: 'literal' | 'structure'
+// Drivers (gpu/wgsl.js DRIVE): every iteration starts with driveIter, and a driven op reads its record
+// through rec() — live, in the literal kind too (its other ops stay literals)
 export function jitIterate(formula, kind = 'literal') {
   const f = normalize(formula);
-  const gen = kind === 'structure' ? opCodeBuffered : opCode;
+  const driven = new Set(driveBinds(f).map((x) => x.t.o));
+  const gen = kind === 'structure' ? opCodeBuffered : (o, oi) => (driven.has(o) ? opCodeBuffered(o, oi) : opCode(o, oi));
   // every op's index in the flat op table, slot by slot
   const base = [];
   f.slots.reduce((n, s, si) => { base[si] = n; return n + s.length; }, 0);
@@ -156,7 +160,7 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
   startOrbit(p0);
   for (var i = 0u; i < ${f.iters}u; i++) {
     fIter = f32(i);
-${body}
+${driven.size ? '    if (DRIVE_ON && drvAny) { driveIter(p, t.dr, i, f32(head.iters)); }\n' : ''}${body}
     t.n = i + 1u;
     let r2 = dot(p, p);
     t.trap = min(t.trap, r2);
@@ -177,10 +181,11 @@ export function withJit(source, formula, kind = 'literal') {
   return source.replace(SIG, 'fn iterateInterpreted(p0: vec4f, c: vec4f) -> Trace {') + jitIterate(formula, kind);
 }
 
-// what a structure JIT depends on: the ops in order, the schedule, the iteration count
+// what a structure JIT depends on: the ops in order, the schedule, the iteration count, and whether
+// anything is driven (its iterations then start with driveIter)
 export function structureKey(formula) {
   const f = normalize(formula);
-  return JSON.stringify([f.slots.map((s) => s.map((o) => o.op)), f.schedule, f.iters]);
+  return JSON.stringify([f.slots.map((s) => s.map((o) => o.op)), f.schedule, f.iters, driveBinds(f).length > 0]);
 }
 
 export { pullSafe };

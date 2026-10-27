@@ -15,7 +15,8 @@
 // Tone, per pass (the monitor knobs): hue rotation, saturation, gain, contrast about mid-grey, decay;
 // a few-tap blur (the lens); seeds — noise ("turn the brightness up until it ignites") and the field.
 
-import { INTERP } from './wgsl.js';
+import { INTERP, withDrive } from './wgsl.js';
+import { drives } from './pack.js';
 
 const LOOP = INTERP + /* wgsl */ `
 struct LV {
@@ -59,6 +60,8 @@ fn applySlot(slot: u32, x0: vec4f, c: vec4f) -> vec4f {
   var x = x0;
   // one step from the window's point: it is the orbit's start (a chimera's fields read it)
   fP0 = x0; fTrap = dot(x0, x0); fIter = 0.0; fIters = 1.0;
+  // drivers: read at the window's point, iteration 0 of 1
+  if (DRIVE_ON) { driveStart(x0); if (drvAny) { driveIter(x0, 1.0, 0u, 1.0); } }
   let start = slotStart(slot);
   for (var j = 0u; j < slotLen(slot); j++) { x = fwdAt(start + j, x, c, 1.0).p; }
   return x;
@@ -209,7 +212,7 @@ export async function createLoop(R) {
     });
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline(stepPipe);
+    cp.setPipeline((R.packed && drives(R.packed.formula) && R.variant('loop', withDrive(LOOP), [formulaLayout, layout], 'loopStep')) || stepPipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, group);
     cp.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));

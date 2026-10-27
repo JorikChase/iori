@@ -8,8 +8,9 @@
 // The same pass returns the Lyapunov exponent at every hit: its median centres the λ colour scale,
 // and around the cursor it draws the reticle's ticks.
 
-import { INTERP, DUAL } from './wgsl.js';
-import { paramTangents, pack } from './pack.js';
+import { INTERP, DUAL, withDrive } from './wgsl.js';
+import { paramTangents, pack, drives } from './pack.js';
+import { normalize } from '../core/formula.js';
 
 const SENSE = INTERP + DUAL + /* wgsl */ `
 struct SV {
@@ -30,7 +31,7 @@ fn sense(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= n) { return; }
   let j = gid.y;
-  tanOi = u32(tans[j * 6u].x);
+  tanSelect(tans[j * 6u]);
   for (var k = 0u; k < 5u; k++) { tanRec[k] = tans[j * 6u + 1u + k]; }
   let uv = uvs[i];
   let th = sv.pos.w;
@@ -40,7 +41,7 @@ fn sense(@builtin(global_invocation_id) gid: vec3u) {
   var t = 0.0;
   var hit = false;
   for (var s = 0; s < i32(sv.tune.y); s++) {
-    let d = de(sv.pos.xyz + rd * t) * sv.fwd.w * unsafeScale;
+    let d = de(sv.pos.xyz + rd * t) * sv.fwd.w * unsafeScale * drvStep();
     if (d < max(t * pixelAngle * sv.tune.z, 1e-6)) { hit = true; break; }
     t = t + d;
     if (t > sv.up.w) { break; }
@@ -92,7 +93,8 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
   let busy = false;
   // v: { pos, right, up, fwd, tanHalfFov, aspect, maxDist, stepScale, maxSteps, epsScale }
   // uvs: ray directions as NDC pairs (x right, y down), default the whole-view grid
-  // returns { params: [{ oi, op, key, value, pxPerUnit }], rays: [{ uv, hit, t, x, grad, lambda,
+  // returns { params: [{ oi, op, key, value, pxPerUnit }] (bound parameters left out), driveParams:
+  //   [{ drive (a core/drive.js ref), value, pxPerUnit }], step (the drivers' step factor L), rays: [{ uv, hit, t, x, grad, lambda,
   //   speeds }], lyap: { median, p10, p90 }, hits, points, pixelAngle }
   // speeds are in units of pixelHeight (pass CSS pixels for hand motion)
   // other: the formula is not the one on screen — upload it for this pass and give the buffers back
@@ -100,8 +102,12 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
     if (busy) return null;
     busy = true;
     try {
+      const normalized = normalize(formula);
+      // a driven formula senses in the drivers' variant (compiled once, in the background)
+      const sensePipe = drives(normalized) ? (await R.variant.ready('sense', withDrive(SENSE), [formulaLayout, layout], 'sense')) || pipe : pipe;
       if (other) { const pk = pack(formula); device.queue.writeBuffer(headBuf, 0, pk.head); device.queue.writeBuffer(opsBuf, 0, pk.ops); }
-      const tg = paramTangents(formula);
+      // with drivers: their parameters too, and the frozen row (every driver held) for the step factor
+      const tg = paramTangents(formula, { frozen: true });
       const nRows = Math.max(1, tg.list.length);
       const n = uvs.length / 2;
       const mk = (size, usage) => device.createBuffer({ size, usage });
@@ -122,7 +128,7 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
       });
       const enc = device.createCommandEncoder();
       const cp = enc.beginComputePass();
-      cp.setPipeline(pipe);
+      cp.setPipeline(sensePipe);
       cp.setBindGroup(0, formulaGroup);
       cp.setBindGroup(1, group);
       cp.dispatchWorkgroups(Math.ceil(n / 64), nRows);
@@ -155,15 +161,30 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
         rays.push(ray);
       }
       const hits = rays.filter((r) => r.hit);
-      const params = tg.list.map((t, j) => {
-        let sum = 0;
-        for (const r of hits) sum += r.speeds[j] * r.speeds[j];
-        return { oi: t.oi, op: t.op, key: t.key, value: t.value, pxPerUnit: Math.sqrt(sum / Math.max(hits.length, 1)) };
+      const rms = (j) => { let sum = 0; for (const r of hits) sum += r.speeds[j] * r.speeds[j]; return Math.sqrt(sum / Math.max(hits.length, 1)); };
+      const params = [], driveParams = [];
+      tg.list.forEach((t, j) => {
+        if (t.drec) params.push({ oi: t.oi, op: t.op, key: t.key, value: t.value, pxPerUnit: rms(j) });
+        else if (t.drive) driveParams.push({ drive: t.drive, value: t.value, pxPerUnit: rms(j) });
       });
+      // The step factor L: how much steeper the driven estimate is than the same estimate with its
+      // drivers held, |∇DE| / |∇DE held| at every hit — the measured form of 1 + Σ |∂DE/∂θ|·|∇θ|. The
+      // raymarch divides its steps by the 90th percentile (one L per frame; gpu/render.js setStep).
+      let step = 1;
+      const fj = tg.list.findIndex((t) => t.frozen);
+      if (fj > 0) {
+        const L = [];
+        for (let i = 0; i < n; i++) {
+          const g = o[i * 4 + 3], g0 = o[(fj * n + i) * 4 + 3];
+          if (g > 0 && g0 > 0 && rays[i].hit) L.push(Math.max(1, g / g0));
+        }
+        L.sort((a, b) => a - b);
+        step = Math.min(16, L.length ? L[Math.floor(L.length * 0.9)] : 1);
+      }
       const lam = hits.map((r) => r.lambda).sort((a, b) => a - b);
       const q = (f) => lam[Math.min(lam.length - 1, Math.floor(lam.length * f))] ?? 0;
       return {
-        params, rays, lyap: { median: q(0.5), p10: q(0.1), p90: q(0.9) }, hits: hits.length,
+        params, driveParams, step, rays, lyap: { median: q(0.5), p10: q(0.1), p90: q(0.9) }, hits: hits.length,
         points: hits.map((r) => ({ t: r.t, x: r.x, grad: r.grad })), pixelAngle,
       };
     } finally {

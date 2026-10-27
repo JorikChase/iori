@@ -12,6 +12,9 @@
 // them. WGSL has no recursion, so it is never an opFwd/opInv/opTan case: fwdAt, invAt and the dual
 // loop dispatch on it and call the per-op functions for its sub-stacks, which hold no mix.
 
+// a shader source's drivers switched on (gpu/pack.js drives(f) says which variant a formula needs)
+export const withDrive = (source) => source.replace('const DRIVE_ON = false;', 'const DRIVE_ON = true;');
+
 export const INTERP = /* wgsl */ `
 struct Head {
   iters: u32, schedLen: u32, flags: u32, bail: f32,
@@ -19,7 +22,7 @@ struct Head {
   sched: array<vec4u, 16>,
   c: vec4f,        // the fixed constant when FLAG_JULIA is set
   slice: mat4x4f,  // the world's place in 4-D: x₄ = slice · (x, y, z, sliceW.x)
-  sliceW: vec4f,
+  sliceW: vec4f,   // x the slice's offset along w, y the drivers' clock (s), z the step factor 1 / L
 };
 
 struct Trace {
@@ -39,6 +42,10 @@ const FLAG_POWER = 1u;
 const FLAG_UNSAFE = 2u;
 const FLAG_JULIA = 4u;
 const FLAG_SHADE = 8u;
+const FLAG_DRIVE = 16u;
+// The drivers compile only into the variant that needs them (withDrive below): with DRIVE_ON false every
+// hook folds away and an undriven formula's shaders are the size they were before formula v2.
+const DRIVE_ON = false;
 const PI = 3.14159265;
 const REC4 = 5u;
 
@@ -60,6 +67,8 @@ var<private> tanEps: f32 = 0.0;
 
 fn rec(oi: u32, k: u32) -> vec4f {
   var r = ops[oi * REC4 + k];
+  // a driven op reads its driven values (DRIVE below); the test is one bit for undriven formulas
+  if (DRIVE_ON && drvAny) { if (drvIs(oi)) { r = drvRec(oi, k, r); } }
   if (oi == ov0) { r = r + ovD.x * ovRec0[k]; }
   if (oi == ov1) { r = r + ovD.y * ovRec1[k]; }
   if (oi == tanOi) { r = r + tanEps * tanRec[k]; }
@@ -224,7 +233,7 @@ var<private> fP0: vec4f;
 var<private> fTrap: f32 = 0.0;
 var<private> fIter: f32 = 0.0;
 var<private> fIters: f32 = 1.0;
-fn startOrbit(p0: vec4f) { fP0 = p0; fTrap = dot(p0, p0); fIter = 0.0; fIters = f32(head.iters); }
+fn startOrbit(p0: vec4f) { fP0 = p0; fTrap = dot(p0, p0); fIter = 0.0; fIters = f32(head.iters); if (DRIVE_ON) { driveStart(p0); } }
 
 // the field library's hash and noise
 fn fhash(v: u32) -> u32 {
@@ -426,6 +435,7 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
     let slot = schedAt(i);
     let start = slotStart(slot);
     fIter = f32(i);
+    if (DRIVE_ON && drvAny) { driveIter(t.p, t.dr, i, f32(head.iters)); }
     for (var j = 0u; j < slotLen(slot); j++) {
       let s = fwdAt(start + j, t.p, c, t.dr);
       t.p = s.p;
@@ -457,6 +467,266 @@ fn cFor(p: vec4f) -> vec4f { return select(p, head.c, (head.flags & FLAG_JULIA) 
 
 // the distance estimate at a world point
 fn de(x: vec3f) -> f32 { let q = embed(x); return deOf(iterate(q, cFor(q))); }
+
+// ---------- drivers: op parameters driven by the orbit, the world, the clock (core/drive.js) ---------
+// The program sits after the shading one (gpu/pack.js packDrive). One f32 register per node: the
+// hoisted nodes (the start, fields, time, param) are computed once per orbit, at its first iteration;
+// the orbit readings and what reads them at the start of every iteration, before its ops (core/drive.js
+// says why). A driven op's record reads as its packed value plus (v − own) · d record / dθ — exact, the
+// record being linear in every parameter but rotation angles and plane normals: those ops (up to four)
+// are rebuilt once per register update into drvNL, so rec() stays small wherever it is inlined (one
+// call site per heavy function: Metal's compile time grows with every inlined copy).
+const DR_BASE = 545u;   // (MAX_OPS · REC + the shading program) / 4
+const DR_NODES = 547u;
+const DR_BINDS = 643u;  // DR_NODES + 32 · 3; ten vec4 per binding
+var<private> drvAny: bool = false;
+var<private> drvFirst: bool = false;
+var<private> drvMask: vec4u;
+var<private> drvStart: vec4f;
+var<private> drvReg: array<f32, 32>;
+var<private> drvV: array<f32, 16>;
+var<private> drvNL: array<vec4f, 20>;
+// one node parameter nudged (the dual numbers' central difference for a sensed driver parameter)
+var<private> drvNudgeNode: u32 = 0xffffffffu;
+var<private> drvNudgeSlot: u32 = 0u;
+var<private> drvNudge: f32 = 0.0;
+
+fn drvIs(oi: u32) -> bool { return ((drvMask[min(oi >> 4u, 3u)] >> (oi & 15u)) & 1u) != 0u; }
+fn driveStart(p0: vec4f) {
+  drvAny = (head.flags & FLAG_DRIVE) != 0u;
+  if (!drvAny) { return; }
+  drvFirst = true;
+  drvStart = p0;
+  drvMask = vec4u(ops[DR_BASE + 1u]);
+}
+// the raymarch's step factor: 1 / L, set per frame from the sensed steepness of the drivers
+fn drvStep() -> f32 { if (DRIVE_ON && (head.flags & FLAG_DRIVE) != 0u) { return head.sliceW.z; } return 1.0; }
+
+fn drvP(i: u32, k: u32) -> f32 {
+  var v = ops[DR_NODES + i * 3u + 1u + k / 4u][k % 4u];
+  if (i == drvNudgeNode && k == drvNudgeSlot) { v = v + drvNudge; }
+  return v;
+}
+struct DrvRead { i: f32, r: f32, trap: f32, lyap: f32, p: vec4f };
+struct DV { v: f32, g: vec4f };
+
+// a world field as a number at x, and its gradient there
+fn drvField(i: u32, ty: u32, x: vec4f) -> DV {
+  var o: DV;
+  o.v = 0.0; o.g = vec4f(0.0);
+  switch ty {
+    case 13u: {
+      let n = vec4f(drvP(i, 0u), drvP(i, 1u), drvP(i, 2u), drvP(i, 3u));
+      var l = length(n);
+      if (l == 0.0) { l = 1.0; }
+      let g = drvP(i, 4u);
+      o.v = g * dot(n, x) / l; o.g = g * n / l;
+    }
+    case 14u: {
+      let d = x - vec4f(drvP(i, 0u), drvP(i, 1u), drvP(i, 2u), drvP(i, 3u));
+      let L = length(d);
+      let g = drvP(i, 5u);
+      o.v = g * (L - drvP(i, 4u));
+      if (L > 0.0) { o.g = g * d / L; }
+    }
+    case 15u: {
+      let f = fbm(x, drvP(i, 0u), u32(round(drvP(i, 2u))), u32(round(drvP(i, 3u))));
+      o.v = drvP(i, 1u) * f.n; o.g = drvP(i, 1u) * f.g;
+    }
+    case 16u: {
+      let k = clamp(u32(round(drvP(i, 0u))), 2u, 16u);
+      let size = drvP(i, 1u);
+      let seed = u32(round(drvP(i, 3u)));
+      if (drvP(i, 4u) > 0.5) {
+        // the wall: the gap between the two nearest sites' distances
+        var s0 = 1e30; var s1 = 1e30;
+        var y0 = vec4f(0.0); var y1 = vec4f(0.0);
+        for (var j = 0u; j < k; j++) {
+          let y = site(seed, j, size);
+          let dd = length(x - y);
+          if (dd < s0) { s1 = s0; y1 = y0; s0 = dd; y0 = y; } else if (dd < s1) { s1 = dd; y1 = y; }
+        }
+        o.v = (s1 - s0) / size;
+        o.g = ((x - y1) / max(s1, 1e-12) - (x - y0) / max(s0, 1e-12)) / size;
+      } else {
+        // the cell: the softmax-weighted cell index ÷ (k − 1)
+        let tau = max(drvP(i, 2u) * size, 1e-9);
+        var ys: array<vec4f, 16>;
+        var emax = -1e30;
+        for (var j = 0u; j < k; j++) { ys[j] = site(seed, j, size); let d = x - ys[j]; emax = max(emax, -dot(d, d) / tau); }
+        var Z = 0.0; var V = 0.0;
+        var G = vec4f(0.0); var GV = vec4f(0.0);
+        for (var j = 0u; j < k; j++) {
+          let d = x - ys[j];
+          let pi = exp(-dot(d, d) / tau - emax);
+          let cj = f32(j) / f32(k - 1u);
+          let ge = -2.0 * d / tau;
+          Z = Z + pi; V = V + pi * cj; G = G + pi * ge; GV = GV + pi * cj * ge;
+        }
+        o.v = V / Z;
+        o.g = GV / Z - o.v * G / Z;
+      }
+    }
+    default: {}
+  }
+  return o;
+}
+
+// a node's value (and, for a field, its gradient at the start)
+fn drvNode(i: u32, a: vec4f, rd: DrvRead) -> DV {
+  let ty = u32(a.x);
+  if (ty >= 13u && ty <= 16u) { return drvField(i, ty, drvStart); }
+  var o: DV;
+  o.v = drvScalar(i, a, rd); o.g = vec4f(0.0);
+  return o;
+}
+fn drvScalar(i: u32, a: vec4f, rd: DrvRead) -> f32 {
+  let ty = u32(a.x);
+  switch ty {
+    case 1u: { return rd.i; }
+    case 2u: { return rd.r; }
+    case 3u: { return rd.trap; }
+    case 4u: { return rd.lyap; }
+    case 5u, 6u, 7u, 8u: { return rd.p[ty - 5u]; }
+    case 9u, 10u, 11u, 12u: { return drvStart[ty - 9u]; }
+    case 17u: {
+      let u = head.sliceW.y * drvP(i, 0u) + drvP(i, 1u);
+      let fr = u - floor(u);
+      let w = u32(drvP(i, 2u));
+      if (w == 0u) { return fr; }
+      if (w == 2u) { return 1.0 - abs(2.0 * fr - 1.0); }
+      return 0.5 + 0.5 * sin(6.2831853 * u);
+    }
+    case 18u: { return drvP(i, 0u); }
+    case 19u: {
+      var x = 0.0;
+      if (a.y >= 0.0) { x = drvReg[u32(a.y)]; }
+      var y = drvP(i, 1u);
+      if (a.z >= 0.0) { y = drvReg[u32(a.z)]; }
+      return shMath(u32(drvP(i, 0u)), x, y);
+    }
+    case 20u: {
+      var x = 0.0;
+      if (a.y >= 0.0) { x = drvReg[u32(a.y)]; }
+      var d = drvP(i, 1u) - drvP(i, 0u);
+      if (d == 0.0) { d = 1e-12; }
+      let v = (x - drvP(i, 0u)) / d;
+      if (drvP(i, 2u) > 0.5) { return clamp(v, 0.0, 1.0); }
+      return v;
+    }
+    default: { return 0.0; }
+  }
+}
+
+fn drvReadings(p: vec4f, dr: f32, i: u32, n: f32) -> DrvRead {
+  var rd: DrvRead;
+  rd.i = f32(i) / n; rd.r = length(p); rd.trap = fTrap; rd.lyap = log(max(dr, 1e-30)) / (f32(i) + 1.0); rd.p = p;
+  return rd;
+}
+
+// at the start of iteration i (of n): the registers, then every binding's value, clamped to its range
+fn driveIter(p: vec4f, dr: f32, i: u32, n: f32) {
+  let h = ops[DR_BASE];
+  if (!drvFirst && h.z < 0.5) { return; }
+  let rd = drvReadings(p, dr, i, n);
+  let nn = min(u32(h.x), 32u);
+  for (var k = 0u; k < nn; k++) {
+    let a = ops[DR_NODES + k * 3u];
+    if (drvFirst || a.w > 0.5) { drvReg[k] = drvNode(k, a, rd).v; }
+  }
+  drvFirst = false;
+  let nb = min(u32(h.y), 16u);
+  for (var b = 0u; b < nb; b++) {
+    let B = ops[DR_BINDS + b * 10u];
+    let C = ops[DR_BINDS + b * 10u + 1u];
+    drvV[b] = clamp(B.z + drvReg[u32(B.y)] * (B.w - B.z), C.y, C.z);
+  }
+  drvRebuild();
+}
+
+// A driven rotation's or plane fold's whole record, rebuilt from its raw parameters with the driven
+// values in (binding nudgeB nudged by h: the dual numbers' central difference). Rotations as plane
+// rotations applied in order (core/vec.js): rotate is x (yz), then y (zx), then z (xy); rotate4 its six
+// planes xy, xz, xw, yz, yw, zw.
+fn drvBuild(oi: u32, nudgeB: u32, h: f32) -> array<vec4f, 5> {
+  // no dynamically indexed local arrays here: Metal miscompiled an earlier form (rows read back as
+  // another mode's) once this function was inlined beside the chimera code
+  let nb = min(u32(ops[DR_BASE].y), 16u);
+  var a = vec4f(0.0);
+  var b4 = vec4f(0.0);
+  var mode = 0u;
+  var have = false;
+  for (var b = 0u; b < nb; b++) {
+    let at = DR_BINDS + b * 10u;
+    if (u32(ops[at].x) != oi) { continue; }
+    if (!have) { a = ops[at + 8u]; b4 = ops[at + 9u]; mode = u32(ops[at + 1u].w); have = true; }
+    let s = u32(ops[at + 2u].x);
+    let v = drvV[b] + select(0.0, h, b == nudgeB);
+    a = select(a, vec4f(v), vec4<bool>(s == 0u, s == 1u, s == 2u, s == 3u));
+    b4 = select(b4, vec4f(v), vec4<bool>(s == 4u, s == 5u, s == 6u, s == 7u));
+  }
+  let code = ops[oi * REC4].x;
+  if (mode == 3u) {
+    var n = a;
+    let l = length(n);
+    if (l > 0.0) { n = n / l; }
+    return array<vec4f, 5>(vec4f(code, n.xyz), vec4f(n.w, b4.x, 0.0, 0.0), vec4f(0.0), vec4f(0.0), vec4f(0.0));
+  }
+  var r0 = vec4f(1.0, 0.0, 0.0, 0.0);
+  var r1 = vec4f(0.0, 1.0, 0.0, 0.0);
+  var r2 = vec4f(0.0, 0.0, 1.0, 0.0);
+  var r3 = vec4f(0.0, 0.0, 0.0, 1.0);
+  var g: mat2x4f;
+  if (mode == 1u) {
+    g = drvGivens(r1, r2, a.x); r1 = g[0]; r2 = g[1];
+    g = drvGivens(r0, r2, -a.y); r0 = g[0]; r2 = g[1];
+    g = drvGivens(r0, r1, a.z); r0 = g[0]; r1 = g[1];
+  } else {
+    g = drvGivens(r0, r1, a.x); r0 = g[0]; r1 = g[1];
+    g = drvGivens(r0, r2, a.y); r0 = g[0]; r2 = g[1];
+    g = drvGivens(r0, r3, a.z); r0 = g[0]; r3 = g[1];
+    g = drvGivens(r1, r2, a.w); r1 = g[0]; r2 = g[1];
+    g = drvGivens(r1, r3, b4.x); r1 = g[0]; r3 = g[1];
+    g = drvGivens(r2, r3, b4.y); r2 = g[0]; r3 = g[1];
+  }
+  return array<vec4f, 5>(vec4f(code, r0.xyz), vec4f(r0.w, r1.xyz), vec4f(r1.w, r2.xyz), vec4f(r2.w, r3.xyz), vec4f(r3.w, 0.0, 0.0, 0.0));
+}
+// rows i and j of a matrix after the plane rotation by t degrees in their plane, applied from the left
+fn drvGivens(ri: vec4f, rj: vec4f, t: f32) -> mat2x4f {
+  let r = t * PI / 180.0;
+  let c = cos(r);
+  let s = sin(r);
+  return mat2x4f(c * ri - s * rj, s * ri + c * rj);
+}
+
+// after the values change: every rebuilt op's record into drvNL (its slot: [raw slot, nl slot, …])
+fn drvRebuild() {
+  let nb = min(u32(ops[DR_BASE].y), 16u);
+  var done = 0u;
+  for (var b = 0u; b < nb; b++) {
+    let at = DR_BINDS + b * 10u;
+    if (ops[at + 1u].w < 0.5) { continue; }
+    let nl = u32(ops[at + 2u].y);
+    if (((done >> nl) & 1u) != 0u) { continue; }
+    done = done | (1u << nl);
+    let r = drvBuild(u32(ops[at].x), 0xffffffffu, 0.0);
+    for (var k = 0u; k < 5u; k++) { drvNL[nl * 5u + k] = r[k]; }
+  }
+}
+
+fn drvRec(oi: u32, k: u32, r: vec4f) -> vec4f {
+  let nb = min(u32(ops[DR_BASE].y), 16u);
+  var o = r;
+  var nl = -1;
+  for (var b = 0u; b < nb; b++) {
+    let at = DR_BINDS + b * 10u;
+    if (u32(ops[at].x) != oi) { continue; }
+    let C = ops[at + 1u];
+    if (C.w > 0.5) { nl = i32(ops[at + 2u].y); } else { o = o + (drvV[b] - C.x) * ops[at + 3u + k]; }
+  }
+  if (nl >= 0) { o = drvNL[min(u32(nl), 3u) * 5u + k]; }
+  return o;
+}
 
 // ---------- shading: the formula's colour graph (core/shade.js, operation for operation) ------------
 // The program sits after the op records (gpu/pack.js SHADE_AT): a header [n, colour node, glow node,
@@ -1020,6 +1290,156 @@ fn opInv(oi: u32, q: vec4f, c: vec4f) -> Step {
 export const DUAL = /* wgsl */ `
 struct Tan { v: vec4f, dk: f32 };
 
+// ---------- drivers in the dual numbers ------------------------------------------------------------
+// Every register carries its derivative along the dual columns 0–2 (the world's axes) and 3 (the
+// selected parameter) — forward mode through the readings' own tangents, the fields' gradients and
+// the maths. A driven op's record then moves along column j by Σ dθ_b/dj · d record/dθ_b (drvE, which
+// the callers load before opTan). Column 4 (λ) holds the drivers still, as core/cpu.js's Jacobian does.
+var<private> tanCol: u32 = 99u;
+var<private> drvFreeze: bool = false;  // the frozen row: every driver held (the step factor compares)
+var<private> drvSelKind: u32 = 0u;     // the sensed driver parameter: 1 a band's lo, 2 its hi, 3 a node's
+var<private> drvSelIdx: u32 = 0u;
+var<private> drvSelSlot: u32 = 0u;
+var<private> drvRegD: array<vec4f, 32>;
+var<private> drvVD: array<vec4f, 16>;
+var<private> drvE: array<vec4f, 5>;
+var<private> drvEOn: bool = false;
+// a rebuilt op's record derivative in each of its bound parameters (up to eight such bindings)
+var<private> drvNLD: array<vec4f, 40>;
+
+// a row of the parameter-tangent table: [op, kind, index, slot] (gpu/pack.js paramTangents)
+fn tanSelect(h: vec4f) {
+  let kind = u32(h.y);
+  tanOi = select(u32(h.x), 0xffffffffu, kind != 0u);
+  drvSelKind = kind;
+  drvSelIdx = u32(h.z);
+  drvSelSlot = u32(h.w);
+  drvFreeze = kind == 4u;
+}
+
+fn drvMathD(op: u32, a: f32, b: f32) -> vec2f {
+  switch op {
+    case 0u: { return vec2f(1.0, 1.0); }
+    case 1u: { return vec2f(1.0, -1.0); }
+    case 2u: { return vec2f(b, a); }
+    case 3u: { return select(vec2f(0.0, 1.0), vec2f(1.0, 0.0), a <= b); }
+    case 4u: { return select(vec2f(0.0, 1.0), vec2f(1.0, 0.0), a >= b); }
+    case 5u: { if (a > 0.0) { let v = pow(a, b); return vec2f(b * v / a, v * log(a)); } return vec2f(0.0); }
+    case 6u: { let c = PI * cos(6.2831853 * a * b); return vec2f(c * b, c * a); }
+    default: { return vec2f(0.0); }
+  }
+}
+
+// driveIter with derivatives. G: the point's columns (g0, g1, g2, q); gdr, dtrap: dr's and the trap
+// reading's; S: the start's columns (what the hoisted nodes see move)
+fn driveIterDual(p: vec4f, dr: f32, i: u32, n: f32, G: mat4x4f, gdr: vec4f, dtrap: vec4f, S: mat4x4f) {
+  let h = ops[DR_BASE];
+  if (!drvFirst && h.z < 0.5) { return; }
+  let rd = drvReadings(p, dr, i, n);
+  let nn = min(u32(h.x), 32u);
+  for (var k = 0u; k < nn; k++) {
+    let a = ops[DR_NODES + k * 3u];
+    if (!(drvFirst || a.w > 0.5)) { continue; }
+    let ty = u32(a.x);
+    // the value, and for the sensed node parameter two nudged values (one call site: Metal inlines)
+    let sel = drvSelKind == 3u && drvSelIdx == k;
+    let hh = 1e-3 * max(1.0, abs(drvP(k, drvSelSlot)));
+    var vals = vec3f(0.0);
+    var g = vec4f(0.0);
+    for (var e = 0u; e < select(1u, 3u, sel); e++) {
+      drvNudgeNode = select(0xffffffffu, k, e > 0u);
+      drvNudgeSlot = drvSelSlot;
+      drvNudge = select(-hh, hh, e == 1u);
+      let r = drvNode(k, a, rd);
+      vals[e] = r.v;
+      if (e == 0u) { g = r.g; }
+    }
+    drvNudgeNode = 0xffffffffu; drvNudge = 0.0;
+    var D = vec4f(0.0);
+    switch ty {
+      case 2u: { if (rd.r > 0.0) { D = vec4f(dot(p, G[0]), dot(p, G[1]), dot(p, G[2]), dot(p, G[3])) / rd.r; } }
+      case 3u: { D = dtrap; }
+      case 4u: { if (dr > 1e-30) { D = gdr / (dr * (f32(i) + 1.0)); } }
+      case 5u, 6u, 7u, 8u: { let c = ty - 5u; D = vec4f(G[0][c], G[1][c], G[2][c], G[3][c]); }
+      case 9u, 10u, 11u, 12u: { let c = ty - 9u; D = vec4f(S[0][c], S[1][c], S[2][c], 0.0); }
+      case 13u, 14u, 15u, 16u: { D = vec4f(dot(g, S[0]), dot(g, S[1]), dot(g, S[2]), 0.0); }
+      // another op's own value: it moves only when that parameter is the one sensed
+      case 18u: { if (drvSelKind == 0u && drvP(k, 1u) >= 0.0 && tanOi == u32(drvP(k, 1u)) && drvSelSlot == u32(drvP(k, 2u))) { D.w = 1.0; } }
+      case 19u: {
+        var x = 0.0; var dx = vec4f(0.0);
+        if (a.y >= 0.0) { x = drvReg[u32(a.y)]; dx = drvRegD[u32(a.y)]; }
+        var y = drvP(k, 1u); var dy = vec4f(0.0);
+        if (a.z >= 0.0) { y = drvReg[u32(a.z)]; dy = drvRegD[u32(a.z)]; }
+        let pd = drvMathD(u32(drvP(k, 0u)), x, y);
+        D = pd.x * dx + pd.y * dy;
+      }
+      case 20u: {
+        var x = 0.0;
+        if (a.y >= 0.0) { x = drvReg[u32(a.y)]; D = drvRegD[u32(a.y)]; }
+        var d = drvP(k, 1u) - drvP(k, 0u);
+        if (d == 0.0) { d = 1e-12; }
+        let u = (x - drvP(k, 0u)) / d;
+        D = D / d;
+        if (drvP(k, 2u) > 0.5 && (u < 0.0 || u > 1.0)) { D = vec4f(0.0); }
+      }
+      default: {}
+    }
+    if (sel) { D.w = D.w + (vals.y - vals.z) / (2.0 * hh); }
+    drvReg[k] = vals.x;
+    drvRegD[k] = D;
+  }
+  drvFirst = false;
+  let nb = min(u32(h.y), 16u);
+  for (var b = 0u; b < nb; b++) {
+    let B = ops[DR_BINDS + b * 10u];
+    let C = ops[DR_BINDS + b * 10u + 1u];
+    let x = drvReg[u32(B.y)];
+    let raw = B.z + x * (B.w - B.z);
+    drvV[b] = clamp(raw, C.y, C.z);
+    var D = (B.w - B.z) * drvRegD[u32(B.y)];
+    if (drvSelKind == 1u && drvSelIdx == b) { D.w = D.w + 1.0 - x; }
+    if (drvSelKind == 2u && drvSelIdx == b) { D.w = D.w + x; }
+    if (raw < C.y || raw > C.z || drvFreeze) { D = vec4f(0.0); }
+    drvVD[b] = D;
+  }
+  drvRebuild();
+  // the rebuilt ops' record derivatives, by central differences through drvBuild: angles (degrees) a
+  // twentieth of a degree, normals a thousandth — float32 rounding stays small
+  for (var b = 0u; b < nb; b++) {
+    let at = DR_BINDS + b * 10u;
+    let C = ops[at + 1u];
+    if (C.w < 0.5 || drvFreeze) { continue; }
+    let j = min(u32(ops[at + 2u].z), 7u);
+    let hb = select(1e-3 * max(1.0, abs(drvV[b])), 0.05, C.w < 2.5);
+    for (var e = 0u; e < 2u; e++) {
+      let r = drvBuild(u32(ops[at].x), b, select(-hb, hb, e == 0u));
+      for (var k = 0u; k < 5u; k++) {
+        if (e == 0u) { drvNLD[j * 5u + k] = r[k]; } else { drvNLD[j * 5u + k] = (drvNLD[j * 5u + k] - r[k]) / (2.0 * hb); }
+      }
+    }
+  }
+}
+
+// row k of op oi's record moved along dual column col by its drivers
+fn drvRecD(oi: u32, k: u32, col: u32) -> vec4f {
+  let nb = min(u32(ops[DR_BASE].y), 16u);
+  var o = vec4f(0.0);
+  for (var b = 0u; b < nb; b++) {
+    let at = DR_BINDS + b * 10u;
+    if (u32(ops[at].x) != oi) { continue; }
+    let d = drvVD[b][col];
+    if (ops[at + 1u].w > 0.5) { o = o + d * drvNLD[min(u32(ops[at + 2u].z), 7u) * 5u + k]; }
+    else { o = o + d * ops[at + 3u + k]; }
+  }
+  return o;
+}
+// whether op oi moves with its drivers along column col (and drvE loaded with how, when it does)
+fn drvLoad(oi: u32, col: u32) -> bool {
+  if (!(drvAny && !drvFreeze && col < 4u && drvIs(oi))) { return false; }
+  for (var k = 0u; k < 5u; k++) { drvE[k] = drvRecD(oi, k, col); }
+  return true;
+}
+
 fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan {
   let a = rec(oi, 0u);
   let b = rec(oi, 1u);
@@ -1029,6 +1449,10 @@ fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan
   if (withRec && oi == tanOi) {
     da = tanRec[0]; db = tanRec[1];
     drows = mat4x4f(vec4f(tanRec[0].yzw, tanRec[1].x), vec4f(tanRec[1].yzw, tanRec[2].x), vec4f(tanRec[2].yzw, tanRec[3].x), vec4f(tanRec[3].yzw, tanRec[4].x));
+  }
+  if (DRIVE_ON && drvEOn) {
+    da = da + drvE[0]; db = db + drvE[1];
+    drows = drows + mat4x4f(vec4f(drvE[0].yzw, drvE[1].x), vec4f(drvE[1].yzw, drvE[2].x), vec4f(drvE[2].yzw, drvE[3].x), vec4f(drvE[3].yzw, drvE[4].x));
   }
   var o: Tan;
   o.v = v; o.dk = 0.0;
@@ -1240,7 +1664,9 @@ fn kidTan(slot: u32, p0: vec4f, c: vec4f, dr0: f32, v0: vec4f, ddr0: f32, dc: ve
   let start = slotStart(slot);
   for (var j = 0u; j < slotLen(slot); j++) {
     let s = opFwd(start + j, o.p, c);
+    drvEOn = DRIVE_ON && drvLoad(start + j, tanCol);
     let t = opTan(start + j, o.p, c, o.v, dc, withRec);
+    drvEOn = false;
     if (s.k >= 0.0) { o.ddr = s.k * o.ddr + t.dk * o.dr; o.dr = o.dr * s.k; } else { o.dr = o.dr + 1.0; }
     o.v = t.v;
     o.p = s.p;
@@ -1281,23 +1707,53 @@ fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, n: u32, vs0: array<vec4f, 5>, dd
   let world = a.z > 0.5;
   let m = fieldAt(oi, p, dr, world);
   let own = recCol < n && oi == tanOi;
-  // the field's own parameter: its weights nudged ±
+  // Nudged weights, at one call site of the field (every inlined copy costs Metal compile time): the
+  // field's own parameter ± (jobs 0, 1), then, for a driven field, its record's motion in each column ±
   var pw: array<array<f32, 8>, 2>;
   var eps = 1.0;
-  if (own) {
-    eps = recStep(oi);
-    for (var e = 0u; e < 2u; e++) {
-      tanEps = select(-eps, eps, e == 0u);
-      let me = fieldAt(oi, p, dr, world);
-      for (var i = 0u; i < k; i++) { pw[e][i] = me.w[i]; }
+  if (own) { eps = recStep(oi); }
+  var dOn: array<bool, 5>;
+  var dRec: array<array<vec4f, 5>, 5>;
+  var dEps: array<f32, 5>;
+  var dwd: array<array<f32, 8>, 5>;
+  var jobs = 2u;
+  if (DRIVE_ON && drvAny) {
+    for (var j = 0u; j < n; j++) {
+      if (!drvLoad(oi, select(j, 99u, recCol == 99u))) { continue; }
+      var big = 0.0;
+      for (var q = 0u; q < 5u; q++) { big = max(big, max(max(abs(drvE[q].x), abs(drvE[q].y)), max(abs(drvE[q].z), abs(drvE[q].w)))); }
+      if (big > 0.0) { dOn[j] = true; dRec[j] = drvE; jobs = 2u + 2u * n; }
     }
-    tanEps = 0.0;
+  }
+  let sOi = tanOi;
+  let sRec = tanRec;
+  for (var e = 0u; e < jobs; e++) {
+    let jd = (max(e, 2u) - 2u) / 2u;
+    if (e < 2u) {
+      if (!own) { continue; }
+      tanEps = select(-eps, eps, e == 0u);
+    } else {
+      if (!dOn[jd]) { continue; }
+      tanOi = oi;
+      tanRec = dRec[jd];
+      if (e % 2u == 0u) { dEps[jd] = recStep(oi); }
+      tanEps = select(-dEps[jd], dEps[jd], e % 2u == 0u);
+    }
+    let me = fieldAt(oi, p, dr, world);
+    for (var i = 0u; i < k; i++) {
+      if (e < 2u) { pw[e][i] = me.w[i]; }
+      else if (e % 2u == 0u) { dwd[jd][i] = me.w[i]; }
+      else { dwd[jd][i] = (dwd[jd][i] - me.w[i]) / (2.0 * dEps[jd]); }
+    }
+    tanOi = sOi; tanRec = sRec; tanEps = 0.0;
   }
   var o: MixCols;
   var A: array<KidT, 8>;
   for (var j = 0u; j < n; j++) {
     let v = vs[j];
     let withRec = j == recCol;
+    // the dual column under way (Newton's identity columns, recCol 99, hold the drivers)
+    tanCol = select(99u, j, recCol != 99u);
     for (var i = 0u; i < k; i++) { A[i] = kidTan(u32(a.w) + i, p, c, dr, v, ddrs[j], dcs[j], withRec); }
     let vx = select(v, v0s[j], world);
     var dread = 0.0;
@@ -1306,7 +1762,7 @@ fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, n: u32, vs0: array<vec4f, 5>, dd
     var V = vec4f(0.0);
     var D = 0.0;
     for (var i = 0u; i < k; i++) {
-      var dw = dot(m.G[i], vx) + m.S[i] * dread;
+      var dw = dot(m.G[i], vx) + m.S[i] * dread + dwd[j][i];
       if (withRec && own) { dw = dw + (pw[0][i] - pw[1][i]) / (2.0 * eps); }
       V = V + m.w[i] * A[i].v + dw * A[i].p;
       D = D + m.w[i] * A[i].ddr + dw * A[i].dr;
@@ -1314,6 +1770,7 @@ fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, n: u32, vs0: array<vec4f, 5>, dd
     o.v[j] = V;
     o.ddr[j] = D;
   }
+  tanCol = 99u;
   return o;
 }
 
@@ -1355,6 +1812,10 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
     let slot = schedAt(i);
     let start = slotStart(slot);
     fIter = f32(i);
+    if (DRIVE_ON && drvAny) {
+      driveIterDual(d.t.p, d.t.dr, i, f32(head.iters), mat4x4f(g0, g1, g2, q), vec4f(gdr, qdr), vec4f(dft, dftq),
+                    mat4x4f(s0, s1, s2, vec4f(0.0)));
+    }
     for (var j = 0u; j < slotLen(slot); j++) {
       let oi = start + j;
       let p = d.t.p;
@@ -1375,10 +1836,19 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
         continue;
       }
       let s = opFwd(oi, p, c);
+      // a driven op: its record's motion along each column, loaded at one call site
+      var E: array<vec4f, 20>;
+      var eOn = vec4<bool>(false);
+      if (DRIVE_ON && drvAny) { for (var m = 0u; m < 4u; m++) { eOn[m] = drvLoad(oi, m); for (var r = 0u; r < 5u; r++) { E[m * 5u + r] = drvE[r]; } } }
+      drvEOn = eOn.x; if (eOn.x) { drvE = array<vec4f, 5>(E[0], E[1], E[2], E[3], E[4]); }
       let t0 = opTan(oi, p, c, g0, dc0, false);
+      drvEOn = eOn.y; if (eOn.y) { drvE = array<vec4f, 5>(E[5], E[6], E[7], E[8], E[9]); }
       let t1 = opTan(oi, p, c, g1, dc1, false);
+      drvEOn = eOn.z; if (eOn.z) { drvE = array<vec4f, 5>(E[10], E[11], E[12], E[13], E[14]); }
       let t2 = opTan(oi, p, c, g2, dc2, false);
+      drvEOn = eOn.w; if (eOn.w) { drvE = array<vec4f, 5>(E[15], E[16], E[17], E[18], E[19]); }
       let tq = opTan(oi, p, c, q, vec4f(0.0), true);
+      drvEOn = false;
       let tl = opTan(oi, p, c, lv, vec4f(0.0), false);
       let dr = d.t.dr;
       if (s.k >= 0.0) {

@@ -831,3 +831,56 @@ gradients, readings through the iterate's columns); push; JIT; the step factor; 
 `evalDrive`/`iterate` with driven cases. Sensing (gpu/pack.js paramTangents, gpu/sense.js) enumerates
 op parameters only — the lens, grab and breeding metric need the drivers' parameters (driveParams) as
 sensed entries, and a sensed op parameter that is bound should be skipped (its own value does nothing).
+
+**V2 built 2026-10-27 — the drivers on the GPU.**
+- *Pack (gpu/pack.js):* the drive program after the shading program (DRIVE_AT; header, a 64-bit mask of
+  driven ops, three vec4 per node, ten per binding: op, node, band, own value, range, mode, the record's
+  derivative in the parameter). FLAG_DRIVE; head words 105/106 carry the clock and the step factor 1 / L
+  (render's setClock / setStep, kept across formulas). Rotations, 4-D rotations and plane folds (the
+  records that are not linear in their parameters) carry their raw parameters and are rebuilt on the GPU;
+  four such ops, eight such bindings (validateDrive refuses more). paramTangents leaves bound parameters
+  out and adds the drivers' (band ends, node parameters) plus, for sensing, a frozen row.
+- *WGSL (gpu/wgsl.js):* one f32 register per node; hoisted nodes once per orbit (startOrbit → driveStart,
+  then the first driveIter), orbit readings at the start of every iteration; rec() adds (v − own)·drec for
+  a driven op, or reads its rebuilt record (drvNL, refreshed once per register update). Duals: every
+  register carries its derivative along columns 0–3 (world axes, the sensed parameter) in forward mode —
+  readings through the iterate's own tangents, fields by their gradients, maths by their partials, a
+  sensed node parameter by a central difference — and a driven op's record moves with them (drvE into
+  opTan; a driven chimera field's weights nudged along it). λ holds the drivers, as the CPU does. Push
+  reads the drivers at the walk point (the V1 rule); the loop at the window's point.
+- *Variants, not branches:* every hook is gated by `const DRIVE_ON = false`; `withDrive(source)` flips it.
+  Undriven formulas compile and run exactly as before; a driven one gets the drivers' variant of each
+  pipeline (march, lens, grid, sense, walk, loop; the JIT builds from it), compiled in the background the
+  first time (gpu/render.js `variant`) — meanwhile it draws with its own values (3–7 s, once a session).
+- *JIT:* driven ops read rec() (live) in both kinds, hoisted values are computed once; structureKey knows
+  whether anything is driven.
+- *Time:* the app's clock goes to the head every frame while a formula reads it (core/drive.js
+  timeDriven); such a formula is never still (a soft trail, like the drift); the video walk sets i / 30.
+- *The step factor:* measured, not bounded — at every sensed hit L = |∇DE| / |∇DE with the drivers held|
+  (the frozen row), the march divides its steps by the 90th percentile, capped at 16. One L per frame
+  (the per-tile form was not needed for the first cut). Validated against a brute-force CPU march
+  (test/drive-gpu.test.mjs): a noise-driven Mandelbox scale (±0.2) — the plain march oversteps 4+ of 48
+  rays, with 1 / L none; L ≈ 2.3 there. In the app a ±0.4 noise scale measured L = 5.1.
+- *App:* sense hands back `driveParams` and `step`; R.setStep(step) after every sense; breeding's metric
+  includes the drivers' parameters.
+- Parity (test/parity.html, all PASS; the seven cases in test/driven-cases.js cover every node kind and
+  rebuild mode, a chimera's species and field weight, a linked parameter): forward medians 6e-8–1.3e-4,
+  p99 ≤ 0.9 % but 4 % for the noise-and-|p| Mandelbox (scale¹² amplifies float32's noise, a few 1e-6 off —
+  driven rows pass at median < 3e-4, p99 < 5 %); inverse 0 wrong in all five; dual gradient median ≤ 0.008°,
+  ∂DE/∂θ (driver parameters included) median ≤ 3.4e-4, λ ≤ 4e-6; JIT literal/structure = interpreter.
+- Speed (ms per 2¹⁸ × 9 estimates, interpreter / structure / literal): undriven unchanged against the
+  pre-V2 build run back to back (Mandelbox 6.5/1.2/0.9 then and now within noise). Driven: bulb by i
+  4.5/1.6/1.8 → 10.3/4.4/4.3; Mandelbox by noise and |p| → 24.7/10.9/10.7; rotation by sphere, trap, λ
+  6.5/1.3/0.9 → 39/20/21; KIFS planes by px and two tissues 6.8/1.3/0.9 → 48/29/30; chimera 38/19/18 →
+  87/44/40. Compile (uncached): undriven as before (march 2.8 → 3.2 s), driven march 7.1 s.
+- Traps: (1) the first form inlined the drive code into every rec() and every field call — Metal took
+  minutes; keep each heavy function at one call site (mixTan's nudged weights share one fieldAt) and the
+  hooks behind DRIVE_ON. (2) Metal miscompiled drvBuild's dynamically indexed local arrays once fwdAt was
+  in the same shader (a rotate4 read back as a 3-D rotation): the rebuild uses vectors, selects and
+  Givens rows. (3) Chrome caches compiled shaders by the generated code — a comment does not bust it;
+  test/compile-time.html injects a nonce branch.
+
+V3 needs: the UI (lane, bands, binding by drag, the strip notch); the lens, grab and drift on driver
+parameters (sense returns them; overrides would need the drive program to take ov offsets); a per-tile L
+if one L per frame proves too slow on mixed scenes; clock controls (pause, scrub) and the clock in
+thumbnails (0 today); a hairline cue while the drivers' variant compiles.

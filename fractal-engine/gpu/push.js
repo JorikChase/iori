@@ -9,7 +9,8 @@
 // For a formula with +c and no fixed c, push needs one constant: the app passes the point the camera
 // looks at, so push shows the Julia set of where you are.
 
-import { INTERP, INVERSE, DUAL } from './wgsl.js';
+import { INTERP, INVERSE, DUAL, withDrive } from './wgsl.js';
+import { drives } from './pack.js';
 
 const WALKER_BYTES = 64;
 const HISTORY = 16;       // as core/cpu.js: the walk backs up out of dead ends through this history
@@ -196,6 +197,9 @@ fn walk(@builtin(global_invocation_id) gid: vec3u) {
     let slot = schedAt(iter);
     // a chimera's self-fields: the walk knows the iteration it inverts; the trap it reads is the point's own
     fIter = f32(iter); fIters = f32(head.iters); fTrap = dot(q, q);
+    // drivers (core/cpu.js push): the hoisted ones read at the walk point, the orbit readings at the
+    // walk's iteration and point; the replays below keep them
+    if (DRIVE_ON) { driveStart(q); if (drvAny) { driveIter(q, 1.0, iter, f32(head.iters)); } }
     // one random attempt; a dead end backs up instead of retrying (see core/cpu.js push)
     let seed = rngState;
     mixKeep = true;
@@ -345,6 +349,7 @@ export async function createPush(R, { walkers = 32768 } = {}) {
     if (errs.length) throw new Error('wgsl: ' + errs.map((x) => `${x.lineNum}:${x.linePos} ${x.message}`).join('\n'));
     return m;
   };
+  const driveWalk = () => ['walk', withDrive(WALK), [formulaLayout, viewLayout], 'walk'];
   const walkPipe = device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, viewLayout] }),
     compute: { module: await compile(WALK), entryPoint: 'walk' },
@@ -418,6 +423,7 @@ export async function createPush(R, { walkers = 32768 } = {}) {
     capCount = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(capCount, 0, new Uint32Array(4));
     makeWalkGroup();
+    if (R.packed && drives(R.packed.formula)) await R.variant.ready(...driveWalk());
     capturing = true;
     const rb = device.createBuffer({ size: 16, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     let got = 0;
@@ -474,7 +480,8 @@ export async function createPush(R, { walkers = 32768 } = {}) {
 
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline(walkPipe);
+    // a driven formula walks in the drivers' variant (gpu/render.js variant), once it is compiled
+    cp.setPipeline((R.packed && drives(R.packed.formula) && R.variant(...driveWalk())) || walkPipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, walkGroup);
     cp.dispatchWorkgroups(Math.ceil(walkers / 64));

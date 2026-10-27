@@ -40,6 +40,7 @@ export const TYPES = [...ORBIT, ...START, ...FIELDS, 'time', 'param', 'math', 'r
 export const MAX_NODES = 32, MAX_BINDS = 16;
 
 const PORTS = { math: ['a', 'b'], remap: ['a'] };
+const REBUILT = new Set(['rotate', 'rotate4', 'fold.plane']);
 const REQUIRED = { remap: ['a'] };
 
 // each type's parameters: numbers { d, min, max, discrete }, or a list of words (an enum), a boolean, a
@@ -144,14 +145,19 @@ export function validateDrive(d, f = null) {
     }
     seen.add(m.id);
   });
-  const targets = new Set();
+  const targets = new Set(), rebuilt = new Set();
+  let rebuiltBinds = 0;
   for (const b of bind) {
     if (!seen.has(b.from)) err(`${b.to}: ${b.from} is not a node`);
     if (!Number.isFinite(b.lo) || !Number.isFinite(b.hi)) err(`${b.to}: the band needs finite lo and hi`);
     if (targets.has(b.to)) err(`${b.to} is bound twice`);
     targets.add(b.to);
     if (paths && !targetParam(paths, b.to)) err(`${b.to} is not a parameter that can be driven`);
+    // the GPU rebuilds a driven rotation's or plane fold's record: four such ops, eight bindings
+    const o = paths && paths.get(splitTarget(b.to).path);
+    if (o && REBUILT.has(o.op)) { rebuilt.add(o); rebuiltBinds++; }
   }
+  if (rebuilt.size > 4 || rebuiltBinds > 8) err('at most four driven rotations or plane folds, eight of their parameters');
   return errors;
 }
 
@@ -321,3 +327,6 @@ export function setDriveParam(drive, ref, v) {
   const m = drive.nodes.find((x) => x.id === id), q = m && PARAMS[m.type][key];
   if (m && q && typeof q === 'object') m.p[key] = clampTo(v, q);
 }
+
+// a formula whose drivers read the clock animates on its own: it is never still
+export const timeDriven = (f) => !!(f && f.drive && (f.drive.bind || []).length && (f.drive.nodes || []).some((m) => m.type === 'time'));

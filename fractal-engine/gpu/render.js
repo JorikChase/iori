@@ -5,10 +5,10 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP, DUAL } from './wgsl.js';
+import { INTERP, DUAL, withDrive } from './wgsl.js';
 import { withJit, structureKey } from './jit.js';
 import { canonical } from '../core/formula.js';
-import { pack, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS } from './pack.js';
+import { pack, drives, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD } from './pack.js';
 
 const VIEW_FLOATS = 52;
 
@@ -52,7 +52,7 @@ fn softShadow(ro: vec3f, rd: vec3f, tmin: f32, tmax: f32) -> f32 {
   var t = tmin;
   let k = view.extra.z;
   for (var i = 0; i < 48; i++) {
-    let d = de(ro + rd * t) * view.tune.x;
+    let d = de(ro + rd * t) * view.tune.x * drvStep();
     res = min(res, k * d / t);
     t = t + clamp(d, tmin * 0.5, tmax * 0.1);
     if (res < 0.002 || t > tmax) { break; }
@@ -90,7 +90,7 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
     let p = ro + rd * t;
     let q4 = embed(p);
     tr = iterate(q4, cFor(q4));
-    let d = deOf(tr) * view.tune.x * unsafeScale;
+    let d = deOf(tr) * view.tune.x * unsafeScale * drvStep();
     let eps = max(t * pixelAngle * view.tune.z, 1e-6);
     // near-misses emit: the glow is the field's density seen edge-on
     let g = exp(-d / max(view.res.w * (t + 0.05), 1e-6));
@@ -346,6 +346,29 @@ export async function createRenderer(canvas) {
     entries: [{ binding: 0, resource: { buffer: headBuf } }, { binding: 1, resource: { buffer: opsBuf } }],
   });
 
+  // The drivers' variants (gpu/wgsl.js withDrive): every pipeline that runs the orbit has one, compiled
+  // in the background the first time a driven formula needs it (a few seconds; the undriven shaders
+  // stay the size they were). Until it is ready a driven formula draws with its own values.
+  // variant(key, code, layouts, entryPoint) → the pipeline, or null while it builds; .ready(key) awaits.
+  const variants = new Map();
+  function variantEntry(key, code, layouts, entryPoint) {
+    let v = variants.get(key);
+    if (!v) {
+      v = { pipe: null, building: null };
+      variants.set(key, v);
+      v.building = (async () => {
+        const module = device.createShaderModule({ code });
+        const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
+        if (errs.length) throw new Error(`wgsl ${key}: ` + errs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
+        v.pipe = await device.createComputePipelineAsync({ layout: device.createPipelineLayout({ bindGroupLayouts: layouts }), compute: { module, entryPoint } });
+      })().catch((e) => { console.warn(e.message); variants.delete(key); });
+    }
+    return v;
+  }
+  const variant = (...a) => variantEntry(...a).pipe;
+  variant.ready = async (...a) => { const v = variantEntry(...a); await v.building; return v.pipe; };
+  const driveMarch = () => [`march`, withDrive(MARCH), [formulaLayout, viewLayout], 'march'];
+
   // the lens map: computed once when the lens opens, then composited every frame while it is open
   const lensLayout = device.createBindGroupLayout({
     entries: [
@@ -422,7 +445,7 @@ export async function createRenderer(canvas) {
     });
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline(lensPipe);
+    cp.setPipeline((packed && drives(packed.formula) && variant('lens', withDrive(LENS), [formulaLayout, lensLayout], 'lensMap')) || lensPipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, group);
     cp.dispatchWorkgroups(Math.ceil(L.size[0] / 8), Math.ceil(L.size[1] / 8));
@@ -432,8 +455,22 @@ export async function createRenderer(canvas) {
   function setLens(on, inset = [0, 0, 0]) { lensState.on = on; lensState.inset = inset; }
 
   let packed = null;
+  // the drivers' clock (seconds) and the step factor 1 / L live in the head, kept across formulas
+  const drive = { clock: 0, step: 1 };
+  function driveWords(head) { const fl = new Float32Array(head); fl[CLOCK_WORD] = drive.clock; fl[STEP_WORD] = drive.step; }
+  function setDriveWords() {
+    if (!packed) return;
+    driveWords(packed.head);
+    device.queue.writeBuffer(headBuf, CLOCK_WORD * 4, new Float32Array([drive.clock, drive.step]));
+  }
+  // t: seconds (the app's clock, or a video frame's time)
+  function setClock(t) { if (drive.clock === t) return; drive.clock = t; setDriveWords(); }
+  // L ≥ 1: the drivers' steepness the sensing pass measured (gpu/sense.js step)
+  function setStep(L) { const s = 1 / Math.max(1, L || 1); if (drive.step === s) return; drive.step = s; setDriveWords(); }
   function setFormula(f) {
     packed = pack(f);
+    driveWords(packed.head);
+    if (drives(packed.formula)) variant(...driveMarch());
     // a new structure gets its JIT in the background; the interpreter draws until it is ready
     compileStructureJit(packed.formula).catch((e) => console.warn(e.message));
     device.queue.writeBuffer(headBuf, 0, packed.head);
@@ -462,7 +499,7 @@ export async function createRenderer(canvas) {
     if (J.key === key || J.building === key) return J.key === key;
     J.building = key;
     try {
-      const module = device.createShaderModule({ code: withJit(MARCH, f, kind) });
+      const module = device.createShaderModule({ code: withJit(drives(f) ? withDrive(MARCH) : MARCH, f, kind) });
       const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
       if (errs.length) throw new Error('wgsl jit: ' + errs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
       const pipe = await device.createComputePipelineAsync({
@@ -480,6 +517,7 @@ export async function createRenderer(canvas) {
   function pipeFor(f, allowLiteral) {
     if (f && allowLiteral && jits.literal.pipe && jits.literal.key === canonical(f)) return jits.literal.pipe;
     if (f && jits.structure.pipe && jits.structure.key === structureKey(f)) return jits.structure.pipe;
+    if (f && drives(f)) return variant(...driveMarch()) || marchPipe;
     return marchPipe;
   }
   const jitFor = (f) => (f && jits.literal.pipe && jits.literal.key === canonical(f) ? jits.literal.pipe : null);
@@ -522,6 +560,7 @@ export async function createRenderer(canvas) {
   const thumbDispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   async function renderThumb(f, v, tw, th, samples = 8) {
     const tp = pack(f);
+    const thumbPipe = drives(tp.formula) ? (await variant.ready(...driveMarch())) || marchPipe : marchPipe;
     const ttex = [0, 1].map(() => device.createTexture({ size: [tw, th], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING }));
     const groups = [0, 1].map((i) => device.createBindGroup({
       layout: viewLayout,
@@ -539,7 +578,7 @@ export async function createRenderer(canvas) {
       device.queue.writeBuffer(thumbViewBuf, 0, vd);
       const enc = device.createCommandEncoder();
       const cp = enc.beginComputePass();
-      cp.setPipeline(marchPipe);
+      cp.setPipeline(thumbPipe);
       cp.setBindGroup(0, formulaGroup);
       cp.setBindGroup(1, groups[c]);
       cp.dispatchWorkgroups(Math.ceil(tw / 8), Math.ceil(th / 8));
@@ -585,6 +624,7 @@ export async function createRenderer(canvas) {
   async function renderStill(v, W, H, { tile = 512, samples = 64, onProgress = () => {}, cancelled = () => false } = {}) {
     const outCanvas = new OffscreenCanvas(W, H);
     const g2 = outCanvas.getContext('2d');
+    if (packed && drives(packed.formula)) await variant.ready(...driveMarch());
     const pipe = pipeFor(packed && packed.formula, true);
     const vb = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const db = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -670,6 +710,7 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
   });
   let gridPipe = null;
   async function deGrid(lo, hi, n) {
+    const drivenGrid = packed && drives(packed.formula) ? await variant.ready('grid', withDrive(GRID), [formulaLayout, gridLayout], 'grid') : null;
     if (!gridPipe) {
       const module = device.createShaderModule({ code: GRID });
       const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
@@ -690,7 +731,7 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
       const bg = device.createBindGroup({ layout: gridLayout, entries: [{ binding: 0, resource: { buffer: ub } }, { binding: 1, resource: { buffer: ob } }] });
       const enc = device.createCommandEncoder();
       const cp = enc.beginComputePass();
-      cp.setPipeline(gridPipe);
+      cp.setPipeline(drivenGrid || gridPipe);
       cp.setBindGroup(0, formulaGroup);
       cp.setBindGroup(1, bg);
       cp.dispatchWorkgroups(Math.ceil(n / 4), Math.ceil(n / 4), Math.ceil(zs / 4));
@@ -708,7 +749,7 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
 
   // the push engine shares the device, the canvas and the formula buffers
   return {
-    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens, renderThumb,
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, frame, present, lens, setLens, renderThumb, variant,
     compileJit, compileStructureJit, renderStill, deGrid,
     get jitReady() { return !!(packed && jitFor(packed.formula)); },
     // which pipeline a frame of the current formula would use
@@ -718,6 +759,6 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
     },
     // the latest pull image, for the loop engine to start from
     accumView: () => (tex.length ? tex[cur].createView() : null),
-    get size() { return [w, h]; }, get packed() { return packed; },
+    get size() { return [w, h]; }, get packed() { return packed; }, setClock, setStep, get clock() { return drive.clock; },
   };
 }

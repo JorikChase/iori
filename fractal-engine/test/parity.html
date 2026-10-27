@@ -11,9 +11,11 @@
 // The WGSL interpreter must compute the same orbit as core/cpu.js. For each formula: N random points,
 // the GPU's distance estimate, iteration count and escape flag, compared with the CPU's.
 // Result in window.__parity: { ok, rows: [{ formula, n, maxRel, iterMismatch, escMismatch }] }.
-import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit, lift } from '../core/index.js';
-import { INTERP, INVERSE, DUAL } from '../gpu/wgsl.js';
-import { pack, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS } from '../gpu/pack.js';
+import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit, lift, driveRuntime, setDriveParam } from '../core/index.js';
+import { readingsOf } from '../core/drive.js';
+import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
+import { INTERP, INVERSE, DUAL, withDrive } from '../gpu/wgsl.js';
+import { pack, drives, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS } from '../gpu/pack.js';
 import { withJit } from '../gpu/jit.js';
 import { format } from '../core/notation.js';
 import { evalShade, normShade, rampPreset, defaultShade, INTERPS, SPACES, MODES, MATH_OPS, MIX_MODES } from '../core/shade.js';
@@ -91,6 +93,8 @@ FORMULAS.push(
   [format({ ...normalize(parse('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100')), shade: SH_GRAPHS[2] }), 5],
   [format({ ...normalize(parse('[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] tissue 6 1 .1 2 · +c ×10 bail=8')), shade: SH_GRAPHS[SH_GRAPHS.length - 2] }), 1.6],
 );
+// drivers (formula v2): every suite takes the driven cases too
+FORMULAS.push(...DRIVEN);
 const N = 4096;
 
 const SHADER = INTERP + `
@@ -126,6 +130,7 @@ const INV_FORMULAS = [
   ['[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0] noise .5 2 .7 2 1 ×16 bail=16', 1.5],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] trap .4 3 .5 · +c ×10 bail=8 c=.1,.2,.3', 1.2],
   ['[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ fold.box 1 · scale 2] blend .6 .3 .1 ×16 bail=16', 1.5],
+  ...DRIVEN_INV,
 ];
 const INV_SHADER = INTERP + DUAL + `
 var<private> rngState: u32;
@@ -147,6 +152,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   var ok = 1.0;
   // a chimera's context in the inverse: the point's own trap, iteration 0 of 1 (as the CPU check sets it)
   fTrap = dot(p, p); fIter = 0.0; fIters = 1.0;
+  // drivers as the push walk reads them: at the point, iteration 0 of 1
+  if (DRIVE_ON) { driveStart(p); if (drvAny) { driveIter(p, 1.0, 0u, 1.0); } }
   let start = slotStart(0u);
   let len = slotLen(0u);
   for (var j = 0u; j < len; j++) {
@@ -183,8 +190,24 @@ const DUAL_FORMULAS = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] lyap .5 1 · +c ×12 bail=100', 8],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] sphere .4 2 1.5 .3 · +c ×12 bail=100', 16],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5],
+  ...DRIVEN,
 ];
 const DN = 1024;
+// the CPU's derivative of the estimate in a driver's parameter (a band end, a node's parameter)
+function deDrive(f, p, ref) {
+  const at = (delta) => {
+    const g = JSON.parse(JSON.stringify(f));
+    const [kind, id, key] = ref.split('/');
+    const it = kind === 'bind' ? g.drive.bind.find((x) => x.to === id) : g.drive.nodes.find((m) => m.id === id);
+    if (kind === 'bind') it[key] += delta; else it.p[key] += delta;
+    return de(g, p);
+  };
+  const [kind, id, key] = ref.split('/');
+  const it = kind === 'bind' ? f.drive.bind.find((x) => x.to === id) : f.drive.nodes.find((m) => m.id === id);
+  const v = Math.abs(kind === 'bind' ? it[key] : it.p[key]);
+  const h = 1e-6 * Math.max(1, v);
+  return (at(h) - at(-h)) / (2 * h);
+}
 const DUAL_SHADER = INTERP + DUAL + `
 @group(0) @binding(2) var<storage, read> pts: array<vec4f>;
 @group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
@@ -195,7 +218,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let np = arrayLength(&pts);
   if (i >= np) { return; }
   let j = gid.y;
-  tanOi = u32(tans[j * 6u].x);
+  tanSelect(tans[j * 6u]);
   for (var k = 0u; k < 5u; k++) { tanRec[k] = tans[j * 6u + 1u + k]; }
   let p = embed(pts[i].xyz);
   let d = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
@@ -263,12 +286,22 @@ async function run() {
   const info = await module.getCompilationInfo();
   const errs = info.messages.filter((m) => m.type === 'error');
   if (errs.length) throw new Error(errs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
-  const pipe = await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+  const pipe0 = await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+  // a driven formula runs in the drivers' variant of each shader (gpu/wgsl.js withDrive)
+  const compilePipe = async (code, label) => {
+    mark('compile', label);
+    const m = device.createShaderModule({ code });
+    const e = (await m.getCompilationInfo()).messages.filter((x) => x.type === 'error');
+    if (e.length) throw new Error(label + ': ' + e.map((x) => `${x.lineNum}: ${x.message}`).join('\n'));
+    return device.createComputePipelineAsync({ layout: 'auto', compute: { module: m, entryPoint: 'main' } });
+  };
+  const pipeD = await compilePipe(withDrive(SHADER), 'SHADER+drive');
   const rows = [];
   for (const [text, R] of FORMULAS) {
     mark('forward', text);
     const f = parse(text);
     const pk = pack(f);
+    const pipe = drives(pk.formula) ? pipeD : pipe0;
     const rng = makeRng(5);
     const pts = new Float32Array(N * 4);
     for (let i = 0; i < N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
@@ -320,12 +353,14 @@ async function run() {
   const invModule = device.createShaderModule({ code: INV_SHADER });
   const invErrs = (await invModule.getCompilationInfo()).messages.filter((m) => m.type === 'error');
   if (invErrs.length) throw new Error(invErrs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
-  const invPipe = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: invModule, entryPoint: 'main' } });
+  const invPipe0 = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: invModule, entryPoint: 'main' } });
+  const invPipeD = await compilePipe(withDrive(INV_SHADER), 'INV_SHADER+drive');
   const invRows = [];
   for (const [text, R] of INV_FORMULAS) {
     mark('inverse', text);
     const f = normalize(parse(text));
     const pk = pack(f);
+    const invPipe = drives(f) ? invPipeD : invPipe0;
     const rng = makeRng(8);
     const slot = slotAt(f, 0);
     // q = the forward image of a random point, so q has at least one preimage
@@ -365,6 +400,9 @@ async function run() {
       const q = [qs[i * 4], qs[i * 4 + 1], qs[i * 4 + 2], qs[i * 4 + 3]];
       const pre = [g[i * 4], g[i * 4 + 1], g[i * 4 + 2], g[i * 4 + 3]];
       const s = { p: pre, c: f.c || [0, 0, 0, 0], dr: 1, ctx: { p0: pre, trap: q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3], i: 0, n: 1 } };
+      // the drivers as the GPU read them: at q
+      const D = driveRuntime(f, q, 0);
+      if (D) { D.step(readingsOf({ p: q, dr: 1, ctx: { trap: s.ctx.trap } }, 0, 1)); s.ctx.drv = D.map; }
       stepForward(s, slot);
       const e = Math.hypot(s.p[0] - q[0], s.p[1] - q[1], s.p[2] - q[2]) / Math.max(1, Math.hypot(...q));
       errs.push(e);
@@ -380,12 +418,14 @@ async function run() {
   const dualModule = device.createShaderModule({ code: DUAL_SHADER });
   const dualErrs = (await dualModule.getCompilationInfo()).messages.filter((m) => m.type === 'error');
   if (dualErrs.length) throw new Error(dualErrs.map((m) => `${m.lineNum}: ${m.message}`).join('\n'));
-  const dualPipe = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: dualModule, entryPoint: 'main' } });
+  const dualPipe0 = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: dualModule, entryPoint: 'main' } });
+  const dualPipeD = await compilePipe(withDrive(DUAL_SHADER), 'DUAL_SHADER+drive');
   const dualRows = [];
   for (const [text, R] of DUAL_FORMULAS) {
     mark('dual', text);
     const f = normalize(parse(text));
     const pk = pack(f);
+    const dualPipe = drives(f) ? dualPipeD : dualPipe0;
     const tg = paramTangents(f);
     const rows = Math.max(1, tg.list.length);
     const rng = makeRng(13);
@@ -432,7 +472,7 @@ async function run() {
       lerr.push(Math.abs(lyapunovOrbit(f, p) - g[i * 8 + 5]));
       tg.list.forEach((t, j) => {
         if (i % 4) return; // a quarter of the points per parameter is plenty
-        const cpu = deParam(f, p, t.oi, t.key), gpu = g[(j * DN + i) * 2 * 4 + 4];
+        const cpu = t.drive ? deDrive(f, p, t.drive) : deParam(f, p, t.oi, t.key), gpu = g[(j * DN + i) * 2 * 4 + 4];
         prel.push(Math.abs(gpu - cpu) / Math.max(Math.abs(cpu), 1e-3 * de(f, p) + 1e-6));
       });
     }
@@ -546,9 +586,10 @@ async function run() {
       ob.destroy(); rb.destroy();
       return { g, ms };
     };
-    const a = await runOne(timedDE);
-    const b = await runOne(withJit(timedDE, f));
-    const sj = await runOne(withJit(timedDE, f, 'structure'));
+    const base = drives(f) ? withDrive(timedDE) : timedDE;
+    const a = await runOne(base);
+    const b = await runOne(withJit(base, f));
+    const sj = await runOne(withJit(base, f, 'structure'));
     const relsOf = (g) => {
       const rels = [];
       for (let i = 0; i < JIT_N; i += 16) rels.push(Math.abs(a.g[i * 4] - g[i * 4]) / Math.max(Math.abs(a.g[i * 4]), 1e-6));
@@ -630,7 +671,14 @@ async function run() {
     [head, ops, pb, ob, rb].forEach((b) => b.destroy());
   }
   const shadeOk = shadeRows.every((r) => r.median < 1e-5 && r.off / SH_N < 0.005);
-  const ok = rows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk && shadeOk;
+  // A driven formula's tail is wider: a parameter that varies over space or along the orbit carries
+  // float32's own error (noise and orbit a few 1e-6 off) into every iteration, and the Mandelbox raises it
+  // to the twelfth power at its fold edges — p99 3–5 % with any spatially varying scale, fold or radius
+  // (measured 2026-10-27; Q2's steep fields showed the same). The median stays near float precision, with
+  // room for a rotation rebuilt in float32 (its own value rebuilt: 4.7e-5 against the packed 2.5e-5) whose
+  // angle follows the trap (1.1e-4).
+  const drv = (r) => r.formula.includes('drive=');
+  const ok = rows.every((r) => r.median < (drv(r) ? 3e-4 : 1e-4) && r.p99 < (drv(r) ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk && shadeOk;
   window.__parity = { ok, rows, invRows, dualRows, ovRows, jitRows, shadeRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
     `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n')

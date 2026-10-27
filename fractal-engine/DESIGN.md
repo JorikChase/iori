@@ -884,3 +884,45 @@ V3 needs: the UI (lane, bands, binding by drag, the strip notch); the lens, grab
 parameters (sense returns them; overrides would need the drive program to take ov offsets); a per-tile L
 if one L per frame proves too slow on mixed scenes; clock controls (pause, scrub) and the clock in
 thumbnails (0 today); a hairline cue while the drivers' variant compiles.
+
+**V3 built 2026-10-27 — the drivers in the graph.** core/drive-edit.js (unit-tested): addDriver (free, on
+an input, or between a binding and its source — the old source becomes its input; a free remap reads the
+iteration), connectDriver (loops refused, re-sorted), disconnectDriver, removeDriverNode (a bypass; what
+loses a required input goes too, bindings with nothing to take their source go), setDriverParam,
+bindTrace (each binding's value along the orbit — the band's live tick), handleRange, drivenOps.
+ui/drivegraph.js draws the lane, its glyphs (ui/glyphs.js DRIVE_GLYPHS) and the links.
+- *Where:* the lane is a dashed hairline inside the repeat zone, right of the chains (the zone widens);
+  orbit readings in its first column, maths and remaps one column past what they read; the start, fields,
+  time and param nodes in a row above the zone. Inputs on a node's top, its output below; bindings are
+  dashed hairlines from a driver to the notch on its op (to the band while the op is selected).
+- *Gestures as built:* hold the empty lane or top row — the ring of 19 driver types (param is not in it);
+  hold an input dot, a driver link or a binding's hairline — the ring again, inserted there; drag from an
+  output dot onto an input — linked; onto a selected op's dimension line — bound, band = the line's own
+  range (±75 px at the sensed metric, in the parameter's range; a bound line keeps its band); rest on an
+  op for ¼ s during that drag — its lines open (passing over one does not: the first cut selected every op
+  the drag crossed). A bound line is rescaled so its band fills the middle two thirds: drag an end — lo
+  or hi, the middle — both, click — selected (Delete unbinds); the orbit's values at the view's centre
+  as a faint span and a tick (redrawn a few times a second while time drives). Pull an op's line up or
+  down off itself and drop it in the zone or the top row — a param node reading it. Click a driver — its
+  switches (wave, tissue out, math op, clamp) as glyphs and its numbers as lines below the zone; Delete
+  removes it. Every edit is one lineage node (graphEdit / shadeCommit; `__fe.dry` respected).
+- *Strip and structure:* driven ops carry a notch in the strip and the unfolded graph; a driven formula
+  shows L as a hairline under the strip's count (a tick from 1 to 16, log).
+- *Grab and drift:* the grab ranks the drivers' parameters with the ops' (sense already measured them;
+  bound parameters are not offered) and edits them; idle herding wanders them too (pins by the same ids).
+  The lens still offers op parameters only.
+- Verified in the app (own tab on a /v3/ copy, `__fe.dry`, synthetic pointer events): a reading added
+  from the lane's ring; bound onto scale's line by drag (band 1.56–3.44 from the line's range); hi end and
+  middle dragged (setBand), band clicked and Deleted (unbind); a remap inserted on the binding's hairline
+  (r0 → remap0 → scale), i0 wired into the remap by drag, its clamp toggled; noise added from the top row
+  ring and its f dragged; a driver Deleted (bypass); fold.sphere's rmin pulled into a param node; the
+  strip's notch and the L readout present; the grab ranked bind/A2.s/lo and node/remap0/lo between the
+  ops' parameters and moved them; idle herding moved the band's ends. 42 unit tests pass.
+- Trap: reloading a test tab whose hash holds a test formula calls remember() before `__fe.dry` can be
+  set — four test nodes reached the shared lineage and were removed by hand from localStorage. Load test
+  formulas with setFormula after setting dry, never through the hash.
+
+Open: the lens on driver parameters (the drive program would need the lens's ov offsets); touch; the
+band's live value is the centre's orbit only (no hover read-out under the cursor); a param node's `of`
+is fixed (pull another line to read another); per-tile L; clock controls (pause, scrub); a cue while the
+drivers' shader variant compiles; time in thumbnails.

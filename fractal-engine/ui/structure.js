@@ -13,6 +13,7 @@ import { EXPORT_GLYPHS } from './glyphs.js';
 import { tree } from '../core/graph.js';
 import { layout, place, drawGraph } from './graph.js';
 import { layoutShade, placeShade, drawShade } from './shadegraph.js';
+import { drivenOps } from '../core/drive-edit.js';
 
 // the strip's placement: one unit per row up to 52 px, fitting the height and a 170 px column
 // (the shading network beside it, small: one strip, two parts)
@@ -30,7 +31,7 @@ const f1 = (x) => (Math.round(x * 10) / 10).toString();
 // s: { W, H, formula (normalized), depth (iterations at the centre), attention (op index or null),
 //      unfolded (the graph is open: leave the strip to it),
 //      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions),
-//      progress (0..1 while an export runs, else null) }
+//      progress (0..1 while an export runs, else null), step (the drivers' step factor L, or null) }
 export function drawStructure(svg, s) {
   const out = [];
   const { W, H, formula: f } = s;
@@ -50,7 +51,12 @@ export function drawStructure(svg, s) {
   // edits — chains, species forks, fields, the repeat zone. Click it to unfold it (the app does).
   if (!s.unfolded) {
     const P = stripPlacement(f, W, H);
-    out.push(drawGraph(P, { attention: s.attention }));
+    out.push(drawGraph(P, { attention: s.attention, driven: drivenOps(f) }));
+    // a driven formula: the step factor L as a hairline under the count — a tick from 1 (left) to 16
+    if (f.drive && s.step != null) {
+      const cx = (P.zone[0] + P.zone[2]) / 2, y = P.zone[3] + 30, at = (Math.log(Math.max(1, s.step)) / Math.log(16)) * 48;
+      out.push(`<path class="sf" d="M${f1(cx - 24)} ${f1(y)}h48M${f1(cx - 24 + at)} ${f1(y - 4)}v8"/>`);
+    }
     out.push(drawShade(P.sh, { compact: true, bus: [P.zone[0], P.zone[1] + 4] }));
     const [zx0, zy0, zx1, zy1] = P.zone, sx0 = P.sh.frame[0], sy1 = Math.max(zy1, P.sh.frame[3]);
     out.push(`<rect class="hit" data-graph="1" x="${f1(sx0 - 8)}" y="${f1(zy0 - 8)}" width="${f1(zx1 - sx0 + 24)}" height="${f1(sy1 - zy0 + 30)}"/>`);

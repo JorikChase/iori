@@ -133,7 +133,8 @@ function handle(C, op, p, hit, size, screen) {
       break;
     }
     default:
-      out.push(glyphPath(getOp(op).glyph, screen[0], screen[1] - RETICLE - 44, 28));
+      // a driver's parameter (op null) has no geometry: nothing here, its glyph is on the dimension line
+      if (op) out.push(glyphPath(getOp(op).glyph, screen[0], screen[1] - RETICLE - 44, 28));
   }
   return out.join('');
 }

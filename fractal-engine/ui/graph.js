@@ -77,7 +77,7 @@ export function place(L, u, right, cy) {
   });
   const edges = L.edges.map((e) => { const [x1, y1] = P(e.x1, e.y1), [x2, y2] = P(e.x2, e.y2); return { ...e, x1, y1, x2, y2 }; });
   const [zx0, zy0] = P(-0.45, -0.45), [zx1, zy1] = P(L.w + 0.45, L.h + 0.45);
-  return { ...L, u, items, edges, zone: [zx0, zy0, zx1, zy1] };
+  return { ...L, u, ox, oy, items, edges, zone: [zx0, zy0, zx1, zy1] };
 }
 
 // the same placed graph between two placements (unfolding), t in [0, 1]
@@ -93,7 +93,10 @@ export function between(a, b, t) {
 
 // o: { attention (op index), hover (node id), selected (node id), edge (the edge under a held press or
 //      the pointer), plus (the hovered edge: a plus beside it),
-//      full (unfolded: bigger glyphs, the edges as targets), params: [{ x1, x2, y, v, key, held }] }
+//      full (unfolded: bigger glyphs, the edges as targets), params: [{ x1, x2, y, v, key, held, band }],
+//      driven (a Set of op ids a driver moves: a notch on their right) }
+// A bound parameter's line carries its band: { x0, x1 (lo, hi), live: [xa, xb] (the values the orbit
+// gives it), tick (its value now), sel }
 export function drawGraph(P, o = {}) {
   const s = [];
   const g = Math.max(10, Math.min(26, P.u * 0.5));
@@ -110,6 +113,8 @@ export function drawGraph(P, o = {}) {
     else {
       const cls = ['nd', q.field ? 'fd' : '', o.hover === q.id ? 'hv' : '', o.selected === q.id ? 'sel' : ''].join(' ');
       s.push(`<g class="${cls}">${glyphPath(q.glyph, q.x, q.y, g)}</g>`);
+      // driven: a notch on the glyph's right, where the driver's hairline arrives
+      if (o.driven && o.driven.has(q.id)) s.push(`<path class="nt" d="M${f1(q.x + g * 0.62)} ${f1(q.y - g * 0.22)}h${f1(g * 0.16)}v${f1(g * 0.44)}h${f1(-g * 0.16)}"/>`);
       if (o.attention === q.oi || o.selected === q.id) s.push(`<rect class="att" x="${f1(q.x - g * 0.65)}" y="${f1(q.y - g * 0.65)}" width="${f1(g * 1.3)}" height="${f1(g * 1.3)}"/>`);
     }
   }
@@ -139,7 +144,14 @@ export function drawGraph(P, o = {}) {
   for (const h of o.params || []) {
     s.push(`<g class="pm${h.held ? ' held' : ''}"><path d="M${f1(h.x1)} ${f1(h.y)}H${f1(h.x2)}M${f1(h.x1)} ${f1(h.y - 3)}v6M${f1(h.x2)} ${f1(h.y - 3)}v6"/>`);
     // no words: the value appears while the handle is held; otherwise a tick where a bounded value sits
-    if (h.held) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 6)}">${h.v}</text>`);
+    if (h.band) {
+      // the band: lo to hi, its ends to drag, the values the orbit gives it faint, a tick at its value now
+      const B = h.band;
+      if (B.live) s.push(`<path class="lv" d="M${f1(B.live[0])} ${f1(h.y)}H${f1(Math.max(B.live[1], B.live[0] + 0.5))}"/>`);
+      s.push(`<path class="bd${B.sel ? ' sel' : ''}" d="M${f1(B.x0)} ${f1(h.y)}H${f1(B.x1)}M${f1(B.x0)} ${f1(h.y - 5)}v10M${f1(B.x1)} ${f1(h.y - 5)}v10"/>`);
+      if (B.tick != null) s.push(`<path class="lt" d="M${f1(B.tick)} ${f1(h.y - 7)}v14"/>`);
+      if (h.held) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 9)}">${h.v}</text>`);
+    } else if (h.held) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 6)}">${h.v}</text>`);
     else if (h.q && h.q.min !== undefined && h.q.max !== undefined && h.q.max > h.q.min) {
       const tx = h.x1 + ((h.value - h.q.min) / (h.q.max - h.q.min)) * (h.x2 - h.x1);
       s.push(`<path d="M${f1(tx)} ${f1(h.y - 4)}v8"/>`);

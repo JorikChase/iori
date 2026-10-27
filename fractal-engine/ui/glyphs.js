@@ -38,7 +38,7 @@ export const GLYPHS = {
 };
 
 export function glyphPath(id, x, y, size = 24) {
-  const d = GLYPHS[id] || SHADE_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
+  const d = GLYPHS[id] || SHADE_GLYPHS[id] || DRIVE_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
@@ -74,6 +74,30 @@ export const SHADE_GLYPHS = {
   // the outputs: the surface's colour, the glow
   'out.color': 'M12 12m-6 0a6 6 0 1 0 12 0a6 6 0 1 0 -12 0', 'out.glow': 'M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M12 2v4M12 18v4M2 12h4M18 12h4',
   shade: 'M4 12h16M12 4v16M6 6l12 12',
+};
+
+// the drivers (DESIGN.md "Formula v2 — drivers"): orbit readings carry a point (they move with the
+// orbit), the start a corner (the origin it was read at); fields as in the chimera's, without species
+const AX = { x: 'M3 12h18', y: 'M12 21V3', z: 'M5 19L19 5', w: 'M5 19L19 5M10 10h4v4h-4z' };
+const POINT = 'M17 6a1.5 1.5 0 1 0 .01 0', ORIGIN = 'M3 21h5M3 21v-5';
+export const DRIVE_GLYPHS = {
+  'drv.i': 'M5 15a8 8 0 1 1 3 4M8 19l0-5-5 0M12 8v4h3',                    // the iteration: the loop and a hand
+  'drv.r': 'M12 4a8 8 0 1 0 .01 0M12 12l5.6-5.6M12 11.2a.8.8 0 1 0 .01 0',   // |p|: a radius
+  'drv.trap': 'M12 4a8 8 0 1 0 .01 0M12 9a3 3 0 1 0 .01 0M2 12h7',          // closest approach so far
+  'drv.lyap': 'M2 12h4M18 12h4M12 2v4M12 18v4M9 12l3-3 3 3-3 3z',           // the stretch
+  ...Object.fromEntries(Object.entries(AX).map(([k, d]) => [`drv.p${k}`, d + POINT])),
+  ...Object.fromEntries(Object.entries(AX).map(([k, d]) => [`drv.${k}`, d + ORIGIN])),
+  'drv.axis': 'M2 21L22 3M6 9l3 3M13 10l3 3',
+  'drv.sphere': 'M12 1a11 11 0 1 0 .01 0M12 7a5 5 0 1 0 .01 0',
+  'drv.noise': 'M2 14c2-3 3-3 5 0s3 3 5 0 3-3 5 0 3 3 5 0',
+  'drv.tissue': 'M2 7l6 2 1 7-6 4M8 9l6-6M9 16l7 1 4-6-6-8M16 17l2 6M20 11l3-1',
+  'drv.time': 'M12 3a9 9 0 1 0 .01 0M12 7v5l4 2',
+  'drv.param': 'M3 15h18M3 12v6M21 12v6M14 15V5M11 8l3-3 3 3',               // another line's value, lifted off it
+  'drv.remap': 'M3 18h4l10-12h4M3 15v6M21 3v6',
+  // a node's own switches: the time's wave, the tissue's reading, the remap's clamp
+  'drv.wave.saw': 'M2 18L9 6v12l7-12v12l6-10', 'drv.wave.sine': 'M2 12c3-8 6-8 10 0s7 8 10 0', 'drv.wave.tri': 'M2 18l5-12 5 12 5-12 5 12',
+  'drv.out.cell': 'M2 7l6 2 1 7-6 4M8 9l6-6M9 16l7 1 4-6-6-8M12 11a.8.8 0 1 0 .01 0', 'drv.out.wall': 'M12 2v20M8 6v12M16 6v12',
+  'drv.clamp': 'M3 6v12M21 6v12M3 12h18',
 };
 
 // the graph's own: another species (a plus)

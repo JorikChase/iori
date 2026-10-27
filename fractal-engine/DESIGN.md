@@ -926,3 +926,37 @@ Open: the lens on driver parameters (the drive program would need the lens's ov 
 band's live value is the centre's orbit only (no hover read-out under the cursor); a param node's `of`
 is fixed (pull another line to read another); per-tile L; clock controls (pause, scrub); a cue while the
 drivers' shader variant compiles; time in thumbnails.
+
+## Drivers → colour (C), decided 2026-10-27
+
+iori liked the shading colours and picked this over collage, instances and V polish. Decisions:
+- **Shared drivers:** the driver lane's nodes are visible to the shading frame. Any driver's output
+  can feed a ramp, math or mix input, so one noise can bend the shape and paint it, in sync. No
+  shading-only driver nodes.
+- **Everything in colour can animate:** ramp offset (colour flows along the terraces), hue rotation
+  (the whole ramp turns around the hue ring), any ramp parameter (scale, offset, stop positions …)
+  bound with bands like formula parameters, and a glow pulse.
+
+**IR.** A shading node's input may name a driver: `in: { v: 'd:<driveNodeId>' }`. Shading parameters
+bind like formula ones: `shade.bind: [{ to: '<shadeNodeId>.<param>', from: driveNodeId, lo, hi }]`, the
+targets being a ramp's `map.scale`, `map.offset`, `map.hue` (new: a hue rotation in turns, applied
+after interpolation by rotating Oklab a,b so lightness stays put), a stop's `stops.<k>.t`, a math's
+`c`, a mix's `f`, and `out.gain` (new: the glow's strength, 1 by default — the pulse). Removing a
+driver drops the shading links and bindings that use it (a linked input falls back as removeNode does).
+Notation, JSON and hash carry it inside `shade=`.
+
+**Evaluation.** At the hit point: world, time and param drivers exact (the hit is the world point the
+last orbit started from); orbit readings from the last iteration's fill. Push splats: world, time,
+param exact; orbit readings from the walk. A formula whose shading is time-driven is animated (the
+governor keeps rendering, as for a time-driven formula). GPU: the shading interpreter reads the drive
+program's registers kept from the hit's orbit; the drive program runs for shading even when no formula
+parameter is bound (a colour-only drive), in the driven shader variant.
+
+**UI.** The driver outputs run as a second bus into the shading frame, beside the readings bus; drag
+from a driver dot to a shading input links it; a shading node's parameters are dimension lines that
+take drag-to-bind with bands exactly as ops' do; the ramp editor gains a hue-rotation line; the outputs
+gain the glow's gain line.
+
+**Phases:** C1 core + GPU (IR, CPU evaluator, notation, edits, packing, interpreter, push, parity with
+driven-colour cases, tests) → C2 UI (the bus, links, bands on shading lines, hue line, gain line,
+verify in the app) → deploy when iori asks.

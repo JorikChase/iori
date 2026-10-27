@@ -1059,3 +1059,126 @@ verify in the app) → deploy when iori asks.
 Open: the bound line's live span (an op's shows the orbit's range; a shading line has one value per
 hit); a param node may not read a shading parameter; the lens on shading parameters; touch; time in
 thumbnails (the clock reads 0 there, so a hue turned by time shows its start).
+
+## Collage (K), decided 2026-10-27
+
+The third way to mix (see "Next stretch (Q)"): *finished* distance estimates of two or more formulas
+joined by a smooth minimum — designed seams. Breed interpolates parameters of one structure, a chimera
+blends inside every iteration (a new dynamics); a collage leaves every piece's dynamics alone and
+decides only where one surface meets the next and what the seam looks like. Decided with iori:
+- **Joins — all four:** smooth union; smooth intersection and subtraction (the same kernels for
+  carving); stairs and chamfer (terraced and bevelled seams, hg_sdf's forms); and the field morph
+  d = (1 − w)·a + w·b, where a field decides which piece is there.
+- **Varying seams come from the drivers.** Seam width, stair count's width, the morph weight and every
+  placement number are ordinary parameters; a collage-level drive (world fields, the start point,
+  time, param, math, remap — V's nodes without the orbit readings, since a collage has no orbit of its
+  own) binds them with bands. A morph whose w is bound to a tissue driver is the "tissue of pieces".
+  No join carries a field slot of its own.
+- **Placement — all four:** each piece has a rigid placement and a uniform scale (the estimate stays
+  exact: s·d(x′/s)); repetition (grid with counts, mirror, polar); its own 4-D slice (free: a piece is a
+  whole formula, slice included); and a hand-placed gizmo in the UI (the affine frame, later).
+- **A piece is any full formula** — iterations, schedule, bail, c, slice, chimeras, tissue, drivers,
+  its own shade. Collages do not nest (no collage inside a piece); the joins fold left to right.
+- **Graph:** pieces side by side, each its own repeat zone, a join node below each neighbouring pair
+  with its kernel's glyph and the seam width as a dimension line.
+- **Push:** each piece walks its own attractor; samples go through its slice, repetition and
+  placement into the world and are kept by the collage — faded by the piece's share of the join there
+  (a sample deep inside another piece of a union, or carved away by a subtraction, has share 0).
+  Fillets get no splats of their own.
+- **Colour — both:** every piece keeps its shade, blended across seams by the join weights; a
+  collage-level shade, when set, wins, and gains two readings: `piece` (which piece leads, blended at
+  seams, 0..1) and `seam` (how deep into a fillet, 1 on its middle).
+
+**IR.** A collage is its own document beside the formula (`isCollage(x)`: it has `pieces`):
+```
+{ v: 1,
+  pieces: [{ f: <formula JSON>, place: { tx ty tz, rx ry rz (degrees, Rz·Ry·Rx), s, g (grow) },
+             rep: null | { kind: 'grid', cx cy cz (0 = not along that axis), nx ny nz (copies each side) }
+                       | { kind: 'mirror', mx my mz (0/1), ox oy oz (where the copies sit) }
+                       | { kind: 'polar', n, r (radius), axis (0 x, 1 y, 2 z) } }, …],   1..8 pieces
+  joins: [{ op: union | inter | sub | morph, k: quad | cubic | exp | circ | stairs | chamfer | hard,
+            r (seam width), n (stairs), w (morph weight) }, …],                       pieces − 1
+  shade?: { nodes, out }    the collage's own colour (wins over the pieces')
+  drive?: { nodes, bind }   bindings to 'J<j>.r|w', 'P<i>.tx|…|s' and the repetition's continuous
+                            numbers 'P<i>.cx|…|ox|…|r'; param nodes read the same names }
+```
+A world point x reaches piece i as rep(R⁻¹(x − t)/s) (repetition in the piece's own frame, so the
+array moves, turns and scales with it); d_i = s·DE_i(that point) with DE_i the formula's own estimate
+(through its slice), less its growth g. The joins fold: D₀ = d₀, D_j = join_j(D_{j−1}, d_j).
+
+*Found in building:* a fractal's estimate is unsigned — 0 inside for escape time, small and positive for
+r/dr — so a piece has no inside, and max(a, −b) never carves (inside the cutter −b = 0). Every piece
+therefore has a growth g ≥ 0 (d − g, a thicker piece): a subtraction's or intersection's cutter needs
+g > 0, and its cut surface sits g out from the fractal's. K3's UI should give a new cutter a visible
+default g (a fraction of its size).
+
+**Kernels** (a, b → d and the partials g_a, g_b; r = 0 or `hard` is min/max exactly):
+quad d = mix(b, a, h) − r·h(1 − h), h = clamp(½ + ½(b − a)/r) — g = (h, 1 − h); cubic d = min − h³r/6,
+h = max(r − |a − b|, 0)/r — g = (1 − h²/2, h²/2) toward the smaller; exp d = min − r·ln(1 + e^{−|a−b|/r})
+— g the softmax; circ (IQ's circular profile, r scaled by 1/(1 − √½)); stairs (hg_sdf: n steps across
+r); chamfer min(a, b, (a + b − r)·√½). intersection = −union(−a, −b); subtraction a ∖ b = −union(−a, b).
+morph: g = (1 − w, w). Every union kernel has g ≥ 0 and g_a + g_b = 1 (so the result stays
+1-Lipschitz when the pieces are), except chamfer (√2 on its bevel: the step factor must cover it).
+A driven join or placement makes the estimate non-Lipschitz as V's driven parameters do: the same
+measured step factor L covers it on the GPU.
+
+**Readings.** A join's share for its left side is |g_a| / (|g_a| + |g_b|); folding gives every piece a
+weight (they sum to 1). `piece` = Σ ωᵢ·i/(n − 1); `seam` = the largest over joins of
+clamp(1 − |a − b|/r) (the morph's 4w(1 − w)).
+
+**Notation.** Pieces in braces, each written in the formula notation; after a piece its placement
+words; between pieces the join: a symbol (∪ ∩ ∖ ~, or union inter sub morph, `\` for ∖), the kernel
+word when it is not quad, then r (and n for stairs) — or w for a morph:
+```
+{ bulb 8 · +c ×10 } at .7 0 0 ∪ .3 { fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 } at -.7 0 0 size .1
+{ menger … } polar 6 1.5 y ∖ stairs .2 4 { bulb 8 · +c ×10 } shade=… drive=…
+```
+Placement words: `at tx ty tz`, `turn rx ry rz`, `size s`, `grow g`, `grid cx cy cz nx ny nz`, `mirror xz ox oz`
+(the axes word, then an offset per axis named), `polar n r [x|y|z]`; trailing defaults left out.
+`shade=` and `drive=` after the last brace belong to the collage; inside a brace, to the piece.
+
+**Phases**
+- **K1 core (CPU)** — core/collage.js (IR, normalize/validate, notation, hash and URL, kernels with
+  partials, placement and repetition, the estimate, weights and readings, the collage drive, push
+  with the keep rule, colour blending), core/collage-edit.js (the tree with ids P<i>/J<j>, add,
+  remove, move pieces, set joins/placement/repetition, edit a piece by any graph.js edit, bind/unbind
+  with bindings following the pieces), tests.
+- **K2 GPU** (after the drivers/shading session lands) — a collage program in the ops buffer: one
+  op list per piece behind a piece index, the placements and joins as a small stack program in the
+  march; the drive program for collage bindings; `piece` and `seam` added to shade.js READINGS and the
+  shading interpreter; push per piece with the keep rule; parity against collageAt; the step factor.
+- **K3 UI** — pieces side by side in the graph, join nodes with kernel glyphs and the seam width as a
+  dimension line, the gizmo (the affine frame) for placement, repetition as ghosted copies; the app's
+  hash, lineage and breeding learn the collage document.
+- **K4** verify in the app, docs, deploy when iori asks.
+
+**K1 built 2026-10-27 — the collage on the CPU.** core/collage.js (IR, normCollage/validateCollage,
+canonical and hash, the kernels `smin`/`joinEval` with their partials, `toPiece`/`fromPiece`,
+`repFold`/`repCopies`, `pieceDE`, `collageAt` → { d, dists, w, piece, seam, lead }, `collageGrad`
+(central differences, the duals' reference), `drivenAt` (the collage drive through core/drive.js's
+evalDrive at the world point), `collageColour`, `collagePush`, the notation `parseCollage`/
+`formatCollage`, `parseAny`/`formatAny`/`fromURLHashAny` for text that may be either); core/
+collage-edit.js (collageTree with ids P<i>/J<j>, joinPorts, addPiece, removePiece, movePiece,
+editPiece (any core/graph.js edit on one piece), setPlace, setRep, setRepParam, setJoin,
+setJoinParam, bindCollage, unbindCollage, setCollageDriver, collageParams/get/set for breeding and the
+grab). Nothing outside these two files changed except core/index.js's exports; the app, the GPU and
+formula.js's own URL hash do not know collages yet (K2/K3).
+- *Settled in building:* a join keeps only the numbers its kind reads (r unless hard or morph, n for
+  stairs, w for morph), so one look has one id. A missing join is a smooth union. Joins between
+  positions: moving a piece leaves them where they are. Removing a piece takes the join that tied it in
+  (the one before it; for the first piece, the one after). Push hands each base sample to one copy of
+  its repetition, round robin, and drops a copy whose point does not fold back to the drawn one (it lies
+  in another copy's cell); samples carry M (3×4, world from orbit) for the splat's axes and `off` for
+  the slab weight. Repetition takes the nearest copy only — a piece wider than its cell is overstepped
+  at the cell wall (as hg_sdf); K2 may check the neighbour across the nearest wall.
+- Tests: test/collage.test.mjs (12) — kernels (hard = min exactly, shares ≥ 0 summing to 1, partials
+  against differences away from the kinks, the quad's r/4 at the seam's middle), complements and the
+  morph, exact placement with a point piece, every repetition against the nearest copy's distance and
+  every copy folding back, the union's gradient = the share-weighted gradients, three pieces folded, the
+  grown cutter, pieces that are chimeras / sliced / driven, the collage drive (axis → seam width, tissue
+  → morph, param links, time; orbit readings refused), push (on the placed, mirrored piece; both copies
+  sampled; carving and intersection fade samples; M's scale), colour (collage shade wins, pieces blend),
+  notation round trips with hash and URL, edits with the drive following. 54 tests pass in all.
+
+K2 needs from the shading session: `piece` and `seam` in shade.js READINGS (collageColour already passes
+them in the readings object; evalShade ignores them until then).

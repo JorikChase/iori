@@ -6,7 +6,9 @@
 // Nodes come in topological order: an input names an earlier node. Types:
 //   readings (no inputs, a number out): col (the fold colour index, 0..1), trap (least |p|²), depth
 //            (iterations done ÷ iterations), lyap (λ along the orbit), facing (n·v), species (the
-//            leading chimera species ÷ (k − 1)), w (the hit point's place along w in 4-D)
+//            leading chimera species ÷ (k − 1)), w (the hit point's place along w in 4-D); a
+//            collage's own shade also reads piece (which piece leads, Σ shareᵢ·i/(n − 1), blended at
+//            seams) and seam (how deep into a fillet, 1 on its middle) — 0 for a formula
 //   ramp     in.v number → colour. p: stops [{ t, c: [r, g, b, a] }] (linear RGB), interp (constant,
 //            linear, ease, bspline, cardinal), space (rgb, hsv, oklab), map { scale, offset, mode
 //            (clamp, repeat, mirror), log, invert }: the number becomes t in 0..1 as
@@ -30,7 +32,7 @@
 // evalShade(shade, readings) is the reference the GPU's register interpreter (gpu/wgsl.js SHADE) is
 // diffed against. packShade lays the program out for it.
 
-export const READINGS = ['col', 'trap', 'depth', 'lyap', 'facing', 'species', 'w'];
+export const READINGS = ['col', 'trap', 'depth', 'lyap', 'facing', 'species', 'w', 'piece', 'seam'];
 export const INTERPS = ['constant', 'linear', 'ease', 'bspline', 'cardinal'];
 export const SPACES = ['rgb', 'hsv', 'oklab'];
 export const MODES = ['clamp', 'repeat', 'mirror'];
@@ -314,7 +316,7 @@ export function boundShade(s, drv) {
   return o;
 }
 
-// readings: { col, trap, depth, lyap, facing, species, w } (missing ones are 0); drivers: the drivers'
+// readings: { col, trap, depth, lyap, facing, species, w, piece, seam } (missing ones are 0); drivers: the drivers'
 // registers at the hit (a Map or an object id → number; missing ones are 0)
 export function evalShade(shade, readings = {}, drivers = null) {
   const drv = (id) => num(drivers instanceof Map ? drivers.get(id) : drivers ? drivers[id] : 0, 0);
@@ -374,7 +376,7 @@ export const SH_NODE_VEC4 = 4;
 export const SH_STOPS_AT = 2 + MAX_NODES * SH_NODE_VEC4;
 export const SH_BINDS_AT = SH_STOPS_AT + MAX_TOTAL_STOPS * 2;
 export const SHADE_VEC4 = SH_BINDS_AT + MAX_SHADE_BINDS * 2;
-export const TYPE_CODE = { col: 1, trap: 2, depth: 3, lyap: 4, facing: 5, species: 6, w: 7, ramp: 10, math: 11, mixc: 12 };
+export const TYPE_CODE = { col: 1, trap: 2, depth: 3, lyap: 4, facing: 5, species: 6, w: 7, piece: 8, seam: 9, ramp: 10, math: 11, mixc: 12 };
 const BIND_CODE = { scale: 0, offset: 1, hue: 2, stop: 3, c: 4, f: 5, gain: 6 };
 // drive: the formula's drivers (their order is the drive program's: a 'd:' input names its register)
 export function packShade(shade, drive = null) {

@@ -10,6 +10,7 @@ import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
 import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
 import { packShade, SHADE_VEC4, MATH_OPS as D_MATH } from '../core/shade.js';
+import { MAX_PIECES, KERNELS, JOIN_OPS, REP, normCollage, collageTarget } from '../core/collage.js';
 import { opPaths, targetParam, perIteration, splitTarget, START, ORBIT, WAVES, TISSUE_OUT, driveParams, driveRuns, colourDrivers } from '../core/drive.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
@@ -159,7 +160,7 @@ export function driveBinds(f) {
 
 // a param node: its op's own value, then the op's index and the parameter's (so the dual numbers know
 // it moves when that very parameter is the one sensed)
-function nodeFloats(m, own, paths, index) {
+export function nodeFloats(m, own, paths, index) {
   const P = m.p;
   if (m.type === 'param') {
     const { path, key } = splitTarget(P.of), o = paths.get(path);
@@ -267,4 +268,114 @@ export function paramTangents(formula, opts = {}) {
     if (t.drec) buf.set(t.drec, i * TAN_FLOATS + 4);
   });
   return { list, buf };
+}
+
+// ---------- the collage (core/collage.js; gpu/wgsl.js COLLAGE reads it) -----------------------------
+// A collage packs every piece as the formula it is — its head, and its ops region (op records, shading
+// and drive programs, OPS_FLOATS each) behind the piece index — then a region of the collage's own
+// (its shade and drive programs, at the same offsets: gpu/wgsl.js reads them through the same code with
+// the region selected) and the collage program after the nine regions, in vec4 units from CL_AT / 4:
+//   [pieces, has its own shade, bindings, drives] [the static step factor, chamfers, an unsafe piece, 0]
+//   four vec4 per piece (eight slots): [tx ty tz s] [rx ry rz g] [repetition kind (0 none, 1 grid,
+//     2 mirror, 3 polar), its first three numbers] [its last three, 0]
+//   two vec4 per join (seven): [op (0 union, 1 inter, 2 sub, 3 morph), kernel (KERNELS order), r, n] [w]
+//   two vec4 per binding (sixteen): [target (the flat index below), node, lo, hi] [min, max]
+// A binding's target is a flat index into that program: piece i's numbers at 16·i + their place in its
+// four vec4, join j's at 128 + 8·j + theirs — so the GPU overlays driven values on the vec4 it reads.
+// Heads: one per piece, then the collage's own (its flags: FLAG_SHADE when it has a shade).
+
+export const REGION4 = OPS_FLOATS / 4;
+export const CL_AT = (MAX_PIECES + 1) * OPS_FLOATS;
+export const CL_VEC4 = 2 + MAX_PIECES * 4 + (MAX_PIECES - 1) * 2 + 16 * 2;
+export const COLLAGE_OPS_FLOATS = CL_AT + CL_VEC4 * 4;
+export const COLLAGE_HEAD_BYTES = (MAX_PIECES + 1) * HEAD_BYTES;
+export const CL_PIECE_FLOATS = 16, CL_JOIN_AT = 128, CL_JOIN_FLOATS = 8;
+const PLACE_AT = { tx: 0, ty: 1, tz: 2, s: 3, rx: 4, ry: 5, rz: 6, g: 7 };
+const REP_KIND = { grid: 1, mirror: 2, polar: 3 };
+const JOIN_AT = { r: 2, n: 3, w: 4 };
+
+// the flat program index a collage target names (null when it is not one: core/collage.js collageTarget)
+export function collageSlot(c, to) {
+  const t = collageTarget(c, to);
+  if (!t) return null;
+  const m = /^([PJ])(\d+)\./.exec(to), i = +m[2];
+  if (m[1] === 'J') return CL_JOIN_AT + CL_JOIN_FLOATS * i + JOIN_AT[t.key];
+  if (t.key in PLACE_AT) return CL_PIECE_FLOATS * i + PLACE_AT[t.key];
+  return CL_PIECE_FLOATS * i + 9 + Object.keys(REP[c.pieces[i].rep.kind]).indexOf(t.key);
+}
+
+// The step factor the march multiplies by, before any measured one (gpu/render.js setStep): every
+// union kernel keeps the estimate 1-Lipschitz but the chamfer (√2 on its bevel, compounding join by
+// join), and a piece that is not pull-safe steps at 0.3 as it does alone.
+export function collageStepFactor(c) {
+  const g = normCollage(c);
+  const chamfers = g.joins.filter((j) => j.op !== 'morph' && j.k === 'chamfer').length;
+  const unsafe = g.pieces.some((q) => !pullSafe(q.f));
+  return { step: Math.pow(Math.SQRT1_2, chamfers) * (unsafe ? 0.3 : 1), chamfers, unsafe };
+}
+
+// whether the collage needs the drivers' variant (a piece's own drive program runs), and whether its
+// estimate moves with a drive (its own or a piece's): the measured step factor then applies
+export const collageDrives = (c) => normCollage(c).pieces.some((q) => drives(q.f));
+export const collageShapes = (c) => {
+  const g = normCollage(c);
+  return !!(g.drive && g.drive.bind.length) || g.pieces.some((q) => shapes(q.f));
+};
+
+export function packCollage(collage) {
+  const c = normCollage(collage);
+  const N = c.pieces.length;
+  if (N < 1 || N > MAX_PIECES) throw new Error(`a collage holds 1..${MAX_PIECES} pieces`);
+  const ops = new Float32Array(COLLAGE_OPS_FLOATS);
+  const head = new ArrayBuffer(COLLAGE_HEAD_BYTES);
+  const pieces = c.pieces.map((q, i) => {
+    const pk = pack(q.f);
+    ops.set(pk.ops, i * OPS_FLOATS);
+    new Uint8Array(head, i * HEAD_BYTES, HEAD_BYTES).set(new Uint8Array(pk.head));
+    return pk;
+  });
+  // the collage's own head: its shade flag, the clock and step words
+  const own = MAX_PIECES * OPS_FLOATS;
+  const oh = new Uint32Array(head, MAX_PIECES * HEAD_BYTES, HEAD_BYTES / 4), of = new Float32Array(head, MAX_PIECES * HEAD_BYTES, HEAD_BYTES / 4);
+  oh[0] = 1; oh[1] = 1; oh[2] = c.shade ? FLAG_SHADE : 0; of[3] = 1;
+  of[88] = of[93] = of[98] = of[103] = 1;
+  of[STEP_WORD] = 1;
+  // the collage's shade reads no drivers (core/collage.js collageColour gives it none)
+  if (c.shade) ops.set(packShade(c.shade, null), own + SHADE_AT);
+  // the drive program's nodes, as a formula's (gpu/wgsl.js drvNode reads them); its bindings below
+  const d = c.drive;
+  const binds = d ? d.bind.map((b) => ({ b, slot: collageSlot(c, b.to), t: collageTarget(c, b.to), from: d.nodes.findIndex((m) => m.id === b.from) })).filter((x) => x.slot != null && x.from >= 0) : [];
+  if (binds.length > 16) throw new Error('too many collage bindings for the GPU');
+  if (d) {
+    const ownOf = (to) => { const t = collageTarget(c, to); return t ? t.obj[t.key] : 0; };
+    const at = new Map(d.nodes.map((m, i) => [m.id, i]));
+    ops.set([d.nodes.length, binds.length, 0, 0], own + DRIVE_AT);
+    d.nodes.forEach((m, i) => {
+      const o = own + DRIVE_AT + (2 + i * 3) * 4;
+      ops.set([DRIVE_TYPE[m.type], ...['a', 'b'].map((k) => (m.in[k] != null && at.has(m.in[k]) ? at.get(m.in[k]) : -1)), 0], o);
+      ops.set((m.type === 'param' ? [ownOf(m.p.of), -1, -1] : nodeFloats(m)).slice(0, 8), o + 4);
+    });
+  }
+  const st = collageStepFactor(c);
+  const P = CL_AT;
+  ops.set([N, c.shade ? 1 : 0, binds.length, binds.length ? 1 : 0], P);
+  ops.set([st.step, st.chamfers, st.unsafe ? 1 : 0, 0], P + 4);
+  c.pieces.forEach((q, i) => {
+    const o = P + (2 + i * 4) * 4, pl = q.place, r = q.rep;
+    ops.set([pl.tx, pl.ty, pl.tz, pl.s, pl.rx, pl.ry, pl.rz, pl.g], o);
+    if (r) {
+      const v = Object.keys(REP[r.kind]).map((k) => r[k]);
+      ops.set([REP_KIND[r.kind], v[0], v[1], v[2], v[3] ?? 0, v[4] ?? 0, v[5] ?? 0, 0], o + 8);
+    }
+  });
+  c.joins.forEach((j, i) => {
+    const o = P + (2 + MAX_PIECES * 4 + i * 2) * 4;
+    ops.set([JOIN_OPS.indexOf(j.op), KERNELS.indexOf(j.k), j.r, j.n, j.w], o);
+  });
+  binds.forEach(({ b, slot, t, from }, k) => {
+    const o = P + (2 + MAX_PIECES * 4 + (MAX_PIECES - 1) * 2 + k * 2) * 4;
+    ops.set([slot, from, b.lo, b.hi, t.spec.min ?? -BIG, t.spec.max ?? BIG], o);
+  });
+  return { ops, head, collage: c, pieces, opCount: pieces.reduce((a, p) => a + p.opCount, 0), step: st.step,
+    drives: c.pieces.some((q) => drives(q.f)), shapes: collageShapes(c) };
 }

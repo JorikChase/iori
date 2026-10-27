@@ -176,6 +176,7 @@ function layout() {
   const visible = 0.235 * H / (1.4 * R);
   camera.fov = 2 * Math.atan(visible / (2 * camera.position.z)) * 180 / Math.PI;
   camera.updateProjectionMatrix();
+  buildSurface();
 }
 const toPx = (p) => [CX + p.x * R, CY - p.y * R];
 
@@ -191,26 +192,39 @@ function weights(p) {
   return { all, w: w.map((v) => v / sum) };
 }
 
-function drawSurface(wt) {
-  const s = [];
+// Built once per layout: rebuilding the SVG every frame re-creates the <image> elements, and a browser that
+// revalidates them never gets to paint the thumbnails. Per frame only the spokes, highlights and cross move.
+let ui = null;
+function buildSurface() {
   const th = Math.min(30, R * 0.13);
-  s.push(`<circle class="ring" cx="${CX}" cy="${CY}" r="${R}"/>`);
-  const [x, y] = toPx(cross);
-  wt.all.forEach((t, i) => {
-    if (i === 0) return;
-    const [sx, sy] = toPx(t);
-    s.push(`<path class="spoke" style="opacity:${(0.06 + 0.9 * wt.w[i]).toFixed(3)}" d="M${x} ${y}L${sx} ${sy}"/>`);
-  });
+  const s = [`<circle class="ring" cx="${CX}" cy="${CY}" r="${R}"/>`];
+  SITES.forEach(() => s.push('<path class="spoke"/>'));
   SITES.forEach((t, i) => {
     const [sx, sy] = toPx(t);
-    const on = wt.w[i + 1] > 0.5 ? ' on' : '';
     s.push(`<clipPath id="c${i}"><circle cx="${sx}" cy="${sy}" r="${th}"/></clipPath>`);
-    s.push(`<image class="${on}" href="thumbs/${t.name}.jpg" x="${sx - th}" y="${sy - th}" width="${2 * th}" height="${2 * th}" clip-path="url(#c${i})" data-i="${i}"/>`);
-    s.push(`<circle class="site${on}" cx="${sx}" cy="${sy}" r="${th}"/>`);
+    s.push(`<image href="thumbs/${t.name}.jpg" x="${sx - th}" y="${sy - th}" width="${2 * th}" height="${2 * th}" clip-path="url(#c${i})"/>`);
+    s.push(`<circle class="site" cx="${sx}" cy="${sy}" r="${th}"/>`);
   });
   s.push(`<circle class="home" cx="${CX}" cy="${CY}" r="3"/>`);
-  s.push(`<g class="cross"><path d="M${x - 14} ${y}H${x - 4}M${x + 4} ${y}H${x + 14}M${x} ${y - 14}V${y - 4}M${x} ${y + 4}V${y + 14}"/><circle cx="${x}" cy="${y}" r="1.5"/></g>`);
+  s.push('<g class="cross"><path d="M-14 0H-4M4 0H14M0 -14V-4M0 4V14"/><circle r="1.5"/></g>');
   svg.innerHTML = s.join('');
+  ui = { spokes: [...svg.querySelectorAll('.spoke')], images: [...svg.querySelectorAll('image')],
+    sites: [...svg.querySelectorAll('.site')], cross: svg.querySelector('.cross') };
+}
+
+function drawSurface(wt) {
+  if (!ui) return;
+  const [x, y] = toPx(cross);
+  SITES.forEach((t, i) => {
+    const [sx, sy] = toPx(t);
+    const sp = ui.spokes[i];
+    sp.setAttribute('d', `M${x.toFixed(1)} ${y.toFixed(1)}L${sx.toFixed(1)} ${sy.toFixed(1)}`);
+    sp.style.opacity = (0.06 + 0.9 * wt.w[i + 1]).toFixed(3);
+    const on = wt.w[i + 1] > 0.5;
+    ui.images[i].classList.toggle('on', on);
+    ui.sites[i].classList.toggle('on', on);
+  });
+  ui.cross.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
 }
 
 function pointer(e) {

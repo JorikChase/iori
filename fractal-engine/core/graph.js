@@ -19,6 +19,7 @@ import { normalize, mixKids, validate } from './formula.js';
 import { getOp, fillParams, isMix } from './ops.js';
 import { slotLetter } from './notation.js';
 import { remapDrive, normDrive, splitTarget, targetParam, opPaths, emptyDrive } from './drive.js';
+import { dropDriverRefs } from './shade.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const opNode = (o, id) => ({ id, op: o.op, p: { ...o.p } });
@@ -291,12 +292,13 @@ export function setDriver(formula, node) {
   return checked({ ...f, drive: d });
 }
 
-// a driver node removed with the bindings it feeds; nodes reading it lose that input
+// a driver node removed with the bindings it feeds; nodes reading it lose that input, and so does the
+// shading (core/shade.js dropDriverRefs)
 export function removeDriver(formula, id) {
   const f = normalize(formula), d = normDrive(f.drive || {});
   d.nodes = d.nodes.filter((m) => m.id !== id).map((m) => ({ ...m, in: Object.fromEntries(Object.entries(m.in).filter(([, r]) => r !== id)) }));
   d.bind = d.bind.filter((b) => b.from !== id);
-  return checked({ ...f, drive: d });
+  return checked({ ...f, drive: d, ...(f.shade ? { shade: dropDriverRefs(f.shade, id) } : {}) });
 }
 
 function checked(f) {

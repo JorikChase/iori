@@ -15,7 +15,7 @@ import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, de
 import { readingsOf } from '../core/drive.js';
 import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
 import { INTERP, INVERSE, DUAL, withDrive } from '../gpu/wgsl.js';
-import { pack, drives, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS } from '../gpu/pack.js';
+import { pack, drives, paramTangents, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD } from '../gpu/pack.js';
 import { withJit } from '../gpu/jit.js';
 import { format } from '../core/notation.js';
 import { evalShade, normShade, rampPreset, defaultShade, INTERPS, SPACES, MODES, MATH_OPS, MIX_MODES } from '../core/shade.js';
@@ -43,6 +43,84 @@ const SH_GRAPHS = (() => {
   return out.map(normShade);
 })();
 const SH_N = 4096;
+
+// Drivers → colour: shading graphs that read eight driver registers ('d:d0' … 'd:d7') and bind every
+// kind of shading parameter to them — the GPU's interpreter in the drivers' variant, the registers
+// given, against evalShade with the same registers
+const SH_DRIVERS = { nodes: Array.from({ length: 8 }, (_, k) => ({ id: 'd' + k, type: 'time', p: {} })), bind: [] };
+const SH_DRIVEN = (() => {
+  const stops = [{ t: 0, c: [0.05, 0.1, 0.6, 1] }, { t: 0.3, c: [0.9, 0.2, 0.3, 0.5] }, { t: 0.55, c: [0.2, 0.9, 0.4, 0.8] }, { t: 1, c: [1, 0.95, 0.7, 0.2] }];
+  const map = (o = {}) => ({ scale: 1.2, offset: -0.05, mode: 'repeat', log: false, invert: false, ...o });
+  const rp = (interp, space, m) => ({ stops, interp, space, map: map(m) });
+  return [
+    // a driver as a ramp's input, a hue turned by another
+    { nodes: [{ id: 'r', type: 'ramp', in: { v: 'd:d0' }, p: rp('linear', 'oklab', { hue: 0.2 }) }], out: { color: 'r' }, bind: [{ to: 'r.map.hue', from: 'd1', lo: -0.5, hi: 0.5 }] },
+    // the mapping bound (scale, offset), two stops moved, the gain pulsed
+    { nodes: [{ id: 'c', type: 'col' }, { id: 'r', type: 'ramp', in: { v: 'c' }, p: rp('cardinal', 'hsv') }], out: { color: 'r' },
+      bind: [{ to: 'r.map.scale', from: 'd2', lo: 0.5, hi: 3 }, { to: 'r.map.offset', from: 'd3', lo: -0.5, hi: 0.5 }, { to: 'r.stops.1.t', from: 'd4', lo: 0, hi: 1 }, { to: 'r.stops.2.t', from: 'd5', lo: 0.2, hi: 0.9 }, { to: 'out.gain', from: 'd6', lo: 0.2, hi: 4 }] },
+    // maths on drivers and readings, a mix's amount, a math constant bound, a constant ramp with a hue
+    { nodes: [{ id: 'c', type: 'col' }, { id: 'm', type: 'math', in: { a: 'd:d0', b: 'c' }, p: { op: 'mul' } }, { id: 'n', type: 'math', in: { a: 'm' }, p: { op: 'bands', c: 0.2 } },
+      { id: 'r1', type: 'ramp', in: { v: 'n' }, p: rp('constant', 'rgb', { hue: 0.35 }) }, { id: 'r2', type: 'ramp', in: { v: 'd:d7' }, p: rp('bspline', 'oklab') },
+      { id: 'x', type: 'mixc', in: { a: 'r1', b: 'r2' }, p: { mode: 'screen', f: 0.4 } }], out: { color: 'x', glow: 'n' },
+      bind: [{ to: 'n.c', from: 'd1', lo: 0.1, hi: 0.3 }, { to: 'x.f', from: 'd2', lo: 0, hi: 1 }, { to: 'r2.map.hue', from: 'd3', lo: 0, hi: 1 }] },
+    // a mix's amount straight from a driver
+    { nodes: [{ id: 'c', type: 'col' }, { id: 'r1', type: 'ramp', in: { v: 'c' }, p: rp('ease', 'oklab') }, { id: 'r2', type: 'ramp', in: { v: 'd:d4' }, p: rp('linear', 'rgb') },
+      { id: 'x', type: 'mixc', in: { a: 'r1', b: 'r2', f: 'd:d5' }, p: { mode: 'multiply' } }], out: { color: 'x', glow: 'r2' } },
+  ].map(normShade);
+})();
+const SHADE_D_SHADER = INTERP + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts) / 4u) { return; }
+  _ = head.flags;
+  let a = pts[4u * i];
+  let b = pts[4u * i + 1u];
+  let d0 = pts[4u * i + 2u];
+  let d1 = pts[4u * i + 3u];
+  for (var k = 0u; k < 4u; k++) { drvReg[k] = d0[k]; drvReg[4u + k] = d1[k]; }
+  var r: Readings;
+  r.col = a.x; r.trap = a.y; r.depth = a.z; r.lyap = a.w; r.facing = b.x; r.species = b.y; r.w = b.z;
+  let o = shadeRun(r);
+  outp[4u * i] = o.color;
+  outp[4u * i + 1u] = o.glow;
+  outp[4u * i + 2u] = vec4f(o.gain);
+}`;
+// end to end: formulas whose shading reads their drivers (nothing bound, or the shape bound too) —
+// the GPU's orbit leaves its registers, the shading reads them, against iterate's drv and evalShade
+const COLOUR_N = 2048, COLOUR_T = 1.37;
+const COLOUR = (() => {
+  const BOX = 'fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100';
+  const sh = (inp, bind = []) => ({ nodes: [{ id: 'c', type: 'col' }, { id: 'r', type: 'ramp', in: { v: inp }, p: { ...rampPreset('film'), map: { scale: 1, offset: 0, mode: 'repeat', log: false, invert: false } } },
+    { id: 'm', type: 'math', in: { a: 'c', b: 'd:i' }, p: { op: 'add' } }], out: { color: 'r', glow: 'm' }, bind });
+  const nodes = [{ id: 'i', type: 'i' }, { id: 'nz', type: 'noise', p: { f: 0.9, g: 1 } }, { id: 't', type: 'time', p: { rate: 0.3, wave: 'sine' } }, { id: 'tr', type: 'trap' }, { id: 'q', type: 'remap', in: { a: 'tr' }, p: { lo: 0, hi: 2, clamp: true } }];
+  const F = (text, inp, bind, dbind = []) => format(normalize({ ...parse(text), drive: { nodes, bind: dbind }, shade: sh(inp, bind) }));
+  return [
+    // colour only: a noise as the ramp's input, the clock turns its hue, the trap moves its offset
+    [F(BOX, 'd:nz', [{ to: 'r.map.hue', from: 't', lo: 0, hi: 1 }, { to: 'r.map.offset', from: 'q', lo: -0.3, hi: 0.3 }, { to: 'out.gain', from: 'i', lo: 0.5, hi: 2 }]), 5],
+    // colour and shape: the same noise drives the scale and paints it
+    [F(BOX, 'd:nz', [{ to: 'r.stops.2.t', from: 't', lo: 0.3, hi: 0.7 }], [{ to: 'A2.s', from: 'nz', lo: 2.4, hi: 2.6 }]), 5],
+    // a bulb painted by the iteration it stopped at
+    [F('bulb 8 · +c ×10 bail=2', 'd:q', [{ to: 'r.map.scale', from: 'i', lo: 0.5, hi: 2 }]), 1.3],
+  ];
+})();
+const COLOUR_SHADER = INTERP + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts) / 2u) { return; }
+  let p = embed(pts[2u * i].xyz);
+  let t = iterate(p, cFor(p));
+  var r: Readings;
+  r.col = 0.25;
+  let o = shadeRun(r);
+  outp[2u * i] = o.color;
+  outp[2u * i + 1u] = vec4f(o.glow.x, o.gain, f32(t.n), 0.0);
+}`;
 const SHADE_SHADER = INTERP + `
 @group(0) @binding(2) var<storage, read> pts: array<vec4f>;
 @group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
@@ -94,7 +172,7 @@ FORMULAS.push(
   [format({ ...normalize(parse('[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] tissue 6 1 .1 2 · +c ×10 bail=8')), shade: SH_GRAPHS[SH_GRAPHS.length - 2] }), 1.6],
 );
 // drivers (formula v2): every suite takes the driven cases too
-FORMULAS.push(...DRIVEN);
+FORMULAS.push(...DRIVEN, ...COLOUR);
 const N = 4096;
 
 const SHADER = INTERP + `
@@ -278,6 +356,29 @@ const out = document.getElementById('out');
 // progress, readable while a section runs: window.__progress and the console
 const t00 = performance.now();
 function mark(section, text) { window.__progress = { section, text, s: ((performance.now() - t00) / 1000).toFixed(1) }; console.log('parity', section, window.__progress.s, text); }
+// one dispatch of a test pipeline over (head, ops, pts → out); the output read back
+async function runPipe(device, pipe, pk, data, n) {
+  const mk = (size, usage) => device.createBuffer({ size, usage });
+  const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  const ops = mk(OPS_FLOATS * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+  const pb = mk(data.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+  const ob = mk(data.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+  const rb = mk(data.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+  device.queue.writeBuffer(head, 0, pk.head);
+  device.queue.writeBuffer(ops, 0, pk.ops);
+  device.queue.writeBuffer(pb, 0, data);
+  const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [head, ops, pb, ob].map((b, i) => ({ binding: i, resource: { buffer: b } })) });
+  const enc = device.createCommandEncoder();
+  const cp = enc.beginComputePass();
+  cp.setPipeline(pipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(n / 64)); cp.end();
+  enc.copyBufferToBuffer(ob, 0, rb, 0, data.byteLength);
+  device.queue.submit([enc.finish()]);
+  await rb.mapAsync(GPUMapMode.READ);
+  const g = new Float32Array(rb.getMappedRange().slice(0));
+  rb.unmap();
+  [head, ops, pb, ob, rb].forEach((b) => b.destroy());
+  return g;
+}
 async function run() {
   const adapter = await navigator.gpu.requestAdapter();
   const device = await adapter.requestDevice();
@@ -670,7 +771,63 @@ async function run() {
     shadeRows.push({ graph: gi, what: n0 ? `${n0.p.interp}/${n0.p.space}/${n0.p.map.mode}` : '', nodes: sh.nodes.map((q) => q.type + (q.p.op ? ':' + q.p.op : q.p.mode && q.type === 'mixc' ? ':' + q.p.mode : '')).join(' '), median: errs[SH_N >> 1], p99: errs[Math.floor(SH_N * 0.99)], max: errs[SH_N - 1], off });
     [head, ops, pb, ob, rb].forEach((b) => b.destroy());
   }
+  // drivers → colour: the interpreter with registers given, then whole orbits
+  const shDPipe = await compilePipe(withDrive(SHADE_D_SHADER), 'SHADE_D_SHADER');
+  for (const [gi, sh] of SH_DRIVEN.entries()) {
+    mark('shade', 'driven ' + gi);
+    const pk = pack({ ...normalize(parse('abs ×1')), drive: SH_DRIVERS, shade: sh });
+    const rng = makeRng(90 + gi);
+    const rd = new Float32Array(SH_N * 16);
+    const readings = [], regs = [];
+    for (let i = 0; i < SH_N; i++) {
+      const r = { col: rng.float(), trap: rng.float() * 4, depth: rng.float(), lyap: rng.float() * 2 - 1, facing: rng.float() * 2 - 1, species: rng.float(), w: rng.float() * 2 - 1 };
+      const d = Array.from({ length: 8 }, () => rng.float() * 1.4 - 0.2);
+      readings.push(r); regs.push(Object.fromEntries(d.map((v, k) => ['d' + k, Math.fround(v)])));
+      rd.set([r.col, r.trap, r.depth, r.lyap, r.facing, r.species, r.w, 0, ...d], i * 16);
+    }
+    const g = await runPipe(device, shDPipe, pk, rd, SH_N);
+    const errs = [];
+    let off = 0;
+    for (let i = 0; i < SH_N; i++) {
+      const c = evalShade(sh, readings[i], regs[i]);
+      const e = Math.max(...c.color.map((x, k) => Math.abs(x - g[i * 16 + k])));
+      const ge = c.glow == null ? 0 : Array.isArray(c.glow) ? Math.max(...c.glow.map((x, k) => Math.abs(x - g[i * 16 + 4 + k]))) : Math.abs(c.glow - g[i * 16 + 4]) / Math.max(1, Math.abs(c.glow));
+      const m = Math.max(e, ge, Math.abs(c.gain - g[i * 16 + 8]) / Math.max(1, c.gain));
+      errs.push(m);
+      if (m > 1e-3) off++;
+    }
+    errs.sort((a, b) => a - b);
+    shadeRows.push({ graph: 'd' + gi, what: 'driven', nodes: sh.nodes.map((q) => q.type).join(' ') + ' bind ' + (sh.bind || []).map((b) => b.to).join(','), median: errs[SH_N >> 1], p99: errs[Math.floor(SH_N * 0.99)], max: errs[SH_N - 1], off });
+  }
+  const colourPipe = await compilePipe(withDrive(COLOUR_SHADER), 'COLOUR_SHADER');
+  const colourRows = [];
+  for (const [text, R] of COLOUR) {
+    mark('colour', text.slice(0, 40));
+    const f = normalize(parse(text));
+    const pk = pack(f);
+    new Float32Array(pk.head)[CLOCK_WORD] = COLOUR_T;
+    const rng = makeRng(17);
+    const pts = new Float32Array(COLOUR_N * 8);
+    for (let i = 0; i < COLOUR_N; i++) pts.set(rng.ball().map((x) => x * R), i * 8);
+    const g = await runPipe(device, colourPipe, pk, pts, COLOUR_N);
+    const errs = [];
+    let compared = 0, iterMismatch = 0, off = 0;
+    for (let i = 0; i < COLOUR_N; i++) {
+      const p = [pts[i * 8], pts[i * 8 + 1], pts[i * 8 + 2]];
+      const o = iterate(f, p, f.c || lift(f, p), { time: Math.fround(COLOUR_T) });
+      if (o.n !== g[i * 8 + 6]) { iterMismatch++; continue; }
+      const c = evalShade(f.shade, { col: 0.25 }, o.drv);
+      const m = Math.max(...c.color.map((x, k) => Math.abs(x - g[i * 8 + k])), Math.abs(c.glow - g[i * 8 + 4]) / Math.max(1, Math.abs(c.glow)), Math.abs(c.gain - g[i * 8 + 5]) / Math.max(1, c.gain));
+      errs.push(m); compared++;
+      if (m > 1e-2) off++;
+    }
+    errs.sort((a, b) => a - b);
+    colourRows.push({ formula: text, compared, iterMismatch, median: errs[compared >> 1] || 0, p99: errs[Math.floor(compared * 0.99)] || 0, off });
+  }
   const shadeOk = shadeRows.every((r) => r.median < 1e-5 && r.off / SH_N < 0.005);
+  // whole orbits: float32 orbits and noise a few 1e-6 off move a ramp read through repeat or a hue a
+  // little; where a ramp's input lands on a stop or a repeat seam the colour may jump (counted in off)
+  const colourOk = colourRows.every((r) => r.median < 1e-4 && r.off / Math.max(1, r.compared) < 0.02 && r.iterMismatch / COLOUR_N < 0.02);
   // A driven formula's tail is wider: a parameter that varies over space or along the orbit carries
   // float32's own error (noise and orbit a few 1e-6 off) into every iteration, and the Mandelbox raises it
   // to the twelfth power at its fold edges — p99 3–5 % with any spatially varying scale, fold or radius
@@ -678,8 +835,8 @@ async function run() {
   // room for a rotation rebuilt in float32 (its own value rebuilt: 4.7e-5 against the packed 2.5e-5) whose
   // angle follows the trap (1.1e-4).
   const drv = (r) => r.formula.includes('drive=');
-  const ok = rows.every((r) => r.median < (drv(r) ? 3e-4 : 1e-4) && r.p99 < (drv(r) ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk && shadeOk;
-  window.__parity = { ok, rows, invRows, dualRows, ovRows, jitRows, shadeRows };
+  const ok = rows.every((r) => r.median < (drv(r) ? 3e-4 : 1e-4) && r.p99 < (drv(r) ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk && shadeOk && colourOk;
+  window.__parity = { ok, rows, invRows, dualRows, ovRows, jitRows, shadeRows, colourRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
     `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n')
     + '\n\ninverse steps (GPU preimage → CPU forward)\n\n' + invRows.map((r) =>
@@ -690,6 +847,8 @@ async function run() {
     `${r.formula}  [${r.params}]\n  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}`).join('\n\n')
     + '\n\nshading (GPU interpreter vs evalShade, ' + SH_N + ' random readings)\n\n' + shadeRows.map((r) =>
     `#${r.graph} ${r.nodes} ${r.what}\n  max channel err median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} max ${r.max.toExponential(2)}  off (>1e-3) ${r.off}`).join('\n\n')
+    + '\n\ndrivers → colour (whole orbits at t = ' + COLOUR_T + ', ' + COLOUR_N + ' points)\n\n' + colourRows.map((r) =>
+    `${r.formula}\n  compared ${r.compared}  iter≠ ${r.iterMismatch}  max channel err median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)}  off (>1e-2) ${r.off}`).join('\n\n')
     + '\n\ndual numbers (GPU tangents vs CPU central differences)\n\n' + dualRows.map((r) =>
     `${r.formula}\n  gradient angle median ${r.gradDegMed.toFixed(3)}° p90 ${r.gradDegP90.toFixed(2)}°   ∂DE/∂θ (${r.params} params) median rel ${r.paramRelMed.toExponential(2)} p90 ${r.paramRelP90.toExponential(2)}   λ median |err| ${r.lyapAbsMed.toExponential(2)} p90 ${r.lyapAbsP90.toExponential(2)}`).join('\n\n');
 }

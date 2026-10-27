@@ -12,9 +12,15 @@
 //   setNodeParam(f, id, key, v)   key may be a path: 'map.scale'
 //   addStop / moveStop / removeStop / setStopColour, setRamp (interp, space, map mode, log, invert),
 //   applyPreset(f, id, name)
+// Drivers → colour (core/shade.js 'd:' inputs, shade.bind):
+//   linkDriver(f, driverId, to, port)   a driver's value into a number input
+//   bindShade(f, to, from, lo, hi), unbindShade(f, to), setShadeBand(f, to, lo, hi), setGain(f, v)
+//   shadeBindables(f, id)     the targets a node offers ('<id>.map.scale' …, 'out.gain' for 'out')
+// Every edit keeps the bindings on their stops (a stop that moves past another keeps its binding) and
+// drops those whose node or stop is gone.
 
 import { normalize, validate } from './formula.js';
-import { normShade, validateShade, kindOf, READINGS, defaultShade, rampPreset, rampAt, MAX_STOPS } from './shade.js';
+import { normShade, validateShade, kindOf, READINGS, defaultShade, rampPreset, rampAt, MAX_STOPS, isDrv, DRV, shadeTarget, GAIN_MAX } from './shade.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const PORTS = { ramp: ['v'], math: ['a', 'b'], mixc: ['a', 'b', 'f'] };
@@ -53,9 +59,24 @@ function edit(formula, fn) {
   const f = clone(normalize(formula));
   if (!f.shade) throw new Error('shade: the formula has no shading yet');
   const s = clone(f.shade);
+  // every stop tagged with its place, so a binding can follow it through the edit
+  for (const n of s.nodes) if (n.type === 'ramp') n.p.stops.forEach((st, k) => { st.k = k; });
   fn(s);
   topo(s);
-  const errs = validateShade(s);
+  if (s.bind) {
+    const now = new Map();
+    for (const n of s.nodes) if (n.type === 'ramp') {
+      const order = n.p.stops.map((st, i) => ({ st, i })).sort((a, b) => a.st.t - b.st.t || a.i - b.i);
+      now.set(n.id, new Map(order.filter((o) => o.st.k !== undefined).map((o, j) => [o.st.k, order.indexOf(o)])));
+    }
+    s.bind = s.bind.flatMap((b) => {
+      const m = b.to.match(/^(.*)\.stops\.(\d+)\.t$/);
+      if (m) { const at = now.get(m[1]) && now.get(m[1]).get(+m[2]); return at === undefined ? [] : [{ ...b, to: `${m[1]}.stops.${at}.t` }]; }
+      return b.to === 'out.gain' || s.nodes.some((n) => b.to.startsWith(n.id + '.')) ? [b] : [];
+    });
+  }
+  for (const n of s.nodes) if (n.type === 'ramp') n.p.stops.forEach((st) => { delete st.k; });
+  const errs = validateShade(s, f.drive || null);
   if (errs.length) throw new Error(errs.join('; '));
   f.shade = normShade(s);
   const v = validate(f);
@@ -81,7 +102,7 @@ function freshNode(s, type) {
   throw new Error(`shade: unknown node type ${type}`);
 }
 
-const kindOfId = (s, id) => { const n = s.nodes.find((q) => q.id === id); return n ? kindOf(n.type) : null; };
+const kindOfId = (s, id) => { if (isDrv(id)) return 'number'; const n = s.nodes.find((q) => q.id === id); return n ? kindOf(n.type) : null; };
 // what an input expects: a node's port, or the outputs (colour for color; anything for glow)
 const wants = (s, to, port) => (to === 'out' ? (port === 'color' ? 'colour' : null) : inputKind(nodeOf(s, to).type, port));
 const setLink = (s, to, port, from) => { if (to === 'out') s.out[port] = from; else nodeOf(s, to).in[port] = from; };
@@ -177,7 +198,8 @@ export function setNodeParam(formula, id, key, value) {
     const n = nodeOf(s, id), path = key.split('.');
     let o = n.p;
     for (const k of path.slice(0, -1)) o = o[k];
-    if (!(path.at(-1) in o)) throw new Error(`shade: ${n.type} has no ${key}`);
+    // a ramp's hue turn is written only when it is not 0
+    if (!(path.at(-1) in o) && !(n.type === 'ramp' && key === 'map.hue')) throw new Error(`shade: ${n.type} has no ${key}`);
     o[path.at(-1)] = value;
   });
 }
@@ -218,4 +240,55 @@ export function setRamp(formula, id, key, value) {
 }
 export function applyPreset(formula, id, name) {
   return edit(formula, (s) => { const n = nodeOf(s, id); if (n.type !== 'ramp') throw new Error(`shade: ${id} is not a ramp`); n.p = rampPreset(name); });
+}
+
+// ---------- drivers → colour ----------------------------------------------------------------------
+const hasDriver = (formula, id) => !!(normalize(formula).drive && normalize(formula).drive.nodes.some((m) => m.id === id));
+
+export function linkDriver(formula, driverId, to, port) {
+  if (!hasDriver(formula, driverId)) throw new Error(`shade: no driver ${driverId}`);
+  return edit(formula, (s) => {
+    const want = wants(s, to, port);
+    if (to === 'out') throw new Error('shade: a driver is a number; the outputs take nodes');
+    if (!portsOf(nodeOf(s, to).type).includes(port)) throw new Error(`shade: ${to} has no input ${port}`);
+    if (want !== 'number') throw new Error(`shade: ${port} wants a ${want}, a driver gives a number`);
+    setLink(s, to, port, DRV + driverId);
+  });
+}
+
+// the shading parameters a node offers to a binding: a ramp's mapping (scale, offset, hue) and its
+// stops' places, a math's constant, a mix's amount; the outputs ('out') the glow's gain
+export function shadeBindables(formula, id) {
+  const s = normalize(formula).shade;
+  if (!s) return [];
+  if (id === 'out') return ['out.gain'];
+  const n = s.nodes.find((q) => q.id === id);
+  if (!n) return [];
+  if (n.type === 'ramp') return [`${id}.map.scale`, `${id}.map.offset`, `${id}.map.hue`, ...n.p.stops.map((_, k) => `${id}.stops.${k}.t`)];
+  if (n.type === 'math') return [`${id}.c`];
+  if (n.type === 'mixc') return [`${id}.f`];
+  return [];
+}
+
+// drive a shading parameter from a driver over the band [lo, hi]; binding a bound one replaces it
+export function bindShade(formula, to, from, lo = 0, hi = 1) {
+  if (!hasDriver(formula, from)) throw new Error(`shade: no driver ${from}`);
+  return edit(formula, (s) => {
+    if (!shadeTarget(s, to)) throw new Error(`shade: ${to} cannot be driven`);
+    s.bind = [...(s.bind || []).filter((b) => b.to !== to), { to, from, lo, hi }];
+  });
+}
+export function unbindShade(formula, to) {
+  return edit(formula, (s) => { s.bind = (s.bind || []).filter((b) => b.to !== to); });
+}
+export function setShadeBand(formula, to, lo, hi) {
+  return edit(formula, (s) => {
+    const b = (s.bind || []).find((x) => x.to === to);
+    if (!b) throw new Error(`shade: ${to} is not bound`);
+    b.lo = lo; b.hi = hi;
+  });
+}
+// the glow's strength (the pulse's own value), 0..16
+export function setGain(formula, v) {
+  return edit(formula, (s) => { s.out.gain = Math.min(GAIN_MAX, Math.max(0, +v)); });
 }

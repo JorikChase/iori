@@ -6,11 +6,12 @@
 //   placeOf(type)                 'lane' (orbit readings, maths, remaps: inside the repeat zone) or 'top'
 //                                 (the start, fields, time, param: on the zone's top edge, once an orbit)
 //   addDriver(f, type, at, p)     a new node; at = { node, port } inserts it on that input's link, at =
-//                                 { bind: to } between a binding and its source — the old source becomes
-//                                 the new node's input where it has one
+//                                 { bind: to } between a binding (an op's or the shading's) and its source —
+//                                 the old source becomes the new node's input where it has one
 //   connectDriver(f, from, to, port), disconnectDriver(f, to, port)
 //   removeDriverNode(f, id)       a bypass: what it fed takes its own input instead; bindings it fed with
-//                                 nothing to take its place go, and so do nodes left without a required input
+//                                 nothing to take its place go, and so do nodes left without a required input;
+//                                 the shading's links and bindings to it follow the same rule
 //   setDriverParam(f, id, key, v) clamped to the parameter's range; words and switches as given
 //   bindTrace(f, start, time, c)  every binding's value at each iteration of the orbit from start (the
 //                                 band's live tick)
@@ -20,6 +21,7 @@
 import { normalize, validate } from './formula.js';
 import { normDrive, validateDrive, emptyDrive, TYPES, ORBIT, PARAMS, opPaths, targetParam, evalDrive, splitTarget } from './drive.js';
 import { iterate } from './cpu.js';
+import { dropDriverRefs } from './shade.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const PORTS = { math: ['a', 'b'], remap: ['a'] };
@@ -80,11 +82,12 @@ function freshNode(d, type, inserted, p = {}) {
 }
 
 export function addDriver(formula, type, at = null, p = {}) {
-  return edit(formula, (d) => {
+  return edit(formula, (d, f) => {
     const n = freshNode(d, type, !!at, p);
     let old = null;
     if (at && at.bind) {
-      const b = d.bind.find((x) => x.to === at.bind);
+      // a binding of an op's parameter, or of a shading parameter (core/shade.js shade.bind)
+      const b = d.bind.find((x) => x.to === at.bind) || (f.shade && (f.shade.bind || []).find((x) => x.to === at.bind));
       if (!b) throw new Error(`drive: ${at.bind} is not bound`);
       old = b.from;
       b.from = n.id;
@@ -124,7 +127,7 @@ export function disconnectDriver(formula, to, port) {
 }
 
 export function removeDriverNode(formula, id) {
-  return edit(formula, (d) => {
+  return edit(formula, (d, f) => {
     const gone = new Set([id]);
     // what replaces a removed node: its own first input, if that is not going too
     const instead = (ref) => { const m = d.nodes.find((q) => q.id === ref); const src = m && m.in[driverPorts(m.type)[0]]; return src != null && !gone.has(src) ? src : null; };
@@ -143,6 +146,8 @@ export function removeDriverNode(formula, id) {
       }
     }
     d.bind = d.bind.flatMap((b) => { if (!gone.has(b.from)) return [b]; const r = instead(b.from); return r != null ? [{ ...b, from: r }] : []; });
+    // the shading's links and bindings follow the same way (core/shade.js dropDriverRefs)
+    if (f.shade) for (const g of gone) f.shade = dropDriverRefs(f.shade, g, instead(g));
     d.nodes = d.nodes.filter((m) => !gone.has(m.id));
   });
 }

@@ -10,7 +10,7 @@ import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
 import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
 import { packShade, SHADE_VEC4, MATH_OPS as D_MATH } from '../core/shade.js';
-import { opPaths, targetParam, perIteration, splitTarget, START, ORBIT, WAVES, TISSUE_OUT, driveParams } from '../core/drive.js';
+import { opPaths, targetParam, perIteration, splitTarget, START, ORBIT, WAVES, TISSUE_OUT, driveParams, driveRuns, colourDrivers } from '../core/drive.js';
 import { slotIndex } from '../core/notation.js';
 import { hasPower } from '../core/cpu.js';
 import { rotationXYZ, rotation4, lift4, sliceMatrix, normalize as nrm } from '../core/vec.js';
@@ -80,7 +80,7 @@ function record(o, out = new Float32Array(REC), kids = [0, 0]) {
 export function pack(formula) {
   const f = normalize(formula);
   const ops = new Float32Array(OPS_FLOATS);
-  if (f.shade) ops.set(packShade(f.shade), SHADE_AT);
+  if (f.shade) ops.set(packShade(f.shade, f.drive), SHADE_AT);
   const starts = new Array(8).fill(0), lens = new Array(8).fill(0);
   let n = 0;
   const kidsOf = new Map(mixKids(f).mixes.map((m) => [`${m.si}.${m.j}`, m.kids]));
@@ -144,7 +144,11 @@ const MODE = { rotate: 1, rotate4: 2, 'fold.plane': 3 };
 export const MAX_REBUILT_OPS = 4, MAX_REBUILT_BINDS = 8;
 const BIG = 1e30;
 
-export const drives = (f) => !!(f.drive && f.drive.bind && f.drive.bind.length);
+// drives: the drive program runs (something bound, or the shading reads a driver: core/drive.js
+// driveRuns) — the drivers' shader variant; shapes: something bound — the distance estimate moves
+// (sensing, the step factor, the grid)
+export const drives = (f) => driveRuns(f);
+export const shapes = (f) => !!(f.drive && f.drive.bind && f.drive.bind.length);
 
 // the bindings the GPU runs, in order: those whose target exists (core/drive.js skips the others too)
 export function driveBinds(f) {
@@ -171,12 +175,13 @@ function nodeFloats(m, own, paths, index) {
 function packDrive(f, index, kidsByOp, ops) {
   const d = f.drive, paths = opPaths(f), per = perIteration(d);
   const binds = driveBinds(f);
-  if (!binds.length) return false;
+  if (!driveRuns(f)) return false;
   const own = (to) => { const { path, key } = splitTarget(to), o = paths.get(path); return o && Number.isFinite(o.p[key]) ? o.p[key] : 0; };
   const at = new Map(d.nodes.map((m, i) => [m.id, i]));
   const base = DRIVE_AT;
   const mask = [0, 0, 0, 0];
-  const live = binds.some((x) => per.has(x.b.from));
+  // live: the per-iteration nodes refill every iteration — when a binding or the shading reads one
+  const live = binds.some((x) => per.has(x.b.from)) || colourDrivers(f).some((id) => per.has(id));
   ops.set([d.nodes.length, binds.length, live ? 1 : 0, 0], base);
   d.nodes.forEach((m, i) => {
     const o = base + (2 + i * 3) * 4;
@@ -242,7 +247,7 @@ export function paramTangents(formula, opts = {}) {
     }
     oi++;
   }));
-  if (drives(f)) {
+  if (shapes(f)) {
     const binds = driveBinds(f), bi = new Map(binds.map((x, k) => [x.b.to, k]));
     const ni = new Map(f.drive.nodes.map((m, k) => [m.id, k]));
     for (const q of driveParams(f.drive)) {
@@ -255,7 +260,7 @@ export function paramTangents(formula, opts = {}) {
     }
   }
   if (list.length > MAX_PARAMS) list.length = MAX_PARAMS;
-  if (opts.frozen && drives(f)) list.push({ frozen: true, kind: 4, index: 0, slot: 0 });
+  if (opts.frozen && shapes(f)) list.push({ frozen: true, kind: 4, index: 0, slot: 0 });
   const buf = new Float32Array(Math.max(1, list.length) * TAN_FLOATS);
   list.forEach((t, i) => {
     buf.set(t.drec ? [t.oi, 0, 0, t.pi] : [NO_OP, t.kind, t.index, t.slot], i * TAN_FLOATS);

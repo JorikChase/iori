@@ -74,7 +74,7 @@ export function validate(f) {
   if (!Number.isInteger(f.iters) || f.iters < 1 || f.iters > MAX_ITERS) err(`iters must be 1..${MAX_ITERS}`);
   if (!(typeof f.bail === 'number' && f.bail > 0 && Number.isFinite(f.bail))) err('bail must be a positive number');
   if (f.c !== undefined && !(Array.isArray(f.c) && (f.c.length === 3 || f.c.length === 4) && f.c.every(Number.isFinite))) err('c must be three or four finite numbers');
-  if (f.shade !== undefined) errors.push(...validateShade(f.shade));
+  if (f.shade !== undefined) errors.push(...validateShade(f.shade, f.drive || null));
   if (f.drive !== undefined && Array.isArray(f.slots)) errors.push(...validateDrive(f.drive, f));
   if (f.slice !== undefined && !(f.slice && Number.isFinite(f.slice.w || 0) && Array.isArray(f.slice.tilt || [0, 0, 0]) && (f.slice.tilt || [0, 0, 0]).length === 3 && (f.slice.tilt || [0, 0, 0]).every(Number.isFinite))) err('slice must be { w, tilt: [xw, yw, zw] }');
   if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > MAX_SLOTS) err(`slots must hold 1..${MAX_SLOTS} op lists`);

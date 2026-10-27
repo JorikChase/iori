@@ -8,7 +8,7 @@
 import { INTERP, DUAL, withDrive } from './wgsl.js';
 import { withJit, structureKey } from './jit.js';
 import { canonical } from '../core/formula.js';
-import { pack, drives, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD } from './pack.js';
+import { pack, drives, shapes, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD } from './pack.js';
 
 const VIEW_FLOATS = 52;
 
@@ -163,6 +163,8 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
     gr.col = glowCol;
     let so = shadeRun(gr);
     if (so.hasGlow) { if (so.glowIsColour) { glc = so.glow.rgb; } else { glc = glc * so.glow.x; } } else { glc = so.color.rgb; }
+    // the glow's strength (core/shade.js out.gain: 1 unless set or driven — the pulse)
+    glc = glc * so.gain;
   }
   let gl = glc * glow * view.light.w;
   return c * absorb + gl * mix(1.0, absorb, 0.6);
@@ -710,7 +712,7 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
   });
   let gridPipe = null;
   async function deGrid(lo, hi, n) {
-    const drivenGrid = packed && drives(packed.formula) ? await variant.ready('grid', withDrive(GRID), [formulaLayout, gridLayout], 'grid') : null;
+    const drivenGrid = packed && shapes(packed.formula) ? await variant.ready('grid', withDrive(GRID), [formulaLayout, gridLayout], 'grid') : null;
     if (!gridPipe) {
       const module = device.createShaderModule({ code: GRID });
       const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');

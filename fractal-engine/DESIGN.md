@@ -960,3 +960,65 @@ gain the glow's gain line.
 **Phases:** C1 core + GPU (IR, CPU evaluator, notation, edits, packing, interpreter, push, parity with
 driven-colour cases, tests) → C2 UI (the bus, links, bands on shading lines, hue line, gain line,
 verify in the app) → deploy when iori asks.
+
+**C built 2026-10-27 — drivers → colour.**
+- *Core (core/shade.js):* a number input may be `'d:<driver id>'`; `shade.bind` binds `<node>.map.scale |
+  .map.offset | .map.hue | .stops.<k>.t | .c | .f` and `out.gain` (`shadeTarget` names them and their
+  ranges: a stop between its neighbours, the gain 0..16); `map.hue` (turns) rotates Oklab a, b after
+  interpolation (`hueTurn`; lightness kept, back in gamut); `out.gain` scales the glow. New keys are
+  written only when used (hue ≠ 0, gain ≠ 1, a non-empty bind), so every existing formula keeps its
+  notation and id. `evalShade(shade, readings, drivers)` takes the drivers' registers (`boundShade`
+  applies the bindings) and returns `gain` too. validateShade checks the links and bindings against the
+  formula's drive; the GPU keeps four driven stops (validation refuses more).
+- *The orbit (core/drive.js, core/cpu.js):* `driveRuns(f)` — the drive program runs when something is
+  bound *or* the shading reads a driver (`colourDrivers`); the per-iteration nodes refill every
+  iteration when either reads one. `iterate` returns `drv`, the registers at the last fill (the start
+  of the last iteration) — what the shading reads at the hit. A colour-only drive leaves the orbit
+  untouched (tested bit for bit). `timeDriven` counts a clock the shading reads.
+- *Edits:* core/shade-edit.js `linkDriver`, `bindShade`, `unbindShade`, `setShadeBand`, `setGain`,
+  `shadeBindables`; every shading edit carries the bindings on their stops (a stop dragged past another
+  keeps its binding; a removed stop or node takes its own). Removing a driver (core/drive-edit.js
+  removeDriverNode, core/graph.js removeDriver) applies `dropDriverRefs`: links and bindings follow the
+  bypass (a remap's input takes its place), else an optional input is left open and a required one reads
+  the fold index; `addDriver(f, t, { bind })` inserts on a shading binding too.
+- *GPU:* the shading program grew to four vec4 per node (the fourth: the hue) and a second header vec4
+  (gain, bindings), plus a bindings table after the stops (core/shade.js packShade; gpu/wgsl.js takes
+  the offsets from it, so DR_BASE and friends follow). An input ≤ −2 reads `drvReg[−2 − i]` — the
+  registers the hit's orbit left — and the bindings apply per node; both only in the drivers' variant
+  (`DRIVE_ON`), so elsewhere a driver reads 0 and every parameter keeps its own value (until the variant
+  compiles, as V2). `drives(f)` (gpu/pack.js) = the program runs (the variants: march, push, loop, lens,
+  JIT); `shapes(f)` = something bound (sensing, the step factor, the grid). render.js multiplies the glow
+  by the gain; push splats read the walk's registers.
+- *Parity (test/parity.html, PASS):* four driven shading graphs (every binding kind, a driven input on
+  every port kind, constant/cardinal/B-spline ramps with hues) on 4096 random readings and registers:
+  max channel error median 1.3–4.1e-7, p99 ≤ 2.1e-6, none off. Whole orbits (three formulas: colour
+  only, colour and shape from the same noise, a bulb painted by its trap and iteration; the clock at
+  1.37 s), the GPU's registers through its shading vs `iterate(...).drv` + evalShade: 0 iteration
+  mismatches, median 1.4e-7–2.8e-6, p99 ≤ 8.9e-5, off (> 1e-2) 0, 0, 2 of 2048. The undriven suites
+  unchanged (the new layout included); the colour formulas in the forward suite give the same estimates.
+- *Speed:* an undriven shaded Mandelbox at 1440×900, still frames: 188/189 ms a frame before, 165/179
+  after (same view, back to back — noise, no cost). A colour-driven one (noise into the ramp, the clock
+  turning its hue) 159 ms. The JIT rows for the colour formulas: interpreter 14–22 ms, JIT ×1.8–2.1.
+- *UI (C2, ui/shadegraph.js, app.js):* the drivers' bus is a dashed hairline under the readings' bus,
+  each driver's link from its output dot down to the input it feeds; drag a driver's output dot onto a
+  shading input — linked; onto a shading line — bound, the band the line's range (±75 px at the line's
+  drag speed); onto a stop tick — bound, the band between its neighbours. Rest on a shading node (or
+  the glow output) for ¼ s during the drag — its lines or editor open. The ramp editor's lines are now
+  scale, offset and the hue turn; the bar shows the hue turned. Click the glow output — its gain line.
+  Bound lines carry bands exactly as ops' do (ends drag lo/hi, middle both, click selects, Delete
+  unbinds; a tick at the value the centre's orbit gives); a bound stop's band sits on the bar's own axis
+  above it. Shading bindings draw as the drivers' binding hairlines, held — the ring inserts a driver.
+- Verified in the app (own tab on a /c/ copy of the mirror, `__fe.dry`, the formula set with setFormula,
+  synthetic pointer events): noise → the ramp's input (linked, its bus link drawn); the clock → the hue
+  line (band −0.25..0.25, a live tick), noise → stop 4 (band between its neighbours); the hue band's end
+  and the stop band's middle dragged; the glow output clicked, noise → its gain line, the band clicked
+  and Deleted, the unbound gain dragged (1 → 1.2); a drag resting on the ramp opened its editor and
+  bound its scale; the image animates with the clock. 47 unit tests pass (test/colour-drive.test.mjs:
+  5 new). iori's lineage stayed at 138 nodes throughout.
+- *Deviations:* splats exported as PLY read the drivers at the splat's point as an orbit's start (the
+  walk's iteration is unknown there); the GPU's push reads them at the walk point (the V2 rule). Four
+  driven stops at most. The live tick shows the centre's orbit only.
+
+Open: the bound line's live span (an op's shows the orbit's range; a shading line has one value per
+hit); a param node may not read a shading parameter; the lens on shading parameters; touch; time in
+thumbnails (the clock reads 0 there, so a hue turned by time shows its start).

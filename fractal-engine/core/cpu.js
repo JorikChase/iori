@@ -179,7 +179,9 @@ export function iterate(formula, p0, c = [0, 0, 0, 0], opts = {}) {
     const r2 = s.p[0] * s.p[0] + s.p[1] * s.p[1] + s.p[2] * s.p[2] + s.p[3] * s.p[3];
     if (!Number.isFinite(r2) || r2 > bail2) { escaped = true; break; }
   }
-  return { points, drs, branches, n, escaped, r: len(s.p), dr: s.dr };
+  // drv: the drivers' registers at the last fill (the start of the last iteration) — what the shading
+  // reads at the hit (core/shade.js evalShade); absent when no drive program runs
+  return { points, drs, branches, n, escaped, r: len(s.p), dr: s.dr, ...(s.ctx.drive ? { drv: new Map(s.ctx.drive.reg) } : {}) };
 }
 
 // Distance estimate. Formulas with a power (bulb / power) use the escape-time estimate

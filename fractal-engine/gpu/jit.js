@@ -10,7 +10,7 @@
 import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { slotIndex } from '../core/notation.js';
 import { rotationXYZ, rotation4, lift4, normalize as nrm } from '../core/vec.js';
-import { driveBinds } from './pack.js';
+import { driveBinds, drives } from './pack.js';
 
 const L = (x) => {
   if (!Number.isFinite(x)) throw new Error('non-finite literal');
@@ -160,7 +160,7 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
   startOrbit(p0);
   for (var i = 0u; i < ${f.iters}u; i++) {
     fIter = f32(i);
-${driven.size ? '    if (DRIVE_ON && drvAny) { driveIter(p, t.dr, i, f32(head.iters)); }\n' : ''}${body}
+${drives(f) ? '    if (DRIVE_ON && drvAny) { driveIter(p, t.dr, i, f32(head.iters)); }\n' : ''}${body}
     t.n = i + 1u;
     let r2 = dot(p, p);
     t.trap = min(t.trap, r2);
@@ -182,10 +182,10 @@ export function withJit(source, formula, kind = 'literal') {
 }
 
 // what a structure JIT depends on: the ops in order, the schedule, the iteration count, and whether
-// anything is driven (its iterations then start with driveIter)
+// the drive program runs (its iterations then start with driveIter)
 export function structureKey(formula) {
   const f = normalize(formula);
-  return JSON.stringify([f.slots.map((s) => s.map((o) => o.op)), f.schedule, f.iters, driveBinds(f).length > 0]);
+  return JSON.stringify([f.slots.map((s) => s.map((o) => o.op)), f.schedule, f.iters, drives(f)]);
 }
 
 export { pullSafe };

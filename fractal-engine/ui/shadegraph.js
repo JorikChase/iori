@@ -7,10 +7,15 @@
 // toggles for interpolation, colour space, mapping mode, log and invert, and the mapping's scale and
 // offset as dimension lines. A held stop shows the hue ring.
 //
+// Drivers → colour: the drivers' values run in on a second bus under the readings' (dashed, as the
+// drivers' bindings are), each link from a driver's output down to the input it feeds; a bound line
+// carries its band as an op's does (ui/graph.js); a bound stop its band on the ramp's own axis, above
+// the bar; the editor's third line is the hue turn; the glow output, selected, shows its gain.
+//
 // layoutShade(shade) → units; placeShade(L, u, right, top) → pixels; drawShade(P, o) → SVG; hit tests.
 
 import { glyphPath } from './glyphs.js';
-import { READINGS, kindOf } from '../core/shade.js';
+import { READINGS, kindOf, rampAt } from '../core/shade.js';
 import { rampColourAt, portsOf, inputKind } from '../core/shade-edit.js';
 
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
@@ -74,8 +79,10 @@ export function placeShade(L, u, right, top, shade) {
 }
 
 // the stops' colours sampled along a ramp (interpolation and space included), as an SVG gradient
+// (the hue turn included: the bar shows the colours the ramp gives)
+const IDENTITY = { scale: 1, offset: 0, mode: 'clamp', log: false, invert: false };
 function gradient(id, p, n = 24) {
-  const stops = Array.from({ length: n + 1 }, (_, i) => { const t = i / n, c = rampColourAt(p, t); return `<stop offset="${(t * 100).toFixed(1)}%" stop-color="${css(c)}"/>`; });
+  const stops = Array.from({ length: n + 1 }, (_, i) => { const t = i / n, c = p.map && p.map.hue ? rampAt({ ...p, map: { ...IDENTITY, hue: p.map.hue } }, t) : rampColourAt(p, t); return `<stop offset="${(t * 100).toFixed(1)}%" stop-color="${css(c)}"/>`; });
   return `<linearGradient id="${id}">${stops.join('')}</linearGradient>`;
 }
 
@@ -88,6 +95,9 @@ export function drawShade(P, o = {}) {
   s.push(`<path class="zn" d="M${f1(x0)} ${f1(y0)}H${f1(x1)}V${f1(y1)}H${f1(x0)}Z"/>`);
   // the bus: the formula's readings, out of its repeat zone and along the frame's top
   if (o.bus) s.push(`<path class="bus" d="M${f1(o.bus[0])} ${f1(o.bus[1])}H${f1(x1)}M${f1(x1)} ${f1(y0 + 4)}H${f1(x0 + 6)}"/>`);
+  // the drivers' bus under it, and each driver's link down to the input it feeds
+  if (o.drvBus) s.push(`<path class="bl" d="M${f1(o.drvBus[0])} ${f1(o.drvBus[1])}H${f1(x0 + 6)}"/>`);
+  for (const l of o.drvLinks || []) s.push(`<path class="bl${l.on ? ' on' : ''}" d="${l.d}"/>`);
   if (P.empty) {
     // no shading yet: the two outputs and a plus that starts it
     for (const out of P.outs) s.push(`<g class="nd">${glyphPath(`out.${out.port}`, out.x, out.y, 14)}</g>`);
@@ -118,12 +128,7 @@ export function drawShade(P, o = {}) {
   });
   for (const out of P.outs) s.push(`<g class="nd op">${glyphPath(`out.${out.port}`, out.x, out.y, o.compact ? 10 : 14)}</g>`);
   if (o.drag) s.push(`<path class="ln on" d="M${f1(o.drag.x1)} ${f1(o.drag.y1)}L${f1(o.drag.x2)} ${f1(o.drag.y2)}"/>`);
-  for (const h of o.params || []) {
-    s.push(`<g class="pm${h.held ? ' held' : ''}"><path d="M${f1(h.x1)} ${f1(h.y)}H${f1(h.x2)}M${f1(h.x1)} ${f1(h.y - 3)}v6M${f1(h.x2)} ${f1(h.y - 3)}v6"/>`);
-    if (h.held) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 6)}">${h.v}</text>`);
-    if (h.glyph) s.push(`<g class="nd tg">${glyphPath(h.glyph, h.x1 - 14, h.y, 14)}</g>`);
-    s.push('</g>');
-  }
+  for (const h of o.params || []) s.push(lineSvg(h, h.held, h.v));
   if (o.editor) s.push(drawEditor(o.editor, defs));
   if (o.ring) s.push(drawHueRing(o.ring));
   return `<g class="gr sh${o.compact ? '' : ' full'}"><defs>${defs.join('')}</defs>${s.join('')}</g>`;
@@ -146,7 +151,9 @@ export function editorLayout(q, W, H, frame = null) {
     glyph: key === 'interp' ? `interp.${p.interp}` : key === 'space' ? `space.${p.space}` : key === 'mode' ? `mode.${p.map.mode}` : key,
     on: key === 'log' ? p.map.log : key === 'invert' ? p.map.invert : true,
   }));
-  const handles = [{ key: 'map.scale', x1: x, x2: x + EDIT_W / 2 - 10, y: y + EDIT_H + 30, v: p.map.scale }, { key: 'map.offset', x1: x + EDIT_W / 2 + 10, x2: x + EDIT_W, y: y + EDIT_H + 30, v: p.map.offset }];
+  // scale, offset and the hue turn, three lines in a row
+  const lw = (EDIT_W - 20) / 3;
+  const handles = [['map.scale', p.map.scale], ['map.offset', p.map.offset], ['map.hue', p.map.hue || 0]].map(([key, v], k) => ({ key, x1: x + k * (lw + 10), x2: x + k * (lw + 10) + lw, y: y + EDIT_H + 30, v }));
   return { id: q.id, p, x, y, w: EDIT_W, h: EDIT_H, stops, toggles, handles };
 }
 
@@ -160,12 +167,30 @@ function drawEditor(E, defs) {
     s.push(`<rect class="sw" x="${f1(st.x - 4)}" y="${f1(E.y + E.h + 11)}" width="8" height="8" style="fill:${css(st.c)}"/>`);
   }
   for (const t of E.toggles) s.push(`<g class="nd tg${t.on ? '' : ' off'}">${glyphPath(t.glyph, t.x, t.y, 16)}</g>`);
-  for (const h of E.handles) {
-    s.push(`<g class="pm${E.held === h.key ? ' held' : ''}"><path d="M${f1(h.x1)} ${f1(h.y)}H${f1(h.x2)}M${f1(h.x1)} ${f1(h.y - 3)}v6M${f1(h.x2)} ${f1(h.y - 3)}v6"/>`);
-    if (E.held === h.key) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 6)}">${Number(h.v.toPrecision(4))}</text>`);
-    s.push('</g>');
+  for (const h of E.handles) s.push(lineSvg(h, E.held === h.key || h.held, h.text ?? Number(h.v.toPrecision(4))));
+  // a bound stop: its band on the bar's own axis, above it
+  for (const B of E.stopBands || []) {
+    const y = E.y - 6;
+    if (B.live != null) s.push(`<path class="lt" d="M${f1(B.live)} ${f1(y - 5)}v10"/>`);
+    s.push(`<path class="bd${B.sel ? ' sel' : ''}" d="M${f1(B.x0)} ${f1(y)}H${f1(B.x1)}M${f1(B.x0)} ${f1(y - 4)}v8M${f1(B.x1)} ${f1(y - 4)}v8"/>`);
   }
   return `<g class="ed">${s.join('')}</g>`;
+}
+
+// A dimension line: its end ticks, the value while held, a toggle glyph to its left; a bound one its band
+// (lo to hi, the ends to drag, a tick at the value the centre's orbit gives it) — as ui/graph.js draws
+// an op's
+function lineSvg(h, held, text) {
+  const s = [`<g class="pm${held ? ' held' : ''}"><path d="M${f1(h.x1)} ${f1(h.y)}H${f1(h.x2)}M${f1(h.x1)} ${f1(h.y - 3)}v6M${f1(h.x2)} ${f1(h.y - 3)}v6"/>`];
+  if (h.band) {
+    const B = h.band;
+    s.push(`<path class="bd${B.sel ? ' sel' : ''}" d="M${f1(B.x0)} ${f1(h.y)}H${f1(B.x1)}M${f1(B.x0)} ${f1(h.y - 5)}v10M${f1(B.x1)} ${f1(h.y - 5)}v10"/>`);
+    if (B.tick != null) s.push(`<path class="lt" d="M${f1(B.tick)} ${f1(h.y - 7)}v14"/>`);
+    if (held) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 9)}">${text}</text>`);
+  } else if (held) s.push(`<text x="${f1((h.x1 + h.x2) / 2)}" y="${f1(h.y - 6)}">${text}</text>`);
+  if (h.glyph) s.push(`<g class="nd tg">${glyphPath(h.glyph, h.x1 - 14, h.y, 14)}</g>`);
+  s.push('</g>');
+  return s.join('');
 }
 
 // ---------- the hue ring: angle is hue, distance from the stop is saturation, scroll lightness -----

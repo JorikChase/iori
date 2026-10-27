@@ -9,7 +9,7 @@
 // and around the cursor it draws the reticle's ticks.
 
 import { INTERP, DUAL, withDrive } from './wgsl.js';
-import { paramTangents, pack, drives } from './pack.js';
+import { paramTangents, pack, shapes } from './pack.js';
 import { normalize } from '../core/formula.js';
 
 const SENSE = INTERP + DUAL + /* wgsl */ `
@@ -104,7 +104,7 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
     try {
       const normalized = normalize(formula);
       // a driven formula senses in the drivers' variant (compiled once, in the background)
-      const sensePipe = drives(normalized) ? (await R.variant.ready('sense', withDrive(SENSE), [formulaLayout, layout], 'sense')) || pipe : pipe;
+      const sensePipe = shapes(normalized) ? (await R.variant.ready('sense', withDrive(SENSE), [formulaLayout, layout], 'sense')) || pipe : pipe;
       if (other) { const pk = pack(formula); device.queue.writeBuffer(headBuf, 0, pk.head); device.queue.writeBuffer(opsBuf, 0, pk.ops); }
       // with drivers: their parameters too, and the frozen row (every driver held) for the step factor
       const tg = paramTangents(formula, { frozen: true });

@@ -28,7 +28,7 @@
 
 import { getOp, isMix } from './ops.js';
 import { fbm, site } from './fields.js';
-import { MATH_OPS } from './shade.js';
+import { MATH_OPS, shadeDrivers } from './shade.js';
 import { slotLetter } from './notation.js';
 
 export const ORBIT = ['i', 'r', 'trap', 'lyap', 'px', 'py', 'pz', 'pw'];
@@ -235,15 +235,21 @@ export function evalDrive(drive, env = {}) {
   return { reg, values: d.bind.map((b) => b.lo + num(reg.get(b.from), 0) * (b.hi - b.lo)) };
 }
 
+// the drivers the shading reads (Drivers → colour): their registers run even with nothing bound
+export const colourDrivers = (f) => (f && f.drive && f.shade ? [...shadeDrivers(f.shade)].filter((id) => f.drive.nodes.some((m) => m.id === id)) : []);
+// whether a formula's drive program runs at all: something bound, or the shading reads a driver
+export const driveRuns = (f) => !!(f && f.drive && (f.drive.bind.length || colourDrivers(f).length));
+
 // The orbit's drivers, for core/cpu.js: map holds, for every driven op, its parameters with the driven
-// values in (ops not in it run on their own). step(read) is called at the start of every iteration;
-// hoisted nodes are computed once. null when the formula drives nothing.
+// values in (ops not in it run on their own); reg every node's value at the latest fill (what the
+// shading reads at the hit). step(read) is called at the start of every iteration; hoisted nodes are
+// computed once. null when the formula's drive program does not run.
 export function driveRuntime(f, start, time = 0) {
-  if (!f.drive || !f.drive.bind.length) return null;
+  if (!driveRuns(f)) return null;
   const d = f.drive, paths = opPaths(f), per = perIteration(d);
   const own = (to) => { const { path, key } = splitTarget(to), o = paths.get(path); return o ? o.p[key] : 0; };
   const targets = d.bind.map((b) => targetParam(paths, b.to));
-  const live = d.bind.some((b) => per.has(b.from));
+  const live = d.bind.some((b) => per.has(b.from)) || colourDrivers(f).some((id) => per.has(id));
   const reg = new Map(), map = new Map();
   const env = { start, time, own, read: null };
   let first = true;
@@ -264,7 +270,7 @@ export function driveRuntime(f, start, time = 0) {
       map.set(t.o, P);
     });
   };
-  return { map, step };
+  return { map, step, reg };
 }
 
 // the orbit readings at the start of iteration i (of n) from the running state
@@ -329,4 +335,5 @@ export function setDriveParam(drive, ref, v) {
 }
 
 // a formula whose drivers read the clock animates on its own: it is never still
-export const timeDriven = (f) => !!(f && f.drive && (f.drive.bind || []).length && (f.drive.nodes || []).some((m) => m.type === 'time'));
+// (the shape's or the colour's)
+export const timeDriven = (f) => !!(f && f.drive && ((f.drive.bind || []).length || colourDrivers(f).length) && (f.drive.nodes || []).some((m) => m.type === 'time'));

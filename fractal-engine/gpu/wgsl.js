@@ -13,6 +13,8 @@
 // loop dispatch on it and call the per-op functions for its sub-stacks, which hold no mix.
 
 // a shader source's drivers switched on (gpu/pack.js drives(f) says which variant a formula needs)
+import { SH_STOPS_AT, SH_BINDS_AT, SH_NODE_VEC4, SHADE_VEC4 } from '../core/shade.js';
+
 export const withDrive = (source) => source.replace('const DRIVE_ON = false;', 'const DRIVE_ON = true;');
 
 export const INTERP = /* wgsl */ `
@@ -476,9 +478,9 @@ fn de(x: vec3f) -> f32 { let q = embed(x); return deOf(iterate(q, cFor(q))); }
 // record being linear in every parameter but rotation angles and plane normals: those ops (up to four)
 // are rebuilt once per register update into drvNL, so rec() stays small wherever it is inlined (one
 // call site per heavy function: Metal's compile time grows with every inlined copy).
-const DR_BASE = 545u;   // (MAX_OPS · REC + the shading program) / 4
-const DR_NODES = 547u;
-const DR_BINDS = 643u;  // DR_NODES + 32 · 3; ten vec4 per binding
+const DR_BASE = ${320 + SHADE_VEC4}u;   // (MAX_OPS · REC + the shading program) / 4
+const DR_NODES = DR_BASE + 2u;
+const DR_BINDS = DR_NODES + 96u;  // DR_NODES + 32 · 3; ten vec4 per binding
 var<private> drvAny: bool = false;
 var<private> drvFirst: bool = false;
 var<private> drvMask: vec4u;
@@ -730,11 +732,20 @@ fn drvRec(oi: u32, k: u32, r: vec4f) -> vec4f {
 
 // ---------- shading: the formula's colour graph (core/shade.js, operation for operation) ------------
 // The program sits after the op records (gpu/pack.js SHADE_AT): a header [n, colour node, glow node,
-// glow is a colour], three vec4 per node, then the stops. One vec4 register per node.
+// glow is a colour] [gain, bindings], four vec4 per node, the stops, the bindings. One vec4 register
+// per node. Drivers → colour: an input ≤ −2 reads the drivers' register −2 − i (drvReg, as the hit's
+// orbit left it), and the bindings set parameters from them — only in the drivers' variant (DRIVE_ON);
+// elsewhere a driver reads 0 and every parameter keeps its own value.
 const SH_BASE = 320u;            // MAX_OPS · REC / 4
-const SH_STOPS = 417u;           // SH_BASE + 1 + 32 · 3
+const SH_NODES = SH_BASE + 2u;
+const SH_NODE4 = ${SH_NODE_VEC4}u;
+const SH_STOPS = ${320 + SH_STOPS_AT}u;
+const SH_BINDS = ${320 + SH_BINDS_AT}u;
 struct Readings { col: f32, trap: f32, depth: f32, lyap: f32, facing: f32, species: f32, w: f32 };
-struct ShadeOut { color: vec4f, glow: vec4f, glowIsColour: bool, hasGlow: bool };
+struct ShadeOut { color: vec4f, glow: vec4f, glowIsColour: bool, hasGlow: bool, gain: f32 };
+// up to four driven stops: their places among all stops (−1 none) and their driven t
+var<private> shOvI: vec4i = vec4i(-1);
+var<private> shOvV: vec4f;
 
 fn shRgb2hsv(c: vec3f) -> vec3f {
   let mx = max(c.x, max(c.y, c.z));
@@ -792,7 +803,11 @@ fn shFromSpace(c: vec3f, sp: u32) -> vec3f {
   if (sp == 2u) { return shOklab2rgb(c); }
   return c;
 }
-fn shT(j: u32) -> f32 { return ops[SH_STOPS + 2u * j].x; }
+fn shT(j: u32) -> f32 {
+  var t = ops[SH_STOPS + 2u * j].x;
+  if (DRIVE_ON) { let m = shOvI == vec4i(i32(j)); if (any(m)) { t = dot(select(vec4f(0.0), shOvV, m), vec4f(1.0)); } }
+  return t;
+}
 fn shC(j: u32) -> vec4f { return ops[SH_STOPS + 2u * j + 1u]; }
 
 // log2 → · scale + offset → clamp / repeat / mirror → invert
@@ -809,17 +824,27 @@ fn shMap(x: f32, m: vec4f) -> f32 {
   return v;
 }
 
-fn shRamp(b: vec4f, m: vec4f, x: f32) -> vec4f {
+// a turn around the hue ring in Oklab (core/shade.js hueTurn): a, b rotated, lightness kept
+fn shHue(c: vec4f, hue: f32) -> vec4f {
+  if (hue == 0.0) { return c; }
+  let lab = shRgb2oklab(c.rgb);
+  let th = 6.2831853 * hue;
+  let cs = cos(th);
+  let sn = sin(th);
+  return vec4f(clamp(shOklab2rgb(vec3f(lab.x, lab.y * cs - lab.z * sn, lab.y * sn + lab.z * cs)), vec3f(0.0), vec3f(1.0)), c.w);
+}
+
+fn shRamp(b: vec4f, m: vec4f, x: f32, hue: f32) -> vec4f {
   let s0 = u32(b.x);
   let n = u32(b.y);
   let interp = u32(b.z);
   let sp = u32(b.w);
   let t = shMap(x, m);
-  if (n <= 1u || t <= shT(s0)) { return clamp(shC(s0), vec4f(0.0), vec4f(1.0)); }
-  if (t >= shT(s0 + n - 1u)) { return clamp(shC(s0 + n - 1u), vec4f(0.0), vec4f(1.0)); }
+  if (n <= 1u || t <= shT(s0)) { return shHue(clamp(shC(s0), vec4f(0.0), vec4f(1.0)), hue); }
+  if (t >= shT(s0 + n - 1u)) { return shHue(clamp(shC(s0 + n - 1u), vec4f(0.0), vec4f(1.0)), hue); }
   var i = 0u;
   for (var j = 0u; j < n; j++) { if (shT(s0 + j) <= t) { i = j; } }
-  if (interp == 0u) { return clamp(shC(s0 + i), vec4f(0.0), vec4f(1.0)); }
+  if (interp == 0u) { return shHue(clamp(shC(s0 + i), vec4f(0.0), vec4f(1.0)), hue); }
   let i1 = min(i + 1u, n - 1u);
   let ta = shT(s0 + i);
   let tb = shT(s0 + i1);
@@ -846,7 +871,7 @@ fn shRamp(b: vec4f, m: vec4f, x: f32) -> vec4f {
   var mixed = vec3f(0.0);
   var alpha = 0.0;
   for (var k = 0u; k < count; k++) { mixed = mixed + w[k] * cs[k]; alpha = alpha + w[k] * shC(s0 + idx[k]).w; }
-  return vec4f(clamp(shFromSpace(mixed, sp), vec3f(0.0), vec3f(1.0)), clamp(alpha, 0.0, 1.0));
+  return shHue(vec4f(clamp(shFromSpace(mixed, sp), vec3f(0.0), vec3f(1.0)), clamp(alpha, 0.0, 1.0)), hue);
 }
 
 fn shMath(op: u32, a: f32, b: f32) -> f32 {
@@ -871,14 +896,54 @@ fn shMix(mode: u32, a: vec4f, b: vec4f, f: f32) -> vec4f {
   return vec4f(rgb, mix(a.w, b.w, f));
 }
 
+// a binding's value: lo + v · (hi − lo), clamped (core/shade.js boundShade)
+fn shBound(k: u32) -> f32 {
+  let A = ops[SH_BINDS + 2u * k];
+  let B = ops[SH_BINDS + 2u * k + 1u];
+  return clamp(B.x + drvReg[u32(A.z)] * (B.y - B.x), B.z, B.w);
+}
+// a number input: a node's register, a driver's (≤ −2), or the default
+fn shNum(reg: ptr<function, array<vec4f, 32>>, i: i32, d: f32) -> f32 {
+  if (i >= 0) { return (*reg)[i].x; }
+  if (DRIVE_ON && i <= -2) { return drvReg[u32(-2 - i)]; }
+  return d;
+}
+
 fn shadeRun(r: Readings) -> ShadeOut {
   var reg: array<vec4f, 32>;
   let h = ops[SH_BASE];
+  let h2 = ops[SH_BASE + 1u];
+  var gain = h2.x;
+  let nb = select(0u, min(u32(h2.y), 16u), DRIVE_ON);
+  shOvI = vec4i(-1);
+  if (DRIVE_ON) {
+    var s = 0u;
+    for (var k = 0u; k < nb; k++) {
+      let A = ops[SH_BINDS + 2u * k];
+      if (u32(A.y) == 3u && s < 4u) { shOvI[s] = i32(A.w); shOvV[s] = shBound(k); s++; }
+      if (u32(A.y) == 6u) { gain = shBound(k); }
+    }
+  }
   let n = min(u32(h.x), 32u);
   for (var i = 0u; i < n; i++) {
-    let a = ops[SH_BASE + 1u + i * 3u];
-    let b = ops[SH_BASE + 2u + i * 3u];
-    let c = ops[SH_BASE + 3u + i * 3u];
+    let a = ops[SH_NODES + i * SH_NODE4];
+    var b = ops[SH_NODES + i * SH_NODE4 + 1u];
+    var c = ops[SH_NODES + i * SH_NODE4 + 2u];
+    var d = ops[SH_NODES + i * SH_NODE4 + 3u];
+    if (DRIVE_ON) {
+      for (var k = 0u; k < nb; k++) {
+        let A = ops[SH_BINDS + 2u * k];
+        if (i32(A.x) != i32(i)) { continue; }
+        let v = shBound(k);
+        switch u32(A.y) {
+          case 0u: { c.x = v; }
+          case 1u: { c.y = v; }
+          case 2u: { d.x = v; }
+          case 4u, 5u: { b.y = v; }
+          default: {}
+        }
+      }
+    }
     let ty = u32(a.x);
     let i0 = i32(a.y);
     let i1 = i32(a.z);
@@ -892,14 +957,10 @@ fn shadeRun(r: Readings) -> ShadeOut {
       case 5u: { v.x = r.facing; }
       case 6u: { v.x = r.species; }
       case 7u: { v.x = r.w; }
-      case 10u: { var x = 0.0; if (i0 >= 0) { x = reg[i0].x; } v = shRamp(b, c, x); }
-      case 11u: {
-        var x = 0.0; if (i0 >= 0) { x = reg[i0].x; }
-        var y = b.y; if (i1 >= 0) { y = reg[i1].x; }
-        v.x = shMath(u32(b.x), x, y);
-      }
+      case 10u: { v = shRamp(b, c, shNum(&reg, i0, 0.0), d.x); }
+      case 11u: { v.x = shMath(u32(b.x), shNum(&reg, i0, 0.0), shNum(&reg, i1, b.y)); }
       case 12u: {
-        var f = b.y; if (i2 >= 0) { f = reg[i2].x; }
+        let f = shNum(&reg, i2, b.y);
         var ca = vec4f(0.0); if (i0 >= 0) { ca = reg[i0]; }
         var cb = vec4f(0.0); if (i1 >= 0) { cb = reg[i1]; }
         v = shMix(u32(b.x), ca, cb, f);
@@ -915,6 +976,7 @@ fn shadeRun(r: Readings) -> ShadeOut {
   o.hasGlow = gi >= 0;
   if (gi >= 0) { o.glow = reg[gi]; }
   o.glowIsColour = h.w > 0.5;
+  o.gain = gain;
   return o;
 }
 `;

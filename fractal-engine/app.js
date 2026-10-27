@@ -42,10 +42,10 @@ import { gridUVs } from './gpu/sense.js';
 import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
-import { evalShade } from './core/shade.js';
+import { evalShade, shadeTarget } from './core/shade.js';
 import { hash } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
-import { timeDriven, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
+import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
 import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveInPortAt, driveLinkAt, inLane, inTop, typeGlyph, driverGlyph } from './ui/drivegraph.js';
 import { createLineage } from './ui/lineage.js';
@@ -523,9 +523,9 @@ function refreshGraph() {
   if (!gv) return;
   gv.P = graphPlacement();
   if (gv.selected && !gv.P.items.some((q) => q.id === gv.selected)) gv.selected = null;
-  if (gv.shSel && !gv.P.sh.items.some((q) => q.id === gv.shSel)) { gv.shSel = null; gv.stopSel = null; }
+  if (gv.shSel && !(gv.shSel === 'out' ? !gv.P.sh.empty : gv.P.sh.items.some((q) => q.id === gv.shSel))) { gv.shSel = null; gv.stopSel = null; }
   if (gv.dvSel && !gv.P.dv.byId.has(gv.dvSel)) gv.dvSel = null;
-  if (gv.bandSel && !bindOf(gv.bandSel)) gv.bandSel = null;
+  if (gv.bandSel && !anyBindOf(gv.bandSel)) gv.bandSel = null;
   drawGraphNow();
 }
 
@@ -564,6 +564,9 @@ function paramHandles(q) {
 // Click a driver: its parameters below the zone (lines; its switches as glyphs). Delete removes it.
 const RING_TYPES = DRIVE_TYPES.filter((t) => t !== 'param');
 const bindOf = (to) => { const d = normalize(state.formula).drive; return d ? d.bind.find((b) => b.to === to) || null : null; };
+// a shading parameter's binding (core/shade.js shade.bind: Drivers → colour)
+const shadeBindOf = (to) => { const s = normalize(state.formula).shade; return s && s.bind ? s.bind.find((b) => b.to === to) || null : null; };
+const anyBindOf = (to) => bindOf(to) || shadeBindOf(to);
 // a bound line's scale: the band takes its middle two thirds, so both ends can be dragged outward
 function bandMap(b, x1, x2) {
   const c = (b.lo + b.hi) / 2, hr = Math.max(Math.abs(b.hi - b.lo) * 0.75, 1e-3 * Math.max(1, Math.abs(c))), xm = (x1 + x2) / 2, half = (x2 - x1) / 2;
@@ -581,6 +584,21 @@ function liveTrace() {
   if (!liveCache.hit) return new Map();
   const time = timeDriven(f) ? (performance.now() - clock0) / 1000 : 0;
   try { return new Map(DE.bindTrace(f, liveCache.hit, time, f.c || lift(f, liveCache.hit)).map((r) => [r.to, r.values])); } catch { return new Map(); }
+}
+
+// every shading binding's value at the centre's hit: the drivers' registers its orbit leaves
+function liveShade() {
+  const f = normalize(state.formula);
+  if (!f.shade || !f.shade.bind || !f.drive || state.focus <= 0) return new Map();
+  const hit = add(state.cam.pos, basis(state.cam).fwd, state.focus);
+  const time = timeDriven(f) ? (performance.now() - clock0) / 1000 : 0;
+  let o;
+  try { o = iterate(f, hit, f.c || lift(f, hit), { time }); } catch { return new Map(); }
+  if (!o.drv) return new Map();
+  return new Map(f.shade.bind.map((b) => {
+    const t = shadeTarget(f.shade, b.to);
+    return [b.to, t ? Math.min(t.max, Math.max(t.min, b.lo + (o.drv.get(b.from) || 0) * (b.hi - b.lo))) : null];
+  }));
 }
 
 // the selected driver's parameters, below the zone: its switches as one row of glyphs, then its numbers
@@ -620,7 +638,7 @@ function bindEnds(P, handles, sel) {
 
 function drawDriveNow(P, handles, sel) {
   const V = P.dv, dsel = gv.dvSel && V.byId.get(gv.dvSel);
-  gv.binds = bindEnds(P, handles, sel);
+  gv.binds = [...bindEnds(P, handles, sel), ...shadeBindEnds(P)];
   return drawDrive(V, {
     hover: gv.dvHover, selected: gv.dvSel, link: gv.dvPress && gv.dvPress.link, drag: gv.dvDrag, binds: gv.binds,
     params: dsel ? driverHandles(dsel) : [],
@@ -683,7 +701,7 @@ function driveMove(x, y) {
     const B = gv.band, dv = B.M.v(x) - B.M.v(B.x0);
     if (Math.abs(x - B.x0) > 2) B.moved = true;
     const lo = B.end === 'hi' ? B.lo : B.lo + dv, hi = B.end === 'lo' ? B.hi : B.hi + dv;
-    driveLive(() => G.setBand(state.formula, B.to, +lo.toPrecision(5), +hi.toPrecision(5)));
+    driveLive(() => (B.shade ? SE.setShadeBand : G.setBand)(state.formula, B.to, +lo.toPrecision(5), +hi.toPrecision(5)));
     return true;
   }
   if (gv.pull) { gv.pull.x = x; gv.pull.y = y; drawGraphNow(); return true; }
@@ -691,11 +709,18 @@ function driveMove(x, y) {
     gv.dvDrag.x2 = x; gv.dvDrag.y2 = y;
     // resting on an op on the way (a quarter second): its lines open, to drop on — passing over one
     // does not, so a drag across the chain keeps the lines it is heading for
-    const q = graphNodeAt(gv.P, x, y), D = gv.dvDrag, over = q && q.id !== gv.selected ? q.id : null;
+    // (a shading node or the glow output the same way: its lines, or its ramp's editor, open)
+    const q = graphNodeAt(gv.P, x, y), D = gv.dvDrag;
+    const sq = !q && !gv.P.sh.empty && inFrame(gv.P.sh, x, y) ? (shadeNodeAt(gv.P.sh, x, y) || (nearGlow(x, y) ? { id: 'out' } : null)) : null;
+    const over = q && q.id !== gv.selected ? q.id : sq && sq.id !== gv.shSel ? 'sh:' + sq.id : null;
     if (over !== D.over) {
       D.over = over;
       clearTimeout(D.timer);
-      if (over) D.timer = setTimeout(() => { if (gv && gv.dvDrag === D && D.over === over) { gv.selected = over; gv.shSel = null; drawGraphNow(); } }, 250);
+      if (over) D.timer = setTimeout(() => {
+        if (!gv || gv.dvDrag !== D || D.over !== over) return;
+        if (over.startsWith('sh:')) { gv.shSel = over.slice(3); gv.selected = null; gv.stopSel = null; } else { gv.selected = over; gv.shSel = null; }
+        drawGraphNow();
+      }, 250);
     }
     drawGraphNow();
     return true;
@@ -732,6 +757,8 @@ function driveUp(x, y) {
     gv.dvDrag = null;
     const to = driveInPortAt(gv.P.dv, x, y);
     if (to) { graphEdit(() => DE.connectDriver(state.formula, d.from, to.node, to.port)); return true; }
+    // into the shading: a number input reads the driver; a shading line or a stop is bound to it
+    if (dropOnShade(d.from, x, y)) return true;
     // onto a dimension line of the selected op: bound over the line's own range (a bound one keeps its band)
     const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
     const h = sel && paramHandles(sel).find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 8);
@@ -1027,9 +1054,117 @@ const hsvToLinear = (h, sat, v) => hsv2rgb([h, sat, v]).map((x) => (x <= 0.04045
 // the selected math or mix node's op and constant, as a toggle glyph and a dimension line to its left
 function shadeHandles(q) {
   const x2 = q.x - q.hw - 24, x1 = x2 - 110;
-  if (q.type === 'math') return [{ key: 'c', x1, x2, y: q.y, v: fmtValue(q.n.p.c), held: gv.shParam && gv.shParam.key === 'c', glyph: `math.${q.n.p.op}`, cycle: ['op', MATH_OPS] }];
-  if (q.type === 'mixc') return [{ key: 'f', x1, x2, y: q.y, v: fmtValue(q.n.p.f), held: gv.shParam && gv.shParam.key === 'f', glyph: `mixc.${q.n.p.mode}`, cycle: ['mode', MIX_MODES] }];
+  if (q.type === 'math') return [shadeBand({ key: 'c', to: `${q.id}.c`, value: q.n.p.c, x1, x2, y: q.y, v: fmtValue(q.n.p.c), held: gv.shParam && gv.shParam.key === 'c', glyph: `math.${q.n.p.op}`, cycle: ['op', MATH_OPS] })];
+  if (q.type === 'mixc') return [shadeBand({ key: 'f', to: `${q.id}.f`, value: q.n.p.f, x1, x2, y: q.y, v: fmtValue(q.n.p.f), held: gv.shParam && gv.shParam.key === 'f', glyph: `mixc.${q.n.p.mode}`, cycle: ['mode', MIX_MODES] })];
   return [];
+}
+
+// ---------- drivers → colour (DESIGN.md "Drivers → colour (C)") ------------------------------------
+// Drag a driver's output dot onto a shading input: it reads the driver. Onto a shading line (a math's
+// constant, a mix's amount, a ramp's scale, offset and hue turn, the glow's gain) or onto a stop: bound,
+// with a band, as an op's line is. Rest on a shading node during the drag: its lines open. Click the
+// glow output: its gain line. Bands drag and delete as ops' do.
+const glowOut = () => gv.P.sh.outs.find((o) => o.port === 'glow');
+const nearGlow = (x, y) => { const o = glowOut(); return !!o && Math.hypot(x - o.x, y - o.y) < 12; };
+// the glow's gain, a line to the left of the glow output
+function gainHandle() {
+  const o = glowOut(), g = normalize(state.formula).shade.out.gain ?? 1, x2 = o.x - 24, x1 = x2 - 110;
+  return shadeBand({ key: 'gain', to: 'out.gain', value: g, x1, x2, y: o.y, v: fmtValue(+g.toPrecision(4)), held: gv.shParam && gv.shParam.id === 'out' });
+}
+// a shading line's band when it is bound (the same scale as an op's: the band the middle two thirds)
+function shadeBand(h) {
+  const b = shadeBindOf(h.to);
+  if (!b) return h;
+  const M = gv.band && gv.band.to === h.to ? gv.band.M : bandMap(b, h.x1, h.x2), clip = (x) => Math.max(h.x1, Math.min(h.x2, x));
+  const live = liveShade().get(h.to);
+  h.band = { x0: clip(M.x(b.lo)), x1: clip(M.x(b.hi)), sel: gv.bandSel === h.to, M, b, tick: live != null ? clip(M.x(live)) : null };
+  h.held = !!(gv.band && gv.band.to === h.to);
+  h.v = h.text = h.held ? `${fmtValue(+b.lo.toPrecision(4))} ${fmtValue(+b.hi.toPrecision(4))}` : h.v;
+  return h;
+}
+// the lines the selected shading node shows: a ramp's editor lines, a math's or mix's, the gain
+function shadeLines() {
+  const S = gv.P.sh;
+  if (S.empty) return [];
+  if (gv.shSel === 'out') return [gainHandle()];
+  const sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
+  if (!sel) return [];
+  if (!sel.ramp) return shadeHandles(sel);
+  return editorLayout(sel, innerWidth, innerHeight, S.frame).handles.map((h) => shadeBand({ ...h, to: `${sel.id}.${h.key}`, value: h.v }));
+}
+// a bound stop's band on the bar's axis (t → x), above the bar
+function stopBands(E) {
+  const id = E.id, live = liveShade(), M = { x: (t) => E.x + t * E.w, v: (x) => (x - E.x) / E.w };
+  return E.stops.flatMap((st) => {
+    const to = `${id}.stops.${st.i}.t`, b = shadeBindOf(to);
+    if (!b) return [];
+    const lv = live.get(to);
+    return [{ to, i: st.i, x0: M.x(b.lo), x1: M.x(b.hi), sel: gv.bandSel === to, M, b, live: lv != null ? M.x(lv) : null }];
+  });
+}
+// a line's pixels per unit as the hand moves it (as shadeMove drags them)
+const shadePerPx = (key, v) => (key === 'map.scale' ? Math.max(Math.abs(v), 1e-3) / 120 : key === 'map.offset' ? 1 / 200 : key === 'map.hue' ? 1 / 300 : 0.005 * Math.max(1, Math.abs(v)));
+
+// the far ends of the shading's bindings: a visible line's band, a bound stop's band, else the node (the
+// glow output for the gain)
+function shadeBindEnds(P) {
+  const f = normalize(state.formula), S = P.sh;
+  if (!f.shade || !f.shade.bind || S.empty) return [];
+  const lines = shadeLines(), sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
+  const sb = sel && sel.ramp ? stopBands(editorLayout(sel, innerWidth, innerHeight, S.frame)) : [];
+  const E = sel && sel.ramp ? editorLayout(sel, innerWidth, innerHeight, S.frame) : null;
+  return f.shade.bind.flatMap((b) => {
+    const on = gv.bandSel === b.to || gv.dvSel === b.from;
+    const h = lines.find((r) => r.to === b.to && r.band);
+    if (h) return [{ to: b.to, from: b.from, x2: (h.band.x0 + h.band.x1) / 2, y2: h.y, on, shade: true }];
+    const st = sb.find((r) => r.to === b.to);
+    if (st && E) return [{ to: b.to, from: b.from, x2: (st.x0 + st.x1) / 2, y2: E.y - 6, on, shade: true }];
+    if (b.to === 'out.gain') { const o = glowOut(); return [{ to: b.to, from: b.from, x2: o.x + 8, y2: o.y, on, shade: true }]; }
+    const q = S.items.find((r) => b.to.startsWith(r.id + '.'));
+    return q ? [{ to: b.to, from: b.from, x2: q.x + q.hw, y2: q.y, on, shade: true }] : [];
+  });
+}
+
+// the drivers' links into the shading: from the driver's output along the drivers' bus (under the
+// readings') and down to the input
+function shadeDriverLinks(P) {
+  const S = P.sh, V = P.dv, busY = S.frame[1] + 9, out = [];
+  for (const q of S.items) SE.portsOf(q.type).forEach((port, k, all) => {
+    const ref = q.n.in[port];
+    if (typeof ref !== 'string' || !ref.startsWith('d:')) return;
+    const d = V.byId.get(ref.slice(2));
+    if (!d) return;
+    const [x1, y1] = V.outPort(d), [x2, y2] = S.inPort(q, k, all.length);
+    out.push({ from: d.id, to: q.id, port, on: gv.dvSel === d.id, d: `M${x1.toFixed(1)} ${y1.toFixed(1)}C${x1.toFixed(1)} ${(y1 + 30).toFixed(1)} ${(x1 + 20).toFixed(1)} ${busY.toFixed(1)} ${(x1 - 10).toFixed(1)} ${busY.toFixed(1)}H${x2.toFixed(1)}V${y2.toFixed(1)}` });
+  });
+  return out;
+}
+
+// a driver dropped on the shading: an input reads it, a line or a stop is bound to it
+function dropOnShade(from, x, y) {
+  const S = gv.P.sh;
+  if (S.empty) return false;
+  const port = inFrame(S, x, y) ? shadeInPortAt(S, x, y) : null;
+  if (port && port.node !== 'out') return graphEdit(() => SE.linkDriver(state.formula, from, port.node, port.port)) || true;
+  const h = shadeLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 8);
+  if (h) {
+    const old = shadeBindOf(h.to);
+    const [lo, hi] = old ? [old.lo, old.hi] : DE.handleRange(h.value, shadePerPx(h.key, h.value), h.key === 'gain' ? { min: 0, max: 16 } : {});
+    graphEdit(() => SE.bindShade(state.formula, h.to, from, lo, hi));
+    return true;
+  }
+  const sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
+  if (sel && sel.ramp) {
+    const E = editorLayout(sel, innerWidth, innerHeight, S.frame);
+    const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y - 12 && y < E.y + E.h + 22);
+    if (st) {
+      // a stop's band: between its neighbours (where it may go)
+      const ts = E.stops.map((q) => q.t), lo = st.i > 0 ? ts[st.i - 1] : 0, hi = st.i < ts.length - 1 ? ts[st.i + 1] : 1;
+      graphEdit(() => SE.bindShade(state.formula, `${sel.id}.stops.${st.i}.t`, from, lo, hi));
+      return true;
+    }
+  }
+  return false;
 }
 
 function drawShadeNow(P) {
@@ -1039,11 +1174,22 @@ function drawShadeNow(P) {
     editor = editorLayout(sel, innerWidth, innerHeight, S.frame);
     editor.selStop = gv.stopSel && gv.stopSel.id === sel.id ? gv.stopSel.i : null;
     editor.held = gv.shParam && gv.shParam.id === sel.id ? gv.shParam.key : null;
+    editor.handles = shadeLines();
+    editor.stopBands = stopBands(editor);
   }
+  const drvLinks = S.empty ? [] : shadeDriverLinks(P), f = normalize(state.formula);
   return drawShade(S, {
     bus: [P.zone[0], P.zone[1] + 4], hover: gv.shHover, selected: gv.shSel, link: gv.shPress && gv.shPress.link,
-    drag: gv.shDrag, params: sel && !sel.ramp ? shadeHandles(sel) : [], editor, ring: gv.hue,
+    drag: gv.shDrag, params: (sel && !sel.ramp) || gv.shSel === 'out' ? shadeLines() : [], editor, ring: gv.hue,
+    drvBus: f.drive && !S.empty ? [P.zone[0], S.frame[1] + 9] : null, drvLinks,
   });
+}
+
+// a press on a shading band: its ends (lo, hi) or its middle (both); a click selects it (driveUp)
+function shadeBandPress(to, B, x) {
+  const end = Math.abs(x - B.x0) < 6 ? 'lo' : Math.abs(x - B.x1) < 6 ? 'hi' : 'both';
+  gv.band = { to, end, M: B.M, x0: x, lo: B.b.lo, hi: B.b.hi, text0: state.text, moved: false, shade: true };
+  drawGraphNow();
 }
 
 // a live change while a hand is down (quiet: no lineage), and its commit on release
@@ -1072,8 +1218,12 @@ function shadeDown(x, y) {
       if (tg.key === 'invert') graphEdit(() => SE.setRamp(state.formula, sel.id, 'map.invert', !p.map.invert));
       return true;
     }
-    const h = E.handles.find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
-    if (h) { gv.shParam = { id: sel.id, key: h.key, x0: x, v0: h.v, text0: state.text }; drawGraphNow(); return true; }
+    const h = shadeLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+    if (h && h.band) { shadeBandPress(h.to, h.band, x); return true; }
+    if (h) { gv.shParam = { id: sel.id, key: h.key, x0: x, v0: h.value, text0: state.text }; drawGraphNow(); return true; }
+    // a bound stop's band above the bar: its ends, or its middle
+    const sb = stopBands(E).find((B) => Math.abs(y - (E.y - 6)) < 6 && x >= Math.min(B.x0, B.x1) - 6 && x <= Math.max(B.x0, B.x1) + 6);
+    if (sb) { shadeBandPress(sb.to, sb, x); return true; }
     const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y + E.h - 2 && y < E.y + E.h + 22);
     if (st) {
       gv.stopSel = { id: sel.id, i: st.i };
@@ -1096,12 +1246,14 @@ function shadeDown(x, y) {
       return true;
     }
   }
-  // a selected math or mix node: its op glyph cycles, its constant drags
-  if (sel && !sel.ramp) {
-    const h = shadeHandles(sel).find((r) => Math.abs(y - r.y) < 9 && x >= r.x1 - 24 && x <= r.x2 + 6);
+  // a selected math or mix node: its op glyph cycles, its constant drags (or its band, bound); the
+  // glow output selected: its gain
+  if ((sel && !sel.ramp) || gv.shSel === 'out') {
+    const h = shadeLines().find((r) => Math.abs(y - r.y) < 9 && x >= r.x1 - (r.cycle ? 24 : 6) && x <= r.x2 + 6);
     if (h) {
-      if (x < h.x1 - 6) { const [key, list] = h.cycle; graphEdit(() => SE.setNodeParam(state.formula, sel.id, key, list[(list.indexOf(sel.n.p[key]) + 1) % list.length])); }
-      else gv.shParam = { id: sel.id, key: h.key, x0: x, v0: sel.n.p[h.key], text0: state.text };
+      if (h.cycle && x < h.x1 - 6) { const [key, list] = h.cycle; graphEdit(() => SE.setNodeParam(state.formula, sel.id, key, list[(list.indexOf(sel.n.p[key]) + 1) % list.length])); }
+      else if (h.band) { shadeBandPress(h.to, h.band, x); return true; }
+      else gv.shParam = { id: gv.shSel, key: h.key, x0: x, v0: h.value, text0: state.text };
       drawGraphNow();
       return true;
     }
@@ -1146,8 +1298,8 @@ function shadeMove(x, y) {
   }
   if (gv.shParam) {
     const p = gv.shParam, dx = x - p.x0;
-    const v = p.key === 'map.scale' ? p.v0 * Math.exp(dx / 120) : p.key === 'map.offset' ? p.v0 + dx / 200 : p.v0 + dx * 0.005 * Math.max(1, Math.abs(p.v0));
-    shadeLive(() => SE.setNodeParam(state.formula, p.id, p.key, +v.toPrecision(5)));
+    const v = p.key === 'map.scale' ? p.v0 * Math.exp(dx / 120) : p.key === 'map.offset' ? p.v0 + dx / 200 : p.key === 'map.hue' ? p.v0 + dx / 300 : p.v0 + dx * 0.005 * Math.max(1, Math.abs(p.v0));
+    shadeLive(() => (p.id === 'out' ? SE.setGain(state.formula, +v.toPrecision(5)) : SE.setNodeParam(state.formula, p.id, p.key, +v.toPrecision(5))));
     return true;
   }
   if (gv.shStop) {
@@ -1194,6 +1346,7 @@ function shadeUp(x, y) {
     return true;
   }
   if (pr.node && !pr.moved) { gv.shSel = gv.shSel === pr.node.id ? null : pr.node.id; gv.stopSel = null; gv.selected = null; gv.dvSel = null; gv.bandSel = null; }
+  else if (pr.port && pr.port.node === 'out' && pr.port.port === 'glow' && !pr.moved) { gv.shSel = gv.shSel === 'out' ? null : 'out'; gv.stopSel = null; gv.selected = null; gv.dvSel = null; }
   else if (!pr.node && !pr.moved) { gv.shSel = null; gv.stopSel = null; }
   drawGraphNow();
   return true;
@@ -1232,7 +1385,7 @@ function graphKey(e) {
     return true;
   }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.stopSel) { const st = gv.stopSel; gv.stopSel = null; graphEdit(() => SE.removeStop(state.formula, st.id, st.i)); return true; }
-  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.bandSel) { const to = gv.bandSel; gv.bandSel = null; graphEdit(() => G.unbind(state.formula, to)); return true; }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.bandSel) { const to = gv.bandSel; gv.bandSel = null; graphEdit(() => (shadeBindOf(to) ? SE.unbindShade : G.unbind)(state.formula, to)); return true; }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.dvSel) { const id = gv.dvSel; gv.dvSel = null; graphEdit(() => DE.removeDriverNode(state.formula, id)); return true; }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.shSel) { const id = gv.shSel; gv.shSel = null; graphEdit(() => SE.removeNode(state.formula, id)); return true; }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.selected) { const id = gv.selected; gv.selected = null; graphEdit(() => G.remove(state.formula, id)); return true; }
@@ -2172,10 +2325,18 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
       const v = pushView(b, clear, false, false);
       const raw = await P.captureSplats(v, canvas, 200000, progress);
       const L = state.look, len = Math.hypot(...L.key);
-      const shade = normalize(state.formula).shade;
+      const fs = normalize(state.formula), shade = fs.shade;
+      // drivers the colour reads: at the splat's point, as the walk reads them at its own (its iteration
+      // unknown here: the point's readings as at an orbit's start)
+      const ownOf = (to) => { const { path, key } = splitTarget(to), o = opPaths(fs).get(path); return o ? o.p[key] : 0; };
+      const time = timeDriven(fs) ? (performance.now() - clock0) / 1000 : 0;
+      const drvAt = colourDrivers(fs).length ? (p) => {
+        const x = lift(fs, p), r2 = x.reduce((a, v) => a + v * v, 0);
+        return evalDrive(fs.drive, { start: x, time, own: ownOf, read: { i: 0, r: Math.sqrt(r2), trap: r2, lyap: 0, px: x[0], py: x[1], pz: x[2], pw: x[3] } }).reg;
+      } : () => null;
       const samples = raw.map((q) => {
         // the formula's colour graph when it has one (a splat knows only its fold colour index)
-        if (shade) return { p: q.p, cov: q.cov, rgb: evalShade(shade, { col: q.col }).color.slice(0, 3) };
+        if (shade) return { p: q.p, cov: q.cov, rgb: evalShade(shade, { col: q.col }, drvAt(q.p)).color.slice(0, 3) };
         const film = [0, 0.33, 0.67].map((o) => 0.5 + 0.5 * Math.cos(2 * Math.PI * (o + q.col * L.spread + L.hue)));
         const rgb = L.key.map((k, i) => Math.min(1, k + (film[i] * len - k) * L.iridescence));
         return { p: q.p, cov: q.cov, rgb };
@@ -2397,7 +2558,10 @@ window.__fe = {
     return {
       frame: S.frame, outs: S.outs.map((o) => ({ port: o.port, x: o.x, y: o.y })), selected: gv.shSel, stop: gv.stopSel, hue: !!gv.hue,
       items: S.items.map((q) => ({ id: q.id, type: q.type, x: q.x, y: q.y, out: S.outPort(q), ins: SE.portsOf(q.type).map((port, k, all) => ({ port, at: S.inPort(q, k, all.length) })) })),
-      editor: (() => { const q = gv.shSel && S.items.find((r) => r.id === gv.shSel); if (!q || !q.ramp) return null; const E = editorLayout(q, innerWidth, innerHeight, S.frame); return { x: E.x, y: E.y, w: E.w, h: E.h, stops: E.stops.map((t) => ({ i: t.i, x: t.x, y: t.y, t: t.t })), toggles: E.toggles.map((t) => ({ key: t.key, x: t.x, y: t.y })), handles: E.handles.map((h) => ({ key: h.key, x: (h.x1 + h.x2) / 2, y: h.y })) }; })(),
+      editor: (() => { const q = gv.shSel && S.items.find((r) => r.id === gv.shSel); if (!q || !q.ramp) return null; const E = editorLayout(q, innerWidth, innerHeight, S.frame); return { x: E.x, y: E.y, w: E.w, h: E.h, stops: E.stops.map((t) => ({ i: t.i, x: t.x, y: t.y, t: t.t })), toggles: E.toggles.map((t) => ({ key: t.key, x: t.x, y: t.y })), handles: E.handles.map((h) => ({ key: h.key, x: (h.x1 + h.x2) / 2, y: h.y })), stopBands: stopBands(E).map((B) => ({ to: B.to, x0: B.x0, x1: B.x1, y: E.y - 6, live: B.live })) }; })(),
+      // drivers → colour: the selected node's lines (bands when bound), the drivers' links in
+      lines: shadeLines().map((h) => ({ key: h.key, to: h.to, x1: h.x1, x2: h.x2, y: h.y, band: h.band ? { x0: h.band.x0, x1: h.band.x1, tick: h.band.tick } : null })),
+      drvLinks: S.empty ? [] : shadeDriverLinks(gv.P).map((l) => ({ from: l.from, to: l.to, port: l.port })),
     };
   },
   get driveView() {

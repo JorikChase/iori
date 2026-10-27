@@ -47,7 +47,7 @@ import { paramTangents } from './gpu/pack.js';
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
 import { drawSurface } from './ui/metasurface.js';
-import { layout as graphLayout, place as graphPlace, between as graphBetween, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt } from './ui/graph.js';
+import { layout as graphLayout, place as graphPlace, between as graphBetween, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt, scheduleLayout } from './ui/graph.js';
 import { stripPlacement } from './ui/structure.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
@@ -534,7 +534,7 @@ function drawGraphNow() {
   const hq = gv.hover && P.items.find((q) => q.id === gv.hover);
   let svg = `<rect class="gv" x="0" y="0" width="${innerWidth}" height="${innerHeight}" style="opacity:${(0.55 * t).toFixed(2)}"/>`;
   svg += drawGraph(P, {
-    full: true, hover: gv.hover, selected: gv.selected, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : gv.hoverEdge || null,
+    full: true, hover: gv.hover, selected: gv.selected, schedSel: gv.schedSel ?? null, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : gv.hoverEdge || null,
     plus: !gv.press && !gv.picker && gv.hoverEdge ? gv.hoverEdge : null,
     params: sel && !gv.from ? paramHandles(sel) : [],
     thumb: hv && hq && !gv.drag && !gv.picker ? { x: hq.x - (sel && sel.id === hq.id ? 190 : 0), y: hq.y, href: hv } : null,
@@ -545,9 +545,16 @@ function drawGraphNow() {
   overlay.classList.add('on');
 }
 
+const PICK_R = 96;
 function drawPicker(k) {
-  const [x, y] = k.at, R = 96;
-  let s = `<g class="gr full pk"><circle cx="${x}" cy="${y}" r="26"/>`;
+  const [x, y] = k.at, R = PICK_R;
+  // the ring is kept inside the screen; a hairline goes back to the edge it inserts on
+  let s = `<g class="gr full pk">`;
+  if (k.from && Math.hypot(k.from[0] - x, k.from[1] - y) > 30) {
+    const a = Math.atan2(k.from[1] - y, k.from[0] - x);
+    s += `<path d="M${(x + Math.cos(a) * 26).toFixed(1)} ${(y + Math.sin(a) * 26).toFixed(1)}L${k.from[0].toFixed(1)} ${k.from[1].toFixed(1)}"/><circle cx="${k.from[0].toFixed(1)}" cy="${k.from[1].toFixed(1)}" r="2"/>`;
+  }
+  s += `<circle cx="${x}" cy="${y}" r="26"/>`;
   k.items.forEach((it, i) => {
     const a = (i / k.items.length) * Math.PI * 2 - Math.PI / 2, gx = x + Math.cos(a) * R, gy = y + Math.sin(a) * R;
     it.angle = a;
@@ -557,18 +564,25 @@ function drawPicker(k) {
   return s + '</g>';
 }
 
+// the ring's centre: the press, moved in so the whole ring is on screen
+const pickerAt = (x, y) => {
+  const m = PICK_R + 28;
+  return [Math.max(m, Math.min(innerWidth - m, x)), Math.max(m, Math.min(innerHeight - m, y))];
+};
+
 function openPicker(press) {
   const q = press.node;
   if (q && q.field) {
     // the fields, and the plus of another species
     const items = PICK_FIELDS.map((name) => ({ glyph: getOp(name).glyph, act: () => G.setField(state.formula, q.id, name) }));
-    items.push({ glyph: 'plus', act: () => G.addSpecies(state.formula, q.id) });
-    gv.picker = { at: [press.x, press.y], items, sel: -1 };
+    items.unshift({ glyph: 'plus', act: () => G.addSpecies(state.formula, q.id) });
+    gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
   } else if (press.edge) {
     const e = press.edge, scheduled = !e.chain.includes('.');
     const items = PICK_OPS.map((name) => ({ glyph: getOp(name).glyph, act: () => G.insert(state.formula, e.chain, e.index, name) }));
-    if (scheduled) items.push({ glyph: 'mix', act: () => G.fork(state.formula, e.chain, e.index) });
-    gv.picker = { at: [press.x, press.y], items, sel: -1 };
+    // the fork first, at twelve o'clock: split the chain here
+    if (scheduled) items.unshift({ glyph: 'fork', act: () => G.fork(state.formula, e.chain, e.index) });
+    gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
   }
   drawGraphNow();
 }
@@ -599,12 +613,20 @@ function graphDown(e) {
       return;
     }
   }
-  // the count below the repeat zone: the iterations
+  // below the repeat zone: the count (drag: iterations), the schedule's letters (click one: a letter key
+  // changes it, Delete drops it), the plus after them (another letter), and beside the last chain the plus
+  // that adds a chain
   const [zx0, , zx1, zy1] = gv.P.zone;
-  if (Math.abs(y - (zy1 + 12)) < 12 && Math.abs(x - (zx0 + zx1) / 2) < 40) {
+  const SL = scheduleLayout(gv.P), near = (q, r = 10) => Math.hypot(x - q.x, y - (q.y - 4)) < r;
+  if (near(SL.chainPlus, 12)) { gv.schedSel = null; graphEdit(() => G.addChain(state.formula)); return; }
+  if (near(SL.plus)) { gv.schedSel = null; graphEdit(() => G.setSchedule(state.formula, state.formula.schedule + state.formula.schedule.at(-1))); return; }
+  const letter = SL.letters.find((q) => near(q, 7));
+  if (letter) { gv.schedSel = gv.schedSel === letter.i ? null : letter.i; drawGraphNow(); return; }
+  if (Math.abs(y - (SL.count.y - 4)) < 12 && Math.abs(x - SL.count.x) < 22) {
     gv.param = { iters: true, x0: x, v0: state.formula.iters, text0: state.text };
     return;
   }
+  gv.schedSel = null;
   const node = graphNodeAt(gv.P, x, y), edge = node ? null : graphEdgeAt(gv.P, x, y);
   if (!node && !edge) {
     // outside the zone folds the graph; inside it, a press on nothing clears the selection
@@ -707,6 +729,19 @@ function graphUp(e) {
 
 // keys while the graph is open; true when used
 function graphKey(e) {
+  // a selected schedule letter: a letter key sets it, Delete drops it
+  if (gv.schedSel != null) {
+    const w = state.formula.schedule, i = gv.schedSel;
+    const m = e.code.match(/^Key([A-H])$/);
+    if (m) { graphEdit(() => G.setSchedule(state.formula, w.slice(0, i) + m[1] + w.slice(i + 1))); return true; }
+    if (e.code === 'Delete' || e.code === 'Backspace') {
+      gv.schedSel = null;
+      if (w.length > 1) graphEdit(() => G.setSchedule(state.formula, w.slice(0, i) + w.slice(i + 1)));
+      else drawGraphNow();
+      return true;
+    }
+    if (e.code === 'Escape') { gv.schedSel = null; drawGraphNow(); return true; }
+  }
   if (e.code === 'Escape') {
     if (gv.picker) { gv.picker = null; gv.press = null; drawGraphNow(); } else if (gv.selected) { gv.selected = null; drawGraphNow(); } else closeGraph();
     return true;
@@ -953,7 +988,12 @@ function exitGrab(revert = false) {
 
 let drag = null;
 const pointers = new Map();
+// The drift greets an arrival; the first real input turns it off so the field holds still while it is
+// worked on (Space turns it back on)
+function engage() { if (!state.engaged) { state.engaged = true; state.drift = false; } }
+
 canvas.addEventListener('pointerdown', (e) => {
+  engage();
   stopReplay();
   try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
   if (surf) { surfDown(e); return; }
@@ -1047,6 +1087,7 @@ canvas.addEventListener('pointercancel', release);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  engage();
   if (ring) { const at = ring.at, sc = ring.scale * (e.deltaY > 0 ? 1.5 : 1 / 1.5); ring = null; openRing(at[0], at[1], sc); return; }
   if (grab && grab.knobs) { nextKnobs(e.deltaY > 0 ? 1 : -1, e.clientX, e.clientY); return; }
   if (grab) { passAttention(e.deltaY > 0 ? 1 : -1, e.clientX); return; }
@@ -1075,6 +1116,7 @@ function toggleMode() {
 canvas.addEventListener('dblclick', toggleMode);
 
 addEventListener('keydown', (e) => {
+  if (e.code !== 'Space') engage();
   if (e.code === 'Escape' && surf) { closeSurface(); return; }
   if (gv && graphKey(e)) return;
   if (e.code === 'KeyG' && !e.repeat && !grab && !ring && !lens && !surf) { openGraph(); return; }
@@ -1093,7 +1135,7 @@ addEventListener('keydown', (e) => {
     if (n) restore(lineage.jump(n.id));
     return;
   }
-  if (e.code === 'Space') { state.drift = !state.drift; touched(); e.preventDefault(); return; }
+  if (e.code === 'Space') { state.engaged = true; state.drift = !state.drift; touched(); e.preventDefault(); return; }
   if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
   if (e.code === 'KeyL' && !e.repeat) { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); return; }
   keys.add(e.code);
@@ -1257,9 +1299,22 @@ function sizeCanvas() {
 // Governor: the next frame is submitted only after the GPU finished the last one, so work never
 // queues up (a stalled queue froze this Mac once). Resolution follows the measured GPU time.
 let gpuMs = 16, lastScaleChange = 0;
+// While moving, resolution follows the frame time in small steps. On stopping it jumps once to the still
+// resolution the measured frame time affords, then holds until the next move: every change restarts the
+// accumulation, and stepping up 8 % every 400 ms rebuilt the still image several times in its first
+// seconds (it read as the field moving on its own).
+let stillSettled = false;
 function govern(moving) {
   const target = moving ? 18 : 45;
   const now = performance.now();
+  if (!moving) {
+    if (stillSettled || !(gpuMs > 0)) return;
+    stillSettled = true;
+    const s = Math.max(0.25, Math.min(1, Math.round(state.scale * Math.sqrt(target / gpuMs) * 20) / 20));
+    if (s !== state.scale) { state.scale = s; state.n = 0; lastScaleChange = now; }
+    return;
+  }
+  stillSettled = false;
   if (now - lastScaleChange < 400) return;
   let s = state.scale;
   if (gpuMs > target * 1.25) s *= 0.85;

@@ -38,13 +38,15 @@ export const GLYPHS = {
 };
 
 export function glyphPath(id, x, y, size = 24) {
-  const d = GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : GLYPHS.c);
+  const d = GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
 
 // the graph's own: another species (a plus)
 export const PLUS_GLYPH = 'M12 5v14M5 12h14';
+// the fork: one chain splitting into species (the graph's ring)
+export const FORK_GLYPH = 'M12 2v8M12 10L4 20M12 10l8 10M2 20h4M18 20h4';
 
 // export glyphs (the structure layer): a still, a film, splats, a mesh
 export const EXPORT_GLYPHS = {

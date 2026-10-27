@@ -117,8 +117,21 @@ export function drawGraph(P, o = {}) {
   const [x0, y0, x1, y1] = P.zone;
   s.push(`<path class="zn" d="M${f1(x0)} ${f1(y0)}H${f1(x1)}V${f1(y1)}H${f1(x0)}Z"/>`);
   s.push(`<path class="lp" d="M${f1(x1)} ${f1(y1 - 6)}h8V${f1(y0 + 6)}h-8M${f1(x1 + 3)} ${f1(y0 + 9)}l-3 -3 3 -3"/>`);
-  const sched = P.schedule && P.schedule !== 'A' ? ` ${P.schedule}` : '';
-  s.push(`<text class="it" x="${f1((x0 + x1) / 2)}" y="${f1(y1 + 16)}">×${P.iters}${sched}</text>`);
+  if (!o.full) {
+    const sched = P.schedule && P.schedule !== 'A' ? ` ${P.schedule}` : '';
+    s.push(`<text class="it" x="${f1((x0 + x1) / 2)}" y="${f1(y1 + 16)}">×${P.iters}${sched}</text>`);
+  } else {
+    // unfolded: the count, each schedule letter on its own (click one, then a letter key or Delete),
+    // a plus that lengthens the word, and a plus beside the last chain that adds a chain
+    const L = scheduleLayout(P);
+    s.push(`<text class="it" x="${f1(L.count.x)}" y="${f1(L.count.y)}">×${P.iters}</text>`);
+    L.letters.forEach((q) => {
+      s.push(`<text class="it${o.schedSel === q.i ? ' on' : ''}" x="${f1(q.x)}" y="${f1(q.y)}">${q.ch}</text>`);
+      if (o.schedSel === q.i) s.push(`<path class="sl" d="M${f1(q.x - 4)} ${f1(q.y + 4)}h8"/>`);
+    });
+    s.push(`<path class="ps" d="M${f1(L.plus.x - 4)} ${f1(L.plus.y - 4)}h8M${f1(L.plus.x)} ${f1(L.plus.y - 8)}v8"/>`);
+    s.push(`<path class="ps" d="M${f1(L.chainPlus.x - 5)} ${f1(L.chainPlus.y)}h10M${f1(L.chainPlus.x)} ${f1(L.chainPlus.y - 5)}v10"/>`);
+  }
   if (o.full && P.letters.length > 1) {
     // the scheduled chains' letters above them
     P.items.filter((q) => q.kind === 'in').forEach((q, i) => s.push(`<text class="lt" x="${f1(q.x)}" y="${f1(q.y - 10)}">${P.letters[i]}</text>`));
@@ -160,4 +173,20 @@ export function edgeAt(P, x, y) {
     if (d < bd) { bd = d; best = e; }
   }
   return best;
+}
+
+// where the unfolded graph's count, schedule letters and pluses sit (drawing and hit-testing share it)
+export function scheduleLayout(P) {
+  const [x0, , x1, y1] = P.zone, cx = (x0 + x1) / 2, y = y1 + 18;
+  const word = P.schedule || 'A', step = 11;
+  const wordW = word.length * step, total = 34 + wordW + 16;
+  const left = cx - total / 2;
+  const ins = P.items.filter((q) => q.kind === 'in');
+  const lastIn = ins[ins.length - 1];
+  return {
+    count: { x: left + 14, y },
+    letters: [...word].map((ch, i) => ({ ch, i, x: left + 34 + i * step + step / 2, y })),
+    plus: { x: left + 34 + wordW + 9, y },
+    chainPlus: { x: lastIn.x + Math.max(20, P.u * 0.55), y: lastIn.y },
+  };
 }

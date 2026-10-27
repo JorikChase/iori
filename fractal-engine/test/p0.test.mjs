@@ -599,3 +599,28 @@ test('state in exported files: PLY header comments and a PNG chunk round-trip, a
   assert.equal(S.readPngState(withState.buffer).id, hash(f));
   assert.equal(String.fromCharCode(...withState.subarray(withState.length - 8, withState.length - 4)), 'IEND');
 });
+
+test('graph: chains and the schedule — add a copy, remove one, edit the word', async () => {
+  const G = await import('../core/graph.js');
+  const f0 = parse(MANDELBOX), p = [0.3, -0.2, 0.5];
+  const two = G.addChain(f0);
+  assert.equal(format(two), 'fold.box · fold.sphere · scale · +c | fold.box · fold.sphere · scale · +c ×12 AB bail=64');
+  assert.ok(near(de(two, p), de(f0, p), 1e-12), 'a copied chain leaves the orbit as it was');
+  const hy = G.setSchedule(G.setParam(two, 'B2', 's', 3), 'aab');
+  assert.equal(hy.schedule, 'AAB');
+  assert.throws(() => G.setSchedule(two, 'AC'), /no chain C/);
+  assert.throws(() => G.setSchedule(two, ''), /word/);
+  // removing chain A: B becomes A, the word follows
+  const back = G.removeChain(hy, 'A');
+  assert.equal(back.schedule, 'A');
+  assert.equal(back.slots[0][2].p.s, 3);
+  // deleting the last op of a chain takes the chain while another remains
+  const one = G.remove(G.remove(G.remove(G.remove(two, 'B3'), 'B2'), 'B1'), 'B0');
+  assert.equal(format(one), format(f0));
+  assert.throws(() => G.removeChain(f0, 'A'), /last chain/);
+  // chains with chimeras keep their species slots in order
+  const ch = G.addChain(parse('abs | [scale 2 ‖ invert] · +c ×6 AB'));
+  assert.ok(validate(ch).ok);
+  assert.equal(ch.schedule, 'ABC');
+  assert.equal(format(G.removeChain(ch, 'B')), 'abs | [scale ‖ invert] · +c ×6 AB');
+});

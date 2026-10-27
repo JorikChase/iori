@@ -106,12 +106,13 @@ export function insert(formula, chainId, index, name) {
 }
 
 // remove a node. The last op of a species takes its species with it; a chimera left with one species
-// dissolves into it; a scheduled chain is never emptied.
+// dissolves into it; the last op of a scheduled chain takes the chain with it while others remain.
 export function remove(formula, id) {
   const t = tree(formula), at = nodeById(t, id);
   if (!at) throw new Error(`no node ${id}`);
   if (at.n.species) return unwrap(formula, id, 0);
   if (at.ch.nodes.length > 1) { at.ch.nodes.splice(at.i, 1); return finish(t); }
+  if (!at.parent && t.chains.length > 1) return removeChain(formula, at.ch.id);
   if (!at.parent) throw new Error('a scheduled chain cannot be emptied');
   const mix = at.parent, s = mix.species.indexOf(at.ch);
   if (mix.species.length > 2) { mix.species.splice(s, 1); return finish(t); }
@@ -200,4 +201,39 @@ export function bypass(formula, id) {
     if (at.ch.nodes.length > 1) { at.ch.nodes.splice(at.i, 1); return finish(t); }
     return at.parent ? remove(formula, id) : null;
   } catch { return null; }
+}
+
+// ---------- chains and the schedule ---------------------------------------------------------------
+const LETTERS = 'ABCDEFGH';
+const slotsUsed = (t) => t.chains.reduce((n, ch) => n + 1 + ch.nodes.reduce((m, q) => m + (q.species ? q.species.length : 0), 0), 0);
+
+// another scheduled chain: a copy of the last, its letter appended to the schedule — so the orbit is
+// the same until the copy changes (A then a copy of A is A twice)
+export function addChain(formula) {
+  const t = tree(formula);
+  if (slotsUsed(t) + 1 + t.chains.at(-1).nodes.reduce((m, q) => m + (q.species ? q.species.length : 0), 0) > 8) throw new Error('no room for another chain (eight slots)');
+  t.chains.push(clone(t.chains.at(-1)));
+  t.schedule += LETTERS[t.chains.length - 1];
+  return finish(t);
+}
+
+// a scheduled chain removed: its letter leaves the schedule, the letters after it move down
+export function removeChain(formula, chainId) {
+  const t = tree(formula), k = t.chains.findIndex((c) => c.id === chainId);
+  if (k < 0) throw new Error(`no chain ${chainId}`);
+  if (t.chains.length < 2) throw new Error('the last chain stays');
+  t.chains.splice(k, 1);
+  const word = [...t.schedule].filter((ch) => LETTERS.indexOf(ch) !== k).map((ch) => (LETTERS.indexOf(ch) > k ? LETTERS[LETTERS.indexOf(ch) - 1] : ch)).join('');
+  t.schedule = word || 'A';
+  return finish(t);
+}
+
+// the schedule word: letters of existing chains, 1–64 of them
+export function setSchedule(formula, word) {
+  const t = tree(formula);
+  const w = String(word).toUpperCase();
+  if (!/^[A-H]{1,64}$/.test(w)) throw new Error('a schedule is a word of chain letters');
+  for (const ch of w) if (LETTERS.indexOf(ch) >= t.chains.length) throw new Error(`no chain ${ch}`);
+  t.schedule = w;
+  return finish(t);
 }

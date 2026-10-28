@@ -67,6 +67,7 @@ import * as SE from './core/shade-edit.js';
 import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
+import { TOGGLES, toggleLayout, drawToggles } from './ui/toggles.js';
 import { isCollage, isCollageText, normCollage, formatCollage, parseAny, formatAny, hashCollage, collageAt, toPiece, repFold, MAX_PIECES, KERNELS, JOIN_OPS, PLACE, REP, JOIN, collageTarget } from './core/collage.js';
 import * as CE from './core/collage-edit.js';
 import { collageStructure, lerpCollage, mutateCollage, collageDistancePx, metricId, metricValue, withMetric } from './core/collage-breed.js';
@@ -381,12 +382,15 @@ function traceCentre() {
 // Drag a site's disc: it moves (the formula under the crosshair follows); off the square, yours is
 // gone and a family goes home. A chimera's site is hard: its walls are cuts (core/metasurface.js). Double-click a corner mark: the families home. The layout (moved
 // families, your sites with their thumbnails) is kept in this browser's localStorage.
+// "Add a piece" (opened by the collage graph's plus or the collage toggle): the crosshair only points,
+// and a tap — on a site or on open ground — adds the formula there to the field as a collage's piece
+// instead of swapping the picked piece's formula (a plus rides the crosshair while it is so).
 const SURF_KEY = 'fractal-engine.surface.v1';
 const SURF_HOLD_MS = 450, SURF_OFF_PX = 24;
 const SURF = createSurface(undefined, undefined, (() => {
   try { return JSON.parse(localStorage.getItem(SURF_KEY) || 'null'); } catch { return null; }
 })());
-let surf = null;       // { x, drag, moved, stroke: { pts, scr, kind }, press, site, bands, drift }
+let surf = null;       // { x, drag, moved, stroke: { pts, scr, kind }, press, site, bands, drift, add }
 let surfAt = null;     // where the crosshair was last
 let surfWalk = 0;      // the walk under way (a token: anything else stops it)
 let surfCorner = 0;    // when a corner mark was last pressed (two within 350 ms: the families home)
@@ -414,12 +418,12 @@ const siteHit = (px, py) => {
 };
 const cornerHit = (px, py) => { const F = surfFrame(); return Math.abs(Math.abs(px - F.cx) - F.L / 2) < 16 && Math.abs(Math.abs(py - F.cy) - F.L / 2) < 16; };
 
-function openSurface() {
+function openSurface(add = null) {
   if (surf) return;
   exitGrab();
   // the crosshair where we were, or on the site of the formula's own family
   const own = SURF.sites.find((s) => normalize(state.formula).slots.length === 1 && s.f.slots.length === 1 && s.f.slots[0].map((o) => o.op).join(' ') === structureKey(state.formula));
-  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, press: null, site: null, bands: null, drift: state.drift };
+  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, press: null, site: null, bands: null, drift: state.drift, add };
   state.drift = false;
   // on a touch screen the structure layer stays drawn under the square, but only its keys answer (on a
   // phone the strip lies under the square)
@@ -476,7 +480,7 @@ function drawSurfaceNow() {
       };
     }),
     spokes: ws.map((e) => { const [x, y] = toScreen(SURF.sites[e.j].at); return { x, y, w: e.w }; }),
-    cross: toScreen(surf.x),
+    cross: toScreen(surf.x), add: !!surf.add,
     stroke: surf.stroke && surf.stroke.scr, strokeKind: surf.stroke && surf.stroke.kind,
     ring: p && !p.full && !p.done && p.u > 0.08 ? { x: p.sx, y: p.sy, u: p.u } : held && !held.moved && held.u > 0.15 ? { x: toScreen(SURF.sites[held.j].at)[0], y: toScreen(SURF.sites[held.j].at)[1], u: held.u } : null,
   });
@@ -498,6 +502,7 @@ function frameAt(view) {
 
 function surfaceTo(x) {
   surf.x = x; surfAt = x;
+  if (surf.add) { drawSurfaceNow(); return; }
   const r = formulaAt(SURF, x);
   // in a collage the crosshair swaps the picked piece's formula (the camera stays with the collage)
   setFormula(format(r.f), true);
@@ -563,7 +568,7 @@ function surfDown(e) {
     const tick = () => {
       if (!surf || surf.site !== h || h.moved) return;
       h.u = (performance.now() - h.t0) / SURF_HOLD_MS;
-      if (h.u >= 1) { h.done = true; const f = SURF.sites[h.j].f; closeSurface(); dropPiece(format(f), h.sx, h.sy); return; }
+      if (h.u >= 1) { h.done = true; addFromSurface(SURF.sites[h.j].f, h.sx, h.sy); return; }
       drawSurfaceNow();
       h.timer = setTimeout(tick, 16);
     };
@@ -639,6 +644,7 @@ function surfUp(e) {
   if (surf.site) {
     const h = surf.site;
     surf.site = null;
+    if (!h.moved && surf.add) { addFromSurface(SURF.sites[h.j].f); return; }
     if (!h.moved) surfaceTo([...SURF.sites[h.j].at]);
     else if (offSquare(e.clientX, e.clientY)) { removeSite(SURF, h.j); surfaceLayout(false); }
     else { moveSite(SURF, h.j, toSurface(e.clientX, e.clientY)); surfaceLayout(false); }
@@ -650,17 +656,27 @@ function surfUp(e) {
     clearTimeout(p.timer);
     surf.press = null;
     if (p.done) { drawSurfaceNow(); return; }
+    if (surf.add) { addFromSurface(formulaAt(SURF, p.x).f); return; }
     surfaceTo(p.x);
     writeHash();
     remember();
     return;
   }
   if (surf.drag) {
+    if (surf.add) { addFromSurface(formulaAt(SURF, toSurface(e.clientX, e.clientY)).f); return; }
     surfaceTo(toSurface(e.clientX, e.clientY));
     surf.drag = false;
     writeHash();
     remember();
   }
+}
+
+// "add a piece": the formula becomes the collage's next piece where the view looks (the centre, or where
+// a hold on its site was); opened from the collage graph, the graph comes back to show it there
+function addFromSurface(f, sx = innerWidth / 2, sy = innerHeight / 2) {
+  const back = surf && surf.add === 'graph';
+  closeSurface();
+  if (dropPiece(format(f), sx, sy) && back) openCollageGraph();
 }
 
 // a stroke played in time: the crosshair travels it at half the surface's width a second
@@ -717,8 +733,10 @@ const PICK_FIELDS = ['mix', 'mix.axis', 'mix.sphere', 'mix.noise', 'mix.tissue',
 // the formula's network and, to its left in its own frame, the shading network, scaled together
 function graphPlacement() {
   // the drivers' lane widens the repeat zone on its right (ui/drivegraph.js)
-  const f = normalize(state.formula), L0 = graphLayout(G.tree(f)), D = layoutDrive(f.drive, L0), L = { ...L0, w: D.w, h: D.h }, S = layoutShade(f.shade);
-  const u = Math.min(64, (innerHeight - 260) / (Math.max(L.h, S.h) + 1), (innerWidth * 0.8) / (L.w + 0.9 + SHADE_GAP + S.w + 0.6));
+  // (either may be folded away by its toggle: the formula's network takes the room)
+  const dvOn = driveShown(), shOn = shadeShown();
+  const f = normalize(state.formula), L0 = graphLayout(G.tree(f)), D = layoutDrive(dvOn ? f.drive : null, L0), L = dvOn ? { ...L0, w: D.w, h: D.h } : L0, S = layoutShade(f.shade);
+  const u = Math.min(64, (innerHeight - 260) / (Math.max(L.h, shOn ? S.h : 0) + 1), (innerWidth * 0.8) / (L.w + 0.9 + (shOn ? SHADE_GAP + S.w + 0.6 : 0)));
   const P = graphPlace(L, u, innerWidth - 50, innerHeight / 2 - 10);
   P.sh = placeShade(S, u, P.zone[0] - SHADE_GAP * u, P.zone[1], f.shade);
   P.dv = placeDrive(D, P);
@@ -877,6 +895,7 @@ function bindEnds(P, handles, sel) {
 }
 
 function drawDriveNow(P, handles, sel) {
+  if (!driveShown()) { gv.binds = []; return ''; }
   const V = P.dv, dsel = gv.dvSel && V.byId.get(gv.dvSel);
   gv.binds = [...bindEnds(P, handles, sel), ...shadeBindEnds(P)];
   return drawDrive(V, {
@@ -889,6 +908,7 @@ function drawDriveNow(P, handles, sel) {
 function driveLive(fn) { shadeLive(fn); }
 
 function driveDown(x, y) {
+  if (!driveShown()) return false;
   const V = gv.P.dv;
   const dsel = gv.dvSel && V.byId.get(gv.dvSel);
   if (dsel) {
@@ -951,7 +971,7 @@ function driveMove(x, y) {
     // does not, so a drag across the chain keeps the lines it is heading for
     // (a shading node or the glow output the same way: its lines, or its ramp's editor, open)
     const q = graphNodeAt(gv.P, x, y), D = gv.dvDrag;
-    const sq = !q && !gv.P.sh.empty && inFrame(gv.P.sh, x, y) ? (shadeNodeAt(gv.P.sh, x, y) || (nearGlow(x, y) ? { id: 'out' } : null)) : null;
+    const sq = !q && shadeShown() && !gv.P.sh.empty && inFrame(gv.P.sh, x, y) ? (shadeNodeAt(gv.P.sh, x, y) || (nearGlow(x, y) ? { id: 'out' } : null)) : null;
     const over = q && q.id !== gv.selected ? q.id : sq && sq.id !== gv.shSel ? 'sh:' + sq.id : null;
     if (over !== D.over) {
       D.over = over;
@@ -1392,7 +1412,7 @@ const shadePerPx = (key, v) => (key === 'map.scale' ? Math.max(Math.abs(v), 1e-3
 // glow output for the gain)
 function shadeBindEnds(P) {
   const f = normalize(state.formula), S = P.sh;
-  if (!f.shade || !f.shade.bind || S.empty) return [];
+  if (!f.shade || !f.shade.bind || S.empty || !shadeShown()) return [];
   const lines = shadeLines(), sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
   const sb = sel && sel.ramp ? stopBands(editorLayout(sel, innerWidth, innerHeight, S.frame)) : [];
   const E = sel && sel.ramp ? editorLayout(sel, innerWidth, innerHeight, S.frame) : null;
@@ -1451,6 +1471,7 @@ function dropOnShade(from, x, y) {
 }
 
 function drawShadeNow(P) {
+  if (!shadeShown()) return '';
   const S = P.sh, sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
   let editor = null;
   if (sel && sel.ramp) {
@@ -1486,6 +1507,7 @@ function shadeLive(fn) {
 function shadeCommit() { setFormula(state.text); writeHash(); remember(); refreshGraph(); }
 
 function shadeDown(x, y) {
+  if (!shadeShown()) return false;
   const S = gv.P.sh;
   // the selected ramp's editor: toggles, scale and offset, stops, the bar
   const sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
@@ -2053,9 +2075,18 @@ function drawCvNow() {
   });
   cv.binds = cvBinds(dsel ? [] : lines);
   svg += drawDrive(V, { hover: cv.dvHover, selected: cv.dvSel, drag: cv.dvDrag, binds: cv.binds, params: dsel ? cvDriverHandles(dsel) : [] });
+  const pl = cvPlus(PC);
+  if (pl) svg += `<g class="cg"><g class="pl">${glyphPath('plus', pl[0], pl[1], 16)}<circle cx="${pl[0].toFixed(1)}" cy="${pl[1].toFixed(1)}" r="12"/></g></g>`;
   if (cv.picker) svg += drawPicker(cv.picker);
   overlay.innerHTML = viewWrap(svg);
   overlay.classList.add('on');
+}
+
+// the plus left of the pieces: the Metasurface in "add a piece" mode (none once the collage is full)
+function cvPlus(PC) {
+  if (state.collage.pieces.length >= MAX_PIECES) return null;
+  const q = PC.pieces[0];
+  return [Math.max(24, PC.zone[0] - Math.max(28, 0.8 * PC.u)), (q.zone[1] + q.zone[3]) / 2];
 }
 
 // into a piece's own formula graph (or the collage's shading, pick 'C'); G or Esc comes back
@@ -2072,6 +2103,8 @@ function drillInto(pick, nodeId = null) {
 
 function cvDown(x, y) {
   const PC = cv.PC, V = PC.dv, c = state.collage;
+  const pl = cvPlus(PC);
+  if (pl && Math.hypot(x - pl[0], y - pl[1]) < 18) { closeCollageGraph(); openSurface('graph'); return; }
   // the drivers: the selected one's numbers and switches, an output dot, a node, the row
   const dsel = cv.dvSel && V.byId.get(cv.dvSel);
   if (dsel) for (const h of cvDriverHandles(dsel)) {
@@ -2254,6 +2287,123 @@ function cvKey(e) {
   }
   return true;
 }
+
+// ---------- the overlay toggles (DESIGN.md "Overlay toggles") ---------------------------------------
+// The page's menu mark (the site's burger, a hairline here: app.css) unfolds a row of glyphs, one per
+// overlay (ui/toggles.js); a choice or ROW_MS folds it. A second press of the mark while the row is out
+// opens the site's own menu, as the mark does on every other page. The keys keep working; the row only
+// shows them, the same on every device.
+const togglesSvg = document.getElementById('toggles');
+const siteNav = document.getElementById('site-menu');
+const siteBox = siteNav && siteNav.querySelector('.menuToggle input');
+const ROW_MS = 4000, ROW_UNFOLD_MS = 180;
+// the graph's shading frame and drivers' lane, each folded away by its toggle (the collage's own
+// shading, pick 'C', is only those two: always shown)
+const panes = { shade: true, drive: true };
+const shadeShown = () => state.pick === 'C' || panes.shade;
+const driveShown = () => state.pick === 'C' || panes.drive;
+let row = null;   // { t0, timer }: the row is out
+
+function toggleOn(k) {
+  if (k === 'graph') return !!(gv || cv);
+  if (k === 'shade') return !!gv && shadeShown();
+  if (k === 'drive') return (!!gv && driveShown()) || !!cv;
+  if (k === 'surface') return !!surf;
+  if (k === 'collage') return !!state.collage;
+  if (k === 'structure') return !!state.structure;
+  if (k === 'lyap') return state.look.lyapMix > 0;
+  if (k === 'mode') return state.mode !== 'pull';
+  return false;
+}
+
+// the row grows from the mark, wherever the site's stylesheet (and the safe area) put it
+function rowAnchor() {
+  const r = siteBox && siteBox.getBoundingClientRect();
+  return r && r.width ? [r.left + r.width / 2, r.top + r.height / 2] : [innerWidth - 70, 70];
+}
+const rowStep = () => (COARSE || touchSeen > 0 ? 46 : 38);
+
+function drawTogglesNow() {
+  if (!row) { togglesSvg.innerHTML = ''; return; }
+  const [cx, cy] = rowAnchor(), S = rowStep();
+  const items = toggleLayout(cx, cy, innerWidth, innerHeight, S).map((q) => ({ ...q, on: toggleOn(q.k), glyph: q.k === 'mode' ? `mode.${state.mode}` : q.k }));
+  drawToggles(togglesSvg, { items, cx, cy, S, t: Math.min(1, (performance.now() - row.t0) / ROW_UNFOLD_MS) });
+}
+
+function unfoldRow() {
+  row = { t0: performance.now(), timer: 0 };
+  if (siteNav) siteNav.classList.add('fe-row');
+  holdRow();
+  const tick = () => { if (!row) return; drawTogglesNow(); if (performance.now() - row.t0 < ROW_UNFOLD_MS) setTimeout(tick, 16); };
+  tick();
+}
+function holdRow() { if (!row) return; clearTimeout(row.timer); row.timer = setTimeout(foldRow, ROW_MS); }
+function foldRow() {
+  if (!row) return;
+  clearTimeout(row.timer);
+  row = null;
+  if (siteNav) siteNav.classList.remove('fe-row');
+  drawTogglesNow();
+}
+
+// one drawing at a time: the graph, the collage's graph and the Metasurface replace each other
+function clearOverlays() {
+  if (grab) exitGrab();
+  if (ring) closeRing(false);
+  if (lens) closeLens();
+  if (surf) closeSurface();
+  if (gv) { gv.back = null; closeGraph(); }
+  if (cv) closeCollageGraph();
+}
+
+function pressToggle(k) {
+  engage();
+  if (k === 'graph') { const was = !!(gv || cv); clearOverlays(); if (!was) openGraph(); }
+  else if (k === 'shade' || k === 'drive') {
+    if (gv && state.pick !== 'C') {
+      // inside the formula's graph: the frame or the lane folds away, the network takes the room
+      panes[k] = !panes[k];
+      if (!panes.shade) { gv.shSel = null; gv.stopSel = null; gv.hue = null; }
+      refreshGraph();
+    } else if (gv) closeGraph();
+    else if (k === 'drive' && cv) closeCollageGraph();
+    else {
+      panes[k] = true;
+      clearOverlays();
+      // a collage's shading is its own (pick 'C'); its drivers are the collage graph's row
+      if (state.collage && k === 'shade') drillInto('C');
+      else openGraph();
+    }
+  } else if (k === 'surface') { const was = !!surf; clearOverlays(); if (!was) openSurface(); }
+  else if (k === 'collage') {
+    // a collage: its graph (pieces, joins, the plus); not yet one: the Metasurface adds the first piece
+    const was = !!cv;
+    clearOverlays();
+    if (!state.collage) openSurface('glyph');
+    else if (!was) openCollageGraph();
+  } else if (k === 'structure') toggleStructure();
+  else if (k === 'lyap') pressKey('lyap');
+  else if (k === 'mode') toggleMode();
+  foldRow();
+}
+
+togglesSvg.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.pointerType === 'touch') touchSeen = performance.now(); holdRow(); });
+togglesSvg.addEventListener('pointermove', () => holdRow());
+togglesSvg.addEventListener('click', (e) => {
+  const k = e.target && e.target.dataset ? e.target.dataset.toggle : null;
+  if (k) pressToggle(k);
+});
+// the mark: unfold the row; pressed again while it is out, the site's menu (the checkbox's own behaviour)
+if (siteBox) {
+  siteBox.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') touchSeen = performance.now(); });
+  siteBox.addEventListener('click', (e) => {
+    if (!siteBox.checked) return;   // the site's menu folding
+    if (row) { foldRow(); return; }
+    e.preventDefault();
+    unfoldRow();
+  });
+}
+addEventListener('keyup', () => { if (row) drawTogglesNow(); });
 
 // ---------- input -----------------------------------------------------------------------------------
 
@@ -2891,6 +3041,7 @@ for (const t of ['gesturestart', 'gesturechange']) document.addEventListener(t, 
 
 addEventListener('keydown', (e) => {
   if (e.code !== 'Space') engage();
+  if (e.code === 'Escape' && row) { foldRow(); return; }
   if (e.code === 'Escape' && surf) { closeSurface(); return; }
   if (gv && graphKey(e)) return;
   if (cv && cvKey(e)) return;
@@ -3813,7 +3964,9 @@ window.__fe = {
           nodes: gv.P.items.filter((q) => q.kind === 'op').map((q) => ({ id: q.id, x: sx(q.x), y: sy(q.y) })),
           letters: scheduleLayout(gv.P).letters.map((q) => ({ i: q.i, x: sx(q.x), y: sy(q.y - 4) })), zone: gv.P.zone };
       })(),
-      cgraph: cv && { sel: cv.sel, k: gview.k } };
+      cgraph: cv && { sel: cv.sel, k: gview.k, plus: (() => { const p = cvPlus(cv.PC); return p && [p[0] * gview.k + gview.tx, p[1] * gview.k + gview.ty]; })() },
+      // the overlay toggles: out or not, each one's state, the graph's panes, the surface's add mode
+      toggles: { row: !!row, on: Object.fromEntries(TOGGLES.map((k) => [k, toggleOn(k)])), panes: { ...panes }, add: surf ? surf.add : null } };
   },
   grabDrag: (dx) => { if (grab) editGrab(grab.x0 + dx); return grab && grab.ranked[grab.k]; },
   grabPass: (step = 1) => { if (grab) passAttention(step, grab.x0); return grab && grab.ranked[grab.k]; },

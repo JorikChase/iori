@@ -1497,3 +1497,81 @@ unchanged. Shots: `design/shots/touch-*.jpg` (`--shots`). The profile is Playwri
   it runs (restore's 350 ms morph ended with its own target): the transition's own frames are flagged,
   any other document stops it where it is; a flow carries on. Tests: test/carry.test.mjs (5), the rig's
   'a document set mid-morph wins', and the rig now fails on any page error (it saw both before the fix).
+
+## Overlay toggles, decided 2026-10-28
+
+On an iPhone iori could not find the graph, the Metasurface or the shading: on touch they hid behind the
+structure layer's key row and keys. And iori could not see how a piece had been added (a hold on a
+Metasurface site adds one, a tap swaps the picked piece's formula, and nothing on screen says which).
+
+**Decided with iori** (binding):
+- *One corner mark unfolds a row of hairline glyphs*, which folds again after a choice or 4 s. The mark is
+  the page's **menu icon**: the site burger that `site.py menu` generates. On this page only it is
+  restyled as three white hairlines (0.55, bright while the row is out, a hairline × while the site's menu
+  is open). app.css does this from outside the generated region: its rules out-rank `assets/menu.css` by
+  specificity, and app.js only listens to the checkbox. `site.py`, the MENU region and every other page
+  are untouched.
+- *The site menu stays reachable by a second press of the mark* (iori's choice over "the row's last
+  glyph"): the first press unfolds the row (the checkbox's own toggle is prevented), a second press while
+  the row is out folds it and lets the checkbox open the site's menu, and a third press closes the menu as
+  on every other page. Escape folds the row (menu.js's Escape still closes the menu).
+- *The toggles, the same set on every device* (desktop decides): the graph (G), the shading frame, the
+  drivers' lane, the Metasurface (M), the collage, the structure layer (Tab, or a gate corner on touch),
+  Lyapunov (L) and the mode (P and the loop). A glyph is dim (0.45) while off and bright (1, a 1.2 stroke)
+  while on, with a faint dark halo so a dim one reads over a bright field. Every key keeps working; the
+  row only shows them.
+- *Layout adapts:* the row runs leftward from the mark along the top when it fits (desktop, tablet, a
+  phone on its side), else down the right side (a phone upright). Glyphs sit 46 px apart for a finger
+  (38 with a mouse) and each hit is that whole square. The row grows from wherever the mark is, at the
+  top right, 50 px in, which keeps it clear of the rounded corners, the dynamic island, the home indicator
+  and Safari's edge swipes. In landscape the mark moves in by the safe-area inset (less 24 px).
+- *The collage glyph:* two overlapping contours, bright while the scene is a collage. Tapped in a
+  collage it opens the collage graph. Tapped before there is one, it opens the Metasurface in "add a
+  piece" mode, so the first piece is added the same way as the rest.
+- *"Add a piece":* the collage graph has a plus (in a circle) left of its pieces. It opens the Metasurface
+  in "add a piece" mode, where the crosshair only points (the picked piece's formula is not swapped) and a
+  plus rides beside it. A tap on a site adds that site's formula as the collage's next piece. A tap or a
+  drag on open ground adds the formula there. Each new piece goes where the view looks: the centre, as a
+  touch grab aims. A hold on a site still adds the piece where the finger was. Opened from the graph's
+  plus, the collage graph comes back with the new piece in it. Outside this mode a tap on a site still
+  swaps and a hold still adds. No plus once the collage is full (MAX_PIECES).
+
+**What the shading and drivers toggles mean.** They fold a part of the formula's graph away rather than
+opening something else. Inside the graph, the shading glyph folds the shading frame away or back. The
+formula's network takes the room (`graphPlacement` drops the frame's width from the scale). Drawing and hit
+tests skip the frame, and its selection goes. The drivers glyph does the same to the lane: the network
+is laid out without it, the lane and its bindings' hairlines are not drawn, and a bound line's band still
+shows on its op. With the graph closed, either glyph opens the graph with that part back on. In a collage
+the shading glyph opens the collage's own shading (pick 'C'), and the drivers glyph opens the collage
+graph (its drivers' row). The folds last for the session (`panes`, not in the hash). The collage's own
+shading always shows both.
+
+**The structure layer's key row stays.** The new row does not replace it: on a coarse pointer, L, R, M
+and drift remain in the structure layer above the exports. Replay and drift have no glyph in the new
+row; they are not overlays.
+
+**One drawing at a time:** a toggle that opens the graph, the collage graph or the Metasurface first
+closes the others and any grab, ring or lens (`clearOverlays`). A graph left that way does not bounce
+back to the collage graph.
+
+**Built:** `ui/toggles.js` (the glyphs, `toggleLayout`, `drawToggles`); app.js "the overlay toggles"
+(`toggleOn`, `pressToggle`, `unfoldRow`/`foldRow`, the checkbox listener, `panes`, `shadeShown`,
+`driveShown`); `openSurface(add)`, `addFromSurface`, `surfaceTo`'s pointing-only branch and the plus at
+the crosshair (ui/metasurface.js); `cvPlus` in the collage graph; `#toggles` in index.html (outside the
+generated regions) and its rules in app.css. `__fe.input.toggles` = { row, on, panes, add };
+`__fe.input.cgraph.plus` is the plus on screen.
+
+**Verified:** `node --test` 83/83. `run-touch.mjs` 33/33 at 390×844 by real touch events, 5 of them new
+(the mark unfolds and folds by itself; a second press opens the site menu and a third closes it; graph,
+Metasurface, structure and Lyapunov on and off; the modes pull → push → loop → pull; the shading frame
+folded away and back while the network widens, then the lane; the collage glyph's add mode → 2 pieces,
+the graph's plus → 3 pieces, back in the collage graph). `--desktop` 11/11: the same five by mouse, plus
+G and M beside the row. No page errors. `run-parity.mjs` exit 0. Shots: `design/shots/touch-toggles-*.jpg`
+and `touch-desktop-toggles-*.jpg`.
+
+**Still open:**
+- On a real iPhone: the mark's place against the dynamic island in landscape, and whether a tap on the
+  hidden checkbox is ever taken as a scroll (the page refuses scrolling).
+- In add mode a walk or field stroke (resting fingers, Shift, Option) still plays its formulas as it
+  always did. Only taps and drags add.
+- The row has no glyph for replay, drift or the exports (they stay in the structure layer).

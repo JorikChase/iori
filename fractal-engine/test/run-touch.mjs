@@ -533,6 +533,117 @@ await check('gizmo: finger drag, rest snaps', async () => {
   return { ok: a.gz === 'corner' && c1 !== c0 && String(+s.toPrecision(2)) === String(s), note: `held ${a.gz}, scale ${s} (two figures: snapped)` };
 });
 
+// ---- the overlay toggles (DESIGN.md "Overlay toggles"): the menu mark's row, by finger or mouse -----------
+const markAt = () => fe(() => { const r = document.querySelector('#site-menu .menuToggle input').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+const glyphAt = (k) => fe((k) => { const e = document.querySelector(`#toggles [data-toggle="${k}"]`); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, k);
+const tg = async () => (await input()).toggles;
+const press = async ([x, y]) => { if (DESK) await page.mouse.click(x, y); else await T.tap([[x, y]]); await sleep(250); };
+// the mark, then the glyph (the row is out for one choice)
+async function pressToggle(k) {
+  if (!(await tg()).row) await press(await markAt());
+  const at = await glyphAt(k);
+  if (!at) throw new Error(`no glyph ${k}`);
+  await press(at);
+}
+async function toggleChecks(pre) {
+  await check(`${pre}toggles: mark unfolds, folds by itself`, async () => {
+    await fe(() => { window.__fe.graph(false); window.__fe.surface(false); });
+    await press(await markAt());
+    const a = await tg(), menu = await fe(() => document.querySelector('#site-menu .menuToggle input').checked);
+    const n = await fe(() => document.querySelectorAll('#toggles [data-toggle]').length);
+    await shot(`${DESK ? 'desktop-' : ''}toggles-row`);
+    await sleep(4300);
+    const b = await tg();
+    return { ok: a.row && !menu && n === 8 && !b.row, note: `row ${a.row} (${n} glyphs), site menu ${menu}, folded ${!b.row}` };
+  });
+  await check(`${pre}toggles: second press = site menu`, async () => {
+    const m = await markAt();
+    await press(m);
+    const a = await tg();
+    await press(m);
+    const b = await tg(), open = await fe(() => document.querySelector('#site-menu .menuToggle input').checked);
+    await shot(`${DESK ? 'desktop-' : ''}toggles-menu`);
+    await press(m);
+    const shut = await fe(() => !document.querySelector('#site-menu .menuToggle input').checked);
+    return { ok: a.row && !b.row && open && shut, note: `row ${a.row}, then site menu ${open} (row folded ${!b.row}), then closed ${shut}` };
+  });
+  await check(`${pre}toggles: each overlay, bright when on`, async () => {
+    const seen = [];
+    for (const k of ['graph', 'surface', 'structure', 'lyap']) {
+      const a = (await tg()).on[k];
+      await pressToggle(k);
+      const b = await tg();
+      if (k === 'surface') await shot(`${DESK ? 'desktop-' : ''}toggles-surface`);
+      await pressToggle(k);
+      const c = (await tg()).on[k];
+      seen.push(`${k} ${a}→${b.on[k]}→${c}${b.row ? ' (row still out)' : ''}`);
+      if (a || !b.on[k] || c || b.row) return { ok: false, note: seen.join(', ') };
+    }
+    // the mode: pull → push → loop → pull, its glyph each mode's own
+    const modes = [(await input()).mode];
+    for (let i = 0; i < 3; i++) { await pressToggle('mode'); await page.waitForFunction(() => !window.__fe.state.trans, null, { timeout: 5000 }).catch(() => {}); modes.push((await input()).mode); }
+    seen.push(modes.join('→'));
+    return { ok: new Set(modes.slice(0, 3)).size === 3 && modes[3] === modes[0], note: seen.join(', ') };
+  });
+  await check(`${pre}toggles: shading frame, drivers' lane`, async () => {
+    await fe(() => window.__fe.setFormula('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100'));
+    await pressToggle('shade');
+    // (the frame is drawn once the graph has unfolded: 260 ms)
+    const shDrawn = async () => { await sleep(150); return fe(() => !!document.querySelector('#grab .sh')); };
+    const a = await tg(), z0 = (await input()).graph.zone, s0 = await shDrawn();
+    await shot(`${DESK ? 'desktop-' : ''}toggles-graph`);
+    await pressToggle('shade');
+    const b = await tg(), z1 = (await input()).graph.zone, s1 = await shDrawn();
+    await pressToggle('drive');
+    const c = await tg();
+    await pressToggle('shade'); await pressToggle('drive');
+    const d = await tg();
+    await pressToggle('graph');
+    const e = await tg();
+    // the network takes the room (at most its full scale: a desktop window may already show it so)
+    const wider = z1[2] - z1[0] > z0[2] - z0[0] || (DESK && z1[2] - z1[0] === z0[2] - z0[0]);
+    return { ok: a.on.graph && a.on.shade && s0 && !s1 && !b.on.shade && b.on.graph && wider && !c.on.drive && d.on.shade && d.on.drive && !e.on.graph,
+      note: `opens with it ${a.on.shade && s0}; folded away ${!b.on.shade && !s1} (network ${(z0[2] - z0[0]) | 0} → ${(z1[2] - z1[0]) | 0} px); lane ${!c.on.drive ? 'away' : 'kept'}; both back ${d.on.shade && d.on.drive}; graph closed ${!e.on.graph}` };
+  });
+  await check(`${pre}toggles: collage, add a piece`, async () => {
+    await fe(() => { window.__fe.collage(null); window.__fe.setFormula('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100'); window.__fe.setCamera([0, 0, -6], 0, 0); });
+    await settle(10);
+    const vw = DESK ? 1280 : W, vh = DESK ? 800 : H, L = Math.min(vw, vh) * 0.84;
+    const scr = (at) => [vw / 2 + (at[0] * L) / 2, vh / 2 - (at[1] * L) / 2];
+    const a = await tg();
+    await pressToggle('collage');
+    const b = await tg();
+    const sites = await fe(() => window.__fe.surfaceSites());
+    await shot(`${DESK ? 'desktop-' : ''}toggles-add`);
+    await press(scr(sites[0].at)); await sleep(200);
+    const c = await tg(), n1 = await fe(() => window.__fe.state.collage && window.__fe.state.collage.pieces.length);
+    // the collage graph's plus: the Metasurface again, a tap on open ground adds the formula there
+    await pressToggle('collage');
+    const g = (await input()).cgraph;
+    if (!g || !g.plus) return { ok: false, note: `no collage graph plus (${JSON.stringify(c)})` };
+    await shot(`${DESK ? 'desktop-' : ''}toggles-cgraph`);
+    await press(g.plus);
+    const d = await tg();
+    const pts = await fe(() => window.__fe.surfaceSites().map((s) => s.at));
+    const ground = [[0.1, -0.9], [-0.9, 0.1], [0.9, 0.9], [-0.5, -0.5], [0.45, 0.05]].find((p) => pts.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 0.25));
+    await press(scr(ground)); await sleep(300);
+    const e = await input(), n2 = await fe(() => window.__fe.state.collage && window.__fe.state.collage.pieces.length);
+    await shot(`${DESK ? 'desktop-' : ''}toggles-added`);
+    await fe(() => { window.__fe.graph(false); window.__fe.collage(null); });
+    return { ok: !a.on.collage && b.add === 'glyph' && !c.add && c.on.collage && n1 === 2 && d.add === 'graph' && n2 === 3 && !!e.cgraph && !e.surf,
+      note: `add mode ${b.add} → ${n1} pieces, bright ${c.on.collage}; plus → ${d.add} → ${n2} pieces, back in the collage graph ${!!e.cgraph}` };
+  });
+}
+await toggleChecks(DESK ? 'desktop: ' : '');
+if (DESK) await check('desktop: keys beside the row', async () => {
+  await page.keyboard.press('KeyG'); await sleep(200);
+  const a = await tg();
+  await page.keyboard.press('KeyG'); await page.keyboard.press('KeyM'); await sleep(200);
+  const b = await tg();
+  await page.keyboard.press('KeyM'); await sleep(200);
+  return { ok: a.on.graph && b.on.surface && !b.on.graph, note: `G ${a.on.graph}, M ${b.on.surface}` };
+});
+
 console.log(`\n${results.filter((r) => r[1]).length}/${results.length} pass`);
 if (errors.length) console.log('\npage errors:\n  ' + errors.join('\n  '));
 await browser.close();

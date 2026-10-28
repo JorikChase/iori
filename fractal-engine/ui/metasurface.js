@@ -45,6 +45,8 @@ export function drawSurface(svg, d) {
     if (u > 0) s.push(`<path class="ring on" d="M${f2(x)} ${f2(y - R)}A${R} ${R} 0 ${a > Math.PI ? 1 : 0} 1 ${f2(x + R * Math.sin(a))} ${f2(y - R * Math.cos(a))}"/>`);
   }
   const [x, y] = d.cross;
+  // "add a piece": a plus rides the crosshair
+  if (d.add) s.push(`<g class="add">${glyphPath('plus', x + 22, y - 22, 16)}<circle cx="${f2(x + 22)}" cy="${f2(y - 22)}" r="11"/></g>`);
   s.push(`<g class="cross"><path d="M${f2(x - 14)} ${f2(y)}H${f2(x - 4)}M${f2(x + 4)} ${f2(y)}H${f2(x + 14)}M${f2(x)} ${f2(y - 14)}V${f2(y - 4)}M${f2(x)} ${f2(y + 4)}V${f2(y + 14)}"/><circle cx="${f2(x)}" cy="${f2(y)}" r="1.5" class="dot"/></g>`);
   s.push('</g>');
   svg.innerHTML = s.join('');

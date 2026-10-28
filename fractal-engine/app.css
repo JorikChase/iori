@@ -162,3 +162,23 @@ body.grab #field { cursor: grabbing; }
 #grab .gz.halo path, #grab .gz.halo circle { stroke: #000; stroke-width: 2.5; opacity: 0.35; }
 #grab .gz.halo .rc.gh { opacity: 0.25; }
 #grab .gz.halo .od { fill: #000; }
+
+/* the overlay toggles (ui/toggles.js): the site's menu mark, a hairline on this page only (assets/menu.css
+   stays the site's; these rules out-rank it here), and the row of glyphs it unfolds */
+#site-menu.site-menu .menuToggle { right: max(0px, calc(env(safe-area-inset-right, 0px) - 24px)); }
+#site-menu.site-menu .menuToggle > span:nth-of-type(n) { width: 26px; height: 0; right: 57px; top: 61px; margin: 0 0 7.25px;
+  border: 0; border-top: 0.75px solid #fff; border-radius: 0; opacity: 0.55; transform-origin: 50% 50%;
+  transition: transform 0.3s cubic-bezier(0.77, 0.2, 0.05, 1), opacity 0.2s ease; }
+#site-menu.site-menu.fe-row .menuToggle > span:nth-of-type(n) { opacity: 1; }
+#site-menu.site-menu .menuToggle input:checked ~ span:nth-of-type(n) { opacity: 1; transform: none; }
+#site-menu.site-menu .menuToggle input:checked ~ span:nth-of-type(1) { transform: translateY(8px) rotate(45deg); }
+#site-menu.site-menu .menuToggle input:checked ~ span:nth-of-type(2) { opacity: 0; }
+#site-menu.site-menu .menuToggle input:checked ~ span:nth-of-type(3) { transform: translateY(-8px) rotate(-45deg); }
+#toggles { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
+#toggles path { fill: none; stroke: #fff; stroke-width: 0.75; opacity: 0.45; }
+#toggles .tg.on path { opacity: 1; stroke-width: 1.2; }
+#toggles path.halo, #toggles .tg.on path.halo { stroke: #000; stroke-width: 3; opacity: 0.3; }
+#toggles .hit { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
+/* the Metasurface's "add a piece" plus, and the collage graph's */
+#grab .ms .add path, #grab .ms .add circle { opacity: 0.9; }
+:is(#structure, #grab) .cg .pl path, :is(#structure, #grab) .cg .pl circle { opacity: 0.8; }

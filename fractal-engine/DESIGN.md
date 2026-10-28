@@ -1489,6 +1489,11 @@ unchanged. Shots: `design/shots/touch-*.jpg` (`--shots`). The profile is Playwri
   a collage piece by fling in the collage graph (the three-finger tap does it), the schedule letter keys
   (the drag replaces them), WASD's speed (shift).
 - A tablet with a keyboard gets both; nothing chooses one.
-- Found on the way, not touch: `growArchive` can call `mutate` with the previous document's metric right
-  after the document changes (core/breed.js reads `ops[m.oi]` of an op that is not there) — a page error,
-  seen when a test swapped a collage in and out.
+- *Fixed 2026-10-28 (core/carry.js):* `growArchive` called `mutate` with the previous document's metric
+  right after a document switch (`ops[m.oi]` of an op that was not there, a page error). The sensed metric
+  now carries the structure it was measured for: a pass stores it only if that document is still on
+  screen, and setDoc / setCollage drop it for a document of another structure (breeding, herding, the
+  ring and walks wait for the next pass). And a morph or walk no longer overwrites a document set while
+  it runs (restore's 350 ms morph ended with its own target): the transition's own frames are flagged,
+  any other document stops it where it is; a flow carries on. Tests: test/carry.test.mjs (5), the rig's
+  'a document set mid-morph wins', and the rig now fails on any page error (it saw both before the fix).

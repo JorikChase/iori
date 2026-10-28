@@ -71,6 +71,7 @@ import { isCollage, isCollageText, normCollage, formatCollage, parseAny, formatA
 import * as CE from './core/collage-edit.js';
 import { collageStructure, lerpCollage, mutateCollage, collageDistancePx, metricId, metricValue, withMetric } from './core/collage-breed.js';
 import { senseCollage } from './core/collage-sense.js';
+import { carry } from './core/carry.js';
 import { layoutCollage, placeCollage, drawCollage, joinGlyph, seamLine, pieceAt as collagePieceAt, joinAt as collageJoinAt, seamAt as collageSeamAt, outAt as collageOutAt } from './ui/collagegraph.js';
 import { gizmoGeometry, gizmoHit, drawGizmo, eulerXYZ, axisAngle } from './ui/gizmo.js';
 import { rotationXYZ, matMul } from './core/vec.js';
@@ -212,9 +213,17 @@ function flowTo(mode) {
   state.trans = { kind: 'flow', t0: performance.now(), dur: FLOW_MS, then: mode };
 }
 
+// The transition's own document writes are flagged: any other setDoc / setCollage while a morph or a walk
+// runs is a new document, and it wins — the transition stops where it is (carryTo, core/carry.js)
+let transWriting = false;
 function advanceTransition(now) {
   const T = state.trans;
   if (!T) return;
+  transWriting = true;
+  try { stepTransition(T, now); } finally { transWriting = false; }
+  if (!state.trans && T.done && T.then) T.then();
+}
+function stepTransition(T, now) {
   const s = Math.min(1, (now - T.t0) / T.dur);
   // a walk keeps a constant speed; a morph eases in and out
   const e = T.kind === 'walk' ? s : s * s * (3 - 2 * s);
@@ -235,7 +244,7 @@ function advanceTransition(now) {
       setDoc(formatAny(b), true); state.cam = c1; state.trans = null; state.home = null;
       if (T.kind === 'walk' && T.commit) remember();
       if (T.kind === 'walk') writeHash();
-      if (T.then) T.then();
+      T.done = true;
     }
   } else if (s >= 1) {
     state.mode = T.then;
@@ -3062,12 +3071,23 @@ function pickedFormula(c, pick) {
   return normalize(c.pieces[typeof pick === 'number' ? pick : 0].f);
 }
 
+// another document on screen: the metric and a morph or walk under way stay only while they still
+// describe it (core/carry.js); a metric dropped is measured again at the next pass
+function carryTo(structure) {
+  const k = carry(state, structure, transWriting);
+  if (state.sensed && !k.sensed) { state.home = null; state.senseDue = true; }
+  state.sensed = k.sensed;
+  state.trans = k.trans;
+}
+
 function setDoc(text, quiet = false) {
   if (isCollageText(text)) { setCollage(parseAny(text), quiet); return; }
   const f = parse(text);
   const v = validate(f);
   if (!v.ok) throw new Error(v.errors.join('; '));
-  const same = !state.collage && !!state.formula && structureOf(normalize(f)) === structureOf(normalize(state.formula));
+  const st = structureOf(normalize(f));
+  carryTo(st);
+  const same = !state.collage && !!state.formula && st === structureOf(normalize(state.formula));
   if (state.collage) { state.collage = null; state.pick = null; cv = null; }
   state.formula = f;
   state.text = format(f);
@@ -3082,6 +3102,7 @@ function setDoc(text, quiet = false) {
 function setCollage(c, quiet = false) {
   const v = validateCollage(c);
   if (!v.ok) throw new Error(v.errors.join('; '));
+  carryTo(docStructure(normCollage(c)));
   const was = state.collage;
   state.collage = normCollage(c);
   const N = state.collage.pieces.length;
@@ -3664,6 +3685,7 @@ async function senseNow() {
   if (state.collage) {
     const c = state.collage, r = senseCollage(c, senseView(), innerHeight, COLLAGE_GRID, { time: docTimeDriven() ? (performance.now() - clock0) / 1000 : 0 });
     if (state.collage !== c) return r;
+    r.structure = docStructure(c);
     state.sensed = r;
     if (c.drive && c.drive.bind.length && r.points.length && R.collageStep) {
       const m = await R.collageStep(r.points.map((q) => q.x)).catch(() => null);
@@ -3671,8 +3693,12 @@ async function senseNow() {
     } else R.setStep(1);
     return r;
   }
+  // the pass is asynchronous: what it measured may be gone by its end (another document: its metric is
+  // not this one's)
+  const st = docStructure(doc());
   const r = await S.sense(state.formula, senseView(), innerHeight);
-  if (r) {
+  if (r && docStructure(doc()) === st) {
+    r.structure = st;
     state.sensed = r;
     if (state.look.lyapMix > 0) { state.n = 0; }
     // the drivers' steepness: the raymarch shortens its steps by it (1 without drivers)

@@ -216,6 +216,19 @@ await check('tap two fingers: parent', async () => {
   return { ok: !!g.grab && t1 !== t0 && t2 === t0 && t3 === t1, note: `grab ${g.grab && g.grab.key} at (${g.grab && g.grab.x},${g.grab && g.grab.y}); edit, back, forward` };
 });
 
+await check('a document set mid-morph wins', async () => {
+  // two fingers start the 350 ms morph to the parent; a document set during it must stay
+  const t0 = await fe(() => window.__fe.state.text);
+  await T.tap([[cx - 40, cy], [cx + 40, cy]]);
+  const during = await fe(() => !!window.__fe.state.trans);
+  const bulb = await fe(() => { window.__fe.setFormula('bulb 8 · +c ×10 bail=2'); return window.__fe.state.text; });
+  await sleep(700);
+  const t1 = await fe(() => window.__fe.state.text);
+  await fe((t) => window.__fe.setFormula(t), t0);
+  await settle(10);
+  return { ok: during && t1 === bulb, note: `morph under way ${during}, after it: ${t1 === bulb ? 'the new document' : t1.slice(0, 40)}` };
+});
+
 await check('grab aims at the centre', async () => {
   await T.down(1, 70, H - 160); await sleep(900);
   const g = await input();
@@ -524,4 +537,5 @@ console.log(`\n${results.filter((r) => r[1]).length}/${results.length} pass`);
 if (errors.length) console.log('\npage errors:\n  ' + errors.join('\n  '));
 await browser.close();
 srv.close();
-process.exit(results.every((r) => r[1]) ? 0 : 1);
+// a page error fails the run too
+process.exit(results.every((r) => r[1]) && !errors.length ? 0 : 1);

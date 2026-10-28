@@ -182,3 +182,5 @@ body.grab #field { cursor: grabbing; }
 /* the Metasurface's "add a piece" plus, and the collage graph's */
 #grab .ms .add path, #grab .ms .add circle { opacity: 0.9; }
 :is(#structure, #grab) .cg .pl path, :is(#structure, #grab) .cg .pl circle { opacity: 0.8; }
+/* a figure in the engine's paper (app.js EMBED): the site's menu belongs to the page around it */
+html.embed #site-menu .menuItem { display: none; }

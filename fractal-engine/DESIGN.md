@@ -1575,3 +1575,63 @@ and `touch-desktop-toggles-*.jpg`.
 - In add mode a walk or field stroke (resting fingers, Shift, Option) still plays its formulas as it
   always did. Only taps and drags add.
 - The row has no glyph for replay, drift or the exports (they stay in the structure layer).
+
+## The paper (docs), decided 2026-10-28
+
+The engine's documentation is a research paper with live figures, in paper 0's format:
+**`fractal-engine/paper.html`** (iori.me/fractal-engine/paper.html, registered hidden until iori has read it).
+Ten chapters in DESIGN's order (the orbit and notation; pull, push, loop; derivatives and the metric; grab,
+lens, lineage, breeding; 4-D, chimera, fields, Metasurface, graph; shading, drivers, drivers → colour;
+collage joins, placement and repetition; exports and state; touch and the toggles; what is not built). Each
+tool: what it is, the maths in a line (a folded "The mathematics" box for more), a desktop/touch table, and
+a live figure. 28 numbered references (`python3 papers/fractals/refs.py fractal-engine/paper.html`).
+Names follow `ui/labels.js` (the hover labels) where the two meet.
+
+**Decided with iori** (the four recommended answers): the URL beside the engine; figures are the real
+engine with every gesture, covered until a click or tap enters them; the maths as a line plus a folded box,
+with citations; hidden first.
+
+**Built:**
+- *Embed mode* (app.js `EMBED`, `?embed`): the engine as it is, but nothing is stored — the lineage is in
+  memory only (`createLineage({ store: false })`: it neither reads nor writes the reader's), the Metasurface
+  starts at its default layout and is never saved, the URL hash is never written — and the site's menu stays
+  shut (the mark only folds the toggles' row; app.css hides the menu's panel). `&view=D [&yaw= &pitch=]`
+  frames the origin, `&win=H` puts the loop's window on the origin, `&open=` opens structure, lyap, graph,
+  shade, drive, surface or cgraph (`openEmbed`). Remember and the drag-made nodes still run, into the
+  figure's own lineage, so ⌘Z and the lineage section work inside a figure.
+- *The figures* (`paper/figures.js`): one entry per figure — its document (shade/drive programs built
+  through core/, so the notation is the engine's own), view and what is open; `figureSrc` writes the iframe's URL.
+- *The page* (`paper/paper.js`, `paper/paper.css`; ../papers/fractals/paper.css for the look): a figure is
+  an iframe created once it has stayed in view 350 ms and removed as soon as it leaves, so its GPU device,
+  pipelines and JIT go with it; at most two live (the farther from the screen's middle gives way). A cover
+  ("click/tap to enter") keeps the wheel and the finger for the page until the reader enters; a press
+  outside, the mouse leaving or the figure leaving covers it again. Under every figure, its document as the
+  engine has it now (read from the same-origin iframe twice a second; hover: which shader draws it). The
+  notation figure takes a typed formula. One GPUDevice per figure: sharing one would need app.js as an
+  instance factory (its state is module-level), far from a small change.
+- *Test rig* `test/run-paper.mjs` (`--phone`, `--shots`, `--only`): every figure starts in view with no
+  error, no NaN in its drawings and its line shown; never more than two live; none past the figures; a tap
+  enters, a touch hold grabs at the centre and edits, a tap outside covers; the notation figure draws a typed
+  formula; no `fractal-engine.*` key in localStorage and no figure's hash rewritten; no page errors.
+  Shots: `design/shots/paper-*.jpg`.
+
+**Found while writing it:**
+- A collage's repetition is measured in the piece's own units, before its size (`polar 6 4` at `size .25`
+  is a ring of radius 1). Units given in world terms made copies overlap inside one cell: a white ring
+  and no copies. The paper says so in 7.2.
+- *Bug, not fixed here* (ui/shadegraph.js belongs to another session): a shading input linked to a driver
+  (`in: { v: 'd:nz' }`, C's "drive a colour input") lays the whole formula graph out as NaN — every node,
+  the zone and the lane (`__fe.graphView.items[0].x` null; console full of `<path> d="MNaN…"`). The same
+  drive bound to the ramp's offset (`shade.bind`) lays out fine, so figure 17 binds instead of linking.
+- The drift wandered one collage's turn fast (77° in 7 s), the grid whose copies overlapped (above); in the
+  well-formed figures a turn moved a degree or two. Possibly the CPU metric of a turn when the surface
+  barely moves with it; not looked into.
+
+**Verified:** `run-paper.mjs` 29/29 desktop (every figure starts in 1.4–5.4 s) and 29/29 `--phone`;
+`node --test` 83/83; `run-parity.mjs` PASS; `run-touch.mjs` 33/33 (the embed changes leave the app alone).
+In the Browser pane: no console errors over all 21 figures, never more than two live, none at the
+references; a tap enters at 375×812, a touch grab aims at the centre and edits, a press outside covers.
+`python3 site.py check` passes. Shots: `design/shots/paper-*.jpg`.
+
+Not yet: the paper is not linked from the engine itself (a glyph in the structure layer could open it);
+figures share no GPUDevice; the toggles figure cannot show the site menu's second press (embed folds only).

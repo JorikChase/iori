@@ -1,0 +1,40 @@
+/* The engine's paper: paper 0's look (../papers/fractals/paper.css), plus the live engine figures and the
+   gesture tables. The figures are the engine's own black; everything around them is the paper's. */
+
+figure.engine { counter-increment: figure; }
+.fe-frame { position: relative; width: 100%; aspect-ratio: 16 / 10; background: #000; border-radius: 10px; overflow: hidden; }
+.fe-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+@media (max-width: 700px) { .fe-frame { aspect-ratio: 4 / 5; } }
+
+/* covered until entered: the page keeps the wheel and the finger */
+.fe-cover { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent;
+  cursor: pointer; display: flex; align-items: flex-end; justify-content: center; -webkit-tap-highlight-color: transparent; }
+.fe-cover[hidden] { display: none; }
+.fe-cover span { font: 500 0.74rem var(--sans); letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.72); margin-bottom: 0.9rem;
+  padding: 0.25rem 0.7rem; border: 0.75px solid rgba(255, 255, 255, 0.35); border-radius: 999px; background: rgba(0, 0, 0, 0.35); }
+.fe-cover:hover span { color: #fff; border-color: rgba(255, 255, 255, 0.7); }
+figure.engine:not(.live) .fe-cover span { opacity: 0.5; }
+figure.engine.entered .fe-frame { box-shadow: 0 0 0 1px var(--ink); }
+
+/* the figure's document, as the engine has it now */
+.fe-line { font: 0.74rem/1.4 var(--mono); color: var(--muted); margin: 0.55rem auto 0; max-width: var(--wide); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-height: 1.4em; text-align: center; }
+
+/* type a formula */
+form.fe-try { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; align-items: center; margin: 0.9rem auto 0; max-width: var(--wide); }
+form.fe-try input { flex: 1 1 22rem; min-width: 0; font: 0.84rem var(--mono); color: var(--ink); padding: 0.4rem 0.7rem;
+  border: 1px solid #d5d8db; border-radius: 6px; background: var(--paper); }
+form.fe-try button { font: 500 0.82rem var(--sans); color: var(--ink); background: var(--paper); border: 1px solid #d5d8db; border-radius: 999px;
+  padding: 0.32rem 0.85rem; cursor: pointer; }
+form.fe-try button:hover { background: var(--wash); border-color: #b9bdc1; }
+form.fe-try .tries { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+form.fe-try .tries button { font: 0.74rem var(--mono); padding: 0.2rem 0.6rem; }
+
+/* how to use it: desktop and touch side by side */
+table.use { border-collapse: collapse; margin: 1.1rem auto 1.4rem; font-size: 0.88rem; width: 100%; max-width: var(--text); }
+table.use th, table.use td { border-bottom: 1px solid var(--rule); padding: 0.4rem 0.6rem 0.4rem 0; text-align: left; vertical-align: top; }
+table.use th { font-weight: 600; color: var(--muted); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; }
+table.use td:first-child { color: var(--ink-2); width: 30%; }
+kbd { font: 0.78rem var(--mono); border: 1px solid #d5d8db; border-bottom-width: 2px; border-radius: 4px; padding: 0 0.3rem; background: var(--wash); white-space: nowrap; }
+code { font: 0.86em var(--mono); background: var(--wash); border-radius: 4px; padding: 0.05rem 0.3rem; }
+@media (max-width: 640px) { table.use td:first-child { width: 36%; } }

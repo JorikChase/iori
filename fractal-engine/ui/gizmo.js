@@ -43,10 +43,11 @@ const segDist = (x, y, a, b) => {
   return Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y);
 };
 
-export function gizmoHit(G, x, y) {
+// slop: how much wider than the hairline a hit may land (a finger's is wider than the mouse's)
+export function gizmoHit(G, x, y, slop = 1) {
   if (!G) return null;
-  if (Math.hypot(x - G.corner[0], y - G.corner[1]) < 10) return { kind: 'corner' };
-  let best = null, bd = 7;
+  if (Math.hypot(x - G.corner[0], y - G.corner[1]) < 10 * slop) return { kind: 'corner' };
+  let best = null, bd = 7 * slop;
   for (const a of G.axes) {
     if (!a) continue;
     const from = [G.O[0] + (a.tip[0] - G.O[0]) * 0.3, G.O[1] + (a.tip[1] - G.O[1]) * 0.3];
@@ -54,7 +55,7 @@ export function gizmoHit(G, x, y) {
     if (d < bd) { bd = d; best = { kind: 'axis', k: a.k }; }
   }
   if (best) return best;
-  if (Math.abs(Math.hypot(x - G.O[0], y - G.O[1]) - G.ring) < 6) return { kind: 'ring' };
+  if (Math.abs(Math.hypot(x - G.O[0], y - G.O[1]) - G.ring) < 6 * slop) return { kind: 'ring' };
   return null;
 }
 

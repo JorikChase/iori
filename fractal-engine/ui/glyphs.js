@@ -118,6 +118,15 @@ export const PLUS_GLYPH = 'M12 5v14M5 12h14';
 export const FORK_GLYPH = 'M12 2v8M12 10L4 20M12 10l8 10M2 20h4M18 20h4';
 
 // export glyphs (the structure layer): a still, a film, splats, a mesh
+// the keys a finger has no key for (the structure layer's row on touch): Lyapunov (L, two orbits
+// parting), replay (R, the lineage walked), the Metasurface (M, its square, two sites, a wall), drift (Space)
+export const KEY_GLYPHS = {
+  lyap: 'M3 12h5C13 12 16 10 21 4M8 12C13 12 16 14 21 20',
+  replay: 'M3 12h15M15 9l3 3-3 3M5 11v2M10 11v2',
+  surface: 'M4 4h16v16H4zM13 4l-3 16M8 9a1 1 0 1 0 .01 0M16 14a1 1 0 1 0 .01 0',
+  drift: 'M3 15c3-6 5 1 8-3s5 1 10-5',
+};
+
 export const EXPORT_GLYPHS = {
   still: 'M3 5h18v14H3zM3 15l5-5 4 4 3-3 6 6',
   video: 'M2 5h20v14H2zM5 5v14M19 5v14M2 9h3M2 15h3M19 9h3M19 15h3M10 9l5 3-5 3z',

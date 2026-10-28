@@ -9,7 +9,7 @@
 //
 // Nothing here has words. Coordinates are CSS pixels.
 
-import { EXPORT_GLYPHS } from './glyphs.js';
+import { EXPORT_GLYPHS, KEY_GLYPHS } from './glyphs.js';
 import { tree } from '../core/graph.js';
 import { layout, place, drawGraph } from './graph.js';
 import { layoutShade, placeShade, drawShade } from './shadegraph.js';
@@ -32,7 +32,8 @@ const f1 = (x) => (Math.round(x * 10) / 10).toString();
 //      unfolded (the graph is open: leave the strip to it),
 //      lineage (layout nodes), hover (node id or null), pins: [[x, y], …] (screen positions),
 //      progress (0..1 while an export runs, else null), step (the drivers' step factor L, or null),
-//      strip (a collage's strip, drawn by the caller with its hit rectangle, in place of the formula's) }
+//      strip (a collage's strip, drawn by the caller with its hit rectangle, in place of the formula's),
+//      keys ([{ k, on }]: on touch, the row of what has only a key — L, R, M, Space) }
 export function drawStructure(svg, s) {
   const out = [];
   const { W, H, formula: f } = s;
@@ -64,12 +65,13 @@ export function drawStructure(svg, s) {
     out.push(`<rect class="hit" data-graph="1" x="${f1(sx0 - 8)}" y="${f1(zy0 - 8)}" width="${f1(zx1 - sx0 + 24)}" height="${f1(sy1 - zy0 + 30)}"/>`);
   }
 
-  // the lineage
+  // the lineage; on a narrow screen it has the bottom to itself, the exports and keys rise above it
+  const narrow = W < 600;
   const L = s.lineage;
   if (L.length) {
     const colW = 18, laneH = 14;
     const maxCol = Math.max(...L.map((q) => q.col));
-    const firstCol = Math.max(0, maxCol - 16);
+    const firstCol = Math.max(0, maxCol - (narrow ? Math.floor((W - 104) / colW) : 16));
     const ox = 80, oy = H - 60;
     const P = new Map(L.map((q) => [q.id, [ox + (q.col - firstCol) * colW, oy - q.lane * laneH]]));
     out.push('<g class="lg">');
@@ -96,12 +98,22 @@ export function drawStructure(svg, s) {
 
   // exports, bottom right: still, video, splats, mesh — click one; a hairline at the bottom fills as it runs
   out.push('<g class="ex">');
+  const ey = narrow ? H - 110 : H - 52;
   ['still', 'video', 'splats', 'mesh'].forEach((k, i) => {
-    const ex = W - 190 + i * 44, ey = H - 52;
+    const ex = W - 190 + i * 44;
     out.push(`<path d="${EXPORT_GLYPHS[k]}" transform="translate(${ex - 12} ${ey - 12})"/>`);
     out.push(`<rect class="hit" data-export="${k}" x="${ex - 18}" y="${ey - 18}" width="36" height="36"/>`);
   });
   out.push('</g>');
+  if (s.keys) {
+    out.push('<g class="ky">');
+    s.keys.forEach(({ k, on }, i) => {
+      const kx = W - 190 + i * 44, ky = ey - 44;
+      out.push(`<path class="${on ? 'on' : ''}" d="${KEY_GLYPHS[k]}" transform="translate(${kx - 12} ${ky - 12})"/>`);
+      out.push(`<rect class="hit" data-key="${k}" x="${kx - 18}" y="${ky - 18}" width="36" height="36"/>`);
+    });
+    out.push('</g>');
+  }
   if (s.progress != null) out.push(`<path class="pg" d="M0 ${H - 1}H${f1(W * s.progress)}"/>`);
 
   // pins: where the composition is held still

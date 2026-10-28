@@ -1402,3 +1402,93 @@ piece's drivers live in its own orbit and frame and would be ambiguous across a 
   into the collage's shade (`design/shots/k31-shade-drivers.jpg`). Parity: 197 rows, the new one's colour
   median 2.8e-7, none off. Found on the way: the frame's unfold animation threw on the proxy's hidden op
   (fixed: the collage's shading opens without unfolding).
+
+## Touch (T), decided 2026-10-28
+
+The live site was hard to use on a phone: every interaction was built mouse-first. Desktop decides what
+happens; touch adapts the gesture and the layout, never the behaviour, and adds no buttons.
+
+**Audit.** What a phone did not have: the keyboard (Tab, G, M, P, L, R, Space, F, ⌘Z/⇧⌘Z, ⌘S, WASD/QE,
+Esc, Delete, schedule letters), Shift (the lens, gizmo snap, loop roll, the walk stroke, hue alpha), Option
+(the slice, the field stroke), the wheel (next op, ring distance, knob pairs, hue lightness, loop zoom),
+double-click (the mode: iOS does not fire it reliably), hover (lineage and graph thumbnails, the edge's
+plus). Already fine: one-finger look, pinch, hold-to-grab, the long-hold ring, knobs, Metasurface
+drop/drag/fling, corner double-press, taps on the strip and in the graphs. Broken: a pinch in the loop
+moved the 3-D camera; the "reticle centred on touch" decision was never built (`pointerType` read
+nowhere); hit radii sized for a mouse; the structure layer and the breed ring laid out for a desktop.
+
+**Decided with iori** (the four recommended answers, and the base map proposed with them):
+- *A second finger is the modifier, everywhere.* In a grab, the lens, the knobs, the ring or a gizmo drag:
+  resting = Shift (the lens opens after 280 ms, the gizmo snaps); a quick tap = one wheel notch (the next
+  op, the next knob pair, farther neighbours); a double tap = F (pin). Esc-undo of a grab is the two-finger
+  tap afterwards (the parent).
+- *A touch grab aims at the crosshair in the centre of the screen* (DESIGN's "centred on touch"): hold
+  anywhere, the grab senses what is at the centre and draws its reticle, handle and orbit there; the
+  finger only drags. Nothing hides under the thumb.
+- *The keys with no gesture are a hairline glyph row in the structure layer*, above the exports:
+  Lyapunov (two orbits parting), replay (the lineage walked), the Metasurface (its square, two sites, a
+  wall), drift (a wandering line). Bright while on. Shown only on a coarse pointer or after a touch.
+- *The slice:* three fingers — drag tilts it (Option-drag), pinch moves it along w (Option-wheel).
+- *The graphs are fully editable:* pinch and pan inside (the drawing scales, hairlines stay hairline);
+  pinched closed past 0.6, the graph folds back to the strip; the press is the hover (the thumbnail of the
+  op without it); fling an op node off the frame = Delete; a vertical drag on a schedule letter steps it
+  through the chains' letters.
+- *Base map:* two-finger pan = sideways and up (WASD/QE), pinch = along the view (as before); double tap =
+  the mode (P); two-finger tap = the parent, three-finger tap = the newest child (⌘Z / ⇧⌘Z, Procreate's
+  convention); tap a gate corner mark = the structure layer (Tab: the only chrome becomes its switch); in
+  the loop pinch zooms its window, pan moves it, twist rolls it; in the ring a pinch brings farther or
+  nearer neighbours.
+
+**Built** (app.js "touch" section; `ui/structure.js`, `ui/glyphs.js` KEY_GLYPHS, `ui/gizmo.js` slop):
+- `touchDown/touchModMove/touchModUp` (the modifier finger, outside `pointers`, so the grabbing finger
+  stays the only one the grab reads; a modifier cancels the hold's 1.2 s ring timer), `multiMove` (two and
+  three fingers, inert until they travel past 12 px so taps never nudge the view), `touchEnd` (taps:
+  lineage, corners, double tap). A finger left of two carries the look on from where it is (it used to
+  jump to the first finger's start).
+- The ring on a phone opens in the middle of the screen and the finger points from where it pressed;
+  spokes shorten so the farthest neighbour fits (`fit` = (min side / 2 − 44) / 220, ≤ 1: a desktop window
+  over 528 px is unchanged). A ring reopened by a pinch stays unopened if the fingers lift while it senses.
+- Metasurface: fingers already down rest while a new one draws — one resting = a walk (Shift), two = a
+  field (Option). A finger carrying the crosshair or a site is not resting. While the surface is open on a
+  touch screen only the structure layer's key row answers (on a phone the strip lies under the square).
+- Over the Metasurface and the graphs a two-finger tap is Esc (the selection first, then the view); on a
+  graph a three-finger tap is Delete (stops, bands, drivers, shading nodes, ops — every kind the key
+  removes; the fling covers op nodes). A press outside a graph's zone folds it on release for a finger
+  (on press for the mouse), so a pinch may start there.
+- The hue ring: with a stop held, the second finger sets lightness (up/down) and alpha (sideways) — the
+  scroll and shift-scroll.
+- Gizmo: hit slop ×2.5 for a finger; a resting second finger snaps.
+- Structure layer on a narrow screen (< 600 px): the lineage has the bottom to itself (as many columns as
+  fit), the exports and the key row rise above it.
+- iOS: no page pinch (`gesturestart`/`gesturechange` refused), no callout or tap highlight, no overscroll,
+  no context menu from a long press; a dblclick synthesised from a double tap is ignored (touchEnd has it).
+- `__fe.input`: what the hand holds (grab, lens, ring, modifier, pins, mode, surface stroke, a graph's
+  view with its nodes and letters on screen) for the rig.
+
+**Verified** — `test/run-touch.mjs`: Playwright's mobile Chromium at 390×844 with WebGPU, real touch
+events through the DevTools protocol (`Input.dispatchTouchEvent`, a lifted finger is a touchEnd naming
+it), so the browser's own touch → pointer path runs. 27 checks, all pass: pan, pinch, look, the two- and
+three-finger lineage taps, the centre aim, second-finger tap / double tap / rest (next op, pin, lens),
+double tap mode, loop pinch + twist, loop knob pairs, the three-finger slice, the corner switch, the ring
+and its pinch, the key row (L, drift), a lineage dot tapped, surface walk and field strokes and its close,
+the graph's press thumbnail, letter drag, pinch zoom and fold, fling and three-finger Delete, the hue ring's
+second finger, Esc, and the gizmo by finger with a resting finger's snap. `--desktop` (1280×800, mouse and
+keys): drag, wheel, hold-grab at the cursor with Shift's lens, dblclick, Tab without the key row, the ring —
+unchanged. Shots: `design/shots/touch-*.jpg` (`--shots`). The profile is Playwright's own and thrown away;
+`__fe.dry` is lifted only to grow the lineage for the lineage check.
+
+**Still open:**
+- On a real iPhone: Safari's edge swipes (back/forward) and the home indicator were avoided by design, but
+  only emulation was run — the first phone session should confirm the corner marks sit clear of the rounded
+  screen corners and that three-finger gestures are not taken by iOS (its text-editing undo).
+- ⌘S's 4K still, the exports and the replay work by tapping the structure layer; video/splat/mesh exports
+  on a phone are untested for memory.
+- The graphs' hit radii are the desktop's: small nodes need a pinch first (the out-port of a shading node
+  sits 8 px under its centre). A finger-sized hit test in graph space is the next refinement.
+- Desktop keys still have no touch gesture: Esc while the field is idle (nothing to undo there), Delete of
+  a collage piece by fling in the collage graph (the three-finger tap does it), the schedule letter keys
+  (the drag replaces them), WASD's speed (shift).
+- A tablet with a keyboard gets both; nothing chooses one.
+- Found on the way, not touch: `growArchive` can call `mutate` with the previous document's metric right
+  after the document changes (core/breed.js reads `ops[m.oi]` of an op that is not there) — a page error,
+  seen when a test swapped a collage in and out.

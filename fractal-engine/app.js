@@ -34,6 +34,9 @@
 //                   corner scales it, shift snaps); G: the collage's graph (pieces, joins, its shading, its
 //                   drivers). The full list where the collage's section starts, below
 //
+//   touch           fingers reach all of it without keys, wheel or hover: the map is where the touch
+//                   section starts, below (DESIGN.md "Touch")
+//
 // Every gesture is scaled by the distance estimate at the camera, so the same hand motion means the
 // same visible change in a wide hall and a hairline crevice (principle 4: gesture scale = structure).
 
@@ -269,12 +272,26 @@ function drawStructureNow() {
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
     lineage: lineage.layout(), hover: state.hoverNode,
     progress: state.exporting ? state.exporting.progress : null,
+    keys: COARSE || touchSeen > 0 ? [{ k: 'lyap', on: state.look.lyapMix > 0 }, { k: 'replay' }, { k: 'surface', on: !!surf }, { k: 'drift', on: state.drift }] : null,
     step: state.sensed && state.sensed.step != null ? state.sensed.step : null,
     pins: (() => {
       const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
       return state.pins.map((p) => C.project(p.x)).filter(Boolean);
     })(),
   });
+}
+
+// a phone or tablet: the structure layer carries the row of keys (L, R, M, Space) from the start
+const COARSE = matchMedia('(pointer: coarse)').matches;
+let touchSeen = -1e9;   // when a finger last touched
+let inputTouch = false; // the press under way is a finger's
+function pressKey(k) {
+  engage();
+  if (k === 'lyap') { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); }
+  else if (k === 'replay') replay();
+  else if (k === 'surface') { if (surf) closeSurface(); else openSurface(); }
+  else if (k === 'drift') { state.engaged = true; state.drift = !state.drift; touched(); }
+  drawStructureNow();
 }
 
 function toggleStructure() {
@@ -296,6 +313,8 @@ structureSvg.addEventListener('click', (e) => {
   if (e.target && e.target.dataset && e.target.dataset.graph) { openGraph(); return; }
   const ex = e.target && e.target.dataset ? e.target.dataset.export : null;
   if (ex) { exportAs(ex); return; }
+  const key = e.target && e.target.dataset ? e.target.dataset.key : null;
+  if (key) { pressKey(key); return; }
   const id = e.target && e.target.dataset ? e.target.dataset.id : null;
   if (id) restore(lineage.jump(id));
 });
@@ -393,6 +412,9 @@ function openSurface() {
   const own = SURF.sites.find((s) => normalize(state.formula).slots.length === 1 && s.f.slots.length === 1 && s.f.slots[0].map((o) => o.op).join(' ') === structureKey(state.formula));
   surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, press: null, site: null, bands: null, drift: state.drift };
   state.drift = false;
+  // on a touch screen the structure layer stays drawn under the square, but only its keys answer (on a
+  // phone the strip lies under the square)
+  if (COARSE || touchSeen > 0) structureSvg.classList.add('under');
   drawSurfaceNow();
   surfaceThumbs();
 }
@@ -415,6 +437,8 @@ function closeSurface() {
   gizmoDue = true;
   state.drift = surf.drift;
   surf = null;
+  structureSvg.classList.remove('under');
+  drawStructureNow();
   clearGrab(overlay);
 }
 
@@ -497,8 +521,22 @@ function dropSite(x) {
 function surfDown(e) {
   surfWalk++;
   const x = toSurface(e.clientX, e.clientY);
-  if (e.shiftKey || e.altKey) {
-    surf.stroke = { pts: [x], scr: [[e.clientX, e.clientY]], kind: e.altKey ? 'field' : 'walk' };
+  // fingers: the ones already down rest while the new one draws — one resting is Shift (a walk), two
+  // are Option (a field). A finger carrying the crosshair or a site is not resting
+  let kind = e.shiftKey || e.altKey ? (e.altKey ? 'field' : 'walk') : null;
+  if (e.pointerType === 'touch') {
+    const fs = surf.fingers || (surf.fingers = new Set());
+    if (fs.size && (surf.drag || (surf.site && surf.site.moved) || (surf.stroke && surf.stroke.pts.length > 1))) { fs.add(e.pointerId); return; }
+    if (fs.size) {
+      if (surf.press) { clearTimeout(surf.press.timer); surf.press = null; }
+      if (surf.site) { clearTimeout(surf.site.timer); surf.site = null; }
+      kind = fs.size >= 2 ? 'field' : 'walk';
+    }
+    if (!fs.size) surf.lead = e.pointerId;
+    fs.add(e.pointerId);
+  }
+  if (kind) {
+    surf.stroke = { id: e.pointerId, pts: [x], scr: [[e.clientX, e.clientY]], kind };
     drawSurfaceNow();
     return;
   }
@@ -539,6 +577,8 @@ function surfDown(e) {
 
 let surfLast = 0;
 function surfMove(e) {
+  // a resting finger (or one that came after the drawing began) does nothing
+  if (surf.fingers && surf.fingers.size > 1 && (surf.stroke ? e.pointerId !== surf.stroke.id : true) && surf.lead !== e.pointerId) return;
   if (surf.stroke) {
     const scr = surf.stroke.scr.at(-1);
     if (Math.hypot(e.clientX - scr[0], e.clientY - scr[1]) < 3) return;
@@ -576,6 +616,10 @@ function surfMove(e) {
 }
 
 function surfUp(e) {
+  if (surf.fingers) {
+    surf.fingers.delete(e.pointerId);
+    if (surf.stroke ? e.pointerId !== surf.stroke.id : surf.lead !== e.pointerId) return;
+  }
   if (surf.stroke) {
     const st = surf.stroke;
     surf.stroke = null;
@@ -681,6 +725,7 @@ function openGraph() {
   exitGrab();
   const P = graphPlacement();
   // the collage's own shading (pick 'C') opens without unfolding: its proxy's op is not in the placement
+  gview = { k: 1, tx: 0, ty: 0 }; gt = null; vtap = null;
   gv = { P, from: state.pick === 'C' ? null : stripPlacement(normalize(state.formula), innerWidth, innerHeight), t0: performance.now(), hover: null, selected: null, press: null, drag: null, param: null, picker: null, thumbs: new Map(), drift: state.drift };
   state.drift = false;
   drawStructureNow();
@@ -1012,7 +1057,7 @@ function drawGraphNow() {
   if (!gv.from) svg += drawDriveNow(P, handles, sel);
   if (gv.pull) svg += `<g class="gr full"><g class="nd hv">${glyphPath('drv.param', gv.pull.x, gv.pull.y, 22)}</g></g>`;
   if (gv.picker) svg += drawPicker(gv.picker);
-  overlay.innerHTML = svg;
+  overlay.innerHTML = viewWrap(svg);
   overlay.classList.add('on');
 }
 
@@ -1080,7 +1125,8 @@ function graphEdit(fn) {
 
 function graphDown(e) {
   if (gv.from) return;
-  const x = e.clientX, y = e.clientY;
+  const x = e.clientX, y = e.clientY, touch = e.pointerType === 'touch';
+  if (touch && state.pick !== 'C') graphHover(x, y);
   if (shadeDown(x, y)) return;
   // the collage's own shading has its frame and the collage's drivers to read from (a drag from a
   // driver's output dot into the frame): anything else goes back to the collage
@@ -1112,6 +1158,13 @@ function graphDown(e) {
   if (near(SL.chainPlus, 12)) { gv.schedSel = null; graphEdit(() => G.addChain(state.formula)); return; }
   if (near(SL.plus)) { gv.schedSel = null; graphEdit(() => G.setSchedule(state.formula, state.formula.schedule + state.formula.schedule.at(-1))); return; }
   const letter = SL.letters.find((q) => near(q, 7));
+  if (letter && touch) {
+    // a finger: up or down through the chains' letters (a tap selects, a second tap lets go)
+    gv.letter = { i: letter.i, y0: y, was: gv.schedSel === letter.i, moved: false, text0: state.text, w0: state.formula.schedule || '' };
+    gv.schedSel = letter.i;
+    drawGraphNow();
+    return;
+  }
   if (letter) { gv.schedSel = gv.schedSel === letter.i ? null : letter.i; drawGraphNow(); return; }
   if (Math.abs(y - (SL.count.y - 4)) < 12 && Math.abs(x - SL.count.x) < 22) {
     gv.param = { iters: true, x0: x, v0: state.formula.iters, text0: state.text };
@@ -1124,7 +1177,8 @@ function graphDown(e) {
   if (bl) { drivePress(x, y, null, null, bl); return; }
   if (!node && !edge) {
     // outside the zone folds the graph; inside it, a press on nothing clears the selection
-    if (x < zx0 - 30 || x > zx1 + 30 || y < gv.P.zone[1] - 30 || y > zy1 + 40) { closeGraph(); return; }
+    // (a finger's waits for its release: a second finger makes it a pinch instead)
+    if (x < zx0 - 30 || x > zx1 + 30 || y < gv.P.zone[1] - 30 || y > zy1 + 40) { if (touch) gv.outside = true; else closeGraph(); return; }
     gv.selected = null; drawGraphNow();
     return;
   }
@@ -1136,6 +1190,15 @@ function graphDown(e) {
 
 function graphMove(e) {
   const x = e.clientX, y = e.clientY;
+  if (gv.letter) {
+    const L = gv.letter, n = normalize(state.formula).slots.length, steps = Math.round((L.y0 - y) / 18);
+    if (Math.abs(y - L.y0) > 6) L.moved = true;
+    const w0 = L.w0, c0 = w0.charCodeAt(L.i) - 65;
+    if (!L.moved || n < 2 || c0 < 0) return;
+    const w = w0.slice(0, L.i) + String.fromCharCode(65 + (((c0 + steps) % n) + n) % n) + w0.slice(L.i + 1);
+    if (w !== state.formula.schedule) { try { setFormula(format(G.setSchedule(state.formula, w)), true); touched(); refreshGraph(); } catch { /* refused */ } }
+    return;
+  }
   if (shadeMove(x, y)) return;
   if ((state.pick !== 'C' || gv.dvDrag) && driveMove(x, y)) return;
   if (gv.picker) {
@@ -1179,8 +1242,12 @@ function graphMove(e) {
     return;
   }
   if (state.pick === 'C') return;
-  // hover: which node, and its thumbnail once the pointer rests; off the nodes, the edge a hold would
-  // insert on (it shows a plus)
+  graphHover(x, y);
+}
+
+// hover: which node, and its thumbnail once the pointer rests; off the nodes, the edge a hold would
+// insert on (it shows a plus). A finger's press is its hover
+function graphHover(x, y) {
   const q = graphNodeAt(gv.P, x, y), id = q ? q.id : null;
   const he = q ? null : graphEdgeAt(gv.P, x, y);
   if (he !== gv.hoverEdge) { gv.hoverEdge = he; drawGraphNow(); }
@@ -1204,6 +1271,15 @@ function graphMove(e) {
 }
 
 function graphUp(e) {
+  if (gv.outside) { gv.outside = null; closeGraph(); return; }
+  if (gv.letter) {
+    const L = gv.letter;
+    gv.letter = null;
+    if (!L.moved && L.was) gv.schedSel = null;
+    if (state.text !== L.text0) { setFormula(state.text); writeHash(); remember(); }
+    refreshGraph();
+    return;
+  }
   if (shadeUp(e.clientX, e.clientY)) return;
   if ((state.pick !== 'C' || gv.dvDrag) && driveUp(e.clientX, e.clientY)) return;
   if (gv.picker) {
@@ -1226,6 +1302,8 @@ function graphUp(e) {
   if (gv.drag) {
     const d = gv.drag;
     gv.drag = null;
+    const [zx0, zy0, zx1, zy1] = gv.P.zone, x = e.clientX, y = e.clientY;
+    if (e.pointerType === 'touch' && (x < zx0 - 40 || x > zx1 + 40 || y < zy0 - 40 || y > zy1 + 60)) { if (gv.selected === d.id) gv.selected = null; graphEdit(() => G.remove(state.formula, d.id)); return; }
     if (d.edge && !(d.edge.chain === pr.node.chain && (d.edge.index === pr.node.index || d.edge.index === pr.node.index + 1))) graphEdit(() => G.move(state.formula, d.id, d.edge.chain, d.edge.index));
     else drawGraphNow();
     return;
@@ -1708,8 +1786,8 @@ function pickAt(x, y) {
   setPick(t == null ? null : collageAt(shownCollage, add(state.cam.pos, dir, t)).lead);
 }
 
-function gizmoDown(x, y) {
-  const h = gizmoHit(gizmoG, x, y);
+function gizmoDown(x, y, slop = 1) {
+  const h = gizmoHit(gizmoG, x, y, slop);
   if (!h) return false;
   const pc = state.collage.pieces[state.pick];
   gz = { ...h, x0: x, y0: y, place0: { ...pc.place }, G: gizmoG, a0: Math.atan2(y - gizmoG.O[1], x - gizmoG.O[0]), value: '', text0: state.text };
@@ -1834,6 +1912,7 @@ function collageStrip() {
 function openCollageGraph() {
   if (cv || !state.collage) return;
   exitGrab();
+  gview = { k: 1, tx: 0, ty: 0 }; gt = null; vtap = null;
   cv = { PC: collagePlacement(true), sel: typeof state.pick === 'number' ? { kind: 'piece', i: state.pick } : null, drift: state.drift };
   state.drift = false;
   drawStructureNow();
@@ -1966,7 +2045,7 @@ function drawCvNow() {
   cv.binds = cvBinds(dsel ? [] : lines);
   svg += drawDrive(V, { hover: cv.dvHover, selected: cv.dvSel, drag: cv.dvDrag, binds: cv.binds, params: dsel ? cvDriverHandles(dsel) : [] });
   if (cv.picker) svg += drawPicker(cv.picker);
-  overlay.innerHTML = svg;
+  overlay.innerHTML = viewWrap(svg);
   overlay.classList.add('on');
 }
 
@@ -2020,7 +2099,7 @@ function cvDown(x, y) {
   if (k < 0 && i < 0 && !out && !dnode && !inRow) {
     // outside everything folds the graph; inside the zone a press clears the selection
     const [zx0, zy0, zx1, zy1] = PC.zone;
-    if (x < zx0 - 30 || x > zx1 + 30 || y < zy0 - 2.6 * PC.u || y > zy1 + 40) { closeCollageGraph(); return; }
+    if (x < zx0 - 30 || x > zx1 + 30 || y < zy0 - 2.6 * PC.u || y > zy1 + 40) { if (inputTouch) cv.outside = true; else closeCollageGraph(); return; }
     cv.sel = null; cv.dvSel = null; cv.bandSel = null; drawCvNow();
     return;
   }
@@ -2097,6 +2176,7 @@ function cvMove(x, y) {
 function cvCommit(text0) { if (state.text !== text0) { setCollage(state.collage); writeHash(); remember(); } cvRefresh(); }
 
 function cvUp(x, y) {
+  if (cv.outside) { cv.outside = null; closeCollageGraph(); return; }
   if (cv.picker) {
     const kk = cv.picker;
     cv.picker = null;
@@ -2428,34 +2508,46 @@ canvas.addEventListener('pointerdown', (e) => {
   engage();
   stopReplay();
   try { canvas.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
+  inputTouch = e.pointerType === 'touch';
+  if (inputTouch && (surf || gv || cv)) viewTap(e);
   if (surf) { surfDown(e); return; }
-  if (gv) { graphDown(e); return; }
-  if (cv) { cvDown(e.clientX, e.clientY); return; }
+  if (gv) { if (!graphTouch(e)) graphDown(viewEv(e)); return; }
+  if (cv) { if (!graphTouch(e)) { const v = viewEv(e); cvDown(v.clientX, v.clientY); } return; }
   // the picked piece's frame: an axis, the ring or the corner
-  if (pointers.size === 0 && state.collage && gizmoG && gizmoDown(e.clientX, e.clientY)) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
+  if (pointers.size === 0 && state.collage && gizmoG && gizmoDown(e.clientX, e.clientY, e.pointerType === 'touch' ? 2.5 : 1)) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
+  if (e.pointerType === 'touch' && touchDown(e)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   clickAt = pointers.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
   if (pointers.size === 1) {
     drag = { x: e.clientX, y: e.clientY };
     const h = { x: e.clientX, y: e.clientY };
-    h.timer = setTimeout(() => { if (hold === h) enterGrab(h.x, h.y, h).then((ok) => { if (ok) drag = null; }); }, HOLD_MS);
+    // a finger grabs what is at the crosshair in the centre of the screen and edits it by its drag
+    const aim = e.pointerType === 'touch' ? [innerWidth / 2, innerHeight / 2] : [h.x, h.y];
+    h.timer = setTimeout(() => { if (hold === h) enterGrab(aim[0], aim[1], h).then((ok) => { if (ok) { drag = null; if (grab) grab.x0 = pointers.size ? [...pointers.values()][0].x : h.x; } }); }, HOLD_MS);
     // still longer: the breed ring (pull and push; the loop's hold is its knobs)
     h.ringTimer = setTimeout(() => {
-      if (hold === h && state.mode !== 'loop' && !(grab && grab.moved)) { drag = null; openRing(h.x, h.y); }
+      if (hold !== h || state.mode === 'loop' || (grab && grab.moved)) return;
+      drag = null;
+      // on a phone the ring opens in the middle of the screen, where it fits; the finger points from
+      // where it pressed
+      if (e.pointerType === 'touch') openRing(innerWidth / 2, innerHeight / 2, 1, [h.x, h.y]); else openRing(h.x, h.y);
     }, RING_MS);
     hold = h;
     document.body.classList.add('grab');
   } else if (hold) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (vtap && vtap.starts.has(e.pointerId)) viewTap(e);
   if (surf) { surfMove(e); return; }
-  if (gv) { graphMove(e); return; }
-  if (cv) { cvMove(e.clientX, e.clientY); return; }
-  if (gz) { gizmoMove(e.clientX, e.clientY, e.shiftKey); return; }
+  if (gv) { if (!graphTouch(e)) graphMove(viewEv(e)); return; }
+  if (cv) { if (!graphTouch(e)) { const v = viewEv(e); cvMove(v.clientX, v.clientY); } return; }
+  if (tmod && e.pointerId === tmod.id) { touchModMove(e); return; }
+  if (gz) { gizmoMove(e.clientX, e.clientY, e.shiftKey || !!tmod); return; }
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   if (clickAt && Math.hypot(e.clientX - clickAt.x, e.clientY - clickAt.y) > HOLD_SLOP) clickAt = null;
-  if (ring) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointRing(e.clientX, e.clientY); return; }
+  if (tg && tg.starts.has(e.pointerId)) { const [sx, sy] = tg.starts.get(e.pointerId); tg.travel = Math.max(tg.travel, Math.hypot(e.clientX - sx, e.clientY - sy)); }
+  if (ring) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointRing(e.clientX, e.clientY); if (tmod) ringPinch(); return; }
   if (lens) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); moveLens(e.clientX, e.clientY); return; }
   if (grab && grab.knobs) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); turnKnobs(e.clientX, e.clientY); return; }
   if (grab) {
@@ -2467,17 +2559,7 @@ canvas.addEventListener('pointermove', (e) => {
   // still deciding: a press that becomes a grab must not turn the camera meanwhile
   if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) <= HOLD_SLOP) { pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
   if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > HOLD_SLOP) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
-  if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()];
-    const before = Math.hypot(a.x - b.x, a.y - b.y);
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const [c, d] = [...pointers.values()];
-    const after = Math.hypot(c.x - d.x, c.y - d.y);
-    const { fwd } = basis(state.cam);
-    moveBy(fwd, (after - before) * 0.004 * deAt(state.cam.pos));
-    touched();
-    return;
-  }
+  if (pointers.size >= 2) { multiMove(e); return; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!drag) return;
   if (e.altKey) { sliceDrag(e.clientX - drag.x, e.clientY - drag.y); drag = { x: e.clientX, y: e.clientY }; return; }
@@ -2509,17 +2591,250 @@ function sliceDrag(dx, dy) {
   sliceBy(0, right.map((r, i) => r * dx * k - up[i] * dy * k));
 }
 
+// ---------- touch (DESIGN.md "Touch") ---------------------------------------------------------------
+// Desktop decides what happens; fingers reach it without keys, wheel or hover.
+//   two fingers        pinch moves along the view (the wheel), pan moves sideways and up (WASD, QE); in
+//                      the loop pinch zooms its window, pan moves it, twist rolls it (shift-drag)
+//   three fingers      the slice: drag tilts it (Option-drag), pinch moves it along w (Option-wheel)
+//   tap with two/three the parent / the newest child (⌘Z / ⇧⌘Z)
+//   double tap         pull → push → loop (P)
+//   tap a corner mark  the structure layer (Tab); its glyph row holds L, R, M and Space
+//   hold               grabs what is at the crosshair in the centre of the screen (the finger would
+//                      hide what it holds); the drag edits it as the mouse's does
+//   a second finger    in a grab, the lens, the knobs, the ring or a gizmo drag it is the modifier:
+//                      resting, Shift (the lens; the gizmo snaps); a tap, a wheel notch (the next op,
+//                      the next knob pair, farther neighbours); a double tap, F (pin). In the ring a
+//                      pinch brings farther or nearer neighbours
+const TAP_MS = 300, TAP_SLOP = 12, DTAP_PX = 30, CORNER_PX = 64;
+let tg = null;      // the fingers on the field: { n (most at once), t0, starts, travel, live }
+let tmod = null;    // the modifier finger: { id, x, y, t0, moved, timer, lens, d0 }
+let tapAt = null;   // the last one-finger tap: a second one soon and near is a double tap
+let modTapAt = 0;   // the last modifier tap: a second one soon is a pin
+
+function touchDown(e) {
+  touchSeen = performance.now();
+  const busy = grab || lens || ring || gz;
+  if (busy) {
+    // the second finger: the modifier (a third is ignored)
+    if (tmod || (!pointers.size && !gz)) return true;
+    tmod = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: performance.now(), moved: false, lens: false };
+    // a grab worked with the modifier is not a hold waiting for the ring
+    if (hold) clearTimeout(hold.ringTimer);
+    if (ring) { const [p] = pointers.values(); tmod.d0 = Math.hypot(p.x - e.clientX, p.y - e.clientY); }
+    if (grab && !grab.knobs) tmod.timer = setTimeout(() => { if (tmod && !tmod.moved && grab && !lens) tmod.lens = openLens(); }, HOLD_MS);
+    return true;
+  }
+  if (!pointers.size) tg = { n: 0, t0: performance.now(), starts: new Map(), travel: 0, live: false };
+  if (tg) { tg.starts.set(e.pointerId, [e.clientX, e.clientY]); tg.n = Math.max(tg.n, pointers.size + 1); }
+  return false;
+}
+
+function touchModMove(e) {
+  if (Math.hypot(e.clientX - tmod.x, e.clientY - tmod.y) > TAP_SLOP && !tmod.lens) { tmod.moved = true; clearTimeout(tmod.timer); }
+  tmod.cx = e.clientX; tmod.cy = e.clientY;
+  if (ring) ringPinch();
+}
+
+// the ring's pinch: apart by a third, the next farther neighbours; together, the nearer
+function ringPinch() {
+  if (!ring || !tmod || tmod.d0 == null || tmod.cx == null || !pointers.size) return;
+  const [p] = pointers.values(), d = Math.hypot(p.x - tmod.cx, p.y - tmod.cy);
+  if (d > tmod.d0 * 1.35 || d < tmod.d0 / 1.35) { ringScale(d > tmod.d0 ? 1 : -1); tmod.d0 = d; tmod.moved = true; }
+}
+function ringScale(step) {
+  const { at, origin } = ring, sc = ring.scale * (step > 0 ? 1.5 : 1 / 1.5);
+  ring = null;
+  openRing(at[0], at[1], sc, origin);
+}
+
+function touchModUp(e) {
+  const m = tmod;
+  tmod = null;
+  clearTimeout(m.timer);
+  if (m.lens) { if (lens) closeLens(); return; }
+  if (m.moved || performance.now() - m.t0 > TAP_MS || e.type === 'pointercancel') return;
+  // a tap: a wheel notch
+  const [p] = pointers.size ? pointers.values() : [{ x: m.x, y: m.y }];
+  if (ring) ringScale(1);
+  else if (grab && grab.knobs) nextKnobs(1, p.x, p.y);
+  else if (grab) {
+    if (performance.now() - modTapAt < 350) { passAttention(-1, p.x); togglePin(); modTapAt = 0; }
+    else { passAttention(1, p.x); modTapAt = performance.now(); }
+  }
+}
+
+// two or three fingers on the field; nothing moves until they have travelled past a tap's slop
+function multiMove(e) {
+  const before = [...pointers.values()];
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const after = [...pointers.values()];
+  if (tg && !tg.live) { if (tg.travel <= TAP_SLOP) return; tg.live = true; }
+  const mid = (q) => [q.reduce((s, p) => s + p.x, 0) / q.length, q.reduce((s, p) => s + p.y, 0) / q.length];
+  const spread = (q) => { const [cx, cy] = mid(q); return q.reduce((s, p) => s + Math.hypot(p.x - cx, p.y - cy), 0) / q.length; };
+  const [x0, y0] = mid(before), [x1, y1] = mid(after), dx = x1 - x0, dy = y1 - y0;
+  const s0 = spread(before), s1 = spread(after);
+  if (after.length >= 3) {
+    sliceDrag(dx, dy);
+    if (s1 !== s0) sliceBy((s1 - s0) * 0.002 * Math.max(0.02, deAt(state.cam.pos)), null);
+    return;
+  }
+  if (state.mode === 'loop') {
+    const ang = (q) => Math.atan2(q[1].y - q[0].y, q[1].x - q[0].x);
+    let da = ang(after) - ang(before);
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    if (s0 > 0 && s1 > 0) zoomLoop(s0 / s1);
+    panLoop(dx, dy);
+    rollLoop(da);
+    touched();
+    return;
+  }
+  // the pinch as before (the distance between two fingers is twice their spread), the pan carries the
+  // camera the other way, so the field follows the fingers
+  const { fwd, right, up } = basis(state.cam), d = deAt(state.cam.pos);
+  moveBy(fwd, 2 * (s1 - s0) * 0.004 * d);
+  moveBy(right, -dx * 0.004 * d);
+  moveBy(up, dy * 0.004 * d);
+  touched();
+}
+
+// over the Metasurface and the graphs a tap of two fingers is Esc: the selection, then the view, goes
+let vtap = null;   // { n, t0, starts, travel, up }
+function viewTap(e) {
+  if (e.type === 'pointerdown') {
+    if (!vtap || !vtap.starts.size) vtap = { n: 0, t0: performance.now(), starts: new Map(), travel: 0 };
+    vtap.starts.set(e.pointerId, [e.clientX, e.clientY]);
+    vtap.n = Math.max(vtap.n, vtap.starts.size);
+    return false;
+  }
+  const [sx, sy] = vtap.starts.get(e.pointerId);
+  vtap.travel = Math.max(vtap.travel, Math.hypot(e.clientX - sx, e.clientY - sy));
+  if (e.type === 'pointermove') return false;
+  vtap.starts.delete(e.pointerId);
+  if (vtap.starts.size || vtap.n < 2 || vtap.travel > TAP_SLOP || performance.now() - vtap.t0 > TAP_MS || e.type === 'pointercancel') return false;
+  // three fingers on a graph: Delete (the selection goes); two anywhere here: Esc. What the first finger
+  // pressed is let go without acting
+  const code = vtap.n === 3 ? 'Delete' : 'Escape';
+  vtap = null; gt = null;
+  if (surf) { if (code === 'Escape') { if (surf.stroke) surf.stroke = null; closeSurface(); } }
+  else if (gv) { viewLetGo(); graphKey({ code }); }
+  else if (cv) { viewLetGo(); cvKey({ code }); }
+  return true;
+}
+
+// a graph under the fingers: two pinch and pan it (closed past 0.6 of its size, it folds away), the press
+// the first one began is let go; with the hue ring held, the second finger sets lightness (up and down)
+// and alpha (sideways) as the scroll and shift-scroll do
+let gview = { k: 1, tx: 0, ty: 0 };
+let gt = null;   // { pts, multi, travel, text0, hue }
+const viewXY = (e) => [(e.clientX - gview.tx) / gview.k, (e.clientY - gview.ty) / gview.k];
+function viewEv(e) {
+  const [x, y] = viewXY(e);
+  return { clientX: x, clientY: y, shiftKey: e.shiftKey, altKey: e.altKey, pointerType: e.pointerType, pointerId: e.pointerId, type: e.type };
+}
+// the overlay's drawing (after its dimming rect) in the graph's view
+function viewWrap(svg) {
+  if (gview.k === 1 && !gview.tx && !gview.ty) return svg;
+  const i = svg.indexOf('/>') + 2;
+  return `${svg.slice(0, i)}<g class="vz" transform="translate(${gview.tx.toFixed(1)} ${gview.ty.toFixed(1)}) scale(${gview.k.toFixed(4)})">${svg.slice(i)}</g>`;
+}
+function viewLetGo() {
+  const g = gv || cv;
+  if (!g) return;
+  for (const k of ['press', 'dvPress', 'shPress', 'shStop']) if (g[k] && g[k].timer) clearTimeout(g[k].timer);
+  for (const k of ['press', 'drag', 'param', 'band', 'pull', 'dvDrag', 'dvPress', 'dvParam', 'picker', 'shPress', 'shDrag', 'shStop', 'shParam', 'hue', 'letter', 'outside']) g[k] = null;
+  if (gt && gt.text0 != null && state.text !== gt.text0) setFormula(gt.text0, true);
+  if (gv) refreshGraph(); else cvRefresh();
+}
+function graphTouch(e) {
+  if (e.pointerType !== 'touch') return false;
+  const id = e.pointerId;
+  if (e.type === 'pointerdown') {
+    if (!gt || !gt.pts.size) gt = { pts: new Map(), multi: false, travel: 0, text0: state.text };
+    gt.pts.set(id, [e.clientX, e.clientY, e.clientX, e.clientY]);
+    if (gt.pts.size === 1) return false;
+    if (!gt.multi) {
+      gt.multi = true;
+      if (gv && gv.hue) { gt.hue = { id, x: e.clientX, y: e.clientY, v: gv.hue.v, a: gv.hue.a }; return true; }
+      viewLetGo();
+    }
+    return true;
+  }
+  if (!gt || !gt.pts.has(id)) return false;
+  if (e.type === 'pointermove') {
+    const p = gt.pts.get(id);
+    gt.travel = Math.max(gt.travel, Math.hypot(e.clientX - p[2], e.clientY - p[3]));
+    if (!gt.multi) { p[0] = e.clientX; p[1] = e.clientY; return false; }
+    if (gt.hue) {
+      if (id !== gt.hue.id) return false;   // the ring's own finger: hue and saturation
+      const r = gv && gv.hue, cl = (v) => Math.min(1, Math.max(0, v));
+      if (r) {
+        r.v = cl(gt.hue.v - (e.clientY - gt.hue.y) / 200); r.a = cl(gt.hue.a + (e.clientX - gt.hue.x) / 200);
+        r.css = hsvToCss(r.h, r.s, r.v);
+        shadeLive(() => SE.setStopColour(state.formula, r.id, r.i, [...hsvToLinear(r.h, r.s, r.v), r.a]));
+      }
+      return true;
+    }
+    const before = [...gt.pts.values()].map(([x, y]) => [x, y]);
+    p[0] = e.clientX; p[1] = e.clientY;
+    if (gt.travel <= TAP_SLOP || gt.pts.size < 2) return true;
+    const after = [...gt.pts.values()].map(([x, y]) => [x, y]);
+    const mid = (q) => [q.reduce((s, a) => s + a[0], 0) / q.length, q.reduce((s, a) => s + a[1], 0) / q.length];
+    const spread = (q) => { const [cx, cy] = mid(q); return q.reduce((s, a) => s + Math.hypot(a[0] - cx, a[1] - cy), 0) / q.length; };
+    const [x0, y0] = mid(before), [x1, y1] = mid(after), f = spread(before) > 0 ? spread(after) / spread(before) : 1;
+    const k = Math.min(6, Math.max(0.3, gview.k * f)), r = k / gview.k;
+    // the point under the fingers' middle stays under it
+    gview = { k, tx: x1 - (x0 - gview.tx) * r, ty: y1 - (y0 - gview.ty) * r };
+    if (gv) drawGraphNow(); else drawCvNow();
+    return true;
+  }
+  gt.pts.delete(id);
+  if (!gt.multi) return false;
+  if (gt.hue) {
+    if (id !== gt.hue.id) return false;
+    gt.hue = null; gt.multi = false;
+    return true;
+  }
+  if (!gt.pts.size) {
+    gt = null;
+    if (gview.k < 0.6) { if (gv) closeGraph(); else closeCollageGraph(); }
+  }
+  return true;
+}
+
+// all fingers up: a tap of two or three is the lineage, one the corner marks or a double tap
+function touchEnd(g, e) {
+  if (grab || ring || lens || e.type === 'pointercancel' || g.live || g.travel > TAP_SLOP || performance.now() - g.t0 > TAP_MS) { tapAt = null; return false; }
+  if (g.n >= 2) {
+    const n = g.n === 2 ? lineage.parent() : lineage.child();
+    if (n) restore(lineage.jump(n.id));
+    tapAt = null;
+    return true;
+  }
+  const x = e.clientX, y = e.clientY;
+  if ((x < CORNER_PX || x > innerWidth - CORNER_PX) && (y < CORNER_PX || y > innerHeight - CORNER_PX)) { toggleStructure(); tapAt = null; return true; }
+  const t = performance.now();
+  if (tapAt && t - tapAt.t < TAP_MS + 100 && Math.hypot(x - tapAt.x, y - tapAt.y) < DTAP_PX) { tapAt = null; toggleMode(); return true; }
+  tapAt = { x, y, t };
+  return false;
+}
+
 const release = (e) => {
+  if (vtap && vtap.starts.has(e.pointerId) && viewTap(e)) return;
   if (surf) { surfUp(e); return; }
-  if (gv) { graphUp(e); return; }
-  if (cv) { cvUp(e.clientX, e.clientY); return; }
+  if (gv) { if (!graphTouch(e)) graphUp(viewEv(e)); return; }
+  if (cv) { if (!graphTouch(e)) { const v = viewEv(e); cvUp(v.clientX, v.clientY); } return; }
+  if (tmod && e.pointerId === tmod.id) { touchModUp(e); return; }
   if (gz) { pointers.delete(e.pointerId); gizmoUp(); return; }
   pointers.delete(e.pointerId);
   // a click (short and still) in a collage: the piece under it
-  const click = clickAt && performance.now() - clickAt.t < HOLD_MS && !grab && !ring && !lens;
+  let click = clickAt && performance.now() - clickAt.t < HOLD_MS && !grab && !ring && !lens;
   clickAt = null;
+  if (tg && pointers.size === 0) { const g = tg; tg = null; if (touchEnd(g, e)) click = false; }
   if (click && state.collage && pointers.size === 0) pickAt(e.clientX, e.clientY);
+  // a finger left of two: the one still down carries the look on from where it is
+  if (pointers.size === 1 && drag) { const [p] = pointers.values(); drag = { x: p.x, y: p.y }; }
   if (pointers.size === 0) {
+    if (sliceMoved && e.pointerType === 'touch') { sliceMoved = false; writeHash(); remember(); }
     drag = null;
     if (hold) { clearTimeout(hold.timer); clearTimeout(hold.ringTimer); hold = null; }
     closeRing(true);
@@ -2559,7 +2874,11 @@ function toggleMode() {
   writeHash();
   remember();
 }
-canvas.addEventListener('dblclick', toggleMode);
+// a browser may make a dblclick of a finger's double tap (touchEnd has taken it) and a context menu of a
+// long press; Safari pinches the page itself unless its gesture events are refused
+canvas.addEventListener('dblclick', () => { if (performance.now() - touchSeen > 1000) toggleMode(); });
+canvas.addEventListener('contextmenu', (e) => { if (performance.now() - touchSeen < 1500) e.preventDefault(); });
+for (const t of ['gesturestart', 'gesturechange']) document.addEventListener(t, (e) => e.preventDefault());
 
 addEventListener('keydown', (e) => {
   if (e.code !== 'Space') engage();
@@ -3019,7 +3338,8 @@ function thumbView(b, pos = state.cam.pos, clear0 = null) {
   };
 }
 
-async function openRing(x, y, scale = 1) {
+// origin: where the finger pressed (a ring opened for a finger stays unopened if it lifts meanwhile)
+async function openRing(x, y, scale = 1, origin = null) {
   if ((!S && !state.collage) || !state.sensed || !R) return false;
   exitGrab();
   const metric = metricOf(state.sensed);
@@ -3028,19 +3348,22 @@ async function openRing(x, y, scale = 1) {
   const f0 = normDoc(doc()), col = isCollage(f0);
   const step = (D) => (col ? mutateCollage(f0, metric, pins, D * scale, rnd) : mutate(f0, metric, pins, D * scale, rnd));
   const here = await senseOther(f0).catch(() => null);
+  if (origin && !pointers.size) return false;
   const ft0 = here ? features(here) : { density: 0.5, chaos: state.sensed.lyap.median };
   const locals = LOCAL_D.map((D) => ({ f: step(D), local: true }));
   // the archive serves the view it was grown for (another structure's elites, a formula's in a collage, are not neighbours)
   const fromArchive = spread(archive.structure === viewKey() ? archive.elites() : [], ft0, 4).map((e) => ({ f: normDoc(parseAny(e.text)), local: false, features: e.features }));
   const fars = FAR_D.slice(fromArchive.length).map((D) => ({ f: step(D), local: false }));
   const items = [...locals, ...fromArchive, ...fars].slice(0, 8);
-  ring = { at: [x, y], items, sel: -1, scale };
+  ring = { at: [x, y], items, sel: -1, scale, origin };
+  // spokes shorten on a small screen so the farthest neighbour still fits around the centre
+  const fit = Math.min(1, (Math.min(innerWidth, innerHeight) / 2 - 44) / 220);
   // features for the angle, then the layout: the cyclic order of feature directions, evenly spaced
   for (const it of items) {
     if (!it.features) { const r = await senseOther(it.f).catch(() => null); it.features = r ? features(r) : ft0; }
     it.D = col ? collageDistancePx(f0, it.f, metric) : distancePx(f0, it.f, metric);
     it.dir = Math.atan2(it.features.chaos - ft0.chaos, (it.features.density - ft0.density) * 4) || Math.random() * 6.28;
-    it.len = 110 + 110 * Math.tanh(it.D / 160);
+    it.len = (110 + 110 * Math.tanh(it.D / 160)) * fit;
   }
   if (!ring) return false;
   const order = items.map((it, i) => i).sort((a, b) => items[a].dir - items[b].dir);
@@ -3067,7 +3390,7 @@ function drawRingNow() {
 }
 
 function pointRing(x, y) {
-  const [cx, cy] = ring.at;
+  const [cx, cy] = ring.origin || ring.at;
   if (Math.hypot(x - cx, y - cy) < 40) ring.sel = -1;
   else {
     const a = Math.atan2(y - cy, x - cx);
@@ -3453,6 +3776,19 @@ window.__fe = {
   sense: () => senseNow(),
   // the grab, driven without a pointer (tests, the capture rig)
   grabAt: (x, y) => enterGrab(x, y),
+  // what the hand holds (the touch rig reads it after real touch events)
+  get input() {
+    return { grab: grab && { x: grab.x, y: grab.y, k: grab.k, knobs: !!grab.knobs, key: grab.knobs ? KNOBS[grab.k][0][0] : (grab.ranked[grab.k].key || grab.ranked[grab.k].drive) }, lens: !!lens, ring: ring && { scale: ring.scale, sel: ring.sel }, mod: !!tmod, pins: state.pins.length, structure: state.structure, mode: state.mode, gz: gz && gz.kind, pointers: pointers.size,
+      surf: surf && { stroke: surf.stroke && surf.stroke.kind, x: [...surf.x] }, lyap: state.look.lyapMix > 0, drift: state.drift, pick: state.pick,
+      // a graph's view and its nodes and schedule letters where they are on screen
+      graph: gv && (() => {
+        const sx = (x) => x * gview.k + gview.tx, sy = (y) => y * gview.k + gview.ty;
+        return { k: gview.k, selected: gv.selected, hover: gv.hover, thumb: !!(gv.hover && gv.thumbs.get(gv.hover + '|' + state.text)), schedSel: gv.schedSel ?? null,
+          nodes: gv.P.items.filter((q) => q.kind === 'op').map((q) => ({ id: q.id, x: sx(q.x), y: sy(q.y) })),
+          letters: scheduleLayout(gv.P).letters.map((q) => ({ i: q.i, x: sx(q.x), y: sy(q.y - 4) })), zone: gv.P.zone };
+      })(),
+      cgraph: cv && { sel: cv.sel, k: gview.k } };
+  },
   grabDrag: (dx) => { if (grab) editGrab(grab.x0 + dx); return grab && grab.ranked[grab.k]; },
   grabPass: (step = 1) => { if (grab) passAttention(step, grab.x0); return grab && grab.ranked[grab.k]; },
   grabEnd: (revert = false) => exitGrab(revert),

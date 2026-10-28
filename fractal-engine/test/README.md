@@ -35,3 +35,24 @@ finished (no WebGPU, error, timeout).
   (estimate, shares, piece, seam, colour), keep rows (push's keep rule), step rows (the measured L).
 - The page's `ok` is the verdict. The per-suite split repeats the page's thresholds; if parity.html
   changes them, the runner prints a note until `SUITES` in `run-parity.mjs` is updated.
+
+## Touch, headless
+
+`run-touch.mjs` drives the app at phone size (390×844, Playwright's mobile Chromium, WebGPU on) with real
+touch events through the DevTools protocol, one check per gesture in DESIGN.md "Touch"; the verdict is
+`__fe.input` and `__fe.state`. `--desktop` runs the mouse-and-keys checks at 1280×800 instead (the
+desktop behaviour, unchanged).
+
+```bash
+node fractal-engine/test/run-touch.mjs               # 27 checks (~2 min)
+node fractal-engine/test/run-touch.mjs --shots       # and design/shots/touch-*.jpg
+node fractal-engine/test/run-touch.mjs --only graph  # checks whose name holds the word
+node fractal-engine/test/run-touch.mjs --desktop
+node fractal-engine/test/run-touch.mjs --size 820x1180   # a tablet
+```
+
+- A finger lifted while others stay down is a `touchEnd` naming that finger; a `touchMove` without it
+  lifts nothing.
+- The browser profile is Playwright's own, so nothing reaches iori's lineage or Metasurface layout;
+  `__fe.dry` is still set and lifted only for the check that grows the lineage.
+- GPU-heavy like parity: run it alone.

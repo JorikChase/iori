@@ -24,13 +24,13 @@ const SHADED = withProgram(BULB, { shade: {
 // the bulb's power follows the iteration, 3 at the first and 9 at the last (a schedule written as a driver)
 const DRIVEN = withProgram(BULB, { drive: { nodes: [{ id: 'i', type: 'i', p: {} }], bind: [{ to: 'A0.n', from: 'i', lo: 3, hi: 9 }] } });
 
-// one noise bends the Mandelbox's scale and shifts the colour along the trap's ramp; the clock turns its hue.
-// (Bound, not linked: a ramp whose input is a driver lays the graph out as NaN — reported, ui/shadegraph.js)
+// one noise bends the Mandelbox's scale and is the fire ramp's input, so it paints what it bent; the clock
+// turns the ramp's hue
 const PAINTED = withProgram(BOX, {
   drive: { nodes: [{ id: 'nz', type: 'noise', p: { f: 0.7, g: 1 } }, { id: 'tm', type: 'time', p: { rate: 0.08, wave: 'saw' } }],
     bind: [{ to: 'A2.s', from: 'nz', lo: 2.4, hi: 2.6 }] },
-  shade: { nodes: [{ id: 't', type: 'trap' }, { id: 'r', type: 'ramp', in: { v: 't' }, p: { ...rampPreset('fire'), map: map({ mode: 'mirror', scale: 0.8 }) } }],
-    out: { color: 'r' }, bind: [{ to: 'r.map.offset', from: 'nz', lo: 0, hi: 0.6 }, { to: 'r.map.hue', from: 'tm', lo: 0, hi: 1 }] },
+  shade: { nodes: [{ id: 'r', type: 'ramp', in: { v: 'd:nz' }, p: { ...rampPreset('fire'), map: map({ mode: 'mirror', scale: 1.4, offset: 0.5 }) } }],
+    out: { color: 'r' }, bind: [{ to: 'r.map.hue', from: 'tm', lo: 0, hi: 1 }] },
 });
 
 const CHIMERA = '[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 1.5 1 1 0 0 · +c ×12 bail=100';

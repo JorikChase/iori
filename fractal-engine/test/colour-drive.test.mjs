@@ -155,3 +155,31 @@ test('colour drivers: the GPU program — the flag, driver inputs, the bindings 
   assert.deepEqual([...pk.ops.slice(SHADE_AT, SHADE_AT + 8)], [...prog.slice(0, 8)]);
   assert.ok(!(new Uint32Array(pack({ ...f, drive: undefined, shade: defaultShade() }).head)[2] & FLAG_DRIVE));
 });
+
+test('a shading network fed only by drivers lays out (no reading at depth 0: the width was NaN)', async () => {
+  const { layoutShade, placeShade } = await import('../ui/shadegraph.js');
+  const { rampPreset } = await import('../core/shade.js');
+  const map = { scale: 1, offset: 0, mode: 'clamp', log: false, invert: false };
+  const drive = { nodes: [{ id: 'nz', type: 'noise', p: { f: 0.7, g: 1 } }, { id: 'tm', type: 'time', p: {} }], bind: [{ to: 'A1.s', from: 'nz', lo: 2.4, hi: 2.6 }] };
+  const only = normalize({ ...parse('fold.box 1 · scale 2.5 · +c ×12'), drive,
+    shade: { nodes: [{ id: 'r', type: 'ramp', in: { v: 'd:nz' }, p: { ...rampPreset('fire'), map } },
+      { id: 'm', type: 'math', in: { a: 'd:tm' }, p: { op: 'mul', c: 2 } }], out: { color: 'r', glow: 'm' } } });
+  assert.ok(validate(only).ok);
+  const finite = (v) => Number.isFinite(v);
+  const L = layoutShade(only.shade);
+  assert.ok(finite(L.w) && finite(L.h), `w ${L.w} h ${L.h}`);
+  assert.ok(L.items.every((q) => finite(q.x) && finite(q.y)));
+  const P = placeShade(L, 40, 600, 100, only.shade);
+  assert.ok(P.frame.every(finite) && P.items.every((q) => finite(q.x) && finite(q.y)) && P.outs.every((o) => finite(o.x) && finite(o.y)));
+  assert.ok(P.links.every((l) => [l.x1, l.y1, l.x2, l.y2].every(finite)));
+  // the input ports a driver's link is drawn to
+  for (const q of P.items) assert.ok(P.inPort(q, 0, 1).every(finite));
+  // the same network linked by the edit (a reading removed after) lays out the same way
+  let f = normalize({ ...parse('fold.box 1 · scale 2.5 · +c ×12'), drive });
+  f = SE.shadeOn(f);
+  const ramp = normalize(f).shade.nodes.find((n) => n.type === 'ramp');
+  f = SE.linkDriver(f, 'nz', ramp.id, 'v');
+  for (const n of normalize(f).shade.nodes.filter((n) => SE.SHADE_TYPES.indexOf(n.type) < 9 && !['ramp', 'math', 'mixc'].includes(n.type))) f = SE.removeNode(f, n.id);
+  const L2 = layoutShade(normalize(f).shade);
+  assert.ok(finite(L2.w) && L2.items.every((q) => finite(q.x)));
+});

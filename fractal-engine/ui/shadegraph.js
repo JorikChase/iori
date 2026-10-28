@@ -34,7 +34,9 @@ export function layoutShade(shade) {
   for (const n of shade.nodes) depth.set(n.id, READINGS.includes(n.type) ? 0 : 1 + Math.max(0, ...Object.values(n.in).map((r) => depth.get(r) ?? 0)));
   const rows = [];
   shade.nodes.forEach((n) => { const d = depth.get(n.id); (rows[d] = rows[d] || []).push(n); });
-  const widest = Math.max(2, ...rows.map((r) => (r ? r.length : 0)));
+  // rows may have holes: a network fed only by drivers (their bus, not a reading) has nothing at depth 0,
+  // and map keeps a hole as undefined, which made the width — and the whole graph's scale — NaN
+  const widest = Math.max(2, ...Array.from(rows, (r) => (r ? r.length : 0)));
   const w = widest * NODE_W;
   const items = [];
   rows.forEach((row, d) => (row || []).forEach((n, i) => {

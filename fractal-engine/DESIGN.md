@@ -1666,10 +1666,12 @@ with citations; hidden first.
 - A collage's repetition is measured in the piece's own units, before its size (`polar 6 4` at `size .25`
   is a ring of radius 1). Units given in world terms made copies overlap inside one cell: a white ring
   and no copies. The paper says so in 7.2.
-- *Bug, not fixed here* (ui/shadegraph.js belongs to another session): a shading input linked to a driver
-  (`in: { v: 'd:nz' }`, C's "drive a colour input") lays the whole formula graph out as NaN — every node,
-  the zone and the lane (`__fe.graphView.items[0].x` null; console full of `<path> d="MNaN…"`). The same
-  drive bound to the ramp's offset (`shade.bind`) lays out fine, so figure 17 binds instead of linking.
+- *Bug, fixed 2026-10-28:* a shading network fed only by drivers (an input linked `in: { v: 'd:nz' }`, no
+  reading) laid the whole formula graph out as NaN. ui/shadegraph.js layoutShade puts readings at depth 0;
+  with none, row 0 was a hole in a sparse array, `rows.map` kept it as undefined, Math.max gave NaN for the
+  frame's width, and the shared unit u was NaN for every node. Counted with Array.from now
+  (test/colour-drive.test.mjs: a driver-only network and the edit that makes one lay out finite). Figure 17
+  links the noise straight into its ramp again.
 - The drift wandered one collage's turn fast (77° in 7 s), the grid whose copies overlapped (above); in the
   well-formed figures a turn moved a degree or two. Possibly the CPU metric of a turn when the surface
   barely moves with it; not looked into.

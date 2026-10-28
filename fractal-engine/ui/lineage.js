@@ -8,9 +8,11 @@ const KEY = 'fractal-engine.lineage.v1';
 const MAX_NODES = 600;
 const MAX_THUMBS = 160;
 
-export function createLineage() {
+// store: false keeps it in memory only (a figure in the paper neither reads nor writes the reader's lineage)
+export function createLineage({ store = true } = {}) {
   let nodes = [], cur = null;
   const stored = () => {
+    if (!store) return null;
     try {
       const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
       return raw && Array.isArray(raw.nodes) ? raw : null;
@@ -38,7 +40,7 @@ export function createLineage() {
     }
     const withThumb = nodes.filter((n) => n.thumb);
     for (const n of withThumb.slice(0, Math.max(0, withThumb.length - MAX_THUMBS))) delete n.thumb;
-    try { localStorage.setItem(KEY, JSON.stringify({ nodes, cur })); } catch { /* full or blocked */ }
+    if (store) try { localStorage.setItem(KEY, JSON.stringify({ nodes, cur })); } catch { /* full or blocked */ }
   }
 
   // snap: { text, cam, mode }. The same formula and mode as the current node only refreshes its camera.

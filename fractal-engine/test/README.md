@@ -56,3 +56,19 @@ node fractal-engine/test/run-touch.mjs --size 820x1180   # a tablet
 - The browser profile is Playwright's own, so nothing reaches iori's lineage or Metasurface layout;
   `__fe.dry` is still set and lifted only for the check that grows the lineage.
 - GPU-heavy like parity: run it alone.
+
+## The paper, headless
+
+`run-paper.mjs` opens `paper.html` (the engine's documentation, live figures in iframes) and scrolls it
+figure by figure: each must start in view with its engine ready, no error and no NaN in its drawings;
+never more than two run at once; none once the references are in view. Then a tap enters a figure, a
+touch hold edits it, a tap outside covers it; the notation figure draws a typed formula; nothing reaches
+localStorage or a figure's URL.
+
+```bash
+node fractal-engine/test/run-paper.mjs            # desktop 1280×800 (~2 min)
+node fractal-engine/test/run-paper.mjs --phone    # 390×844, mobile Chromium with touch
+node fractal-engine/test/run-paper.mjs --shots    # and design/shots/paper-*.jpg
+```
+
+- GPU load: up to two engines; run it alone, as the other rigs.

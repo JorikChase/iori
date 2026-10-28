@@ -188,3 +188,6 @@ body.grab #field { cursor: grabbing; }
 #labels text { fill: #fff; font: 11px ui-monospace, Menlo, monospace; letter-spacing: 0.02em;
   paint-order: stroke; stroke: #000; stroke-width: 3px; stroke-opacity: 0.45; stroke-linejoin: round; }
 #labels .k { fill-opacity: 0.5; }
+
+/* a figure in the engine's paper (app.js EMBED): the site's menu belongs to the page around it */
+html.embed #site-menu .menuItem { display: none; }

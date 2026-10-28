@@ -127,6 +127,14 @@ const LOOK = {
   loopField: 0.08,      // the field fed in every pass, the loop's secondary input (0 none)
 };
 
+// A figure in the engine's paper (paper.html): the engine as it is, but nothing is stored — the lineage lives
+// for the figure only, the Metasurface starts at its default layout, the URL is never written — and the site's
+// menu stays shut. &view=D [&yaw= &pitch=] frames the origin at distance D; &win=H puts the loop's window
+// on the origin, H high; &open= opens what the figure is about (structure, lyap, graph, shade, drive,
+// surface, cgraph, a comma list)
+const EMBED = new URLSearchParams(location.search).has('embed') ? new URLSearchParams(location.search) : null;
+if (EMBED) document.documentElement.classList.add('embed');
+
 const canvas = document.getElementById('field');
 const state = {
   formula: null,        // the formula on screen — in a collage, the picked piece's (piece 0 when none is)
@@ -159,7 +167,7 @@ const state = {
 
 // ---------- lineage and the structure layer -------------------------------------------------------
 
-const lineage = createLineage();
+const lineage = createLineage({ store: !EMBED });
 const structureSvg = document.getElementById('structure');
 
 function remember() {
@@ -389,6 +397,7 @@ function traceCentre() {
 const SURF_KEY = 'fractal-engine.surface.v1';
 const SURF_HOLD_MS = 450, SURF_OFF_PX = 24;
 const SURF = createSurface(undefined, undefined, (() => {
+  if (EMBED) return null;
   try { return JSON.parse(localStorage.getItem(SURF_KEY) || 'null'); } catch { return null; }
 })());
 let surf = null;       // { x, drag, moved, stroke: { pts, scr, kind }, press, site, bands, drift, add }
@@ -398,7 +407,7 @@ let surfCorner = 0;    // when a corner mark was last pressed (two within 350 ms
 
 function saveSurface() {
   // test code sets __fe.dry: the layout, like the lineage, is iori's
-  if (window.__fe && window.__fe.dry) return;
+  if (EMBED || (window.__fe && window.__fe.dry)) return;
   try { localStorage.setItem(SURF_KEY, JSON.stringify(layoutOf(SURF))); } catch { /* full or blocked: this page only */ }
 }
 
@@ -2399,7 +2408,8 @@ if (siteBox) {
   siteBox.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') touchSeen = performance.now(); });
   siteBox.addEventListener('click', (e) => {
     if (!siteBox.checked) return;   // the site's menu folding
-    if (row) { foldRow(); return; }
+    // a figure in the paper: the mark only folds the row (the site's menu belongs to the paper around it)
+    if (row) { if (EMBED) e.preventDefault(); foldRow(); return; }
     e.preventDefault();
     unfoldRow();
   });
@@ -3398,6 +3408,7 @@ function readHash() {
 
 let hashTimer = 0;
 function writeHash() {
+  if (EMBED) return;
   clearTimeout(hashTimer);
   hashTimer = setTimeout(() => {
     const c = state.cam, r = (x) => +x.toFixed(5);
@@ -4325,6 +4336,11 @@ async function start() {
   }
   if (fromHash && fromHash.cam) state.cam = fromHash.cam;
   if (fromHash) state.mode = fromHash.mode;
+  if (EMBED && EMBED.has('view')) {
+    if (EMBED.has('yaw')) state.cam.yaw = +EMBED.get('yaw');
+    if (EMBED.has('pitch')) state.cam.pitch = +EMBED.get('pitch');
+    frameAt(+EMBED.get('view'));
+  }
   try {
     R = await createRenderer(canvas);
   } catch (e) {
@@ -4346,7 +4362,26 @@ async function start() {
   try { LP = await createLoop(R); } catch (e) { console.error(e); window.__fe.error = String(e.message || e); }
   R.device.lost.then((info) => { console.error('device lost', info.message); document.getElementById('nogpu').hidden = false; });
   remember();
+  if (EMBED) {
+    // the loop's window: on the plane through the origin facing the camera, &win= its half height
+    if (EMBED.has('win')) { placeLoopWindow(); state.loopWin.o = [0, 0, 0]; state.loopWin.hh = +EMBED.get('win'); state.loopSeed = 2; }
+    openEmbed((EMBED.get('open') || '').split(',').filter(Boolean));
+  }
   window.__fe.ready = true;
   requestAnimationFrame(tick);
+}
+
+// what a paper figure opens with (the toggles' own actions, so it looks as if the reader had pressed them)
+function openEmbed(keys) {
+  for (const k of keys) {
+    if (k === 'structure') toggleStructure();
+    else if (k === 'lyap') { state.look.lyapMix = 1; touched(); }
+    else if (k === 'graph' || k === 'shade' || k === 'drive') {
+      if (k === 'shade') panes.drive = false;
+      if (k === 'drive') panes.shade = false;
+      if (state.collage && k !== 'graph') { if (k === 'shade') drillInto('C'); else openCollageGraph(); } else openGraph();
+    } else if (k === 'surface') openSurface();
+    else if (k === 'cgraph' && state.collage) openCollageGraph();
+  }
 }
 start();

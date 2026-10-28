@@ -841,6 +841,15 @@
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.6
+    },
+    "fractal-engine/paper.html": {
+      "title": "The Fractal Engine, Tool by Tool",
+      "description": "The Fractal Engine's documentation as a paper: every tool, from the notation to collages, explained in a few lines with the live engine running under it.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
+      "priority": 0.5
     }
   }
 }

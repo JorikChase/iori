@@ -68,6 +68,7 @@ import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
 import { TOGGLES, toggleLayout, drawToggles } from './ui/toggles.js';
+import { LABELS, KEYS, LABEL_MS, labelOf, paramLabel, joinLabel, drawLabel } from './ui/labels.js';
 import { isCollage, isCollageText, normCollage, formatCollage, parseAny, formatAny, hashCollage, collageAt, toPiece, repFold, MAX_PIECES, KERNELS, JOIN_OPS, PLACE, REP, JOIN, collageTarget } from './core/collage.js';
 import * as CE from './core/collage-edit.js';
 import { collageStructure, lerpCollage, mutateCollage, collageDistancePx, metricId, metricValue, withMetric } from './core/collage-breed.js';
@@ -943,7 +944,7 @@ function drivePress(x, y, node, port, link) {
   press.timer = setTimeout(() => {
     if (!gv || gv.dvPress !== press || press.moved || node) return;
     const at = port || (link ? (link.bind ? { bind: link.bind } : { node: link.to, port: link.port }) : null);
-    gv.picker = { at: pickerAt(x, y), from: [x, y], items: RING_TYPES.map((t) => ({ glyph: typeGlyph(t), act: () => DE.addDriver(state.formula, t, at) })), sel: -1 };
+    gv.picker = { at: pickerAt(x, y), from: [x, y], items: RING_TYPES.map((t) => ({ glyph: typeGlyph(t), lab: t === 'math' ? 'math' : null, act: () => DE.addDriver(state.formula, t, at) })), sel: -1 };
     drawGraphNow();
   }, GRAPH_HOLD_MS);
   gv.dvPress = press;
@@ -1127,12 +1128,12 @@ function openPicker(press) {
   const q = press.node;
   if (q && q.field) {
     // the fields, and the plus of another species
-    const items = PICK_FIELDS.map((name) => ({ glyph: getOp(name).glyph, act: () => G.setField(state.formula, q.id, name) }));
+    const items = PICK_FIELDS.map((name) => ({ glyph: getOp(name).glyph, lab: name, act: () => G.setField(state.formula, q.id, name) }));
     items.unshift({ glyph: 'plus', act: () => G.addSpecies(state.formula, q.id) });
     gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
   } else if (press.edge) {
     const e = press.edge, scheduled = !e.chain.includes('.');
-    const items = PICK_OPS.map((name) => ({ glyph: getOp(name).glyph, act: () => G.insert(state.formula, e.chain, e.index, name) }));
+    const items = PICK_OPS.map((name) => ({ glyph: getOp(name).glyph, lab: name, act: () => G.insert(state.formula, e.chain, e.index, name) }));
     // the fork first, at twelve o'clock: split the chain here
     if (scheduled) items.unshift({ glyph: 'fork', act: () => G.fork(state.formula, e.chain, e.index) });
     gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
@@ -1578,12 +1579,12 @@ function shadeDown(x, y) {
     if (!gv || gv.shPress !== press || press.moved) return;
     const at = port || (link ? { node: link.to, port: link.port } : null);
     if (node && node.ramp) {
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: Object.keys(RAMP_PRESETS).map((name) => ({ colours: presetColours(name), act: () => SE.applyPreset(state.formula, node.id, name) })), sel: -1 };
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: Object.keys(RAMP_PRESETS).map((name) => ({ colours: presetColours(name), lab: LABELS[`preset.${name}`] || name, act: () => SE.applyPreset(state.formula, node.id, name) })), sel: -1 };
     } else if (!node) {
       // only what fits the held input: colours on a colour link, numbers on a number link
       const want = SE.wantsAt(state.formula, at);
       const types = SHADE_TYPES.filter((t) => !want || (want === 'colour') === (t === 'ramp' || t === 'mixc'));
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
     }
     drawGraphNow();
   }, GRAPH_HOLD_MS);
@@ -2158,7 +2159,7 @@ function cvDown(x, y) {
       const R0 = naturalRadius(c.pieces[i].f), D = REP_DEFAULTS(R0);
       cv.picker = { at: pickerAt(x, y), from: [x, y], items: [{ glyph: 'rep.none', act: (g) => CE.setRep(g, i, null) }, ...['grid', 'mirror', 'polar'].map((kind) => ({ glyph: `rep.${kind}`, act: (g) => CE.setRep(g, i, kind, D[kind]) }))], sel: -1 };
     } else if (inRow && !dnode) {
-      cv.picker = { at: pickerAt(x, y), from: [x, y], items: COLLAGE_DRIVERS.map((t) => ({ glyph: typeGlyph(t), act: (g) => addCollageDriver(g, t) })), sel: -1 };
+      cv.picker = { at: pickerAt(x, y), from: [x, y], items: COLLAGE_DRIVERS.map((t) => ({ glyph: typeGlyph(t), lab: t === 'math' ? 'math' : null, act: (g) => addCollageDriver(g, t) })), sel: -1 };
     }
     drawCvNow();
   }, GRAPH_HOLD_MS);
@@ -2404,6 +2405,215 @@ if (siteBox) {
   });
 }
 addEventListener('keyup', () => { if (row) drawTogglesNow(); });
+
+// ---------- hover labels (DESIGN.md "Hover labels") -------------------------------------------------
+// A mouse resting still on a control of a graph, the toggle row or the structure layer's rows, or a
+// finger held on one, names it (ui/labels.js: the words, the drawing). The names are read off the same
+// hit tests the presses use, in the same order, so a label names what a press there would act on. A
+// label only shows: it never takes a press, and a hold does exactly what it did before it.
+const labelSvg = document.getElementById('labels');
+let lab = null;          // { pid, x, y, touch, timer, shown }: a pointer at rest, or waiting to be
+const labelFingers = new Set();
+
+// what a press would be doing now: a drag shows its value, not a name
+function labelBusy() {
+  const g = gv || cv;
+  if (!g) return false;
+  if (gt && gt.multi) return true;
+  return ['drag', 'param', 'band', 'pull', 'dvDrag', 'dvParam', 'shDrag', 'shParam', 'letter'].some((k) => g[k]) || !!(g.press && g.press.moved);
+}
+
+const labAt = (text, x, y, r = 8, place) => (text ? { text, x, y, r, place } : null);
+// a dimension line: named above its middle (where its value shows while held)
+const lineLabel = (h, name) => labAt(h.band ? `${name} ${LABELS['graph.band']}` : name, (h.x1 + h.x2) / 2, h.y, 4, 'above');
+const onLine = (h, x, y, m = 7) => x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y - h.y) < m;
+
+// the ring of choices under a held press: the item it points at
+function pickerLabel(k, x, y) {
+  if (!k) return null;
+  const [cx, cy] = k.at;
+  if (Math.hypot(x - cx, y - cy) < 30) return null;
+  const n = k.items.length, a = Math.atan2(y - cy, x - cx), i = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
+  const it = k.items[i], ai = (i / n) * Math.PI * 2 - Math.PI / 2;
+  return labAt(it.lab || (it.join ? joinLabel(it.join) : labelOf(it.glyph)), cx + Math.cos(ai) * PICK_R, cy + Math.sin(ai) * PICK_R, 14);
+}
+
+// the drivers' part of a graph (a formula's lane and row, or a collage's row): the selected driver's
+// switches and lines, its dots, its nodes, links, the bindings' hairlines
+function driveLabelAt(V, x, y, selId, binds, handlesOf) {
+  const dsel = selId && V.byId.get(selId);
+  if (dsel) for (const h of handlesOf(dsel)) {
+    if (h.glyph && Math.hypot(x - h.gx, y - h.y) < 11) return labAt(labelOf(h.glyph) || h.key, h.gx, h.y, 7);
+    if (h.line && onLine(h, x, y)) return lineLabel(h, paramLabel(dsel.type, h.key));
+  }
+  const from = driveOutPortAt(V, x, y);
+  if (from) { const [px, py] = V.outPort(from); return labAt(LABELS['port.out'], px, py, 4); }
+  const node = driveNodeAt(V, x, y);
+  if (node) return labAt(labelOf(node.glyph) || node.type, node.x, node.y, V.g / 2);
+  const port = driveInPortAt(V, x, y);
+  if (port) { const q = V.byId.get(port.node), ports = DE.driverPorts(q.type), [px, py] = V.inPort(q, ports.indexOf(port.port), ports.length); return labAt(ports.length > 1 ? `${LABELS['port.in']} ${port.port}` : LABELS['port.in'], px, py, 4); }
+  const link = driveLinkAt(V, x, y, binds || []);
+  if (link) return labAt(link.bind ? LABELS['graph.binding'] : LABELS['shade.link'], x, y, 6);
+  return null;
+}
+
+// the shading frame: the selected ramp's editor, the selected node's lines, the frame's nodes and dots
+function shadeLabelAt(x, y) {
+  const S = gv.P.sh, sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
+  if (gv.hue && Math.hypot(x - gv.hue.x, y - gv.hue.y) < RING_R + 10) return labAt(LABELS['shade.hue'], gv.hue.x, gv.hue.y, RING_R);
+  if (sel && sel.ramp) {
+    const E = editorLayout(sel, innerWidth, innerHeight, S.frame);
+    const tg = E.toggles.find((t) => Math.hypot(x - t.x, y - t.y) < 11);
+    if (tg) return labAt(labelOf(tg.glyph), tg.x, tg.y, 8);
+    const h = shadeLines().find((r) => onLine(r, x, y));
+    if (h) return lineLabel(h, paramLabel('ramp', h.key));
+    const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y + E.h - 2 && y < E.y + E.h + 22);
+    if (st) return labAt(LABELS['shade.stop'], st.x, st.y + 6, 6);
+    if (x >= E.x && x <= E.x + E.w && y >= E.y && y <= E.y + E.h) return labAt(LABELS['shade.bar'], E.x + E.w, E.y + E.h / 2, 2);
+  }
+  if ((sel && !sel.ramp) || gv.shSel === 'out') {
+    const h = shadeLines().find((r) => Math.abs(y - r.y) < 9 && x >= r.x1 - (r.cycle ? 24 : 6) && x <= r.x2 + 6);
+    if (h && h.cycle && x < h.x1 - 6) return labAt(labelOf(h.glyph), h.x1 - 14, h.y, 7);
+    if (h) return lineLabel(h, paramLabel(sel ? sel.type : 'out', h.key));
+  }
+  if (!inFrame(S, x, y)) return null;
+  if (S.empty) {
+    const [fx0, fy0, fx1, fy1] = S.frame, cx = (fx0 + fx1) / 2, cy = (fy0 + fy1) / 2 - 8;
+    return Math.hypot(x - cx, y - cy) < 16 ? labAt(LABELS['shade.start'], cx, cy, 8) : null;
+  }
+  const from = shadeOutPortAt(S, x, y);
+  if (from) { const [px, py] = S.outPort(from); return labAt(LABELS['port.out'], px, py, 4); }
+  const node = shadeNodeAt(S, x, y);
+  if (node) return labAt(labelOf(node.ramp ? 'shade' : node.glyph), node.x, node.y, node.hw);
+  const port = shadeInPortAt(S, x, y);
+  if (port && port.node === 'out') { const o = S.outs.find((r) => r.port === port.port); return labAt(labelOf(`out.${port.port}`), o.x, o.y, 8); }
+  if (port) { const q = S.byId.get(port.node), ports = SE.portsOf(q.type), [px, py] = S.inPort(q, ports.indexOf(port.port), ports.length); return labAt(ports.length > 1 ? `${LABELS['port.in']} ${port.port}` : LABELS['port.in'], px, py, 4); }
+  const link = shadeLinkAt(S, x, y);
+  return link ? labAt(LABELS['shade.link'], x, y, 6) : null;
+}
+
+// the formula's graph, in graphDown's order
+function graphLabelAt(x, y) {
+  const P = gv.P;
+  if (gv.picker) return pickerLabel(gv.picker, x, y);
+  const sh = shadeShown() ? shadeLabelAt(x, y) : null;
+  if (sh) return sh;
+  const dv = driveShown() ? driveLabelAt(P.dv, x, y, gv.dvSel, [], driverHandles) : null;
+  if (dv) return dv;
+  if (state.pick === 'C') return null;
+  const sel = gv.selected && P.items.find((q) => q.id === gv.selected);
+  if (sel) { const h = paramHandles(sel).find((r) => onLine(r, x, y)); if (h) return lineLabel(h, paramLabel(sel.n.op, h.key)); }
+  const SL = scheduleLayout(P), near = (q, r = 10) => Math.hypot(x - q.x, y - (q.y - 4)) < r;
+  if (near(SL.chainPlus, 12)) return labAt(LABELS['graph.chainPlus'], SL.chainPlus.x, SL.chainPlus.y, 7);
+  if (near(SL.plus)) return labAt(LABELS['graph.letterPlus'], SL.plus.x, SL.plus.y - 4, 6);
+  const letter = SL.letters.find((q) => near(q, 7));
+  if (letter) return labAt(`${LABELS['graph.letter']} ${letter.ch}`, letter.x, letter.y - 4, 6);
+  if (Math.abs(y - (SL.count.y - 4)) < 12 && Math.abs(x - SL.count.x) < 22) return labAt(LABELS['graph.count'], SL.count.x + 8, SL.count.y - 4, 8);
+  const g = Math.max(10, Math.min(26, P.u * 0.5));
+  const node = graphNodeAt(P, x, y);
+  // (clear of a driven op's notch on the glyph's right)
+  if (node) return labAt(node.n.op, node.x, node.y, g * 0.85);
+  // an edge, or the plus drawn beside it
+  const edge = graphEdgeAt(P, x, y) || P.edges.find((e) => Math.hypot((e.x1 + e.x2) / 2 + 14 - x, (e.y1 + e.y2) / 2 - y) < 8);
+  if (edge) return labAt(LABELS['graph.edge'], (edge.x1 + edge.x2) / 2 + 14, (edge.y1 + edge.y2) / 2, 6);
+  const bl = driveShown() && driveLinkAt(P.dv, x, y, gv.binds || []);
+  return bl && bl.bind ? labAt(LABELS['graph.binding'], x, y, 6) : null;
+}
+
+// a collage's graph, in cvDown's order
+function cvLabelAt(x, y) {
+  const PC = cv.PC, V = PC.dv, c = state.collage;
+  if (cv.picker) return pickerLabel(cv.picker, x, y);
+  const pl = cvPlus(PC);
+  if (pl && Math.hypot(x - pl[0], y - pl[1]) < 18) return labAt(LABELS['cl.plus'], pl[0], pl[1], 12);
+  const dv = driveLabelAt(V, x, y, cv.dvSel, cv.binds, cvDriverHandles);
+  if (dv) return dv;
+  const h = !cv.dvSel && cvLines().find((r) => onLine(r, x, y));
+  if (h) {
+    const [path] = h.to.split('.'), pc = path[0] === 'P' ? c.pieces[+path.slice(1)] : null;
+    return lineLabel(h, paramLabel(path[0] === 'J' ? 'join' : h.key in pc.place ? 'place' : pc.rep.kind, h.key));
+  }
+  const sk = collageSeamAt(PC, x, y, pxAtFocus()), k = collageJoinAt(PC, x, y);
+  if (sk >= 0 && k < 0) {
+    const L = seamLine(PC, PC.joins[sk], pxAtFocus());
+    return lineLabel(L, paramLabel('join', c.joins[sk].op === 'morph' ? 'w' : 'r'));
+  }
+  if (k >= 0) { const q = PC.joins[k]; return labAt(joinLabel(c.joins[k]), q.x, q.y, PC.g * 0.6); }
+  const i = collagePieceAt(PC, x, y);
+  if (i >= 0) {
+    const p = PC.pieces[i], q = graphNodeAt(p.P, x, y);
+    if (q) return labAt(q.n.op, q.x, q.y, Math.max(10, Math.min(26, p.P.u * 0.5)) * 0.6);
+    return labAt(`${LABELS['cl.piece']} ${i + 1}`, p.zone[2], (p.zone[1] + p.zone[3]) / 2, 2);
+  }
+  return collageOutAt(PC, x, y) ? labAt(LABELS['cl.out'], PC.out.x, PC.out.y, PC.g * 0.5) : null;
+}
+
+// the page's own elements: the toggle row, the structure layer's strip, key row and exports
+function domLabelAt(x, y) {
+  const el = document.elementFromPoint(x, y), d = el && el.dataset;
+  if (!d) return null;
+  const id = d.toggle ? (d.toggle === 'mode' ? `tg.mode.${state.mode}` : `tg.${d.toggle}`) : d.key ? `key.${d.key}` : d.export ? `ex.${d.export}` : d.graph ? 'st.graph' : null;
+  if (!id || !LABELS[id]) return null;
+  const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  // the row along the top: below its glyphs, not over the next one
+  // (the strip: over its top edge)
+  if (d.graph) return { id, text: LABELS[id], key: KEYS[id], x: cx, y: r.top, r: 0, place: 'above' };
+  const place = d.toggle && Math.abs(cy - rowAnchor()[1]) < 4 ? 'below' : null;
+  return { id, text: LABELS[id], key: KEYS[id], x: cx, y: cy, r: Math.min(r.width, r.height) * 0.35, place };
+}
+
+// the label for a point on screen (a finger's: placed above it, without the key)
+function labelAt(x, y, touch) {
+  let L = domLabelAt(x, y);
+  if (!L && (gv || cv) && !labelBusy() && !(gv && gv.from)) {
+    const k = gview.k, v = gv ? graphLabelAt((x - gview.tx) / k, (y - gview.ty) / k) : cvLabelAt((x - gview.tx) / k, (y - gview.ty) / k);
+    if (v) L = { ...v, x: v.x * k + gview.tx, y: v.y * k + gview.ty, r: v.r * k };
+  }
+  if (!L) return null;
+  return touch ? { ...L, key: null, touch: true, fx: x, fy: y } : L;
+}
+
+function showLabel() {
+  if (!lab) return;
+  lab.shown = labelAt(lab.x, lab.y, lab.touch);
+  drawLabel(labelSvg, lab.shown, innerWidth, innerHeight);
+}
+function hideLabel() {
+  if (!lab) return;
+  clearTimeout(lab.timer);
+  if (lab.shown) drawLabel(labelSvg, null);
+  lab = null;
+}
+// a pointer pressed or moved: whatever it named goes, and it is named again once it rests
+function restLabel(e) {
+  const touch = e.pointerType === 'touch';
+  if (lab && lab.pid === e.pointerId && Math.hypot(e.clientX - lab.x, e.clientY - lab.y) <= (touch ? TAP_SLOP : 3)) return;
+  hideLabel();
+  lab = { pid: e.pointerId, x: e.clientX, y: e.clientY, touch, shown: null };
+  lab.timer = setTimeout(showLabel, LABEL_MS);
+}
+// on the window, before the page's own handlers (some stop the event): a label never changes a press
+addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') { hideLabel(); restLabel(e); return; }
+  labelFingers.add(e.pointerId);
+  // a second finger is a gesture, not a hold
+  if (labelFingers.size > 1) hideLabel(); else restLabel(e);
+}, true);
+addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'touch') { restLabel(e); return; }
+  if (labelFingers.size === 1 && labelFingers.has(e.pointerId)) restLabel(e);
+}, true);
+const liftLabel = (e) => {
+  if (e.pointerType === 'touch') { labelFingers.delete(e.pointerId); hideLabel(); return; }
+  hideLabel();
+  if (e.type === 'pointerup') restLabel(e);
+};
+addEventListener('pointerup', liftLabel, true);
+addEventListener('pointercancel', liftLabel, true);
+addEventListener('pointerout', (e) => { if (!e.relatedTarget && e.pointerType !== 'touch') hideLabel(); }, true);
+addEventListener('wheel', hideLabel, { capture: true, passive: true });
+addEventListener('keydown', hideLabel, true);
+addEventListener('resize', hideLabel);
 
 // ---------- input -----------------------------------------------------------------------------------
 
@@ -3966,7 +4176,9 @@ window.__fe = {
       })(),
       cgraph: cv && { sel: cv.sel, k: gview.k, plus: (() => { const p = cvPlus(cv.PC); return p && [p[0] * gview.k + gview.tx, p[1] * gview.k + gview.ty]; })() },
       // the overlay toggles: out or not, each one's state, the graph's panes, the surface's add mode
-      toggles: { row: !!row, on: Object.fromEntries(TOGGLES.map((k) => [k, toggleOn(k)])), panes: { ...panes }, add: surf ? surf.add : null } };
+      toggles: { row: !!row, on: Object.fromEntries(TOGGLES.map((k) => [k, toggleOn(k)])), panes: { ...panes }, add: surf ? surf.add : null },
+      // the hover label showing, and where it is drawn
+      label: lab && lab.shown ? (() => { const t = labelSvg.querySelector('text'), b = t && t.getBBox(); return { text: lab.shown.text, key: lab.shown.key || null, box: b && [b.x, b.y, b.width, b.height] }; })() : null };
   },
   grabDrag: (dx) => { if (grab) editGrab(grab.x0 + dx); return grab && grab.ranked[grab.k]; },
   grabPass: (step = 1) => { if (grab) passAttention(step, grab.x0); return grab && grab.ranked[grab.k]; },
@@ -3991,6 +4203,30 @@ window.__fe = {
   },
   get surfaceThumbs() { return SURF.sites.filter((s) => s.thumb).length; },
   graph: (on = true) => { if (on) openGraph(); else closeGraph(); return !!gv; },
+  // the hover label a point on screen would get (touch: a finger's), and every control of the open graph
+  // named from where it is drawn ({ kind, text })
+  labelAt: (x, y, touch = false) => { const L = labelAt(x, y, touch); return L && { text: L.text, key: L.key || null }; },
+  labelSweep() {
+    const out = [], name = (kind, x, y) => { const L = labelAt(x * gview.k + gview.tx, y * gview.k + gview.ty, false); out.push({ kind, text: L ? L.text : null }); };
+    if (gv) {
+      const P = gv.P, SL = scheduleLayout(P);
+      for (const q of P.items) if (q.kind === 'op') name('op', q.x, q.y);
+      for (const e of P.edges) name('edge', (e.x1 + e.x2) / 2 + 14, (e.y1 + e.y2) / 2);
+      SL.letters.forEach((q) => name('letter', q.x, q.y - 4));
+      name('count', SL.count.x, SL.count.y - 4); name('letterPlus', SL.plus.x, SL.plus.y - 4); name('chainPlus', SL.chainPlus.x, SL.chainPlus.y);
+      if (shadeShown() && !P.sh.empty) { for (const q of P.sh.items) name('shade', q.x, q.y); for (const o of P.sh.outs) name('shadeOut', o.x, o.y); }
+      if (driveShown()) for (const q of P.dv.items) name('driver', q.x, q.y);
+    }
+    if (cv) {
+      const PC = cv.PC, pl = cvPlus(PC);
+      PC.joins.forEach((q) => name('join', q.x, q.y));
+      PC.pieces.forEach((p) => { name('piece', p.zone[0] + 2, p.zone[3] - 2); for (const q of p.P.items) if (q.kind === 'op') name('pieceOp', q.x, q.y); });
+      if (pl) name('plus', pl[0], pl[1]);
+      name('out', PC.out.x, PC.out.y);
+      for (const q of PC.dv.items) name('driver', q.x, q.y);
+    }
+    return out;
+  },
   get shadeView() {
     if (!gv) return null;
     const S = gv.P.sh;

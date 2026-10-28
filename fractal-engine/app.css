@@ -182,3 +182,9 @@ body.grab #field { cursor: grabbing; }
 /* the Metasurface's "add a piece" plus, and the collage graph's */
 #grab .ms .add path, #grab .ms .add circle { opacity: 0.9; }
 :is(#structure, #grab) .cg .pl path, :is(#structure, #grab) .cg .pl circle { opacity: 0.8; }
+
+/* hover labels (ui/labels.js): a name beside what the pointer rests on — white, a faint dark halo, no box */
+#labels { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 3; }
+#labels text { fill: #fff; font: 11px ui-monospace, Menlo, monospace; letter-spacing: 0.02em;
+  paint-order: stroke; stroke: #000; stroke-width: 3px; stroke-opacity: 0.45; stroke-linejoin: round; }
+#labels .k { fill-opacity: 0.5; }

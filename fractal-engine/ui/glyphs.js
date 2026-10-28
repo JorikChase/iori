@@ -1,5 +1,5 @@
 // One glyph per op, drawn in a 24×24 box with hairlines only. They stand in for words: the UI has no
-// labels anywhere. Ids match `glyph` in core/ops.js.
+// labels, only names on demand (ui/labels.js, keyed by these ids). Ids match `glyph` in core/ops.js.
 
 export const GLYPHS = {
   translate: 'M3 12h16M15 8l4 4-4 4',

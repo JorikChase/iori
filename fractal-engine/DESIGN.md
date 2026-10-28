@@ -1575,3 +1575,50 @@ and `touch-desktop-toggles-*.jpg`.
 - In add mode a walk or field stroke (resting fingers, Shift, Option) still plays its formulas as it
   always did. Only taps and drags add.
 - The row has no glyph for replay, drift or the exports (they stay in the structure layer).
+
+## Hover labels, 2026-10-28
+
+The graphs are glyphs with no text, so iori asked for names on demand: *"hover label text on mouse steady
+or finger holding on button elements in the node graph"*.
+
+- **When.** A mouse resting still (within 3 px) for 400 ms on a control, or a finger held still (within
+  the tap slop, 12 px) for 400 ms. A move, a press, the wheel or a key takes the label away. A second
+  finger takes it away too, since two fingers are a gesture, not a hold. A drag in progress (a node, a
+  value, a band, a link) shows its value, not a name.
+- **What.** Every control a press acts on:
+  - the formula's graph: op nodes, the edges and their plus, the schedule letters, the count, both pluses,
+    the selected op's lines;
+  - the shading frame: nodes, ports, links, the outputs, the ramp editor's toggles, lines, stops and bar,
+    the hue ring;
+  - the drivers: nodes, ports, links, bindings, the selected driver's switches and lines, the bands;
+  - the collage graph: pieces, their ops, joins (op and kernel: "smooth union · quad"), seam lines,
+    placement lines, the plus, the output;
+  - the rings of choices (ops, fields, driver and node types, ramp presets, joins, repetitions): the item
+    pointed at;
+  - the overlay toggles, and the structure layer's strip, key row and exports.
+
+  The name is one to three words. An op is its notation ("fold.box"). On a desktop the key follows,
+  dimmer, where there is one (graph G, structure Tab, Lyapunov L, the mode P, the Metasurface M, replay R,
+  drift Space, the still ⌘S).
+- **One table.** `ui/labels.js` holds every word: `LABELS` (keyed by glyph id, or a short id of its own),
+  `KEYS`, `PARAMS` for the dimension lines (`<op>.<key>` first, then the key alone), and `joinLabel`. The
+  documentation uses the same names.
+- **Read off the presses' own hit tests.** `graphLabelAt`, `shadeLabelAt`, `driveLabelAt`, `cvLabelAt` and
+  `pickerLabel` in app.js test in the same order as `graphDown`, `shadeDown`, `driveDown` and `cvDown`, so
+  a label names what a press at that point would act on. The toggles and the structure layer's rows are
+  found by their `data-*` attributes under the point. Labels are listened for on the window in the capture
+  phase and only draw. They never take a press, so a hold does exactly what it did before: a node's
+  thumbnail, the ring of ops at 300 ms, the grab at 280 ms and the breed ring at 1.2 s on the field, and
+  fling-delete.
+- **Look.** 11 px mono, white, over a faint dark halo (`paint-order: stroke`), no box, in its own layer
+  (`#labels`, above the toggles). With a mouse it sits right of the element (left where the screen ends).
+  It sits above the middle of a dimension line, where the value shows while held, and below a glyph of the
+  toggle row. With a finger it sits about 55 px above the finger, beside the hover thumbnail (which is
+  left of the node), never over it. It is always kept on screen.
+
+**Verified:** `node --test` 83/83; `run-parity.mjs` exit 0; `run-touch.mjs` 37/37 at 390×844 and `--desktop`
+14/14, no page errors. Shots: `design/shots/touch-labels-hold.jpg`, `touch-desktop-labels-*.jpg`. The rig gains `labels:` checks (every control of a shaded, driven,
+two-chain formula and of a two-piece collage named; the toggle and key rows; a finger hold names the op
+above the finger beside its thumbnail and selects as before; a second finger and a field hold show none
+while the grab and ring still open), and `--desktop` the same sweep plus resting, a tremor, a move and the
+toggle row with its key.

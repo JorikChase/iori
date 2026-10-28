@@ -406,6 +406,59 @@ await check('surface: two-finger tap closes', async () => {
   return { ok: !!a.surf && !b.surf, note: `open ${!!a.surf}, after ${!!b.surf}` };
 });
 
+const markAt = () => fe(() => { const r = document.querySelector('#site-menu .menuToggle input').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+const glyphAt = (k) => fe((k) => { const e = document.querySelector(`#toggles [data-toggle="${k}"]`); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, k);
+const tg = async () => (await input()).toggles;
+const press = async ([x, y]) => { if (DESK) await page.mouse.click(x, y); else await T.tap([[x, y]]); await sleep(250); };
+// ---- hover labels (DESIGN.md "Hover labels"): a finger held, or the mouse at rest, names the control -------
+// a shaded, driven formula with two chains: every kind of control the formula's graph has
+const LABEL_FORMULA = async () => fe(async () => {
+  const F = await import('./core/index.js'), S = await import('./core/shade.js');
+  const f = { ...F.normalize(F.parse('abs · sort · scale 3 · + -2 -2 0 | fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×9 AAB bail=100')),
+    shade: { nodes: [{ id: 'c', type: 'col' }, { id: 'r1', type: 'ramp', in: { v: 'c' }, p: S.rampPreset('fire') }], out: { color: 'r1' } },
+    drive: { nodes: [{ id: 'r', type: 'r', in: {}, p: {} }, { id: 'tm', type: 'time', in: {}, p: { rate: 0.5, phase: 0, wave: 'sine' } }], bind: [{ to: 'A2.s', from: 'r', lo: 2.9, hi: 3.1 }] } };
+  window.__fe.graph(false); window.__fe.collage(null);
+  window.__fe.setFormula(F.format(F.normalize(f)));
+});
+const TWO = '{ bulb 8 · +c ×10 bail=2 } at .6 0 0 ∪ .3 { fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 } at -.6 0 0 size .25';
+// every control of the open graph named, ops by their notation
+async function sweep() {
+  const s = await fe(() => window.__fe.labelSweep());
+  const bad = s.filter((q) => !q.text), kinds = [...new Set(s.map((q) => q.kind))];
+  return { s, bad, kinds };
+}
+async function labelChecks(pre) {
+  await check(`${pre}labels: every graph control named`, async () => {
+    await LABEL_FORMULA(); await settle(6);
+    await fe(() => window.__fe.graph(true)); await sleep(500);
+    const g = await sweep();
+    const ops = g.s.filter((q) => q.kind === 'op').map((q) => q.text);
+    await fe(() => window.__fe.graph(false));
+    await fe((t) => window.__fe.collage(t), TWO); await settle(6);
+    await fe(() => window.__fe.graph(true)); await sleep(400);
+    const c = await sweep(), join = c.s.find((q) => q.kind === 'join');
+    await fe(() => { window.__fe.graph(false); window.__fe.collage(null); });
+    const want = ['op', 'edge', 'letter', 'count', 'letterPlus', 'chainPlus', 'shade', 'shadeOut', 'driver'], cwant = ['join', 'piece', 'pieceOp', 'plus', 'out'];
+    const missing = [...want.filter((k) => !g.kinds.includes(k)), ...cwant.filter((k) => !c.kinds.includes(k))];
+    return { ok: !g.bad.length && !c.bad.length && !missing.length && ops.includes('fold.box') && ops.includes('+c') && join && join.text === 'smooth union · quad',
+      note: `${g.s.length} + ${c.s.length} controls, unnamed ${JSON.stringify([...g.bad, ...c.bad].slice(0, 4))}${missing.length ? ', no ' + missing : ''}; ops ${ops.join(' ')}; join "${join && join.text}"` };
+  });
+  await check(`${pre}labels: toggle row and key row named`, async () => {
+    if (!(await tg()).row) await press(await markAt());
+    const names = [];
+    for (const k of ['graph', 'structure', 'mode']) { const at = await glyphAt(k); names.push(at && (await fe(([x, y, t]) => window.__fe.labelAt(x, y, t), [...at, !DESK]))); }
+    await fe(() => window.__fe.graph(false));
+    // the structure layer's row (on touch) and exports
+    if (!(await input()).structure) await page.keyboard.press('Tab').catch(() => {});
+    await sleep(200);
+    const keys = await fe(() => [...document.querySelectorAll('#structure [data-key], #structure [data-export]')].map((e) => { const r = e.getBoundingClientRect(); return window.__fe.labelAt(r.x + r.width / 2, r.y + r.height / 2); }));
+    if ((await input()).structure) await page.keyboard.press('Tab').catch(() => {});
+    const ok = names.every(Boolean) && names[0].text === 'graph' && /mode$/.test(names[2].text) && keys.length >= 4 && keys.every(Boolean)
+      && (DESK ? names[0].key === 'G' && names[1].key === 'Tab' : names.every((n) => !n.key));
+    return { ok, note: `${names.map((n) => n && n.text + (n.key ? ` [${n.key}]` : '')).join(', ')}; structure ${keys.map((n) => n && n.text).join(', ')}` };
+  });
+}
+
 // ---- the graph by finger -----------------------------------------------------------------------------
 const openGraph = async (text) => {
   if (text) { await fe((t) => window.__fe.setFormula(t), text); await settle(6); }
@@ -508,6 +561,43 @@ await check('graph: two-finger tap = Esc', async () => {
   return { ok: a.selected === q.id && b.graph && b.graph.selected === null && !c.graph, note: `selected ${a.selected}, then ${b.graph && b.graph.selected}, then closed ${!c.graph}` };
 });
 
+await labelChecks('');
+await check('labels: finger hold names it, thumbnail kept', async () => {
+  await LABEL_FORMULA(); await settle(6);
+  await fe(() => window.__fe.graph(true)); await sleep(500);
+  // (the last op of chain A: the thumbnail bypasses it, and the binding on A2 survives that)
+  const g = (await input()).graph, q = g.nodes[3];
+  await T.down(1, q.x, q.y); await sleep(250);
+  const early = (await input()).label;
+  await sleep(550);
+  const a = await input();
+  const thumb = await fe(() => { const e = document.querySelector('#grab image'); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
+  await shot('labels-hold');
+  await T.upAll(); await sleep(200);
+  const b = await input();
+  const L = a.label, box = L && L.box;
+  const apart = box && thumb && (box[0] > thumb[0] + thumb[2] || box[0] + box[2] < thumb[0] || box[1] > thumb[1] + thumb[3] || box[1] + box[3] < thumb[1]);
+  // a hold selects as a tap does, and nothing more
+  return { ok: !early && L && L.text === 'translate' && !L.key && box[1] + box[3] < q.y - 20 && a.graph.thumb && apart && !b.label && b.graph.selected === q.id && !b.graph.picker,
+    note: `at 250 ms ${early && early.text}; "${L && L.text}" above the finger ${box && (q.y - box[1] - box[3]) | 0} px, thumbnail ${a.graph.thumb} apart ${apart}; gone on release ${!b.label}, selected ${b.graph.selected}` };
+});
+await check('labels: second finger, field hold', async () => {
+  if (!(await input()).graph) { await fe(() => window.__fe.graph(true)); await sleep(500); }
+  const q = (await input()).graph.nodes[0];
+  await T.down(1, q.x, q.y); await sleep(100); await T.down(2, q.x - 120, q.y + 120); await sleep(600);
+  const a = await input();
+  await T.upAll(); await sleep(200);
+  await fe(() => { window.__fe.graph(false); window.__fe.setFormula('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100'); window.__fe.setCamera([-1.979, -1.43, -2.071], -1.156, -0.2); });
+  await settle(20);
+  // the field (the arrival's room): nothing to name, and the ring still opens (as 'ring: hold' waits for it)
+  await T.down(1, cx, cy); await sleep(800);
+  const b = await input();
+  await sleep(1800);
+  const c = await input();
+  await T.upAll(); await sleep(300);
+  return { ok: !a.label && !b.label && !!b.grab && !!c.ring && !c.label, note: `two fingers label ${a.label && a.label.text}; field hold label ${b.label && b.label.text}, grab ${!!b.grab}, ring ${!!c.ring}` };
+});
+
 // ---- the collage's gizmo by finger, its snap by a resting finger -----------------------------------------
 await check('gizmo: finger drag, rest snaps', async () => {
   if ((await input()).structure) { await T.tap([[20, H - 20]]); await sleep(200); }
@@ -534,10 +624,6 @@ await check('gizmo: finger drag, rest snaps', async () => {
 });
 
 // ---- the overlay toggles (DESIGN.md "Overlay toggles"): the menu mark's row, by finger or mouse -----------
-const markAt = () => fe(() => { const r = document.querySelector('#site-menu .menuToggle input').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
-const glyphAt = (k) => fe((k) => { const e = document.querySelector(`#toggles [data-toggle="${k}"]`); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, k);
-const tg = async () => (await input()).toggles;
-const press = async ([x, y]) => { if (DESK) await page.mouse.click(x, y); else await T.tap([[x, y]]); await sleep(250); };
 // the mark, then the glyph (the row is out for one choice)
 async function pressToggle(k) {
   if (!(await tg()).row) await press(await markAt());
@@ -642,6 +728,33 @@ if (DESK) await check('desktop: keys beside the row', async () => {
   const b = await tg();
   await page.keyboard.press('KeyM'); await sleep(200);
   return { ok: a.on.graph && b.on.surface && !b.on.graph, note: `G ${a.on.graph}, M ${b.on.surface}` };
+});
+
+if (DESK) await labelChecks('desktop: ');
+if (DESK) await check('desktop: labels: rest names, move clears', async () => {
+  const M = page.mouse;
+  await LABEL_FORMULA(); await settle(6);
+  await fe(() => window.__fe.graph(true)); await sleep(500);
+  const q = (await input()).graph.nodes[2];
+  await M.move(q.x - 30, q.y - 30); await M.move(q.x, q.y, { steps: 4 }); await sleep(200);
+  const early = (await input()).label;
+  await sleep(400);
+  const a = await input();
+  await shot('desktop-labels-node');
+  await M.move(q.x + 2, q.y + 1); await sleep(50);
+  const b = await input();
+  await M.move(q.x + 40, q.y + 40, { steps: 3 }); await sleep(50);
+  const c = await input();
+  // the toggle row: below its glyph, with the key (the mark pressed while the row is out would open the site menu)
+  if (!(await tg()).row) await press(await markAt());
+  const at = await glyphAt('graph');
+  await M.move(at[0], at[1], { steps: 3 }); await sleep(600);
+  const d = await input();
+  await shot('desktop-labels-toggle');
+  await fe(() => window.__fe.graph(false));
+  const L = a.label;
+  return { ok: !early && L && L.text === 'scale' && L.box[0] > q.x && !!b.label && !c.label && d.label && d.label.text === 'graph' && d.label.key === 'G' && d.label.box[1] > at[1],
+    note: `at 200 ms ${early && early.text}; "${L && L.text}" right of the node ${L && (L.box[0] - q.x) | 0} px; kept on a 2 px tremor ${!!b.label}, gone on a move ${!c.label}; toggle "${d.label && d.label.text}" [${d.label && d.label.key}] below ${d.label && d.label.box[1] > at[1]}` };
 });
 
 console.log(`\n${results.filter((r) => r[1]).length}/${results.length} pass`);

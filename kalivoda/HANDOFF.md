@@ -164,3 +164,14 @@ put them back are in `tools/kalivoda-studies/` (README.md). Notes below describe
 2. Show him the two parked studies (water surface, shard light) and decide which go on the page.
 3. Then the rest of `tools/kalivoda-studies/ARTEFACTS.md` (MATCHES flame front first).
 4. Drop `hidden` in `pages.meta.json` when he approves, run `python3 site.py all`, deploy.
+
+## 2026-10-28 mobile fixes (after iori's phone test)
+- Hero no longer jumps while scrolling on a phone: the canvas is `100lvh` (large viewport), the
+  camera is fitted to the canvas size, and `resize` re-fits only when that size really changes,
+  so the browser bar showing and hiding no longer re-fits rods and photo.
+- Scroll wind on phones: saturating response (`1 - e^{-1.5|v|}`, v in 900 px/s units) × `scroll`
+  0.55, varied across the cloud, half of it into the screen. Measured on a 390×844 phone page:
+  slow scroll 0.06 rad / 6 tips, medium 0.10 / 30, flick 0.11 / 40, no touching pairs.
+- Contact: Instagram `@kalivoda.lukas` (the handle given in Martin Fryč's Lom toku text; the
+  account is empty, confirm with Lukáš), gallery email, Galerie Kuzebauch link; links are
+  underlined with an arrow. His own email is not public anywhere; ask him for it.

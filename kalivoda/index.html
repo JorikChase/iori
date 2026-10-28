@@ -79,7 +79,7 @@
   :focus-visible { outline: 1px solid var(--ink); outline-offset: 4px; }
 
   /* the installation: fixed behind the first screen; vertical swipes still scroll the page */
-  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; touch-action: pan-y; }
+  #gl { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; display: block; z-index: 0; touch-action: pan-y; }
 
   /* header: transparent over the glass, solid once the content starts */
   .top {
@@ -151,8 +151,11 @@
   .about p + p { margin-top: 1em; }
   .contact .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 2rem; font-size: clamp(1.05rem, 1.4vw, 1.25rem); }
   .contact .grid small { display: block; color: var(--dim); font-size: .78rem; letter-spacing: .18em; text-transform: uppercase; margin-bottom: .5rem; }
-  .contact a { border-bottom: 1px solid var(--line); }
-  .contact a:hover { border-color: var(--ink); }
+  .contact a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; text-decoration-color: rgba(242, 239, 233, .45); transition: text-decoration-color .2s; }
+  .contact a:hover, .contact a:focus-visible { text-decoration-color: var(--ink); }
+  .contact a span { display: inline-block; margin-left: .25em; font-size: .8em; color: var(--dim); transition: transform .2s; }
+  .contact a:hover span { transform: translate(2px, -2px); }
+  .contact .grid > div { line-height: 1.7; }
 
   footer { padding: calc(var(--pad) * 1.5) var(--pad) calc(var(--pad) * 1.5); color: var(--dim); font-size: .8rem; }
   footer > div { max-width: var(--col); margin: 0 auto; display: flex; flex-wrap: wrap; gap: .4rem 2rem; justify-content: space-between; }
@@ -379,9 +382,9 @@
   <section id="contact" class="contact" aria-labelledby="h-contact">
     <h2 id="h-contact">Contact</h2>
     <div class="grid">
-      <div><small>Gallery</small>Galerie Kuzebauch<br>Říčanova 19, Prague 6</div>
+      <div><small>Instagram</small><a href="https://www.instagram.com/kalivoda.lukas/" target="_blank" rel="noopener me">@kalivoda.lukas<span aria-hidden="true">↗</span></a></div>
       <div><small>Email</small><a href="mailto:info@galeriekuzebauch.com">info@galeriekuzebauch.com</a></div>
-      <div><small>Phone</small><a href="tel:+420233355246">+420 233 355 246</a></div>
+      <div><small>Gallery</small><a href="https://www.galeriekuzebauch.com/en/umelci/lukas-kalivoda" target="_blank" rel="noopener">Galerie Kuzebauch<span aria-hidden="true">↗</span></a><br>Říčanova 19, Prague 6<br><a href="tel:+420233355246">+420 233 355 246</a></div>
     </div>
   </section>
 </main>

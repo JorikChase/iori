@@ -49,7 +49,7 @@ const P = {
   leverCap: num('lever', 1.0),           // a gust low on the rods pushes harder; this caps it
   tipMin: num('tipmin', 0.004), tipSpread: num('tipspread', 0.05),   // how far past the edge the tips hang           // share of a gust that blows into the screen (tips lift into view)
   gustCap: num('cap', 1.4),
-  scrollGain: num('scroll', 0.14),       // scroll speed → wind along the rods (phone)
+  scrollGain: num('scroll', 0.55),       // scroll → wind along the rods on a phone, and into the screen
   touchBudget: num('touches', 2),        // pairs allowed to touch in a few seconds before new gusts soften
   // contact
   restitution: 0.32,
@@ -374,7 +374,9 @@ sceneBack.add(meshBack); sceneFront.add(meshFront);
 let rolled = false, camDist = 2;
 const vp = { w: 1, h: 1 };
 function layout() {
-  vp.w = window.innerWidth; vp.h = window.innerHeight;
+  // the canvas is sized to the large viewport (100lvh), so a phone's browser bar showing and
+  // hiding while you scroll does not change it and nothing re-fits
+  vp.w = canvas.clientWidth || window.innerWidth; vp.h = canvas.clientHeight || window.innerHeight;
   rolled = vp.h > vp.w;
   renderer.setPixelRatio(DPR);
   renderer.setSize(vp.w, vp.h, false);
@@ -437,7 +439,12 @@ function layout() {
   const vm = camera.matrixWorldInverse;
   lightsWorld.forEach((l, i) => { const v = l.p.clone().applyMatrix4(vm); matBack.uniforms.uLp.value[i].copy(v); matFront.uniforms.uLp.value[i].copy(v); });
 }
-window.addEventListener('resize', layout);
+let fitW = 0, fitH = 0;
+window.addEventListener('resize', () => {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (w === fitW && h === fitH) return;
+  fitW = w; fitH = h; layout();
+});
 layout();
 
 // ------------------------------------------------------------------ wind
@@ -573,12 +580,15 @@ function step(dt, t) {
     // overlapping puffs are one body of air: average their velocity, don't add it up
     if (pw > 0) { lever = Math.min(pl / pw, P.leverCap); const inv = 1 / Math.max(1, pw); px *= inv; pz *= inv; }
     // scroll: on a phone the screen's vertical is world x, so scrolling blows along the swing
-    const sw = rolled ? -scrollWind * P.scrollGain : 0;
+    // a gentle scroll already blows; a fast flick saturates instead of blowing harder
+    const sMag = Math.sign(scrollWind) * (1 - Math.exp(-Math.abs(scrollWind) * 1.5)) * P.scrollGain;
+    const sw = rolled ? -sMag * (0.75 + 0.25 * Math.sin(rod.px * 9 + t * 1.3)) : 0;
+    const sIn = -Math.abs(sMag) * 0.5 * (0.8 + 0.2 * Math.sin(rod.px * 5 - t));
     const cy_ = Math.cos(rod.yaw), sy_ = Math.sin(rod.yaw);
     const ax = 0.55 + 0.45 * Math.abs(sy_), az = 0.55 + 0.45 * Math.abs(cy_);
     const pg = 0.45 * gustScale;
     const fx = (wx + sw * gustScale) * ax + px * lever * ax * pg;
-    const fz = wz * az + pz * lever * az * pg;
+    const fz = (wz + sIn * gustScale) * az + pz * lever * az * pg;
     const sinf = Math.hypot(rod.tx, rod.tz) > 1e-4 ? Math.sin(Math.hypot(rod.tx, rod.tz)) / Math.hypot(rod.tx, rod.tz) : 1;
     rod.vx += (-rod.k * rod.tx * sinf - P.kd * rod.vx + P.kw * fx) * dt;
     rod.vz += (-rod.k * rod.tz * sinf - P.kd * rod.vz + P.kw * fz) * dt;

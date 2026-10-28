@@ -6,6 +6,7 @@ Disallow: /automata.html
 Disallow: /burger.html
 Disallow: /clip.html
 Disallow: /document-diffusion.html
+Disallow: /kalivoda/
 Disallow: /lili-web.html
 Disallow: /moshine/lab.html
 Disallow: /papers/

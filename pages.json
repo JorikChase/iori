@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26",
+  "generated": "2026-10-28",
   "pages": [
     {
       "slug": "4cube.html",
@@ -296,7 +296,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-dimension.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-10-26"
     },
     {
       "slug": "fractal-engine/index.html",
@@ -318,7 +318,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractals.html",
       "og_image": null,
-      "lastmod": "2026-10-13"
+      "lastmod": "2026-10-26"
     },
     {
       "slug": "fungal-growth.html",
@@ -417,7 +417,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/",
       "og_image": null,
-      "lastmod": "2026-10-21"
+      "lastmod": "2026-10-26"
     },
     {
       "slug": "iris-engine/index.html",

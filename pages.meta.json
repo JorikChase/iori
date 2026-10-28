@@ -813,6 +813,17 @@
       "priority": 0.5,
       "hidden": true
     },
+    "kalivoda/index.html": {
+      "title": "Lukáš Kalivoda — Glass, Water, Light, Sound",
+      "description": "Prague artist Lukáš Kalivoda: glass installations moved by wind and light, paintings lifted from water. An interactive cloud of dispersing glass rods.",
+      "category": "artist",
+      "domain": "3die.fr",
+      "type": "artist",
+      "priority": 0.7,
+      "menu_pos": "br",
+      "hidden": true,
+      "_note": "draft content awaiting the artist's review — drop hidden to publish"
+    },
     "theatre-mask/index.html": {
       "title": "Theatre Mask — Emotion Surface",
       "description": "An ivory theatre mask that morphs between ten emotions: drag across the surface and comedy folds into serenity, tragedy into sorrow, wrinkles and all.",

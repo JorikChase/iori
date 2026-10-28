@@ -95,3 +95,10 @@ tools/timeline/local/
 # MOSHINE local test footage and reference decoder (moshine/tools/make-media.sh, build-mvtool.sh)
 moshine/tests/media/
 moshine/tools/bin/
+
+# kalivoda: downloaded source photos and audit captures stay local
+tools/kalivoda-photos/raw/
+tools/kalivoda-photos/thumbs/
+tools/kalivoda-photos/peek/
+tools/kalivoda-photos/picks/
+tools/kalivoda-audit/out/

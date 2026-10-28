@@ -9,6 +9,7 @@ import { normCollage, validateCollage, collageTarget, normJoin, JOIN, PLACE, REP
 import { tree, ports } from './graph.js';
 import { normalize } from './formula.js';
 import { normDrive, splitTarget, emptyDrive, MAX_BINDS } from './drive.js';
+import { dropDriverRefs } from './shade.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const clampTo = (v, q) => Math.min(q.max ?? Infinity, Math.max(q.min ?? -Infinity, v));
@@ -214,7 +215,10 @@ export function removeCollageDriver(collage, id) {
     }
   }
   const nodes = c.drive.nodes.filter((m) => !gone.has(m.id)).map((m) => ({ ...m, in: Object.fromEntries(Object.entries(m.in || {}).filter(([, r]) => !gone.has(r))) }));
-  return checked({ ...c, drive: { nodes, bind: c.drive.bind.filter((b) => !gone.has(b.from)) } });
+  // the shade's links and bindings to a gone driver go as a formula's do (core/shade.js dropDriverRefs)
+  let shade = c.shade;
+  if (shade) for (const g of gone) shade = dropDriverRefs(shade, g, null);
+  return checked({ ...c, ...(shade ? { shade } : {}), drive: { nodes, bind: c.drive.bind.filter((b) => !gone.has(b.from)) } });
 }
 
 // a link from driver `from` into input `port` of driver `to`

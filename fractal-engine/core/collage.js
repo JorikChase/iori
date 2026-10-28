@@ -4,7 +4,8 @@
 //   collage = { v: 1,
 //     pieces: [{ f: formula, place: { tx, ty, tz, rx, ry, rz, s, g }, rep: null | { kind, … } }, …]   1..8
 //     joins:  [{ op, k, r, n, w }, …]   one fewer than the pieces, folded left to right
-//     shade?: { nodes, out }            the collage's own colour (wins over the pieces')
+//     shade?: { nodes, out, bind }      the collage's own colour (wins over the pieces'); it may read the
+//                                       collage's own drivers ('d:<id>', bindings), never a piece's
 //     drive?: { nodes, bind }           world/start/time/param/math/remap nodes binding 'J<j>.<key>' and
 //                                       'P<i>.<key>' (placement, repetition) }
 //
@@ -21,7 +22,7 @@
 import { normalize, validate, canonical, hashString, pullSafe } from './formula.js';
 import { parse, format, fmtNum } from './notation.js';
 import { de, push } from './cpu.js';
-import { normShade, validateShade, evalShade } from './shade.js';
+import { normShade, validateShade, evalShade, shadeDrivers } from './shade.js';
 import { normDrive, validateDrive, evalDrive, emptyDrive, splitTarget, ORBIT } from './drive.js';
 import { rotationXYZ, matVec, transpose, matMul, project, sliceMatrix } from './vec.js';
 
@@ -129,7 +130,8 @@ export function validateCollage(c) {
     if (j.k !== undefined && !KERNELS.includes(j.k)) err(`J${i}: kernel is one of ${KERNELS.join(', ')}`);
     nums(JOIN, j, `J${i}`);
   });
-  if (c.shade !== undefined) errors.push(...validateShade(c.shade));
+  // the collage's shade reads the collage's own drivers only (decided with iori, 2026-10-28)
+  if (c.shade !== undefined) errors.push(...validateShade(c.shade, c.drive && typeof c.drive === 'object' ? c.drive : null));
   if (c.drive !== undefined) {
     const d = c.drive, more = validateDrive(d, null);
     errors.push(...more);
@@ -359,16 +361,24 @@ export function collageGrad(c, x, opts = {}, h = 1e-5) {
 
 // ---------- colour ----------------------------------------------------------------------------------
 
+// the collage's own drivers' registers at world point x (what its shade reads), or null when it reads none
+export function collageDrivers(c, x, time = 0) {
+  if (!c.shade || !c.drive || !shadeDrivers(c.shade).size) return null;
+  const own = (to) => { const t = collageTarget(c, to); return t ? t.obj[t.key] : 0; };
+  return evalDrive(c.drive, { start: [x[0], x[1], x[2], 0], time, own }).reg;
+}
+
 // The colour at a hit: readings[i] are piece i's own readings there (col, trap, … as core/shade.js
-// takes them). The collage's shade wins, read with the share-weighted readings plus piece and seam
-// (shade.js gains those two readings in K2); otherwise each piece's colour (its shade, or null for the
-// engine's default — the caller's colour then) blended by the shares.
-export function collageColour(collage, at, readings, fallback = () => [1, 1, 1, 1]) {
+// takes them). The collage's shade wins, read with the share-weighted readings plus piece and seam,
+// and the collage's own drivers evaluated at the hit (opts.x, opts.time) — never a piece's; otherwise
+// each piece's colour (its shade, or null for the engine's default — the caller's colour then)
+// blended by the shares.
+export function collageColour(collage, at, readings, fallback = () => [1, 1, 1, 1], opts = {}) {
   const c = collage.__norm ? collage : normCollage(collage);
   if (c.shade) {
     const mixed = { piece: at.piece, seam: at.seam };
     for (const k of new Set(readings.flatMap((r) => Object.keys(r || {})))) mixed[k] = readings.reduce((a, r, i) => a + at.w[i] * ((r && r[k]) || 0), 0);
-    return evalShade(c.shade, mixed).color;
+    return evalShade(c.shade, mixed, opts.x ? collageDrivers(c, opts.x, opts.time || 0) : null).color;
   }
   const out = [0, 0, 0, 0];
   c.pieces.forEach((q, i) => {

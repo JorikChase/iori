@@ -15,7 +15,7 @@ import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, de
 import { readingsOf } from '../core/drive.js';
 import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
 import { INTERP, INVERSE, DUAL, COLLAGE, withDrive, withCollage } from '../gpu/wgsl.js';
-import { pack, drives, paramTangents, packCollage, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from '../gpu/pack.js';
+import { pack, drives, paramTangents, packCollage, collageShadeDrives, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from '../gpu/pack.js';
 import { prepare, collageAt, collageColour, collageGrad, drivenAt, toPiece, fromPiece, repFold, repCopies } from '../core/collage.js';
 import { project } from '../core/vec.js';
 import { push as cpuPush } from '../core/cpu.js';
@@ -381,7 +381,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   outp[o + 1u] = vec4f(at.dist[0], at.dist[1], at.dist[2], at.dist[3]);
   outp[o + 2u] = vec4f(at.w[0], at.w[1], at.w[2], at.w[3]);
   outp[o + 3u] = vec4f(f32(clTr[0].n), f32(clTr[1].n), f32(clTr[2].n), f32(clTr[3].n));
-  outp[o + 4u] = collageColour(at, 0.5, lam);
+  outp[o + 4u] = collageColour(pts[5u * i].xyz, at, 0.5, lam);
 }`;
 const KEEP_SHADER = CL_HEAD + `
 @compute @workgroup_size(64)
@@ -456,7 +456,7 @@ async function collageSuite(device, compilePipe) {
       rows.push({ kind: 'compile', formula: label, ok: !error, error, ms: performance.now() - t0 });
     }
   }
-  const anyDrive = (c) => c.pieces.some((q) => drives(q.f));
+  const anyDrive = (c) => c.pieces.some((q) => drives(q.f)) || collageShadeDrives(c);
   const pipes = {};
   const pipeOf = async (name, code, c) => { const k = name + (anyDrive(c) ? '+drive' : ''); return pipes[k] || (pipes[k] = await compilePipe(anyDrive(c) ? withDrive(code) : code, k)); };
   const pct = (a, f) => (a.sort((x, y) => x - y), a[Math.min(a.length - 1, Math.floor(a.length * f))] || 0);
@@ -481,7 +481,7 @@ async function collageSuite(device, compilePipe) {
       const we = Math.max(...at.w.slice(0, 4).map((w, k) => Math.abs(w - g[o + 8 + k])), Math.abs(at.piece - g[o + 1]), Math.abs(at.seam - g[o + 2]));
       wErr.push(we);
       if (we > 1e-2) wOff++;
-      const col = collageColour(c, at, pr.map((q) => q.r), CL_FALLBACK);
+      const col = collageColour(c, at, pr.map((q) => q.r), CL_FALLBACK, { x, time: CL_T });
       const ce = Math.max(...col.map((v, k) => Math.abs(v - g[o + 16 + k])));
       colErr.push(ce);
       if (ce > 1e-2) colOff++;

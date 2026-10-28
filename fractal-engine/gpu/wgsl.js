@@ -2029,6 +2029,20 @@ fn clDrive(x: vec3f) {
   clSelect(0u);
 }
 
+// the collage's own drivers' registers at world point x, for its shade (core/collage.js collageDrivers):
+// the drive program's nodes as clDrive runs them, whether or not anything shape-wise is bound. The
+// shade reads them through drvReg ('d:' inputs, bindings: the drivers' variant). Does nothing when the
+// collage's shade reads no drivers (the program's second vec4, w).
+fn clShadeDrive(x: vec3f) {
+  if (ops[CL_BASE + 1u].w < 0.5) { return; }
+  clSelect(CL_OWN);
+  drvStart = vec4f(x, 0.0);
+  var rd: DrvRead;
+  let nn = min(u32(ops[pb + DR_BASE].x), 32u);
+  for (var k = 0u; k < nn; k++) { drvReg[k] = drvNode(k, ops[pb + DR_NODES + k * 3u], rd).v; }
+  clSelect(0u);
+}
+
 // one vec4 of the program with the driven values in (flat: the program index of its first number)
 fn clRead(at: u32, flat: u32) -> vec4f {
   var v = ops[at];
@@ -2243,10 +2257,11 @@ fn clReadings(i: u32, facing: f32, lyap: f32) -> Readings {
   return r;
 }
 
-// The colour at a hit (core/collage.js collageColour): the collage's own shade, read with the
-// share-weighted readings plus piece and seam; otherwise every piece's colour (its shade, or the
-// engine's own: clFallback) blended by the shares. One call site of shadeRun.
-fn collageColour(at: ClAt, facing: f32, lyap: array<f32, ${MAX_PIECES}>) -> vec4f {
+// The colour at hit x (core/collage.js collageColour): the collage's own shade, read with the
+// share-weighted readings plus piece and seam and the collage's own drivers at x; otherwise every
+// piece's colour (its shade, or the engine's own: clFallback) blended by the shares. One call site of
+// shadeRun.
+fn collageColour(x: vec3f, at: ClAt, facing: f32, lyap: array<f32, ${MAX_PIECES}>) -> vec4f {
   let own = ops[CL_BASE].y > 0.5;
   var m: Readings;
   if (own) {
@@ -2257,6 +2272,7 @@ fn collageColour(at: ClAt, facing: f32, lyap: array<f32, ${MAX_PIECES}>) -> vec4
       m.facing = m.facing + w * r.facing; m.species = m.species + w * r.species; m.w = m.w + w * r.w;
     }
     m.piece = at.piece; m.seam = at.seam;
+    clShadeDrive(x);
   }
   var out = vec4f(0.0);
   let n = select(at.n, 1u, own);

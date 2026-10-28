@@ -1363,9 +1363,8 @@ tool that knew formulas now knows both, and K3's decisions above are all in.
   ring; a collage's lineage node restored by ⌘Z / ⇧⌘Z; the collage from the URL on reload. Shots:
   `design/shots/k3-*.jpg` (dropped + frame + strip, the axis drag, grid cells, the join ring, the drivers'
   band, a site held on the Metasurface, a neighbour carried out of the ring).
-- *Open (K3 leaves):* **what a collage's shade may read of drivers** — iori's to decide (asked
-  2026-10-27): until then its shade reads none (the shading frame's proxy strips `d:` inputs and
-  bindings; CPU and GPU agree on none). The lens refuses collages (it varies one formula's op records in
+- *Open (K3 leaves):* what a collage's shade may read of drivers — decided 2026-10-28, built in K3.1
+  (below). The lens refuses collages (it varies one formula's op records in
   one pass); grab and breeding run on the CPU sensing pass — a GPU sensing pass for collages (the duals
   through the joins: an exact normal and the metric of every number at once) would replace it, and would
   let the drivers' parameters of pieces into the metric (they are not measured now). The JIT per piece;
@@ -1373,3 +1372,33 @@ tool that knew formulas now knows both, and K3's decisions above are all in.
   with col only, else the engine's colour); the neighbour across the nearest cell wall; dropping a collage
   onto a collage (its pieces could join, re-placed). The ring of drivers has no param node (a collage
   number's param node would come from pulling a line off itself, as a formula's does).
+
+**K3.1 decided with iori, 2026-10-28: a collage's colour reads the collage's own drivers only** — its
+world-point drivers (the fields, the start, time, math, remap; param nodes read collage numbers), never a
+piece's. They are defined at every point, so the shade reads them at the hit, CPU and GPU alike; a
+piece's drivers live in its own orbit and frame and would be ambiguous across a seam.
+- *CPU* (core/collage.js): `collageDrivers(c, x, time)` — the collage's drive program at world point x
+  (`start = (x, 0)`, its param nodes reading the collage's numbers), null when its shade reads none;
+  `collageColour(…, opts)` takes `{ x, time }` and hands those registers to evalShade ('d:' inputs,
+  shade.bind). `validateCollage` checks the shade against the collage's own drive: a 'd:' input or
+  binding naming anything else — a piece's driver — is refused. `removeCollageDriver` drops the shade's
+  links and bindings to a gone driver as a formula's edit does (core/shade.js dropDriverRefs).
+- *GPU:* packCollage packs the shade with the collage's drive (a 'd:' input names its register in the
+  drive program's order); `collageShadeDrives(c)` sets the program's second vec4 w and puts the march, walk,
+  grid and thumbnails in the drivers' variant (where shNum/shBound read registers). `clShadeDrive(x)` runs
+  the collage's drive nodes at x — whether or not anything shape-wise is bound — right before the shade:
+  at the hit (collageColour now takes x), where the ray ended for the glow, at the splat's point for push.
+- *UI:* the collage's shading frame (pick 'C') shows the collage's drivers, and only those: the proxy
+  formula carries the collage's drive nodes (no bindings; a param node as the constant it reads) and the
+  frame takes drags from their output dots — into a number input, onto a shading line or a stop — as a
+  formula's does. The drivers are added, linked and removed in the collage's graph, not here. A splat
+  export of a collage takes its shade with the drivers at each splat.
+- *Tests:* collage-k3.test.mjs (8: the colour equals evalShade with the drive's registers at x across
+  points and times, two points two colours, a piece's driver refused, removal following into the shade,
+  the GPU flag and variant); parity's collage suite gained 'own shade: its drivers' (a sphere field through
+  a ramp, the clock bound to its hue, x mixing in the seam's ramp, x also widening the seam).
+- *Seen in the app:* the collage drawn with its colour varying across x by its drivers; its shading frame
+  offering exactly its four drivers; a drag from the x driver's dot into a ramp's input linking `d:x`
+  into the collage's shade (`design/shots/k31-shade-drivers.jpg`). Parity: 197 rows, the new one's colour
+  median 2.8e-7, none off. Found on the way: the frame's unfold animation threw on the proxy's hidden op
+  (fixed: the collage's shading opens without unfolding).

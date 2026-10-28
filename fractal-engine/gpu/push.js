@@ -399,8 +399,9 @@ fn cwalk(@builtin(global_invocation_id) gid: vec3u) {
         let E = mat3x4f(heads[hp].slice[0], heads[hp].slice[1], heads[hp].slice[2]);
         let S = kp.G * (transpose(E) * S4 * E) * transpose(kp.G);
         let weight = slab * kp.a;
-        // the collage's own shade colours every splat (a splat knows only its fold index)
-        if (own) { clSelect(CL_OWN); }
+        // the collage's own shade colours every splat (a splat knows only its fold index, and the
+        // collage's drivers at its point)
+        if (own) { clShadeDrive(kp.p); clSelect(CL_OWN); }
         splat(kp.p, S, res.col, weight);
         clSelect(piece);
         if (pv.misc.w > 0.5) {

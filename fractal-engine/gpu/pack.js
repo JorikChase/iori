@@ -9,7 +9,7 @@
 import { normalize, pullSafe, mixKids } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
 import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
-import { packShade, SHADE_VEC4, MATH_OPS as D_MATH } from '../core/shade.js';
+import { packShade, SHADE_VEC4, MATH_OPS as D_MATH, shadeDrivers } from '../core/shade.js';
 import { MAX_PIECES, KERNELS, JOIN_OPS, REP, normCollage, collageTarget } from '../core/collage.js';
 import { opPaths, targetParam, perIteration, splitTarget, START, ORBIT, WAVES, TISSUE_OUT, driveParams, driveRuns, colourDrivers } from '../core/drive.js';
 import { slotIndex } from '../core/notation.js';
@@ -322,6 +322,13 @@ export const collageShapes = (c) => {
   return !!(g.drive && g.drive.bind.length) || g.pieces.some((q) => shapes(q.f));
 };
 
+// does the collage's own shade read its drivers (a 'd:' input or a binding)? Its march then runs in the
+// drivers' variant, where the shading reads registers
+export const collageShadeDrives = (collage) => {
+  const c = normCollage(collage);
+  return !!(c.shade && c.drive && [...shadeDrivers(c.shade)].some((id) => c.drive.nodes.some((m) => m.id === id)));
+};
+
 export function packCollage(collage) {
   const c = normCollage(collage);
   const N = c.pieces.length;
@@ -340,8 +347,10 @@ export function packCollage(collage) {
   oh[0] = 1; oh[1] = 1; oh[2] = c.shade ? FLAG_SHADE : 0; of[3] = 1;
   of[88] = of[93] = of[98] = of[103] = 1;
   of[STEP_WORD] = 1;
-  // the collage's shade reads no drivers (core/collage.js collageColour gives it none)
-  if (c.shade) ops.set(packShade(c.shade, null), own + SHADE_AT);
+  // the collage's shade reads the collage's own drivers (their registers in the drive program's order:
+  // gpu/wgsl.js clShadeDrive fills them at the hit), never a piece's
+  if (c.shade) ops.set(packShade(c.shade, c.drive || null), own + SHADE_AT);
+  const shadeDrv = collageShadeDrives(c);
   // the drive program's nodes, as a formula's (gpu/wgsl.js drvNode reads them); its bindings below
   const d = c.drive;
   const binds = d ? d.bind.map((b) => ({ b, slot: collageSlot(c, b.to), t: collageTarget(c, b.to), from: d.nodes.findIndex((m) => m.id === b.from) })).filter((x) => x.slot != null && x.from >= 0) : [];
@@ -359,7 +368,7 @@ export function packCollage(collage) {
   const st = collageStepFactor(c);
   const P = CL_AT;
   ops.set([N, c.shade ? 1 : 0, binds.length, binds.length ? 1 : 0], P);
-  ops.set([st.step, st.chamfers, st.unsafe ? 1 : 0, 0], P + 4);
+  ops.set([st.step, st.chamfers, st.unsafe ? 1 : 0, shadeDrv ? 1 : 0], P + 4);
   c.pieces.forEach((q, i) => {
     const o = P + (2 + i * 4) * 4, pl = q.place, r = q.rep;
     ops.set([pl.tx, pl.ty, pl.tz, pl.s, pl.rx, pl.ry, pl.rz, pl.g], o);
@@ -377,5 +386,5 @@ export function packCollage(collage) {
     ops.set([slot, from, b.lo, b.hi, t.spec.min ?? -BIG, t.spec.max ?? BIG], o);
   });
   return { ops, head, collage: c, pieces, opCount: pieces.reduce((a, p) => a + p.opCount, 0), step: st.step,
-    drives: c.pieces.some((q) => drives(q.f)), shapes: collageShapes(c) };
+    drives: c.pieces.some((q) => drives(q.f)) || shadeDrv, shapes: collageShapes(c) };
 }

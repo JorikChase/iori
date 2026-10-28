@@ -669,6 +669,8 @@ function graphPlacement() {
   const P = graphPlace(L, u, innerWidth - 50, innerHeight / 2 - 10);
   P.sh = placeShade(S, u, P.zone[0] - SHADE_GAP * u, P.zone[1], f.shade);
   P.dv = placeDrive(D, P);
+  // the collage's own shading (pick 'C'): the proxy's op is not drawn, so it is not there to touch
+  if (state.pick === 'C') { P.items = P.items.filter((q) => q.kind !== 'op'); P.edges = []; }
   return P;
 }
 
@@ -678,9 +680,11 @@ function openGraph() {
   if (state.collage && !drilling) { openCollageGraph(); return; }
   exitGrab();
   const P = graphPlacement();
-  gv = { P, from: stripPlacement(normalize(state.formula), innerWidth, innerHeight), t0: performance.now(), hover: null, selected: null, press: null, drag: null, param: null, picker: null, thumbs: new Map(), drift: state.drift };
+  // the collage's own shading (pick 'C') opens without unfolding: its proxy's op is not in the placement
+  gv = { P, from: state.pick === 'C' ? null : stripPlacement(normalize(state.formula), innerWidth, innerHeight), t0: performance.now(), hover: null, selected: null, press: null, drag: null, param: null, picker: null, thumbs: new Map(), drift: state.drift };
   state.drift = false;
   drawStructureNow();
+  if (!gv.from) drawGraphNow();
   const tick = () => { if (!gv || !gv.from) return; drawGraphNow(); if (performance.now() - gv.t0 < GRAPH_UNFOLD_MS) setTimeout(tick, 16); else { gv.from = null; drawGraphNow(); } };
   tick();
 }
@@ -1005,7 +1009,7 @@ function drawGraphNow() {
   });
   if (gv.drag) svg += `<g class="gr full"><g class="nd hv">${glyphPath(gv.drag.glyph, gv.drag.x, gv.drag.y, 26)}</g></g>`;
   if (!gv.from) svg += drawShadeNow(P);
-  if (!gv.from && !own) svg += drawDriveNow(P, handles, sel);
+  if (!gv.from) svg += drawDriveNow(P, handles, sel);
   if (gv.pull) svg += `<g class="gr full"><g class="nd hv">${glyphPath('drv.param', gv.pull.x, gv.pull.y, 22)}</g></g>`;
   if (gv.picker) svg += drawPicker(gv.picker);
   overlay.innerHTML = svg;
@@ -1078,8 +1082,9 @@ function graphDown(e) {
   if (gv.from) return;
   const x = e.clientX, y = e.clientY;
   if (shadeDown(x, y)) return;
-  // the collage's own shading has only its frame: anything else goes back to the collage
-  if (state.pick === 'C') { closeGraph(); return; }
+  // the collage's own shading has its frame and the collage's drivers to read from (a drag from a
+  // driver's output dot into the frame): anything else goes back to the collage
+  if (state.pick === 'C') { if (!driveOutPortAt(gv.P.dv, x, y) || !driveDown(x, y)) closeGraph(); return; }
   if (driveDown(x, y)) return;
   // a parameter handle of the selected node
   const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
@@ -1132,7 +1137,7 @@ function graphDown(e) {
 function graphMove(e) {
   const x = e.clientX, y = e.clientY;
   if (shadeMove(x, y)) return;
-  if (state.pick !== 'C' && driveMove(x, y)) return;
+  if ((state.pick !== 'C' || gv.dvDrag) && driveMove(x, y)) return;
   if (gv.picker) {
     const [cx, cy] = gv.picker.at;
     if (Math.hypot(x - cx, y - cy) < 30) gv.picker.sel = -1;
@@ -1200,7 +1205,7 @@ function graphMove(e) {
 
 function graphUp(e) {
   if (shadeUp(e.clientX, e.clientY)) return;
-  if (state.pick !== 'C' && driveUp(e.clientX, e.clientY)) return;
+  if ((state.pick !== 'C' || gv.dvDrag) && driveUp(e.clientX, e.clientY)) return;
   if (gv.picker) {
     const k = gv.picker;
     gv.picker = null; gv.press = null;
@@ -2724,12 +2729,17 @@ const doc = () => state.collage || state.formula;
 const docStructure = (x) => (isCollage(x) ? 'C' + collageStructure(x) : structureOf(normalize(x)));
 const hashDoc = (x) => (isCollage(x) ? hashCollage(x) : hash(x));
 
-// the collage's own shading as a formula the shading frame can edit: one +c, the collage's shade. It
-// reads no drivers (a collage's shade reading drivers is iori's to decide: DESIGN.md "K3 built")
+// the collage's own shading as a formula the shading frame can edit: one translate, the collage's shade,
+// and the collage's own drivers as its drive — the only drivers the frame offers (decided with iori
+// 2026-10-28: a collage's colour reads the collage's drivers, never a piece's). The proxy's drive has no
+// bindings (the shape's stay the collage's); a param node reads a collage number, so it holds its value.
 const PROXY = 'translate ×1';
-const noDrivers = (sh) => sh && { ...sh, bind: [], nodes: sh.nodes.map((m) => ({ ...m, in: Object.fromEntries(Object.entries(m.in || {}).filter(([, r]) => !String(r).startsWith('d:'))) })) };
+function proxyDrive(c) {
+  if (!c.drive || !c.drive.nodes.length) return null;
+  return { nodes: c.drive.nodes.map((m) => (m.type === 'param' ? { id: m.id, type: 'math', in: {}, p: { op: 'add', c: CE.getCollageParam(c, m.p.of) ?? 0 } } : m)), bind: [] };
+}
 function pickedFormula(c, pick) {
-  if (pick === 'C') return normalize({ ...parse(PROXY), ...(c.shade ? { shade: noDrivers(c.shade) } : {}) });
+  if (pick === 'C') { const d = proxyDrive(c); return normalize({ ...parse(PROXY), ...(d ? { drive: d } : {}), ...(c.shade ? { shade: c.shade } : {}) }); }
   return normalize(c.pieces[typeof pick === 'number' ? pick : 0].f);
 }
 
@@ -2772,7 +2782,9 @@ function setFormula(text, quiet = false) {
   const v = validate(f);
   if (!v.ok) throw new Error(v.errors.join('; '));
   const c = JSON.parse(JSON.stringify(state.collage));
-  if (state.pick === 'C') { if (f.shade) c.shade = noDrivers(normalize(f).shade); else delete c.shade; }
+  // the collage's shading: its network, links and bindings to the collage's drivers included (the proxy's
+  // drive is the collage's own and is not written back)
+  if (state.pick === 'C') { if (f.shade) c.shade = normalize(f).shade; else delete c.shade; }
   else c.pieces[typeof state.pick === 'number' ? state.pick : 0].f = normalize(f);
   setCollage(c, quiet);
 }
@@ -3205,8 +3217,8 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
       const v = pushView(b, clear, false, false);
       const raw = await P.captureSplats(v, canvas, 200000, progress);
       const L = state.look, len = Math.hypot(...L.key);
-      // a collage's splats take its own shading (it reads no drivers), else the engine's colour
-      const fs = state.collage ? { ...normalize(parse(PROXY)), ...(state.collage.shade ? { shade: noDrivers(state.collage.shade) } : {}) } : normalize(state.formula), shade = fs.shade;
+      // a collage's splats take its own shading (its drivers read at the splat's point), else the engine's colour
+      const fs = state.collage ? pickedFormula(state.collage, 'C') : normalize(state.formula), shade = fs.shade;
       // drivers the colour reads: at the splat's point, as the walk reads them at its own (its iteration
       // unknown here: the point's readings as at an orbit's start)
       const ownOf = (to) => { const { path, key } = splitTarget(to), o = opPaths(fs).get(path); return o ? o.p[key] : 0; };

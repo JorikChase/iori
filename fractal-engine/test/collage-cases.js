@@ -22,6 +22,15 @@ const OWN_SHADE = {
     { id: 'm', type: 'mixc', in: { a: 'r1', b: 'r2', f: 'd' }, p: { mode: 'mix' } }],
   out: { color: 'm' },
 };
+// a shade reading the collage's own drivers: 'd:' inputs and a binding (core/shade.js Drivers → colour)
+const DRV_SHADE = {
+  nodes: [{ id: 's', type: 'seam' },
+    { id: 'r1', type: 'ramp', in: { v: 'd:sp' }, p: { ...rampPreset('fire'), map: map({ mode: 'repeat', scale: 0.8 }) } },
+    { id: 'r2', type: 'ramp', in: { v: 's' }, p: { ...rampPreset('ice'), map: map() } },
+    { id: 'm', type: 'mixc', in: { a: 'r1', b: 'r2', f: 'd:xm' }, p: { mode: 'mix' } }],
+  out: { color: 'm' },
+  bind: [{ to: 'r1.map.hue', from: 't', lo: 0, hi: 0.5 }],
+};
 const TRAP_SHADE = { nodes: [{ id: 't', type: 'trap' }, { id: 'r', type: 'ramp', in: { v: 't' }, p: { ...rampPreset('mono'), map: map({ log: true, scale: 0.3, offset: 0.6 }) } }], out: { color: 'r' } };
 
 // [label, collage, radius]: forward estimates, shares, readings and colour at random points in the ball
@@ -53,6 +62,12 @@ export const COLLAGES = [
     bind: [{ to: 'J0.w', from: 'tc', lo: 0, hi: 1 }, { to: 'P1.rz', from: 'm', lo: 0, hi: 1 }] } }), 1.5],
   // colour: the collage's shade (piece, seam, depth); pieces with shades of their own beside the default
   ['own shade: piece, seam', normCollage({ ...two('∪ .4'), shade: OWN_SHADE }), 1.6],
+  // K3.1: the collage's shade reads the collage's own drivers at the hit — a sphere field through a ramp, the
+  // clock turning its hue, the x coordinate mixing in the seam's ramp; the same drive also shapes the seam
+  ['own shade: its drivers', normCollage({ ...two('∪ .3'), shade: DRV_SHADE, drive: {
+    nodes: [{ id: 'sp', type: 'sphere', p: { r: 0.9, g: 1.5 } }, { id: 't', type: 'time', p: { rate: 0.2, wave: 'tri' } }, { id: 'x', type: 'x' },
+      { id: 'xm', type: 'remap', in: { a: 'x' }, p: { lo: -1, hi: 1, clamp: true } }],
+    bind: [{ to: 'J0.r', from: 'xm', lo: 0.1, hi: 0.5 }] } }), 1.6],
   ['pieces\' shades', normCollage({ pieces: [{ f: { ...normalize(parse(BOX)), shade: TRAP_SHADE }, place: { s: 0.25, tx: -0.5 } }, { f: normalize(parse(BULB)), place: { tx: 0.5 } }], joins: [{ k: 'exp', r: 0.2 }] }), 1.6],
 ];
 

@@ -177,3 +177,42 @@ test('collage drive edits: link two drivers, remove one with its bindings', () =
   assert.equal(c.drive.nodes[0].in.a, undefined);
   assert.throws(() => E.connectCollageDriver(c, 'nope', 'math0', 'a'));
 });
+
+// K3.1 (decided with iori, 2026-10-28): a collage's colour reads the collage's own drivers only
+test('the collage\'s shade reads its own drivers at the hit, never a piece\'s', async () => {
+  const { collageCase } = await import('./collage-cases.js');
+  const { collageColour, collageDrivers, validateCollage } = await import('../core/collage.js');
+  const { evalShade } = await import('../core/shade.js');
+  const { evalDrive } = await import('../core/drive.js');
+  const { packCollage, collageShadeDrives } = await import('../gpu/pack.js');
+  const c = prepare(collageCase('own shade: its drivers')[1]);
+  const readings = [{ col: 0.3, trap: 0.5, depth: 0.4 }, { col: 0.7, trap: 0.2, depth: 0.6 }];
+  for (const [x, time] of [[[0.1, 0.4, -0.2], 0], [[-0.7, 0.2, 0.3], 1.37], [[0.6, -0.5, 0], 2.5]]) {
+    const at = collageAt(c, x, { time });
+    const reg = evalDrive(c.drive, { start: [...x, 0], time, own: () => 0 }).reg;
+    const mixed = { piece: at.piece, seam: at.seam, col: 0, trap: 0, depth: 0 };
+    for (const k of ['col', 'trap', 'depth']) mixed[k] = readings.reduce((a, r, i) => a + at.w[i] * r[k], 0);
+    assert.deepEqual(collageColour(c, at, readings, undefined, { x, time }), evalShade(c.shade, mixed, reg).color);
+    assert.deepEqual([...collageDrivers(c, x, time)], [...reg]);
+  }
+  // the drivers matter: the same readings at two points, two colours; without the point, none are read
+  const at = collageAt(c, [0, 0.3, 0]);
+  assert.notDeepEqual(collageColour(c, at, readings, undefined, { x: [0, 0.3, 0] }), collageColour(c, at, readings, undefined, { x: [0.9, 0.3, 0] }));
+  assert.deepEqual(collageColour(c, at, readings), evalShade(c.shade, { ...Object.fromEntries(['col', 'trap', 'depth'].map((k) => [k, readings.reduce((a, r, i) => a + at.w[i] * r[k], 0)])), piece: at.piece, seam: at.seam }).color);
+  // only the collage's own drivers: a driver the collage lacks — a piece's — is refused
+  const pieceDriven = normCollage({ ...c, pieces: c.pieces.map((q, i) => (i ? q : { ...q, f: { ...q.f, drive: { nodes: [{ id: 'pd', type: 'axis', in: {}, p: {} }], bind: [] } } })) });
+  const reads = (ref) => ({ ...c.shade, nodes: c.shade.nodes.map((n) => (n.id === 'r1' ? { ...n, in: { v: ref } } : n)) });
+  assert.ok(!validateCollage({ ...pieceDriven, shade: reads('d:pd') }).ok);
+  assert.ok(!validateCollage({ ...c, drive: undefined, shade: { ...reads('d:sp'), bind: [] } }).ok);
+  assert.ok(validateCollage(c).ok);
+  // removing a driver takes the shade's links and bindings to it (a required input reads the fold index)
+  const less = E.removeCollageDriver(c, 'sp');
+  assert.equal(less.shade.nodes.find((n) => n.id === 'r1').in.v, 'col');
+  const noT = E.removeCollageDriver(c, 't');
+  assert.equal((noT.shade.bind || []).length, 0);
+  // the GPU: the drivers' variant, the flag, and the 'd:' input packed as the driver's register
+  assert.ok(collageShadeDrives(c) && packCollage(c).drives);
+  assert.ok(!collageShadeDrives(parseCollage(A)));
+  const plain = normCollage({ ...c, shade: { nodes: [{ id: 'p', type: 'piece' }, { id: 'r', type: 'ramp', in: { v: 'p' }, p: {} }], out: { color: 'r' } } });
+  assert.ok(!collageShadeDrives(plain) && !packCollage(plain).drives);
+});

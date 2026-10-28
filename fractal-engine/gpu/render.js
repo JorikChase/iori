@@ -264,7 +264,7 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
       ao = ambientOcclusion(p, n, max(eps * 4.0, 0.002 * t + eps), 2);
       sh = 0.3 * ao;
     }
-    var alb = collageColour(at, dot(n, -rd), lams).rgb;
+    var alb = collageColour(p, at, dot(n, -rd), lams).rgb;
     if (view.look.w > 0.0) {
       let band = fract(log2(max(clTr[at.lead].trap, 1e-12)) * view.look.w);
       alb = alb * (0.55 + 0.45 * step(0.5, band));
@@ -282,7 +282,8 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
   }
   var glc = tint(glowCol, 0.0);
   if (ops[CL_BASE].y > 0.5) {
-    // the collage's own shade colours the glow as a formula's does
+    // the collage's own shade colours the glow as a formula's does (its drivers read where the ray ended)
+    clShadeDrive(ro + rd * t);
     clSelect(CL_OWN);
     var gr: Readings;
     gr.col = glowCol;

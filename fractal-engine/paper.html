@@ -65,7 +65,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="../papers/fractals/paper.css?v=4">
-  <link rel="stylesheet" href="paper/paper.css?v=1">
+  <link rel="stylesheet" href="paper/paper.css?v=3">
 </head>
 
 <body>
@@ -525,7 +525,7 @@
         <tr><td>Open, close</td><td><kbd>M</kbd>, <kbd>Esc</kbd></td><td>the Metasurface glyph in the row</td></tr>
         <tr><td>Breed, blend</td><td>drag the crosshair</td><td>drag</td></tr>
         <tr><td>A stroke in time, in space</td><td><kbd>Shift</kbd>-drag, <kbd>⌥</kbd>-drag</td><td>draw with one finger resting, with two resting</td></tr>
-        <tr><td>Drop your formula as a site</td><td>hold still on open ground</td><td>—</td></tr>
+        <tr><td>Drop your formula as a site</td><td>hold still on open ground</td><td>not yet (chapter 9)</td></tr>
         <tr><td>Move, remove a site</td><td>drag its disc; off the square</td><td>the same</td></tr>
       </table>
       <figure class="engine" data-fig="surface">
@@ -743,7 +743,7 @@
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>4K still</td><td><kbd>⌘S</kbd>, or the frame glyph</td><td>the frame glyph in the structure layer</td></tr>
         <tr><td>Video, splats, mesh</td><td>the film, dots and cube glyphs, bottom right of the structure layer</td><td>the same</td></tr>
-        <tr><td>Open a state</td><td>drop a still or a .ply onto the engine</td><td>—</td></tr>
+        <tr><td>Open a state</td><td>drop a still or a .ply onto the engine</td><td>not yet (chapter 9)</td></tr>
       </table>
       <figure class="engine" data-fig="exports">
         <div class="fe-frame"></div>
@@ -779,11 +779,161 @@
         <figcaption>The engine as it arrives. Press the three hairlines at the top right: the row of toggles unfolds,
           and folds again after a choice or four seconds.</figcaption>
       </figure>
+      <p><b>Names on demand.</b> The drawings have no words, so every control can say its name when asked. Rest the
+        mouse still on a node, a port, a line, a ring item or a toggle for less than half a second, or hold a finger
+        still on it, and its name appears in small text beside it: an op by its notation (<code>fold.box</code>), anything
+        else in one to three words (<i>colour ramp</i>, <i>smooth union · quad</i>, <i>orbit trap</i>). On a desktop the
+        key follows where there is one. The label only reads: a hold still does what it always did (the thumbnail, the
+        ring of choices, the grab), and a second finger or any move takes the name away. These are the names this paper
+        uses.</p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>A control's name</td><td>rest the pointer on it (0.4 s)</td><td>hold a finger still on it (0.4 s); the name sits above the finger</td></tr>
+      </table>
+      <figure class="engine" data-fig="labels">
+        <div class="fe-frame"></div>
+        <figcaption>The tissue's graph, open. Enter and rest on any node, the count or a field's glyph (or hold a finger
+          on it): its name appears beside it.</figcaption>
+      </figure>
+      <p><b>Not yet on touch.</b> Two things a desktop does still have no finger: dropping the formula on screen onto the
+        Metasurface as a site of your own (a mouse holds still on open ground; a finger holding there already carries
+        the crosshair), and opening a saved still or splat file (a desktop drops the file on the engine). Both are open
+        for the next touch stretch.</p>
     </section>
 
     <!-- ================================================================== 10 -->
     <section id="ch10">
-      <h2>10. What Is Not Built Yet</h2>
+      <h2>10. Examples: As Published, and One Step Further</h2>
+      <p class="lead">Seven fractals people know, each drawn as it was published and then taken one step further with
+        a tool from the chapters above. Left, the original; right, the step.</p>
+      <p>The sources are the forums and programs where 3-D fractals grew up: Fractal Forums, where the Mandelbulb,
+        the Mandelbox and the kaleidoscopic folds were posted and argued over; Fragmentarium and Mandelbulber, whose
+        open source code holds the formulas exactly <a class="cite" href="#ref-fragmentarium">[29]</a>
+        <a class="cite" href="#ref-mandelbulber">[30]</a>; and the artists who made them a medium. Each pair starts
+        from that formula as published.</p>
+
+      <h3 id="ch10-1">10.1 The Mandelbulb</h3>
+      <p>Daniel White and Paul Nylander's power-8 bulb of 2009: in spherical coordinates, raise the radius to the
+        eighth power and multiply both angles by eight, then add the starting point
+        <a class="cite" href="#ref-white2009">[18]</a>. The engine's <code>bulb 8 · +c ×10</code> is that formula with
+        its derivative carried alongside (section 3). The step: a tissue in which every cell of space is a bulb of
+        its own power, 8 or 5, with soft walls between them (section 5.3). The classic hybrids alternated whole
+        formulas from one iteration to the next; here the species are laid out in space.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exBulb">
+          <div class="fe-frame"></div>
+          <figcaption>The power-8 Mandelbulb, as published.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exBulbTissue">
+          <div class="fe-frame"></div>
+          <figcaption>A tissue of bulbs of power 8 and 5: each cell its own species.</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="ch10-2">10.2 The Mandelbox at −1.5</h3>
+      <p>Tom Lowe's Mandelbox, posted as the "amazing fractal" in February 2010: fold into a box, fold through a
+        sphere, scale, add the starting point <a class="cite" href="#ref-lowe2010">[1]</a>. At scale −1.5 the faces
+        turn into castles. The step is a collage (section 7): six small −1.5 boxes in a polar ring around a seventh,
+        joined by smooth unions, a cathedral ring no single formula draws.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exBox">
+          <div class="fe-frame"></div>
+          <figcaption>The Mandelbox at scale −1.5.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exBoxRing">
+          <div class="fe-frame"></div>
+          <figcaption>Seven of them as one collage: a polar ring of six around a seventh, smooth seams.</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="ch10-3">10.3 The Kaleidoscopic Folds</h3>
+      <p>Knighty's kaleidoscopic iterated function systems of 2010: fold space across mirror planes, then stretch it
+        about a corner <a class="cite" href="#ref-knighty2010">[31]</a>. The Menger sponge is abs, sort, scale 3; the
+        Sierpiński tetrahedron three plane folds and scale 2. The step: a chimera that runs both inside every
+        iteration and averages the point (section 5.2), a species between the sponge and the tetrahedron.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exMenger">
+          <div class="fe-frame"></div>
+          <figcaption>The Menger sponge as a kaleidoscopic fold.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exMengerSier">
+          <div class="fe-frame"></div>
+          <figcaption>Menger and Sierpiński blended half and half inside every iteration.</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="ch10-4">10.4 The Quaternion Julia Set</h3>
+      <p>Alan Norton drew Julia sets of the quaternions in 1982; Hart, Sandin and Kauffman ray traced them with a
+        distance estimate in 1989 <a class="cite" href="#ref-norton1982">[20]</a> <a class="cite" href="#ref-hart1989">[5]</a>.
+        A three-dimensional slice of a four-dimensional set: q → q² + c. The step: drivers (section 6.2) put the
+        constant c on a slow clock, so the slice drifts through the family of quaternion Julia sets on its own.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exQuat">
+          <div class="fe-frame"></div>
+          <figcaption>A quaternion Julia set, c fixed.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exQuatWalk">
+          <div class="fe-frame"></div>
+          <figcaption>The same with c on a clock: the set changes shape as you watch.</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="ch10-5">10.5 Amazing Surf</h3>
+      <p>A Mandelbox variant from the Mandelbulber library (credited there to Kali): the box fold on two axes only,
+        so the shape runs out into sheets and terraced "lands" <a class="cite" href="#ref-mandelbulber">[30]</a>. It is
+        still one of the most used formulas in Mandelbulber galleries, usually with depth of field
+        <a class="cite" href="#ref-abalo">[32]</a>. The step: painted in one hue in terraces of the orbit trap (section
+        6.1), with the rotation inside its iteration on a slow clock (section 6.2), so the lands turn as you watch.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exSurf">
+          <div class="fe-frame"></div>
+          <figcaption>Amazing Surf, as the Mandelbulber library has it.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exSurfTurn">
+          <div class="fe-frame"></div>
+          <figcaption>Terraces of one hue, the inner rotation on a clock.</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="ch10-6">10.6 A Cave in the Manner of Fractal Nature</h3>
+      <p>Julius Horsthuis's films (<i>Foreign Nature</i>, <i>Recombination</i>) made fractals into places: enveloping
+        halls with natural light, rendered in Mandelbulb3D <a class="cite" href="#ref-horsthuis">[33]</a>. The engine
+        arrives in such a hall. Painted in one hue, in terraces, with the camera's depth of field, it is the left figure.
+        The step: the same hall with its scale changing through space, a noise driver moving it between 2.35 and
+        2.65 (section 6.2), so the architecture shifts as you fly through it. Enter and fly (the wheel, or a pinch).
+        A tissue of two Mandelboxes, the obvious step, measured over half a second a frame here: too heavy for a page.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exCave">
+          <div class="fe-frame"></div>
+          <figcaption>The arrival hall, one hue, terraced.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exCaveNoise">
+          <div class="fe-frame"></div>
+          <figcaption>The hall with its scale driven by noise through space.</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="ch10-7">10.7 A Fractal as Gaussian Splats</h3>
+      <p>3D Gaussian splatting represents a scene as millions of small coloured ellipsoids
+        <a class="cite" href="#ref-kerbl2023">[27]</a>, and it is usually fitted to photographs. The engine makes them
+        from the formula: push walks a Julia-type bulb backwards and every sample becomes an ellipsoid shaped by its
+        walk (section 2.2), and the structure layer's dots glyph writes them as a file any splat viewer opens. Left,
+        the bulb as a surface; right, the same set as splats.</p>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="exJuliaPull">
+          <div class="fe-frame"></div>
+          <figcaption>A Julia-type Mandelbulb (c fixed), as a surface.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="exJuliaPush">
+          <div class="fe-frame"></div>
+          <figcaption>The same set as Gaussian splats, ready to export.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ================================================================== 11 -->
+    <section id="ch11">
+      <h2>11. What Is Not Built Yet</h2>
       <p>The lens does not open on driver or collage parameters, and a collage has no loop and no JIT (the interpreter
         draws it). Breeding varies parameters only: it never adds, removes or swaps an op. Deep zoom by perturbation, a
         sparse 3-D loop, a WebGL2 fallback and moving-image export straight to MP4 are open. On a real iPhone, the
@@ -824,6 +974,11 @@
         <li id="ref-hgsdf2016">Mercury. hg_sdf: a GLSL library for building signed distance functions. <a href="https://mercury.sexy/hg_sdf/" target="_blank" rel="noopener">mercury.sexy/hg_sdf</a>, 2016.</li>
         <li id="ref-kerbl2023">Kerbl, B., Kopanas, G., Leimkühler, T., Drettakis, G. 3D Gaussian splatting for real-time radiance field rendering. <i>ACM Transactions on Graphics</i> 42(4) (2023) 139.</li>
         <li id="ref-gibson1998">Gibson, S. F. F. Constrained elastic surface nets: generating smooth surfaces from binary segmented data. <i>MICCAI '98</i>, LNCS 1496 (1998) 888–898.</li>
+        <li id="ref-fragmentarium">Christensen, M. H. (Syntopia). Fragmentarium: an IDE for exploring 3D fractals and other systems on the GPU. 2011. <a href="https://github.com/Syntopia/Fragmentarium" target="_blank" rel="noopener">github.com/Syntopia/Fragmentarium</a></li>
+        <li id="ref-mandelbulber">Marczak, K. et al. Mandelbulber 2. <a href="https://github.com/buddhi1980/mandelbulber2" target="_blank" rel="noopener">github.com/buddhi1980/mandelbulber2</a></li>
+        <li id="ref-knighty2010">knighty. Kaleidoscopic (escape time) IFS. Fractal Forums, 1 May 2010. <a href="https://www.fractalforums.com/sierpinski-gasket/kaleidoscopic-(escape-time-ifs)/" target="_blank" rel="noopener">fractalforums.com</a></li>
+        <li id="ref-abalo">Abalo, J. Fractal gallery (Mandelbulber 2 renders, 2020–2026). <a href="https://fractal.batjorge.com/" target="_blank" rel="noopener">fractal.batjorge.com</a></li>
+        <li id="ref-horsthuis">Horsthuis, J. <i>Foreign Nature</i> (2015) and <i>Recombination</i> (2022); interview: The beauty of fractal art, 80.lv. <a href="https://80.lv/articles/julius-horsthuis-the-beauty-of-fractal-art" target="_blank" rel="noopener">80.lv</a></li>
       </ol>
     </section>
     <footer>
@@ -832,6 +987,6 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="paper/paper.js?v=3"></script>
+  <script type="module" src="paper/paper.js?v=5"></script>
 </body>
 </html>

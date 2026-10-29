@@ -9,7 +9,7 @@
 // A figure is covered until it is entered — a click or a tap — so the wheel and the finger scroll the
 // page, not the engine, until the reader means the engine. A press outside, the pointer leaving or the
 // figure leaving the screen covers it again. Nothing a reader does is stored (app.js EMBED).
-import { FIGURES, figureSrc } from './figures.js?v=3';
+import { FIGURES, figureSrc } from './figures.js?v=5';
 
 const MAX_LIVE = 2, DWELL_MS = 350, LINE_MS = 500;
 const COARSE = matchMedia('(pointer: coarse)').matches;
@@ -46,7 +46,21 @@ function stop(F) {
   F.iframe = null;
   F.el.classList.remove('live');
   cover(F);
+  // a figure turned away while two ran (a pair scrolled in before the last pair left) gets its turn now
+  setTimeout(fill, 0);
 }
+
+// start figures that are in view but not running, nearest the middle of the screen first, while there is room
+function fill() {
+  const waiting = [...figs.values()].filter((G) => G.visible && !G.iframe).sort((a, b) => distance(a) - distance(b));
+  for (const G of waiting) { if ([...figs.values()].filter((H) => H.iframe).length >= MAX_LIVE) break; start(G); }
+}
+// a sweep once a second, in case the observer missed a change (a phone's stacked pairs, a busy page): a running
+// figure out of view stops, a waiting one in view starts
+setInterval(() => {
+  for (const F of figs.values()) if (F.iframe && !F.visible) stop(F);
+  fill();
+}, 1000);
 
 const distance = (F) => { const r = F.el.getBoundingClientRect(); return Math.abs(r.top + r.height / 2 - innerHeight / 2); };
 

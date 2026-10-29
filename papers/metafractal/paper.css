@@ -10,3 +10,8 @@
 .pair2 .cross::before { left: -9px; top: -0.5px; width: 18px; height: 1px; }
 .pair2 .cross::after { left: -0.5px; top: -9px; width: 1px; height: 18px; }
 @media (max-width: 640px) { .pair2 { grid-template-columns: 1fr; } }
+
+/* chapter 7: one square canvas per figure */
+#fig-train canvas, #fig-butterfly canvas, #fig-rauzy canvas { display: block; width: 100%; max-width: 34rem; margin: 0 auto; aspect-ratio: 1 / 1;
+  border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); }
+#fig-train canvas { cursor: zoom-in; }

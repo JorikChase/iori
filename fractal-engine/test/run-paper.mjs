@@ -107,7 +107,14 @@ for (const id of ids) {
       if (e && e.n > 8 && e.line) break;
       await sleep(250);
     }
-    if (!e) return { note: 'never started' };
+    if (!e) {
+      // what the page thinks: figures in view, running, and where this one is
+      const why = await page.evaluate((id) => {
+        const F = window.__paper.figs.get(id), r = F.el.getBoundingClientRect();
+        return { visible: [...window.__paper.figs.values()].filter((G) => G.visible).map((G) => G.id), live: window.__paper.live(), top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight, iframe: !!F.iframe };
+      }, id);
+      return { note: `never started ${JSON.stringify(why)}` };
+    }
     await sleep(600);
     e = await engine(id);
     if (flag('--shots')) {
@@ -192,6 +199,11 @@ await check('nothing stored', async () => {
     return { keys, same: hashes.every((h, i) => h.slice(1) === src[i]) };
   });
   return { ok: r.keys.length === 0 && r.same, note: `localStorage ${r.keys.join(',') || 'clean'}, hashes ${r.same ? 'as loaded' : 'rewritten'}` };
+});
+await check('fits the screen', async () => {
+  // after the figures ran: their lines of notation are filled now, the widest thing on the page
+  const r = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, vw: document.documentElement.clientWidth }));
+  return { ok: r.sw <= r.vw + 1, note: `page ${r.sw} px wide in a ${r.vw} px screen` };
 });
 await check('no page errors', async () => ({ ok: errors.length === 0, note: errors.slice(0, 3).join(' | ') }));
 

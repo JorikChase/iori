@@ -38,3 +38,10 @@ table.use td:first-child { color: var(--ink-2); width: 30%; }
 kbd { font: 0.78rem var(--mono); border: 1px solid #d5d8db; border-bottom-width: 2px; border-radius: 4px; padding: 0 0.3rem; background: var(--wash); white-space: nowrap; }
 code { font: 0.86em var(--mono); background: var(--wash); border-radius: 4px; padding: 0.05rem 0.3rem; }
 @media (max-width: 640px) { table.use td:first-child { width: 36%; } }
+
+/* the examples: the original and the step beside it, stacked on a phone */
+.fe-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.7rem; max-width: var(--wide); margin: 1.6rem auto 2.2rem; }
+.fe-pair figure { margin: 0; min-width: 0; }  /* a grid item would grow to its one-line formula (.fe-line) */
+.fe-pair .fe-frame { aspect-ratio: 1 / 1; }
+.fe-pair figcaption { font-size: 0.8rem; }
+@media (max-width: 700px) { .fe-pair { grid-template-columns: minmax(0, 1fr); } .fe-pair .fe-frame { aspect-ratio: 4 / 5; } }

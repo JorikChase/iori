@@ -1849,3 +1849,40 @@ anywhere. Decided with iori:
   touch-*gizmo-world.
 
 Open: the open ring can cover part of the formula's strip on a narrow screen; the facing term of the old tint.
+
+## Closing examples, 2026-10-29
+
+From the research brief `papers/study/2026-10-29-examples-research.md`, iori chose the recommended set.
+
+- *Engine paper, chapter 10 "Examples: As Published, and One Step Further"* (old 10 → 11): seven pairs, the
+  original beside one step (`.fe-pair`, two engines side by side, each square; stacked on a phone): Mandelbulb →
+  a tissue of powers 8/5; Mandelbox −1.5 → a polar collage ring of seven; Menger → Menger ‖ Sierpiński at .5;
+  quaternion Julia → c on a sine clock; Amazing Surf → one-hue terraces and its inner rotate on a clock; the arrival
+  hall in one hue (Horsthuis's "Fractal Nature" manner) → its scale driven by noise through space; a bulb Julia
+  pulled → pushed (splats). New refs: Fragmentarium, Mandelbulber 2, knighty 2010, Abalo's gallery, Horsthuis.
+- *Measured, and why two steps changed:* a Mandelbox chimera with shading drew at 0.6–1.1 s a frame (surf ‖ box at
+  .5; a tissue of box 2.5 ‖ box −1.5), so neither belongs on a page; the steps became a clock and a noise driver
+  (22 ms a frame). The one-hue ramp reads the trap in bands, mapped ×0.35 mirrored (×1.8 clamped went white).
+  Framing chosen by a CPU coverage scan (11×11 rays): Surf at yaw 0, pitch −0.5, distance 8 (64 %).
+- *paper.js:* a figure refused by the two-engine cap (a pair scrolled in while the last pair still ran) used to
+  wait forever; `fill()` now starts waiting visible figures, nearest the middle first, whenever one stops.
+  A sweep once a second also stops running figures out of view and fills free slots, in case the observer missed
+  a change. And the pairs' grid columns are `minmax(0, 1fr)` with `min-width: 0` on the figures: a grid item grew to
+  its one-line formula, the page became wider than a phone, the phone zoomed out (innerHeight 1905 at 390 wide) and
+  three engines counted as visible. The rig now checks the page fits the screen after the figures ran.
+- *Metafractal 0.1, chapter 7 "Maps Elsewhere"* (old 7 → 8), `papers/metafractal/contemporary.js`: the trainability
+  map (Sohl-Dickstein's smallest case: width-4 tanh, one data point, 300 steps, per pixel in a fragment shader;
+  tap to zoom, "measure the border" box-counts the image — 1.46 on the GPU in float32 where a float64 CPU run gave
+  1.44; he reports 1.41); Hofstadter's butterfly (the trace of q transfer matrices at θ = π/2q, Chambers' P(E),
+  every p/q to q ≤ 64) with the bands' total width at the golden mean's Fibonacci approximants: 5.66 … 0.17 → 0;
+  the Rauzy fractal (200,000 tribonacci prefixes on the contracting plane, the left eigenvector of the complex
+  root) and its lattice copies tiling the plane. Refs checked: Avila–Jitomirskaya math/0503363; Baake, Gähler,
+  Mazáč, Sadun arXiv:2411.15503 ("On the long-range order of the Spectre tilings").
+- *Radiance Fields 0.2, chapter 7 "Fractals That Hold Light and Matter"* (old 7 → 8), `papers/radiance/sierpinski.js`:
+  an electron on generation 4 of the gasket (123 sites, H = −A, Jacobi in the page, residual 1e-14), one state's
+  |ψ|² or the microscope's view at an energy (states within ±0.12 summed) drawn as additive emission; the enzyme's
+  geometry (hexamers of three dimers at the odd entries of Pascal's triangle mod 2: 3^k; symmetric contacts fill the
+  triangle) with mass ∝ size^1.585. The enzyme is drawn as geometry, not chemistry, and the text says so.
+
+Open: the engine gaps the brief lists (a seed estimate for pseudo-Kleinian / Kleinian / Apollonian, the Mandalay
+fold, the kaliset as a shading node, orbit density as a medium); a sun-and-fog look preset for open landscapes.

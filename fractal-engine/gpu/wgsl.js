@@ -1594,6 +1594,24 @@ fn drvRecD(oi: u32, k: u32, col: u32) -> vec4f {
   }
   return o;
 }
+// drvRecD for columns 0–3 and rows 0–4 at once, row m·5 + k: one walk over the bindings where drvLoad
+// walks them twenty times (the same sums, binding by binding in order)
+fn drvLoadAll(oi: u32) -> array<vec4f, 20> {
+  var E: array<vec4f, 20>;
+  let nb = min(u32(ops[DR_BASE].y), 16u);
+  for (var b = 0u; b < nb; b++) {
+    let at = DR_BINDS + b * 10u;
+    if (u32(ops[at].x) != oi) { continue; }
+    let d = drvVD[b];
+    let nl = ops[at + 1u].w > 0.5;
+    let j = min(u32(ops[at + 2u].z), 7u);
+    for (var k = 0u; k < 5u; k++) {
+      let R = select(ops[at + 3u + k], drvNLD[j * 5u + k], nl);
+      E[k] = E[k] + d.x * R; E[5u + k] = E[5u + k] + d.y * R; E[10u + k] = E[10u + k] + d.z * R; E[15u + k] = E[15u + k] + d.w * R;
+    }
+  }
+  return E;
+}
 // whether op oi moves with its drivers along column col (and drvE loaded with how, when it does)
 fn drvLoad(oi: u32, col: u32) -> bool {
   if (!(drvAny && !drvFreeze && col < 4u && drvIs(oi))) { return false; }
@@ -2000,8 +2018,8 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
       // a driven op: its record's motion along each column, loaded at one call site
       var E: array<vec4f, 20>;
       var eOn = vec4<bool>(false);
-      // (only a driven op: the copy into E is private memory, every op of every iteration otherwise)
-      if (DRIVE_ON && drvAny && drvIs(oi)) { for (var m = 0u; m < 4u; m++) { eOn[m] = drvLoad(oi, m); for (var r = 0u; r < 5u; r++) { E[m * 5u + r] = drvE[r]; } } }
+      // (only a driven op: E is private memory, filled every op of every iteration otherwise)
+      if (DRIVE_ON && drvAny && !drvFreeze && drvIs(oi)) { eOn = vec4<bool>(true); E = drvLoadAll(oi); }
       drvEOn = eOn.x; if (eOn.x) { drvE = array<vec4f, 5>(E[0], E[1], E[2], E[3], E[4]); }
       let t0 = opTan(oi, p, c, g0, dc0, false);
       drvEOn = eOn.y; if (eOn.y) { drvE = array<vec4f, 5>(E[5], E[6], E[7], E[8], E[9]); }

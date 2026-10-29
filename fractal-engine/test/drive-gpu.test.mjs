@@ -74,10 +74,16 @@ test('every driven case validates, packs and gets a JIT that starts each iterati
     const f = normalize(parse(text));
     assert.deepEqual(validateDrive(f.drive, f), []);
     pack(f);
-    assert.match(jitIterate(f), /driveIter\(p, t\.dr, i/);
-    assert.match(jitIterate(f, 'structure'), /driveIter\(p, t\.dr, i/);
+    // the drive program inline (its bindings' registers dv…), or the interpreter's driveIter where a
+    // binding rebuilds a rotation or a plane fold, or sets a chimera's field
+    const starts = /driveIter\(p, t\.dr, i|if \(i == 0u\) \{[^]*?dv0 = clamp/;
+    assert.match(jitIterate(f), starts);
+    assert.match(jitIterate(f, 'structure'), starts);
   }
-  assert.doesNotMatch(jitIterate(parse(BOX)), /driveIter/);
+  assert.doesNotMatch(jitIterate(parse(BOX)), /driveIter|dv0/);
+  // the inlined program is part of the structure: another wiring is another structure JIT
+  const g = normalize(parse(DRIVEN[1][0]));
+  assert.notEqual(structureKey(g), structureKey({ ...g, drive: { ...g.drive, bind: g.drive.bind.slice(1) } }));
   // a structure JIT compiled for an undriven formula is not reused for a driven one
   assert.notEqual(structureKey(parse(BOX)), structureKey(normalize(parse(DRIVEN[1][0]))));
   // the variant switch

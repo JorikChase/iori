@@ -73,6 +73,11 @@ fn rec(oi: u32, k: u32) -> vec4f {
   var r = ops[oi * REC4 + k];
   // a driven op reads its driven values (DRIVE below); the test is one bit for undriven formulas
   if (DRIVE_ON && drvAny) { if (drvIs(oi)) { r = drvRec(oi, k, r); } }
+  return recOv(oi, k, r);
+}
+// the overrides on a record row r (the JIT's inlined drivers hand it their own driven row)
+fn recOv(oi: u32, k: u32, r0: vec4f) -> vec4f {
+  var r = r0;
   if (oi == ov0) { r = r + ovD.x * ovRec0[k]; }
   if (oi == ov1) { r = r + ovD.y * ovRec1[k]; }
   if (oi == tanOi) { r = r + tanEps * tanRec[k]; }

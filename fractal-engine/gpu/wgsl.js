@@ -374,6 +374,76 @@ fn fieldAt(oi: u32, p: vec4f, dr: f32, world: bool) -> MixW {
   return orbitWeights(oi, p, dr);
 }
 
+// The forward pass's weights alone: mixWeights' w, operation for operation, without the gradients G and
+// S (the dual numbers' business) or the tissue's array of sites (recomputed: a hash). The orbit runs this
+// every iteration of every march step; with G and S it held 48 dynamically indexed floats per call.
+// w: species 0–3 in lo, 4–7 in hi — two registers (an array of eight went to memory)
+struct MixF { lo: vec4f, hi: vec4f, k: u32 };
+fn mfAdd(m: ptr<function, MixF>, i: u32, v: f32) {
+  (*m).lo = (*m).lo + select(vec4f(0.0), vec4f(v), vec4u(i) == vec4u(0u, 1u, 2u, 3u));
+  (*m).hi = (*m).hi + select(vec4f(0.0), vec4f(v), vec4u(i) == vec4u(4u, 5u, 6u, 7u));
+}
+fn mfAt(m: MixF, i: u32) -> f32 { return select(m.hi[i & 3u], m.lo[i & 3u], i < 4u); }
+fn mixWeightsF(oi: u32, x: vec4f, dr: f32) -> MixF {
+  let a = rec(oi, 0u);
+  let b = rec(oi, 1u);
+  let v = rec(oi, 2u);
+  let q = rec(oi, 3u);
+  let kind = u32(a.y);
+  let k = u32(b.x);
+  var m: MixF;
+  m.k = k;
+  if (kind == 4u) {
+    let n = min(u32(round(q.x)), 16u);
+    let size = q.y;
+    let tau = max(q.z * size, 1e-9);
+    let seed = u32(round(q.w));
+    var emax = -1e30;
+    for (var j = 0u; j < n; j++) { let d = x - site(seed, j, size); emax = max(emax, -dot(d, d) / tau); }
+    var Z = 0.0;
+    for (var j = 0u; j < n; j++) {
+      let d = x - site(seed, j, size);
+      let pi = exp(-dot(d, d) / tau - emax);
+      Z = Z + pi;
+      mfAdd(&m, j % k, pi);
+    }
+    m.lo = m.lo / Z; m.hi = m.hi / Z;
+    return m;
+  }
+  if (kind == 8u) {
+    var sum = 0.0;
+    for (var i = 0u; i < k; i++) { let a = max(select(q[i % 4u], v[i % 4u], i < 4u), 0.0); mfAdd(&m, i, a); sum = sum + a; }
+    if (sum > 0.0) { m.lo = m.lo / sum; m.hi = m.hi / sum; }
+    else { m.lo = select(vec4f(0.0), vec4f(1.0 / f32(k)), vec4u(0u, 1u, 2u, 3u) < vec4u(k)); m.hi = select(vec4f(0.0), vec4f(1.0 / f32(k)), vec4u(4u, 5u, 6u, 7u) < vec4u(k)); }
+    return m;
+  }
+  let w = b.y;
+  if (w <= 0.0) { m.lo.x = 1.0; return m; }
+  if (w >= 1.0) { mfAdd(&m, k - 1u, 1.0); return m; }
+  var s = 0.0;
+  switch kind {
+    case 1u: { let nl = length(v); var n = vec4f(0.0); if (nl > 0.0) { n = v / nl; } s = b.z * dot(n, x); }
+    case 2u: { let d = x - v; let r = length(d); s = b.z * (r - q.x); }
+    case 3u: { let f = fbm(x, q.x, u32(round(q.y)), u32(round(q.z))); s = b.z * f.n; }
+    case 5u: { s = b.z * (fTrap - q.x); }
+    case 6u: { s = b.z * (fIter / fIters - 0.5); }
+    case 7u: { s = b.z * log(max(dr, 1e-30)) / (fIter + 1.0); }
+    default: {}
+  }
+  let sg = 1.0 / (1.0 + exp(-(log(w / (1.0 - w)) + s)));
+  let u = f32(k - 1u) * sg;
+  let i0 = min(u32(max(floor(u), 0.0)), k - 2u);
+  let t = u - f32(i0);
+  mfAdd(&m, i0, 1.0 - t); mfAdd(&m, i0 + 1u, t);
+  return m;
+}
+fn fieldAtF(oi: u32, p: vec4f, dr: f32, world: bool) -> MixF {
+  if (world) { return mixWeightsF(oi, fP0, dr); }
+  let r = length(p);
+  if (!(r > FIELD_R)) { return mixWeightsF(oi, p, dr); }
+  return mixWeightsF(oi, p * (FIELD_R / r), dr);
+}
+
 struct Fwd { p: vec4f, dr: f32, branch: u32, sp: f32 };
 
 // a sub-stack's ops on (p, dr); branches are not coloured (the mix colours by species)
@@ -396,15 +466,16 @@ fn mixCombine(oi: u32, p: vec4f, dr: f32, kp0: array<vec4f, 8>, kd0: array<f32, 
   var kp = kp0;
   var kd = kd0;
   let world = rec(oi, 0u).z > 0.5;
-  let m = fieldAt(oi, p, dr, world);
+  let m = fieldAtF(oi, p, dr, world);
   var o: Fwd;
   o.p = vec4f(0.0);
   o.dr = 0.0;
   var lead = 0u;
   for (var i = 0u; i < m.k; i++) {
-    o.p = o.p + m.w[i] * kp[i];
-    o.dr = o.dr + m.w[i] * kd[i];
-    if (m.w[i] > m.w[lead]) { lead = i; }
+    let w = mfAt(m, i);
+    o.p = o.p + w * kp[i];
+    o.dr = o.dr + w * kd[i];
+    if (w > mfAt(m, lead)) { lead = i; }
   }
   o.branch = 1u + lead;
   o.sp = f32(lead) / max(f32(m.k) - 1.0, 1.0);

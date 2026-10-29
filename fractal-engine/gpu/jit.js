@@ -113,16 +113,22 @@ function opCode(o, oi) {
   }
 }
 
-// the chimera inline: every species unrolled on a copy of (p, dr), blended by mixCombine (gpu/wgsl.js),
-// which reads the field from the record (one path for both kinds: a literal JIT runs only while the
-// buffer holds its values). The species' branches are not coloured; the mix colours by the leading
-// species, as the interpreter does.
+// the chimera inline: every species unrolled on a copy of (p, dr), blended as mixCombine (gpu/wgsl.js)
+// blends, by the weights fieldAtF reads from the record (one path for both kinds: a literal JIT runs only
+// while the buffer holds its values). The species count is the structure's, so each species' result is
+// a register of its own rather than an entry of a private array (an array passed by value spilled).
+// The species' branches are not coloured; the mix colours by the leading species, as the interpreter does.
 function mixCode(oi, kids) {
-  return `{ let pm = p; let drm = t.dr; var kp: array<vec4f, 8>; var kd: array<f32, 8>;
+  const K = kids.length, ks = kids.map((_, i) => i), w = (i) => `fw.${i < 4 ? 'lo' : 'hi'}.${'xyzw'[i & 3]}`;
+  return `{ let pm = p; let drm = t.dr;
 ${kids.map((code, i) => `${code}
-      kp[${i}] = p; kd[${i}] = t.dr; p = pm; t.dr = drm;`).join('\n')}
-      let fm = mixCombine(${oi}u, pm, drm, kp, kd);
-      p = fm.p; t.dr = fm.dr; br = fm.branch; t.sp = fm.sp; }`;
+      let kp${i} = p; let kd${i} = t.dr; p = pm; t.dr = drm;`).join('\n')}
+      let fw = fieldAtF(${oi}u, pm, drm, rec(${oi}u, 0u).z > 0.5);
+      p = vec4f(0.0)${ks.map((i) => ` + ${w(i)} * kp${i}`).join('')};
+      t.dr = 0.0${ks.map((i) => ` + ${w(i)} * kd${i}`).join('')};
+      var lead = 0u;
+${ks.slice(1).map((i) => `      if (${w(i)} > mfAt(fw, lead)) { lead = ${i}u; }`).join('\n')}
+      br = 1u + lead; t.sp = f32(lead) / ${L(Math.max(K - 1, 1))}; }`;
 }
 
 // the WGSL `iterate` for one formula, replacing the interpreter's. kind: 'literal' | 'structure'

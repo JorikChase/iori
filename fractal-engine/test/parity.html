@@ -20,7 +20,7 @@ import { prepare, collageAt, collageColour, collageGrad, drivenAt, toPiece, from
 import { project } from '../core/vec.js';
 import { push as cpuPush } from '../core/cpu.js';
 import { COLLAGES, KEEP, STEP, collageCase } from './collage-cases.js';
-import { COLLAGE_MARCH, COLLAGE_STEP } from '../gpu/render.js';
+import { COLLAGE_MARCH, COLLAGE_STEP, collageJit } from '../gpu/render.js';
 import { COLLAGE_WALK } from '../gpu/push.js';
 import { withJit } from '../gpu/jit.js';
 import { format } from '../core/notation.js';
@@ -466,28 +466,32 @@ async function collageSuite(device, compilePipe) {
     const rng = makeRng(61);
     const pts = new Float32Array(CL_N * 20);
     for (let i = 0; i < CL_N; i++) pts.set(rng.ball().map((x) => x * R), i * 20);
-    const g = await runCollage(device, await pipeOf('CL_SHADER', CL_SHADER, c), c, pts, CL_N);
-    const rels = [], wErr = [], colErr = [];
-    let iterMismatch = 0, wOff = 0, colOff = 0, compared = 0;
-    const N = c.pieces.length;
-    for (let i = 0; i < CL_N; i++) {
-      const x = [pts[i * 20], pts[i * 20 + 1], pts[i * 20 + 2]], o = i * 20;
-      const at = collageAt(c, x, { time: CL_T });
-      const pr = pieceReadings(c, x, CL_T);
-      if (pr.some((q, k) => k < 4 && q.n !== g[o + 12 + k])) { iterMismatch++; continue; }
-      compared++;
-      rels.push(Math.abs(g[o] - at.d) / Math.max(Math.abs(at.d), 1e-4));
-      // the shares, piece and seam: absolute; a hard or stepped kernel flips them where the inputs tie
-      const we = Math.max(...at.w.slice(0, 4).map((w, k) => Math.abs(w - g[o + 8 + k])), Math.abs(at.piece - g[o + 1]), Math.abs(at.seam - g[o + 2]));
-      wErr.push(we);
-      if (we > 1e-2) wOff++;
-      const col = collageColour(c, at, pr.map((q) => q.r), CL_FALLBACK, { x, time: CL_T });
-      const ce = Math.max(...col.map((v, k) => Math.abs(v - g[o + 16 + k])));
-      colErr.push(ce);
-      if (ce > 1e-2) colOff++;
+    // the interpreter's pieces, then each piece's structure JIT (gpu/render.js collageJit)
+    for (const jit of [false, true]) {
+      const pipe = jit ? await compilePipe((anyDrive(c) ? withDrive : (x) => x)(collageJit(CL_SHADER, c)), `CL_SHADER jit ${label}`) : await pipeOf('CL_SHADER', CL_SHADER, c);
+      const g = await runCollage(device, pipe, c, pts, CL_N);
+      const rels = [], wErr = [], colErr = [];
+      let iterMismatch = 0, wOff = 0, colOff = 0, compared = 0;
+      const N = c.pieces.length;
+      for (let i = 0; i < CL_N; i++) {
+        const x = [pts[i * 20], pts[i * 20 + 1], pts[i * 20 + 2]], o = i * 20;
+        const at = collageAt(c, x, { time: CL_T });
+        const pr = pieceReadings(c, x, CL_T);
+        if (pr.some((q, k) => k < 4 && q.n !== g[o + 12 + k])) { iterMismatch++; continue; }
+        compared++;
+        rels.push(Math.abs(g[o] - at.d) / Math.max(Math.abs(at.d), 1e-4));
+        // the shares, piece and seam: absolute; a hard or stepped kernel flips them where the inputs tie
+        const we = Math.max(...at.w.slice(0, 4).map((w, k) => Math.abs(w - g[o + 8 + k])), Math.abs(at.piece - g[o + 1]), Math.abs(at.seam - g[o + 2]));
+        wErr.push(we);
+        if (we > 1e-2) wOff++;
+        const col = collageColour(c, at, pr.map((q) => q.r), CL_FALLBACK, { x, time: CL_T });
+        const ce = Math.max(...col.map((v, k) => Math.abs(v - g[o + 16 + k])));
+        colErr.push(ce);
+        if (ce > 1e-2) colOff++;
+      }
+      rows.push({ kind: 'forward', case: label, formula: jit ? label + ' · jit' : label, n: CL_N, pieces: N, compared, iterMismatch,
+        median: pct(rels, 0.5), p99: pct(rels, 0.99), wMedian: pct(wErr, 0.5), wOff, colMedian: pct(colErr, 0.5), colOff });
     }
-    rows.push({ kind: 'forward', formula: label, n: CL_N, pieces: N, compared, iterMismatch,
-      median: pct(rels, 0.5), p99: pct(rels, 0.99), wMedian: pct(wErr, 0.5), wOff, colMedian: pct(colErr, 0.5), colOff });
   }
   // push: every piece's own walk (the CPU's), each sample handed to a copy round robin
   for (const label of KEEP) {
@@ -598,7 +602,7 @@ async function run() {
       if (e.length) throw new Error(label + ': ' + e.map((x) => `${x.lineNum}: ${x.message}`).join('\n'));
       return device.createComputePipelineAsync({ layout: 'auto', compute: { module: m, entryPoint: 'main' } });
     };
-    const collageRows = (await collageSuite(device, compileOnly)).map((r) => ({ ...r, drv: r.kind === 'forward' && collageCase(r.formula)[1].pieces.some((q) => drives(q.f)) }));
+    const collageRows = (await collageSuite(device, compileOnly)).map((r) => ({ ...r, drv: r.kind === 'forward' && collageCase(r.case)[1].pieces.some((q) => drives(q.f)) }));
     const ok = collageRows.every(collagePass);
     window.__parity = { ok, collageRows };
     out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + collageRows.map((r) => `${r.formula}\n  ${JSON.stringify(r)}`).join('\n\n');
@@ -1046,7 +1050,7 @@ async function run() {
     errs.sort((a, b) => a - b);
     colourRows.push({ formula: text, compared, iterMismatch, median: errs[compared >> 1] || 0, p99: errs[Math.floor(compared * 0.99)] || 0, off });
   }
-  const collageRows = (await collageSuite(device, compilePipe)).map((r) => ({ ...r, drv: r.kind === 'forward' && collageCase(r.formula)[1].pieces.some((q) => drives(q.f)) }));
+  const collageRows = (await collageSuite(device, compilePipe)).map((r) => ({ ...r, drv: r.kind === 'forward' && collageCase(r.case)[1].pieces.some((q) => drives(q.f)) }));
   const collageOk = collageRows.every(collagePass);
   const shadeOk = shadeRows.every((r) => r.median < 1e-5 && r.off / SH_N < 0.005);
   // whole orbits: float32 orbits and noise a few 1e-6 off move a ramp read through repeat or a hue a

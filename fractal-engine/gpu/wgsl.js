@@ -2079,15 +2079,15 @@ fn deGrad(d: Dual) -> vec3f {
 // every function above runs on whichever piece is selected. WGSL has no recursion, and an op never
 // reaches another piece: the pieces are dispatched from the collage's own loop (collageAt), never from
 // inside opFwd — one call site of iterate, however many pieces.
+// the selected piece's head and ops region in place of the formula's (a piece's JIT takes the same)
+export const collageRewrite = (code) => code.replace(/\bhead\./g, 'heads[hp].').replace(/\bops\[/g, 'ops[pb + ');
 export function withCollage(source) {
   const BIND = '@group(0) @binding(0) var<uniform> head: Head;';
   if (!source.includes(BIND)) throw new Error('no head binding to replace');
-  return source
+  return collageRewrite(source
     .replace(BIND, `@group(0) @binding(0) var<uniform> heads: array<Head, ${MAX_PIECES + 1}>;
 var<private> hp: u32 = 0u;   // the selected piece's head
-var<private> pb: u32 = 0u;   // and its ops region (vec4)`)
-    .replace(/\bhead\./g, 'heads[hp].')
-    .replace(/\bops\[/g, 'ops[pb + ')
+var<private> pb: u32 = 0u;   // and its ops region (vec4)`))
     // the collage's own estimate and step factor take these names (COLLAGE)
     .replace('fn de(x: vec3f) -> f32 {', 'fn deFormula(x: vec3f) -> f32 {')
     .replace('fn drvStep() -> f32 {', 'fn drvStepFormula() -> f32 {');

@@ -5,8 +5,8 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP, DUAL, COLLAGE, withDrive, withCollage } from './wgsl.js';
-import { withJit, structureKey } from './jit.js';
+import { INTERP, DUAL, COLLAGE, withDrive, withCollage, collageRewrite } from './wgsl.js';
+import { withJit, structureKey, jitIterate } from './jit.js';
 import { canonical } from '../core/formula.js';
 import { MAX_PIECES, isCollage } from '../core/collage.js';
 import { pack, drives, shapes, packCollage, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from './pack.js';
@@ -298,6 +298,25 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
 `;
 export const COLLAGE_MARCH = withCollage(INTERP + DUAL) + COLLAGE + MARCH_VIEW + COLLAGE_SHADE + MARCH_ENTRY;
 
+// The collage's march with every piece's structure JIT (gpu/jit.js): piece i's orbit is iterateP<i>, read
+// from its own head and region as the interpreter reads it, and collageAt's one call site of iterate
+// dispatches on the piece. Its key is the pieces' structures: values (placements, joins, parameters) stay
+// in the buffer.
+const PIECE_CALL = 'let t = iterate(q, cFor(q));';
+export function collageJit(source, collage) {
+  if (!source.includes(PIECE_CALL)) throw new Error('no piece orbit to replace');
+  const fns = collage.pieces.map((q, i) => collageRewrite(jitIterate(q.f, 'structure')).replace('fn iterate(p0: vec4f, c: vec4f) -> Trace {', `fn iterateP${i}(p0: vec4f, c: vec4f) -> Trace {`));
+  return source.replace(PIECE_CALL, 'let t = iteratePiece(i, q, cFor(q));') + fns.join('') + `
+fn iteratePiece(i: u32, p0: vec4f, c: vec4f) -> Trace {
+  switch i {
+${collage.pieces.map((_, i) => `    case ${i}u: { return iterateP${i}(p0, c); }`).join('\n')}
+    default: { return iterate(p0, c); }
+  }
+}
+`;
+}
+const collageJitKey = (c) => JSON.stringify(c.pieces.map((q) => structureKey(q.f)));
+
 // the step factor's measurement for a driven collage: at world points (on or near its surface),
 // |∇D| and |∇D| with the drive held there (gpu/wgsl.js clSteep)
 export const COLLAGE_STEP = withCollage(INTERP) + COLLAGE + /* wgsl */ `
@@ -474,7 +493,7 @@ export async function createRenderer(canvas) {
       v = { pipe: null, building: null };
       variants.set(key, v);
       v.building = (async () => {
-        const module = device.createShaderModule({ code });
+        const module = device.createShaderModule({ code: typeof code === 'function' ? code() : code });
         const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
         if (errs.length) throw new Error(`wgsl ${key}: ` + errs.map((m) => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
         v.pipe = await device.createComputePipelineAsync({ layout: device.createPipelineLayout({ bindGroupLayouts: layouts }), compute: { module, entryPoint } });
@@ -487,6 +506,12 @@ export async function createRenderer(canvas) {
   const driveMarch = () => [`march`, withDrive(MARCH), [formulaLayout, viewLayout], 'march'];
   // a collage's march, in the drivers' variant when a piece's own drive program runs
   const collageMarch = (pk) => [pk.drives ? 'cmarch+drive' : 'cmarch', pk.drives ? withDrive(COLLAGE_MARCH) : COLLAGE_MARCH, [formulaLayout, viewLayout], 'march'];
+  // and with its pieces' JITs (built in the background; the interpreter's march draws until then)
+  const collageJitMarch = (pk) => {
+    const key = `cjit${pk.drives ? '+drive' : ''}:${pk.jitKey || (pk.jitKey = collageJitKey(pk.collage))}`;
+    return [key, () => collageJit(pk.drives ? withDrive(COLLAGE_MARCH) : COLLAGE_MARCH, pk.collage), [formulaLayout, viewLayout], 'march'];
+  };
+  const collagePipe = (pk) => variant(...collageJitMarch(pk)) || variant(...collageMarch(pk));
 
   // the lens map: computed once when the lens opens, then composited every frame while it is open
   const lensLayout = device.createBindGroupLayout({
@@ -604,10 +629,15 @@ export async function createRenderer(canvas) {
     packed = { ...packCollage(c), formula: null };
     driveWords(packed.head);
     variant(...collageMarch(packed));
+    // one collage JIT kept: the last structure's goes when another starts building
+    const jit = collageJitMarch(packed);
+    for (const k of variants.keys()) if (k.startsWith('cjit') && k !== jit[0]) variants.delete(k);
+    variant(...jit);
     device.queue.writeBuffer(headBuf, 0, packed.head);
     device.queue.writeBuffer(opsBuf, 0, packed.ops);
   }
   const collageReady = async () => (packed && packed.collage ? variant.ready(...collageMarch(packed)) : null);
+  const collageJitReady = async () => (packed && packed.collage ? variant.ready(...collageJitMarch(packed)) : null);
 
   const viewData = new Float32Array(VIEW_FLOATS);
   // v: { pos, right, up, fwd, tanHalfFov, aperture, focus, blend, light, glow, hue, fog, exposure,
@@ -659,7 +689,7 @@ export async function createRenderer(canvas) {
     device.queue.writeBuffer(viewBuf, 0, viewData);
     lastExposure = v.exposure;
 
-    const pipe = packed && packed.collage ? variant(...collageMarch(packed)) : pipeFor(packed && packed.formula, v.quality > 0);
+    const pipe = packed && packed.collage ? collagePipe(packed) : pipeFor(packed && packed.formula, v.quality > 0);
     if (!pipe) { present(); return; }
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass(timing.on ? { timestampWrites: { querySet: timing.set, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } } : undefined);
@@ -797,7 +827,7 @@ export async function createRenderer(canvas) {
     const outCanvas = new OffscreenCanvas(W, H);
     const g2 = outCanvas.getContext('2d');
     if (packed && drives(packed.formula)) await variant.ready(...driveMarch());
-    const pipe = packed && packed.collage ? await collageReady() : pipeFor(packed && packed.formula, true);
+    const pipe = packed && packed.collage ? collagePipe(packed) || await collageReady() : pipeFor(packed && packed.formula, true);
     if (!pipe) throw new Error('the collage march did not compile');
     const vb = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const db = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -971,12 +1001,12 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
 
   // the push engine shares the device, the canvas and the formula buffers
   return {
-    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, setCollage, collageReady, collageStep, frame, present, lens, setLens, renderThumb, variant,
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, setCollage, collageReady, collageJitReady, collageStep, frame, present, lens, setLens, renderThumb, variant,
     compileJit, compileStructureJit, renderStill, deGrid, setTiming, marchMs, readAccum,
     get jitReady() { return !!(packed && jitFor(packed.formula)); },
     // which pipeline a frame of the current formula would use
     get pipelineKind() {
-      if (packed && packed.collage) return 'collage';
+      if (packed && packed.collage) return variant(...collageJitMarch(packed)) ? 'collage jit' : 'collage';
       const f = packed && packed.formula, p = pipeFor(f, true);
       // the drivers' variant of the interpreter is the interpreter too
       return p === jits.literal.pipe ? 'literal' : p === jits.structure.pipe ? 'structure' : 'interpreter';

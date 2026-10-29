@@ -64,6 +64,7 @@ const SCENES = [
   { id: 'driven-box', doc: { driven: 1 }, cam: [[-1.979, -1.43, -2.071], -1.156, -0.2], samples: 16, moving: 4 },
   { id: 'chimera', samples: 16, moving: 4, doc: '[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 1.5 1 1 0 0 · +c ×12 bail=100', cam: [[-1.979, -1.43, -2.071], -1.156, -0.2] },
   { id: 'collage3', doc: { collage: 'three: turn, polar, chamfer cut' }, cam: [3.4, 0.5, -0.45] },
+  { id: 'cl-union', doc: { collage: 'union quad' }, cam: [2.2, 0.5, -0.45] },
   { id: 'push-chimera', mode: 'push', doc: '[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 1.5 1 1 0 0 · +c ×12 bail=100', cam: [6, 0.5, -0.3] },
   { id: 'push-box', mode: 'push', doc: BOX, cam: [6, 0.5, -0.3] },
   { id: 'loop', mode: 'loop', doc: BOX, cam: [[-1.979, -1.43, -2.071], -1.156, -0.2] },
@@ -87,6 +88,8 @@ async function pageSetup(sc) {
     const { COLLAGES } = await import('/fractal-engine/test/collage-cases.js');
     await fe.collage(COLLAGES.find((c) => c[0] === doc.collage)[1]);
     compile.collage = performance.now() - t0;
+    // the pieces' JITs, where the renderer has them (it draws with the interpreter's march until then)
+    if (R.collageJitReady) { const t = performance.now(); await R.collageJitReady(); compile.jit = performance.now() - t; }
     collage = true;
   } else fe.setFormula(doc, true);
   // the camera: a position, or a distance from the origin along -forward

@@ -1151,13 +1151,31 @@ var<private> mixRng: u32;   // the random state after the solve, so ops inverted
 // The inverse has no start point: a world-frame field is read at the point solved for (fP0 = x, and
 // its column moves with x); the self-fields at the context the walk set (fTrap, fIter).
 fn mixAt(oi: u32, x: vec4f, c: vec4f) -> vec4f { fP0 = x; return mixFwd(oi, x, c, 1.0).p; }
+// The blend's Jacobian at x: mixTan's sum for the four identity columns (the drivers held, no recorded
+// column: what mixTan does with recCol 99), each species run once carrying all four columns where mixTan
+// ran it again per column through private arrays. The same sums in the same order. Newton calls this
+// every step of push's chimera inverse.
 fn mixJacobian(oi: u32, x: vec4f, c: vec4f) -> mat4x4f {
   fP0 = x;
-  let z = vec4f(0.0);
-  let I = array<vec4f, 5>(vec4f(1.0, 0.0, 0.0, 0.0), vec4f(0.0, 1.0, 0.0, 0.0), vec4f(0.0, 0.0, 1.0, 0.0), vec4f(0.0, 0.0, 0.0, 1.0), z);
-  let t = mixTan(oi, x, c, 1.0, 4u, I, array<f32, 5>(0.0, 0.0, 0.0, 0.0, 0.0), array<vec4f, 5>(z, z, z, z, z), I,
-                 array<f32, 5>(0.0, 0.0, 0.0, 0.0, 0.0), 99u);
-  return mat4x4f(t.v[0], t.v[1], t.v[2], t.v[3]);
+  let a = rec(oi, 0u);
+  let k = u32(rec(oi, 1u).x);
+  let m = fieldAt(oi, x, 1.0, a.z > 0.5);
+  tanCol = 99u;
+  drvEOn = false;
+  let I = mat4x4f(vec4f(1.0, 0.0, 0.0, 0.0), vec4f(0.0, 1.0, 0.0, 0.0), vec4f(0.0, 0.0, 1.0, 0.0), vec4f(0.0, 0.0, 0.0, 1.0));
+  var V = mat4x4f(vec4f(0.0), vec4f(0.0), vec4f(0.0), vec4f(0.0));
+  for (var i = 0u; i < k; i++) {
+    let start = slotStart(u32(a.w) + i);
+    var p = x;
+    var T = I;
+    for (var j = 0u; j < slotLen(u32(a.w) + i); j++) {
+      let s = opFwd(start + j, p, c);
+      for (var q = 0u; q < 4u; q++) { T[q] = opTan(start + j, p, c, T[q], vec4f(0.0), false).v; }
+      p = s.p;
+    }
+    for (var q = 0u; q < 4u; q++) { V[q] = V[q] + m.w[i] * T[q] + dot(m.G[i], I[q]) * p; }
+  }
+  return V;
 }
 
 fn mixInv(oi: u32, q: vec4f, c: vec4f) -> Step {

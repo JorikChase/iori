@@ -1684,3 +1684,37 @@ references; a tap enters at 375×812, a touch grab aims at the centre and edits,
 
 Not yet: the paper is not linked from the engine itself (a glyph in the structure layer could open it);
 figures share no GPUDevice; the toggles figure cannot show the site menu's second press (embed folds only).
+
+## Papers 0.1 and 0.2, 2026-10-29
+
+iori asked for the engine's illustrations in the fractal paper and for a radiance-fields paper. Decided with
+iori (the recommended answers): a sub-paper **Metafractal: The Space of Fractals Is Fractal**
+(`metafractal.html`, paper 0.1) built on the engine's figures, with a bridge in paper 0 (section 1.6, one live
+engine and the link); a sub-paper **Radiance Fields: Elements and Morphs** (`radiance-fields.html`, paper 0.2)
+with small new 2-D figures for the elements and engine figures for the morphs; both hidden, listed in
+`papers/series.py` (papers/index.html and the stubs' series lists) and in paper 0's chapter 8.
+
+- *Engine figures on any page:* `paper/figures.js figureSrc` builds absolute URLs from its own module, so a page
+  anywhere loads `fractal-engine/paper/paper.js` and writes `<figure class="engine" data-fig="…">`. New entries:
+  `pushJulia` (the arrival Mandelbox pushed: the Julia-type set of the point looked at), `tetraPull` (the
+  tetrahedron pulled, beside `push`; both now framed at yaw 0.6, pitch −0.5 so the centre ray hits the solid and
+  a touch grab finds a surface — at 0.5/−0.6 it passed through a hole).
+- *Metafractal's own figures* (`papers/metafractal/julia.js`, WebGL2, drawn on demand): the parameter plane beside
+  the Julia set of the crosshair's c (drift along the main cardioid when untouched; the readout says connected or
+  dust), and Tan Lei's similarity — M and J_c around a Misiurewicz point (i, ≈ −0.1011 + 0.9563 i, −2) zoomed
+  together. Boundaries are drawn by the distance estimate, so hairlines stay crisp to 10⁻⁴.
+- *Radiance Fields' own figures* (`papers/radiance/fields.js` pure, `figures.js` Canvas 2D): a ray through a
+  density (σ, T, the weights, exact vs NeRF's α quadrature, a sharpness slider from fog to surface); view
+  dependence as circular harmonics with cameras; one shape in four representations at one budget, with errors;
+  three morphs (densities, distances, Gaussians). Measured on shape A (mean |error|, budgets 64 / 256 / 1024
+  numbers): voxels 5.6 / 2.6 / 0.9 %, distance grid 2.7 / 0.8 / 0.2 %, k-means Gaussians 4.7 / 3.1 / 2.3 %,
+  lowest frequencies 4.8 / 1.6 / 0.4 %.
+- *Rig:* `run-paper.mjs --page metafractal.html | radiance-fields.html` — every engine figure, every page figure
+  draws (`figure.local`), the grab on a pull figure. Verified: engine paper 29/29; Metafractal 16/16 desktop and
+  phone; Radiance Fields 13/13 desktop and phone; no page errors. Shots `design/shots/metafractal-*.jpg`,
+  `radiance-fields-*.jpg`.
+
+Open: paper 0's bridge embed uses paper 0's own iframe embed (no tap-to-enter cover, like its iris and flame
+embeds); Metafractal's open item — the box-counting dimension of a lens map's zero set — is measurable with the
+engine and not done; the engine has no view-dependent emission (Radiance Fields §7).
+

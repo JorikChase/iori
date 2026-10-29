@@ -9,6 +9,8 @@
      node fractal-engine/test/run-paper.mjs --phone     # 390×844, mobile Chromium with touch
      node fractal-engine/test/run-paper.mjs --shots     # and design/shots/paper-<figure>.jpg
      node fractal-engine/test/run-paper.mjs --only loop # figures whose id holds the word (and the rest of the checks)
+     node fractal-engine/test/run-paper.mjs --page metafractal.html   # another paper that embeds the figures (and
+                                                                      # its own figures must draw)
 
    GPU load: one or two engines at a time, but run it alone (the Mac has frozen under two heavy renders). */
 import http from 'node:http';
@@ -26,6 +28,8 @@ const flag = (f) => argv.includes(f);
 const opt = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : d; };
 const PHONE = flag('--phone');
 const ONLY = opt('--only', null);
+const PAGE = opt('--page', 'fractal-engine/paper.html');
+const TAG = PAGE === 'fractal-engine/paper.html' ? 'paper' : path.basename(PAGE, '.html');
 
 function loadPlaywright() {
   const dirs = [process.env.PLAYWRIGHT_DIR, path.join(ROOT, 'tools', 'audio-test')];
@@ -63,7 +67,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.stack || e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-await page.goto(`${base}/fractal-engine/paper.html`, { waitUntil: 'load' });
+await page.goto(`${base}/${PAGE}`, { waitUntil: 'load' });
 await page.waitForFunction(() => window.__paper, null, { timeout: 20000 });
 await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; });
 
@@ -108,10 +112,31 @@ for (const id of ids) {
     e = await engine(id);
     if (flag('--shots')) {
       fs.mkdirSync(SHOTS, { recursive: true });
-      await page.locator(`figure[data-fig="${id}"]`).screenshot({ path: path.join(SHOTS, `paper-${PHONE ? 'phone-' : ''}${id}.jpg`), type: 'jpeg', quality: 72, scale: 'css' });
+      await page.locator(`figure[data-fig="${id}"]`).screenshot({ path: path.join(SHOTS, `${TAG}-${PHONE ? 'phone-' : ''}${id}.jpg`), type: 'jpeg', quality: 72, scale: 'css' });
     }
     const l = await live();
     return { ok: l.includes(id) && !e.error && !e.nan && !!e.line, note: `${((Date.now() - t0) / 1000).toFixed(1)} s, live ${l.join(',')}${e.error ? ' error ' + e.error : ''}${e.nan ? ` NaN×${e.nan}` : ''}` };
+  });
+}
+// a page's own figures (metafractal.html, radiance-fields.html): each draws once in view
+const locals = await page.evaluate(() => [...document.querySelectorAll('figure.local')].map((f) => f.id));
+for (const id of locals) {
+  await check(`page figure ${id}`, async () => {
+    await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center', behavior: 'instant' }), id);
+    await sleep(1500);
+    const r = await page.evaluate((id) => {
+      const el = document.getElementById(id), st = el.querySelector('.status');
+      // a 2-D canvas with more than one colour on it, or a status line the figure wrote after drawing
+      const inked = [...el.querySelectorAll('canvas')].some((c) => {
+        const ctx = c.getContext('2d'); if (!ctx || !c.width) return false;
+        const d = ctx.getImageData(0, 0, c.width, c.height).data; let lo = 255, hi = 0;
+        for (let i = 0; i < d.length; i += 4 * 97) { lo = Math.min(lo, d[i]); hi = Math.max(hi, d[i]); }
+        return hi - lo > 40;
+      });
+      return { inked, status: st ? st.textContent : '' };
+    }, id);
+    if (flag('--shots')) { fs.mkdirSync(SHOTS, { recursive: true }); await page.locator(`#${id}`).screenshot({ path: path.join(SHOTS, `${TAG}-${PHONE ? 'phone-' : ''}${id}.jpg`), type: 'jpeg', quality: 72, scale: 'css' }); }
+    return { ok: r.inked || !!r.status, note: r.status.slice(0, 90) };
   });
 }
 await check('at most two at once', async () => ({ ok: most <= 2, note: `most live: ${most}` }));
@@ -123,32 +148,34 @@ await check('none past the figures', async () => {
 });
 
 // the cover: a tap enters, a hold in the figure grabs at the centre and edits, a tap outside covers it again
+// a pull figure to grab in (push has no grab; a touch grab aims at the centre, which must be surface)
+const GRAB = ['grab', 'lens', 'lyap', 'tetraPull'].find((k) => ids.includes(k)) || ids[0];
 await check('tap enters, hold edits', async () => {
-  await toFig('grab');
-  const box = await page.locator('figure[data-fig="grab"] .fe-frame').boundingBox();
+  await toFig(GRAB);
+  const box = await page.locator(`figure[data-fig="${GRAB}"] .fe-frame`).boundingBox();
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForFunction(() => { const F = window.__paper.figs.get('grab'); try { return F.iframe.contentWindow.__fe.ready; } catch { return false; } }, null, { timeout: 45000 });
-  const entered = await page.evaluate(() => window.__paper.figs.get('grab').el.classList.contains('entered'));
-  const t0 = await page.evaluate(() => window.__paper.figs.get('grab').iframe.contentWindow.__fe.state.text);
+  await page.waitForFunction((G) => { const F = window.__paper.figs.get(G); try { return F.iframe.contentWindow.__fe.ready; } catch { return false; } }, GRAB, { timeout: 45000 });
+  const entered = await page.evaluate((G) => window.__paper.figs.get(G).el.classList.contains('entered'), GRAB);
+  const t0 = await page.evaluate((G) => window.__paper.figs.get(G).iframe.contentWindow.__fe.state.text, GRAB);
   const cdp = await ctx.newCDPSession(page);
   const at = (x, y) => [{ x: box.x + x, y: box.y + y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(60, box.height / 2) });
   await sleep(700);
   for (let k = 1; k <= 10; k++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(60 + k * 8, box.height / 2) }); await sleep(30); }
-  const grab = await page.evaluate(() => window.__paper.figs.get('grab').iframe.contentWindow.__fe.input.grab);
+  const grab = await page.evaluate((G) => window.__paper.figs.get(G).iframe.contentWindow.__fe.input.grab, GRAB);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(300);
-  const t1 = await page.evaluate(() => window.__paper.figs.get('grab').iframe.contentWindow.__fe.state.text);
+  const t1 = await page.evaluate((G) => window.__paper.figs.get(G).iframe.contentWindow.__fe.state.text, GRAB);
   return { ok: entered && !!grab && t1 !== t0, note: `entered ${entered}, grab ${grab ? grab.key : 'none'}, edited ${t1 !== t0}` };
 });
 await check('tap outside covers', async () => {
-  const cap = await page.locator('figure[data-fig="grab"] figcaption').boundingBox();
+  const cap = await page.locator(`figure[data-fig="${GRAB}"] figcaption`).boundingBox();
   await page.touchscreen.tap(cap.x + 20, cap.y + 8);
   await sleep(200);
-  const covered = await page.evaluate(() => { const F = window.__paper.figs.get('grab'); return !F.el.classList.contains('entered') && !F.cover.hidden; });
+  const covered = await page.evaluate((G) => { const F = window.__paper.figs.get(G); return !F.el.classList.contains('entered') && !F.cover.hidden; }, GRAB);
   return { ok: covered };
 });
-await check('notation draws a formula', async () => {
+if (ids.includes('notation')) await check('notation draws a formula', async () => {
   await toFig('notation');
   await page.fill('form.fe-try input', 'bulb 8 · +c ×10 bail=2');
   await page.click('form.fe-try button[type=submit]');

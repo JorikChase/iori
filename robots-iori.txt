@@ -9,8 +9,10 @@ Disallow: /document-diffusion.html
 Disallow: /fractal-engine/paper.html
 Disallow: /kalivoda/
 Disallow: /lili-web.html
+Disallow: /metafractal.html
 Disallow: /moshine/lab.html
 Disallow: /papers/
+Disallow: /radiance-fields.html
 Disallow: /tensor-landscapes.html
 Disallow: /theatre-mask/
 Disallow: /timeline.html

@@ -850,6 +850,24 @@
       "type": "experiment",
       "hidden": true,
       "priority": 0.5
+    },
+    "metafractal.html": {
+      "title": "Metafractal: The Space of Fractals Is Fractal",
+      "description": "Paper 0.1: the Mandelbrot set as the map of the Julia sets and Tan Lei's similarity live, then the Fractal Engine's maps, metric and walks through 3-D fractal space.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
+      "priority": 0.5
+    },
+    "radiance-fields.html": {
+      "title": "Radiance Fields: Elements and Morphs",
+      "description": "Paper 0.2: density, emission and the volume integral live, one shape stored four ways and measured, and the morphs between representations and between shapes.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
+      "priority": 0.5
     }
   }
 }

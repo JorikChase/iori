@@ -39,11 +39,15 @@ const TISSUE = '[bulb 8 · +c ‖ bulb 3 · +c] tissue 6 1.5 .1 ×10 bail=4';
 export const FIGURES = {
   notation: { open: 'structure' },
   pull: {},
-  push: { doc: TETRA, view: 3.6, yaw: 0.5, pitch: -0.6, mode: 'push' },
+  push: { doc: TETRA, view: 3.6, yaw: 0.6, pitch: -0.5, mode: 'push' },
   loop: { doc: 'power 2 · +c ×24 c=-.123,.745,0', view: 2.5, yaw: 0, pitch: 0, win: 1.3, mode: 'loop' },
   lyap: { open: 'lyap' },
   grab: {},
   lens: {},
+  // radiance-fields.html: the tetrahedron as a distance field (pull) beside its splats (push)
+  tetraPull: { doc: TETRA, view: 3.6, yaw: 0.6, pitch: -0.5 },
+  // metafractal.html: the arrival Mandelbox drawn by push, the Julia-type set of the point looked at
+  pushJulia: { doc: BOX, mode: 'push' },
   lineage: { open: 'structure' },
   ring: { doc: BULB, view: 2.4 },
   slice: { doc: 'quat · translate -.2 .6 .2 .1 ×12 bail=4', view: 2.4 },
@@ -61,12 +65,13 @@ export const FIGURES = {
   touch: {},
 };
 
-// the engine's URL for a figure; doc overrides the figure's own document (the notation figure's input)
+// the engine's URL for a figure, absolute (other papers embed these figures too: metafractal.html); doc
+// overrides the figure's own document (the notation figure's input)
 export function figureSrc(id, doc) {
   const F = FIGURES[id];
   const q = new URLSearchParams({ embed: '' });
   for (const k of ['view', 'yaw', 'pitch', 'win', 'open']) if (F[k] != null) q.set(k, F[k]);
   const text = doc || F.doc;
   const hash = text ? '#' + encodeURIComponent(text) + (F.mode && F.mode !== 'pull' ? '&m=' + F.mode : '') : '';
-  return 'index.html?' + q.toString().replace('embed=', 'embed') + hash;
+  return new URL('../index.html?' + q.toString().replace('embed=', 'embed') + hash, import.meta.url).href;
 }

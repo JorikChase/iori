@@ -201,6 +201,22 @@
         The gap is the method. The smallest boxes see pixel-wide edges, dimension 1; the largest see the whole image,
         dimension 2; only the middle of the range sees the carpet. A dimension is never read off one number. It is read
         off a range of scales, and the range has to be stated.</p>
+
+      <h3 id="ch1-6">1.6 The Space of Fractals</h3>
+      <p>Every fractal made by a formula is one point in a space of fractals: change a number and the shape moves to a
+        neighbouring point. That space has a geometry of its own. The Mandelbrot set is its most famous chart: each point
+        of it stands for a whole Julia set, and near certain points it looks exactly like the Julia set it stands for.
+        In three and four dimensions there is no such theorem, but there is an instrument. Below is the
+        <a href="fractal-engine/">Fractal Engine</a>, inside a Mandelbox. Hold still on a wall and the engine finds the
+        number that moves the surface most there; hold Shift as well and the view becomes the map of two of
+        those numbers around your point, that point's own Mandelbrot set. The companion paper
+        <a href="metafractal.html">Metafractal: The Space of Fractals Is Fractal</a> (paper 0.1) follows this space from
+        the Mandelbrot set to the engine's maps, walks and species.</p>
+      <figure class="embed" id="embed-engine" data-src="fractal-engine/index.html?embed">
+        <div class="embed-frame"></div>
+        <figcaption>The Fractal Engine inside the Mandelbox. It loads when it scrolls into view and unloads when it
+          leaves; nothing you do in it is saved. <a href="fractal-engine/paper.html">Every tool, explained</a>.</figcaption>
+      </figure>
     </section>
 
     <!-- ================================================================== 2 -->
@@ -757,6 +773,12 @@
 
       <h3 id="ch8-2">8.2 The Other Papers</h3>
       <ul class="series">
+        <li><span class="n">0.1</span><a href="metafractal.html">Metafractal: The Space of Fractals Is Fractal</a><span class="state">October 2026</span>
+          <p>Section 1.6 made a paper: the Mandelbrot set as the map of the Julia sets, Tan Lei's similarity, and the
+            Fractal Engine's maps, metric, walks and species as the instrument for the spaces no theorem reaches.</p></li>
+        <li><span class="n">0.2</span><a href="radiance-fields.html">Radiance Fields: Elements and Morphs</a><span class="state">October 2026</span>
+          <p>The engine's object, taken apart: density, emission, view-dependent colour, the volume integral, and the
+            representations (distance fields, voxels, Gaussians, networks), with the morphs between them.</p></li>
         <li><span class="n">1</span><a href="automata.html">Cellular Automata as the Computational Basis</a><span class="state">in preparation</span>
           <p>Local rules compute a rough world, measured against known answers: Flame Strains, Petri, the Tero fixture,
             the think tank.</p></li>

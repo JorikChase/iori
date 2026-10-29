@@ -20,6 +20,13 @@ SERIES = [
      "Roughness: how to measure it, the simplest machine that makes it, the forests and rivers that grow it, and "
      "why image generators draw the big shapes first. Mandelbrot's Brownian casebook live, a forest and a 10 km "
      "landscape formed by rivers, a theorem on the order of generation, and what the fractal toolset buys in speed."),
+    ("0.1", "metafractal.html", "Metafractal: The Space of Fractals Is Fractal", "October 2026",
+     "Every fractal is a point in a space of fractals, and that space is rough. The Mandelbrot set as the map of "
+     "the Julia sets and Tan Lei's similarity, live; then the Fractal Engine as the instrument for the spaces no "
+     "theorem reaches: maps of any two parameters, a metric in pixels, chaos, walks, chimeras, tissue."),
+    ("0.2", "radiance-fields.html", "Radiance Fields: Elements and Morphs", "October 2026",
+     "The Fractal Engine's object taken apart: density, emission, view-dependent colour and the volume integral, "
+     "and the representations — distance fields, voxels, Gaussians, networks — with the morphs between them."),
     ("1", "automata.html", "Cellular Automata as the Computational Basis", "in preparation",
      "Local rules compute a rough world, measured against known answers: Flame Strains, Petri, the Tero "
      "fixture, the think tank."),

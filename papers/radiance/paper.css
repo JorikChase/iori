@@ -1,0 +1,16 @@
+/* Radiance Fields: paper 0's look and the engine figures' (fractal-engine/paper/paper.css), plus its own
+   2-D figures: a ray beside its plots, a lobe with cameras, rows of panes. */
+#fig-ray canvas { width: 100%; aspect-ratio: 2 / 1; display: block; border: 0; touch-action: pan-y; cursor: crosshair; }
+#fig-lobes canvas { width: 100%; max-width: 26rem; margin: 0 auto; aspect-ratio: 1 / 1; display: block; border: 1px solid var(--rule); border-radius: 10px; }
+.row { display: grid; gap: 0.5rem; }
+.row.five { grid-template-columns: repeat(5, 1fr); }
+.row.three { grid-template-columns: repeat(3, 1fr); }
+.row .pane { position: relative; }
+.row canvas { width: 100%; aspect-ratio: 1 / 1; display: block; border: 1px solid var(--rule); border-radius: 8px; }
+.row .tag { display: block; font: 0.7rem/1.35 var(--mono); color: var(--muted); margin-top: 0.3rem; text-align: center; min-height: 2.7em; }
+@media (max-width: 700px) {
+  #fig-ray canvas { aspect-ratio: 1 / 1.6; }
+  .row.five { grid-template-columns: repeat(2, 1fr); }
+  .row.five .pane:first-child { grid-column: span 2; max-width: 55%; margin: 0 auto; }
+  .row.three { grid-template-columns: 1fr 1fr 1fr; }
+}

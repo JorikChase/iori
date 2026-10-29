@@ -90,7 +90,7 @@ node fractal-engine/test/run-bench.mjs --ref <commit> --retime-ref   # A/B again
 
 - The reference defaults to the commit "fractal engine bench: the rig" (the first with the hooks it
   needs: `__fe.view`, `__fe.engines`, `__fe.quiet`, the renderer's `setTiming`/`marchMs`/`readAccum`).
-  Its `fractal-engine/` is extracted into `test/bench-ref/<hash>/` (git-ignored) and its images and
-  timings are cached there; this tree's land in `test/bench-ref/current/`.
+  Its `fractal-engine/` is extracted into `fractal-engine/bench-ref/<hash>/` (git-ignored, outside test/ so `node --test` never finds its copies) and its images and
+  timings are cached there; this tree's land in `fractal-engine/bench-ref/current/`.
 - It stops the app's live loop and submits every frame itself, one at a time.
 - GPU-heavy: run it alone, as the other rigs. The slowest scenes take 16 samples, not 64.

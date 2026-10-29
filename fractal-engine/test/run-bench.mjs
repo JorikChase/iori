@@ -22,9 +22,9 @@
    atomics and are not image-guarded.
 
    The reference: by default the commit "fractal engine bench: the rig" (the first with the hooks). Its
-   fractal-engine/ is extracted once into test/bench-ref/<hash>/ (git-ignored) and rendered there; its
-   images and timings are cached beside it. Images: test/bench-ref/<hash>/<scene>-{still,moving}.png and
-   test/bench-ref/current/ for this tree.
+   fractal-engine/ is extracted once into fractal-engine/bench-ref/<hash>/ (git-ignored) and rendered there; its
+   images and timings are cached beside it. Images: fractal-engine/bench-ref/<hash>/<scene>-{still,moving}.png and
+   fractal-engine/bench-ref/current/ for this tree.
 
    GPU load: one browser, one page, one scene at a time — the Mac froze under two heavy renders at once.
    A full run is ~2 minutes of continuous GPU; --only runs a short burst. */
@@ -38,7 +38,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
-const REF_DIR = path.join(HERE, 'bench-ref');
+// outside test/: `node --test fractal-engine/test/` would run the extracted tree's rigs
+const REF_DIR = path.join(HERE, '..', 'bench-ref');
 const argv = process.argv.slice(2);
 const flag = (f) => argv.includes(f);
 const opt = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : d; };
@@ -59,6 +60,7 @@ const SCENES = [
   { id: 'bulb', doc: 'bulb 8 · +c ×10 bail=4', cam: [2.4, 0.6, -0.35] },
   { id: 'menger', doc: 'abs · sort · scale 3 · translate -2 -2 · fold.plane 0 0 -1 -1 ×8 bail=50', cam: [2.6, 0.5, -0.4] },
   { id: 'kifs', doc: 'abs · fold.plane 1 -1 0 · fold.plane 0 1 -1 · rotate 10 15 0 · scale 2 · translate -1 -1 -1 ×12 bail=30', cam: [3.2, 0.4, -0.3] },
+  { id: 'driven-bulb', doc: { driven: 0 }, cam: [2.4, 0.6, -0.35] },
   { id: 'driven-box', doc: { driven: 1 }, cam: [[-1.979, -1.43, -2.071], -1.156, -0.2], samples: 16, moving: 4 },
   { id: 'chimera', samples: 16, moving: 4, doc: '[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 1.5 1 1 0 0 · +c ×12 bail=100', cam: [[-1.979, -1.43, -2.071], -1.156, -0.2] },
   { id: 'collage3', doc: { collage: 'three: turn, polar, chamfer cut' }, cam: [3.4, 0.5, -0.45] },

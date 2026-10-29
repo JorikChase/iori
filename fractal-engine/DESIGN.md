@@ -1718,3 +1718,95 @@ Open: paper 0's bridge embed uses paper 0's own iframe embed (no tap-to-enter co
 embeds); Metafractal's open item — the box-counting dimension of a lens map's zero set — is measurable with the
 engine and not done; the engine has no view-dependent emission (Radiance Fields §7).
 
+
+## Performance, 2026-10-29
+
+iori asked whether the GPU is used optimally. It had never been profiled; this stretch measured first, then
+kept only what the bench showed paying with the image unchanged.
+
+**The rig** (`test/run-bench.mjs`, test/README.md "Performance, headless"). Fixed scenes, cameras and size
+(1440×900, dpr 1) on this Mac (M3 Pro, Metal, headless Chromium). The live loop is stopped and the rig
+submits frames itself, one at a time. Per pull scene: the march pass's GPU time from timestamp queries
+(median), still frames (shadows, 5-tap AO, literal JIT) and moving frames (structure JIT); the wall time to
+a converged still (64 samples; 16 for the two slowest scenes, so the Mac never runs a long chain of
+second-long dispatches); compile times. Push and the loop: wall time per frame through the app's own step().
+
+**The guard.** Every pull scene is rendered with the same seeds by a reference commit (default: the rig's
+own commit, 6295557) and by this tree. The images are compared tonemapped as the display shows them (8-bit
+sRGB): pass at PSNR ≥ 40 dB and SSIM ≥ 0.99 (luma, 8×8 windows), both still (converged) and moving (one
+sample). Why these: with the same seeds an unchanged renderer is bit-identical (∞ dB), so the guard sees only
+what a change does. Float reassociation (a compiler ordering a sum differently) lands at 55–111 dB; 40 dB is
+an RMS error under 2.6/255, below what shows on screen, and SSIM 0.99 catches a structural change (a missed
+surface, a shifted edge) that PSNR would average away. Push and the loop are stochastic in their atomics and
+are timed, not image-guarded; parity's inverse and keep rows check push's maths against the CPU.
+
+**Baseline** (GPU ms per frame; compile ms cold, the first run before Metal's shader cache held them):
+
+| scene | still | converged | moving | cold compile |
+|---|---|---|---|---|
+| Mandelbox cave | 37.7 | 2.48 s | 31.7 | — |
+| bulb | 6.1 | 0.45 s | 4.1 | — |
+| Menger | 8.5 | 0.61 s | 7.5 | structure 1218, literal 1148 |
+| KIFS | 7.7 | 0.55 s | 7.5 | 1158, 1130 |
+| driven bulb (iteration → power) | 45.9 | 3.01 s | 34.9 | — |
+| driven Mandelbox (noise → scale, r → fold) | 589.5 | 9.45 s (16) | 402.6 | literal 3052 |
+| chimera (box ‖ Menger, axis field) | 717.7 | 11.51 s (16) | 423.4 | 2162, 1921 |
+| three-piece collage | 28.8 | 1.91 s | 27.3 | march 259 |
+| bulb ∪ Mandelbox collage | 427.3 | 27.44 s | 232.2 | — |
+| push, chimera | 1078.5 wall | | | |
+| push, Mandelbox | 9.5 wall | | | |
+| loop | 1.0 wall | | | |
+
+What the baseline said: the plain formulas were already fast (the JITs); every slow case was the same
+pathology — private arrays indexed by a loop variable (they live in memory, not registers) and work redone
+per column or per binding inside the orbit. Driven formulas were ×10–15 a march step over undriven ones
+with the same step count, the chimera ×20, push on a chimera ×110 over push on the box.
+
+**Kept** (each its own commit "fractal engine perf: …"; ratios against the baseline, same run conditions):
+
+| change | effect | guard |
+|---|---|---|
+| chimera forward weights alone (`fieldAtF`: no gradients, no tissue site array, two vec4 registers); the JIT's species in registers | chimera 718 → 188 ms | 65 dB |
+| the JIT inlines the drive program (registers per node and binding, code by node type, a driven row written out as `drvRec` sums it) | driven Mandelbox 590 → 290 | ∞ |
+| the duals load a driven op's record motion only for a driven op | → 252 | ∞ |
+| the duals fill all four columns' record motion in one walk over the bindings | → 238 | ∞ |
+| push's blend Jacobian runs each species once for all four columns | push chimera 1078 → 240 ms | parity |
+| the chimera's tangent runs each species once for all its dual columns | chimera → 152 | 65 dB (unchanged) |
+| collage pieces get structure JITs (dispatched at `collageAt`'s one call site, built in the background) | three-piece 28.8 → 13.2, bulb ∪ box 427 → 140 | 55–111 dB |
+
+**Now** (2026-10-29, after all of the above):
+
+| scene | still | converged | moving | vs baseline (still) |
+|---|---|---|---|---|
+| Mandelbox cave, bulb, Menger, KIFS | 37.6, 6.2, 8.7, 7.7 | as before | as before | ×1.00 (∞ dB) |
+| driven bulb | 25.1 | 1.66 s | 23.0 | ×1.83 |
+| driven Mandelbox | 238.1 | 3.83 s (16) | 188.2 | ×2.48 |
+| chimera | 151.7 | 2.45 s (16) | 114.8 | ×4.73 |
+| three-piece collage | 13.2 | 0.92 s | 12.7 | ×2.18 |
+| bulb ∪ Mandelbox collage | 140.0 | 9.03 s | 84.5 | ×3.05 |
+| push, chimera | 239.4 wall | | | ×4.51 |
+
+The governor turns these into resolution: the same 18 / 45 ms targets now afford more pixels on the slow cases.
+
+**Tried and reverted** (no gain, or a gain not worth what it cost):
+- *A two-pass march (march into a hit buffer, shade in a second dispatch)*: the hypothesis was that the hit
+  shading's register footprint throttles the whole kernel. ×1.00–1.08, and the image no longer bit-identical.
+  The strip experiment that suggested it measured removed work, not register pressure.
+- *Workgroup shape*: 8×8 (now) = 8×4; 16×4 and 16×8 ~5 % slower; 4×4 twice as slow.
+- *Unrolled `solve4`* (push's Newton): ~2 %, within noise.
+- *Removing the tissue site array from `drvField`, shrinking the drivers' private arrays*: nothing.
+
+**Not done, and why:**
+- *Over-relaxed sphere tracing, iteration LOD, temporal reuse while moving*: each changes the image. The glow
+  is summed per march step, so fewer steps change the glow itself. Asking iori first, with before/after images.
+- *Pixel-footprint stopping*: the march already stops at ε = t · pixel angle · 0.6.
+- *A pipeline cache, precompiling variants*: macOS's Metal shader cache already makes every repeat compile
+  ~20–40 ms (cold 1–3 s); only a device's first visit pays.
+- *Skipping far collage pieces (bounding volumes)*: the join must give exactly the near piece's value when the
+  far one is out of reach, kernel by kernel (exp never does exactly); open.
+- *A JIT for the dual numbers*: the hit's `iterateDual` is now the largest share of a driven or chimera
+  frame (driven Mandelbox: ~64 ms march, the rest the hit). The next big step, and a large one.
+
+Open: the collage lens and the collage's CPU sensing pass (~30 ms) are untouched; the collage JIT's cold
+compile is ~5 s (the interpreter draws meanwhile, as for a formula); a new drive wiring now recompiles the
+structure JIT (the wiring is baked in), where a band edit does not.

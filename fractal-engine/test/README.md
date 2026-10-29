@@ -76,7 +76,8 @@ node fractal-engine/test/run-paper.mjs --shots    # and design/shots/paper-*.jpg
 ## Performance, headless
 
 `run-bench.mjs` times fixed scenes at a fixed size (1440×900): the Mandelbox cave, the bulb, Menger, a
-KIFS, a driven Mandelbox, a chimera, a three-piece collage (pull), push on the chimera and the loop. Per
+KIFS, a driven bulb, a driven Mandelbox, a chimera, a three-piece collage, a bulb ∪ Mandelbox collage
+(pull), push on the chimera and on the Mandelbox, and the loop. Per
 pull scene: the march pass's GPU time from timestamp queries (still and moving frames), the wall time to
 a converged still, and the JIT compile times. The guard renders every pull scene with the same seeds as
 a reference commit and fails below PSNR 40 dB or SSIM 0.99 (DESIGN.md "Performance").

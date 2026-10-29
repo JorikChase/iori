@@ -44,7 +44,7 @@ touch events through the DevTools protocol, one check per gesture in DESIGN.md "
 desktop behaviour, unchanged).
 
 ```bash
-node fractal-engine/test/run-touch.mjs               # 33 checks, the overlay toggles included (~3 min)
+node fractal-engine/test/run-touch.mjs               # 39 checks (--desktop 16), the overlay toggles included (~3 min)
 node fractal-engine/test/run-touch.mjs --shots       # and design/shots/touch-*.jpg
 node fractal-engine/test/run-touch.mjs --only graph  # checks whose name holds the word
 node fractal-engine/test/run-touch.mjs --desktop

@@ -1810,3 +1810,42 @@ The governor turns these into resolution: the same 18 / 45 ms targets now afford
 Open: the collage lens and the collage's CPU sensing pass (~30 ms) are untouched; the collage JIT's cold
 compile is ~5 s (the interpreter draws meanwhile, as for a formula); a new drive wiring now recompiles the
 structure JIT (the wiring is baked in), where a band edit does not.
+
+## Colour defaults and the gizmo's axes, 2026-10-29
+
+iori noticed that adding a colour ramp changed the colour at once, and wanted the gizmo to move pieces
+anywhere. Decided with iori:
+- **Keep the look, then choose.** A new ramp starts as the colour the field already has: core/shade-edit.js
+  addNode copies the ramp that colours the link it lands on (a ramp, or a mix's first colour followed up; free,
+  the surface's), parameters and input. A math (× 1) and a mix (a colour with itself) already kept it. shadeOn
+  takes the view's look (key, iridescence, spread, hue), so starting the frame keeps the colour too (the old
+  tint's facing term, `cosv · 0.35`, is not in the graph: a small shift where the surface turns away).
+- **The presets ring opens beside the new ramp** and stays open: a tap on a gradient takes it, a tap anywhere
+  else shuts it, Escape too. Gradients only; a mouse at rest or a finger held names one (ui/labels.js
+  `preset.*`). Holding a ramp opens the same ring as before (point and release).
+- **The presets: iori's picks, in the ring's order** — oil, malachite, bone, prism, strata, beetle, abyss
+  (core/shade.js RING_PRESETS). Chosen from four families on comparison sheets (design/colour/sheet-*.jpg, five
+  formulas each — a Mandelbox cave, a bulb, a KIFS, a chimera, a collage — rendered one 480×300 image at a time
+  by design/colour/render-sheet.mjs; the candidates are design/colour/schemes.mjs). A preset is a ramp *and*
+  its reading (PRESET_READING): applying one feeds the ramp that reading when a reading fed it (the one it
+  leaves goes when nothing else reads it); a math or a driver feeding it stays. fire, ice, film and mono stay
+  in RAMP_PRESETS (documents and tests name them) but are off the ring.
+- *What the sheets taught* (render-sheet.mjs --diag measures each reading's spread over the lit pixels): the
+  fold index barely moves on folding formulas (0.39–0.49 on the Mandelbox, 0.50–0.54 on the KIFS) and is 0 on
+  the bulb; depth is near 1 on the Mandelbox and KIFS; the orbit trap spans 3–4 octaves everywhere (centred
+  between 2^−3 and 2^0 by formula) and facing 0.2–0.85. So the presets read log trap with repeat or mirror
+  (terraces and strata whatever the formula) or facing (the films).
+- **Gizmo: local or world.** A tap on the frame's centre dot flips its axes between the piece's own and the
+  world's (ui/gizmo.js gizmoGeometry(…, world)); the world frame draws dimmer (.gz.wd), so the state reads
+  without words. Dragging the centre moves the piece freely in the screen's plane through its origin (a pixel
+  is `depth / k` world units there; Shift or a resting second finger snaps each screen direction to the axis
+  drag's step). Nothing new on screen. Finger slop × 2.5 for the dot; a finger held past the label's 0.4 s names
+  the state ("local axes" / "world axes") and does not flip it. The other handles are named too (move along x,
+  turn, scale). The state is the session's, not the document's.
+- Verified: node --test 88/88 (test/colour-presets.test.mjs: 3 new); run-touch 39/39 and --desktop 16/16 (new
+  in both: 'gizmo: centre tap = world, drag moves', 'graph: new ramp keeps the look, presets beside it' — the
+  colour before and after the add equal on sample readings, the ring open with seven gradients, oil taken by a
+  tap with its reading); paper.html §6.1 and the collage table updated. Shots: design/shots/touch-*ramp-presets,
+  touch-*gizmo-world.
+
+Open: the open ring can cover part of the formula's strip on a narrow screen; the facing term of the old tint.

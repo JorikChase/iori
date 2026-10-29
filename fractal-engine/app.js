@@ -64,7 +64,7 @@ import { layout as graphLayout, place as graphPlace, between as graphBetween, dr
 import { stripPlacement, SHADE_GAP } from './ui/structure.js';
 import { layoutShade, placeShade, drawShade, editorLayout, shadeNodeAt, shadeInPortAt, shadeOutPortAt, shadeLinkAt, inFrame, toSRGB, hsvToCss, RING_R } from './ui/shadegraph.js';
 import * as SE from './core/shade-edit.js';
-import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
+import { READINGS as SHADE_READINGS, RAMP_PRESETS, RING_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
 import { TOGGLES, toggleLayout, drawToggles } from './ui/toggles.js';
@@ -1128,6 +1128,24 @@ function drawPicker(k) {
 }
 
 // the ring's centre: the press, moved in so the whole ring is on screen
+// the ring item a point aims at (the centre none; for a ring left open, nothing past its gradients)
+function pickerPoint(k, x, y) {
+  const [cx, cy] = k.at, d = Math.hypot(x - cx, y - cy);
+  if (d < 30 || (k.sticky && d > PICK_R + 30)) { k.sel = -1; return; }
+  const a = Math.atan2(y - cy, x - cx), n = k.items.length;
+  k.sel = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
+}
+// the ramp presets as ring items (core/shade.js RING_PRESETS, iori's order): gradients, no words
+const presetItems = (id) => RING_PRESETS.map((name) => ({ colours: presetColours(name), lab: LABELS[`preset.${name}`] || name, act: () => SE.applyPreset(state.formula, id, name) }));
+// the presets ring opened beside a ramp and left open (a tap takes one, a tap elsewhere shuts it)
+function openPresets(id) {
+  const q = gv && gv.P.sh.items.find((r) => r.id === id);
+  if (!q) return;
+  const right = q.x + PICK_R + 40 < innerWidth - PICK_R - 28;
+  gv.picker = { at: pickerAt(q.x + (right ? 1 : -1) * (PICK_R + 40), q.y), from: [q.x, q.y], items: presetItems(id), sel: -1, sticky: true, ramp: id };
+  gv.shSel = id;
+  drawGraphNow();
+}
 const pickerAt = (x, y) => {
   const m = PICK_R + 28;
   return [Math.max(m, Math.min(innerWidth - m, x)), Math.max(m, Math.min(innerHeight - m, y))];
@@ -1241,12 +1259,7 @@ function graphMove(e) {
   if (shadeMove(x, y)) return;
   if ((state.pick !== 'C' || gv.dvDrag) && driveMove(x, y)) return;
   if (gv.picker) {
-    const [cx, cy] = gv.picker.at;
-    if (Math.hypot(x - cx, y - cy) < 30) gv.picker.sel = -1;
-    else {
-      const a = Math.atan2(y - cy, x - cx), n = gv.picker.items.length;
-      gv.picker.sel = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
-    }
+    pickerPoint(gv.picker, x, y);
     drawGraphNow();
     return;
   }
@@ -1517,6 +1530,13 @@ function shadeLive(fn) {
 function shadeCommit() { setFormula(state.text); writeHash(); remember(); refreshGraph(); }
 
 function shadeDown(x, y) {
+  // the presets ring left open beside a new ramp: a tap on a gradient takes it, anywhere else shuts it
+  if (gv.picker && gv.picker.sticky) {
+    gv.shPress = { sticky: true, x, y, moved: false };
+    pickerPoint(gv.picker, x, y);
+    drawGraphNow();
+    return true;
+  }
   if (!shadeShown()) return false;
   const S = gv.P.sh;
   // the selected ramp's editor: toggles, scale and offset, stops, the bar
@@ -1576,7 +1596,7 @@ function shadeDown(x, y) {
   if (!inFrame(S, x, y)) return false;
   if (S.empty) {
     const [fx0, fy0, fx1, fy1] = S.frame;
-    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < 16) graphEdit(() => SE.shadeOn(state.formula));
+    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < 16) graphEdit(() => SE.shadeOn(state.formula, state.look));
     return true;
   }
   // from an output dot: a link being drawn
@@ -1588,12 +1608,12 @@ function shadeDown(x, y) {
     if (!gv || gv.shPress !== press || press.moved) return;
     const at = port || (link ? { node: link.to, port: link.port } : null);
     if (node && node.ramp) {
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: Object.keys(RAMP_PRESETS).map((name) => ({ colours: presetColours(name), lab: LABELS[`preset.${name}`] || name, act: () => SE.applyPreset(state.formula, node.id, name) })), sel: -1 };
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: presetItems(node.id), sel: -1 };
     } else if (!node) {
       // only what fits the held input: colours on a colour link, numbers on a number link
       const want = SE.wantsAt(state.formula, at);
       const types = SHADE_TYPES.filter((t) => !want || (want === 'colour') === (t === 'ramp' || t === 'mixc'));
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, adds: t, act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
     }
     drawGraphNow();
   }, GRAPH_HOLD_MS);
@@ -1657,7 +1677,10 @@ function shadeUp(x, y) {
   if (gv.picker) {
     const k = gv.picker;
     gv.picker = null;
-    if (k.sel >= 0) graphEdit(k.items[k.sel].act); else drawGraphNow();
+    if (k.sel < 0) { drawGraphNow(); return true; }
+    const it = k.items[k.sel], id = it.adds === 'ramp' ? SE.nextId(state.formula, 'ramp') : null;
+    // a new ramp keeps the look; its presets open beside it, one tap away
+    if (graphEdit(it.act) && id) openPresets(id);
     return true;
   }
   if (pr.node && !pr.moved) { gv.shSel = gv.shSel === pr.node.id ? null : pr.node.id; gv.stopSel = null; gv.selected = null; gv.dvSel = null; gv.bandSel = null; }
@@ -1798,8 +1821,9 @@ function withJoin(c, k, change) {
 
 // ---------- picking and the gizmo ------------------------------------------------------------------
 
-let gz = null;          // a gizmo drag: { kind, k, x0, y0, place0, G, a0, value, text0 }
+let gz = null;          // a gizmo drag: { kind, k, x0, y0, place0, G, a0, value, text0, slop, moved }
 let gizmoG = null;      // the gizmo's geometry as last drawn
+let gizmoWorld = false; // the axes: the piece's own (false) or the world's — a tap on the centre dot flips them
 let gizmoShown = false, gizmoDue = false;
 
 const overlayBusy = () => !!(gv || cv || surf || grab || ring || lens || (ldrag && ldrag.moved));
@@ -1815,7 +1839,7 @@ function drawGizmoNow() {
   }
   const pc = state.collage.pieces[state.pick], R0 = naturalRadius(pc.f);
   const C = makeCamera(state.cam, basis(state.cam), Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
-  gizmoG = gizmoGeometry(C, pc.place, R0);
+  gizmoG = gizmoGeometry(C, pc.place, R0, gizmoWorld);
   drawGizmo(overlay, C, gizmoG, { place: pc.place, rep: pc.rep, R0, drag: gz && { kind: gz.kind, k: gz.k, from: gz.G.O, value: gz.value, a0: gz.a0, a1: gz.a1 } });
   gizmoShown = true;
 }
@@ -1831,7 +1855,7 @@ function gizmoDown(x, y, slop = 1) {
   const h = gizmoHit(gizmoG, x, y, slop);
   if (!h) return false;
   const pc = state.collage.pieces[state.pick];
-  gz = { ...h, x0: x, y0: y, place0: { ...pc.place }, G: gizmoG, a0: Math.atan2(y - gizmoG.O[1], x - gizmoG.O[0]), value: '', text0: state.text };
+  gz = { ...h, x0: x, y0: y, place0: { ...pc.place }, G: gizmoG, a0: Math.atan2(y - gizmoG.O[1], x - gizmoG.O[0]), value: '', text0: state.text, slop, moved: false, t0: performance.now() };
   gz.a1 = gz.a0;
   drawGizmoNow();
   return true;
@@ -1840,7 +1864,17 @@ function gizmoDown(x, y, slop = 1) {
 const sig = (v, n = 4) => +v.toPrecision(n);
 function gizmoMove(x, y, snap) {
   const g = gz, pl = { ...g.place0 }, G0 = g.G;
-  if (g.kind === 'axis') {
+  if (g.kind === 'centre') {
+    // still within a tap's reach: no move yet (a tap flips the axes)
+    if (!g.moved && Math.hypot(x - g.x0, y - g.y0) < (g.slop > 1 ? TAP_SLOP : 3)) return;
+    g.moved = true;
+    // free, in the screen's plane through the origin: a pixel is G0.px world units there
+    const b = basis(state.cam), st = Math.pow(10, Math.floor(Math.log10(G0.A / 2)));
+    let du = (x - g.x0) * G0.px, dv = -(y - g.y0) * G0.px;
+    if (snap) { du = Math.round(du / st) * st; dv = Math.round(dv / st) * st; }
+    pl.tx = sig(pl.tx + b.right[0] * du + b.up[0] * dv, 6); pl.ty = sig(pl.ty + b.right[1] * du + b.up[1] * dv, 6); pl.tz = sig(pl.tz + b.right[2] * du + b.up[2] * dv, 6);
+    g.value = fmtValue(sig(Math.hypot(du, dv)));
+  } else if (g.kind === 'axis') {
     const v = G0.axes[g.k].v, e = G0.e[g.k];
     let d = ((x - g.x0) * v[0] + (y - g.y0) * v[1]) / (v[0] * v[0] + v[1] * v[1] || 1);
     if (snap) { const st = Math.pow(10, Math.floor(Math.log10(G0.A / 2))); d = Math.round(d / st) * st; }
@@ -1870,6 +1904,8 @@ function gizmoMove(x, y, snap) {
 function gizmoUp() {
   const g = gz;
   gz = null;
+  // a tap flips the axes; a finger held to read the label does not
+  if (g.kind === 'centre' && !g.moved && (g.slop <= 1 || performance.now() - g.t0 < LABEL_MS)) gizmoWorld = !gizmoWorld;
   if (state.text !== g.text0) { writeHash(); remember(); }
   drawGizmoNow();
 }
@@ -2442,7 +2478,7 @@ const onLine = (h, x, y, m = 7) => x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y 
 function pickerLabel(k, x, y) {
   if (!k) return null;
   const [cx, cy] = k.at;
-  if (Math.hypot(x - cx, y - cy) < 30) return null;
+  if (Math.hypot(x - cx, y - cy) < 30 || (k.sticky && Math.hypot(x - cx, y - cy) > PICK_R + 30)) return null;
   const n = k.items.length, a = Math.atan2(y - cy, x - cx), i = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
   const it = k.items[i], ai = (i / n) * Math.PI * 2 - Math.PI / 2;
   return labAt(it.lab || (it.join ? joinLabel(it.join) : labelOf(it.glyph)), cx + Math.cos(ai) * PICK_R, cy + Math.sin(ai) * PICK_R, 14);
@@ -2572,6 +2608,16 @@ function domLabelAt(x, y) {
   return { id, text: LABELS[id], key: KEYS[id], x: cx, y: cy, r: Math.min(r.width, r.height) * 0.35, place };
 }
 
+// the gizmo's handles; the centre dot names the axes it moves along (local or world)
+function gizmoLabelAt(x, y, touch) {
+  const G = gizmoG, h = gizmoHit(G, x, y, touch ? 2.5 : 1);
+  if (!h) return null;
+  if (h.kind === 'centre') return labAt(LABELS[gizmoWorld ? 'gz.world' : 'gz.local'], G.O[0], G.O[1], 6);
+  if (h.kind === 'axis') { const t = G.axes[h.k].tip; return labAt(`${LABELS['gz.axis']} ${'xyz'[h.k]}`, t[0], t[1], 6); }
+  if (h.kind === 'ring') return labAt(LABELS['gz.ring'], G.O[0], G.O[1] - G.ring, 4, 'above');
+  return labAt(LABELS['gz.corner'], G.corner[0], G.corner[1], 8);
+}
+
 // the label for a point on screen (a finger's: placed above it, without the key)
 function labelAt(x, y, touch) {
   let L = domLabelAt(x, y);
@@ -2579,6 +2625,7 @@ function labelAt(x, y, touch) {
     const k = gview.k, v = gv ? graphLabelAt((x - gview.tx) / k, (y - gview.ty) / k) : cvLabelAt((x - gview.tx) / k, (y - gview.ty) / k);
     if (v) L = { ...v, x: v.x * k + gview.tx, y: v.y * k + gview.ty, r: v.r * k };
   }
+  if (!L && !gv && !cv && gizmoG && !gz) L = gizmoLabelAt(x, y, touch);
   if (!L) return null;
   return touch ? { ...L, key: null, touch: true, fx: x, fy: y } : L;
 }
@@ -4244,6 +4291,8 @@ window.__fe = {
     const S = gv.P.sh;
     return {
       frame: S.frame, outs: S.outs.map((o) => ({ port: o.port, x: o.x, y: o.y })), selected: gv.shSel, stop: gv.stopSel, hue: !!gv.hue,
+      // the ring a hold opened (or the presets left open beside a new ramp): its centre, radius and items
+      picker: gv.picker && { at: [...gv.picker.at], r: PICK_R, n: gv.picker.items.length, sticky: !!gv.picker.sticky, sel: gv.picker.sel, labs: gv.picker.items.map((it) => it.lab || it.glyph || null) },
       items: S.items.map((q) => ({ id: q.id, type: q.type, x: q.x, y: q.y, out: S.outPort(q), ins: SE.portsOf(q.type).map((port, k, all) => ({ port, at: S.inPort(q, k, all.length) })) })),
       editor: (() => { const q = gv.shSel && S.items.find((r) => r.id === gv.shSel); if (!q || !q.ramp) return null; const E = editorLayout(q, innerWidth, innerHeight, S.frame); return { x: E.x, y: E.y, w: E.w, h: E.h, stops: E.stops.map((t) => ({ i: t.i, x: t.x, y: t.y, t: t.t })), toggles: E.toggles.map((t) => ({ key: t.key, x: t.x, y: t.y })), handles: E.handles.map((h) => ({ key: h.key, x: (h.x1 + h.x2) / 2, y: h.y })), stopBands: stopBands(E).map((B) => ({ to: B.to, x0: B.x0, x1: B.x1, y: E.y - 6, live: B.live })) }; })(),
       // drivers → colour: the selected node's lines (bands when bound), the drivers' links in
@@ -4298,13 +4347,14 @@ window.__fe = {
   collageDrop: (text, x, y) => dropPiece(text, x, y),
   pick: (i) => { setPick(i); drawGizmoNow(); return state.pick; },
   pickAt: (x, y) => { pickAt(x, y); return state.pick; },
-  get gizmo() { drawGizmoNow(); return gizmoG && { O: gizmoG.O, axes: gizmoG.axes.map((a) => a && a.tip), ring: gizmoG.ring, corner: gizmoG.corner }; },
+  get gizmo() { drawGizmoNow(); return gizmoG && { O: gizmoG.O, axes: gizmoG.axes.map((a) => a && a.tip), ring: gizmoG.ring, corner: gizmoG.corner, world: gizmoWorld }; },
+  gizmoWorld(on) { if (on !== undefined) { gizmoWorld = !!on; drawGizmoNow(); } return gizmoWorld; },
   gizmoDrag(handle, dx, dy, snap = false) {
-    // handle: 'x' | 'y' | 'z' | 'ring' | 'corner' — pressed where it is drawn, moved by (dx, dy), released
+    // handle: 'x' | 'y' | 'z' | 'ring' | 'corner' | 'centre' — pressed where it is drawn, moved by (dx, dy), released
     drawGizmoNow();
     const G = gizmoG;
     if (!G) return null;
-    const at = handle === 'ring' ? [G.O[0] + G.ring, G.O[1]] : handle === 'corner' ? G.corner : (() => { const t = G.axes['xyz'.indexOf(handle)].tip; return [G.O[0] + (t[0] - G.O[0]) * 0.8, G.O[1] + (t[1] - G.O[1]) * 0.8]; })();
+    const at = handle === 'ring' ? [G.O[0] + G.ring, G.O[1]] : handle === 'corner' ? G.corner : handle === 'centre' ? G.O : (() => { const t = G.axes['xyz'.indexOf(handle)].tip; return [G.O[0] + (t[0] - G.O[0]) * 0.8, G.O[1] + (t[1] - G.O[1]) * 0.8]; })();
     if (!gizmoDown(at[0], at[1])) return null;
     gizmoMove(at[0] + dx, at[1] + dy, snap);
     const value = gz.value;

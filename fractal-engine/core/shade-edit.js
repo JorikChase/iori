@@ -5,13 +5,17 @@
 //   shadeOn / shadeOff        a starting network (today's look as a graph) / none
 //   addNode(f, type, at)      a new node; at = { node, port } inserts it on that input's link (or on an
 //                             output: node 'out', port 'color' | 'glow'), taking the old source as its
-//                             own input where the kinds allow
+//                             own input where the kinds allow. Nothing changes on screen: a math
+//                             multiplies by 1, a mix mixes a colour with itself, and a ramp starts as a
+//                             copy of the ramp that colours the link it lands on (keep the look, then
+//                             choose: the UI opens the presets beside it)
 //   connect(f, from, to, port)    a link from a node's output to an input (or to 'out'.color / .glow)
 //   disconnect(f, to, port)   an optional input (math.b, mixc.f, out.glow) left unconnected
 //   removeNode(f, id)         a node out; what it fed takes its own input instead (a bypass)
 //   setNodeParam(f, id, key, v)   key may be a path: 'map.scale'
 //   addStop / moveStop / removeStop / setStopColour, setRamp (interp, space, map mode, log, invert),
-//   applyPreset(f, id, name)
+//   applyPreset(f, id, name)  the preset's ramp, and its reading (core/shade.js PRESET_READING) into the
+//                             ramp when a reading feeds it now (a driver or a math there stays)
 // Drivers → colour (core/shade.js 'd:' inputs, shade.bind):
 //   linkDriver(f, driverId, to, port)   a driver's value into a number input
 //   bindShade(f, to, from, lo, hi), unbindShade(f, to), setShadeBand(f, to, lo, hi), setGain(f, v)
@@ -20,7 +24,7 @@
 // drops those whose node or stop is gone.
 
 import { normalize, validate } from './formula.js';
-import { normShade, validateShade, kindOf, READINGS, defaultShade, rampPreset, rampAt, MAX_STOPS, isDrv, DRV, shadeTarget, GAIN_MAX } from './shade.js';
+import { normShade, validateShade, kindOf, READINGS, defaultShade, rampPreset, PRESET_READING, rampAt, MAX_STOPS, isDrv, DRV, shadeTarget, GAIN_MAX } from './shade.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const PORTS = { ramp: ['v'], math: ['a', 'b'], mixc: ['a', 'b', 'f'] };
@@ -108,10 +112,12 @@ const wants = (s, to, port) => (to === 'out' ? (port === 'color' ? 'colour' : nu
 const setLink = (s, to, port, from) => { if (to === 'out') s.out[port] = from; else nodeOf(s, to).in[port] = from; };
 const linkOf = (s, to, port) => (to === 'out' ? s.out[port] : nodeOf(s, to).in[port]);
 
-export function shadeOn(formula) {
+// look: the view's colour (app.js state.look: key, iridescence, spread, hue), so the graph starts as the
+// colour on screen
+export function shadeOn(formula, look = null) {
   const f = clone(normalize(formula));
   if (f.shade) return normalize(f);
-  f.shade = defaultShade();
+  f.shade = look ? defaultShade(look.key, look.iridescence, look.spread, look.hue || 0) : defaultShade();
   return normalize(f);
 }
 export function shadeOff(formula) {
@@ -123,9 +129,27 @@ export function shadeOff(formula) {
 // the id a new node will get (the UI selects it after adding)
 export const nextId = (formula, type) => newId(normalize(formula).shade || { nodes: [] }, type);
 
+// the ramp that colours a colour link: a ramp itself, or a mix's first colour followed up
+function rampBehind(s, id) {
+  for (let k = 0; k < 64 && id != null && !isDrv(id); k++) {
+    const n = s.nodes.find((q) => q.id === id);
+    if (!n) return null;
+    if (n.type === 'ramp') return n;
+    if (n.type !== 'mixc') return null;
+    id = n.in.a;
+  }
+  return null;
+}
+
 export function addNode(formula, type, at = null) {
   return edit(formula, (s) => {
     const n = freshNode(s, type);
+    // keep the look: a new ramp is a copy of the one colouring where it lands (the surface's otherwise)
+    if (type === 'ramp') {
+      const old = at ? linkOf(s, at.node, at.port) : null;
+      const ref = rampBehind(s, old != null && kindOfId(s, old) === 'colour' ? old : s.out.color);
+      if (ref) { n.p = clone(ref.p); if (ref.in.v != null) n.in.v = ref.in.v; }
+    }
     s.nodes.push(n);
     // required inputs nothing else feeds take the first source of their kind (the fold index for a
     // number, the surface colour for a colour) until they are wired otherwise
@@ -239,7 +263,18 @@ export function setRamp(formula, id, key, value) {
   return setNodeParam(formula, id, key, value);
 }
 export function applyPreset(formula, id, name) {
-  return edit(formula, (s) => { const n = nodeOf(s, id); if (n.type !== 'ramp') throw new Error(`shade: ${id} is not a ramp`); n.p = rampPreset(name); });
+  return edit(formula, (s) => {
+    const n = nodeOf(s, id);
+    if (n.type !== 'ramp') throw new Error(`shade: ${id} is not a ramp`);
+    n.p = rampPreset(name);
+    const want = PRESET_READING[name], was = n.in.v != null ? s.nodes.find((q) => q.id === n.in.v) : null;
+    if (!want || isDrv(n.in.v) || (was && !READINGS.includes(was.type)) || (was && was.type === want)) return;
+    let r = s.nodes.find((q) => q.type === want);
+    if (!r) { r = freshNode(s, want); s.nodes.unshift(r); }
+    n.in.v = r.id;
+    // the reading it leaves goes too, when nothing else reads it
+    if (was && !s.nodes.some((q) => Object.values(q.in).includes(was.id)) && s.out.glow !== was.id) s.nodes = s.nodes.filter((q) => q !== was);
+  });
 }
 
 // ---------- drivers → colour ----------------------------------------------------------------------

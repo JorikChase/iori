@@ -1836,23 +1836,6 @@ fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan
 // mixJacobian, and the derivative of its dr bound):
 //   v' = (1 − ω)v_A + ωv_B + (F_B − F_A)·dω
 //   dr' = max(dr_A, dr_B) + |F_B − F_A|·|∇ω|·dr, differentiated term by term
-struct KidT { p: vec4f, dr: f32, v: vec4f, ddr: f32 };
-fn kidTan(slot: u32, p0: vec4f, c: vec4f, dr0: f32, v0: vec4f, ddr0: f32, dc: vec4f, withRec: bool) -> KidT {
-  var o: KidT;
-  o.p = p0; o.dr = dr0; o.v = v0; o.ddr = ddr0;
-  let start = slotStart(slot);
-  for (var j = 0u; j < slotLen(slot); j++) {
-    let s = opFwd(start + j, o.p, c);
-    drvEOn = DRIVE_ON && drvLoad(start + j, tanCol);
-    let t = opTan(start + j, o.p, c, o.v, dc, withRec);
-    drvEOn = false;
-    if (s.k >= 0.0) { o.ddr = s.k * o.ddr + t.dk * o.dr; o.dr = o.dr * s.k; } else { o.dr = o.dr + 1.0; }
-    o.v = t.v;
-    o.p = s.p;
-  }
-  return o;
-}
-
 struct MixT { v: vec4f, ddr: f32 };
 // the step for central differences through a record: small against the record's values
 fn recStep(oi: u32) -> f32 {
@@ -1926,28 +1909,40 @@ fn mixTan(oi: u32, p: vec4f, c: vec4f, dr: f32, n: u32, vs0: array<vec4f, 5>, dd
     }
     tanOi = sOi; tanRec = sRec; tanEps = 0.0;
   }
+  // each species once, carrying every column: its forward map is the same for all of
+  // them, and running it again per column was most of a chimera's hit. Each column's sums over the
+  // species are the ones a per-column pass (kidTan, before) summed, in the same order.
   var o: MixCols;
-  var A: array<KidT, 8>;
-  for (var j = 0u; j < n; j++) {
-    let v = vs[j];
-    let withRec = j == recCol;
-    // the dual column under way (Newton's identity columns, recCol 99, hold the drivers)
-    tanCol = select(99u, j, recCol != 99u);
-    for (var i = 0u; i < k; i++) { A[i] = kidTan(u32(a.w) + i, p, c, dr, v, ddrs[j], dcs[j], withRec); }
-    let vx = select(v, v0s[j], world);
-    var dread = 0.0;
-    if (kind == 5u) { dread = dts[j]; }
-    if (kind == 7u) { dread = ddrs[j] / (max(dr, 1e-30) * (fIter + 1.0)); }
-    var V = vec4f(0.0);
-    var D = 0.0;
-    for (var i = 0u; i < k; i++) {
-      var dw = dot(m.G[i], vx) + m.S[i] * dread + dwd[j][i];
-      if (withRec && own) { dw = dw + (pw[0][i] - pw[1][i]) / (2.0 * eps); }
-      V = V + m.w[i] * A[i].v + dw * A[i].p;
-      D = D + m.w[i] * A[i].ddr + dw * A[i].dr;
+  for (var i = 0u; i < k; i++) {
+    let start = slotStart(u32(a.w) + i);
+    var kp = p;
+    var kdr = dr;
+    var kv = vs;
+    var kddr = ddrs;
+    for (var jj = 0u; jj < slotLen(u32(a.w) + i); jj++) {
+      let s = opFwd(start + jj, kp, c);
+      for (var j = 0u; j < n; j++) {
+        // the dual column under way (Newton's identity columns, recCol 99, hold the drivers)
+        tanCol = select(99u, j, recCol != 99u);
+        drvEOn = DRIVE_ON && drvLoad(start + jj, tanCol);
+        let t = opTan(start + jj, kp, c, kv[j], dcs[j], j == recCol);
+        drvEOn = false;
+        if (s.k >= 0.0) { kddr[j] = s.k * kddr[j] + t.dk * kdr; }
+        kv[j] = t.v;
+      }
+      if (s.k >= 0.0) { kdr = kdr * s.k; } else { kdr = kdr + 1.0; }
+      kp = s.p;
     }
-    o.v[j] = V;
-    o.ddr[j] = D;
+    for (var j = 0u; j < n; j++) {
+      let vx = select(vs[j], v0s[j], world);
+      var dread = 0.0;
+      if (kind == 5u) { dread = dts[j]; }
+      if (kind == 7u) { dread = ddrs[j] / (max(dr, 1e-30) * (fIter + 1.0)); }
+      var dw = dot(m.G[i], vx) + m.S[i] * dread + dwd[j][i];
+      if (j == recCol && own) { dw = dw + (pw[0][i] - pw[1][i]) / (2.0 * eps); }
+      o.v[j] = o.v[j] + m.w[i] * kv[j] + dw * kp;
+      o.ddr[j] = o.ddr[j] + m.w[i] * kddr[j] + dw * kdr;
+    }
   }
   tanCol = 99u;
   return o;

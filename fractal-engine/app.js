@@ -64,7 +64,7 @@ import { layout as graphLayout, place as graphPlace, between as graphBetween, dr
 import { stripPlacement, SHADE_GAP } from './ui/structure.js';
 import { layoutShade, placeShade, drawShade, editorLayout, shadeNodeAt, shadeInPortAt, shadeOutPortAt, shadeLinkAt, inFrame, toSRGB, hsvToCss, RING_R } from './ui/shadegraph.js';
 import * as SE from './core/shade-edit.js';
-import { READINGS as SHADE_READINGS, RAMP_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
+import { READINGS as SHADE_READINGS, RAMP_PRESETS, RING_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { glyphPath } from './ui/glyphs.js';
 import { TOGGLES, toggleLayout, drawToggles } from './ui/toggles.js';
@@ -1128,6 +1128,24 @@ function drawPicker(k) {
 }
 
 // the ring's centre: the press, moved in so the whole ring is on screen
+// the ring item a point aims at (the centre none; for a ring left open, nothing past its gradients)
+function pickerPoint(k, x, y) {
+  const [cx, cy] = k.at, d = Math.hypot(x - cx, y - cy);
+  if (d < 30 || (k.sticky && d > PICK_R + 30)) { k.sel = -1; return; }
+  const a = Math.atan2(y - cy, x - cx), n = k.items.length;
+  k.sel = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
+}
+// the ramp presets as ring items (core/shade.js RING_PRESETS, iori's order): gradients, no words
+const presetItems = (id) => RING_PRESETS.map((name) => ({ colours: presetColours(name), lab: LABELS[`preset.${name}`] || name, act: () => SE.applyPreset(state.formula, id, name) }));
+// the presets ring opened beside a ramp and left open (a tap takes one, a tap elsewhere shuts it)
+function openPresets(id) {
+  const q = gv && gv.P.sh.items.find((r) => r.id === id);
+  if (!q) return;
+  const right = q.x + PICK_R + 40 < innerWidth - PICK_R - 28;
+  gv.picker = { at: pickerAt(q.x + (right ? 1 : -1) * (PICK_R + 40), q.y), from: [q.x, q.y], items: presetItems(id), sel: -1, sticky: true, ramp: id };
+  gv.shSel = id;
+  drawGraphNow();
+}
 const pickerAt = (x, y) => {
   const m = PICK_R + 28;
   return [Math.max(m, Math.min(innerWidth - m, x)), Math.max(m, Math.min(innerHeight - m, y))];
@@ -1241,12 +1259,7 @@ function graphMove(e) {
   if (shadeMove(x, y)) return;
   if ((state.pick !== 'C' || gv.dvDrag) && driveMove(x, y)) return;
   if (gv.picker) {
-    const [cx, cy] = gv.picker.at;
-    if (Math.hypot(x - cx, y - cy) < 30) gv.picker.sel = -1;
-    else {
-      const a = Math.atan2(y - cy, x - cx), n = gv.picker.items.length;
-      gv.picker.sel = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
-    }
+    pickerPoint(gv.picker, x, y);
     drawGraphNow();
     return;
   }
@@ -1517,6 +1530,13 @@ function shadeLive(fn) {
 function shadeCommit() { setFormula(state.text); writeHash(); remember(); refreshGraph(); }
 
 function shadeDown(x, y) {
+  // the presets ring left open beside a new ramp: a tap on a gradient takes it, anywhere else shuts it
+  if (gv.picker && gv.picker.sticky) {
+    gv.shPress = { sticky: true, x, y, moved: false };
+    pickerPoint(gv.picker, x, y);
+    drawGraphNow();
+    return true;
+  }
   if (!shadeShown()) return false;
   const S = gv.P.sh;
   // the selected ramp's editor: toggles, scale and offset, stops, the bar
@@ -1576,7 +1596,7 @@ function shadeDown(x, y) {
   if (!inFrame(S, x, y)) return false;
   if (S.empty) {
     const [fx0, fy0, fx1, fy1] = S.frame;
-    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < 16) graphEdit(() => SE.shadeOn(state.formula));
+    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < 16) graphEdit(() => SE.shadeOn(state.formula, state.look));
     return true;
   }
   // from an output dot: a link being drawn
@@ -1588,12 +1608,12 @@ function shadeDown(x, y) {
     if (!gv || gv.shPress !== press || press.moved) return;
     const at = port || (link ? { node: link.to, port: link.port } : null);
     if (node && node.ramp) {
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: Object.keys(RAMP_PRESETS).map((name) => ({ colours: presetColours(name), lab: LABELS[`preset.${name}`] || name, act: () => SE.applyPreset(state.formula, node.id, name) })), sel: -1 };
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: presetItems(node.id), sel: -1 };
     } else if (!node) {
       // only what fits the held input: colours on a colour link, numbers on a number link
       const want = SE.wantsAt(state.formula, at);
       const types = SHADE_TYPES.filter((t) => !want || (want === 'colour') === (t === 'ramp' || t === 'mixc'));
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, adds: t, act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
     }
     drawGraphNow();
   }, GRAPH_HOLD_MS);
@@ -1657,7 +1677,10 @@ function shadeUp(x, y) {
   if (gv.picker) {
     const k = gv.picker;
     gv.picker = null;
-    if (k.sel >= 0) graphEdit(k.items[k.sel].act); else drawGraphNow();
+    if (k.sel < 0) { drawGraphNow(); return true; }
+    const it = k.items[k.sel], id = it.adds === 'ramp' ? SE.nextId(state.formula, 'ramp') : null;
+    // a new ramp keeps the look; its presets open beside it, one tap away
+    if (graphEdit(it.act) && id) openPresets(id);
     return true;
   }
   if (pr.node && !pr.moved) { gv.shSel = gv.shSel === pr.node.id ? null : pr.node.id; gv.stopSel = null; gv.selected = null; gv.dvSel = null; gv.bandSel = null; }
@@ -2442,7 +2465,7 @@ const onLine = (h, x, y, m = 7) => x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y 
 function pickerLabel(k, x, y) {
   if (!k) return null;
   const [cx, cy] = k.at;
-  if (Math.hypot(x - cx, y - cy) < 30) return null;
+  if (Math.hypot(x - cx, y - cy) < 30 || (k.sticky && Math.hypot(x - cx, y - cy) > PICK_R + 30)) return null;
   const n = k.items.length, a = Math.atan2(y - cy, x - cx), i = ((Math.round(((a + Math.PI / 2) / (Math.PI * 2)) * n) % n) + n) % n;
   const it = k.items[i], ai = (i / n) * Math.PI * 2 - Math.PI / 2;
   return labAt(it.lab || (it.join ? joinLabel(it.join) : labelOf(it.glyph)), cx + Math.cos(ai) * PICK_R, cy + Math.sin(ai) * PICK_R, 14);

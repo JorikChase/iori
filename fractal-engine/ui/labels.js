@@ -35,6 +35,8 @@ export const LABELS = {
   log: 'log map', invert: 'invert',
   'shade.stop': 'colour stop', 'shade.bar': 'add stop', 'shade.hue': 'hue ring', 'shade.start': 'start shading',
   'shade.link': 'link', 'port.in': 'input', 'port.out': 'output',
+  'preset.oil': 'oil ramp', 'preset.malachite': 'malachite ramp', 'preset.bone': 'bone ramp', 'preset.prism': 'prism ramp', 'preset.strata': 'strata ramp',
+  'preset.beetle': 'beetle ramp', 'preset.abyss': 'abyss ramp',
   'preset.fire': 'fire ramp', 'preset.ice': 'ice ramp', 'preset.film': 'film ramp', 'preset.mono': 'mono ramp',
   // the drivers (ui/drivegraph.js)
   'drv.i': 'iteration', 'drv.r': 'radius', 'drv.trap': 'trap distance', 'drv.lyap': 'stretch',

@@ -754,11 +754,13 @@ test('shading edits: start, insert on links, connect with types, remove by bypas
   const withF = E.connect(g, 'trap0', 'mixc0', 'f');
   assert.equal(E.disconnect(withF, 'mixc0', 'f').shade.nodes.find((n) => n.id === 'mixc0').in.f, undefined);
   assert.throws(() => E.disconnect(withF, 'mixc0', 'a'), /stays connected/);
-  // stops: add (sampled from the ramp), move past another (sorted again), recolour, remove
-  let s = E.addStop(g, 'ramp0', 0.5);
+  // stops: add (sampled from the ramp), move past another (sorted again), recolour, remove — on a
+  // two-stop ramp (a new one starts as a copy of the surface's: test/colour-presets.test.mjs)
+  const g2 = E.setNodeParam(g, 'ramp0', 'stops', [{ t: 0, c: [0, 0, 0, 1] }, { t: 1, c: [1, 1, 1, 1] }]);
+  let s = E.addStop(g2, 'ramp0', 0.5);
   let st = s.shade.nodes.find((n) => n.id === 'ramp0').p.stops;
   assert.equal(st.length, 3);
-  assert.ok(st[1].c.every((x, i) => near(x, E.rampColourAt(g.shade.nodes.find((n) => n.id === 'ramp0').p, 0.5)[i], 1e-3)));
+  assert.ok(st[1].c.every((x, i) => near(x, E.rampColourAt(g2.shade.nodes.find((n) => n.id === 'ramp0').p, 0.5)[i], 1e-3)));
   s = E.moveStop(s, 'ramp0', 1, 0.95);
   st = s.shade.nodes.find((n) => n.id === 'ramp0').p.stops;
   assert.equal(E.stopIndex(s, 'ramp0', 0.95), 1);

@@ -338,7 +338,27 @@ export function evalShade(shade, readings = {}, drivers = null) {
 // ---------- presets ---------------------------------------------------------------------------------
 const stop = (t, r, g, b, a = 1) => ({ t, c: [r, g, b, a] });
 const defMap = (o = {}) => ({ scale: 1, offset: 0, mode: 'clamp', log: false, invert: false, ...o });
+// The ring's presets (iori's picks of 2026-10-29 from design/colour/sheet-*.jpg, in the ring's order):
+// each one is a ramp and the reading that feeds it (PRESET_READING) — the fold index barely moves on
+// folding formulas and is 0 on the bulb, so they read the orbit trap (log) or the angle to the eye.
+// fire, ice, film and mono are the first presets, kept for the documents and tests that name them.
+export const RING_PRESETS = ['oil', 'malachite', 'bone', 'prism', 'strata', 'beetle', 'abyss'];
+export const PRESET_READING = { oil: 'facing', malachite: 'trap', bone: 'trap', prism: 'trap', strata: 'trap', beetle: 'facing', abyss: 'trap' };
 export const RAMP_PRESETS = {
+  // thin film on dark water: saturated bands where the surface turns away
+  oil: { stops: [stop(0, 0.0176, 0.0103, 0.0844), stop(0.2, 0.0176, 0.0802, 0.3916), stop(0.4, 0.016, 0.3515, 0.2159), stop(0.6, 0.6867, 0.4342, 0.0319), stop(0.8, 0.3916, 0.0395, 0.2086), stop(1, 0.0176, 0.0103, 0.0844)], interp: 'cardinal', space: 'oklab', map: defMap({ scale: 2, offset: 0.25, mode: 'repeat' }) },
+  // agate-like rings of greens
+  malachite: { stops: [stop(0, 0.0018, 0.016, 0.0091), stop(0.2, 0.0048, 0.1046, 0.0423), stop(0.4, 0.0273, 0.2961, 0.1329), stop(0.6, 0.2747, 0.6724, 0.4233), stop(0.8, 0.0048, 0.1046, 0.0423), stop(1, 0.0018, 0.016, 0.0091)], interp: 'ease', space: 'oklab', map: defMap({ scale: 0.8, mode: 'repeat', log: true }) },
+  // ivory to warm grey
+  bone: { stops: [stop(0, 0.0232, 0.0194, 0.0144), stop(0.333, 0.2623, 0.2232, 0.1683), stop(0.667, 0.6939, 0.624, 0.5029), stop(1, 0.9047, 0.8632, 0.7758)], interp: 'ease', space: 'oklab', map: defMap({ scale: 0.15, offset: 0.6, log: true }) },
+  // a muted full sweep, repeating
+  prism: { stops: [stop(0, 0.3916, 0.1683, 0.1683), stop(0.2, 0.3916, 0.305, 0.1441), stop(0.4, 0.2086, 0.3231, 0.1683), stop(0.6, 0.1441, 0.2874, 0.3515), stop(0.8, 0.2086, 0.1683, 0.3916), stop(1, 0.3916, 0.1683, 0.1683)], interp: 'linear', space: 'oklab', map: defMap({ scale: 0.35, mode: 'repeat', log: true }) },
+  // one slow sweep: deep blue in the folds, warm on the crests
+  strata: { stops: [stop(0, 0.0232, 0.0296, 0.162), stop(0.25, 0.0232, 0.1441, 0.1683), stop(0.5, 0.1946, 0.2542, 0.0648), stop(0.75, 0.4342, 0.1878, 0.0685), stop(1, 0.5271, 0.2542, 0.3231)], interp: 'bspline', space: 'oklab', map: defMap({ scale: 0.22, offset: 0.7, mode: 'mirror', log: true }) },
+  // green facing the eye, blue then violet toward the rim
+  beetle: { stops: [stop(0, 0.0685, 0.0232, 0.2789), stop(0.25, 0.0423, 0.0976, 0.5271), stop(0.5, 0.0232, 0.314, 0.4793), stop(0.75, 0.0103, 0.2542, 0.0976), stop(1, 0.003, 0.0423, 0.0116)], interp: 'bspline', space: 'oklab', map: defMap() },
+  // the key magenta in six flat value steps: deep shadow to pale, terraced
+  abyss: { stops: [stop(0, 0.0423, 0.0037, 0.016), stop(0.2, 0.1946, 0.0123, 0.0648), stop(0.4, 0.4508, 0.0423, 0.1683), stop(0.6, 0.6939, 0.1356, 0.3231), stop(0.8, 0.8714, 0.3916, 0.5776), stop(1, 0.9647, 0.7682, 0.855)], interp: 'constant', space: 'oklab', map: defMap({ scale: 0.6, mode: 'mirror', log: true }) },
   fire: { stops: [stop(0, 0, 0, 0), stop(0.3, 0.45, 0.02, 0.01), stop(0.6, 1, 0.28, 0.02), stop(0.85, 1, 0.75, 0.2), stop(1, 1, 1, 0.9)], interp: 'linear', space: 'oklab', map: defMap() },
   ice: { stops: [stop(0, 0.01, 0.02, 0.08), stop(0.45, 0.05, 0.25, 0.6), stop(0.8, 0.45, 0.85, 1), stop(1, 1, 1, 1)], interp: 'ease', space: 'oklab', map: defMap() },
   film: { stops: [stop(0, 0.9, 0.2, 0.5), stop(0.25, 0.25, 0.4, 1), stop(0.5, 0.2, 0.95, 0.75), stop(0.75, 1, 0.85, 0.25), stop(1, 0.9, 0.2, 0.5)], interp: 'cardinal', space: 'hsv', map: defMap({ mode: 'repeat', scale: 1.6 }) },

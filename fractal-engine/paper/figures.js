@@ -62,6 +62,8 @@ export const FIGURES = {
   joins: { doc: collage(`{ ${BULB} } at .55 0 0 ∪ stairs .25 4 { ${BOX} } at -.55 0 0 size .12`), view: 3, yaw: 0, pitch: -0.3, open: 'cgraph' },
   place: { doc: collage(`{ ${BULB} } size .25 polar 6 4 y ∪ .2 { ${BOX} } size .05`), view: 3.6, yaw: 0, pitch: -1 },
   exports: { open: 'structure' },
+  // chapter 9: the graph open, to hold a node for its name (ui/labels.js)
+  labels: { doc: TISSUE, view: 2.6, open: 'graph' },
   touch: {},
 };
 

@@ -9,7 +9,7 @@
 // A figure is covered until it is entered — a click or a tap — so the wheel and the finger scroll the
 // page, not the engine, until the reader means the engine. A press outside, the pointer leaving or the
 // figure leaving the screen covers it again. Nothing a reader does is stored (app.js EMBED).
-import { FIGURES, figureSrc } from './figures.js?v=3';
+import { FIGURES, figureSrc } from './figures.js?v=4';
 
 const MAX_LIVE = 2, DWELL_MS = 350, LINE_MS = 500;
 const COARSE = matchMedia('(pointer: coarse)').matches;

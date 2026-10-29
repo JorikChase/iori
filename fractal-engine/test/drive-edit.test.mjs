@@ -80,3 +80,24 @@ test('the band\'s live trace: the value each iteration gives its op; the line\'s
   assert.deepEqual(DE.handleRange(8, 0.01, { min: 1, max: 16 }), [7.25, 8.75]);
   assert.deepEqual(DE.handleRange(1.2, 0.01, { min: 1, max: 16 }), [1, 1.95]);
 });
+
+// the graph's hover thumbnail is the field without an op (G.bypass): the bindings follow it as a delete
+// moves them, so an op before a bound one still has its thumbnail (the touch rig holds A1 for it)
+test('bypass re-points bindings as a delete does', () => {
+  const f = normalize({ ...parse('abs · sort · scale 3 · + -2 -2 0 | fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×9 AAB bail=100'),
+    drive: { nodes: [{ id: 'r', type: 'r', in: {}, p: {} }], bind: [{ to: 'A2.s', from: 'r', lo: 2.9, hi: 3.1 }] } });
+  const to = (g) => g && g.drive.bind.map((b) => b.to);
+  for (const id of ['A0', 'A1', 'A3', 'B1']) {
+    const b = G.bypass(f, id);
+    assert.ok(b, `${id}: a thumbnail formula`);
+    assert.deepEqual(b, G.remove(f, id), `${id}: the same formula a delete leaves`);
+  }
+  assert.deepEqual(to(G.bypass(f, 'A0')), ['A1.s']);
+  assert.deepEqual(to(G.bypass(f, 'A1')), ['A1.s']);
+  assert.deepEqual(to(G.bypass(f, 'A3')), ['A2.s']);
+  // the bound op itself: its binding goes with it
+  assert.deepEqual(to(G.bypass(f, 'A2')), []);
+  // and the formula without A1 is one the app can carry (its notation reads back the same)
+  const g = G.bypass(f, 'A1');
+  assert.equal(format(parse(format(g))), format(g));
+});

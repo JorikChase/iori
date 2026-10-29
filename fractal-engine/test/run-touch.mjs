@@ -198,14 +198,15 @@ await check('look one finger', async () => {
 });
 
 await check('tap two fingers: parent', async () => {
-  // grow the lineage by one real grab drag (the profile is Playwright's own)
+  // grow the lineage by one real grab drag (the profile is Playwright's own). Back and forward are read
+  // off the lineage itself: the text on screen before the grab may be the arrival's drift, never stored
+  const cur = () => fe(() => { const n = window.__fe.lineage().find((q) => q.current); return n && { id: n.id, parent: n.parent, text: n.text }; });
   await fe(() => { window.__fe.dry = false; });
-  const t0 = await fe(() => window.__fe.state.text);
   await T.down(1, cx + 60, cy + 120); await sleep(900);
   const g = await input();
   await T.stroke([1], [[cx + 60, cy + 120]], [[cx + 140, cy + 120]], 8); await T.upAll();
   await sleep(200);
-  const t1 = await fe(() => window.__fe.state.text);
+  const n1 = await cur(), parent = await fe((id) => { const n = window.__fe.lineage().find((q) => q.id === id); return n && n.text; }, n1 && n1.parent);
   await fe(() => { window.__fe.dry = true; });
   await T.tap([[cx - 40, cy], [cx + 40, cy]]);
   await sleep(500);
@@ -213,7 +214,7 @@ await check('tap two fingers: parent', async () => {
   await T.tap([[cx - 40, cy], [cx, cy + 40], [cx + 40, cy]]);
   await sleep(500);
   const t3 = await fe(() => window.__fe.state.text);
-  return { ok: !!g.grab && t1 !== t0 && t2 === t0 && t3 === t1, note: `grab ${g.grab && g.grab.key} at (${g.grab && g.grab.x},${g.grab && g.grab.y}); edit, back, forward` };
+  return { ok: !!g.grab && !!n1 && !!parent && t2 === parent && t3 === n1.text, note: `grab ${g.grab && g.grab.key} at (${g.grab && g.grab.x},${g.grab && g.grab.y}); edit ${!!n1 && !!parent}, back ${t2 === parent}, forward ${n1 && t3 === n1.text}` };
 });
 
 await check('a document set mid-morph wins', async () => {
@@ -565,11 +566,14 @@ await labelChecks('');
 await check('labels: finger hold names it, thumbnail kept', async () => {
   await LABEL_FORMULA(); await settle(6);
   await fe(() => window.__fe.graph(true)); await sleep(500);
-  // (the last op of chain A: the thumbnail bypasses it, and the binding on A2 survives that)
-  const g = (await input()).graph, q = g.nodes[3];
+  // (A1: its thumbnail is the field without it, the binding on A2's scale re-pointed to A1 as a delete would)
+  const g = (await input()).graph, q = g.nodes[1];
   await T.down(1, q.x, q.y); await sleep(250);
   const early = (await input()).label;
   await sleep(550);
+  // (the thumbnail of a driven formula waits for the drivers' march if it is still compiling: a cold
+  // compile can outlast the hold so far, so the finger stays down until it lands)
+  await page.waitForFunction(() => window.__fe.input.graph && window.__fe.input.graph.thumb, null, { timeout: 8000 }).catch(() => {});
   const a = await input();
   const thumb = await fe(() => { const e = document.querySelector('#grab image'); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
   await shot('labels-hold');
@@ -578,7 +582,7 @@ await check('labels: finger hold names it, thumbnail kept', async () => {
   const L = a.label, box = L && L.box;
   const apart = box && thumb && (box[0] > thumb[0] + thumb[2] || box[0] + box[2] < thumb[0] || box[1] > thumb[1] + thumb[3] || box[1] + box[3] < thumb[1]);
   // a hold selects as a tap does, and nothing more
-  return { ok: !early && L && L.text === 'translate' && !L.key && box[1] + box[3] < q.y - 20 && a.graph.thumb && apart && !b.label && b.graph.selected === q.id && !b.graph.picker,
+  return { ok: !early && L && L.text === 'sort' && !L.key && box[1] + box[3] < q.y - 20 && a.graph.thumb && apart && !b.label && b.graph.selected === q.id && !b.graph.picker,
     note: `at 250 ms ${early && early.text}; "${L && L.text}" above the finger ${box && (q.y - box[1] - box[3]) | 0} px, thumbnail ${a.graph.thumb} apart ${apart}; gone on release ${!b.label}, selected ${b.graph.selected}` };
 });
 await check('labels: second finger, field hold', async () => {

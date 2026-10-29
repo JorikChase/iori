@@ -408,7 +408,8 @@ export async function createRenderer(canvas) {
   if (!navigator.gpu) throw new Error('no-webgpu');
   const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
   if (!adapter) throw new Error('no-adapter');
-  const device = await adapter.requestDevice();
+  // timestamps, when the adapter has them, for the benchmark rig (test/run-bench.mjs); off unless asked
+  const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('timestamp-query') ? ['timestamp-query'] : [] });
   const ctx = canvas.getContext('webgpu');
   const format = navigator.gpu.getPreferredCanvasFormat();
   ctx.configure({ device, format, alphaMode: 'opaque' });
@@ -519,7 +520,7 @@ export async function createRenderer(canvas) {
     tex.forEach((t) => t.destroy());
     tex = [0, 1].map(() => device.createTexture({
       size: [w, h], format: 'rgba32float',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC,
     }));
     viewGroups = [0, 1].map((i) => device.createBindGroup({
       layout: viewLayout,
@@ -661,14 +662,50 @@ export async function createRenderer(canvas) {
     const pipe = packed && packed.collage ? variant(...collageMarch(packed)) : pipeFor(packed && packed.formula, v.quality > 0);
     if (!pipe) { present(); return; }
     const enc = device.createCommandEncoder();
-    const cp = enc.beginComputePass();
+    const cp = enc.beginComputePass(timing.on ? { timestampWrites: { querySet: timing.set, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } } : undefined);
     cp.setPipeline(pipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, viewGroups[cur]);
     cp.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
     cp.end();
+    if (timing.on) { enc.resolveQuerySet(timing.set, 0, 2, timing.buf, 0); enc.copyBufferToBuffer(timing.buf, 0, timing.read, 0, 16); }
     cur = 1 - cur;
     present(enc);
+  }
+
+  // The benchmark rig's instruments (test/run-bench.mjs): the march pass's GPU time from timestamps,
+  // and the accumulation read back as floats. Nothing here runs unless the rig turns it on.
+  const timing = { on: false, set: null, buf: null, read: null };
+  function setTiming(on) {
+    if (on && !device.features.has('timestamp-query')) return false;
+    if (on && !timing.set) {
+      timing.set = device.createQuerySet({ type: 'timestamp', count: 2 });
+      timing.buf = device.createBuffer({ size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+      timing.read = device.createBuffer({ size: 16, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    }
+    timing.on = on;
+    return true;
+  }
+  // ms of the last frame's march (call after the frame's work is done)
+  async function marchMs() {
+    if (!timing.on) return null;
+    await timing.read.mapAsync(GPUMapMode.READ);
+    const t = new BigUint64Array(timing.read.getMappedRange().slice(0));
+    timing.read.unmap();
+    return Number(t[1] - t[0]) / 1e6;
+  }
+  async function readAccum() {
+    if (!tex.length) return null;
+    const bpr = Math.ceil((w * 16) / 256) * 256;
+    const rb = device.createBuffer({ size: bpr * h, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    const enc = device.createCommandEncoder();
+    enc.copyTextureToBuffer({ texture: tex[cur] }, { buffer: rb, bytesPerRow: bpr }, [w, h]);
+    device.queue.submit([enc.finish()]);
+    await rb.mapAsync(GPUMapMode.READ);
+    const src = new Float32Array(rb.getMappedRange()), out = new Float32Array(w * h * 4), row = bpr / 4;
+    for (let y = 0; y < h; y++) out.set(src.subarray(y * row, y * row + w * 4), y * w * 4);
+    rb.unmap(); rb.destroy();
+    return { w, h, data: out };
   }
 
   let lastExposure = 1;
@@ -935,13 +972,14 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
   // the push engine shares the device, the canvas and the formula buffers
   return {
     device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, setCollage, collageReady, collageStep, frame, present, lens, setLens, renderThumb, variant,
-    compileJit, compileStructureJit, renderStill, deGrid,
+    compileJit, compileStructureJit, renderStill, deGrid, setTiming, marchMs, readAccum,
     get jitReady() { return !!(packed && jitFor(packed.formula)); },
     // which pipeline a frame of the current formula would use
     get pipelineKind() {
       if (packed && packed.collage) return 'collage';
       const f = packed && packed.formula, p = pipeFor(f, true);
-      return p === marchPipe ? 'interpreter' : p === jits.literal.pipe ? 'literal' : 'structure';
+      // the drivers' variant of the interpreter is the interpreter too
+      return p === jits.literal.pipe ? 'literal' : p === jits.structure.pipe ? 'structure' : 'interpreter';
     },
     // the latest pull image, for the loop engine to start from
     accumView: () => (tex.length ? tex[cur].createView() : null),

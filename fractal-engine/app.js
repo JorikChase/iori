@@ -3548,6 +3548,7 @@ function govern(moving) {
 }
 
 let last = performance.now(), busy = false;
+let benchQuiet = false;  // the benchmark rig holds the archive's growth off (__fe.quiet)
 const clock0 = performance.now();
 function tick() {
   requestAnimationFrame(tick);
@@ -3605,7 +3606,7 @@ async function step() {
   // no JIT for collages yet: the interpreter draws them
   if (!moving && !state.trans && mode === 'pull' && R.compileJit && !state.collage) R.compileJit(state.formula).catch((e) => console.warn(e.message));
   if (!moving && state.senseDue && S) { state.senseDue = false; senseNow(); }
-  else if (!interacting && mode === 'pull' && state.sensed && !state.senseDue) growArchive();
+  else if (!interacting && mode === 'pull' && state.sensed && !state.senseDue && !benchQuiet) growArchive();
   state.n++;
   if (state.thumbDue != null && state.n >= 16) {
     const url = captureThumb();
@@ -4324,6 +4325,11 @@ window.__fe = {
   },
   naturalRadius: (text) => naturalRadius(parse(text)),
   get gpuMs() { return gpuMs; },
+  // the benchmark rig (test/run-bench.mjs) drives the renderer itself: the pull view the app would draw
+  // now (still or moving), the engines, and the archive's growth held off so it adds no GPU work
+  view(moving = false) { state.focus = traceCentre(); const b = basis(state.cam); return pullView(b, Math.max(deAt(state.cam.pos), 1e-5), 1, moving); },
+  get engines() { return { R, P, LP, S }; },
+  quiet(on = true) { benchQuiet = on; },
 };
 
 async function start() {

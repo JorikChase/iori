@@ -72,3 +72,25 @@ node fractal-engine/test/run-paper.mjs --shots    # and design/shots/paper-*.jpg
 ```
 
 - GPU load: up to two engines; run it alone, as the other rigs.
+
+## Performance, headless
+
+`run-bench.mjs` times fixed scenes at a fixed size (1440×900): the Mandelbox cave, the bulb, Menger, a
+KIFS, a driven Mandelbox, a chimera, a three-piece collage (pull), push on the chimera and the loop. Per
+pull scene: the march pass's GPU time from timestamp queries (still and moving frames), the wall time to
+a converged still, and the JIT compile times. The guard renders every pull scene with the same seeds as
+a reference commit and fails below PSNR 40 dB or SSIM 0.99 (DESIGN.md "Performance").
+
+```bash
+node fractal-engine/test/run-bench.mjs                    # every scene, guarded (~3 min of GPU)
+node fractal-engine/test/run-bench.mjs --only chimera     # one scene: a short burst
+node fractal-engine/test/run-bench.mjs --no-guard
+node fractal-engine/test/run-bench.mjs --ref <commit> --retime-ref   # A/B against a commit in one run
+```
+
+- The reference defaults to the commit "fractal engine bench: the rig" (the first with the hooks it
+  needs: `__fe.view`, `__fe.engines`, `__fe.quiet`, the renderer's `setTiming`/`marchMs`/`readAccum`).
+  Its `fractal-engine/` is extracted into `test/bench-ref/<hash>/` (git-ignored) and its images and
+  timings are cached there; this tree's land in `test/bench-ref/current/`.
+- It stops the app's live loop and submits every frame itself, one at a time.
+- GPU-heavy: run it alone, as the other rigs. The slowest scenes take 16 samples, not 64.

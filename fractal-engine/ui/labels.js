@@ -20,6 +20,9 @@ export const LABELS = {
   'graph.band': 'band',                     // a bound line's range: + the line's name
   fork: 'fork chain',
   plus: 'add species',
+  // a collage piece's frame (ui/gizmo.js): the centre dot names the axes (a tap flips them; a drag moves
+  // the piece in the screen's plane)
+  'gz.local': 'local axes', 'gz.world': 'world axes', 'gz.axis': 'move along', 'gz.ring': 'turn', 'gz.corner': 'scale',
   // the shading frame (ui/shadegraph.js): readings, maths, colour mixes, the ramp and its editor
   col: 'fold index', trap: 'orbit trap', depth: 'depth', lyap: 'lyapunov', facing: 'facing',
   species: 'species', w: 'w axis', piece: 'piece', seam: 'seam',

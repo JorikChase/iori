@@ -156,6 +156,10 @@ body.grab #field { cursor: grabbing; }
 #grab .gz .ri { opacity: 0.4; }
 #grab .gz .co { opacity: 0.85; }
 #grab .gz .od { fill: #fff; stroke: none; }
+/* the world's axes (a tap on the centre dot): the same frame, dimmer */
+#grab .gz.wd .fx, #grab .gz.wd .co { opacity: 0.5; }
+#grab .gz.wd .ri { opacity: 0.25; }
+#grab .gz.halo.wd .fx, #grab .gz.halo.wd .co, #grab .gz.halo.wd .ri { opacity: 0.2; }
 #grab .gz .dl { opacity: 0.8; }
 #grab .gz .rc { stroke-width: 0.6; opacity: 0.8; }
 #grab .gz .rc.gh { opacity: 0.5; stroke-dasharray: 3 3; }

@@ -627,6 +627,85 @@ await check('gizmo: finger drag, rest snaps', async () => {
   return { ok: a.gz === 'corner' && c1 !== c0 && String(+s.toPrecision(2)) === String(s), note: `held ${a.gz}, scale ${s} (two figures: snapped)` };
 });
 
+// ---- the gizmo's centre (2026-10-29): a tap flips local / world, a drag moves in the screen's plane --------
+// down / move / up by finger or by mouse
+const hand = DESK
+  ? { down: (x, y) => page.mouse.move(x, y).then(() => page.mouse.down()), move: (x, y) => page.mouse.move(x, y, { steps: 6 }), up: () => page.mouse.up() }
+  : { down: (x, y) => T.down(1, x, y), move: (x, y) => T.move(1, x, y), up: () => T.upAll() };
+await check(`${DESK ? 'desktop: ' : ''}gizmo: centre tap = world, drag moves`, async () => {
+  if ((await input()).structure) await page.keyboard.press('Tab').catch(() => {});
+  await page.waitForFunction(() => !window.__fe.state.trans, null, { timeout: 5000 });
+  await fe(() => window.__fe.collage('{ bulb 8 · +c ×10 bail=2 } at .6 0 0 ∪ .3 { fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 } at -.6 0 0 size .25'));
+  await fe(() => window.__fe.setCamera([0, 0, -6], 0, 0)); await settle(20);
+  await fe(() => { window.__fe.pick(0); window.__fe.gizmoWorld(false); window.__fe.gizmoDrag('ring', 0, 60); });
+  await sleep(200);
+  const G0 = await fe(() => window.__fe.gizmo);
+  const slop = DESK ? 3 : 9;
+  // a tap (a finger's lands off the dot) flips the axes to the world's; the label says so
+  await hand.down(G0.O[0] + slop, G0.O[1] - slop); await sleep(80); await hand.up(); await sleep(200);
+  const G1 = await fe(() => window.__fe.gizmo);
+  const L = await fe(([x, y, t]) => window.__fe.labelAt(x, y, t), [G1.O[0], G1.O[1], !DESK]);
+  const turned = G0.axes.some((t, k) => Math.hypot(t[0] - G1.axes[k][0], t[1] - G1.axes[k][1]) > 4);
+  await shot(`${DESK ? 'desktop-' : ''}gizmo-world`);
+  // a finger held to read the label flips nothing
+  let held = true;
+  if (!DESK) { await hand.down(G1.O[0], G1.O[1]); await sleep(650); await hand.up(); await sleep(150); held = (await fe(() => window.__fe.gizmo)).world; }
+  // a drag from the centre: the piece follows the hand in the screen's plane
+  const p0 = await fe(() => ({ ...window.__fe.state.collage.pieces[0].place }));
+  await hand.down(G1.O[0], G1.O[1]); await sleep(60);
+  const gzk = (await input()).gz;
+  await hand.move(G1.O[0] + 50, G1.O[1] - 30); await sleep(60); await hand.up(); await sleep(200);
+  const G2 = await fe(() => window.__fe.gizmo), p1 = await fe(() => ({ ...window.__fe.state.collage.pieces[0].place }));
+  const dO = [G2.O[0] - G1.O[0], G2.O[1] - G1.O[1]];
+  await fe(() => { window.__fe.gizmoWorld(false); window.__fe.collage(null); });
+  return { ok: G1.world && turned && L && L.text === 'world axes' && held && gzk === 'centre' && G2.world && Math.abs(dO[0] - 50) < 4 && Math.abs(dO[1] + 30) < 4 && p1.rx === p0.rx && p1.s === p0.s,
+    note: `world ${G1.world}, axes turned ${turned}, label "${L && L.text}", hold keeps ${held}; drag ${gzk}: centre moved ${dO.map((v) => v.toFixed(1))}` };
+});
+
+// ---- colour defaults (2026-10-29): a ramp added on the colour link keeps the look; its presets open -------
+await check(`${DESK ? 'desktop: ' : ''}graph: new ramp keeps the look, presets beside it`, async () => {
+  await fe(async () => {
+    const F = await import('./core/index.js'), SE = await import('./core/shade-edit.js');
+    window.__fe.graph(false); window.__fe.collage(null);
+    window.__fe.setFormula(F.format(SE.shadeOn(F.parse('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100'))));
+  });
+  await settle(6);
+  await fe(() => window.__fe.graph(true)); await sleep(500);
+  const colourOf = () => fe(async () => {
+    const F = await import('./core/index.js'), S = await import('./core/shade.js');
+    const sh = F.parse(window.__fe.state.text).shade;
+    return [0.05, 0.3, 0.47, 0.8].map((col) => S.evalShade(sh, { col, trap: 0.4, facing: 0.6, depth: 0.9 }).color.map((x) => +x.toFixed(6)).join());
+  });
+  const c0 = await colourOf();
+  let sv = await fe(() => window.__fe.shadeView);
+  const out = sv.outs.find((o) => o.port === 'color');
+  // hold the colour output: the ring of colour nodes; the ramp (first, at the top) chosen
+  await hand.down(out.x, out.y); await sleep(700);
+  sv = await fe(() => window.__fe.shadeView);
+  if (!sv.picker) { await hand.up(); return { ok: false, note: 'no ring on the colour output' }; }
+  const [ax, ay] = sv.picker.at;
+  await hand.move(ax, ay - sv.picker.r); await sleep(80); await hand.up(); await sleep(400);
+  sv = await fe(() => window.__fe.shadeView);
+  const c1 = await colourOf(), types = sv.items.map((q) => q.type);
+  const P = sv.picker;
+  await shot(`${DESK ? 'desktop-' : ''}ramp-presets`);
+  if (!P) return { ok: false, note: `no presets after the add (${types.join(' ')})` };
+  // the gradients are named on a rest or a hold; a tap on the first (oil) takes it and shuts the ring
+  const name = await fe(([x, y, t]) => window.__fe.labelAt(x, y, t), [P.at[0], P.at[1] - P.r, !DESK]);
+  const before = await fe(() => window.__fe.state.text);
+  if (DESK) await page.mouse.click(P.at[0], P.at[1] - P.r); else await T.tap([[P.at[0], P.at[1] - P.r]]);
+  await sleep(400);
+  const a = await fe(async () => {
+    const F = await import('./core/index.js'), S = await import('./core/shade.js');
+    const sh = F.parse(window.__fe.state.text).shade, r = sh.nodes.find((n) => n.id === sh.out.color);
+    return { oil: JSON.stringify(r.p.stops) === JSON.stringify(S.normShade({ nodes: [{ id: 'x', type: 'ramp', in: {}, p: S.rampPreset('oil') }], out: { color: 'x' } }).nodes[0].p.stops), reads: sh.nodes.find((n) => n.id === r.in.v).type, picker: !!window.__fe.shadeView.picker };
+  });
+  // a tap elsewhere shuts a ring left open without a change
+  await fe(() => window.__fe.graph(false));
+  return { ok: c1.join('|') === c0.join('|') && types.filter((t) => t === 'ramp').length === 2 && P.sticky && P.n === 7 && P.labs[0] === 'oil ramp' && name && name.text === 'oil ramp' && a.oil && a.reads === 'facing' && !a.picker && before !== (await fe(() => window.__fe.state.text)) ,
+    note: `same colour ${c1.join('|') === c0.join('|')}, ${types.join(' ')}; presets open ${!!P} (${P.n}, sticky ${P.sticky}, "${name && name.text}"); oil taken ${a.oil} reading ${a.reads}, ring shut ${!a.picker}` };
+});
+
 // ---- the overlay toggles (DESIGN.md "Overlay toggles"): the menu mark's row, by finger or mouse -----------
 // the mark, then the glyph (the row is out for one choice)
 async function pressToggle(k) {

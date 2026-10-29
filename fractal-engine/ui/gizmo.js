@@ -2,12 +2,15 @@
 // — three axes from its origin along its turned frame, as long as the piece is (its natural radius ×
 // its size, kept between 50 and 170 px on screen), a ring around the origin in the screen's plane, and
 // a corner bracket between the first two axes. Drag an axis: the piece moves along it; the ring: it
-// turns about the line of sight; the corner: it scales about its origin. While a drag runs, its number
-// is a dimension line (the move from where it started, the angle's arc, the size along the corner).
+// turns about the line of sight; the corner: it scales about its origin; the centre dot: it moves freely
+// in the screen's plane. A tap on the centre dot flips the axes between the piece's own (local) and the
+// world's — the world frame drawn a little dimmer, so the state reads without words (decided with iori
+// 2026-10-29). While a drag runs, its number is a dimension line (the move from where it started, the
+// angle's arc, the size along the corner).
 // With the piece's repetition, its cells: a grid's boxes, a mirror's planes, polar spokes and sector
 // walls — the original's frame and cell solid, the copies' ghosted.
 //
-// gizmoGeometry(C, place, R0) → screen geometry (null when the origin is behind the camera);
+// gizmoGeometry(C, place, R0, world) → screen geometry (null when the origin is behind the camera);
 // gizmoHit(G, x, y) → the handle under the point; drawGizmo(svg, C, G, o) writes the overlay.
 
 import { rotationXYZ } from '../core/vec.js';
@@ -16,10 +19,10 @@ import { fromPiece, repCopies } from '../core/collage.js';
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
 const MIN_PX = 50, MAX_PX = 170;
 
-export function gizmoGeometry(C, place, R0) {
+export function gizmoGeometry(C, place, R0, world = false) {
   const O = [place.tx, place.ty, place.tz], o = C.project(O);
   if (!o) return null;
-  const R = rotationXYZ(place.rx, place.ry, place.rz);
+  const R = world ? [1, 0, 0, 0, 1, 0, 0, 0, 1] : rotationXYZ(place.rx, place.ry, place.rz);
   const e = [0, 1, 2].map((k) => [R[k], R[3 + k], R[6 + k]]);
   let A = Math.max(place.s * R0, 1e-6);
   const tips = (a) => e.map((v) => C.project([O[0] + v[0] * a, O[1] + v[1] * a, O[2] + v[2] * a]));
@@ -34,7 +37,8 @@ export function gizmoGeometry(C, place, R0) {
   const Lmax = Math.max(...axes.map((a) => (a ? Math.hypot(a.tip[0] - o[0], a.tip[1] - o[1]) : 0)), MIN_PX);
   const a0 = axes[0] || { tip: [o[0] + Lmax, o[1]] }, a1 = axes[1] || { tip: [o[0], o[1] - Lmax] };
   const corner = [o[0] + (a0.tip[0] - o[0]) * 0.7 + (a1.tip[0] - o[0]) * 0.7, o[1] + (a0.tip[1] - o[1]) * 0.7 + (a1.tip[1] - o[1]) * 0.7];
-  return { O: [o[0], o[1]], axes, A, ring: Lmax * 0.55, corner, e };
+  // px: world units per pixel at the origin's depth (the centre's free move)
+  return { O: [o[0], o[1]], axes, A, ring: Lmax * 0.55, corner, e, world, px: o[2] / C.k };
 }
 
 const segDist = (x, y, a, b) => {
@@ -46,6 +50,7 @@ const segDist = (x, y, a, b) => {
 // slop: how much wider than the hairline a hit may land (a finger's is wider than the mouse's)
 export function gizmoHit(G, x, y, slop = 1) {
   if (!G) return null;
+  if (Math.hypot(x - G.O[0], y - G.O[1]) < 8 * slop) return { kind: 'centre' };
   if (Math.hypot(x - G.corner[0], y - G.corner[1]) < 10 * slop) return { kind: 'corner' };
   let best = null, bd = 7 * slop;
   for (const a of G.axes) {
@@ -116,7 +121,7 @@ export function repCells(place, rep, R0) {
 // o: { place, rep, R0, drag: { kind, k, from: [x, y] (the origin where it started), value (text),
 //      a0, a1 (the ring's angles) } }
 export function drawGizmo(svg, C, G, o) {
-  const s = ['<g class="gz">'];
+  const s = [`<g class="gz${G && G.world ? ' wd' : ''}">`];
   if (o.rep) {
     const cells = repCells(o.place, o.rep, o.R0);
     s.push(`<path class="rc gh" d="${segs(C, cells.ghost)}"/>`, `<path class="rc" d="${segs(C, cells.solid)}"/>`);
@@ -135,9 +140,9 @@ export function drawGizmo(svg, C, G, o) {
     s.push(`<circle class="ri${d && d.kind === 'ring' ? ' on' : ''}" cx="${f1(ox)}" cy="${f1(oy)}" r="${f1(G.ring)}"/>`);
     const [cx, cy] = G.corner, ux = Math.sign(cx - ox) || 1, uy = Math.sign(cy - oy) || 1;
     s.push(`<path class="co${d && d.kind === 'corner' ? ' on' : ''}" d="M${f1(cx - ux * 9)} ${f1(cy)}H${f1(cx)}V${f1(cy - uy * 9)}"/>`);
-    s.push(`<circle class="od" cx="${f1(ox)}" cy="${f1(oy)}" r="1.6"/>`);
+    s.push(`<circle class="od${d && d.kind === 'centre' ? ' on' : ''}" cx="${f1(ox)}" cy="${f1(oy)}" r="${d && d.kind === 'centre' ? 2.4 : 1.6}"/>`);
     // the drag's number as a dimension line
-    if (d && d.kind === 'axis' && d.from) {
+    if (d && (d.kind === 'axis' || (d.kind === 'centre' && d.value)) && d.from) {
       const [x0, y0] = d.from, dx = ox - x0, dy = oy - y0, l = Math.hypot(dx, dy);
       if (l > 1) {
         const nx = (-dy / l) * 16, ny = (dx / l) * 16;
@@ -158,7 +163,7 @@ export function drawGizmo(svg, C, G, o) {
   s.push('</g>');
   // under the hairlines a faint dark halo of the same lines, so the frame reads on a bright surface too
   const body = s.join('');
-  svg.innerHTML = body.replace('<g class="gz">', '<g class="gz halo">').replace(/<text[^>]*>[^<]*<\/text>/g, '') + body;
+  svg.innerHTML = body.replace('<g class="gz', '<g class="gz halo').replace(/<text[^>]*>[^<]*<\/text>/g, '') + body;
   svg.classList.add('on');
 }
 

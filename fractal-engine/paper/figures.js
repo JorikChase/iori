@@ -36,6 +36,33 @@ const PAINTED = withProgram(BOX, {
 const CHIMERA = '[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 1.5 1 1 0 0 · +c ×12 bail=100';
 const TISSUE = '[bulb 8 · +c ‖ bulb 3 · +c] tissue 6 1.5 .1 ×10 bail=4';
 
+// ---------- the closing examples: as published, then one step beyond ----------
+const BOX15 = 'fold.box 1 · fold.sphere .5 1 · scale -1.5 · +c ×14 bail=100';
+const MENGER = 'abs · sort · scale 3 · translate -2 -2 · fold.plane 0 0 -1 -1 ×8 bail=50';
+const SURF = 'fold.plane -1 0 0 -1 · fold.plane 1 0 0 -1 · fold.plane 0 -1 0 -1 · fold.plane 0 1 0 -1 · fold.sphere .5 1 · scale 2 · rotate 0 0 20 · +c ×12 bail=100';
+const QJULIA = 'quat · translate -.2 .6 .2 .1 ×12 bail=4';
+// one hue, terraced: the orbit trap in bands through a violet ramp (iori's cave taste: one hue with highlights)
+const ONE_HUE = { nodes: [{ id: 't', type: 'trap' }, { id: 'b', type: 'math', in: { a: 't' }, p: { op: 'bands', c: 0.05 } },
+  { id: 'r', type: 'ramp', in: { v: 'b' }, p: { stops: [{ t: 0, c: [0.01, 0.005, 0.02, 1] }, { t: 0.5, c: [0.32, 0.1, 0.55, 1] }, { t: 0.85, c: [0.85, 0.6, 1, 1] }, { t: 1, c: [1, 1, 1, 1] }], interp: 'ease', space: 'oklab', map: map({ scale: 0.35, mode: 'mirror' }) } }],
+  out: { color: 'r' } };
+const EXAMPLES = {
+  exBulb: { doc: BULB, view: 2.5, yaw: 0, pitch: -0.25 },
+  exBulbTissue: { doc: '[bulb 8 · +c ‖ bulb 5 · +c] tissue 8 1.4 .15 ×10 bail=4', view: 2.7, yaw: 0, pitch: -0.25 },
+  exBox: { doc: BOX15, view: 4, yaw: 0.6, pitch: -0.45 },
+  exBoxRing: { doc: collage(`{ ${BOX15} } size .2 polar 6 6 y ∪ .12 { ${BOX15} } size .2`), view: 4.2, yaw: 0, pitch: -0.9 },
+  exMenger: { doc: MENGER, view: 3.2, yaw: 0.6, pitch: -0.45 },
+  exMengerSier: { doc: '[abs · sort · scale 3 · translate -2 -2 · fold.plane 0 0 -1 -1 ‖ fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · translate -1 -1 -1] .5 ×10 bail=30', view: 3.4, yaw: 0.6, pitch: -0.45 },
+  exQuat: { doc: QJULIA, view: 2.4 },
+  exQuatWalk: { doc: withProgram(QJULIA, { drive: { nodes: [{ id: 'tm', type: 'time', p: { rate: 0.05, wave: 'sine' } }], bind: [{ to: 'A1.x', from: 'tm', lo: -0.35, hi: -0.05 }, { to: 'A1.w', from: 'tm', lo: 0.0, hi: 0.25 }] } }), view: 2.4 },
+  exSurf: { doc: SURF, view: 8, yaw: 0, pitch: -0.5 },
+  // (a Mandelbox chimera with shading measured 0.6–1.1 s a frame here: too heavy for a page; the step is a clock)
+  exSurfTurn: { doc: withProgram(SURF, { shade: ONE_HUE, drive: { nodes: [{ id: 'tm', type: 'time', p: { rate: 0.04, wave: 'sine' } }], bind: [{ to: 'A6.z', from: 'tm', lo: 10, hi: 35 }] } }), view: 8, yaw: 0, pitch: -0.5 },
+  exCave: { doc: withProgram(BOX, { shade: ONE_HUE }) },
+  exCaveNoise: { doc: withProgram(BOX, { shade: ONE_HUE, drive: { nodes: [{ id: 'nz', type: 'noise', p: { f: 0.6, g: 1 } }], bind: [{ to: 'A2.s', from: 'nz', lo: 2.35, hi: 2.65 }] } }) },
+  exJuliaPull: { doc: 'bulb 8 · +c ×10 bail=2 c=-.2,.3,.1', view: 2.2, yaw: 0, pitch: -0.25 },
+  exJuliaPush: { doc: 'bulb 8 · +c ×10 bail=2 c=-.2,.3,.1', view: 2.2, yaw: 0, pitch: -0.25, mode: 'push' },
+};
+
 export const FIGURES = {
   notation: { open: 'structure' },
   pull: {},
@@ -64,6 +91,7 @@ export const FIGURES = {
   exports: { open: 'structure' },
   // chapter 9: the graph open, to hold a node for its name (ui/labels.js)
   labels: { doc: TISSUE, view: 2.6, open: 'graph' },
+  ...EXAMPLES,
   touch: {},
 };
 

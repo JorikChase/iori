@@ -65,8 +65,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="papers/fractals/paper.css?v=4">
-  <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=1">
-  <link rel="stylesheet" href="papers/metafractal/paper.css?v=1">
+  <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=3">
+  <link rel="stylesheet" href="papers/metafractal/paper.css?v=2">
 </head>
 
 <body>
@@ -311,7 +311,76 @@
 
     <!-- ================================================================== 7 -->
     <section id="ch7">
-      <h2>7. Proven, Observed, Open</h2>
+      <h2>7. Maps Elsewhere</h2>
+      <p class="lead">The same picture, a space of possibilities whose border is a fractal, has turned up far from the
+        Mandelbrot set in the last few years. Three of them, live.</p>
+
+      <h3 id="ch7-1">7.1 Which Learning Rates Train</h3>
+      <p>Train a neural network by gradient descent and the outcome depends on the learning rate: too small and it
+        crawls, too large and it diverges. Sohl-Dickstein trained small networks on a grid of two learning rates, one
+        per layer, and coloured each pair by whether training converged or diverged. The border between the two is a
+        fractal, at every zoom he could reach <a class="cite" href="#ref-sohldickstein2024">[12]</a>; it has since been
+        seen in transformers <a class="cite" href="#ref-torkamandi2025">[16]</a>. The reason is the one this paper
+        started from: training is a map iterated many times, and the set of starting conditions whose iteration stays
+        bounded is the Mandelbrot set's kind of object. Below, his smallest case, rebuilt: a network of width 4 with one
+        tanh layer, trained on one data point for 300 steps, once per pixel.</p>
+      <figure id="fig-train" class="local">
+        <canvas aria-label="Trainability map over two learning rates"></canvas>
+        <div class="controls">
+          <button type="button">Zoom out</button>
+          <button type="button">Reset</button>
+          <button type="button">Measure the border</button>
+        </div>
+        <p class="status"></p>
+        <figcaption>Each pixel is one training run: first-layer learning rate across, second-layer down, on log scales.
+          Blue trained (darker, lower loss), orange diverged (darker, sooner). Tap to zoom in where you tap. In the window
+          10<sup>2.14</sup>–10<sup>2.26</sup> × 10<sup>0.92</sup>–10<sup>1.04</sup> our CPU check measured the border's
+          box-counting dimension at 1.44 (float64), and the page measures 1.46 there on the GPU (float32); Sohl-Dickstein reports 1.41 for the same kind of network on one data point.
+          Measure it yourself in any window.</figcaption>
+      </figure>
+
+      <h3 id="ch7-2">7.2 Hofstadter's Butterfly</h3>
+      <p>An electron hopping on a square lattice in a magnetic field: its allowed energies depend on the flux through
+        each cell, α. For α = p/q the energies form q bands; drawing them for every rational α gives Hofstadter's
+        butterfly, self-similar at every scale <a class="cite" href="#ref-hofstadter1976">[17]</a>. For irrational α the
+        spectrum is a Cantor set, the "Ten Martini" problem, proved by Avila and Jitomirskaya
+        <a class="cite" href="#ref-avila2009">[18]</a> and in 2025 extended to broad families of quasiperiodic operators
+        by a new method <a class="cite" href="#ref-ge2023">[19]</a> <a class="cite" href="#ref-quanta2025">[20]</a>. The
+        step further: at the golden mean the bands shrink toward a set of total length zero; the figure measures them at
+        the Fibonacci approximants.</p>
+      <figure id="fig-butterfly" class="local">
+        <canvas aria-label="Hofstadter's butterfly"></canvas>
+        <div class="controls">
+          <label>Largest q <input type="range" min="8" max="64" step="1" value="40" aria-label="Largest denominator"></label>
+        </div>
+        <p class="status"></p>
+        <figcaption>Energy across (−4 to 4), flux down (0 to 1). Each horizontal line is one rational flux p/q and its
+          bands, from the trace of the q transfer matrices of Harper's equation. Raise q and the wings fill in.</figcaption>
+      </figure>
+
+      <h3 id="ch7-3">7.3 The Rauzy Fractal and the Einstein Tile</h3>
+      <p>Substitute letters, 1 → 12, 2 → 13, 3 → 1, again and again, and read the word as a walk in three dimensions. Seen
+        along the direction it grows, the walk stays in a bounded region of a plane: the Rauzy fractal, three pieces with
+        fractal borders that fit together and tile the plane <a class="cite" href="#ref-rauzy1982">[21]</a>. The same
+        object reappeared in 2023 with the "einstein", a single tile that covers the plane only without repeating
+        <a class="cite" href="#ref-smith2023">[22]</a>: the hat's and spectre's tilings are projections from a
+        higher-dimensional lattice, and the windows they are projected through have fractal borders, of Rauzy type for
+        the spectre <a class="cite" href="#ref-baake2025">[23]</a>.</p>
+      <figure id="fig-rauzy" class="local">
+        <canvas aria-label="The Rauzy fractal"></canvas>
+        <div class="controls">
+          <label><input type="checkbox"> Tile the plane</label>
+        </div>
+        <p class="status"></p>
+        <figcaption>The tribonacci word's first 200,000 prefixes, projected on the plane along which the walk does not
+          grow, coloured by the next letter. Tick the box for its copies shifted by the lattice: they fit without gaps or
+          overlaps.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================================================================== 8 -->
+    <section id="ch8">
+      <h2>8. Proven, Observed, Open</h2>
       <p class="lead">The claim of the title is a theorem in the plane and an observation everywhere else.</p>
       <ul>
         <li><b>Proven</b> for z² + c: the map is connected (Douady, Hubbard), its boundary has dimension 2
@@ -345,6 +414,14 @@
         <li id="ref-mouret2015">Mouret, J.-B., Clune, J. Illuminating search spaces by mapping elites. 2015. <a href="https://arxiv.org/abs/1504.04909" target="_blank" rel="noopener">arXiv:1504.04909</a></li>
         <li id="ref-worley1996">Worley, S. A cellular texture basis function. <i>SIGGRAPH '96</i> (1996) 291–294.</li>
         <li id="ref-sibson1981">Sibson, R. A brief description of natural neighbour interpolation. In Barnett, V. (ed.), <i>Interpreting Multivariate Data</i>, Wiley, 1981, 21–36.</li>
+        <li id="ref-torkamandi2025">Torkamandi, B. Mapping the edge of chaos: fractal-like boundaries in the trainability of decoder-only transformer models. 2025. <a href="https://arxiv.org/abs/2501.04286" target="_blank" rel="noopener">arXiv:2501.04286</a></li>
+        <li id="ref-hofstadter1976">Hofstadter, D. R. Energy levels and wave functions of Bloch electrons in rational and irrational magnetic fields. <i>Physical Review B</i> 14(6) (1976) 2239–2249.</li>
+        <li id="ref-avila2009">Avila, A., Jitomirskaya, S. The Ten Martini Problem. <i>Annals of Mathematics</i> 170(1) (2009) 303–342. <a href="https://arxiv.org/abs/math/0503363" target="_blank" rel="noopener">arXiv:math/0503363</a></li>
+        <li id="ref-ge2023">Ge, L., Jitomirskaya, S., You, J., Zhou, Q. Multiplicative Jensen's formula and quantitative global theory of one-frequency Schrödinger operators. 2023. <a href="https://arxiv.org/abs/2306.16387" target="_blank" rel="noopener">arXiv:2306.16387</a></li>
+        <li id="ref-quanta2025">Quanta Magazine. 'Ten Martini' proof uses number theory to explain quantum fractals. 25 August 2025. <a href="https://www.quantamagazine.org/ten-martini-proof-uses-number-theory-to-explain-quantum-fractals-20250825/" target="_blank" rel="noopener">quantamagazine.org</a></li>
+        <li id="ref-rauzy1982">Rauzy, G. Nombres algébriques et substitutions. <i>Bulletin de la Société Mathématique de France</i> 110 (1982) 147–178.</li>
+        <li id="ref-smith2023">Smith, D., Myers, J. S., Kaplan, C. S., Goodman-Strauss, C. An aperiodic monotile. 2023. <a href="https://arxiv.org/abs/2303.10798" target="_blank" rel="noopener">arXiv:2303.10798</a></li>
+        <li id="ref-baake2025">Baake, M., Gähler, F., Mazáč, J., Sadun, L. On the long-range order of the Spectre tilings. 2024. <a href="https://arxiv.org/abs/2411.15503" target="_blank" rel="noopener">arXiv:2411.15503</a>; and Baake, M., Gähler, F., Mazáč, J., Mitchell, A. Diffraction of the Hat and Spectre tilings and some of their relatives. <i>Journal of Mathematical Physics</i> 66 (2025). <a href="https://arxiv.org/abs/2502.03268" target="_blank" rel="noopener">arXiv:2502.03268</a></li>
       </ol>
     </section>
     <footer>
@@ -353,7 +430,7 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="fractal-engine/paper/paper.js?v=4"></script>
-  <script type="module" src="papers/metafractal/paper.js?v=1"></script>
+  <script type="module" src="fractal-engine/paper/paper.js?v=5"></script>
+  <script type="module" src="papers/metafractal/paper.js?v=2"></script>
 </body>
 </html>

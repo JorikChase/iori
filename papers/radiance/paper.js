@@ -1,8 +1,9 @@
 // The radiance-fields paper's own figures (figures.js), started when they scroll into view and stopped when
 // they leave. The engine's figures and the reading layer come from fractal-engine/paper/paper.js.
 import { createRay, createLobes, createReps, createMorph } from './figures.js?v=1';
+import { createElectrons, createEnzyme } from './sierpinski.js?v=1';
 
-const make = { 'fig-ray': createRay, 'fig-lobes': createLobes, 'fig-reps': createReps, 'fig-morph': createMorph };
+const make = { 'fig-ray': createRay, 'fig-lobes': createLobes, 'fig-reps': createReps, 'fig-morph': createMorph, 'fig-electrons': createElectrons, 'fig-enzyme': createEnzyme };
 const figs = new Map();
 const observer = new IntersectionObserver((entries) => {
   for (const e of entries) {

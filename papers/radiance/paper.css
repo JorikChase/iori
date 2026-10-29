@@ -14,3 +14,13 @@
   .row.five .pane:first-child { grid-column: span 2; max-width: 55%; margin: 0 auto; }
   .row.three { grid-template-columns: 1fr 1fr 1fr; }
 }
+
+/* chapter 7: the gasket (dark, it is light) and the enzyme (on paper) */
+#fig-electrons canvas { display: block; width: 100%; max-width: 36rem; margin: 0 auto; aspect-ratio: 1 / 0.95; border-radius: 10px; background: #05060a; }
+#fig-enzyme canvas { display: block; width: 100%; max-width: 36rem; margin: 0 auto; aspect-ratio: 1 / 0.92; border: 1px solid var(--rule); border-radius: 10px; }
+/* the five-column error table on a phone: smaller, tighter, headers may wrap */
+@media (max-width: 640px) {
+  table.data { font-size: 0.76rem; }
+  table.data th, table.data td { padding: 0.35rem 0.25rem; }
+  table.data th { white-space: normal; }
+}

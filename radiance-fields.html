@@ -65,8 +65,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="papers/fractals/paper.css?v=4">
-  <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=1">
-  <link rel="stylesheet" href="papers/radiance/paper.css?v=1">
+  <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=3">
+  <link rel="stylesheet" href="papers/radiance/paper.css?v=3">
 </head>
 
 <body>
@@ -315,7 +315,56 @@
 
     <!-- ================================================================== 7 -->
     <section id="ch7">
-      <h2>7. What the Engine Has, and Has Not</h2>
+      <h2>7. Fractals That Hold Light and Matter</h2>
+      <p class="lead">Two recent experiments built Sierpiński triangles out of real things, one to hold electrons and one
+        by accident of evolution. Both are fields on a fractal, and both can be rebuilt here.</p>
+
+      <h3 id="ch7-1">7.1 An Electron on a Sierpiński Gasket</h3>
+      <p>Kempkes and colleagues placed carbon monoxide molecules on a copper surface, one by one with a scanning
+        tunnelling microscope, so that the surface electrons could only live on a Sierpiński triangle. The microscope then
+        mapped where the electrons were at each energy: wave functions that live on the fractal and split into
+        self-similar parts, with a measured dimension of about 1.58 <a class="cite" href="#ref-kempkes2019">[21]</a>. The
+        simplest model of that experiment is an electron hopping between neighbouring sites of the gasket's graph. Below
+        it is solved exactly on 123 sites, and each eigenstate's density |ψ|² is drawn as emission: a radiance field held
+        by a fractal. The step further is the microscope's own picture: all states near one energy, summed, which is what
+        a map of the tunnelling current at that energy shows.</p>
+      <figure id="fig-electrons" class="local">
+        <canvas aria-label="An electron's density on a Sierpiński gasket"></canvas>
+        <div class="controls">
+          <label>Show <select aria-label="What to show"><option value="state">one eigenstate</option><option value="ldos">the microscope at an energy</option></select></label>
+          <label>Energy <input type="range" min="0" max="1" step="0.001" value="0.62" aria-label="Energy"></label>
+        </div>
+        <p class="status"></p>
+        <figcaption>Tight binding on generation 4 of the gasket: hopping 1 between neighbours, solved by Jacobi rotations
+          in the page. The glow is the density; the ticks at the bottom are all 123 energies, the orange one is shown. Many
+          states sit on the small triangles only, repeated at every scale; others spread over the whole gasket.</figcaption>
+      </figure>
+
+      <h3 id="ch7-2">7.2 A Fractal Enzyme</h3>
+      <p>In 2024 Sendker and colleagues found the first protein that assembles into a regular fractal: citrate synthase
+        from the cyanobacterium <i>Synechococcus elongatus</i>. Two chains make a dimer, three dimers a hexameric ring;
+        three hexamers join at their corners into a triangle of 18 chains, three of those into 54, a Sierpiński triangle
+        built of protein. A single amino-acid change in its history made the corner contact possible, and the assembly
+        seems to do the bacterium neither good nor harm <a class="cite" href="#ref-sendker2024">[22]</a>. The figure is a
+        drawing of that geometry, not a simulation of the chemistry: hexamers placed where corner-to-corner contacts put
+        them, against the triangle that symmetric contacts would fill. Counting hexamers against size measures the
+        difference: mass grows as size to the 1.585 for the fractal, toward 2 for the filled triangle.</p>
+      <figure id="fig-enzyme" class="local">
+        <canvas aria-label="Hexamers assembling into a Sierpiński triangle"></canvas>
+        <div class="controls">
+          <label>Level <input type="range" min="0" max="5" step="1" value="3" aria-label="Level"></label>
+          <label><input type="checkbox"> Symmetric contacts</label>
+        </div>
+        <p class="status"></p>
+        <figcaption>Each ring of six is a hexamer, three dimers in three colours. Levels 1 and 2 are the 18-chain and 54-chain
+          triangles the cryo-EM structures show; the paper's scattering data suggest growth goes on beyond them. Tick
+          symmetric contacts to see the smooth triangle the usual contacts would make.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================================================================== 8 -->
+    <section id="ch8">
+      <h2>8. What the Engine Has, and Has Not</h2>
       <p class="lead">Read as a radiance field, the engine is a generator with two renderers and three exports.</p>
       <ul>
         <li><b>Has:</b> a density in its hard-surface limit (pull), the same set as Gaussians (push), emission as a
@@ -353,6 +402,8 @@
         <li id="ref-turk1999">Turk, G., O'Brien, J. F. Shape transformation using variational implicit functions. <i>SIGGRAPH</i> 1999, 335–342.</li>
         <li id="ref-mccann1997">McCann, R. J. A convexity principle for interacting gases. <i>Advances in Mathematics</i> 128(1) (1997) 153–179.</li>
         <li id="ref-bonneel2011">Bonneel, N., van de Panne, M., Paris, S., Heidrich, W. Displacement interpolation using Lagrangian mass transport. <i>ACM Transactions on Graphics</i> 30(6) (2011) 158.</li>
+        <li id="ref-kempkes2019">Kempkes, S. N., Slot, M. R., Freeney, S. E., Zevenhuizen, S. J. M., Vanmaekelbergh, D., Swart, I., Morais Smith, C. Design and characterization of electrons in a fractal geometry. <i>Nature Physics</i> 15 (2019) 127–131. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6420065" target="_blank" rel="noopener">PMC6420065</a></li>
+        <li id="ref-sendker2024">Sendker, F. L. et al. Emergence of fractal geometries in the evolution of a metabolic enzyme. <i>Nature</i> (2024). <a href="https://doi.org/10.1038/s41586-024-07287-2" target="_blank" rel="noopener">doi:10.1038/s41586-024-07287-2</a></li>
       </ol>
     </section>
     <footer>
@@ -361,7 +412,7 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="fractal-engine/paper/paper.js?v=4"></script>
-  <script type="module" src="papers/radiance/paper.js?v=1"></script>
+  <script type="module" src="fractal-engine/paper/paper.js?v=5"></script>
+  <script type="module" src="papers/radiance/paper.js?v=2"></script>
 </body>
 </html>

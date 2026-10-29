@@ -1982,7 +1982,8 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
       // a driven op: its record's motion along each column, loaded at one call site
       var E: array<vec4f, 20>;
       var eOn = vec4<bool>(false);
-      if (DRIVE_ON && drvAny) { for (var m = 0u; m < 4u; m++) { eOn[m] = drvLoad(oi, m); for (var r = 0u; r < 5u; r++) { E[m * 5u + r] = drvE[r]; } } }
+      // (only a driven op: the copy into E is private memory, every op of every iteration otherwise)
+      if (DRIVE_ON && drvAny && drvIs(oi)) { for (var m = 0u; m < 4u; m++) { eOn[m] = drvLoad(oi, m); for (var r = 0u; r < 5u; r++) { E[m * 5u + r] = drvE[r]; } } }
       drvEOn = eOn.x; if (eOn.x) { drvE = array<vec4f, 5>(E[0], E[1], E[2], E[3], E[4]); }
       let t0 = opTan(oi, p, c, g0, dc0, false);
       drvEOn = eOn.y; if (eOn.y) { drvE = array<vec4f, 5>(E[5], E[6], E[7], E[8], E[9]); }

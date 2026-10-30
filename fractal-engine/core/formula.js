@@ -15,6 +15,8 @@
 //   shade: { nodes, out }  optional. The colour as a dataflow (core/shade.js)
 //   drive: { nodes, bind } optional. Parameters driven by the orbit, the world, time, each other
 //                          (core/drive.js); bindings name ops by their graph path ids (core/graph.js)
+//   sub: [{ id, n, uses, expose }, …]   optional. Runs of ops used in several places (core/sub.js): a link
+//                          over the plain slots, which every engine reads as they are
 //   slots: [[{ op: 'fold.box', p: { l: 1 } }, …], …]   up to eight op lists, A–H
 // }
 //
@@ -28,6 +30,7 @@
 import { getOp, fillParams, isMix } from './ops.js';
 import { normShade, validateShade } from './shade.js';
 import { normDrive, validateDrive, emptyDrive } from './drive.js';
+import { normSub, syncSub, validateSub } from './sub.js';
 import { parse, format, slotIndex } from './notation.js';
 
 export const MAX_ITERS = 4096;
@@ -45,6 +48,7 @@ export function normalize(f) {
     ...(f.slice && (f.slice.w || (f.slice.tilt || []).some(Boolean)) ? { slice: { w: Number(f.slice.w || 0), tilt: [0, 1, 2].map((i) => Number((f.slice.tilt || [])[i] || 0)) } } : {}),
     ...(f.shade ? { shade: normShade(f.shade) } : {}),
     ...(!emptyDrive(f.drive) ? { drive: normDrive(f.drive) } : {}),
+    ...(normSub(f.sub) ? { sub: normSub(f.sub) } : {}),
     slots: (f.slots || []).map((s) => s.map((o) => {
       const def = getOp(o.op);
       return { op: def ? def.name : o.op, p: def ? fillParams(def, o.p || {}) : { ...(o.p || {}) } };
@@ -52,6 +56,7 @@ export function normalize(f) {
   };
   // every mix op is handed its two sub-stacks (not enumerable: JSON and the hash never see them)
   for (const m of mixKids(g).mixes) if (m.kids.every((k) => k >= 0 && k < g.slots.length)) Object.defineProperty(g.slots[m.si][m.j], 'kids', { value: m.kids.map((k) => g.slots[k]) });
+  syncSub(g);
   return g;
 }
 
@@ -76,6 +81,7 @@ export function validate(f) {
   if (f.c !== undefined && !(Array.isArray(f.c) && (f.c.length === 3 || f.c.length === 4) && f.c.every(Number.isFinite))) err('c must be three or four finite numbers');
   if (f.shade !== undefined) errors.push(...validateShade(f.shade, f.drive || null));
   if (f.drive !== undefined && Array.isArray(f.slots)) errors.push(...validateDrive(f.drive, f));
+  if (f.sub !== undefined && Array.isArray(f.slots)) errors.push(...validateSub(f));
   if (f.slice !== undefined && !(f.slice && Number.isFinite(f.slice.w || 0) && Array.isArray(f.slice.tilt || [0, 0, 0]) && (f.slice.tilt || [0, 0, 0]).length === 3 && (f.slice.tilt || [0, 0, 0]).every(Number.isFinite))) err('slice must be { w, tilt: [xw, yw, zw] }');
   if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > MAX_SLOTS) err(`slots must hold 1..${MAX_SLOTS} op lists`);
   else {
@@ -131,7 +137,7 @@ export const spawnRadius = (f) => (seedOf(f) ? 3 : 1);
 export function canonical(f) {
   const g = normalize(f);
   return JSON.stringify({
-    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}), ...(g.slice ? { slice: g.slice } : {}), ...(g.shade ? { shade: g.shade } : {}), ...(g.drive ? { drive: g.drive } : {}),
+    v: g.v, seed: g.seed, iters: g.iters, schedule: g.schedule, bail: g.bail, ...(g.c ? { c: g.c } : {}), ...(g.slice ? { slice: g.slice } : {}), ...(g.shade ? { shade: g.shade } : {}), ...(g.drive ? { drive: g.drive } : {}), ...(g.sub ? { sub: g.sub } : {}),
     slots: g.slots.map((s) => s.map((o) => ({ op: o.op, p: Object.fromEntries(getOp(o.op).params.map((q) => [q.k, o.p[q.k]])) }))),
   });
 }

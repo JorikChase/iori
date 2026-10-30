@@ -25,7 +25,12 @@ async function server() {
 }
 
 /* one browser per WAV, since the capture file is a launch flag */
-async function browser() {
+const LIVE = new Set();
+async function browser() { const b = await launch(); LIVE.add(b); b.on('disconnected', () => LIVE.delete(b)); return b; }
+/* run.js calls this after every scenario: one that throws never reaches its own close, and a leaked software-GL browser
+   slows the next scenario until load itself makes them fail */
+async function closeAll() { await Promise.all([...LIVE].map(b => b.close().catch(() => {}))); LIVE.clear(); }
+async function launch() {
   if (ENGINE === 'webkit') return webkit.launch({ headless: true });
   const args = ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
   return chromium.launch({ headless: true, args });
@@ -136,4 +141,4 @@ async function lit(br, png) {
 function result(dir, data) { fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(data, null, 2)); return data; }
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
-module.exports = { IOS_INIT, ENGINE, PORT, server, browser, open, outDir, frames, captureAt, sheet, lit, result, near, VIEW, DPR, ROOT, OUT };
+module.exports = { IOS_INIT, ENGINE, PORT, server, browser, closeAll, open, outDir, frames, captureAt, sheet, lit, result, near, VIEW, DPR, ROOT, OUT };

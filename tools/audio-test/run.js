@@ -9,6 +9,7 @@ const fs = require('fs'); const path = require('path'); const lib = require('./l
   for (const n of names) {
     const t0 = Date.now(); let r;
     try { r = await require(path.join(dir, n + '.js'))(lib); } catch (e) { r = { pass: false, error: e.stack || String(e) }; }
+    await lib.closeAll();
     failed += r.pass ? 0 : 1; summary.push({ scenario: n, ...r, ms: Date.now() - t0 });
     console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${n}  ${((Date.now() - t0) / 1000).toFixed(1)}s` + (r.pass ? '' : '\n      ' + (r.error || JSON.stringify(r)).split('\n').slice(0, 6).join('\n      ')));
   }

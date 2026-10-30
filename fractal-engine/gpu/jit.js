@@ -5,7 +5,7 @@
 //   structure  parameters read from the op buffer (through rec(), so lens overrides still apply):
 //              one compile per structure (ops, schedule, iterations) serves every value — live
 //              editing, drift, walks, and every frame of a video
-// test/parity.html diffs both against the interpreter.
+// test/parity.html diffs both against the interpreter. Each also compiles the hit's dual pass (jitDual).
 
 import { normalize, pullSafe, mixKids, seedOf } from '../core/formula.js';
 import { isMix } from '../core/ops.js';

@@ -35,6 +35,8 @@ const TRAP_SHADE = { nodes: [{ id: 't', type: 'trap' }, { id: 'r', type: 'ramp',
 
 // [label, collage, radius]: forward estimates, shares, readings and colour at random points in the ball
 export const COLLAGES = [
+  // a Kleinian seed and a Kleinian op as pieces: the head's seed word and the piece's region
+  ['Kleinian seeds', C(`{ fold.cell .92 .91 .92 · fold.sphere 0 1 · seed.slab ×10 bail=100 } at .4 0 0 size .5 ∪ .1 { kleinian 1.95 .02 ×24 bail=100 } at -.5 0 0 size .4`), 2.4],
   ['union quad', two('∪ .3'), 1.6],
   ['union cubic', two('∪ cubic .3'), 1.6],
   ['union exp', two('∪ exp .15'), 1.6],

@@ -26,7 +26,7 @@ const RAMP_W = 1.0;    // a ramp's bar, in units
 export const toSRGB = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
 const css = (c) => `rgb(${c.slice(0, 3).map((x) => Math.round(255 * Math.min(1, Math.max(0, toSRGB(x))))).join(',')})`;
 
-export const glyphOf = (n) => (READINGS.includes(n.type) ? n.type : n.type === 'math' ? `math.${n.p.op}` : n.type === 'mixc' ? `mixc.${n.p.mode}` : null);
+export const glyphOf = (n) => (READINGS.includes(n.type) ? n.type : n.type === 'math' ? `math.${n.p.op}` : n.type === 'mixc' ? `mixc.${n.p.mode}` : n.type === 'kali' ? 'kali' : null);
 
 export function layoutShade(shade) {
   if (!shade) return { empty: true, items: [], links: [], outs: [], w: 2, h: 2 };

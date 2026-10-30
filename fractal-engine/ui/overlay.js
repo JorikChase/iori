@@ -85,6 +85,12 @@ function handle(C, op, p, hit, size, screen) {
       for (const [i, j] of [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]) path(worldPath(C, [v[i], v[j]]));
       break;
     }
+    case 'fold.cell': {
+      const v = [];
+      for (let i = 0; i < 8; i++) v.push([(i & 1 ? 1 : -1) * P.lx, (i & 2 ? 1 : -1) * P.ly, (i & 4 ? 1 : -1) * P.lz]);
+      for (const [i, j] of [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]) path(worldPath(C, [v[i], v[j]]));
+      break;
+    }
     case 'fold.sphere': {
       // the two radii as great circles facing the camera, about the origin
       const s0 = C.project([0, 0, 0]);

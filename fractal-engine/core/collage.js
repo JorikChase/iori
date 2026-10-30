@@ -376,14 +376,14 @@ export function collageDrivers(c, x, time = 0) {
 export function collageColour(collage, at, readings, fallback = () => [1, 1, 1, 1], opts = {}) {
   const c = collage.__norm ? collage : normCollage(collage);
   if (c.shade) {
-    const mixed = { piece: at.piece, seam: at.seam };
-    for (const k of new Set(readings.flatMap((r) => Object.keys(r || {})))) mixed[k] = readings.reduce((a, r, i) => a + at.w[i] * ((r && r[k]) || 0), 0);
+    const mixed = { piece: at.piece, seam: at.seam, x: opts.x };
+    for (const k of new Set(readings.flatMap((r) => Object.keys(r || {})))) if (k !== 'x') mixed[k] = readings.reduce((a, r, i) => a + at.w[i] * ((r && r[k]) || 0), 0);
     return evalShade(c.shade, mixed, opts.x ? collageDrivers(c, opts.x, opts.time || 0) : null).color;
   }
   const out = [0, 0, 0, 0];
   c.pieces.forEach((q, i) => {
     if (!(at.w[i] > 0)) return;
-    const col = q.f.shade ? evalShade(q.f.shade, readings[i] || {}).color : fallback(i);
+    const col = q.f.shade ? evalShade(q.f.shade, { ...readings[i], x: opts.x }).color : fallback(i);
     for (let k = 0; k < 4; k++) out[k] += at.w[i] * (col[k] ?? 1);
   });
   return out;

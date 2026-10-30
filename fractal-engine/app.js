@@ -52,7 +52,7 @@ import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
 import { evalShade, shadeTarget } from './core/shade.js';
-import { hash } from './core/formula.js';
+import { hash, spawnRadius } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
 import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
@@ -433,7 +433,7 @@ function openSurface(add = null) {
   exitGrab();
   // the crosshair where we were, or on the site of the formula's own family
   const own = SURF.sites.find((s) => normalize(state.formula).slots.length === 1 && s.f.slots.length === 1 && s.f.slots[0].map((o) => o.op).join(' ') === structureKey(state.formula));
-  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, press: null, site: null, bands: null, drift: state.drift, add };
+  surf = { x: surfAt || (own ? [...own.at] : [0, 0]), drag: false, moved: false, stroke: null, press: null, site: null, bands: null, drift: state.drift, add, cam0: { yaw: state.cam.yaw, pitch: state.cam.pitch } };
   state.drift = false;
   // on a touch screen the structure layer stays drawn under the square, but only its keys answer (on a
   // phone the strip lies under the square)
@@ -445,8 +445,8 @@ function openSurface(add = null) {
 async function surfaceThumbs() {
   for (const s of SURF.sites) {
     if (s.thumb || !surf || !R) continue;
-    const cam = { yaw: 0.55, pitch: 0.3 }, b = basis(cam), pos = b.fwd.map((v) => -v * s.view);
-    s.thumb = await R.renderThumb(s.f, thumbView(b, pos, s.view * 0.35), 168, 112, 6).catch(() => null);
+    const cam = s.eye || { yaw: 0.55, pitch: 0.3 }, b = basis(cam), pos = s.eye ? s.eye.pos : b.fwd.map((v) => -v * s.view);
+    s.thumb = await R.renderThumb(s.f, thumbView(b, pos, s.eye ? 0.3 : s.view * 0.35), 168, 112, 6).catch(() => null);
     if (s.user && s.thumb) saveSurface();
     drawSurfaceNow();
   }
@@ -510,13 +510,24 @@ function frameAt(view) {
   state.home = null;
 }
 
+// the camera for a place on the surface: the frame from the direction the surface opened with, moved
+// toward the halls of the sites that stand inside their family, by their weight (presets.js eye)
+function frameFor(r) {
+  if (!r.eye) { if (surf) { state.cam.yaw = surf.cam0.yaw; state.cam.pitch = surf.cam0.pitch; } frameAt(r.view); return; }
+  const c0 = surf.cam0, W = r.eye.W, { fwd } = basis(c0), near = (a, b) => b + Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  state.cam.pos = fwd.map((v, i) => -v * r.view * (1 - W) + r.eye.pos[i]);
+  state.cam.yaw = c0.yaw + (near(r.eye.yaw, c0.yaw) - c0.yaw) * W;
+  state.cam.pitch = c0.pitch + (r.eye.pitch - c0.pitch) * W;
+  state.home = null;
+}
+
 function surfaceTo(x) {
   surf.x = x; surfAt = x;
   if (surf.add) { drawSurfaceNow(); return; }
   const r = formulaAt(SURF, x);
   // in a collage the crosshair swaps the picked piece's formula (the camera stays with the collage)
   setFormula(format(r.f), true);
-  if (!state.collage) frameAt(r.view);
+  if (!state.collage) frameFor(r);
   touched();
   drawSurfaceNow();
 }
@@ -736,7 +747,7 @@ function layField(pts, scr) {
 // another species. Drag the count: the iterations. G or Esc folds it back.
 let gv = null;   // { P, t0, from, hover, selected, press, drag, param, picker, thumbs, drift }
 const GRAPH_UNFOLD_MS = 260, GRAPH_HOLD_MS = 300;
-const PICK_OPS = ['translate', 'scale', 'rotate', 'rotate4', '+c', 'fold.plane', 'fold.box', 'fold.sphere', 'abs', 'sort', 'sort4',
+const PICK_OPS = ['translate', 'scale', 'rotate', 'rotate4', '+c', 'fold.plane', 'fold.box', 'fold.cell', 'fold.mandalay', 'fold.sphere', 'wrap', 'seed.slab', 'seed.sphere', 'seed.pillar', 'kleinian', 'abs', 'sort', 'sort4',
   'bulb', 'bulb4', 'power', 'quat', 'invert', 'twist', 'spherical', 'swirl', 'sin', 'horseshoe', 'polar'];
 const PICK_FIELDS = ['mix', 'mix.axis', 'mix.sphere', 'mix.noise', 'mix.tissue', 'mix.trap', 'mix.depth', 'mix.lyap', 'mix.blend'];
 
@@ -1371,7 +1382,7 @@ function graphUp(e) {
 // the selected node (or the selected stop). The ramp editor: click the bar for a stop, drag a stop, hold a
 // stop for the hue ring (angle hue, distance saturation, scroll lightness, shift-scroll alpha), click the
 // toggles (interpolation, colour space, mapping mode, log, invert), drag scale and offset.
-const SHADE_TYPES = [...SHADE_READINGS, 'ramp', 'math', 'mixc'];
+const SHADE_TYPES = [...SHADE_READINGS, 'ramp', 'math', 'mixc', 'kali'];
 const shadeGlyph = (t) => (t === 'ramp' ? 'shade' : t === 'math' ? 'math.mul' : t === 'mixc' ? 'mixc.mix' : t);
 const presetColours = (name) => Array.from({ length: 10 }, (_, j) => { const c = SE.rampColourAt(RAMP_PRESETS[name], j / 9); return `rgb(${c.slice(0, 3).map((x) => Math.round(255 * Math.min(1, toSRGB(x)))).join(',')})`; });
 const linearToHsv = (c) => rgb2hsv(c.slice(0, 3).map((x) => Math.min(1, Math.max(0, toSRGB(x)))));
@@ -1382,6 +1393,7 @@ function shadeHandles(q) {
   const x2 = q.x - q.hw - 24, x1 = x2 - 110;
   if (q.type === 'math') return [shadeBand({ key: 'c', to: `${q.id}.c`, value: q.n.p.c, x1, x2, y: q.y, v: fmtValue(q.n.p.c), held: gv.shParam && gv.shParam.key === 'c', glyph: `math.${q.n.p.op}`, cycle: ['op', MATH_OPS] })];
   if (q.type === 'mixc') return [shadeBand({ key: 'f', to: `${q.id}.f`, value: q.n.p.f, x1, x2, y: q.y, v: fmtValue(q.n.p.f), held: gv.shParam && gv.shParam.key === 'f', glyph: `mixc.${q.n.p.mode}`, cycle: ['mode', MIX_MODES] })];
+  if (q.type === 'kali') return ['cx', 'cy', 'cz', 'f'].map((key, k) => shadeBand({ key, to: `${q.id}.${key}`, value: q.n.p[key], x1, x2, y: q.y - 27 + k * 18, v: fmtValue(q.n.p[key]), held: gv.shParam && gv.shParam.key === key }));
   return [];
 }
 
@@ -3688,7 +3700,7 @@ function pushView(b, clear, moving, drifting) {
     frame: state.frame, steps: moving ? L.pushSteps : L.pushSteps * 2,
     c, eps: (focus * 2 * th) / ih * 0.7, slab: L.pushSlab,
     hue: L.hue, iridescence: L.iridescence, spread: L.spread, maxRadius: moving ? L.splatMax * 0.6 : L.splatMax,
-    key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: 1,
+    key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: spawnRadius(state.formula),
     decay: state.n === 0 ? 0 : drifting ? 0.85 : 1,
     gain: L.pushGain, exposure: L.pushExposure,
   };

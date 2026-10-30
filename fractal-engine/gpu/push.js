@@ -75,11 +75,12 @@ fn invStep(slot: u32, q: vec4f, col0: f32) -> Inv {
   return r;
 }
 
+var<private> tintX: vec3f;
 fn tint(col: f32, cosv: f32) -> vec3f {
   if ((head.flags & FLAG_SHADE) != 0u) {
-    // the formula's colour graph; a splat knows only its fold colour index
+    // the formula's colour graph; a splat knows only its fold colour index and where it is
     var r: Readings;
-    r.col = col;
+    r.col = col; r.x = tintX;
     return shadeRun(r).color.rgb * length(pv.key.rgb);
   }
   let base = pv.key.rgb;
@@ -88,6 +89,7 @@ fn tint(col: f32, cosv: f32) -> vec3f {
 }
 
 fn splat(p: vec3f, S: mat3x3f, col: f32, weight: f32) {
+  tintX = p;
   let d = p - pv.pos.xyz;
   let z = dot(d, pv.fwd.xyz);
   if (z < pv.fwd.w) { return; }

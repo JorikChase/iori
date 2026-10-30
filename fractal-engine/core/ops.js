@@ -8,6 +8,8 @@
 //   inv     — one preimage of p under the op, choosing a branch with rng.pick; null when the point has
 //             none; an op with inv: null has no inverse (push applies fwd, as flames do)
 //   glyph   — the UI glyph id; no words anywhere else
+//   seed    — the estimate read at the end of the orbit, for the formulas r/dr cannot measure:
+//             seed(p, dr, P) → { v, g, dr, t } (see the seeds below)
 //
 // The 3-D families (box and sphere folds, the White–Nylander bulb, complex powers, flames) leave w
 // alone or treat it like any other axis, so a 3-D formula on the default slice (w = 0) is exactly what
@@ -122,10 +124,68 @@ def({
   },
 });
 
-// Mandelbox sphere fold: |p| < rmin → scale by rfix²/rmin²; rmin ≤ |p| < rfix → invert in the rfix sphere
+// the box fold with a limit per axis (the pseudo-Kleinian's cell): a limit is a limit, 0 mirrors the axis
+const CELL = ['lx', 'ly', 'lz', 'lw'];
+def({
+  name: 'fold.cell', glyph: 'cell', wRule: 'unchanged',
+  params: [p('lx', 1, 0, 64), p('ly', 1, 0, 64), p('lz', 1, 0, 64), p('lw', 1, 0, 64)],
+  fwd(s, P) {
+    let branch = 0;
+    s.p = s.p.map((x, i) => {
+      const l = P[CELL[i]];
+      if (x > l) { branch += 1 * 3 ** i; return 2 * l - x; }
+      if (x < -l) { branch += 2 * 3 ** i; return -2 * l - x; }
+      return x;
+    });
+    return { branch };
+  },
+  jac(q, P) { return diag(...q.map((x, i) => (Math.abs(x) > P[CELL[i]] ? -1 : 1))); },
+  inv(q, P, rng) {
+    return q.map((y, i) => {
+      const l = P[CELL[i]], c = [];
+      if (Math.abs(y) <= l) c.push(y);
+      if (y < l) c.push(2 * l - y);
+      if (y > -l) c.push(-2 * l - y);
+      return c[rng.pick(c.length)];
+    });
+  },
+});
+
+// the lattice: every axis wrapped into [−l, l); l = 0 leaves the axis alone. Space becomes one cell, so
+// an inversion after it repeats for ever (the Apollonian family). The preimages are the lattice's
+// translates; the walk takes the cell or a neighbour
+def({
+  name: 'wrap', glyph: 'wrap', wRule: 'unchanged',
+  params: [p('lx', 1, 0, 64), p('ly', 1, 0, 64), p('lz', 1, 0, 64), p('lw', 0, 0, 64)],
+  fwd(s, P) {
+    let branch = 0;
+    s.p = s.p.map((x, i) => {
+      const l = P[CELL[i]];
+      if (!(l > 0)) return x;
+      const m = Math.floor(x / (2 * l) + 0.5);
+      if (m !== 0) branch += 1 << i;
+      return x - 2 * l * m;
+    });
+    return { branch };
+  },
+  jac: () => I4(),
+  inv(q, P, rng) {
+    const o = [...q];
+    for (let i = 0; i < 4; i++) {
+      const l = P[CELL[i]];
+      if (!(l > 0)) continue;
+      if (q[i] < -l || q[i] > l) return null;
+      o[i] = q[i] + 2 * l * (rng.pick(3) - 1);
+    }
+    return o;
+  },
+});
+
+// Mandelbox sphere fold: |p| < rmin → scale by rfix²/rmin²; rmin ≤ |p| < rfix → invert in the rfix sphere.
+// rmin = 0 is the bare inversion k = max(rfix²/|p|², 1) of the Kleinian families
 def({
   name: 'fold.sphere', glyph: 'sphere', wRule: 'mul',
-  params: [p('rmin', 0.5, 1e-6, 64), p('rfix', 1, 1e-6, 64)],
+  params: [p('rmin', 0.5, 0, 64), p('rfix', 1, 1e-6, 64)],
   fwd(s, P) {
     const r2 = len2(s.p), m2 = P.rmin * P.rmin, f2 = P.rfix * P.rfix;
     if (r2 < m2) { const k = f2 / m2; s.p = mul(s.p, k); return { k, branch: 0 }; }
@@ -145,7 +205,7 @@ def({
   inv(q, P, rng) {
     const r = len(q), m2 = P.rmin * P.rmin, f2 = P.rfix * P.rfix, c = [];
     const k0 = f2 / m2;
-    if (r / k0 < P.rmin) c.push(mul(q, 1 / k0));
+    if (P.rmin > 0 && r / k0 < P.rmin) c.push(mul(q, 1 / k0));
     if (r > P.rfix && r <= f2 / P.rmin) c.push(mul(q, f2 / (r * r)));
     if (r >= P.rfix) c.push(q);
     return c.length ? c[rng.pick(c.length)] : null;
@@ -438,6 +498,116 @@ def({
     return { branch: 0 };
   },
   inv: null,
+});
+
+// ---------- the Kleinian groups and the seeds -----------------------------------------------------
+// One iteration of a Kleinian group on the Maskit slice (Jos Leys, fractalforums 2016; Maskit's
+// parametrisation): wrap into the cell (sheared by b/a so the lattice follows the twist), a half turn
+// about (−b/2, a/2) above the separation line, then the generator: inversion, point reflection, the
+// shift by (−b, a). dr *= 1/|p|². One op, because its estimate reads a and its inverse needs all of it.
+export const kleinLine = (x, P) => P.a * (0.5 + 0.2 * Math.sin((Math.sign(P.b) * Math.PI * (x + P.b * 0.5)) / P.bx));
+function kleinFwd(q, P) {
+  let [x, y, z] = q;
+  const { a, b, bx, bz } = P;
+  x -= 2 * bx * Math.floor((x + (b / a) * y + bx) / (2 * bx));
+  z -= 2 * bz * Math.floor((z + bz) / (2 * bz));
+  y -= a * Math.floor(y / a);
+  const up = y >= kleinLine(x, P);
+  if (up) { x = -b - x; y = a - y; z = -z; }
+  const iR = 1 / (x * x + y * y + z * z);
+  return { p: [-b + iR * x, a - iR * y, -iR * z, q[3]], k: iR, branch: up ? 1 : 2 };
+}
+def({
+  name: 'kleinian', glyph: 'kleinian', wRule: 'mul',
+  params: [p('a', 1.95, 0.1, 8), p('b', 0.02, -4, 4), p('bx', 1, 0.05, 16), p('bz', 1, 0.05, 16)],
+  fwd(s, P) { const o = kleinFwd(s.p, P); s.p = o.p; return { k: o.k, branch: o.branch }; },
+  inv(q, P, rng) {
+    const { a, b, bx, bz } = P;
+    // the generator undone; then the half turn, whichever of the two lands on its own side of the line
+    const u = [-b - q[0], q[1] - a, q[2]], r2 = u[0] * u[0] + u[1] * u[1] + u[2] * u[2];
+    if (r2 === 0) return null;
+    const z = [-u[0] / r2, -u[1] / r2, -u[2] / r2], c = [];
+    if (z[1] < kleinLine(z[0], P)) c.push(z);
+    const h = [-b - z[0], a - z[1], -z[2]];
+    if (h[1] >= kleinLine(h[0], P)) c.push(h);
+    if (!c.length) return null;
+    const v = c[rng.pick(c.length)], sh = v[0] + (b / a) * v[1];
+    // a point outside the wrapped cell is never produced; inside it, every lattice translate is a preimage
+    if (v[1] < 0 || v[1] >= a || Math.abs(v[2]) > bz || Math.abs(sh) > bx) return null;
+    return [v[0] + 2 * bx * (rng.pick(3) - 1), v[1], v[2] + 2 * bz * (rng.pick(3) - 1), q[3]];
+  },
+  seed(q, dr, P) {
+    const low = q[1] <= P.a - q[1], y = low ? q[1] : P.a - q[1];
+    return { v: Math.min(y, 0.3), g: y < 0.3 ? [0, low ? 1 : -1, 0, 0] : [0, 0, 0, 0], dr: Math.max(dr, 2), t: 0 };
+  },
+});
+
+// A seed is an estimate for an orbit that never escapes (scale 1: r/dr has nothing to measure): the
+// distance from the orbit's last point to a shape, over dr, the shape's preimage under the orbit. The op
+// itself does nothing to the point, so its parameters are sensed, lensed, grabbed, bred and driven like
+// any other. seed(p, dr, P) returns v the shape's distance, g its gradient in p, dr the divisor, t the
+// offset: the estimate is |v/dr − t|. The first seed of a formula is the one read; an orbit that escaped
+// is measured by r/dr as always, and a seed in a chimera's species only where that species leads
+// (core/formula.js seedSpecies), so a Kleinian cell beside a box keeps each one's measure.
+const seedOp = (name, params, seed) => def({ name, glyph: name, wRule: 'unchanged', params, fwd: () => ({ branch: 0 }), jac: () => I4(), inv: (q) => q, seed });
+// a plane (a slab, doubled by the abs): k·|n·p − d|. Knighty's pseudo-Kleinian, k = ½; iq's Apollonian, k = ¼
+seedOp('seed.slab', [p('nx', 0), p('ny', 0), p('nz', 1), p('d', 0), p('t', 0), p('k', 0.5, 0, 4)], (q, dr, P) => {
+  const n = normalize([P.nx, P.ny, P.nz, 0]), e = dot(q, n) - P.d, sg = e < 0 ? -1 : 1;
+  return { v: P.k * sg * e, g: mul(n, P.k * sg), dr, t: P.t };
+});
+seedOp('seed.sphere', [p('r', 1, 0, 64), p('k', 1, 0, 4)], (q, dr, P) => {
+  const l = len([q[0], q[1], q[2], 0]), e = l - P.r, sg = e < 0 ? -1 : 1;
+  return { v: P.k * sg * e, g: l > 0 ? [P.k * sg * q[0] / l, P.k * sg * q[1] / l, P.k * sg * q[2] / l, 0] : [0, 0, 0, 0], dr, t: 0 };
+});
+// knighty's "thingy": a disc of radius r in the xy plane and its axis, the pillars of the classic
+// pseudo-Kleinian pictures: max(ρ − r, |ρ z|/|p|)
+seedOp('seed.pillar', [p('r', 0.1, 0, 64), p('k', 1, 0, 4)], (q, dr, P) => {
+  const [x, y, z] = q, rho = Math.hypot(x, y), l = Math.hypot(x, y, z), a = rho - P.r, b = l > 0 ? Math.abs(rho * z) / l : 0;
+  if (a >= b) return { v: P.k * a, g: rho > 0 ? [P.k * x / rho, P.k * y / rho, 0, 0] : [0, 0, 0, 0], dr, t: 0 };
+  if (!(l > 0) || !(rho > 0)) return { v: P.k * b, g: [0, 0, 0, 0], dr, t: 0 };
+  const sg = z < 0 ? -1 : 1, l3 = l * l * l;
+  return { v: P.k * b, g: [P.k * sg * z * x * z * z / (rho * l3), P.k * sg * z * y * z * z / (rho * l3), P.k * sg * rho * rho * rho / l3, 0], dr, t: 0 };
+});
+
+// ---------- the Mandalay fold -----------------------------------------------------------------------
+// DarkBeam's fold as knighty adapted it (fractalforums, "'new' fractal type Mandalay", 2011): on |p|, each
+// axis stepped against the larger of the other two. fo the step's width, g the gap before the far step.
+// x, y, z only.
+const mdAxis = (x, a, b, fo, g) => {
+  const y = Math.max(a, b), t1 = x - 2 * fo, t2 = y - 4 * fo;
+  return Math.min(Math.min(Math.max(Math.abs(t1 + fo) - fo, t2), Math.max(t1 - g, y)), x);
+};
+export function mandalayFwd(q, P) {
+  const s = [0, 1, 2].map((i) => (q[i] < 0 ? -1 : 1)), [x, y, z] = [Math.abs(q[0]), Math.abs(q[1]), Math.abs(q[2])];
+  return [s[0] * mdAxis(x, y, z, P.fo, P.g), s[1] * mdAxis(y, x, z, P.fo, P.g), s[2] * mdAxis(z, x, y, P.fo, P.g), q[3]];
+}
+export const MANDALAY_TRIES = 16;
+def({
+  name: 'fold.mandalay', glyph: 'mandalay', wRule: 'unchanged',
+  params: [p('fo', 0.5, 0.01, 8), p('g', 0, 0, 8)],
+  fwd(s, P) {
+    const o = mandalayFwd(s.p, P);
+    // the branch records which axes the fold moved
+    let branch = 0;
+    for (let i = 0; i < 3; i++) if (o[i] !== s.p[i]) branch += 1 << i;
+    s.p = o;
+    return { branch };
+  },
+  // About half of space lies on branches of rank 2 (an axis takes another's value): their image has no
+  // volume, so a generic point's preimages all come from the branches where each axis keeps its own
+  // coordinate. Those are tried at random, an axis at a time, each checked against the forward map.
+  inv(q, P, rng) {
+    const { fo, g } = P;
+    for (let t = 0; t < MANDALAY_TRIES; t++) {
+      const c = [0, 0, 0, q[3]];
+      for (let i = 0; i < 3; i++) {
+        const sg = rng.pick(2) ? -1 : 1, u = q[i] * sg, k = rng.pick(4);
+        c[i] = sg * (k === 0 ? u : k === 1 ? u + 2 * fo : k === 2 ? u + 2 * fo + g : -u);
+      }
+      if (len(sub(mandalayFwd(c, P), q)) <= 1e-9 * (1 + len(q))) return c;
+    }
+    return null;
+  },
 });
 
 // ---------- the chimera -------------------------------------------------------------------------

@@ -38,7 +38,7 @@ test('a dropped chimera is a hard site: whole in its cell, a cut at its wall, dr
 test('a constant-weight chimera stays soft: its species join the wall\'s blend, continuously', () => {
   const S = M.createSurface();
   const f = normalize(parse('[fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ‖ bulb 8 · +c] blend 3 1 ×10 bail=8'));
-  const s = M.addSite(S, { f, view: 4, axes: [], at: [0.05, 0.05] });
+  const s = M.addSite(S, { f, view: 4, axes: [], at: [0.3, -0.95] });
   assert.ok(!s.hard);
   assert.ok(same(M.formulaAt(S, s.at).f, f));
   const nb = nearest(S, s);
@@ -73,13 +73,13 @@ test('a site of a family\'s structure blends with it by parameters; a schedule u
   assert.equal(ch.iters, 3);
   assert.deepEqual(ch.nodes[5].p, { x: 0.1, y: 0.2, z: 0.3, w: 0 });
   // a hybrid site beside a family: valid at the wall
-  const h = M.addSite(S, { f: parse('abs · scale 2 · + -1 -1 -1 | bulb 8 · +c ×9 AAB'), view: 3, axes: [], at: [0, -0.2] });
+  const h = M.addSite(S, { f: parse('abs · scale 2 · + -1 -1 -1 | bulb 8 · +c ×9 AAB'), view: 3, axes: [], at: [0.62, -0.4] });
   const nb = S.sites.find((t) => t.id === 'sierpinski');
   const w = M.formulaAt(S, [(h.at[0] + nb.at[0]) / 2, (h.at[1] + nb.at[1]) / 2]).f;
   assert.ok(validate(w).ok, validate(w).errors.join('; '));
 });
 
-test('sites move, leave, go home; the layout round-trips through storage; the surface holds 24', () => {
+test('sites move, leave, go home; the layout round-trips through storage; the surface holds 29', () => {
   const S = M.createSurface();
   assert.ok(M.isDefault(S));
   const box = S.sites.findIndex((t) => t.id === 'mandelbox');
@@ -107,7 +107,7 @@ test('sites move, leave, go home; the layout round-trips through storage; the su
   M.resetLayout(S);
   assert.ok(M.isDefault(S));
   assert.ok(S.sites.includes(u));
-  // full at 24
+  // full at 29
   while (S.sites.length < M.MAX_SITES) assert.ok(M.addSite(S, { f: parse('bulb 8 · +c ×6'), view: 2.6, at: [Math.random() * 2 - 1, Math.random() * 2 - 1] }));
   assert.equal(M.addSite(S, { f: parse('bulb 8 · +c ×6'), view: 2.6, at: [0, 0] }), null);
   // two sites in one place still breed and blend
@@ -131,7 +131,7 @@ test('a dropped formula breeds along its two most sensed parameters', () => {
   ]);
   assert.deepEqual(axes, [[2, 's', 0.6], [0, 'l', 2.4]]);
   const S = M.createSurface();
-  const s = M.addSite(S, { f, view: 16, axes, at: [0, 0.1] });
+  const s = M.addSite(S, { f, view: 16, axes, at: [0.62, -0.4] });
   const r = M.formulaAt(S, [s.at[0] + s.R * 0.5, s.at[1]]).f;
   assert.ok(Math.abs(r.slots[0][2].p.s - 2.65) < 1e-6, `s ${r.slots[0][2].p.s}`);
 });
@@ -150,4 +150,17 @@ test('the walls are drawn as the soft band: contours of the leading weight sit w
       assert.ok(Math.abs(D - want) < 0.004, `level ${level}: Δ ${D} want ${want}`);
     }
   }
+});
+
+test('a family with an eye: the site stands in its hall, the weight blends it with the frame', () => {
+  const S = M.createSurface();
+  const pk = S.sites.find((s) => s.id === 'pseudo-kleinian');
+  const r = M.formulaAt(S, pk.at);
+  assert.ok(r.eye.W > 0.99);
+  r.eye.pos.forEach((x, i) => assert.ok(Math.abs(x - pk.eye.pos[i]) < 0.02));
+  assert.equal(M.formulaAt(S, S.sites.find((s) => s.id === 'mandelbulb').at).eye, null);
+  // across a wall the weight falls smoothly
+  const box = S.sites.find((s) => s.id === 'mandelbox').at;
+  let last = 1;
+  for (let t = 0; t <= 1; t += 0.05) { const w = M.formulaAt(S, pk.at.map((v, i) => v + (box[i] - v) * t)).eye; const W = w ? w.W : 0; assert.ok(W <= last + 0.25); last = W; }
 });

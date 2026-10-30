@@ -1884,8 +1884,8 @@ From the research brief `papers/study/2026-10-29-examples-research.md`, iori cho
   geometry (hexamers of three dimers at the odd entries of Pascal's triangle mod 2: 3^k; symmetric contacts fill the
   triangle) with mass ∝ size^1.585. The enzyme is drawn as geometry, not chemistry, and the text says so.
 
-Open: the engine gaps the brief lists (a seed estimate for pseudo-Kleinian / Kleinian / Apollonian, the Mandalay
-fold, the kaliset as a shading node, orbit density as a medium); a sun-and-fog look preset for open landscapes.
+Open: orbit density as a medium; a sun-and-fog look preset for open landscapes. (The seed estimate, the Mandalay fold
+and the kaliset: "New families", below.)
 
 ## Planned, in the paper, 2026-10-30
 
@@ -1897,3 +1897,71 @@ move its `div.planned` to its chapter as an `<h3 id>` section and drop the tag, 
 add the figure to `paper/figures.js` and replace `.fe-slot` with a `figure.engine`, run `run-paper.mjs` (the same note
 stands as a comment at the chapter's head). A stub has no figure element, so it starts no engine. Over-relaxed
 stepping, far-iteration LOD and temporal reuse are tagged "not decided": each changes the image, and iori decides.
+
+## New families, 2026-10-30
+
+iori chose: the Kleinian families, Mandalay and the kaliset here; orbit density as a medium and a collage as a seed
+each a stretch of their own, later; the lattice families' sites stand **inside** a hall.
+
+**The seed estimate.** An orbit at scale 1 never escapes, so r/dr has nothing to measure and fills space. A seed is an
+op (`seed.slab nx ny nz d t k`, `seed.sphere r k`, `seed.pillar r k`) that does nothing to the point: the estimate
+reads it at the orbit's end, |v(p)/dr − t|, v the distance to the shape. As an op, its parameters are sensed, lensed,
+grabbed, bred and driven with no new code. `head.sliceW.w` (word 107) names it, FLAG_SEED says there is one.
+- *Rules.* The first seed of a formula is the one read. An escaped orbit keeps r/dr. A seed in a chimera's species
+  speaks only where that species leads (`seedSpecies`, third record row against `Trace.sp`): read everywhere, a slab
+  drew sheets through a tissue's box cells. A hard switch, so a seam can step.
+- *Duals.* `seedRead` gives v, its gradient and the divisor; `deTan` differentiates them. A seed's own parameter and a
+  driven seed's motion go by a central difference through the record (`seedStep`, not `recStep`, which skips row 0,
+  where `kleinian` keeps a: the first driven row was 4° off). The JIT writes `drvV` back at the orbit's end so a driven
+  seed reads its value.
+- *Plain formulas pay nothing.* The new cases and the read sit between `FAMILIES` marks and behind `SEED_ON`; `withJit`
+  strips both from a formula without them (a JIT's structure is fixed). Before that, box-cave stills cost 5–8 %
+  (repeated A/B against ce1df0f); after, 45–46 ms against 45–47. Only the interpreter carries them.
+
+**The ops.**
+
+| family | formula | estimate | push |
+|---|---|---|---|
+| pseudo-Kleinian (Theli-at, knighty) | `fold.cell .92 .91 .92 · fold.sphere 0 1 · seed.slab` | ½\|z\|/dr; Lipschitz p99 1.02, max 1.9 | median sample 2e-8 from the set |
+| its pillars ("thingy") | `… · translate .1 .12 · seed.pillar .08` | max(ρ − r, \|ρz\|/\|p\|)/dr | as above |
+| Apollonian (iq) | `wrap 1 1 1 · invert · scale 1.1 · seed.slab 0 1 0 0 0 .4` | k\|y\|/dr; at iq's k = ¼ p99 .54, max 1.3, so .4 stays under 1 at p99 | 4e-8 |
+| Kleinian (Leys, Maskit slice) | `kleinian a b bx bz` | min(y, a − y, .3)/max(dr, 2), its own seed; p99 1.25, max 11–13 at the wrap's seam | 3e-17 |
+| Mandalay (DarkBeam, knighty) | `fold.mandalay fo g · fold.sphere · scale · +c` | r/dr, the box family's; heuristic (below) | axis-wise branches |
+
+The figures are a CPU prototype's: 20,000 point pairs a half-estimate apart, 4,000 walk samples.
+- `fold.cell` is the box fold with a limit per axis; `wrap` the lattice, l = 0 leaving an axis alone; `fold.sphere` now
+  takes rmin 0, the bare k = max(rfix²/|p|², 1). (The literal JIT drops that branch: a constant 1/0 does not compile.)
+- `kleinian` is one op because its estimate reads a and its inverse needs the whole step. Parameters a, b are the
+  trace's real and imaginary parts on Maskit's slice: the two axes that move the group. The source's 2-cycle bail-out is
+  left out: without it dr only grows, so the estimate only falls, and interiors run the full iterations (×40).
+  Implemented from the published maths and Mandelbulber 2's `fractal_jos_kleinian.cpp` (the sine separation line).
+- *Mandalay's bound.* `fold.mandalay` is checked against Mandelbulber's `transf_mandalay_fold_v1` written out
+  axis by axis (unit test). 50.2 % of [−4, 4]³ lies on rank-2 branches, where one axis takes another's value: no
+  isometry, stretch up to √3 where dr counts 1. Mandelbulber counts 1 too; nothing overstepped visibly. Those branches
+  have images of no volume, so a generic point's preimages are all axis-wise (diagonal 49.8 %, the rest 3 in 200,000:
+  edges): the inverse tries the axis-wise forms at random and checks each forward (16 tries), and a point on a sheet is a
+  dead end the walk backs out of. Forward's images that lie on sheets are not found: the inverse suite finds ≥ 33 %.
+- *Push.* No walk survives from the unit ball into `fold.sphere 0 1` (nothing inside the sphere has a preimage: 0 samples
+  in the first test), so a seeded formula's walks start in a ball of radius 3 (`spawnRadius`, CPU and app). Push on
+  these reads as star clusters and limit-set webs, sparse beside pull.
+
+**The kaliset** is a shading node, `kali` (cx, cy, cz, f, n, mode mean|min): Kali's map from the hit point, so any species
+takes it. `Readings` gained `x`, the world point, in pull, the glow, push's splats and the collage. Selected, its four
+values are dimension lines; n and mode are JSON/notation only, and it cannot be driven yet (no `shadeTarget`).
+
+**The Metasurface.** Five sites (16 families; `MAX_SITES` 29 keeps your 13). `eye: { pos, yaw, pitch }` in a preset is a
+camera inside it, chosen by a CPU coverage scan (random poses, 35 rays; coverage × depth range); `formulaAt` returns the
+weighted eye, `frameFor` blends it with the frame by weight, from the direction the surface opened with. At a site the
+camera is exact. Walking between two halls, a blended camera can land on a surface right at a bisector: a black frame or
+two in the drag, none at rest. Lamp and fog scale with the estimate at the camera, so a hall needs a camera with a
+sound estimate: at d 0.05 the Apollonian was almost black, hence k .4 and a pose at .07.
+
+**Verified** (2026-10-30): unit 103; parity all PASS (10 forward and JIT rows of these families, 5 inverse, 10 dual, 6
+override, 2 kaliset, a collage of a seeded piece and a Kleinian piece); touch 39/39, desktop 16/16, paper 45/45 both; bench
+guard ∞ dB on every plain and driven scene, plain scenes ×0.99–1.02 against the reference. The touch rig needed reruns
+twice: two unnamed checks on the first run after a shader change, and "labels: finger hold" (its thumbnail, 250 ms
+timing) once, which passed 4/4 twice and in the next full run. Shots: design/shots/families-*.jpg.
+
+**Not yet:** a collage as a seed; orbit density as a medium; `kali` driven; a per-family look (a preset is only its formula, so
+these open in the default key colour); `fold.mandalay` in 4-D; Mandelbulber's Kleinian variants; 3-D Kleinian DE tightening
+at the wrap's seam (an overstep there is possible; none seen).

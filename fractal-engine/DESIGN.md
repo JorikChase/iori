@@ -1945,10 +1945,11 @@ camera is exact. Walking between two halls, a blended camera can land on a surfa
 two in the drag, none at rest. Lamp and fog scale with the estimate at the camera, so a hall needs a camera with a
 sound estimate: at d 0.05 the Apollonian was almost black, hence k .4 and a pose at .07.
 
-**Verified** (2026-10-30): unit 103; parity all PASS with 10 forward/JIT rows, 5 inverse, 10 dual, 6 override, 2 kaliset,
-a collage of a seeded piece and a Kleinian piece; touch 39/39, desktop 16/16 (two fails on the first run after a shader
-change, cold Metal, gone on rerun); paper 45/45 both; bench guard ∞ dB on every plain and driven scene. Shots:
-design/shots/families-*.jpg.
+**Verified** (2026-10-30): unit 103; parity all PASS (10 forward and JIT rows of these families, 5 inverse, 10 dual, 6
+override, 2 kaliset, a collage of a seeded piece and a Kleinian piece); touch 39/39, desktop 16/16, paper 45/45 both; bench
+guard ∞ dB on every plain and driven scene, plain scenes ×0.99–1.02 against the reference. The touch rig needed reruns
+twice: two unnamed checks on the first run after a shader change, and "labels: finger hold" (its thumbnail, 250 ms
+timing) once, which passed 4/4 twice and in the next full run. Shots: design/shots/families-*.jpg.
 
 **Not yet:** a collage as a seed; orbit density as a medium; `kali` driven; a per-family look (a preset is only its formula, so
 these open in the default key colour); `fold.mandalay` in 4-D; Mandelbulber's Kleinian variants; 3-D Kleinian DE tightening

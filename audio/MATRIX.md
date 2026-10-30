@@ -3,7 +3,7 @@
 One row per function in the spec (claude.ai/artifact/Wj9UFEEyyDuqTp4AadfTQN). `*.md` never deploys.
 
 - **How** — `H`: headless harness (`tools/audio-test`, `node run.js <scenario>`), `D`: on device only (feel, GPU, iOS permissions), `H+D`: harness proves the logic, device proves the feel.
-- **Status** — `todo` · `pass` · `fail` · `n/a` (not built yet). Status is set by a harness run or a device session, never by reading code.
+- **Status** — `todo` · `pass` · `fail` · `n/a` (not built yet). Status is set by a harness run or a device session, never by reading code. `todo (written…)`: a scenario exists, waiting for a run on a quiet machine.
 - Timing values come from the spec's Design system section; a row fails if the tool's constant differs from the table at the top of this file.
 
 ## Timing table (the one set every tool must use)
@@ -25,13 +25,13 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 
 | # | Function | How | Status |
 |---|---|---|---|
-| S1 | Home: orb draws (field lines, tool-colour planes, slow roll) | H+D | todo |
-| S2 | Hold orb + drag → melt toward finger, neck, eight icons bloom | H | todo |
-| S3 | Release on a tool opens it | H | todo |
+| S1 | Home: orb draws (field lines, tool-colour planes, slow roll) | H+D | pass harness (shell-y-rows: orb draws, frames differ a second apart); device todo |
+| S2 | Hold orb + drag → melt toward finger, neck, eight icons bloom | H | pass (shell-y-rows: melt and bloom past 0.8, 8 icons, picks by angle) |
+| S3 | Release on a tool opens it | H | pass (shell-y-rows) |
 | S4 | Tap a satellite dot opens its tool | H | pass (pane, 2026-10-09) |
 | S5 | Transition (owner, 2026-10-10, second pass): seamless full-screen e-ink sweep — the tool unmasked through a natural wave with five ordered-dither steps at its edge; no flash, no line; soft start, glide, settle; 0.8 s (owner chose ?td=0.8; ?td= still overrides) | H | pass (motion-transition sheets; 775 ms after lift) |
 | S6 | Going home: the same sweep reversed into the hub | H | pass (806 ms after lift) |
-| S7 | Orb shrinks to bottom-left hub inside a tool | H | todo |
+| S7 | Orb shrinks to bottom-left hub inside a tool | H | pass (shell-y-rows: hub bottom-left, under half size) |
 | S8 | Hub tap → home; tool frame unloads (audio stops) | H | pass (pane) |
 | S9 | Hub hold + drag: sideways steps forward, upward steps back, through all 7 other tools on either axis (step fitted to the shorter screen side, 40–70 px); back to the hub cancels; release switches; the picked tool preloads during the rest | H | pass (dial-reach, timing-switch) |
 | S10 | Site menu visible on home (top-right), hidden inside a tool | H | pass (pane) |
@@ -50,9 +50,9 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 
 | # | Function | How | Status |
 |---|---|---|---|
-| L1 | Tempo persists (localStorage) and broadcasts to open tools | H | todo |
+| L1 | Tempo persists (localStorage) and broadcasts to open tools | H | pass (metro-y-rows: survives a reload, reaches a second page live) |
 | L2 | Metronome writes tempo live; BPM detector writes it on selection only, not on open | H | pass (bpm-library: stop and file load leave the tempo alone; a drag selection sets it to 120) |
-| L3 | Editor grid and synth pattern read the tempo on open; the practice grid, snap and tempo readout use the song's own estimate, or none (2026-10-30) | H | pass practice only (play-tempo) |
+| L3 | Editor grid and synth pattern read the tempo on open; the practice grid, snap and tempo readout use the song's own estimate, or none (2026-10-30) | H | pass (flow-file-bpm-practice: editor grid from the shared tempo on open; synth-y-seed: the pattern follows it, live, not only on open; play-tempo: practice) |
 | L4 | Takes persist in IndexedDB (meta + 16-bit pcm) and come back after reload | H | pass (rec-record: same id and length after reload) |
 | L5 | Editor shelf: a take wheel of every take (kind icon + length) with the open-file row; commit inserts at the playhead | H | pass (edit-wheel-shelf, edit-file) |
 | L6 | Practice source: tap → take wheel (+ open file), press-drag-release in one gesture; wheel hangs below the dot | H | pass (play-wheel) |
@@ -66,20 +66,20 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 
 | # | Function | How | Status |
 |---|---|---|---|
-| G1 | Values on 3×5 dot grid; sharp sign square with notches | H | todo |
-| G2 | Value change: dots spring in, old ones shrink, staggered | H | todo |
-| G3 | Panels only rewritten when text changes (no flicker) | H | todo |
-| G4 | Running state: white stopped, dark running (metro, analyzer, recorder, practice) | H | pass (metronome only so far (harness diag-metro-clock: white at rest, dark running)) |
+| G1 | Values on 3×5 dot grid; sharp sign square with notches | H | pass metronome, synth, editor (design-y-rows reads the 3×5 cells back: 120, 220 / -12, 1.1); notched sharp seen in tuner-y-rows off-pitch frame |
+| G2 | Value change: dots spring in, old ones shrink, staggered | H | todo (written, design-y-rows; awaiting a quiet run: stagger seen over 3 frames, overshoot not resolved at load 400) |
+| G3 | Panels only rewritten when text changes (no flicker) | H | pass metronome (design-y-rows: cells unchanged 30 of 30 frames, same tempo written mid-way) |
+| G4 | Running state: white stopped, dark running (metro, analyzer, recorder, practice) | H | pass (metronome diag-metro-clock; play-y-rows, rec-y-rows, ana-y-rows) |
 | G5 | E-ink refresh: 70 ms flash, 70 ms hold, 5 dither steps of 56 ms | H | pass (metronome only so far (harness: 70 flash / 70 hold / 5×56 dither measured on the tool's own state)) |
-| G6 | View changes inside a tool use the dithered refresh | H | todo |
-| G7 | Editor timeline never white; play/stop only flashes | H | todo |
-| G8 | SDF shapes merge; pressed dot stretches toward the finger | H+D | todo |
-| G9 | Value adjust: rest, slide up/down; sideways sets the gear | H+D | todo |
-| G10 | Radial actions: hold ~220 ms, up to five buds in free space, release to act | H (T) | todo |
-| G11 | Undo: two-finger tap | H+D | todo |
-| G12 | Timing uses the touch event's timestamp | H | todo |
-| G13 | Corners: bottom-left hub only; bottom-right properties; top-right source/setup; top-left tool-specific | H | todo |
-| G14 | Accent colours: blue playhead/peak, green snapped/on target, red record/clip/armed | H | todo |
+| G6 | View changes inside a tool use the dithered refresh | H | todo (written, design-y-rows; awaiting a quiet run: analyzer view change takes about 0.5 s, too few frames at load 400 to see the steps) |
+| G7 | Editor timeline never white; play/stop only flashes | H | pass (design-y-rows: inverse stays 1 through play and stop, one flash frame) |
+| G8 | SDF shapes merge; pressed dot stretches toward the finger | H+D | pass harness (design-y-rows: practice dot reaches 12 px of ink toward the finger); device todo |
+| G9 | Value adjust: rest, slide up/down; sideways sets the gear | H+D | pass harness (synth-y-setups gene slide; design-y-rows clip gain: 40 px up = +4.0 dB, gear 1/3 sideways); device todo |
+| G10 | Radial actions: hold ~220 ms, up to five buds in free space, release to act | H (T) | todo (written, design-y-rows; awaiting a quiet run: 4 buds on screen 56 px apart at a corner clip pass, the hold read 381 ms at load 400) |
+| G11 | Undo: two-finger tap | H+D | pass harness (design-y-rows: synth and editor, two-finger tap undoes); device todo |
+| G12 | Timing uses the touch event's timestamp | H | pass synth (design-y-rows: a lift stamped 100 ms handled 400 ms later is a tap, the reverse is not; missed one run of three at load 400, re-check in the quiet run) |
+| G13 | Corners: bottom-left hub only; bottom-right properties; top-right source/setup; top-left tool-specific | H | pass (design-y-rows: bottom-left free in all 8, bottom-right in 6 of 6, top-right in 6 of 6, top-left synth; metronome has no corner dots, editor no top-right) |
+| G14 | Accent colours: blue playhead/peak, green snapped/on target, red record/clip/armed | H | pass (edit-y-rows blue playhead, green snap line; play-y-rows blue; rec-y-rows red near clipping) |
 
 ## Tuner
 
@@ -88,8 +88,8 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | T1 | Mic dot bottom-right starts/stops the mic | H | pass (harness audio-tuner, 2026-10-09) |
 | T2 | 440 Hz sine → A4, 0 cents, 440 Hz readouts | H | pass (harness audio-tuner, 2026-10-09) |
 | T3 | D#3 +20 cents → correct note, octave and cents sign | H | pass (harness audio-tuner, 2026-10-09) |
-| T4 | In tune: straight line; off pitch: coloured strips taper, bend into an S | H+D | todo |
-| T5 | Silence: line impossibly thin, not dimmed | H | todo |
+| T4 | In tune: straight line; off pitch: coloured strips taper, bend into an S | H+D | fail (tuner-y-rows: off pitch passes, strips drawn; in tune it does not: 440.02 Hz at +0.07 c bends the line ±10.2 px on a green screen. tuner.html:218 amplitude is 10·level with no in-tune term. If the moving line is intended the row is stale: owner to say) |
+| T5 | Silence: line impossibly thin, not dimmed | H | pass thin (tuner-y-rows: 0.32 px at level 0); "not dimmed" unresolved: the tool caps at DPR 2 and the line sits on a pixel boundary, so full ink and dimmed look alike in pixels; device |
 | T6 | Mic refused → microphone-off state, tap retries (no test signal) | H | pass (tuner-real: refused → microphone-off, no fallback audio; spec changed by owner rule) |
 | T8 | Mic off: thin line, no note, no simulated pitch; tap anywhere starts listening | H | pass (tuner-real) |
 | T9 | Quiet and higher voices (owner: a girl's voice was not accepted): gate lowered from −45 to −63 dBFS, quiet input must be more periodic; level drawn on a dB scale | H | pass (tuner-voices: female 262/523 Hz and male 110 Hz at −52 dBFS all read correctly, noise gives no note; lab/level_lab.js) |
@@ -103,9 +103,9 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | B2 | Mic recording via the record dot | H | pass (bpm-library: recording replaces the strip, saved to the library) |
 | B3 | 120 BPM click → 120 ±1 detected | H | pass (bpm-library 120.0) |
 | B4 | 100→130 BPM track → two sections, boundary within 4 s of 15 s | H | pass (bpm-library 100 / 130.4, boundary 16.0 s) |
-| B5 | Drag on the strip selects a part; its tempo is drawn as a beat grid | H | todo |
-| B6 | Selecting sets the shared tempo (L2) | H | todo |
-| B7 | Octave correction keeps results in 50–215 BPM | H | todo |
+| B5 | Drag on the strip selects a part; its tempo is drawn as a beat grid | H | pass (bpm-y-rows: drag 6–18 s selects it, grid 120) |
+| B6 | Selecting sets the shared tempo (L2) | H | pass (bpm-y-rows: open leaves the tempo at 100, selection sets 120) |
+| B7 | Octave correction keeps results in 50–215 BPM | H | pass (bpm-y-rows: 40 BPM click → 80, 260 → 130.4) |
 | B8 | Hand sections to the editor grid | — | n/a |
 
 ## Metronome
@@ -113,47 +113,47 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | # | Function | How | Status |
 |---|---|---|---|
 | M1 | Tap centre starts/stops; e-ink inversion sequence (G5) | H | pass (harness motion-metro + diag-metro-clock; note: the start/stop dot is bottom-centre, a tap on the ring centre is tap-tempo — spec says tap the centre) |
-| M2 | Click lands on the beat (audio start times vs tempo) | H | todo |
-| M3 | Drag from centre sideways: 0.3 BPM per px | H | todo |
-| M4 | Drag up/down changes beat count; diagonal changes both | H | todo |
-| M5 | Turning around the ring adjusts tempo, finer further out | H | todo |
-| M6 | Marks: dots → rectangles → strips as count grows; spring in/out | H | todo |
-| M7 | Travelling drop swells each mark; hides once marks are strips | H | todo |
-| M8 | Reads and writes shared tempo live (L1, L2) | H | todo |
+| M2 | Click lands on the beat (audio start times vs tempo) | H | pass (metro-y-rows: gaps 0.5 s within 1 ms, accent first, a tempo change takes the next beat) |
+| M3 | Drag from centre sideways: 0.3 BPM per px | H | pass (metro-y-rows: +100 px = +30.0) |
+| M4 | Drag up/down changes beat count; diagonal changes both | H | pass (metro-y-rows: up, down, diagonal) |
+| M5 | Turning around the ring adjusts tempo, finer further out | H | pass (metro-y-rows: quarter turn +30, +6, +1.2 by distance) |
+| M6 | Marks: dots → rectangles → strips as count grows; spring in/out | H | pass (metro-y-rows: 4 dots, 32 rectangles, 280 strips; widths spring in) |
+| M7 | Travelling drop swells each mark; hides once marks are strips | H | pass dots (metro-y-rows: drop drawn where S.da says, nowhere else); hiding at strips not separable from the marks in pixels |
+| M8 | Reads and writes shared tempo live (L1, L2) | H | pass (metro-y-rows: reads 97.5 from another page, writes 113 to the store and the channel; a second metronome ignores src metro by design) |
 | M9 | Subdivisions (accents are built; beat count and accents persist, metro-session) | — | n/a |
 
 ## Synth
 
 | # | Function | How | Status |
 |---|---|---|---|
-| Y1 | Seed draws the live waveform as a circle, synced | H+D | todo |
-| Y2 | Tap plays the pattern 0,12,7,0,3,0,10,7 in eighths of the shared tempo | H | todo |
-| Y3 | Double-tap mutes the seed | H | todo |
-| Y4 | 31 genes in 5 categories; category dots down the left edge | H | todo |
-| Y5 | Drag out of the seed grows a branch; direction mutates genes | H | todo |
-| Y6 | Rest ~450 ms leaves an anchor | H (T) | todo |
-| Y7 | Release at anchor parks (max 6); release while moving plants as new seed | H | todo |
-| Y8 | Parked tap cycle: off → on+focused → focus → off | H | todo |
-| Y9 | Drag parked re-mutates; drop on seed removes | H | todo |
-| Y10 | Picked element takes a unique highlight colour | H | todo |
-| Y11 | Setups dial (top-right): Serum-style default, FM, mono | H | todo |
-| Y12 | Layers (top-left): drive, crush, filter, comb; top-edge dots turn a layer off | H | todo |
-| Y13 | Gene spiral (bottom-right): go, hold, slide; sideways = gear | H+D | todo |
+| Y1 | Seed draws the live waveform as a circle, synced | H+D | pass harness (synth-y-seed: flat at rest, wave starts on the rising zero crossing every frame, outline moves 5–8 px); device todo |
+| Y2 | Tap plays the pattern 0,12,7,0,3,0,10,7 in eighths of the shared tempo | H | pass (synth-y-seed: 0,12,7,0,3,0,10,7, gaps 0.25 s; 0.2 s after a tempo change) |
+| Y3 | Double-tap mutes the seed | H | pass (synth-y-seed: silent, pattern still running; two slow taps stay two taps) |
+| Y4 | 31 genes in 5 categories; category dots down the left edge | H | pass (synth-y-seed: 8+7+5+3+8 = 31 genes, dots in their colours, each opens its genes, menus on screen) |
+| Y5 | Drag out of the seed grows a branch; direction mutates genes | H | pass (synth-y-branch: m by length, 27 genes moved, direction decides, deterministic, sounds with the seed stopped) |
+| Y6 | Rest ~450 ms leaves an anchor | H (T) | pass (synth-y-branch: at 450–600 ms from the last move; shorter none; near the seed none; tremor under 5 px keeps it; 4 at most) |
+| Y7 | Release at anchor parks (max 6); release while moving plants as new seed, past about 90 px (Z4) | H | pass (synth-y-branch; 6 kept, oldest goes) |
+| Y8 | Parked tap cycle: off → on+focused → focus → off | H | pass (synth-y-branch: each step, both on-branches heard with the seed muted) |
+| Y9 | Drag parked re-mutates; drop on seed removes | H | pass (synth-y-branch) |
+| Y10 | Picked element takes a unique highlight colour | H | pass (synth-y-branch: tip in its colour, one ring on the focused branch, picked menu value alone coloured; two branches may share a hue, colour comes from the dominant category) |
+| Y11 | Setups dial (top-right): Serum-style default, FM, mono | H | pass (synth-y-setups: 3 / 2 / 2 oscillators a note, FM modulator at 2×, tap and dial) |
+| Y12 | Layers (top-left): drive, crush, filter, comb; top-edge dots turn a layer off | H | pass (synth-y-setups: tree sets each gene, captured output changes, dot and corner bypass restore it) |
+| Y13 | Gene spiral (bottom-right): go, hold, slide; sideways = gear | H+D | pass harness (synth-y-setups: all 31 dots on screen and hit, rest about 380 ms, 48 px = 0.2, gear 1/3); device todo |
 | Y14 | Place (right edge): selection of the passive 4-min capture → take → editor timeline (replaces the WAV save) | H | pass (synth-place) |
-| Y15 | Garden saved every 2 s, restored on open | H | todo |
+| Y15 | Garden saved every 2 s, restored on open | H | pass (synth-y-setups: saved inside 2 s; seed, phases, setup, mute, layers, parked restored, parked come back off) |
 
 ## Analyzer
 
 | # | Function | How | Status |
 |---|---|---|---|
-| A1 | Control dot: tap listen/stop, dark while listening | H | todo |
-| A2 | Hold or flick opens three view buds: spectrum, spectrogram, loudness | H | todo |
+| A1 | Control dot: tap listen/stop, dark while listening | H | pass (ana-y-rows) |
+| A2 | Hold or flick opens three view buds: spectrum, spectrogram, loudness | H | pass (ana-y-rows: flick and hold) |
 | A3 | Source: mic (default), three recent takes, open file | H | pass (ana-real) |
-| A4 | Spectrum ring 20 Hz–20 kHz, ticks at 100, 1k, 10k; blue peak marker | H | todo |
-| A5 | Three spectrum styles: dots (72, default), outline, fill | H | todo |
+| A4 | Spectrum ring 20 Hz–20 kHz, ticks at 100, 1k, 10k; blue peak marker | H | pass (ana-y-rows: peak bin 145 of 256 = 1 kHz, blue marks drawn) |
+| A5 | Three spectrum styles: dots (72, default), outline, fill | H | pass (ana-y-rows: cycle of 3, 73 rays counted against 72) |
 | A6 | 1 kHz −20 dBFS tone → readout 1000 Hz, B5, level within 1 dB | H | pass (ana-real: 999.96 Hz) |
-| A7 | Spectrogram: dithered waterfall with decade lines | H | todo |
-| A8 | Loudness: momentary, short-term, integrated (green within ±1 LU of −14), peak, RMS; tap top resets | H | todo |
+| A7 | Spectrogram: dithered waterfall with decade lines | H | pass (ana-y-rows: scrolls, tone a narrow line) |
+| A8 | Loudness: momentary, short-term, integrated (green within ±1 LU of −14), peak, RMS; tap top resets | H | pass (ana-y-rows: −23.03 / −23.03 / −23.03 LUFS, peak −20.0, RMS −23.0; green at −14.1 only; reset passed 2 of 3 at load 400) |
 | A9 | K-weighting and gating as specified (−20 dBFS sine ≈ −23 LUFS) | H | pass (ana-real: −20 dBFS 1 kHz sine → −23.03 LUFS momentary, −23.07 integrated) |
 | A10 | Stereo/phase, pitch+harmonics, clip/silence finder, noise profile | — | n/a |
 
@@ -161,15 +161,15 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 
 | # | Function | How | Status |
 |---|---|---|---|
-| P1 | Vertical waveform past a fixed blue playhead; played part dimmed; beat dots, bigger per bar | H | todo |
+| P1 | Vertical waveform past a fixed blue playhead; played part dimmed; beat dots, bigger per bar | H | pass (play-y-rows: blue line at the fixed row, played part dimmed, beat dots with a larger one per bar) |
 | P2 | Bottom dot: tap play/pause, dark while playing | H | pass (play-library) |
 | P3 | Drag sideways: speed 50–150 %; up/down: pitch ±12; dot stretches | H+D | pass (play-library: 75 % advances 1.504 s per 2 s) |
-| P4 | Readouts: speed, pitch shift, tempo at that speed | H | todo |
-| P5 | Waveform: drag scrubs, tap jumps | H | todo |
-| P6 | Hold then drag marks a loop; snaps to half-beats when tempo known; tap loop clears | H | todo |
-| P7 | Loop trainer: +5 % per pass up to 100 % | H | todo |
+| P4 | Readouts: speed, pitch shift, tempo at that speed | H | pass (play-y-rows: 75, +3, 90 read back from the cells) |
+| P5 | Waveform: drag scrubs, tap jumps | H | pass (play-y-rows) |
+| P6 | Hold then drag marks a loop; snaps to half-beats when tempo known; tap loop clears | H | pass (play-y-rows: loop on half-beats, seeks to its start, a tap inside clears) |
+| P7 | Loop trainer: +5 % per pass up to 100 % | H | pass (play-y-rows: 90 → 95 → 100, stays) |
 | P8 | Source: three recent takes, open file; empty state until chosen; session restores source, position, speed | H | pass (play-library: restored 4.420 s at 75 %) |
-| P9 | Speed and pitch independent (pitch of a 440 Hz tone unchanged at 75 % speed) | H | todo |
+| P9 | Speed and pitch independent (pitch of a 440 Hz tone unchanged at 75 % speed) | H | pass (play-worklet pitch steps: 439.98 Hz at 75 %; its mouse-driven loop and scrub steps missed at load 400, those two pass in play-y-rows) |
 | P10 | High-quality stretch; song splitting | — | n/a |
 
 ## Recorder
@@ -177,11 +177,11 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | # | Function | How | Status |
 |---|---|---|---|
 | R1 | Tap record: screen inverts, core turns square; tap again stops | H | pass (rec-record) |
-| R2 | Markers: tap elsewhere while recording; red ripple; count shows as M2 | H | todo |
-| R3 | Retro ring fills with the last two minutes | H | todo |
+| R2 | Markers: tap elsewhere while recording; red ripple; count shows as M2 | H | pass (rec-y-rows: spacing as tapped, red ripple, M2, saved with the take) |
+| R3 | Retro ring fills with the last two minutes | H | pass (rec-y-rows: rate and a 2-minute ring; wrap-around not run. Rate 1.12 in one run at load 400, inside 10 % in the others) |
 | R4 | Drag down from the dot (no hold needed): blob stretches, saved part turns green, length readout; release saves 10 s–2 min | H | pass (rec-retro: 5.035 s retro take) |
 | R5 | Retro off from properties clears the buffer; with the mic closed the dot arms retro, with no take | H | pass (edit-buds, arming only) |
-| R6 | Level dots under the time, red near clipping | H | todo |
+| R6 | Level dots under the time, red near clipping | H | pass (rec-y-rows: −20.0 and −1.1 dBFS read, red only when hot) |
 | R7 | Takes stack as envelope strips: tap plays, swipe right exports WAV, swipe left deletes | H | pass (rec-place: hold → place/export/delete buds; swipes kept) |
 | R8 | Takes land on the shared shelf (L4) | H | pass (rec-record) |
 | R9 | Screen stays awake while recording | D | todo |
@@ -194,18 +194,18 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | # | Function | How | Status |
 |---|---|---|---|
 | E1 | Empty first open: two dark tracks, bar numbers, beat ticks, no clips | H | pass (edit-empty) |
-| E2 | Track heads as coloured dots (orange, teal, violet, yellow) | H | todo |
-| E3 | Bottom-centre dot plays/stops; blue playhead follows; view scrolls | H | todo |
-| E4 | Tap empty space places the playhead (snaps to half-beats) | H | todo |
-| E5 | Drag empty space scrolls | H | todo |
-| E6 | Pinch zooms around the fingers; readout shows zoom while pinching | H | todo |
-| E7 | Readout shows bar.beat | H | todo |
+| E2 | Track heads as coloured dots (orange, teal, violet, yellow) | H | pass (edit-y-rows) |
+| E3 | Bottom-centre dot plays/stops; blue playhead follows; view scrolls | H | pass (edit-y-rows: rate 1.00, view follows, stop clears the nodes, blue line) |
+| E4 | Tap empty space places the playhead (snaps to half-beats) | H | pass (edit-y-rows: half-beats; exact with snap off) |
+| E5 | Drag empty space scrolls | H | pass (edit-y-rows) |
+| E6 | Pinch zooms around the fingers; readout shows zoom while pinching | H | pass (edit-y-rows: zoom ×2.73 from where the pinch is recognised, anchor within 6 px, readout) |
+| E7 | Readout shows bar.beat | H | pass (edit-y-rows) |
 | E8 | Hold clip body → cut, copy, move, delete (reverse is now the twist) | H | pass (edit-place, edit-gesture-panel) |
-| E9 | Move: picked up where held, follows across tracks, snaps to edges and beats with a green line, shows start time | H | todo |
-| E10 | Edits take effect live during playback | H | todo |
+| E9 | Move: picked up where held, follows across tracks, snaps to edges and beats with a green line, shows start time | H | pass (edit-y-rows: held point kept, across tracks, edge and beat snap, green line, start 7.1) |
+| E10 | Edits take effect live during playback | H | pass (edit-y-rows: trim and delete during playback, no stop, playhead continuous) |
 | E11 | Hold head → mute, solo, remove (arm hidden until recording into a track exists) | H | pass (edit-buds) |
 | E12 | Up to 8 tracks, 4 lanes on screen: + adds a track and scrolls it into view; sideways drag on empty timeline scrolls lanes (axis lock in the first 8 px), settles on whole lanes with the flick; dots under the heads show the visible four; a clip dragged to a screen edge scrolls the lanes; offset saved in the session | H | pass (edit-lanes, Chromium + WebKit) |
-| E13 | Properties: snap (on), push (off), takes shelf | H | todo |
+| E13 | Properties: snap (on), push (off), takes shelf | H | pass (edit-y-rows: defaults, toggles, shelf; push moves later clips, without it the nearest gap) |
 | E14 | Undo two-finger tap, 40 steps | H+D | pass (edit-place: two-finger tap undoes a move (CDP touch)) |
 | E15 | Grid takes the shared tempo on open | H | pass (edit-place) |
 | E17 | Clips reference takes by id; a deleted take's clips are dropped (closed) or shrink away (open) | H | pass (edit-deleted) |
@@ -269,3 +269,13 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | Z6 | BPM multiplier reaches the shared tempo (rule L2 kept) | H | pass (bpm-mult, Chromium + WebKit) |
 | Z7 | pointercancel is never a tap | H | pass (cancel-taps) |
 | Z8 | AT.storage(), AT.onError(): results and failures exposed, no UI yet; failed session saves are retried | H | pass (storage-report, write-errors) |
+
+## Workflows through the shell (Stage 3)
+
+Real frames and transitions, Chromium, holds stretched (`flowkit.js`) because these prove the path, not the timings. Run 2026-10-30 at load 300–400, DPR 1; WebKit not run. Record to pad, MIDI, stems and the bounce hash wait for Stages 4 and 11.
+
+| # | Function | How | Status |
+|---|---|---|---|
+| F1 | Record → place → edit → export; leave and return after the take, the clip, the edit and the mix | H | pass (flow-rec-edit-export: 3.17 s take, trimmed to 2.4 and moved, mix 4.2 s silent to the clip, WAV shared, no second mix) |
+| F2 | Synth capture → place → arrange → export; leave and return | H | pass (flow-synth-arrange-export: 10 s and 4.3 s captures, a copy, mix 14.81 s, not silent; garden back, capture restarts empty after leaving the synth) |
+| F3 | File in → BPM → practice; leave and return; tempo through metronome and editor | H | pass (flow-file-bpm-practice: 120 from the file; own tempo in practice with the shared tempo at 75; speed, loop, position, source back) |

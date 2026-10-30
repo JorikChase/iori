@@ -625,13 +625,19 @@ fn seedRead(q: vec4f, dr: f32) -> Seed {
   }
   return s;
 }
+// the seed speaks unless the orbit left, or its species (when it has one) is not the one that led
+fn seedOn(t: Trace) -> bool {
+  if ((head.flags & FLAG_SEED) == 0u || t.escaped) { return false; }
+  let want = rec(u32(head.sliceW.w), 2u).x;
+  return want < 0.0 || abs(t.sp - want) < 1e-3;
+}
 fn seedDe(q: vec4f, dr: f32) -> f32 { let s = seedRead(q, dr); return abs(s.v / s.dr - s.t); }
 
 fn deOf(t: Trace) -> f32 {
   let r = length(t.p);
   if (!(t.dr > 0.0) || r == 0.0) { return 0.0; }
   if ((head.flags & FLAG_SEED) != 0u) {
-    if (t.escaped) { return r / abs(t.dr); }
+    if (!seedOn(t)) { return r / abs(t.dr); }
     return seedDe(t.p, t.dr);
   }
   if ((head.flags & FLAG_POWER) != 0u) {
@@ -2295,7 +2301,7 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
 fn deTan(t: Trace, dp: vec4f, ddr: f32) -> f32 {
   let r = length(t.p);
   if (!(t.dr > 0.0) || r == 0.0) { return 0.0; }
-  if ((head.flags & FLAG_SEED) != 0u && !t.escaped) {
+  if (seedOn(t)) {
     let s = seedRead(t.p, t.dr);
     let e = s.v / s.dr - s.t;
     return select(1.0, -1.0, e < 0.0) * (dot(s.g, dp) / s.dr - s.on * s.v * ddr / (s.dr * s.dr));
@@ -2310,17 +2316,32 @@ fn deTan(t: Trace, dp: vec4f, ddr: f32) -> f32 {
   return dr_ / t.dr - r * ddr / (t.dr * t.dr);
 }
 
+// the step for a seed's central difference: small against its record, all of it (recStep leaves row 0
+// to the chimera's code and kind; a seed keeps parameters there)
+fn seedStep(oi: u32) -> f32 {
+  var rv = 1.0;
+  var dv = 1e-12;
+  for (var k = 0u; k < 2u; k++) {
+    var r = abs(rec(oi, k));
+    var d = abs(tanRec[k]);
+    if (k == 0u) { r.x = 0.0; d.x = 0.0; }
+    rv = max(rv, max(max(r.x, r.y), max(r.z, r.w)));
+    dv = max(dv, max(max(d.x, d.y), max(d.z, d.w)));
+  }
+  return 1e-3 * rv / dv;
+}
+
 // a driven seed's record moves along dual column col: the estimate moves with it (the same central
 // difference, through the record's motion)
 fn seedDriven(t: Trace, col: u32) -> f32 {
-  if (!(DRIVE_ON && drvAny && !drvFreeze) || (head.flags & FLAG_SEED) == 0u || t.escaped) { return 0.0; }
+  if (!(DRIVE_ON && drvAny && !drvFreeze) || !seedOn(t)) { return 0.0; }
   let oi = u32(head.sliceW.w);
   if (!drvIs(oi)) { return 0.0; }
   let sOi = tanOi;
   let sRec = tanRec;
   tanOi = oi;
   for (var k = 0u; k < 5u; k++) { tanRec[k] = drvRecD(oi, k, col); }
-  let e = recStep(oi);
+  let e = seedStep(oi);
   tanEps = e; let a = seedDe(t.p, t.dr);
   tanEps = -e; let b = seedDe(t.p, t.dr);
   tanEps = 0.0; tanOi = sOi; tanRec = sRec;
@@ -2332,8 +2353,8 @@ fn seedDriven(t: Trace, col: u32) -> f32 {
 // record is linear in everything but a normal, which the sensing does not offer)
 fn deParamTan(d: Dual) -> f32 {
   var o = deTan(d.t, d.q, d.qdr) + seedDriven(d.t, 3u);
-  if ((head.flags & FLAG_SEED) != 0u && !d.t.escaped && tanOi == u32(head.sliceW.w)) {
-    let e = recStep(tanOi);
+  if (seedOn(d.t) && tanOi == u32(head.sliceW.w)) {
+    let e = seedStep(tanOi);
     tanEps = e; let a = seedDe(d.t.p, d.t.dr);
     tanEps = -e; let b = seedDe(d.t.p, d.t.dr);
     tanEps = 0.0;

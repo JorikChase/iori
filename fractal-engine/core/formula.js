@@ -116,6 +116,15 @@ export function seedOf(f) {
   for (const s of f.slots) for (const o of s) { const d = getOp(o.op); if (d && d.seed) return o; }
   return null;
 }
+// A seed in a chimera's species speaks only where that species leads the orbit (a tissue's other cells
+// keep r/dr: a slab read at a Mandelbox's last point draws sheets through it). The leading species ÷
+// (k − 1), the reading the orbit ends with; −1 for a seed outside any chimera
+export function seedSpecies(f) {
+  const sd = seedOf(f);
+  if (!sd) return -1;
+  for (const m of mixKids(f).mixes) for (const [i, slot] of m.kids.entries()) if (f.slots[slot] && f.slots[slot].includes(sd)) return i / Math.max(m.k - 1, 1);
+  return -1;
+}
 // where push's walks start
 export const spawnRadius = (f) => (seedOf(f) ? 3 : 1);
 

@@ -177,3 +177,19 @@ test('the kaliset as a shading node: its map, a validated node, the picker', asy
   assert.ok(g.shade.nodes.some((n) => n.type === 'kali'));
   assert.equal(format(normalize(parse(format(normalize(g))))), format(normalize(g)));
 });
+
+test('a seed in a species speaks only where that species leads', () => {
+  const f = normalize(parse('[fold.cell .92 .91 .92 · fold.sphere 0 1 · seed.slab ‖ fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c] tissue 6 3 .05 1 ×12 bail=100'));
+  const rng = makeRng(2);
+  let seeded = 0, box = 0;
+  for (let i = 0; i < 400; i++) {
+    const p = [0, 1, 2].map(() => (rng.float() * 2 - 1) * 3), o = iterate(f, p, [...p, 0]);
+    const lead = o.branches[o.branches.length - 1][0] - 1;
+    if (!o.escaped && lead === 0) {
+      seeded++;
+      const q = o.points[o.points.length - 1];
+      assert.ok(Math.abs(de(f, p) - (0.5 * Math.abs(q[2])) / o.dr) < 1e-12);
+    } else { box++; assert.ok(Math.abs(de(f, p) - o.r / Math.abs(o.dr)) < 1e-9); }
+  }
+  assert.ok(seeded > 20 && box > 20, `${seeded} ${box}`);
+});

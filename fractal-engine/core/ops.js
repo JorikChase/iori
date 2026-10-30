@@ -546,8 +546,9 @@ def({
 // distance from the orbit's last point to a shape, over dr, the shape's preimage under the orbit. The op
 // itself does nothing to the point, so its parameters are sensed, lensed, grabbed, bred and driven like
 // any other. seed(p, dr, P) returns v the shape's distance, g its gradient in p, dr the divisor, t the
-// offset: the estimate is |v/dr − t|. The first seed of a formula (species included) is the one read; an
-// orbit that escaped is measured by r/dr as always, so a seeded species beside a box keeps the box's.
+// offset: the estimate is |v/dr − t|. The first seed of a formula is the one read; an orbit that escaped
+// is measured by r/dr as always, and a seed in a chimera's species only where that species leads
+// (core/formula.js seedSpecies), so a Kleinian cell beside a box keeps each one's measure.
 const seedOp = (name, params, seed) => def({ name, glyph: name, wRule: 'unchanged', params, fwd: () => ({ branch: 0 }), jac: () => I4(), inv: (q) => q, seed });
 // a plane (a slab, doubled by the abs): k·|n·p − d|. Knighty's pseudo-Kleinian, k = ½; iq's Apollonian, k = ¼
 seedOp('seed.slab', [p('nx', 0), p('ny', 0), p('nz', 1), p('d', 0), p('t', 0), p('k', 0.5, 0, 4)], (q, dr, P) => {

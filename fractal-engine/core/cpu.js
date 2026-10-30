@@ -13,7 +13,7 @@
 
 import { getOp, isMix } from './ops.js';
 import { weights, orbitWeights } from './fields.js';
-import { normalize, pullSafe, mixKids, seedOf, spawnRadius } from './formula.js';
+import { normalize, pullSafe, mixKids, seedOf, seedSpecies, spawnRadius } from './formula.js';
 import { slotIndex } from './notation.js';
 import { driveRuntime, readingsOf } from './drive.js';
 import { makeRng, recordingRng, replayRng } from './rng.js';
@@ -200,13 +200,25 @@ export const hasPower = (f) => {
   return g.slots.slice(0, Math.max(top, 1)).some((s) => slotPower(g, s));
 };
 
+// whether a formula's seed is the one to read at this orbit's end: always, or, for a seed in a species,
+// when the last chimera the orbit ran led with that species (the GPU's Trace.sp)
+function seedSpeaks(f, o) {
+  const want = seedSpecies(f);
+  if (want < 0) return true;
+  for (let i = o.branches.length - 1; i >= 0; i--) {
+    const slot = slotAt(f, i);
+    for (let j = slot.length - 1; j >= 0; j--) if (isMix(slot[j].op)) return Math.abs((o.branches[i][j] - 1) / Math.max(slot[j].kids.length - 1, 1) - want) < 1e-3;
+  }
+  return true;
+}
+
 export function de(formula, p, c, opts = {}) {
   const f = normalize(formula);
   const p4 = lift(f, p);
   const o = iterate(f, p4, c ? pad4(c) : f.c || p4, opts);
   if (!(o.dr > 0) || o.r === 0) return 0;
   const sd = seedOf(f);
-  if (sd && !o.escaped) {
+  if (sd && !o.escaped && seedSpeaks(f, o)) {
     const m = getOp(sd.op).seed(o.points[o.points.length - 1], o.dr, o.seedP);
     return Math.abs(m.v / m.dr - m.t);
   }

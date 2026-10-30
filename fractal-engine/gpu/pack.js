@@ -6,7 +6,7 @@
 // head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word, the
 // Julia constant, and the slice (a 4×4, column-major for WGSL, and the offset along w).
 
-import { normalize, pullSafe, mixKids, seedOf } from '../core/formula.js';
+import { normalize, pullSafe, mixKids, seedOf, seedSpecies } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
 import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
 import { packShade, SHADE_VEC4, MATH_OPS as D_MATH, shadeDrivers } from '../core/shade.js';
@@ -124,7 +124,8 @@ export function pack(formula) {
   fl[104] = (f.slice && f.slice.w) || 0;
   fl[CLOCK_WORD] = 0;
   fl[STEP_WORD] = 1;
-  if (sd) fl[SEED_WORD] = index.get(sd);
+  // (and in the seed's record, third row, the species it speaks for: gpu/wgsl.js seedOn)
+  if (sd) { fl[SEED_WORD] = index.get(sd); ops[index.get(sd) * REC + 8] = seedSpecies(f); }
   fl[3] = f.bail;
   for (let i = 0; i < 8; i++) { u[4 + i] = starts[i]; u[12 + i] = lens[i]; }
   sched.forEach((s, i) => { u[20 + i] = s; });

@@ -17,7 +17,7 @@ const plain = (f) => {
 const bytes = (p) => Object.fromEntries(Object.entries(p).filter(([, v]) => ArrayBuffer.isView(v)).map(([k, v]) => [k, Array.from(new Uint8Array(v.buffer, v.byteOffset, v.byteLength))]));
 
 test('an instanced formula packs as its inlined form', () => {
-  for (const text of SUBS) {
+  for (const [text] of SUBS) {
     const f = normalize(parse(text));
     assert.ok(validate(f).ok, `${text}: ${validate(f).errors.join()}`);
     assert.ok(f.sub || f.drive?.sub);

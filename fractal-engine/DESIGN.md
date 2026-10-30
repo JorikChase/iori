@@ -773,7 +773,7 @@ iori chose formula v2 over collage, own Metasurface sites and shading polish. De
   only where they vary.
 - **Wiring:** select an op, its parameters are dimension lines; drag from a driver's output dot onto a
   line and the line becomes a port. A driven line shows its range as a band.
-- **Reused subgraphs (instances): later** — the next stretch once the driver dataflow is proven.
+- **Reused subgraphs (instances): later** — the next stretch once the driver dataflow is proven (built 2026-10-30: "Subgraphs").
 
 **IR — the shading dataflow's form, a second program.** `formula.drive = { nodes, bind }`, nodes in
 topological order exactly as in `shade` (`{ id, type, in: { port: nodeId }, p }`), and
@@ -1971,3 +1971,95 @@ Metasurface eye), 5.7 The Mandalay Fold, 6.4 The Kaliset; figures `fm*` in `pape
 are stated there: Mandalay's estimate is a heuristic, Kleinian's jumps at the wrap's seam. The Apollonian figure's eye is
 tilted down to 0.2 and keeps the engine's colours: the ring's ramps left it dark. paper.js: when both slots are full, a
 waiting figure more than 80 px nearer the middle takes the farther one's place (two pairs fit on one screen in 5.6).
+
+## Subgraphs, 2026-10-30
+
+Deferred since the drivers; iori asked for it. A run of ops, or a part of the shading or driver network, used in
+several places, so that an edit to one reaches them all.
+
+**Decided with iori** (every recommended answer):
+- *What:* ops, shading and drivers, on one mechanism; ops first.
+- *Semantics:* linked. Structure and unexposed numbers are shared, so an edit in any use reaches every use. Exposed
+  numbers belong to each use. Detach turns one use back into plain ops and leaves the others linked. No subgraph inside
+  a subgraph; a chimera subgraph cannot sit in a species (no mix inside a mix).
+- *Gestures:* Shift-click, or a second finger, grows a run; its bracket's plus wraps it. Double-click or double tap opens
+  a use in place in a dashed frame; Esc or a two-finger tap closes it. Shift-drag, or a second finger resting, copies a use
+  onto an edge; the edge's ring also lists the subgraphs. Hold a use: the ring with detach.
+- *Library:* a definition lives in its formula, so a URL or an export reproduces it alone. A local shelf keeps saved
+  ones; placing one copies it in, with no live link across formulas.
+- *Exposed:* pull a line off itself and drop it on the dashed frame: a dot there, a number of its own. A folded use shows
+  them as ordinary dimension lines, draggable and bindable with bands. Pull it back inside: shared again. One number,
+  one inner parameter.
+- *Notation and breeding:* `a( fold.sphere .5 1 · scale ^2 ) · +c · a( 2.5 )`. A shared number is one gene moving
+  every use; an exposed number is bred per use; structure is never bred.
+
+**A link, not an op.** The brief expected instances to be inlined at compile time. This goes one step further: they are
+never un-inlined. The slots stay plain ops at all times; a subgraph is a list laid over them:
+```
+formula.sub = [{ id: 'a', n: 3, uses: ['A1', 'A5', 'B3.0.0'], expose: ['2.s', '0.1.0.w'] }, …]
+```
+`uses` are the path ids (core/graph.js) of each use's first op, `expose` paths relative to the run. The first use speaks
+for the rest: `normalize` copies every other number from it (`syncSub`), `format` writes only its numbers. So:
+- core/cpu.js, the GPU interpreter, both JITs, the duals, push, the loop and sensing never hear of it. An instanced formula
+  packs byte for byte as its inlined form (`test/subgraph-gpu.test.mjs`, with `structureKey`). Plain formulas are
+  untouched by construction: no key, no id change, no shader change.
+- Path ids stay what they were, so bindings on ops inside a use need nothing new.
+- A use's ops are real, so detach is removing a list entry, and an older reader of a JSON state still draws it.
+- *The cost:* the eight slots and 64 ops count every use. Instances save no GPU space, and a chimera subgraph used twice
+  takes its species' slots twice.
+
+**Keeping the link through edits** (core/graph.js). `tree` tags each use's nodes in a WeakMap, so a tag survives splices and
+not copies. `finish` compares each use's shape with the one it started from: the use that changed is the new run, every
+other is rebuilt from it, keeping its own ids (so bindings stay with their use) and its exposed numbers; what was exposed
+follows its member. This covers every existing edit (insert, remove, move, fork, addSpecies, setField, unwrap) without
+touching them, except that fork and unwrap hand a member's tag on. `setParam` writes a shared number to every use. New:
+`wrap`, `place`, `detach`, `removeUse`, `moveUse`, `insertIn` (a run's two ends, which the chain's own edges cannot say),
+`expose`, `unexpose`, `exposedOf`, `defOf`, `placeDef`.
+
+**What writes by flat op index** (the grab, the lens, breeding, herding): `reduceMetric` keeps each shared number once, at
+the first use, carrying the sum of what its copies move (an upper bound: their partials may cancel, so a step of D pixels
+never moves more than D); `masterParam` sends a write there. `withParam` and collages' `withMetric` go through it. The lens
+varies one op record in a pass, so its preview of a shared number moves the first use only; the value applied on release is
+exact.
+
+**Bindings.** They stay per use: a binding on an op inside a use belongs to that use, and a placed use copies the first
+use's. A bound number needs no exposing.
+
+**Shading and drivers** (core/netsub.js). The same link over nodes: `net.sub = [{ id, uses: [[node ids]…], expose }]`, inside
+`shade` and `drive`, so it rides `shade=` and `drive=`. A use lists its nodes member by member; its last node is its output.
+The first use's parameters and its links between members reach the others; links in from outside belong to each use. Settled
+in building: only a first use is edited, so opening any use opens the first; a member removed goes from every use; a node held
+onto an open frame's empty ground is a member of every use; a folded use is drawn as its output and shows no input dots, so
+its outside links are wired with it open. A placed use starts as a free copy, reading what the first reads, its output
+unconnected.
+
+**The drawing.** A folded use is the run's own glyphs, shrunk, between brackets (`useGlyph`), with its letter; the strip draws
+the same, so the strip remains the network. Open, the ops are drawn in place inside the dashed frame, the rest of the
+graph kept in sight. Names in ui/labels.js.
+
+**The shelf.** `fractal-engine.shelf.v1` in this browser, eight subgraphs at most, the newest first, `__fe.dry` writes nothing.
+Hold a use: the ring's second item keeps it. Rings of edges and of the frames' empty ground list what fits. An op subgraph
+comes in with its numbers; a shading or driver one loses its links from outside (a required input takes the fold index or the
+surface colour; a remap, the iteration).
+
+**Other systems.** Hash, URL and lineage carry the text; `canonical` adds `sub` only when there is one, so wrapping makes a new
+id and plain formulas keep theirs. Exports carry it through `canonical`. A collage piece may hold subgraphs (a piece is a
+formula), but no link crosses pieces. Metasurface sites keep theirs at their own site and drop them across walls, as drivers
+and shading do. `addChain` and `addSpecies` copy a use as plain ops.
+
+**Verified.** `node --test`: 116 pass (test/subgraph.test.mjs: 11, every edit, the notation with chimeras and species, exposed
+numbers, bindings, breeding, collages, states, the networks, the shelf; test/subgraph-gpu.test.mjs: pack and `structureKey` equal
+the inlined form's). `run-parity.mjs`: all suites pass, four subgraph formulas in forward and JIT. `run-touch.mjs` 45/45 and
+`--desktop` 22/22 with no page errors: wrap, the ring, open, expose, an own line, copy, detach, Delete, names, the shading frame
+and the driver lane, by mouse and by real touches. `run-paper.mjs` 51/51. `run-bench.mjs`: plain scenes ∞ dB, ×0.98–1.00 against
+the reference. Shots: design/shots/touch-sub-*.jpg, touch-desktop-sub-*.jpg.
+
+*Parity's case depth.* The first cases ran ×8 (16 op groups, scales 2–2.4) and failed forward (median 1.22e-2). The same text
+written out plain gives the same numbers to the digit: that depth is past float32 for any formula, so the cases run ×4.
+
+**Not yet:** a number tied to two inner parameters; subgraphs inside subgraphs; a link across collage pieces; a ramp's stops as
+exposed numbers (only the lines: map, c, f and the drivers' numbers); a shading or driver use's outside links edited while folded;
+placing a network use directly on a link (it starts free); removing a shelf entry (the ninth pushes out the oldest); a lens that
+moves a shared number in every use during the preview; the rig does not yet exercise the shelf's gestures in the app (its core
+is unit-tested); a real-device touch pass.
+

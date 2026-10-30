@@ -6,6 +6,9 @@
 node --test fractal-engine/test/
 ```
 
+`subgraph.test.mjs` covers the link (core/sub.js, core/netsub.js) through every edit, the notation and breeding;
+`subgraph-gpu.test.mjs` proves an instanced formula packs byte for byte as its inlined form.
+
 ## GPU parity, headless
 
 `parity.html` checks the WGSL interpreter against `core/` (forward orbits, inverse steps, duals,

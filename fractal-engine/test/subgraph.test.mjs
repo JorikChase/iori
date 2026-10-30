@@ -179,6 +179,7 @@ test('collages, state documents and validation carry the link', () => {
     { sub: [{ id: 'a', n: 1, uses: ['Z0'], expose: [] }] },
   ];
   for (const b of bad) assert.ok(!validate({ ...normalize(parse('abs · scale 2 ×6')), ...b }).ok, JSON.stringify(b));
+  assert.ok(!validate(normalize({ ...normalize(parse('abs · scale 2 ×6')), sub: [{ id: 'a', n: 1, uses: ['nowhere'], expose: [] }] })).ok, 'a bad place does not throw in normalize');
   assert.equal(useOf(f, 'A0'), null);
   assert.equal(useOf(f, 'A2').member, 1);
 });

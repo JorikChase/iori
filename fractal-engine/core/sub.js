@@ -42,6 +42,7 @@ const relKey = (rel) => { const { member, inner } = relParts(rel); return [membe
 
 // every op of a use with its rel path: [[rel, op], …] (rel without the parameter)
 function members(paths, sub, at) {
+  if (!useParts(at)) return null;
   const { chain, index } = useParts(at), out = [];
   for (let k = 0; k < sub.n; k++) {
     const id = memberId(chain, index + k), o = paths.get(id);
@@ -166,6 +167,7 @@ export function useOf(f, id) {
   if (!f.sub) return null;
   for (const s of f.sub) {
     for (const [u, at] of s.uses.entries()) {
+      if (!useParts(at)) continue;
       const { chain, index } = useParts(at);
       for (let k = 0; k < s.n; k++) {
         const m = memberId(chain, index + k);

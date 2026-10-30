@@ -664,7 +664,9 @@ try{new BroadcastChannel('audio').onmessage=function(e){if(e.data&&e.data.t==='p
      two fingers: twist on a clip = reverse (past 90°), pinch = zoom, a still quick tap = undo */
 function beginEdge(g){var c=find(g.h.id);if(!c)return;var r=isect(edgeRange(c,g.h.edge),nbRange(c,g.h.edge));
  g.phase=c.warp?'stretch':'trim';g.c=c.id;g.edge=g.h.edge;g.orig=[pack(c)];g.lo=r[0];g.hi=r[1];g.base=g.edge==='top'?c.s:endOf(c);snapU();}
-function beginFade(g){var c=find(g.h.id);if(!c)return;g.phase='fade';g.c=c.id;g.edge=g.h.edge;g.f0=g.edge==='top'?c.fin:c.fout;g.orig=[pack(c)];snapU();}
+function hintFade(id,edge){var c=find(id);if(c&&window.AT)AT.hint('edit.fade',{in:box,at:{x:tx(c.t),y:yOf(edge==='top'?c.s:endOf(c))},move:'hold-drag',to:{dx:0,dy:edge==='top'?70:-70}});}
+function hintTwist(id){var c=find(id);if(c&&window.AT)AT.hint('edit.twist',{in:box,at:{x:tx(c.t),y:clamp((yOf(c.s)+yOf(endOf(c)))/2,TOP+60,H-BOT-60)},move:'twist'});}
+function beginFade(g){var c=find(g.h.id);if(!c)return;if(window.AT)AT.did('edit.fade');g.phase='fade';g.c=c.id;g.edge=g.h.edge;g.f0=g.edge==='top'?c.fin:c.fout;g.orig=[pack(c)];snapU();}
 function beginRoll(g){var A=find(g.h.a),B=find(g.h.b);if(!A||!B)return;
  var r=isect(isect(edgeRange(A,'bottom'),edgeRange(B,'top')),[-boxRoom(A),boxRoom(B)]);
  g.phase='roll';g.orig=[pack(A),pack(B)];g.lo=r[0];g.hi=r[1];g.base=B.s;snapU();}
@@ -706,7 +708,7 @@ function tapPress(pr,p){var h=pr.h;
   return;}
  if(h.kind==='clip'||h.kind==='edge'||h.kind==='seam'){var id=h.id;
   if(h.kind==='seam'){var A=find(h.a),B=find(h.b);if(!A||!B)return;id=p.y<(yOf(B.s)+yOf(endOf(A)))/2?h.a:h.b;}
-  select(id,pr.propWas);}}
+  select(id,pr.propWas);hintTwist(id);}}
 function openWheel(what,anchor){var c=find(S.sel);if(!c||!window.Wheel)return;initOt(c);var id=c.id,cfg,D10=['0','1','2','3','4','5','6','7','8','9'];
  function sg(s){return +s>0?'+'+s:s;}
  if(what==='tempo'){var v=Math.round(c.ot*10);
@@ -777,8 +779,8 @@ function up(e){var p=pos(e);delete S.ptrs[e.pointerId];
  if(pr.kind==='bud'){if(pr.moved<12&&e.type!=='pointercancel')budTap(pr.h);return;}
  if(pr.opened){if(pr.sel>=0)act(pr,pr.sel);return;}
  switch(pr.phase){
-  case 'pending':case 'armed':if(e.type!=='pointercancel')tapPress(pr,p);break;
-  case 'trim':case 'stretch':case 'fade':case 'roll':case 'xfade':case 'slide':commit(pr);break;}}
+  case 'pending':case 'armed':if(e.type!=='pointercancel'){if(pr.kind==='edge'&&(pr.phase==='armed'||ts(e)-pr.t0>120))hintFade(pr.id,pr.h.edge);tapPress(pr,p);}break;   /* a held edge let go: the fade it was reaching for */
+  case 'trim':case 'stretch':case 'fade':case 'roll':case 'xfade':case 'slide':commit(pr);if(pr.phase==='trim')hintFade(pr.c,pr.edge);break;}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 /* the share sheet needs a user activation: open it from the click that follows the second tap on the save bud */
@@ -799,10 +801,10 @@ function moveTwo(){var T=S.two;if(T.ended)return;var a=S.ptrs[T.ids[0]],b=S.ptrs
   else if(sc>.08||mm>14){T.mode='pinch';T.d0=d;T.pps0=S.pps;T.anchor=sOf(mid.y);}}
  if(T.mode==='twist'){var c=find(T.clip);if(c){c.ang=clamp(T.ang,-3.5,3.5);c.angT=c.ang;c.angV=0;}S.readout=Math.round(Math.abs(T.ang)*180/Math.PI)+'';}
  else if(T.mode==='pinch'){S.pps=clamp(T.pps0*d/T.d0,8,160);S.vt=clamp(T.anchor-(mid.y-TOP)/S.pps,0,maxVt());S.readout=Math.round(S.pps/30*100)/100+'x';}}
-function startFlip(c,dir){snapU();c.flip=1;c.angT=(dir<0?-1:1)*Math.PI;}
+function startFlip(c,dir){if(window.AT)AT.did('edit.twist');snapU();c.flip=1;c.angT=(dir<0?-1:1)*Math.PI;}
 function upTwo(e){var T=S.two,left=Object.keys(S.ptrs).length;
  if(!T.ended){T.ended=true;S.readout='';
-  if(T.mode==='twist'){var c=find(T.clip);if(c){if(Math.abs(c.ang)>=TWIST_COMMIT)startFlip(c,c.ang);else{c.angT=0;c.flip=0;}}}}
+  if(T.mode==='twist'){var c=find(T.clip);if(c){if(Math.abs(c.ang)>=TWIST_COMMIT)startFlip(c,c.ang);else{c.angT=0;c.flip=0;hintTwist(c.id);}}}}   /* released short of 90°: the twist it was reaching for */
  if(left===0){if(!T.mode&&ts(e)-T.t0<450&&T.maxMove<12&&T.rot<.14)doUndo();S.two=null;}}
 
 /* icons */

@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /404.html
+Disallow: /audio/docs.html
 Disallow: /automata.html
 Disallow: /burger.html
 Disallow: /clip.html

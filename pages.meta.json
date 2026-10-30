@@ -44,6 +44,14 @@
       "menu_pos": "tr",
       "manifest": "manifest.json"
     },
+    "audio/docs.html": {
+      "title": "Audio Tools Docs — Gestures for Every Tool",
+      "description": "How to use Audio Tools: the gestures of the recorder, editor, synth, practice player, metronome, tuner, BPM detector and analyzer.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "hidden": true
+    },
     "bismuth-fluid.html": {
       "title": "Bismuth Crystal Fluid",
       "description": "Iridescent bismuth-crystal colours poured into a living fluid simulation.",

@@ -255,8 +255,9 @@ const driveShape = (f) => {
 // from the same records). One op is one block: what its forward map and its tangents share is computed
 // once, the tangent columns follow from it, and a branch that leaves them alone holds no code. The hit only
 // reads the gradient and λ, so the selected-parameter column (the sensing pass) and the colour are not here.
-// A column: v the tangent, d its dr derivative (λ has none), dc its derivative of c (only the gradient's).
-const GRAD = [0, 1, 2].map((j) => ({ v: `g${j}`, d: `gd${j}`, dc: `dc${j}` }));
+// A column: v the tangent, d its dr derivative (λ has none), dc its derivative of c and s its value at the
+// orbit's start (only the gradient's).
+const GRAD = [0, 1, 2].map((j) => ({ v: `g${j}`, d: `gd${j}`, dc: `dc${j}`, s: `s${j}` }));
 const LYAP = { v: 'lv', d: null, dc: null };
 const COLS = [...GRAD, LYAP];
 
@@ -435,14 +436,48 @@ function dualOp(o, oi, cols, R) {
   }
 }
 
+// The chimera (gpu/wgsl.js mixTan, its sums in the same order): every species once on (p, dr) and all the
+// columns, each ending in registers of its own, then the blend. v' = Σ ωᵢ vᵢ + dωᵢ Fᵢ, dr' the same; the
+// weights move by ∇ωᵢ·v (·the start's column in the world frame) and ∂ωᵢ/∂reading · dreading.
+// spoken: the seed reads which species led.
+function mixDual(o, oi, kids, cols, R, spoken) {
+  const K = kids.length, ks = kids.map((_, i) => i);
+  const reading = (c) => (o.op === 'mix.trap' ? (c.d ? `dft.${'xyz'[GRAD.indexOf(c)]}` : null)
+    : o.op === 'mix.lyap' ? (c.d ? `dm_${c.v} / (max(drm, 1e-30) * (fIter + 1.0))` : null) : null);
+  return `{ let pm = p; let drm = t.dr; let wd = ${R(0)}.z > 0.5;
+      ${each(cols, (c) => `let vm_${c.v} = ${c.v};${c.d ? ` let dm_${c.v} = ${c.d};` : ''}`)}
+      let fw = fieldAt(${oi}u, pm, drm, wd);
+${kids.map((code, i) => `${code}
+      let kp${i} = p; let kd${i} = t.dr; p = pm; t.dr = drm;
+      ${each(cols, (c) => `let k${i}_${c.v} = ${c.v}; ${c.v} = vm_${c.v};${c.d ? ` let kd${i}_${c.v} = ${c.d}; ${c.d} = dm_${c.v};` : ''}`)}`).join('\n')}
+      ${each(cols, (c) => `{ let vx = select(vm_${c.v}, ${c.s || 'vec4f(0.0)'}, wd);
+        ${ks.map((i) => `let dw${i} = dot(fw.G[${i}], vx)${reading(c) ? ` + fw.S[${i}] * (${reading(c)})` : ''};`).join(' ')}
+        ${c.v} = vec4f(0.0)${ks.map((i) => ` + fw.w[${i}] * k${i}_${c.v} + dw${i} * kp${i}`).join('')};
+        ${c.d ? `${c.d} = 0.0${ks.map((i) => ` + fw.w[${i}] * kd${i}_${c.v} + dw${i} * kd${i}`).join('')};` : ''} }`)}
+      p = vec4f(0.0)${ks.map((i) => ` + fw.w[${i}] * kp${i}`).join('')};
+      t.dr = 0.0${ks.map((i) => ` + fw.w[${i}] * kd${i}`).join('')};
+      ${spoken ? `var lead = 0u;
+${ks.slice(1).map((i) => `      if (fw.w[${i}] > fw.w[lead]) { lead = ${i}u; }`).join('\n')}
+      t.sp = f32(lead) / ${L(Math.max(K - 1, 1))};` : ''} }`;
+}
+
 // The WGSL `iterateDual` for one formula, or null when the interpreter's stays (gpu/wgsl.js)
 export function jitDual(formula, kind = 'literal') {
   const f = normalize(formula);
-  if (drives(f) || f.slots.flat().some((o) => isMix(o.op))) return null;
+  if (drives(f)) return null;
   const { base } = opTable(f);
   const packed = kind === 'literal' ? pack(f).ops : null;
   const rowOf = (oi) => (k) => (packed ? V([...packed.subarray((oi * REC_VEC + k) * 4, (oi * REC_VEC + k + 1) * 4)]) : `rec(${oi}u, ${k}u)`);
-  const slots = f.slots.map((s, si) => s.map((o, j) => '      ' + dualOp(o, base[si] + j, COLS, rowOf(base[si] + j))).join('\n'));
+  const kidsOf = new Map(mixKids(f).mixes.map((m) => [`${m.si}.${m.j}`, m.kids]));
+  const spoken = !!seedOf(f);
+  const code = (o, oi) => dualOp(o, oi, COLS, rowOf(oi));
+  const bare = (si) => f.slots[si].map((o, j) => '      ' + code(o, base[si] + j)).join('\n');
+  const slots = f.slots.map((s, si) => s.map((o, j) => {
+    const oi = base[si] + j, kids = kidsOf.get(`${si}.${j}`);
+    return '      ' + (kids ? mixDual(o, oi, kids.map(bare), COLS, rowOf(oi), spoken) : code(o, oi));
+  }).join('\n'));
+  // the trap reading's derivative along each column, which follows the iterate that set it
+  const trapped = f.slots.flat().some((o) => o.op === 'mix.trap');
   return `
 fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
   var d: Dual;
@@ -458,14 +493,16 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
   let kc = select(0.0, 1.0, cIsP);
   let dc0 = g0 * kc; let dc1 = g1 * kc; let dc2 = g2 * kc;
   startOrbit(p0);
-  for (var i = 0u; i < ${f.iters}u; i++) {
+  let s0 = g0; let s1 = g1; let s2 = g2;
+${trapped ? '  var dft = 2.0 * vec3f(dot(p0, g0), dot(p0, g1), dot(p0, g2));\n' : ''}  for (var i = 0u; i < ${f.iters}u; i++) {
+    fIter = f32(i);
 ${scheduled(f, slots)}
     t.n = i + 1u;
     let l = length(lv);
     if (l > 0.0 && l < 1e30) { lsum = lsum + log(l); lv = lv / l; }
     let r2 = dot(p, p);
     t.trap = min(t.trap, r2);
-    if (!(r2 <= ${kind === 'structure' ? 'head.bail * head.bail' : L(f.bail * f.bail)})) { t.escaped = true; break; }
+${trapped ? '    if (r2 < fTrap) { fTrap = r2; dft = 2.0 * vec3f(dot(p, g0), dot(p, g1), dot(p, g2)); }\n' : ''}    if (!(r2 <= ${kind === 'structure' ? 'head.bail * head.bail' : L(f.bail * f.bail)})) { t.escaped = true; break; }
   }
   t.p = p;
   d.t = t;

@@ -22,6 +22,9 @@
    AT.placements()     Editor: take (and clear) the queue — [{id, at:'playhead'}].
    AT.go(tool) / AT.preload(tool)   Shell navigation: 'edit','tuner','bpm','metro','synth','ana','play','rec'.
    AT.session.load(key) / save(key, obj)   Small JSON state that must survive leaving a tool (editor timeline).
+   AT.storage()        -> Promise<{persisted, usage, quota}> from navigator.storage; null for whatever is unavailable.
+   AT.onError(fn)      fn({what, error}) when a write fails, in any open frame; what: 'session.save', 'takes.put',
+                       'takes.del', 'draft.add', 'draft.end'. Takes and drafts still reject to their callers.
 
    AT.mic()            getUserMedia (each tool asks itself; iOS keeps the site's permission once allowed).
    Audio unlock        every AudioContext is resumed on each touch end (iOS rule) and after interruptions.
@@ -89,7 +92,7 @@
 
   /* ---------------------------------------------------------------- broadcast */
   var ch = null; try { ch = new BroadcastChannel('audio'); } catch (_) {}
-  var L = { tempo: [], takes: [], place: [] };
+  var L = { tempo: [], takes: [], place: [], error: [] };
   function fire(t, v, src) { (L[t] || []).forEach(function (f) { try { f(v, src); } catch (_) {} }); }
   if (ch) ch.onmessage = function (e) { var m = e.data || {}; fire(m.t, m.v, m.src); };
   function emit(t, v, src) { if (ch) try { ch.postMessage({ t: t, v: v, src: src }); } catch (_) {} }
@@ -112,11 +115,12 @@
     if (dbp) return dbp;
     dbp = new Promise(function (res, rej) {
       try {
-        var r = indexedDB.open('audio', 2);
+        var r = indexedDB.open('audio', 3);
         r.onupgradeneeded = function (ev) {
           var d = r.result, tx = r.transaction;
           if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' });
           if (!d.objectStoreNames.contains('pcm')) d.createObjectStore('pcm', { keyPath: 'id' });
+          if (!d.objectStoreNames.contains('draft')) d.createObjectStore('draft', { keyPath: 'k' });   // a take still being recorded
           if (ev.oldVersion === 1 && d.objectStoreNames.contains('takes')) {   // v1 kept float samples inline
             tx.objectStore('takes').openCursor().onsuccess = function (e) {
               var c = e.target.result; if (!c) { d.deleteObjectStore('takes'); return; }
@@ -125,7 +129,7 @@
             };
           }
         };
-        r.onsuccess = function () { res(r.result); };
+        r.onsuccess = function () { var d = r.result; d.onversionchange = function () { d.close(); dbp = null; }; res(d); };
         r.onerror = function () { rej(r.error); };
       } catch (e) { rej(e); }
     });
@@ -142,15 +146,27 @@
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function pack(k) {
-    var d = k.data, n = d.length, q = new Int16Array(n);
-    for (var i = 0; i < n; i++) { var v = d[i]; q[i] = v >= 1 ? 32767 : v <= -1 ? -32767 : (v * 32767) | 0; }
+    var d = k.data, n = d.length, q = int16(d);
     var meta = { id: k.id || uid(), name: k.name || '', kind: k.kind || 'rec', sr: k.sr, len: n, dur: n / k.sr, created: k.created || Date.now(), env: envelope(d, 64), markers: k.markers || [] };
+    if (k.recovered) meta.recovered = true;
     return { meta: meta, pcm: { id: meta.id, data: q } };
   }
+  function int16(d) { var n = d.length, q = new Int16Array(n); for (var i = 0; i < n; i++) { var v = d[i]; q[i] = v >= 1 ? 32767 : v <= -1 ? -32767 : (v * 32767) | 0; } return q; }
   function unpack(q) { var n = q.length, d = new Float32Array(n); for (var i = 0; i < n; i++) d[i] = q[i] / 32767; return d; }
 
-  var persisted = false;
-  function persist() { if (persisted) return; persisted = true; try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (_) {} }
+  var asked = false, granted = null;   // granted: what persist() answered, null until it has
+  function persist() { if (asked) return; asked = true; try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then(function (v) { granted = !!v; }, function () { granted = false; }); } catch (_) {} }
+  function quiet(f) { try { return Promise.resolve(f()).catch(function () { return null; }); } catch (_) { return Promise.resolve(null); } }
+  function storage() {
+    var s = navigator.storage || {};
+    return Promise.all([quiet(function () { return s.persisted(); }), quiet(function () { return s.estimate(); })]).then(function (r) {
+      var e = r[1] || {};
+      return { persisted: r[0] === null ? granted : r[0], usage: e.usage == null ? null : e.usage, quota: e.quota == null ? null : e.quota };
+    });
+  }
+  /* a failed write tells every open frame (the frame it failed in may be on its way out) and still rejects to its caller */
+  function report(what, e) { var v = { what: what, error: e }; emit('error', v); fire('error', v); }
+  function failed(what) { return function (e) { report(what, e); throw e; }; }
 
   var takes = {
     list: function () {
@@ -164,13 +180,14 @@
     },
     put: function (k) {
       persist();
-      var rec = pack(k);
-      return store(['meta', 'pcm'], 'readwrite').then(function (x) { x.s('meta').put(rec.meta); x.s('pcm').put(rec.pcm); return x.done; })
-        .then(function () { emit('takes', { op: 'put', id: rec.meta.id }); fire('takes', { op: 'put', id: rec.meta.id }); return rec.meta; });
+      return new Promise(function (ok) { ok(pack(k)); }).then(function (rec) {   // pack still runs now: a caller may reuse k.data
+        return store(['meta', 'pcm'], 'readwrite').then(function (x) { x.s('meta').put(rec.meta); x.s('pcm').put(rec.pcm); return x.done; })
+          .then(function () { emit('takes', { op: 'put', id: rec.meta.id }); fire('takes', { op: 'put', id: rec.meta.id }); return rec.meta; });
+      }).catch(failed('takes.put'));
     },
     del: function (id) {
       return store(['meta', 'pcm'], 'readwrite').then(function (x) { x.s('meta').delete(id); x.s('pcm').delete(id); return x.done; })
-        .then(function () { emit('takes', { op: 'del', id: id }); fire('takes', { op: 'del', id: id }); });
+        .then(function () { emit('takes', { op: 'del', id: id }); fire('takes', { op: 'del', id: id }); }).catch(failed('takes.del'));
     },
     import: function (file) {
       return file.arrayBuffer().then(function (buf) {
@@ -181,6 +198,28 @@
         for (var ci = 0; ci < c; ci++) { var s = ab.getChannelData(ci); for (var i = 0; i < n; i++) d[i] += s[i] / c; }
         return takes.put({ name: (file.name || 'file').replace(/\.[^.]+$/, ''), kind: 'file', sr: ab.sampleRate, data: d });
       });
+    },
+    /* a take in progress reaches the store in pieces, so a killed page loses seconds, not the take. draft.end() drops
+       the pieces once the real take is saved; draft.recover() turns any left behind into takes */
+    draft: {
+      add: function (id, seq, o) {
+        return new Promise(function (ok) { ok({ k: id + ':' + ('00000' + seq).slice(-6), id: id, seq: seq, sr: o.sr, name: o.name, created: o.created, markers: o.markers || [], data: int16(o.data) }); })
+          .then(function (row) { return store(['draft'], 'readwrite').then(function (x) { x.s('draft').put(row); return x.done; }); }).catch(failed('draft.add'));
+      },
+      end: function (id) {
+        return store(['draft'], 'readwrite').then(function (x) { x.s('draft').delete(IDBKeyRange.bound(id + ':', id + ':￿')); return x.done; }).catch(failed('draft.end'));
+      },
+      recover: function () {
+        return store(['draft'], 'readonly').then(function (x) { return req(x.s('draft').getAll()); }).then(function (rows) {
+          var by = {}; (rows || []).forEach(function (r) { (by[r.id] = by[r.id] || []).push(r); });
+          return Promise.all(Object.keys(by).map(function (id) {
+            var a = by[id].sort(function (p, q) { return p.seq - q.seq; }), n = 0, o = 0, last = a[a.length - 1];
+            a.forEach(function (r) { n += r.data.length; }); var q = new Int16Array(n);
+            a.forEach(function (r) { q.set(r.data, o); o += r.data.length; });
+            return takes.put({ name: last.name, kind: 'rec', sr: last.sr, data: unpack(q), created: last.created, markers: last.markers, recovered: true }).then(function () { return takes.draft.end(id); });
+          }));
+        });
+      }
     },
     pick: function () {
       return new Promise(function (res) {
@@ -205,7 +244,7 @@
   function placements() { var q = []; try { q = JSON.parse(localStorage.getItem(PQ) || '[]'); localStorage.removeItem(PQ); } catch (_) {} return q; }
   var session = {
     load: function (key) { try { return JSON.parse(localStorage.getItem('audio.session.' + key) || 'null'); } catch (_) { return null; } },
-    save: function (key, obj) { try { localStorage.setItem('audio.session.' + key, JSON.stringify(obj)); } catch (_) {} }
+    save: function (key, obj) { try { localStorage.setItem('audio.session.' + key, JSON.stringify(obj)); return true; } catch (e) { report('session.save', e); return false; } }
   };
   function go(tool) { var s = shell(); if (s && s.go) s.go(tool); else if (!inShell()) location.href = tool + '.html'; }
   function preload(tool) { var s = shell(); if (s && s.preload) s.preload(tool); }
@@ -217,6 +256,12 @@
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('no microphone'));
     return own().then(function (st) { setTimeout(unlock, 0); return st; });   // capture start can interrupt a running context
   }
+  /* a tool that must finish something before its frame goes: AT.onLeave(fn), where fn may return a promise. The shell
+     calls AT.leaving() as the sweep starts and keeps the frame until it settles */
+  var LV = [];
+  function onLeave(f) { LV.push(f); }
+  function leaving() { return Promise.all(LV.map(function (f) { try { return f(); } catch (_) {} })); }
+
   var wl = null, wantWake = false;
   function wake(on) {
     wantWake = !!on; if (!navigator.wakeLock) return;
@@ -230,7 +275,8 @@
     takes: takes, onTakes: function (f) { L.takes.push(f); },
     onPlace: function (f) { L.place.push(f); },
     place: place, placements: placements, go: go, preload: preload, session: session,
-    mic: mic, wake: wake, inShell: inShell, pauseDraw: pauseDraw
+    storage: storage, onError: function (f) { L.error.push(f); },
+    mic: mic, wake: wake, inShell: inShell, pauseDraw: pauseDraw, onLeave: onLeave, leaving: leaving
   };
 
   /* ---------------------------------------------------------------- capture worklet */

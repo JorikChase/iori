@@ -195,7 +195,7 @@ function analyseSel(user){
  if(!S.secs.length||bestOv/tot>=.85||S.whole&&S.secs.length===1){
   var r=tempoOf(Math.round(a*ER),Math.round(b*ER));if(r&&r.conf>.15){if(best&&Math.abs(Math.log(r.bpm/best.bpm))>.35)r.bpm=best.bpm;S.res={bpm:r.bpm};S.grids=[{a:a,b:b,bpm:r.bpm,tb:r.tb}];}}
  else{S.res={bpm:best.bpm};for(var i=0;i<S.secs.length;i++){var g=S.secs[i],ga=Math.max(a,g.a),gb=Math.min(b,g.b);if(gb>ga)S.grids.push({a:ga,b:gb,bpm:g.bpm,tb:g.tb});}}
- if(user&&S.res&&window.AT)AT.setTempo(S.res.bpm,'bpm');}
+ if(user&&S.res){S.res.own=1;if(window.AT)AT.setTempo(shownBpm(),'bpm');}}
 function selectWhole(user){S.whole=true;S.sel={a:0,b:S.n/ER};analyseSel(user);}
 function fullAnalysis(){sections();selectWhole(false);S.envDirty=true;}
 /* a recording replaces whatever was on the strip and is kept in the library (kind 'rec') */
@@ -276,7 +276,7 @@ function takeWheel(m){var L=Wheel.takes(S.lib,{}),cur=L.keys.indexOf(S.takeId),r
 /* the tempo digit wheel: tap the detected tempo; hundreds/tens/ones . tenths, 20.0-300.0; commit = the shared tempo.
    It hangs below the readout (its cancel x clear of it) and the readout follows the drum while it spins. */
 var DIG=['0','1','2','3','4','5','6','7','8','9'];
-function shownBpm(){return S.res?(S.wv!=null?S.wv:S.res.user!=null?S.res.user:S.res.bpm*S.mult):0;}
+function shownBpm(){return S.res?(S.wv!=null?S.wv:S.res.user!=null?S.res.user:clamp(S.res.bpm*S.mult,20,300)):0;}
 function digV(ix){return (ix[0]*1000+ix[1]*100+ix[2]*10+ix[3])/10;}
 function onReadout(p){var cx=W/2;return S.res&&p.x>cx-96&&p.x<cx+134&&p.y>10&&p.y<106;}
 function tempoWheel(){var r=box.getBoundingClientRect(),res=S.res,v=Math.max(200,Math.min(3000,Math.round(shownBpm()*10)));
@@ -284,7 +284,7 @@ function tempoWheel(){var r=box.getBoundingClientRect(),res=S.res,v=Math.max(200
   columns:[{items:['0','1','2','3'],index:Math.floor(v/1000)},{items:DIG,index:Math.floor(v/100)%10,loop:true},{items:DIG,index:Math.floor(v/10)%10,loop:true},{items:DIG,index:v%10,loop:true}],separators:['','','.'],
   fix:function(ix){var t=ix[0]*1000+ix[1]*100+ix[2]*10+ix[3],k=Math.max(200,Math.min(3000,t));return k===t?null:[Math.floor(k/1000),Math.floor(k/100)%10,Math.floor(k/10)%10,k%10];},
   onChange:function(ix){var t=digV(ix);S.wv=t>=20&&t<=300?t:null;},
-  onDone:function(ix){S.wheel=null;S.wv=null;if(!ix)return;var bpm=digV(ix);if(window.AT)AT.setTempo(bpm,'bpm');if(S.res===res&&res)res.user=bpm;}});
+  onDone:function(ix){S.wheel=null;S.wv=null;if(!ix)return;var bpm=digV(ix);if(window.AT)AT.setTempo(bpm,'bpm');if(S.res===res&&res){res.user=bpm;res.own=1;}}});
  h.kind='tempo';S.wheel=h;}
 function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 box.addEventListener('pointerdown',function(e){
@@ -315,13 +315,14 @@ function up(e){
  if(S.rp){var rp=S.rp;S.rp=null;if(e.type==='pointerup'&&rp.moved<10&&onReadout(pos(e)))tempoWheel();return;}
  if(S.srcP){S.srcP=false;var p=pos(e),sp=srcPos();if(e.type==='pointerup'&&Math.hypot(p.x-sp.x,p.y-sp.y)<30)openFile();return;}
  if(S.mp){var m=S.mp;S.mp=null;
-  if(m.k==='mult'){var m0=S.mult;if(m.open){if(m.sel>=0)S.mult=MV[m.sel];}else S.mult=1;if(S.mult!==m0&&S.res)delete S.res.user;return;}
+  if(m.k==='mult'){if(e.type!=='pointerup')return;var m0=S.mult;if(m.open){if(m.sel>=0)S.mult=MV[m.sel];}else S.mult=1;if(S.mult!==m0&&S.res){delete S.res.user;if(S.res.own&&window.AT)AT.setTempo(shownBpm(),'bpm');}return;}   /* a new multiple of the user's own selection is the shared tempo; of a file just opened it is not (L2) */
   clearTimeout(m.hold);if(m.held||e.type!=='pointerup')return;   /* a hold belongs to the take wheel (it committed on this release) */
   if(m.moved<10&&!S.rec&&S.n)selectWhole(true);
   return;}
  var d=S.drag;if(!d)return;S.drag=null;var now=e.timeStamp;
+ if(e.type!=='pointerup'&&d.moved<=8)return;
  if(d.mode==='new'&&d.moved<=8&&now-d.tm<320){
-  if(now-S.lastTap<340){S.lastTap=0;selectWhole(true);return;}S.lastTap=now;
+  if(now-S.lastTap<300){S.lastTap=0;selectWhole(true);return;}S.lastTap=now;
   for(var i=0;i<S.secs.length;i++){var g=S.secs[i];if(d.t0>=g.a&&d.t0<g.b&&S.secs.length>1){S.sel={a:g.a,b:g.b};S.whole=false;analyseSel(true);return;}}
   return;}
  if(!S.whole&&S.sel.b-S.sel.a>=S.n/ER-.3){selectWhole(true);return;}
@@ -362,7 +363,7 @@ function frame(now){
  gl.uniform4fv(U.uSec,secU);gl.uniform4fv(U.uGr,grU);gl.uniform1fv(U.uBnd,bndU);
  gl.uniform1i(U.uTex,0);gl.uniform1i(U.uEnv,1);
  gl.uniform4f(U.uP0,cx-82.5,22,15,0);gl.uniform4f(U.uP1,cx+90,67,6,5);gl.uniform4f(U.uP2,cx-37.5,H-86,5,10);
- if(S.mp&&S.mp.k==='mult'&&!S.mp.open&&performance.now()-S.mp.tw>200)S.mp.open=true;
+ if(S.mp&&S.mp.k==='mult'&&!S.mp.open&&performance.now()-S.mp.tw>220)S.mp.open=true;
  var e2=1-Math.pow(.0005,dt);S.mo=lerp(S.mo||0,S.mp&&S.mp.open?1:0,e2);if(S.mo<.004)S.mo=0;
  var mk=[];for(var k=0;k<3;k++){var sl=S.mp&&S.mp.sel===k?1:0;S['ms'+k]=lerp(S['ms'+k]||0,sl,e2);var q=mPos(k,S.mo);mk.push(q.x,q.y,(15+6*S['ms'+k])*S.mo);
   ML[k].style.left=q.x+'px';ML[k].style.top=q.y+'px';ML[k].style.visibility=S.mo>.6?'visible':'hidden';ML[k].style.fontSize=(S['ms'+k]>.5?'17px':'14px');}

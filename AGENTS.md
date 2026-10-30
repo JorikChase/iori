@@ -28,6 +28,8 @@ python3 site.py check    # must pass
 - New pages then appear automatically in catalog.html, web3d.html, sitemaps
 
 ## Deploy
+Whenever anything under `audio/` changed, run `python3 audio/build.py` after `python3 site.py all`, before pushing.
+
 Push to `main` on GitHub, then on the server (`ssh iori-vps`):
 
 ```bash

@@ -9,7 +9,7 @@ module.exports = async (lib) => {
   await fire('pointerdown', sat.x, sat.y); await page.waitForTimeout(60); await fire('pointerup', sat.x, sat.y);
   await page.waitForFunction(() => __S.mode === 'tool', null, { timeout: 8000 });
   const H = lib.VIEW.height, from = await page.evaluate(() => __S.tool);
-  await fire('pointerdown', 44, H - 44); await page.waitForTimeout(250);            // dial opens (hold > 180 ms)
+  await fire('pointerdown', 44, H - 44); await page.waitForTimeout(250);            // dial opens (hold > 220 ms)
   for (let i = 1; i <= 8; i++) { await fire('pointermove', 44 + i * 10, H - 44 - i * 2); await page.waitForTimeout(16); }  // ~80 px out: one step
   await page.waitForTimeout(250);                                                     // rest: the picked tool preloads
   const pre = await page.evaluate(() => ({ pick: __S.pick, frames: [...document.querySelectorAll('iframe')].map(f => f.getAttribute('src')) }));

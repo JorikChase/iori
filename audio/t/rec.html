@@ -163,9 +163,9 @@ var LAY=[];function lay(k,str,x,y,p,a){LAY[k]={x:x,y:y,p:p,a:a};setPanel(k,str);
 
 /* audio: the microphone is the only capture source. Nothing on this page synthesises sound —
    every take is a real recording, a retro capture, or a file opened from the device. */
-var RETRO=120,MAXT=6,HOLD=window.__HOLD||220;
+var RETRO=120,MAXT=6,HOLD=window.__HOLD||220,DRAFT=1.5;
 var ACT=['layout-columns','arrow-bar-to-down','trash'];   /* place on the editor timeline, export WAV, delete */
-var KIND={rec:'microphone',retro:'history',file:'file-music',synth:'wave-sine'};
+var KIND={rec:'microphone',retro:'history',file:'file-music',synth:'wave-sine',mix:'layout-columns'};
 var S={ctx:null,live:false,asking:false,want:false,rec:false,retro:true,micFail:false,inv:0,tr:null,flash:0,press:null,drag:null,
  ring:null,ringSr:0,tail:0,lastSpan:0,rw:0,rn:0,cur:null,curN:0,t0:0,mk:[],takes:[],lvl:-90,play:null,playTok:0,nodes:[],stream:null,mkFlash:0,
  pressA:0,open:0,n:0,tgt:null,sa:[0,0,0,0,0],ox:0,oy:0,fx:0,fy:0,lastExport:0,lastAct:null};
@@ -194,7 +194,7 @@ function capture(m){var x=m.ch[0],n=m.n,sr=S.ctx.sampleRate;
 function take(m){var i=0;
  if(!S.in0){if(m.f+m.n<=S.f0)return;i=Math.max(0,S.f0-m.f);S.in0=true;}
  var b=S.need?Math.min(m.n,i+S.need-S.curN):m.n;if(b>i){S.cur.push(m.ch[0].subarray(i,b));S.curN+=b-i;}
- if(S.need&&S.curN>=S.need)finish();}
+ if(S.need&&S.curN>=S.need)finish();else if(S.dft&&S.curN-S.dft.n>=S.ctx.sampleRate*DRAFT)draftFlush();}
 /* an event time (performance.now clock) -> the audio frame holding the sound heard at that instant.
    getOutputTimestamp maps the two clocks smoothly; how far processing runs ahead of it differs per engine, so that
    lead is measured (median of currentTime minus the mapped now, sampled at each batch); plus the input latency */
@@ -212,19 +212,26 @@ function goLive(){if(!ensure())return;if(S.ctx.state!=='running'&&S.ctx.resume)S
 try{navigator.permissions.query({name:'microphone'}).then(function(p){if(p.state==='denied')S.micFail=true;
  p.onchange=function(){if(p.state==='denied'&&!S.live)S.micFail=true;else if(p.state!=='denied'&&!S.live)S.micFail=false;};}).catch(function(){});}catch(_){}
 function startRec(t){if(!S.live||S.tail)return;AT.wake(true);S.rec=true;S.mk=[];S.t0=t||performance.now();
- S.f0=frameAt(S.t0);S.in0=false;S.need=0;S.cur=[];S.curN=0;A.pre.forEach(take);inv(1);}
+ S.f0=frameAt(S.t0);S.in0=false;S.need=0;S.cur=[];S.curN=0;S.dft={id:'d'+Date.now(),name:'rec-'+stamp(),created:Date.now(),seq:0,i:0,o:0,n:0};A.pre.forEach(take);inv(1);}
+/* the take so far goes to the draft store every DRAFT seconds; a page that dies keeps all but the last stretch */
+function draftFlush(){var f=S.dft,cur=S.cur;if(!f||!cur||S.curN<=f.n)return;var n=S.curN-f.n,d=new Float32Array(n),o=0;
+ for(;f.i<cur.length;f.i++){var b=cur[f.i];if(f.o){b=b.subarray(f.o);f.o=0;}d.set(b,o);o+=b.length;}f.n=S.curN;
+ AT.takes.draft.add(f.id,f.seq++,{sr:S.ctx.sampleRate,name:f.name,created:f.created,markers:S.mk.slice(),data:d}).catch(function(e){console.warn('draft not saved',e);});}
+function settled(){var f=S.onSaved;S.onSaved=null;if(f)f();}
 /* the take spans tap to tap, to the sample: after the stop tap capture runs on until that many samples have arrived
    (a few tens of ms); if the audio stalls, whatever arrived is kept after 400 ms */
-function stopRec(t){S.rec=false;AT.wake(false);inv(0);var sr=S.ctx.sampleRate;if(!S.cur){return;}
+function stopRec(t){S.rec=false;AT.wake(false);inv(0);var sr=S.ctx.sampleRate;if(!S.cur){settled();return;}
  var want=Math.max(Math.round(sr*.3),Math.round(Math.max(0,(t||performance.now())-S.t0)/1000*sr));S.lastSpan=want/sr;S.need=want;
  if(S.curN>=want||!S.live)return finish();S.tail=want;var tk=S.tailTok=(S.tailTok||0)+1;setTimeout(function(){if(S.tail&&tk===S.tailTok)finish();},400);}
-function finish(){var sr=S.ctx.sampleRate,cur=S.cur,n=Math.min(S.curN,S.need);S.tail=0;S.cur=null;S.need=0;if(!cur||n<sr*.3)return;
+function finish(){var sr=S.ctx.sampleRate,cur=S.cur,n=Math.min(S.curN,S.need),f=S.dft;S.tail=0;S.cur=null;S.need=0;S.dft=null;
+ function end(ok){if(f&&ok)AT.takes.draft.end(f.id).catch(function(){});settled();}
+ if(!cur||n<sr*.3){end(true);return;}
  var d=new Float32Array(n),o=0;for(var i=0;i<cur.length&&o<n;i++){var b=cur[i];if(o+b.length>n)b=b.subarray(0,n-o);d.set(b,o);o+=b.length;}
- save(d,'rec',S.mk.filter(function(m){return m<=d.length/sr;}));}
+ save(d,'rec',S.mk.filter(function(m){return m<=d.length/sr;})).then(end);}
 function retroGrab(sec){var sr=S.ctx.sampleRate,n=Math.min(S.rn,Math.round(sec*sr)),R=S.ring,L=R.length,d=new Float32Array(n);
  for(var i=0;i<n;i++)d[i]=R[(S.rw-n+i+L)%L];save(d,'retro',[]);}
 function stamp(){var d=new Date(),p=function(v){return(v<10?'0':'')+v};return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());}
-function save(d,kind,mk){AT.takes.put({name:kind+'-'+stamp(),kind:kind,sr:S.ctx.sampleRate,data:d,markers:mk}).then(function(m){DATA[m.id]=d;sync();},function(e){console.warn('take not saved',e);});}
+function save(d,kind,mk){return AT.takes.put({name:kind+'-'+stamp(),kind:kind,sr:S.ctx.sampleRate,data:d,markers:mk}).then(function(m){DATA[m.id]=d;sync();return true;},function(e){console.warn('take not saved',e);return false;});}
 
 /* the takes stack mirrors the library (newest first); samples are fetched only to play or export */
 function env48(e){var o=new Float32Array(48);if(!e||!e.length)return o;var n=e.length;
@@ -239,6 +246,11 @@ function sync(){var my=++syncN;AT.takes.list().then(function(list){if(my!==syncN
  S.takes=next;for(var k in DATA)if(!keep[k])delete DATA[k];});}
 AT.onTakes(function(){sync();});
 sync();
+AT.takes.draft.recover().catch(function(e){console.warn('draft not recovered',e);});
+/* leaving mid-take: the take stops here and is saved before the shell lets the frame go */
+AT.onLeave(function(){if(!S.rec&&!S.tail)return;return new Promise(function(res){S.onSaved=res;if(S.rec)stopRec(performance.now());});});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')draftFlush();});
+window.addEventListener('pagehide',draftFlush);
 function fetchData(t){var id=t.key;if(DATA[id])return Promise.resolve(DATA[id]);if(t.pend)return t.pend;
  t.pend=AT.takes.get(id).then(function(k){t.pend=null;if(!k)return null;DATA[id]=k.data;return k.data;},function(){t.pend=null;return null;});return t.pend;}
 function inv(to){S.tr={from:S.inv,to:to,t0:performance.now()};}
@@ -301,7 +313,7 @@ function up(e){var pr=S.press;if(!pr||(e&&e.pointerId!==pr.pid))return;S.press=n
  if(pr.moved>12||cancel)return;
  if(pr.k==='ctl'){if(S.rec)stopRec(ts(e));else if(pr.fail){/* refused: the tap was the retry */}else if(S.live)startRec(ts(e));else if(S.asking)S.want=true;}
  else if(pr.k==='file'){S.pickArm=ts(e);}
- else if(pr.k==='prop'){S.retro=!S.retro;if(!S.retro){S.rn=0;S.rw=0;}}}
+ else if(pr.k==='prop'){if(S.live||!S.retro){S.retro=!S.retro;if(!S.retro){S.rn=0;S.rw=0;}}if(S.retro&&!S.live)goLive();}}   /* a mic not yet open: this tap arms retro, with no take */
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 /* the picker opens from the click that follows the tap: the one event every engine (iOS Safari, Chrome with a mouse) treats as a gesture for input.click() */
 box.addEventListener('click',function(e){if(S.pickArm&&ts(e)-S.pickArm<1000){S.pickArm=0;AT.takes.pick();}});

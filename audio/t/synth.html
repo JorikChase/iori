@@ -68,7 +68,7 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavi
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 </style><script src="../shared.js"></script><script src="../wheel.js"></script></head><body>
-<h2 class="sr-only">Touch prototype of the finished synth seed: double-tap the seed to mute it; hold the top-right dot and drag away to rotate between Serum-style, FM and mono setups; hold a coloured dot on the left edge for that category's genes; the garden is kept between visits. Also: drag out of the centre to grow a mutating branch, rest to drop an anchor, release on an anchor to park it. Tap parked branches to switch each one on or off so several play together with the seed, drag one to re-mutate it or back onto the seed to remove it. Hold the centre for the path menu, the top-left dot for distortion and filter layers (now part of each sound and mutated by branches), the bottom-right dot for the gene spiral. Everything the synth plays is kept for four minutes: tap the dot on the right edge to place the last 30 seconds on the editor timeline, or hold it and drag down along the edge to choose from 10 seconds up to four minutes, then release to place it; release back at the start to cancel. In the gene spiral and in the menus, hold still on a number and lift without sliding to open a wheel for its exact value.</h2>
+<h2 class="sr-only">Touch prototype of the finished synth seed: double-tap the seed to mute it; hold the top-right dot and drag away to rotate between Serum-style, FM and mono setups; hold a coloured dot on the left edge for that category's genes; the garden is kept between visits. Also: drag out of the centre to grow a mutating branch, rest to drop an anchor, release on an anchor to park it. Tap parked branches to switch each one on or off so several play together with the seed, drag one to re-mutate it or back onto the seed to remove it. Hold the centre still for the path menu (a ring fills around it first; a drag at any moment before that grows a branch instead), the top-left dot for distortion and filter layers (now part of each sound and mutated by branches), the bottom-right dot for the gene spiral. Everything the synth plays is kept for four minutes: tap the dot on the right edge to place the last 30 seconds on the editor timeline, or hold it and drag down along the edge to choose from 10 seconds up to four minutes, then release to place it; release back at the start to cancel. In the gene spiral and in the menus, hold still on a number and lift without sliding to open a wheel for its exact value. Two-finger tap undoes.</h2>
 <div id="sb" style="position:relative;height:520px;background:#fff;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
   <canvas id="sc" role="img" aria-label="Synth seed prototype" style="position:absolute;inset:0;width:100%;height:100%;display:block;"></canvas>
   <div id="sl" style="position:absolute;inset:0;pointer-events:none;"></div>
@@ -85,7 +85,7 @@ var FS=[
 'uniform vec4 uNd[24];uniform vec4 uSg[4];uniform float uSgc[4];uniform vec4 uTh;uniform vec3 uF;',
 'uniform vec4 uBp[17];uniform vec3 uBc;uniform vec3 uAn[4];uniform vec4 uGn[32];',
 'uniform vec4 uPk[6];uniform vec3 uPc[6];uniform vec4 uPs[24];',
-'uniform vec4 uPn[12];uniform vec2 uPm[12];uniform sampler2D uTex,uWv;uniform vec4 uTk;uniform vec2 uTq;',
+'uniform vec4 uPn[12];uniform vec2 uPm[12];uniform sampler2D uTex,uWv;uniform vec4 uTk;uniform vec2 uTq;uniform vec3 uRg;',
 'float smin(float a,float b,float k){k=max(k,.001);float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}',
 'float b2(vec2 a){a=floor(a);return fract(a.x*.5+a.y*a.y*.75);}',
 'float seg(vec2 p,vec2 a,vec2 b,float r){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-4),0.,1.);return length(pa-ba*h)-r;}',
@@ -119,6 +119,8 @@ var FS=[
 ' for(int i=0;i<6;i++){vec4 k=uPk[i];if(k.z<.05)continue;float l=length(P-k.xy),d=l-k.z;fill=smin(fill,d,6.);acc(d,1.,uPc[i],Wt,Wc,Cc);if(k.w>1.5)ring=min(ring,abs(l-k.z-6.)-.75);}',
 ' float gd=999.;vec3 gc=vec3(0.);',
 ' for(int i=0;i<32;i++){vec4 g=uGn[i];if(g.z<.05)continue;float sel=floor(g.w/8.),ca=mod(g.w,8.);float l=length(P-g.xy);float d=l-g.z;if(d<gd){gd=d;gc=CAT(ca);}if(sel>.5)ring=min(ring,abs(l-g.z-5.)-.75);}',
+/* the seed's hold: an arc from 12 o'clock, outside the waveform's reach */
+' if(uRg.z>0.){vec2 q=P-uRg.xy;if(fract(atan(q.x,-q.y)/6.2832)<uRg.z)ring=min(ring,abs(length(q)-58.)-1.25);}',
 ' float ink=max(smoothstep(px,-px,fill),smoothstep(px,-px,ring));',
 /* capture track down the right edge: 40 dots, lit = gathered (square-root time), the green stick covers the selection */
 ' if(uTk.w>.01&&abs(P.x-uTk.x)<6.&&P.y>uTk.y-6.&&P.y<uTk.y+uTk.z+6.){float k=clamp(floor((P.y-uTk.y)/uTk.z*40.),0.,39.),fr=(k+.5)/40.,lit=step(fr,uTq.x);',
@@ -136,7 +138,7 @@ function sh(t,s){var o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(
 var pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
 var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
 var al=gl.getAttribLocation(pr,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
-var U={};['uRes','uDpr','uInv','uFlash','uWA','uBn','uGa','uFc','uPsn','uNd','uSg','uSgc','uTh','uF','uBp','uBc','uAn','uGn','uPk','uPc','uPs','uPn','uPm','uTex','uWv','uTk','uTq'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
+var U={};['uRes','uDpr','uInv','uFlash','uWA','uBn','uGa','uFc','uPsn','uNd','uSg','uSgc','uTh','uF','uBp','uBc','uAn','uGn','uPk','uPc','uPs','uPn','uPm','uTex','uWv','uTk','uTq','uRg'].forEach(function(n){U[n]=gl.getUniformLocation(pr,n)});
 function mkTex(lin){var t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);var f=lin?gl.LINEAR:gl.NEAREST;gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,f);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,f);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,lin?gl.REPEAT:gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;}
 var tex=mkTex(false),wtex=mkTex(true);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
@@ -202,9 +204,12 @@ function mixCol(u0,u){var mag=[0,0,0,0,0,0];u.forEach(function(x,i){mag[GN0[i].c
  var tc=[0,0,0],tw=0,dom=1,dm=-1;for(var k=1;k<6;k++){var w=Math.pow(mag[k],5);tw+=w;tc[0]+=w*CATC[k][0];tc[1]+=w*CATC[k][1];tc[2]+=w*CATC[k][2];if(mag[k]>dm){dm=mag[k];dom=k;}}
  return{col:tw>0?[tc[0]/tw,tc[1]/tw,tc[2]/tw]:[.5,.5,.5],dom:dom};}
 
-var DTAP=window.__DTAP||320,HOLD=window.__HOLD||260,DWELL=window.__DWELL||380,ANCH=window.__ANCH||450;
+var DTAP=window.__DTAP||320,HOLD=window.__HOLD||220,DWELL=window.__DWELL||350,ANCH=window.__ANCH||450,PLANT=window.__PLANT||.25;
+/* the seed's menu: still hold, ms. ?hold=800 in the URL (the tool's or the shell's) tries another time on the device */
+var HQ=0;try{HQ=+((location.search+parent.location.search).match(/[?&]hold=([0-9.]+)/)||[])[1]||0;}catch(_){}
+var SEEDHOLD=HQ>=80&&HQ<=5000?HQ:window.__SEEDHOLD||600;
 var S={run:false,aud:false,ctx:null,inv:0,flash:0,tr:null,press:null,open:null,path:[],fp:{x:0,y:0},br:null,sp:null,adj:null,dw:null,gen:0,nextT:0,step:0,
- seedU:null,ph:newPh(),act:null,pk:[],layersOn:true,cap:null,pulse:0,pulseSec:0,audK:null,ldots:[],setup:0,mute:false,dial:null,lastTap:0,tapT:null};
+ seedU:null,ph:newPh(),act:null,pk:[],layersOn:true,cap:null,pulse:0,pulseSec:0,audK:null,ldots:[],setup:0,mute:false,dial:null,lastTap:0,tapT:null,ptrs:{},pid:null,two:null,ring:0,undos:0};
 var SETUPS=[{ic:'stack-2'},{ic:'atom-2'},{ic:'line'}];
 S.seedU=GN0.map(function(g,i){return toU(i,g.d)});
 var GU=S.seedU;
@@ -215,6 +220,16 @@ function loadGarden(){try{var d=JSON.parse(localStorage.getItem(STORE)||'null');
  S.seedU=d.seed;if(d.ph&&d.ph.length===GN0.length)S.ph=d.ph;S.setup=d.setup||0;S.mute=!!d.mute;S.layersOn=d.layersOn!==false;
  S.pk=(d.pk||[]).filter(function(k){return k.u&&k.u.length===GN0.length&&k.an&&k.an.length>1}).map(function(k){return{x:k.x,y:k.y,u:k.u,col:k.col,on:false,an:k.an,s:0,v:0,arm:0,id:'k'+Math.random().toString(36).slice(2),dead:false}});}catch(_){}}
 loadGarden();GU=S.seedU;
+/* undo: the garden as it stood before each change, not persisted. snapU before a change; trimU after a gesture drops the
+   step when nothing changed. A parked branch's on/off is playing, not editing: it stays as it is */
+var UNDO=20,hist=[];
+function ser(){return JSON.stringify({seed:S.seedU,ph:S.ph,setup:S.setup,layersOn:S.layersOn,pk:S.pk.filter(function(k){return !k.dead}).map(function(k){return{id:k.id,x:k.x,y:k.y,u:k.u,col:k.col,an:k.an}})});}
+function snapU(){hist.push(ser());if(hist.length>UNDO)hist.shift();}
+function trimU(){if(hist.length&&hist[hist.length-1]===ser())hist.pop();}
+function doUndo(){if(!hist.length||S.wh)return false;var o=JSON.parse(hist.pop()),old={},act=S.act&&S.act.id;S.pk.forEach(function(k){old[k.id]=k;});
+ S.seedU=o.seed;S.ph=o.ph;S.setup=o.setup;S.layersOn=o.layersOn;
+ S.pk=o.pk.map(function(k){var q=old[k.id];delete old[k.id];k.s=q?q.s:0;k.v=q?q.v:0;k.arm=0;k.on=!!q&&q.on&&!q.dead;k.dead=false;return k;});
+ for(var id in old)dropStrip(id);S.act=S.pk.filter(function(k){return k.id===act})[0]||null;st(RC.id).v+=8;S.undos++;syncGU();live();saveGarden();return true;}
 function gvU(u,n){return val(GI[n],u[GI[n]])}
 function gv(n){return gvU(GU,n)}
 
@@ -362,22 +377,23 @@ function setAct(node){S.act=node;syncGU();live();}
 function commit(){var p=S.path;if(p.length<2)return;var v={};p.forEach(function(n){for(var k in n.v)v[k]=n.v[k];});if(S.adj&&S.adj.path)v[S.adj.k]=S.adj.val;var r=p[0];
  if(r===RC||r.catRoot){for(var k in v){if(GI[k]!=null&&!(S.adj&&S.adj.k===k))GU[GI[k]]=toU(GI[k],v[k]);}if(S.adj&&GI[S.adj.k]!=null)GU[GI[S.adj.k]]=S.adj.u;live();return;}
  if(r===RD&&v.ltype){var D=LT[v.ltype];setLayer(GU,v.ltype,v.lvar||0,v.amt!=null?v.amt:D.amts[1]);S.layersOn=true;live();}}
-function openAt(r){if(r.catRoot)r.kids.forEach(function(n){n.label=fgene(n.gi,GU[n.gi]);n.v={};n.v[GN0[n.gi].n]=val(n.gi,GU[n.gi]);});S.open=r;S.path=[r];if(r!==RC)r.lp=stage(r);layoutKids(r);S.tk=performance.now();}
+function openAt(r){if(r.catRoot)r.kids.forEach(function(n){n.label=fgene(n.gi,GU[n.gi]);n.v={};n.v[GN0[n.gi].n]=val(n.gi,GU[n.gi]);});snapU();S.open=r;S.path=[r];if(r!==RC)r.lp=stage(r);layoutKids(r);S.tk=performance.now();}
 function close(){var r=S.open;S.open=null;S.path=[];S.adj=null;S.dw=null;placeRoots();}
 
 /* branches with anchors, parked branches */
-function startBranch(e){if(!ensure())return;if(S.ctx.resume)S.ctx.resume();var c=C0();
- S.br={an:[{p:{x:c.x,y:c.y},u:S.seedU.slice(),ph:S.ph}],u:S.seedU.slice(),m:0,L:0,ang:0,col:[.5,.5,.5],dom:1,dw:{p:{x:c.x,y:c.y},t:ts(e)},atA:false};S.aud=true;S.press=null;}
-function branchAt(p,e){var b=S.br,A=b.an[b.an.length-1],dx=p.x-A.p.x,dy=p.y-A.p.y,L=Math.hypot(dx,dy),ang=Math.atan2(dy,dx),off=b.an.length===1?RC.r+6:6;
+function startBranch(){if(!ensure())return;if(S.ctx.resume)S.ctx.resume();var c=C0();
+ S.br={an:[{p:{x:c.x,y:c.y},u:S.seedU.slice(),ph:S.ph}],u:S.seedU.slice(),m:0,L:0,ang:0,col:[.5,.5,.5],dom:1,dw:{p:{x:c.x,y:c.y},t:performance.now()},atA:false};S.aud=true;S.press=null;}
+function branchAt(p){var b=S.br,A=b.an[b.an.length-1],dx=p.x-A.p.x,dy=p.y-A.p.y,L=Math.hypot(dx,dy),ang=Math.atan2(dy,dx),off=b.an.length===1?RC.r+6:6;
  b.m=Math.max(0,Math.min(1,(L-off)/210));b.L=L;b.ang=ang;b.u=mutate(A.u,ang,b.m,A.ph);var mc=mixCol(b.an[0].u,b.u);b.col=mc.col;b.dom=mc.dom;
- if(Math.hypot(p.x-b.dw.p.x,p.y-b.dw.p.y)>5){b.dw={p:{x:p.x,y:p.y},t:ts(e)};}
+ if(Math.hypot(p.x-b.dw.p.x,p.y-b.dw.p.y)>5){b.dw={p:{x:p.x,y:p.y},t:performance.now()};}
  if(b.atA&&L>10)b.atA=false;
  var now=performance.now();if(now-(b.lt||0)>30){b.lt=now;live();}}
-function endBranch(){var b=S.br;S.br=null;S.aud=false;
- if(b.atA&&b.an.length>1){var A=b.an[b.an.length-1],mc=mixCol(b.an[0].u,A.u);
+function endBranch(cancel){var b=S.br;S.br=null;S.aud=false;
+ if(cancel){}
+ else if(b.atA&&b.an.length>1){snapU();var A=b.an[b.an.length-1],mc=mixCol(b.an[0].u,A.u);
   S.pk.push({x:A.p.x,y:A.p.y,an:b.an.map(function(a){return{p:{x:a.p.x,y:a.p.y},u:a.u.slice(),ph:a.ph}}),u:A.u.slice(),col:mc.col,s:0,v:0,arm:0,id:'k'+(uid++),dead:false,on:false});
   if(S.pk.filter(function(k){return !k.dead}).length>6){var o=S.pk.filter(function(k){return !k.dead})[0];o.dead=true;if(S.act===o)S.act=null;}}
- else if(b.an.length>1||b.m>.08){S.seedU=b.u.slice();S.ph=newPh();S.act=null;S.gen++;st(RC.id).v+=10;}
+ else if(b.an.length>1||b.m>=PLANT){snapU();S.seedU=b.u.slice();S.ph=newPh();S.act=null;S.gen++;st(RC.id).v+=10;}
  syncGU();live();}
 function remut(k,p){var A=k.an[k.an.length-2],T=k.an[k.an.length-1],dx=p.x-A.p.x,dy=p.y-A.p.y,L=Math.hypot(dx,dy),ang=Math.atan2(dy,dx),off=k.an.length===2?RC.r+6:6,m=Math.max(0,Math.min(1,(L-off)/210));
  k.u=mutate(A.u,ang,m,A.ph);T.u=k.u;T.p={x:p.x,y:p.y};k.x=p.x;k.y=p.y;k.col=mixCol(k.an[0].u,k.u).col;syncGU();live();}
@@ -410,60 +426,68 @@ function layerSpec(t,lv,at){var D=LT[t],s;
  s=geneSpec(GI[{drive:'drvAmt',filter:'fltCut',comb:'combF'}[t]],at);s.apply=function(a,v){setLayer(a,t,lv,v);};s.ic=D.icon;return s;}
 function pathSpec(){var J=S.adj,A=anchor(),at=dp(A);if(GI[J.k]!=null)return GN0[GI[J.k]].o?null:geneSpec(GI[J.k],at);
  if(J.k==='amt'){var v={};S.path.forEach(function(n){for(var k in n.v)v[k]=n.v[k];});if(v.ltype)return layerSpec(v.ltype,v.lvar||0,at);}return null;}
-function wheelOpen(sp){if(!window.Wheel||!sp)return;var a=GU,snap=a.slice(),i0=0,bd=1e9,r=box.getBoundingClientRect();
+function wheelOpen(sp){if(!window.Wheel||!sp)return;snapU();var a=GU,snap=a.slice(),i0=0,bd=1e9,r=box.getBoundingClientRect();
  sp.vals.forEach(function(v,k){var d=Math.abs(sp.uOf(v)-a[sp.gi]);if(d<bd){bd=d;i0=k;}});
  var w=S.wh={gi:sp.gi,sp:sp.sp,ic:sp.ic,i0:i0,idx:i0,lab:sp.labs[i0],done:null};
  function put(k){for(var j=0;j<a.length;j++)a[j]=snap[j];if(k!==i0)sp.apply(a,sp.vals[k]);w.idx=k;w.lab=sp.labs[k];live();}
  w.h=Wheel.open({anchor:{x:r.left+sp.at.x,y:r.top+sp.at.y},columns:[{items:sp.labs,index:i0}],mode:'tap',light:!DK,
   onChange:function(ix){put(ix[0]);},   /* live preview while spinning */
-  onDone:function(ix){put(ix?ix[0]:i0);w.done=ix?'commit':'cancel';if(S.wh===w)S.wh=null;saveGarden();}});}
+  onDone:function(ix){put(ix?ix[0]:i0);w.done=ix?'commit':'cancel';if(S.wh===w)S.wh=null;trimU();saveGarden();}});}
 
 /* input */
+/* two fingers: a still, quick tap undoes (as in the editor). A second finger that lands during a gesture is nothing */
+function startTwo(e){var pr=S.press;if(S.two){S.two.mv=99;return;}if(S.br||S.sp||S.open||S.dial||(pr&&pr.drag)||(S.cap&&S.cap.on))return;
+ S.press=null;S.cap=null;var p0={};for(var id in S.ptrs)p0[id]={x:S.ptrs[id].x,y:S.ptrs[id].y};S.two={t0:ts(e),mv:0,p0:p0};}
 function hitPk(p){for(var i=S.pk.length-1;i>=0;i--){var k=S.pk[i];if(!k.dead&&Math.hypot(p.x-k.x,p.y-k.y)<22)return k;}return null;}
 box.addEventListener('pointerdown',function(e){ensure();   /* audio exists from the first touch: iOS resumes it on this touch's end (shared.js); the seed tap itself is resolved on a timer, outside any gesture */
 e.preventDefault();try{box.setPointerCapture(e.pointerId)}catch(_){}
- var p=pos(e);S.fp=p;
+ var p=pos(e);if(e.isPrimary){S.ptrs={};S.two=null;}S.ptrs[e.pointerId]=p;if(Object.keys(S.ptrs).length>1){startTwo(e);return;}
+ S.pid=e.pointerId;S.fp=p;
  for(var i=0;i<S.ldots.length;i++){var L=S.ldots[i];if(Math.hypot(p.x-L.x,p.y-L.y)<12){S.press={ldot:L.t,t0:ts(e),x:p.x,y:p.y,moved:0};return;}}
  var k=hitPk(p);if(k){S.press={pk:k,t0:ts(e),x:p.x,y:p.y,moved:0};return;}
  var best=null,bd=1e9;ROOTS.forEach(function(r){var q=dp(r),d=Math.hypot(p.x-q.x,p.y-q.y);if(d<Math.max(r.r+16,30)&&d<bd){bd=d;best=r;}});
- if(best)S.press={root:best,t0:ts(e),x:p.x,y:p.y,moved:0};
+ if(best)S.press={root:best,t0:ts(e),tp:performance.now(),x:p.x,y:p.y,moved:0};
  if(best===RS){S.cap={on:false,sec:0,y:p.y};if(window.AT)AT.preload('edit');}});
-box.addEventListener('pointermove',function(e){var p=pos(e);S.fp=p;
- if(S.br){branchAt(p,e);return;}
+box.addEventListener('pointermove',function(e){var p=pos(e);if(S.ptrs[e.pointerId])S.ptrs[e.pointerId]=p;
+ if(S.two){var T=S.two,q=T.p0[e.pointerId];if(q)T.mv=Math.max(T.mv,Math.hypot(p.x-q.x,p.y-q.y));return;}
+ if(e.pointerId!==S.pid)return;S.fp=p;
+ if(S.br){branchAt(p);return;}
  if(S.sp){var sp=S.sp;
   if(S.adj&&!S.adj.path){var J=S.adj,dy=J.py-p.y,g=1/(1+Math.abs(p.x-J.x0)/30);J.mv=Math.max(J.mv,Math.hypot(p.x-J.x0,p.y-J.y0));J.py=p.y;J.g=g;GU[J.i]=Math.max(0,Math.min(.9999,GU[J.i]+dy*g/240));live();return;}
-  if(!S.dw||Math.hypot(p.x-S.dw.x,p.y-S.dw.y)>4)S.dw={x:p.x,y:p.y,t:ts(e)};
+  if(!S.dw||Math.hypot(p.x-S.dw.x,p.y-S.dw.y)>4)S.dw={x:p.x,y:p.y,t:performance.now()};
   var bi=-1,bd=24;for(var i=0;i<GN0.length;i++){var q=gpos(i),d=Math.hypot(p.x-q.x,p.y-q.y);if(d<bd){bd=d;bi=i;}}sp.hv=bi;return;}
  if(S.dial){var dd=Math.hypot(p.x-RT.lp.x,p.y-RT.lp.y),stp=dd<56?0:Math.floor((dd-56)/46)+1;S.dial.idx=(S.dial.i0+stp)%SETUPS.length;return;}
  var pr=S.press;if(!pr)return;
  pr.moved=Math.max(pr.moved,Math.hypot(p.x-pr.x,p.y-pr.y));
- if(pr.pk){if(pr.moved>10){if(!pr.drag){pr.drag=true;if(!S.run||!pr.pk.on){ensure();S.audK=pr.pk;S.aud=true;}}remut(pr.pk,p);}return;}
+ if(pr.pk){if(pr.moved>10){if(!pr.drag){pr.drag=true;snapU();if(!S.run||!pr.pk.on){ensure();S.audK=pr.pk;S.aud=true;}}remut(pr.pk,p);}return;}
  if(pr.ldot)return;
  if(pr.root===RS){var cp=S.cap;if(cp){cp.y=p.y;cp.on=pr.moved>12&&p.y-pr.y>16;cp.sec=cp.on?capSel(p.y):0;}return;}
- if(!S.open){if(pr.moved>12){if(pr.root===RC&&ts(e)-pr.t0<HOLD){startBranch(e);branchAt(p,e);}else if(pr.root===RT){S.dial={i0:S.setup,idx:S.setup};S.press=null;}else S.press=null;}return;}
+ if(!S.open){if(pr.moved>12){if(pr.root===RC){startBranch();branchAt(p);}else if(pr.root===RT){S.dial={i0:S.setup,idx:S.setup};S.press=null;}else S.press=null;}return;}
  if(S.adj){var J=S.adj,dy=J.py-p.y,g=1/(1+Math.abs(p.x-J.x0)/30);J.mv=Math.max(J.mv,Math.hypot(p.x-J.x0,p.y-J.y0));J.py=p.y;J.g=g;
   if(GI[J.k]!=null){var i=GI[J.k];J.u=Math.max(0,Math.min(.9999,J.u+dy*g/240));J.val=val(i,J.u);GU[i]=J.u;live();}
   else{var rg=J.rng,u2=Math.max(0,Math.min(1,rngU(rg,J.val)+dy*g/240));J.val=rngV(rg,u2);}
   return;}
- if(!S.dw||Math.hypot(p.x-S.dw.x,p.y-S.dw.y)>4)S.dw={x:p.x,y:p.y,t:ts(e)};
+ if(!S.dw||Math.hypot(p.x-S.dw.x,p.y-S.dw.y)>4)S.dw={x:p.x,y:p.y,t:performance.now()};
  var a=anchor(),q=a.lp,d=Math.hypot(p.x-q.x,p.y-q.y);
  if(S.path.length>1){var pq=S.path[S.path.length-2].lp;if(Math.hypot(p.x-pq.x,p.y-pq.y)<34){S.path.pop();S.tk=performance.now();return;}}
  if(!a.kids.length||performance.now()-S.tk<110||d<a.rad*.72)return;
  var an=Math.atan2(p.y-q.y,p.x-q.x),bi=-1,bd=1e9;
  for(var i=0;i<a.kids.length;i++){var k=a.kids[i],ka=Math.atan2(k.lp.y-a.lp.y,k.lp.x-a.lp.x),df=Math.abs(Math.atan2(Math.sin(an-ka),Math.cos(an-ka)));if(df<bd){bd=df;bi=i;}}
  if(bi>=0&&bd<a.step*.6+.12){var kk=a.kids[bi];S.path.push(kk);layoutKids(kk);S.tk=performance.now();}});
-function up(e){if(S.br){endBranch();return;}var still=!!e&&e.type!=='pointercancel';
- if(S.sp){var J=S.adj,ws=null;if(J&&!J.path&&still&&J.mv<8&&!GN0[J.i].o){GU[J.i]=J.u0;live();ws=geneSpec(J.i,gpos(J.i),true);}S.sp=null;S.adj=null;S.dw=null;if(ws)wheelOpen(ws);return;}
+function up(e){var still=e.type!=='pointercancel';delete S.ptrs[e.pointerId];
+ if(S.two){var T=S.two;if(!still)T.mv=99;if(!Object.keys(S.ptrs).length){if(T.mv<12&&ts(e)-T.t0<450)doUndo();S.two=null;}return;}
+ if(e.pointerId!==S.pid)return;if(S.br){endBranch(!still);return;}
+ if(S.sp){var J=S.adj,ws=null;if(J&&!J.path&&still&&J.mv<8&&!GN0[J.i].o){GU[J.i]=J.u0;live();ws=geneSpec(J.i,gpos(J.i),true);}S.sp=null;S.adj=null;S.dw=null;if(J)trimU();if(ws)wheelOpen(ws);return;}
  var pr=S.press;S.press=null;
- if(pr&&pr.root===RS){var cp=S.cap;S.cap=null;if(e&&e.type==='pointercancel')return;
+ if(pr&&pr.root===RS){var cp=S.cap;S.cap=null;if(!still)return;
   if(cp&&cp.on)placeTail(capSel(cp.y));else if(pr.moved<=12)placeTail(Math.min(30,gathered()));return;}
- if(pr&&pr.ldot){if(pr.moved<=12){layerOff(GU,pr.ldot);live();}return;}
+ if(pr&&pr.ldot){if(pr.moved<=12){snapU();layerOff(GU,pr.ldot);live();}return;}
  if(pr&&pr.pk){var k=pr.pk;if(pr.drag){S.aud=false;S.audK=null;var c0=C0();if(Math.hypot(k.x-c0.x,k.y-c0.y)<RC.r+14){k.dead=true;k.on=false;if(S.act===k)setAct(null);}else live();return;}
   if(!k.on){k.on=true;setAct(k);if(!S.run)toggle(true);}else if(S.act!==k)setAct(k);else{k.on=false;setAct(null);}live();return;}
- if(S.open){var J=S.adj,ws=J&&J.path&&still&&J.mv<8?pathSpec():null;if(ws){J.val=J.val0;if(J.u0!=null)J.u=J.u0;}commit();close();if(ws)wheelOpen(ws);return;}
- if(S.dial){var dl=S.dial;S.dial=null;if(dl.idx!==S.setup){S.setup=dl.idx;st(RT.id).v+=8;}return;}
- if(pr&&pr.moved<=12){if(pr.root===RC){var tn=ts(e);if(tn-S.lastTap<DTAP&&S.tapT){clearTimeout(S.tapT);S.tapT=null;S.mute=!S.mute;st(RC.id).v+=8;live();S.lastTap=0;}else{S.lastTap=tn;S.tapT=setTimeout(function(){S.tapT=null;toggle();},DTAP-40);}}
-  else if(pr.root===RT){S.setup=(S.setup+1)%SETUPS.length;st(RT.id).v+=8;}else if(pr.root===RD){S.layersOn=!S.layersOn;live();}}}
+ if(S.open){var J=S.adj,ws=J&&J.path&&still&&J.mv<8?pathSpec():null;if(ws){J.val=J.val0;if(J.u0!=null)J.u=J.u0;}commit();close();trimU();if(ws)wheelOpen(ws);return;}
+ if(S.dial){var dl=S.dial;S.dial=null;if(dl.idx!==S.setup){snapU();S.setup=dl.idx;st(RT.id).v+=8;}return;}
+ if(pr&&pr.moved<=12){if(pr.root===RC){var tn=ts(e);if(tn-pr.t0<HOLD){if(tn-S.lastTap<DTAP&&S.tapT){clearTimeout(S.tapT);S.tapT=null;S.mute=!S.mute;st(RC.id).v+=8;live();S.lastTap=0;}else{S.lastTap=tn;S.tapT=setTimeout(function(){S.tapT=null;toggle();},DTAP-40);}}}   /* longer: a hold let go before the menu, not a tap */
+  else if(pr.root===RT){snapU();S.setup=(S.setup+1)%SETUPS.length;st(RT.id).v+=8;}else if(pr.root===RD){snapU();S.layersOn=!S.layersOn;live();}}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 
@@ -471,14 +495,15 @@ var IC={};
 function icon(key,nm){var el=IC[key];if(!el){el=document.createElement('i');el.setAttribute('aria-hidden','true');el.style.cssText='position:absolute;transform:translate(-50%,-50%);pointer-events:none;line-height:1;';IL.appendChild(el);IC[key]=el;}var cls='ti ti-'+nm;if(el.className!==cls)el.className=cls;return el;}
 var slot={},free=[2,3,4,5,6,7,8,9,10,11];
 var lastSave=0,tkA=0,last=performance.now(),fS={s:0,v:0,arm:0},gS={s:0,v:0,arm:0},lastTxt=0,anS=[0,0,0,0];
+function holdOf(r){return r===RC?SEEDHOLD:HOLD}
 function frame(nw){
  var dt=Math.min(.05,(nw-last)/1000);last=nw;syncGU();if(nw-lastSave>2000&&!S.br){lastSave=nw;saveGarden();}
- if(S.press&&S.press.root&&!S.open&&!S.br&&!S.sp&&nw-S.press.t0>HOLD&&S.press.moved<=12){var rr=S.press.root;if(rr===RC||rr===RD||rr.catRoot)openAt(rr);else if(rr===RP){S.sp={hv:-1};S.press=null;}else if(rr===RT){S.dial={i0:S.setup,idx:S.setup};S.press=null;}}
+ if(S.press&&S.press.root&&!S.open&&!S.br&&!S.sp&&nw-S.press.tp>holdOf(S.press.root)&&S.press.moved<=12){var rr=S.press.root;if(rr===RC||rr===RD||rr.catRoot)openAt(rr);else if(rr===RP){S.sp={hv:-1};S.press=null;}else if(rr===RT){S.dial={i0:S.setup,idx:S.setup};S.press=null;}}
  if(S.br){var b=S.br;if(!b.atA&&nw-b.dw.t>ANCH&&b.m>.06&&b.an.length<5){b.an.push({p:{x:S.fp.x,y:S.fp.y},u:b.u.slice(),ph:newPh()});b.atA=true;b.m=0;b.L=0;anS[b.an.length-2]=0;}}
  if(S.open&&!S.adj&&S.path.length>1&&S.dw){var A0=anchor(),k0=null;for(var kk in A0.v)if(KEYS[kk]||A0.gk)k0=kk;
   if(k0&&nw-S.dw.t>DWELL&&Math.hypot(S.fp.x-A0.lp.x,S.fp.y-A0.lp.y)<30){S.adj={path:1,k:k0,val:A0.v[k0],val0:A0.v[k0],py:S.fp.y,x0:S.fp.x,y0:S.fp.y,mv:0,g:1,rng:A0.rng};st(A0.id).v+=9;if(GI[k0]!=null){S.adj.u=S.adj.u0=A0.gk?GU[GI[k0]]:toU(GI[k0],A0.v[k0]);GU[GI[k0]]=S.adj.u;live();}}}
- if(S.sp&&!S.adj&&S.sp.hv>=0&&S.dw&&nw-S.dw.t>DWELL){S.adj={i:S.sp.hv,py:S.fp.y,x0:S.fp.x,y0:S.fp.y,mv:0,g:1,u0:GU[S.sp.hv]};}
- var hold=S.press&&S.press.root&&!S.open?Math.min(1,(nw-S.press.t0)/260):0;
+ if(S.sp&&!S.adj&&S.sp.hv>=0&&S.dw&&nw-S.dw.t>DWELL){snapU();S.adj={i:S.sp.hv,py:S.fp.y,x0:S.fp.x,y0:S.fp.y,mv:0,g:1,u0:GU[S.sp.hv]};}
+ var hold=S.press&&S.press.root&&!S.open?Math.min(1,Math.max(0,nw-S.press.tp)/holdOf(S.press.root)):0;S.ring=S.press&&S.press.root===RC?hold:0;
  var tg={},busy=S.open||S.br,spOn=!!(S.sp||(S.wh&&S.wh.sp));
  tg[RC.id]=spOn?.45:(S.open&&S.open!==RC?0:1);tg[RP.id]=busy?0:(spOn?1.3:1);tg[RD.id]=(S.open&&S.open!==RD)||S.br||spOn?0:1;tg[RS.id]=busy||spOn?0:1;
  tg[RT.id]=busy||spOn?0:1;CATR.forEach(function(r){tg[r.id]=(S.open&&S.open!==r)||S.br||spOn?0:1;});
@@ -570,12 +595,13 @@ function frame(nw){
  gl.uniform4fv(U.uPk,PK);gl.uniform3fv(U.uPc,PC);gl.uniform4fv(U.uPs,PS);gl.uniform1f(U.uPsn,psn);
  gl.uniform4fv(U.uGn,GN);gl.uniform1f(U.uGa,Math.min(1,gS.s));
  gl.uniform4fv(U.uPn,PN);gl.uniform2fv(U.uPm,PMv);gl.uniform1i(U.uTex,0);gl.uniform1i(U.uWv,1);
+ var rq=dp(RC);gl.uniform3f(U.uRg,rq.x,rq.y,S.ring>.1?S.ring:0);   /* from a tenth in, so a tap does not blink it */
  gl.uniform4f(U.uTk,tq.x,tq.y0,tq.len,tkA);gl.uniform2f(U.uTq,capU(gathered()),S.cap&&S.cap.on?capU(S.cap.sec):0);
  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__S=S;window.__SW={GN0:GN0,GI:GI,val:val,toU:toU,ladder:gLadder,fmt:function(i,v){return fgene(i,toU(i,v))},gpos:gpos,seed:function(n){return gvU(S.seedU,n)},gv:gv};window.__CAP=function(){return{gathered:gathered(),sr:CAP.sr}};/* test hooks (tools/audio-test) */
+window.__S=S;window.__SW={GN0:GN0,GI:GI,val:val,toU:toU,ladder:gLadder,fmt:function(i,v){return fgene(i,toU(i,v))},gpos:gpos,seed:function(n){return gvU(S.seedU,n)},gv:gv,HOLD:HOLD,SEEDHOLD:SEEDHOLD,DWELL:DWELL,undo:doUndo,hist:function(){return hist.length}};window.__CAP=function(){return{gathered:gathered(),sr:CAP.sr}};/* test hooks (tools/audio-test) */
 })();
 </script>
 

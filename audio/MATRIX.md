@@ -10,14 +10,16 @@ One row per function in the spec (claude.ai/artifact/Wj9UFEEyyDuqTp4AadfTQN). `*
 
 | Constant | Spec | ms |
 |---|---|---|
-| hold → radial buds | "about 220 ms" | 220 |
+| hold → the other meaning of a spot, radial buds | "about 220 ms" | 220 |
+| still hold → wheel | owner 2026-10-11 | 350 |
+| hold seed → synth menu | Stage 0, 2026-10-30; `?hold=` tries others | 600 |
 | rest → anchor (synth) | "about 450 ms" | 450 |
 | e-ink flash | inverse flash | 70 |
 | e-ink hold | hold | 70 |
 | e-ink dither | 5 steps × 56 ms | 280 |
 | double-tap window | — (unspecified; propose 300) | 300 |
 
-Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (play); dwell 380 (synth). Rows marked `T` depend on unifying these.
+Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap stays 320 and dwell is 350.
 
 ## Shell
 
@@ -50,7 +52,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 |---|---|---|---|
 | L1 | Tempo persists (localStorage) and broadcasts to open tools | H | todo |
 | L2 | Metronome writes tempo live; BPM detector writes it on selection only, not on open | H | pass (bpm-library: stop and file load leave the tempo alone; a drag selection sets it to 120) |
-| L3 | Editor grid, synth pattern and practice readout read the tempo on open | H | todo |
+| L3 | Editor grid and synth pattern read the tempo on open; the practice grid, snap and tempo readout use the song's own estimate, or none (2026-10-30) | H | pass practice only (play-tempo) |
 | L4 | Takes persist in IndexedDB (meta + 16-bit pcm) and come back after reload | H | pass (rec-record: same id and length after reload) |
 | L5 | Editor shelf: a take wheel of every take (kind icon + length) with the open-file row; commit inserts at the playhead | H | pass (edit-wheel-shelf, edit-file) |
 | L6 | Practice source: tap → take wheel (+ open file), press-drag-release in one gesture; wheel hangs below the dot | H | pass (play-wheel) |
@@ -91,7 +93,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | T6 | Mic refused → microphone-off state, tap retries (no test signal) | H | pass (tuner-real: refused → microphone-off, no fallback audio; spec changed by owner rule) |
 | T8 | Mic off: thin line, no note, no simulated pitch; tap anywhere starts listening | H | pass (tuner-real) |
 | T9 | Quiet and higher voices (owner: a girl's voice was not accepted): gate lowered from −45 to −63 dBFS, quiet input must be more periodic; level drawn on a dB scale | H | pass (tuner-voices: female 262/523 Hz and male 110 Hz at −52 dBFS all read correctly, noise gives no note; lab/level_lab.js) |
-| T7 | Lock window, flats/sharps, A4 reference, drone | — | n/a (open question) |
+| T7 | Lock window, flats/sharps, drone (A4 reference is K7) | — | n/a (open question) |
 
 ## BPM detector
 
@@ -118,7 +120,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | M6 | Marks: dots → rectangles → strips as count grows; spring in/out | H | todo |
 | M7 | Travelling drop swells each mark; hides once marks are strips | H | todo |
 | M8 | Reads and writes shared tempo live (L1, L2) | H | todo |
-| M9 | Subdivisions and accents | — | n/a |
+| M9 | Subdivisions (accents are built; beat count and accents persist, metro-session) | — | n/a |
 
 ## Synth
 
@@ -177,8 +179,8 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | R1 | Tap record: screen inverts, core turns square; tap again stops | H | pass (rec-record) |
 | R2 | Markers: tap elsewhere while recording; red ripple; count shows as M2 | H | todo |
 | R3 | Retro ring fills with the last two minutes | H | todo |
-| R4 | Hold dot + drag down: blob stretches, saved part turns green, length readout; release saves 10 s–2 min | H | pass (rec-retro: 5.035 s retro take) |
-| R5 | Retro off from properties clears the buffer | H | todo |
+| R4 | Drag down from the dot (no hold needed): blob stretches, saved part turns green, length readout; release saves 10 s–2 min | H | pass (rec-retro: 5.035 s retro take) |
+| R5 | Retro off from properties clears the buffer; with the mic closed the dot arms retro, with no take | H | pass (edit-buds, arming only) |
 | R6 | Level dots under the time, red near clipping | H | todo |
 | R7 | Takes stack as envelope strips: tap plays, swipe right exports WAV, swipe left deletes | H | pass (rec-place: hold → place/export/delete buds; swipes kept) |
 | R8 | Takes land on the shared shelf (L4) | H | pass (rec-record) |
@@ -201,7 +203,7 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | E8 | Hold clip body → cut, copy, move, delete (reverse is now the twist) | H | pass (edit-place, edit-gesture-panel) |
 | E9 | Move: picked up where held, follows across tracks, snaps to edges and beats with a green line, shows start time | H | todo |
 | E10 | Edits take effect live during playback | H | todo |
-| E11 | Hold head → mute, solo, arm (red), remove | H | todo |
+| E11 | Hold head → mute, solo, remove (arm hidden until recording into a track exists) | H | pass (edit-buds) |
 | E12 | Up to 8 tracks, 4 lanes on screen: + adds a track and scrolls it into view; sideways drag on empty timeline scrolls lanes (axis lock in the first 8 px), settles on whole lanes with the flick; dots under the heads show the visible four; a clip dragged to a screen edge scrolls the lanes; offset saved in the session | H | pass (edit-lanes, Chromium + WebKit) |
 | E13 | Properties: snap (on), push (off), takes shelf | H | todo |
 | E14 | Undo two-finger tap, 40 steps | H+D | pass (edit-place: two-finger tap undoes a move (CDP touch)) |
@@ -254,3 +256,16 @@ Today's constants (audit 2026-10-09): hold 220 (edit), 260 (ana, synth), 300 (pl
 | K8 | Practice speed 50–150 % and pitch ±12 wheels (−5 → 329.62 Hz measured), tempo readout → speed | H | pass (play-wheel) |
 | K9 | Editor clip transpose/gain wheels; synth: 24 numeric genes, still-hold-and-lift opens the wheel with live preview, list genes unchanged | H | pass (edit-wheel-values, synth-wheel, synth-wheel-menus) |
 | K10 | Wheel drag mode can sit at an anchor while spinning 1:1 from the finger (replaces per-tool workarounds) | H | pass (play-wheel, ana-wheel, bpm-wheel after the change; full run 70/70 Chromium, 15/15 WebKit) |
+
+## Stage 0 fixes (2026-10-30, see PLAN.md)
+
+| # | Function | How | Status |
+|---|---|---|---|
+| Z1 | Leaving the recorder mid-take stops and saves it; the shell keeps the frame until the save lands; drafts every 1.5 s recover a killed page | H | pass (rec-leave: hub, tool switch, reload; Chromium + WebKit); device todo |
+| Z2 | Timeline has no end: 8 empty bars follow the last clip, drags and copies go past it, it settles back after an edit, playback stops at the last clip | H | pass (edit-endless, Chromium + WebKit) |
+| Z3 | Seed: a drag always branches; menu after a 600 ms still hold, with a filling ring; `?hold=` | H+D | pass harness (synth-seed-gesture, Chromium + WebKit); timing on the iPad todo |
+| Z4 | Synth undo: two-finger tap, 20 steps; a release plants only past about 90 px; pointercancel never plants | H+D | pass Chromium (synth-undo; CDP touch is Chromium only) |
+| Z5 | Editor property buds act on release; an unchanged mix is not saved twice | H | pass (edit-buds, Chromium + WebKit) |
+| Z6 | BPM multiplier reaches the shared tempo (rule L2 kept) | H | pass (bpm-mult, Chromium + WebKit) |
+| Z7 | pointercancel is never a tap | H | pass (cancel-taps) |
+| Z8 | AT.storage(), AT.onError(): results and failures exposed, no UI yet; failed session saves are retried | H | pass (storage-report, write-errors) |

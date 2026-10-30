@@ -271,7 +271,7 @@ function goneTake(id){var i=SID[id];if(i!==undefined){var s=SL[i];s.st=2;s.data=
    transpose semi, gain dB, fades fin / fout with a curve (0 linear, 1 equal power, 2 exponential). Neighbours in a
    track never overlap except as a crossfade (the overlap IS the crossfade, made only by the seam hold gesture).
    c.d (the timeline length) is a getter, so everything that reads a clip's length follows warp and tempo. */
-var TC=[[1,.42,.1],[.1,.75,.78],[.55,.4,.95],[.95,.75,.1]],TL0=BAR*14,TL=TL0,TOP=66,BOT=60;
+var TC=[[1,.42,.1],[.1,.75,.78],[.55,.4,.95],[.95,.75,.1]],TL0=BAR*14,TL=TL0,TAIL=8,TOP=66,BOT=60;
 var nid=1;
 var FIELDS=['id','t','s','k','off','sl','rev','warp','mode','ot','ots','semi','gain','fin','fout','curve'];
 var CURVES=['cl-lin','cl-eq','cl-exp'],MODES=['beats','tones','repitch'],MODE_IC=['activity','wave-sine','gauge'];
@@ -297,7 +297,12 @@ function touching(a,b){return b.s-endOf(a)<1e-4;}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
 function reset(list){list.forEach(function(o){var c=find(o.id);if(c)Object.assign(c,o);});}
 function fitFades(c){var dd=dOf(c),t=c.fin+c.fout;if(t>dd){var k=dd/t;c.fin*=k;c.fout*=k;}}
-function fitTL(){liveC().forEach(function(c){var e=endOf(c);if(e>TL)TL=Math.ceil(e/BAR)*BAR;});}
+/* the timeline has no end: TAIL empty bars always follow the last clip. It grows as a clip is dragged past it and
+   settles back when an edit lands; a playhead parked in the empty space keeps its bar */
+function contentEnd(){var e=0;liveC().forEach(function(c){e=Math.max(e,endOf(c));});return e;}
+function tlFor(e){return Math.ceil(e/BAR+TAIL)*BAR;}
+function growTL(){var t=tlFor(contentEnd());if(t>TL)TL=t;}
+function fitTL(){TL=Math.max(TL0,tlFor(contentEnd()),Math.ceil(S.ph/BAR)*BAR);S.vt=clamp(S.vt,0,maxVt());}
 var S={vt:0,pps:30,vtv:0,play:false,ph:0,inv:1,shelf:false,shelfTakes:[],shelfKeys:[],tr:null,flash:0,press:null,move:null,scr:null,two:null,ptrs:{},
  snapOn:true,push:false,hx:0,hxT:0,hxV:0,propOpen:0,propK:0,open:0,pressA:0,armA:0,armPop:0,mvA:0,sa:[0,0,0,0,0],ck:0,fx:0,fy:0,ox:0,oy:0,acc:TC[0].slice(),tgt:[],n:0,ready:false,dropped:0,
  sel:null,pk:0,panelHidden:false,propWas:0,lastSelC:null,wheel:null,readout:'',undos:0,renders:0,flips:0,sy:-1,lastDown:null};
@@ -321,7 +326,7 @@ function playPos(){return{x:W/2,y:H-30}}function propPos(){return{x:W-34,y:H-30}
 var PB=[[-27,-64],[-53,-37],[-60,0],[10,-74]];
 function propBud(i){var p=propPos();return{x:p.x+PB[i][0],y:p.y+PB[i][1]}}
 function headPos(t){return{x:tx(t),y:30}}
-var ACT={clip:['scissors','copy','arrows-move','trash'],head:['volume-off','headphones','player-record','trash']};
+var ACT={clip:['scissors','copy','arrows-move','trash'],head:['volume-off','headphones','trash']};
 function pos(e){var r=box.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 function lerp(a,b,t){return a+(b-a)*t}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -368,10 +373,10 @@ function layout(ox,oy,n){var best=null,bs=-1e9,sp=38*Math.PI/180,rad=86;
   var ad=Math.abs(th-1.5*Math.PI);if(ad>Math.PI)ad=2*Math.PI-ad;var sc=Math.min(mm,10)*100-ad*57.3;if(sc>bs){bs=sc;best=pts;}}
  return best;}
 /* no-overlap placement (inserts, copies, moves): extents of clips, so a crossfaded pair counts as one occupied span */
-function free(t,s0,s1,id){if(s0<-1e-6||s1>TL+1e-6)return false;for(var i=0;i<D.clips.length;i++){var c=D.clips[i];if(c.t===t&&c.id!==id&&!c.dying&&s0<endOf(c)-1e-4&&s1>c.s+1e-4)return false;}return true;}
+function free(t,s0,s1,id){if(s0<-1e-6)return false;for(var i=0;i<D.clips.length;i++){var c=D.clips[i];if(c.t===t&&c.id!==id&&!c.dying&&s0<endOf(c)-1e-4&&s1>c.s+1e-4)return false;}return true;}
 function placeGap(t,s,d,id){var cs=D.clips.filter(function(c){return c.t===t&&c.id!==id&&!c.dying}).sort(function(a,b){return a.s-b.s});
  var prev=0,best=null;function con(g0,g1){if(g1-g0>=d-1e-4){var cd=clamp(s,g0,g1-d);if(best===null||Math.abs(cd-s)<Math.abs(best-s))best=cd;}}
- for(var i=0;i<cs.length;i++){con(prev,cs[i].s);prev=Math.max(prev,endOf(cs[i]));}con(prev,TL);return best;}
+ for(var i=0;i<cs.length;i++){con(prev,cs[i].s);prev=Math.max(prev,endOf(cs[i]));}con(prev,1e9);return best;}
 
 /* edit operations (dt in timeline seconds, + = later) — the mock-up's (audio/clip-lab.html) */
 function minD(){return Math.max(.05,12/S.pps)}
@@ -512,7 +517,7 @@ function lateClips(i){if(!S.play||!AU.ctx)return;var now=AU.ctx.currentTime+.04,
 function replay(key){if(!S.play||!AU.ctx)return;var now=AU.ctx.currentTime+.03,Tn=AU.T0+(now-AU.t0);liveC().forEach(function(c){if(needsJob(c)&&matKey(c)===key)playClip(c,Tn,now);});}
 function curT(){return S.play?AU.T0+(AU.ctx.currentTime-AU.t0):S.ph}
 function setPlay(on){if(on&&!ensure())return;if(on&&AU.ctx.resume)AU.ctx.resume();if(!on){S.ph=clamp(curT(),0,TL);}S.play=on;S.tr={from:1,to:1,t0:performance.now()};if(on)schedule(S.ph);else stopNodes();}
-function edited(){kick();if(S.play)schedule(curT());}
+function edited(){fitTL();kick();if(S.play)schedule(curT());}
 /* the offline replica of the play graph (save / export and the test hook): every clip's baked buffer at its start, the
    0.8 track gain, mono at sr, from 0 to the end of the last clip */
 function whenReady(cs){return new Promise(function(res){(function chk(){var ok=cs.every(function(c){if(!needsJob(c))return true;var m=material(c);return !m||m.ready;});if(ok)res();else setTimeout(chk,25);})();});}
@@ -565,11 +570,10 @@ if(window.AT)AT.onTakes(function(ev){if(ev&&ev.op==='del')goneTake(ev.id);});
 /* a take goes in at the playhead (snapped to the beat) in the first track with room, else a new track, else the nearest gap */
 function insertTake(m){if(!m||!(m.dur>0))return false;
  var d=m.dur,at=clamp(S.play?curT():S.ph,0,1e9);if(S.snapOn)at=Math.round(at/BEAT)*BEAT;
- var tl0=TL;if(at+d>TL)TL=Math.ceil((at+d)/BAR)*BAR;
  var tt=-1,add=false;for(var t=0;t<nT();t++){if(free(t,at,at+d)){tt=t;break;}}
  if(tt<0&&nT()<MAXT){tt=nT();add=true;}
  if(tt<0){for(var t=0;t<nT();t++){var r=placeGap(t,at,d);if(r!==null){tt=t;at=r;break;}}}
- if(tt<0){TL=tl0;return false;}snapU();if(add)D.tracks.push({m:false,s:false,a:false});slot(m);var c=mk(tt,at,d,m.id,0);D.clips.push(c);showLane(tt);S.ck=30;mixGains();edited();return true;}
+ if(tt<0)return false;snapU();if(add)D.tracks.push({m:false,s:false,a:false});slot(m);var c=mk(tt,at,d,m.id,0);D.clips.push(c);showLane(tt);S.ck=30;mixGains();edited();return true;}
 function doUndo(){if(!undo.length)return false;var o=JSON.parse(undo.pop()),old={};D.clips.forEach(function(c){old[c.id]=c;});
  var cs=o.clips.filter(function(c){return !gone(c.k);}).map(function(x){var c=unpack(x),p=old[x.id];if(p){c.cur=p.cur;c.selA=p.selA;}return c;});
  D={clips:cs,tracks:o.tracks};if(S.sel&&!find(S.sel))deselect();S.hxT=clamp(Math.round(S.hxT),0,maxHx());S.ck=22;S.undos++;mixGains();edited();return true;}
@@ -600,6 +604,7 @@ function mixClips(){return D.clips.filter(function(c){return !c.dying&&c.t<nT()&
 function mixSig(cs){return JSON.stringify([BPM].concat(cs.map(function(c){return[c.k,c.t,c.s,c.off,c.sl,c.rev?1:0,c.warp?1:0,c.mode,c.ot,c.semi,c.gain,c.fin,c.fout,c.curve];})));}
 function mixTap(){var m=S.mix;if(m.st==='busy'||!window.AT)return;var cs=mixClips();if(!cs.length)return;var sig=mixSig(cs);
  if(m.st==='ready'&&m.sig===sig){m.arm=performance.now();return;}
+ if(m.file&&m.sig===sig){m.st='ready';m.t=performance.now();S.mxV=3;return;}   /* unchanged since the last save: no second take */
  renderMix(cs,sig);}
 function stamp(d){function z(n){return(n<10?'0':'')+n;}return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());}
 function renderMix(cs,sig){var m=S.mix,tok=++m.tok;m.st='busy';m.p=0;m.file=m.blob=null;m.err=null;
@@ -629,10 +634,10 @@ function snapshot(T){return{v:3,tl:TL,ph:T,vt:+S.vt.toFixed(3),pps:+S.pps.toFixe
  tracks:D.tracks.map(function(t){return{m:t.m?1:0,s:t.s?1:0,a:t.a?1:0};}),
  clips:D.clips.filter(function(c){return !c.dying;}).map(function(c){return{k:c.k,t:c.t,s:c.s,d:dOf(c),off:c.off,rev:c.rev?1:0,sl:c.sl,warp:c.warp?1:0,mode:c.mode,ot:c.ot,ots:c.ots,semi:c.semi,gain:c.gain,fin:c.fin,fout:c.fout,curve:c.curve};})};}
 var lastSaved='';
-function save(flush){if(!S.ready||!window.AT)return;var o=snapshot(flush&&S.play?clamp(curT(),0,TL):S.ph),j=JSON.stringify(o);if(j===lastSaved)return;lastSaved=j;AT.session.save('edit',o);}
+function save(flush){if(!S.ready||!window.AT)return;var o=snapshot(flush&&S.play?clamp(curT(),0,TL):S.ph),j=JSON.stringify(o);if(j===lastSaved)return;if(AT.session.save('edit',o))lastSaved=j;}   /* a failed save is tried again */
 var SES=window.AT?AT.session.load('edit'):null;
 (function(o){if(!o||typeof o!=='object')return;var tr=(o.tracks||[]).slice(0,MAXT);if(tr.length)D=blank(0);
- tr.forEach(function(t){D.tracks.push({m:!!t.m,s:!!t.s,a:!!t.a});});
+ tr.forEach(function(t){D.tracks.push({m:!!t.m,s:!!t.s,a:false});});
  if(o.tl>0)TL=Math.max(TL0,+o.tl);if(o.pps>=8&&o.pps<=160)S.pps=+o.pps;S.ph=Math.max(0,+o.ph||0);S.vt=Math.max(0,+o.vt||0);
  if(o.snap!=null)S.snapOn=!!o.snap;if(o.push!=null)S.push=!!o.push;S.hx=S.hxT=clamp(+o.hx||0,0,maxHx());})(SES);
 function num(v,lo,hi,dv){v=+v;return v>=lo&&v<=hi?v:dv;}
@@ -644,7 +649,7 @@ function restore(a){learn(a);var cs=SES&&SES.clips||[],n=0,fix=[];
   if(!k.warp&&k.ots==='shared')k.ot=BPM;if(k.warp&&Math.abs(dOf(k)-c.d)>1e-6)fix.push([k,+c.d]);fitFades(k);
   D.clips.push(k);if(endOf(k)>TL)TL=Math.ceil(endOf(k)/BAR)*BAR;});
  fix.forEach(function(f){var k=f[0],nx=nextOf(k);if(nx)fitTail(k,Math.max(0,k.s+f[1]-nx.s));});   /* the shared tempo moved while away: warped clips follow, as live */
- S.dropped=n;S.vt=clamp(S.vt,0,maxVt());S.ph=clamp(S.ph,0,TL);S.ready=true;if(D.clips.length)S.ck=20;consume();save();}
+ S.dropped=n;fitTL();S.ph=clamp(S.ph,0,TL);S.ready=true;if(D.clips.length)S.ck=20;consume();save();}
 if(window.AT)AT.takes.list().then(restore,function(){restore([]);});else S.ready=true;
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')consume();else save(true);});
 window.addEventListener('pagehide',function(){save(true);});
@@ -726,8 +731,7 @@ box.addEventListener('pointerdown',function(e){e.preventDefault();try{box.setPoi
  if(ids.length>=2){startTwo(e);return;}
  if(S.two)return;   /* the last finger of a two-finger gesture */
  if(S.move)return;S.mix.arm=0;var h=hit(p);if(!h)return;
- if(h.kind==='pbud'){if(h.i===0)S.snapOn=!S.snapOn;else if(h.i===1)S.push=!S.push;else if(h.i===2)openShelf();else mixTap();return;}
- if(h.kind==='prop'){if(S.sel)S.panelHidden=!S.panelHidden;else S.propOpen=!S.propOpen;return;}
+ if(h.kind==='pbud'||h.kind==='prop'){S.press={kind:'bud',h:h,ox:p.x,oy:p.y,t0:ts(e),moved:0,pid:e.pointerId,phase:'bud'};return;}   /* buds act on release, as everywhere */
  if(h.kind==='none')return;
  if(h.kind==='pi'){S.press={kind:'pi',h:h,ox:p.x,oy:p.y,t0:ts(e),moved:0,phase:'pending',pid:e.pointerId};S.acc=TC[(find(S.sel)||{t:0}).t%4].slice();S.ox=p.x;S.oy=p.y;S.fx=p.x;S.fy=p.y;return;}
  var pw=S.propOpen;if(S.propOpen){S.propOpen=false;}
@@ -747,7 +751,7 @@ box.addEventListener('pointermove',function(e){var p=pos(e);if(S.ptrs[e.pointerI
   sc.ly=p.y;sc.lx=p.x;sc.lt=now;return;}
  var pr=S.press;if(!pr||pr.pid!==e.pointerId)return;
  pr.moved=Math.max(pr.moved,Math.hypot(p.x-pr.ox,p.y-pr.oy));S.fx=p.x;S.fy=p.y;
- if(pr.kind==='play')return;
+ if(pr.kind==='play'||pr.kind==='bud')return;
  if(pr.opened){var dx2=p.x-pr.ox,dy2=p.y-pr.oy,d=Math.hypot(dx2,dy2);pr.sel=-1;
   if(d>36){var a=Math.atan2(dy2,dx2),bd=.45;for(var i=0;i<S.n;i++){var ta=Math.atan2(S.tgt[i][1]-pr.oy,S.tgt[i][0]-pr.ox),df=Math.abs(a-ta);if(df>Math.PI)df=2*Math.PI-df;if(df<bd){bd=df;pr.sel=i;}}}
   if(pr.kind==='clip'&&pr.sel===2&&d>70)startMove(pr,p);return;}
@@ -758,6 +762,8 @@ box.addEventListener('pointermove',function(e){var p=pos(e);if(S.ptrs[e.pointerI
   else if(pr.moved>10){S.press=null;if(pr.kind==='clip'){var lock=(Math.abs(p.x-pr.ox)>Math.abs(p.y-pr.oy)&&maxHx()>0)?2:1;S.scr={pid:e.pointerId,ly:p.y,y0:pr.oy,lx:p.x,x0:pr.ox,hx0:S.hx,v:0,hv:0,lt:ts(e),moved:20,ax:lock};}return;}
  }else if(pr.phase==='armed'&&Math.abs(p.y-pr.oy)>2){if(pr.kind==='edge')beginFade(pr);else beginXfade(pr,p.y-pr.oy);}
  if(pr.phase!=='pending'&&pr.phase!=='armed')update(pr,p);});
+function budTap(h){if(h.kind==='prop'){if(S.sel)S.panelHidden=!S.panelHidden;else S.propOpen=!S.propOpen;return;}
+ if(h.i===0)S.snapOn=!S.snapOn;else if(h.i===1)S.push=!S.push;else if(h.i===2)openShelf();else mixTap();}
 function up(e){var p=pos(e);delete S.ptrs[e.pointerId];
  if(S.two){upTwo(e);return;}
  if(S.move&&S.move.pid===e.pointerId){var c=find(S.move.id);if(c&&c.t===S.move.ot&&Math.abs(c.s-S.move.os)<1e-4)undo.pop();else{S.ck=16;edited();}S.move=null;return;}
@@ -768,6 +774,7 @@ function up(e){var p=pos(e);delete S.ptrs[e.pointerId];
  var pr=S.press;if(!pr||pr.pid!==e.pointerId)return;S.press=null;S.readout='';
  if(e.type==='pointercancel'&&pr.orig){reset(pr.orig);undo.pop();return;}
  if(pr.kind==='play'){if(pr.moved<12)setPlay(!S.play);return;}
+ if(pr.kind==='bud'){if(pr.moved<12&&e.type!=='pointercancel')budTap(pr.h);return;}
  if(pr.opened){if(pr.sel>=0)act(pr,pr.sel);return;}
  switch(pr.phase){
   case 'pending':case 'armed':if(e.type!=='pointercancel')tapPress(pr,p);break;
@@ -817,7 +824,7 @@ function frame(now){
  S.flash=0;if(S.tr){var el=now-S.tr.t0;if(el<70){S.flash=1;S.inv=S.tr.from;}else if(el<140){S.inv=S.tr.from;}else{var kq=Math.min(1,(Math.floor((el-140)/56)+1)/5);S.inv=S.tr.from+(S.tr.to-S.tr.from)*kq;if(kq>=1)S.tr=null;}}
  var dark=(S.inv>.5)!==(S.flash>.5);
  /* transport and follow */
- var T=curT();if(S.play&&T>=TL){setPlay(false);S.ph=0;T=0;}
+ var T=curT(),tEnd=contentEnd();if(S.play&&T>=(tEnd>AU.T0?tEnd:TL)){setPlay(false);S.ph=0;T=0;}growTL();
  if(S.play&&!S.scr&&!mv&&!two){var py=yOf(T);if(py>H-BOT-60||py<TOP)S.vt=clamp(lerp(S.vt,T-viewSec()*.25,1-Math.pow(.02,dt)),0,maxVt());}
  if(!S.scr&&!mv&&!two){S.vt+=S.vtv*dt;S.vtv*=Math.pow(.04,dt);if(S.vt<0||S.vt>maxVt()){S.vt=clamp(S.vt,0,maxVt());S.vtv=0;}}
  /* lanes: spring S.hx toward S.hxT unless a finger is dragging them */
@@ -836,7 +843,7 @@ function frame(now){
    cands.forEach(function(v){var d1=v-s,d2=v-(s+md);if(Math.abs(d1)<bdl){bdl=Math.abs(d1);bd2=d1;}if(Math.abs(d2)<bdl){bdl=Math.abs(d2);bd2=d2;}});s+=bd2;}
   s=Math.max(0,s);var home=stay||(tt===mv.ot&&Math.abs(s-mv.os)<1e-6);   /* its own place (with any crossfades it had) is always allowed */
   if(S.push){mv.base.forEach(function(b){var o=find(b[0]);if(o&&o.id!==c.id)o.s=b[1];});
-   if(home){c.s=mv.os;c.t=mv.ot;}else{c.s=Math.min(s,TL-md);c.t=tt;pushLane(c);}}
+   if(home){c.s=mv.os;c.t=mv.ot;}else{c.s=s;c.t=tt;pushLane(c);}}
   else if(home){c.s=mv.os;c.t=mv.ot;}
   else{var r=placeGap(tt,s,md,c.id);if(r===null){tt=c.t;r=placeGap(tt,s,md,c.id);}if(r!==null){c.s=r;c.t=tt;}}
   mv.sy=-1;var chk=S.snapOn?edges.concat([Math.round(c.s/BEAT)*BEAT,Math.round((c.s+md)/BEAT)*BEAT]):edges;

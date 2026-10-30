@@ -15,7 +15,7 @@ module.exports = async (lib) => {
   const wstate = () => page.evaluate(() => { const w = Wheel.active(); return w && Object.assign(w.state(), { light: !!w.o.light, items: w.cols[0].items.length, lab: __S.wh && __S.wh.lab }); });
   const glide = async (a, b, steps, ms = 25) => { for (let k = 1; k <= steps; k++) { await page.mouse.move(a.x + (b.x - a.x) * k / steps, a.y + (b.y - a.y) * k / steps); await page.waitForTimeout(ms); } };
   // walk a path menu: press the root, wait for it to open, then step onto the kid matching each predicate (one move each)
-  const walk = async (root, picks) => { await page.mouse.move(root.x, root.y); await page.mouse.down(); await page.waitForTimeout(450);
+  const walk = async (root, picks) => { await page.mouse.move(root.x, root.y); await page.mouse.down(); await page.waitForTimeout(750);
     for (const pick of picks) { const k = await page.evaluate((src) => { const f = eval(src), a = __S.path[__S.path.length - 1], k = a && a.kids.find(f); return k && { x: k.lp.x, y: k.lp.y }; }, pick);
       if (!k) return false; await page.mouse.move(k.x, k.y); await page.waitForTimeout(260); }
     await page.waitForTimeout(500); return page.evaluate(() => ({ path: __S.path.length, adj: __S.adj && { k: __S.adj.k, path: !!__S.adj.path } })); };

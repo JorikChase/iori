@@ -163,10 +163,24 @@ function setSong(sg){S.song=sg;S.pos=0;S.loop=null;S.sel=null;S.pass=0;
  var oh=sg.sr/100,on=Math.max(0,Math.floor(sg.len/oh)),O=new Float32Array(on),d0=sg.ch[0],pe=0;
  for(var k=0;k<on;k++){var s2=0,i0=Math.floor(k*oh),i1=Math.floor((k+1)*oh);for(var i=i0;i<i1;i++){var v=d0[i];s2+=v*v;}var e=Math.log(1+100*Math.sqrt(s2/Math.max(1,i1-i0)));O[k]=Math.max(0,e-pe);pe=e;}
  sg.on=O;beatGrid();}
-/* beat grid = the shared tempo (set by the BPM detector's selection, the metronome...), phase-aligned to the take:
-   the offset whose beat comb collects the most onset strength (cheap: two passes over 100 Hz frames) */
-function beatGrid(){var sg=S.song;if(!sg)return;var bpm=window.AT?AT.tempo():0;sg.bpm=bpm;sg.b0=0;if(!bpm||!sg.on||sg.on.length<2)return;
- var P=6000/bpm,O=sg.on,best=-1,b0=0;
+/* the take's own tempo: the BPM detector's estimate (bpm.html tempoOf) over this take's onsets, frame 0 left out (it is the
+   jump from silence). Autocorrelation, a comb over 50-215 BPM leaning to 118, then how much of the signal repeats at that
+   beat. Under TCONF there is no steady pulse: bpm 0, and with it no grid, no snap, no tempo wheel, and -- in the readout */
+var TCONF=.25;
+function songTempo(sg){var O=sg.on,N=O.length-1;sg.conf=0;if(N<200)return 0;var xs=new Float32Array(N),acf=new Float32Array(460),mean=0,en=0;
+ for(var i=0;i<N;i++)mean+=O[i+1];mean/=N;
+ for(var i=0;i<N;i++){var a=0,ws=0;for(var k=-2;k<=2;k++){var j=i+k;if(j<0||j>=N)continue;var w=3-Math.abs(k);a+=(O[j+1]-mean)*w;ws+=w;}xs[i]=a/ws;en+=xs[i]*xs[i];}
+ if(en<.02)return 0;var maxL=Math.min(452,Math.floor(N*.66));
+ for(var l=1;l<=maxL+2&&l<457;l++){var s=0;for(var n=l;n<N;n++)s+=xs[n]*xs[n-l];acf[l]=s/(N-l);}
+ function A(l){if(l>=maxL)return 0;var i=Math.floor(l),f=l-i;return acf[i]*(1-f)+acf[i+1]*f;}
+ function comb(L){var w=[1,.9,.7,.5],s=0,ws=0;for(var k=1;k<=4;k++){if(k*L>=maxL)break;s+=w[k-1]*A(k*L);ws+=w[k-1];}return ws?s/ws:-1e9;}
+ var best=-1e9,b0=0;for(var bp=50;bp<=215;bp+=.5){var sc=comb(6000/bp),lb=Math.log(bp/118)/Math.LN2;sc*=Math.exp(-.5*lb*lb/.7);if(sc>best){best=sc;b0=bp;}}
+ if(!b0)return 0;var bb=b0,bs=-1e9;for(var bp=b0-1.2;bp<=b0+1.2;bp+=.05){var c=comb(6000/bp);if(c>bs){bs=c;bb=bp;}}
+ var L0=6000/bb;sg.conf=clampN((A(L0)+A(2*L0))/(2*en/N)*1.5,0,1);return sg.conf<TCONF?0:Math.round(bb*10)/10;}
+/* beat grid = the take's own tempo, phase-aligned to the take: the offset whose beat comb collects the most onset
+   strength (cheap: two passes over 100 Hz frames) */
+function beatGrid(){var sg=S.song;if(!sg)return;sg.bpm=songTempo(sg);sg.b0=0;if(!sg.bpm)return;
+ var P=6000/sg.bpm,O=sg.on,best=-1,b0=0;
  for(var ph=0;ph<P;ph+=.5){var s=0;for(var x=ph;x<O.length;x+=P){var i=Math.round(x);s+=(O[i]||0)+.6*((O[i-1]||0)+(O[i+1]||0));}if(s>best){best=s;b0=ph;}}
  sg.b0=b0/100;}
 function clampN(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -183,7 +197,7 @@ function loadTake(id,rest){var my=++loadSeq;S.loading=1;
 var lastSave='';
 function saveSession(){if(!window.AT||!S.src)return;
  var o={id:S.src.id,pos:Math.round(songT()*100)/100,speed:S.speed,semi:S.semi,loop:S.loop?{a:S.loop.a,b:S.loop.b}:null,trainer:S.trainer},j=JSON.stringify(o);
- if(j!==lastSave){lastSave=j;AT.session.save('play',o);}}
+ if(j!==lastSave&&AT.session.save('play',o))lastSave=j;}
 function refreshLib(){return window.AT?AT.takes.list().then(function(a){S.lib=a||[];return S.lib;}):Promise.resolve([]);}
 
 /* engine: an AudioWorklet (../worklet-player.js) on the audio thread — grains of the take, speed moves the read head,
@@ -252,7 +266,7 @@ function valWheel(k){if(!window.Wheel||!S.song)return;var sp0=S.speed,se0=S.semi
 function toggle(){if(!S.song||!ensure())return;if(S.ctx.resume)S.ctx.resume();S.play=!S.play;sync(false);S.tr={from:S.inv,to:S.play?1:0,t0:performance.now()};saveSession();}
 
 /* layout */
-var PPS=42,HOLD=window.__HOLD||300;
+var PPS=42,HOLD=window.__HOLD||220;
 function head(){return Math.round(H*.4)}
 function TOP(){return 96}function BOT(){return H-84}
 function ctlPos(){return{x:W/2,y:H-46}}
@@ -277,7 +291,8 @@ box.addEventListener('pointermove',function(e){var pr=S.press;if(!pr)return;var 
   if(pr.mode==='loop'){var a=snapT(pr.ta),b2=snapT(timeAt(p.y));S.sel={a:Math.max(0,Math.min(a,b2)),b:Math.min(S.song.len/S.song.sr,Math.max(a,b2))};}
   else if(!pr.mode&&pr.moved>8&&ts(e)-pr.t0<HOLD)pr.mode='scrub';
   if(pr.mode==='scrub'){seek(Math.max(0,Math.min(S.song.len-1,pr.pos0-pr.dy/PPS*S.song.sr)));}}});
-function up(){var pr=S.press;S.press=null;if(!pr)return;
+function up(e){var pr=S.press;S.press=null;if(!pr)return;
+ if(e.type!=='pointerup'){if(pr.mode==='loop')S.sel=null;return;}
  if(pr.k==='wave'&&S.song){
   if(pr.mode==='loop'){var s=S.sel;S.sel=null;if(s&&s.b-s.a>=.25){S.loop=s;S.pass=0;seek(s.a*S.song.sr);}return;}
   if(pr.mode==='scrub')return;

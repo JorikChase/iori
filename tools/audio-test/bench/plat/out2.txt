@@ -1,0 +1,3 @@
+webkit console Refused to display 'http://localhost:8831/kid2.html?nohdr' in a frame because of Cross-Origin-Embedder-Policy.
+webkit {"noCoepChild_access":"THROW SecurityError","goodChild_coi":true,"child_addModule":"ok","level_before":0.25,"level_after_iframe_removed_refsHeld":0.25,"ctxState":"running","reconnect_after_remove":"ok","params":"ok","ifrCtxState0":"suspended","ifrCtxAfterRemove":"suspended","ab1h":172800000,"oac1h":172800000}
+chromium {"noCoepChild_access":"THROW SecurityError","goodChild_coi":true,"child_addModule":"ok","level_before":0.25,"level_after_iframe_removed_refsHeld":0.25,"ctxState":"running","reconnect_after_remove":"ok","params":"ok","ifrCtxState0":"running","ifrCtxAfterRemove":"closed","ab1h":172800000,"oac1h":172800000}

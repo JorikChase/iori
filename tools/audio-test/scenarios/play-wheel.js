@@ -57,10 +57,10 @@ module.exports = async (lib) => {
     lib: __S.lib.length, wheel: !!__S.wheel, bpm: __S.song ? __S.song.bpm : 0, eng: __S.eng }));
 
   const page = await lib.open(br, 'play', { wait: 600 }); page.on('filechooser', c => choosers.push(c));
-  /* seed: six takes, oldest first, each a quiet sine of its own length */
+  /* seed: six takes, oldest first, each a pulsing sine of its own length */
   const KINDS = ['rec', 'retro', 'file', 'synth', 'mix', 'rec'], DUR = [3, 5, 7, 9, 11, 65];
   await page.evaluate(async ([KINDS, DUR]) => { AT.session.save('play', null); AT.setTempo(120);
-    for (let i = 0; i < DUR.length; i++) { const sr = 8000, x = new Float32Array(sr * DUR[i]); for (let j = 0; j < x.length; j++) x[j] = Math.sin(j / 7) * .2;
+    for (let i = 0; i < DUR.length; i++) { const sr = 8000, x = new Float32Array(sr * DUR[i]); for (let j = 0; j < x.length; j++) x[j] = Math.sin(j / 7) * (j % 4000 < 240 ? .6 : .08);   // a pulse at 120 BPM: tempo wheels need a take with a tempo
       await AT.takes.put({ name: 'seed' + i, kind: KINDS[i], sr, data: x }); await new Promise(r => setTimeout(r, 15)); } }, [KINDS, DUR]);
   await page.reload({ waitUntil: 'load' }); await until(page, () => __S.lib.length === 6);
   const metas = await page.evaluate(() => AT.takes.list().then(a => a.map(m => ({ id: m.id, kind: m.kind, dur: Math.round(m.dur), name: m.name }))));   // newest first
@@ -128,6 +128,7 @@ module.exports = async (lib) => {
   check('cancel', live.speed === 0.84 && s.speed === 0.87 && s.rep && s.rep.speed === 0.87 && !s.wheel, { whileSpinning: live.speed, afterCancel: s.speed, engine: s.rep });
 
   /* 8: tempo at speed -> 100 BPM */
+  await page.evaluate(() => { __S.song.bpm = 120; });   // sine440.wav has no pulse, so no tempo of its own (play-tempo covers the estimate)
   await page.mouse.click(W / 2 + 40, 80); await page.waitForTimeout(400);
   const w8 = await wh(page); const idx8 = await spin(page, 4); await band(page); await page.waitForTimeout(300);
   s = await st(page);

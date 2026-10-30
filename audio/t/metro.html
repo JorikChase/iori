@@ -148,6 +148,10 @@ var NMAX=300;
 var S={bpm:(window.AT?AT.tempo():120),N:4,st:new Uint8Array(512),pop:new Float32Array(512),run:false,runA:0,ctx:null,anchor:0,nextIdx:0,pos:0,lastBeat:-1,
  drag:null,taps:[],inv:1,tapA:0,logN:Math.log(4),tr:null,flash:0};
 for(var i=0;i<512;i++)S.st[i]=1;S.st[0]=2;
+/* beat count and accents survive leaving the tool; the tempo is the shared one */
+(function(){var o=window.AT?AT.session.load('metro'):null;if(!o||!(o.n>=2&&o.n<=NMAX))return;S.N=Math.round(o.n);S.logN=Math.log(S.N);
+ if(Array.isArray(o.st))o.st.forEach(function(v,i){if(i<NMAX&&(v===0||v===1||v===2))S.st[i]=v;});})();
+function saveBeats(){if(window.AT)AT.session.save('metro',{n:S.N,st:Array.prototype.slice.call(S.st,0,NMAX)});}
 function C(){return{x:W/2,y:226}}var R=128;
 function btn(){return{x:W/2,y:H-34}}
 function lerp(a,b,t){return a+(b-a)*t}
@@ -169,7 +173,7 @@ function toggle(){
  S.run=true;S.anchor=now()+.06;S.nextIdx=0;S.lastBeat=-1;sched();}
 function tapTempo(){S.tapA=1;var t=performance.now()/1000;S.taps=S.taps.filter(function(x){return t-x<2.5});S.taps.push(t);
  if(S.taps.length>=2){var iv=[];for(var i=1;i<S.taps.length;i++)iv.push(S.taps[i]-S.taps[i-1]);iv.sort(function(a,b){return a-b});setBpm(Math.round(60/iv[iv.length>>1]*10)/10);}}
-function cycle(i){S.st[i]=S.st[i]===1?2:(S.st[i]===2?0:1);S.pop[i]=.6;}
+function cycle(i){S.st[i]=S.st[i]===1?2:(S.st[i]===2?0:1);S.pop[i]=.6;saveBeats();}
 /* tempo digit wheel: hundreds/tens/ones . tenths, 20.0-300.0, opened by a still hold in the centre (a tap there is tap
    tempo, a drag is tempo/beat count); tap mode, it stays open after the finger lifts; commit sets the exact tempo */
 var DIG=['0','1','2','3','4','5','6','7','8','9'],HOLD=350;
@@ -190,8 +194,8 @@ box.addEventListener('pointermove',function(e){var d=S.drag;if(!d)return;var p=p
  var a=Math.atan2(p.x-c.x,-(p.y-c.y)),da=a-d.prev;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;d.prev=a;
  if(d.moved>8){var rr2=Math.hypot(p.x-c.x,p.y-c.y),g=rr2<R+40?1:(rr2<R+90?.2:.04);d.gear=g;setBpm(S.bpm+da/(2*Math.PI)*120*g);}});
 function up(e){var d=S.drag;S.drag=null;if(!d)return;clearTimeout(d.hold);
- if(d.mode==='ctr'){if(!d.cnt)tapTempo();else if(d.bx)setBpm(Math.round(S.bpm));return;}
- if(d.moved<=8){var c=C(),p=pos(e),rr=Math.hypot(p.x-c.x,p.y-c.y);
+ if(d.mode==='ctr'){if(!d.cnt){if(e.type==='pointerup')tapTempo();}else{if(d.bx)setBpm(Math.round(S.bpm));saveBeats();}return;}
+ if(d.moved<=8){if(e.type!=='pointerup')return;var c=C(),p=pos(e),rr=Math.hypot(p.x-c.x,p.y-c.y);
   if(Math.abs(rr-R)<40){var a=Math.atan2(p.x-c.x,-(p.y-c.y));if(a<0)a+=2*Math.PI;var fa=a/(2*Math.PI),bi=0,bd=9;for(var k=0;k<S.N;k++){var pk=(PS[k]-.5*Math.min(1,MC[0]))/SS,dk=Math.abs(((fa-pk+1.5)%1)-.5);if(dk<bd){bd=dk;bi=k;}}cycle(bi);}}
  else if(d.gear===1){setBpm(Math.round(S.bpm));}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);

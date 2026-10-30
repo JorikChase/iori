@@ -52,7 +52,7 @@ import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
 import { evalShade, shadeTarget } from './core/shade.js';
-import { hash } from './core/formula.js';
+import { hash, spawnRadius } from './core/formula.js';
 import { paramTangents } from './gpu/pack.js';
 import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
@@ -736,7 +736,7 @@ function layField(pts, scr) {
 // another species. Drag the count: the iterations. G or Esc folds it back.
 let gv = null;   // { P, t0, from, hover, selected, press, drag, param, picker, thumbs, drift }
 const GRAPH_UNFOLD_MS = 260, GRAPH_HOLD_MS = 300;
-const PICK_OPS = ['translate', 'scale', 'rotate', 'rotate4', '+c', 'fold.plane', 'fold.box', 'fold.sphere', 'abs', 'sort', 'sort4',
+const PICK_OPS = ['translate', 'scale', 'rotate', 'rotate4', '+c', 'fold.plane', 'fold.box', 'fold.cell', 'fold.mandalay', 'fold.sphere', 'wrap', 'seed.slab', 'seed.sphere', 'seed.pillar', 'kleinian', 'abs', 'sort', 'sort4',
   'bulb', 'bulb4', 'power', 'quat', 'invert', 'twist', 'spherical', 'swirl', 'sin', 'horseshoe', 'polar'];
 const PICK_FIELDS = ['mix', 'mix.axis', 'mix.sphere', 'mix.noise', 'mix.tissue', 'mix.trap', 'mix.depth', 'mix.lyap', 'mix.blend'];
 
@@ -3688,7 +3688,7 @@ function pushView(b, clear, moving, drifting) {
     frame: state.frame, steps: moving ? L.pushSteps : L.pushSteps * 2,
     c, eps: (focus * 2 * th) / ih * 0.7, slab: L.pushSlab,
     hue: L.hue, iridescence: L.iridescence, spread: L.spread, maxRadius: moving ? L.splatMax * 0.6 : L.splatMax,
-    key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: 1,
+    key: L.key, fog: L.fog / Math.max(clear * 8, 1e-4), burn: 24, seed: state.formula.seed, spawn: spawnRadius(state.formula),
     decay: state.n === 0 ? 0 : drifting ? 0.85 : 1,
     gain: L.pushGain, exposure: L.pushExposure,
   };

@@ -7,7 +7,7 @@
 //              editing, drift, walks, and every frame of a video
 // test/parity.html diffs both against the interpreter.
 
-import { normalize, pullSafe, mixKids } from '../core/formula.js';
+import { normalize, pullSafe, mixKids, seedOf } from '../core/formula.js';
 import { isMix } from '../core/ops.js';
 import { slotIndex } from '../core/notation.js';
 import { rotationXYZ, rotation4, lift4, normalize as nrm } from '../core/vec.js';
@@ -36,6 +36,10 @@ function opCodeBuffered(o, oi) {
       if (r2 < m2) { let k = f2 / m2; p = p * k; t.dr = t.dr * k; }
       else if (r2 < f2) { let k = f2 / r2; p = p * k; t.dr = t.dr * k; br = 1u; }
       else { br = 2u; } }`;
+    case 'fold.cell': return cellCode(`vec4f(${a}.yzw, ${b}.x)`);
+    case 'wrap': return wrapCode(`vec4f(${a}.yzw, ${b}.x)`);
+    case 'kleinian': return kleinCode(a, b);
+    case 'fold.mandalay': return mandalayCode(`${a}.y`, `${a}.z`);
     case 'bulb': return bulbCode(`${a}.y`);
     case 'bulb4': return `{ let n = ${a}.y; let r = length(p); if (r > 0.0) { t.dr = t.dr * n * pow(r, n - 1.0); p = bulb4(p, n); } else { t.dr = 0.0; } }`;
     case 'power': return powerCode(`${a}.y`);
@@ -44,6 +48,23 @@ function opCodeBuffered(o, oi) {
     default: return opCode(o, oi);
   }
 }
+
+const cellCode = (l) => `{ let l = ${l};
+      br = select(0u, 1u, p.x > l.x) + select(0u, 2u, p.x < -l.x) + select(0u, 3u, p.y > l.y) + select(0u, 6u, p.y < -l.y) + select(0u, 9u, p.z > l.z) + select(0u, 18u, p.z < -l.z) + select(0u, 27u, p.w > l.w) + select(0u, 54u, p.w < -l.w);
+      p = clamp(p, -l, l) * 2.0 - p; }`;
+const wrapCode = (l) => `{ let l = ${l}; let m = select(vec4f(0.0), floor(p / (2.0 * max(l, vec4f(1e-30))) + 0.5), l > vec4f(0.0));
+      br = select(0u, 1u, m.x != 0.0) + select(0u, 2u, m.y != 0.0) + select(0u, 4u, m.z != 0.0) + select(0u, 8u, m.w != 0.0);
+      p = p - 2.0 * l * m; }`;
+const kleinCode = (a, b) => `{ let A = ${a}; let bz = ${b}.x; var x = p.xyz;
+      x.x = x.x - 2.0 * A.w * floor((x.x + A.z / A.y * x.y + A.w) / (2.0 * A.w));
+      x.z = x.z - 2.0 * bz * floor((x.z + bz) / (2.0 * bz));
+      x.y = x.y - A.y * floor(x.y / A.y);
+      br = 2u;
+      if (x.y >= kleinLine(x.x, A)) { x = vec3f(-A.z, A.y, 0.0) - x; br = 1u; }
+      let k = 1.0 / dot(x, x); t.dr = t.dr * k;
+      p = vec4f(-A.z + k * x.x, A.y - k * x.y, -k * x.z, p.w); }`;
+const mandalayCode = (fo, g) => `{ let o = mandalay(p, ${fo}, ${g});
+      br = select(0u, 1u, o.x != p.x) + select(0u, 2u, o.y != p.y) + select(0u, 4u, o.z != p.z); p = o; }`;
 
 const bulbCode = (n) => `{ let n = ${n}; let r = length(p.xyz);
       if (r > 0.0) {
@@ -79,8 +100,18 @@ function opCode(o, oi) {
       return `br = select(0u, 1u, p.x > ${l}) + select(0u, 2u, p.x < -${l}) + select(0u, 3u, p.y > ${l}) + select(0u, 6u, p.y < -${l}) + select(0u, 9u, p.z > ${l}) + select(0u, 18u, p.z < -${l}) + select(0u, 27u, p.w > ${l}) + select(0u, 54u, p.w < -${l});
       p = clamp(p, vec4f(-${l}), vec4f(${l})) * 2.0 - p;`;
     }
+    case 'fold.cell': return cellCode(V([P.lx, P.ly, P.lz, P.lw]));
+    case 'wrap': return wrapCode(V([P.lx, P.ly, P.lz, P.lw]));
+    case 'kleinian': return kleinCode(V([0, P.a, P.b, P.bx]), V([P.bz, 0]));
+    case 'fold.mandalay': return mandalayCode(L(P.fo), L(P.g));
+    // the estimate reads a seed at the orbit's end; in the orbit it is nothing
+    case 'seed.slab': case 'seed.sphere': case 'seed.pillar': return '';
     case 'fold.sphere': {
       const m2 = P.rmin * P.rmin, f2 = P.rfix * P.rfix;
+      // (a constant division by zero would not compile)
+      if (m2 === 0) return `{ let r2 = dot(p, p);
+      if (r2 < ${L(f2)}) { let k = ${L(f2)} / r2; p = p * k; t.dr = t.dr * k; br = 1u; }
+      else { br = 2u; } }`;
       return `{ let r2 = dot(p, p);
       if (r2 < ${L(m2)}) { let k = ${L(f2)} / ${L(m2)}; p = p * k; t.dr = t.dr * k; }
       else if (r2 < ${L(f2)}) { let k = ${L(f2)} / r2; p = p * k; t.dr = t.dr * k; br = 1u; }
@@ -187,7 +218,8 @@ ${perBinds.map(([x, k]) => `        { let B = ops[${R(k)}]; let C = ops[${R(k)} 
     }
 `;
   // after the orbit: the registers where the shading and the readers of drvReg find them
-  const end = `  if (DRIVE_ON && drvAny) {\n${lines(N, (i) => `    drvReg[${i}] = dn${i};`)}\n  }\n`;
+  // (and, for a seed read at the orbit's end through rec(), the bindings' values)
+  const end = `  if (DRIVE_ON && drvAny) {\n${lines(N, (i) => `    drvReg[${i}] = dn${i};`)}\n${seedOf(f) ? lines(B, (k) => `    drvV[${k}] = dv${k};`) : ''}\n  }\n`;
   // a driven op's row k: packed + Σ (value − own) · d row / dθ over its bindings, then the overrides
   const byOp = new Map();
   binds.forEach((x, k) => { const oi = opIndex.get(x.t.o); byOp.set(oi, [...(byOp.get(oi) || []), k]); });

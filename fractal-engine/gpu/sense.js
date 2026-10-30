@@ -52,7 +52,7 @@ fn sense(@builtin(global_invocation_id) gid: vec3u) {
   let p4 = embed(p);
   let d = iterateDual(p4, cFor(p4), (head.flags & FLAG_JULIA) == 0u);
   let g = length(deGrad(d));
-  outp[o] = vec4f(t, deTan(d.t, d.q, d.qdr), d.lyap, max(g, 1e-12));
+  outp[o] = vec4f(t, deParamTan(d), d.lyap, max(g, 1e-12));
 }
 `;
 

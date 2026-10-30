@@ -26,7 +26,7 @@ struct Head {
   sched: array<vec4u, 16>,
   c: vec4f,        // the fixed constant when FLAG_JULIA is set
   slice: mat4x4f,  // the world's place in 4-D: x₄ = slice · (x, y, z, sliceW.x)
-  sliceW: vec4f,   // x the slice's offset along w, y the drivers' clock (s), z the step factor 1 / L
+  sliceW: vec4f,   // x the slice's offset along w, y the drivers' clock (s), z the step factor 1 / L, w the seed op
 };
 
 struct Trace {
@@ -47,6 +47,7 @@ const FLAG_UNSAFE = 2u;
 const FLAG_JULIA = 4u;
 const FLAG_SHADE = 8u;
 const FLAG_DRIVE = 16u;
+const FLAG_SEED = 32u;
 // The drivers compile only into the variant that needs them (withDrive below): with DRIVE_ON false every
 // hook folds away and an undriven formula's shaders are the size they were before formula v2.
 const DRIVE_ON = false;
@@ -118,6 +119,19 @@ fn bulb4(p: vec4f, n: f32) -> vec4f {
   let f = atan2(p.w, p.z) * n;
   let R = pow(r, n);
   return R * vec4f(cos(t1), sin(t1) * cos(t2), sin(t1) * sin(t2) * cos(f), sin(t1) * sin(t2) * sin(f));
+}
+
+// the Kleinian op's separation line (core/ops.js kleinLine) and the Mandalay fold's axis (mdAxis)
+fn kleinLine(x: f32, a: vec4f) -> f32 { return a.y * (0.5 + 0.2 * sin(sign(a.z) * PI * (x + a.z * 0.5) / a.w)); }
+fn mdAxis(x: f32, u: f32, v: f32, fo: f32, g: f32) -> f32 {
+  let y = max(u, v);
+  let t1 = x - 2.0 * fo;
+  return min(min(max(abs(t1 + fo) - fo, y - 4.0 * fo), max(t1 - g, y)), x);
+}
+fn mandalay(p: vec4f, fo: f32, g: f32) -> vec4f {
+  let q = abs(p);
+  let sg = select(vec3f(1.0), vec3f(-1.0), p.xyz < vec3f(0.0));
+  return vec4f(sg * vec3f(mdAxis(q.x, q.y, q.z, fo, g), mdAxis(q.y, q.x, q.z, fo, g), mdAxis(q.z, q.x, q.y, fo, g)), p.w);
 }
 
 struct Step { p: vec4f, k: f32, branch: u32, ok: bool };
@@ -224,6 +238,32 @@ fn opFwd(oi: u32, p: vec4f, c: vec4f) -> Step {
     case 21u: {
       s.k = 2.0 * length(p);
       s.p = vec4f(p.x * p.x - dot(p.yzw, p.yzw), 2.0 * p.x * p.yzw);
+    }
+    case 23u: {
+      let l = vec4f(a.yzw, b.x);
+      s.branch = select(0u, 1u, p.x > l.x) + select(0u, 2u, p.x < -l.x) + select(0u, 3u, p.y > l.y) + select(0u, 6u, p.y < -l.y)
+               + select(0u, 9u, p.z > l.z) + select(0u, 18u, p.z < -l.z) + select(0u, 27u, p.w > l.w) + select(0u, 54u, p.w < -l.w);
+      s.p = clamp(p, -l, l) * 2.0 - p;
+    }
+    case 24u: {
+      let l = vec4f(a.yzw, b.x);
+      let m = select(vec4f(0.0), floor(p / (2.0 * max(l, vec4f(1e-30))) + 0.5), l > vec4f(0.0));
+      s.branch = select(0u, 1u, m.x != 0.0) + select(0u, 2u, m.y != 0.0) + select(0u, 4u, m.z != 0.0) + select(0u, 8u, m.w != 0.0);
+      s.p = p - 2.0 * l * m;
+    }
+    case 25u: {
+      var x = p.xyz;
+      x.x = x.x - 2.0 * a.w * floor((x.x + a.z / a.y * x.y + a.w) / (2.0 * a.w));
+      x.z = x.z - 2.0 * b.x * floor((x.z + b.x) / (2.0 * b.x));
+      x.y = x.y - a.y * floor(x.y / a.y);
+      s.branch = 2u;
+      if (x.y >= kleinLine(x.x, a)) { x = vec3f(-a.z, a.y, 0.0) - x; s.branch = 1u; }
+      s.k = 1.0 / dot(x, x);
+      s.p = vec4f(-a.z + s.k * x.x, a.y - s.k * x.y, -s.k * x.z, p.w);
+    }
+    case 26u: {
+      s.p = mandalay(p, a.y, a.z);
+      s.branch = select(0u, 1u, s.p.x != p.x) + select(0u, 2u, s.p.y != p.y) + select(0u, 4u, s.p.z != p.z);
     }
     default: {}
   }
@@ -532,9 +572,68 @@ fn iterate(p0: vec4f, c: vec4f) -> Trace {
   return t;
 }
 
+// The seed (core/ops.js): the shape's distance v at the orbit's end, its gradient g, the divisor dr, the
+// offset t and whether g's dr counts (the Kleinian's divisor stops at 2). Read through rec(), so the lens,
+// the sensing nudge (tanEps) and a driven value all reach it.
+struct Seed { v: f32, g: vec4f, dr: f32, t: f32, on: f32 };
+fn seedRead(q: vec4f, dr: f32) -> Seed {
+  let oi = u32(head.sliceW.w);
+  let a = rec(oi, 0u);
+  var s: Seed;
+  s.dr = dr; s.on = 1.0;
+  switch u32(a.x) {
+    case 25u: {
+      let up = a.y - q.y;
+      let low = q.y <= up;
+      let y = select(up, q.y, low);
+      s.v = min(y, 0.3);
+      if (y < 0.3) { s.g = vec4f(0.0, select(-1.0, 1.0, low), 0.0, 0.0); }
+      if (dr < 2.0) { s.dr = 2.0; s.on = 0.0; }
+    }
+    case 27u: {
+      let b = rec(oi, 1u);
+      let n = vec4f(a.yzw, 0.0);
+      let e = dot(q, n) - b.x;
+      let sg = select(1.0, -1.0, e < 0.0);
+      s.v = b.z * sg * e; s.g = b.z * sg * n; s.t = b.y;
+    }
+    case 28u: {
+      let l = length(q.xyz);
+      let e = l - a.y;
+      let sg = select(1.0, -1.0, e < 0.0);
+      s.v = a.z * sg * e;
+      if (l > 0.0) { s.g = vec4f(a.z * sg * q.xyz / l, 0.0); }
+    }
+    case 29u: {
+      let rho = length(q.xy);
+      let l = length(q.xyz);
+      let d = rho - a.y;
+      let e = select(0.0, abs(rho * q.z) / l, l > 0.0);
+      if (d >= e) {
+        s.v = a.z * d;
+        if (rho > 0.0) { s.g = vec4f(a.z * q.xy / rho, 0.0, 0.0); }
+      } else {
+        s.v = a.z * e;
+        if (rho > 0.0) {
+          let sg = select(1.0, -1.0, q.z < 0.0);
+          let l3 = l * l * l;
+          s.g = vec4f(a.z * sg * q.z * q.z * q.z * q.xy / (rho * l3), a.z * sg * rho * rho * rho / l3, 0.0);
+        }
+      }
+    }
+    default: {}
+  }
+  return s;
+}
+fn seedDe(q: vec4f, dr: f32) -> f32 { let s = seedRead(q, dr); return abs(s.v / s.dr - s.t); }
+
 fn deOf(t: Trace) -> f32 {
   let r = length(t.p);
   if (!(t.dr > 0.0) || r == 0.0) { return 0.0; }
+  if ((head.flags & FLAG_SEED) != 0u) {
+    if (t.escaped) { return r / abs(t.dr); }
+    return seedDe(t.p, t.dr);
+  }
   if ((head.flags & FLAG_POWER) != 0u) {
     if (t.escaped && r > 1.0) { return 0.5 * log(r) * r / t.dr; }
     return 0.0;
@@ -1261,8 +1360,8 @@ fn opInv(oi: u32, q: vec4f, c: vec4f) -> Step {
       let k0 = f2 / m2;
       var cand = array<vec4f, 3>(q, q, q);
       var m = 0u;
-      if (r / k0 < a.y) { cand[m] = q / k0; m++; }
-      if (r > a.z && r <= f2 / a.y) { cand[m] = q * (f2 / (r * r)); m++; }
+      if (a.y > 0.0 && r / k0 < a.y) { cand[m] = q / k0; m++; }
+      if (r > a.z && (a.y <= 0.0 || r <= f2 / a.y)) { cand[m] = q * (f2 / (r * r)); m++; }
       if (r >= a.z) { cand[m] = q; m++; }
       if (m == 0u) { s.ok = false; } else { let k = pick(m); s.p = cand[k]; s.branch = k; }
     }
@@ -1425,6 +1524,74 @@ fn opInv(oi: u32, q: vec4f, c: vec4f) -> Step {
       s.p = select(root, -root, s.branch == 1u);
     }
     case 11u: { let r2 = dot(q, q); if (r2 > 0.0) { s.p = q / r2; } }
+    case 23u: {
+      let l = vec4f(a.yzw, b.x);
+      var o = vec4f(0.0);
+      for (var i = 0u; i < 4u; i++) {
+        let y = q[i];
+        var cand = array<f32, 3>(0.0, 0.0, 0.0);
+        var m = 0u;
+        if (abs(y) <= l[i]) { cand[m] = y; m++; }
+        if (y < l[i]) { cand[m] = 2.0 * l[i] - y; m++; }
+        if (y > -l[i]) { cand[m] = -2.0 * l[i] - y; m++; }
+        let k = pick(m);
+        o[i] = cand[k];
+        s.branch = s.branch * 3u + k;
+      }
+      s.p = o;
+    }
+    case 24u: {
+      let l = vec4f(a.yzw, b.x);
+      var o = q;
+      for (var i = 0u; i < 4u; i++) {
+        if (!(l[i] > 0.0)) { continue; }
+        if (q[i] < -l[i] || q[i] > l[i]) { s.ok = false; }
+        let k = pick(3u);
+        o[i] = q[i] + 2.0 * l[i] * (f32(k) - 1.0);
+        s.branch = s.branch * 3u + k;
+      }
+      s.p = o;
+    }
+    case 25u: {
+      // the generator undone, then the half turn: whichever lands on its own side of the line
+      let u = vec3f(-a.z - q.x, q.y - a.y, q.z);
+      let r2 = dot(u, u);
+      if (r2 == 0.0) { s.ok = false; }
+      else {
+        let z = -u / r2;
+        let h = vec3f(-a.z, a.y, 0.0) - z;
+        let c0 = z.y < kleinLine(z.x, a);
+        let c1 = h.y >= kleinLine(h.x, a);
+        if (!c0 && !c1) { s.ok = false; }
+        else {
+          var v = z;
+          if (c0 && c1) { s.branch = pick(2u); v = select(z, h, s.branch == 1u); } else if (c1) { v = h; }
+          // outside the wrapped cell nothing maps here; inside it, every lattice translate does
+          if (v.y < 0.0 || v.y >= a.y || abs(v.z) > b.x || abs(v.x + a.z / a.y * v.y) > a.w) { s.ok = false; }
+          else { s.p = vec4f(v.x + 2.0 * a.w * (f32(pick(3u)) - 1.0), v.y, v.z + 2.0 * b.x * (f32(pick(3u)) - 1.0), q.w); }
+        }
+      }
+    }
+    case 26u: {
+      // the branches where each axis keeps its own coordinate, at random, each checked (core/ops.js)
+      let fo = a.y;
+      let g = a.z;
+      s.ok = false;
+      for (var t = 0u; t < 16u && !s.ok; t++) {
+        var c3 = vec3f(0.0);
+        for (var i = 0u; i < 3u; i++) {
+          let sg = select(1.0, -1.0, pick(2u) == 1u);
+          let u = q[i] * sg;
+          let k = pick(4u);
+          var x = u;
+          if (k == 1u) { x = u + 2.0 * fo; } else if (k == 2u) { x = u + 2.0 * fo + g; } else if (k == 3u) { x = -u; }
+          c3[i] = sg * x;
+        }
+        let cand = vec4f(c3, q.w);
+        if (length(mandalay(cand, fo, g) - q) <= 3e-6 * (1.0 + length(q))) { s.p = cand; s.ok = true; }
+      }
+    }
+    case 27u, 28u, 29u: {}
     case 12u: {
       let ang = -a.y * q.z;
       s.p = vec4f(cos(ang) * q.x - sin(ang) * q.y, sin(ang) * q.x + cos(ang) * q.y, q.z, q.w);
@@ -1617,6 +1784,25 @@ fn drvLoad(oi: u32, col: u32) -> bool {
   if (!(drvAny && !drvFreeze && col < 4u && drvIs(oi))) { return false; }
   for (var k = 0u; k < 5u; k++) { drvE[k] = drvRecD(oi, k, col); }
   return true;
+}
+
+// mdAxis along a tangent: the branch of each min and max the point chose
+fn mdTan(x: f32, u: f32, v: f32, dx: f32, du: f32, dv: f32, fo: f32, g: f32, dfo: f32, dg: f32) -> f32 {
+  let y = max(u, v);
+  let dy = select(dv, du, u >= v);
+  let t1 = x - 2.0 * fo;
+  let dt1 = dx - 2.0 * dfo;
+  let s = t1 + fo;
+  let v0 = abs(s) - fo;
+  let dv0 = select(-1.0, 1.0, s >= 0.0) * (dt1 + dfo) - dfo;
+  let v2 = y - 4.0 * fo;
+  var a = v0; var da = dv0;
+  if (v2 > a) { a = v2; da = dy - 4.0 * dfo; }
+  var b = t1 - g; var db = dt1 - dg;
+  if (y > b) { b = y; db = dy; }
+  if (b < a) { a = b; da = db; }
+  if (x < a) { return dx; }
+  return da;
 }
 
 fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan {
@@ -1825,6 +2011,40 @@ fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan
         let r = sqrt(r2);
         o.v = vec4f((p.y * v.x - p.x * v.y) / r2 / PI, dot(p.xy, v.xy) / r, v.z, v.w);
       }
+    }
+    case 23u: {
+      let l = vec4f(a.yzw, b.x);
+      let dl = vec4f(da.yzw, db.x);
+      for (var i = 0u; i < 4u; i++) {
+        if (p[i] > l[i]) { o.v[i] = 2.0 * dl[i] - v[i]; }
+        else if (p[i] < -l[i]) { o.v[i] = -2.0 * dl[i] - v[i]; }
+      }
+    }
+    case 24u: {
+      let l = vec4f(a.yzw, b.x);
+      let m = select(vec4f(0.0), floor(p / (2.0 * max(l, vec4f(1e-30))) + 0.5), l > vec4f(0.0));
+      o.v = v - 2.0 * vec4f(da.yzw, db.x) * m;
+    }
+    case 25u: {
+      // the cell's translations move with their own parameters; the branch stays what the point chose
+      let A = a.y; let B = a.z; let bx = a.w; let bz = b.x;
+      let mx = floor((p.x + B / A * p.y + bx) / (2.0 * bx));
+      let mz = floor((p.z + bz) / (2.0 * bz));
+      let my = floor(p.y / A);
+      var x = vec3f(p.x - 2.0 * bx * mx, p.y - A * my, p.z - 2.0 * bz * mz);
+      var w = vec3f(v.x - 2.0 * da.w * mx, v.y - da.y * my, v.z - 2.0 * db.x * mz);
+      if (x.y >= kleinLine(x.x, a)) { x = vec3f(-B, A, 0.0) - x; w = vec3f(-da.z, da.y, 0.0) - w; }
+      let k = 1.0 / dot(x, x);
+      o.dk = -2.0 * dot(x, w) * k * k;
+      o.v = vec4f(-da.z + o.dk * x.x + k * w.x, da.y - o.dk * x.y - k * w.y, -o.dk * x.z - k * w.z, v.w);
+    }
+    case 26u: {
+      let q = abs(p);
+      let sg = select(vec3f(1.0), vec3f(-1.0), p.xyz < vec3f(0.0));
+      let t = v.xyz * sg;
+      o.v = vec4f(sg * vec3f(mdTan(q.x, q.y, q.z, t.x, t.y, t.z, a.y, a.z, da.y, da.z),
+                             mdTan(q.y, q.x, q.z, t.y, t.x, t.z, a.y, a.z, da.y, da.z),
+                             mdTan(q.z, q.x, q.y, t.z, t.x, t.y, a.y, a.z, da.y, da.z)), v.w);
     }
     default: {}
   }
@@ -2057,6 +2277,11 @@ fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
 fn deTan(t: Trace, dp: vec4f, ddr: f32) -> f32 {
   let r = length(t.p);
   if (!(t.dr > 0.0) || r == 0.0) { return 0.0; }
+  if ((head.flags & FLAG_SEED) != 0u && !t.escaped) {
+    let s = seedRead(t.p, t.dr);
+    let e = s.v / s.dr - s.t;
+    return select(1.0, -1.0, e < 0.0) * (dot(s.g, dp) / s.dr - s.on * s.v * ddr / (s.dr * s.dr));
+  }
   let dr_ = dot(t.p, dp) / r;
   if ((head.flags & FLAG_POWER) != 0u) {
     if (t.escaped && r > 1.0) {
@@ -2067,9 +2292,41 @@ fn deTan(t: Trace, dp: vec4f, ddr: f32) -> f32 {
   return dr_ / t.dr - r * ddr / (t.dr * t.dr);
 }
 
+// a driven seed's record moves along dual column col: the estimate moves with it (the same central
+// difference, through the record's motion)
+fn seedDriven(t: Trace, col: u32) -> f32 {
+  if (!(DRIVE_ON && drvAny && !drvFreeze) || (head.flags & FLAG_SEED) == 0u || t.escaped) { return 0.0; }
+  let oi = u32(head.sliceW.w);
+  if (!drvIs(oi)) { return 0.0; }
+  let sOi = tanOi;
+  let sRec = tanRec;
+  tanOi = oi;
+  for (var k = 0u; k < 5u; k++) { tanRec[k] = drvRecD(oi, k, col); }
+  let e = recStep(oi);
+  tanEps = e; let a = seedDe(t.p, t.dr);
+  tanEps = -e; let b = seedDe(t.p, t.dr);
+  tanEps = 0.0; tanOi = sOi; tanRec = sRec;
+  return (a - b) / (2.0 * e);
+}
+
+// The estimate's derivative in the selected parameter: along the orbit (d.q, d.qdr), plus, when the
+// parameter is the seed's own, the seed's record nudged both ways (central difference through tanRec: the
+// record is linear in everything but a normal, which the sensing does not offer)
+fn deParamTan(d: Dual) -> f32 {
+  var o = deTan(d.t, d.q, d.qdr) + seedDriven(d.t, 3u);
+  if ((head.flags & FLAG_SEED) != 0u && !d.t.escaped && tanOi == u32(head.sliceW.w)) {
+    let e = recStep(tanOi);
+    tanEps = e; let a = seedDe(d.t.p, d.t.dr);
+    tanEps = -e; let b = seedDe(d.t.p, d.t.dr);
+    tanEps = 0.0;
+    o = o + (a - b) / (2.0 * e);
+  }
+  return o;
+}
+
 // the gradient of the distance estimate along the world's axes
 fn deGrad(d: Dual) -> vec3f {
-  return vec3f(deTan(d.t, d.g0, d.gdr.x), deTan(d.t, d.g1, d.gdr.y), deTan(d.t, d.g2, d.gdr.z));
+  return vec3f(deTan(d.t, d.g0, d.gdr.x) + seedDriven(d.t, 0u), deTan(d.t, d.g1, d.gdr.y) + seedDriven(d.t, 1u), deTan(d.t, d.g2, d.gdr.z) + seedDriven(d.t, 2u));
 }
 `;
 

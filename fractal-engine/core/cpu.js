@@ -13,7 +13,7 @@
 
 import { getOp, isMix } from './ops.js';
 import { weights, orbitWeights } from './fields.js';
-import { normalize, pullSafe, mixKids } from './formula.js';
+import { normalize, pullSafe, mixKids, seedOf, spawnRadius } from './formula.js';
 import { slotIndex } from './notation.js';
 import { driveRuntime, readingsOf } from './drive.js';
 import { makeRng, recordingRng, replayRng } from './rng.js';
@@ -22,10 +22,10 @@ import { I4, len, add, sub, matMul, matVec, mul, specNorm, embed, sliceMatrix, n
 // a world point through the slice, or an orbit point as it is; constants are padded with w = 0
 export const lift = (f, x) => (x.length === 4 ? [...x] : embed(f.slice || {}, x));
 const pad4 = (c) => (c.length === 4 ? [...c] : [c[0], c[1], c[2], 0]);
-const ball4 = (rng) => {
+const ball4 = (rng, R = 1) => {
   for (;;) {
     const q = [rng.float() * 2 - 1, rng.float() * 2 - 1, rng.float() * 2 - 1, rng.float() * 2 - 1];
-    if (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3] <= 1) return q;
+    if (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3] <= 1) return q.map((x) => x * R);
   }
 };
 
@@ -181,10 +181,10 @@ export function iterate(formula, p0, c = [0, 0, 0, 0], opts = {}) {
   }
   // drv: the drivers' registers at the last fill (the start of the last iteration) — what the shading
   // reads at the hit (core/shade.js evalShade); absent when no drive program runs
-  return { points, drs, branches, n, escaped, r: len(s.p), dr: s.dr, ...(s.ctx.drive ? { drv: new Map(s.ctx.drive.reg) } : {}) };
+  return { points, drs, branches, n, escaped, r: len(s.p), dr: s.dr, ...(s.ctx.drive ? { drv: new Map(s.ctx.drive.reg) } : {}), ...(seedOf(f) ? { seedP: paramsOf(s, seedOf(f)) } : {}) };
 }
 
-// Distance estimate. Formulas with a power (bulb / power) use the escape-time estimate
+// Distance estimate. A formula with a seed (ops.js) reads it at the orbit's end. Formulas with a power (bulb / power) use the escape-time estimate
 // 0.5·r·log r / dr, and 0 for orbits that stay (inside). Folding formulas use r / |dr| whether or not
 // the orbit escaped, which is what the Mandelbox / KIFS literature does: with few iterations most
 // points near the surface never reach the bail radius. Both are lower bounds only where the formula
@@ -205,6 +205,12 @@ export function de(formula, p, c, opts = {}) {
   const p4 = lift(f, p);
   const o = iterate(f, p4, c ? pad4(c) : f.c || p4, opts);
   if (!(o.dr > 0) || o.r === 0) return 0;
+  const sd = seedOf(f);
+  if (sd && !o.escaped) {
+    const m = getOp(sd.op).seed(o.points[o.points.length - 1], o.dr, o.seedP);
+    return Math.abs(m.v / m.dr - m.t);
+  }
+  if (sd) return o.r / Math.abs(o.dr);
   if (hasPower(f)) return o.escaped && o.r > 1 ? (0.5 * Math.log(o.r) * o.r) / o.dr : 0;
   return o.r / Math.abs(o.dr);
 }
@@ -317,7 +323,10 @@ export function push(formula, count, opts = {}) {
   const c = pad4(opts.c || f.c || [0, 0, 0, 0]);
   const burn = opts.burn === undefined ? 24 : opts.burn;
   const samples = [];
-  let stack = [{ p: ball4(rng), i: 0 }], respawns = 0;
+  // a walk starts in the unit ball, or a seeded formula's wider one: no point inside a Kleinian inversion
+  // has a preimage
+  const R0 = spawnRadius(f);
+  let stack = [{ p: ball4(rng, R0), i: 0 }], respawns = 0;
   // a formula whose preimages always escape after a step or two never empties the stack: cap the walk
   let steps = 0;
   const maxSteps = 1000 * (count + burn + 10);
@@ -334,7 +343,7 @@ export function push(formula, count, opts = {}) {
     const q = stepInverse(s, slot, rec, 1);
     if (!q || !q.every(Number.isFinite) || Math.hypot(...q) > f.bail) {
       stack.pop();
-      if (!stack.length) { stack = [{ p: ball4(rng), i: 0 }]; respawns++; }
+      if (!stack.length) { stack = [{ p: ball4(rng, R0), i: 0 }]; respawns++; }
       continue;
     }
     stack.push({ p: [...q], i: top.i + 1 });

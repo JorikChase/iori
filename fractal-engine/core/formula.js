@@ -111,6 +111,14 @@ export function pullSafe(f) {
   return f.slots.every((s) => s.every((o) => { const d = getOp(o.op); return d && d.wRule !== 'none'; }));
 }
 
+// the op a formula's estimate reads at the end of the orbit (core/ops.js), null for r/dr and escape time
+export function seedOf(f) {
+  for (const s of f.slots) for (const o of s) { const d = getOp(o.op); if (d && d.seed) return o; }
+  return null;
+}
+// where push's walks start
+export const spawnRadius = (f) => (seedOf(f) ? 3 : 1);
+
 export function canonical(f) {
   const g = normalize(f);
   return JSON.stringify({

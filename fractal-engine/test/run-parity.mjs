@@ -11,6 +11,7 @@
      node fractal-engine/test/run-parity.mjs --rows         # every row, not only failing ones
      node fractal-engine/test/run-parity.mjs --json out.json --timeout 600
      node fractal-engine/test/run-parity.mjs --only collage # one suite (parity.html?suite=collage)
+     node fractal-engine/test/run-parity.mjs --match wrap,kleinian  # only formulas holding a word
 
    Playwright comes from tools/audio-test/node_modules (npm i there once); a worktree without it falls
    back to the main checkout's copy, or set PLAYWRIGHT_DIR to a folder whose node_modules has it.
@@ -153,7 +154,7 @@ let ok = true, fatal = false;
 try {
   if (!flag('--compile-only')) {
     console.log(`${secs()}  parity.html`);
-    const res = await runPage(browser, base, 'parity.html' + (opt('--only') ? `?suite=${opt('--only')}` : ''), () => window.__parity,
+    const res = await runPage(browser, base, 'parity.html' + (opt('--only') ? `?suite=${opt('--only')}` : opt('--match') ? `?match=${encodeURIComponent(opt('--match'))}` : ''), () => window.__parity,
       (t) => { if (t.startsWith('parity ')) { const [, sec, s, ...rest] = t.split(' '); const txt = rest.join(' ').replace(/(shade=)\S{12,}/g, '$1…'); console.log(`${secs()}  ${pad(sec, 9)} page ${s}s  ${txt.length > 150 ? txt.slice(0, 149) + '…' : txt}`); } });
     if (res.error) fatal = true;
     ok = reportParity(res) && ok;

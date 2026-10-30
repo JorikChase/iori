@@ -14,6 +14,7 @@
 import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit, lift, driveRuntime, setDriveParam } from '../core/index.js';
 import { readingsOf } from '../core/drive.js';
 import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
+import { FAMILIES, FAMILIES_INV, FAMILIES_OV } from './family-cases.js';
 import { INTERP, INVERSE, DUAL, COLLAGE, withDrive, withCollage } from '../gpu/wgsl.js';
 import { pack, drives, paramTangents, packCollage, collageShadeDrives, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from '../gpu/pack.js';
 import { prepare, collageAt, collageColour, collageGrad, drivenAt, toPiece, fromPiece, repFold, repCopies } from '../core/collage.js';
@@ -179,6 +180,8 @@ FORMULAS.push(
 );
 // drivers (formula v2): every suite takes the driven cases too
 FORMULAS.push(...DRIVEN, ...COLOUR);
+// the Kleinian families and the Mandalay fold take every suite
+FORMULAS.push(...FAMILIES);
 const N = 4096;
 
 const SHADER = INTERP + `
@@ -215,6 +218,7 @@ const INV_FORMULAS = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] trap .4 3 .5 · +c ×10 bail=8 c=.1,.2,.3', 1.2],
   ['[fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ fold.box 1 · scale 2] blend .6 .3 .1 ×16 bail=16', 1.5],
   ...DRIVEN_INV,
+  ...FAMILIES_INV,
 ];
 const INV_SHADER = INTERP + DUAL + `
 var<private> rngState: u32;
@@ -275,6 +279,7 @@ const DUAL_FORMULAS = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] sphere .4 2 1.5 .3 · +c ×12 bail=100', 16],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5],
   ...DRIVEN,
+  ...FAMILIES,
 ];
 const DN = 1024;
 // the CPU's derivative of the estimate in a driver's parameter (a band end, a node's parameter)
@@ -308,7 +313,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let d = iterateDual(p, cFor(p), (head.flags & FLAG_JULIA) == 0u);
   let o = (j * np + i) * 2u;
   outp[o] = vec4f(deGrad(d), deOf(d.t));
-  outp[o + 1u] = vec4f(deTan(d.t, d.q, d.qdr), d.lyap, 0.0, 0.0);
+  outp[o + 1u] = vec4f(deParamTan(d), d.lyap, 0.0, 0.0);
 }`;
 
 // Overrides (the atlas lens): the GPU's estimate with two parameters varied through ovD · d record/dθ
@@ -324,7 +329,13 @@ const OV_CASES = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] noise .5 1 .5 2 3 · +c ×12 bail=100', 4, [[0, 'f'], [0, 'g']]],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] trap .5 3 .5 · +c ×12 bail=100', 4, [[0, 't'], [0, 'w']]],
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5, [[0, 'a'], [0, 'c']]],
+  ...FAMILIES_OV,
 ];
+// ?match=a,b (run-parity.mjs --match): only the formulas holding one of the words, a short run
+{
+  const m = new URLSearchParams(location.search).get('match');
+  if (m) for (const L of [FORMULAS, INV_FORMULAS, DUAL_FORMULAS, OV_CASES]) { const keep = L.filter((r) => m.split(',').some((w) => r[0].includes(w))); L.length = 0; L.push(...keep); }
+}
 const OV_SHADER = INTERP + `
 @group(0) @binding(2) var<storage, read> pts: array<vec4f>;
 @group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;

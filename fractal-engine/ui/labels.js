@@ -75,7 +75,13 @@ export const KEYS = {
 // the numbers on the dimension lines: an op's own name for one first ('fold.box.l'), then the key's
 export const PARAMS = {
   'fold.box.l': 'fold limit', 'fold.sphere.rmin': 'min radius', 'fold.sphere.rfix': 'fixed radius',
-  'fold.plane.d': 'offset', 'scale.s': 'scale', 'bulb.n': 'power', 'bulb4.n': 'power', 'power.n': 'power',
+  'fold.plane.d': 'offset', 'scale.s': 'scale',
+  'fold.cell.lx': 'limit x', 'fold.cell.ly': 'limit y', 'fold.cell.lz': 'limit z', 'fold.cell.lw': 'limit w',
+  'wrap.lx': 'half cell x', 'wrap.ly': 'half cell y', 'wrap.lz': 'half cell z', 'wrap.lw': 'half cell w',
+  'kleinian.a': 'trace', 'kleinian.b': 'twist', 'kleinian.bx': 'cell x', 'kleinian.bz': 'cell z',
+  'fold.mandalay.fo': 'step width', 'fold.mandalay.g': 'step gap',
+  'seed.slab.d': 'offset', 'seed.slab.t': 'thickness', 'seed.slab.k': 'safety',
+  'seed.sphere.k': 'safety', 'seed.pillar.k': 'safety', 'bulb.n': 'power', 'bulb4.n': 'power', 'power.n': 'power',
   'twist.a': 'twist angle', 'rotate.x': 'turn x', 'rotate.y': 'turn y', 'rotate.z': 'turn z',
   'mix.tissue.n': 'cells', 'mix.trap.t': 'trap radius',
   nx: 'normal x', ny: 'normal y', nz: 'normal z', nw: 'normal w',

@@ -6,7 +6,7 @@
 // head (uniform): iters, schedule length, flags, bail, slot starts and lengths, the schedule word, the
 // Julia constant, and the slice (a 4×4, column-major for WGSL, and the offset along w).
 
-import { normalize, pullSafe, mixKids } from '../core/formula.js';
+import { normalize, pullSafe, mixKids, seedOf } from '../core/formula.js';
 import { getOp, isMix } from '../core/ops.js';
 import { FIELD_KIND, BLEND_KEYS } from '../core/fields.js';
 import { packShade, SHADE_VEC4, MATH_OPS as D_MATH, shadeDrivers } from '../core/shade.js';
@@ -21,6 +21,9 @@ export const OPCODE = {
   'abs': 7, 'sort': 8, 'bulb': 9, 'power': 10, 'invert': 11, 'twist': 12,
   'spherical': 13, 'swirl': 14, 'sin': 15, 'horseshoe': 16, 'polar': 17,
   'rotate4': 3, 'sort4': 19, 'bulb4': 20, 'quat': 21,
+  'fold.cell': 23, 'wrap': 24, 'kleinian': 25, 'fold.mandalay': 26,
+  // a seed does nothing to the point (no case in opFwd): the estimate reads it (gpu/wgsl.js seedRead)
+  'seed.slab': 27, 'seed.sphere': 28, 'seed.pillar': 29,
   // every chimera is one code; its field kind is in the record (core/fields.js FIELD_KIND)
   'mix': 22, 'mix.axis': 22, 'mix.sphere': 22, 'mix.noise': 22, 'mix.tissue': 22, 'mix.trap': 22, 'mix.depth': 22, 'mix.lyap': 22, 'mix.blend': 22,
 };
@@ -34,14 +37,14 @@ export const SHADE_AT = MAX_OPS * REC;
 export const DRIVE_AT = SHADE_AT + SHADE_VEC4 * 4;
 export const DRIVE_VEC4 = 2 + 32 * 3 + 16 * 10;
 export const OPS_FLOATS = DRIVE_AT + DRIVE_VEC4 * 4;
-export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4, FLAG_SHADE = 8, FLAG_DRIVE = 16;
+export const FLAG_POWER = 1, FLAG_UNSAFE = 2, FLAG_JULIA = 4, FLAG_SHADE = 8, FLAG_DRIVE = 16, FLAG_SEED = 32;
 
 // head layout (u32/f32 words): 4, eight slot starts, eight lengths, 64 schedule words, c (vec4f) at
 // word 84, the slice (mat4x4f) at word 88, its w offset at word 104, the drivers' clock (seconds) at
 // 105 and the raymarch's step factor 1 / L at 106 (both written per frame: setClock / setStep in
-// gpu/render.js) → 432 bytes
+// gpu/render.js), the seed op's index at 107 → 432 bytes
 export const HEAD_BYTES = 432;
-export const CLOCK_WORD = 105, STEP_WORD = 106;
+export const CLOCK_WORD = 105, STEP_WORD = 106, SEED_WORD = 107;
 
 // kids: a mix's sub-stack slots (pack reads them from the formula; a parameter tangent needs none)
 //
@@ -61,6 +64,11 @@ function record(o, out = new Float32Array(REC), kids = [0, 0]) {
     case 'fold.plane': r.set([...nrm([P.nx, P.ny, P.nz, P.nw]), P.d], 1); break;
     case 'fold.box': r[1] = P.l; break;
     case 'fold.sphere': r.set([P.rmin, P.rfix], 1); break;
+    case 'fold.cell': case 'wrap': r.set([P.lx, P.ly, P.lz, P.lw], 1); break;
+    case 'kleinian': r.set([P.a, P.b, P.bx, P.bz], 1); break;
+    case 'fold.mandalay': r.set([P.fo, P.g], 1); break;
+    case 'seed.slab': r.set([...nrm([P.nx, P.ny, P.nz, 0]).slice(0, 3), P.d, P.t, P.k], 1); break;
+    case 'seed.sphere': case 'seed.pillar': r.set([P.r, P.k], 1); break;
     case 'bulb': case 'bulb4': case 'power': r[1] = P.n; break;
     case 'twist': r[1] = (P.a * Math.PI) / 180; break;
     default:
@@ -107,7 +115,8 @@ export function pack(formula) {
   const u = new Uint32Array(head), fl = new Float32Array(head);
   u[0] = f.iters;
   u[1] = sched.length;
-  u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0) | (f.shade ? FLAG_SHADE : 0) | (driven ? FLAG_DRIVE : 0);
+  const sd = seedOf(f);
+  u[2] = (hasPower(f) ? FLAG_POWER : 0) | (pullSafe(f) ? 0 : FLAG_UNSAFE) | (f.c ? FLAG_JULIA : 0) | (f.shade ? FLAG_SHADE : 0) | (driven ? FLAG_DRIVE : 0) | (sd ? FLAG_SEED : 0);
   if (f.c) fl.set(f.c, 84);
   // the slice, column by column, and its w offset
   const T = sliceMatrix(f.slice || {});
@@ -115,6 +124,7 @@ export function pack(formula) {
   fl[104] = (f.slice && f.slice.w) || 0;
   fl[CLOCK_WORD] = 0;
   fl[STEP_WORD] = 1;
+  if (sd) fl[SEED_WORD] = index.get(sd);
   fl[3] = f.bail;
   for (let i = 0; i < 8; i++) { u[4 + i] = starts[i]; u[12 + i] = lens[i]; }
   sched.forEach((s, i) => { u[20 + i] = s; });

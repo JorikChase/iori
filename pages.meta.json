@@ -44,6 +44,26 @@
       "menu_pos": "tr",
       "manifest": "manifest.json"
     },
+    "audio/probe/index.html": {
+      "title": "Audio Probe",
+      "description": "Device measurements behind Audio Tools: microphone, worklet load, isolation and memory.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "menu_pos": "tr",
+      "manifest": "manifest.json",
+      "hidden": true
+    },
+    "audio/probe/frame.html": {
+      "title": "Audio Probe Frame",
+      "description": "The child frame the audio probe uses to stand in for a tool screen.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true
+    },
     "bismuth-fluid.html": {
       "title": "Bismuth Crystal Fluid",
       "description": "Iridescent bismuth-crystal colours poured into a living fluid simulation.",

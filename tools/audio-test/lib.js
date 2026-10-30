@@ -136,4 +136,4 @@ async function lit(br, png) {
 function result(dir, data) { fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(data, null, 2)); return data; }
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
-module.exports = { ENGINE, server, browser, open, outDir, frames, captureAt, sheet, lit, result, near, VIEW, DPR, ROOT, OUT };
+module.exports = { IOS_INIT, ENGINE, PORT, server, browser, open, outDir, frames, captureAt, sheet, lit, result, near, VIEW, DPR, ROOT, OUT };

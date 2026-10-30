@@ -24,7 +24,7 @@ import { BLEND_KEYS } from './fields.js';
 import { tree } from './graph.js';
 
 export const WALL = 0.035;
-export const MAX_SITES = 24;
+export const MAX_SITES = 29;   // the 16 families and 13 of yours
 const MAX_SPECIES = 4;
 const MIN_W = 1e-3;
 const MIN_R = 0.02;
@@ -255,7 +255,12 @@ export function formulaAt(S, x) {
   const ws = weightsAt(S, x);
   const view = Math.exp(ws.reduce((a, e) => a + e.w * Math.log(S.sites[e.j].view), 0));
   const species = speciesAt(S, x);
-  return { f: normalize(compose(species)), view, species: species.map((e) => ({ w: e.w, sites: e.sites })) };
+  // the sites that stand inside their family: W of the weight is theirs, pos their Σ wⱼ·posⱼ, the angles
+  // their weighted mean (the caller blends them with the frame it would take)
+  const eyes = ws.filter((e) => S.sites[e.j].eye), W = eyes.reduce((a, e) => a + e.w, 0);
+  const sum = (get) => eyes.reduce((a, e) => a + e.w * get(S.sites[e.j].eye), 0);
+  const eye = W > 0 ? { W, pos: [0, 1, 2].map((i) => sum((q) => q.pos[i])), yaw: sum((q) => q.yaw) / W, pitch: sum((q) => q.pitch) / W } : null;
+  return { f: normalize(compose(species)), view, eye, species: species.map((e) => ({ w: e.w, sites: e.sites })) };
 }
 
 // the leading species alone at x (no chimera): what a stroke laid in space samples

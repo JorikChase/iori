@@ -15,6 +15,9 @@
 //            log2 (if log) → · scale + offset → clamp / repeat / mirror → 1 − t (if invert)
 //   math     in.a, in.b numbers → number. p: op (add, sub, mul, min, max, pow, sin, bands), c (b when
 //            in.b is not connected). sin = ½ + ½ sin(2π a b); bands = ⌊a / b⌋ b (terraces of a)
+//   kali     no inputs, a number out: Kali's map p → |p|/p² − c run from the hit point (fractalforums
+//            2011), the forum's colouring and bump made a node, so any species takes it. p: cx, cy, cz,
+//            f (the point's scale), n (iterations), mode (mean: the mean step of |p|; min: the least |p|)
 //   mixc     in.a, in.b colours, in.f number → colour. p: mode (mix, multiply, screen, add), f (when
 //            in.f is not connected)
 // out.color names a colour node (the surface's albedo); out.glow a number (scales the glow) or a
@@ -38,10 +41,12 @@ export const SPACES = ['rgb', 'hsv', 'oklab'];
 export const MODES = ['clamp', 'repeat', 'mirror'];
 export const MATH_OPS = ['add', 'sub', 'mul', 'min', 'max', 'pow', 'sin', 'bands'];
 export const MIX_MODES = ['mix', 'multiply', 'screen', 'add'];
+export const KALI_MODES = ['mean', 'min'];
+export const KALI_MAX = 32;
 export const MAX_NODES = 32, MAX_STOPS = 16, MAX_TOTAL_STOPS = 64;
 
 const COLOUR = new Set(['ramp', 'mixc']);
-const NUMBER = new Set([...READINGS, 'math']);
+const NUMBER = new Set([...READINGS, 'math', 'kali']);
 const PORTS = { ramp: ['v'], math: ['a', 'b'], mixc: ['a', 'b', 'f'] };
 const REQUIRED = { ramp: ['v'], math: ['a'], mixc: ['a', 'b'] };
 const PORT_KIND = { ramp: { v: 'number' }, math: { a: 'number', b: 'number' }, mixc: { a: 'colour', b: 'colour', f: 'number' } };
@@ -68,6 +73,7 @@ function normParams(type, p = {}) {
   }
   if (type === 'math') return { c: num(p.c, 1), op: p.op || 'add' };
   if (type === 'mixc') return { f: num(p.f, 0.5), mode: p.mode || 'mix' };
+  if (type === 'kali') return { cx: num(p.cx, 0.8), cy: num(p.cy, 0.7), cz: num(p.cz, 0.6), f: num(p.f, 1), mode: p.mode || 'mean', n: num(p.n, 10) };
   return {};
 }
 
@@ -163,6 +169,7 @@ export function validateShade(s, drive = undefined) {
     }
     if (n.type === 'math' && (!MATH_OPS.includes(p.op) || !Number.isFinite(p.c))) err(`${n.id}: math op is one of ${MATH_OPS.join(', ')}`);
     if (n.type === 'mixc' && (!MIX_MODES.includes(p.mode) || !Number.isFinite(p.f))) err(`${n.id}: mix mode is one of ${MIX_MODES.join(', ')}`);
+    if (n.type === 'kali' && (!KALI_MODES.includes(p.mode ?? 'mean') || !(Number.isInteger(p.n ?? 10) && (p.n ?? 10) >= 1 && (p.n ?? 10) <= KALI_MAX))) err(`${n.id}: kali mode is one of ${KALI_MODES.join(', ')}, n is 1..${KALI_MAX}`);
     seen.set(n.id, kind);
   });
   if (total > MAX_TOTAL_STOPS) err(`more than ${MAX_TOTAL_STOPS} stops in all`);
@@ -316,7 +323,21 @@ export function boundShade(s, drv) {
   return o;
 }
 
-// readings: { col, trap, depth, lyap, facing, species, w, piece, seam } (missing ones are 0); drivers: the drivers'
+// The kaliset from x (gpu/wgsl.js kaliset, operation for operation)
+export function kaliAt(P, x = [0, 0, 0]) {
+  let p = x.slice(0, 3).map((v) => v * P.f), last = Math.hypot(...p), sum = 0, lo = 1e30;
+  const c = [P.cx, P.cy, P.cz];
+  for (let i = 0; i < P.n; i++) {
+    const r2 = Math.max(p[0] * p[0] + p[1] * p[1] + p[2] * p[2], 1e-12);
+    p = p.map((v, k) => Math.abs(v) / r2 - c[k]);
+    const l = Math.hypot(...p);
+    sum += Math.abs(l - last); last = l; lo = Math.min(lo, l);
+  }
+  return P.mode === 'min' ? lo : sum / P.n;
+}
+
+// readings: { col, trap, depth, lyap, facing, species, w, piece, seam, x } (missing ones are 0; x the hit
+// point, which the kaliset starts from); drivers: the drivers'
 // registers at the hit (a Map or an object id → number; missing ones are 0)
 export function evalShade(shade, readings = {}, drivers = null) {
   const drv = (id) => num(drivers instanceof Map ? drivers.get(id) : drivers ? drivers[id] : 0, 0);
@@ -329,6 +350,7 @@ export function evalShade(shade, readings = {}, drivers = null) {
     else if (n.type === 'ramp') v = rampAt(n.p, get('v', 0));
     else if (n.type === 'math') v = mathOp(n.p.op, get('a', 0), get('b', n.p.c));
     else if (n.type === 'mixc') v = mixOp(n.p.mode, get('a'), get('b'), get('f', n.p.f));
+    else if (n.type === 'kali') v = kaliAt(n.p, readings.x);
     reg.set(n.id, v);
   }
   const glow = s.out.glow != null ? reg.get(s.out.glow) : null;
@@ -396,7 +418,7 @@ export const SH_NODE_VEC4 = 4;
 export const SH_STOPS_AT = 2 + MAX_NODES * SH_NODE_VEC4;
 export const SH_BINDS_AT = SH_STOPS_AT + MAX_TOTAL_STOPS * 2;
 export const SHADE_VEC4 = SH_BINDS_AT + MAX_SHADE_BINDS * 2;
-export const TYPE_CODE = { col: 1, trap: 2, depth: 3, lyap: 4, facing: 5, species: 6, w: 7, piece: 8, seam: 9, ramp: 10, math: 11, mixc: 12 };
+export const TYPE_CODE = { col: 1, trap: 2, depth: 3, lyap: 4, facing: 5, species: 6, w: 7, piece: 8, seam: 9, ramp: 10, math: 11, mixc: 12, kali: 13 };
 const BIND_CODE = { scale: 0, offset: 1, hue: 2, stop: 3, c: 4, f: 5, gain: 6 };
 // drive: the formula's drivers (their order is the drive program's: a 'd:' input names its register)
 export function packShade(shade, drive = null) {
@@ -428,6 +450,7 @@ export function packShade(shade, drive = null) {
       stopAt += p.stops.length;
     } else if (n.type === 'math') out.set([MATH_OPS.indexOf(n.p.op), n.p.c], o + 4);
     else if (n.type === 'mixc') out.set([MIX_MODES.indexOf(n.p.mode), n.p.f], o + 4);
+    else if (n.type === 'kali') { out.set([n.p.cx, n.p.cy, n.p.cz, n.p.f], o + 4); out.set([n.p.n, KALI_MODES.indexOf(n.p.mode)], o + 8); }
   });
   // bindings whose driver exists (a colour drive needs the drive program: gpu/pack.js packs it)
   const binds = (s.bind || []).map((b) => ({ b, t: shadeTarget(s, b.to) })).filter((x) => x.t && dIndex.has(x.b.from));

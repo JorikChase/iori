@@ -919,7 +919,7 @@ const SH_NODE4 = ${SH_NODE_VEC4}u;
 const SH_STOPS = ${320 + SH_STOPS_AT}u;
 const SH_BINDS = ${320 + SH_BINDS_AT}u;
 // piece and seam: a collage's own shade (gpu/wgsl.js COLLAGE); 0 for a formula
-struct Readings { col: f32, trap: f32, depth: f32, lyap: f32, facing: f32, species: f32, w: f32, piece: f32, seam: f32 };
+struct Readings { col: f32, trap: f32, depth: f32, lyap: f32, facing: f32, species: f32, w: f32, piece: f32, seam: f32, x: vec3f };
 struct ShadeOut { color: vec4f, glow: vec4f, glowIsColour: bool, hasGlow: bool, gain: f32 };
 // up to four driven stops: their places among all stops (−1 none) and their driven t
 var<private> shOvI: vec4i = vec4i(-1);
@@ -1066,6 +1066,23 @@ fn shMath(op: u32, a: f32, b: f32) -> f32 {
   }
 }
 
+// The kaliset from the hit point (core/shade.js kaliAt). b: c and the point's scale; m: iterations, mode
+fn kaliset(x: vec3f, b: vec4f, m: vec4f) -> f32 {
+  var p = x * b.w;
+  let n = min(u32(m.x), 32u);
+  var last = length(p);
+  var sum = 0.0;
+  var lo = 1e30;
+  for (var i = 0u; i < n; i++) {
+    p = abs(p) / max(dot(p, p), 1e-12) - b.xyz;
+    let l = length(p);
+    sum = sum + abs(l - last);
+    last = l;
+    lo = min(lo, l);
+  }
+  return select(sum / f32(n), lo, m.y > 0.5);
+}
+
 fn shMix(mode: u32, a: vec4f, b: vec4f, f: f32) -> vec4f {
   var rgb = mix(a.rgb, b.rgb, f);
   if (mode == 1u) { rgb = mix(a.rgb, a.rgb * b.rgb, f); }
@@ -1145,6 +1162,7 @@ fn shadeRun(r: Readings) -> ShadeOut {
         var cb = vec4f(0.0); if (i1 >= 0) { cb = reg[i1]; }
         v = shMix(u32(b.x), ca, cb, f);
       }
+      case 13u: { v.x = kaliset(r.x, b, c); }
       default: {}
     }
     reg[i] = v;
@@ -2636,7 +2654,7 @@ fn collageColour(x: vec3f, at: ClAt, facing: f32, lyap: array<f32, ${MAX_PIECES}
       m.col = m.col + w * r.col; m.trap = m.trap + w * r.trap; m.depth = m.depth + w * r.depth; m.lyap = m.lyap + w * r.lyap;
       m.facing = m.facing + w * r.facing; m.species = m.species + w * r.species; m.w = m.w + w * r.w;
     }
-    m.piece = at.piece; m.seam = at.seam;
+    m.piece = at.piece; m.seam = at.seam; m.x = x;
     clShadeDrive(x);
   }
   var out = vec4f(0.0);
@@ -2649,6 +2667,7 @@ fn collageColour(x: vec3f, at: ClAt, facing: f32, lyap: array<f32, ${MAX_PIECES}
       wt = at.w[k];
       if (!(wt > 0.0)) { continue; }
       r = clReadings(k, facing, lyap[k]);
+      r.x = x;
       reg = k;
     }
     clSelect(reg);

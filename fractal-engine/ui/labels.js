@@ -25,7 +25,7 @@ export const LABELS = {
   'gz.local': 'local axes', 'gz.world': 'world axes', 'gz.axis': 'move along', 'gz.ring': 'turn', 'gz.corner': 'scale',
   // the shading frame (ui/shadegraph.js): readings, maths, colour mixes, the ramp and its editor
   col: 'fold index', trap: 'orbit trap', depth: 'depth', lyap: 'lyapunov', facing: 'facing',
-  species: 'species', w: 'w axis', piece: 'piece', seam: 'seam',
+  species: 'species', w: 'w axis', piece: 'piece', seam: 'seam', kali: 'kaliset',
   shade: 'colour ramp',
   'math.add': 'add', 'math.sub': 'subtract', 'math.mul': 'multiply', 'math.min': 'min', 'math.max': 'max',
   'math.pow': 'power', 'math.sin': 'sine', 'math.bands': 'bands',
@@ -81,7 +81,8 @@ export const PARAMS = {
   'kleinian.a': 'trace', 'kleinian.b': 'twist', 'kleinian.bx': 'cell x', 'kleinian.bz': 'cell z',
   'fold.mandalay.fo': 'step width', 'fold.mandalay.g': 'step gap',
   'seed.slab.d': 'offset', 'seed.slab.t': 'thickness', 'seed.slab.k': 'safety',
-  'seed.sphere.k': 'safety', 'seed.pillar.k': 'safety', 'bulb.n': 'power', 'bulb4.n': 'power', 'power.n': 'power',
+  'seed.sphere.k': 'safety', 'seed.pillar.k': 'safety',
+  'kali.cx': 'constant x', 'kali.cy': 'constant y', 'kali.cz': 'constant z', 'kali.f': 'scale', 'bulb.n': 'power', 'bulb4.n': 'power', 'power.n': 'power',
   'twist.a': 'twist angle', 'rotate.x': 'turn x', 'rotate.y': 'turn y', 'rotate.z': 'turn z',
   'mix.tissue.n': 'cells', 'mix.trap.t': 'trap radius',
   nx: 'normal x', ny: 'normal y', nz: 'normal z', nw: 'normal w',

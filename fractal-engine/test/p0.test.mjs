@@ -455,7 +455,8 @@ test('presets: every family parses, is pull-safe, single-slot, and names real br
     assert.equal(f.slots.length, 1, P.id);
     for (const [oi, key] of P.axes) assert.ok(f.slots[0][oi] && key in f.slots[0][oi].p, `${P.id} axis ${oi}.${key}`);
     // something is there: the estimate at the camera is positive and less than the distance to the origin
-    const d = de(f, [0, 0, -P.view]);
+    // (a family with an eye stands inside itself)
+    const d = de(f, P.eye ? P.eye.pos : [0, 0, -P.view]);
     assert.ok(d > 0 && d <= P.view + 1e-9, `${P.id} de ${d}`);
   }
 });

@@ -46,6 +46,11 @@ const SH_GRAPHS = (() => {
       { id: 'm', type: 'mixc', in: { a: 'r1', b: 'r2', f: 's' }, p: { mode } }],
     out: { color: 'm', glow: 'r2' },
   }));
+  // the kaliset from the hit point, its two readings into a ramp and a glow
+  for (const [mode, f, n] of [['mean', 1, 6], ['min', 0.7, 4]]) out.push({
+    nodes: [{ id: 'k', type: 'kali', p: { cx: 0.8, cy: 0.7, cz: 0.6, f, n, mode } }, { id: 'r', type: 'ramp', in: { v: 'k' }, p: { ...rampPreset('film'), map: { scale: 0.5, offset: 0, mode: 'mirror', log: false, invert: false } } }],
+    out: { color: 'r', glow: 'k' },
+  });
   out.push(defaultShade());
   return out.map(normShade);
 })();
@@ -141,6 +146,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let b = pts[2u * i + 1u];
   var r: Readings;
   r.col = a.x; r.trap = a.y; r.depth = a.z; r.lyap = a.w; r.facing = b.x; r.species = b.y; r.w = b.z;
+  // the hit point: three of the readings over again, and the last slot
+  r.x = vec3f(b.y, b.z, b.w);
   let o = shadeRun(r);
   outp[2u * i] = o.color;
   outp[2u * i + 1u] = o.glow;
@@ -972,8 +979,9 @@ async function run() {
     const readings = [];
     for (let i = 0; i < SH_N; i++) {
       const r = { col: rng.float(), trap: rng.float() * 4, depth: rng.float(), lyap: rng.float() * 2 - 1, facing: rng.float() * 2 - 1, species: rng.float(), w: rng.float() * 2 - 1 };
+      r.x = [r.species, r.w, rng.float() * 2 - 1].map(Math.fround);
       readings.push(r);
-      rd.set([r.col, r.trap, r.depth, r.lyap, r.facing, r.species, r.w, 0], i * 8);
+      rd.set([r.col, r.trap, r.depth, r.lyap, r.facing, r.species, r.w, r.x[2]], i * 8);
     }
     const mk = (size, usage) => device.createBuffer({ size, usage });
     const head = mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);

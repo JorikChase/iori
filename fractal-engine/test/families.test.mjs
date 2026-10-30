@@ -159,3 +159,21 @@ test('Mandalay is the box family: r/dr, no seed, pull-safe', () => {
   const o = iterate(f, [1, 2, 3], [1, 2, 3, 0]);
   assert.ok(Math.abs(de(f, [1, 2, 3]) - o.r / o.dr) < 1e-12);
 });
+
+test('the kaliset as a shading node: its map, a validated node, the picker', async () => {
+  const S = await import('../core/shade.js'), E = await import('../core/shade-edit.js');
+  const P = { cx: 0.8, cy: 0.7, cz: 0.6, f: 2, n: 3, mode: 'mean' };
+  // by hand
+  let p = [0.2, -0.4, 0.6], last = Math.hypot(...p), sum = 0;
+  for (let i = 0; i < 3; i++) { const r2 = p[0] ** 2 + p[1] ** 2 + p[2] ** 2; p = [Math.abs(p[0]) / r2 - 0.8, Math.abs(p[1]) / r2 - 0.7, Math.abs(p[2]) / r2 - 0.6]; const l = Math.hypot(...p); sum += Math.abs(l - last); last = l; }
+  assert.ok(Math.abs(S.kaliAt(P, [0.1, -0.2, 0.3]) - sum / 3) < 1e-12);
+  const shade = { nodes: [{ id: 'k', type: 'kali', p: { n: 8 } }, { id: 'r', type: 'ramp', in: { v: 'k' }, p: S.rampPreset('mono') }], out: { color: 'r' } };
+  assert.deepEqual(S.validateShade(S.normShade(shade)), []);
+  assert.deepEqual(S.validateShade(S.normShade({ ...shade, nodes: [{ id: 'k', type: 'kali', p: { n: 99 } }, shade.nodes[1]] })).length, 1);
+  const a = S.evalShade(shade, { x: [0.3, 0.1, 0.2] }).color, b = S.evalShade(shade, { x: [0.31, 0.1, 0.2] }).color;
+  assert.notDeepEqual(a, b);
+  const f = E.shadeOn(parse('bulb 8 · +c ×6'));
+  const g = E.addNode(f, 'kali');
+  assert.ok(g.shade.nodes.some((n) => n.type === 'kali'));
+  assert.equal(format(normalize(parse(format(normalize(g))))), format(normalize(g)));
+});

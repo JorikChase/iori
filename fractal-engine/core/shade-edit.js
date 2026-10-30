@@ -30,7 +30,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 const PORTS = { ramp: ['v'], math: ['a', 'b'], mixc: ['a', 'b', 'f'] };
 const PORT_KIND = { ramp: { v: 'number' }, math: { a: 'number', b: 'number' }, mixc: { a: 'colour', b: 'colour', f: 'number' } };
 const OPTIONAL = { math: ['b'], mixc: ['f'] };
-export const SHADE_TYPES = [...READINGS, 'ramp', 'math', 'mixc'];
+export const SHADE_TYPES = [...READINGS, 'ramp', 'math', 'mixc', 'kali'];
 export const inputKind = (type, port) => (PORT_KIND[type] || {})[port] || null;
 // what an input wants: a node's port kind, 'colour' for the colour output, null (anything) for glow
 export function wantsAt(formula, at) {
@@ -103,6 +103,7 @@ function freshNode(s, type) {
   // math: × 1 and mix: half of a colour with itself — nothing changes where they are inserted
   if (type === 'math') return { id, type, in: {}, p: { op: 'mul', c: 1 } };
   if (type === 'mixc') return { id, type, in: {}, p: { mode: 'mix', f: 0.5 } };
+  if (type === 'kali') return { id, type, in: {}, p: { cx: 0.8, cy: 0.7, cz: 0.6, f: 1, n: 10, mode: 'mean' } };
   throw new Error(`shade: unknown node type ${type}`);
 }
 

@@ -136,7 +136,7 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
       // the formula's own colour graph, fed the orbit's readings at the hit
       var rr: Readings;
       rr.col = tr.col; rr.trap = tr.trap; rr.depth = f32(tr.n) / f32(max(head.iters, 1u)); rr.lyap = lam;
-      rr.facing = dot(n, -rd); rr.species = tr.sp; rr.w = p4.w;
+      rr.facing = dot(n, -rd); rr.species = tr.sp; rr.w = p4.w; rr.x = p;
       alb = shadeRun(rr).color.rgb;
     }
     if (view.look.w > 0.0) {
@@ -161,7 +161,7 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
   if ((head.flags & FLAG_SHADE) != 0u) {
     // the glow: the graph's glow output (a colour tints, a number scales), else its surface colour
     var gr: Readings;
-    gr.col = glowCol;
+    gr.col = glowCol; gr.x = ro + rd * t;
     let so = shadeRun(gr);
     if (so.hasGlow) { if (so.glowIsColour) { glc = so.glow.rgb; } else { glc = glc * so.glow.x; } } else { glc = so.color.rgb; }
     // the glow's strength (core/shade.js out.gain: 1 unless set or driven — the pulse)
@@ -286,7 +286,7 @@ fn shade(ro: vec3f, rd: vec3f, pixelAngle: f32) -> vec3f {
     clShadeDrive(ro + rd * t);
     clSelect(CL_OWN);
     var gr: Readings;
-    gr.col = glowCol;
+    gr.col = glowCol; gr.x = ro + rd * t;
     let so = shadeRun(gr);
     clSelect(0u);
     if (so.hasGlow) { if (so.glowIsColour) { glc = so.glow.rgb; } else { glc = glc * so.glow.x; } } else { glc = so.color.rgb; }

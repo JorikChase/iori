@@ -45,3 +45,15 @@ code { font: 0.86em var(--mono); background: var(--wash); border-radius: 4px; pa
 .fe-pair .fe-frame { aspect-ratio: 1 / 1; }
 .fe-pair figcaption { font-size: 0.8rem; }
 @media (max-width: 700px) { .fe-pair { grid-template-columns: minmax(0, 1fr); } .fe-pair .fe-frame { aspect-ratio: 4 / 5; } }
+
+/* chapter 11: a place held for a tool that is coming (a dashed hairline, a tag, an empty figure) */
+.planned { border: 0.75px dashed #b9bdc1; border-radius: 10px; padding: 0.9rem 1.1rem 0.5rem; margin: 1.1rem auto; position: relative; }
+.planned h4 { font-family: var(--serif); font-size: 1.04rem; margin: 0 0 0.45rem; padding-right: 5.5rem; }
+.planned p { font-size: 0.93rem; color: var(--ink-2); }
+.planned-tag { position: absolute; top: 0.8rem; right: 1rem; font: 500 0.66rem var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  padding: 0.08rem 0.5rem; border: 0.75px solid #b9bdc1; border-radius: 999px; }
+.planned table.use { margin: 0.5rem 0 0.7rem; }
+.planned table.use td { height: 1.7rem; }
+.fe-slot { display: flex; align-items: center; justify-content: center; height: 4.2rem; margin-bottom: 0.7rem; border: 0.75px dashed #d5d8db; border-radius: 8px;
+  font: 0.72rem var(--mono); color: var(--muted); }
+.planned details.math { margin: 0 0 0.7rem; }

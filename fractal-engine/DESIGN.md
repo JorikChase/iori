@@ -1886,3 +1886,14 @@ From the research brief `papers/study/2026-10-29-examples-research.md`, iori cho
 
 Open: the engine gaps the brief lists (a seed estimate for pseudo-Kleinian / Kleinian / Apollonian, the Mandalay
 fold, the kaliset as a shading node, orbit density as a medium); a sun-and-fog look preset for open landscapes.
+
+## Planned, in the paper, 2026-10-30
+
+iori: *"put the planned features into the docs so we can just fill it in once the features are there."* The engine
+paper's last chapter (it replaced "What Is Not Built Yet") is **11. Planned**: 31 stubs in four groups (new capability,
+speed, finishing touches, further out), each the template of a tool section: a title, a line or two in the future
+tense, an empty desktop/touch table, a figure slot, a folded maths box only where the maths is known. To fill one in:
+move its `div.planned` to its chapter as an `<h3 id>` section and drop the tag, write the walkthrough and the gestures,
+add the figure to `paper/figures.js` and replace `.fe-slot` with a `figure.engine`, run `run-paper.mjs` (the same note
+stands as a comment at the chapter's head). A stub has no figure element, so it starts no engine. Over-relaxed
+stepping, far-iteration LOD and temporal reuse are tagged "not decided": each changes the image, and iori decides.

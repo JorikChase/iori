@@ -65,7 +65,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="../papers/fractals/paper.css?v=4">
-  <link rel="stylesheet" href="paper/paper.css?v=3">
+  <link rel="stylesheet" href="paper/paper.css?v=4">
 </head>
 
 <body>
@@ -932,14 +932,361 @@
     </section>
 
     <!-- ================================================================== 11 -->
+    <!-- Planned: one stub per feature, the template of a real tool section. When a feature lands: (1) move its
+         div.planned to its chapter as an <h3 id> section and drop the tag; (2) write the walkthrough and fill the
+         gesture table; (3) add the figure to paper/figures.js and replace .fe-slot with
+         <figure class="engine" data-fig="…"><div class="fe-frame"></div><figcaption>…</figcaption></figure>;
+         (4) run run-paper.mjs, desktop and phone. A stub starts no engine: it has no figure element. -->
     <section id="ch11">
-      <h2>11. What Is Not Built Yet</h2>
-      <p>The lens does not open on driver or collage parameters, and a collage has no loop and no JIT (the interpreter
-        draws it). Breeding varies parameters only: it never adds, removes or swaps an op. Deep zoom by perturbation, a
-        sparse 3-D loop, a WebGL2 fallback and moving-image export straight to MP4 are open. On a real iPhone, the
-        three-finger gestures and the corner marks against rounded screens still need a first session. The design
-        document beside the engine, <code>fractal-engine/DESIGN.md</code>, records every stretch, its decisions, what
-        was measured and what was left.</p>
+      <h2>11. Planned</h2>
+      <p class="lead">What the engine does not do yet, in the same form as the chapters above. Nothing here runs: each
+        section is a place held for a tool that is coming.</p>
+      <p>Two things are by design, not missing: a collage has no loop, since it has no one map to feed back through; and
+        the real-iPhone checks (three-finger gestures, the corner marks against rounded screens) wait for a first session
+        on the device. The design document beside the engine, <code>fractal-engine/DESIGN.md</code>, records every
+        stretch, its decisions, what was measured and what was left.</p>
+
+      <h3 id="ch11-1">11.1 New Capability</h3>
+      <div class="planned" id="pl-kleinian">
+        <span class="planned-tag">planned</span>
+        <h4>Pseudo-Kleinian, Kleinian and Apollonian Formulas</h4>
+        <p>Sphere-inversion sets: lattices of spheres, tunnels, packings. Their orbits never escape, so the usual estimate has nothing to measure; the engine will read the distance to a seed shape in folded space over the accumulated inversion factor. The seed may then be a finished collage.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+        <details class="math">
+          <summary>The mathematics</summary>
+          <p>Pseudo-Kleinian (Fragmentarium, knighty), per iteration: <i>p</i> ← 2·clamp(<i>p</i>, −<i>C</i>, <i>C</i>) − <i>p</i>; <i>k</i> = max(<i>S</i>/|<i>p</i>|², 1); <i>p</i> ← <i>k p</i>; <i>D</i> ← <i>k D</i>; <i>p</i> ← <i>p</i> + <i>c</i>. Estimate: |seed(<i>p</i>)| / <i>D</i>.</p>
+        </details>
+      </div>
+      <div class="planned" id="pl-mandalay">
+        <span class="planned-tag">planned</span>
+        <h4>The Mandalay Fold</h4>
+        <p>A new op: DarkBeam's stepped fold on the sorted |z|, adapted by knighty, which replaces the box fold and gives Tom Beddard's towers and domes.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-kaliset">
+        <span class="planned-tag">planned</span>
+        <h4>The Kaliset as a Shading Node</h4>
+        <p>A reading any species can use: Kali's map run beside the orbit, feeding colour and bump, so glittering detail is a node in the shading frame rather than part of the shape.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+        <details class="math">
+          <summary>The mathematics</summary>
+          <p class="eq"><i>p</i> ← |<i>p</i>| / (<i>p</i>·<i>p</i>) − <i>c</i>, &nbsp; <i>c</i> ∈ [0, 2].</p>
+        </details>
+      </div>
+      <div class="planned" id="pl-medium">
+        <span class="planned-tag">planned</span>
+        <h4>Orbit Density as a Medium</h4>
+        <p>A finite density inside the fractal: where orbits spend their time, drawn as a volume the camera looks through, so a surface can sit inside its own nebula.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+        <details class="math">
+          <summary>The mathematics</summary>
+          <p>The volume integral of <a href="../radiance-fields.html">Radiance Fields</a>, with σ the orbit histogram: <i>C</i> = ∫ <i>T</i>(<i>t</i>) σ(<i>r</i>(<i>t</i>)) <i>c</i>(<i>r</i>(<i>t</i>)) d<i>t</i>.</p>
+        </details>
+      </div>
+      <div class="planned" id="pl-instances">
+        <span class="planned-tag">planned</span>
+        <h4>Reusable Subgraphs</h4>
+        <p>A piece of the network named and used in several places, so that editing one edits them all. The formula graph will gain instances once the drivers' dataflow has settled.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-ndim">
+        <span class="planned-tag">planned</span>
+        <h4>More Than Four Dimensions, and a Full-Frame Tilt</h4>
+        <p>The orbit in ℝᴺ, up to eight, as a change of representation through every layer. The slice will be stored as a whole frame: three plane angles cannot reach every 3-plane of ℝ⁴.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+        <details class="math">
+          <summary>The mathematics</summary>
+          <p class="eq"><i>x</i><sub>N</sub> = <i>O</i> + <i>E</i>·<i>x</i><sub>3</sub>, &nbsp; <i>E</i> an orthonormal <i>N</i> × 3 frame.</p>
+        </details>
+      </div>
+      <div class="planned" id="pl-mutations">
+        <span class="planned-tag">planned</span>
+        <h4>Structural Mutations</h4>
+        <p>Neighbours in the breed ring that add, remove or swap an op, where today they only move numbers, so that breeding can leave a structure.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-viewdep">
+        <span class="planned-tag">planned</span>
+        <h4>View-Dependent Emission</h4>
+        <p>Colour that changes with the direction you look from, on surfaces and on exported splats (higher-order spherical harmonics), where today every point sends one colour.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+        <details class="math">
+          <summary>The mathematics</summary>
+          <p class="eq"><i>c</i>(<i>x</i>, <i>d</i>) = Σ<sub><i>l</i> ≤ <i>L</i></sub> Σ<sub>|<i>m</i>| ≤ <i>l</i></sub> <i>k</i><sub><i>lm</i></sub>(<i>x</i>) <i>Y</i><sub><i>lm</i></sub>(<i>d</i>), &nbsp; (<i>L</i> + 1)² numbers per channel.</p>
+        </details>
+      </div>
+      <div class="planned" id="pl-drawn">
+        <span class="planned-tag">planned</span>
+        <h4>Drawn Fields and Tissue of Tissues</h4>
+        <p>A field painted by hand on the view, sites placed by hand, and a tissue whose cells are tissues themselves.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-collageon">
+        <span class="planned-tag">planned</span>
+        <h4>A Collage Dropped onto a Collage</h4>
+        <p>Today the drop is refused, since collages do not nest. The incoming collage's pieces will join the one on screen, re-placed where they land.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-sunfog">
+        <span class="planned-tag">planned</span>
+        <h4>A Sun-and-Fog Look</h4>
+        <p>A look for open landscapes: a low sun, height fog and a film grade. The lamp carried beside the camera suits caves; it does not make a sky.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+
+      <h3 id="ch11-2">11.2 Speed</h3>
+      <div class="planned" id="pl-dualjit">
+        <span class="planned-tag">planned</span>
+        <h4>A JIT for the Dual Numbers</h4>
+        <p>The hit's dual orbit compiled for its structure, as the forward orbit already is. It is now the largest share of a driven or chimera frame.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-collagesense">
+        <span class="planned-tag">planned</span>
+        <h4>A GPU Sensing Pass for Collages</h4>
+        <p>Dual numbers through the joins: an exact normal and the metric of every number at once, replacing today's CPU pass.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-farpieces">
+        <span class="planned-tag">planned</span>
+        <h4>Skipping Far Collage Pieces</h4>
+        <p>Bounding volumes, so a piece out of reach costs nothing. The join must then give exactly the near piece's value, kernel by kernel, and the exponential kernel never quite does.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-tilestep">
+        <span class="planned-tag">planned</span>
+        <h4>A Step Factor per Tile</h4>
+        <p>The measured step factor per screen tile rather than one for the frame, so a steep corner of a driven scene does not slow the rest.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-relax">
+        <span class="planned-tag">not decided</span>
+        <h4>Over-Relaxed Stepping, Far-Iteration LOD, Temporal Reuse</h4>
+        <p>Three ways to draw faster, each of which changes the image: the glow is summed per march step, so fewer steps change the glow. Not decided: they wait for before-and-after images.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+        <details class="math">
+          <summary>The mathematics</summary>
+          <p>Over-relaxed sphere tracing steps ω·<i>d</i>, 1 ≤ ω &lt; 2, and steps back when two successive unbounding spheres stop overlapping (Keinert et al., 2014).</p>
+        </details>
+      </div>
+
+      <h3 id="ch11-3">11.3 Finishing Touches</h3>
+      <div class="planned" id="pl-lensmore">
+        <span class="planned-tag">planned</span>
+        <h4>The Lens, Further</h4>
+        <p>The lens on driver and shading parameters and on collages, and a map that follows an edit made inside it. Today it is computed once, on op parameters of a formula.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-shadeline">
+        <span class="planned-tag">planned</span>
+        <h4>Shading Lines</h4>
+        <p>A bound shading line's live range, as an op's line shows the orbit's, and param nodes that read shading parameters.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-clock">
+        <span class="planned-tag">planned</span>
+        <h4>Clock Controls</h4>
+        <p>Pause and scrub for anything driven by time, and the clock in thumbnails, which read it as zero today.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-pushmore">
+        <span class="planned-tag">planned</span>
+        <h4>Push, Caught Up</h4>
+        <p>The Lyapunov channel and the metric in push, editing in push (a grab needs a surface to sense), and the piece and seam readings on splats.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-cellwall">
+        <span class="planned-tag">planned</span>
+        <h4>The Neighbour Across a Cell Wall</h4>
+        <p>A repetition reads the nearest copy only, so a piece wider than its cell is overstepped at the wall. The neighbouring copy will be read as well.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-video">
+        <span class="planned-tag">planned</span>
+        <h4>Moving Pictures and Mesh Regions</h4>
+        <p>MP4 and WebM straight from the engine, where video is a PNG sequence today, and a mesh of any chosen region, where today it is the cube around the focus.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-touchgaps">
+        <span class="planned-tag">planned</span>
+        <h4>The Two Actions With No Finger</h4>
+        <p>Dropping the formula on screen onto the Metasurface as a site, and opening a saved still or splat file. Chapter 9 names both.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-cues">
+        <span class="planned-tag">planned</span>
+        <h4>Small Readouts</h4>
+        <p>A hairline cue while the drivers' shader variant compiles, and a readout of w while the slice moves.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+
+      <h3 id="ch11-4">11.4 Further Out</h3>
+      <div class="planned" id="pl-deepzoom">
+        <span class="planned-tag">planned</span>
+        <h4>Deep Zoom</h4>
+        <p>Perturbation and bilinear approximation, for 2-D formulas only, opt-in.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-loop3d">
+        <span class="planned-tag">planned</span>
+        <h4>A Sparse 3-D Loop</h4>
+        <p>The feedback loop in a sparse volume, where today a 3-D formula shows only the shadow of its dynamics on a plane.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-webgl2">
+        <span class="planned-tag">planned</span>
+        <h4>A WebGL2 Fallback</h4>
+        <p>The engine for browsers without WebGPU.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-paths">
+        <span class="planned-tag">planned</span>
+        <h4>Recorded Paths</h4>
+        <p>A path through parameter space recorded by hand and replayed at constant visual speed, beyond today's replay of the lineage.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-midi">
+        <span class="planned-tag">planned</span>
+        <h4>Physical Controllers</h4>
+        <p>MIDI and hardware knobs mapped to the two gesture tiers: big slow gestures for structure, small ones for tone.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-grow">
+        <span class="planned-tag">planned</span>
+        <h4>A Growth Engine</h4>
+        <p>A fourth way to draw, hooking the silviculture modules of paper 0 to the formula.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
+      <div class="planned" id="pl-softchimera">
+        <span class="planned-tag">planned</span>
+        <h4>Soft Walls Around Chimera Sites</h4>
+        <p>On the Metasurface a chimera's cell is a hard cut unless it is a constant blend. One more level of mix nesting will let it blend softly through a field.</p>
+        <table class="use">
+          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+          <tr><td></td><td></td><td></td></tr>
+        </table>
+        <div class="fe-slot">figure to come</div>
+      </div>
     </section>
 
     <!-- ================================================================== references -->

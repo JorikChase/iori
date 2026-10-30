@@ -7,6 +7,8 @@ Disallow: /burger.html
 Disallow: /clip.html
 Disallow: /document-diffusion.html
 Disallow: /fractal-engine/paper.html
+Disallow: /icon-test/a/
+Disallow: /icon-test/b/
 Disallow: /kalivoda/
 Disallow: /lili-web.html
 Disallow: /metafractal.html

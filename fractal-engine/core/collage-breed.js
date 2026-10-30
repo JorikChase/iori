@@ -9,6 +9,7 @@
 // or a piece's op parameter { piece, oi, op, key, pxPerUnit }. mutateCollage steps D on-screen pixels in
 // a random direction across the unpinned ones, so every neighbour is a known visual distance away.
 
+import { masterParam } from './sub.js';
 import { normCollage, isCollage, PLACE, REP, JOIN } from './collage.js';
 import { getCollageParam, setCollageParam } from './collage-edit.js';
 import { normalize } from './formula.js';
@@ -81,7 +82,7 @@ export function metricValue(c, m) {
 // the collage with one metric entry set (clamped to its range)
 export function withMetric(c, m, v) {
   if (m.ref) return setCollageParam(c, m.ref, v);
-  const g = clone(normCollage(c)), o = g.pieces[m.piece].f.slots.flat()[m.oi];
+  const g = clone(normCollage(c)), f = g.pieces[m.piece].f, to = masterParam(f, m.oi, m.key), o = f.slots.flat()[to.oi];
   const q = getOp(o.op).params.find((p) => p.k === m.key);
   if (q && q.min !== undefined) v = Math.max(q.min, v);
   if (q && q.max !== undefined) v = Math.min(q.max, v);

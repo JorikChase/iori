@@ -31,6 +31,7 @@ import { getOp, fillParams, isMix } from './ops.js';
 import { normShade, validateShade } from './shade.js';
 import { normDrive, validateDrive, emptyDrive } from './drive.js';
 import { normSub, syncSub, validateSub } from './sub.js';
+import { syncNet, validateNet } from './netsub.js';
 import { parse, format, slotIndex } from './notation.js';
 
 export const MAX_ITERS = 4096;
@@ -57,6 +58,8 @@ export function normalize(f) {
   // every mix op is handed its two sub-stacks (not enumerable: JSON and the hash never see them)
   for (const m of mixKids(g).mixes) if (m.kids.every((k) => k >= 0 && k < g.slots.length)) Object.defineProperty(g.slots[m.si][m.j], 'kids', { value: m.kids.map((k) => g.slots[k]) });
   syncSub(g);
+  if (g.shade) syncNet(g.shade);
+  if (g.drive) syncNet(g.drive);
   return g;
 }
 
@@ -82,6 +85,8 @@ export function validate(f) {
   if (f.shade !== undefined) errors.push(...validateShade(f.shade, f.drive || null));
   if (f.drive !== undefined && Array.isArray(f.slots)) errors.push(...validateDrive(f.drive, f));
   if (f.sub !== undefined && Array.isArray(f.slots)) errors.push(...validateSub(f));
+  if (f.shade && f.shade.sub) errors.push(...validateNet(f.shade, 'shade'));
+  if (f.drive && f.drive.sub) errors.push(...validateNet(f.drive, 'drive'));
   if (f.slice !== undefined && !(f.slice && Number.isFinite(f.slice.w || 0) && Array.isArray(f.slice.tilt || [0, 0, 0]) && (f.slice.tilt || [0, 0, 0]).length === 3 && (f.slice.tilt || [0, 0, 0]).every(Number.isFinite))) err('slice must be { w, tilt: [xw, yw, zw] }');
   if (!Array.isArray(f.slots) || f.slots.length < 1 || f.slots.length > MAX_SLOTS) err(`slots must hold 1..${MAX_SLOTS} op lists`);
   else {

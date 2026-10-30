@@ -15,6 +15,7 @@ import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, de
 import { readingsOf } from '../core/drive.js';
 import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
 import { FAMILIES, FAMILIES_INV, FAMILIES_OV } from './family-cases.js';
+import { SUBS } from './sub-cases.js';
 import { INTERP, INVERSE, DUAL, COLLAGE, withDrive, withCollage } from '../gpu/wgsl.js';
 import { pack, drives, paramTangents, packCollage, collageShadeDrives, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from '../gpu/pack.js';
 import { prepare, collageAt, collageColour, collageGrad, drivenAt, toPiece, fromPiece, repFold, repCopies } from '../core/collage.js';
@@ -186,7 +187,7 @@ FORMULAS.push(
   [format({ ...normalize(parse('[fold.box 1 · fold.sphere .5 1 · scale 2 ‖ bulb 8] tissue 6 1 .1 2 · +c ×10 bail=8')), shade: SH_GRAPHS[SH_GRAPHS.length - 2] }), 1.6],
 );
 // drivers (formula v2): every suite takes the driven cases too
-FORMULAS.push(...DRIVEN, ...COLOUR);
+FORMULAS.push(...DRIVEN, ...COLOUR, ...SUBS);
 // the Kleinian families and the Mandalay fold take every suite
 FORMULAS.push(...FAMILIES);
 const N = 4096;

@@ -202,7 +202,7 @@ function flattenDeep(top, rest) {
       return { op: n.op, p: { ...n.p, ...(n.species ? { s: n.species.length } : {}) } };
     });
   }
-  return normalize({ ...rest, slots });
+  return normalize({ ...rest, sub: undefined, slots });
 }
 
 // species (each { w, f }) as the species of one mix op: { op, p } its head, the species' own chains

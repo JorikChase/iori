@@ -402,6 +402,32 @@ export function place(formula, subId, chainId, index) {
   return finish(t);
 }
 
+// what the shelf keeps of a subgraph (app.js): its ops as tree nodes and which numbers are their own
+export function defOf(formula, at) {
+  const t = tree(formula), u = useOf(t, at);
+  if (!u) throw new Error(`${at} is not in a subgraph`);
+  const { chain, index } = useParts(at), ch = chainById(t, chain);
+  return { nodes: clone(ch.nodes.slice(index, index + u.sub.n)), expose: [...u.sub.expose] };
+}
+
+// a kept subgraph brought in at this place of a chain: a subgraph of its own, one use
+export function placeDef(formula, def, chainId, index) {
+  const t = tree(formula), ch = chainById(t, chainId);
+  if (!ch) throw new Error(`no chain ${chainId}`);
+  if (def.nodes.some((n) => n.species) && !t.chains.includes(ch)) throw new Error('a chimera cannot sit inside a chimera');
+  if ((t.sub || []).some((q) => runsOf(t, q).some((r) => r.ch === ch && index > r.start && index < r.start + r.nodes.length))) throw new Error('a subgraph cannot sit inside a subgraph');
+  const run = clone(def.nodes), id = nextLetter(t);
+  if (!id) throw new Error('no letter left');
+  const blank = (n) => { n.id = ''; for (const sp of n.species || []) { sp.id = ''; sp.nodes.forEach(blank); } };
+  run.forEach(blank);
+  if (!t.sub) { t.sub = []; Object.defineProperty(t, 'sigs', { value: new Map() }); }
+  t.sigs.set(id, shape(run));
+  run.forEach((n, m) => tags.set(n, { id, u: 0, m }));
+  ch.nodes.splice(Math.max(0, Math.min(index, ch.nodes.length)), 0, ...run);
+  t.sub.push({ id, n: run.length, uses: [], expose: [...def.expose] });
+  return finish(t);
+}
+
 // one use goes back to plain ops; the others stay linked (the last one takes the subgraph with it)
 export function detach(formula, at) {
   const t = tree(formula), u = useOf(t, at);

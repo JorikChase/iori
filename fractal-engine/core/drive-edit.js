@@ -152,6 +152,29 @@ export function removeDriverNode(formula, id) {
   });
 }
 
+// A saved subgraph brought in (app.js's shelf): its nodes as a new use, a subgraph of their own. Links
+// between them are kept, links from outside are gone: a remap left with nothing reads the iteration
+export function addRun(formula, nodes, expose = []) {
+  return edit(formula, (d) => {
+    const map = new Map(), ids = [];
+    for (const m of nodes) {
+      const n = clone(m);
+      n.id = newId(d, n.type);
+      map.set(m.id, n.id);
+      n.in = Object.fromEntries(Object.entries(n.in).filter(([, r]) => map.has(r)).map(([k, r]) => [k, map.get(r)]));
+      if (n.type === 'remap' && n.in.a == null) {
+        let i = d.nodes.find((q) => q.type === 'i');
+        if (!i) { i = { id: newId(d, 'i'), type: 'i', in: {}, p: {} }; d.nodes.unshift(i); }
+        n.in.a = i.id;
+      }
+      d.nodes.push(n);
+      ids.push(n.id);
+    }
+    const id = [...'abcdefghijklmnopqrstuvwxyz'].find((c) => !(d.sub || []).some((q) => q.id === c));
+    d.sub = [...(d.sub || []), { id, uses: [ids], expose }];
+  });
+}
+
 export function setDriverParam(formula, id, key, v) {
   return edit(formula, (d) => {
     const m = nodeOf(d, id), q = (PARAMS[m.type] || {})[key];

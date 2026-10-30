@@ -942,6 +942,72 @@ await check(`${DESK ? 'desktop: ' : ''}subgraph: copy, detach, delete`, async ()
   return { ok: a.sub && a.sub[0].uses.length === 2 && a.ops.length === 6 && b.sub && b.sub[0].uses.length === 1 && b.ops.length === 6 && !c.sub && c.ops.length === 4, note: `${a.text} → ${b.text} → ${c.text}` };
 });
 
+await check(`${DESK ? 'desktop: ' : ''}subgraph: shading and drivers`, async () => {
+  await fe(() => window.__fe.graph(false));
+  const SHADED = 'fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×9 bail=100 shade=' + await fe(() => { const s = { nodes: [{ id: 'col0', type: 'col', in: {}, p: {} }, { id: 'math0', type: 'math', in: { a: 'col0' }, p: { op: 'mul', c: 2 } }, { id: 'math1', type: 'math', in: { a: 'math0' }, p: { op: 'add', c: 0.5 } }, { id: 'ramp0', type: 'ramp', in: { v: 'math1' }, p: { stops: [{ t: 0, c: [0, 0, 0, 1] }, { t: 1, c: [1, 1, 1, 1] }], interp: 'linear', space: 'oklab', map: { scale: 1, offset: 0, mode: 'clamp', log: false, invert: false } } }], out: { color: 'ramp0' } }; return btoa(JSON.stringify(s)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); });
+  await openGraph(SHADED);
+  await sleep(300);
+  const nodes = (await input()).graph.nets.shade, a = nodes.find((q) => q.id === 'math0'), b = nodes.find((q) => q.id === 'math1');
+  if (DESK) { await page.keyboard.down('Shift'); await page.mouse.click(a.x, a.y); await sleep(380); await page.mouse.click(b.x, b.y); await page.keyboard.up('Shift'); }
+  else { await T.down(1, a.x, a.y); await sleep(80); await T.down(2, b.x, b.y); await sleep(60); await T.up(2); await T.upAll(); }
+  await sleep(200);
+  const g = (await input()).graph;
+  if (!g.nets.bracket) return { ok: false, note: 'no bracket' };
+  await press([g.nets.bracket.x, g.nets.bracket.y]); await sleep(200);
+  const shadeOf = () => fe(() => window.__fe.state.formula.shade);
+  const s1 = await shadeOf();
+  await shot(`${DESK ? 'desktop-' : ''}sub-shade-wrapped`);
+  // the frame's ring: another use, a free copy
+  const use = (await input()).graph.nets.shade.find((q) => q.use === 'a');
+  const F = (await input()).graph.zone, hx = use.x + 46, hy = use.y + 4;
+  if (DESK) { await page.mouse.move(hx, hy); await page.mouse.down(); await sleep(420); } else { await T.down(1, hx, hy); await sleep(420); }
+  const ring = await fe(() => window.__fe.ringItems && window.__fe.ringItems());
+  const tx = ring ? ring.at[0] : hx, ty = ring ? ring.at[1] - 96 : hy;
+  if (DESK) { await page.mouse.move(tx, ty, { steps: 6 }); await sleep(50); await page.mouse.up(); } else { await T.stroke([1], [[hx, hy]], [[tx, ty]], 8); await T.upAll(); }
+  await sleep(250);
+  const s2 = await shadeOf();
+  // open it, change the first use's constant, the copy follows
+  const u2 = (await input()).graph.nets.shade.find((q) => q.use === 'a');
+  const dbl = async (q) => { if (DESK) { await page.mouse.click(q.x, q.y); await sleep(90); await page.mouse.click(q.x, q.y); } else { await T.tap([[q.x, q.y]]); await sleep(90); await T.tap([[q.x, q.y]]); } await sleep(250); };
+  await dbl(u2);
+  const fr = (await input()).graph.nets.frames[0];
+  await shot(`${DESK ? 'desktop-' : ''}sub-shade-open`);
+  await fe(() => window.__fe.graph(false));
+  const copy = s2.nodes.filter((n) => n.type === 'math').length;
+  return { ok: s1.sub && s1.sub[0].uses[0].length === 2 && s2.sub && s2.sub[0].uses.length === 2 && copy === 4 && !!fr, note: `${JSON.stringify(s1.sub)} → ${JSON.stringify(s2.sub)}; frame ${!!fr}; ring ${ring && ring.n}` };
+});
+
+await check(`${DESK ? 'desktop: ' : ''}subgraph: driver lane`, async () => {
+  await fe(() => window.__fe.graph(false));
+  const n = (id, type, p = {}, inn = {}) => ({ id, type, p, in: inn });
+  await fe((d) => window.__fe.setFormulaObject(d), { drive: { nodes: [n('r0', 'r'), n('m0', 'math', { op: 'mul', c: 2 }, { a: 'r0' })], bind: [{ to: 'A0.s', from: 'm0', lo: 1, hi: 3 }] } });
+  await settle(6); await fe(() => window.__fe.graph(true)); await sleep(500);
+  const nodes = (await input()).graph.nets.drive, a = nodes.find((q) => q.id === 'r0'), b = nodes.find((q) => q.id === 'm0');
+  if (DESK) { await page.keyboard.down('Shift'); await page.mouse.click(a.x, a.y); await sleep(380); await page.mouse.click(b.x, b.y); await page.keyboard.up('Shift'); }
+  else { await T.down(1, a.x, a.y); await sleep(80); await T.down(2, b.x, b.y); await sleep(60); await T.up(2); await T.upAll(); }
+  await sleep(200);
+  const g = (await input()).graph;
+  if (!g.nets.bracket) return { ok: false, note: 'no bracket' };
+  await press([g.nets.bracket.x, g.nets.bracket.y]); await sleep(200);
+  const d1 = await fe(() => window.__fe.state.formula.drive);
+  const u = (await input()).graph.nets.drive.find((q) => q.use === 'a');
+  const dbl = async (q) => { if (DESK) { await page.mouse.click(q.x, q.y); await sleep(90); await page.mouse.click(q.x, q.y); } else { await T.tap([[q.x, q.y]]); await sleep(90); await T.tap([[q.x, q.y]]); } await sleep(250); };
+  await dbl(u);
+  const open1 = (await input()).graph.nets.open;
+  await shot(`${DESK ? 'desktop-' : ''}sub-drive-open`);
+  // the math's constant: select, pull its line onto the frame
+  const m = (await input()).graph.nets.drive.find((q) => q.id === 'm0');
+  await press([m.x, m.y]); await sleep(150);
+  const L = await fe(() => window.__fe.driverLines());
+  const line = L.find((q) => q.key === 'c'), mx = (line.x1 + line.x2) / 2, F = (await input()).graph.nets.frames[1];
+  if (DESK) { await page.mouse.move(mx, line.y); await page.mouse.down(); await page.mouse.move(mx, line.y - 26, { steps: 4 }); await page.mouse.move(F.x + F.w, F.y + F.h / 2, { steps: 8 }); await sleep(50); await page.mouse.up(); }
+  else { await T.down(1, mx, line.y); await T.stroke([1], [[mx, line.y]], [[mx, line.y - 26]], 4); await T.stroke([1], [[mx, line.y - 26]], [[F.x + F.w, F.y + F.h / 2]], 8); await T.upAll(); }
+  await sleep(250);
+  const d2 = await fe(() => window.__fe.state.formula.drive);
+  await fe(() => window.__fe.graph(false));
+  return { ok: d1.sub && d1.sub[0].uses[0].length === 2 && d1.bind.length === 1 && open1 && open1.sub === 'a' && d2.sub[0].expose.includes('1.c'), note: `${JSON.stringify(d2.sub)}` };
+});
+
 await check(`${DESK ? 'desktop: ' : ''}subgraph: names`, async () => {
   await openGraph('a( abs · scale ^2 ) · +c · a( 3 ) ×9 bail=100');
   const u = await nodeUse('a'), n = await fe(([x, y]) => window.__fe.labelAt(x, y), [u.x, u.y]);

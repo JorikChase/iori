@@ -8,7 +8,9 @@
 // layoutDrive(drive, L) → units beside the formula's layout L (ui/graph.js); placeDrive(D, P) → pixels
 // in the placed graph P; drawDrive(V, o) → SVG; hit tests.
 
-import { glyphPath } from './glyphs.js';
+import { glyphPath, useGlyph } from './glyphs.js';
+import { frameSvg } from './graph.js';
+import { foldNet } from '../core/netsub.js';
 import { ORBIT } from '../core/drive.js';
 import { placeOf, driverPorts } from '../core/drive-edit.js';
 
@@ -21,8 +23,10 @@ export const typeGlyph = (t) => (t === 'math' ? 'math.add' : `drv.${t}`);
 
 // units: lane nodes in columns by depth (a reading 0, a math node one past the deepest lane node it
 // reads), top nodes in a row above the zone; w, h: the formula's layout grown to hold the lane
-export function layoutDrive(drive, L) {
-  const nodes = (drive && drive.nodes) || [];
+// (a subgraph's use is one node, its output, unless it is the use `open`: core/netsub.js)
+export function layoutDrive(drive, L, open = null) {
+  const all = (drive && drive.nodes) || [], fold = foldNet(drive, open), nodes = all;
+  const nodeBy = new Map(all.map((m) => [m.id, m]));
   const depth = new Map();
   for (const m of nodes) {
     if (placeOf(m.type) !== 'lane') continue;
@@ -32,13 +36,15 @@ export function layoutDrive(drive, L) {
   const lane = [], top = [];
   const x0 = L.w + GAP;
   for (const m of nodes) {
+    if (fold.hidden.has(m.id)) continue;
+    const use = fold.uses.get(m.id), mark = use ? { use, names: use.members.map((id) => driverGlyph(nodeBy.get(id))) } : {};
     if (placeOf(m.type) === 'lane') {
       const c = depth.get(m.id), k = (cols[c] = (cols[c] || 0) + 1) - 1;
-      lane.push({ id: m.id, n: m, type: m.type, x: x0 + c * COL + COL / 2, y: 0.7 + k * COL, glyph: driverGlyph(m), place: 'lane' });
-    } else top.push({ id: m.id, n: m, type: m.type, x: 0.3 + top.length * COL, y: -1.6, glyph: driverGlyph(m), place: 'top' });
+      lane.push({ id: m.id, n: m, type: m.type, x: x0 + c * COL + COL / 2, y: 0.7 + k * COL, glyph: driverGlyph(m), place: 'lane', ...mark });
+    } else top.push({ id: m.id, n: m, type: m.type, x: 0.3 + top.length * COL, y: -1.6, glyph: driverGlyph(m), place: 'top', ...mark });
   }
-  const laneCols = Math.max(1, cols.length), rows = Math.max(0, ...cols.map((r) => r || 0));
-  return { lane, top, laneX0: x0 - GAP / 2, w: x0 + laneCols * COL, h: Math.max(L.h, 0.3 + rows * COL), formulaW: L.w };
+  const laneCols = Math.max(1, cols.length), rows = Math.max(0, ...Array.from(cols, (r) => r || 0));
+  return { lane, top, all, rep: fold.rep, open: fold.open, openSub: open, laneX0: x0 - GAP / 2, w: x0 + laneCols * COL, h: Math.max(L.h, 0.3 + rows * COL), formulaW: L.w };
 }
 
 // pixels, in the placement of the formula's graph (P.ox, P.oy: its origin; P.u: a unit)
@@ -50,17 +56,23 @@ export function placeDrive(D, P) {
   const byId = new Map(items.map((q) => [q.id, q]));
   const inPort = (q, k, of) => [q.x + (of > 1 ? (k - (of - 1) / 2) * 9 : 0), q.y - q.hh - 3];
   const outPort = (q) => [q.x, q.y + q.hh + 3];
-  const links = [];
-  for (const q of items) driverPorts(q.type).forEach((port, k, all) => {
-    const src = q.n.in[port];
-    if (src == null || !byId.has(src)) return;
-    const [x1, y1] = outPort(byId.get(src)), [x2, y2] = inPort(q, k, all.length);
-    links.push({ from: src, to: q.id, port, x1, y1, x2, y2 });
+  for (const [id, r] of D.rep || []) if (byId.has(r)) byId.set(id, byId.get(r));
+  const links = [], seen = new Set();
+  for (const m of D.all || []) driverPorts(m.type).forEach((port, k, ports) => {
+    const src = m.in[port], q = byId.get(m.id);
+    if (src == null || !q || !byId.has(src) || byId.get(src) === q) return;
+    const key = `${byId.get(src).id}>${q.id}`;
+    if (q.use) { if (seen.has(key)) return; seen.add(key); }
+    const [x1, y1] = outPort(byId.get(src)), [x2, y2] = q.use ? inPort(q, 0, 1) : inPort(q, k, ports.length);
+    links.push({ from: src, to: m.id, port, x1, y1, x2, y2 });
   });
   const [zx0, zy0, , zy1] = P.zone;
   const lane = [ox + D.laneX0 * u, zy0, P.zone[2], zy1];
   const top = [zx0, zy0 - 2.2 * u, P.zone[2], zy0];
-  return { u, g, items, links, byId, inPort, outPort, lane, top };
+  const box = D.open && items.filter((q) => D.open.includes(q.id));
+  const netFrame = box && box.length ? { x: Math.min(...box.map((q) => q.x)) - g, y: Math.min(...box.map((q) => q.y)) - g, sub: D.openSub } : null;
+  if (netFrame) { netFrame.w = Math.max(...box.map((q) => q.x)) + g - netFrame.x; netFrame.h = Math.max(...box.map((q) => q.y)) + g - netFrame.y; }
+  return { u, g, items, links, byId, inPort, outPort, lane, top, netFrame };
 }
 
 // o: { hover, selected, link (held), drag: { x1, y1, x2, y2 }, binds: [{ to, from, x2, y2, on }] (the
@@ -81,16 +93,19 @@ export function drawDrive(V, o = {}) {
   }
   for (const q of V.items) {
     const cls = ['nd', 'dv', o.hover === q.id ? 'hv' : '', o.selected === q.id ? 'sel' : ''].join(' ');
-    s.push(`<g class="${cls}">${glyphPath(q.glyph, q.x, q.y, V.g)}</g>`);
+    s.push(`<g class="${cls}">${q.use ? useGlyph(q.names, q.x, q.y, V.g * 1.3) : glyphPath(q.glyph, q.x, q.y, V.g)}</g>`);
+    if (q.use) s.push(`<text class="ul" x="${f1(q.x + V.g * 0.95)}" y="${f1(q.y - V.g * 0.75)}">${q.use.sub}</text>`);
     if (o.selected === q.id) s.push(`<rect class="att" x="${f1(q.x - q.hw - 4)}" y="${f1(q.y - q.hh - 4)}" width="${f1(q.hw * 2 + 8)}" height="${f1(q.hh * 2 + 8)}"/>`);
-    driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length); s.push(`<circle class="pt" cx="${f1(px)}" cy="${f1(py)}" r="1.6"/>`); });
+    if (!q.use) driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length); s.push(`<circle class="pt" cx="${f1(px)}" cy="${f1(py)}" r="1.6"/>`); });
     const [px, py] = V.outPort(q);
     s.push(`<circle class="pt out" cx="${f1(px)}" cy="${f1(py)}" r="1.8"/>`);
   }
+  if (V.netFrame) s.push(frameSvg(V.netFrame));
+  for (const d of o.dots || []) s.push(`<circle class="io" cx="${f1(d.x)}" cy="${f1(d.y)}" r="2.5"/>`);
   if (o.drag) s.push(`<path class="ln on" d="M${f1(o.drag.x1)} ${f1(o.drag.y1)}L${f1(o.drag.x2)} ${f1(o.drag.y2)}"/>`);
   if (o.params && o.params.length) {
     const sel = V.byId.get(o.selected);
-    if (sel) s.push(`<path class="tie" d="M${f1(sel.x)} ${f1(sel.y + sel.hh + 6)}L${f1(o.params[0].x2)} ${f1(o.params[0].y - 8)}"/>`);
+    if (sel) s.push(`<path class="tie" d="M${f1(sel.x)} ${f1(sel.y + sel.hh + 6)}L${f1(o.params[0].x2 ?? o.params[0].gx)} ${f1(o.params[0].y - 8)}"/>`);
     for (const h of o.params) {
       s.push(`<g class="pm${h.held ? ' held' : ''}">`);
       if (h.line) {
@@ -117,7 +132,7 @@ export function driveOutPortAt(V, x, y) {
 }
 export function driveInPortAt(V, x, y) {
   let best = null, bd = 8;
-  for (const q of V.items) driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
+  for (const q of V.items.filter((r) => !r.use)) driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
   return best;
 }
 // a link between drivers ({ to, port }) or a binding's hairline ({ bind: to }) under the point

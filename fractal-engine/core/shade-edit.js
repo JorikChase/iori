@@ -113,6 +113,31 @@ const wants = (s, to, port) => (to === 'out' ? (port === 'color' ? 'colour' : nu
 const setLink = (s, to, port, from) => { if (to === 'out') s.out[port] = from; else nodeOf(s, to).in[port] = from; };
 const linkOf = (s, to, port) => (to === 'out' ? s.out[port] : nodeOf(s, to).in[port]);
 
+// A saved subgraph brought in (app.js's shelf): its nodes as a new use, a subgraph of their own. Links
+// between them are kept, links from outside are gone: a required input takes the fold index or the surface
+// colour, as a new node's does
+export function addRun(formula, nodes, expose = []) {
+  return edit(formula, (s) => {
+    const map = new Map(), ids = [];
+    for (const m of nodes) {
+      const n = clone(m);
+      n.id = newId(s, n.type);
+      map.set(m.id, n.id);
+      n.in = Object.fromEntries(Object.entries(n.in).filter(([, r]) => map.has(r)).map(([k, r]) => [k, map.get(r)]));
+      for (const port of portsOf(n.type)) {
+        if ((OPTIONAL[n.type] || []).includes(port) || n.in[port] != null) continue;
+        let src = inputKind(n.type, port) === 'colour' ? s.out.color : (s.nodes.find((q) => q.type === 'col') || {}).id;
+        if (src == null) { const c = freshNode(s, 'col'); s.nodes.unshift(c); src = c.id; }
+        n.in[port] = src;
+      }
+      s.nodes.push(n);
+      ids.push(n.id);
+    }
+    const id = [...'abcdefghijklmnopqrstuvwxyz'].find((c) => !(s.sub || []).some((q) => q.id === c));
+    s.sub = [...(s.sub || []), { id, uses: [ids], expose }];
+  });
+}
+
 // look: the view's colour (app.js state.look: key, iridescence, spread, hue), so the graph starts as the
 // colour on screen
 export function shadeOn(formula, look = null) {

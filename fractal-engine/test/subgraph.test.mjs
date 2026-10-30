@@ -182,3 +182,74 @@ test('collages, state documents and validation carry the link', () => {
   assert.equal(useOf(f, 'A0'), null);
   assert.equal(useOf(f, 'A2').member, 1);
 });
+
+test('shading and driver subgraphs: parameters and inner links shared, outside links their own', async () => {
+  const SE = await import('../core/shade-edit.js'), DE = await import('../core/drive-edit.js');
+  const { wrapNet, placeNet, detachNet, exposeNet, exposedNet, foldNet, peersOfNet } = await import('../core/netsub.js');
+  const { evalShade, normShade } = await import('../core/shade.js');
+  let f = SE.shadeOn(parse('bulb 8 · +c ×6'));
+  f = SE.addNode(f, 'math');
+  const m = normalize(f).shade.nodes.find((n) => n.type === 'math').id;
+  const newId = (net, type) => { let i = 0; while (net.nodes.some((n) => n.id === `${type}${i}`)) i++; return `${type}${i}`; };
+  const put = (shade) => normalize({ ...f, shade });
+  f = put(wrapNet(normalize(f).shade, [m]));
+  assert.equal(f.shade.sub[0].id, 'a');
+  assert.ok(validate(f).ok, validate(f).errors.join());
+  f = put(placeNet(f.shade, 'a', newId));
+  const [, peer] = f.shade.sub[0].uses.map((u) => u[0]);
+  assert.notEqual(peer, m);
+  // the first use's number reaches the other; the text round-trips with the link in shade=
+  f = SE.setNodeParam(f, m, 'c', 2.5);
+  assert.equal(f.shade.nodes.find((n) => n.id === peer).p.c, 2.5);
+  assert.deepEqual(normalize(parse(format(f))).shade, f.shade);
+  // exposed: each its own
+  f = put(exposeNet(f.shade, m, 'c'));
+  f = SE.setNodeParam(f, peer, 'c', 4);
+  assert.deepEqual(f.shade.nodes.filter((n) => n.type === 'math').map((n) => n.p.c), [2.5, 4]);
+  assert.deepEqual(exposedNet(f.shade, peer).map((e) => [e.id, e.key, e.value]), [[peer, 'c', 4]]);
+  const fold = foldNet(f.shade);
+  assert.equal(fold.uses.size, 2);
+  assert.deepEqual(peersOfNet(f.shade, peer), [m, peer]);
+  // a removed node leaves its place in every use; the last takes the subgraph
+  const g = SE.removeNode(SE.removeNode(f, peer), m);
+  assert.equal(g.shade.sub, undefined);
+  assert.equal(normalize(put(detachNet(f.shade, m))).shade.sub[0].uses.length, 1);
+  // drivers: the same link, through an op edit too (the bindings' remap keeps it)
+  let d = G.setDriver(parse('fold.box · scale 2 · +c ×6'), { id: 'n0', type: 'noise', in: {}, p: {} });
+  d = G.setDriver(d, { id: 'm0', type: 'math', in: { a: 'n0' }, p: { op: 'mul', c: 2 } });
+  d = G.bind(d, 'A1.s', 'm0', 1, 3);
+  d = normalize({ ...d, drive: wrapNet(d.drive, ['n0', 'm0']) });
+  d = normalize({ ...d, drive: placeNet(d.drive, 'a', newId) });
+  assert.ok(validate(d).ok, validate(d).errors.join());
+  const [a, b] = d.drive.sub[0].uses;
+  assert.equal(d.drive.nodes.find((n) => n.id === b[1]).in.a, b[0], 'the copy reads its own copy');
+  d = G.setDriver(d, { ...d.drive.nodes.find((n) => n.id === a[0]), p: { ...d.drive.nodes.find((n) => n.id === a[0]).p, f: 3 } });
+  assert.equal(d.drive.nodes.find((n) => n.id === b[0]).p.f, 3);
+  d = G.insert(d, 'A', 0, 'abs');
+  assert.deepEqual(d.drive.bind.map((q) => q.to), ['A2.s']);
+  assert.equal(d.drive.sub[0].uses.length, 2);
+  assert.deepEqual(normalize(parse(format(d))).drive, d.drive);
+});
+
+test('the shelf: a kept subgraph comes in as a subgraph of its own, its numbers with it', async () => {
+  const SE = await import('../core/shade-edit.js'), DE = await import('../core/drive-edit.js');
+  const f = G.expose(wrapped(), 'A2', 's'), def = JSON.parse(JSON.stringify(G.defOf(f, 'A1')));
+  assert.equal(def.nodes.length, 2);
+  const g = G.placeDef(parse('bulb 8 · +c ×6'), def, 'A', 1);
+  assert.deepEqual(g.sub, [{ id: 'a', n: 2, uses: ['A1'], expose: ['1.s'] }]);
+  assert.deepEqual(ops(g), ['bulb', 'fold.sphere', 'scale', '+c']);
+  assert.ok(validate(g).ok, validate(g).errors.join());
+  const h = G.placeDef(f, def, 'A', 0);
+  assert.deepEqual(h.sub.map((s) => [s.id, s.uses]), [['b', ['A0']], ['a', ['A3', 'A6']]].map(([i, u]) => [i === 'b' ? 'b' : 'a', u]));
+  assert.ok(validate(h).ok);
+  // the networks: outside links are gone, required inputs fed
+  let s = SE.shadeOn(parse('bulb 8 · +c ×6'));
+  const before = normalize(s).shade.nodes.length;
+  s = SE.addRun(s, [{ id: 'm', type: 'math', in: { a: 'zz' }, p: { op: 'mul', c: 3 } }, { id: 'r', type: 'math', in: { a: 'm' }, p: { op: 'add', c: 1 } }], ['0.c']);
+  assert.equal(s.shade.nodes.length, before + 2);
+  assert.ok(validate(s).ok, validate(s).errors.join());
+  assert.equal(s.shade.sub[0].uses[0].length, 2);
+  let d = DE.addRun(parse('bulb 8 ×6'), [{ id: 'x', type: 'remap', in: { a: 'q' }, p: { lo: 0, hi: 2, clamp: true } }]);
+  assert.ok(validate(d).ok, validate(d).errors.join());
+  assert.equal(d.drive.nodes[0].type, 'i');
+});

@@ -21,7 +21,7 @@ export const LABELS = {
   fork: 'fork chain',
   // a subgraph (core/sub.js): a use, the bracket beside a selected run, an own number's dot on the frame
   'sub.use': 'subgraph',                    // + its letter: 'subgraph a'
-  'sub.wrap': 'wrap run', 'sub.detach': 'detach use', 'sub.shelf': 'save to shelf', 'sub.dot': 'own number',
+  'sub.wrap': 'wrap run', 'sub.detach': 'detach use', 'sub.shelf': 'save to shelf', 'sub.shelf.use': 'from shelf', 'sub.dot': 'own number',
   'sub.frame': 'subgraph frame',
   plus: 'add species',
   // a collage piece's frame (ui/gizmo.js): the centre dot names the axes (a tap flips them; a drag moves

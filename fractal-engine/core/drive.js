@@ -30,6 +30,7 @@ import { getOp, isMix } from './ops.js';
 import { fbm, site } from './fields.js';
 import { MATH_OPS, shadeDrivers } from './shade.js';
 import { slotLetter } from './notation.js';
+import { normNet } from './netsub.js';
 
 export const ORBIT = ['i', 'r', 'trap', 'lyap', 'px', 'py', 'pz', 'pw'];
 export const START = ['x', 'y', 'z', 'w'];
@@ -82,6 +83,7 @@ export function normDrive(d) {
   return {
     bind: (d.bind || []).map((b) => ({ from: String(b.from), hi: num(b.hi, 1), lo: num(b.lo, 0), to: String(b.to) })).sort((a, b) => (a.to < b.to ? -1 : a.to > b.to ? 1 : 0)),
     nodes: (d.nodes || []).map((m) => ({ id: String(m.id), in: sortKeys({ ...(m.in || {}) }), p: normParams(m.type, m.p), type: m.type })),
+    ...(normNet(d.sub, d.nodes || []) ? { sub: normNet(d.sub, d.nodes || []) } : {}),
   };
 }
 export const emptyDrive = (d) => !d || (!(d.nodes || []).length && !(d.bind || []).length);
@@ -306,7 +308,7 @@ export function remapDrive(drive, ids, f, was = () => 0) {
     if (id && key in paths.get(id).p) return { ...m, p: { ...m.p, of: `${id}.${key}` } };
     return { id: m.id, in: {}, p: { c: num(was(m.p.of), 0), op: 'add' }, type: 'math' };
   });
-  return normDrive({ nodes, bind });
+  return normDrive({ ...(d.sub ? { sub: d.sub } : {}), nodes, bind });
 }
 
 // The drivers' continuous parameters, for breeding and the lens: refs 'bind/<to>/lo|hi' and

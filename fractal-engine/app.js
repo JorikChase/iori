@@ -60,13 +60,14 @@ import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveI
 import { createLineage } from './ui/lineage.js';
 import { drawStructure } from './ui/structure.js';
 import { drawSurface, bandPath, SITE_R } from './ui/metasurface.js';
-import { layout as graphLayout, place as graphPlace, between as graphBetween, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt, scheduleLayout } from './ui/graph.js';
+import { layout as graphLayout, place as graphPlace, between as graphBetween, bracketSvg, drawGraph, nodeAt as graphNodeAt, edgeAt as graphEdgeAt, scheduleLayout } from './ui/graph.js';
 import { stripPlacement, SHADE_GAP } from './ui/structure.js';
-import { layoutShade, placeShade, drawShade, editorLayout, shadeNodeAt, shadeInPortAt, shadeOutPortAt, shadeLinkAt, inFrame, toSRGB, hsvToCss, RING_R } from './ui/shadegraph.js';
+import { layoutShade, placeShade, drawShade, glyphOf as shadeGlyphOf, editorLayout, shadeNodeAt, shadeInPortAt, shadeOutPortAt, shadeLinkAt, inFrame, toSRGB, hsvToCss, RING_R } from './ui/shadegraph.js';
 import * as SE from './core/shade-edit.js';
 import { READINGS as SHADE_READINGS, RAMP_PRESETS, RING_PRESETS, INTERPS, SPACES, MODES as MAP_MODES, MATH_OPS, MIX_MODES, rgb2hsv, hsv2rgb } from './core/shade.js';
 import * as G from './core/graph.js';
 import { useOf, useParts, masterParam, reduceMetric } from './core/sub.js';
+import { wrapNet, placeNet, detachNet, exposeNet, exposedNet, useOfNet, peersOfNet, addMemberNet } from './core/netsub.js';
 import { glyphPath, useGlyph } from './ui/glyphs.js';
 import { TOGGLES, toggleLayout, drawToggles } from './ui/toggles.js';
 import { LABELS, KEYS, LABEL_MS, labelOf, paramLabel, joinLabel, drawLabel } from './ui/labels.js';
@@ -757,7 +758,7 @@ function graphPlacement() {
   // the drivers' lane widens the repeat zone on its right (ui/drivegraph.js)
   // (either may be folded away by its toggle: the formula's network takes the room)
   const dvOn = driveShown(), shOn = shadeShown();
-  const f = normalize(state.formula), L0 = graphLayout(G.tree(f), gv && gv.open ? openAt(f) : null), D = layoutDrive(dvOn ? f.drive : null, L0), L = dvOn ? { ...L0, w: D.w, h: D.h } : L0, S = layoutShade(f.shade);
+  const f = normalize(state.formula), L0 = graphLayout(G.tree(f), gv && gv.open ? openAt(f) : null), D = layoutDrive(dvOn ? f.drive : null, L0, netOpen('drive')), L = dvOn ? { ...L0, w: D.w, h: D.h } : L0, S = layoutShade(f.shade, netOpen('shade'));
   const u = Math.min(64, (innerHeight - 260) / (Math.max(L.h, shOn ? S.h : 0) + 1), (innerWidth * 0.8) / (L.w + 0.9 + (shOn ? SHADE_GAP + S.w + 0.6 : 0)));
   const P = graphPlace(L, u, innerWidth - 50, innerHeight / 2 - 10);
   P.sh = placeShade(S, u, P.zone[0] - SHADE_GAP * u, P.zone[1], f.shade);
@@ -772,6 +773,102 @@ function openAt(f) {
   const s = (f.sub || []).find((q) => q.id === gv.open.sub);
   return s ? s.uses[gv.open.use] ?? null : null;
 }
+// ---- subgraphs of the shading and the drivers (core/netsub.js): the same gestures on their nodes. kind:
+// 'shade' or 'drive'. Only a first use is edited, so a use opens on its subgraph's first.
+const netOpen = (kind) => (gv && gv.openNet && gv.openNet.kind === kind ? gv.openNet.sub : null);
+const netOf = (kind) => normalize(state.formula)[kind];
+const netPut = (kind, net) => normalize({ ...normalize(state.formula), [kind]: net });
+const netView = (kind) => (kind === 'shade' ? gv.P.sh : gv.P.dv);
+const newNodeId = (net, type) => { let k = 0; while (net.nodes.some((n) => n.id === `${type}${k}`)) k++; return `${type}${k}`; };
+const netHandles = (kind, q) => {
+  const x2 = q.x - (q.hw || 12) - 24, x1 = x2 - 110, list = exposedNet(netOf(kind), q.id);
+  return list.map((e, i) => {
+    const param = kind === 'shade' ? gv.shParam : gv.dvParam, held = !!(param && param.id === e.id && param.key === e.key);
+    return { key: e.key, id: e.id, to: `${e.id}.${e.key}`, value: e.value, x1, x2, y: q.y + (i - (list.length - 1) / 2) * 15, v: held ? fmtValue(e.value) : '', held, line: true, own: false, q: (DRIVE_PARAMS[e.type] || {})[e.key] || {} };
+  });
+};
+// its own numbers' dots on the open frame
+function netDots(kind, P) {
+  const V = kind === 'shade' ? P.sh : P.dv, F = V.netFrame, s = netOpen(kind) && (netOf(kind).sub || []).find((q) => q.id === netOpen(kind));
+  if (!F || !s) return [];
+  return exposedNet(netOf(kind), s.uses[0][0]).map((e) => { const q = V.byId.get(e.id); return { x: F.x, y: q ? q.y : F.y + 8 }; });
+}
+const netBracketOf = (P) => {
+  const r = gv.netRun, V = r && (r.kind === 'shade' ? P.sh : P.dv), qs = r ? r.ids.map((id) => V.items.find((q) => q.id === id)).filter(Boolean) : [];
+  if (!qs.length) return null;
+  return { x: Math.min(...qs.map((q) => q.x - (q.hw || 10))) - 12, y0: Math.min(...qs.map((q) => q.y)) - 12, y1: Math.max(...qs.map((q) => q.y)) + 12 };
+};
+const onBracket = (B, x, y) => B && x > B.x - 20 && x < B.x + 10 && y > B.y0 - 6 && y < B.y1 + 6;
+function netWrapRun() {
+  const { kind, ids } = gv.netRun;
+  gv.netRun = null;
+  graphEdit(() => netPut(kind, wrapNet(netOf(kind), ids)));
+}
+// a click on a node: Shift grows the run, twice quickly on a use opens its subgraph. True when it was that
+function netClick(kind, q, shift) {
+  if (shift && !q.use) {
+    const r = gv.netRun && gv.netRun.kind === kind ? gv.netRun.ids : [];
+    gv.netRun = { kind, ids: r.includes(q.id) ? r : [...r, q.id] };
+    if (kind === 'shade') gv.shSel = null; else gv.dvSel = null;
+    drawGraphNow();
+    return true;
+  }
+  const now = performance.now(), again = gv.lastTap && gv.lastTap.id === q.id && now - gv.lastTap.t < 350;
+  gv.lastTap = { id: q.id, t: now };
+  gv.netRun = null;
+  if (again && q.use) { gv.openNet = { kind, sub: q.use.sub }; gv.shSel = null; gv.dvSel = null; refreshGraph(); return true; }
+  return false;
+}
+// a node removed, or a use: a member goes from every use; a folded use lets go of the link first
+function netRemove(kind, id, q) {
+  const net = netOf(kind), u = useOfNet(net, id), gone = kind === 'shade' ? SE.removeNode : DE.removeDriverNode;
+  if (!u) return graphEdit(() => gone(state.formula, id));
+  if (q && q.use) return graphEdit(() => u.ids.reduce((f, m) => gone(f, m), normalize({ ...normalize(state.formula), [kind]: detachNet(net, id) })));
+  return graphEdit(() => peersOfNet(net, id).reduce((f, m) => gone(f, m), state.formula));
+}
+// the ring's items for a kind: a folded use's detach, another use of each subgraph (a free node)
+const netDetachItem = (kind, id) => ({ glyph: 'sub.detach', lab: LABELS['sub.detach'], act: () => netPut(kind, detachNet(netOf(kind), id)) });
+const netUseItems = (kind) => ((netOf(kind) && netOf(kind).sub) || []).map((s) => {
+  const net = netOf(kind), names = s.uses[0].map((id) => { const n = net.nodes.find((m) => m.id === id); return kind === 'shade' ? shadeGlyphOf(n) || 'shade' : `drv.${n.type}`; });
+  return { glyph: 'sub', names, lab: `${LABELS['sub.use']} ${s.id}`, act: () => netPut(kind, placeNet(netOf(kind), s.id, newNodeId)) };
+});
+// a new node held on an open frame's empty ground: a member of every use
+function netMember(kind, type, add) {
+  const sub = netOpen(kind), id = newNodeId(netOf(kind) || { nodes: [] }, type), f = add();
+  return normalize({ ...f, [kind]: addMemberNet(f[kind], sub, id, newNodeId) });
+}
+// a line pulled off an open use's op: onto the frame, a number of its own; back inside, shared again
+function netPullDrop(p, x, y) {
+  const F = netView(p.net).netFrame;
+  if (!F) { drawGraphNow(); return; }
+  const inX = x > F.x - 12 && x < F.x + F.w + 12, inY = y > F.y - 12 && y < F.y + F.h + 12;
+  const edge = Math.min(Math.abs(x - F.x), Math.abs(x - F.x - F.w), Math.abs(y - F.y), Math.abs(y - F.y - F.h)) < 12;
+  if (inX && inY && edge && !p.own) graphEdit(() => netPut(p.net, exposeNet(netOf(p.net), p.id, p.key)));
+  else if (inX && inY && p.own && !edge) graphEdit(() => netPut(p.net, exposeNet(netOf(p.net), p.id, p.key, false)));
+  else drawGraphNow();
+}
+const netOwn = (kind, id, key) => { const u = useOfNet(netOf(kind), id); return !!u && u.sub.expose.includes(`${u.m}.${key}`); };
+
+// ---- the shelf: subgraphs kept across formulas in this browser, beside the lineage and the Metasurface's
+// sites. Placing one copies it in: a formula holds all it needs, and nothing here reaches back into it.
+const SHELF_KEY = 'fractal-engine.shelf.v1', SHELF_MAX = 8;
+const shelf = (() => { try { return JSON.parse(localStorage.getItem(SHELF_KEY) || '[]'); } catch { return []; } })();
+function keepOnShelf(item) {
+  const same = JSON.stringify([item.kind, item.nodes]), i = shelf.findIndex((q) => JSON.stringify([q.kind, q.nodes]) === same);
+  if (i >= 0) shelf.splice(i, 1);
+  shelf.unshift(item);
+  shelf.length = Math.min(shelf.length, SHELF_MAX);
+  if (window.__fe && window.__fe.dry) return;
+  try { localStorage.setItem(SHELF_KEY, JSON.stringify(shelf)); } catch { /* full or blocked: this page only */ }
+}
+const shelfOps = (at, names) => ({ glyph: 'sub.shelf', lab: LABELS['sub.shelf'], act: () => { keepOnShelf({ kind: 'ops', names, ...G.defOf(state.formula, at) }); return null; } });
+const shelfNet = (kind, id, names) => ({ glyph: 'sub.shelf', lab: LABELS['sub.shelf'], act: () => {
+  const net = netOf(kind), u = useOfNet(net, id);
+  keepOnShelf({ kind, names, nodes: u.ids.map((m) => net.nodes.find((n) => n.id === m)), expose: [...u.sub.expose] });
+  return null;
+} });
+const shelfItems = (kind, place) => shelf.filter((q) => q.kind === kind).map((q) => ({ glyph: 'sub', names: q.names, lab: `${LABELS['sub.shelf.use']} ${q.names.length}`, act: () => place(q) }));
+
 // the open use on screen: its frame, its chain and place, the dots of its own numbers
 function openFrame(P = gv.P) {
   const fr = gv.open && P.items.find((q) => q.kind === 'frame');
@@ -856,6 +953,7 @@ function refreshGraph() {
   if (!gv) return;
   gv.P = graphPlacement();
   if (gv.open && !gv.P.items.some((q) => q.kind === 'frame')) { gv.open = null; gv.P = graphPlacement(); }
+  if (gv.openNet && !netView(gv.openNet.kind).netFrame) { gv.openNet = null; gv.P = graphPlacement(); }
   if (gv.selected && !gv.P.items.some((q) => q.id === gv.selected)) gv.selected = null;
   if (gv.run && !runItems().length) gv.run = null;
   if (gv.shSel && !(gv.shSel === 'out' ? !gv.P.sh.empty : gv.P.sh.items.some((q) => q.id === gv.shSel))) { gv.shSel = null; gv.stopSel = null; }
@@ -944,6 +1042,7 @@ function liveShade() {
 // the selected driver's parameters, below the zone: its switches as one row of glyphs, then its numbers
 // as dimension lines (a tick where a bounded one sits)
 function driverHandles(q) {
+  if (q.use) return netHandles('drive', q);
   const spec = DRIVE_PARAMS[q.type] || {}, P = q.n.p;
   const x2 = Math.min(innerWidth - 24, q.x + 75), x1 = x2 - 150;
   let y = gv.P.zone[3] + 44;
@@ -981,6 +1080,7 @@ function drawDriveNow(P, handles, sel) {
   const V = P.dv, dsel = gv.dvSel && V.byId.get(gv.dvSel);
   gv.binds = [...bindEnds(P, handles, sel), ...shadeBindEnds(P)];
   return drawDrive(V, {
+    dots: netDots('drive', P),
     hover: gv.dvHover, selected: gv.dvSel, link: gv.dvPress && gv.dvPress.link, drag: gv.dvDrag, binds: gv.binds,
     params: dsel ? driverHandles(dsel) : [],
   });
@@ -1001,7 +1101,7 @@ function driveDown(x, y) {
         return true;
       }
       if (h.line && x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y - h.y) < 7) {
-        gv.dvParam = { id: dsel.id, key: h.key, x0: x, v0: dsel.n.p[h.key], q: h.q, text0: state.text };
+        gv.dvParam = { id: h.id || dsel.id, key: h.key, x0: x, y0: y, v0: h.value, q: h.q, text0: state.text };
         drawGraphNow();
         return true;
       }
@@ -1023,9 +1123,12 @@ function driveDown(x, y) {
 function drivePress(x, y, node, port, link) {
   const press = { x, y, node, port, link, moved: false };
   press.timer = setTimeout(() => {
-    if (!gv || gv.dvPress !== press || press.moved || node) return;
+    if (!gv || gv.dvPress !== press || press.moved || (node && !node.use)) return;
     const at = port || (link ? (link.bind ? { bind: link.bind } : { node: link.to, port: link.port }) : null);
-    gv.picker = { at: pickerAt(x, y), from: [x, y], items: RING_TYPES.map((t) => ({ glyph: typeGlyph(t), lab: t === 'math' ? 'math' : null, act: () => DE.addDriver(state.formula, t, at) })), sel: -1 };
+    const F = gv.P.dv.netFrame, inside = !at && F && x > F.x && x < F.x + F.w && y > F.y && y < F.y + F.h;
+    const add = (t) => (inside ? netMember('drive', t, () => DE.addDriver(state.formula, t, null)) : DE.addDriver(state.formula, t, at));
+    const items = node ? [netDetachItem('drive', node.id), shelfNet('drive', node.id, node.names)] : [...(at ? [] : [...netUseItems('drive'), ...shelfItems('drive', (q) => DE.addRun(state.formula, q.nodes, q.expose))]), ...RING_TYPES.map((t) => ({ glyph: typeGlyph(t), lab: t === 'math' ? 'math' : null, adds: t, act: () => add(t) }))];
+    gv.picker = { at: pickerAt(x, y), from: [x, y], items, sel: -1 };
     drawGraphNow();
   }, GRAPH_HOLD_MS);
   gv.dvPress = press;
@@ -1035,6 +1138,14 @@ function drivePress(x, y, node, port, link) {
 function driveMove(x, y) {
   if (gv.dvParam) {
     const p = gv.dvParam, dx = x - p.x0;
+    // pulled up or down off a line of the open use: on its way to the frame
+    if (netOpen('drive') && useOfNet(netOf('drive'), p.id) && Math.abs(y - p.y0) > 18 && Math.abs(dx) < 14) {
+      setFormula(p.text0, true);
+      gv.dvParam = null;
+      gv.pull = { net: 'drive', id: p.id, key: p.key, own: netOwn('drive', p.id, p.key), x, y };
+      refreshGraph();
+      return true;
+    }
     const v = p.q.discrete ? p.v0 + Math.round(dx / 14) : p.v0 + dx * 0.005 * Math.max(1, Math.abs(p.v0));
     driveLive(() => DE.setDriverParam(state.formula, p.id, p.key, p.q.discrete ? v : +v.toPrecision(5)));
     return true;
@@ -1089,6 +1200,7 @@ function driveUp(x, y) {
   if (gv.pull) {
     const p = gv.pull, V = gv.P.dv, [zx0, zy0, zx1, zy1] = gv.P.zone;
     gv.pull = null;
+    if (p.net) { netPullDrop(p, x, y); return true; }
     // onto the open use's frame: a number each use keeps for itself; an own one pulled back inside: shared
     const fr = openFrame();
     if (fr && p.member) {
@@ -1129,12 +1241,13 @@ function driveUp(x, y) {
     const k = gv.picker;
     gv.picker = null;
     if (k.sel >= 0) {
-      const t = RING_TYPES[k.sel], id = DE.nextDriverId(state.formula, t);
-      if (graphEdit(k.items[k.sel].act)) { gv.dvSel = id; gv.selected = null; gv.shSel = null; drawGraphNow(); }
+      const it = k.items[k.sel], id = it.adds ? DE.nextDriverId(state.formula, it.adds) : null;
+      if (graphEdit(it.act) && id) { gv.dvSel = id; gv.selected = null; gv.shSel = null; drawGraphNow(); }
     } else drawGraphNow();
     return true;
   }
   if (!pr.moved) {
+    if (pr.node && netClick('drive', pr.node, gv.shift)) return true;
     if (pr.node) { gv.dvSel = gv.dvSel === pr.node.id ? null : pr.node.id; gv.bandSel = null; gv.shSel = null; }
     else if (pr.link && pr.link.bind) { gv.bandSel = gv.bandSel === pr.link.bind ? null : pr.link.bind; gv.dvSel = null; }
     else { gv.dvSel = null; gv.bandSel = null; }
@@ -1159,6 +1272,7 @@ function drawGraphNow() {
   const hq = gv.hover && P.items.find((q) => q.id === gv.hover);
   let svg = `<rect class="gv" x="0" y="0" width="${innerWidth}" height="${innerHeight}" style="opacity:${(0.55 * t).toFixed(2)}"/>`;
   const handles = sel && !gv.from ? paramHandles(sel) : [];
+  const netB = !gv.from && gv.netRun && !gv.shPress && !gv.dvPress ? netBracketOf(P) : null;
   // the collage's own shading (pick 'C'): the shading frame beside the collage's output, no formula
   const own = state.pick === 'C';
   if (own) {
@@ -1170,12 +1284,13 @@ function drawGraphNow() {
     full: true, hover: gv.hover, selected: gv.selected, schedSel: gv.schedSel ?? null, edge: gv.press && gv.press.edge && !gv.press.node ? gv.press.edge : gv.hoverEdge || null,
     plus: !gv.press && !gv.picker && gv.hoverEdge ? gv.hoverEdge : null,
     params: handles,
-    thumb: hv && hq && !gv.drag && !gv.picker ? { x: hq.x - (sel && sel.id === hq.id ? 190 : 0), y: hq.y, href: hv } : null,
+    thumb: hv && hq && !gv.drag && !gv.picker && !gv.run ? { x: hq.x - (sel && sel.id === hq.id ? 190 : 0), y: hq.y, href: hv } : null,
   });
   if (gv.drag) svg += `<g class="gr full"><g class="nd hv">${gv.drag.names ? useGlyph(gv.drag.names, gv.drag.x, gv.drag.y, 26) : glyphPath(gv.drag.glyph, gv.drag.x, gv.drag.y, 26)}</g></g>`;
   if (!gv.from) svg += drawShadeNow(P);
   if (!gv.from) svg += drawDriveNow(P, handles, sel);
-  if (gv.pull) svg += `<g class="gr full"><g class="nd hv">${glyphPath('drv.param', gv.pull.x, gv.pull.y, 22)}</g></g>`;
+  if (netB) svg += `<g class="gr full">${bracketSvg(netB)}</g>`;
+  if (gv.pull) svg += `<g class="gr full"><g class="nd hv">${glyphPath(gv.pull.net ? 'sub.detach' : 'drv.param', gv.pull.x, gv.pull.y, 22)}</g></g>`;
   if (gv.picker) svg += drawPicker(gv.picker);
   overlay.innerHTML = viewWrap(svg);
   overlay.classList.add('on');
@@ -1241,7 +1356,7 @@ function openPicker(press) {
     gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
   } else if (q && q.use) {
     // a use: back to plain ops
-    const items = [{ glyph: 'sub.detach', lab: LABELS['sub.detach'], act: () => G.detach(state.formula, q.id) }];
+    const items = [{ glyph: 'sub.detach', lab: LABELS['sub.detach'], act: () => G.detach(state.formula, q.id) }, shelfOps(q.id, q.names)];
     gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
   } else if (press.edge) {
     const e = press.edge, scheduled = !e.chain.includes('.'), fr = openFrame();
@@ -1253,6 +1368,7 @@ function openPicker(press) {
       const run = gv.P.items.find((r) => r.use && r.use.sub === s.id);
       items.unshift({ glyph: 'sub', names: run ? run.names : ['c'], lab: `${LABELS['sub.use']} ${s.id}`, act: () => G.place(state.formula, s.id, e.chain, e.index) });
     }
+    items.splice(normalize(state.formula).sub ? normalize(state.formula).sub.length : 0, 0, ...shelfItems('ops', (q) => G.placeDef(state.formula, q, e.chain, e.index)));
     // the fork first, at twelve o'clock: split the chain here
     if (scheduled) items.unshift({ glyph: 'fork', act: () => G.fork(state.formula, e.chain, e.index) });
     gv.picker = { at: pickerAt(press.x, press.y), from: [press.x, press.y], items, sel: -1 };
@@ -1264,7 +1380,7 @@ function openPicker(press) {
 function graphEdit(fn) {
   let f;
   try { f = fn(); } catch (err) { console.warn('graph:', err.message); return false; }
-  if (!f) return false;
+  if (!f) { drawGraphNow(); return false; }
   setFormula(format(f));
   writeHash();
   remember();
@@ -1275,6 +1391,8 @@ function graphEdit(fn) {
 function graphDown(e) {
   if (gv.from) return;
   const x = e.clientX, y = e.clientY, touch = e.pointerType === 'touch';
+  gv.shift = e.shiftKey;
+  if (onBracket(netBracketOf(gv.P), x, y)) { netWrapRun(); return; }
   if (touch && state.pick !== 'C') graphHover(x, y);
   if (shadeDown(x, y)) return;
   // the collage's own shading has its frame and the collage's drivers to read from (a drag from a
@@ -1487,6 +1605,7 @@ const hsvToLinear = (h, sat, v) => hsv2rgb([h, sat, v]).map((x) => (x <= 0.04045
 // the selected math or mix node's op and constant, as a toggle glyph and a dimension line to its left
 function shadeHandles(q) {
   const x2 = q.x - q.hw - 24, x1 = x2 - 110;
+  if (q.use) return netHandles('shade', q).map(shadeBand);
   if (q.type === 'math') return [shadeBand({ key: 'c', to: `${q.id}.c`, value: q.n.p.c, x1, x2, y: q.y, v: fmtValue(q.n.p.c), held: gv.shParam && gv.shParam.key === 'c', glyph: `math.${q.n.p.op}`, cycle: ['op', MATH_OPS] })];
   if (q.type === 'mixc') return [shadeBand({ key: 'f', to: `${q.id}.f`, value: q.n.p.f, x1, x2, y: q.y, v: fmtValue(q.n.p.f), held: gv.shParam && gv.shParam.key === 'f', glyph: `mixc.${q.n.p.mode}`, cycle: ['mode', MIX_MODES] })];
   if (q.type === 'kali') return ['cx', 'cy', 'cz', 'f'].map((key, k) => shadeBand({ key, to: `${q.id}.${key}`, value: q.n.p[key], x1, x2, y: q.y - 27 + k * 18, v: fmtValue(q.n.p[key]), held: gv.shParam && gv.shParam.key === key }));
@@ -1615,7 +1734,7 @@ function drawShadeNow(P) {
   const drvLinks = S.empty ? [] : shadeDriverLinks(P), f = normalize(state.formula);
   return drawShade(S, {
     bus: [P.zone[0], P.zone[1] + 4], hover: gv.shHover, selected: gv.shSel, link: gv.shPress && gv.shPress.link,
-    drag: gv.shDrag, params: (sel && !sel.ramp) || gv.shSel === 'out' ? shadeLines() : [], editor, ring: gv.hue,
+    drag: gv.shDrag, params: (sel && !sel.ramp) || gv.shSel === 'out' ? shadeLines() : [], editor, ring: gv.hue, dots: netDots('shade', P),
     drvBus: f.drive && !S.empty ? [P.zone[0], S.frame[1] + 9] : null, drvLinks,
   });
 }
@@ -1663,7 +1782,7 @@ function shadeDown(x, y) {
     }
     const h = shadeLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
     if (h && h.band) { shadeBandPress(h.to, h.band, x); return true; }
-    if (h) { gv.shParam = { id: sel.id, key: h.key, x0: x, v0: h.value, text0: state.text }; drawGraphNow(); return true; }
+    if (h) { gv.shParam = { id: h.id || sel.id, key: h.key, x0: x, y0: y, v0: h.value, text0: state.text }; drawGraphNow(); return true; }
     // a bound stop's band above the bar: its ends, or its middle
     const sb = stopBands(E).find((B) => Math.abs(y - (E.y - 6)) < 6 && x >= Math.min(B.x0, B.x1) - 6 && x <= Math.max(B.x0, B.x1) + 6);
     if (sb) { shadeBandPress(sb.to, sb, x); return true; }
@@ -1696,7 +1815,7 @@ function shadeDown(x, y) {
     if (h) {
       if (h.cycle && x < h.x1 - 6) { const [key, list] = h.cycle; graphEdit(() => SE.setNodeParam(state.formula, sel.id, key, list[(list.indexOf(sel.n.p[key]) + 1) % list.length])); }
       else if (h.band) { shadeBandPress(h.to, h.band, x); return true; }
-      else gv.shParam = { id: gv.shSel, key: h.key, x0: x, v0: h.value, text0: state.text };
+      else gv.shParam = { id: h.id || gv.shSel, key: h.key, x0: x, y0: y, v0: h.value, text0: state.text };
       drawGraphNow();
       return true;
     }
@@ -1715,13 +1834,16 @@ function shadeDown(x, y) {
   press.timer = setTimeout(() => {
     if (!gv || gv.shPress !== press || press.moved) return;
     const at = port || (link ? { node: link.to, port: link.port } : null);
-    if (node && node.ramp) {
+    if (node && node.use) gv.picker = { at: pickerAt(x, y), from: [x, y], items: [netDetachItem('shade', node.id), shelfNet('shade', node.id, node.names)], sel: -1 };
+    else if (node && node.ramp) {
       gv.picker = { at: pickerAt(x, y), from: [x, y], items: presetItems(node.id), sel: -1 };
     } else if (!node) {
       // only what fits the held input: colours on a colour link, numbers on a number link
       const want = SE.wantsAt(state.formula, at);
       const types = SHADE_TYPES.filter((t) => !want || (want === 'colour') === (t === 'ramp' || t === 'mixc'));
-      gv.picker = { at: pickerAt(x, y), from: [x, y], items: types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, adds: t, act: () => SE.addNode(state.formula, t, at) })), sel: -1 };
+      const F = S.netFrame, inside = !at && F && x > F.x && x < F.x + F.w && y > F.y && y < F.y + F.h;
+      const add = (t) => (inside ? netMember('shade', t, () => SE.addNode(state.formula, t, null)) : SE.addNode(state.formula, t, at));
+      gv.picker = { at: pickerAt(x, y), from: [x, y], items: [...(at ? [] : [...netUseItems('shade'), ...shelfItems('shade', (q) => SE.addRun(state.formula, q.nodes, q.expose))]), ...types.map((t) => ({ glyph: shadeGlyph(t), lab: t === 'math' ? 'math' : null, adds: t, act: () => add(t) }))], sel: -1 };
     }
     drawGraphNow();
   }, GRAPH_HOLD_MS);
@@ -1741,6 +1863,14 @@ function shadeMove(x, y) {
   }
   if (gv.shParam) {
     const p = gv.shParam, dx = x - p.x0;
+    // pulled up or down off a line of the open use: on its way to the frame
+    if (p.id !== 'out' && netOpen('shade') && useOfNet(netOf('shade'), p.id) && Math.abs(y - p.y0) > 18 && Math.abs(dx) < 14) {
+      setFormula(p.text0, true);
+      gv.shParam = null;
+      gv.pull = { net: 'shade', id: p.id, key: p.key, own: netOwn('shade', p.id, p.key), x, y };
+      refreshGraph();
+      return false;
+    }
     const v = p.key === 'map.scale' ? p.v0 * Math.exp(dx / 120) : p.key === 'map.offset' ? p.v0 + dx / 200 : p.key === 'map.hue' ? p.v0 + dx / 300 : p.v0 + dx * 0.005 * Math.max(1, Math.abs(p.v0));
     shadeLive(() => (p.id === 'out' ? SE.setGain(state.formula, +v.toPrecision(5)) : SE.setNodeParam(state.formula, p.id, p.key, +v.toPrecision(5))));
     return true;
@@ -1791,6 +1921,7 @@ function shadeUp(x, y) {
     if (graphEdit(it.act) && id) openPresets(id);
     return true;
   }
+  if (pr.node && !pr.moved && netClick('shade', pr.node, gv.shift)) return true;
   if (pr.node && !pr.moved) { gv.shSel = gv.shSel === pr.node.id ? null : pr.node.id; gv.stopSel = null; gv.selected = null; gv.dvSel = null; gv.bandSel = null; }
   else if (pr.port && pr.port.node === 'out' && pr.port.port === 'glow' && !pr.moved) { gv.shSel = gv.shSel === 'out' ? null : 'out'; gv.stopSel = null; gv.selected = null; gv.dvSel = null; }
   else if (!pr.node && !pr.moved) { gv.shSel = null; gv.stopSel = null; }
@@ -1828,14 +1959,17 @@ function graphKey(e) {
     else if (gv.dvSel) { gv.dvSel = null; drawGraphNow(); }
     else if (gv.shSel) { gv.shSel = null; drawGraphNow(); }
     else if (gv.run) { gv.run = null; drawGraphNow(); }
+    else if (gv.netRun) { gv.netRun = null; drawGraphNow(); }
     else if (gv.selected) { gv.selected = null; drawGraphNow(); }
-    else if (gv.open) toggleOpen({}); else closeGraph();
+    else if (gv.open) toggleOpen({});
+    else if (gv.openNet) { gv.openNet = null; refreshGraph(); }
+    else closeGraph();
     return true;
   }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.stopSel) { const st = gv.stopSel; gv.stopSel = null; graphEdit(() => SE.removeStop(state.formula, st.id, st.i)); return true; }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.bandSel) { const to = gv.bandSel; gv.bandSel = null; graphEdit(() => (shadeBindOf(to) ? SE.unbindShade : G.unbind)(state.formula, to)); return true; }
-  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.dvSel) { const id = gv.dvSel; gv.dvSel = null; graphEdit(() => DE.removeDriverNode(state.formula, id)); return true; }
-  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.shSel) { const id = gv.shSel; gv.shSel = null; graphEdit(() => SE.removeNode(state.formula, id)); return true; }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.dvSel) { const id = gv.dvSel, q = gv.P.dv.items.find((r) => r.id === id); gv.dvSel = null; netRemove('drive', id, q); return true; }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && gv.shSel) { const id = gv.shSel, q = gv.P.sh.items.find((r) => r.id === id); gv.shSel = null; netRemove('shade', id, q); return true; }
   if ((e.code === 'Delete' || e.code === 'Backspace') && gv.selected) { const q = gv.P.items.find((r) => r.id === gv.selected); gv.selected = null; if (q) removeEdit(q); return true; }
   if (e.code === 'KeyG' && !e.repeat) { closeGraph(); return true; }
   return false;
@@ -2605,7 +2739,7 @@ function driveLabelAt(V, x, y, selId, binds, handlesOf) {
   const from = driveOutPortAt(V, x, y);
   if (from) { const [px, py] = V.outPort(from); return labAt(LABELS['port.out'], px, py, 4); }
   const node = driveNodeAt(V, x, y);
-  if (node) return labAt(labelOf(node.glyph) || node.type, node.x, node.y, V.g / 2);
+  if (node) return labAt(node.use ? `${LABELS['sub.use']} ${node.use.sub}` : labelOf(node.glyph) || node.type, node.x, node.y, V.g / 2);
   const port = driveInPortAt(V, x, y);
   if (port) { const q = V.byId.get(port.node), ports = DE.driverPorts(q.type), [px, py] = V.inPort(q, ports.indexOf(port.port), ports.length); return labAt(ports.length > 1 ? `${LABELS['port.in']} ${port.port}` : LABELS['port.in'], px, py, 4); }
   const link = driveLinkAt(V, x, y, binds || []);
@@ -2640,7 +2774,7 @@ function shadeLabelAt(x, y) {
   const from = shadeOutPortAt(S, x, y);
   if (from) { const [px, py] = S.outPort(from); return labAt(LABELS['port.out'], px, py, 4); }
   const node = shadeNodeAt(S, x, y);
-  if (node) return labAt(labelOf(node.ramp ? 'shade' : node.glyph), node.x, node.y, node.hw);
+  if (node) return labAt(node.use ? `${LABELS['sub.use']} ${node.use.sub}` : labelOf(node.ramp ? 'shade' : node.glyph), node.x, node.y, node.hw);
   const port = shadeInPortAt(S, x, y);
   if (port && port.node === 'out') { const o = S.outs.find((r) => r.port === port.port); return labAt(labelOf(`out.${port.port}`), o.x, o.y, 8); }
   if (port) { const q = S.byId.get(port.node), ports = SE.portsOf(q.type), [px, py] = S.inPort(q, ports.indexOf(port.port), ports.length); return labAt(ports.length > 1 ? `${LABELS['port.in']} ${port.port}` : LABELS['port.in'], px, py, 4); }
@@ -3294,6 +3428,19 @@ function graphTouch(e) {
     if (gt.pts.size === 1) return false;
     // a second finger is the modifier on what the first holds: a tap on another op grows a run, a finger
     // resting while a use is dragged makes it a copy
+    const netHeld = gv && !gt.multi && (gv.shPress || gv.dvPress);
+    if (netHeld && netHeld.node && !netHeld.node.use) {
+      const kind = gv.shPress ? 'shade' : 'drive', V = netView(kind), hx = (e.clientX - gview.tx) / gview.k, hy = (e.clientY - gview.ty) / gview.k;
+      const q = kind === 'shade' ? shadeNodeAt(V, hx, hy) : driveNodeAt(V, hx, hy);
+      if (q && q !== netHeld.node && !q.use) {
+        (gt.mods ||= new Set()).add(id);
+        if (vtap) vtap.travel = Infinity;
+        clearTimeout(netHeld.timer);
+        if (kind === 'shade') gv.shPress = null; else gv.dvPress = null;
+        netClick(kind, netHeld.node, true); netClick(kind, q, true);
+        return true;
+      }
+    }
     const held = gv && !gt.multi && gv.press && gv.press.node;
     if (held) {
       const q = graphNodeAt(gv.P, (e.clientX - gview.tx) / gview.k, (e.clientY - gview.ty) / gview.k);
@@ -4345,6 +4492,10 @@ window.__fe = {
   ringOpen: (x, y) => openRing(x, y),
   ringPoint: (x, y) => { if (ring) pointRing(x, y); return ring && ring.sel; },
   ringClose: (choose = true) => closeRing(choose),
+  shelf: () => shelf,
+  // a drive added to the formula on screen (tests)
+  setFormulaObject: (extra) => { setDoc(format(normalize({ ...parse('scale 2 · +c ×9 bail=100'), ...extra })), true); },
+  driverLines: () => { const q = gv && gv.dvSel && gv.P.dv.items.find((r) => r.id === gv.dvSel); return q ? driverHandles(q).filter((h) => h.line).map((h) => ({ key: h.key, x1: h.x1 * gview.k + gview.tx, x2: h.x2 * gview.k + gview.tx, y: h.y * gview.k + gview.ty })) : null; },
   ringItems: () => ring && ring.items.map((it) => ({ D: +(it.D || 0).toFixed(1), local: it.local, thumb: !!it.thumb, angle: it.angle && +it.angle.toFixed(2) })),
   replay: () => replay(),
   export: (kind, where, maxFrames) => exportAs(kind, where, maxFrames),
@@ -4366,8 +4517,9 @@ window.__fe = {
       // a graph's view and its nodes and schedule letters where they are on screen
       graph: gv && (() => {
         const sx = (x) => x * gview.k + gview.tx, sy = (y) => y * gview.k + gview.ty;
-        const fr = openFrame(), rb = runBracket();
-        return { open: gv.open || null, run: gv.run || null, frame: fr && { x: sx(fr.x), y: sy(fr.y), w: fr.w * gview.k, h: fr.h * gview.k, dots: fr.dots.length }, bracket: rb && { x: sx(rb.x - 9), y: sy((rb.y0 + rb.y1) / 2) },
+        const fr = openFrame(), rb = runBracket(), mapXY = (q) => ({ id: q.id, x: sx(q.x), y: sy(q.y), use: q.use ? q.use.sub : undefined }), nb = netBracketOf(gv.P);
+        return { nets: { shade: gv.P.sh.items.map(mapXY), drive: gv.P.dv.items.map(mapXY), bracket: nb && { x: sx(nb.x - 9), y: sy((nb.y0 + nb.y1) / 2) }, open: gv.openNet || null, frames: ['sh', 'dv'].map((k) => { const F = gv.P[k].netFrame; return F ? { x: sx(F.x), y: sy(F.y), w: F.w * gview.k, h: F.h * gview.k } : null; }) },
+          open: gv.open || null, run: gv.run || null, frame: fr && { x: sx(fr.x), y: sy(fr.y), w: fr.w * gview.k, h: fr.h * gview.k, dots: fr.dots.length }, bracket: rb && { x: sx(rb.x - 9), y: sy((rb.y0 + rb.y1) / 2) },
           k: gview.k, selected: gv.selected, hover: gv.hover, thumb: !!(gv.hover && gv.thumbs.get(gv.hover + '|' + state.text)), schedSel: gv.schedSel ?? null,
           nodes: gv.P.items.filter((q) => q.kind === 'op').map((q) => ({ id: q.id, x: sx(q.x), y: sy(q.y), use: q.use ? q.use.sub : undefined })),
           letters: scheduleLayout(gv.P).letters.map((q) => ({ i: q.i, x: sx(q.x), y: sy(q.y - 4) })), zone: gv.P.zone };

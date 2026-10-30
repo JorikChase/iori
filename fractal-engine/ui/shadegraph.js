@@ -14,7 +14,9 @@
 //
 // layoutShade(shade) → units; placeShade(L, u, right, top) → pixels; drawShade(P, o) → SVG; hit tests.
 
-import { glyphPath } from './glyphs.js';
+import { glyphPath, useGlyph } from './glyphs.js';
+import { frameSvg } from './graph.js';
+import { foldNet } from '../core/netsub.js';
 import { READINGS, kindOf, rampAt } from '../core/shade.js';
 import { rampColourAt, portsOf, inputKind } from '../core/shade-edit.js';
 
@@ -28,12 +30,14 @@ const css = (c) => `rgb(${c.slice(0, 3).map((x) => Math.round(255 * Math.min(1, 
 
 export const glyphOf = (n) => (READINGS.includes(n.type) ? n.type : n.type === 'math' ? `math.${n.p.op}` : n.type === 'mixc' ? `mixc.${n.p.mode}` : n.type === 'kali' ? 'kali' : null);
 
-export function layoutShade(shade) {
+// A subgraph's use (core/netsub.js) is one node, its output, unless it is the use `open` (a subgraph's letter)
+export function layoutShade(shade, open = null) {
   if (!shade) return { empty: true, items: [], links: [], outs: [], w: 2, h: 2 };
+  const fold = foldNet(shade, open), rp = (id) => fold.rep.get(id) ?? id, nodeBy = new Map(shade.nodes.map((n) => [n.id, n]));
   const depth = new Map();
   for (const n of shade.nodes) depth.set(n.id, READINGS.includes(n.type) ? 0 : 1 + Math.max(0, ...Object.values(n.in).map((r) => depth.get(r) ?? 0)));
   const rows = [];
-  shade.nodes.forEach((n) => { const d = depth.get(n.id); (rows[d] = rows[d] || []).push(n); });
+  shade.nodes.forEach((n) => { if (fold.hidden.has(n.id)) return; const d = depth.get(n.id); (rows[d] = rows[d] || []).push(n); });
   // rows may have holes: a network fed only by drivers (their bus, not a reading) has nothing at depth 0,
   // and map keeps a hole as undefined, which made the width — and the whole graph's scale — NaN
   const widest = Math.max(2, ...Array.from(rows, (r) => (r ? r.length : 0)));
@@ -41,22 +45,26 @@ export function layoutShade(shade) {
   const items = [];
   rows.forEach((row, d) => (row || []).forEach((n, i) => {
     const x = (w - row.length * NODE_W) / 2 + (i + 0.5) * NODE_W;
-    items.push({ id: n.id, n, type: n.type, kind: kindOf(n.type), x, y: 0.9 + d, ramp: n.type === 'ramp', glyph: glyphOf(n) });
+    const use = fold.uses.get(n.id);
+    items.push({ id: n.id, n, type: n.type, kind: kindOf(n.type), x, y: 0.9 + d, ramp: n.type === 'ramp' && !use, glyph: glyphOf(n), ...(use ? { use, names: use.members.map((id) => glyphOf(nodeBy.get(id)) || 'shade') } : {}) });
   }));
   const yOut = 0.9 + rows.length;
   const outs = [{ port: 'color', x: w / 2 - 0.35, y: yOut }, { port: 'glow', x: w / 2 + 0.35, y: yOut }];
   const at = new Map(items.map((q) => [q.id, q]));
   const links = [];
-  for (const q of items) {
-    const ports = portsOf(q.type);
+  const seen = new Set();
+  for (const n of shade.nodes) {
+    const q = at.get(rp(n.id)), ports = portsOf(n.type);
     ports.forEach((port, k) => {
-      const src = q.n.in[port];
-      if (src != null && at.has(src)) links.push({ from: src, to: q.id, port, k, of: ports.length });
+      const src = n.in[port], key = `${rp(src)}>${q && q.id}`;
+      if (src == null || !at.has(rp(src)) || rp(src) === rp(n.id)) return;
+      if (q.use) { if (seen.has(key)) return; seen.add(key); }
+      links.push({ from: src, to: n.id, port, k: q.use ? 0 : k, of: q.use ? 1 : ports.length });
     });
   }
-  if (shade.out.color && at.has(shade.out.color)) links.push({ from: shade.out.color, to: 'out', port: 'color' });
-  if (shade.out.glow && at.has(shade.out.glow)) links.push({ from: shade.out.glow, to: 'out', port: 'glow' });
-  return { items, links, outs, w, h: yOut + 0.4 };
+  if (shade.out.color && at.has(rp(shade.out.color))) links.push({ from: shade.out.color, to: 'out', port: 'color' });
+  if (shade.out.glow && at.has(rp(shade.out.glow))) links.push({ from: shade.out.glow, to: 'out', port: 'glow' });
+  return { items, links, outs, w, h: yOut + 0.4, rep: fold.rep, open: fold.open, openSub: open };
 }
 
 // pixels: the frame's right edge at `right`, its top at `top`, a unit `u` px
@@ -67,6 +75,7 @@ export function placeShade(L, u, right, top, shade) {
   const items = L.items.map((q) => { const [x, y] = P(q.x, q.y); return { ...q, x, y, hw: q.ramp ? (RAMP_W * u) / 2 : g / 2, hh: q.ramp ? Math.max(4, u * 0.12) : g / 2 }; });
   const outs = L.outs.map((o) => { const [x, y] = P(o.x, o.y); return { ...o, x, y }; });
   const byId = new Map(items.map((q) => [q.id, q]));
+  for (const [id, r] of L.rep || []) if (byId.has(r)) byId.set(id, byId.get(r));
   // an input port on the top edge, spread when a node has several; the output on the bottom edge
   const inPort = (q, k, of) => [q.x + (of > 1 ? (k - (of - 1) / 2) * Math.min(q.hw * 1.4, 14) : 0), q.y - q.hh - 3];
   const outPort = (q) => [q.x, q.y + q.hh + 3];
@@ -77,7 +86,10 @@ export function placeShade(L, u, right, top, shade) {
     return { ...l, x1, y1, x2, y2 };
   });
   const [fx0, fy0] = P(-0.3, 0.2), [fx1, fy1] = P(L.w + 0.3, L.h);
-  return { ...L, u, g, items, outs, links, frame: [fx0, fy0, fx1, fy1], inPort, outPort, byId };
+  const box = L.open && items.filter((q) => L.open.includes(q.id));
+  const netFrame = box && box.length ? { x: Math.min(...box.map((q) => q.x - q.hw)) - 8, y: Math.min(...box.map((q) => q.y - q.hh)) - 10, sub: L.openSub } : null;
+  if (netFrame) { netFrame.w = Math.max(...box.map((q) => q.x + q.hw)) + 8 - netFrame.x; netFrame.h = Math.max(...box.map((q) => q.y + q.hh)) + 10 - netFrame.y; }
+  return { ...L, u, g, items, outs, links, frame: [fx0, fy0, fx1, fy1], inPort, outPort, byId, netFrame };
 }
 
 // the stops' colours sampled along a ramp (interpolation and space included), as an SVG gradient
@@ -120,14 +132,17 @@ export function drawShade(P, o = {}) {
       defs.push(gradient(gid, q.n.p));
       s.push(`<rect class="rb" x="${f1(q.x - q.hw)}" y="${f1(q.y - q.hh)}" width="${f1(q.hw * 2)}" height="${f1(q.hh * 2)}" style="fill:url(#${gid})"/>`);
       s.push(`<rect class="${cls} rf" x="${f1(q.x - q.hw)}" y="${f1(q.y - q.hh)}" width="${f1(q.hw * 2)}" height="${f1(q.hh * 2)}"/>`);
-    } else s.push(`<g class="${cls}">${glyphPath(q.glyph, q.x, q.y, P.g)}</g>`);
+    } else s.push(`<g class="${cls}">${q.use ? useGlyph(q.names, q.x, q.y, P.g * 1.3) : glyphPath(q.glyph, q.x, q.y, P.g)}</g>`);
+    if (q.use && !o.compact) s.push(`<text class="ul" x="${f1(q.x + P.g * 0.95)}" y="${f1(q.y - P.g * 0.75)}">${q.use.sub}</text>`);
     if (o.selected === q.id) s.push(`<rect class="att" x="${f1(q.x - q.hw - 4)}" y="${f1(q.y - q.hh - 4)}" width="${f1(q.hw * 2 + 8)}" height="${f1(q.hh * 2 + 8)}"/>`);
     if (!o.compact) {
-      portsOf(q.type).forEach((port, k, all) => { const [px, py] = P.inPort(q, k, all.length); s.push(`<circle class="pt ${inputKind(q.type, port)}" cx="${f1(px)}" cy="${f1(py)}" r="1.6"/>`); });
+      if (!q.use) portsOf(q.type).forEach((port, k, all) => { const [px, py] = P.inPort(q, k, all.length); s.push(`<circle class="pt ${inputKind(q.type, port)}" cx="${f1(px)}" cy="${f1(py)}" r="1.6"/>`); });
       const [ox, oy] = P.outPort(q);
       s.push(`<circle class="pt out ${q.kind}" cx="${f1(ox)}" cy="${f1(oy)}" r="1.8"/>`);
     }
   });
+  if (P.netFrame) s.push(frameSvg(P.netFrame));
+  for (const d of o.dots || []) s.push(`<circle class="io" cx="${f1(d.x)}" cy="${f1(d.y)}" r="2.5"/>`);
   for (const out of P.outs) s.push(`<g class="nd op">${glyphPath(`out.${out.port}`, out.x, out.y, o.compact ? 10 : 14)}</g>`);
   if (o.drag) s.push(`<path class="ln on" d="M${f1(o.drag.x1)} ${f1(o.drag.y1)}L${f1(o.drag.x2)} ${f1(o.drag.y2)}"/>`);
   for (const h of o.params || []) s.push(lineSvg(h, h.held, h.v));
@@ -233,7 +248,7 @@ export function shadeNodeAt(P, x, y) {
 // an input port (of a node, or the outputs): { node, port }
 export function shadeInPortAt(P, x, y) {
   let best = null, bd = 9;
-  for (const q of P.items) portsOf(q.type).forEach((port, k, all) => { const [px, py] = P.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
+  for (const q of P.items.filter((r) => !r.use)) portsOf(q.type).forEach((port, k, all) => { const [px, py] = P.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
   for (const o of P.outs) { const d = Math.hypot(x - o.x, y - o.y); if (d < Math.max(bd, 12)) { bd = d; best = { node: 'out', port: o.port }; } }
   return best;
 }

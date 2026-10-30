@@ -146,8 +146,7 @@ export function drawGraph(P, o = {}) {
     else if (q.kind === 'in' || q.kind === 'out') s.push(`<circle class="io" cx="${f1(q.x)}" cy="${f1(q.y)}" r="${q.kind === 'in' ? 2 : 1.2}"/>`);
     else if (q.kind === 'fork') s.push(`<circle class="fk" cx="${f1(q.x)}" cy="${f1(q.y)}" r="1.5"/>`);
     else if (q.kind === 'frame') {
-      s.push(`<rect class="fr" x="${f1(q.x)}" y="${f1(q.y)}" width="${f1(q.w)}" height="${f1(q.h)}"/>`);
-      s.push(`<text class="ul" x="${f1(q.x + 8)}" y="${f1(q.y - 4)}">${q.sub}</text>`);
+      s.push(frameSvg(q));
     } else {
       const cls = ['nd', q.field ? 'fd' : '', o.hover === q.id ? 'hv' : '', o.selected === q.id ? 'sel' : ''].join(' ');
       s.push(`<g class="${cls}">${q.use ? useGlyph(q.names, q.x, q.y, g) : glyphPath(q.glyph, q.x, q.y, g)}</g>`);
@@ -158,10 +157,7 @@ export function drawGraph(P, o = {}) {
     }
   }
   // a run selected: its bracket, whose plus wraps it. Own numbers: dots on the open frame
-  if (o.bracket) {
-    const B = o.bracket;
-    s.push(`<path class="ps" d="M${f1(B.x + 7)} ${f1(B.y0)}H${f1(B.x)}V${f1(B.y1)}H${f1(B.x + 7)}M${f1(B.x - 14)} ${f1((B.y0 + B.y1) / 2)}h9M${f1(B.x - 9.5)} ${f1((B.y0 + B.y1) / 2 - 4.5)}v9"/>`);
-  }
+  if (o.bracket) s.push(bracketSvg(o.bracket));
   for (const d of o.dots || []) s.push(`<circle class="io" cx="${f1(d.x)}" cy="${f1(d.y)}" r="2.5"/>`);
   // the repeat zone: the body, its loop back up the right side, the count and the schedule below
   const [x0, y0, x1, y1] = P.zone;
@@ -232,6 +228,16 @@ export function edgeAt(P, x, y) {
     if (d < bd) { bd = d; best = e; }
   }
   return best;
+}
+
+// the marks a subgraph leaves on the shading frame and the drivers' lane: a run's bracket with its plus, an
+// open use's dashed frame, its own numbers' dots
+export function bracketSvg(B) {
+  const my = (B.y0 + B.y1) / 2;
+  return `<path class="ps" d="M${f1(B.x + 7)} ${f1(B.y0)}H${f1(B.x)}V${f1(B.y1)}H${f1(B.x + 7)}M${f1(B.x - 14)} ${f1(my)}h9M${f1(B.x - 9.5)} ${f1(my - 4.5)}v9"/>`;
+}
+export function frameSvg(F) {
+  return `<rect class="fr" x="${f1(F.x)}" y="${f1(F.y)}" width="${f1(F.w)}" height="${f1(F.h)}"/><text class="ul" x="${f1(F.x + 8)}" y="${f1(F.y - 4)}">${F.sub}</text>`;
 }
 
 // where the unfolded graph's count, schedule letters and pluses sit (drawing and hit-testing share it)

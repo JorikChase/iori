@@ -43,6 +43,7 @@ export const MATH_OPS = ['add', 'sub', 'mul', 'min', 'max', 'pow', 'sin', 'bands
 export const MIX_MODES = ['mix', 'multiply', 'screen', 'add'];
 export const KALI_MODES = ['mean', 'min'];
 export const KALI_MAX = 32;
+import { normNet } from './netsub.js';
 export const MAX_NODES = 32, MAX_STOPS = 16, MAX_TOTAL_STOPS = 64;
 
 const COLOUR = new Set(['ramp', 'mixc']);
@@ -84,6 +85,7 @@ export function normShade(s) {
     ...(bind.length ? { bind } : {}),
     nodes: (s.nodes || []).map((n) => ({ id: String(n.id), in: sortKeys({ ...(n.in || {}) }), p: normParams(n.type, n.p), type: n.type })),
     out: { color: s.out && s.out.color != null ? String(s.out.color) : null, ...(gain !== 1 ? { gain } : {}), ...(s.out && s.out.glow != null ? { glow: String(s.out.glow) } : {}) },
+    ...(normNet(s.sub, s.nodes || []) ? { sub: normNet(s.sub, s.nodes || []) } : {}),
   };
 }
 

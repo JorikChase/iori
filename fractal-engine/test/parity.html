@@ -288,6 +288,14 @@ const DUAL_FORMULAS = [
   ['[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0 ‖ bulb 8 · +c] blend .5 .3 .2 · +c ×12 bail=100', 5],
   ...DRIVEN,
   ...FAMILIES,
+  // the rest of the ops, one chain each (the compiled dual pass writes every op out), and a schedule
+  ['swirl · scale 1.5 · +c ×6 bail=30', 2],
+  ['sin · scale 1.5 · +c ×6 bail=30', 2],
+  ['horseshoe · scale 1.5 · +c ×6 bail=30', 2],
+  ['polar · scale 1.5 · +c ×6 bail=30', 2],
+  ['spherical · scale .8 · +c ×6 bail=30', 2],
+  ['abs · sort · scale 3 · + -2 -2 0 | bulb 8 · +c ×9 AAB bail=40', 2],
+  ['abs · sort · scale 3 · + -2 -2 0 | [bulb 8 ‖ quat] sphere .4 .8 1 · +c ×9 AAB bail=40', 2],
 ];
 const DN = 1024;
 // the CPU's derivative of the estimate in a driver's parameter (a band end, a node's parameter)

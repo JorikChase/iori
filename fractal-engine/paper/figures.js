@@ -72,6 +72,7 @@ const MANDALAY = 'fold.mandalay .5 .15 · fold.sphere .5 1 · scale 2.3 · rotat
 // a ring preset on the reading it was chosen for (core/shade.js): iori's colours on a family that has none of its own
 const painted = (text, preset) => withProgram(text, { shade: { nodes: [{ id: 'q', type: PRESET_READING[preset] }, { id: 'r', type: 'ramp', in: { v: 'q' }, p: rampPreset(preset) }], out: { color: 'r' } } });
 const KALI = (text) => withProgram(text, { shade: { nodes: [{ id: 'k', type: 'kali', p: { cx: 0.8, cy: 0.7, cz: 0.6, f: 1, n: 10, mode: 'mean' } }, { id: 'r', type: 'ramp', in: { v: 'k' }, p: rampPreset('oil') }], out: { color: 'r' } } });
+const SUB = 'fold.box 1 · a( fold.sphere .5 1 · scale ^1.8 ) · +c · rotate 0 0 15 · a( 1.4 ) ×8 bail=100';
 const FAMILY = {
   fmPK: { doc: painted(PK, 'strata'), cam: [-1.204, -0.34, -0.779, 2.29, -0.08] },
   fmPillars: { doc: painted(PILLARS, 'bone'), cam: [-1.144, -0.068, -0.21, 4.84, 0.25] },
@@ -79,6 +80,9 @@ const FAMILY = {
   fmKleinian: { doc: painted(KLEINIAN, 'oil'), cam: [-0.516, 0.882, -0.135, 0.3, 0.07] },
   fmMandalay: { doc: painted(MANDALAY, 'malachite'), view: 2, yaw: 0, pitch: -0.3 },
   fmKali: { doc: KALI(BOX) },
+  // one run used twice (core/sub.js): the second use has its own scale, the sphere fold is shared
+  sbField: { doc: painted(SUB, 'strata'), view: 9, yaw: 0.6, pitch: -0.4 },
+  sbGraph: { doc: painted(SUB, 'strata'), view: 9, yaw: 0.6, pitch: -0.4, open: 'drive' },
 };
 
 export const FIGURES = {

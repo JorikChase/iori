@@ -317,13 +317,17 @@ def build_seo_block(slug, meta):
         f'    <link rel="icon" type="image/png" sizes="16x16" href="{up}icon/favicon/16.png?v={v}">',
         f'    <link rel="icon" type="image/png" sizes="32x32" href="{up}icon/favicon/32.png?v={v}">',
         f'    <link rel="icon" type="image/png" sizes="48x48" href="{up}icon/favicon/48.png?v={v}">',
+        # Registry "touch_icon" (relative to the page) replaces the set for a page
+        # that installs with its own icon. iOS reads this link, not the manifest.
         # Home-screen icon: the painted sheet. iOS picks the closest size; 167
         # (iPad Pro) and 152 (iPad) otherwise get the 180 downscaled by the OS,
         # which is softer than ours.
-        f'    <link rel="apple-touch-icon" sizes="180x180" href="{up}icon/ios/180.png?v={v}">',
-        f'    <link rel="apple-touch-icon" sizes="167x167" href="{up}icon/ios/167.png?v={v}">',
-        f'    <link rel="apple-touch-icon" sizes="152x152" href="{up}icon/ios/152.png?v={v}">',
-        f'    <link rel="apple-touch-icon" sizes="120x120" href="{up}icon/ios/120.png?v={v}">',
+        *([f'    <link rel="apple-touch-icon" sizes="180x180" href="{meta["touch_icon"]}">'] if meta.get("touch_icon") else [
+            f'    <link rel="apple-touch-icon" sizes="180x180" href="{up}icon/ios/180.png?v={v}">',
+            f'    <link rel="apple-touch-icon" sizes="167x167" href="{up}icon/ios/167.png?v={v}">',
+            f'    <link rel="apple-touch-icon" sizes="152x152" href="{up}icon/ios/152.png?v={v}">',
+            f'    <link rel="apple-touch-icon" sizes="120x120" href="{up}icon/ios/120.png?v={v}">',
+        ]),
         "",
         f'    <meta name="google-site-verification" content="{GOOGLE_VERIFICATION}" />',
         "",

@@ -647,6 +647,52 @@
           no volume, so a generic point's preimages are all axis-wise, and the inverse tries those at random, checking each
           forward.</p>
       </details>
+
+      <h3 id="ch5-8">5.8 Subgraphs</h3>
+      <p>A run of ops can be named and used in several places, so that an edit to one reaches them all. In the text it is a
+        letter: <code>a( … )</code> the first time, with its ops, and <code>a( … )</code> after that with only what is its own.</p>
+      <p class="eq"><code>fold.box 1 · a( fold.sphere .5 1 · scale ^1.8 ) · +c · rotate 0 0 15 · a( 1.4 ) ×8</code></p>
+      <p>The two uses are linked: the structure and every number are shared, so moving the sphere fold's radius in either
+        moves both. A number marked with <code>^</code> is <i>exposed</i>: it belongs to each use, here 1.8 and 1.4, and a folded
+        use shows it as an ordinary dimension line. Detach turns one use back into plain ops and leaves the others
+        linked. The same link works on a piece of the shading network or the driver lane. Breeding treats a shared number as
+        one gene that moves every use, an exposed number as one gene per use, and never touches the structure.</p>
+      <p>A definition lives in its formula, so a URL or an export carries it. To use a subgraph in another formula, the
+        <i>shelf</i> keeps saved ones in this browser; placing one copies it in, with no link back.</p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Choose a run of ops</td><td><kbd>Shift</kbd>-click its nodes</td><td>a second finger grows the run</td></tr>
+        <tr><td>Wrap run</td><td>the plus on the run's bracket</td><td>the same</td></tr>
+        <tr><td>Open a use in place</td><td>double click; <kbd>Esc</kbd> closes</td><td>double tap; two-finger tap closes</td></tr>
+        <tr><td>Use it again</td><td><kbd>Shift</kbd>-drag a use onto an edge, or pick it in the edge's ring</td><td>drag with a second finger resting, or the edge's ring</td></tr>
+        <tr><td>Give a use its own number</td><td>with it open, pull a line off itself and drop it on the dashed frame; pull it back inside to share it again</td><td>the same</td></tr>
+        <tr><td>Detach use, save to shelf</td><td>hold a use: the ring</td><td>hold</td></tr>
+        <tr><td>Remove a use</td><td>click it, <kbd>Delete</kbd></td><td>three-finger tap</td></tr>
+      </table>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="sbField">
+          <div class="fe-frame"></div>
+          <figcaption>Subgraph <code>a</code> used twice in one iteration, with a turn between the uses.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="sbGraph">
+          <div class="fe-frame"></div>
+          <figcaption>The same formula's graph: each use is its run's glyphs between brackets. Double click one to open it,
+            or rest on it for its name.</figcaption>
+        </figure>
+      </div>
+      <p>The limits. The engine's eight slots and 64 ops count every use, because each use is real ops: a subgraph saves
+        typing, not GPU space, and a chimera subgraph used twice takes its species' slots twice. The lens's preview of a shared
+        number moves the first use only; the value applied on release is exact. Ramp stops can't be exposed (a ramp's map lines
+        can). A subgraph can't contain a subgraph, and no link crosses collage pieces. A shelf holds eight entries: an entry
+        can't be removed, and a ninth saved one pushes out the oldest.</p>
+      <details class="math">
+        <summary>The mathematics</summary>
+        <p>A subgraph is a list laid over plain ops: <code>{ id, n, uses, expose }</code>, the path of each use's first op and
+          the exposed numbers. The renderer never sees it. An instanced formula packs byte for byte as its written-out form, so
+          the shaders, duals and JITs are the same. In the metric, a shared number appears once and carries the sum of what its
+          copies move: an upper bound, since their partials may cancel, so a step of <i>D</i> pixels never moves more than
+          <i>D</i>.</p>
+      </details>
     </section>
 
     <!-- ================================================================== 6 -->
@@ -1071,16 +1117,6 @@
           <p>The volume integral of <a href="../radiance-fields.html">Radiance Fields</a>, with σ the orbit histogram: <i>C</i> = ∫ <i>T</i>(<i>t</i>) σ(<i>r</i>(<i>t</i>)) <i>c</i>(<i>r</i>(<i>t</i>)) d<i>t</i>.</p>
         </details>
       </div>
-      <div class="planned" id="pl-instances">
-        <span class="planned-tag">planned</span>
-        <h4>Reusable Subgraphs</h4>
-        <p>A piece of the network named and used in several places, so that editing one edits them all. The formula graph will gain instances once the drivers' dataflow has settled.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-      </div>
       <div class="planned" id="pl-ndim">
         <span class="planned-tag">planned</span>
         <h4>More Than Four Dimensions, and a Full-Frame Tilt</h4>
@@ -1412,6 +1448,6 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="paper/paper.js?v=7"></script>
+  <script type="module" src="paper/paper.js?v=8"></script>
 </body>
 </html>

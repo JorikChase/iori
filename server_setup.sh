@@ -384,6 +384,12 @@ iori.me {
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png /blackjach/assets/* /blackjach/css/* /blackjach/js/*
     header @shortcache Cache-Control "public, max-age=3600"
 
+    # Cross-origin isolation for the Stage 1 device probe only (audio/PLAN.md). Not on /audio/*: the gtag script in the
+    # live app's head would be refused under COEP.
+    @audioprobe path /audio/probe/*
+    header @audioprobe Cross-Origin-Opener-Policy "same-origin"
+    header @audioprobe Cross-Origin-Embedder-Policy "require-corp"
+
     # Enable the static file server
     # This will use Caddy's default (index.html)
     file_server

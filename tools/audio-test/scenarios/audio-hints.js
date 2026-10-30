@@ -68,7 +68,10 @@ module.exports = async (lib) => {
   await tap({ x: C.x, y: C.y + 210 }); checks.accentFailedAttempt = await waitOn(); info.accentGhost = await ghost();
 
   // 8
-  const swipe = async (x, y, dx) => { await page.mouse.move(x, y); await page.mouse.down(); for (let k = 1; k <= 6; k++) { await page.mouse.move(x + dx * k / 6, y); await page.waitForTimeout(16); } await page.mouse.up(); };
+  const stroke = (x, y, dx, dy) => page.evaluate(([x, y, dx, dy]) => {                   // scripted in the page: under load real mouse moves outlast the hold and open the take's menu
+    const el = document.elementFromPoint(x, y), ev = (t, cx, cy) => el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerId: 7, isPrimary: true, clientX: cx, clientY: cy }));
+    ev('pointerdown', x, y); for (let k = 1; k <= 6; k++) ev('pointermove', x + dx * k / 6, y + dy * k / 6); ev('pointerup', x + dx, y + dy);
+  }, [x, y, dx, dy]), swipe = (x, y, dx) => stroke(x, y, dx, 0);
   await reset('rec.html');
   await page.evaluate(async () => { (await AT.takes.list()).forEach(m => AT.takes.del(m.id)); }); await page.waitForTimeout(200);
   await page.evaluate(() => AT.takes.put({ name: 'hint', kind: 'rec', sr: 48000, data: new Float32Array(48000) })); checks.swipeTrigger = await waitOn();
@@ -104,7 +107,7 @@ module.exports = async (lib) => {
   if (clip) {
     const top = { x: clip.x, y: clip.top }, mid = { x: clip.x, y: (clip.top + clip.bottom) / 2 };
     const drag = async (p, dy, wait = 0) => { await page.mouse.move(p.x, p.y); await page.mouse.down(); if (wait) await page.waitForTimeout(wait); for (let k = 1; k <= 6; k++) { await page.mouse.move(p.x, p.y + dy * k / 6); await page.waitForTimeout(16); } await page.mouse.up(); };
-    await drag(top, 26); checks.fadeTrigger = await waitOn(); const fg = await ghost(); checks.fadeOnEdge = lib.near(fg.x, clip.x, 4);
+    await stroke(top.x, top.y, 0, 26); checks.fadeTrigger = await waitOn(); const fg = await ghost(); checks.fadeOnEdge = lib.near(fg.x, clip.x, 4);
     await page.screenshot({ path: `${dir}/edit-fade.png` });
     await page.evaluate(() => { AT.hints.reset(); }); const clip2 = await clipBox(); const top2 = { x: clip2.x, y: clip2.top };
     await page.mouse.move(top2.x, top2.y); await page.mouse.down(); await page.waitForTimeout(300); await page.mouse.up(); checks.fadeFailedAttempt = await waitOn();

@@ -68,6 +68,8 @@ body.grab #field { cursor: grabbing; }
 :is(#structure, #grab) .gr .nd.fd path { opacity: 1; }
 :is(#structure, #grab) .gr .nd.hv path { stroke-width: 1.5; }
 :is(#structure, #grab) .gr .zn { opacity: 0.25; }
+:is(#structure, #grab) .gr .fr { stroke-dasharray: 4 3; opacity: 0.6; }
+:is(#structure, #grab) .gr text.ul { opacity: 0.65; }
 :is(#structure, #grab) .gr .lp { opacity: 0.4; }
 :is(#structure, #grab) .gr .att { opacity: 0.9; }
 :is(#structure, #grab) .gr text { fill: #fff; stroke: none; font: 11px ui-monospace, Menlo, monospace; text-anchor: middle; opacity: 0.8; }

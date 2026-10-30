@@ -50,13 +50,23 @@ export const GLYPHS = {
 };
 
 export function glyphPath(id, x, y, size = 24) {
-  const d = GLYPHS[id] || SHADE_GLYPHS[id] || DRIVE_GLYPHS[id] || COLLAGE_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
+  const d = GLYPHS[id] || SHADE_GLYPHS[id] || DRIVE_GLYPHS[id] || COLLAGE_GLYPHS[id] || SUB_GLYPHS[id] || (id === 'plus' ? PLUS_GLYPH : id === 'fork' ? FORK_GLYPH : GLYPHS.c);
   const s = size / 24;
   return `<path d="${d}" transform="translate(${x - size / 2} ${y - size / 2}) scale(${s})" vector-effect="non-scaling-stroke"/>`;
 }
 
 // the shading network (DESIGN.md "Shading"): the orbit's readings, the maths, the mixes, the ramp's
 // own toggles — technical drawing like the rest
+// A subgraph's own mark (core/sub.js): its ops, shrunk, between brackets — a use is drawn as what it holds.
+// names: the glyph ids of the run, the first three of it
+export function useGlyph(names, x, y, size = 24) {
+  const h = size * 0.68, w = size * 0.56, c = Math.min(names.length, 3), m = size * 0.42;
+  const f = (v) => v.toFixed(1);
+  let s = `<path d="M${f(x - w + 4)} ${f(y - h)}H${f(x - w)}V${f(y + h)}H${f(x - w + 4)}M${f(x + w - 4)} ${f(y - h)}H${f(x + w)}V${f(y + h)}H${f(x + w - 4)}"/>`;
+  names.slice(0, c).forEach((g, i) => { s += glyphPath(g, x, y + (i - (c - 1) / 2) * m, m * 0.9); });
+  return s;
+}
+
 export const SHADE_GLYPHS = {
   // readings
   col: 'M4 18l8-12 8 12M8 12h8M12 6v-3',                                   // the fold index: a fold's crease
@@ -126,6 +136,11 @@ export const COLLAGE_GLYPHS = {
 };
 
 // the graph's own: another species (a plus)
+export const SUB_GLYPHS = {
+  // a use taken out of its brackets, and one laid on the shelf
+  'sub.detach': 'M4 2H2v20h2M20 2h2v20h-2M8 12h8M12 8l-4 4 4 4',
+  'sub.shelf': 'M2 20h20M6 20V8h12v12M6 8l6-5 6 5',
+};
 export const PLUS_GLYPH = 'M12 5v14M5 12h14';
 // the fork: one chain splitting into species (the graph's ring)
 export const FORK_GLYPH = 'M12 2v8M12 10L4 20M12 10l8 10M2 20h4M18 20h4';

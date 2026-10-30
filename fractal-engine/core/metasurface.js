@@ -36,7 +36,7 @@ const clampSq = (v) => Math.max(-1, Math.min(1, v));
 // shading (those are compared whole), a fixed c and a slice on both or neither
 export const structureOf = (f) => [
   f.slots.map((s) => s.map((o) => o.op).join(' ')).join(' | '), f.schedule,
-  f.c ? 'c' : '', f.slice ? 'slice' : '', f.drive ? JSON.stringify(f.drive) : '', f.shade ? JSON.stringify(f.shade) : '',
+  f.c ? 'c' : '', f.slice ? 'slice' : '', f.drive ? JSON.stringify(f.drive) : '', f.shade ? JSON.stringify(f.shade) : '', f.sub ? JSON.stringify(f.sub) : '',
 ].join('/');
 
 // a chimera site is hard: a mix cannot sit inside another mix, so it never joins a wall's blend — its

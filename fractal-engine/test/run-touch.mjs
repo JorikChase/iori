@@ -840,6 +840,115 @@ if (DESK) await check('desktop: labels: rest names, move clears', async () => {
     note: `at 200 ms ${early && early.text}; "${L && L.text}" right of the node ${L && (L.box[0] - q.x) | 0} px; kept on a 2 px tremor ${!!b.label}, gone on a move ${!c.label}; toggle "${d.label && d.label.text}" [${d.label && d.label.key}] below ${d.label && d.label.box[1] > at[1]}` };
 });
 
+// ---- subgraphs ---------------------------------------------------------------------------------------
+const SUB_TEXT = 'fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×9 bail=100';
+const subOf = () => fe(() => { const f = window.__fe.state.formula; return { sub: f.sub || null, text: window.__fe.state.text, ops: f.slots.flat().map((o) => o.op) }; });
+const nodeOf = async (id) => (await input()).graph.nodes.find((q) => q.id === id);
+const nodeUse = async (l) => (await input()).graph.nodes.find((q) => q.use === l);
+
+await check(`${DESK ? 'desktop: ' : ''}subgraph: run, wrap, place`, async () => {
+  await openGraph(SUB_TEXT);
+  const a = await nodeOf('A1'), b = await nodeOf('A2');
+  if (DESK) {
+    await page.keyboard.down('Shift'); await page.mouse.click(a.x, a.y); await sleep(80); await page.mouse.click(b.x, b.y); await page.keyboard.up('Shift');
+  } else {
+    await T.down(1, a.x, a.y); await sleep(80); await T.down(2, b.x, b.y); await sleep(60); await T.up(2); await T.upAll();
+  }
+  await sleep(200);
+  const g = (await input()).graph;
+  if (process.env.SUBDBG) console.log(JSON.stringify({ a, b, g }));
+  await shot(`${DESK ? 'desktop-' : ''}sub-run`);
+  if (!g.bracket) return { ok: false, note: `no bracket (run ${JSON.stringify(g.run)})` };
+  await press([g.bracket.x, g.bracket.y]); await sleep(150);
+  const f1 = await subOf(), u = await nodeUse('a');
+  await shot(`${DESK ? 'desktop-' : ''}sub-wrapped`);
+  // another use, from the ring on the edge below +c
+  const c = (await input()).graph.nodes.find((q) => q.id === 'A2' || q.id === 'A3');
+  const ex = c.x, ey = c.y + ((await input()).graph.zone[3] - c.y) * 0.32 ;
+  if (DESK) { await page.mouse.move(ex, ey); await page.mouse.down(); await sleep(420); } else { await T.down(1, ex, ey); await sleep(420); }
+  const ring = await fe(() => window.__fe.ringItems && window.__fe.ringItems());
+  await shot(`${DESK ? 'desktop-' : ''}sub-ring`);
+  // the first item past the fork is the subgraph: straight to one step clockwise of twelve
+  const R = 96, n = ring ? ring.n : 24, at = ring ? ring.at : [ex, ey], ang = (1 / n) * Math.PI * 2 - Math.PI / 2;
+  const tx = at[0] + Math.cos(ang) * R, ty = at[1] + Math.sin(ang) * R;
+  if (DESK) { await page.mouse.move(tx, ty, { steps: 6 }); await sleep(60); await page.mouse.up(); } else { await T.stroke([1], [[ex, ey]], [[tx, ty]], 8); await T.upAll(); }
+  await sleep(250);
+  const f2 = await subOf();
+  return { ok: !!f1.sub && f1.sub[0].n === 2 && !!u && !!f2.sub && f2.sub[0].uses.length === 2 && f2.ops.length === 6, note: `${f1.text}; ring item "${ring && ring.sel}"; ${f2.text}` };
+});
+
+await check(`${DESK ? 'desktop: ' : ''}subgraph: open, expose, per use`, async () => {
+  await fe(() => window.__fe.graph(false));
+  await openGraph('fold.box 1 · a( fold.sphere .5 1 · scale 2.5 ) · +c · a( ) ×9 bail=100');
+  const u = await nodeUse('a');
+  const dbl = async (q) => { if (DESK) { await page.mouse.click(q.x, q.y); await sleep(90); await page.mouse.click(q.x, q.y); } else { await T.tap([[q.x, q.y]]); await sleep(90); await T.tap([[q.x, q.y]]); } await sleep(250); };
+  await dbl(u);
+  const g = (await input()).graph;
+  await shot(`${DESK ? 'desktop-' : ''}sub-open`);
+  if (!g.frame) return { ok: false, note: `not open (${JSON.stringify(g.open)})` };
+  // select scale inside, pull its line up off itself and drop it on the frame
+  const sc = await nodeOf('A2');
+  await press([sc.x, sc.y]); await sleep(150);
+  const L = await fe(() => window.__fe.opLines());
+  if (!L || !L.length) return { ok: false, note: 'no lines' };
+  const line = L[0], mx = (line.x1 + line.x2) / 2;
+  const tx = g.frame.x, ty = g.frame.y + g.frame.h / 2;
+  if (DESK) { await page.mouse.move(mx, line.y); await page.mouse.down(); await page.mouse.move(mx, line.y - 26, { steps: 4 }); await page.mouse.move(tx, ty, { steps: 8 }); await sleep(60); await page.mouse.up(); }
+  else { await T.down(1, mx, line.y); await T.stroke([1], [[mx, line.y]], [[mx, line.y - 26]], 4); await T.stroke([1], [[mx, line.y - 26]], [[tx, ty]], 8); await T.upAll(); }
+  await sleep(250);
+  const f1 = await subOf();
+  await shot(`${DESK ? 'desktop-' : ''}sub-exposed`);
+  // close it, select the second use: its own line
+  for (let i = 0; i < 2 && (await input()).graph.open; i++) { if (DESK) await page.keyboard.press('Escape'); else await T.tap([[cx - 30, 60], [cx + 30, 60]]); await sleep(150); }
+  const closed = !(await input()).graph.open;
+  const second = (await input()).graph.nodes.filter((q) => q.use === 'a')[1];
+  await press([second.x, second.y]); await sleep(120);
+  const l2 = await fe(() => window.__fe.opLines());
+  const m2 = (l2[0].x1 + l2[0].x2) / 2;
+  if (DESK) { await page.mouse.move(m2, l2[0].y); await page.mouse.down(); await page.mouse.move(m2 + 30, l2[0].y, { steps: 5 }); await page.mouse.up(); }
+  else { await T.down(1, m2, l2[0].y); await T.stroke([1], [[m2, l2[0].y]], [[m2 + 30, l2[0].y]], 5); await T.upAll(); }
+  await sleep(200);
+  const f2 = await fe(() => window.__fe.state.formula.slots[0].filter((o) => o.op === 'scale').map((o) => o.p.s));
+  await shot(`${DESK ? 'desktop-' : ''}sub-own-line`);
+  return { ok: f1.sub && f1.sub[0].expose.includes('1.s') && closed && l2.length === 1 && f2[0] === 2.5 && f2[1] !== 2.5, note: `exposed ${f1.sub && f1.sub[0].expose}; closed ${closed}; scales ${f2}; ${await fe(() => window.__fe.state.text)}` };
+});
+
+await check(`${DESK ? 'desktop: ' : ''}subgraph: copy, detach, delete`, async () => {
+  await fe(() => window.__fe.graph(false));
+  await openGraph('a( abs · scale 2 ) · +c · fold.box ×9 bail=100');
+  const u = await nodeUse('a'), last = (await input()).graph.nodes.at(-1);
+  const zone = (await input()).graph.zone, tx = last.x, ty = last.y + (zone[3] - last.y) * 0.32;
+  // a drag onto the last edge with the modifier: a copy
+  if (DESK) { await page.mouse.move(u.x, u.y); await page.mouse.down(); await page.mouse.move(u.x + 10, u.y + 10, { steps: 3 }); await page.mouse.move(tx, ty, { steps: 8 }); await sleep(50); await page.keyboard.down('Shift'); await page.mouse.up(); await page.keyboard.up('Shift'); }
+  else { await T.down(1, u.x, u.y); await T.stroke([1], [[u.x, u.y]], [[u.x + 10, u.y + 10]], 3); await T.down(2, cx, 60); await T.stroke([1], [[u.x + 10, u.y + 10]], [[tx, ty]], 8); await sleep(40); await T.up(1); await T.upAll(); }
+  await sleep(250);
+  const a = await subOf();
+  // hold a use: the ring, detach
+  const q = await nodeUse('a');
+  if (DESK) { await page.mouse.move(q.x, q.y); await page.mouse.down(); await sleep(420); } else { await T.down(1, q.x, q.y); await sleep(420); }
+  const r = await fe(() => window.__fe.ringItems && window.__fe.ringItems());
+  await shot(`${DESK ? 'desktop-' : ''}sub-detach`);
+  const ty2 = r ? r.at[1] - 96 : q.y - 96, tx2 = r ? r.at[0] : q.x;
+  if (DESK) { await page.mouse.move(tx2, ty2, { steps: 6 }); await sleep(50); await page.mouse.up(); } else { await T.stroke([1], [[q.x, q.y]], [[tx2, ty2]], 8); await T.upAll(); }
+  await sleep(250);
+  const b = await subOf();
+  // Delete the remaining use, whole
+  const v = await nodeUse('a');
+  await press([v.x, v.y]);
+  if (DESK) await page.keyboard.press('Delete'); else await T.tap([[cx - 40, 60], [cx, 60], [cx + 40, 60]]);
+  await sleep(250);
+  const c = await subOf();
+  await fe(() => window.__fe.graph(false));
+  return { ok: a.sub && a.sub[0].uses.length === 2 && a.ops.length === 6 && b.sub && b.sub[0].uses.length === 1 && b.ops.length === 6 && !c.sub && c.ops.length === 4, note: `${a.text} → ${b.text} → ${c.text}` };
+});
+
+await check(`${DESK ? 'desktop: ' : ''}subgraph: names`, async () => {
+  await openGraph('a( abs · scale ^2 ) · +c · a( 3 ) ×9 bail=100');
+  const u = await nodeUse('a'), n = await fe(([x, y]) => window.__fe.labelAt(x, y), [u.x, u.y]);
+  await fe(() => window.__fe.graph(false));
+  return { ok: n && n.text === 'subgraph a', note: n && n.text };
+});
+
 console.log(`\n${results.filter((r) => r[1]).length}/${results.length} pass`);
 if (errors.length) console.log('\npage errors:\n  ' + errors.join('\n  '));
 await browser.close();

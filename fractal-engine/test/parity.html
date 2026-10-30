@@ -24,7 +24,7 @@ import { push as cpuPush } from '../core/cpu.js';
 import { COLLAGES, KEEP, STEP, collageCase } from './collage-cases.js';
 import { COLLAGE_MARCH, COLLAGE_STEP, collageJit } from '../gpu/render.js';
 import { COLLAGE_WALK } from '../gpu/push.js';
-import { withJit } from '../gpu/jit.js';
+import { withJit, jitDual } from '../gpu/jit.js';
 import { format } from '../core/notation.js';
 import { evalShade, normShade, rampPreset, defaultShade, INTERPS, SPACES, MODES, MATH_OPS, MIX_MODES } from '../core/shade.js';
 
@@ -767,6 +767,7 @@ async function run() {
   const dualPipe0 = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: dualModule, entryPoint: 'main' } });
   const dualPipeD = await compilePipe(withDrive(DUAL_SHADER), 'DUAL_SHADER+drive');
   const dualRows = [];
+  const dualJitRows = [];
   for (const [text, R] of DUAL_FORMULAS) {
     mark('dual', text);
     const f = normalize(parse(text));
@@ -826,6 +827,34 @@ async function run() {
     const p90 = (a) => (a.sort((x, y) => x - y), a[Math.floor(a.length * 0.9)] || 0);
     dualRows.push({ formula: text, params: tg.list.length, gradDegMed: med(ang), gradDegP90: p90(ang),
       paramRelMed: med(prel), paramRelP90: p90(prel), lyapAbsMed: med(lerr), lyapAbsP90: p90(lerr) });
+    // the same points through the compiled dual pass, both kinds: gradient and λ against the CPU, as above
+    // (the first parameter's row runs: a JIT reads no tangent table)
+    for (const kind of ['structure', 'literal']) {
+      if (!jitDual(f, kind)) continue;
+      mark('dual jit', `${kind} ${text}`);
+      const pipe = await compilePipe(withJit(drives(f) ? withDrive(DUAL_SHADER) : DUAL_SHADER, f, kind), `DUAL jit ${kind} ${text}`);
+      const bgj = device.createBindGroup({ layout: pipe.getBindGroupLayout(0),
+        entries: [head, ops, pb, ob, tb].map((b, i) => ({ binding: i, resource: { buffer: b } })) });
+      const e2 = device.createCommandEncoder();
+      const c2 = e2.beginComputePass();
+      c2.setPipeline(pipe); c2.setBindGroup(0, bgj); c2.dispatchWorkgroups(Math.ceil(DN / 64), 1); c2.end();
+      e2.copyBufferToBuffer(ob, 0, rb, 0, outBytes);
+      device.queue.submit([e2.finish()]);
+      await rb.mapAsync(GPUMapMode.READ);
+      const gj = new Float32Array(rb.getMappedRange().slice(0));
+      rb.unmap();
+      const angJ = [], lerrJ = [], deJ = [];
+      for (let i = 0; i < DN; i++) {
+        const p = [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]];
+        const cg = deGrad(f, p), gg = [gj[i * 8], gj[i * 8 + 1], gj[i * 8 + 2]];
+        const nc = Math.hypot(...cg), ng = Math.hypot(...gg);
+        if (nc > 1e-6 && ng > 0) angJ.push(Math.acos(Math.max(-1, Math.min(1, (cg[0] * gg[0] + cg[1] * gg[1] + cg[2] * gg[2]) / (nc * ng)))) * 180 / Math.PI);
+        lerrJ.push(Math.abs(lyapunovOrbit(f, p) - gj[i * 8 + 5]));
+        // the orbit's own estimate, against the interpreter's dual orbit
+        deJ.push(Math.abs(gj[i * 8 + 3] - g[i * 8 + 3]) / Math.max(Math.abs(g[i * 8 + 3]), 1e-6));
+      }
+      dualJitRows.push({ formula: text, kind, n: angJ.length, gradDegMed: med(angJ), gradDegP90: p90(angJ), lyapAbsMed: med(lerrJ), lyapAbsP90: p90(lerrJ), deRelMed: med(deJ), deRelP90: p90(deJ) });
+    }
     [head, ops, pb, ob, rb, tb].forEach((b) => b.destroy());
   }
 
@@ -961,6 +990,7 @@ async function run() {
   // duals: gradients within a degree and parameter derivatives within 1 % for most points, λ within
   // 0.01 (the tails are fold edges, where a derivative jumps and central differences straddle it)
   const dualOk = dualRows.every((r) => r.gradDegMed < 1 && r.paramRelMed < 0.01 && r.lyapAbsMed < 0.01);
+  const dualJitOk = dualJitRows.every((r) => r.n > 0 && r.gradDegMed < 1 && r.lyapAbsMed < 0.01 && r.deRelMed < 1e-3);
   const ovOk = ovRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2);
   // the JIT is the same arithmetic in another order: float precision, the same fold-edge tails
   const jitOk = jitRows.every((r) => r.median < 1e-4 && r.p99 < 2e-2 && r.sMedian < 1e-4 && r.sP99 < 2e-2);
@@ -1083,8 +1113,8 @@ async function run() {
   // room for a rotation rebuilt in float32 (its own value rebuilt: 4.7e-5 against the packed 2.5e-5) whose
   // angle follows the trap (1.1e-4).
   const drv = (r) => r.formula.includes('drive=');
-  const ok = rows.every((r) => r.median < (drv(r) ? 3e-4 : 1e-4) && r.p99 < (drv(r) ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02) && invOk && dualOk && ovOk && jitOk && shadeOk && colourOk && collageOk;
-  window.__parity = { ok, rows, invRows, dualRows, ovRows, jitRows, shadeRows, colourRows, collageRows };
+  const ok = rows.every((r) => r.median < (drv(r) ? 3e-4 : 1e-4) && r.p99 < (drv(r) ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02) && invOk && dualOk && dualJitOk && ovOk && jitOk && shadeOk && colourOk && collageOk;
+  window.__parity = { ok, rows, invRows, dualRows, dualJitRows, ovRows, jitRows, shadeRows, colourRows, collageRows };
   out.innerHTML = (ok ? 'PASS' : '<span class="bad">FAIL</span>') + '\n\n' + rows.map((r) =>
     `${r.formula}\n  compared ${r.compared}/${r.n}  median rel ${r.median.toExponential(2)}  p99 ${r.p99.toExponential(2)}  max ${r.maxRel.toExponential(2)}  iter≠ ${r.iterMismatch}  esc≠ ${r.escMismatch}`).join('\n\n')
     + '\n\ninverse steps (GPU preimage → CPU forward)\n\n' + invRows.map((r) =>

@@ -2063,3 +2063,6 @@ placing a network use directly on a link (it starts free); removing a shelf entr
 moves a shared number in every use during the preview; the rig does not yet exercise the shelf's gestures in the app (its core
 is unit-tested); a real-device touch pass.
 
+
+**In the paper (2026-10-30):** the subgraphs stub is filled: 5.8 Subgraphs, figures `sbField`, `sbGraph` (one run used twice, an
+exposed scale; the graph figure folds the shading pane so the network takes the room). The limits are stated there.

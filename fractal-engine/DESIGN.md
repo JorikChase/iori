@@ -1965,3 +1965,9 @@ timing) once, which passed 4/4 twice and in the next full run. Shots: design/sho
 **Not yet:** a collage as a seed; orbit density as a medium; `kali` driven; a per-family look (a preset is only its formula, so
 these open in the default key colour); `fold.mandalay` in 4-D; Mandelbulber's Kleinian variants; 3-D Kleinian DE tightening
 at the wrap's seam (an overstep there is possible; none seen).
+
+**In the paper (2026-10-30):** the Kleinian, Mandalay and kaliset stubs are filled: 5.6 Seeds (four figures, each family's
+Metasurface eye), 5.7 The Mandalay Fold, 6.4 The Kaliset; figures `fm*` in `paper/figures.js` (`cam` writes `&c=`). The limits
+are stated there: Mandalay's estimate is a heuristic, Kleinian's jumps at the wrap's seam. The Apollonian figure's eye is
+tilted down to 0.2 and keeps the engine's colours: the ring's ramps left it dark. paper.js: when both slots are full, a
+waiting figure more than 80 px nearer the middle takes the farther one's place (two pairs fit on one screen in 5.6).

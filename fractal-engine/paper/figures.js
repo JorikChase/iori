@@ -4,7 +4,7 @@
 // Formulas with shading or drivers are built here through core/, so their notation is the engine's own.
 import { parse, format, normalize } from '../core/index.js';
 import { parseCollage, normCollage, formatCollage } from '../core/collage.js';
-import { rampPreset } from '../core/shade.js';
+import { rampPreset, PRESET_READING } from '../core/shade.js';
 
 const BOX = 'fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100';
 const BULB = 'bulb 8 · +c ×10 bail=2';
@@ -63,6 +63,24 @@ const EXAMPLES = {
   exJuliaPush: { doc: 'bulb 8 · +c ×10 bail=2 c=-.2,.3,.1', view: 2.2, yaw: 0, pitch: -0.25, mode: 'push' },
 };
 
+// ---------- the seed families, the Mandalay fold, the kaliset (their halls are core/presets.js's eyes) ----------
+const PK = 'fold.cell .92 .91 .92 · fold.sphere 0 1 · seed.slab ×12 bail=100';
+const PILLARS = 'fold.cell .92 .91 .92 · fold.sphere 0 1 · translate .1 .12 · seed.pillar .08 ×12 bail=100';
+const APOLLONIAN = 'wrap 1 1 1 · invert · scale 1.1 · seed.slab 0 1 0 0 0 .4 ×8 bail=1000';
+const KLEINIAN = 'kleinian 1.95 .02 ×40 bail=100';
+const MANDALAY = 'fold.mandalay .5 .15 · fold.sphere .5 1 · scale 2.3 · rotate 0 0 10 · +c ×12 bail=100';
+// a ring preset on the reading it was chosen for (core/shade.js): iori's colours on a family that has none of its own
+const painted = (text, preset) => withProgram(text, { shade: { nodes: [{ id: 'q', type: PRESET_READING[preset] }, { id: 'r', type: 'ramp', in: { v: 'q' }, p: rampPreset(preset) }], out: { color: 'r' } } });
+const KALI = (text) => withProgram(text, { shade: { nodes: [{ id: 'k', type: 'kali', p: { cx: 0.8, cy: 0.7, cz: 0.6, f: 1, n: 10, mode: 'mean' } }, { id: 'r', type: 'ramp', in: { v: 'k' }, p: rampPreset('oil') }], out: { color: 'r' } } });
+const FAMILY = {
+  fmPK: { doc: painted(PK, 'strata'), cam: [-1.204, -0.34, -0.779, 2.29, -0.08] },
+  fmPillars: { doc: painted(PILLARS, 'bone'), cam: [-1.144, -0.068, -0.21, 4.84, 0.25] },
+  fmApollonian: { doc: APOLLONIAN, cam: [0.95, -0.284, -0.842, 2.15, 0.2] },
+  fmKleinian: { doc: painted(KLEINIAN, 'oil'), cam: [-0.516, 0.882, -0.135, 0.3, 0.07] },
+  fmMandalay: { doc: painted(MANDALAY, 'malachite'), view: 2, yaw: 0, pitch: -0.3 },
+  fmKali: { doc: KALI(BOX) },
+};
+
 export const FIGURES = {
   notation: { open: 'structure' },
   pull: {},
@@ -92,6 +110,7 @@ export const FIGURES = {
   // chapter 9: the graph open, to hold a node for its name (ui/labels.js)
   labels: { doc: TISSUE, view: 2.6, open: 'graph' },
   ...EXAMPLES,
+  ...FAMILY,
   touch: {},
 };
 
@@ -102,6 +121,7 @@ export function figureSrc(id, doc) {
   const q = new URLSearchParams({ embed: '' });
   for (const k of ['view', 'yaw', 'pitch', 'win', 'open']) if (F[k] != null) q.set(k, F[k]);
   const text = doc || F.doc;
-  const hash = text ? '#' + encodeURIComponent(text) + (F.mode && F.mode !== 'pull' ? '&m=' + F.mode : '') : '';
+  const cam = F.cam ? '&c=' + F.cam.join(',') : '';
+  const hash = text ? '#' + encodeURIComponent(text) + cam + (F.mode && F.mode !== 'pull' ? '&m=' + F.mode : '') : '';
   return new URL('../index.html?' + q.toString().replace('embed=', 'embed') + hash, import.meta.url).href;
 }

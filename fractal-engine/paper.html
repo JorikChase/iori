@@ -119,10 +119,11 @@
       <p>A formula is written as one line of text. Operations are separated by a dot, numbers follow their operation,
         and <code>×12</code> says how many times the list runs. The arrival formula reads</p>
       <p class="eq"><code>fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100</code></p>
-      <p>Twenty-two operations make up the library: folds through a plane, a box, a sphere, the absolute value
-        and a sort of the coordinates; powers (the triplex bulb, the complex power, inversion, a twist); the affine moves
+      <p>Twenty-nine operations make up the library: folds through a plane, a box, a box with a limit per axis, a sphere,
+        the absolute value and a sort of the coordinates, a stepped fold (section 5.7); powers (the triplex bulb, the complex power, inversion, a twist); the affine moves
         (translate, <code>+c</code>, scale, rotate); the 4-D forms (<code>rotate4</code>, <code>sort4</code>,
-        <code>bulb4</code>, <code>quat</code>); and five flame variations for the push engine
+        <code>bulb4</code>, <code>quat</code>); the lattice wrap, the Kleinian step and three seeds (section 5.6); and five
+        flame variations for the push engine
         <a class="cite" href="#ref-draves2003">[3]</a>. A letter word after the count is a <i>schedule</i>:
         <code>×12 AAB</code> alternates two op lists, a hybrid. <code>c=x,y,z</code> fixes the constant and gives a
         Julia set; <code>slice=…</code>, <code>shade=…</code> and <code>drive=…</code> carry the 4-D slice, the colour
@@ -514,12 +515,15 @@
       </details>
 
       <h3 id="ch5-4">5.4 The Metasurface</h3>
-      <p>The families (Mandelbulb, 4-D bulb, quaternion Mandelbrot and Julia, Mandelbox and its −1.5 form, Amazing
-        Surf, a 4-D-rotated Mandelbox, Menger, Sierpiński, KIFS) lie on a square as Voronoi cells, each site its family's
+      <p>Sixteen families (Mandelbulb, 4-D bulb, quaternion Mandelbrot and Julia, Mandelbox and its −1.5 form, Amazing
+        Surf, Mandalay, a 4-D-rotated Mandelbox, Menger, Sierpiński, KIFS, pseudo-Kleinian with and without pillars,
+        Apollonian, Kleinian) lie on a square as Voronoi cells, each site its family's
         thumbnail. Drag the crosshair and the formula follows: inside a cell the family is bred along its own two axes;
         across a wall, sites of one structure blend their parameters and different structures become a chimera
         <a class="cite" href="#ref-sibson1981">[23]</a>. A stroke can be played in time (a walk through the families) or
-        laid in space (species ordered across the world along the stroke). Any formula can become a site of its own.</p>
+        laid in space (species ordered across the world along the stroke). Any formula can become a site of its own.
+        The four lattice families of section 5.6 have no outside to frame, so their sites open with the camera inside a
+        hall.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Open, close</td><td><kbd>M</kbd>, <kbd>Esc</kbd></td><td>the Metasurface glyph in the row</td></tr>
@@ -561,6 +565,88 @@
         <figcaption>The tissue of 5.3 as its graph: a fork into two species (bulb 8, bulb 3) joined at the tissue's
           glyph, inside the repeat zone. Hover a node to see the field without it.</figcaption>
       </figure>
+
+      <h3 id="ch5-6">5.6 Seeds: the Families That Never Escape</h3>
+      <p>The formulas so far stretch space, and the distance estimate measures that stretch. A second kind only folds and
+        inverts: at scale 1 an orbit never escapes, so there is nothing to measure and the old estimate fills all of
+        space. These are the sphere lattices, tunnels and packings of the pseudo-Kleinian family
+        <a class="cite" href="#ref-pseudokleinian">[24]</a>, Apollonian packings <a class="cite" href="#ref-iqapollonian">[25]</a>
+        and Jos Leys's Kleinian limit sets <a class="cite" href="#ref-leys2016">[26]</a>.</p>
+      <p>They are drawn with a <i>seed</i>: a shape placed at the end of the iteration. An op does nothing to the point; the
+        estimate reads the distance to the shape where the orbit ended, divided by how much the folds stretched space on the
+        way. The fractal is the seed seen through every fold. There are three, <code>seed.slab</code>,
+        <code>seed.sphere</code> and <code>seed.pillar</code>. A seed is an op like any other, so the grab, the lens, the
+        ring and the drivers all reach its numbers. <code>fold.cell</code> is the box fold with a limit per axis,
+        <code>wrap</code> folds space into a lattice, and <code>kleinian</code> is one step of Leys's algorithm, its two
+        numbers the real and imaginary parts of the group's trace on Maskit's slice.</p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Go to a family</td><td><kbd>M</kbd>, click its site: the camera lands inside its hall</td><td>the Metasurface glyph, tap its site</td></tr>
+        <tr><td>Build one</td><td>hold an edge in the graph: the seeds, <code>fold.cell</code>, <code>wrap</code> and <code>kleinian</code> are in the ring of ops; or type it (section 1.1)</td><td>hold an edge</td></tr>
+        <tr><td>Change the lattice</td><td>grab (4.1): cell limits, seed offset, the trace's a and b</td><td>grab</td></tr>
+        <tr><td>Fly the halls</td><td>wheel, drag</td><td>pinch, one finger</td></tr>
+      </table>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="fmPK">
+          <div class="fe-frame"></div>
+          <figcaption><code>fold.cell · fold.sphere 0 1 · seed.slab</code>: a pseudo-Kleinian hall, the strata ramp on its orbit trap.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="fmPillars">
+          <div class="fe-frame"></div>
+          <figcaption>The same fold with a pillar for its seed, the "thingy" of knighty's shader, in the bone ramp.</figcaption>
+        </figure>
+      </div>
+      <div class="fe-pair">
+        <figure class="engine" data-fig="fmApollonian">
+          <div class="fe-frame"></div>
+          <figcaption>Apollonian: <code>wrap · invert · scale 1.1 · seed.slab</code>, a lattice folded through a sphere, in the engine's own colours.</figcaption>
+        </figure>
+        <figure class="engine" data-fig="fmKleinian">
+          <div class="fe-frame"></div>
+          <figcaption>Kleinian: <code>kleinian 1.95 .02</code>, a limit set on Maskit's slice.</figcaption>
+        </figure>
+      </div>
+      <p>Two limits. The Apollonian slab's estimate is scaled by .4, which keeps the measured stretch under 1 at the 99th
+        percentile, so the march stays safe. The Kleinian estimate jumps at the wrap's seam, where nearby points land on opposite sides of the lattice: the
+        measured stretch there reaches 11 to 13 where a true distance has 1. An overstep at that seam is possible; none has
+        been seen. In push these families read as star clusters and webs, sparse beside pull. Walking the Metasurface
+        between two halls, a blended camera can land on a surface for a frame or two, never at rest.</p>
+      <details class="math">
+        <summary>The mathematics</summary>
+        <p>Pseudo-Kleinian, per iteration: <i>p</i> ← 2·clamp(<i>p</i>, −<i>l</i>, <i>l</i>) − <i>p</i>; <i>k</i> =
+          max(<i>r</i>²/|<i>p</i>|², 1); <i>p</i> ← <i>k p</i>; <i>D</i> ← <i>k D</i>. No <code>+c</code>. The estimate
+          is |<i>v</i>(<i>p</i>)/<i>D</i> − <i>t</i>|, with <i>v</i> the distance to the seed: ½|<i>z</i>| for the slab,
+          max(ρ − <i>r</i>, |ρ<i>z</i>|/|<i>p</i>|) for the pillar. An orbit that does escape keeps <i>r</i>/<i>dr</i>.
+          Sampled over 20,000 point pairs a half-estimate apart, the Lipschitz constant has a 99th percentile of 1.02 and
+          a maximum of 1.9 for the slab. Kleinian: wrap into a box, turn half the box through 180° about the separation line, invert: <i>z</i> ← −<i>z</i>/|<i>z</i>|², shift by the
+          trace; estimate min(<i>y</i>, <i>a</i> − <i>y</i>, .3)/max(<i>dr</i>, 2), 99th percentile 1.25.</p>
+      </details>
+
+      <h3 id="ch5-7">5.7 The Mandalay Fold</h3>
+      <p>DarkBeam's stepped fold, adapted by knighty <a class="cite" href="#ref-mandalay">[27]</a>: where the box fold
+        reflects each axis at one wall, <code>fold.mandalay</code> sorts |<i>z</i>| and steps the axes against each other,
+        so faces rise into towers and domes. It stands in the Mandelbox's place in the formula, and it is what Tom Beddard's
+        <i>Aurullia</i> series was built from <a class="cite" href="#ref-beddard2011">[28]</a>.</p>
+      <p class="eq"><code>fold.mandalay .5 .15 · fold.sphere .5 1 · scale 2.3 · rotate 0 0 10 · +c ×12</code></p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Go there</td><td><kbd>M</kbd>, click the Mandalay site</td><td>the Metasurface glyph, tap its site</td></tr>
+        <tr><td>Fold offset, step</td><td>grab (4.1): <code>fo</code> and <code>g</code></td><td>grab</td></tr>
+        <tr><td>Use it elsewhere</td><td>hold an edge in the graph, pick it from the ring of ops</td><td>hold an edge</td></tr>
+      </table>
+      <figure class="engine" data-fig="fmMandalay">
+        <div class="fe-frame"></div>
+        <figcaption>The Mandalay family at its Metasurface values, the malachite ramp on its orbit trap. Grab a tower and
+          drag: <code>fo</code> moves the steps.</figcaption>
+      </figure>
+      <details class="math">
+        <summary>The mathematics</summary>
+        <p>The estimate here is a heuristic. <code>fold.mandalay</code> uses the box family's <i>r</i>/<i>dr</i> and counts
+          the fold as a stretch of 1, as Mandelbulber does. But 50.2 % of [−4, 4]³ lies on branches where one axis takes
+          another's value: no isometry, a stretch of up to √3. Nothing has overstepped visibly. Those branches have images of
+          no volume, so a generic point's preimages are all axis-wise, and the inverse tries those at random, checking each
+          forward.</p>
+      </details>
     </section>
 
     <!-- ================================================================== 6 -->
@@ -575,7 +661,7 @@
         A colour ramp turns a number into a colour; maths nodes combine numbers (add, multiply, power, sine,
         <i>bands</i> for terraces); colour mixes combine colours; two outputs take the surface colour and the glow.
         The ramp has up to sixteen stops, five interpolations, three colour spaces (RGB, HSV, Oklab
-        <a class="cite" href="#ref-ottosson2020">[24]</a>), an input map (scale, offset, clamp, repeat, mirror, log,
+        <a class="cite" href="#ref-ottosson2020">[29]</a>), an input map (scale, offset, clamp, repeat, mirror, log,
         invert) and presets: oil, malachite, bone, prism, strata, beetle and abyss, each with the reading it suits
         (the orbit trap, or facing for the thin films). A new ramp starts as the colour already there, and its
         presets open beside it, one tap away. Colours are picked on a hue ring around a held stop: angle is hue, distance is saturation.
@@ -652,6 +738,30 @@
           open: the drivers in the row above the repeat zone, the noise's link running down the drivers' bus into the
           ramp, the bindings as dashed hairlines.</figcaption>
       </figure>
+
+      <h3 id="ch6-4">6.4 The Kaliset</h3>
+      <p>Kali's map is a shader artist's favourite: fold by absolute value, divide by the squared length, subtract a constant,
+        and a few iterations give dense, glittering detail <a class="cite" href="#ref-kali2011">[30]</a>. The forums used it for
+        colour and bump on other fractals. Here it is the <code>kali</code> node: a number computed from the point the ray
+        hit, so any species can take it, and it feeds a ramp, a maths node or a mix like any reading. It does not change the
+        shape.</p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Add it</td><td>hold a link or an input in the shading frame: <code>kali</code> is in the ring</td><td>hold</td></tr>
+        <tr><td>Its constant, frequency</td><td>click the node: four dimension lines (c<sub>x</sub>, c<sub>y</sub>, c<sub>z</sub>, f)</td><td>tap, drag a line</td></tr>
+      </table>
+      <figure class="engine" data-fig="fmKali">
+        <div class="fe-frame"></div>
+        <figcaption>The arrival hall with the kaliset through the oil ramp in place of the fold index: the geometry is
+          unchanged, the detail on it is new. Its iteration count and its mean-or-minimum mode are in the formula's text
+          only for now, and a driver cannot reach it yet.</figcaption>
+      </figure>
+      <details class="math">
+        <summary>The mathematics</summary>
+        <p class="eq"><i>p</i> ← |<i>p</i>| / (<i>p</i>·<i>p</i>) − <i>c</i>, &nbsp; from <i>p</i><sub>0</sub> = <i>f x</i>,</p>
+        <p>with <i>x</i> the hit point and <i>n</i> iterations. The output is the mean change of |<i>p</i>| from one iteration
+          to the next, or in the other mode the least |<i>p</i>|.</p>
+      </details>
     </section>
 
     <!-- ================================================================== 7 -->
@@ -662,9 +772,9 @@
 
       <h3 id="ch7-1">7.1 Joins</h3>
       <p>Pieces are whole formulas, up to eight, each with its own iterations, chimeras, drivers and colour. Their
-        distance estimates are joined by smooth minima <a class="cite" href="#ref-quilez2013">[25]</a>: a smooth union,
+        distance estimates are joined by smooth minima <a class="cite" href="#ref-quilez2013">[31]</a>: a smooth union,
         and the same kernels turned around for intersection and subtraction; terraced and bevelled seams, the stairs and
-        chamfer of hg_sdf <a class="cite" href="#ref-hgsdf2016">[26]</a>; and a morph, where a field decides which piece
+        chamfer of hg_sdf <a class="cite" href="#ref-hgsdf2016">[32]</a>; and a morph, where a field decides which piece
         is there. The seam width is a parameter like any other, so drivers can vary it across space. A fractal's
         estimate has no inside, so a cutter is given a <i>grow</i>: its surface pushed out by a margin, which is
         what a subtraction carves with.</p>
@@ -734,9 +844,9 @@
       <p>The still is 3840 pixels on the long side at 64 samples, rendered by the JIT in 512-pixel tiles that are each
         exactly their window of the full frame, so the seams do not show. The video walks the lineage from its root to
         here at constant visual speed, one PNG per frame. The splats are push samples captured with their covariance and
-        written as a 3D Gaussian splatting file <a class="cite" href="#ref-kerbl2023">[27]</a>. The mesh samples the
+        written as a 3D Gaussian splatting file <a class="cite" href="#ref-kerbl2023">[33]</a>. The mesh samples the
         distance estimate on a 128³ grid around the focus and extracts the surface with surface nets
-        <a class="cite" href="#ref-gibson1998">[28]</a>, as a binary STL.</p>
+        <a class="cite" href="#ref-gibson1998">[34]</a>, as a binary STL.</p>
       <p>Stills and splat files hold the whole state (formula or collage, camera, mode, look): drop one back onto the
         engine and it opens where it was made. The URL holds the formula too, so a link is a scene.</p>
       <table class="use">
@@ -808,8 +918,8 @@
         a tool from the chapters above. Left, the original; right, the step.</p>
       <p>The sources are the forums and programs where 3-D fractals grew up: Fractal Forums, where the Mandelbulb,
         the Mandelbox and the kaleidoscopic folds were posted and argued over; Fragmentarium and Mandelbulber, whose
-        open source code holds the formulas exactly <a class="cite" href="#ref-fragmentarium">[29]</a>
-        <a class="cite" href="#ref-mandelbulber">[30]</a>; and the artists who made them a medium. Each pair starts
+        open source code holds the formulas exactly <a class="cite" href="#ref-fragmentarium">[35]</a>
+        <a class="cite" href="#ref-mandelbulber">[36]</a>; and the artists who made them a medium. Each pair starts
         from that formula as published.</p>
 
       <h3 id="ch10-1">10.1 The Mandelbulb</h3>
@@ -848,7 +958,7 @@
 
       <h3 id="ch10-3">10.3 The Kaleidoscopic Folds</h3>
       <p>Knighty's kaleidoscopic iterated function systems of 2010: fold space across mirror planes, then stretch it
-        about a corner <a class="cite" href="#ref-knighty2010">[31]</a>. The Menger sponge is abs, sort, scale 3; the
+        about a corner <a class="cite" href="#ref-knighty2010">[37]</a>. The Menger sponge is abs, sort, scale 3; the
         Sierpiński tetrahedron three plane folds and scale 2. The step: a chimera that runs both inside every
         iteration and averages the point (section 5.2), a species between the sponge and the tetrahedron.</p>
       <div class="fe-pair">
@@ -880,9 +990,9 @@
 
       <h3 id="ch10-5">10.5 Amazing Surf</h3>
       <p>A Mandelbox variant from the Mandelbulber library (credited there to Kali): the box fold on two axes only,
-        so the shape runs out into sheets and terraced "lands" <a class="cite" href="#ref-mandelbulber">[30]</a>. It is
+        so the shape runs out into sheets and terraced "lands" <a class="cite" href="#ref-mandelbulber">[36]</a>. It is
         still one of the most used formulas in Mandelbulber galleries, usually with depth of field
-        <a class="cite" href="#ref-abalo">[32]</a>. The step: painted in one hue in terraces of the orbit trap (section
+        <a class="cite" href="#ref-abalo">[38]</a>. The step: painted in one hue in terraces of the orbit trap (section
         6.1), with the rotation inside its iteration on a slow clock (section 6.2), so the lands turn as you watch.</p>
       <div class="fe-pair">
         <figure class="engine" data-fig="exSurf">
@@ -897,7 +1007,7 @@
 
       <h3 id="ch10-6">10.6 A Cave in the Manner of Fractal Nature</h3>
       <p>Julius Horsthuis's films (<i>Foreign Nature</i>, <i>Recombination</i>) made fractals into places: enveloping
-        halls with natural light, rendered in Mandelbulb3D <a class="cite" href="#ref-horsthuis">[33]</a>. The engine
+        halls with natural light, rendered in Mandelbulb3D <a class="cite" href="#ref-horsthuis">[39]</a>. The engine
         arrives in such a hall. Painted in one hue, in terraces, with the camera's depth of field, it is the left figure.
         The step: the same hall with its scale changing through space, a noise driver moving it between 2.35 and
         2.65 (section 6.2), so the architecture shifts as you fly through it. Enter and fly (the wheel, or a pinch).
@@ -915,7 +1025,7 @@
 
       <h3 id="ch10-7">10.7 A Fractal as Gaussian Splats</h3>
       <p>3D Gaussian splatting represents a scene as millions of small coloured ellipsoids
-        <a class="cite" href="#ref-kerbl2023">[27]</a>, and it is usually fitted to photographs. The engine makes them
+        <a class="cite" href="#ref-kerbl2023">[33]</a>, and it is usually fitted to photographs. The engine makes them
         from the formula: push walks a Julia-type bulb backwards and every sample becomes an ellipsoid shaped by its
         walk (section 2.2), and the structure layer's dots glyph writes them as a file any splat viewer opens. Left,
         the bulb as a surface; right, the same set as splats.</p>
@@ -947,44 +1057,6 @@
         stretch, its decisions, what was measured and what was left.</p>
 
       <h3 id="ch11-1">11.1 New Capability</h3>
-      <div class="planned" id="pl-kleinian">
-        <span class="planned-tag">planned</span>
-        <h4>Pseudo-Kleinian, Kleinian and Apollonian Formulas</h4>
-        <p>Sphere-inversion sets: lattices of spheres, tunnels, packings. Their orbits never escape, so the usual estimate has nothing to measure; the engine will read the distance to a seed shape in folded space over the accumulated inversion factor. The seed may then be a finished collage.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-        <details class="math">
-          <summary>The mathematics</summary>
-          <p>Pseudo-Kleinian (Fragmentarium, knighty), per iteration: <i>p</i> ← 2·clamp(<i>p</i>, −<i>C</i>, <i>C</i>) − <i>p</i>; <i>k</i> = max(<i>S</i>/|<i>p</i>|², 1); <i>p</i> ← <i>k p</i>; <i>D</i> ← <i>k D</i>; <i>p</i> ← <i>p</i> + <i>c</i>. Estimate: |seed(<i>p</i>)| / <i>D</i>.</p>
-        </details>
-      </div>
-      <div class="planned" id="pl-mandalay">
-        <span class="planned-tag">planned</span>
-        <h4>The Mandalay Fold</h4>
-        <p>A new op: DarkBeam's stepped fold on the sorted |z|, adapted by knighty, which replaces the box fold and gives Tom Beddard's towers and domes.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-      </div>
-      <div class="planned" id="pl-kaliset">
-        <span class="planned-tag">planned</span>
-        <h4>The Kaliset as a Shading Node</h4>
-        <p>A reading any species can use: Kali's map run beside the orbit, feeding colour and bump, so glittering detail is a node in the shading frame rather than part of the shape.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-        <details class="math">
-          <summary>The mathematics</summary>
-          <p class="eq"><i>p</i> ← |<i>p</i>| / (<i>p</i>·<i>p</i>) − <i>c</i>, &nbsp; <i>c</i> ∈ [0, 2].</p>
-        </details>
-      </div>
       <div class="planned" id="pl-medium">
         <span class="planned-tag">planned</span>
         <h4>Orbit Density as a Medium</h4>
@@ -1316,7 +1388,13 @@
         <li id="ref-perlin1985">Perlin, K. An image synthesizer. <i>Computer Graphics (SIGGRAPH '85)</i> 19(3) (1985) 287–296.</li>
         <li id="ref-worley1996">Worley, S. A cellular texture basis function. <i>SIGGRAPH '96</i> (1996) 291–294.</li>
         <li id="ref-sibson1981">Sibson, R. A brief description of natural neighbour interpolation. In Barnett, V. (ed.), <i>Interpreting Multivariate Data</i>, Wiley, 1981, 21–36.</li>
+        <li id="ref-pseudokleinian">Theli-at, Kleinian drops (2011); knighty's recast as a hybrid, as told at <a href="https://www.imaginary.org/node/2364" target="_blank" rel="noopener">imaginary.org/node/2364</a>; Fragmentarium, <code>Knighty Collection/PseudoKleinian.frag</code>.</li>
+        <li id="ref-iqapollonian">Quilez, I. Apollonian. Shadertoy, 2013. <a href="https://www.shadertoy.com/view/4ds3zn" target="_blank" rel="noopener">shadertoy.com/view/4ds3zn</a></li>
+        <li id="ref-leys2016">Leys, J. An escape time algorithm for Kleinian group limit sets. Fractal Forums, 27 October 2016. <a href="https://www.fractalforums.com/3d-fractal-generation/an-escape-tim-algorithm-for-kleinian-group-limit-sets/" target="_blank" rel="noopener">fractalforums.com</a></li>
+        <li id="ref-mandalay">DarkBeam, knighty. 'New' fractal type: Mandalay. Fractal Forums, 2011–12. <a href="https://www.fractalforums.com/amazing-box-amazing-surf-and-variations/'new'-fractal-type-mandalay/15" target="_blank" rel="noopener">fractalforums.com</a></li>
+        <li id="ref-beddard2011">Beddard, T. Fractal Lab, 2011. <a href="https://www.creativeapplications.net/project/fractal-lab-webapp" target="_blank" rel="noopener">creativeapplications.net</a></li>
         <li id="ref-ottosson2020">Ottosson, B. A perceptual color space for image processing. 2020. <a href="https://bottosson.github.io/posts/oklab/" target="_blank" rel="noopener">bottosson.github.io</a></li>
+        <li id="ref-kali2011">Kali. The kaliset, Fractal Forums, 2011; explained in <a href="https://defgsus.github.io/blog/2021/10/12/kaliset-explorer.html" target="_blank" rel="noopener">Kaliset explorer</a> (defgsus, 2021).</li>
         <li id="ref-quilez2013">Quilez, I. Smooth minimum. <a href="https://iquilezles.org/articles/smin/" target="_blank" rel="noopener">iquilezles.org</a>, 2013 (revised since).</li>
         <li id="ref-hgsdf2016">Mercury. hg_sdf: a GLSL library for building signed distance functions. <a href="https://mercury.sexy/hg_sdf/" target="_blank" rel="noopener">mercury.sexy/hg_sdf</a>, 2016.</li>
         <li id="ref-kerbl2023">Kerbl, B., Kopanas, G., Leimkühler, T., Drettakis, G. 3D Gaussian splatting for real-time radiance field rendering. <i>ACM Transactions on Graphics</i> 42(4) (2023) 139.</li>
@@ -1334,6 +1412,6 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="paper/paper.js?v=5"></script>
+  <script type="module" src="paper/paper.js?v=7"></script>
 </body>
 </html>

@@ -9,9 +9,9 @@
 // A figure is covered until it is entered — a click or a tap — so the wheel and the finger scroll the
 // page, not the engine, until the reader means the engine. A press outside, the pointer leaving or the
 // figure leaving the screen covers it again. Nothing a reader does is stored (app.js EMBED).
-import { FIGURES, figureSrc } from './figures.js?v=5';
+import { FIGURES, figureSrc } from './figures.js?v=7';
 
-const MAX_LIVE = 2, DWELL_MS = 350, LINE_MS = 500;
+const MAX_LIVE = 2, DWELL_MS = 350, LINE_MS = 500, SWAP_PX = 80;
 const COARSE = matchMedia('(pointer: coarse)').matches;
 const figs = new Map();   // id → { el, frame, cover, line, visible, ratio, timer, iframe, doc }
 
@@ -26,7 +26,7 @@ function start(F) {
   if (live.length >= MAX_LIVE) {
     // the live figure farthest from the middle of the screen gives way
     const far = live.sort((a, b) => distance(b) - distance(a))[0];
-    if (distance(far) <= distance(F)) return;
+    if (distance(far) <= distance(F) + SWAP_PX) return;  // the margin: two figures about as near do not trade places
     stop(far);
   }
   const f = document.createElement('iframe');
@@ -50,10 +50,10 @@ function stop(F) {
   setTimeout(fill, 0);
 }
 
-// start figures that are in view but not running, nearest the middle of the screen first, while there is room
+// start figures that are in view but not running, nearest the middle of the screen first
 function fill() {
   const waiting = [...figs.values()].filter((G) => G.visible && !G.iframe).sort((a, b) => distance(a) - distance(b));
-  for (const G of waiting) { if ([...figs.values()].filter((H) => H.iframe).length >= MAX_LIVE) break; start(G); }
+  for (const G of waiting) start(G);   // start() lets a nearer figure take a farther one's place when both slots are full
 }
 // a sweep once a second, in case the observer missed a change (a phone's stacked pairs, a busy page): a running
 // figure out of view stops, a waiting one in view starts

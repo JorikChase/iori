@@ -868,32 +868,6 @@
       "type": "experiment",
       "hidden": true,
       "priority": 0.5
-    },
-    "icon-test/a/index.html": {
-      "title": "Icon Test A",
-      "description": "Hidden storage test for installed icon variant A: shows which browser and home-screen contexts share local data.",
-      "category": "client",
-      "domain": "3die.fr",
-      "type": "client",
-      "priority": 0.1,
-      "hidden": true,
-      "manifest": "manifest.json",
-      "touch_icon": "icon-180.png",
-      "menu": false,
-      "_note": "temporary iPhone test for the icon chooser, delete after the test"
-    },
-    "icon-test/b/index.html": {
-      "title": "Icon Test B",
-      "description": "Hidden storage test for installed icon variant B: shows which browser and home-screen contexts share local data.",
-      "category": "client",
-      "domain": "3die.fr",
-      "type": "client",
-      "priority": 0.1,
-      "hidden": true,
-      "manifest": "manifest.json",
-      "touch_icon": "icon-180.png",
-      "menu": false,
-      "_note": "temporary iPhone test for the icon chooser, delete after the test"
     }
   }
 }

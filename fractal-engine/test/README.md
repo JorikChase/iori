@@ -6,13 +6,16 @@
 node --test fractal-engine/test/
 ```
 
+`jit-dual.test.mjs` proves the compiled dual pass exists for every op, both kinds and λ alone (parity runs it).
 `subgraph.test.mjs` covers the link (core/sub.js, core/netsub.js) through every edit, the notation and breeding;
 `subgraph-gpu.test.mjs` proves an instanced formula packs byte for byte as its inlined form.
 
 ## GPU parity, headless
 
 `parity.html` checks the WGSL interpreter against `core/` (forward orbits, inverse steps, duals,
-overrides, JIT, shading, the collage); `compile-time.html` times the shader compiles. Both need WebGPU, so they
+overrides, JIT, shading, the collage; the compiled dual pass in its own suite, `dual jit`, both kinds against
+the CPU, and collage pieces' λ against the interpreter's); `compile-time.html` times the shader compiles,
+cold, the rig's JITs among them. Both need WebGPU, so they
 run in a browser. `run-parity.mjs` runs them from the shell, without the Browser pane:
 
 ```bash

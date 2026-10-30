@@ -1804,12 +1804,70 @@ The governor turns these into resolution: the same 18 / 45 ms targets now afford
   ~20–40 ms (cold 1–3 s); only a device's first visit pays.
 - *Skipping far collage pieces (bounding volumes)*: the join must give exactly the near piece's value when the
   far one is out of reach, kernel by kernel (exp never does exactly); open.
-- *A JIT for the dual numbers*: the hit's `iterateDual` is now the largest share of a driven or chimera
-  frame (driven Mandelbox: ~64 ms march, the rest the hit). The next big step, and a large one.
+- *A JIT for the dual numbers*: built, see "The dual numbers compiled" below.
 
 Open: the collage lens and the collage's CPU sensing pass (~30 ms) are untouched; the collage JIT's cold
 compile is ~5 s (the interpreter draws meanwhile, as for a formula); a new drive wiring now recompiles the
 structure JIT (the wiring is baked in), where a band edit does not.
+
+### The dual numbers compiled, 2026-10-30
+
+`gpu/jit.js jitDual` writes `iterateDual` for one formula beside `iterate`, in the same pipeline, for both JIT
+kinds: the interpreter draws until it is ready, exactly as before, and `gpu/wgsl.js` did not change. One op is
+one block: what its forward map and tangents share is computed once, a branch that leaves the tangents alone
+holds no code (the sphere fold's outside, a fold plane's far side), and a fold's sign flips all columns at once.
+What it leaves out: the selected-parameter column, the colour and the Trace's branches, which nothing at a hit
+reads. Chimeras unroll (species in registers, each once for all columns); drivers inline with their derivatives
+as `driveInline` inlines them forward. A rebuilt op or a chimera's own record keeps the interpreter's
+`driveIterDual` and `mixTan` inside the compiled loop, every other op stays compiled. A collage piece compiles
+to λ's column alone (its normal comes from differences of the collage's estimate).
+
+**Before and after** (same run, reference d354f0a re-timed beside this tree; GPU ms per frame; guard against
+d354f0a, every pixel the same seeds):
+
+| scene | still | converged | moving | guard (still, moving) |
+|---|---|---|---|---|
+| Mandelbox cave | 37.8 → 29.8 ×1.27 | 2.50 → 2.00 s | 32.1 → 24.0 ×1.34 | 76, 67 dB |
+| bulb | 6.2 → 5.6 ×1.11 | 0.46 → 0.45 s | 4.2 → 3.3 ×1.26 | 78, 64 dB |
+| Menger | 8.7 → 5.4 ×1.61 | 0.62 → 0.42 s | 7.5 → 4.6 ×1.65 | 75, 61 dB |
+| KIFS | 7.8 → 4.7 ×1.65 | 0.65 → 0.38 s | 8.0 → 5.2 ×1.53 | 101, 106 dB |
+| driven bulb | 27.5 → 8.6 ×3.19 | 1.86 → 0.64 s | 24.5 → 5.5 ×4.45 | 87, 84 dB |
+| driven Mandelbox | 245.4 → 124.4 ×1.97 | 3.97 → 2.01 s (16) | 217.0 → 73.5 ×2.95 | 68, 64 dB |
+| chimera | 156.8 → 77.5 ×2.02 | 2.54 → 1.26 s (16) | 124.2 → 46.3 ×2.68 | 67, 64 dB |
+| three-piece collage | 13.8 → 14.3 ×0.97 | 0.96 → 0.98 s | 12.5 → 13.1 ×0.95 | ∞ |
+| bulb ∪ Mandelbox collage | 149.7 → 123.4 ×1.21 | 9.71 → 8.07 s | 90.6 → 64.1 ×1.41 | ∞ |
+
+SSIM ≥ 0.9999 throughout. Push and the loop do not run the duals: unchanged. The three-piece collage is 3–5 %
+slower (seen in every run: its pieces are light, and three compiled orbits behind a switch cost about what one
+interpreter did); it stays, for the heavy collages' gain. These ran beside the audio rigs (load average 340–480):
+the ratios are one run's, the absolute numbers somewhat above the table before this one.
+
+**Compile** (cold, ms; a nonce past Metal's cache, `test/compile-time.html`, the JIT runs in the background
+either way). The interpreter's `opFwd` and five inlined `opTan` leave the shader with the interpreter's dual:
+
+| JIT | structure | literal |
+|---|---|---|
+| Mandelbox | 2016 → 700 | 1847 → 554 |
+| bulb | 1751 → 605 | 1725 → 544 |
+| Menger | 1810 → 523 | 1803 → 606 |
+| driven Mandelbox | 3686 → 952 | 3365 → 813 |
+| chimera | 2388 → 1404 | 2482 → 1337 |
+
+The collage JIT is unchanged within noise (three pieces 8554 → 8658, union 7935 → 8363, under the same load). A
+repeat compile stays ~30 ms; a first frame still draws with the interpreter.
+
+**Kept, each its own commit:** plain chains (both kinds); the chimera; the drivers; collage pieces' λ.
+
+**Measured and left out:**
+- *Dual without literal rows*: the literal kind's rows pay 1–14 % (KIFS 5.6 → 4.9): kept.
+- *Dropping λ's column when nothing reads it*: ~1 % on plain and driven formulas, ~5 % on the chimera; it would
+  need a second pipeline per look. Not done.
+- *Skipping a collage's dual orbits when nothing reads λ* (a flag in its head): 127.5 → 126.5 ms; λ's column
+  alone is already almost free there. Reverted.
+- *The chimera's weights in registers* (`fieldAt` still returns its arrays): with the weights stubbed out, the
+  ceiling, 79.9 → 79.5 ms. Not done.
+- *A sensing JIT*: the pass takes 3 ms (box), 14 ms (driven, chimera) on the whole-view grid. Not worth a compile
+  per structure: `gpu/sense.js` stays on the interpreter, so the selected-parameter column is never compiled.
 
 ## Colour defaults and the gizmo's axes, 2026-10-29
 

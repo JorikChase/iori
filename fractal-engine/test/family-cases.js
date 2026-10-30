@@ -23,6 +23,12 @@ export const FAMILIES = [
   // the seed's and the op's parameters driven
   [D(PK, [n('nz', 'noise', { f: 0.7, g: 1 }), n('i', 'i')], [b('A2.d', 'nz', -0.1, 0.1), b('A0.lx', 'i', 0.88, 0.96)]), 2.5],
   [D(KLEINIAN, [n('x', 'x')], [b('A0.a', 'x', 1.9, 2)]), 1.5],
+  // every other op whose record the drivers move, and the orbit readings the compiled dual pass inlines
+  [D('translate .1 .2 .3 · wrap 2 2 2 · fold.mandalay .5 .1 · scale 2 · +c ×8 bail=50', [n('nz', 'noise', { f: 0.7, g: 1 })], [b('A0.x', 'nz', 0, 0.2), b('A1.lx', 'nz', 1.9, 2.1), b('A2.fo', 'nz', 0.45, 0.55)]), 3],
+  [D('power 2 · +c ×16 bail=4', [n('i', 'i')], [b('A0.n', 'i', 1.9, 2.1)]), 2],
+  [D('bulb4 8 · +c ×8 bail=2', [n('i', 'i')], [b('A0.n', 'i', 6, 8)]), 1.2],
+  [D('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100', [n('t', 'trap'), n('rm', 'remap', { lo: 0, hi: 4, clamp: true }, { a: 't' }), n('l', 'lyap'), n('py', 'py'), n('y', 'y'), n('m', 'math', { op: 'add' }, { a: 'l', b: 'py' })],
+    [b('A0.l', 'rm', 0.95, 1.05), b('A2.s', 'm', 2.45, 2.55), b('A1.rmin', 'y', 0.45, 0.55)]), 5],
 ];
 
 // [text, radius] — inverse steps

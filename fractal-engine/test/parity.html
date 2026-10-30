@@ -402,6 +402,23 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   outp[o + 3u] = vec4f(f32(clTr[0].n), f32(clTr[1].n), f32(clTr[2].n), f32(clTr[3].n));
   outp[o + 4u] = collageColour(pts[5u * i].xyz, at, 0.5, lam);
 }`;
+// the pieces' λ at the hit, as the collage's march takes it (one call site of the dual orbit)
+const CL_LYAP_SHADER = CL_HEAD.replace(withCollage(INTERP), withCollage(INTERP + DUAL)) + `
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts)) { return; }
+  let at = collageAt(pts[i].xyz);
+  var lam = vec4f(0.0);
+  for (var k = 0u; k < at.n && k < 4u; k++) {
+    clSelect(k);
+    let q = clQ[k];
+    let dd = iterateDual(q, cFor(q), (heads[hp].flags & FLAG_JULIA) == 0u);
+    lam[k] = dd.lyap;
+  }
+  clSelect(0u);
+  outp[i] = lam;
+}`;
 const KEEP_SHADER = CL_HEAD + `
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
@@ -512,6 +529,20 @@ async function collageSuite(device, compilePipe) {
         median: pct(rels, 0.5), p99: pct(rels, 0.99), wMedian: pct(wErr, 0.5), wOff, colMedian: pct(colErr, 0.5), colOff });
     }
   }
+  // the pieces' λ through the compiled dual orbit, against the interpreter's on the same points
+  for (const [label, c0, R] of COLLAGES) {
+    mark('collage', 'lyap ' + label);
+    const c = prepare(c0);
+    const rng = makeRng(62), n = 1024, pts = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
+    const wrap = anyDrive(c) ? withDrive : (x) => x;
+    const a = await runCollage(device, await pipeOf('CL_LYAP', CL_LYAP_SHADER, c), c, pts, n);
+    const b = await runCollage(device, await compilePipe(wrap(collageJit(CL_LYAP_SHADER, c)), `CL_LYAP jit ${label}`), c, pts, n);
+    const err = [];
+    let live = 0;
+    for (let i = 0; i < n * 4; i++) if (Number.isFinite(a[i])) { err.push(Math.abs(a[i] - b[i])); if (a[i] !== 0) live++; }
+    rows.push({ kind: 'lyap', case: label, formula: label + ' · λ', n: err.length, live, median: pct(err, 0.5), p99: pct(err, 0.99) });
+  }
   // push: every piece's own walk (the CPU's), each sample handed to a copy round robin
   for (const label of KEEP) {
     mark('collage', 'keep ' + label);
@@ -576,7 +607,7 @@ async function collageSuite(device, compilePipe) {
 // stepped kernel, a fold edge or a repetition's cell wall lands between float32 and float64 (< 3 %);
 // the colour likewise. keep: both sides agree on which copies fold back and which samples are kept
 // (but at cell walls), places to float precision, shares as above. step: L to 2 % (float32 differences).
-const collagePass = (r) => (r.kind === 'compile' ? r.ok : r.kind === 'forward'
+const collagePass = (r) => (r.kind === 'compile' ? r.ok : r.kind === 'lyap' ? r.live > 0 && r.median < 1e-4 && r.p99 < 1e-2 : r.kind === 'forward'
   ? r.median < (r.drv ? 3e-4 : 1e-4) && r.p99 < (r.drv ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02 && r.wOff / Math.max(1, r.compared) < 0.03 && r.colOff / Math.max(1, r.compared) < 0.03 && r.wMedian < 1e-4 && r.colMedian < 1e-4
   : r.kind === 'keep'
     ? r.okMismatch / r.n < 0.01 && r.keepMismatch / r.n < 0.01 && r.pMax < 1e-3 && r.aMedian < 1e-4 && r.aP99 < 2e-2 && r.kept > 0

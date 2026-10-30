@@ -80,12 +80,12 @@ const SUITES = [
   ['shade', 'shadeRows', (r) => r.median < 1e-5 && r.off / SH_N < 0.005,
     (r) => `median ${r.median.toExponential(2)} off ${r.off}`],
   // the collage (K2): forward rows (estimate, shares, colour), the push keep rule, the step factor
-  ['collage', 'collageRows', (r) => (r.kind === 'compile' ? r.ok : r.kind === 'forward'
+  ['collage', 'collageRows', (r) => (r.kind === 'compile' ? r.ok : r.kind === 'lyap' ? r.live > 0 && r.median < 1e-4 && r.p99 < 1e-2 : r.kind === 'forward'
     ? r.median < (r.drv ? 3e-4 : 1e-4) && r.p99 < (r.drv ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02 && r.wOff / Math.max(1, r.compared) < 0.03 && r.colOff / Math.max(1, r.compared) < 0.03 && r.wMedian < 1e-4 && r.colMedian < 1e-4
     : r.kind === 'keep'
       ? r.okMismatch / r.n < 0.01 && r.keepMismatch / r.n < 0.01 && r.pMax < 1e-3 && r.aMedian < 1e-4 && r.aP99 < 2e-2 && r.kept > 0
       : r.n > CL_STEP_N / 2 && r.median < 0.02 && r.p90 < 0.1),
-    (r) => (r.kind === 'compile' ? (r.ok ? `compiled in ${r.ms.toFixed(0)} ms` : r.error) : r.kind === 'forward'
+    (r) => (r.kind === 'compile' ? (r.ok ? `compiled in ${r.ms.toFixed(0)} ms` : r.error) : r.kind === 'lyap' ? `λ median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} (${r.live} of ${r.n} live)` : r.kind === 'forward'
       ? `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} iter≠ ${r.iterMismatch}/${r.n} shares off ${r.wOff} colour off ${r.colOff}`
       : r.kind === 'keep'
         ? `kept ${r.kept}/${r.n} fold≠ ${r.okMismatch} keep≠ ${r.keepMismatch} place ${r.pMax.toExponential(2)} share p99 ${r.aP99.toExponential(2)}`

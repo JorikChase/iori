@@ -531,12 +531,15 @@ ${lines(DI.perBinds, ([x, k]) => '        ' + bindCode(x, k))}
 
 // The WGSL `iterateDual` for one formula (gpu/wgsl.js). Drivers: inlined where the forward orbit inlines
 // them; otherwise (a rebuilt op, a chimera's own record) the interpreter's driveIterDual and mixTan run
-// inside the compiled loop, and every other op stays compiled.
-export function jitDual(formula, kind = 'literal') {
+// inside the compiled loop, and every other op stays compiled. lyapOnly: only λ's column, for a collage's
+// piece (its normal comes from differences of the collage's estimate, so nothing reads the gradient there)
+// and the drivers without their derivatives.
+export function jitDual(formula, kind = 'literal', { lyapOnly = false } = {}) {
   const f = normalize(formula);
+  const cols = lyapOnly ? [LYAP] : COLS;
   const { base, opIndex } = opTable(f);
   const driven = new Set(driveBinds(f).map((x) => x.t.o));
-  const DI = driveInline(f, opIndex), DD = DI && driveDual(f, DI);
+  const DI = driveInline(f, opIndex), DD = DI && !lyapOnly ? driveDual(f, DI) : null;
   const generic = drives(f) && !DI;
   const packed = kind === 'literal' ? pack(f).ops : null;
   const rowOf = (oi, o) => (k) => (packed && !driven.has(o) ? V([...packed.subarray((oi * REC_VEC + k) * 4, (oi * REC_VEC + k + 1) * 4)]) : `rec(${oi}u, ${k}u)`);
@@ -544,6 +547,7 @@ export function jitDual(formula, kind = 'literal') {
   const spoken = !!seedOf(f);
   // a driven op: its records' motion along each gradient column, then the op
   const opE = (o, oi) => {
+    if (lyapOnly) { const code = dualOp(o, oi, cols, rowOf(oi, o)); return DI ? DI.rewrite(code, oi) : code; }
     if (generic) {
       const E = (c, k) => (GRAD.includes(c) ? `E[${GRAD.indexOf(c) * 5 + k}]` : null);
       return `{ let E = drvLoadAll(${oi}u);\n      ${dualOp(o, oi, COLS, rowOf(oi, o), E)} }`;
@@ -552,50 +556,53 @@ export function jitDual(formula, kind = 'literal') {
     const row = (j, k) => `let E${j}_${k} = ${bs.map((b) => `dvD${b}.${'xyz'[j]} * ops[${DI.R(b)} + ${3 + k}u]`).join(' + ')};`;
     return `{ ${[0, 1, 2].map((j) => `${row(j, 0)} ${row(j, 1)}`).join('\n      ')}\n      ${DI.rewrite(dualOp(o, oi, COLS, rowOf(oi, o), E), oi)} }`;
   };
-  const code = (o, oi) => (driven.has(o) ? opE(o, oi) : dualOp(o, oi, COLS, rowOf(oi, o)));
+  const code = (o, oi) => (driven.has(o) ? opE(o, oi) : dualOp(o, oi, cols, rowOf(oi, o)));
   const bare = (si) => f.slots[si].map((o, j) => '      ' + code(o, base[si] + j)).join('\n');
   const slots = f.slots.map((s, si) => s.map((o, j) => {
     const oi = base[si] + j, kids = kidsOf.get(`${si}.${j}`);
+    if (kids && generic && lyapOnly) return `      { let f_ = mixFwd(${oi}u, p, c, t.dr); let z = vec4f(0.0); let y = array<f32, 5>(0.0, 0.0, 0.0, 0.0, 0.0);
+        lv = mixTan(${oi}u, p, c, t.dr, 1u, array<vec4f, 5>(lv, z, z, z, z), y, array<vec4f, 5>(z, z, z, z, z), array<vec4f, 5>(z, z, z, z, z), y, 99u).v[0];
+        t.dr = f_.dr; p = f_.p; t.sp = f_.sp; }`;
     if (kids && generic) return `      { let f_ = mixFwd(${oi}u, p, c, t.dr); let z = vec4f(0.0);
         let mt = mixTan(${oi}u, p, c, t.dr, 5u, array<vec4f, 5>(g0, g1, g2, z, lv), array<f32, 5>(gd0, gd1, gd2, 0.0, 0.0), array<vec4f, 5>(dc0, dc1, dc2, z, z),
                         array<vec4f, 5>(s0, s1, s2, z, z), array<f32, 5>(dft.x, dft.y, dft.z, 0.0, 0.0), 3u);
         g0 = mt.v[0]; g1 = mt.v[1]; g2 = mt.v[2]; lv = mt.v[4]; gd0 = mt.ddr[0]; gd1 = mt.ddr[1]; gd2 = mt.ddr[2];
         t.dr = f_.dr; p = f_.p; t.sp = f_.sp; }`;
-    return '      ' + (kids ? mixDual(o, oi, kids.map(bare), COLS, rowOf(oi, o), spoken) : code(o, oi));
+    return '      ' + (kids ? mixDual(o, oi, kids.map(bare), cols, rowOf(oi, o), spoken) : code(o, oi));
   }).join('\n'));
   // the trap reading's derivative along each column, which follows the iterate that set it
-  const trapped = generic || f.slots.flat().some((o) => o.op === 'mix.trap') || (DI && f.drive.nodes.some((m) => m.type === 'trap'));
+  const trapped = !lyapOnly && (generic || f.slots.flat().some((o) => o.op === 'mix.trap') || (DI && f.drive.nodes.some((m) => m.type === 'trap')));
   return `
 fn iterateDual(p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
   var d: Dual;
   var t: Trace;
   t.dr = 1.0; t.n = 0u; t.escaped = false; t.trap = 1e20; t.col = 0.0;
   var p = p0;
-  var g0 = head.slice[0];
+  var lv = head.slice * vec4f(normalize(vec3f(0.6, 0.48, 0.64)), 0.0);
+  var lsum = 0.0;
+${lyapOnly ? '' : `  var g0 = head.slice[0];
   var g1 = head.slice[1];
   var g2 = head.slice[2];
   var gd0 = 0.0; var gd1 = 0.0; var gd2 = 0.0;
-  var lv = head.slice * vec4f(normalize(vec3f(0.6, 0.48, 0.64)), 0.0);
-  var lsum = 0.0;
   let kc = select(0.0, 1.0, cIsP);
   let dc0 = g0 * kc; let dc1 = g1 * kc; let dc2 = g2 * kc;
-  startOrbit(p0);
   let s0 = g0; let s1 = g1; let s2 = g2;
-${trapped ? '  var dft = 2.0 * vec3f(dot(p0, g0), dot(p0, g1), dot(p0, g2));\n' : ''}${DD ? DD.decl : ''}  for (var i = 0u; i < ${f.iters}u; i++) {
+`}  startOrbit(p0);
+${trapped ? '  var dft = 2.0 * vec3f(dot(p0, g0), dot(p0, g1), dot(p0, g2));\n' : ''}${DD ? DD.decl : lyapOnly && DI ? DI.decl : ''}  for (var i = 0u; i < ${f.iters}u; i++) {
     fIter = f32(i);
-${DD ? DD.iter : generic ? '    if (DRIVE_ON && drvAny) { driveIterDual(p, t.dr, i, f32(head.iters), mat4x4f(g0, g1, g2, vec4f(0.0)), vec4f(gd0, gd1, gd2, 0.0), vec4f(dft, 0.0), mat4x4f(s0, s1, s2, vec4f(0.0))); }\n' : ''}${scheduled(f, slots)}
+${lyapOnly ? (DI ? DI.iter : generic ? '    if (DRIVE_ON && drvAny) { driveIter(p, t.dr, i, f32(head.iters)); }\n' : '') : DD ? DD.iter : generic ? '    if (DRIVE_ON && drvAny) { driveIterDual(p, t.dr, i, f32(head.iters), mat4x4f(g0, g1, g2, vec4f(0.0)), vec4f(gd0, gd1, gd2, 0.0), vec4f(dft, 0.0), mat4x4f(s0, s1, s2, vec4f(0.0))); }\n' : ''}${scheduled(f, slots)}
     t.n = i + 1u;
     let l = length(lv);
     if (l > 0.0 && l < 1e30) { lsum = lsum + log(l); lv = lv / l; }
     let r2 = dot(p, p);
     t.trap = min(t.trap, r2);
-${trapped ? '    if (r2 < fTrap) { fTrap = r2; dft = 2.0 * vec3f(dot(p, g0), dot(p, g1), dot(p, g2)); }\n' : ''}    if (!(r2 <= ${kind === 'structure' ? 'head.bail * head.bail' : L(f.bail * f.bail)})) { t.escaped = true; break; }
+${lyapOnly ? '    fTrap = min(fTrap, r2);\n' : trapped ? '    if (r2 < fTrap) { fTrap = r2; dft = 2.0 * vec3f(dot(p, g0), dot(p, g1), dot(p, g2)); }\n' : ''}    if (!(r2 <= ${kind === 'structure' ? 'head.bail * head.bail' : L(f.bail * f.bail)})) { t.escaped = true; break; }
   }
   t.p = p;
-${DD ? DD.end : ''}  d.t = t;
-  d.g0 = g0; d.g1 = g1; d.g2 = g2;
+${DD ? DD.end : lyapOnly && DI ? DI.end : ''}  d.t = t;
+${lyapOnly ? '' : `  d.g0 = g0; d.g1 = g1; d.g2 = g2;
   d.gdr = vec3f(gd0, gd1, gd2);
-  d.lyap = lsum / f32(max(t.n, 1u));
+`}  d.lyap = lsum / f32(max(t.n, 1u));
   return d;
 }
 `;

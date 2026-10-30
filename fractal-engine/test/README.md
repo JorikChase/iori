@@ -17,6 +17,7 @@ node fractal-engine/test/run-parity.mjs              # parity: progress lines, t
 node fractal-engine/test/run-parity.mjs --compile    # parity, then compile times
 node fractal-engine/test/run-parity.mjs --compile-only
 node fractal-engine/test/run-parity.mjs --only collage   # one suite: parity.html?suite=collage (~45 s)
+node fractal-engine/test/run-parity.mjs --match wrap,kleinian   # only formulas holding a word: a short run
 ```
 
 Flags: `--rows` prints every row (default: failing rows only), `--json <file>` saves the raw

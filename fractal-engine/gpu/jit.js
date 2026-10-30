@@ -288,9 +288,14 @@ ${DI ? DI.end : ''}  return t;
 // a shader source with the interpreter's iterate renamed out of the way and the JIT's in its place;
 // everything else (de, deOf, the dual numbers, which still read the op table) is untouched
 const SIG = 'fn iterate(p0: vec4f, c: vec4f) -> Trace {';
+// A formula without the Kleinian or Mandalay ops loses their cases and the seed's read here: a JIT's
+// structure is fixed, so nothing can ask for them (box cave 5–8 % a still frame, measured 2026-10-30)
+const FAMILY = new Set(['fold.cell', 'wrap', 'kleinian', 'fold.mandalay', 'seed.slab', 'seed.sphere', 'seed.pillar']);
+const plainOf = (source, f) => (f.slots.some((s) => s.some((o) => FAMILY.has(o.op))) ? source
+  : source.replace('const SEED_ON = true;', 'const SEED_ON = false;').replace(/\/\/ FAMILIES\{[\s\S]*?\/\/ \}FAMILIES\n/g, ''));
 export function withJit(source, formula, kind = 'literal') {
   if (!source.includes(SIG)) throw new Error('no interpreter iterate to replace');
-  return source.replace(SIG, 'fn iterateInterpreted(p0: vec4f, c: vec4f) -> Trace {') + jitIterate(formula, kind);
+  return plainOf(source, normalize(formula)).replace(SIG, 'fn iterateInterpreted(p0: vec4f, c: vec4f) -> Trace {') + jitIterate(formula, kind);
 }
 
 // what a structure JIT depends on: the ops in order, the schedule, the iteration count, and the drive

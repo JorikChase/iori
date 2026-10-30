@@ -23,8 +23,7 @@ export const PRESETS = [
   { id: 'amazing-surf', text: 'fold.plane -1 0 0 -1 · fold.plane 1 0 0 -1 · fold.plane 0 -1 0 -1 · fold.plane 0 1 0 -1 · fold.sphere .5 1 · scale 2 · rotate 0 0 20 · +c ×12 bail=100', view: 8, axes: [[5, 's', 0.8], [6, 'z', 40]], at: [-0.25, 0.4] },
   // DarkBeam's stepped fold in the Mandelbox's place (Beddard's Aurullia)
   { id: 'mandalay', text: 'fold.mandalay .5 .15 · fold.sphere .5 1 · scale 2.3 · rotate 0 0 10 · +c ×12 bail=100', view: 4, axes: [[2, 's', 0.6], [0, 'fo', 0.3]], at: [-0.55, 0.8] },
-  // the Mandelbox turned through the fourth dimension every iteration (pseudo-Kleinian needs its own
-  // slab estimate; with r/dr it fills space — not yet)
+  // the Mandelbox turned through the fourth dimension every iteration
   { id: 'mandelbox-4d', text: 'fold.box 1 · fold.sphere .5 1 · rotate4 0 0 15 0 10 0 · scale 2 · +c ×12 bail=100', view: 20, axes: [[2, 'xw', 30], [2, 'yw', 30]], at: [-0.85, -0.6] },
   // the IFS family (bottom)
   { id: 'menger', text: 'abs · sort · scale 3 · translate -2 -2 · fold.plane 0 0 -1 -1 ×8 bail=50', view: 3.2, axes: [[2, 's', 0.8], [3, 'x', 0.6]], at: [-0.2, -0.75] },

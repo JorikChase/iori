@@ -51,6 +51,9 @@ const FLAG_SEED = 32u;
 // The drivers compile only into the variant that needs them (withDrive below): with DRIVE_ON false every
 // hook folds away and an undriven formula's shaders are the size they were before formula v2.
 const DRIVE_ON = false;
+// The seeds and the Kleinian and Mandalay cases (between the FAMILIES marks) are the interpreter's; a JIT of
+// a formula without them compiles them out (gpu/jit.js), so plain formulas' shaders are what they were
+const SEED_ON = true;
 const PI = 3.14159265;
 const REC4 = 5u;
 
@@ -239,6 +242,7 @@ fn opFwd(oi: u32, p: vec4f, c: vec4f) -> Step {
       s.k = 2.0 * length(p);
       s.p = vec4f(p.x * p.x - dot(p.yzw, p.yzw), 2.0 * p.x * p.yzw);
     }
+    // FAMILIES{
     case 23u: {
       let l = vec4f(a.yzw, b.x);
       s.branch = select(0u, 1u, p.x > l.x) + select(0u, 2u, p.x < -l.x) + select(0u, 3u, p.y > l.y) + select(0u, 6u, p.y < -l.y)
@@ -265,6 +269,7 @@ fn opFwd(oi: u32, p: vec4f, c: vec4f) -> Step {
       s.p = mandalay(p, a.y, a.z);
       s.branch = select(0u, 1u, s.p.x != p.x) + select(0u, 2u, s.p.y != p.y) + select(0u, 4u, s.p.z != p.z);
     }
+    // }FAMILIES
     default: {}
   }
   return s;
@@ -627,7 +632,7 @@ fn seedRead(q: vec4f, dr: f32) -> Seed {
 }
 // the seed speaks unless the orbit left, or its species (when it has one) is not the one that led
 fn seedOn(t: Trace) -> bool {
-  if ((head.flags & FLAG_SEED) == 0u || t.escaped) { return false; }
+  if (!SEED_ON || (head.flags & FLAG_SEED) == 0u || t.escaped) { return false; }
   let want = rec(u32(head.sliceW.w), 2u).x;
   return want < 0.0 || abs(t.sp - want) < 1e-3;
 }
@@ -636,7 +641,7 @@ fn seedDe(q: vec4f, dr: f32) -> f32 { let s = seedRead(q, dr); return abs(s.v / 
 fn deOf(t: Trace) -> f32 {
   let r = length(t.p);
   if (!(t.dr > 0.0) || r == 0.0) { return 0.0; }
-  if ((head.flags & FLAG_SEED) != 0u) {
+  if (SEED_ON && (head.flags & FLAG_SEED) != 0u) {
     if (!seedOn(t)) { return r / abs(t.dr); }
     return seedDe(t.p, t.dr);
   }
@@ -2036,6 +2041,7 @@ fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan
         o.v = vec4f((p.y * v.x - p.x * v.y) / r2 / PI, dot(p.xy, v.xy) / r, v.z, v.w);
       }
     }
+    // FAMILIES{
     case 23u: {
       let l = vec4f(a.yzw, b.x);
       let dl = vec4f(da.yzw, db.x);
@@ -2070,6 +2076,7 @@ fn opTan(oi: u32, p: vec4f, c: vec4f, v: vec4f, dc: vec4f, withRec: bool) -> Tan
                              mdTan(q.y, q.x, q.z, t.y, t.x, t.z, a.y, a.z, da.y, da.z),
                              mdTan(q.z, q.x, q.y, t.z, t.x, t.y, a.y, a.z, da.y, da.z)), v.w);
     }
+    // }FAMILIES
     default: {}
   }
   return o;

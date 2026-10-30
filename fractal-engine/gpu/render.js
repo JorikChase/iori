@@ -6,7 +6,7 @@
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
 import { INTERP, DUAL, COLLAGE, withDrive, withCollage, collageRewrite } from './wgsl.js';
-import { withJit, structureKey, jitIterate } from './jit.js';
+import { withJit, structureKey, jitIterate, jitDual } from './jit.js';
 import { canonical } from '../core/formula.js';
 import { MAX_PIECES, isCollage } from '../core/collage.js';
 import { pack, drives, shapes, packCollage, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, STEP_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from './pack.js';
@@ -303,17 +303,28 @@ export const COLLAGE_MARCH = withCollage(INTERP + DUAL) + COLLAGE + MARCH_VIEW +
 // dispatches on the piece. Its key is the pieces' structures: values (placements, joins, parameters) stay
 // in the buffer.
 const PIECE_CALL = 'let t = iterate(q, cFor(q));';
+const PIECE_DUAL = 'let dd = iterateDual(q, cFor(q), (heads[hp].flags & FLAG_JULIA) == 0u);';
 export function collageJit(source, collage) {
   if (!source.includes(PIECE_CALL)) throw new Error('no piece orbit to replace');
   const fns = collage.pieces.map((q, i) => collageRewrite(jitIterate(q.f, 'structure')).replace('fn iterate(p0: vec4f, c: vec4f) -> Trace {', `fn iterateP${i}(p0: vec4f, c: vec4f) -> Trace {`));
-  return source.replace(PIECE_CALL, 'let t = iteratePiece(i, q, cFor(q));') + fns.join('') + `
+  // the hit's dual orbits (one call site, in the march): the pieces' λ alone
+  const dual = source.includes(PIECE_DUAL);
+  const duals = dual ? collage.pieces.map((q, i) => collageRewrite(jitDual(q.f, 'structure', { lyapOnly: true })).replace('fn iterateDual(', `fn iterateDualP${i}(`)) : [];
+  return source.replace(PIECE_CALL, 'let t = iteratePiece(i, q, cFor(q));')
+    .replace(PIECE_DUAL, 'let dd = dualPiece(i, q, cFor(q), (heads[hp].flags & FLAG_JULIA) == 0u);') + fns.join('') + duals.join('') + `
 fn iteratePiece(i: u32, p0: vec4f, c: vec4f) -> Trace {
   switch i {
 ${collage.pieces.map((_, i) => `    case ${i}u: { return iterateP${i}(p0, c); }`).join('\n')}
     default: { return iterate(p0, c); }
   }
 }
-`;
+${dual ? `fn dualPiece(i: u32, p0: vec4f, c: vec4f, cIsP: bool) -> Dual {
+  switch i {
+${collage.pieces.map((_, i) => `    case ${i}u: { return iterateDualP${i}(p0, c, cIsP); }`).join('\n')}
+    default: { return iterateDual(p0, c, cIsP); }
+  }
+}
+` : ''}`;
 }
 const collageJitKey = (c) => JSON.stringify(c.pieces.map((q) => structureKey(q.f)));
 

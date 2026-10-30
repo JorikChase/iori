@@ -8,7 +8,12 @@
 // function — a trap DESIGN.md records twice). window.__compile: { [name]: ms }
 import * as W from '../gpu/wgsl.js';
 const { INTERP, INVERSE, DUAL } = W;
-import { MARCH } from '../gpu/render.js';
+import { MARCH, COLLAGE_MARCH, collageJit } from '../gpu/render.js';
+import { withJit } from '../gpu/jit.js';
+import { drives } from '../gpu/pack.js';
+import { parse } from '../core/index.js';
+import { DRIVEN } from './driven-cases.js';
+import { COLLAGES } from './collage-cases.js';
 const RNG = `
 var<private> rngState: u32;
 fn pick(n: u32) -> u32 { rngState = rngState * 747796405u + 1u; return rngState % max(n, 1u); }
@@ -25,6 +30,15 @@ const SHADERS = {
 };
 // and with the drivers compiled in
 if (W.withDrive) for (const k of Object.keys(SHADERS)) SHADERS[k + '+drive'] = W.withDrive(SHADERS[k]);
+// a first visit's JITs: what the background build costs before the drawing speeds up (the rig's scenes)
+const BOX = 'fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100';
+const DOCS = { box: BOX, bulb: 'bulb 8 · +c ×10 bail=4', menger: 'abs · sort · scale 3 · translate -2 -2 · fold.plane 0 0 -1 -1 ×8 bail=50',
+  'driven box': DRIVEN[1][0], chimera: '[fold.box 1 · fold.sphere .5 1 · scale 2.5 ‖ abs · sort · scale 3 · + -2 -2 0] axis .5 1.5 1 1 0 0 · +c ×12 bail=100' };
+for (const [name, doc] of Object.entries(DOCS)) for (const kind of ['structure', 'literal']) {
+  const f = parse(doc);
+  SHADERS[`jit ${name} ${kind}`] = withJit(drives(f) ? W.withDrive(MARCH) : MARCH, f, kind);
+}
+for (const label of ['three: turn, polar, chamfer cut', 'union quad']) SHADERS[`jit collage ${label}`] = collageJit(COLLAGE_MARCH, COLLAGES.find((c) => c[0] === label)[1]);
 const out = document.getElementById('out');
 (async () => {
   const device = await (await navigator.gpu.requestAdapter()).requestDevice();
@@ -36,7 +50,7 @@ const out = document.getElementById('out');
     const module = device.createShaderModule({ code: code.replace('fn pcg(v: u32) -> u32 {', `fn pcg(v: u32) -> u32 {\n  if (v == ${nonce}u) { return 7u; }`).replace('gid: vec3u) { ', `gid: vec3u) { if (gid.x == ${nonce}u) { return; } `) });
     const errs = (await module.getCompilationInfo()).messages.filter((m) => m.type === 'error');
     if (errs.length) { res[name] = 'ERROR ' + errs.map((m) => `${m.lineNum}: ${m.message}`).join('; '); continue; }
-    const entryPoint = name.startsWith('march') ? 'march' : 'main';
+    const entryPoint = /^(march|jit)/.test(name) ? 'march' : 'main';
     await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } }).catch((e) => { res[name] = 'ERROR ' + e.message; });
     if (!res[name]) res[name] = Math.round(performance.now() - t0);
     out.textContent = JSON.stringify(res, null, 1);

@@ -34,6 +34,253 @@
       "type": "experiment",
       "priority": 0.5
     },
+    "audio/icon/blue-cream/index.html": {
+      "title": "Audio Tools icon: Blue + cream",
+      "description": "Install Audio Tools with the Blue + cream icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/blue/index.html": {
+      "title": "Audio Tools icon: Blue",
+      "description": "Install Audio Tools with the Blue icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/cream/index.html": {
+      "title": "Audio Tools icon: Cream",
+      "description": "Install Audio Tools with the Cream icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/orange-cream/index.html": {
+      "title": "Audio Tools icon: Orange + cream",
+      "description": "Install Audio Tools with the Orange + cream icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/orange-teal/index.html": {
+      "title": "Audio Tools icon: Orange + teal",
+      "description": "Install Audio Tools with the Orange + teal icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/orange/index.html": {
+      "title": "Audio Tools icon: Orange",
+      "description": "Install Audio Tools with the Orange icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/orb/index.html": {
+      "title": "Audio Tools icon: Orb",
+      "description": "Install Audio Tools with the Orb icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/pink-violet/index.html": {
+      "title": "Audio Tools icon: Pink + violet",
+      "description": "Install Audio Tools with the Pink + violet icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/pink/index.html": {
+      "title": "Audio Tools icon: Pink",
+      "description": "Install Audio Tools with the Pink icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/red-yellow/index.html": {
+      "title": "Audio Tools icon: Red + yellow",
+      "description": "Install Audio Tools with the Red + yellow icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/red/index.html": {
+      "title": "Audio Tools icon: Red",
+      "description": "Install Audio Tools with the Red icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/rose-teal/index.html": {
+      "title": "Audio Tools icon: Rose + teal",
+      "description": "Install Audio Tools with the Rose + teal icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/rose/index.html": {
+      "title": "Audio Tools icon: Rose",
+      "description": "Install Audio Tools with the Rose icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/swirl/index.html": {
+      "title": "Audio Tools icon: Swirl",
+      "description": "Install Audio Tools with the Swirl icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/teal-cream/index.html": {
+      "title": "Audio Tools icon: Teal + cream",
+      "description": "Install Audio Tools with the Teal + cream icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/teal/index.html": {
+      "title": "Audio Tools icon: Teal",
+      "description": "Install Audio Tools with the Teal icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/violet-yellow/index.html": {
+      "title": "Audio Tools icon: Violet + yellow",
+      "description": "Install Audio Tools with the Violet + yellow icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/violet/index.html": {
+      "title": "Audio Tools icon: Violet",
+      "description": "Install Audio Tools with the Violet icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "audio/icon/yellow/index.html": {
+      "title": "Audio Tools icon: Yellow",
+      "description": "Install Audio Tools with the Yellow icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
     "audio/index.html": {
       "title": "Audio Tools — Eight Instruments for iPhone and iPad",
       "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor in one installable web app, sharing one tempo and one shelf of takes.",
@@ -42,7 +289,18 @@
       "type": "app",
       "priority": 0.7,
       "menu_pos": "tr",
-      "manifest": "manifest.json"
+      "manifest": "manifest.json",
+      "icon_gallery": "audio/icon/orb/index.html",
+      "touch_icon": "icon/orb/180.png"
+    },
+    "audio/probe/frame.html": {
+      "title": "Audio Probe Frame",
+      "description": "The child frame the audio probe uses to stand in for a tool screen.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true
     },
     "audio/probe/index.html": {
       "title": "Audio Probe",
@@ -55,13 +313,13 @@
       "manifest": "manifest.json",
       "hidden": true
     },
-    "audio/probe/frame.html": {
-      "title": "Audio Probe Frame",
-      "description": "The child frame the audio probe uses to stand in for a tool screen.",
-      "category": "tools",
-      "domain": "3die.fr",
-      "type": "app",
-      "priority": 0.1,
+    "automata.html": {
+      "title": "Cellular Automata as the Computational Basis",
+      "description": "Paper 1 of iori's series, in preparation: cellular automata as the computational basis, with Flame Strains and Petri as measured evidence.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
       "hidden": true
     },
     "bismuth-fluid.html": {
@@ -223,6 +481,15 @@
       "type": "experiment",
       "priority": 0.5
     },
+    "document-diffusion.html": {
+      "title": "Diffusion Over the Whole Document",
+      "description": "Paper 3 of iori's series, in preparation: can a text generator draw a whole document coarse to fine, the outline first, the way image diffusion does?",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
+      "hidden": true
+    },
     "ember-engine.html": {
       "title": "Ember Engine — Cellular Automata Fire",
       "description": "Cellular automata embers rising and dying out: fire as a rule-based organism.",
@@ -269,6 +536,91 @@
       "category": "fractals",
       "domain": "iori.me",
       "type": "experiment",
+      "priority": 0.5
+    },
+    "fractal-engine/icon/carpet/index.html": {
+      "title": "Fractal Engine icon: Carpet",
+      "description": "Install Fractal Engine with the Carpet icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "fractal-engine/icon/hexaflake/index.html": {
+      "title": "Fractal Engine icon: Hexaflake",
+      "description": "Install Fractal Engine with the Hexaflake icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "fractal-engine/icon/hilbert/index.html": {
+      "title": "Fractal Engine icon: Hilbert",
+      "description": "Install Fractal Engine with the Hilbert icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "fractal-engine/icon/multibrot/index.html": {
+      "title": "Fractal Engine icon: Multibrot",
+      "description": "Install Fractal Engine with the Multibrot icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "fractal-engine/icon/seahorse/index.html": {
+      "title": "Fractal Engine icon: Seahorse",
+      "description": "Install Fractal Engine with the Seahorse icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "fractal-engine/index.html": {
+      "title": "Fractal Engine — Procedural Fractal Designer",
+      "description": "A WebGPU fractal designer in four dimensions: fly inside Mandelboxes and bulbs, breed and blend families on a map, edit the formula as a network.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6,
+      "icon_gallery": "fractal-engine/icon/seahorse/index.html",
+      "touch_icon": "icon/seahorse/180.png",
+      "manifest": "icon/seahorse/manifest.json"
+    },
+    "fractal-engine/paper.html": {
+      "title": "The Fractal Engine, Tool by Tool",
+      "description": "The Fractal Engine's documentation as a paper: every tool, from the notation to collages, explained in a few lines with the live engine running under it.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
       "priority": 0.5
     },
     "fractals.html": {
@@ -354,6 +706,19 @@
       "menu_pos": "tl",
       "menu": false
     },
+    "iris-engine/icon/fitted/index.html": {
+      "title": "Iris Engine icon: Four eyes",
+      "description": "Install Iris Engine with the Four eyes icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
     "iris-engine/index.html": {
       "title": "Iris Engine — Photoreal Procedural Iris",
       "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",
@@ -362,7 +727,10 @@
       "type": "experiment",
       "priority": 0.6,
       "order": 3,
-      "menu_pos": "bl"
+      "menu_pos": "bl",
+      "icon_gallery": "iris-engine/icon/fitted/index.html",
+      "touch_icon": "icon/fitted/180.png",
+      "manifest": "icon/fitted/manifest.json"
     },
     "iris.html": {
       "title": "Procedural Iris",
@@ -380,6 +748,17 @@
       "domain": "3die.fr",
       "type": "artist",
       "priority": 0.7
+    },
+    "kalivoda/index.html": {
+      "title": "Lukáš Kalivoda — Glass, Water, Light, Sound",
+      "description": "Prague artist Lukáš Kalivoda: glass installations moved by wind and light, paintings lifted from water. An interactive cloud of dispersing glass rods.",
+      "category": "artist",
+      "domain": "3die.fr",
+      "type": "artist",
+      "priority": 0.7,
+      "menu_pos": "br",
+      "hidden": true,
+      "_note": "draft content awaiting the artist's review — drop hidden to publish"
     },
     "lambda_cognition.html": {
       "title": "Lambda Cognition & The TIH Framework",
@@ -451,6 +830,15 @@
       "menu_pos": "tl",
       "order": 2
     },
+    "metafractal.html": {
+      "title": "Metafractal: The Space of Fractals Is Fractal",
+      "description": "Paper 0.1: the Mandelbrot set as the map of the Julia sets and Tan Lei's similarity live, then the Fractal Engine's maps, metric and walks through 3-D fractal space.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
+      "priority": 0.5
+    },
     "metyou.html": {
       "title": "MetYou.ai — Design Engineering Case Study",
       "description": "How 3DIE designed and engineered MetYou.ai: product design engineering from concept to interface.",
@@ -483,6 +871,78 @@
       "domain": "3die.fr",
       "type": "artist",
       "priority": 0.7
+    },
+    "moshine/icon/block/index.html": {
+      "title": "MOSHINE icon: Block",
+      "description": "Install MOSHINE with the Block icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "moshine/icon/magenta/index.html": {
+      "title": "MOSHINE icon: Magenta",
+      "description": "Install MOSHINE with the Magenta icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "moshine/icon/pink/index.html": {
+      "title": "MOSHINE icon: Pink",
+      "description": "Install MOSHINE with the Pink icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "moshine/icon/smear/index.html": {
+      "title": "MOSHINE icon: Smear",
+      "description": "Install MOSHINE with the Smear icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "moshine/index.html": {
+      "title": "MOSHINE — Datamosh Editor",
+      "description": "A datamosh editor in the browser: a simulated codec on WebGPU with a timeline, masks, painted motion vectors and audio-reactive looks.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.6,
+      "menu_pos": "br",
+      "icon_gallery": "moshine/icon/smear/index.html",
+      "touch_icon": "icon/smear/180.png",
+      "manifest": "icon/smear/manifest.json"
+    },
+    "moshine/lab.html": {
+      "title": "MOSHINE Lab — Mosh Engine Workbench",
+      "description": "The developer workbench behind MOSHINE: fixtures, GPU and CPU parity, motion-field overlays and the fidelity sets.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true
     },
     "multiOS.html": {
       "title": "Multi-OS VJ Studio Environment",
@@ -524,6 +984,54 @@
       "type": "experiment",
       "priority": 0.6
     },
+    "papers/index.html": {
+      "title": "Papers — iori",
+      "description": "iori's paper series: fractal roughness, cellular automata, tensor landscapes, document diffusion and lambda cognition, each a page to read and play with.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
+      "hidden": true
+    },
+    "petri/icon/colony/index.html": {
+      "title": "Petri icon: Colony",
+      "description": "Install Petri with the Colony icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "petri/icon/three-strains/index.html": {
+      "title": "Petri icon: Three strains",
+      "description": "Install Petri with the Three strains icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "petri/icon/white/index.html": {
+      "title": "Petri icon: White",
+      "description": "Install Petri with the White icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
     "petri/index.html": {
       "title": "Petri — Slime Mold and Colony Growth Engine",
       "description": "A WebGPU petri dish: inoculate agar with millimetre precision and grow slime molds, bacteria, molds and biofilms from ninety organisms on ten growth kernels.",
@@ -531,7 +1039,10 @@
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.6,
-      "menu_pos": "br"
+      "menu_pos": "br",
+      "icon_gallery": "petri/icon/colony/index.html",
+      "touch_icon": "icon/colony/180.png",
+      "manifest": "icon/colony/manifest.json"
     },
     "pi.html": {
       "title": "Learn PI by Heart — Minimal Trainer",
@@ -566,6 +1077,15 @@
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.6
+    },
+    "radiance-fields.html": {
+      "title": "Radiance Fields: Elements and Morphs",
+      "description": "Paper 0.2: density, emission and the volume integral live, one shape stored four ways and measured, and the morphs between representations and between shapes.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
+      "priority": 0.5
     },
     "shop.html": {
       "title": "3DIE Shop — 3D Models & Printed Objects",
@@ -627,6 +1147,25 @@
       "type": "game",
       "priority": 0.6
     },
+    "tensor-landscapes.html": {
+      "title": "Fractal Optimization of Tensor Landscapes",
+      "description": "Paper 2 of iori's series, in preparation: where neural network training landscapes are fractal, and whether that structure can become speed.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.3,
+      "hidden": true
+    },
+    "theatre-mask/index.html": {
+      "title": "Theatre Mask — Emotion Surface",
+      "description": "An ivory theatre mask that morphs between ten emotions: drag across the surface and comedy folds into serenity, tragedy into sorrow, wrinkles and all.",
+      "category": "client",
+      "domain": "3die.fr",
+      "type": "client",
+      "priority": 0.5,
+      "hidden": true,
+      "_note": "drama-lessons client focal point, unlisted — drop hidden to list it"
+    },
     "three-body-shaded.html": {
       "title": "3-Body Gravity — Phantom Edition",
       "description": "The three-body problem with phantom trails: shaded paths of gravitational chaos.",
@@ -642,6 +1181,15 @@
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.6
+    },
+    "timeline.html": {
+      "title": "Timeline",
+      "description": "iori's life and work from 4 December 2003 onward: places, pictures, sounds, shaders and the things built along the way, one long page.",
+      "category": "essay",
+      "domain": "iori.me",
+      "type": "experiment",
+      "priority": 0.5,
+      "hidden": true
     },
     "tomasek.html": {
       "title": "3D Gyroscope Dice Roller",
@@ -770,124 +1318,6 @@
       "domain": "3die.fr",
       "type": "client",
       "priority": 0.7
-    },
-    "moshine/index.html": {
-      "title": "MOSHINE — Datamosh Editor",
-      "description": "A datamosh editor in the browser: a simulated codec on WebGPU with a timeline, masks, painted motion vectors and audio-reactive looks.",
-      "category": "tools",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.6,
-      "menu_pos": "br"
-    },
-    "moshine/lab.html": {
-      "title": "MOSHINE Lab — Mosh Engine Workbench",
-      "description": "The developer workbench behind MOSHINE: fixtures, GPU and CPU parity, motion-field overlays and the fidelity sets.",
-      "category": "tools",
-      "domain": "iori.me",
-      "type": "experiment",
-      "hidden": true
-    },
-    "automata.html": {
-      "title": "Cellular Automata as the Computational Basis",
-      "description": "Paper 1 of iori's series, in preparation: cellular automata as the computational basis, with Flame Strains and Petri as measured evidence.",
-      "category": "essay",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.3,
-      "hidden": true
-    },
-    "tensor-landscapes.html": {
-      "title": "Fractal Optimization of Tensor Landscapes",
-      "description": "Paper 2 of iori's series, in preparation: where neural network training landscapes are fractal, and whether that structure can become speed.",
-      "category": "essay",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.3,
-      "hidden": true
-    },
-    "document-diffusion.html": {
-      "title": "Diffusion Over the Whole Document",
-      "description": "Paper 3 of iori's series, in preparation: can a text generator draw a whole document coarse to fine, the outline first, the way image diffusion does?",
-      "category": "essay",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.3,
-      "hidden": true
-    },
-    "papers/index.html": {
-      "title": "Papers — iori",
-      "description": "iori's paper series: fractal roughness, cellular automata, tensor landscapes, document diffusion and lambda cognition, each a page to read and play with.",
-      "category": "essay",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.3,
-      "hidden": true
-    },
-    "timeline.html": {
-      "title": "Timeline",
-      "description": "iori's life and work from 4 December 2003 onward: places, pictures, sounds, shaders and the things built along the way, one long page.",
-      "category": "essay",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.5,
-      "hidden": true
-    },
-    "kalivoda/index.html": {
-      "title": "Lukáš Kalivoda — Glass, Water, Light, Sound",
-      "description": "Prague artist Lukáš Kalivoda: glass installations moved by wind and light, paintings lifted from water. An interactive cloud of dispersing glass rods.",
-      "category": "artist",
-      "domain": "3die.fr",
-      "type": "artist",
-      "priority": 0.7,
-      "menu_pos": "br",
-      "hidden": true,
-      "_note": "draft content awaiting the artist's review — drop hidden to publish"
-    },
-    "theatre-mask/index.html": {
-      "title": "Theatre Mask — Emotion Surface",
-      "description": "An ivory theatre mask that morphs between ten emotions: drag across the surface and comedy folds into serenity, tragedy into sorrow, wrinkles and all.",
-      "category": "client",
-      "domain": "3die.fr",
-      "type": "client",
-      "priority": 0.5,
-      "hidden": true,
-      "_note": "drama-lessons client focal point, unlisted — drop hidden to list it"
-    },
-    "fractal-engine/index.html": {
-      "title": "Fractal Engine — Procedural Fractal Designer",
-      "description": "A WebGPU fractal designer in four dimensions: fly inside Mandelboxes and bulbs, breed and blend families on a map, edit the formula as a network.",
-      "category": "fractals",
-      "domain": "iori.me",
-      "type": "experiment",
-      "priority": 0.6
-    },
-    "fractal-engine/paper.html": {
-      "title": "The Fractal Engine, Tool by Tool",
-      "description": "The Fractal Engine's documentation as a paper: every tool, from the notation to collages, explained in a few lines with the live engine running under it.",
-      "category": "fractals",
-      "domain": "iori.me",
-      "type": "experiment",
-      "hidden": true,
-      "priority": 0.5
-    },
-    "metafractal.html": {
-      "title": "Metafractal: The Space of Fractals Is Fractal",
-      "description": "Paper 0.1: the Mandelbrot set as the map of the Julia sets and Tan Lei's similarity live, then the Fractal Engine's maps, metric and walks through 3-D fractal space.",
-      "category": "fractals",
-      "domain": "iori.me",
-      "type": "experiment",
-      "hidden": true,
-      "priority": 0.5
-    },
-    "radiance-fields.html": {
-      "title": "Radiance Fields: Elements and Morphs",
-      "description": "Paper 0.2: density, emission and the volume integral live, one shape stored four ways and measured, and the morphs between representations and between shapes.",
-      "category": "fractals",
-      "domain": "iori.me",
-      "type": "experiment",
-      "hidden": true,
-      "priority": 0.5
     }
   }
 }

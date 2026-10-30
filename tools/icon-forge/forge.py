@@ -35,6 +35,7 @@ Run:  uv run --with pillow,numpy tools/icon-forge/forge.py board
 
 import argparse
 import io
+import json
 import os
 
 import numpy as np
@@ -288,6 +289,33 @@ def cmd_build(args):
     print(f"[build] wrote {n} files — app icon from {app}, tab icon from {mark}")
 
 
+# --- per-app icons ---------------------------------------------------------
+APPS_FILE = os.path.join(HERE, "apps.json")
+APP_ICON_SIZES = [120, 180, 192, 512]   # 120 is the gallery thumbnail
+MASKABLE_OBJECT_FILL = 0.8              # an object on black must clear Android's 80% circle
+
+
+def cmd_apps(args):
+    """<app>/icon/<slug>/ from tools/icon-forge/sheets, listed in apps.json. Run site.py icons after."""
+    apps = json.load(open(APPS_FILE))
+    n = 0
+    for app in apps.values():
+        for v in app["variants"]:
+            src = Image.open(os.path.join(HERE, "sheets", v["sheet"])).convert("RGB")
+            out = os.path.join(ROOT, app["dir"], "icon", v["slug"])
+            for size in APP_ICON_SIZES:
+                save(src.resize((size, size), Image.LANCZOS), os.path.join(out, f"{size}.png"))
+                n += 1
+            mask = src
+            if v["fit"] == "object":
+                inner = round(512 * MASKABLE_OBJECT_FILL)
+                mask = Image.new("RGB", (512, 512), (0, 0, 0))
+                mask.paste(src.resize((inner, inner), Image.LANCZOS), ((512 - inner) // 2,) * 2)
+            save(mask.resize((512, 512), Image.LANCZOS), os.path.join(out, "maskable-512.png"))
+            n += 1
+    print(f"[apps] wrote {n} files for {sum(len(a['variants']) for a in apps.values())} icons")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--app", choices=sorted(SOURCES), default=APP_SHEET,
@@ -299,6 +327,8 @@ def main():
     b.set_defaults(fn=cmd_board)
     bd = sub.add_parser("build", help="write every icon the sites reference")
     bd.set_defaults(fn=cmd_build)
+    ba = sub.add_parser("apps", help="write every per-app icon set in apps.json")
+    ba.set_defaults(fn=cmd_apps)
     args = ap.parse_args()
     for name in (args.app, args.mark):
         if not os.path.isfile(os.path.join(ROOT, name)):

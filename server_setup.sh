@@ -302,7 +302,7 @@ iori.me {
     # of this line. Icons revalidate instead (a 304 costs nothing at this size).
     @immutable path /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
-    @icons path /icon/* /favicon.ico /apple-touch-icon*.png
+    @icons path */icon/* /favicon.ico /apple-touch-icon*.png
     header @icons Cache-Control "no-cache"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png
     header @shortcache Cache-Control "public, max-age=3600"
@@ -379,7 +379,7 @@ iori.me {
     # of this line. Icons revalidate instead (a 304 costs nothing at this size).
     @immutable path /media/*
     header @immutable Cache-Control "public, max-age=31536000, immutable"
-    @icons path /icon/* /favicon.ico /apple-touch-icon*.png
+    @icons path */icon/* /favicon.ico /apple-touch-icon*.png
     header @icons Cache-Control "no-cache"
     @shortcache path /assets/* /images/* /js/* /moises_car_atlas.png /blackjach/assets/* /blackjach/css/* /blackjach/js/*
     header @shortcache Cache-Control "public, max-age=3600"

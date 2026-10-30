@@ -336,6 +336,9 @@ contraction fixes, mask tracking and handles, R5 when the icon arrives, M9b (bak
 
 ## Deploying to iori.me
 
+`moshine/icon/` is generated in the iori repo by `tools/icon-forge/forge.py apps` and `site.py icons`. It does not exist in
+data_moshine, so an rsync with `--delete` from there removes it: exclude `icon/`, or rerun both commands.
+
 Live since 2026-10-10 (M9, D43). The redeploy steps and the shared-tree rule are in the latest session handoff
 ("Deployed"). Do not edit `iori/moshine/` directly: it is an rsync copy of this folder. COOP/COEP stay off until the
 bake (D44).

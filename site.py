@@ -7,11 +7,12 @@ Commands:
   heads     Rewrite deterministic SEO <head> blocks (idempotent, marked region)
   sitemap   Generate sitemap-iori.xml / sitemap-3die.xml / sitemap.xml (lastmod from git)
   robots    Generate robots-iori.txt / robots-3die.txt
+  icons     Generate the per-app icon pages and manifests from tools/icon-forge/apps.json
   manifest  Generate pages.json (auto-feed for hub pages: catalog, web3d)
   nav       Rewrite the static crawlable page list in iori_INDEX.html (marked region)
   menu      Inject the site menu (corner toggle + panel) into every page (marked region)
   check     Validate registry consistency, uniqueness, coverage
-  all       Run scan + heads + sitemap + robots + manifest + nav + menu + check
+  all       Run icons + scan + heads + sitemap + robots + manifest + nav + menu + check
 
 Zero dependencies — Python 3.9+ stdlib only. Safe to run anywhere (local or server).
 
@@ -32,6 +33,7 @@ from xml.sax.saxutils import escape as xml_escape
 ROOT = os.path.dirname(os.path.abspath(__file__))
 REGISTRY_FILE = os.path.join(ROOT, "pages.meta.json")
 MANIFEST_FILE = os.path.join(ROOT, "pages.json")
+ICON_APPS_FILE = os.path.join(ROOT, "tools/icon-forge/apps.json")
 
 GA_ID_IORI = "G-GKKJ5VX340"
 GA_ID_3DIE = "G-ERECDMYSNT"
@@ -546,6 +548,9 @@ def build_menu_block(slug, meta, pages):
     # rel="me": the page says these profiles are the same identity
     for label, url in MENU_SOCIAL.get(domain, []):
         lines.append(link(label, url, cls="site-menu__social", rel="me"))
+    # the only way into the icon gallery: nothing else on the page mentions installing
+    if meta.get("icon_gallery"):
+        lines.append(link("install app", page_url(domain, meta["icon_gallery"])))
     # category neighbours: same domain, same category, public, sorted by the
     # optional "order" key (e.g. eyes: simplest to most sophisticated), then slug
     cat = meta.get("category")
@@ -570,6 +575,93 @@ def build_menu_block(slug, meta, pages):
             lines.append(f'      <li class="site-menu__nb"><a href="https://iori.me/portfolio.html?cat={cat}"><small>all</small>{xml_escape(cat)}</a></li>')
     lines += ['    </ul>', '  </div>', '</nav>', f'<script src="{up}assets/menu.js" defer></script>', MENU_END]
     return "\n".join(lines)
+
+
+ICON_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="../../../install/install.css">
+</head>
+<body data-name="{name}">
+    <main class="inst">
+        <a class="inst-back" href="../../">Back to {name}</a>
+        <header class="inst-head">
+            <img src="180.png" alt="" width="96" height="96">
+            <div><h1>{name}</h1><p>{label}</p></div>
+        </header>
+        <section id="steps" class="inst-steps">
+            <p>Add this page to your home screen from your browser's menu.</p>
+        </section>
+{grid}
+    </main>
+    <script src="../../../install/install.js"></script>
+</body>
+</html>
+"""
+
+
+def cmd_icons():
+    """One page per icon in tools/icon-forge/apps.json: the page, its manifest and its registry entry.
+    Each page is also the gallery, so choosing an icon lands on the page that installs it."""
+    with open(ICON_APPS_FILE, encoding="utf-8") as f:
+        apps = json.load(f)
+    pages = load_registry()
+    wanted = set()
+    for app in apps.values():
+        d, variants = app["dir"], app["variants"]
+        start = f"/{d}/"
+        name = xml_escape(app["name"])
+        for i, v in enumerate(variants):
+            slug = f'{d}/icon/{v["slug"]}/index.html'
+            wanted.add(slug)
+            manifest = {
+                # the first icon keeps the app's own id, so an existing install stays that install
+                "id": start if i == 0 else f'{start}icon/{v["slug"]}/',
+                "name": app["name"], "short_name": app["short_name"],
+                "start_url": start, "scope": start,
+                "display": "standalone", "orientation": app["orientation"],
+                "background_color": "#000000", "theme_color": "#000000",
+                "icons": [
+                    {"src": "192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                    {"src": "512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                    {"src": "maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+                ],
+            }
+            folder = os.path.join(ROOT, d, "icon", v["slug"])
+            with open(os.path.join(folder, "manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+                f.write("\n")
+            grid = ""
+            if len(variants) > 1:
+                cells = "\n".join(
+                    f'            <a href="../{o["slug"]}/"{" aria-current=page" if o is v else ""}>'
+                    f'<img src="../{o["slug"]}/120.png" alt="{xml_escape(o["label"])}" width="60" height="60"></a>'
+                    for o in variants)
+                grid = f'        <nav class="inst-grid" aria-label="Choose an icon">\n{cells}\n        </nav>'
+            with open(os.path.join(ROOT, slug), "w", encoding="utf-8") as f:
+                f.write(ICON_PAGE.format(name=name, label=xml_escape(v["label"]), grid=grid))
+            pages[slug] = {
+                "title": f'{app["name"]} icon: {v["label"]}',
+                "description": f'Install {app["name"]} with the {v["label"]} icon, with the steps for your browser.',
+                "category": "tools", "domain": app["domain"], "type": "app", "priority": 0.1,
+                "hidden": True, "menu": False, "generated": "icons",
+                "manifest": "manifest.json", "touch_icon": "180.png",
+            }
+        page = pages[f"{d}/index.html"]
+        first = variants[0]["slug"]
+        page["icon_gallery"] = f"{d}/icon/{first}/index.html"
+        page["touch_icon"] = f"icon/{first}/180.png"
+        if page.get("manifest") != "manifest.json":
+            page["manifest"] = f"icon/{first}/manifest.json"
+    for slug in [s for s, m in pages.items() if m.get("generated") == "icons" and s not in wanted]:
+        del pages[slug]
+        if os.path.exists(os.path.join(ROOT, slug)):
+            os.remove(os.path.join(ROOT, slug))
+    save_registry(pages)
+    print(f"[icons] {len(wanted)} icon pages")
+    return True
 
 
 def cmd_menu():
@@ -778,7 +870,7 @@ def cmd_check():
 COMMANDS = {
     "scan": cmd_scan, "heads": cmd_heads, "sitemap": cmd_sitemap,
     "robots": cmd_robots, "manifest": cmd_manifest, "check": cmd_check,
-    "caddy": cmd_caddy, "nav": cmd_nav, "menu": cmd_menu,
+    "caddy": cmd_caddy, "nav": cmd_nav, "menu": cmd_menu, "icons": cmd_icons,
 }
 
 
@@ -789,7 +881,7 @@ def main():
         return 0
     if args[0] == "all":
         ok = True
-        for name in ("scan", "heads", "sitemap", "robots", "manifest", "caddy", "nav", "menu", "check"):
+        for name in ("icons", "scan", "heads", "sitemap", "robots", "manifest", "caddy", "nav", "menu", "check"):
             ok = COMMANDS[name]() and ok
         return 0 if ok else 1
     if args[0] not in COMMANDS:

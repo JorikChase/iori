@@ -1,0 +1,239 @@
+{
+  "audio": {
+    "dir": "audio",
+    "domain": "3die.fr",
+    "name": "Audio Tools",
+    "short_name": "Audio Tools",
+    "orientation": "portrait",
+    "variants": [
+      {
+        "slug": "orb",
+        "label": "Orb",
+        "sheet": "audio-orb.png",
+        "fit": "object"
+      },
+      {
+        "slug": "swirl",
+        "label": "Swirl",
+        "sheet": "audio-swirl.png",
+        "fit": "object"
+      },
+      {
+        "slug": "orange",
+        "label": "Orange",
+        "sheet": "audio-orange.png",
+        "fit": "object"
+      },
+      {
+        "slug": "teal",
+        "label": "Teal",
+        "sheet": "audio-teal.png",
+        "fit": "object"
+      },
+      {
+        "slug": "rose",
+        "label": "Rose",
+        "sheet": "audio-rose.png",
+        "fit": "object"
+      },
+      {
+        "slug": "yellow",
+        "label": "Yellow",
+        "sheet": "audio-yellow.png",
+        "fit": "object"
+      },
+      {
+        "slug": "violet",
+        "label": "Violet",
+        "sheet": "audio-violet.png",
+        "fit": "object"
+      },
+      {
+        "slug": "blue",
+        "label": "Blue",
+        "sheet": "audio-blue.png",
+        "fit": "object"
+      },
+      {
+        "slug": "pink",
+        "label": "Pink",
+        "sheet": "audio-pink.png",
+        "fit": "object"
+      },
+      {
+        "slug": "red",
+        "label": "Red",
+        "sheet": "audio-red.png",
+        "fit": "object"
+      },
+      {
+        "slug": "cream",
+        "label": "Cream",
+        "sheet": "audio-cream.png",
+        "fit": "object"
+      },
+      {
+        "slug": "orange-teal",
+        "label": "Orange + teal",
+        "sheet": "audio-orange-teal.png",
+        "fit": "object"
+      },
+      {
+        "slug": "orange-cream",
+        "label": "Orange + cream",
+        "sheet": "audio-orange-cream.png",
+        "fit": "object"
+      },
+      {
+        "slug": "teal-cream",
+        "label": "Teal + cream",
+        "sheet": "audio-teal-cream.png",
+        "fit": "object"
+      },
+      {
+        "slug": "rose-teal",
+        "label": "Rose + teal",
+        "sheet": "audio-rose-teal.png",
+        "fit": "object"
+      },
+      {
+        "slug": "violet-yellow",
+        "label": "Violet + yellow",
+        "sheet": "audio-violet-yellow.png",
+        "fit": "object"
+      },
+      {
+        "slug": "pink-violet",
+        "label": "Pink + violet",
+        "sheet": "audio-pink-violet.png",
+        "fit": "object"
+      },
+      {
+        "slug": "red-yellow",
+        "label": "Red + yellow",
+        "sheet": "audio-red-yellow.png",
+        "fit": "object"
+      },
+      {
+        "slug": "blue-cream",
+        "label": "Blue + cream",
+        "sheet": "audio-blue-cream.png",
+        "fit": "object"
+      }
+    ]
+  },
+  "fractal-engine": {
+    "dir": "fractal-engine",
+    "domain": "iori.me",
+    "name": "Fractal Engine",
+    "short_name": "Fractal",
+    "orientation": "any",
+    "variants": [
+      {
+        "slug": "seahorse",
+        "label": "Seahorse",
+        "sheet": "fractal-engine-seahorse.png",
+        "fit": "bleed"
+      },
+      {
+        "slug": "multibrot",
+        "label": "Multibrot",
+        "sheet": "fractal-engine-multibrot.png",
+        "fit": "object"
+      },
+      {
+        "slug": "hexaflake",
+        "label": "Hexaflake",
+        "sheet": "fractal-engine-hexaflake.png",
+        "fit": "object"
+      },
+      {
+        "slug": "carpet",
+        "label": "Carpet",
+        "sheet": "fractal-engine-carpet.png",
+        "fit": "bleed"
+      },
+      {
+        "slug": "hilbert",
+        "label": "Hilbert",
+        "sheet": "fractal-engine-hilbert.png",
+        "fit": "bleed"
+      }
+    ]
+  },
+  "iris-engine": {
+    "dir": "iris-engine",
+    "domain": "iori.me",
+    "name": "Iris Engine",
+    "short_name": "Iris",
+    "orientation": "any",
+    "variants": [
+      {
+        "slug": "fitted",
+        "label": "Four eyes",
+        "sheet": "iris-engine-fitted.png",
+        "fit": "object"
+      }
+    ]
+  },
+  "petri": {
+    "dir": "petri",
+    "domain": "iori.me",
+    "name": "Petri",
+    "short_name": "Petri",
+    "orientation": "any",
+    "variants": [
+      {
+        "slug": "colony",
+        "label": "Colony",
+        "sheet": "petri-colony.png",
+        "fit": "bleed"
+      },
+      {
+        "slug": "three-strains",
+        "label": "Three strains",
+        "sheet": "petri-three-strains.png",
+        "fit": "object"
+      },
+      {
+        "slug": "white",
+        "label": "White",
+        "sheet": "petri-white.png",
+        "fit": "object"
+      }
+    ]
+  },
+  "moshine": {
+    "dir": "moshine",
+    "domain": "iori.me",
+    "name": "MOSHINE",
+    "short_name": "MOSHINE",
+    "orientation": "any",
+    "variants": [
+      {
+        "slug": "smear",
+        "label": "Smear",
+        "sheet": "moshine-smear.png",
+        "fit": "bleed"
+      },
+      {
+        "slug": "magenta",
+        "label": "Magenta",
+        "sheet": "moshine-magenta.png",
+        "fit": "bleed"
+      },
+      {
+        "slug": "pink",
+        "label": "Pink",
+        "sheet": "moshine-pink.png",
+        "fit": "bleed"
+      },
+      {
+        "slug": "block",
+        "label": "Block",
+        "sheet": "moshine-block.png",
+        "fit": "bleed"
+      }
+    ]
+  }
+}

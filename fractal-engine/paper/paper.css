@@ -57,3 +57,6 @@ code { font: 0.86em var(--mono); background: var(--wash); border-radius: 4px; pa
 .fe-slot { display: flex; align-items: center; justify-content: center; height: 4.2rem; margin-bottom: 0.7rem; border: 0.75px dashed #d5d8db; border-radius: 8px;
   font: 0.72rem var(--mono); color: var(--muted); }
 .planned details.math { margin: 0 0 0.7rem; }
+
+/* the way back to the engine, under the byline */
+.back { font-size: 0.92rem; color: var(--ink-2); margin-top: 1rem; }

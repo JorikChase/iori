@@ -2124,3 +2124,12 @@ is unit-tested); a real-device touch pass.
 
 **In the paper (2026-10-30):** the subgraphs stub is filled: 5.8 Subgraphs, figures `sbField`, `sbGraph` (one run used twice, an
 exposed scale; the graph figure folds the shading pane so the network takes the room). The limits are stated there.
+
+## Docs linked from the engine, 2026-10-31
+
+iori: *"where can i find them and can we add it to linked pages so i can learn how to use it?"* The toggle row's last glyph
+is `docs`, a page with its corner turned (label "docs"): it opens paper.html in a new tab from the press itself, so the
+formula on screen stays, and folds the row. `ROW_KEYS` leaves it out under `?embed`: a figure is already in the docs. The paper
+says so under its byline, with a link back. `hidden` in pages.meta.json is unchanged. The dual JIT's stub is filled as 3.1
+(no gestures, no figure of its own: the same pictures, faster).
+

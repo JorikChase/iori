@@ -2587,6 +2587,8 @@ const togglesSvg = document.getElementById('toggles');
 const siteNav = document.getElementById('site-menu');
 const siteBox = siteNav && siteNav.querySelector('.menuToggle input');
 const ROW_MS = 4000, ROW_UNFOLD_MS = 180;
+// a figure in the paper has no docs glyph: it is already in the docs
+const ROW_KEYS = EMBED ? TOGGLES.filter((k) => k !== 'docs') : TOGGLES;
 // the graph's shading frame and drivers' lane, each folded away by its toggle (the collage's own
 // shading, pick 'C', is only those two: always shown)
 const panes = { shade: true, drive: true };
@@ -2616,7 +2618,7 @@ const rowStep = () => (COARSE || touchSeen > 0 ? 46 : 38);
 function drawTogglesNow() {
   if (!row) { togglesSvg.innerHTML = ''; return; }
   const [cx, cy] = rowAnchor(), S = rowStep();
-  const items = toggleLayout(cx, cy, innerWidth, innerHeight, S).map((q) => ({ ...q, on: toggleOn(q.k), glyph: q.k === 'mode' ? `mode.${state.mode}` : q.k }));
+  const items = toggleLayout(cx, cy, innerWidth, innerHeight, S, ROW_KEYS).map((q) => ({ ...q, on: toggleOn(q.k), glyph: q.k === 'mode' ? `mode.${state.mode}` : q.k }));
   drawToggles(togglesSvg, { items, cx, cy, S, t: Math.min(1, (performance.now() - row.t0) / ROW_UNFOLD_MS) });
 }
 
@@ -2647,6 +2649,8 @@ function clearOverlays() {
 }
 
 function pressToggle(k) {
+  // the paper in a new tab, from the press itself: the formula on screen stays where it is
+  if (k === 'docs') { window.open(new URL('paper.html', location.href).href, '_blank', 'noopener'); foldRow(); return; }
   engage();
   if (k === 'graph') { const was = !!(gv || cv); clearOverlays(); if (!was) openGraph(); }
   else if (k === 'shade' || k === 'drive') {
@@ -4526,7 +4530,7 @@ window.__fe = {
       })(),
       cgraph: cv && { sel: cv.sel, k: gview.k, plus: (() => { const p = cvPlus(cv.PC); return p && [p[0] * gview.k + gview.tx, p[1] * gview.k + gview.ty]; })() },
       // the overlay toggles: out or not, each one's state, the graph's panes, the surface's add mode
-      toggles: { row: !!row, on: Object.fromEntries(TOGGLES.map((k) => [k, toggleOn(k)])), panes: { ...panes }, add: surf ? surf.add : null },
+      toggles: { row: !!row, keys: ROW_KEYS, on: Object.fromEntries(TOGGLES.map((k) => [k, toggleOn(k)])), panes: { ...panes }, add: surf ? surf.add : null },
       // the hover label showing, and where it is drawn
       label: lab && lab.shown ? (() => { const t = labelSvg.querySelector('text'), b = t && t.getBBox(); return { text: lab.shown.text, key: lab.shown.key || null, box: b && [b.x, b.y, b.width, b.height] }; })() : null };
   },

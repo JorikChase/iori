@@ -65,7 +65,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="../papers/fractals/paper.css?v=4">
-  <link rel="stylesheet" href="paper/paper.css?v=4">
+  <link rel="stylesheet" href="paper/paper.css?v=5">
 </head>
 
 <body>
@@ -81,6 +81,8 @@
       <p class="affiliation"><sup>1</sup>Jorik Jonathan Chase, <a href="https://3die.fr/">3DIE</a> — Design, Art &amp;
         Technologies Label. A companion to <a href="./">the Fractal Engine</a> and to
         <a href="../fractals.html">paper 0</a>. October 2026.</p>
+      <p class="back"><a href="./">Open the Fractal Engine</a>. In the engine, the page glyph at the end of the row of
+        toggles (the menu mark, top right) brings you back here.</p>
     </header>
 
     <section class="abstract">
@@ -314,6 +316,25 @@
           is the RMS over the grid's hits. GPU and CPU agree to a median gradient angle of 0.000° and a median relative
           ∂<i>d</i>/∂θ error under 6·10<sup>−5</sup>.</p>
       </details>
+      <h3 id="ch3-1">3.1 The Derivatives, Compiled</h3>
+      <p>Nothing here is for the hand: the same pictures arrive faster. Section 2.1's JIT writes the forward orbit out as
+        its own shader; the dual orbit that runs at every hit is compiled beside it, into the same pipeline, and the
+        interpreter draws until it is ready. One op becomes one block: what its forward map and its derivatives share is
+        computed once, and a branch that leaves the derivatives alone holds no code. What no hit reads (the selected
+        parameter's column, the colour) is left out. Chimeras unroll, and drivers are written in with their derivatives.
+        Collage pieces compile only the Lyapunov column, and a light collage loses a little: the three-piece test scene
+        runs 3 to 5 % slower, three compiled orbits behind a switch costing about what one saves.</p>
+      <table class="data">
+        <tr><th>Scene</th><th class="num">Still, before</th><th class="num">After</th><th class="num">Gain</th></tr>
+        <tr><td>Mandelbox cave</td><td class="num">37.8 ms</td><td class="num">29.8 ms</td><td class="num">×1.27</td></tr>
+        <tr><td>Menger</td><td class="num">8.7 ms</td><td class="num">5.4 ms</td><td class="num">×1.61</td></tr>
+        <tr><td>Driven bulb</td><td class="num">27.5 ms</td><td class="num">8.6 ms</td><td class="num">×3.19</td></tr>
+        <tr><td>Driven Mandelbox</td><td class="num">245.4 ms</td><td class="num">124.4 ms</td><td class="num">×1.97</td></tr>
+        <tr><td>Chimera</td><td class="num">156.8 ms</td><td class="num">77.5 ms</td><td class="num">×2.02</td></tr>
+        <tr><td>Three-piece collage</td><td class="num">13.8 ms</td><td class="num">14.3 ms</td><td class="num">×0.97</td></tr>
+      </table>
+      <p>GPU time per frame at 1440 × 900 on an M3 Pro. The images match the interpreter's to at least 61 dB (SSIM ≥ 0.9999),
+        collages exactly. Push and the loop do not run the duals, so they are unchanged.</p>
     </section>
 
     <!-- ================================================================== 4 -->
@@ -919,7 +940,8 @@
         a double tap pins. A touch grab aims at the crosshair in the middle of the screen, so nothing hides under the
         thumb. Three fingers move the 4-D slice. Two- and three-finger taps walk the lineage back and forward.</p>
       <p>The menu mark at the top right unfolds a row of hairline glyphs, the same set on every device: the graph,
-        shading, drivers, Metasurface, collage, structure, Lyapunov and the mode. A glyph is dim while off and bright
+        shading, drivers, Metasurface, collage, structure, Lyapunov and the mode, and last a page glyph that opens this
+        paper in a new tab. A glyph is dim while off and bright
         while on; every key keeps working, the row only shows them. In the live engine a second press opens the site's
         menu; in these figures it only folds the row.</p>
       <table class="use">
@@ -1187,16 +1209,6 @@
       </div>
 
       <h3 id="ch11-2">11.2 Speed</h3>
-      <div class="planned" id="pl-dualjit">
-        <span class="planned-tag">planned</span>
-        <h4>A JIT for the Dual Numbers</h4>
-        <p>The hit's dual orbit compiled for its structure, as the forward orbit already is. It is now the largest share of a driven or chimera frame.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-      </div>
       <div class="planned" id="pl-collagesense">
         <span class="planned-tag">planned</span>
         <h4>A GPU Sensing Pass for Collages</h4>

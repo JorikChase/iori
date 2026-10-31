@@ -723,7 +723,7 @@ async function toggleChecks(pre) {
     await shot(`${DESK ? 'desktop-' : ''}toggles-row`);
     await sleep(4300);
     const b = await tg();
-    return { ok: a.row && !menu && n === 8 && !b.row, note: `row ${a.row} (${n} glyphs), site menu ${menu}, folded ${!b.row}` };
+    return { ok: a.row && !menu && n === 9 && !b.row, note: `row ${a.row} (${n} glyphs), site menu ${menu}, folded ${!b.row}` };
   });
   await check(`${pre}toggles: second press = site menu`, async () => {
     const m = await markAt();
@@ -735,6 +735,15 @@ async function toggleChecks(pre) {
     await press(m);
     const shut = await fe(() => !document.querySelector('#site-menu .menuToggle input').checked);
     return { ok: a.row && !b.row && open && shut, note: `row ${a.row}, then site menu ${open} (row folded ${!b.row}), then closed ${shut}` };
+  });
+  await check(`${pre}toggles: docs opens the paper in a new tab`, async () => {
+    const t0 = await fe(() => window.__fe.state.text), url0 = page.url();
+    const [tab] = await Promise.all([ctx.waitForEvent('page', { timeout: 8000 }), pressToggle('docs')]);
+    await tab.waitForLoadState('domcontentloaded');
+    const url = tab.url(), title = await tab.title();
+    await tab.close();
+    const t1 = await fe(() => window.__fe.state.text), b = await tg();
+    return { ok: /\/paper\.html$/.test(url) && title.includes('Tool by Tool') && t1 === t0 && page.url() === url0 && !b.row, note: `${url.split('/').pop()}, formula kept ${t1 === t0}, row folded ${!b.row}` };
   });
   await check(`${pre}toggles: each overlay, bright when on`, async () => {
     const seen = [];

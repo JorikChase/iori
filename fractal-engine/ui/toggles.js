@@ -25,15 +25,17 @@ export const TOGGLE_GLYPHS = {
   'mode.pull': 'M2 12h13M11 8l4 4-4 4M20 4v16',
   'mode.push': 'M22 12H9M13 8l-4 4 4 4M4 4v16',
   'mode.loop': 'M12 4a8 8 0 1 0 .01 0M9 1l3 3-3 3',
+  // the docs: a page with its corner turned, two lines of text
+  docs: 'M5 2h10l4 4v16H5zM15 2v4h4M8 12h8M8 16h8',
 };
 
-// the row's order: the drawings first, then what changes the field
-export const TOGGLES = ['graph', 'shade', 'drive', 'surface', 'collage', 'structure', 'lyap', 'mode'];
+// the row's order: the drawings first, then what changes the field, then the paper
+export const TOGGLES = ['graph', 'shade', 'drive', 'surface', 'collage', 'structure', 'lyap', 'mode', 'docs'];
 
 // where each glyph sits: S apart, leftward from the mark (cx, cy) if the row fits the width, else downward
-export function toggleLayout(cx, cy, W, H, S) {
-  const n = TOGGLES.length, across = cx - n * S - S / 2 >= 8;
-  return TOGGLES.map((k, i) => ({ k, x: across ? cx - (i + 1) * S : cx, y: across ? cy : cy + (i + 1) * S }));
+export function toggleLayout(cx, cy, W, H, S, keys = TOGGLES) {
+  const n = keys.length, across = cx - n * S - S / 2 >= 8;
+  return keys.map((k, i) => ({ k, x: across ? cx - (i + 1) * S : cx, y: across ? cy : cy + (i + 1) * S }));
 }
 
 // items: [{ k, x, y, on, glyph }]; t: 0..1 of the unfold (each glyph slides out from the mark)

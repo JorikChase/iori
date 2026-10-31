@@ -205,6 +205,13 @@ await check('fits the screen', async () => {
   const r = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, vw: document.documentElement.clientWidth }));
   return { ok: r.sw <= r.vw + 1, note: `page ${r.sw} px wide in a ${r.vw} px screen` };
 });
+await check('no docs glyph in a figure', async () => {
+  const id = ids.find((k) => k !== 'notation') || ids[0];
+  await toFig(id);
+  await page.waitForFunction((id) => { const F = window.__paper.figs.get(id); try { return F.iframe.contentWindow.__fe.ready; } catch { return false; } }, id, { timeout: 45000 });
+  const keys = await page.evaluate((id) => window.__paper.figs.get(id).iframe.contentWindow.__fe.input.toggles.keys, id);
+  return { ok: !keys.includes('docs') && keys.includes('graph'), note: keys.join(' ') };
+});
 await check('no page errors', async () => ({ ok: errors.length === 0, note: errors.slice(0, 3).join(' | ') }));
 
 await browser.close();

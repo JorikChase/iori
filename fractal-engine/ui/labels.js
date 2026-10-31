@@ -62,7 +62,7 @@ export const LABELS = {
   // the overlay toggles (ui/toggles.js)
   'tg.graph': 'graph', 'tg.shade': 'shading', 'tg.drive': 'drivers', 'tg.surface': 'metasurface',
   'tg.collage': 'collage', 'tg.structure': 'structure', 'tg.lyap': 'lyapunov',
-  'tg.mode.pull': 'pull mode', 'tg.mode.push': 'push mode', 'tg.mode.loop': 'loop mode',
+  'tg.mode.pull': 'pull mode', 'tg.mode.push': 'push mode', 'tg.mode.loop': 'loop mode', 'tg.docs': 'docs',
   // the structure layer: the strip, its key row, the exports
   'st.graph': 'graph',
   'key.lyap': 'lyapunov', 'key.replay': 'replay', 'key.surface': 'metasurface', 'key.drift': 'drift',

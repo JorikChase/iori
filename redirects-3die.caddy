@@ -24,6 +24,7 @@ redir /flame.html https://iori.me/flame.html permanent
 redir /fluid.html https://iori.me/fluid.html permanent
 redir /fractal-dimension.html https://iori.me/fractal-dimension.html permanent
 redir /fractal-engine/* https://iori.me{uri} permanent
+redir /fractal-engine/paper.html https://iori.me/fractal-engine/paper.html permanent
 redir /fractals.html https://iori.me/fractals.html permanent
 redir /fungal-growth.html https://iori.me/fungal-growth.html permanent
 redir /game-of-life.html https://iori.me/game-of-life.html permanent

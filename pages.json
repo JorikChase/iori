@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-30",
+  "generated": "2026-10-31",
   "pages": [
     {
       "slug": "4cube.html",
@@ -43,7 +43,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/audio/",
       "og_image": null,
-      "lastmod": "2026-10-30"
+      "lastmod": "2026-10-31"
     },
     {
       "slug": "bismuth-fluid.html",
@@ -307,7 +307,18 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-engine/",
       "og_image": null,
-      "lastmod": "2026-10-28"
+      "lastmod": "2026-10-30"
+    },
+    {
+      "slug": "fractal-engine/paper.html",
+      "title": "The Fractal Engine, Tool by Tool",
+      "description": "The Fractal Engine's documentation as a paper: every tool, from the notation to collages, explained in a few lines with the live engine running under it.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "iori.me",
+      "url": "https://iori.me/fractal-engine/paper.html",
+      "og_image": null,
+      "lastmod": "2026-10-31"
     },
     {
       "slug": "fractals.html",
@@ -428,7 +439,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/iris-engine/",
       "og_image": null,
-      "lastmod": "2026-10-11",
+      "lastmod": "2026-10-30",
       "order": 3
     },
     {
@@ -585,7 +596,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/moshine/",
       "og_image": null,
-      "lastmod": "2026-10-10"
+      "lastmod": "2026-10-30"
     },
     {
       "slug": "multiOS.html",
@@ -651,7 +662,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/petri/",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-10-30"
     },
     {
       "slug": "pi.html",

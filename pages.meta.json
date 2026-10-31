@@ -620,7 +620,6 @@
       "category": "fractals",
       "domain": "iori.me",
       "type": "experiment",
-      "hidden": true,
       "priority": 0.5
     },
     "fractals.html": {

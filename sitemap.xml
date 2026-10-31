@@ -122,8 +122,13 @@
   </url>
   <url>
     <loc>https://iori.me/fractal-engine/</loc>
-    <lastmod>2026-10-28</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://iori.me/fractal-engine/paper.html</loc>
+    <lastmod>2026-10-31</lastmod>
+    <priority>0.5</priority>
   </url>
   <url>
     <loc>https://iori.me/fractals.html</loc>
@@ -147,7 +152,7 @@
   </url>
   <url>
     <loc>https://iori.me/iris-engine/</loc>
-    <lastmod>2026-10-11</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
@@ -202,7 +207,7 @@
   </url>
   <url>
     <loc>https://iori.me/moshine/</loc>
-    <lastmod>2026-10-10</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <priority>0.6</priority>
   </url>
   <url>
@@ -227,7 +232,7 @@
   </url>
   <url>
     <loc>https://iori.me/petri/</loc>
-    <lastmod>2026-09-27</lastmod>
+    <lastmod>2026-10-30</lastmod>
     <priority>0.6</priority>
   </url>
   <url>

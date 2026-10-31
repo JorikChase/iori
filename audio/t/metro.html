@@ -170,10 +170,12 @@ function toggle(){
  if(S.ctx&&S.ctx.resume)S.ctx.resume();
  S.tr={from:S.inv,to:S.run?1:0,t0:performance.now()};
  if(S.run){S.run=false;return;}
- S.run=true;S.anchor=now()+.06;S.nextIdx=0;S.lastBeat=-1;sched();}
+ S.run=true;S.anchor=now()+.06;S.nextIdx=0;S.lastBeat=-1;sched();hintAccent();}
 function tapTempo(){S.tapA=1;var t=performance.now()/1000;S.taps=S.taps.filter(function(x){return t-x<2.5});S.taps.push(t);
  if(S.taps.length>=2){var iv=[];for(var i=1;i<S.taps.length;i++)iv.push(S.taps[i]-S.taps[i-1]);iv.sort(function(a,b){return a-b});setBpm(Math.round(60/iv[iv.length>>1]*10)/10);}}
-function cycle(i){S.st[i]=S.st[i]===1?2:(S.st[i]===2?0:1);S.pop[i]=.6;saveBeats();}
+function cycle(i){S.st[i]=S.st[i]===1?2:(S.st[i]===2?0:1);S.pop[i]=.6;saveBeats();if(window.AT)AT.did('metro.accent');}
+/* the second mark on the ring, where its tap lands */
+function hintAccent(){if(!window.AT)return;var c=C(),a=2*Math.PI*(PS[1]-.5*Math.min(1,MC[0]))/SS;AT.hint('metro.accent',{in:box,at:{x:c.x+R*Math.sin(a),y:c.y-R*Math.cos(a)},move:'tap',delay:1200});}
 /* tempo digit wheel: hundreds/tens/ones . tenths, 20.0-300.0, opened by a still hold in the centre (a tap there is tap
    tempo, a drag is tempo/beat count); tap mode, it stays open after the finger lifts; commit sets the exact tempo */
 var DIG=['0','1','2','3','4','5','6','7','8','9'],HOLD=350;
@@ -196,7 +198,7 @@ box.addEventListener('pointermove',function(e){var d=S.drag;if(!d)return;var p=p
 function up(e){var d=S.drag;S.drag=null;if(!d)return;clearTimeout(d.hold);
  if(d.mode==='ctr'){if(!d.cnt){if(e.type==='pointerup')tapTempo();}else{if(d.bx)setBpm(Math.round(S.bpm));saveBeats();}return;}
  if(d.moved<=8){if(e.type!=='pointerup')return;var c=C(),p=pos(e),rr=Math.hypot(p.x-c.x,p.y-c.y);
-  if(Math.abs(rr-R)<40){var a=Math.atan2(p.x-c.x,-(p.y-c.y));if(a<0)a+=2*Math.PI;var fa=a/(2*Math.PI),bi=0,bd=9;for(var k=0;k<S.N;k++){var pk=(PS[k]-.5*Math.min(1,MC[0]))/SS,dk=Math.abs(((fa-pk+1.5)%1)-.5);if(dk<bd){bd=dk;bi=k;}}cycle(bi);}}
+  if(Math.abs(rr-R)<40){var a=Math.atan2(p.x-c.x,-(p.y-c.y));if(a<0)a+=2*Math.PI;var fa=a/(2*Math.PI),bi=0,bd=9;for(var k=0;k<S.N;k++){var pk=(PS[k]-.5*Math.min(1,MC[0]))/SS,dk=Math.abs(((fa-pk+1.5)%1)-.5);if(dk<bd){bd=dk;bi=k;}}cycle(bi);}else hintAccent();}
  else if(d.gear===1){setBpm(Math.round(S.bpm));}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});

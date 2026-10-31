@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /404.html
+Disallow: /audio/docs.html
 Disallow: /audio/icon/blue-cream/
 Disallow: /audio/icon/blue/
 Disallow: /audio/icon/cream/

@@ -243,7 +243,7 @@ function sync(){var my=++syncN;AT.takes.list().then(function(list){if(my!==syncN
  var have={},keep={},next=[];S.takes.forEach(function(t){have[t.key]=t;});
  list.slice(0,MAXT).forEach(function(m){var t=have[m.id];if(t&&t.gone)return;if(!t)t=mkItem(m);else t.meta=m;keep[m.id]=1;next.push(t);});
  S.takes.forEach(function(t,i){if(keep[t.key])return;if(!t.gone){t.gone=true;t.vx=t.vx||-30;if(S.play&&S.play.t===t)stopPlay();}next.splice(Math.min(i,next.length),0,t);});
- S.takes=next;for(var k in DATA)if(!keep[k])delete DATA[k];});}
+ var grew=next.length>S.takes.length&&S.takes.length===0;S.takes=next;for(var k in DATA)if(!keep[k])delete DATA[k];if(grew&&!S.rec)hintSwipe(1);});}
 AT.onTakes(function(){sync();});
 sync();
 AT.takes.draft.recover().catch(function(e){console.warn('draft not recovered',e);});
@@ -264,6 +264,8 @@ function wav(data,sr){var n=data.length,b=new ArrayBuffer(44+n*2),v=new DataView
  s(0,'RIFF');v.setUint32(4,36+n*2,true);s(8,'WAVE');s(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);s(36,'data');v.setUint32(40,n*2,true);
  for(var i=0;i<n;i++){var x=Math.max(-1,Math.min(1,data[i]));v.setInt16(44+i*2,x<0?x*32768:x*32767,true);}return new Blob([b],{type:'audio/wav'});}
 /* samples are prefetched when the strip is touched, so the share sheet usually opens inside the tap's activation */
+/* the ghost swipes right, to export: a swipe left deletes with no undo, so it is only shown to someone already swiping left */
+function hintSwipe(dir){AT.hint('rec.swipe',{in:box,at:{x:W/2,y:takeY(0)},move:'drag',to:{dx:dir*110,dy:0}});}
 function exportTake(t){var d=DATA[t.key];if(d)return doExport(t,d);fetchData(t).then(function(d){if(d)doExport(t,d);});}
 function doExport(t,d){var name=(t.meta.name||t.key)+'.wav',blob=wav(d,t.meta.sr);S.lastExport=blob.size;
  try{var file=new File([blob],name,{type:'audio/wav'});if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file]}).catch(function(){});return;}}catch(_){}
@@ -309,7 +311,7 @@ function up(e){var pr=S.press;if(!pr||(e&&e.pointerId!==pr.pid))return;S.press=n
  if(pr.k==='take'){var t=pr.t;
   if(pr.opened){if(pr.sel>=0&&!cancel)act(ACT[pr.sel],t);return;}
   if(cancel)return;
-  if(pr.dx<-90)del(t);else if(pr.dx>90)exportTake(t);else if(pr.moved<10){if(S.play&&S.play.t===t)stopPlay();else playTake(t);}return;}
+  if(pr.dx<-90){AT.did('rec.swipe');del(t);}else if(pr.dx>90){AT.did('rec.swipe');exportTake(t);}else if(pr.moved<10){if(S.play&&S.play.t===t)stopPlay();else playTake(t);}else if(Math.abs(pr.dx)>8)hintSwipe(pr.dx<0?-1:1);return;}
  if(pr.moved>12||cancel)return;
  if(pr.k==='ctl'){if(S.rec)stopRec(ts(e));else if(pr.fail){/* refused: the tap was the retry */}else if(S.live)startRec(ts(e));else if(S.asking)S.want=true;}
  else if(pr.k==='file'){S.pickArm=ts(e);}

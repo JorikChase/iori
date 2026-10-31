@@ -381,7 +381,8 @@ function openAt(r){if(r.catRoot)r.kids.forEach(function(n){n.label=fgene(n.gi,GU
 function close(){var r=S.open;S.open=null;S.path=[];S.adj=null;S.dw=null;placeRoots();}
 
 /* branches with anchors, parked branches */
-function startBranch(){if(!ensure())return;if(S.ctx.resume)S.ctx.resume();var c=C0();
+function hintSeed(){if(window.AT)AT.hint('synth.seed',{in:box,at:C0(),move:'drag',to:{dx:80,dy:-90}});}
+function startBranch(){if(window.AT)AT.did('synth.seed');if(!ensure())return;if(S.ctx.resume)S.ctx.resume();var c=C0();
  S.br={an:[{p:{x:c.x,y:c.y},u:S.seedU.slice(),ph:S.ph}],u:S.seedU.slice(),m:0,L:0,ang:0,col:[.5,.5,.5],dom:1,dw:{p:{x:c.x,y:c.y},t:performance.now()},atA:false};S.aud=true;S.press=null;}
 function branchAt(p){var b=S.br,A=b.an[b.an.length-1],dx=p.x-A.p.x,dy=p.y-A.p.y,L=Math.hypot(dx,dy),ang=Math.atan2(dy,dx),off=b.an.length===1?RC.r+6:6;
  b.m=Math.max(0,Math.min(1,(L-off)/210));b.L=L;b.ang=ang;b.u=mutate(A.u,ang,b.m,A.ph);var mc=mixCol(b.an[0].u,b.u);b.col=mc.col;b.dom=mc.dom;
@@ -486,7 +487,7 @@ function up(e){var still=e.type!=='pointercancel';delete S.ptrs[e.pointerId];
   if(!k.on){k.on=true;setAct(k);if(!S.run)toggle(true);}else if(S.act!==k)setAct(k);else{k.on=false;setAct(null);}live();return;}
  if(S.open){var J=S.adj,ws=J&&J.path&&still&&J.mv<8?pathSpec():null;if(ws){J.val=J.val0;if(J.u0!=null)J.u=J.u0;}commit();close();trimU();if(ws)wheelOpen(ws);return;}
  if(S.dial){var dl=S.dial;S.dial=null;if(dl.idx!==S.setup){snapU();S.setup=dl.idx;st(RT.id).v+=8;}return;}
- if(pr&&pr.moved<=12){if(pr.root===RC){var tn=ts(e);if(tn-pr.t0<HOLD){if(tn-S.lastTap<DTAP&&S.tapT){clearTimeout(S.tapT);S.tapT=null;S.mute=!S.mute;st(RC.id).v+=8;live();S.lastTap=0;}else{S.lastTap=tn;S.tapT=setTimeout(function(){S.tapT=null;toggle();},DTAP-40);}}}   /* longer: a hold let go before the menu, not a tap */
+ if(pr&&pr.moved<=12){if(pr.root===RC){var tn=ts(e);if(tn-pr.t0<HOLD){if(tn-S.lastTap<DTAP&&S.tapT){clearTimeout(S.tapT);S.tapT=null;S.mute=!S.mute;st(RC.id).v+=8;live();S.lastTap=0;}else{S.lastTap=tn;S.tapT=setTimeout(function(){S.tapT=null;toggle();if(S.run)hintSeed();},DTAP-40);}}else hintSeed();}   /* longer: a hold let go before the menu, not a tap, and no branch yet */
   else if(pr.root===RT){snapU();S.setup=(S.setup+1)%SETUPS.length;st(RT.id).v+=8;}else if(pr.root===RD){snapU();S.layersOn=!S.layersOn;live();}}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});

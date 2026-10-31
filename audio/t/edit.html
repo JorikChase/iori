@@ -605,6 +605,8 @@ function mixSig(cs){return JSON.stringify([BPM].concat(cs.map(function(c){return
 function mixTap(){var m=S.mix;if(m.st==='busy'||!window.AT)return;var cs=mixClips();if(!cs.length)return;var sig=mixSig(cs);
  if(m.st==='ready'&&m.sig===sig){m.arm=performance.now();return;}
  if(m.file&&m.sig===sig){m.st='ready';m.t=performance.now();S.mxV=3;return;}   /* unchanged since the last save: no second take */
+ if(m.st==='idle'&&m.sid===sig&&m.id){m.st='busy';   /* the same, saved before leaving the editor: the take is the file, unless it was deleted */
+  AT.takes.get(m.id).then(function(k){if(!k||!k.data){m.st='idle';renderMix(cs,sig);return;}var blob=wav(k.data,k.sr),n=k.name||'mix';m.blob=blob;m.file=new File([blob],n+'.wav',{type:'audio/wav'});m.name=n;m.len=k.data.length;m.sr=k.sr;m.sig=sig;m.p=1;m.st='ready';m.t=performance.now();S.mxV=3;},function(){m.st='idle';renderMix(cs,sig);});return;}
  renderMix(cs,sig);}
 function stamp(d){function z(n){return(n<10?'0':'')+n;}return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());}
 function renderMix(cs,sig){var m=S.mix,tok=++m.tok;m.st='busy';m.p=0;m.file=m.blob=null;m.err=null;
@@ -617,7 +619,7 @@ function renderMix(cs,sig){var m=S.mix,tok=++m.tok;m.st='busy';m.p=0;m.file=m.bl
  .then(function(){live();var sr=0;cs.forEach(function(c){sr=Math.max(sr,slotOf(c.k).sr);});return offline(cs,sr,function(q){m.p=.3+.55*q;});})
  .then(function(r){live();var data=r.data,name='mix-'+stamp(new Date());m.p=.9;
   return AT.takes.put({name:name,kind:'mix',sr:r.sr,data:data}).then(function(meta){if(tok!==m.tok)return;var blob=wav(data,r.sr);
-   m.blob=blob;m.file=new File([blob],name+'.wav',{type:'audio/wav'});m.id=meta.id;m.name=name;m.len=data.length;m.sr=r.sr;m.sig=sig;m.p=1;m.st='ready';m.t=performance.now();S.mxV=3;});})
+   m.blob=blob;m.file=new File([blob],name+'.wav',{type:'audio/wav'});m.id=meta.id;m.name=name;m.len=data.length;m.sr=r.sr;m.sig=m.sid=sig;m.p=1;m.st='ready';m.t=performance.now();S.mxV=3;save();});})
  .catch(function(e){if(tok!==m.tok)return;m.st='idle';m.p=0;m.err=String(e&&e.message||e);});}
 function exportMix(){var m=S.mix;if(m.st!=='ready'||!m.file)return;var f=m.file,blob=m.blob;m.st='idle';
  try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
@@ -630,7 +632,7 @@ function wav(data,sr){var n=data.length,b=new ArrayBuffer(44+n*2),v=new DataView
 /* session: the timeline survives leaving the editor (AT.session 'edit'); saved ~300 ms after any change and on pagehide.
    v3 adds every clip setting (source length, warp, mode, original tempo, transpose, gain, fades, curve); a v2 session
    loads with the defaults (unwarped, no fades: sl = d). Crossfades are the overlaps of the saved positions. */
-function snapshot(T){return{v:3,tl:TL,ph:T,vt:+S.vt.toFixed(3),pps:+S.pps.toFixed(3),snap:S.snapOn?1:0,push:S.push?1:0,hx:Math.round(S.hxT),
+function snapshot(T){return{v:3,mx:S.mix.sid&&S.mix.id?{sig:S.mix.sid,id:S.mix.id}:null,tl:TL,ph:T,vt:+S.vt.toFixed(3),pps:+S.pps.toFixed(3),snap:S.snapOn?1:0,push:S.push?1:0,hx:Math.round(S.hxT),
  tracks:D.tracks.map(function(t){return{m:t.m?1:0,s:t.s?1:0,a:t.a?1:0};}),
  clips:D.clips.filter(function(c){return !c.dying;}).map(function(c){return{k:c.k,t:c.t,s:c.s,d:dOf(c),off:c.off,rev:c.rev?1:0,sl:c.sl,warp:c.warp?1:0,mode:c.mode,ot:c.ot,ots:c.ots,semi:c.semi,gain:c.gain,fin:c.fin,fout:c.fout,curve:c.curve};})};}
 var lastSaved='';
@@ -638,6 +640,7 @@ function save(flush){if(!S.ready||!window.AT)return;var o=snapshot(flush&&S.play
 var SES=window.AT?AT.session.load('edit'):null;
 (function(o){if(!o||typeof o!=='object')return;var tr=(o.tracks||[]).slice(0,MAXT);if(tr.length)D=blank(0);
  tr.forEach(function(t){D.tracks.push({m:!!t.m,s:!!t.s,a:false});});
+ if(o.mx){S.mix.sid=o.mx.sig;S.mix.id=o.mx.id;}
  if(o.tl>0)TL=Math.max(TL0,+o.tl);if(o.pps>=8&&o.pps<=160)S.pps=+o.pps;S.ph=Math.max(0,+o.ph||0);S.vt=Math.max(0,+o.vt||0);
  if(o.snap!=null)S.snapOn=!!o.snap;if(o.push!=null)S.push=!!o.push;S.hx=S.hxT=clamp(+o.hx||0,0,maxHx());})(SES);
 function num(v,lo,hi,dv){v=+v;return v>=lo&&v<=hi?v:dv;}
@@ -664,7 +667,9 @@ try{new BroadcastChannel('audio').onmessage=function(e){if(e.data&&e.data.t==='p
      two fingers: twist on a clip = reverse (past 90°), pinch = zoom, a still quick tap = undo */
 function beginEdge(g){var c=find(g.h.id);if(!c)return;var r=isect(edgeRange(c,g.h.edge),nbRange(c,g.h.edge));
  g.phase=c.warp?'stretch':'trim';g.c=c.id;g.edge=g.h.edge;g.orig=[pack(c)];g.lo=r[0];g.hi=r[1];g.base=g.edge==='top'?c.s:endOf(c);snapU();}
-function beginFade(g){var c=find(g.h.id);if(!c)return;g.phase='fade';g.c=c.id;g.edge=g.h.edge;g.f0=g.edge==='top'?c.fin:c.fout;g.orig=[pack(c)];snapU();}
+function hintFade(id,edge){var c=find(id);if(c&&window.AT)AT.hint('edit.fade',{in:box,at:{x:tx(c.t),y:yOf(edge==='top'?c.s:endOf(c))},move:'hold-drag',to:{dx:0,dy:edge==='top'?70:-70}});}
+function hintTwist(id){var c=find(id);if(c&&window.AT)AT.hint('edit.twist',{in:box,at:{x:tx(c.t),y:clamp((yOf(c.s)+yOf(endOf(c)))/2,TOP+60,H-BOT-60)},move:'twist'});}
+function beginFade(g){var c=find(g.h.id);if(!c)return;if(window.AT)AT.did('edit.fade');g.phase='fade';g.c=c.id;g.edge=g.h.edge;g.f0=g.edge==='top'?c.fin:c.fout;g.orig=[pack(c)];snapU();}
 function beginRoll(g){var A=find(g.h.a),B=find(g.h.b);if(!A||!B)return;
  var r=isect(isect(edgeRange(A,'bottom'),edgeRange(B,'top')),[-boxRoom(A),boxRoom(B)]);
  g.phase='roll';g.orig=[pack(A),pack(B)];g.lo=r[0];g.hi=r[1];g.base=B.s;snapU();}
@@ -706,7 +711,7 @@ function tapPress(pr,p){var h=pr.h;
   return;}
  if(h.kind==='clip'||h.kind==='edge'||h.kind==='seam'){var id=h.id;
   if(h.kind==='seam'){var A=find(h.a),B=find(h.b);if(!A||!B)return;id=p.y<(yOf(B.s)+yOf(endOf(A)))/2?h.a:h.b;}
-  select(id,pr.propWas);}}
+  select(id,pr.propWas);hintTwist(id);}}
 function openWheel(what,anchor){var c=find(S.sel);if(!c||!window.Wheel)return;initOt(c);var id=c.id,cfg,D10=['0','1','2','3','4','5','6','7','8','9'];
  function sg(s){return +s>0?'+'+s:s;}
  if(what==='tempo'){var v=Math.round(c.ot*10);
@@ -777,8 +782,8 @@ function up(e){var p=pos(e);delete S.ptrs[e.pointerId];
  if(pr.kind==='bud'){if(pr.moved<12&&e.type!=='pointercancel')budTap(pr.h);return;}
  if(pr.opened){if(pr.sel>=0)act(pr,pr.sel);return;}
  switch(pr.phase){
-  case 'pending':case 'armed':if(e.type!=='pointercancel')tapPress(pr,p);break;
-  case 'trim':case 'stretch':case 'fade':case 'roll':case 'xfade':case 'slide':commit(pr);break;}}
+  case 'pending':case 'armed':if(e.type!=='pointercancel'){if(pr.kind==='edge'&&(pr.phase==='armed'||ts(e)-pr.t0>120))hintFade(pr.id,pr.h.edge);tapPress(pr,p);}break;   /* a held edge let go: the fade it was reaching for */
+  case 'trim':case 'stretch':case 'fade':case 'roll':case 'xfade':case 'slide':commit(pr);if(pr.phase==='trim')hintFade(pr.c,pr.edge);break;}}
 box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
 box.addEventListener('contextmenu',function(e){e.preventDefault()});
 /* the share sheet needs a user activation: open it from the click that follows the second tap on the save bud */
@@ -799,10 +804,10 @@ function moveTwo(){var T=S.two;if(T.ended)return;var a=S.ptrs[T.ids[0]],b=S.ptrs
   else if(sc>.08||mm>14){T.mode='pinch';T.d0=d;T.pps0=S.pps;T.anchor=sOf(mid.y);}}
  if(T.mode==='twist'){var c=find(T.clip);if(c){c.ang=clamp(T.ang,-3.5,3.5);c.angT=c.ang;c.angV=0;}S.readout=Math.round(Math.abs(T.ang)*180/Math.PI)+'';}
  else if(T.mode==='pinch'){S.pps=clamp(T.pps0*d/T.d0,8,160);S.vt=clamp(T.anchor-(mid.y-TOP)/S.pps,0,maxVt());S.readout=Math.round(S.pps/30*100)/100+'x';}}
-function startFlip(c,dir){snapU();c.flip=1;c.angT=(dir<0?-1:1)*Math.PI;}
+function startFlip(c,dir){if(window.AT)AT.did('edit.twist');snapU();c.flip=1;c.angT=(dir<0?-1:1)*Math.PI;}
 function upTwo(e){var T=S.two,left=Object.keys(S.ptrs).length;
  if(!T.ended){T.ended=true;S.readout='';
-  if(T.mode==='twist'){var c=find(T.clip);if(c){if(Math.abs(c.ang)>=TWIST_COMMIT)startFlip(c,c.ang);else{c.angT=0;c.flip=0;}}}}
+  if(T.mode==='twist'){var c=find(T.clip);if(c){if(Math.abs(c.ang)>=TWIST_COMMIT)startFlip(c,c.ang);else{c.angT=0;c.flip=0;hintTwist(c.id);}}}}   /* released short of 90°: the twist it was reaching for */
  if(left===0){if(!T.mode&&ts(e)-T.t0<450&&T.maxMove<12&&T.rot<.14)doUndo();S.two=null;}}
 
 /* icons */

@@ -30,6 +30,11 @@
    Audio unlock        every AudioContext is resumed on each touch end (iOS rule) and after interruptions.
    AT.wake(on)         Screen wake lock (recorder).
    AT.inShell()        True inside the shell's frame.
+   AT.hint(id, {at, in, move, to, delay}) -> bool   Teach one gesture once: a ghost hand over the real target, no words.
+                       at {x,y}; in: element at is relative to (else the viewport); move 'tap'|'hold-drag'|'drag'|'twist';
+                       to {dx,dy}. Call it at the trigger and at a failed attempt: whichever comes first shows it.
+   AT.did(id)          The gesture was done: dismissed, never shown. Stored per id in localStorage 'audio.hints'.
+   AT.docs(tool)       The docs over the tool, which keeps running. AT.docsClose() from the page.
 
    Ready signal: two frames after load the page tells the shell it has painted, so the reveal never
    shows a blank tool. ?perf adds the frame-time overlay (window.__PERF). */
@@ -290,6 +295,82 @@
     p = ctx && ctx.audioWorklet ? ctx.audioWorklet.addModule(WK_URL) : Promise.reject(new Error('no AudioWorklet'));
     if (WKS) WKS.set(ctx, p); return p;
   };
+
+  /* ---------------------------------------------------------------- docs over the tool */
+  /* an overlay, not a tool switch: a take in progress or a running metronome must not stop for a look at the docs */
+  var BASE = (function () { try { return new URL('.', (document.currentScript && document.currentScript.src) || location.href).href; } catch (_) { return '../'; } })();
+  var docsFrame = null;
+  function docsOpen(tool) {
+    if (docsFrame) return; var f = docsFrame = document.createElement('iframe'); f.title = 'Docs';
+    f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;background:#000;z-index:2147483001';
+    f.src = BASE + 'docs.html' + (tool ? '#' + tool : ''); document.body.appendChild(f); pauseDraw(true);
+  }
+  function docsClose() { if (!docsFrame) return; docsFrame.remove(); docsFrame = null; pauseDraw(false); }
+  window.AT.docs = docsOpen; window.AT.docsClose = docsClose;
+
+  /* ---------------------------------------------------------------- hints */
+  /* One trigger, one hint, once. The layer has pointer-events:none, so it can never take a touch, and nothing runs until
+     AT.hint is called: no timers, no listeners, no rAF. It moves by the Web Animations API, off the tool's frame loop.
+     The docs dot beside the ghost is a tap read from the window's capture phase, so that touch still reaches the tool. */
+  var HK = 'audio.hints', hintMem = {}, H = null, HAND = 'M8 13v-8.5a1.5 1.5 0 0 1 3 0v7.5M11 11.5v-2a1.5 1.5 0 1 1 3 0v2.5M14 10.5a1.5 1.5 0 0 1 3 0v1.5M17 11.5a1.5 1.5 0 0 1 3 0v4.5a6 6 0 0 1 -6 6h-2h.208a6 6 0 0 1 -5.012 -2.7a69.74 69.74 0 0 1 -.196 -.3c-.312 -.479 -1.407 -2.388 -3.286 -5.728a1.5 1.5 0 0 1 .536 -2.022a1.867 1.867 0 0 1 2.28 .28l1.47 1.47';
+  var BOOK = 'M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6v13M12 6v13M21 6v13';
+  /* [time 0..1, dx share, dy share, press scale, opacity, turn in degrees] */
+  var MOVES = {
+    tap: { ms: 1800, k: [[0, 0, 0, 1.2, 0, 0], [.15, 0, 0, 1.2, 1, 0], [.3, 0, 0, 1, 1, 0], [.42, 0, 0, 1.2, 1, 0], [.57, 0, 0, 1, 1, 0], [.7, 0, 0, 1.2, 1, 0], [1, 0, 0, 1.2, 0, 0]] },
+    'hold-drag': { ms: 2400, k: [[0, 0, 0, 1.2, 0, 0], [.12, 0, 0, 1.2, 1, 0], [.22, 0, 0, 1, 1, 0], [.5, 0, 0, 1, 1, 0], [.85, 1, 1, 1, 1, 0], [1, 1, 1, 1.2, 0, 0]] },
+    drag: { ms: 1900, k: [[0, 0, 0, 1.2, 0, 0], [.15, 0, 0, 1.2, 1, 0], [.25, 0, 0, 1, 1, 0], [.8, 1, 1, 1, 1, 0], [1, 1, 1, 1.2, 0, 0]] },
+    twist: { ms: 2000, k: [[0, 0, 0, 1, 0, -20], [.15, 0, 0, 1, 1, -20], [.75, 0, 0, 1, 1, 110], [1, 0, 0, 1, 0, 110]] }
+  };
+  function hintsSeen() { var m = {}; try { m = JSON.parse(localStorage.getItem(HK) || '{}') || {}; } catch (_) {} for (var k in hintMem) m[k] = 1; return m; }
+  function hintMark(id) { hintMem[id] = 1; try { localStorage.setItem(HK, JSON.stringify(hintsSeen())); } catch (_) {} }
+  function fingers(e) { if (e.type === 'pointerdown') H.down++; else H.down = Math.max(0, H.down - 1); }
+  function hintEnd() {
+    var h = H; if (!h) return; H = null; clearTimeout(h.timer);
+    window.removeEventListener('pointerdown', fingers, true); window.removeEventListener('pointerup', fingers, true); window.removeEventListener('pointercancel', fingers, true);
+    window.removeEventListener('pointerdown', dotDown, true); window.removeEventListener('pointerup', dotUp, true);
+    if (h.el) h.el.remove();
+  }
+  function near(e) { var d = H && H.dot; return d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 26; }
+  function dotDown(e) { if (near(e)) H.press = { x: e.clientX, y: e.clientY, id: e.pointerId }; }
+  function dotUp(e) { var p = H && H.press; if (!p || p.id !== e.pointerId) return; H.press = null; if (near(e) && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 10) { var t = H.tool; hintEnd(); docsOpen(t); } }
+  /* the docs dot: 96 px from the gesture, inside the screen, clear of its path and of the hub's corner */
+  function dotSpot(a, b, W, Hi) {
+    for (var i = 0; i < 12; i++) {
+      var r = i * Math.PI / 6 - Math.PI / 2, x = a.x + 96 * Math.cos(r), y = a.y + 96 * Math.sin(r);
+      if (x < 30 || x > W - 30 || y < 70 || y > Hi - 70 || (x < 120 && y > Hi - 120)) continue;
+      if (Math.hypot(x - b.x, y - b.y) < 70) continue; return { x: x, y: y };
+    }
+    return { x: W / 2, y: 70 };
+  }
+  function hintShow() {
+    var h = H; if (!h) return;
+    if (h.down > 0 && h.tries++ < 20) { h.timer = setTimeout(hintShow, 250); return; }   // never under a finger
+    if (h.down > 0) { hintEnd(); return; }
+    var s = h.spec, m = MOVES[s.move] || MOVES.tap, r = s.in ? s.in.getBoundingClientRect() : { left: 0, top: 0 }, to = s.to || {}, dx = to.dx || 0, dy = to.dy || 0;
+    var a = { x: r.left + s.at.x, y: r.top + s.at.y }, W = window.innerWidth, Hi = window.innerHeight, spot = dotSpot(a, { x: a.x + dx, y: a.y + dy }, W, Hi);
+    var el = h.el = document.createElement('div'); el.setAttribute('aria-hidden', 'true');
+    el.style.cssText = 'position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2147483000';
+    var two = s.move === 'twist', blob = 'position:absolute;width:30px;height:30px;margin:-15px;border-radius:50%;background:rgba(255,255,255,.45);box-shadow:0 0 0 1.5px rgba(0,0,0,.75)';
+    el.innerHTML = '<div data-ghost style="position:absolute;left:' + a.x + 'px;top:' + a.y + 'px;width:0;height:0;opacity:0">' +
+      '<div style="' + blob + ';left:' + (two ? -26 : 0) + 'px"></div>' + (two ? '<div style="' + blob + ';left:26px"></div>' : '') +
+      '<svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:' + ((two ? 26 : 0) - 28.5) + 'px;top:-9px;overflow:visible"><path d="' + HAND + '" stroke="#000" stroke-width="2.2"/><path d="' + HAND + '" stroke="#fff" stroke-width="1.1"/></svg></div>' +
+      '<div data-dot style="position:absolute;left:' + (spot.x - 16) + 'px;top:' + (spot.y - 16) + 'px;width:32px;height:32px;border-radius:50%;background:#000;box-shadow:0 0 0 1.5px #fff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:7px;top:7px"><path d="' + BOOK + '"/></svg></div>';
+    document.body.appendChild(el); h.dot = spot; hintMark(h.id);
+    window.addEventListener('pointerdown', dotDown, true); window.addEventListener('pointerup', dotUp, true);
+    var kf = m.k.map(function (f) { return { offset: f[0], opacity: f[4], transform: 'translate(' + dx * f[1] + 'px,' + dy * f[2] + 'px) rotate(' + f[5] + 'deg) scale(' + f[3] + ')' }; });
+    var run = el.firstChild.animate(kf, { duration: m.ms, iterations: 2, easing: 'ease-in-out' }); h.run = run;
+    run.onfinish = function () { if (H === h) h.timer = setTimeout(hintEnd, 1200); };
+  }
+  function hint(id, spec) {
+    if (H || !spec || !spec.at || hintsSeen()[id] || docsFrame) return false;
+    H = { id: id, spec: spec, tool: id.split('.')[0], down: 0, tries: 0, el: null, dot: null };
+    window.addEventListener('pointerdown', fingers, true); window.addEventListener('pointerup', fingers, true); window.addEventListener('pointercancel', fingers, true);
+    H.timer = setTimeout(hintShow, spec.delay == null ? 500 : spec.delay);
+    return true;
+  }
+  function did(id) { hintMark(id); if (H && H.id === id) hintEnd(); }
+  window.AT.hint = hint; window.AT.did = did;
+  window.AT.hints = { seen: hintsSeen, now: function () { return H ? { id: H.id, on: !!H.el, dot: H.dot } : null; }, reset: function () { hintEnd(); hintMem = {}; try { localStorage.removeItem(HK); } catch (_) {} } };
 
   /* ---------------------------------------------------------------- ready: painted at least one frame */
   function ready() { requestAnimationFrame(function () { requestAnimationFrame(function () { var s = shell(); if (s && s.ready) s.ready(window); }); }); }

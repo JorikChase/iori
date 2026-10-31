@@ -34,6 +34,14 @@
       "type": "experiment",
       "priority": 0.5
     },
+    "audio/docs.html": {
+      "title": "Audio Tools Docs — Gestures for Every Tool",
+      "description": "How to use Audio Tools: the gestures of the recorder, editor, synth, practice player, metronome, tuner, BPM detector and analyzer.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "hidden": true
+    },
     "audio/icon/blue-cream/index.html": {
       "title": "Audio Tools icon: Blue + cream",
       "description": "Install Audio Tools with the Blue + cream icon, with the steps for your browser.",

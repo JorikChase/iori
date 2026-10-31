@@ -12,8 +12,8 @@ and FILES = the precache list. Run after any change under audio/:
 import hashlib, json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# app files beside the shell, precached when present (worklet modules, the wheel component)
-OPTIONAL = ["worklet-capture.js", "worklet-player.js", "wheel.js"]
+# app files beside the shell, precached when present (worklet modules, the wheel component, the docs page)
+OPTIONAL = ["worklet-capture.js", "worklet-player.js", "wheel.js", "docs.html"]
 FILES = ["./", "index.html", "manifest.json", "shared.js"] + [f for f in OPTIONAL if os.path.exists(os.path.join(HERE, f))] + sorted(
     "t/" + f for f in os.listdir(os.path.join(HERE, "t")) if f.endswith(".html"))
 ICONS = ["icon/orb/192.png", "icon/orb/512.png"]

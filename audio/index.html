@@ -132,6 +132,12 @@ html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);overflo
 #hit.corner{width:104px;height:104px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 body.in-tool #site-menu{display:none}
+/* the docs icon mirrors the hub: home screen only, in the bottom-right corner */
+#docs{position:absolute;right:22px;bottom:22px;width:44px;height:44px;margin:0;padding:0;border:0;background:none;color:var(--ink);font-size:20px;display:flex;align-items:center;justify-content:center;z-index:7;-webkit-tap-highlight-color:transparent}
+body.in-tool #docs{display:none}
+.ti-book{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20%3E%20%3Cpath%20d%3D%22M3%2019a9%209%200%200%201%209%200a9%209%200%200%201%209%200%22%20%2F%3E%20%3Cpath%20d%3D%22M3%206a9%209%200%200%201%209%200a9%209%200%200%201%209%200%22%20%2F%3E%20%3Cpath%20d%3D%22M3%206l0%2013%22%20%2F%3E%20%3Cpath%20d%3D%22M12%206l0%2013%22%20%2F%3E%20%3Cpath%20d%3D%22M21%206l0%2013%22%20%2F%3E%20%3C%2Fsvg%3E")}
+#docsframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--ground);z-index:8}
+body.docs-open #site-menu{display:none}
 </style>
 <div id="app">
   <h1 class="sr-only">Audio tools: hold the orb and drag toward a tool to open it; in a tool, the bottom-left dot goes home on tap, or switches tools when held and dragged.</h1>
@@ -140,6 +146,7 @@ body.in-tool #site-menu{display:none}
   <canvas id="orb" aria-hidden="true"></canvas>
   <div id="icons"></div>
   <div id="hit"></div>
+  <button id="docs" type="button" aria-label="Docs"><i class="ti ti-book" aria-hidden="true"></i></button>
 </div>
 <script>
 /* ?perf — a frame-time readout for device measurements. iOS exposes no GPU timers, so what we can see is the
@@ -310,6 +317,9 @@ function unload(f){f.k=null;f.ready=f.loaded=false;clip(f,0);f.el.removeAttribut
 function preload(k){var f=spare();if(f.k===k)return f;f.k=k;f.ready=f.loaded=false;f.t0=performance.now();clip(f,0);
  f.el.style.zIndex=2;if(curF>=0)F[curF].el.style.zIndex=1;f.el.setAttribute('src',toolSrc(k));return f;}
 function dropSpare(){if(S.mode==='entering')return;var f=spare();if(f.k)unload(f);}
+/* the docs over the home screen, closed from inside the page */
+document.getElementById('docs').addEventListener('click',function(){if(document.getElementById('docsframe'))return;var f=document.createElement('iframe');f.id='docsframe';f.title='Docs';f.src='docs.html';app.appendChild(f);document.body.classList.add('docs-open');});
+window.ATS.docsClose=function(){var f=document.getElementById('docsframe');if(f)f.remove();document.body.classList.remove('docs-open');};
 window.ATS.ready=function(win){F.forEach(function(f){try{if(f.k&&f.el.contentWindow===win){f.ready=true;f.readyMs=performance.now()-f.t0;}}catch(_){}});};
 window.ATS.go=function(k){var i=-1;TOOLS.forEach(function(t,j){if(t.k===k)i=j;});if(i<0||S.mode==='entering'||S.mode==='going')return;if(S.mode==='tool'&&S.tool===i)return;enter(i);};
 window.ATS.preload=function(k){if(S.mode==='home'||S.mode==='tool')preload(k);};

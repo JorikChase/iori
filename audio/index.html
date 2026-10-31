@@ -259,6 +259,8 @@ var U={};['uRes','uC','uF','uSat','uWO','uT','uDpr','uR','uFk','uMelt','uSel','u
 var W=380,H=700,dpr=1;
 function size(){W=app.clientWidth||380;H=app.clientHeight||700;dpr=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);gl.viewport(0,0,cv.width,cv.height);}
 size();window.addEventListener('resize',size);
+/* iOS applies the safe areas of an installed app with no resize event: the canvas would stretch while the icons stay true */
+if(window.ResizeObserver)new ResizeObserver(size).observe(app);
 function mkI(){var e=document.createElement('i');e.className='ti';IB.appendChild(e);return e;}
 var sIcons=TOOLS.map(function(t){var e=mkI();e.className='ti ti-'+t.ic;e.style.color='#000';return e;});
 var dIcons=[0,1,2].map(function(){var e=mkI();e.style.color='#000';return e;});

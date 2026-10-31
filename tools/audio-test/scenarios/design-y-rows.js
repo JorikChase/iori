@@ -11,7 +11,7 @@ module.exports = async (lib) => {
   const timing = (a) => { const fl = a.filter(x => x.f > .5), dth = a.filter(x => x.i > .02 && x.i < .98); return { flash: fl.length ? fl[fl.length - 1].t - fl[0].t : 0, steps: new Set(dth.map(x => x.i.toFixed(2))).size, end: dth.length ? dth[dth.length - 1].t : 0 }; };
 
   // metronome: G1, G2, G3
-  let page = await open('metro'); await page.evaluate(() => { AT.setTempo(120); __S.bpm = 120; }); await page.waitForTimeout(500);
+  let page = await open('metro'); await page.evaluate(() => { AT.setTempo(120); __S.bpm = 120; }); await page.waitForTimeout(2500);   // the cells' springs settle before the frames are compared
   const m1 = await d.panels(page); checks.G1_metro = m1.includes('120'); info.g1metro = m1;
   const g3 = await page.evaluate(async () => { const s = JSON.stringify(Array.from(__TD.d)); let same = 0, n = 0; for (let k = 0; k < 30; k++) { await new Promise(r => requestAnimationFrame(r)); if (k === 10) AT.setTempo(120); n++; if (JSON.stringify(Array.from(__TD.d)) === s) same++; } return { same, n }; });
   checks.G3_noRewrite = g3.same === g3.n; info.g3 = g3;

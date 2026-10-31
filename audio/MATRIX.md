@@ -279,3 +279,5 @@ Real frames and transitions, Chromium, holds stretched (`flowkit.js`) because th
 | F1 | Record → place → edit → export; leave and return after the take, the clip, the edit and the mix | H | pass (flow-rec-edit-export: 3.17 s take, trimmed to 2.4 and moved, mix 4.2 s silent to the clip, WAV shared, no second mix) |
 | F2 | Synth capture → place → arrange → export; leave and return | H | pass (flow-synth-arrange-export: 10 s and 4.3 s captures, a copy, mix 14.81 s, not silent; garden back, capture restarts empty after leaving the synth) |
 | F3 | File in → BPM → practice; leave and return; tempo through metronome and editor | H | pass (flow-file-bpm-practice: 120 from the file; own tempo in practice with the shared tempo at 75; speed, loop, position, source back) |
+| Z9 | Tool icons: tuning fork, stopwatch, solid red dot, spectrum curve (owner 2026-10-31); dots stay on icons when the safe areas arrive late (shell-safe-area) | H+D | pass harness; device todo |
+| Z10 | An unchanged mix is not saved twice, also after leaving the editor | H | pass (flow-rec-edit-export) |

@@ -605,6 +605,8 @@ function mixSig(cs){return JSON.stringify([BPM].concat(cs.map(function(c){return
 function mixTap(){var m=S.mix;if(m.st==='busy'||!window.AT)return;var cs=mixClips();if(!cs.length)return;var sig=mixSig(cs);
  if(m.st==='ready'&&m.sig===sig){m.arm=performance.now();return;}
  if(m.file&&m.sig===sig){m.st='ready';m.t=performance.now();S.mxV=3;return;}   /* unchanged since the last save: no second take */
+ if(m.st==='idle'&&m.sid===sig&&m.id){m.st='busy';   /* the same, saved before leaving the editor: the take is the file, unless it was deleted */
+  AT.takes.get(m.id).then(function(k){if(!k||!k.data){m.st='idle';renderMix(cs,sig);return;}var blob=wav(k.data,k.sr),n=k.name||'mix';m.blob=blob;m.file=new File([blob],n+'.wav',{type:'audio/wav'});m.name=n;m.len=k.data.length;m.sr=k.sr;m.sig=sig;m.p=1;m.st='ready';m.t=performance.now();S.mxV=3;},function(){m.st='idle';renderMix(cs,sig);});return;}
  renderMix(cs,sig);}
 function stamp(d){function z(n){return(n<10?'0':'')+n;}return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());}
 function renderMix(cs,sig){var m=S.mix,tok=++m.tok;m.st='busy';m.p=0;m.file=m.blob=null;m.err=null;
@@ -617,7 +619,7 @@ function renderMix(cs,sig){var m=S.mix,tok=++m.tok;m.st='busy';m.p=0;m.file=m.bl
  .then(function(){live();var sr=0;cs.forEach(function(c){sr=Math.max(sr,slotOf(c.k).sr);});return offline(cs,sr,function(q){m.p=.3+.55*q;});})
  .then(function(r){live();var data=r.data,name='mix-'+stamp(new Date());m.p=.9;
   return AT.takes.put({name:name,kind:'mix',sr:r.sr,data:data}).then(function(meta){if(tok!==m.tok)return;var blob=wav(data,r.sr);
-   m.blob=blob;m.file=new File([blob],name+'.wav',{type:'audio/wav'});m.id=meta.id;m.name=name;m.len=data.length;m.sr=r.sr;m.sig=sig;m.p=1;m.st='ready';m.t=performance.now();S.mxV=3;});})
+   m.blob=blob;m.file=new File([blob],name+'.wav',{type:'audio/wav'});m.id=meta.id;m.name=name;m.len=data.length;m.sr=r.sr;m.sig=m.sid=sig;m.p=1;m.st='ready';m.t=performance.now();S.mxV=3;save();});})
  .catch(function(e){if(tok!==m.tok)return;m.st='idle';m.p=0;m.err=String(e&&e.message||e);});}
 function exportMix(){var m=S.mix;if(m.st!=='ready'||!m.file)return;var f=m.file,blob=m.blob;m.st='idle';
  try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
@@ -630,7 +632,7 @@ function wav(data,sr){var n=data.length,b=new ArrayBuffer(44+n*2),v=new DataView
 /* session: the timeline survives leaving the editor (AT.session 'edit'); saved ~300 ms after any change and on pagehide.
    v3 adds every clip setting (source length, warp, mode, original tempo, transpose, gain, fades, curve); a v2 session
    loads with the defaults (unwarped, no fades: sl = d). Crossfades are the overlaps of the saved positions. */
-function snapshot(T){return{v:3,tl:TL,ph:T,vt:+S.vt.toFixed(3),pps:+S.pps.toFixed(3),snap:S.snapOn?1:0,push:S.push?1:0,hx:Math.round(S.hxT),
+function snapshot(T){return{v:3,mx:S.mix.sid&&S.mix.id?{sig:S.mix.sid,id:S.mix.id}:null,tl:TL,ph:T,vt:+S.vt.toFixed(3),pps:+S.pps.toFixed(3),snap:S.snapOn?1:0,push:S.push?1:0,hx:Math.round(S.hxT),
  tracks:D.tracks.map(function(t){return{m:t.m?1:0,s:t.s?1:0,a:t.a?1:0};}),
  clips:D.clips.filter(function(c){return !c.dying;}).map(function(c){return{k:c.k,t:c.t,s:c.s,d:dOf(c),off:c.off,rev:c.rev?1:0,sl:c.sl,warp:c.warp?1:0,mode:c.mode,ot:c.ot,ots:c.ots,semi:c.semi,gain:c.gain,fin:c.fin,fout:c.fout,curve:c.curve};})};}
 var lastSaved='';
@@ -638,6 +640,7 @@ function save(flush){if(!S.ready||!window.AT)return;var o=snapshot(flush&&S.play
 var SES=window.AT?AT.session.load('edit'):null;
 (function(o){if(!o||typeof o!=='object')return;var tr=(o.tracks||[]).slice(0,MAXT);if(tr.length)D=blank(0);
  tr.forEach(function(t){D.tracks.push({m:!!t.m,s:!!t.s,a:false});});
+ if(o.mx){S.mix.sid=o.mx.sig;S.mix.id=o.mx.id;}
  if(o.tl>0)TL=Math.max(TL0,+o.tl);if(o.pps>=8&&o.pps<=160)S.pps=+o.pps;S.ph=Math.max(0,+o.ph||0);S.vt=Math.max(0,+o.vt||0);
  if(o.snap!=null)S.snapOn=!!o.snap;if(o.push!=null)S.push=!!o.push;S.hx=S.hxT=clamp(+o.hx||0,0,maxHx());})(SES);
 function num(v,lo,hi,dv){v=+v;return v>=lo&&v<=hi?v:dv;}

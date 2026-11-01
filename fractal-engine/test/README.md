@@ -39,7 +39,10 @@ finished (no WebGPU, error, timeout).
   alongside another GPU-heavy render.
 - The collage suite (K2) compiles the collage's march, walk and step shaders in both variants, then
   diffs its program against `core/collage.js` on the cases in `collage-cases.js`: forward rows
-  (estimate, shares, piece, seam, colour), keep rows (push's keep rule), step rows (the measured L).
+  (estimate, shares, piece, seam, colour), keep rows (push's keep rule), step rows (the measured L), sense rows
+  (gpu/sense.js senseCollage against the CPU's trace and central differences of `collageAt`: hits, the normal, every
+  parameter's speed, the pieces' drivers among them) and overlay rows (the lens's overlay against the values really
+  changed). `collage-sense.test.mjs` checks the chain rule behind the sense rows on every case without a GPU.
 - The page's `ok` is the verdict. The per-suite split repeats the page's thresholds; if parity.html
   changes them, the runner prints a note until `SUITES` in `run-parity.mjs` is updated.
 

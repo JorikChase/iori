@@ -48,6 +48,8 @@ export const COLLAGES = [
   ['sub stairs, a grown cutter', C(`{ ${BOX} } size .3 ∖ stairs .2 3 { ${BULB} } at .4 .4 .3 size .6 grow .15`), 1.6],
   ['morph', C(`{ ${BULB} } ~ .35 { ${BOX} } size .25`), 1.5],
   ['three: turn, polar, chamfer cut', C(`{ ${BULB} } size .3 polar 5 1.2 y ∪ .2 { ${KIFS} } turn 10 20 30 size .4 ∖ chamfer .1 { quat · +c ×12 bail=4 c=-.2,.6,.2,.1 } at 0 .3 0 size .5 grow .08`), 2],
+  // (the cutter above swallows nearly everything: a small one, so the sensing pass has hits through all three)
+  ['three open: turn, polar, chamfer cut', C(`{ ${BULB} } size .3 polar 5 1.2 y ∪ .2 { ${KIFS} } turn 10 20 30 size .4 ∖ chamfer .1 { ${BULB} } at 0 .4 .3 size .15 grow .05`), 1.1],
   ['grid', C(`{ ${BULB} } size .2 grid .6 .6 0 2 1 ∪ .1 { ${BOX} } at 0 0 .8 size .15`), 1.8],
   ['mirror xz', C(`{ ${BULB} } at .5 0 .2 size .4 mirror xz .5 .3 ∪ exp .1 { ${BOX} } size .2`), 1.8],
   // (a chimera whose walk finds preimages: the CPU's push of the box ‖ bulb blend dies out)

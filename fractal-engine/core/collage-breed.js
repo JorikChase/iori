@@ -6,7 +6,8 @@
 // there). Different counts, or a collage and a formula, do not breed (lerpCollage returns null).
 //
 // The metric (as core/breed.js's): entries name a collage number { ref: 'P0.tx' | 'J1.r' …, pxPerUnit }
-// or a piece's op parameter { piece, oi, op, key, pxPerUnit }. mutateCollage steps D on-screen pixels in
+// a piece's op parameter { piece, oi, op, key, pxPerUnit }, or a piece's driver parameter { piece, drive:
+// a core/drive.js ref, pxPerUnit }. mutateCollage steps D on-screen pixels in
 // a random direction across the unpinned ones, so every neighbour is a known visual distance away.
 
 import { masterParam } from './sub.js';
@@ -14,6 +15,7 @@ import { normCollage, isCollage, PLACE, REP, JOIN } from './collage.js';
 import { getCollageParam, setCollageParam } from './collage-edit.js';
 import { normalize } from './formula.js';
 import { getOp } from './ops.js';
+import { getDriveParam, setDriveParam } from './drive.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const structureOf = (f) => JSON.stringify([f.slots.map((sl) => sl.map((o) => o.op)), f.schedule, f.iters, f.c ? 1 : 0, !!f.drive, !!f.shade]);
@@ -71,18 +73,22 @@ export function lerpCollage(a, b, t) {
 
 // ---------- the metric ------------------------------------------------------------------------------
 
-export const metricId = (m) => (m.ref ? m.ref : `P${m.piece}:${m.oi}.${m.key}`);
+export const metricId = (m) => (m.ref ? m.ref : m.drive ? `P${m.piece}:${m.drive}` : `P${m.piece}:${m.oi}.${m.key}`);
 
 export function metricValue(c, m) {
   if (m.ref) return getCollageParam(c, m.ref);
-  const pc = normCollage(c).pieces[m.piece], o = pc && pc.f.slots.flat()[m.oi];
+  const pc = normCollage(c).pieces[m.piece];
+  if (m.drive) return pc && pc.f.drive ? getDriveParam(pc.f.drive, m.drive) : undefined;
+  const o = pc && pc.f.slots.flat()[m.oi];
   return o ? o.p[m.key] : undefined;
 }
 
 // the collage with one metric entry set (clamped to its range)
 export function withMetric(c, m, v) {
   if (m.ref) return setCollageParam(c, m.ref, v);
-  const g = clone(normCollage(c)), f = g.pieces[m.piece].f, to = masterParam(f, m.oi, m.key), o = f.slots.flat()[to.oi];
+  const g = clone(normCollage(c)), f = g.pieces[m.piece].f;
+  if (m.drive) { setDriveParam(f.drive, m.drive, v); return normCollage(g); }
+  const to = masterParam(f, m.oi, m.key), o = f.slots.flat()[to.oi];
   const q = getOp(o.op).params.find((p) => p.k === m.key);
   if (q && q.min !== undefined) v = Math.max(q.min, v);
   if (q && q.max !== undefined) v = Math.min(q.max, v);

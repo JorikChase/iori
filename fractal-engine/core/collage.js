@@ -204,6 +204,31 @@ export function smin(k, a, b, r, steps = 4) {
   }
 }
 
+// the derivative of smin in r (the sensing pass's seam width: core/collage-sense.js)
+export function sminR(k, a, b, r, steps = 4) {
+  if (k === 'hard' || !(r > 0)) return 0;
+  const m = Math.min(a, b), x = Math.abs(a - b);
+  switch (k) {
+    case 'quad': { const h = clamp01(0.5 + (0.5 * (b - a)) / r); return -h * (1 - h); }
+    case 'cubic': { const h = Math.max(r - x, 0) / r; return -(h * h) * (3 * x / r + h) / 6; }
+    case 'exp': { const e = Math.exp(-x / r); return -Math.log1p(e) - (e / (1 + e)) * (x / r); }
+    case 'circ': {
+      const R = r * CIRC;
+      if (x >= R) return 0;
+      const h = (R - x) / R, s = Math.sqrt(1 + 2 * h - h * h);
+      return CIRC * (-0.5 * (1 + h - s) - 0.5 * (1 - (1 - h) / s) * (x / R));
+    }
+    case 'stairs': {
+      const q = Math.max(steps, 1), st = r / q, u = b - r, X = u - a + st, z = gmod(X, 2 * st) - st;
+      if (0.5 * (u + a + Math.abs(z)) >= m) return 0;
+      const dz = -1 + 1 / q - Math.floor(X / (2 * st)) * (2 / q) - 1 / q;
+      return 0.5 * (-1 + (z >= 0 ? 1 : -1) * dz);
+    }
+    case 'chamfer': return (a - r + b) * Math.SQRT1_2 < m ? -Math.SQRT1_2 : 0;
+    default: return 0;
+  }
+}
+
 // one join: [d, ∂d/∂a, ∂d/∂b, seam]
 export function joinEval(j, a, b) {
   if (j.op === 'morph') {
@@ -221,6 +246,14 @@ export function joinEval(j, a, b) {
   }
   const [d, ga, gb] = smin(j.k, a, b, j.r, j.n);
   return [d, ga, gb, seamOf(a - b)];
+}
+
+// the join's derivative in the number that shapes it: r, or a morph's w
+export function joinShape(j, a, b) {
+  if (j.op === 'morph') return b - a;
+  if (j.op === 'inter') return -sminR(j.k, -a, -b, j.r, j.n);
+  if (j.op === 'sub') return -sminR(j.k, -a, b, j.r, j.n);
+  return sminR(j.k, a, b, j.r, j.n);
 }
 
 // ---------- placement and repetition ---------------------------------------------------------------
@@ -258,6 +291,30 @@ export function repFold(rep, v) {
     q[w] = rho * Math.sin(th);
   }
   return q;
+}
+
+// the fold's derivatives at v (a point of the piece's frame), for gradients coming back through it:
+// up(g) is Jᵀg, g being a gradient at the folded point; along(key, g) is how far the estimate moves per
+// unit of the repetition's number, g being that gradient (its numbers, in core/collage.js REP)
+export function repDual(rep, v) {
+  if (!rep) return { up: (g) => [...g], along: () => 0 };
+  if (rep.kind === 'grid') {
+    const cells = ['x', 'y', 'z'].map((a, i) => { const c = rep['c' + a], m = rep['n' + a]; return c > 0 ? Math.min(m, Math.max(-m, Math.round(v[i] / c))) : 0; });
+    return { up: (g) => [...g], along: (key, g) => { const i = 'xyz'.indexOf(key[1]); return -cells[i] * g[i]; } };
+  }
+  if (rep.kind === 'mirror') {
+    return {
+      up: (g) => g.map((x, i) => (rep['m' + 'xyz'[i]] && v[i] < 0 ? -x : x)),
+      along: (key, g) => { const i = 'xyz'.indexOf(key[1]); return rep['m' + key[1]] ? -g[i] : 0; },
+    };
+  }
+  // polar: the point turns by δ into the sector, then steps r in along u
+  const [u, w] = POLAR_PLANE[rep.axis], sec = (2 * Math.PI) / rep.n, phi = Math.atan2(v[w], v[u]);
+  const delta = gmod(phi + sec / 2, sec) - sec / 2 - phi, c = Math.cos(delta), s = Math.sin(delta);
+  return {
+    up: (g) => { const o = [...g]; o[u] = c * g[u] + s * g[w]; o[w] = c * g[w] - s * g[u]; return o; },
+    along: (key, g) => (key === 'r' ? -g[u] : 0),
+  };
 }
 
 // every copy's linear map and offset: the drawn copy's point q is at L·q + o in the piece's frame
@@ -311,10 +368,52 @@ export function drivenAt(c, x, time = 0) {
 
 // ---------- the estimate ----------------------------------------------------------------------------
 
+// the collage's values at x as the GPU reports them: its bindings' values written in (values in
+// c.drive.bind order; a binding without a target has none)
+export function drivenWith(c, values) {
+  if (!c.drive || !c.drive.bind.length) return c;
+  const g = {
+    ...c,
+    pieces: c.pieces.map((q) => ({ ...q, place: { ...q.place }, rep: q.rep && { ...q.rep } })),
+    joins: c.joins.map((j) => ({ ...j })),
+  };
+  let k = 0;
+  c.drive.bind.forEach((b) => {
+    const t = collageTarget(g, b.to);
+    if (t && c.drive.nodes.some((m) => m.id === b.from)) t.obj[t.key] = values[k++];
+  });
+  return g;
+}
+
 // piece i's own estimate at world point x (its placement and repetition applied)
 export function pieceDE(piece, x, opts = {}) {
   const q = repFold(piece.rep, toPiece(piece.place, x));
   return piece.place.s * de(piece.f, q, undefined, opts) - piece.place.g;
+}
+
+// The joins folded left to right over the pieces' distances: d, w (each piece's share, summing to 1), piece,
+// seam, lead. duals: also a (∂d/∂dist of every piece) and shape (∂d/∂ the number that shapes each join).
+export function foldJoins(c, dists, duals = false) {
+  let D = dists[0], seam = 0;
+  const w = [1], a = [1], shape = [];
+  c.joins.forEach((j, i) => {
+    const [d, ga, gb, s] = joinEval(j, D, dists[i + 1]);
+    const A = Math.abs(ga), B = Math.abs(gb), share = A + B > 0 ? A / (A + B) : 0.5;
+    for (let k = 0; k < w.length; k++) w[k] *= share;
+    w.push(1 - share);
+    if (duals) {
+      for (let k = 0; k < a.length; k++) a[k] *= ga;
+      for (let k = 0; k < shape.length; k++) shape[k] *= ga;
+      a.push(gb);
+      shape.push(joinShape(j, D, dists[i + 1]));
+    }
+    D = d;
+    seam = Math.max(seam, s);
+  });
+  const N = w.length;
+  const piece = N > 1 ? w.reduce((q, v, i) => q + (v * i) / (N - 1), 0) : 0;
+  const lead = w.indexOf(Math.max(...w));
+  return { d: D, w, piece, seam, lead, ...(duals ? { a, shape } : {}) };
 }
 
 // Everything the collage knows at world point x: d (the estimate), dists (each piece's own), w (each
@@ -324,20 +423,7 @@ export function collageAt(collage, x, opts = {}) {
   const c0 = collage.__norm ? collage : normCollage(collage);
   const c = drivenAt(c0, x, opts.time || 0);
   const dists = c.pieces.map((q) => pieceDE(q, x, opts));
-  let D = dists[0], seam = 0;
-  const w = [1];
-  c.joins.forEach((j, i) => {
-    const [d, ga, gb, s] = joinEval(j, D, dists[i + 1]);
-    const A = Math.abs(ga), B = Math.abs(gb), share = A + B > 0 ? A / (A + B) : 0.5;
-    for (let k = 0; k < w.length; k++) w[k] *= share;
-    w.push(1 - share);
-    D = d;
-    seam = Math.max(seam, s);
-  });
-  const N = w.length;
-  const piece = N > 1 ? w.reduce((a, v, i) => a + (v * i) / (N - 1), 0) : 0;
-  const lead = w.indexOf(Math.max(...w));
-  return { d: D, dists, w, piece, seam, lead };
+  return { ...foldJoins(c, dists), dists };
 }
 
 export const collageDE = (c, x, opts = {}) => collageAt(c, x, opts).d;

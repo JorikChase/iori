@@ -53,7 +53,7 @@ import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
 import { evalShade, shadeTarget } from './core/shade.js';
 import { hash, spawnRadius } from './core/formula.js';
-import { paramTangents } from './gpu/pack.js';
+import { paramTangents, collageSlot } from './gpu/pack.js';
 import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
 import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveInPortAt, driveLinkAt, inLane, inTop, typeGlyph, driverGlyph } from './ui/drivegraph.js';
@@ -3009,10 +3009,10 @@ async function enterGrab(x, y, press = null) {
     uvs.push(((x + Math.cos(a) * RETICLE) / innerWidth) * 2 - 1, ((y + Math.sin(a) * RETICLE) / innerHeight) * 2 - 1);
   }
   let r = null;
-  // a collage is sensed on the CPU (core/collage-sense.js); a formula on the GPU, where the whole-view
-  // pass may be running (it is slower with many parameters): wait for it, up to 3 s
-  if (state.collage) r = senseCollage(state.collage, senseView(), innerHeight, new Float32Array(uvs), { lyap: false });
-  for (let tries = 0; tries < 120 && !r; tries++) {
+  // sensed on the GPU, where the whole-view pass may be running (it is slower with many parameters):
+  // wait for it, up to 3 s
+  if (state.collage) r = await senseDocCollage(state.collage, new Float32Array(uvs), { lyap: false });
+  for (let tries = 0; tries < 120 && !r && !state.collage; tries++) {
     r = await S.sense(state.formula, senseView(), innerHeight, new Float32Array(uvs));
     if (!r) await new Promise((res) => setTimeout(res, 25));
   }
@@ -3047,10 +3047,10 @@ function drawGrabNow() {
     // a collage's number: a placement's or a join's glyph, or the piece's op; the piece's orbit is in its
     // own frame, so none is drawn
     att.value = valueOf(state.collage, att);
-    const pf = att.piece != null ? state.collage.pieces[att.piece].f : null, o = pf ? pf.slots.flat()[att.oi] : null;
+    const pf = att.piece != null ? state.collage.pieces[att.piece].f : null, o = pf && !att.drive ? pf.slots.flat()[att.oi] : null;
     drawGrab(overlay, C, {
       screen: [grab.x, grab.y], hit: grab.hit, t: grab.t,
-      attention: { op: att.op || null, key: att.key || att.ref, value: att.value, glyph: att.ref ? refGlyph(att.ref) : getOp(att.op).glyph },
+      attention: { op: att.op || null, key: att.key || att.ref || att.drive, value: att.value, glyph: paramGlyph(att, pf) },
       params: o ? o.p : {}, ring: grab.ring, lyap: grab.lyap, orbit: { points: [], branches: [] },
     });
     return;
@@ -3094,32 +3094,37 @@ function passAttention(step, x) {
 const NONLINEAR = (p) => p.op === 'rotate' || p.op === 'rotate4' || (p.op === 'fold.plane' && p.key !== 'd');
 const INSET_R = 70;
 let lens = null;
+// a parameter's glyph: a collage number's, a driver's (f: the formula it drives), an op's
+const paramGlyph = (p, f) => (p.ref ? refGlyph(p.ref) : p.drive ? driveGlyphOf(f, p.drive) : getOp(p.op).glyph);
+// which op, or which of the collage's pieces and joins, a parameter belongs to
+const ownerOf = (p) => (p.ref ? p.ref.split('.')[0] : `${p.piece}:${p.oi}`);
 
 function openLens() {
-  // the lens varies a formula's op records in one pass: a collage has no such pass yet
-  if (!grab || grab.knobs || lens || state.collage) return false;
+  if (!grab || grab.knobs || lens) return false;
   const att = grab.ranked[grab.k];
   // a driver's parameter is not offered: the lens varies op records, the drivers' program is not one
   const linear = grab.ranked.filter((p) => !p.drive && !NONLINEAR(p));
   const p1 = !att.drive && !NONLINEAR(att) ? att : linear[0];
   if (!p1) return false;
-  const p2 = linear.find((p) => p !== p1 && p.oi === p1.oi) || linear.find((p) => p !== p1);
-  const tg = paramTangents(state.formula).list;
-  const drecOf = (p) => tg.find((t) => t.oi === p.oi && t.key === p.key).drec;
-  const f = normalize(state.formula);
-  const valueOf = (p) => f.slots.flat()[p.oi].p[p.key];
+  const p2 = linear.find((p) => p !== p1 && ownerOf(p) === ownerOf(p1)) || linear.find((p) => p !== p1);
+  // on a collage: a piece's op varies its record in that piece, a number of the collage's own its place in
+  // the program (gpu/render.js COLLAGE_LENS), angles too
+  const c = state.collage;
+  const drecOf = (p) => (p.ref ? new Float64Array(20) : paramTangents(c ? c.pieces[p.piece].f : state.formula).list.find((t) => t.oi === p.oi && t.key === p.key).drec);
+  const rangeOf = (p) => { const q = collageTarget(c, p.ref).spec; return [q.min ?? -1e30, q.max ?? 1e30]; };
   const th = Math.tan((state.look.fovDeg * Math.PI) / 360);
   const foot = grab.t * (2 * th) / innerHeight;
   const dpr = canvas.width / innerWidth;
   const params = p2 ? [p1, p2] : [p1];
   R.lens({
     x: grab.hit, foot, spans: [innerWidth / p1.pxPerUnit, p2 ? innerHeight / p2.pxPerUnit : 0],
-    ops: params.map((p) => p.oi), drecs: params.map(drecOf),
+    ops: params.map((p) => p.oi ?? 0), drecs: params.map(drecOf),
     size: [Math.round(canvas.width / 2), Math.round(canvas.height / 2)], key: state.look.key,
-  });
+    ...(c ? { pieces: params.map((p) => p.piece), flats: params.map((p) => (p.ref ? collageSlot(c, p.ref) : null)), lims: params.map((p) => (p.ref ? rangeOf(p) : null)) } : {}),
+  }, () => !!lens);
   const inset = [innerWidth - INSET_R - 30, innerHeight - INSET_R - 30, INSET_R];
   R.setLens(true, inset.map((v) => v * dpr));
-  lens = { params, v0: params.map(valueOf), x0: null, y0: null, at: [innerWidth / 2, innerHeight / 2], inset };
+  lens = { params, v0: params.map((p) => valueOf(doc(), p)), x0: null, y0: null, at: [innerWidth / 2, innerHeight / 2], inset };
   drawLensNow();
   return true;
 }
@@ -3128,24 +3133,17 @@ function moveLens(x, y) {
   if (lens.x0 === null) { lens.x0 = x; lens.y0 = y; }
   const dx = x - lens.x0, dy = y - lens.y0;
   lens.at = [innerWidth / 2 + dx, innerHeight / 2 + dy];
-  let g = state.formula;
-  lens.params.forEach((p, i) => {
-    const q = getOp(p.op).params.find((r) => r.k === p.key);
-    let v = lens.v0[i] + (i === 0 ? dx : -dy) / p.pxPerUnit;
-    if (q.min !== undefined) v = Math.max(q.min, v);
-    if (q.max !== undefined) v = Math.min(q.max, v);
-    g = withParam(g, p.oi, p.key, +v.toPrecision(6));
-  });
-  setFormula(format(g));
+  let g = doc();
+  lens.params.forEach((p, i) => { g = withAny(g, p, +(lens.v0[i] + (i === 0 ? dx : -dy) / p.pxPerUnit).toPrecision(6)); });
+  setDoc(formatAny(g));
   drawLensNow();
 }
 
 function drawLensNow() {
-  const f = normalize(state.formula);
   drawLens(overlay, {
     W: innerWidth, H: innerHeight, at: lens.at, inset: lens.inset,
-    glyphs: lens.params.map((p) => getOp(p.op).glyph),
-    values: lens.params.map((p) => f.slots.flat()[p.oi].p[p.key]),
+    glyphs: lens.params.map((p) => paramGlyph(p)),
+    values: lens.params.map((p) => valueOf(doc(), p)),
   });
 }
 
@@ -4044,8 +4042,8 @@ async function growArchive() {
   } finally { archiveBusy = false; }
 }
 
-// a small sensing pass of another document: a formula on the GPU, a collage on the CPU (no parameters)
-const senseOther = (x) => (isCollage(x) ? Promise.resolve(senseCollage(x, senseView(), innerHeight, SMALL, { params: false })) : S.sense(x, senseView(), innerHeight, SMALL, true));
+// a small sensing pass of another document, without its parameters on a collage
+const senseOther = (x) => (isCollage(x) ? senseDocCollage(x, SMALL, { params: false, other: true }) : S.sense(x, senseView(), innerHeight, SMALL, true));
 
 const RING_MS = 1200, LOCAL_D = [35, 60, 90, 130], FAR_D = [170, 230, 300, 380];
 let ring = null;
@@ -4383,15 +4381,32 @@ function senseView() {
   };
 }
 
+// A collage is sensed on the GPU once its pass has compiled (gpu/sense.js; the whole-view grid unless uvs
+// says); until then, or with no GPU pass, on the CPU over a coarser grid (core/collage-sense.js). A pass
+// already running is waited for, up to 3 s. opts: { params, lyap, other }
+async function senseDocCollage(c, uvs = null, opts = {}) {
+  if (S && S.collageReady(c)) {
+    for (let tries = 0; tries < 120; tries++) {
+      const r = await S.senseCollage(c, senseView(), innerHeight, uvs || undefined, opts);
+      if (r) return r;
+      await new Promise((res) => setTimeout(res, 25));
+    }
+    return null;
+  }
+  return senseCollage(c, senseView(), innerHeight, uvs || COLLAGE_GRID, { ...opts, time: docTimeDriven() ? (performance.now() - clock0) / 1000 : 0 });
+}
+
 async function senseNow() {
-  // a collage is sensed on the CPU (core/collage-sense.js) over a coarser grid; a driven one's step
-  // factor is measured on the GPU at the hits (gpu/render.js collageStep)
   if (state.collage) {
-    const c = state.collage, r = senseCollage(c, senseView(), innerHeight, COLLAGE_GRID, { time: docTimeDriven() ? (performance.now() - clock0) / 1000 : 0 });
-    if (state.collage !== c) return r;
-    r.structure = docStructure(c);
+    const c = state.collage, st = docStructure(c), r = await senseDocCollage(c);
+    if (!r || !state.collage || docStructure(state.collage) !== st) return r;
+    r.structure = st;
     state.sensed = r;
-    if (c.drive && c.drive.bind.length && r.points.length && R.collageStep) {
+    if (state.look.lyapMix > 0) { state.n = 0; }
+    // the GPU's pass measures the step factor itself; the CPU's leaves a driven collage's to the GPU
+    // at the hits (gpu/render.js collageStep), its own drive only
+    if (r.gpu) R.setStep(r.step);
+    else if (c.drive && c.drive.bind.length && r.points.length && R.collageStep) {
       const m = await R.collageStep(r.points.map((q) => q.x)).catch(() => null);
       if (m && state.collage === c) { r.step = m.step; R.setStep(m.step); }
     } else R.setStep(1);

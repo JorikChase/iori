@@ -80,6 +80,9 @@ const FAMILY = {
   fmKleinian: { doc: painted(KLEINIAN, 'oil'), cam: [-0.516, 0.882, -0.135, 0.3, 0.07] },
   fmMandalay: { doc: painted(MANDALAY, 'malachite'), view: 2, yaw: 0, pitch: -0.3 },
   fmKali: { doc: KALI(BOX) },
+  // the workflows start from nothing wrapped and no collage: the reader does the rest
+  wfCollage: { doc: BULB, view: 2.6, yaw: 0, pitch: -0.25 },
+  wfSub: { doc: BOX, open: 'drive' },
   // one run used twice (core/sub.js): the second use has its own scale, the sphere fold is shared
   sbField: { doc: painted(SUB, 'strata'), view: 9, yaw: 0.6, pitch: -0.4 },
   sbGraph: { doc: painted(SUB, 'strata'), view: 9, yaw: 0.6, pitch: -0.4, open: 'drive' },

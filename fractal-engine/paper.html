@@ -65,7 +65,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="../papers/fractals/paper.css?v=4">
-  <link rel="stylesheet" href="paper/paper.css?v=5">
+  <link rel="stylesheet" href="paper/paper.css?v=6">
 </head>
 
 <body>
@@ -100,6 +100,9 @@
         back its scroll. Nothing you do in a figure is saved. The line under each figure is its formula as the engine
         has it at that moment. The mathematics sits folded in boxes marked <i>The mathematics</i>. WebGPU is needed:
         a recent Chrome, Edge or Safari.</p>
+      <p class="howto">To learn by doing, follow the two workflows step by step: <a href="#ch7-3">a collage, start to
+        finish</a> and <a href="#ch5-9">subgraphs, start to finish</a>. Every key and gesture is on one page in
+        <a href="#keys">the reference</a>, and what the engine refuses is listed in <a href="#limits">its limits</a>.</p>
     </section>
 
     <!-- ================================================================== 1 -->
@@ -135,7 +138,7 @@
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>See the op list as glyphs</td><td><kbd>Tab</kbd> (the strip, bottom left)</td><td>tap a corner mark</td></tr>
         <tr><td>Fly</td><td>drag to look, wheel to move, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <kbd>Q</kbd><kbd>E</kbd></td><td>one finger looks, pinch moves along the view, two-finger pan slides</td></tr>
-        <tr><td>Drift on or off</td><td><kbd>Space</kbd></td><td>the drift glyph in the structure layer</td></tr>
+        <tr><td>Drift on or off (it is on until your first press or key)</td><td><kbd>Space</kbd></td><td>the drift glyph in the structure layer</td></tr>
       </table>
       <figure class="engine" data-fig="notation">
         <div class="fe-frame"></div>
@@ -196,12 +199,12 @@
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Look</td><td>drag</td><td>one finger</td></tr>
         <tr><td>Move along the view</td><td>wheel; <kbd>W</kbd> <kbd>S</kbd>, <kbd>Shift</kbd> faster</td><td>pinch</td></tr>
-        <tr><td>Slide sideways, up</td><td><kbd>A</kbd> <kbd>D</kbd>, <kbd>Q</kbd> <kbd>E</kbd></td><td>two-finger pan</td></tr>
+        <tr><td>Slide sideways, up</td><td><kbd>A</kbd> <kbd>D</kbd>, <kbd>Q</kbd> <kbd>E</kbd>; the arrow keys are <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></td><td>two-finger pan</td></tr>
       </table>
       <figure class="engine" data-fig="pull">
         <div class="fe-frame"></div>
-        <figcaption>Pull: the arrival view, a room inside the scale-2.5 Mandelbox facing a terraced amphitheatre. Leave
-          it alone for four seconds and the camera drifts toward the most open direction.</figcaption>
+        <figcaption>Pull: the arrival view, a room inside the scale-2.5 Mandelbox facing a terraced amphitheatre. Until
+          your first press the camera drifts toward the most open direction, four seconds after anything else moved it.</figcaption>
       </figure>
       <details class="math">
         <summary>The mathematics</summary>
@@ -260,7 +263,7 @@
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Zoom the window</td><td>wheel</td><td>pinch</td></tr>
         <tr><td>Pan, roll</td><td>drag; <kbd>Shift</kbd>-drag rolls</td><td>pan; two-finger twist rolls</td></tr>
-        <tr><td>Turn two knobs</td><td>hold still, then drag; wheel for the next pair</td><td>hold, then drag; a second finger's tap for the next pair</td></tr>
+        <tr><td>Turn two knobs</td><td>hold still, then drag sideways for the first, up and down for the second; wheel for the next pair</td><td>hold, then drag; a second finger's tap for the next pair</td></tr>
       </table>
       <figure class="engine" data-fig="loop">
         <div class="fe-frame"></div>
@@ -356,8 +359,11 @@
         <tr><td>Grab</td><td>hold still 280 ms at the cursor, drag sideways</td><td>hold anywhere: the grab aims at the centre crosshair, the finger only drags</td></tr>
         <tr><td>Next op in the ranking</td><td>wheel</td><td>tap a second finger</td></tr>
         <tr><td>Undo the grab</td><td><kbd>Esc</kbd></td><td>two-finger tap afterwards</td></tr>
-        <tr><td>Pin this region</td><td><kbd>F</kbd> in a grab</td><td>double tap a second finger</td></tr>
+        <tr><td>Pin this region</td><td><kbd>F</kbd> in a grab; <kbd>F</kbd> on a pin removes it</td><td>double tap a second finger</td></tr>
       </table>
+      <p>A press that moves more than 5 pixels in the first 280 ms is a look, not a grab, and a quick click does neither. Only a
+        sideways drag edits; up and down do nothing yet. There is no grab in push, which has no surface to sense, and in the loop a
+        hold takes the knobs (section 2.3).</p>
       <figure class="engine" data-fig="grab">
         <div class="fe-frame"></div>
         <figcaption>Hold on a wall of the amphitheatre and drag. On this view the box fold's limit usually comes first;
@@ -406,8 +412,10 @@
         structure layer shows it as dots and hairlines, the big dot being now; hover a dot for its thumbnail. Moving
         between nodes is never a crossfade: within one structure the parameters and the camera move in 350 ms, so every
         frame in between is a real fractal; across structures the old image flows through the new formula's map in the
-        loop engine. <kbd>R</kbd> replays the whole lineage from its root at constant visual speed. In the live
-        engine the lineage is kept in your browser; in these figures it lives only as long as the figure.</p>
+        loop engine. <kbd>R</kbd> replays the whole lineage from its root at constant visual speed. Any input stops a replay. In the live engine the
+        lineage is kept in your browser (600 nodes, thumbnails for the newest 160); in these figures it lives only as long as
+        the figure. Every edit makes one node when it ends, and so does a change of mode. A dot can also be dragged onto the
+        field: its formula joins what is on screen as a collage's piece (section 7.3).</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Structure layer</td><td><kbd>Tab</kbd></td><td>tap a corner mark</td></tr>
@@ -431,15 +439,19 @@
         constant visual speed; the wheel brings farther or nearer neighbours. Picking from a gallery of variations is
         old <a class="cite" href="#ref-sims1991">[16]</a> <a class="cite" href="#ref-marks1997">[17]</a>; here the
         distances are measured.</p>
-      <p>The drift is the same idea without the hand: when you stop, the camera glides and every unpinned parameter
-        wanders a few pixels about its home value. Pins (<kbd>F</kbd> in a grab) hold the parts you want to keep;
-        pins are how a composition is herded.</p>
+      <p>The drift is the same idea without the hand: the camera glides toward the most open way and every unpinned
+        parameter wanders a few pixels about its home value. The engine arrives drifting. Your first press or key turns
+        the drift off for the session, so nothing moves under a working hand; <kbd>Space</kbd>, or the drift glyph on
+        touch, turns it back on, and it then starts four seconds after your last input. It waits while a grab, the graph or
+        the Metasurface is open. <kbd>F</kbd> in a grab pins that region: the parameters that move it stop wandering, the pin
+        shows in the structure layer, and <kbd>F</kbd> on a pin removes it. Pins are how a composition is herded.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Open the ring</td><td>hold still 1.2 s</td><td>hold 1.2 s: the ring opens mid-screen</td></tr>
         <tr><td>Choose</td><td>point, release on a thumbnail</td><td>point, lift on a thumbnail</td></tr>
         <tr><td>Farther, nearer</td><td>wheel</td><td>pinch</td></tr>
         <tr><td>Stay</td><td>release at the centre, or <kbd>Esc</kbd></td><td>lift at the centre</td></tr>
+        <tr><td>Keep a neighbour as a piece</td><td>point past its thumbnail by 60 px: it follows the hand; release on the field</td><td>the same</td></tr>
       </table>
       <figure class="engine" data-fig="ring">
         <div class="fe-frame"></div>
@@ -545,13 +557,20 @@
         laid in space (species ordered across the world along the stroke). Any formula can become a site of its own.
         The four lattice families of section 5.6 have no outside to frame, so their sites open with the camera inside a
         hall.</p>
+      <p>Your own sites live in this browser, up to thirteen beside the sixteen families; moved families are remembered too, and
+        a corner mark stays bright while the layout differs from the default. A site that is a chimera has a hard wall, drawn as
+        one hairline: crossing it is a cut, unless the chimera is a constant blend. While the surface is open on a touch screen,
+        only the structure layer's key row answers outside it.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Open, close</td><td><kbd>M</kbd>, <kbd>Esc</kbd></td><td>the Metasurface glyph in the row</td></tr>
         <tr><td>Breed, blend</td><td>drag the crosshair</td><td>drag</td></tr>
         <tr><td>A stroke in time, in space</td><td><kbd>Shift</kbd>-drag, <kbd>⌥</kbd>-drag</td><td>draw with one finger resting, with two resting</td></tr>
-        <tr><td>Drop your formula as a site</td><td>hold still on open ground</td><td>not yet (chapter 9)</td></tr>
-        <tr><td>Move, remove a site</td><td>drag its disc; off the square</td><td>the same</td></tr>
+        <tr><td>Go to a site</td><td>click its disc</td><td>tap it</td></tr>
+        <tr><td>Add a site's formula as a collage piece</td><td>hold still on its disc (0.45 s): a ring fills around it</td><td>hold</td></tr>
+        <tr><td>Drop your formula as a site</td><td>hold still on open ground (0.45 s): the ring fills</td><td>hold</td></tr>
+        <tr><td>Move, remove a site</td><td>drag its disc; off the square, yours is gone and a family goes home</td><td>the same</td></tr>
+        <tr><td>Send the families home</td><td>double-click a corner of the square</td><td>press a corner twice</td></tr>
       </table>
       <figure class="engine" data-fig="surface">
         <div class="fe-frame"></div>
@@ -579,7 +598,11 @@
         <tr><td>Insert op</td><td>hold an edge: the ring of ops (and the fork)</td><td>hold an edge</td></tr>
         <tr><td>Add species, change the field</td><td>hold the field node</td><td>hold the field node</td></tr>
         <tr><td>Move, delete</td><td>drag a node onto an edge; <kbd>Delete</kbd></td><td>drag; fling it off, or a three-finger tap</td></tr>
-        <tr><td>Iterations, schedule</td><td>drag the count; type the schedule letters</td><td>drag the count; drag a letter up or down</td></tr>
+        <tr><td>Iterations</td><td>drag the count, one per 12 px</td><td>the same</td></tr>
+        <tr><td>Schedule</td><td>click a letter, then a letter key (<kbd>A</kbd>–<kbd>H</kbd>); <kbd>Delete</kbd> drops it; the plus after the letters adds one</td><td>drag a letter up or down; the plus</td></tr>
+        <tr><td>Add a chain</td><td>the plus beside the last chain</td><td>the same</td></tr>
+        <tr><td>Zoom the drawing</td><td></td><td>pinch and pan inside; pinch closed past 0.6 folds it</td></tr>
+        <tr><td>Back out</td><td><kbd>Esc</kbd> clears the ring, then the selection, then folds the graph; <kbd>G</kbd> folds it; a press outside folds it</td><td>two-finger tap; a press outside, on release</td></tr>
       </table>
       <figure class="engine" data-fig="graph">
         <div class="fe-frame"></div>
@@ -714,6 +737,31 @@
           copies move: an upper bound, since their partials may cancel, so a step of <i>D</i> pixels never moves more than
           <i>D</i>.</p>
       </details>
+
+      <h3 id="ch5-9">5.9 Workflow: Subgraphs, Start to Finish</h3>
+      <p>Follow these in the figure below: the arrival Mandelbox with its graph open and no subgraph yet.</p>
+      <figure class="engine" data-fig="wfSub">
+        <div class="fe-frame"></div>
+        <figcaption>A plain formula's graph. Enter it, and wrap the sphere fold and the scale.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li><b>Wrap a run.</b> A run is a stretch of ops in one chain, clear of other subgraphs. Choose its two ends; a bracket with a plus appears beside them; the plus wraps the run. It takes a letter, <code>a</code>, and folds: its glyphs shrink between brackets.
+          <span class="how"><b>Desktop</b> <kbd>Shift</kbd>-click the first op, <kbd>Shift</kbd>-click the last, click the plus.</span><span class="how"><b>Touch</b> Hold the first op, tap the last with a second finger, tap the plus.</span></li>
+        <li><b>Open and fold it.</b> Open, a use is drawn in place in a dashed frame with the rest of the graph in sight. Edit inside: every edit reaches every use. Hold an edge at the frame's inner ends to add an op to the run itself.
+          <span class="how"><b>Desktop</b> Double-click the use. <kbd>Esc</kbd> closes it.</span><span class="how"><b>Touch</b> Double tap. Two-finger tap closes it.</span></li>
+        <li><b>Place another use.</b> The new use is linked: it shares the structure and every number.
+          <span class="how"><b>Desktop</b> Hold an edge: the ring lists this formula's subgraphs first. Or <kbd>Shift</kbd>-drag a use onto an edge.</span><span class="how"><b>Touch</b> Hold an edge. Or hold a use, rest a second finger, and drag it onto an edge.</span></li>
+        <li><b>Expose a number.</b> Exposing makes a number belong to each use instead of being shared. With a use open, select an op, pull its line off itself and drop it on the dashed frame: a dot appears there. One number, one inner parameter. In the text it gets a <code>^</code>.
+          <span class="how"><b>Desktop</b> Double-click the use, click the op, drag its line up and onto the frame. Pull it back inside to share it again.</span><span class="how"><b>Touch</b> The same with a finger.</span></li>
+        <li><b>Override it per use.</b> Close the use and select it: the exposed number is an ordinary dimension line, on this use alone. It can be dragged, and bound to a driver with a band. Bindings belong to their use.
+          <span class="how"><b>Desktop</b> Click the folded use, drag its line.</span><span class="how"><b>Touch</b> Tap, drag.</span></li>
+        <li><b>Detach or delete.</b> Detach turns one use back into plain ops, with its numbers as they are, and leaves the others linked.
+          <span class="how"><b>Desktop</b> Hold the use: the ring's <i>detach use</i>. <kbd>Delete</kbd> removes the selected use.</span><span class="how"><b>Touch</b> Hold; three-finger tap removes.</span></li>
+        <li><b>Keep it on the shelf.</b> A subgraph lives in its formula. To carry one to another formula, save it to the shelf, in this browser, and place it there. Placing copies it in, with its numbers, and keeps no link. The shelf holds eight, newest first. An entry can't be removed, and a ninth pushes out the oldest.
+          <span class="how"><b>Desktop</b> Hold a use, pick <i>save to shelf</i>. In the other formula, hold an edge and pick <i>from shelf</i>.</span><span class="how"><b>Touch</b> The same.</span></li>
+        <li><b>Do the same in shading and drivers.</b> The same link works on nodes. A use's last node is its output. Opening any use opens the first, and the frame's empty ground takes new members. A folded use has no input dots, so wire its links from outside with it open. A placed use starts free, reading what the first reads, with its output unconnected. From the shelf, a shading or driver subgraph loses its links from outside.
+          <span class="how"><b>Desktop</b> <kbd>Shift</kbd>-click nodes, click the bracket's plus, double-click to open. Hold empty frame for another use.</span><span class="how"><b>Touch</b> Hold a node, tap another with a second finger, tap the plus, double tap to open.</span></li>
+      </ol>
     </section>
 
     <!-- ================================================================== 6 -->
@@ -736,10 +784,13 @@
         exactly.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Start shading</td><td>the plus in the empty frame: the look stays as it was</td><td>tap it</td></tr>
         <tr><td>Link</td><td>drag from an output dot to an input dot</td><td>the same</td></tr>
-        <tr><td>Add a node</td><td>hold a link or an input: a ring of the types that fit</td><td>hold</td></tr>
-        <tr><td>Ramp presets</td><td>hold the ramp</td><td>hold</td></tr>
-        <tr><td>Edit a ramp</td><td>click it: the bar (click adds a stop), the stops, the toggles</td><td>tap</td></tr>
+        <tr><td>Add a node</td><td>hold a link or an input: a ring of the types that fit; hold empty frame: a free node</td><td>hold</td></tr>
+        <tr><td>Ramp presets</td><td>a new ramp opens them beside it: click a gradient, or anywhere else to shut them, or <kbd>Esc</kbd>; later, hold the ramp, point and release</td><td>tap a gradient; hold the ramp</td></tr>
+        <tr><td>Edit a ramp</td><td>click it: the bar (click adds a stop), the stops (drag moves), scale, offset and hue turn as lines, and toggles for interpolation, colour space, mapping mode, log and invert</td><td>tap</td></tr>
+        <tr><td>Math or mix</td><td>click it: its op glyph (click cycles) and its constant as a line</td><td>tap</td></tr>
+        <tr><td>Remove</td><td><kbd>Delete</kbd>: the selected stop, or the node (its input takes its place)</td><td>three-finger tap</td></tr>
         <tr><td>Pick a colour</td><td>hold a stop: the hue ring; wheel = lightness, <kbd>Shift</kbd>-wheel = alpha</td><td>hold a stop; a second finger sets lightness and alpha</td></tr>
       </table>
       <figure class="engine" data-fig="shade">
@@ -770,6 +821,8 @@
         <tr><td>Bind</td><td>drag a driver's output dot onto a selected op's dimension line</td><td>the same</td></tr>
         <tr><td>Set the band</td><td>drag its ends (low, high) or its middle</td><td>the same</td></tr>
         <tr><td>Read another parameter</td><td>pull an op's line off itself into the lane</td><td>the same</td></tr>
+        <tr><td>A driver's own numbers</td><td>click it: its switches (wave, tissue's cell or wall, maths op, clamp) as glyphs, its numbers as lines below the zone</td><td>tap</td></tr>
+        <tr><td>Insert between</td><td>hold an input dot, a driver link or a binding's hairline: the ring, inserted there</td><td>hold</td></tr>
         <tr><td>Unbind, remove</td><td>click the band or the driver, <kbd>Delete</kbd></td><td>three-finger tap</td></tr>
       </table>
       <figure class="engine" data-fig="drive">
@@ -901,6 +954,51 @@
           join<sub>j</sub>(<i>D</i><sub>j−1</sub>, <i>d</i><sub>j</sub>). In push, each piece walks its own attractor and
           a sample is kept with the weight of its piece's share there, so a sample carved away by a subtraction vanishes.</p>
       </details>
+
+      <h3 id="ch7-3">7.3 Workflow: A Collage, Start to Finish</h3>
+      <p>Follow these in the figure below, or in <a href="./" target="_blank" rel="noopener">the engine itself</a>, which keeps its
+        lineage. The figure starts on a plain Mandelbulb: there is no collage until step 1 makes one.</p>
+      <figure class="engine" data-fig="wfCollage">
+        <div class="fe-frame"></div>
+        <figcaption>A plain bulb to start from. Enter it, and add the first piece.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li><b>Start one.</b> Four ways, all with the same result: the formula on screen becomes piece 1, the new formula lands on the surface under the
+          pointer (or at the focus), about a quarter of the view across, joined by a smooth union a tenth of its size, and it is picked.
+          <span class="how"><b>Desktop</b> (a) The collage glyph in the row: the Metasurface opens with a plus beside its crosshair; click a site. (b) <kbd>M</kbd>, then hold still on a site until the ring around it fills. (c) <kbd>Tab</kbd>, then drag a lineage dot onto the field. (d) Open the breed ring and carry a neighbour 60 px past its thumbnail, then release on the field.</span><span class="how"><b>Touch</b> (a) The collage glyph, then tap a site. (b) The Metasurface glyph, then hold a site until its ring fills. (c) Tap a corner mark, drag a lineage dot out. (d) Hold 1.2 s for the ring, carry a neighbour out.</span></li>
+          <table class="use">
+            <tr><th>On the Metasurface</th><th>Tap or click</th><th>Hold 0.45 s</th></tr>
+            <tr><td>A site, as usual</td><td>goes there: the formula on screen (or the picked piece's) <b>becomes</b> the site's; nothing is added</td><td><b>adds</b> it as a piece, where you pressed</td></tr>
+            <tr><td>A site, plus at the crosshair (add mode)</td><td><b>adds</b> it as a piece, where the view looks</td><td><b>adds</b> it, where you pressed</td></tr>
+            <tr><td>Open ground, as usual</td><td>moves the crosshair</td><td>drops your formula there as a new site</td></tr>
+            <tr><td>Open ground, add mode</td><td><b>adds</b> the formula at that point of the Metasurface, where the view looks; a drag does too</td><td>drops your formula there as a new site</td></tr>
+          </table>
+        </li>
+        <li><b>Pick a piece.</b> A quick click traces the surface and picks the piece that leads there; its frame appears. Picking again elsewhere moves the pick. With a piece picked, a tap on a Metasurface site changes that piece's formula, not the whole collage's.
+          <span class="how"><b>Desktop</b> Click its surface; click open ground, or <kbd>Esc</kbd>, to unpick.</span><span class="how"><b>Touch</b> Tap its surface; tap open ground to unpick.</span></li>
+        <li><b>Move, turn, scale.</b> The frame's three axes are the piece's own. The ring turns about your line of sight. The corner between x and y scales. A dimension line, an arc or the size shows while you drag.
+          <span class="how"><b>Desktop</b> Drag an axis, the ring or the corner. <kbd>Shift</kbd> snaps: a tenth of the frame, 15°, two figures.</span><span class="how"><b>Touch</b> The same, with larger hit areas. Rest a second finger to snap.</span></li>
+        <li><b>Switch the axes, or drag freely.</b> The centre dot does two things. A tap flips the axes between the piece's own and the world's, and the world frame draws dimmer so you can tell which you have. Dragging it moves the piece anywhere in the screen's plane through its origin. The choice lasts the session.
+          <span class="how"><b>Desktop</b> Click the dot; drag it.</span><span class="how"><b>Touch</b> Tap the dot; drag it. Holding it past 0.4 s names the state and does not flip it.</span></li>
+        <li><b>Open the collage graph.</b> Pieces side by side, each its own small formula, a join under each neighbouring pair, the output at the bottom.
+          <span class="how"><b>Desktop</b> <kbd>G</kbd>, or click the strip in the structure layer. <kbd>G</kbd> or <kbd>Esc</kbd> closes it.</span><span class="how"><b>Touch</b> The collage glyph, or tap the strip. Two-finger tap closes it.</span></li>
+        <li><b>Change a seam.</b> A join's glyph is the join itself, the kernel's real contour. The line under it is the seam width at its true size on screen.
+          <span class="how"><b>Desktop</b> Hold the join: the four ops (with this kernel) and seven kernels (with this op), each drawn as itself. Drag the line for the width. Click the join for its numbers: width, steps, morph weight.</span><span class="how"><b>Touch</b> Hold it; drag the line; tap it.</span></li>
+        <li><b>Edit one piece's own formula.</b> Click a piece to pick it: its placement and repetition appear as dimension lines below, behind glyphs for move, turn, scale, grow and repeat. Click one of its ops: that piece's formula graph opens on that op, the ordinary editor of section 5.5.
+          <span class="how"><b>Desktop</b> Click the piece, then its op. <kbd>G</kbd> or <kbd>Esc</kbd> comes back to the collage.</span><span class="how"><b>Touch</b> Tap, tap. Two-finger tap comes back.</span></li>
+        <li><b>Repeat a piece.</b> Hold a piece for the ring: none, grid, mirror, polar. The render shows every copy at once; with the piece picked, the cells are drawn on the field, the original solid and the copies dashed. Spacing is in the piece's own units (section 7.2).
+          <span class="how"><b>Desktop</b> Hold the piece in the collage graph, point, release. Its counts and spacing are lines below.</span><span class="how"><b>Touch</b> Hold, point, lift.</span></li>
+        <li><b>Carve with a cutter.</b> Change a join to subtraction or intersection and the piece after it becomes a cutter. A fractal's estimate has no inside, so a cutter needs a grow to cut with: a new one gets a tenth of its size automatically. The cut surface sits that far out from the fractal's.
+          <span class="how"><b>Desktop</b> Hold the join, pick the op; drag the picked piece's grow line.</span><span class="how"><b>Touch</b> The same.</span></li>
+        <li><b>Give the collage its own colour and drivers.</b> Each piece keeps its shading, blended across seams. The collage's own shading, when set, wins, and it has two more readings: <code>piece</code> and <code>seam</code>. Drivers live in a row above the pieces (start x, y, z, w, the four fields, time, maths, remap), and can bind any seam or placement number with a band. A collage's colour reads the collage's drivers only, never a piece's.
+          <span class="how"><b>Desktop</b> Click the output for the shading frame. Hold the row for the ring of drivers. Drag a driver's dot onto a line or a seam line to bind it. <kbd>Delete</kbd> removes the selected driver or band.</span><span class="how"><b>Touch</b> Tap the output. Hold the row. Drag the dot. Three-finger tap removes.</span></li>
+        <li><b>Add and remove pieces.</b> Up to eight. The plus left of the pieces opens the Metasurface in add mode and comes back with the new piece in the graph. It is gone once the collage is full.
+          <span class="how"><b>Desktop</b> The plus. Click a piece, <kbd>Delete</kbd>.</span><span class="how"><b>Touch</b> The plus. Tap a piece, three-finger tap.</span></li>
+        <li><b>Save, breed, restore.</b> A collage is a document like a formula: the URL, the lineage, stills and splat files carry it, and every edit above is one lineage node. The breed ring works on it: neighbours move placements, joins and each piece's numbers. Two collages walk into each other when they have the same pieces and joins; otherwise the change is a cut.
+          <span class="how"><b>Desktop</b> <kbd>⌘Z</kbd> and <kbd>⇧⌘Z</kbd>; <kbd>⌘S</kbd>; drop the still back on the engine; hold still 1.2 s for the ring.</span><span class="how"><b>Touch</b> Two- and three-finger taps; the frame glyph; hold 1.2 s.</span></li>
+      </ol>
+      <p>Refused along the way: a collage dropped onto a collage, a ninth piece, the lens, and the loop (<kbd>P</kbd> skips it). A push
+        of a collage walks each piece's attractor and keeps samples by their share of the join.</p>
     </section>
 
     <!-- ================================================================== 8 -->
@@ -914,13 +1012,15 @@
         written as a 3D Gaussian splatting file <a class="cite" href="#ref-kerbl2023">[33]</a>. The mesh samples the
         distance estimate on a 128³ grid around the focus and extracts the surface with surface nets
         <a class="cite" href="#ref-gibson1998">[34]</a>, as a binary STL.</p>
-      <p>Stills and splat files hold the whole state (formula or collage, camera, mode, look): drop one back onto the
-        engine and it opens where it was made. The URL holds the formula too, so a link is a scene.</p>
+      <p>Stills and splat files hold the whole state (formula or collage, camera, mode, look, focus and pins): drop one back onto the
+        engine and it opens where it was made. A mesh does not, and neither does the video. The URL holds the formula, camera and mode, so a
+        link is a scene, without the look. The live view pauses while an export runs, and a hairline at the bottom of the structure layer
+        fills. A video's PNG sequence goes to a folder you pick, or to a streamed ZIP where the browser has no folder access.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>4K still</td><td><kbd>⌘S</kbd>, or the frame glyph</td><td>the frame glyph in the structure layer</td></tr>
         <tr><td>Video, splats, mesh</td><td>the film, dots and cube glyphs, bottom right of the structure layer</td><td>the same</td></tr>
-        <tr><td>Open a state</td><td>drop a still or a .ply onto the engine</td><td>not yet (chapter 9)</td></tr>
+        <tr><td>Open a state</td><td>drop a still or a .ply onto the engine</td><td>not yet (section 11.3)</td></tr>
       </table>
       <figure class="engine" data-fig="exports">
         <div class="fe-frame"></div>
@@ -942,8 +1042,14 @@
       <p>The menu mark at the top right unfolds a row of hairline glyphs, the same set on every device: the graph,
         shading, drivers, Metasurface, collage, structure, Lyapunov and the mode, and last a page glyph that opens this
         paper in a new tab. A glyph is dim while off and bright
-        while on; every key keeps working, the row only shows them. In the live engine a second press opens the site's
-        menu; in these figures it only folds the row.</p>
+        while on; every key keeps working, the row only shows them. </p>
+      <p>The mark takes three presses. The first unfolds the row. A second, while the row is out, folds it and opens the site's own
+        menu, whose <i>docs</i> item opens this paper in a new tab. A third closes the menu. In these figures the mark only folds the
+        row. The mode glyph shows the mode and cycles it: pull, push, loop. Inside the graph, the shading and drivers glyphs fold that
+        part away so the network takes the room, and bring it back; with the graph closed they open it. In a collage the shading glyph
+        opens the collage's own shading and the drivers glyph its graph. The collage glyph opens that graph too, and before there is a
+        collage it opens the Metasurface to add the first piece. One drawing at a time: opening one closes the others. Replay and drift
+        have no glyph here; they sit in the structure layer's key row, with Lyapunov and the Metasurface, on a touch screen.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>The row of toggles</td><td>the menu mark, top right</td><td>the menu mark</td></tr>
@@ -973,10 +1079,8 @@
         <figcaption>The tissue's graph, open. Enter and rest on any node, the count or a field's glyph (or hold a finger
           on it): its name appears beside it.</figcaption>
       </figure>
-      <p><b>Not yet on touch.</b> Two things a desktop does still have no finger: dropping the formula on screen onto the
-        Metasurface as a site of your own (a mouse holds still on open ground; a finger holding there already carries
-        the crosshair), and opening a saved still or splat file (a desktop drops the file on the engine). Both are open
-        for the next touch stretch.</p>
+      <p><b>Not yet on touch.</b> One thing a desktop does has no finger: opening a saved still or splat file, which a desktop
+        drops on the engine.</p>
     </section>
 
     <!-- ================================================================== 10 -->
@@ -1317,8 +1421,8 @@
       </div>
       <div class="planned" id="pl-touchgaps">
         <span class="planned-tag">planned</span>
-        <h4>The Two Actions With No Finger</h4>
-        <p>Dropping the formula on screen onto the Metasurface as a site, and opening a saved still or splat file. Chapter 9 names both.</p>
+        <h4>Opening a File on Touch</h4>
+        <p>A way to open a saved still or splat file on a phone, where nothing can be dropped on the page.</p>
         <table class="use">
           <tr><th></th><th>Desktop</th><th>Touch</th></tr>
           <tr><td></td><td></td><td></td></tr>
@@ -1409,6 +1513,154 @@
       </div>
     </section>
 
+    <!-- ================================================================== reference -->
+    <section id="keys">
+      <h2>Reference: Every Key and Gesture</h2>
+      <p class="lead">One page to keep open beside the engine. An empty cell means that side has no gesture for it.</p>
+      <h3>The field</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Look</td><td>drag</td><td>one finger</td></tr>
+        <tr><td>Move along the view</td><td>wheel; <kbd>W</kbd> <kbd>S</kbd> or ↑ ↓</td><td>pinch</td></tr>
+        <tr><td>Slide</td><td><kbd>A</kbd> <kbd>D</kbd> or ← →; <kbd>Q</kbd> <kbd>E</kbd> down, up</td><td>two-finger pan</td></tr>
+        <tr><td>Faster</td><td>hold <kbd>Shift</kbd></td><td></td></tr>
+        <tr><td>Mode: pull, push, loop</td><td><kbd>P</kbd>, double click</td><td>double tap, or the mode glyph</td></tr>
+        <tr><td>Drift on, off</td><td><kbd>Space</kbd></td><td>drift glyph (structure layer)</td></tr>
+        <tr><td>Lyapunov</td><td><kbd>L</kbd></td><td>Lyapunov glyph</td></tr>
+        <tr><td>Structure layer</td><td><kbd>Tab</kbd></td><td>tap a corner mark</td></tr>
+        <tr><td>Docs</td><td>the page glyph; the site menu</td><td>the same</td></tr>
+      </table>
+      <h3>Grab, lens, pins</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Grab</td><td>hold still 280 ms</td><td>hold anywhere: aims at the centre</td></tr>
+        <tr><td>Edit</td><td>drag sideways</td><td>drag</td></tr>
+        <tr><td>Next op</td><td>wheel</td><td>tap a second finger</td></tr>
+        <tr><td>Undo</td><td><kbd>Esc</kbd></td><td>two-finger tap afterwards</td></tr>
+        <tr><td>Pin, unpin</td><td><kbd>F</kbd></td><td>double tap a second finger</td></tr>
+        <tr><td>Lens</td><td>hold <kbd>Shift</kbd>; move to travel</td><td>rest a second finger</td></tr>
+      </table>
+      <h3>The loop</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Zoom, pan, roll</td><td>wheel, drag, <kbd>Shift</kbd>-drag</td><td>pinch, pan, twist</td></tr>
+        <tr><td>Knobs</td><td>hold, drag across and up</td><td>hold, drag</td></tr>
+        <tr><td>Next knob pair</td><td>wheel</td><td>tap a second finger</td></tr>
+      </table>
+      <h3>Lineage and the ring</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Back, forward</td><td><kbd>⌘Z</kbd>, <kbd>⇧⌘Z</kbd> (ctrl elsewhere)</td><td>two-finger tap, three-finger tap</td></tr>
+        <tr><td>Return to a node</td><td>click its dot</td><td>tap its dot</td></tr>
+        <tr><td>A node as a piece</td><td>drag its dot onto the field</td><td>the same</td></tr>
+        <tr><td>Replay</td><td><kbd>R</kbd>; any input stops it</td><td>replay glyph</td></tr>
+        <tr><td>Ring</td><td>hold still 1.2 s</td><td>hold 1.2 s</td></tr>
+        <tr><td>Choose</td><td>release on a neighbour</td><td>lift on one</td></tr>
+        <tr><td>Farther, nearer</td><td>wheel</td><td>pinch; a second finger taps farther</td></tr>
+        <tr><td>Stay</td><td>release at the centre, <kbd>Esc</kbd></td><td>lift at the centre</td></tr>
+        <tr><td>Neighbour as a piece</td><td>carry it 60 px past its thumbnail</td><td>the same</td></tr>
+      </table>
+      <h3>The fourth dimension</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Along w</td><td><kbd>⌥</kbd> + wheel</td><td>three-finger pinch</td></tr>
+        <tr><td>Tilt</td><td><kbd>⌥</kbd> + drag</td><td>three-finger drag</td></tr>
+      </table>
+      <h3>The graph</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Open, fold</td><td><kbd>G</kbd>, click the strip</td><td>graph glyph, tap the strip; pinch closed</td></tr>
+        <tr><td>Field without an op</td><td>hover the node</td><td>press it</td></tr>
+        <tr><td>Select, edit</td><td>click, drag its lines</td><td>tap, drag</td></tr>
+        <tr><td>Insert, fork</td><td>hold an edge</td><td>hold</td></tr>
+        <tr><td>Add species, change field</td><td>hold the field</td><td>hold</td></tr>
+        <tr><td>Move</td><td>drag a node onto an edge</td><td>the same</td></tr>
+        <tr><td>Delete</td><td><kbd>Delete</kbd> or <kbd>⌫</kbd></td><td>fling off, three-finger tap</td></tr>
+        <tr><td>Iterations</td><td>drag the count</td><td>the same</td></tr>
+        <tr><td>Schedule</td><td>click a letter, <kbd>A</kbd>–<kbd>H</kbd>, <kbd>Delete</kbd>; the plus</td><td>drag a letter; the plus</td></tr>
+        <tr><td>New chain</td><td>the plus beside the last chain</td><td>the same</td></tr>
+        <tr><td>Back out</td><td><kbd>Esc</kbd>, step by step</td><td>two-finger tap</td></tr>
+        <tr><td>A control's name</td><td>rest on it 0.4 s</td><td>hold still on it 0.4 s</td></tr>
+      </table>
+      <h3>Subgraphs</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Choose a run</td><td><kbd>Shift</kbd>-click</td><td>hold, tap with a second finger</td></tr>
+        <tr><td>Wrap</td><td>the bracket's plus</td><td>the same</td></tr>
+        <tr><td>Open, close</td><td>double click, <kbd>Esc</kbd></td><td>double tap, two-finger tap</td></tr>
+        <tr><td>Another use</td><td>the edge's ring, <kbd>Shift</kbd>-drag a use</td><td>the ring; hold a use, second finger rests, drag</td></tr>
+        <tr><td>Expose, share</td><td>pull a line onto the frame, back inside</td><td>the same</td></tr>
+        <tr><td>Detach, shelf</td><td>hold a use</td><td>hold</td></tr>
+      </table>
+      <h3>Shading and drivers</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Start</td><td>the plus in the frame</td><td>the same</td></tr>
+        <tr><td>Link</td><td>drag dot to dot</td><td>the same</td></tr>
+        <tr><td>Add</td><td>hold a link, an input, empty frame or lane</td><td>hold</td></tr>
+        <tr><td>Bind</td><td>drag a driver's dot onto a line or a stop</td><td>the same</td></tr>
+        <tr><td>Band</td><td>drag its ends or its middle</td><td>the same</td></tr>
+        <tr><td>Read a parameter</td><td>pull an op's line into the lane</td><td>the same</td></tr>
+        <tr><td>Presets</td><td>a gradient beside a new ramp; hold a ramp</td><td>tap a gradient; hold</td></tr>
+        <tr><td>Stop</td><td>click the bar adds; drag; <kbd>Delete</kbd></td><td>tap, drag, three-finger tap</td></tr>
+        <tr><td>Colour</td><td>hold a stop: angle, distance; wheel lightness, <kbd>Shift</kbd>-wheel alpha</td><td>hold; a second finger sets lightness and alpha</td></tr>
+        <tr><td>Glow's gain</td><td>click the glow output</td><td>tap</td></tr>
+      </table>
+      <h3>The Metasurface</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Open, close</td><td><kbd>M</kbd>, <kbd>Esc</kbd></td><td>glyph; two-finger tap</td></tr>
+        <tr><td>Crosshair</td><td>drag, click</td><td>drag, tap</td></tr>
+        <tr><td>Walk</td><td><kbd>Shift</kbd>-drag</td><td>one finger rests, another draws</td></tr>
+        <tr><td>Lay in space</td><td><kbd>⌥</kbd>-drag</td><td>two rest, a third draws</td></tr>
+        <tr><td>Go to a site</td><td>click it</td><td>tap</td></tr>
+        <tr><td>Add as a piece</td><td>hold it 0.45 s</td><td>hold</td></tr>
+        <tr><td>Drop your formula</td><td>hold open ground 0.45 s</td><td>hold</td></tr>
+        <tr><td>Move, remove a site</td><td>drag; off the square</td><td>the same</td></tr>
+        <tr><td>Families home</td><td>double-click a corner</td><td>press a corner twice</td></tr>
+      </table>
+      <h3>Collage</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Pick, unpick</td><td>click, <kbd>Esc</kbd></td><td>tap</td></tr>
+        <tr><td>Move, turn, scale</td><td>axis, ring, corner</td><td>the same</td></tr>
+        <tr><td>Snap</td><td><kbd>Shift</kbd></td><td>rest a second finger</td></tr>
+        <tr><td>Local, world</td><td>click the centre dot</td><td>tap it</td></tr>
+        <tr><td>Free move</td><td>drag the centre dot</td><td>the same</td></tr>
+        <tr><td>Graph</td><td><kbd>G</kbd></td><td>collage glyph</td></tr>
+        <tr><td>Add a piece</td><td>the graph's plus; collage glyph</td><td>the same</td></tr>
+        <tr><td>Join's kind</td><td>hold it</td><td>hold</td></tr>
+        <tr><td>Seam width</td><td>drag its line</td><td>the same</td></tr>
+        <tr><td>Repetition</td><td>hold a piece</td><td>hold</td></tr>
+        <tr><td>Piece's formula</td><td>click it, click an op</td><td>tap, tap</td></tr>
+        <tr><td>Collage's shading</td><td>click the output</td><td>tap</td></tr>
+        <tr><td>Remove</td><td><kbd>Delete</kbd></td><td>three-finger tap</td></tr>
+      </table>
+      <h3>The row and exports</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>The row</td><td>press the mark</td><td>the same</td></tr>
+        <tr><td>Site menu</td><td>press the mark again</td><td>the same</td></tr>
+        <tr><td>Close it</td><td>a third press</td><td>the same</td></tr>
+        <tr><td>4K still</td><td><kbd>⌘S</kbd>, frame glyph</td><td>frame glyph</td></tr>
+        <tr><td>Video, splats, mesh</td><td>glyphs, bottom right of the structure layer</td><td>the same</td></tr>
+        <tr><td>Open a state</td><td>drop a file on the engine</td><td>not yet</td></tr>
+      </table>
+      <h3 id="limits">What the Engine Refuses, and Its Limits</h3>
+      <ul>
+        <li><b>Formulas.</b> Eight op lists (slots) and 64 ops, counting every use of a subgraph. A chimera holds two to seven species, with no chimera inside a chimera.</li>
+        <li><b>Grab.</b> Pull only: push has no surface to sense, and in the loop a hold takes the knobs. Moves that would enter the surface are refused.</li>
+        <li><b>Lens.</b> Op parameters of a formula. Not rotation angles or plane normals, not driver or shading parameters, not collages. Its map is computed when it opens and does not follow an edit made inside it. On a shared subgraph number, the preview moves the first use.</li>
+        <li><b>Breeding.</b> Parameters only, never structure. The archive restarts after a flight, because its features depend on the view.</li>
+        <li><b>Drivers.</b> 32 nodes and 16 bindings; four rebuilt ops, eight such bindings. Four driven ramp stops. <code>kali</code> can't be driven. A driven formula's shader variant takes a few seconds to compile the first time, and it draws with its own values until then.</li>
+        <li><b>Collages.</b> Eight pieces. No collage inside a collage. No loop and no lens. A repetition reads the nearest copy only, so a piece wider than its cell is overstepped at the wall.</li>
+        <li><b>Subgraphs.</b> None inside another, none in a species if it holds a chimera, no link across collage pieces, no ramp stops exposed. Eight on the shelf, none removable, and a ninth pushes out the oldest.</li>
+        <li><b>The Metasurface.</b> 29 sites, 16 of them the families. At most four species blend across a wall. A chimera's wall is a cut unless it is a constant blend.</li>
+        <li><b>Stored here only.</b> The lineage, your sites and the shelf live in this browser. A link carries the formula, camera and mode; a still or a splat file also carries the look, focus and pins.</li>
+        <li><b>The figures in this paper.</b> Store nothing, and their mark only folds the row.</li>
+      </ul>
+    </section>
+
     <!-- ================================================================== references -->
     <section id="references">
       <h2>References</h2>
@@ -1460,7 +1712,7 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="paper/paper.js?v=8"></script>
+  <script type="module" src="paper/paper.js?v=9"></script>
 <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
 <link rel="stylesheet" href="../assets/menu.css">
 <nav id="site-menu" class="site-menu site-menu--tr" aria-label="Site menu">
@@ -1475,6 +1727,7 @@
       <li><a href="https://3die.fr/">3die</a></li>
       <li class="site-menu__social"><a href="https://soundcloud.com/ioriori" rel="me">soundcloud</a></li>
       <li class="site-menu__social"><a href="https://instagram.com/jorikjonathan" rel="me">instagram</a></li>
+      <li><a href="https://iori.me/fractal-engine/paper.html" aria-current="page" rel="noopener">docs</a></li>
       <li class="site-menu__section">more in fractals</li>
       <li class="site-menu__nb"><a href="https://iori.me/fractal-engine/"><small>prev</small>Fractal Engine</a></li>
       <li class="site-menu__nb"><a href="https://iori.me/fractals.html"><small>next</small>Fractal Optimization Through a Procedural Lens</a></li>

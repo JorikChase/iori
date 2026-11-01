@@ -2133,3 +2133,22 @@ formula on screen stays, and folds the row. `ROW_KEYS` leaves it out under `?emb
 says so under its byline, with a link back. `hidden` in pages.meta.json is unchanged. The dual JIT's stub is filled as 3.1
 (no gestures, no figure of its own: the same pictures, faster).
 
+
+## The full docs pass, 2026-11-01
+
+iori: *"write the collage and subgraph workflows and all other not yet documented behaviours into the paper docs and publish
+it, please include the help button in nav bar or docs in the 3die burger."* In `paper.html`: 5.9 and 7.3, numbered workflows,
+each step with desktop and touch, each with a figure starting from nothing (`wfSub`, `wfCollage`), 7.3 with a table of what a tap
+and a hold do on the Metasurface; **Reference: Every Key and Gesture** (`#keys`) and **What the Engine Refuses** (`#limits`) after
+the Planned chapter; the gaps filled chapter by chapter. The site's burger gains `docs` from a registry key (`"docs"` in
+pages.meta.json, handled beside `icon_gallery` in site.py): on the engine it opens the paper in a new tab; only the engine and
+the paper carry it.
+
+**Found stale against the code** (the paper follows the code):
+- *The drift* does not resume four seconds after every input. `engage()` turns it off at the first press or key for the session;
+  Space or the drift glyph turns it on again, and only then does the four-second rule apply. The header of app.js and "UX" above
+  read otherwise.
+- *Metasurface drop on touch* works: Q3.1's "Not yet: touch for drop/move" is old. A finger held on open ground drops a site
+  (`run-touch.mjs` 'surface: a hold on open ground drops a site'). The paper said "not yet" and no longer does; only opening a
+  file has no finger.
+- *MAX_SITES* is 29 (Q3.1 says 24): the five new families took it up.

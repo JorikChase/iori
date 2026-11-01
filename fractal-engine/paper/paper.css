@@ -60,3 +60,13 @@ code { font: 0.86em var(--mono); background: var(--wash); border-radius: 4px; pa
 
 /* the way back to the engine, under the byline */
 .back { font-size: 0.92rem; color: var(--ink-2); margin-top: 1rem; }
+
+/* a workflow's step: what it does, then how on each device */
+.steps > li { margin-bottom: 1.1rem; }
+.how { display: block; font-size: 0.86rem; color: var(--ink-2); line-height: 1.5; margin-top: 0.25rem; }
+.how b { font-weight: 600; font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-right: 0.3rem; }
+.steps table.use { font-size: 0.82rem; margin: 0.6rem 0 0.2rem; }
+/* the reference: tighter, the action in ink */
+#keys h3 { margin-top: 1.9rem; }
+table.ref { margin-top: 0.3rem; font-size: 0.84rem; }
+table.ref td { padding-top: 0.28rem; padding-bottom: 0.28rem; }

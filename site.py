@@ -530,11 +530,12 @@ def build_menu_block(slug, meta, pages):
     here = page_url(domain, slug)
     pos = meta.get("menu_pos", "tr")
 
-    def link(label, url, cls="", rel=""):
+    def link(label, url, cls="", rel="", target=""):
         cur = ' aria-current="page"' if url == here else ""
         cattr = f' class="{cls}"' if cls else ""
         rattr = f' rel="{rel}"' if rel else ""
-        return f'      <li{cattr}><a href="{url}"{cur}{rattr}>{xml_escape(label)}</a></li>'
+        tattr = f' target="{target}"' if target else ""
+        return f'      <li{cattr}><a href="{url}"{cur}{rattr}{tattr}>{xml_escape(label)}</a></li>'
 
     lines = [MENU_BEGIN,
              f'<link rel="stylesheet" href="{up}assets/menu.css">',
@@ -551,6 +552,10 @@ def build_menu_block(slug, meta, pages):
     # the only way into the icon gallery: nothing else on the page mentions installing
     if meta.get("icon_gallery"):
         lines.append(link("install app", page_url(domain, meta["icon_gallery"])))
+    # a page's documentation, in a new tab so an app's state stays (registry key "docs": the paper's slug)
+    if meta.get("docs"):
+        docs = page_url(domain, meta["docs"])
+        lines.append(link("docs", docs, rel="noopener", target="" if docs == here else "_blank"))
     # category neighbours: same domain, same category, public, sorted by the
     # optional "order" key (e.g. eyes: simplest to most sophisticated), then slug
     cat = meta.get("category")

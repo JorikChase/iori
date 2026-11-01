@@ -620,7 +620,8 @@
       "priority": 0.6,
       "icon_gallery": "fractal-engine/icon/seahorse/index.html",
       "touch_icon": "icon/seahorse/180.png",
-      "manifest": "icon/seahorse/manifest.json"
+      "manifest": "icon/seahorse/manifest.json",
+      "docs": "fractal-engine/paper.html"
     },
     "fractal-engine/paper.html": {
       "title": "The Fractal Engine, Tool by Tool",
@@ -628,7 +629,8 @@
       "category": "fractals",
       "domain": "iori.me",
       "type": "experiment",
-      "priority": 0.5
+      "priority": 0.5,
+      "docs": "fractal-engine/paper.html"
     },
     "fractals.html": {
       "title": "Fractal Optimization Through a Procedural Lens",

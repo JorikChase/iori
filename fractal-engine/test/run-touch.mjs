@@ -731,19 +731,42 @@ async function toggleChecks(pre) {
     const a = await tg();
     await press(m);
     const b = await tg(), open = await fe(() => document.querySelector('#site-menu .menuToggle input').checked);
+    // the burger carries the docs, in a new tab
+    const docs = await fe(() => { const e = [...document.querySelectorAll('#site-menu-panel a')].find((q) => q.textContent.trim() === 'docs'); return e && { href: e.href, target: e.target, seen: e.getBoundingClientRect().height > 0 }; });
     await shot(`${DESK ? 'desktop-' : ''}toggles-menu`);
     await press(m);
     const shut = await fe(() => !document.querySelector('#site-menu .menuToggle input').checked);
-    return { ok: a.row && !b.row && open && shut, note: `row ${a.row}, then site menu ${open} (row folded ${!b.row}), then closed ${shut}` };
+    return { ok: a.row && !b.row && open && shut && !!docs && docs.seen && /\/paper\.html$/.test(docs.href) && docs.target === '_blank', note: `row ${a.row}, then site menu ${open} (row folded ${!b.row}), docs ${docs && docs.href.split('/').pop()}, then closed ${shut}` };
+  });
+  await check(`${pre}surface: a hold on open ground drops a site`, async () => {
+    await fe(() => { window.__fe.graph(false); window.__fe.surface(true); });
+    await sleep(300);
+    const r = await fe(() => {
+      const S = window.__fe.surfaceSites(), L = Math.min(innerWidth, innerHeight) * 0.84, cx = innerWidth / 2, cy = innerHeight / 2;
+      let best = null, bd = -1;
+      for (let j = -8; j <= 8; j++) for (let i = -8; i <= 8; i++) {
+        const x = i / 10, y = j / 10, d = Math.min(...S.map((q) => Math.hypot(q.at[0] - x, q.at[1] - y)));
+        if (d > bd) { bd = d; best = [cx + (x * L) / 2, cy - (y * L) / 2]; }
+      }
+      return { n: S.length, at: best };
+    });
+    if (DESK) { await page.mouse.move(...r.at); await page.mouse.down(); await sleep(800); await page.mouse.up(); }
+    else { await T.down(1, ...r.at); await sleep(800); await T.upAll(); }
+    await sleep(250);
+    const n1 = await fe(() => window.__fe.surfaceSites().length);
+    if (n1 > r.n) await fe((k) => window.__fe.surfaceRemove(k), n1 - 1);
+    await fe(() => window.__fe.surface(false));
+    return { ok: n1 === r.n + 1, note: `${r.n} sites, then ${n1}` };
   });
   await check(`${pre}toggles: docs opens the paper in a new tab`, async () => {
-    const t0 = await fe(() => window.__fe.state.text), url0 = page.url();
+    await fe(() => window.__fe.hold());   // the drift would change the formula under the check
+    const t0 = await fe(() => window.__fe.state.text), url0 = page.url().split('#')[0];
     const [tab] = await Promise.all([ctx.waitForEvent('page', { timeout: 8000 }), pressToggle('docs')]);
     await tab.waitForLoadState('domcontentloaded');
     const url = tab.url(), title = await tab.title();
     await tab.close();
     const t1 = await fe(() => window.__fe.state.text), b = await tg();
-    return { ok: /\/paper\.html$/.test(url) && title.includes('Tool by Tool') && t1 === t0 && page.url() === url0 && !b.row, note: `${url.split('/').pop()}, formula kept ${t1 === t0}, row folded ${!b.row}` };
+    return { ok: /\/paper\.html$/.test(url) && title.includes('Tool by Tool') && t1 === t0 && page.url().split('#')[0] === url0 && !b.row, note: `${url.split('/').pop()}, formula kept ${t1 === t0}, row folded ${!b.row}` };
   });
   await check(`${pre}toggles: each overlay, bright when on`, async () => {
     const seen = [];

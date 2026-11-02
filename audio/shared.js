@@ -120,12 +120,15 @@
     if (dbp) return dbp;
     dbp = new Promise(function (res, rej) {
       try {
-        var r = indexedDB.open('audio', 3);
+        var r = indexedDB.open('audio', 4);
         r.onupgradeneeded = function (ev) {
           var d = r.result, tx = r.transaction;
           if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' });
           if (!d.objectStoreNames.contains('pcm')) d.createObjectStore('pcm', { keyPath: 'id' });
           if (!d.objectStoreNames.contains('draft')) d.createObjectStore('draft', { keyPath: 'k' });   // a take still being recorded
+          if (!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'id' });   // project.js, docs/FORMAT.md
+          if (!d.objectStoreNames.contains('docs')) d.createObjectStore('docs', { keyPath: 'k' });
+          if (!d.objectStoreNames.contains('undo')) d.createObjectStore('undo', { keyPath: 'id' });
           if (ev.oldVersion === 1 && d.objectStoreNames.contains('takes')) {   // v1 kept float samples inline
             tx.objectStore('takes').openCursor().onsuccess = function (e) {
               var c = e.target.result; if (!c) { d.deleteObjectStore('takes'); return; }
@@ -151,7 +154,7 @@
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function pack(k) {
-    var d = k.data, n = d.length, q = int16(d);
+    var q = k.pcm || int16(k.data), d = k.data || unpack(q), n = d.length;   // k.pcm: the stored samples, exactly
     var meta = { id: k.id || uid(), name: k.name || '', kind: k.kind || 'rec', sr: k.sr, len: n, dur: n / k.sr, created: k.created || Date.now(), env: envelope(d, 64), markers: k.markers || [] };
     if (k.recovered) meta.recovered = true;
     return { meta: meta, pcm: { id: meta.id, data: q } };
@@ -182,6 +185,11 @@
     get: function (id) {
       return store(['meta', 'pcm'], 'readonly').then(function (x) { return Promise.all([req(x.s('meta').get(id)), req(x.s('pcm').get(id))]); })
         .then(function (r) { if (!r[0] || !r[1]) return null; var m = r[0]; m.data = unpack(r[1].data); return m; });
+    },
+    /* the stored samples, untouched: {meta, pcm}, or null if there's no such take */
+    raw: function (id) {
+      return store(['meta', 'pcm'], 'readonly').then(function (x) { return Promise.all([req(x.s('meta').get(id)), req(x.s('pcm').get(id))]); })
+        .then(function (r) { return r[0] && r[1] ? { meta: r[0], pcm: r[1].data } : null; });
     },
     put: function (k) {
       persist();
@@ -276,6 +284,7 @@
   document.addEventListener('visibilitychange', function () { if (wantWake && !wl && document.visibilityState === 'visible') wake(true); });
 
   window.AT = {
+    db: { store: store, req: req }, failed: report,
     tempo: getTempo, setTempo: setTempo, onTempo: function (f) { L.tempo.push(f); },
     takes: takes, onTakes: function (f) { L.takes.push(f); },
     onPlace: function (f) { L.place.push(f); },

@@ -337,3 +337,25 @@ Separately, on a Mac with Live: round-trip a generated `.mid` and `.als` through
 The research reverses the instinctive priority. Synth voices are cheap, and master-chain quality is close to free on both devices. What is expensive is everything around them: an unfixed mic path, a silent memory kill, and a scheduler the app cannot influence. A web DAW on iOS therefore wins by being an excellent instrument and an honest recorder, leaning on internal capture, cached renders and post-hoc alignment, rather than by imitating a native tracking rig. The iPad's edge is also not what a "full mode" implies: it has no meaningfully faster audio thread, only spare cores that a Worker-rendered architecture can use.
 
 Two choices make the rest cheap. Deterministic rendering from one core makes bounces, stems, cached pads and tier switching the same problem. Storing everything raw with metadata makes calibration, quantize, comping and pad edits reversible. One external event would change the plan: a WebKit fix for bug 326286 would reopen speaker overdubbing, while a long wait would make the thin native shell worth building, since it is also the only door to hardware MIDI and Link.
+
+## Device results
+
+### iPhone 12 mini (A14), Safari 26.2 in the browser, 2026-10-31
+
+Raw export: `tools/audio-test/bench/results/2026-10-31-iphone12mini-gate2.txt`. The user agent says iPhone OS 18_7, which Safari 26 freezes, and Version/26.2 is the real version, so this device is below the iOS 26.4 and iOS 27 mic bugs. Gate 2 only, plus isolation flags. Gates 1, 3 (full) and 4 have no data yet. Nothing from an installed app or from iOS 27.
+
+| Kernel | Limit, voices | ns per voice-sample | M3 Pro estimate |
+|---|---|---|---|
+| JS, 2 PolyBLEP + SVF | 3840 | about 6.2 | 4.3 |
+| WASM scalar, same | 3840 | about 6.2 | 4.2 |
+| WASM SIMD, same | 11264 | about 2.0 | 1.4 |
+| 4 cubic wavetable reads + SVF | 1536 | about 15 | 10.5 |
+| 2 PolyBLEP + ZDF ladder | 416 | about 59 | 36 |
+
+- A14 runs about 1.4 to 1.6 times slower than the M3 Pro bench, so the Mac scaling held. SIMD's 3× and scalar WASM's lack of gain both repeat on the device.
+- Idle ramps reached near 90% with no glitches; failure began just past 100%. No efficiency-core collapse appeared in Safari, though a sustained thermal run is still missing, and load drifted from 53.5% to 65.7% over the session.
+- Main-thread stress is the real risk: at 15% mean, p99.9 went from 460 to 1760 µs with no glitches. At 53% it reached 5360 µs with 3 glitches. At 88% with SIMD, 10 glitches and 323 ms lost.
+- So the worst block under stress is about 3 to 4 times the idle block. The 15% cap is safe; about 30% is the likely real ceiling, unproven.
+- At 15% (400 µs for 128 frames) a rich voice of about 190 ns per sample (A14-scaled: 3 wavetable oscillators, ladder, 2× oversampling, mod list) gives about 16 voices; at 30% about 32. That is the planned Reduced range, on a phone older than the one assumed.
+- `coi=true`, `sab=true`, service worker controlled with COOP and COEP kept, worklet and WASM loaded, all in the browser.
+

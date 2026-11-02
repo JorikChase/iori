@@ -114,6 +114,8 @@ pages must all carry COEP.
 
 **Exit:** a one-page results table in RESEARCH.md, and a yes or no on each Trigger below.
 
+Gate 2 has a first device result (iPhone 12 mini, Safari 26.2, RESEARCH.md): the Stage 4 voice estimates hold on a phone older than assumed. Gates 1, 3 and 4 and iOS 27 are still missing.
+
 ### Stage 2 — Docs (M, then continuous)
 `audio/docs/<tool>.md` for each tool: gesture map, what it reads and writes, limits, test status. Writing these is the
 audit, so they start now and replace the spec's tool sections. A readable version ships in the app behind the home-screen
@@ -132,6 +134,7 @@ streaming from OPFS, one glue compressor, a limiter, one range bounce and a plai
 quality loss you object to. If the phone can't carry this, we stop and redesign here.
 
 ### Stage 5 — Engine and projects (XL)
+The save format is built ahead of this stage (2026-11-02): `audio/docs/FORMAT.md`, `audio/project.js`, scenario `project-format`. No tool uses it yet.
 - Shell engine: context, graph, transport, metronome, capture, one mic owner.
 - Move tools onto it in order of risk: metronome, tuner, analyzer, BPM, practice, recorder, editor, synth last.
 - Metronome keeps running across tools; recording survives leaving a tool.

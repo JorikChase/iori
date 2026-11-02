@@ -1,0 +1,17 @@
+AUDIO PROBE v1  2026-10-31T09:27:51Z
+device: iphone 12 mini
+ua: Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Mobile/15E148 Safari/604.1
+screen 375x812@3 cores 4 browser isolated=true sab=true
+
+GATE 1 mic + playback
+
+GATE 2 worklet load (times in us, budget 2667 at 48 kHz)
+
+GATE 3 isolation
+launches 2, offline 0
+
+GATE 4 memory
+
+last launch {"at":"2026-10-31T09:27:45Z","mode":"browser","online":true,"nav":"back_forward","controlled":true,"coi":true,"sab":true,"sw":{"last":{"from":"network","url":"/audio/probe/","coop":"same-origin","coep":"require-corp"},"files":11,"cache":"probe-1"},"net":true,"check":{"worklet":true,"wasm":true}}
+
+END

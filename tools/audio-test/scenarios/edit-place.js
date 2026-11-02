@@ -81,7 +81,7 @@ module.exports = async (lib) => {
   info.move = { moving, tgt, after: a4, undone: a5 };
   checks.moveThenUndo = moving && !!a4 && a4.s > 4 * BEAT + 0.5 && !!a5 && lib.near(a5.s, 4 * BEAT, 1e-3) && a5.t === 0;
   await page.waitForTimeout(500);
-  const sv = await page.evaluate(() => JSON.parse(localStorage.getItem('audio.session.edit')));
+  const sv = await page.evaluate(() => (JSON.parse(localStorage.getItem('audio.edit.mirror') || '{}').o || null));
   checks.undoPersisted = lib.near(sv.clips.find(c => c.k === id1).s, 4 * BEAT, 1e-3);
 
   // 6. late samples: hold get() back, place a take while playing

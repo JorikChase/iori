@@ -134,7 +134,7 @@ streaming from OPFS, one glue compressor, a limiter, one range bounce and a plai
 quality loss you object to. If the phone can't carry this, we stop and redesign here.
 
 ### Stage 5 — Engine and projects (XL)
-The save format is built ahead of this stage (2026-11-02): `audio/docs/FORMAT.md`, `audio/project.js`, scenario `project-format`. No tool uses it yet.
+The save format and projects are built ahead of this stage (2026-11-02): `audio/docs/FORMAT.md`, `audio/project.js`, `audio/projects.html`. The editor works in the current project; the other tools still keep their own settings.
 - Shell engine: context, graph, transport, metronome, capture, one mic owner.
 - Move tools onto it in order of risk: metronome, tuner, analyzer, BPM, practice, recorder, editor, synth last.
 - Metronome keeps running across tools; recording survives leaving a tool.

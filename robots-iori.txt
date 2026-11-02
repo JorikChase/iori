@@ -24,6 +24,7 @@ Disallow: /audio/icon/violet/
 Disallow: /audio/icon/yellow/
 Disallow: /audio/probe/frame.html
 Disallow: /audio/probe/
+Disallow: /audio/projects.html
 Disallow: /automata.html
 Disallow: /burger.html
 Disallow: /clip.html

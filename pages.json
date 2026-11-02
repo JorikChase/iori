@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-01",
+  "generated": "2026-11-02",
   "pages": [
     {
       "slug": "4cube.html",
@@ -307,7 +307,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-engine/",
       "og_image": null,
-      "lastmod": "2026-10-31"
+      "lastmod": "2026-11-01"
     },
     {
       "slug": "fractal-engine/paper.html",
@@ -318,7 +318,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-engine/paper.html",
       "og_image": null,
-      "lastmod": "2026-10-31"
+      "lastmod": "2026-11-01"
     },
     {
       "slug": "fractals.html",

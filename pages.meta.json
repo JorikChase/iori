@@ -321,6 +321,14 @@
       "manifest": "manifest.json",
       "hidden": true
     },
+    "audio/projects.html": {
+      "title": "Audio Tools Projects — Open, Rename, Save Files",
+      "description": "Your Audio Tools projects: open one, start a new one, rename it, or move it to another device as a save file.",
+      "category": "tools",
+      "domain": "3die.fr",
+      "type": "app",
+      "hidden": true
+    },
     "automata.html": {
       "title": "Cellular Automata as the Computational Basis",
       "description": "Paper 1 of iori's series, in preparation: cellular automata as the computational basis, with Flame Strains and Petri as measured evidence.",

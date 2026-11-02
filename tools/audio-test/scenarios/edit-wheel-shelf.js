@@ -40,7 +40,7 @@ async function scenario(lib) {
   await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300); await E.settle(page);
   const lib0 = await page.evaluate(() => AT.takes.list().then(a => a.map(m => ({ id: m.id, kind: m.kind, dur: m.dur }))));
   const BEAT = await page.evaluate(() => __E.BEAT), v = await E.view(page);
-  const sess = () => page.evaluate(() => JSON.parse(localStorage.getItem('audio.session.edit') || 'null'));
+  const sess = () => page.evaluate(() => (JSON.parse(localStorage.getItem('audio.edit.mirror') || '{}').o || null));
   const openShelf = async () => { await H.tap(page, v.prop.x, v.prop.y); await page.waitForTimeout(400); const b = await page.evaluate(() => __E.bud(2)); await H.tap(page, b.x, b.y); await page.waitForTimeout(600); };
 
   // 1. playhead at beat 3, then the shelf

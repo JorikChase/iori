@@ -55,7 +55,7 @@ copied twice.
   "markers": [ { "at": 96000, "name": "chorus" } ],
   "range":   null,                 // the last export range: { "from": 0, "to": 480000 }
   "tools":   { /* what each tool remembers for this project */ },
-  "view":    { "playhead": 0, "scroll": 0, "zoom": 60, "lane": 0, "snap": true, "push": false }
+  "view":    { "playhead": 0, "scroll": 0, "zoom": 60, "lane": 0, "snap": true, "push": false }   // empty in a new project
 }
 ```
 

@@ -26,7 +26,7 @@ module.exports = async (lib) => {
   await H.twoStart(lib, page, fr[0]); await page.waitForTimeout(30); for (const f of fr.slice(1)) { await H.twoMove(lib, page, f); await page.waitForTimeout(16); } await H.twoEnd(lib, page); await page.waitForTimeout(1200);
   await E.settle(page); await page.waitForTimeout(600);
   const before = await E.clips(page); await H.shot(page, dir, '1-edited', files);
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('audio.session.edit')));
+  const saved = await page.evaluate(() => (JSON.parse(localStorage.getItem('audio.edit.mirror') || '{}').o || null));
   const b = { A: before.find(c => c.id === A.id), B: before.find(c => c.id === B.id), C: before.find(c => c.id === C.id) };
   info.before = b; info.saved = saved;
   checks.editsMade = lib.near(b.A.fin, .5, 1e-6) && lib.near(b.A.xout, .4, 1e-6) && b.C.warp && b.C.mode === 'tones' && b.C.curve === 1 && b.C.semi === 3 && lib.near(b.C.gain, -2, 1e-9)

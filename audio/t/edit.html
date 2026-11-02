@@ -69,7 +69,7 @@
 html,body{height:100%;margin:0;background:#000;overflow:hidden;overscroll-behavior:none}
 body>div:first-of-type{height:100%!important;border-radius:0!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-</style><script src="../shared.js"></script><script src="../wheel.js"></script>
+</style><script src="../shared.js"></script><script src="../project.js"></script><script src="../wheel.js"></script>
 <script>window.module={exports:{}};</script><script src="../worklet-player.js"></script><script>window.WSOLA_ENGINE=window.module.exports;try{delete window.module;}catch(_){window.module=undefined;}</script></head><body>
 <h2 class="sr-only">Multitrack editor prototype: vertical tracks with time running downward. Tap the bottom dot to play or stop; tap empty space to place the playhead; drag empty space to scroll; pinch to zoom. Drag a clip's top or bottom edge to trim it (a warped clip stretches instead; with snap on the edge snaps to half beats and to other clips); hold the edge first, then drag inward, for a fade. Drag the seam between touching clips to roll the cut; hold it first for a crossfade. Hold a clip for cut, copy, move and delete; twist it with two fingers past a quarter turn to reverse it. Tap a clip to select it: the bottom-right dot then shows its warp, warp mode, original tempo, transpose, gain and fade curve; slide a readout to change it, or tap it for a wheel that sets the exact value. Hold a track head for mute, solo, arm and remove. The top-left dot adds a track. With no clip selected the bottom-right dot opens snap, push, the take shelf (a wheel of every take in the library, newest first, each row its kind and length, under an open-file row that opens any audio file; the chosen take is placed at the playhead) and save: it mixes the audible clips down into a new library take, then turns green for a few seconds, and a second tap shares the mix as a WAV file. Takes sent from the other tools land at the playhead. Two-finger tap undoes.</h2>
 <div id="eb" style="position:relative;height:540px;background:#fff;border-radius:16px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
@@ -635,14 +635,23 @@ function wav(data,sr){var n=data.length,b=new ArrayBuffer(44+n*2),v=new DataView
 function snapshot(T){return{v:3,mx:S.mix.sid&&S.mix.id?{sig:S.mix.sid,id:S.mix.id}:null,tl:TL,ph:T,vt:+S.vt.toFixed(3),pps:+S.pps.toFixed(3),snap:S.snapOn?1:0,push:S.push?1:0,hx:Math.round(S.hxT),
  tracks:D.tracks.map(function(t){return{m:t.m?1:0,s:t.s?1:0,a:t.a?1:0};}),
  clips:D.clips.filter(function(c){return !c.dying;}).map(function(c){return{k:c.k,t:c.t,s:c.s,d:dOf(c),off:c.off,rev:c.rev?1:0,sl:c.sl,warp:c.warp?1:0,mode:c.mode,ot:c.ot,ots:c.ots,semi:c.semi,gain:c.gain,fin:c.fin,fout:c.fout,curve:c.curve};})};}
-var lastSaved='';
-function save(flush){if(!S.ready||!window.AT)return;var o=snapshot(flush&&S.play?clamp(curT(),0,TL):S.ph),j=JSON.stringify(o);if(j===lastSaved)return;if(AT.session.save('edit',o))lastSaved=j;}   /* a failed save is tried again */
-var SES=window.AT?AT.session.load('edit'):null;
-(function(o){if(!o||typeof o!=='object')return;var tr=(o.tracks||[]).slice(0,MAXT);if(tr.length)D=blank(0);
+/* The timeline lives in the current project (project.js, docs/FORMAT.md). Each save goes to the project, and first to a
+   small mirror in localStorage, written at once: the project write is async and a killed page could lose it. The mirror
+   is used only when its project write never finished. An old 'edit' session, from before projects or from the rig,
+   is taken into the current project once. */
+var lastSaved='',DOC=null,SES=null,MIRROR='audio.edit.mirror',saving=null,nextO=null;
+function save(flush){if(!S.ready||!window.AT)return;var o=snapshot(flush&&S.play?clamp(curT(),0,TL):S.ph),j=JSON.stringify(o);if(j===lastSaved)return;
+ if(!DOC||!window.Project){if(AT.session.save('edit',o))lastSaved=j;return;}   /* a failed save is tried again */
+ lastSaved=j;try{localStorage.setItem(MIRROR,JSON.stringify({id:DOC.id,pending:1,o:o}));}catch(_){}
+ nextO=o;if(!saving)saveNext();}
+function saveNext(){var o=nextO;nextO=null;
+ saving=Project.save(Project.applyEdit(DOC,o,META,BPM)).then(function(d){DOC=d;if(!nextO)try{localStorage.setItem(MIRROR,JSON.stringify({id:d.id,pending:0,o:o}));}catch(_){}},function(){lastSaved='';})
+  .then(function(){saving=null;if(nextO)saveNext();});}
+function applyView(o){if(!o||typeof o!=='object')return;var tr=(o.tracks||[]).slice(0,MAXT);if(tr.length)D=blank(0);
  tr.forEach(function(t){D.tracks.push({m:!!t.m,s:!!t.s,a:false});});
  if(o.mx){S.mix.sid=o.mx.sig;S.mix.id=o.mx.id;}
  if(o.tl>0)TL=Math.max(TL0,+o.tl);if(o.pps>=8&&o.pps<=160)S.pps=+o.pps;S.ph=Math.max(0,+o.ph||0);S.vt=Math.max(0,+o.vt||0);
- if(o.snap!=null)S.snapOn=!!o.snap;if(o.push!=null)S.push=!!o.push;S.hx=S.hxT=clamp(+o.hx||0,0,maxHx());})(SES);
+ if(o.snap!=null)S.snapOn=!!o.snap;if(o.push!=null)S.push=!!o.push;S.hx=S.hxT=clamp(+o.hx||0,0,maxHx());}
 function num(v,lo,hi,dv){v=+v;return v>=lo&&v<=hi?v:dv;}
 function restore(a){learn(a);var cs=SES&&SES.clips||[],n=0,fix=[];
  cs.forEach(function(c){var m=c&&META[c.k];if(!m||!(c.d>0)||c.t>=nT()){n++;return;}slot(m);
@@ -653,7 +662,13 @@ function restore(a){learn(a);var cs=SES&&SES.clips||[],n=0,fix=[];
   D.clips.push(k);if(endOf(k)>TL)TL=Math.ceil(endOf(k)/BAR)*BAR;});
  fix.forEach(function(f){var k=f[0],nx=nextOf(k);if(nx)fitTail(k,Math.max(0,k.s+f[1]-nx.s));});   /* the shared tempo moved while away: warped clips follow, as live */
  S.dropped=n;fitTL();S.ph=clamp(S.ph,0,TL);S.ready=true;if(D.clips.length)S.ck=20;consume();save();}
-if(window.AT)AT.takes.list().then(restore,function(){restore([]);});else S.ready=true;
+function boot(a){learn(a);var legacy=AT.session.load('edit');
+ function go(o){SES=o;applyView(SES);restore(a);}
+ if(!window.Project){go(legacy);return;}
+ Project.open().then(function(d){DOC=d;var mir=null;try{mir=JSON.parse(localStorage.getItem(MIRROR)||'null');}catch(_){}
+  if(legacy)try{localStorage.removeItem('audio.session.edit');}catch(_){}
+  go(legacy||(mir&&mir.id===d.id&&mir.pending&&mir.o?mir.o:Project.toEdit(d)));},function(){go(legacy);});}
+if(window.AT)AT.takes.list().then(boot,function(){boot([]);});else S.ready=true;
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')consume();else save(true);});
 window.addEventListener('pagehide',function(){save(true);});
 window.addEventListener('storage',function(e){if(e.key==='audio.place'&&e.newValue)consume();});

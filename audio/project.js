@@ -19,7 +19,7 @@
       time: { sr: SR, ppq: PPQ, tempo: window.AT ? AT.tempo() : 120, sig: [4, 4], map: [] },
       tracks: [track(0), track(1)], returns: [], master: { gain: 0, inserts: [] },
       takes: {}, patches: {}, racks: {}, markers: [], range: null, tools: {},
-      view: { playhead: 0, scroll: 0, zoom: 60, lane: 0, snap: true, push: false }
+      view: {}   // filled by the editor the first time it saves; until then it keeps its own defaults
     };
   }
   function track(i, kind) { return { id: 't' + (i + 1), kind: kind || 'audio', name: '', color: i, mute: false, solo: false, gain: 0, pan: 0, inserts: [], sends: [], instrument: null, clips: [] }; }
@@ -77,26 +77,48 @@
   }
   function takeRef(m) { return { id: m.id, hash: m.hash || '', name: m.name || '', kind: m.kind || 'rec', sr: m.sr, ch: m.ch || 1, bits: m.bits || 16, frames: m.len, created: m.created, tags: m.tags || [], markers: m.markers || [] }; }
 
+  /* ---------------------------------------------------------------- the editor's state, in and out */
+  /* The editor still works in seconds (its session object, 'v3'). These two convert at the edge, so the document keeps
+     whole samples and keeps whatever the editor doesn't know about: other track kinds, inserts, sends, automation. */
+  function smp(s) { return Math.round((+s || 0) * SR); }
+  function applyEdit(doc, ed, metas, tempo) {
+    var d = clone(doc), n = 0, audio = [], rest = d.tracks.filter(function (t) { return t.kind !== 'audio'; }), was = d.tracks.filter(function (t) { return t.kind === 'audio'; }), old = {};
+    was.forEach(function (t) { (t.clips || []).forEach(function (c) { old[c.take + '@' + c.at] = c; }); });
+    (ed.tracks || []).forEach(function (t, i) { var x = was[i] ? clone(was[i]) : track(i); x.mute = !!t.m; x.solo = !!t.s; x.clips = []; audio.push(x); });
+    var used = {};
+    (ed.clips || []).forEach(function (c) {
+      var m = metas[c.k], tr = audio[c.t]; if (!m || !tr) return;
+      used[m.id] = 1; if (!d.takes[m.id]) d.takes[m.id] = takeRef(m); var sr = m.sr, at = smp(c.s), prev = old[c.k + '@' + at] || {};
+      tr.clips.push({
+        id: 'c' + (++n), type: 'audio', take: c.k, anchor: 'time', at: at, len: Math.max(1, smp(c.d)),
+        off: Math.round((+c.off || 0) * sr), span: Math.max(1, Math.round((+c.sl || +c.d || 0) * sr)), rev: !!c.rev,
+        gain: +c.gain || 0, fadeIn: smp(c.fin), fadeOut: smp(c.fout), curve: +c.curve || 0,
+        warp: { on: !!c.warp, mode: c.mode || 'beats', bpm: +c.ot || d.time.tempo, source: c.ots || 'shared', semi: +c.semi || 0 }, automation: prev.automation || []
+      });
+    });
+    d.tracks = audio.concat(rest);
+    Object.keys(d.takes).forEach(function (id) { if (!used[id] && !inRacks(d, id)) delete d.takes[id]; });
+    d.view = { playhead: smp(ed.ph), scroll: +ed.vt || 0, zoom: +ed.pps || 60, lane: +ed.hx || 0, snap: ed.snap !== 0, push: !!ed.push };
+    d.tools.edit = ed.mx ? { mx: ed.mx } : {};
+    if (tempo) d.time.tempo = tempo;
+    return d;
+  }
+  function inRacks(d, id) { return Object.keys(d.racks || {}).some(function (r) { return (d.racks[r].pads || []).some(function (p) { return p.source && p.source.take === id; }); }); }
+  function toEdit(d) {
+    var tr = d.tracks.filter(function (t) { return t.kind === 'audio'; }), clips = [];
+    tr.forEach(function (t, i) { (t.clips || []).forEach(function (c) { if (c.type !== 'audio' || c.anchor !== 'time') return; var sr = (d.takes[c.take] || {}).sr || SR;
+      clips.push({ k: c.take, t: i, s: c.at / SR, d: c.len / SR, off: c.off / sr, sl: c.span / sr, rev: c.rev ? 1 : 0, warp: c.warp && c.warp.on ? 1 : 0, mode: (c.warp || {}).mode || 'beats', ot: (c.warp || {}).bpm || d.time.tempo, ots: (c.warp || {}).source || 'shared', semi: (c.warp || {}).semi || 0, gain: c.gain || 0, fin: c.fadeIn / SR, fout: c.fadeOut / SR, curve: c.curve || 0 }); }); });
+    var v = d.view || {}, has = function (k) { return v[k] !== undefined; };
+    return { v: 3, mx: (d.tools.edit || {}).mx || null, ph: (v.playhead || 0) / SR, vt: v.scroll || 0, pps: has('zoom') ? v.zoom : undefined, snap: has('snap') ? (v.snap ? 1 : 0) : undefined, push: has('push') ? (v.push ? 1 : 0) : undefined, hx: v.lane || 0,
+      tracks: tr.map(function (t) { return { m: t.mute ? 1 : 0, s: t.solo ? 1 : 0, a: 0 }; }), clips: clips };
+  }
+
   /* sources: {edit, play, ana, bpm, metro, tuner, garden, tempo, metas}. A clip whose take is gone is dropped */
   function fromLegacy(o) {
     var d = blank(''), metas = {}; (o.metas || []).forEach(function (m) { metas[m.id] = m; });
     d.time.tempo = o.tempo || d.time.tempo;
-    var ed = o.edit, n = 0;
-    function smp(s) { return Math.round((+s || 0) * SR); }
-    if (ed && ed.tracks && ed.tracks.length) {
-      d.tracks = ed.tracks.map(function (t, i) { var x = track(i); x.mute = !!t.m; x.solo = !!t.s; return x; });
-      (ed.clips || []).forEach(function (c) {
-        var m = metas[c.k], tr = d.tracks[c.t]; if (!m || !tr) return;
-        d.takes[m.id] = takeRef(m); var sr = m.sr;
-        tr.clips.push({
-          id: 'c' + (++n), type: 'audio', take: c.k, anchor: 'time', at: smp(c.s), len: Math.max(1, smp(c.d)),
-          off: Math.round((+c.off || 0) * sr), span: Math.max(1, Math.round((+c.sl || +c.d || 0) * sr)), rev: !!c.rev,
-          gain: +c.gain || 0, fadeIn: smp(c.fin), fadeOut: smp(c.fout), curve: +c.curve || 0,
-          warp: { on: !!c.warp, mode: c.mode || 'beats', bpm: +c.ot || d.time.tempo, source: c.ots || 'shared', semi: +c.semi || 0 }, automation: []
-        });
-      });
-      d.view = { playhead: smp(ed.ph), scroll: +ed.vt || 0, zoom: +ed.pps || 60, lane: +ed.hx || 0, snap: ed.snap !== 0, push: !!ed.push };
-    }
+    var ed = o.edit;
+    if (ed && ed.tracks && ed.tracks.length) { d = applyEdit(d, ed, metas); delete d.tools.edit; }
     ['play', 'ana', 'bpm', 'metro', 'tuner'].forEach(function (k) { if (o[k]) d.tools[k] = o[k]; });
     if (o.garden && o.garden.seed) { var p = patchFromGarden(o.garden); d.patches[p.id] = p; d.tools.synth = { patch: p.id }; }
     return d;
@@ -160,6 +182,16 @@
   }
   function undo(d) { return step(d, 'past', 'next', 'back'); }
   function redo(d) { return step(d, 'next', 'past', 'fwd'); }
+
+  /* the project to work in: the current one, else the newest, else one made from the old keys */
+  function open() {
+    var id = current();
+    return (id ? readDoc(id).catch(function () { return null; }) : Promise.resolve(null)).then(function (d) {
+      if (d) return d;
+      return list().then(function (l) { return l.length ? readDoc(l[0].id) : migrate(); });
+    }).then(function (d) { current(d.id); return d; });
+  }
+  function create(name) { var d = blank(name); return save(d).then(function (d) { current(d.id); return d; }); }
 
   /* the first open: one project out of what the old keys hold. Idempotent; the old keys stay */
   function migrate() {
@@ -284,6 +316,6 @@
   window.Project = {
     FORMAT: FORMAT, VERSION: VERSION, GENES: GENES, blank: blank, track: track, validate: validate, upgrade: upgrade, fromLegacy: fromLegacy,
     diff: diff, patch: patch, save: save, load: readDoc, list: list, remove: remove, current: current, edited: edited, undo: undo, redo: redo,
-    migrate: migrate, exportFile: exportFile, importFile: importFile
+    migrate: migrate, exportFile: exportFile, importFile: importFile, applyEdit: applyEdit, toEdit: toEdit, open: open, create: create
   };
 })();

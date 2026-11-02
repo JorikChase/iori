@@ -18,7 +18,7 @@ module.exports = async (lib) => {
   await page.evaluate((id) => new Promise((res, rej) => { const r = indexedDB.open('audio'); r.onsuccess = () => { const t = r.result.transaction(['meta', 'pcm'], 'readwrite');
     t.objectStore('meta').delete(id); t.objectStore('pcm').delete(id); t.oncomplete = () => { r.result.close(); res(); }; t.onerror = rej; }; }), ids[0]);
   await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(1200);
-  const d1 = await page.evaluate(() => ({ clips: __D.clips.map(c => c.k), dropped: __S.dropped, ses: JSON.parse(localStorage.getItem('audio.session.edit')).clips.map(c => c.k) }));
+  const d1 = await page.evaluate(() => ({ clips: __D.clips.map(c => c.k), dropped: __S.dropped, ses: (JSON.parse(localStorage.getItem('audio.edit.mirror') || '{}').o || null).clips.map(c => c.k) }));
   // open: move nothing, make an edit (add a track) so undo has a snapshot holding take b, then delete b live
   await page.mouse.click(18, 30); await page.waitForTimeout(300);
   await page.evaluate((id) => AT.takes.del(id), ids[1]); await page.waitForTimeout(150);

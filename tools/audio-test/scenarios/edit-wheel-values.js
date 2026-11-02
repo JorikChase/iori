@@ -16,7 +16,7 @@ module.exports = async (lib) => {
   const page = await E.std(lib, br, { snap: 0 });
   const v = await E.view(page), X1 = v.lanes[1]; const { C } = await E.abc(page);
   const clip = () => E.byId(page, C.id), item = (pred) => E.item(page, pred);
-  const sessC = () => page.evaluate((k) => { const o = JSON.parse(localStorage.getItem('audio.session.edit') || 'null'); return o && o.clips.find(c => c.k === k); }, C.k);
+  const sessC = () => page.evaluate((k) => { const o = (JSON.parse(localStorage.getItem('audio.edit.mirror') || '{}').o || null); return o && o.clips.find(c => c.k === k); }, C.k);
   const wItems = () => page.evaluate(() => { const w = Wheel.active(); return w ? { items: w.o.columns[0].items, light: !!w.o.light } : null; });
   await E.select(page, X1, await E.yOf(page, C.s + C.d / 2)); await page.waitForTimeout(300);
 

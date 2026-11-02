@@ -8,7 +8,7 @@ module.exports = async (lib) => {
   const synth = ['function gen(', 'createOscillator', 'gen(0)', 'init()', 'Math.sin(2*Math.PI', 'Math.exp(-x'].filter(s => src.includes(s));
   const page = await lib.open(br, 'edit', { wait: 1200 });
   const st = await page.evaluate(() => ({ ready: __S.ready, clips: __D.clips.length, tracks: __D.tracks.length, slots: __E.slots().length,
-    inv: __S.inv, session: localStorage.getItem('audio.session.edit') }));
+    inv: __S.inv, session: (localStorage.getItem('audio.edit.mirror') && JSON.stringify(JSON.parse(localStorage.getItem('audio.edit.mirror')).o)) }));
   let f = `${dir}/empty.png`; let png = await page.screenshot({ path: f }); shots.push(f); const litEmpty = await lib.lit(br, png);
   // properties corner -> shelf bud: only the open-file row with an empty library
   await page.mouse.click(lib.VIEW.width - 34, lib.VIEW.height - 30); await page.waitForTimeout(400);

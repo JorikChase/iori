@@ -308,7 +308,8 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
   // gpu/sense.js's shape for a collage (core/collage-sense.js readCollageSense), params: false for hits, the
   // normals and λ alone (no rows). other: not the collage on screen — upload it for this pass and give the
   // buffers back. null while another pass runs or the pipeline compiles.
-  async function senseCollage(collage, v, pixelHeight, uvs = grid, { other = false, params = true } = {}) {
+  // time: the clock the heads carry (the collage's own drive is differentiated at it, core/collage-sense.js)
+  async function senseCollage(collage, v, pixelHeight, uvs = grid, { other = false, params = true, time = R.clock || 0 } = {}) {
     if (busy) return null;
     const pipeC = R.variant(...collageKey(collage));
     if (!pipeC) return null;
@@ -347,7 +348,7 @@ export async function createSense(R, { cols = 32, rows = 20 } = {}) {
       const o = new Float32Array(readBuf.getMappedRange().slice(0));
       readBuf.unmap();
       [tanBuf, uvBuf, outBuf, readBuf].forEach((b) => b.destroy());
-      return { ...readCollageSense(c, v, pixelHeight, uvs, o, tg.list, { params }), gpu: true };
+      return { ...readCollageSense(c, v, pixelHeight, uvs, o, tg.list, { params, time }), gpu: true };
     } finally {
       busy = false;
     }

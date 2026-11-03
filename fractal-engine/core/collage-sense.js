@@ -6,8 +6,9 @@
 // and its derivative in every parameter (central differences) say how many pixels the surface moves per
 // unit of it — speed = |∂D/∂θ| / |∇D| / (t · pixel angle), the same measure gpu/sense.js takes from its
 // duals. The parameters are the collage's own continuous numbers (placements, repetitions, joins:
-// core/collage-edit.js collageParams) and every piece's op parameters; a piece's drivers are not
-// measured. λ at a hit is the leading piece's Lyapunov exponent at the point it reaches (core/cpu.js).
+// core/collage-edit.js collageParams), every piece's op parameters and the collage's own drivers'
+// parameters (band ends, node numbers upstream of a binding: driveParams, as { drive }); a piece's drivers
+// are not measured here (the GPU's pass measures them). λ at a hit is the leading piece's Lyapunov exponent at the point it reaches (core/cpu.js).
 // The result has gpu/sense.js's shape, so breeding, the grab and the drift read it alike:
 //   { params: [{ ref | piece, oi, op, key, value, pxPerUnit }], driveParams: [], step: 1,
 //     rays: [{ uv, hit, t, x, grad, lambda, speeds, lead }], lyap, hits, points, pixelAngle }
@@ -16,7 +17,7 @@
 import { prepare, collageAt, toPiece, repFold, repDual, collageTarget, foldJoins, drivenWith } from './collage.js';
 import { collageParams } from './collage-edit.js';
 import { getOp } from './ops.js';
-import { setDriveParam } from './drive.js';
+import { setDriveParam, getDriveParam, driveParams as drvParams, evalDrive } from './drive.js';
 import { lyapunov, lift } from './cpu.js';
 import { rotationXYZ, matVec, transpose } from './vec.js';
 
@@ -35,7 +36,7 @@ export function collageMetricParams(c) {
 // hot path of the differences)
 export function setter(g, p) {
   if (p.ref) { const t = collageTarget(g, p.ref); return (v) => { t.obj[t.key] = v; }; }
-  if (p.drive) { const d = g.pieces[p.piece].f.drive; return (v) => setDriveParam(d, p.drive, v); }
+  if (p.drive) { const d = p.piece == null ? g.drive : g.pieces[p.piece].f.drive; return (v) => setDriveParam(d, p.drive, v); }
   const o = g.pieces[p.piece].f.slots.flat()[p.oi];
   return (v) => { o.p[p.key] = v; };
 }
@@ -73,11 +74,13 @@ export function senseCollage(collage, v, H, uvs, opts = {}) {
     }
   }
   const params = opts.params === false ? [] : collageMetricParams(g);
-  if (params.length && hits.length) {
+  const driveParams = opts.params === false ? [] : collageDriveParams(g).map((p) => ({ drive: p.drive, value: p.value }));
+  const all = [...params, ...driveParams];
+  if (all.length && hits.length) {
     const w = clone(g);
     Object.defineProperty(w, '__norm', { value: true });
     const Dw = (x) => collageAt(w, x, { time }).d;
-    params.forEach((p, j) => {
+    all.forEach((p, j) => {
       const set = setter(w, p), h = 1e-4 * Math.max(1, Math.abs(p.value));
       for (const r of hits) {
         set(p.value + h); const a = Dw(r.x);
@@ -87,15 +90,63 @@ export function senseCollage(collage, v, H, uvs, opts = {}) {
         r.speeds[j] = Number.isFinite(s) ? s : 0;
       }
     });
-    for (const p of params) p.pxPerUnit = 0;
-    params.forEach((p, j) => { let s = 0; for (const r of hits) s += r.speeds[j] * r.speeds[j]; p.pxPerUnit = Math.sqrt(s / hits.length); });
-  }
+    all.forEach((p, j) => { let s = 0; for (const r of hits) s += r.speeds[j] * r.speeds[j]; p.pxPerUnit = Math.sqrt(s / hits.length); });
+  } else for (const p of all) p.pxPerUnit = 0;
   const lam = hits.map((r) => r.lambda).sort((a, b) => a - b);
   const q = (f) => lam[Math.min(lam.length - 1, Math.floor(lam.length * f))] ?? 0;
   return {
-    params, driveParams: [], step: 1, rays, lyap: { median: q(0.5), p10: q(0.1), p90: q(0.9) }, hits: hits.length,
+    params, driveParams, step: 1, rays, lyap: { median: q(0.5), p10: q(0.1), p90: q(0.9) }, hits: hits.length,
     points: hits.map((r) => ({ t: r.t, x: r.x, grad: r.grad })), pixelAngle,
   };
+}
+
+// ---------- the collage's own drivers ------------------------------------------------------------------
+// A collage's drive reads no orbit: fields, the start point, the clock, param nodes, maths and remaps of
+// them, at the world point. So its parameters reach the estimate through the numbers they bind alone:
+//   ∂D/∂θ = Σ_b ∂D/∂(b's number) · ∂v_b/∂θ,
+// ∂D/∂(number) from collageDual's partials (a bound number's included), ∂v_b/∂θ from the drive in float64 at
+// the hit: a band's ends exactly (∂v/∂lo = 1 − r, ∂v/∂hi = r, r the source's register), a node's number by a
+// central difference of evalDrive (no orbit: cheap). A binding clamped at its number's range moves nothing.
+
+// the bindings the GPU runs (a target, a source): core/collage.js drivenWith's order
+export const liveBinds = (g) => (g.drive ? g.drive.bind.filter((b) => collageTarget(g, b.to) && g.drive.nodes.some((m) => m.id === b.from)) : []);
+
+// the collage's own driver parameters that reach a binding: [{ drive: a core/drive.js ref, value }]
+export function collageDriveParams(g) {
+  const live = liveBinds(g);
+  if (!live.length) return [];
+  const up = new Set(), byId = new Map(g.drive.nodes.map((m) => [m.id, m]));
+  const visit = (id) => {
+    if (up.has(id) || !byId.has(id)) return;
+    up.add(id);
+    for (const s of Object.values(byId.get(id).in || {})) if (s != null) visit(s);
+  };
+  live.forEach((b) => visit(b.from));
+  const to = new Set(live.map((b) => b.to));
+  return drvParams(g.drive).filter((p) => {
+    const [kind, id] = p.ref.split('/');
+    return kind === 'bind' ? to.has(id) : up.has(id);
+  }).map((p) => ({ drive: p.ref, value: p.value }));
+}
+
+// ∂v_b/∂θ at world point x: list (collageDriveParams) × the live bindings → [θ][b]
+export function collageDriveJac(g, x, list, time = 0) {
+  const live = liveBinds(g), env = { start: [x[0], x[1], x[2], 0], time, own: (ref) => { const t = collageTarget(g, ref); return t ? t.obj[t.key] : 0; } };
+  const at = (d) => { const all = evalDrive(d, env); return { reg: all.reg, v: live.map((b) => all.values[d.bind.findIndex((q) => q.to === b.to)]) }; };
+  const base = at(g.drive);
+  const free = live.map((b, k) => { const q = collageTarget(g, b.to).spec, v = base.v[k]; return v >= (q.min ?? -Infinity) && v <= (q.max ?? Infinity); });
+  return list.map((p) => {
+    const [kind, id, key] = p.drive.split('/');
+    if (kind === 'bind') return live.map((b, k) => {
+      if (b.to !== id || !free[k]) return 0;
+      const r = Number(base.reg.get(b.from)) || 0;
+      return key === 'lo' ? 1 - r : r;
+    });
+    const v0 = getDriveParam(g.drive, p.drive), h = 1e-5 * Math.max(1, Math.abs(v0)), d = clone(g.drive);
+    setDriveParam(d, p.drive, v0 + h); const hi = getDriveParam(d, p.drive), A = at(d);
+    setDriveParam(d, p.drive, v0 - h); const lo = getDriveParam(d, p.drive), B = at(d);
+    return live.map((_, k) => (free[k] && hi > lo ? (A.v[k] - B.v[k]) / (hi - lo) : 0));
+  });
 }
 
 // ---------- through the joins ---------------------------------------------------------------------------
@@ -187,14 +238,18 @@ export function collageDual(g, x, recs, numbers, dv = null, held = null) {
 export const CS_RAY = 33, CS_PIECE = 1, CS_VALUES = 17, CS_DVALUES = 21;
 
 // rows (gpu/pack.js collageSenseRows): { piece, oi, op, key, value } | { piece, drive, value } | { piece, frozen }
+// opts: { params, time (the clock the GPU ran at: the collage's own drive is evaluated here) }
 // → gpu/sense.js's shape (params, driveParams, step, rays, lyap, hits, points, pixelAngle). rays also carry
-// n (the exact normal) and lead; speeds run over params, then driveParams, as a formula's.
+// n (the exact normal) and lead; speeds run over params, then driveParams (the pieces' rows, then the collage's own, { drive } with no piece), as a formula's.
 export function readCollageSense(collage, v, H, uvs, o, rows = [], opts = {}) {
   const g = prepare(collage), N = g.pieces.length, n = uvs.length / 2, pixelAngle = (2 * v.tanHalfFov) / H;
   const numbers = collageNumbers(g), own = opts.params === false ? [] : numbers.flatMap((q, k) => (q.bound ? [] : [k]));
   const ops = rows.filter((r) => r.oi !== undefined && !r.frozen), drv = rows.filter((r) => r.drive), frozen = rows.flatMap((r, j) => (r.frozen ? [[r.piece, j]] : []));
   const rowsAt = CS_RAY * n, rowIndex = new Map(rows.map((r, j) => [r, j]));
-  const nb = g.drive ? g.drive.bind.filter((b) => collageTarget(g, b.to) && g.drive.nodes.some((m) => m.id === b.from)).length : 0;
+  const live = liveBinds(g), nb = live.length;
+  // the collage's own drivers: their numbers' partials through the bindings (above)
+  const cdrv = opts.params === false ? [] : collageDriveParams(g), refAt = new Map(numbers.map((q, k) => [q.ref, k]));
+  const bindAt = live.map((b) => refAt.get(b.to));
   const rays = [], Ls = [];
   for (let i = 0; i < n; i++) {
     const uv = [uvs[i * 2], uvs[i * 2 + 1]], at = i * CS_RAY * 4, t = o[at], hit = o[at + 1] > 0.5;
@@ -229,6 +284,10 @@ export function readCollageSense(collage, v, H, uvs, o, rows = [], opts = {}) {
     if (opts.params !== false) {
       for (const k of own) ray.speeds.push(speed(D.partial[k]));
       for (const r of [...ops, ...drv]) ray.speeds.push(speed(D.a[r.piece] * D.s[r.piece] * o[(rowsAt + rowIndex.get(r) * n + i) * 4 + 3]));
+      if (cdrv.length) {
+        const J = collageDriveJac(g, x, cdrv, opts.time || 0);
+        for (const row of J) { let s = 0; row.forEach((q, k) => { if (q && bindAt[k] !== undefined) s += D.partial[bindAt[k]] * q; }); ray.speeds.push(speed(s)); }
+      }
     }
     // the step factor L, as gpu/sense.js takes it: the estimate's gradient, over the same with every drive held
     if (nb || frozen.length) { const h = Math.hypot(...D.gradHeld); if (gl > 0 && h > 0) Ls.push(Math.max(1, gl / h)); }
@@ -240,6 +299,7 @@ export function readCollageSense(collage, v, H, uvs, o, rows = [], opts = {}) {
     own.forEach((k) => params.push({ ref: numbers[k].ref, value: numbers[k].value }));
     ops.forEach((r) => params.push({ piece: r.piece, oi: r.oi, op: r.op, key: r.key, value: r.value }));
     drv.forEach((r) => driveParams.push({ piece: r.piece, drive: r.drive, value: r.value }));
+    cdrv.forEach((p) => driveParams.push({ drive: p.drive, value: p.value }));
     params.forEach((p, j) => { p.pxPerUnit = rms(j); });
     driveParams.forEach((p, j) => { p.pxPerUnit = rms(params.length + j); });
   }

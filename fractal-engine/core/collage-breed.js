@@ -7,7 +7,7 @@
 //
 // The metric (as core/breed.js's): entries name a collage number { ref: 'P0.tx' | 'J1.r' …, pxPerUnit }
 // a piece's op parameter { piece, oi, op, key, pxPerUnit }, or a piece's driver parameter { piece, drive:
-// a core/drive.js ref, pxPerUnit }. mutateCollage steps D on-screen pixels in
+// a core/drive.js ref, pxPerUnit }, or one of the collage's own drivers' { drive, pxPerUnit } (no piece). mutateCollage steps D on-screen pixels in
 // a random direction across the unpinned ones, so every neighbour is a known visual distance away.
 
 import { masterParam } from './sub.js';
@@ -73,10 +73,11 @@ export function lerpCollage(a, b, t) {
 
 // ---------- the metric ------------------------------------------------------------------------------
 
-export const metricId = (m) => (m.ref ? m.ref : m.drive ? `P${m.piece}:${m.drive}` : `P${m.piece}:${m.oi}.${m.key}`);
+export const metricId = (m) => (m.ref ? m.ref : m.drive ? (m.piece == null ? `C:${m.drive}` : `P${m.piece}:${m.drive}`) : `P${m.piece}:${m.oi}.${m.key}`);
 
 export function metricValue(c, m) {
   if (m.ref) return getCollageParam(c, m.ref);
+  if (m.drive && m.piece == null) { const g = normCollage(c); return g.drive ? getDriveParam(g.drive, m.drive) : undefined; }
   const pc = normCollage(c).pieces[m.piece];
   if (m.drive) return pc && pc.f.drive ? getDriveParam(pc.f.drive, m.drive) : undefined;
   const o = pc && pc.f.slots.flat()[m.oi];
@@ -86,7 +87,9 @@ export function metricValue(c, m) {
 // the collage with one metric entry set (clamped to its range)
 export function withMetric(c, m, v) {
   if (m.ref) return setCollageParam(c, m.ref, v);
-  const g = clone(normCollage(c)), f = g.pieces[m.piece].f;
+  const g = clone(normCollage(c));
+  if (m.drive && m.piece == null) { if (g.drive) setDriveParam(g.drive, m.drive, v); return normCollage(g); }
+  const f = g.pieces[m.piece].f;
   if (m.drive) { setDriveParam(f.drive, m.drive, v); return normCollage(g); }
   const to = masterParam(f, m.oi, m.key), o = f.slots.flat()[to.oi];
   const q = getOp(o.op).params.find((p) => p.k === m.key);

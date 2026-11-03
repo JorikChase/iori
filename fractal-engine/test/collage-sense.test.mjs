@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepare, collageAt, collageGrad, drivenAt, smin, sminR, joinShape, joinEval, repFold, repDual, toPiece, parseCollage, normCollage, KERNELS, collageTarget } from '../core/collage.js';
-import { collageNumbers, collageDual, readCollageSense, senseCollage, CS_RAY, CS_PIECE, CS_VALUES, CS_DVALUES } from '../core/collage-sense.js';
+import { collageNumbers, collageDual, readCollageSense, senseCollage, collageDriveParams, collageDriveJac, setter, CS_RAY, CS_PIECE, CS_VALUES, CS_DVALUES } from '../core/collage-sense.js';
 import { collageSenseRows, CS_ROW_FLOATS, TAN_FLOATS } from '../gpu/pack.js';
 import { metricId, metricValue, withMetric, mutateCollage, collageDistancePx } from '../core/collage-breed.js';
 import { evalDrive, getDriveParam, setDriveParam } from '../core/drive.js';
@@ -200,6 +200,57 @@ test('the pieces\' drivers are in the metric', () => {
   const b = mutateCollage(c, metric, new Set(), 40, () => rnd.next ? rnd.next() : Math.random());
   const dist = collageDistancePx(c, b, metric);
   assert.ok(Math.abs(dist - 40) < 8, `moved ${dist} px`);
+});
+
+// the collage's own drivers: band ends and node numbers, carried through the numbers they bind (the chain rule
+// in core/collage-sense.js) against differences of collageAt with the parameter really moved
+for (const label of ['drive: axis → seam, time → place', 'drive: tissue → morph, param link', 'own shade: its drivers']) {
+  test(`the collage's own drivers are in the metric: ${label}`, () => {
+    const [, c0] = collageCase(label), c = prepare(c0), uvs = grid(12, 8), rows = collageSenseRows(c).list;
+    const own = collageDriveParams(c);
+    assert.ok(own.length > 0);
+    // every band end of a live binding, and only nodes upstream of one (the shade's sphere and clock bind nothing)
+    for (const b of c.drive.bind) assert.ok(own.some((p) => p.drive === `bind/${b.to}/lo`) && own.some((p) => p.drive === `bind/${b.to}/hi`));
+    if (label.startsWith('own shade')) assert.ok(!own.some((p) => /^node\/(sp|t)\//.test(p.drive)));
+    const { o } = fillBuffer(c, uvs, 800, rows);
+    const r = readCollageSense(c, VIEW, 800, uvs, o, rows, { time: T });
+    const mine = r.driveParams.filter((p) => p.piece == null);
+    assert.deepEqual(mine.map((p) => p.drive), own.map((p) => p.drive));
+    assert.ok(mine.some((p) => p.pxPerUnit > 0));
+    const first = r.params.length + r.driveParams.length - mine.length, w = prepare(clone(c)), errs = [];
+    for (const q of r.rays.filter((y) => y.hit && y.grad > 1e-6)) {
+      assert.equal(q.speeds.length, r.params.length + r.driveParams.length);
+      mine.forEach((p, j) => {
+        const set = setter(w, p), h = 1e-6 * Math.max(1, Math.abs(p.value));
+        set(p.value + h); const a = collageAt(w, q.x, { time: T }).d;
+        set(p.value - h); const b = collageAt(w, q.x, { time: T }).d;
+        set(p.value);
+        const s = Math.abs((a - b) / (2 * h)) / q.grad / (q.t * r.pixelAngle);
+        errs.push(Math.abs(Math.abs(q.speeds[first + j]) - s) / Math.max(s, 0.05 * Math.max(p.pxPerUnit, 1e-6)));
+      });
+    }
+    assert.ok(errs.length > 10);
+    assert.ok(pct(errs, 0.5) < 1e-3, `median ${pct(errs, 0.5)}`);
+    assert.ok(pct(errs, 0.9) < 2e-2, `p90 ${pct(errs, 0.9)}`);
+    // ids, values, writes, a mutation a known distance away
+    const m = mine.find((p) => p.pxPerUnit > 0);
+    assert.ok(metricId(m).startsWith('C:'));
+    assert.equal(metricValue(c, m), m.value);
+    assert.ok(Math.abs(metricValue(withMetric(c, m, m.value + 0.01), m) - (m.value + 0.01)) < 1e-6);
+    const metric = [...r.params, ...r.driveParams], rnd = makeRng(9);
+    const b = mutateCollage(c, metric, new Set(), 40, () => rnd.next ? rnd.next() : Math.random());
+    assert.ok(Math.abs(collageDistancePx(c, b, metric) - 40) < 8);
+  });
+}
+
+test('a binding clamped at its number\'s range moves nothing', () => {
+  const [, c0] = collageCase('drive: axis → seam, time → place'), c = prepare(clone(c0));
+  // the seam's band pushed far past J0.r's range: every point clamps
+  c.drive.bind.find((b) => b.to === 'J0.r').hi = 50;
+  c.drive.bind.find((b) => b.to === 'J0.r').lo = 40;
+  const own = collageDriveParams(c), J = collageDriveJac(c, [0.2, 0.3, 0.1], own, T);
+  own.forEach((p, j) => { if (p.drive.includes('J0.r') || p.drive.startsWith('node/')) assert.equal(J[j][c.drive.bind.findIndex((b) => b.to === 'J0.r')], 0, p.drive); });
+  assert.ok(J.some((row) => row.some((q) => q !== 0)), 'the clock\'s binding still moves');
 });
 
 test('the rows: seven vec4, the piece first, its table row after', () => {

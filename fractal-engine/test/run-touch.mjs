@@ -164,9 +164,10 @@ if (DESK) {
   await check('desktop: a collage senses on the GPU, its lens opens and edits it', async () => {
     const r = await collageOnGpu();
     const t0 = await fe(() => window.__fe.state.text);
-    await M.move(cx, cy); await M.down(); await sleep(900);
+    // (as the formula's check: past 1.2 s a still hold would open the breed ring)
+    await M.move(cx, cy); await M.down(); await sleep(700);
     const a = await input();
-    await page.keyboard.down('Shift'); await sleep(1500);
+    await page.keyboard.down('Shift'); await sleep(300);
     const b = await input();
     await M.move(cx + 40, cy + 20, { steps: 5 }); await sleep(200);
     const t1 = await fe(() => window.__fe.state.text);

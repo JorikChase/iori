@@ -454,6 +454,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
 // in the case: hits against the CPU's trace, and at the GPU's hits the normal and every parameter's speed
 // against central differences of collageAt, the pieces' driver parameters among them.
 const SENSE_RAYS = [14, 9];
+const clPct = (a, f) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * f))] || 0; };
 function senseView(R) {
   const pos = [R * 1.3, R * 1.1, -R * 2.1], l = Math.hypot(...pos), fwd = pos.map((v) => -v / l);
   const right = [fwd[2], 0, -fwd[0]].map((v) => v / Math.hypot(fwd[2], fwd[0]));
@@ -498,13 +499,14 @@ async function senseRows(device) {
     const list = [...g.params, ...g.driveParams], grads = [], rel = [], rms = list.map((p) => Math.max(p.pxPerUnit, 1e-6));
     const skip = (p) => label.includes('param link') && p.ref;   // a number a param node reads: its direct effect only
     for (const r of g.rays.filter((q) => q.hit && q.n)) {
-      const fd = collageGrad(c, r.x, { time: CL_T }, 1e-4 * Math.max(1, r.t * g.pixelAngle * 4)), l = Math.hypot(...fd);
+      // (the dual rows' step: a wider difference spans the surface's own roughness)
+      const fd = collageGrad(c, r.x, { time: CL_T }, 1e-6), l = Math.hypot(...fd);
       if (!(l > 1e-6)) continue;
       const dot = fd.reduce((a, q, k) => a + (q / l) * r.n[k], 0);
       grads.push(Math.acos(Math.min(1, Math.max(-1, dot))) * 180 / Math.PI);
       list.forEach((p, j) => {
         if (skip(p)) return;
-        const set = metricSetter(w, p), h = 1e-4 * Math.max(1, Math.abs(p.value));
+        const set = metricSetter(w, p), h = 1e-6 * Math.max(1, Math.abs(p.value));
         set(p.value + h); const a = collageAt(w, r.x, { time: CL_T }).d;
         set(p.value - h); const b = collageAt(w, r.x, { time: CL_T }).d;
         set(p.value);
@@ -513,17 +515,17 @@ async function senseRows(device) {
       });
     }
     rows.push({ kind: 'sense', formula: 'sense · ' + label, hits: g.hits, cpuHits: cpu.hits, rays: uvs.length / 2, hitOff, params: g.params.length, drivers: g.driveParams.length, driverPx: Math.max(0, ...g.driveParams.map((p) => p.pxPerUnit)), step: g.step,
-      lyapLive: g.rays.filter((q) => q.hit && q.lambda !== 0).length, gradDegMed: pct(grads, 0.5), gradDegP90: pct(grads, 0.9), paramRelMed: pct(rel, 0.5), paramRelP90: pct(rel, 0.9), compared: rel.length, ms });
+      lyapLive: g.rays.filter((q) => q.hit && q.lambda !== 0).length, gradDegMed: clPct(grads, 0.5), gradDegP90: clPct(grads, 0.9), paramRelMed: clPct(rel, 0.5), paramRelP90: clPct(rel, 0.9), compared: rel.length, ms });
   }
   return rows;
 }
 // The lens's overlay: one collage number and one piece op moved through the collage's own estimate against
 // collageAt with the values really changed (the lens map draws this estimate)
-const OV_CASES = [['union quad', 'P1.tx', 1], ['mirror xz', 'J0.r', 1], ['grid', 'P0.rz', 1], ['a driven piece', 'P1.s', 1]];
-const OV_N = 512;
+const CL_OV_CASES = [['union quad', 'P1.tx', 1], ['mirror xz', 'J0.r', 1], ['grid', 'P0.rz', 1], ['a driven piece', 'P1.s', 1]];
+const CL_OV_N = 512;
 async function overlayRows(device, compilePipe) {
   const rows = [];
-  for (const [label, ref, piece] of OV_CASES) {
+  for (const [label, ref, piece] of CL_OV_CASES) {
     mark('collage', 'overlay ' + label);
     const [, c0, R] = collageCase(label), c = prepare(c0);
     const t = paramTangents(c.pieces[piece].f).list.find((q) => q.drec && !['rotate', 'rotate4', 'fold.plane'].includes(q.op));
@@ -539,16 +541,16 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   ovD = pts[2u * i + 1u].xy;
   outp[2u * i] = vec4f(de(pts[2u * i].xyz), 0.0, 0.0, 0.0);
 }`), 'overlay ' + label);
-    const rng = makeRng(83), pts = new Float32Array(OV_N * 8), cpu = [];
-    for (let i = 0; i < OV_N; i++) {
+    const rng = makeRng(83), pts = new Float32Array(CL_OV_N * 8), cpu = [];
+    for (let i = 0; i < CL_OV_N; i++) {
       const x = rng.ball().slice(0, 3).map((q) => q * R), d = [rng.ball()[0] * 0.05, rng.ball()[1] * 0.05];
       pts.set(x, i * 8); pts.set(d, i * 8 + 4);
       const m = withMetric(withMetric(c, op, t.value + d[0]), ov, collageTarget(c, ref).obj[collageTarget(c, ref).key] + d[1]);
       cpu.push(collageAt(prepare(m), x, { time: CL_T }).d);
     }
-    const g = await runCollage(device, pipe, c, pts, OV_N);
+    const g = await runCollage(device, pipe, c, pts, CL_OV_N);
     const errs = cpu.map((q, i) => Math.abs(g[i * 8] - q) / Math.max(Math.abs(q), 1e-3));
-    rows.push({ kind: 'overlay', formula: `overlay · ${label} · ${ref} ${t.key}`, n: OV_N, median: pct(errs, 0.5), p99: pct(errs, 0.99) });
+    rows.push({ kind: 'overlay', formula: `overlay · ${label} · ${ref} ${t.key}`, n: CL_OV_N, median: clPct(errs, 0.5), p99: clPct(errs, 0.99) });
   }
   return rows;
 }

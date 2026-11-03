@@ -281,6 +281,24 @@ export function paramTangents(formula, opts = {}) {
   return { list, buf };
 }
 
+// The rows of a collage's sensing pass (gpu/sense.js): every piece's paramTangents, each row [piece, 0, 0, 0]
+// before its own table row, so the row names the region it runs in. Seven vec4 per row.
+export const CS_ROW_FLOATS = 4 + TAN_FLOATS;
+export function collageSenseRows(collage) {
+  const list = [], at = [];
+  normCollage(collage).pieces.forEach((q, piece) => {
+    const tg = paramTangents(q.f, { frozen: true });
+    tg.list.forEach((t, j) => {
+      if (t.drec && !Number.isFinite(t.value)) return;
+      list.push({ ...t, piece });
+      at.push(tg.buf.subarray(j * TAN_FLOATS, (j + 1) * TAN_FLOATS));
+    });
+  });
+  const buf = new Float32Array(Math.max(1, list.length) * CS_ROW_FLOATS);
+  list.forEach((t, i) => { buf[i * CS_ROW_FLOATS] = t.piece; buf.set(at[i], i * CS_ROW_FLOATS + 4); });
+  return { list, buf };
+}
+
 // ---------- the collage (core/collage.js; gpu/wgsl.js COLLAGE reads it) -----------------------------
 // A collage packs every piece as the formula it is — its head, and its ops region (op records, shading
 // and drive programs, OPS_FLOATS each) behind the piece index — then a region of the collage's own

@@ -5,7 +5,7 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP, DUAL, COLLAGE, withDrive, withCollage, collageRewrite } from './wgsl.js';
+import { INTERP, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, collageRewrite } from './wgsl.js';
 import { withJit, structureKey, jitIterate, jitDual } from './jit.js';
 import { canonical } from '../core/formula.js';
 import { MAX_PIECES, isCollage } from '../core/collage.js';
@@ -381,6 +381,45 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
 }
 `;
 
+// The lens on a collage: the same map, every texel the collage's own estimate at the held point with two
+// parameters moved. Either may be a piece's op (its record overlaid in that piece alone) or a number of the
+// collage itself (a placement, a repetition, a join: overlaid on the program, so an angle needs no record).
+export const COLLAGE_LENS = withCollage(INTERP) + withCollageOverlay(COLLAGE) + /* wgsl */ `
+fn clFallback(i: u32, col: f32, facing: f32) -> vec4f { return vec4f(1.0); }
+struct LV {
+  x: vec4f,      // xyz the held point, w world size of one CSS pixel at its depth
+  span: vec4f,   // x first parameter across the width, y second across the height, z w, w h (texels)
+  ov: vec4u,     // x op of the first parameter, y op of the second, z how many (1 or 2)
+  key: vec4f,    // rgb key colour
+  who: vec4u,    // x, y the op's piece; z, w the collage number's flat index (none: 0xffffffff)
+  lim: vec4f,    // the collage numbers' ranges: lo, hi of the first, lo, hi of the second
+};
+@group(1) @binding(0) var<uniform> lv: LV;
+@group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
+@group(1) @binding(2) var lensOut: texture_storage_2d<rgba16float, write>;
+
+@compute @workgroup_size(8, 8)
+fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
+  if (f32(gid.x) >= lv.span.z || f32(gid.y) >= lv.span.w) { return; }
+  clOvOp = lv.ov.xy;
+  clOvPiece = lv.who.xy;
+  clOvAt = lv.who.zw;
+  clOvLo = lv.lim.xz;
+  clOvHi = lv.lim.yw;
+  for (var k = 0u; k < 5u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[5u + k]; }
+  let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
+  let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
+  ovD = vec2f(u * lv.span.x, v * lv.span.y);
+  // (a carved or grown estimate goes below zero: that is the surface too)
+  let px = max(de(lv.x.xyz), 0.0) / lv.x.w;
+  let near = exp(-px / 3.0);
+  let band = fract(log2(1.0 + px));
+  let line = 1.0 - smoothstep(0.0, 0.05, min(band, 1.0 - band));
+  let col = lv.key.rgb * (0.04 + 1.2 * near) + vec3f(line * 0.16 * (1.0 - near));
+  textureStore(lensOut, vec2i(gid.xy), vec4f(col, 1.0));
+}
+`;
+
 const DISPLAY = /* wgsl */ `
 struct Disp { size: vec4f, look: vec4f, inset: vec4f };  // look: x exposure, y lens on; inset: cx cy r (px)
 @group(0) @binding(0) var<uniform> disp: Disp;
@@ -539,7 +578,7 @@ export async function createRenderer(canvas) {
     layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, lensLayout] }),
     compute: { module: lensModule, entryPoint: 'lensMap' },
   });
-  const lvBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const lvBuf = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const drecBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const mkLensTex = (lw, lh) => device.createTexture({
     size: [lw, lh], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
@@ -582,14 +621,31 @@ export async function createRenderer(canvas) {
     }));
   }
 
+  // the collage's lens, one shader per drive-ness, compiled in the background from the first grab
+  const collageLens = (pk) => [pk.drives ? 'clens+drive' : 'clens', pk.drives ? withDrive(COLLAGE_LENS) : COLLAGE_LENS, [formulaLayout, lensLayout], 'lensMap'];
+  const NO_SLOT = 0xffffffff;
   // L: { x (held point), foot (world size of a CSS px there), spans [s1, s2?], ops [oi0, oi1?],
   //      drecs [Float64Array(20), …] (one per parameter), size [lw, lh], key }
-  function lens(L) {
+  // on a collage, a parameter is an op's in pieces[i], or a number of the collage at flats[i] (its ops[i] and
+  // drecs[i] unused) held in lims[i] = [lo, hi]. Resolves once the map is written; alive() says it is still
+  // wanted after a compile.
+  async function lens(L, alive = () => true) {
+    const cpipe = packed && packed.collage ? await variant.ready(...collageLens(packed)) : null;
+    if (packed && packed.collage && (!cpipe || !alive())) return;
     if (lensTex.width !== L.size[0] || lensTex.height !== L.size[1]) { lensTex.destroy(); lensTex = mkLensTex(...L.size); makeDispGroups(); }
-    const lvd = new ArrayBuffer(64), f = new Float32Array(lvd), u = new Uint32Array(lvd);
+    const lvd = new ArrayBuffer(96), f = new Float32Array(lvd), u = new Uint32Array(lvd);
     f.set([...L.x, L.foot, L.spans[0], L.spans[1] || 0, L.size[0], L.size[1]]);
     u[8] = L.ops[0]; u[9] = L.ops[1] ?? 0xffffffff; u[10] = L.drecs.length;
     f.set([...L.key, 0], 12);
+    if (cpipe) {
+      [0, 1].forEach((i) => {
+        const at = L.flats && L.flats[i] != null ? L.flats[i] : null;
+        u[16 + i] = at === null && L.pieces && L.pieces[i] != null ? L.pieces[i] : NO_SLOT;
+        u[18 + i] = at === null ? NO_SLOT : at;
+        const [lo, hi] = (L.lims && L.lims[i]) || [-1e30, 1e30];
+        f[20 + i * 2] = lo; f[21 + i * 2] = hi;
+      });
+    }
     device.queue.writeBuffer(lvBuf, 0, lvd);
     const d = new Float32Array(40);
     L.drecs.forEach((r, i) => d.set(r, i * 20));
@@ -600,7 +656,7 @@ export async function createRenderer(canvas) {
     });
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline((packed && drives(packed.formula) && variant('lens', withDrive(LENS), [formulaLayout, lensLayout], 'lensMap')) || lensPipe);
+    cp.setPipeline(cpipe || (packed && drives(packed.formula) && variant('lens', withDrive(LENS), [formulaLayout, lensLayout], 'lensMap')) || lensPipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, group);
     cp.dispatchWorkgroups(Math.ceil(L.size[0] / 8), Math.ceil(L.size[1] / 8));
@@ -644,6 +700,7 @@ export async function createRenderer(canvas) {
     const jit = collageJitMarch(packed);
     for (const k of variants.keys()) if (k.startsWith('cjit') && k !== jit[0]) variants.delete(k);
     variant(...jit);
+    variant(...collageLens(packed));
     device.queue.writeBuffer(headBuf, 0, packed.head);
     device.queue.writeBuffer(opsBuf, 0, packed.ops);
   }
@@ -1012,7 +1069,7 @@ fn grid(@builtin(global_invocation_id) gid: vec3u) {
 
   // the push engine shares the device, the canvas and the formula buffers
   return {
-    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, setCollage, collageReady, collageJitReady, collageStep, frame, present, lens, setLens, renderThumb, variant,
+    device, ctx, format, headBuf, opsBuf, formulaLayout, resize, setFormula, setCollage, collageReady, collageJitReady, collageStep, frame, present, lens, setLens, renderThumb, variant, driveWords,
     compileJit, compileStructureJit, renderStill, deGrid, setTiming, marchMs, readAccum,
     get jitReady() { return !!(packed && jitFor(packed.formula)); },
     // which pipeline a frame of the current formula would use

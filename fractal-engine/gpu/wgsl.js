@@ -2396,6 +2396,9 @@ var<private> pb: u32 = 0u;   // and its ops region (vec4)`))
     .replace('fn drvStep() -> f32 {', 'fn drvStepFormula() -> f32 {');
 }
 
+// the collage's overlay on (the lens, gpu/render.js COLLAGE_LENS): the march's text keeps the dead branch
+export const withCollageOverlay = (source) => source.replace('const CL_OV = false;', 'const CL_OV = true;');
+
 // After withCollage(source). The collage program (gpu/pack.js packCollage) is read with absolute
 // indices: this code is not rewritten. The includer defines
 //   fn clFallback(i: u32, col: f32, facing: f32) -> vec4f   a piece's colour when it has no shade
@@ -2416,8 +2419,24 @@ var<private> clFreeze: bool = false;        // hold the drive's values (the step
 // each piece's orbit at the last point (its trace, its 4-D start): the colour reads them
 var<private> clTr: array<Trace, ${MAX_PIECES}>;
 var<private> clQ: array<vec4f, ${MAX_PIECES}>;
+// The lens's two parameters: an op's record overlaid in its piece alone (clOvOp: the op, clOvPiece: the
+// piece, or none), or a number of the collage's own program (clOvAt: its flat index, or none), ovD added
+// and held in its range (clOvLo, clOvHi)
+const CL_OV = false;
+const CL_NONE = 0xffffffffu;
+var<private> clOvOp: vec2u = vec2u(CL_NONE);
+var<private> clOvPiece: vec2u = vec2u(CL_NONE);
+var<private> clOvAt: vec2u = vec2u(CL_NONE);
+var<private> clOvLo: vec2f;
+var<private> clOvHi: vec2f;
 
-fn clSelect(i: u32) { hp = i; pb = i * CL_REGION; }
+fn clSelect(i: u32) {
+  hp = i; pb = i * CL_REGION;
+  if (CL_OV) {
+    ov0 = select(CL_NONE, clOvOp.x, i == clOvPiece.x);
+    ov1 = select(CL_NONE, clOvOp.y, i == clOvPiece.y);
+  }
+}
 fn clGmod(x: f32, y: f32) -> f32 { return x - y * floor(x / y); }
 
 // the drive at world point x: its nodes (as a formula's drive program, read in the collage's region),
@@ -2460,6 +2479,12 @@ fn clRead(at: u32, flat: u32) -> vec4f {
   for (var b = 0u; b < clNB; b++) {
     let t = u32(ops[CL_BINDS + 2u * b].x);
     if (t >= flat && t < flat + 4u) { v[t - flat] = clV[b]; }
+  }
+  if (CL_OV) {
+    for (var s = 0u; s < 2u; s++) {
+      let t = clOvAt[s];
+      if (t >= flat && t < flat + 4u) { v[t - flat] = clamp(v[t - flat] + ovD[s], clOvLo[s], clOvHi[s]); }
+    }
   }
   return v;
 }

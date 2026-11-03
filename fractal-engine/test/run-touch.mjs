@@ -129,6 +129,15 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 await settle(40);
 await shot(DESK ? 'desktop-arrive' : 'arrive');
 
+// a collage's sensing pass reaches the GPU once its shader has compiled (the CPU's stands in until then)
+const TWO_PIECES = '{ bulb 8 · +c ×10 bail=2 } at .6 0 0 ∪ .3 { fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×12 bail=100 } at -.6 0 0 size .25';
+async function collageOnGpu() {
+  await fe((t) => window.__fe.collage(t), TWO_PIECES);
+  await fe(() => window.__fe.setCamera([0, 0, -4], 0, 0)); await settle(20);
+  await page.waitForFunction(async () => { const r = await window.__fe.sense(); return r && r.gpu; }, null, { timeout: 60000, polling: 500 });
+  return fe(() => window.__fe.sense().then((r) => ({ hits: r.hits, params: r.params.length })));
+}
+
 if (DESK) {
   const M = page.mouse;
   await check('desktop: drag looks', async () => {
@@ -151,6 +160,21 @@ if (DESK) {
     await page.keyboard.up('Shift'); await sleep(100);
     await M.up();
     return { ok: a.grab && a.grab.x === cx + 10 && a.grab.y === cy + 10 && b.lens, note: a.grab ? `grab at (${a.grab.x}, ${a.grab.y}), Shift lens ${b.lens}` : 'no grab' };
+  });
+  await check('desktop: a collage senses on the GPU, its lens opens and edits it', async () => {
+    const r = await collageOnGpu();
+    const t0 = await fe(() => window.__fe.state.text);
+    // (as the formula's check: past 1.2 s a still hold would open the breed ring)
+    await M.move(cx, cy); await M.down(); await sleep(700);
+    const a = await input();
+    await page.keyboard.down('Shift'); await sleep(300);
+    const b = await input();
+    await M.move(cx + 40, cy + 20, { steps: 5 }); await sleep(200);
+    const t1 = await fe(() => window.__fe.state.text);
+    await page.keyboard.up('Shift'); await sleep(100);
+    await M.up(); await sleep(200);
+    await fe(() => window.__fe.collage(null));
+    return { ok: r.hits > 0 && r.params > 8 && !!a.grab && b.lens && t1 !== t0, note: `${r.hits} hits, ${r.params} parameters, grab ${a.grab && a.grab.key}, lens ${b.lens}, edited ${t1 !== t0}` };
   });
   await check('desktop: dblclick, Tab, no key row', async () => {
     const m0 = (await input()).mode;
@@ -600,6 +624,23 @@ await check('labels: second finger, field hold', async () => {
   const c = await input();
   await T.upAll(); await sleep(300);
   return { ok: !a.label && !b.label && !!b.grab && !!c.ring && !c.label, note: `two fingers label ${a.label && a.label.text}; field hold label ${b.label && b.label.text}, grab ${!!b.grab}, ring ${!!c.ring}` };
+});
+
+await check('collage: GPU sense, the lens by a resting finger', async () => {
+  if ((await input()).structure) { await T.tap([[20, H - 20]]); await sleep(200); }
+  await page.waitForFunction(() => !window.__fe.state.trans, null, { timeout: 5000 });
+  const r = await collageOnGpu();
+  const t0 = await fe(() => window.__fe.state.text);
+  await T.down(1, cx, cy); await sleep(900);
+  await T.down(2, cx + 120, cy + 160); await sleep(1500);
+  const a = await input();
+  await T.stroke([1], [[cx, cy]], [[cx + 40, cy + 30]], 6);
+  await sleep(200);
+  const t1 = await fe(() => window.__fe.state.text);
+  await T.up(2); await sleep(100);
+  await T.upAll(); await sleep(200);
+  await fe(() => window.__fe.collage(null));
+  return { ok: r.hits > 0 && a.lens && t1 !== t0, note: `${r.hits} hits, lens ${a.lens}, edited ${t1 !== t0}` };
 });
 
 // ---- the collage's gizmo by finger, its snap by a resting finger -----------------------------------------

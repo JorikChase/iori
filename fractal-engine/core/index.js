@@ -8,5 +8,5 @@ export { evalShade, normShade, validateShade, rampAt, mapInput, defaultShade, ra
 export { normDrive, validateDrive, evalDrive, driveRuntime, opPaths, driveParams, getDriveParam, setDriveParam, remapDrive } from './drive.js';
 export { isCollage, normCollage, validateCollage, canonicalCollage, hashCollage, collagePullSafe, smin, joinEval, toPiece, fromPiece, repFold, repCopies, pieceDE, collageAt, collageDE, collageGrad, collageColour, collagePush, parseCollage, formatCollage, parseAny, formatAny, collageToURLHash, fromURLHashAny, collageOf, prepare } from './collage.js';
 export { collageStructure, canBreed, lerpCollage, lerpFormula, mutateCollage, collageDistancePx, metricId, metricValue, withMetric } from './collage-breed.js';
-export { senseCollage, collageMetricParams } from './collage-sense.js';
+export { senseCollage, collageMetricParams, collageNumbers, collageDual, readCollageSense } from './collage-sense.js';
 export { linkMap, masterParam, reduceMetric, useOf, peerId } from './sub.js';

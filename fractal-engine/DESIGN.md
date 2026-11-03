@@ -1403,6 +1403,63 @@ piece's drivers live in its own orbit and frame and would be ambiguous across a 
   median 2.8e-7, none off. Found on the way: the frame's unfold animation threw on the proxy's hidden op
   (fixed: the collage's shading opens without unfolding).
 
+**The GPU's sensing pass and the lens, 2026-11-01.** `gpu/sense.js senseCollage` replaces the CPU pass for
+hits, the normal and the metric; `core/collage-sense.js senseCollage` stays as the stand-in while the shader
+compiles and as the parity reference. Grab, the breed ring, the archive, the drift's metric and the step factor
+all take it (app.js `senseDocCollage`); the lens now opens on a collage.
+- *One march, not one per row.* A formula's pass marches once per parameter; a collage has rows across up to
+  eight pieces. Here a first dispatch marches each ray once and runs every piece's dual orbit at the hit, a second
+  runs one dual orbit per row and ray, in that row's piece alone. The same pipeline does both (`sv.mode`, two bind
+  groups): one call site of `iterateDual`. No JIT: the interpreter is one shader per drive-ness (cold about what
+  the march costs), and a sensing JIT was already not worth a compile per structure.
+- *Through the joins:* the placements, repetitions and joins need no orbit. The pass reports each piece's DE and
+  ∇DE at its folded point, and `collageDual` in core/ takes them to ∂D/∂θ of every number by the chain rule: J the
+  fold's Jacobian, ∂d/∂x = R·Jᵀ∇DE (the scale cancels), ∂d/∂t = −∂d/∂x, ∂d/∂s = DE − Jᵀ∇DE·v, ∂d/∂g = −1, an angle
+  through ∂Rᵀ/∂angle, a repetition's number through `repDual`, and `foldJoins` gives ∂D/∂dᵢ and ∂D/∂(r or w)
+  (`sminR`, `joinShape`: each kernel's derivative in its width, exact). Done in JavaScript and not WGSL on purpose:
+  no extra Metal compile, the numbers are read back anyway, and one implementation that `node --test` reaches
+  against differences of `collageAt`. A piece's own parameter is its dual column: ∂D/∂θ = a·s·∂DE/∂θ.
+- *The normal is exact,* where the CPU's is a difference a quarter pixel wide: on a rough surface the two speeds
+  differ (within 30 % on the read-back test), the pass's being the point's own. The drive adds Σ ∂D/∂θ_b · ∇θ_b:
+  the bindings' values come back from the GPU, their gradients by central differences there (h = 10⁻³·max(1, |x|)),
+  cheap because a difference of the drive runs no orbit.
+- *The metric now holds* every piece's driver parameters: `{ piece, drive, value, pxPerUnit }` in `driveParams`
+  (ids `P0:bind/…`, `P0:node/…`; `metricValue`, `withMetric` take them, so the grab, the ring and the archive do).
+  A bound number or op parameter is not measured, as in a formula. The grab shows a driver's own glyph.
+- *The step factor* comes from the pass (`r.step`, `r.gpu`): |∇D| over the same with every drive held, the collage's
+  and each shaped piece's own (a frozen row per such piece), so a piece's drive program counts now, which
+  `R.collageStep` never measured. λ is the march's: blended by the shares above 1e-3, not the lead's alone.
+- *The lens* (gpu/render.js COLLAGE_LENS, `withCollageOverlay`): each texel is the collage's estimate at the held
+  point with two parameters moved. A piece's op overlays its record in that piece alone (`clSelect` loads ov0/ov1 for
+  the piece); a number of the collage's overlays the program in `clRead`, clamped to its range. So angles and every
+  placement work there, where a formula's rotations stay refused; a piece's nonlinear ops and all drivers stay out as
+  in a formula. `CL_OV` is a constant so the march keeps a dead branch only. The map draws max(D, 0) (a carved estimate
+  goes negative). It compiles in the background from `setCollage`; a first lens waits for it (`R.lens` is async there).
+- *Left out:* the collage's own drivers' parameters are not in the metric (the bands would be cheap: ∂D/∂θ_b is on
+  hand). A number read by a param node of the collage's drive counts its direct effect only.
+- *Tests:* test/collage-sense.test.mjs (every kernel's `sminR`, `joinShape` through every op, `repDual`, the chain rule
+  on every collage case against `collageAt`, the buffer read back, bound numbers, the drive in the normal, drivers in
+  the metric, the rows); parity gains sense rows per case and overlay rows; the touch rig a check each way. A new case,
+  'three open: turn, polar, chamfer cut': the first three-piece case's cutter swallows nearly all of it, so its view
+  has no hits.
+- *Measured 2026-11-03* (this Mac, the render finished, load 4–6; the app at 1440×900, the archive held off with
+  `__fe.quiet`, median of 9; the CPU's pass over its own 12×8 grid and over the GPU's 32×20):
+
+  | collage | GPU, 32×20 | CPU, 12×8 | CPU, 32×20 | rows |
+  |---|---|---|---|---|
+  | bulb ∪ box (union quad) | 4.9 ms | 35 ms | 189 ms | 22 |
+  | three open: turn, polar, chamfer cut | 4.5 | 10.9 | 48 | 49 |
+  | a driven piece (20 parameters, 7 drivers) | 49 | 93 | 541 | 28 |
+  | chimera and sliced pieces | 16.4 | 131 | 831 | 52 |
+
+  6.7× the rays at 11–50× less time per ray; the driven piece is the slow one, its driven dual orbits interpreted.
+  With the archive growing, a pass can queue behind one of its own (145 ms seen for the driven piece), as a formula's
+  does. Cold compile, parity's: the pass 1.3 s (drivers 2.4 s), the lens 0.5 s (0.7 s).
+- *Rigs, 2026-11-03:* unit 148/148; parity pass (collage 111 rows: 22 sense, normal median ≤ 0.011°, speeds ≤ 1e-4
+  relative, hits off ≤ 2 of 126 at silhouettes; 4 overlay); touch 48/48, desktop 25/25; paper 56/56 desktop and phone;
+  bench against ba0acd9 ∞ dB and ×1.00 on every scene, the collages too (the march is untouched). The sense rows'
+  reference takes the dual rows' 1e-6 difference: at 1e-4 the rough surfaces failed four rows by 1–2°.
+
 ## Touch (T), decided 2026-10-28
 
 The live site was hard to use on a phone: every interaction was built mouse-first. Desktop decides what
@@ -1806,7 +1863,7 @@ The governor turns these into resolution: the same 18 / 45 ms targets now afford
   far one is out of reach, kernel by kernel (exp never does exactly); open.
 - *A JIT for the dual numbers*: built, see "The dual numbers compiled" below.
 
-Open: the collage lens and the collage's CPU sensing pass (~30 ms) are untouched; the collage JIT's cold
+Open: (the collage lens and its sensing pass: done, "The GPU's sensing pass and the lens" under Collage.) The collage JIT's cold
 compile is ~5 s (the interpreter draws meanwhile, as for a formula); a new drive wiring now recompiles the
 structure JIT (the wiring is baked in), where a band edit does not.
 

@@ -1149,10 +1149,13 @@ await check(`${DESK ? 'desktop: ' : ''}graph hits: a finger's reach, the mouse's
       const mine = Math.hypot(px - q.x, py - q.y);
       if (G.targets.some((o) => o !== q && Math.hypot(px - o.x, py - o.y) <= mine + 1)) continue;
       // a node and its own ports: the hit tests weigh a node by its centre or its box
+      // where another target's own reach (the mouse's, kept on touch) already holds the probe, it rightly keeps it
+      const m = await fe(([x, y]) => window.__fe.hitAt(x, y, false), [px, py]);
+      if (Object.entries(m).some(([k, v]) => v && !(k === q.kind && v === q.id))) continue;
       const r = await fe(([x, y, t]) => window.__fe.hitAt(x, y, t), [px, py, true]);
       tried++;
       if (r[q.kind] === q.id) took++; else if (miss.length < 4) miss.push(`${q.kind} ${q.id} @${a}: ${JSON.stringify(Object.fromEntries(Object.entries(r).filter(([, v]) => v)))}`);
-      if (q.kind === 'out' || q.kind === 'in' || q.kind === 'letter') { mouseTried++; const m = await fe(([x, y]) => window.__fe.hitAt(x, y, false), [px, py]); if (m[q.kind] === q.id) mouseTook++; }
+      if (q.kind === 'out' || q.kind === 'in' || q.kind === 'letter') { mouseTried++; if (m[q.kind] === q.id) mouseTook++; }
     }
   }
   await shot(`${DESK ? 'desktop-' : ''}graph-hits`);

@@ -1096,14 +1096,14 @@ function driveDown(x, y) {
   const V = gv.P.dv;
   const dsel = gv.dvSel && V.byId.get(gv.dvSel);
   if (dsel) {
-    const hg = nearestOf(driverHandles(dsel).filter((q) => q.glyph), x, y, 11, (q) => [q.gx, q.y]);
-    for (const h of [hg, ...driverHandles(dsel).filter((q) => !q.glyph)].filter(Boolean)) {
+    const hs = driverHandles(dsel), hg = glyphOrLine(hs, x, y), ln = lineAt(hs.filter((q) => q.line), x, y, 7);
+    for (const h of [hg, ...hs.filter((q) => !q.glyph)].filter(Boolean)) {
       if (h === hg) {
         const v = h.cycle ? h.cycle[(h.cycle.indexOf(dsel.n.p[h.key]) + 1) % h.cycle.length] : !dsel.n.p[h.key];
         graphEdit(() => DE.setDriverParam(state.formula, dsel.id, h.key, v));
         return true;
       }
-      if (h.line && h === lineAt(driverHandles(dsel).filter((q) => q.line), x, y, 7)) {
+      if (h.line && h === ln) {
         gv.dvParam = { id: h.id || dsel.id, key: h.key, x0: x, y0: y, v0: h.value, q: h.q, text0: state.text };
         drawGraphNow();
         return true;
@@ -2024,14 +2024,14 @@ function drawClockNow() {
 }
 const nextRate = (back) => RATES[Math.max(0, Math.min(RATES.length - 1, RATES.indexOf(clock.rate) + (back ? -1 : 1)))];
 if (clockSvg) {
-  const held = new Set();
+  const held = new Map();   // pointer → the control it pressed
   clockSvg.addEventListener('pointerdown', (e) => {
     const k = e.target && e.target.dataset ? e.target.dataset.clock : null;
     if (!k) return;
     e.preventDefault(); e.stopPropagation();
     if (e.pointerType === 'touch') touchSeen = performance.now();
     engage();
-    held.add(e.pointerId);
+    held.set(e.pointerId, k);
     try { clockSvg.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
     clockHot = k;
     // the tape held: the clock stops under the hand and follows it
@@ -2047,13 +2047,13 @@ if (clockSvg) {
   const up = (e) => {
     if (!held.has(e.pointerId)) return;
     // (captured: the target is the svg, so the press's control decides)
-    const k = clockHot, second = held.size > 1;
+    const k = held.get(e.pointerId), second = held.size > 1;
     held.delete(e.pointerId);
     if (scrub && e.pointerId === scrub.id) { const was = scrub.was; scrub = null; setClockState({ playing: was }); }
     else if (e.type === 'pointerup' && k === 'play') setClockState({ playing: !clock.playing });
     // Shift, or a second finger while one rests: the rate before (the modifier, as everywhere)
     else if (e.type === 'pointerup' && k === 'speed') setClockState({ rate: nextRate(e.shiftKey || second) });
-    if (!held.size) clockHot = null;
+    clockHot = held.size ? [...held.values()].pop() : null;
     drawClockNow();
   };
   clockSvg.addEventListener('pointerup', up);
@@ -2502,14 +2502,14 @@ function cvDown(x, y) {
   if (pl && Math.hypot(x - pl[0], y - pl[1]) < reach(18)) { closeCollageGraph(); openSurface('graph'); return; }
   // the drivers: the selected one's numbers and switches, an output dot, a node, the row
   const dsel = cv.dvSel && V.byId.get(cv.dvSel);
-  const hg = dsel && nearestOf(cvDriverHandles(dsel).filter((q) => q.glyph), x, y, 11, (q) => [q.gx, q.y]);
-  if (dsel) for (const h of [hg, ...cvDriverHandles(dsel).filter((q) => !q.glyph)].filter(Boolean)) {
+  const hs = dsel ? cvDriverHandles(dsel) : [], hg = dsel && glyphOrLine(hs, x, y), ln = dsel && lineAt(hs.filter((q) => q.line), x, y, 7);
+  if (dsel) for (const h of [hg, ...hs.filter((q) => !q.glyph)].filter(Boolean)) {
     if (h === hg) {
       const v = h.cycle ? h.cycle[(h.cycle.indexOf(dsel.n.p[h.key]) + 1) % h.cycle.length] : !dsel.n.p[h.key];
       cvEdit((g) => CE.setCollageDriver(g, { ...dsel.n, p: { ...dsel.n.p, [h.key]: v } }));
       return;
     }
-    if (h.line && h === lineAt(cvDriverHandles(dsel).filter((q) => q.line), x, y, 7)) { cv.dvParam = { id: dsel.id, key: h.key, x0: x, v0: dsel.n.p[h.key], q: h.q, text0: state.text }; drawCvNow(); return; }
+    if (h.line && h === ln) { cv.dvParam = { id: dsel.id, key: h.key, x0: x, v0: dsel.n.p[h.key], q: h.q, text0: state.text }; drawCvNow(); return; }
   }
   const from = driveOutPortAt(V, x, y);
   if (from) { const [x1, y1] = V.outPort(from); cv.dvDrag = { from: from.id, x1, y1, x2: x, y2: y }; drawCvNow(); return; }
@@ -3561,6 +3561,13 @@ function lineAt(list, x, y, m = 7, left = () => 6) {
   let best = null, bd = reach(m);
   for (const r of list) { const d = Math.abs(y - r.y); if (d < bd && x >= r.x1 - reach(left(r)) && x <= r.x2 + reach(6)) { bd = d; best = r; } }
   return best;
+}
+// a selected driver's switch glyph under the point, unless one of its lines is nearer (a finger reaches both)
+function glyphOrLine(hs, x, y) {
+  const g = nearestOf(hs.filter((q) => q.glyph), x, y, 11, (q) => [q.gx, q.y]);
+  if (!g || !HIT.r) return g;
+  const l = lineAt(hs.filter((q) => q.line), x, y, 7);
+  return l && Math.abs(y - l.y) < Math.hypot(x - g.gx, y - g.y) ? null : g;
 }
 // which end of a band a press takes: within reach of one end, the nearer; a band shorter than three reaches
 // keeps its middle third for both

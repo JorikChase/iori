@@ -2278,9 +2278,22 @@ count, a run's bracket, driver nodes, their in and out ports, driver and shading
 nodes and ports, a selected driver's switches and lines, the ramp editor's toggles and stops, the shading plus, the
 collage graph's joins, seams, output and plus. Rig hooks: `__fe.graphTargets()`, `__fe.hitAt(x, y, touch)`.
 
+**Verified 2026-11-04** (this Mac, after iori's render finished, load 5–7): `node --test` 152/152; `run-parity.mjs` PASS
+(override 23 rows, the seven driver rows median 6e-8–1.4e-4, p99 ≤ 3.6e-3; collage 114 rows, the own drivers' speeds
+median ≤ 7.3e-5, the three drive overlay rows median ≤ 2.1e-6, p99 ≤ 1.2e-4); `run-touch.mjs` 53/53 and `--desktop` 28/28,
+no page errors (the clock both ways and a second finger slowing it; every graph target probed 20 px away in eight
+directions: a finger takes it 84/84 at 390×844, a mouse takes none of the small ones; a real finger 20 px off a node
+selects it; a clock-driven ring: 8/8 thumbnails changed in 2 s from 9 renders, none while paused); `run-bench.mjs --ref
+383b0ba` ∞ dB and ×0.99–1.02 on every scene; `run-paper.mjs` 58/58 desktop and phone; `site.py check` passes.
+*Two traps met:* `driverHandles()` makes new objects per call, so a hit found in one call is never `===` an item of
+another (it broke the open use's line pull: compute the handles once); and a finger's reach on a driver's switch glyph
+covered the line beside it (the nearer wins now, `glyphOrLine`).
+
 **Not yet:** a lens on the colour (it would need a colour metric: the shading's numbers ranked by how far the colour at
 the held point moves, and a map of colours, not distances); a lens on rotation angles of a formula; the lens's driver
 numbers are not clamped to their range in the preview (the release is); the collage's own param nodes count a read number's
 direct effect only (as before); the clock is not stored in the hash or a state; the live thumbnails cover the ring and the
-lineage hover, not Metasurface sites or the graph's no-op preview (those render at the clock when drawn); hover labels
-still use each control's own reach, so a finger's label can name a neighbour of what a press would take; a real-device pass.
+lineage hover, not Metasurface sites or the graph's no-op preview (those render at the clock when drawn); the hover labels'
+own radii (the schedule row, the pluses, a driver's switches) keep each control's reach, so a finger's label there can name a
+neighbour of what a press would take (the graph's nodes, ports and links answer labels with a finger's reach); a real-device
+pass.

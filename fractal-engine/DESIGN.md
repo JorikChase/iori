@@ -1442,6 +1442,23 @@ all take it (app.js `senseDocCollage`); the lens now opens on a collage.
   the metric, the rows); parity gains sense rows per case and overlay rows; the touch rig a check each way. A new case,
   'three open: turn, polar, chamfer cut': the first three-piece case's cutter swallows nearly all of it, so its view
   has no hits.
+- *Measured 2026-11-03* (this Mac, the render finished, load 4–6; the app at 1440×900, the archive held off with
+  `__fe.quiet`, median of 9; the CPU's pass over its own 12×8 grid and over the GPU's 32×20):
+
+  | collage | GPU, 32×20 | CPU, 12×8 | CPU, 32×20 | rows |
+  |---|---|---|---|---|
+  | bulb ∪ box (union quad) | 4.9 ms | 35 ms | 189 ms | 22 |
+  | three open: turn, polar, chamfer cut | 4.5 | 10.9 | 48 | 49 |
+  | a driven piece (20 parameters, 7 drivers) | 49 | 93 | 541 | 28 |
+  | chimera and sliced pieces | 16.4 | 131 | 831 | 52 |
+
+  6.7× the rays at 11–50× less time per ray; the driven piece is the slow one, its driven dual orbits interpreted.
+  With the archive growing, a pass can queue behind one of its own (145 ms seen for the driven piece), as a formula's
+  does. Cold compile, parity's: the pass 1.3 s (drivers 2.4 s), the lens 0.5 s (0.7 s).
+- *Rigs, 2026-11-03:* unit 148/148; parity pass (collage 111 rows: 22 sense, normal median ≤ 0.011°, speeds ≤ 1e-4
+  relative, hits off ≤ 2 of 126 at silhouettes; 4 overlay); touch 48/48, desktop 25/25; paper 56/56 desktop and phone;
+  bench against ba0acd9 ∞ dB and ×1.00 on every scene, the collages too (the march is untouched). The sense rows'
+  reference takes the dual rows' 1e-6 difference: at 1e-4 the rough surfaces failed four rows by 1–2°.
 
 ## Touch (T), decided 2026-10-28
 

@@ -385,7 +385,8 @@
         pixels) the surface would be from the held point under each pair. The key colour sits where the surface would
         touch the point; a hairline marks every doubling of distance. The map spans exactly what a drag across the
         screen reaches. Moving travels it, both parameters change, and the field itself updates live in a round inset;
-        letting go closes the lens and the grab carries on from there.</p>
+        letting go closes the lens and the grab carries on from there. On a collage the lens works the same way and offers more:
+        a placement's angles and a join's width too (section 7.4).</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Open the lens</td><td><kbd>Shift</kbd> during a grab</td><td>rest a second finger during a grab</td></tr>
@@ -403,7 +404,7 @@
           <i>u</i>/<i>m</i><sub>1</sub>, θ<sub>2</sub><sup>0</sup> + <i>v</i>/<i>m</i><sub>2</sub>), and its value is the
           distance estimate at the held point under that pair. The shader reads every op record through overrides that add
           Δθ · ∂record/∂θ, exact for parameters the record is linear in (all but rotation angles and plane normals, which
-          the lens does not offer). It is the held point's own Mandelbrot set.</p>
+          the lens does not offer on a formula; a collage's own numbers are read another way, section 7.4). It is the held point's own Mandelbrot set.</p>
       </details>
 
       <h3 id="ch4-3">4.3 The Lineage</h3>
@@ -994,11 +995,53 @@
           <span class="how"><b>Desktop</b> Click the output for the shading frame. Hold the row for the ring of drivers. Drag a driver's dot onto a line or a seam line to bind it. <kbd>Delete</kbd> removes the selected driver or band.</span><span class="how"><b>Touch</b> Tap the output. Hold the row. Drag the dot. Three-finger tap removes.</span></li>
         <li><b>Add and remove pieces.</b> Up to eight. The plus left of the pieces opens the Metasurface in add mode and comes back with the new piece in the graph. It is gone once the collage is full.
           <span class="how"><b>Desktop</b> The plus. Click a piece, <kbd>Delete</kbd>.</span><span class="how"><b>Touch</b> The plus. Tap a piece, three-finger tap.</span></li>
-        <li><b>Save, breed, restore.</b> A collage is a document like a formula: the URL, the lineage, stills and splat files carry it, and every edit above is one lineage node. The breed ring works on it: neighbours move placements, joins and each piece's numbers. Two collages walk into each other when they have the same pieces and joins; otherwise the change is a cut.
+        <li><b>Save, breed, restore.</b> A collage is a document like a formula: the URL, the lineage, stills and splat files carry it, and every edit above is one lineage node. The grab, the lens and the breed ring work on it (section 7.4): neighbours move placements, joins and each piece's numbers. Two collages walk into each other when they have the same pieces and joins; otherwise the change is a cut.
           <span class="how"><b>Desktop</b> <kbd>⌘Z</kbd> and <kbd>⇧⌘Z</kbd>; <kbd>⌘S</kbd>; drop the still back on the engine; hold still 1.2 s for the ring.</span><span class="how"><b>Touch</b> Two- and three-finger taps; the frame glyph; hold 1.2 s.</span></li>
       </ol>
-      <p>Refused along the way: a collage dropped onto a collage, a ninth piece, the lens, and the loop (<kbd>P</kbd> skips it). A push
+      <p>Refused along the way: a collage dropped onto a collage, a ninth piece, and the loop (<kbd>P</kbd> skips it). A push
         of a collage walks each piece's attractor and keeps samples by their share of the join.</p>
+      <h3 id="ch7-4">7.4 Grab and Lens on a Collage</h3>
+      <p>Everything the hand does to a formula (chapter 4) it does to a collage, with the same gestures. A hold ranks
+        every number the collage has: each piece's own parameters, its drivers' parameters, its placement (the offset
+        along x, y and z, the three rotation angles, the scale, the grow), its repetition, and the width of every join.
+        The grab edits the first; the wheel, or a second finger, passes attention down the ranking, across pieces and
+        joins alike, and a driver's number shows its driver's glyph. <kbd>Shift</kbd> opens the lens on the attention
+        number and a second one, the same op's or the same piece's where it can. A piece's op is varied in that piece
+        alone; a number of the collage's (a placement, a join) is varied in the collage's own program. So on a collage the
+        lens takes rotation angles, which a formula's lens refuses: the program reads the angle itself, not a record
+        linear in it. The breed ring's neighbours, the archive's ranking, the drift and the march's step factor read the
+        same measurements.</p>
+      <p>The readings come from a sensing pass on the GPU. It marches each ray once and, at the hit, runs every piece's
+        dual orbit (section 3), so one dispatch gives the surface, its exact normal and the metric of every number; the
+        placements, repetitions and joins need no orbit of their own and are taken through the join by the chain rule.
+        The pass compiles in the background when a collage is made. Until it is ready a CPU pass over a coarser grid
+        stands in, so a grab works from the first moment; the lens's own shader compiles alongside, and a first lens may
+        wait a moment for it. On this machine the GPU pass took 4.5 to 49 ms over a 32 × 20 grid, against 11 to 131 ms
+        for the CPU's 12 × 8; the slow end is a piece whose drivers run interpreted.</p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Grab a collage</td><td>hold still 280 ms on any piece, drag sideways</td><td>hold: the grab aims at the centre</td></tr>
+        <tr><td>Next number, across pieces and joins</td><td>wheel</td><td>tap a second finger</td></tr>
+        <tr><td>Lens</td><td><kbd>Shift</kbd> during the grab</td><td>rest a second finger during the grab</td></tr>
+        <tr><td>Ring</td><td>hold still 1.2 s</td><td>hold 1.2 s</td></tr>
+      </table>
+      <figure class="engine" data-fig="clens">
+        <div class="fe-frame"></div>
+        <figcaption>A bulb and a box joined by a smooth union. Hold where they meet: the wheel walks a ranking that runs
+          across both pieces' numbers, their placements and the join's width. Hold <kbd>Shift</kbd> on an angle and the lens
+          maps a turn of the piece.</figcaption>
+      </figure>
+      <details class="math">
+        <summary>The mathematics</summary>
+        <p>With piece <i>i</i> placed by offset <b>t</b>, rotation <i>R</i>, scale <i>s</i> and grow <i>g</i>, its
+          distance at <b>x</b> is <i>d</i><sub>i</sub> = <i>s</i> · DE(<b>v</b>) − <i>g</i>, <b>v</b> = <i>R</i><sup>T</sup>(<b>x</b> −
+          <b>t</b>)/<i>s</i> folded by its repetition (Jacobian <i>J</i>). The pass returns DE and ∇DE at the folded
+          point; then ∂<i>d</i>/∂<b>t</b> = −<i>R J</i><sup>T</sup>∇DE, ∂<i>d</i>/∂<i>s</i> = DE − (<i>J</i><sup>T</sup>∇DE) · <b>v</b>,
+          ∂<i>d</i>/∂<i>g</i> = −1, and an angle goes through ∂<i>R</i><sup>T</sup>/∂angle. The joins fold the
+          <i>d</i><sub>i</sub> into <i>D</i> with weights <i>a</i><sub>i</sub> = ∂<i>D</i>/∂<i>d</i><sub>i</sub>, and each kernel's
+          derivative in its width is exact. A piece's own parameter θ adds ∂<i>D</i>/∂θ = <i>a</i><sub>i</sub> <i>s</i>
+          ∂DE/∂θ from its dual orbit.</p>
+      </details>
     </section>
 
     <!-- ================================================================== 8 -->
@@ -1313,16 +1356,6 @@
       </div>
 
       <h3 id="ch11-2">11.2 Speed</h3>
-      <div class="planned" id="pl-collagesense">
-        <span class="planned-tag">planned</span>
-        <h4>A GPU Sensing Pass for Collages</h4>
-        <p>Dual numbers through the joins: an exact normal and the metric of every number at once, replacing today's CPU pass.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-      </div>
       <div class="planned" id="pl-farpieces">
         <span class="planned-tag">planned</span>
         <h4>Skipping Far Collage Pieces</h4>
@@ -1362,7 +1395,7 @@
       <div class="planned" id="pl-lensmore">
         <span class="planned-tag">planned</span>
         <h4>The Lens, Further</h4>
-        <p>The lens on driver and shading parameters and on collages, and a map that follows an edit made inside it. Today it is computed once, on op parameters of a formula.</p>
+        <p>The lens on driver and shading parameters, on a formula's rotation angles and plane normals, and a map that follows an edit made inside it. Today it is computed once, on op parameters (and on a collage, its placements and joins too, section 7.4).</p>
         <table class="use">
           <tr><th></th><th>Desktop</th><th>Touch</th></tr>
           <tr><td></td><td></td><td></td></tr>
@@ -1650,10 +1683,10 @@
       <ul>
         <li><b>Formulas.</b> Eight op lists (slots) and 64 ops, counting every use of a subgraph. A chimera holds two to seven species, with no chimera inside a chimera.</li>
         <li><b>Grab.</b> Pull only: push has no surface to sense, and in the loop a hold takes the knobs. Moves that would enter the surface are refused.</li>
-        <li><b>Lens.</b> Op parameters of a formula. Not rotation angles or plane normals, not driver or shading parameters, not collages. Its map is computed when it opens and does not follow an edit made inside it. On a shared subgraph number, the preview moves the first use.</li>
+        <li><b>Lens.</b> Op parameters, and on a collage its placements (angles too) and join widths. Not a formula's rotation angles or plane normals, not driver or shading parameters. Its map is computed when it opens and does not follow an edit made inside it. On a shared subgraph number, the preview moves the first use.</li>
         <li><b>Breeding.</b> Parameters only, never structure. The archive restarts after a flight, because its features depend on the view.</li>
         <li><b>Drivers.</b> 32 nodes and 16 bindings; four rebuilt ops, eight such bindings. Four driven ramp stops. <code>kali</code> can't be driven. A driven formula's shader variant takes a few seconds to compile the first time, and it draws with its own values until then.</li>
-        <li><b>Collages.</b> Eight pieces. No collage inside a collage. No loop and no lens. A repetition reads the nearest copy only, so a piece wider than its cell is overstepped at the wall.</li>
+        <li><b>Collages.</b> Eight pieces. No collage inside a collage. No loop. The collage's own driver parameters (its fields, start, time, maths and remap) are not yet in the metric, so the grab, the ring and the archive do not reach them; the pieces' driver parameters are. A repetition reads the nearest copy only, so a piece wider than its cell is overstepped at the wall.</li>
         <li><b>Subgraphs.</b> None inside another, none in a species if it holds a chimera, no link across collage pieces, no ramp stops exposed. Eight on the shelf, none removable, and a ninth pushes out the oldest.</li>
         <li><b>The Metasurface.</b> 29 sites, 16 of them the families. At most four species blend across a wall. A chimera's wall is a cut unless it is a constant blend.</li>
         <li><b>Stored here only.</b> The lineage, your sites and the shelf live in this browser. A link carries the formula, camera and mode; a still or a splat file also carries the look, focus and pins.</li>
@@ -1712,7 +1745,7 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="paper/paper.js?v=9"></script>
+  <script type="module" src="paper/paper.js?v=10"></script>
 <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
 <link rel="stylesheet" href="../assets/menu.css">
 <nav id="site-menu" class="site-menu site-menu--tr" aria-label="Site menu">

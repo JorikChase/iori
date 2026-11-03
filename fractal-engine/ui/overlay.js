@@ -19,6 +19,8 @@ import { getOp } from '../core/ops.js';
 import { fmtNum } from '../core/notation.js';
 import { rotationXYZ, normalize as nrm } from '../core/vec.js';
 
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
 const RETICLE = 96;
 const BRANCH = '#1fb3a0';
 
@@ -203,6 +205,8 @@ export function drawGrab(svg, C, g) {
   s.push(`<g class="dm"><path d="M${sx - w / 2} ${y}h${w}M${sx - w / 2} ${y - 5}v10M${sx + w / 2} ${y - 5}v10"/>`);
   s.push(glyphPath(g.attention.glyph, sx - w / 2 - 20, y, 16));
   s.push(`<text x="${sx}" y="${y - 7}">${fmtNum(+g.attention.value.toPrecision(4))}</text></g>`);
+  // a lens that could not open says why, under the reticle
+  (g.note || []).forEach((n, i) => s.push(`<text x="${f2(sx)}" y="${f2(sy + RETICLE + 26 + i * 16)}" class="note">${esc(n)}</text>`));
 
   svg.innerHTML = s.join('');
   svg.classList.add('on');
@@ -213,7 +217,7 @@ export function clearGrab(svg) {
 }
 
 // ---------- the atlas lens ------------------------------------------------------------------------
-// l: { W, H, at:[x,y] (crosshair), glyphs:[g1, g2?], values:[v1, v2?], inset:[cx, cy, r] } in CSS px
+// l: { W, H, at:[x,y] (crosshair), glyphs:[g1, g2?], values:[v1, v2?], inset:[cx, cy, r], notes?: [text] } in CSS px
 export function drawLens(svg, l) {
   const s = [];
   const cx = l.W / 2, cy = l.H / 2;
@@ -224,7 +228,10 @@ export function drawLens(svg, l) {
   // the crosshair: where the formula is now
   const [x, y] = l.at;
   s.push(`<path d="M${f2(x)} ${f2(y)}h24M${f2(x)} ${f2(y)}v24"/><circle cx="${f2(x)}" cy="${f2(y)}" r="2" class="dot"/>`);
-  s.push(`<text x="${f2(x + 30)}" y="${f2(y - 8)}" class="l">${l.values.map((v) => fmtNum(+v.toPrecision(4))).join('  ')}</text></g>`);
+  s.push(`<text x="${f2(x + 30)}" y="${f2(y - 8)}" class="l">${l.values.map((v) => fmtNum(+v.toPrecision(4))).join('  ')}</text>`);
+  // what the map leaves out, said rather than skipped (app.js lensNotes)
+  (l.notes || []).forEach((n, i) => s.push(`<text x="24" y="${f2(l.H - 24 - ((l.notes.length - 1 - i) * 16))}" class="l note">${esc(n)}</text>`));
+  s.push('</g>');
   svg.innerHTML = s.join('');
   svg.classList.add('on');
 }

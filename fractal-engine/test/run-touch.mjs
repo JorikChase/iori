@@ -1088,6 +1088,106 @@ await check(`${DESK ? 'desktop: ' : ''}subgraph: names`, async () => {
   return { ok: n && n.text === 'subgraph a', note: n && n.text };
 });
 
+// ---- finishing touches (DESIGN.md "Finishing touches"): the clock's controls, finger-sized graph hits, time in
+// thumbnails ---------------------------------------------------------------------------------------------------
+// a bulb whose power follows the clock
+const CLOCK_FORMULA = async () => fe(async () => {
+  const F = await import('./core/index.js');
+  window.__fe.setFormula(F.format(F.normalize({ ...F.parse('bulb 8 · +c ×10 bail=2'), drive: { nodes: [{ id: 't', type: 'time', p: { rate: 0.5, wave: 'sine' } }], bind: [{ to: 'A0.n', from: 't', lo: 6, hi: 9 }] } })));
+});
+const clockAt = async (k) => { const r = (await fe(() => window.__fe.clock())).rects.find((q) => q.k === k); return [r.x + r.w / 2, r.y + r.h / 2]; };
+await check(`${DESK ? 'desktop: ' : ''}clock: pause, play, speed, scrub`, async () => {
+  await fe(() => { window.__fe.graph(false); window.__fe.surface(false); });
+  await fe(() => window.__fe.setFormula('bulb 8 · +c ×10 bail=2')); await settle(6);
+  const none = await fe(() => window.__fe.clock().shown);
+  await CLOCK_FORMULA(); await settle(8);
+  await page.waitForFunction(() => window.__fe.clock().shown, null, { timeout: 5000 });
+  const c0 = await fe(() => window.__fe.clock()), small = Math.min(...c0.rects.map((r) => Math.min(r.w, r.h)));
+  await shot(`${DESK ? 'desktop-' : ''}clock`);
+  await press(await clockAt('play'));
+  const a = await fe(() => window.__fe.clock()); await sleep(400);
+  const a2 = await fe(() => window.__fe.clock());
+  await press(await clockAt('play'));
+  const b = await fe(() => window.__fe.clock());
+  await press(await clockAt('speed'));
+  const sp = await fe(() => window.__fe.clock());
+  // the tape dragged 48 px left: two seconds later, paused under the hand, playing again after
+  const [tx, ty] = await clockAt('tape'), t0 = (await fe(() => window.__fe.clock())).t;
+  if (DESK) { await page.mouse.move(tx, ty); await page.mouse.down(); await page.mouse.move(tx - 48, ty, { steps: 6 }); }
+  else { await T.down(1, tx, ty); await T.stroke([1], [[tx, ty]], [[tx - 48, ty]], 6); }
+  const mid = await fe(() => window.__fe.clock());
+  if (DESK) await page.mouse.up(); else await T.upAll();
+  await sleep(100);
+  const after = await fe(() => window.__fe.clock());
+  await fe(() => window.__fe.clock({ rate: 1, playing: true }));
+  const need = DESK ? 30 : 44;
+  return { ok: !none && !a.playing && Math.abs(a2.t - a.t) < 1e-9 && b.playing && sp.rate === 2 && !mid.playing && Math.abs(mid.t - (t0 + 2)) < 0.5 && after.playing && small >= need - 0.5,
+    note: `hidden when undriven ${!none}; paused ${!a.playing} (held ${Math.abs(a2.t - a.t) < 1e-9}), played ${b.playing}, rate ×${sp.rate}; scrub ${t0.toFixed(2)} → ${mid.t.toFixed(2)} s, playing after ${after.playing}; hits ≥ ${small.toFixed(0)} px` };
+});
+if (!DESK) await check('clock: a second finger steps the speed back', async () => {
+  await fe(() => window.__fe.clock({ rate: 2 }));
+  const sp = await clockAt('speed'), pl = await clockAt('play');
+  await T.down(1, pl[0], pl[1]); await sleep(60); await T.down(2, sp[0], sp[1]); await sleep(60); await T.up(2); await sleep(60); await T.upAll(); await sleep(200);
+  const c = await fe(() => window.__fe.clock());
+  await fe(() => window.__fe.clock({ rate: 1, playing: true }));
+  return { ok: c.rate === 1, note: `×2 → ×${c.rate}` };
+});
+
+// every target of the graph, probed a finger's reach away (20 CSS px) in eight directions: where no other target
+// is nearer to the probe, a finger takes it; a mouse there takes nothing small (its own reach, unchanged)
+await check(`${DESK ? 'desktop: ' : ''}graph hits: a finger's reach, the mouse's own`, async () => {
+  await LABEL_FORMULA(); await settle(6);
+  await fe(() => window.__fe.graph(true)); await sleep(500);
+  const G = await fe(() => window.__fe.graphTargets());
+  let tried = 0, took = 0, mouseTook = 0, mouseTried = 0;
+  const miss = [];
+  for (const q of G.targets) {
+    for (let a = 0; a < 8; a++) {
+      const px = q.x + 20 * Math.cos((a * Math.PI) / 4), py = q.y + 20 * Math.sin((a * Math.PI) / 4);
+      if (px < 4 || py < 4 || px > (DESK ? 1276 : W - 4) || py > (DESK ? 796 : H - 4)) continue;
+      // another target nearer the probe (or as near: a tie is either's) takes it rightly
+      const mine = Math.hypot(px - q.x, py - q.y);
+      if (G.targets.some((o) => o !== q && Math.hypot(px - o.x, py - o.y) <= mine + 1)) continue;
+      // a node and its own ports: the hit tests weigh a node by its centre or its box
+      const r = await fe(([x, y, t]) => window.__fe.hitAt(x, y, t), [px, py, true]);
+      tried++;
+      if (r[q.kind] === q.id) took++; else if (miss.length < 4) miss.push(`${q.kind} ${q.id} @${a}: ${JSON.stringify(Object.fromEntries(Object.entries(r).filter(([, v]) => v)))}`);
+      if (q.kind === 'out' || q.kind === 'in' || q.kind === 'letter') { mouseTried++; const m = await fe(([x, y]) => window.__fe.hitAt(x, y, false), [px, py]); if (m[q.kind] === q.id) mouseTook++; }
+    }
+  }
+  await shot(`${DESK ? 'desktop-' : ''}graph-hits`);
+  await fe(() => window.__fe.graph(false));
+  // (the probe lands outside a node's drawing but inside its finger's reach; ports, letters: the mouse misses)
+  return { ok: tried > 20 && took / tried > 0.97 && mouseTried > 4 && mouseTook === 0, note: `finger ${took}/${tried}, mouse on small targets ${mouseTook}/${mouseTried}, zoom ×${G.k.toFixed(2)}${miss.length ? ' · ' + miss.join(' · ') : ''}` };
+});
+if (!DESK) await check('graph hits: a real finger 20 px off a node selects it', async () => {
+  await openGraph('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×9 bail=100');
+  const q = (await input()).graph.nodes[1];
+  await T.tap([[q.x + 20, q.y]]); await sleep(250);
+  const g = (await input()).graph;
+  await fe(() => window.__fe.graph(false));
+  return { ok: g && g.selected === q.id, note: `selected ${g && g.selected} (wanted ${q.id})` };
+});
+
+// a ring of a clock-driven formula: its thumbnails re-rendered while the clock plays, a bounded few a second
+await check(`${DESK ? 'desktop: ' : ''}thumbnails: time in the ring`, async () => {
+  await fe(() => window.__fe.clock({ rate: 1, playing: true }));
+  await CLOCK_FORMULA(); await fe(() => window.__fe.setCamera([0, 0, -2.6], 0, 0)); await settle(20);
+  await fe(() => window.__fe.sense()); await sleep(300);
+  await fe(() => window.__fe.ringOpen(window.innerWidth / 2, window.innerHeight / 2));
+  await page.waitForFunction(() => { const r = window.__fe.liveThumbs().ring; return r && r.every(Boolean); }, null, { timeout: 30000 });
+  const a = await fe(() => window.__fe.liveThumbs());
+  await sleep(2000);
+  const b = await fe(() => window.__fe.liveThumbs());
+  await fe(() => window.__fe.clock({ playing: false })); await sleep(300);
+  const c = await fe(() => window.__fe.liveThumbs()); await sleep(1000);
+  const d = await fe(() => window.__fe.liveThumbs());
+  await fe(() => { window.__fe.ringClose(false); window.__fe.clock({ playing: true }); });
+  const changed = b.ring.filter((u, i) => u !== a.ring[i]).length, n = b.renders - a.renders;
+  // (LIVE_MS 200: at most ten in two seconds)
+  return { ok: changed >= 3 && n <= 11 && d.renders === c.renders, note: `${changed}/${b.ring.length} thumbnails changed, ${n} renders in 2 s, ${d.renders - c.renders} while paused` };
+});
+
 console.log(`\n${results.filter((r) => r[1]).length}/${results.length} pass`);
 if (errors.length) console.log('\npage errors:\n  ' + errors.join('\n  '));
 await browser.close();

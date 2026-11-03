@@ -692,9 +692,30 @@ fn driveStart(p0: vec4f) {
 // the raymarch's step factor: 1 / L, set per frame from the sensed steepness of the drivers
 fn drvStep() -> f32 { if (DRIVE_ON && (head.flags & FLAG_DRIVE) != 0u) { return head.sliceW.z; } return 1.0; }
 
+// The lens's driver parameters (gpu/render.js LENS and COLLAGE_LENS through withDriveOverlay): a node's number
+// (drvOvNode, drvOvSlot) or a band's end (drvOvBand: 2 · binding + 0 for lo, 1 for hi), ovD added, in the
+// region drvOvOn allows (a collage's piece or its own, set by clSelect; a formula's always). DRV_OV is false
+// in every other shader, so their code keeps a dead branch only.
+const DRV_OV = false;
+var<private> drvOvNode: vec2u = vec2u(0xffffffffu);
+var<private> drvOvSlot: vec2u = vec2u(0u);
+var<private> drvOvBand: vec2u = vec2u(0xffffffffu);
+var<private> drvOvOn: vec2<bool> = vec2<bool>(true, true);
+// what the lens adds to binding b's lo and hi
+fn drvBandOv(b: u32) -> vec2f {
+  var o = vec2f(0.0);
+  if (drvOvOn.x && drvOvBand.x != 0xffffffffu && drvOvBand.x / 2u == b) { if (drvOvBand.x % 2u == 0u) { o.x += ovD.x; } else { o.y += ovD.x; } }
+  if (drvOvOn.y && drvOvBand.y != 0xffffffffu && drvOvBand.y / 2u == b) { if (drvOvBand.y % 2u == 0u) { o.x += ovD.y; } else { o.y += ovD.y; } }
+  return o;
+}
+
 fn drvP(i: u32, k: u32) -> f32 {
   var v = ops[DR_NODES + i * 3u + 1u + k / 4u][k % 4u];
   if (i == drvNudgeNode && k == drvNudgeSlot) { v = v + drvNudge; }
+  if (DRV_OV) {
+    if (drvOvOn.x && i == drvOvNode.x && k == drvOvSlot.x) { v = v + ovD.x; }
+    if (drvOvOn.y && i == drvOvNode.y && k == drvOvSlot.y) { v = v + ovD.y; }
+  }
   return v;
 }
 struct DrvRead { i: f32, r: f32, trap: f32, lyap: f32, p: vec4f };
@@ -829,7 +850,9 @@ fn driveIter(p: vec4f, dr: f32, i: u32, n: f32) {
   for (var b = 0u; b < nb; b++) {
     let B = ops[DR_BINDS + b * 10u];
     let C = ops[DR_BINDS + b * 10u + 1u];
-    drvV[b] = clamp(B.z + drvReg[u32(B.y)] * (B.w - B.z), C.y, C.z);
+    var lh = B.zw;
+    if (DRV_OV) { lh = lh + drvBandOv(b); }
+    drvV[b] = clamp(lh.x + drvReg[u32(B.y)] * (lh.y - lh.x), C.y, C.z);
   }
   drvRebuild();
 }
@@ -2398,6 +2421,8 @@ var<private> pb: u32 = 0u;   // and its ops region (vec4)`))
 
 // the collage's overlay on (the lens, gpu/render.js COLLAGE_LENS): the march's text keeps the dead branch
 export const withCollageOverlay = (source) => source.replace('const CL_OV = false;', 'const CL_OV = true;');
+// the lens's driver overrides on (gpu/render.js LENS, COLLAGE_LENS)
+export const withDriveOverlay = (source) => source.replace('const DRV_OV = false;', 'const DRV_OV = true;');
 
 // After withCollage(source). The collage program (gpu/pack.js packCollage) is read with absolute
 // indices: this code is not rewritten. The includer defines
@@ -2429,12 +2454,16 @@ var<private> clOvPiece: vec2u = vec2u(CL_NONE);
 var<private> clOvAt: vec2u = vec2u(CL_NONE);
 var<private> clOvLo: vec2f;
 var<private> clOvHi: vec2f;
+// the region whose drive holds each lens parameter that is a driver's number (a piece, CL_OWN, or none)
+var<private> clOvDrv: vec2u = vec2u(CL_NONE);
 
 fn clSelect(i: u32) {
   hp = i; pb = i * CL_REGION;
   if (CL_OV) {
     ov0 = select(CL_NONE, clOvOp.x, i == clOvPiece.x);
     ov1 = select(CL_NONE, clOvOp.y, i == clOvPiece.y);
+    // a driver's number in its own region: a piece's drive, or the collage's own (CL_OWN)
+    drvOvOn = vec2<bool>(i == clOvDrv.x, i == clOvDrv.y);
   }
 }
 fn clGmod(x: f32, y: f32) -> f32 { return x - y * floor(x / y); }
@@ -2454,7 +2483,9 @@ fn clDrive(x: vec3f) {
   for (var b = 0u; b < clNB; b++) {
     let B = ops[CL_BINDS + 2u * b];
     let C = ops[CL_BINDS + 2u * b + 1u];
-    clV[b] = clamp(B.z + drvReg[u32(B.y)] * (B.w - B.z), C.x, C.y);
+    var lh = B.zw;
+    if (DRV_OV) { lh = lh + drvBandOv(b); }
+    clV[b] = clamp(lh.x + drvReg[u32(B.y)] * (lh.y - lh.x), C.x, C.y);
   }
   clSelect(0u);
 }

@@ -8,6 +8,7 @@
 // it in pixels; drawGraph() returns the SVG; nodeAt / edgeAt hit-test the placed layout.
 
 import { glyphPath, useGlyph } from './glyphs.js';
+import { reach } from './hit.js';
 import { getOp } from '../core/ops.js';
 
 const f1 = (x) => (Math.round(x * 10) / 10).toString();
@@ -209,26 +210,33 @@ export function drawGraph(P, o = {}) {
 }
 
 export function nodeAt(P, x, y) {
-  let best = null, bd = Math.max(12, P.u * 0.45);
+  const own = Math.max(12, P.u * 0.45);
+  let best = null, bd = reach(own);
   for (const q of P.items) {
     if (q.kind !== 'op') continue;
     const d = Math.hypot(q.x - x, q.y - y);
     if (d < bd) { bd = d; best = q; }
   }
+  // past its own reach a finger's overlaps the insertion edges, which run node to node: there the node wins
+  // only while it is nearer than the middle of every edge (where an insertion lands; ui/hit.js)
+  if (best && bd >= own) {
+    for (const e of P.edges) if (Math.hypot((e.x1 + e.x2) / 2 - x, (e.y1 + e.y2) / 2 - y) < bd) return null;
+  }
   return best;
 }
 
-// the insertion edge nearest the point (within reach): { chain, index }
-export function edgeAt(P, x, y) {
-  let best = null, bd = 10;
+function edgeNear(P, x, y) {
+  let best = null, bd = reach(10);
   for (const e of P.edges) {
     const dx = e.x2 - e.x1, dy = e.y2 - e.y1, l2 = dx * dx + dy * dy || 1;
     const t = Math.max(0, Math.min(1, ((x - e.x1) * dx + (y - e.y1) * dy) / l2));
     const d = Math.hypot(e.x1 + dx * t - x, e.y1 + dy * t - y);
     if (d < bd) { bd = d; best = e; }
   }
-  return best;
+  return { best, d: bd };
 }
+// the insertion edge nearest the point (within reach): { chain, index }
+export const edgeAt = (P, x, y) => edgeNear(P, x, y).best;
 
 // the marks a subgraph leaves on the shading frame and the drivers' lane: a run's bracket with its plus, an
 // open use's dashed frame, its own numbers' dots

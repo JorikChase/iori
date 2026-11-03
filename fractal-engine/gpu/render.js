@@ -5,7 +5,7 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, collageRewrite } from './wgsl.js';
+import { INTERP, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, withDriveOverlay, collageRewrite } from './wgsl.js';
 import { withJit, structureKey, jitIterate, jitDual } from './jit.js';
 import { canonical } from '../core/formula.js';
 import { MAX_PIECES, isCollage } from '../core/collage.js';
@@ -354,6 +354,8 @@ struct LV {
   span: vec4f,   // x first parameter across the width, y second across the height, z w, w h (texels)
   ov: vec4u,     // x op of the first parameter, y op of the second, z how many (1 or 2)
   key: vec4f,    // rgb key colour
+  drv: vec4u,    // a driver's number: xy its node, zw its slot (gpu/wgsl.js drvP; none: 0xffffffff)
+  band: vec4u,   // a band's end: xy 2 · binding + (0 lo, 1 hi); zw unused here
 };
 @group(1) @binding(0) var<uniform> lv: LV;
 @group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
@@ -364,6 +366,7 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   if (f32(gid.x) >= lv.span.z || f32(gid.y) >= lv.span.w) { return; }
   ov0 = lv.ov.x;
   ov1 = select(0xffffffffu, lv.ov.y, lv.ov.z > 1u);
+  drvOvNode = lv.drv.xy; drvOvSlot = lv.drv.zw; drvOvBand = lv.band.xy;
   for (var k = 0u; k < 5u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[5u + k]; }
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
   let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
@@ -384,7 +387,7 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
 // The lens on a collage: the same map, every texel the collage's own estimate at the held point with two
 // parameters moved. Either may be a piece's op (its record overlaid in that piece alone) or a number of the
 // collage itself (a placement, a repetition, a join: overlaid on the program, so an angle needs no record).
-export const COLLAGE_LENS = withCollage(INTERP) + withCollageOverlay(COLLAGE) + /* wgsl */ `
+export const COLLAGE_LENS = withDriveOverlay(withCollage(INTERP)) + withCollageOverlay(COLLAGE) + /* wgsl */ `
 fn clFallback(i: u32, col: f32, facing: f32) -> vec4f { return vec4f(1.0); }
 struct LV {
   x: vec4f,      // xyz the held point, w world size of one CSS pixel at its depth
@@ -393,6 +396,8 @@ struct LV {
   key: vec4f,    // rgb key colour
   who: vec4u,    // x, y the op's piece; z, w the collage number's flat index (none: 0xffffffff)
   lim: vec4f,    // the collage numbers' ranges: lo, hi of the first, lo, hi of the second
+  drv: vec4u,    // a driver's number: xy its node, zw its slot (gpu/wgsl.js drvP; none: 0xffffffff)
+  band: vec4u,   // a band's end: xy 2 · binding + (0 lo, 1 hi); zw the region holding each (a piece, CL_OWN)
 };
 @group(1) @binding(0) var<uniform> lv: LV;
 @group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
@@ -406,6 +411,8 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   clOvAt = lv.who.zw;
   clOvLo = lv.lim.xz;
   clOvHi = lv.lim.yw;
+  drvOvNode = lv.drv.xy; drvOvSlot = lv.drv.zw; drvOvBand = lv.band.xy; clOvDrv = lv.band.zw;
+  drvOvOn = vec2<bool>(false, false);
   for (var k = 0u; k < 5u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[5u + k]; }
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
   let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
@@ -578,7 +585,7 @@ export async function createRenderer(canvas) {
     layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, lensLayout] }),
     compute: { module: lensModule, entryPoint: 'lensMap' },
   });
-  const lvBuf = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const lvBuf = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const drecBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const mkLensTex = (lw, lh) => device.createTexture({
     size: [lw, lh], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
@@ -633,10 +640,18 @@ export async function createRenderer(canvas) {
     const cpipe = packed && packed.collage ? await variant.ready(...collageLens(packed)) : null;
     if (packed && packed.collage && (!cpipe || !alive())) return;
     if (lensTex.width !== L.size[0] || lensTex.height !== L.size[1]) { lensTex.destroy(); lensTex = mkLensTex(...L.size); makeDispGroups(); }
-    const lvd = new ArrayBuffer(96), f = new Float32Array(lvd), u = new Uint32Array(lvd);
+    const lvd = new ArrayBuffer(128), f = new Float32Array(lvd), u = new Uint32Array(lvd);
     f.set([...L.x, L.foot, L.spans[0], L.spans[1] || 0, L.size[0], L.size[1]]);
     u[8] = L.ops[0]; u[9] = L.ops[1] ?? 0xffffffff; u[10] = L.drecs.length;
     f.set([...L.key, 0], 12);
+    // driver numbers (L.drvs[i]: { node, slot } | { band } | null; on a collage also { region }): after the
+    // formula's four vec4, or the collage's six
+    const da = cpipe ? 24 : 16;
+    [0, 1].forEach((i) => {
+      const q = (L.drvs && L.drvs[i]) || null;
+      u[da + i] = q && q.node != null ? q.node : NO_SLOT; u[da + 2 + i] = q && q.slot != null ? q.slot : 0;
+      u[da + 4 + i] = q && q.band != null ? q.band : NO_SLOT; u[da + 6 + i] = q && q.region != null ? q.region : NO_SLOT;
+    });
     if (cpipe) {
       [0, 1].forEach((i) => {
         const at = L.flats && L.flats[i] != null ? L.flats[i] : null;
@@ -656,7 +671,7 @@ export async function createRenderer(canvas) {
     });
     const enc = device.createCommandEncoder();
     const cp = enc.beginComputePass();
-    cp.setPipeline(cpipe || (packed && drives(packed.formula) && variant('lens', withDrive(LENS), [formulaLayout, lensLayout], 'lensMap')) || lensPipe);
+    cp.setPipeline(cpipe || (packed && drives(packed.formula) && variant('lens+dov', withDriveOverlay(withDrive(LENS)), [formulaLayout, lensLayout], 'lensMap')) || lensPipe);
     cp.setBindGroup(0, formulaGroup);
     cp.setBindGroup(1, group);
     cp.dispatchWorkgroups(Math.ceil(L.size[0] / 8), Math.ceil(L.size[1] / 8));
@@ -826,9 +841,12 @@ export async function createRenderer(canvas) {
   // frame (no shadows) for speed.
   const thumbViewBuf = device.createBuffer({ size: VIEW_FLOATS * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const thumbDispBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  async function renderThumb(f, v, tw, th, samples = 8) {
+  // time: the drivers' clock to draw it at (seconds; default the live view's)
+  async function renderThumb(f, v, tw, th, samples = 8, time = drive.clock) {
     // a collage draws in its own march (compiled once per drive-ness, shared with the live view)
     const tp = isCollage(f) ? packCollage(f) : pack(f);
+    // the clock in every head (a pack leaves it at 0: a frozen first frame); the step factor stays the pack's
+    for (let o = 0; o < tp.head.byteLength; o += HEAD_BYTES) new Float32Array(tp.head, o, HEAD_BYTES / 4)[CLOCK_WORD] = time;
     const thumbPipe = tp.collage ? await variant.ready(...collageMarch(tp)) : drives(tp.formula) ? (await variant.ready(...driveMarch())) || marchPipe : marchPipe;
     if (!thumbPipe) return null;
     const ttex = [0, 1].map(() => device.createTexture({ size: [tw, th], format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING }));

@@ -73,7 +73,7 @@ const SUITES = [
     (r) => `grad ${r.gradDegMed.toFixed(3)}° ∂θ ${r.paramRelMed.toExponential(2)} λ ${r.lyapAbsMed.toExponential(2)}`],
   ['dual jit', 'dualJitRows', (r) => r.n > 0 && r.gradDegMed < 1 && r.lyapAbsMed < 0.01 && r.deRelMed < 1e-3,
     (r) => `${r.kind} n ${r.n} grad ${r.gradDegMed.toFixed(3)}° (p90 ${r.gradDegP90.toFixed(3)}°) λ ${r.lyapAbsMed.toExponential(2)} de ${r.deRelMed.toExponential(2)}`],
-  ['override', 'ovRows', (r) => r.median < 1e-4 && r.p99 < 2e-2,
+  ['override', 'ovRows', (r) => r.median < (r.drv ? 3e-4 : 1e-4) && r.p99 < (r.drv ? 5e-2 : 2e-2),
     (r) => `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)}`],
   ['jit', 'jitRows', (r) => r.median < 1e-4 && r.p99 < 2e-2 && r.sMedian < 1e-4 && r.sP99 < 2e-2,
     (r) => `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} ×${r.speedup.toFixed(2)} / ×${r.structSpeedup.toFixed(2)}`],
@@ -81,14 +81,14 @@ const SUITES = [
     (r) => `median ${r.median.toExponential(2)} off ${r.off}`],
   // the collage (K2): forward rows (estimate, shares, colour), the push keep rule, the step factor
   ['collage', 'collageRows', (r) => (r.kind === 'compile' ? r.ok : r.kind === 'sense'
-    ? (r.hits > 0 || r.cpuHits === 0) && r.hitOff / r.rays < 0.05 && (r.lyapLive > 0 || !r.hits) && r.gradDegMed < 1 && r.paramRelMed < 0.01 && (!r.drivers || r.driverPx > 0)
+    ? (r.hits > 0 || r.cpuHits === 0) && r.hitOff / r.rays < 0.05 && (r.lyapLive > 0 || !r.hits) && r.gradDegMed < 1 && r.paramRelMed < 0.01 && (!r.drivers || r.driverPx > 0) && (!r.own || (r.ownPx > 0 && r.ownRelMed < 0.01))
     : r.kind === 'overlay' ? r.median < 1e-4 && r.p99 < 2e-2 : r.kind === 'lyap' ? r.live > 0 && r.median < 1e-4 && r.p99 < 1e-2 : r.kind === 'forward'
     ? r.median < (r.drv ? 3e-4 : 1e-4) && r.p99 < (r.drv ? 5e-2 : 2e-2) && r.iterMismatch / r.n < 0.02 && r.wOff / Math.max(1, r.compared) < 0.03 && r.colOff / Math.max(1, r.compared) < 0.03 && r.wMedian < 1e-4 && r.colMedian < 1e-4
     : r.kind === 'keep'
       ? r.okMismatch / r.n < 0.01 && r.keepMismatch / r.n < 0.01 && r.pMax < 1e-3 && r.aMedian < 1e-4 && r.aP99 < 2e-2 && r.kept > 0
       : r.n > CL_STEP_N / 2 && r.median < 0.02 && r.p90 < 0.1),
     (r) => (r.kind === 'compile' ? (r.ok ? `compiled in ${r.ms.toFixed(0)} ms` : r.error) : r.kind === 'sense'
-      ? `hits ${r.hits}/${r.cpuHits} off ${r.hitOff} normal ${r.gradDegMed.toFixed(3)}° (p90 ${r.gradDegP90.toFixed(3)}°) speeds ${r.paramRelMed.toExponential(2)} (p90 ${r.paramRelP90.toExponential(2)}, ${r.compared}) params ${r.params} drivers ${r.drivers} L ${r.step.toFixed(2)} ${r.ms.toFixed(1)} ms`
+      ? `hits ${r.hits}/${r.cpuHits} off ${r.hitOff} normal ${r.gradDegMed.toFixed(3)}° (p90 ${r.gradDegP90.toFixed(3)}°) speeds ${r.paramRelMed.toExponential(2)} (p90 ${r.paramRelP90.toExponential(2)}, ${r.compared}) params ${r.params} drivers ${r.drivers}${r.own ? ` (own ${r.own}, ${r.ownRelMed.toExponential(2)})` : ''} L ${r.step.toFixed(2)} ${r.ms.toFixed(1)} ms`
       : r.kind === 'overlay' ? `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)}` : r.kind === 'lyap' ? `λ median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} (${r.live} of ${r.n} live)` : r.kind === 'forward'
       ? `median ${r.median.toExponential(2)} p99 ${r.p99.toExponential(2)} iter≠ ${r.iterMismatch}/${r.n} shares off ${r.wOff} colour off ${r.colOff}`
       : r.kind === 'keep'

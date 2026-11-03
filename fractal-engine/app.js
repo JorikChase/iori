@@ -53,7 +53,7 @@ import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
 import { evalShade, shadeTarget } from './core/shade.js';
 import { hash, spawnRadius } from './core/formula.js';
-import { paramTangents, collageSlot } from './gpu/pack.js';
+import { paramTangents, collageSlot, DRIVE_SLOTS } from './gpu/pack.js';
 import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
 import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveInPortAt, driveLinkAt, inLane, inTop, typeGlyph, driverGlyph } from './ui/drivegraph.js';
@@ -70,11 +70,13 @@ import { useOf, useParts, masterParam, reduceMetric } from './core/sub.js';
 import { wrapNet, placeNet, detachNet, exposeNet, exposedNet, useOfNet, peersOfNet, addMemberNet } from './core/netsub.js';
 import { glyphPath, useGlyph } from './ui/glyphs.js';
 import { TOGGLES, toggleLayout, drawToggles } from './ui/toggles.js';
+import { HIT, FINGER, reach } from './ui/hit.js';
+import { RATES, TAPE_PX_PER_S, clockLayout, drawClock } from './ui/clock.js';
 import { LABELS, KEYS, LABEL_MS, labelOf, paramLabel, joinLabel, drawLabel } from './ui/labels.js';
 import { isCollage, isCollageText, normCollage, formatCollage, parseAny, formatAny, hashCollage, collageAt, toPiece, repFold, MAX_PIECES, KERNELS, JOIN_OPS, PLACE, REP, JOIN, collageTarget } from './core/collage.js';
 import * as CE from './core/collage-edit.js';
 import { collageStructure, lerpCollage, mutateCollage, collageDistancePx, metricId, metricValue, withMetric } from './core/collage-breed.js';
-import { senseCollage } from './core/collage-sense.js';
+import { senseCollage, liveBinds } from './core/collage-sense.js';
 import { carry } from './core/carry.js';
 import { layoutCollage, placeCollage, drawCollage, joinGlyph, seamLine, pieceAt as collagePieceAt, joinAt as collageJoinAt, seamAt as collageSeamAt, outAt as collageOutAt } from './ui/collagegraph.js';
 import { gizmoGeometry, gizmoHit, drawGizmo, eulerXYZ, axisAngle } from './ui/gizmo.js';
@@ -291,7 +293,7 @@ function drawStructureNow() {
     W: innerWidth, H: innerHeight, formula: f, depth, unfolded: !!gv || !!cv,
     strip: state.collage ? collageStrip() : null,
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
-    lineage: lineage.layout(), hover: state.hoverNode,
+    lineage: liveLineage.size ? lineage.layout().map((n) => (liveLineage.has(String(n.id)) ? { ...n, thumb: liveLineage.get(String(n.id)) } : n)) : lineage.layout(), hover: state.hoverNode,
     progress: state.exporting ? state.exporting.progress : null,
     keys: COARSE || touchSeen > 0 ? [{ k: 'lyap', on: state.look.lyapMix > 0 }, { k: 'replay' }, { k: 'surface', on: !!surf }, { k: 'drift', on: state.drift }] : null,
     step: state.sensed && state.sensed.step != null ? state.sensed.step : null,
@@ -325,9 +327,9 @@ function toggleStructure() {
 
 structureSvg.addEventListener('pointermove', (e) => {
   const id = e.target && e.target.dataset ? e.target.dataset.id || null : null;
-  if (id !== state.hoverNode) { state.hoverNode = id; drawStructureNow(); }
+  if (id !== state.hoverNode) { state.hoverNode = id; liveLineage.clear(); drawStructureNow(); }
 });
-structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; drawStructureNow(); });
+structureSvg.addEventListener('pointerleave', () => { state.hoverNode = null; liveLineage.clear(); drawStructureNow(); });
 structureSvg.addEventListener('click', (e) => {
   // the end of a lineage thumbnail's drag onto the field is not a click
   if (ldragDone) { ldragDone = false; return; }
@@ -448,7 +450,7 @@ async function surfaceThumbs() {
   for (const s of SURF.sites) {
     if (s.thumb || !surf || !R) continue;
     const cam = s.eye || { yaw: 0.55, pitch: 0.3 }, b = basis(cam), pos = s.eye ? s.eye.pos : b.fwd.map((v) => -v * s.view);
-    s.thumb = await R.renderThumb(s.f, thumbView(b, pos, s.eye ? 0.3 : s.view * 0.35), 168, 112, 6).catch(() => null);
+    s.thumb = await thumbOf(s.f, thumbView(b, pos, s.eye ? 0.3 : s.view * 0.35), 168, 112, 6, clockNow()).catch(() => null);
     if (s.user && s.thumb) saveSurface();
     drawSurfaceNow();
   }
@@ -543,7 +545,7 @@ function dropSite(x) {
   surf.bands = null;
   saveSurface();
   drawSurfaceNow();
-  if (R) R.renderThumb(f, thumbView(basis(state.cam)), 168, 112, 6).then((url) => { if (url) { s.thumb = url; saveSurface(); drawSurfaceNow(); } }).catch(() => {});
+  if (R) thumbOf(f, thumbView(basis(state.cam)), 168, 112, 6, clockNow()).then((url) => { if (url) { s.thumb = url; saveSurface(); drawSurfaceNow(); } }).catch(() => {});
   // no sensing pass of this formula yet: measure it now (the formula is still the one dropped)
   const text = state.text;
   if (!s.axes.length && S) senseNow().then((r) => {
@@ -1020,7 +1022,7 @@ function liveTrace() {
   const key = JSON.stringify(state.cam) + state.focus;
   if (!liveCache || liveCache.key !== key) liveCache = { key, hit: state.focus > 0 ? add(state.cam.pos, basis(state.cam).fwd, state.focus) : null };
   if (!liveCache.hit) return new Map();
-  const time = timeDriven(f) ? (performance.now() - clock0) / 1000 : 0;
+  const time = timeDriven(f) ? clockNow() : 0;
   try { return new Map(DE.bindTrace(f, liveCache.hit, time, f.c || lift(f, liveCache.hit)).map((r) => [r.to, r.values])); } catch { return new Map(); }
 }
 
@@ -1029,7 +1031,7 @@ function liveShade() {
   const f = normalize(state.formula);
   if (!f.shade || !f.shade.bind || !f.drive || state.focus <= 0) return new Map();
   const hit = add(state.cam.pos, basis(state.cam).fwd, state.focus);
-  const time = timeDriven(f) ? (performance.now() - clock0) / 1000 : 0;
+  const time = timeDriven(f) ? clockNow() : 0;
   let o;
   try { o = iterate(f, hit, f.c || lift(f, hit), { time }); } catch { return new Map(); }
   if (!o.drv) return new Map();
@@ -1094,13 +1096,14 @@ function driveDown(x, y) {
   const V = gv.P.dv;
   const dsel = gv.dvSel && V.byId.get(gv.dvSel);
   if (dsel) {
-    for (const h of driverHandles(dsel)) {
-      if (h.glyph && Math.hypot(x - h.gx, y - h.y) < 11) {
+    const hg = nearestOf(driverHandles(dsel).filter((q) => q.glyph), x, y, 11, (q) => [q.gx, q.y]);
+    for (const h of [hg, ...driverHandles(dsel).filter((q) => !q.glyph)].filter(Boolean)) {
+      if (h === hg) {
         const v = h.cycle ? h.cycle[(h.cycle.indexOf(dsel.n.p[h.key]) + 1) % h.cycle.length] : !dsel.n.p[h.key];
         graphEdit(() => DE.setDriverParam(state.formula, dsel.id, h.key, v));
         return true;
       }
-      if (h.line && x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y - h.y) < 7) {
+      if (h.line && h === lineAt(driverHandles(dsel).filter((q) => q.line), x, y, 7)) {
         gv.dvParam = { id: h.id || dsel.id, key: h.key, x0: x, y0: y, v0: h.value, q: h.q, text0: state.text };
         drawGraphNow();
         return true;
@@ -1223,7 +1226,7 @@ function driveUp(x, y) {
     if (dropOnShade(d.from, x, y)) return true;
     // onto a dimension line of the selected op: bound over the line's own range (a bound one keeps its band)
     const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
-    const h = sel && paramHandles(sel).find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 8);
+    const h = sel && lineAt(paramHandles(sel), x, y, 8);
     if (h) {
       const old = bindOf(h.to);
       const [lo, hi] = old ? [old.lo, old.hi] : DE.handleRange(h.value, perPxOf(sel, h.key, h.oi), h.q);
@@ -1402,10 +1405,10 @@ function graphDown(e) {
   // a parameter handle of the selected node
   const sel = gv.selected && gv.P.items.find((q) => q.id === gv.selected);
   if (sel) {
-    const h = paramHandles(sel).find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+    const h = lineAt(paramHandles(sel), x, y, 7);
     if (h && h.band) {
       // a bound line: its band's ends (lo, hi), or its middle (both); a click selects it
-      const B = h.band, end = Math.abs(x - B.x0) < 6 ? 'lo' : Math.abs(x - B.x1) < 6 ? 'hi' : 'both';
+      const B = h.band, end = bandEnd(B, x);
       gv.band = { to: h.to, end, M: B.M, x0: x, lo: B.b.lo, hi: B.b.hi, text0: state.text, moved: false };
       drawGraphNow();
       return;
@@ -1419,15 +1422,15 @@ function graphDown(e) {
   }
   // a run's bracket: its plus wraps the run
   const rb = runBracket();
-  if (rb && x > rb.x - 20 && x < rb.x + 10 && y > rb.y0 - 6 && y < rb.y1 + 6) { wrapRun(); return; }
+  if (rb && x > rb.x - 20 - HIT.r / 2 && x < rb.x + 10 && y > rb.y0 - reach(6) && y < rb.y1 + reach(6)) { wrapRun(); return; }
   // below the repeat zone: the count (drag: iterations), the schedule's letters (click one: a letter key
   // changes it, Delete drops it), the plus after them (another letter), and beside the last chain the plus
   // that adds a chain
   const [zx0, , zx1, zy1] = gv.P.zone;
-  const SL = scheduleLayout(gv.P), near = (q, r = 10) => Math.hypot(x - q.x, y - (q.y - 4)) < r;
-  if (near(SL.chainPlus, 12)) { gv.schedSel = null; graphEdit(() => G.addChain(state.formula)); return; }
-  if (near(SL.plus)) { gv.schedSel = null; graphEdit(() => G.setSchedule(state.formula, state.formula.schedule + state.formula.schedule.at(-1))); return; }
-  const letter = SL.letters.find((q) => near(q, 7));
+  const SL = scheduleLayout(gv.P), row = schedRowAt(SL, x, y);
+  if (row && row.k === 'chainPlus') { gv.schedSel = null; graphEdit(() => G.addChain(state.formula)); return; }
+  if (row && row.k === 'plus') { gv.schedSel = null; graphEdit(() => G.setSchedule(state.formula, state.formula.schedule + state.formula.schedule.at(-1))); return; }
+  const letter = row && row.k === 'letter' ? row.q : null;
   if (letter && touch) {
     // a finger: up or down through the chains' letters (a tap selects, a second tap lets go)
     gv.letter = { i: letter.i, y0: y, was: gv.schedSel === letter.i, moved: false, text0: state.text, w0: state.formula.schedule || '' };
@@ -1436,7 +1439,7 @@ function graphDown(e) {
     return;
   }
   if (letter) { gv.schedSel = gv.schedSel === letter.i ? null : letter.i; drawGraphNow(); return; }
-  if (Math.abs(y - (SL.count.y - 4)) < 12 && Math.abs(x - SL.count.x) < 22) {
+  if (Math.abs(y - (SL.count.y - 4)) < reach(12) && Math.abs(x - SL.count.x) < reach(22)) {
     gv.param = { iters: true, x0: x, v0: state.formula.iters, text0: state.text };
     return;
   }
@@ -1527,7 +1530,7 @@ function graphHover(x, y) {
         let without = null;
         try { without = q.use ? G.removeUse(state.formula, id) : G.bypass(state.formula, id); } catch { /* the whole chain */ }
         if (!without) return;
-        const href = await R.renderThumb(without, thumbView(basis(state.cam)), 168, 112, 6).catch(() => null);
+        const href = await thumbOf(without, thumbView(basis(state.cam)), 168, 112, 6, clockNow()).catch(() => null);
         if (!gv || !href) return;
         gv.thumbs.set(key, href);
         drawGraphNow();
@@ -1699,7 +1702,7 @@ function dropOnShade(from, x, y) {
   if (S.empty) return false;
   const port = inFrame(S, x, y) ? shadeInPortAt(S, x, y) : null;
   if (port && port.node !== 'out') return graphEdit(() => SE.linkDriver(state.formula, from, port.node, port.port)) || true;
-  const h = shadeLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 8);
+  const h = lineAt(shadeLines(), x, y, 8);
   if (h) {
     const old = shadeBindOf(h.to);
     const [lo, hi] = old ? [old.lo, old.hi] : DE.handleRange(h.value, shadePerPx(h.key, h.value), h.key === 'gain' ? { min: 0, max: 16 } : {});
@@ -1709,7 +1712,7 @@ function dropOnShade(from, x, y) {
   const sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
   if (sel && sel.ramp) {
     const E = editorLayout(sel, innerWidth, innerHeight, S.frame);
-    const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y - 12 && y < E.y + E.h + 22);
+    const st = nearestOf(E.stops.filter((q) => y > E.y - 12 - HIT.r && y < E.y + E.h + 22 + HIT.r), x, x, 7, (q) => [q.x, x]);
     if (st) {
       // a stop's band: between its neighbours (where it may go)
       const ts = E.stops.map((q) => q.t), lo = st.i > 0 ? ts[st.i - 1] : 0, hi = st.i < ts.length - 1 ? ts[st.i + 1] : 1;
@@ -1741,7 +1744,7 @@ function drawShadeNow(P) {
 
 // a press on a shading band: its ends (lo, hi) or its middle (both); a click selects it (driveUp)
 function shadeBandPress(to, B, x) {
-  const end = Math.abs(x - B.x0) < 6 ? 'lo' : Math.abs(x - B.x1) < 6 ? 'hi' : 'both';
+  const end = bandEnd(B, x);
   gv.band = { to, end, M: B.M, x0: x, lo: B.b.lo, hi: B.b.hi, text0: state.text, moved: false, shade: true };
   drawGraphNow();
 }
@@ -1770,7 +1773,7 @@ function shadeDown(x, y) {
   const sel = gv.shSel && S.items.find((q) => q.id === gv.shSel);
   if (sel && sel.ramp) {
     const E = editorLayout(sel, innerWidth, innerHeight, S.frame), p = sel.n.p;
-    const tg = E.toggles.find((t) => Math.hypot(x - t.x, y - t.y) < 11);
+    const tg = nearestOf(E.toggles, x, y, 11);
     if (tg) {
       const next = (list, v) => list[(list.indexOf(v) + 1) % list.length];
       if (tg.key === 'interp') graphEdit(() => SE.setRamp(state.formula, sel.id, 'interp', next(INTERPS, p.interp)));
@@ -1780,13 +1783,13 @@ function shadeDown(x, y) {
       if (tg.key === 'invert') graphEdit(() => SE.setRamp(state.formula, sel.id, 'map.invert', !p.map.invert));
       return true;
     }
-    const h = shadeLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+    const h = lineAt(shadeLines(), x, y, 7);
     if (h && h.band) { shadeBandPress(h.to, h.band, x); return true; }
     if (h) { gv.shParam = { id: h.id || sel.id, key: h.key, x0: x, y0: y, v0: h.value, text0: state.text }; drawGraphNow(); return true; }
     // a bound stop's band above the bar: its ends, or its middle
     const sb = stopBands(E).find((B) => Math.abs(y - (E.y - 6)) < 6 && x >= Math.min(B.x0, B.x1) - 6 && x <= Math.max(B.x0, B.x1) + 6);
     if (sb) { shadeBandPress(sb.to, sb, x); return true; }
-    const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y + E.h - 2 && y < E.y + E.h + 22);
+    const st = nearestOf(E.stops.filter((q) => y > E.y + E.h - 2 - HIT.r && y < E.y + E.h + 22 + HIT.r), x, x, 7, (q) => [q.x, x]);
     if (st) {
       gv.stopSel = { id: sel.id, i: st.i };
       const press = { stop: true, id: sel.id, i: st.i, x, y, t0: st.t, c: st.c, moved: false, text0: state.text };
@@ -1811,7 +1814,7 @@ function shadeDown(x, y) {
   // a selected math or mix node: its op glyph cycles, its constant drags (or its band, bound); the
   // glow output selected: its gain
   if ((sel && !sel.ramp) || gv.shSel === 'out') {
-    const h = shadeLines().find((r) => Math.abs(y - r.y) < 9 && x >= r.x1 - (r.cycle ? 24 : 6) && x <= r.x2 + 6);
+    const h = lineAt(shadeLines(), x, y, 9, (r) => (r.cycle ? 24 : 6));
     if (h) {
       if (h.cycle && x < h.x1 - 6) { const [key, list] = h.cycle; graphEdit(() => SE.setNodeParam(state.formula, sel.id, key, list[(list.indexOf(sel.n.p[key]) + 1) % list.length])); }
       else if (h.band) { shadeBandPress(h.to, h.band, x); return true; }
@@ -1823,7 +1826,7 @@ function shadeDown(x, y) {
   if (!inFrame(S, x, y)) return false;
   if (S.empty) {
     const [fx0, fy0, fx1, fy1] = S.frame;
-    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < 16) graphEdit(() => SE.shadeOn(state.formula, state.look));
+    if (Math.hypot(x - (fx0 + fx1) / 2, y - ((fy0 + fy1) / 2 - 8)) < reach(16)) graphEdit(() => SE.shadeOn(state.formula, state.look));
     return true;
   }
   // from an output dot: a link being drawn
@@ -1992,10 +1995,112 @@ function graphKey(e) {
 // driver's dot onto a line (or the seam line): bound; onto another's input: linked. Delete removes the
 // picked piece, the selected driver or band.
 
-function docTimeDriven() {
-  if (!state.collage) return timeDriven(state.formula);
-  const c = state.collage;
-  return c.pieces.some((q) => timeDriven(q.f)) || !!(c.drive && c.drive.bind.length && c.drive.nodes.some((m) => m.type === 'time'));
+// ---------- the drivers' clock (ui/clock.js) ---------------------------------------------------------
+// Seconds since the page opened, at a rate, paused or playing, scrubbed by the tape. Everything that reads
+// the time (the frame, the sensing pass, the CPU's estimates, the thumbnails) reads clockNow().
+const clock = { t: 0, at: performance.now(), rate: 1, playing: true };
+const clockNow = (now = performance.now()) => (clock.playing ? clock.t + ((now - clock.at) / 1000) * clock.rate : clock.t);
+// o: { t, rate, playing } (any of them); a change restarts the still frame's accumulation
+function setClockState(o) {
+  const now = performance.now();
+  clock.t = clockNow(now); clock.at = now;
+  if (o.t !== undefined) clock.t = Math.max(0, o.t);
+  if (o.rate !== undefined) clock.rate = o.rate;
+  if (o.playing !== undefined) clock.playing = o.playing;
+  if (R) R.setClock(clockNow(now));
+  state.n = 0;
+  drawClockNow();
+}
+const clockSvg = document.getElementById('clock');
+let clockShown = false, clockDrawn = 0, clockHot = null, scrub = null;
+// shown while the document reads the clock; in a paper figure only when it asks (&clock)
+const clockWanted = () => docTimeDriven() && (!EMBED || EMBED.has('clock'));
+const clockL = () => clockLayout(innerWidth, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0, COARSE || touchSeen > 0);
+function drawClockNow() {
+  clockShown = docTimeDriven();
+  clockDrawn = performance.now();
+  if (!clockSvg) return;
+  drawClock(clockSvg, clockWanted() ? { t: clockNow(), rate: clock.rate, playing: clock.playing, hot: scrub ? 'tape' : clockHot } : null, clockL());
+}
+const nextRate = (back) => RATES[Math.max(0, Math.min(RATES.length - 1, RATES.indexOf(clock.rate) + (back ? -1 : 1)))];
+if (clockSvg) {
+  const held = new Set();
+  clockSvg.addEventListener('pointerdown', (e) => {
+    const k = e.target && e.target.dataset ? e.target.dataset.clock : null;
+    if (!k) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.pointerType === 'touch') touchSeen = performance.now();
+    engage();
+    held.add(e.pointerId);
+    try { clockSvg.setPointerCapture(e.pointerId); } catch { /* a pointer the browser does not track */ }
+    clockHot = k;
+    // the tape held: the clock stops under the hand and follows it
+    if (k === 'tape' && !scrub) { scrub = { id: e.pointerId, x0: e.clientX, t0: clockNow(), was: clock.playing }; setClockState({ playing: false }); }
+    drawClockNow();
+  });
+  clockSvg.addEventListener('pointermove', (e) => {
+    if (!scrub || e.pointerId !== scrub.id) return;
+    // the tape moves with the hand: dragged left, later (Shift: a tenth as fast)
+    setClockState({ t: scrub.t0 - ((e.clientX - scrub.x0) / TAPE_PX_PER_S) * (e.shiftKey ? 0.1 : 1) });
+    state.lastInput = performance.now();
+  });
+  const up = (e) => {
+    if (!held.has(e.pointerId)) return;
+    // (captured: the target is the svg, so the press's control decides)
+    const k = clockHot, second = held.size > 1;
+    held.delete(e.pointerId);
+    if (scrub && e.pointerId === scrub.id) { const was = scrub.was; scrub = null; setClockState({ playing: was }); }
+    else if (e.type === 'pointerup' && k === 'play') setClockState({ playing: !clock.playing });
+    // Shift, or a second finger while one rests: the rate before (the modifier, as everywhere)
+    else if (e.type === 'pointerup' && k === 'speed') setClockState({ rate: nextRate(e.shiftKey || second) });
+    if (!held.size) clockHot = null;
+    drawClockNow();
+  };
+  clockSvg.addEventListener('pointerup', up);
+  clockSvg.addEventListener('pointercancel', up);
+}
+addEventListener('resize', () => drawClockNow());
+
+// whether a document (a formula or a collage) reads the clock
+function docTimed(d) {
+  if (!d) return false;
+  if (!isCollage(d)) return timeDriven(d);
+  return d.pieces.some((q) => timeDriven(q.f)) || !!(d.drive && d.drive.bind.length && d.drive.nodes.some((m) => m.type === 'time'));
+}
+const docTimeDriven = () => docTimed(state.collage || state.formula);
+
+// ---------- time in thumbnails ----------------------------------------------------------------------
+// Every thumbnail renders at the clock's time (gpu/render.js renderThumb). While the clock plays, the ones on
+// screen whose formula reads it are rendered again, one at a time, round robin, at most one every LIVE_MS:
+// the breed ring's (its archive neighbours among them) and the lineage node under the pointer. A few small
+// frames a second in all, however many are shown. The lineage's stored JPEG is never rewritten.
+// one thumbnail at a time: they share the renderer's formula buffers and its thumbnail view
+let thumbChain = Promise.resolve();
+function thumbOf(...args) {
+  const run = thumbChain.then(() => R.renderThumb(...args));
+  thumbChain = run.catch(() => null);
+  return run;
+}
+const LIVE_MS = 200, LIVE_W = 144, LIVE_H = 96, LIVE_SAMPLES = 3;
+let liveAt = 0, liveBusy = false, liveTurn = 0, liveRenders = 0;
+const liveLineage = new Map();   // lineage node id → its thumbnail at the clock (shown on hover, not stored)
+function liveThumbs(now) {
+  if (liveBusy || !R || !clock.playing || now - liveAt < LIVE_MS) return;
+  const jobs = [];
+  if (ring) for (const it of ring.items) if (it.thumb && it.angle !== undefined && docTimed(it.f)) jobs.push({ f: it.f, v: () => thumbView(basis(state.cam)), done: (u) => { if (ring && ring.items.includes(it)) { it.thumb = u; drawRingNow(); } } });
+  if (state.structure && state.hoverNode != null) {
+    const id = state.hoverNode, n = lineage.layout().find((q) => String(q.id) === String(id));
+    let f = null;
+    try { f = n && n.thumb ? normDoc(parseAny(n.text)) : null; } catch { f = null; }
+    if (f && docTimed(f)) {
+      const cam = n.cam && n.cam.pos ? n.cam : state.cam;
+      jobs.push({ f, v: () => thumbView(basis(cam), cam.pos), done: (u) => { if (state.hoverNode === id) { liveLineage.set(String(id), u); drawStructureNow(); } } });
+    }
+  }
+  if (!jobs.length) return;
+  const j = jobs[liveTurn++ % jobs.length];
+  liveAt = now; liveBusy = true;
+  thumbOf(j.f, j.v(), LIVE_W, LIVE_H, LIVE_SAMPLES, clockNow()).then((u) => { if (u) { liveRenders++; j.done(u); } }).catch(() => {}).finally(() => { liveBusy = false; });
 }
 
 // a collage number's glyph: a placement's, a repetition's, a join's
@@ -2394,16 +2499,17 @@ function drillInto(pick, nodeId = null) {
 function cvDown(x, y) {
   const PC = cv.PC, V = PC.dv, c = state.collage;
   const pl = cvPlus(PC);
-  if (pl && Math.hypot(x - pl[0], y - pl[1]) < 18) { closeCollageGraph(); openSurface('graph'); return; }
+  if (pl && Math.hypot(x - pl[0], y - pl[1]) < reach(18)) { closeCollageGraph(); openSurface('graph'); return; }
   // the drivers: the selected one's numbers and switches, an output dot, a node, the row
   const dsel = cv.dvSel && V.byId.get(cv.dvSel);
-  if (dsel) for (const h of cvDriverHandles(dsel)) {
-    if (h.glyph && Math.hypot(x - h.gx, y - h.y) < 11) {
+  const hg = dsel && nearestOf(cvDriverHandles(dsel).filter((q) => q.glyph), x, y, 11, (q) => [q.gx, q.y]);
+  if (dsel) for (const h of [hg, ...cvDriverHandles(dsel).filter((q) => !q.glyph)].filter(Boolean)) {
+    if (h === hg) {
       const v = h.cycle ? h.cycle[(h.cycle.indexOf(dsel.n.p[h.key]) + 1) % h.cycle.length] : !dsel.n.p[h.key];
       cvEdit((g) => CE.setCollageDriver(g, { ...dsel.n, p: { ...dsel.n.p, [h.key]: v } }));
       return;
     }
-    if (h.line && x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y - h.y) < 7) { cv.dvParam = { id: dsel.id, key: h.key, x0: x, v0: dsel.n.p[h.key], q: h.q, text0: state.text }; drawCvNow(); return; }
+    if (h.line && h === lineAt(cvDriverHandles(dsel).filter((q) => q.line), x, y, 7)) { cv.dvParam = { id: dsel.id, key: h.key, x0: x, v0: dsel.n.p[h.key], q: h.q, text0: state.text }; drawCvNow(); return; }
   }
   const from = driveOutPortAt(V, x, y);
   if (from) { const [x1, y1] = V.outPort(from); cv.dvDrag = { from: from.id, x1, y1, x2: x, y2: y }; drawCvNow(); return; }
@@ -2411,9 +2517,9 @@ function cvDown(x, y) {
   const inRow = inTop(V, x, y);
   // the selection's lines
   const lines = dsel ? [] : cvLines();
-  const h = lines.find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 7);
+  const h = lineAt(lines, x, y, 7);
   if (h && h.band) {
-    const B = h.band, end = Math.abs(x - B.x0) < 6 ? 'lo' : Math.abs(x - B.x1) < 6 ? 'hi' : 'both';
+    const B = h.band, end = bandEnd(B, x);
     cv.band = { to: h.to, end, M: B.M, x0: x, lo: B.b.lo, hi: B.b.hi, from: B.b.from, text0: state.text, moved: false };
     drawCvNow();
     return;
@@ -2534,7 +2640,7 @@ function cvUp(x, y) {
     const to = driveInPortAt(cv.PC.dv, x, y);
     if (to) { cvEdit((g) => CE.connectCollageDriver(g, d.from, to.node, to.port)); return; }
     // onto a line of the selection, or a seam line: bound over the line's own range (a bound one keeps its band)
-    const h = cvLines().find((r) => x >= r.x1 - 6 && x <= r.x2 + 6 && Math.abs(y - r.y) < 8 && !r.q.discrete);
+    const h = lineAt(cvLines().filter((r) => !r.q.discrete), x, y, 8);
     const sk = h ? -1 : collageSeamAt(cv.PC, x, y, pxAtFocus());
     const target = h ? { to: h.to, value: h.value, per: h.per === 'mul' ? 0.005 * h.value : h.per, q: h.q } : sk >= 0 ? (() => { const j = state.collage.joins[sk], key = j.op === 'morph' ? 'w' : 'r'; return { to: `J${sk}.${key}`, value: j[key], per: key === 'w' ? 1 / 150 : 1 / pxAtFocus(), q: JOIN[key] }; })() : null;
     if (target && collageTarget(state.collage, target.to)) {
@@ -2761,12 +2867,12 @@ function shadeLabelAt(x, y) {
     if (tg) return labAt(labelOf(tg.glyph), tg.x, tg.y, 8);
     const h = shadeLines().find((r) => onLine(r, x, y));
     if (h) return lineLabel(h, paramLabel('ramp', h.key));
-    const st = E.stops.find((q) => Math.abs(x - q.x) < 7 && y > E.y + E.h - 2 && y < E.y + E.h + 22);
+    const st = nearestOf(E.stops.filter((q) => y > E.y + E.h - 2 - HIT.r && y < E.y + E.h + 22 + HIT.r), x, x, 7, (q) => [q.x, x]);
     if (st) return labAt(LABELS['shade.stop'], st.x, st.y + 6, 6);
     if (x >= E.x && x <= E.x + E.w && y >= E.y && y <= E.y + E.h) return labAt(LABELS['shade.bar'], E.x + E.w, E.y + E.h / 2, 2);
   }
   if ((sel && !sel.ramp) || gv.shSel === 'out') {
-    const h = shadeLines().find((r) => Math.abs(y - r.y) < 9 && x >= r.x1 - (r.cycle ? 24 : 6) && x <= r.x2 + 6);
+    const h = lineAt(shadeLines(), x, y, 9, (r) => (r.cycle ? 24 : 6));
     if (h && h.cycle && x < h.x1 - 6) return labAt(labelOf(h.glyph), h.x1 - 14, h.y, 7);
     if (h) return lineLabel(h, paramLabel(sel ? sel.type : 'out', h.key));
   }
@@ -3051,7 +3157,7 @@ function drawGrabNow() {
     drawGrab(overlay, C, {
       screen: [grab.x, grab.y], hit: grab.hit, t: grab.t,
       attention: { op: att.op || null, key: att.key || att.ref || att.drive, value: att.value, glyph: paramGlyph(att, pf) },
-      params: o ? o.p : {}, ring: grab.ring, lyap: grab.lyap, orbit: { points: [], branches: [] },
+      params: o ? o.p : {}, ring: grab.ring, lyap: grab.lyap, orbit: { points: [], branches: [] }, note: grab.note,
     });
     return;
   }
@@ -3065,7 +3171,7 @@ function drawGrabNow() {
     attention: att.drive ? { op: null, key: att.drive, value: att.value, glyph: driveGlyphOf(f, att.drive) } : { op: att.op, key: att.key, value: att.value, glyph: getOp(att.op).glyph },
     params: o ? o.p : {}, ring: grab.ring, lyap: grab.lyap,
     // the orbit lives in 4-D: drawn where each iterate sits along the slice's axes
-    orbit: { points: orbit.points.map((x4) => project(f.slice || {}, x4).x), branches: orbit.branches },
+    orbit: { points: orbit.points.map((x4) => project(f.slice || {}, x4).x), branches: orbit.branches }, note: grab.note,
   });
 }
 
@@ -3094,23 +3200,63 @@ function passAttention(step, x) {
 const NONLINEAR = (p) => p.op === 'rotate' || p.op === 'rotate4' || (p.op === 'fold.plane' && p.key !== 'd');
 const INSET_R = 70;
 let lens = null;
-// a parameter's glyph: a collage number's, a driver's (f: the formula it drives), an op's
-const paramGlyph = (p, f) => (p.ref ? refGlyph(p.ref) : p.drive ? driveGlyphOf(f, p.drive) : getOp(p.op).glyph);
-// which op, or which of the collage's pieces and joins, a parameter belongs to
-const ownerOf = (p) => (p.ref ? p.ref.split('.')[0] : `${p.piece}:${p.oi}`);
+// a parameter's glyph: a collage number's, a driver's (f: the formula it drives; the collage's own when it has
+// no piece), an op's
+const paramGlyph = (p, f) => (p.ref ? refGlyph(p.ref) : p.drive ? (state.collage && p.piece == null ? collageDriveGlyph(p.drive) : driveGlyphOf(f || (state.collage ? state.collage.pieces[p.piece].f : normalize(state.formula)), p.drive)) : getOp(p.op).glyph);
+function collageDriveGlyph(ref) {
+  const [kind, id] = ref.split('/');
+  if (kind === 'bind') return refGlyph(id);
+  const m = state.collage.drive && state.collage.drive.nodes.find((n) => n.id === id);
+  return m ? driverGlyph(m) : 'drv.param';
+}
+// which op, which driver, or which of the collage's pieces and joins, a parameter belongs to
+const ownerOf = (p) => (p.ref ? p.ref.split('.')[0] : p.drive ? `${p.piece ?? 'C'}:${p.drive.split('/').slice(0, 2).join('/')}` : `${p.piece}:${p.oi}`);
+
+// where the lens overlays a driver's number (gpu/render.js lens: L.drvs): { node, slot } or { band: 2 · binding
+// + 0 lo / 1 hi }, and on a collage the region holding the drive (a piece, or the collage's own: MAX_PIECES)
+function lensDrv(p) {
+  if (!p.drive) return null;
+  const c = state.collage;
+  if (c && p.piece == null) {
+    const g = normCollage(c), [kind, id, key] = p.drive.split('/');
+    if (kind === 'bind') { const k = liveBinds(g).findIndex((b) => b.to === id); return k < 0 ? null : { band: 2 * k + (key === 'hi' ? 1 : 0), region: MAX_PIECES }; }
+    const i = g.drive.nodes.findIndex((m) => m.id === id), slot = i < 0 ? -1 : (DRIVE_SLOTS[g.drive.nodes[i].type] || []).indexOf(key);
+    return slot < 0 ? null : { node: i, slot, region: MAX_PIECES };
+  }
+  const t = paramTangents(c ? c.pieces[p.piece].f : state.formula).list.find((q) => q.drive === p.drive);
+  if (!t) return null;
+  const at = t.kind === 3 ? { node: t.index, slot: t.slot } : { band: 2 * t.index + (t.kind === 2 ? 1 : 0) };
+  return c ? { ...at, region: p.piece } : at;
+}
+// what the lens's map cannot show, said in it rather than skipped: rotations (their records are not linear),
+// the colour (a shading number moves no surface, so the metric cannot rank it), drivers that move nothing here
+function lensNotes(ranked) {
+  const notes = [], d = doc();
+  if (ranked.some(NONLINEAR)) notes.push('rotations and plane normals: not linear, not in the map');
+  const shades = isCollage(d) ? [d.shade, ...d.pieces.map((q) => q.f.shade)] : [normalize(d).shade];
+  const nums = shades.reduce((a, s) => a + ((s && s.nodes) || []).reduce((b, m) => b + Object.values(m.p || {}).filter((v) => Number.isFinite(v)).length, 0), 0);
+  if (nums) notes.push(`colour, ${nums} number${nums > 1 ? 's' : ''}: not sensed (it moves no surface)`);
+  const sensed = state.sensed ? state.sensed.driveParams || [] : [];
+  const still = sensed.filter((p) => !(p.pxPerUnit > 0)).length;
+  if (still) notes.push(`${still} driver number${still > 1 ? 's' : ''}: move nothing here (colour only, or held)`);
+  return notes;
+}
 
 function openLens() {
   if (!grab || grab.knobs || lens) return false;
   const att = grab.ranked[grab.k];
-  // a driver's parameter is not offered: the lens varies op records, the drivers' program is not one
-  const linear = grab.ranked.filter((p) => !p.drive && !NONLINEAR(p));
-  const p1 = !att.drive && !NONLINEAR(att) ? att : linear[0];
-  if (!p1) return false;
+  // op records vary linearly; a driver's number is overlaid on its program (gpu/wgsl.js DRV_OV)
+  const ok = (p) => !NONLINEAR(p) && (!p.drive || !!lensDrv(p));
+  const linear = grab.ranked.filter(ok);
+  const p1 = ok(att) ? att : linear[0];
+  const notes = lensNotes(grab.ranked);
+  if (!p1) { grab.note = ['the lens: nothing here it can vary', ...notes]; drawGrabNow(); return false; }
   const p2 = linear.find((p) => p !== p1 && ownerOf(p) === ownerOf(p1)) || linear.find((p) => p !== p1);
+  if (att !== p1) notes.unshift(`${att.key || att.ref || att.drive}: not in the map, the lens shows the nearest it can`);
   // on a collage: a piece's op varies its record in that piece, a number of the collage's own its place in
   // the program (gpu/render.js COLLAGE_LENS), angles too
   const c = state.collage;
-  const drecOf = (p) => (p.ref ? new Float64Array(20) : paramTangents(c ? c.pieces[p.piece].f : state.formula).list.find((t) => t.oi === p.oi && t.key === p.key).drec);
+  const drecOf = (p) => (p.ref || p.drive ? new Float64Array(20) : paramTangents(c ? c.pieces[p.piece].f : state.formula).list.find((t) => t.oi === p.oi && t.key === p.key).drec);
   const rangeOf = (p) => { const q = collageTarget(c, p.ref).spec; return [q.min ?? -1e30, q.max ?? 1e30]; };
   const th = Math.tan((state.look.fovDeg * Math.PI) / 360);
   const foot = grab.t * (2 * th) / innerHeight;
@@ -3118,13 +3264,13 @@ function openLens() {
   const params = p2 ? [p1, p2] : [p1];
   R.lens({
     x: grab.hit, foot, spans: [innerWidth / p1.pxPerUnit, p2 ? innerHeight / p2.pxPerUnit : 0],
-    ops: params.map((p) => p.oi ?? 0), drecs: params.map(drecOf),
+    ops: params.map((p) => (p.drive ? 0xffffffff : p.oi ?? 0)), drecs: params.map(drecOf), drvs: params.map(lensDrv),
     size: [Math.round(canvas.width / 2), Math.round(canvas.height / 2)], key: state.look.key,
-    ...(c ? { pieces: params.map((p) => p.piece), flats: params.map((p) => (p.ref ? collageSlot(c, p.ref) : null)), lims: params.map((p) => (p.ref ? rangeOf(p) : null)) } : {}),
+    ...(c ? { pieces: params.map((p) => (p.drive ? null : p.piece)), flats: params.map((p) => (p.ref ? collageSlot(c, p.ref) : null)), lims: params.map((p) => (p.ref ? rangeOf(p) : null)) } : {}),
   }, () => !!lens);
   const inset = [innerWidth - INSET_R - 30, innerHeight - INSET_R - 30, INSET_R];
   R.setLens(true, inset.map((v) => v * dpr));
-  lens = { params, v0: params.map((p) => valueOf(doc(), p)), x0: null, y0: null, at: [innerWidth / 2, innerHeight / 2], inset };
+  lens = { params, notes, v0: params.map((p) => valueOf(doc(), p)), x0: null, y0: null, at: [innerWidth / 2, innerHeight / 2], inset };
   drawLensNow();
   return true;
 }
@@ -3143,7 +3289,7 @@ function drawLensNow() {
   drawLens(overlay, {
     W: innerWidth, H: innerHeight, at: lens.at, inset: lens.inset,
     glyphs: lens.params.map((p) => paramGlyph(p)),
-    values: lens.params.map((p) => valueOf(doc(), p)),
+    values: lens.params.map((p) => valueOf(doc(), p)), notes: lens.notes,
   });
 }
 
@@ -3402,7 +3548,32 @@ function viewTap(e) {
 // and alpha (sideways) as the scroll and shift-scroll do
 let gview = { k: 1, tx: 0, ty: 0 };
 let gt = null;   // { pts, multi, travel, text0, hue }
-const viewXY = (e) => [(e.clientX - gview.tx) / gview.k, (e.clientY - gview.ty) / gview.k];
+// (and the graphs' reach: a finger's 44 CSS px at this zoom, a mouse's own: ui/hit.js)
+const viewXY = (e) => { HIT.r = e.pointerType === 'touch' ? FINGER / gview.k : 0; return [(e.clientX - gview.tx) / gview.k, (e.clientY - gview.ty) / gview.k]; };
+// the nearest of a list within reach (its own reach r, or a finger's): pos(q) → [x, y]
+function nearestOf(list, x, y, r, pos = (q) => [q.x, q.y]) {
+  let best = null, bd = reach(r);
+  for (const q of list) { const [qx, qy] = pos(q), d = Math.hypot(x - qx, y - qy); if (d < bd) { bd = d; best = q; } }
+  return best;
+}
+// the dimension line nearest the point (vertically), within its reach and along its length
+function lineAt(list, x, y, m = 7, left = () => 6) {
+  let best = null, bd = reach(m);
+  for (const r of list) { const d = Math.abs(y - r.y); if (d < bd && x >= r.x1 - reach(left(r)) && x <= r.x2 + reach(6)) { bd = d; best = r; } }
+  return best;
+}
+// which end of a band a press takes: within reach of one end, the nearer; a band shorter than three reaches
+// keeps its middle third for both
+function bandEnd(B, x) {
+  const r = Math.min(reach(6), Math.max(6, Math.abs(B.x1 - B.x0) / 3)), d0 = Math.abs(x - B.x0), d1 = Math.abs(x - B.x1);
+  return d0 < r && d0 <= d1 ? 'lo' : d1 < r ? 'hi' : 'both';
+}
+// the schedule row's plus, chain plus or letter under the point: the nearest (a finger's reach spans several letters)
+function schedRowAt(SL, x, y) {
+  const at = (q) => [q.x, q.y - 4];
+  return [{ k: 'chainPlus', q: SL.chainPlus, r: 12, at: [SL.chainPlus.x, SL.chainPlus.y - 4] }, { k: 'plus', q: SL.plus, r: 10, at: at(SL.plus) }, ...SL.letters.map((q) => ({ k: 'letter', q, r: 7, at: at(q) }))]
+    .map((o) => ({ ...o, d: Math.hypot(x - o.at[0], y - o.at[1]) })).filter((o) => o.d < reach(o.r)).sort((a, b) => a.d - b.d)[0] || null;
+}
 function viewEv(e) {
   const [x, y] = viewXY(e);
   return { clientX: x, clientY: y, shiftKey: e.shiftKey, altKey: e.altKey, pointerType: e.pointerType, pointerId: e.pointerId, type: e.type };
@@ -3613,6 +3784,9 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'Space') { state.engaged = true; state.drift = !state.drift; touched(); e.preventDefault(); return; }
   if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
+  // the clock: K plays or pauses, [ and ] the speed
+  if (e.code === 'KeyK' && !e.repeat && docTimeDriven()) { setClockState({ playing: !clock.playing }); return; }
+  if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && docTimeDriven()) { setClockState({ rate: nextRate(e.code === 'BracketLeft') }); return; }
   if (e.code === 'KeyL' && !e.repeat) { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); return; }
   keys.add(e.code);
 });
@@ -3878,7 +4052,6 @@ function govern(moving) {
 
 let last = performance.now(), busy = false;
 let benchQuiet = false;  // the benchmark rig holds the archive's growth off (__fe.quiet)
-const clock0 = performance.now();
 function tick() {
   requestAnimationFrame(tick);
   step();
@@ -3900,8 +4073,11 @@ async function step() {
   advanceTransition(now);
   const drifting = !state.trans && drift(dt);
   // a formula driven by the clock animates on its own: never still, its frames a soft trail
-  const animated = docTimeDriven();
-  if (animated) R.setClock((now - clock0) / 1000);
+  // (paused, the clock holds: the frame converges as a still one does; a scrub restarts it)
+  const timed = docTimeDriven(), animated = timed && clock.playing;
+  if (timed) R.setClock(clockNow(now));
+  if (timed !== clockShown || (timed && clock.playing && now - clockDrawn > 50)) drawClockNow();
+  liveThumbs(now);
   // the open graph's bands follow the clock: their ticks redrawn a few times a second while nothing is held
   if (animated && gv && !gv.from && now - (gv.liveAt || 0) > 150 && !gv.param && !gv.dvParam && !gv.band && !gv.picker && !gv.dvDrag) { gv.liveAt = now; drawGraphNow(); }
   const moving = interacting || drifting || !!state.trans || animated;
@@ -4096,7 +4272,7 @@ async function openRing(x, y, scale = 1, origin = null) {
   const b = basis(state.cam);
   for (const it of items) {
     if (!ring) return true;
-    it.thumb = await R.renderThumb(it.f, thumbView(b), 168, 112, 6).catch(() => null);
+    it.thumb = await thumbOf(it.f, thumbView(b), 168, 112, 6, clockNow()).catch(() => null);
     drawRingNow();
   }
   return true;
@@ -4268,7 +4444,7 @@ async function exportAs(kind, where = 'auto', maxFrames = Infinity) {
       // drivers the colour reads: at the splat's point, as the walk reads them at its own (its iteration
       // unknown here: the point's readings as at an orbit's start)
       const ownOf = (to) => { const { path, key } = splitTarget(to), o = opPaths(fs).get(path); return o ? o.p[key] : 0; };
-      const time = timeDriven(fs) ? (performance.now() - clock0) / 1000 : 0;
+      const time = timeDriven(fs) ? clockNow() : 0;
       const drvAt = colourDrivers(fs).length ? (p) => {
         const x = lift(fs, p), r2 = x.reduce((a, v) => a + v * v, 0);
         return evalDrive(fs.drive, { start: x, time, own: ownOf, read: { i: 0, r: Math.sqrt(r2), trap: r2, lyap: 0, px: x[0], py: x[1], pz: x[2], pw: x[3] } }).reg;
@@ -4393,7 +4569,7 @@ async function senseDocCollage(c, uvs = null, opts = {}) {
     }
     return null;
   }
-  return senseCollage(c, senseView(), innerHeight, uvs || COLLAGE_GRID, { ...opts, time: docTimeDriven() ? (performance.now() - clock0) / 1000 : 0 });
+  return senseCollage(c, senseView(), innerHeight, uvs || COLLAGE_GRID, { ...opts, time: docTimeDriven() ? clockNow() : 0 });
 }
 
 async function senseNow() {
@@ -4435,7 +4611,7 @@ const metricOf = (sensed) => linked(sensed.params).concat(sensed.driveParams || 
 
 // a sensed parameter, an op's ({ oi, op, key }) or a driver's ({ drive: a core/drive.js ref }): its id,
 // its value in a formula, the formula with it set (clamped to its range)
-const pid = (p) => (p.ref || p.piece != null ? metricId(p) : p.drive || p.oi + '.' + p.key);
+const pid = (p) => (p.ref || p.piece != null || (state.collage && p.drive) ? metricId(p) : p.drive || p.oi + '.' + p.key);
 function valueOf(f, p) {
   if (isCollage(f)) return metricValue(f, p);
   const g = normalize(f);
@@ -4518,6 +4694,42 @@ window.__fe = {
   ringItems: () => ring && ring.items.map((it) => ({ D: +(it.D || 0).toFixed(1), local: it.local, thumb: !!it.thumb, angle: it.angle && +it.angle.toFixed(2) })),
   replay: () => replay(),
   export: (kind, where, maxFrames) => exportAs(kind, where, maxFrames),
+  // time in thumbnails: how many live renders so far, and the ring's thumbnails (to see them change)
+  liveThumbs: () => ({ renders: liveRenders, ring: ring ? ring.items.map((it) => (it.thumb ? it.thumb.length + ':' + it.thumb.slice(-24) : null)) : null, lineage: [...liveLineage.keys()] }),
+  // the open graph's targets in CSS px (ops, the schedule row, the drivers' nodes and their ports), and what each
+  // hit test answers at a point for a finger or a mouse (ui/hit.js: the touch rig probes them a finger away)
+  graphTargets: () => {
+    if (!gv) return null;
+    const sx = (x) => x * gview.k + gview.tx, sy = (y) => y * gview.k + gview.ty, V = gv.P.dv, SL = scheduleLayout(gv.P), out = [];
+    for (const q of gv.P.items) if (q.kind === 'op') out.push({ kind: 'op', id: q.id, x: sx(q.x), y: sy(q.y) });
+    for (const e of gv.P.edges) out.push({ kind: 'edge', id: `${e.chain}.${e.index}`, x: sx((e.x1 + e.x2) / 2), y: sy((e.y1 + e.y2) / 2) });
+    SL.letters.forEach((q) => out.push({ kind: 'letter', id: String(q.i), x: sx(q.x), y: sy(q.y - 4) }));
+    out.push({ kind: 'plus', id: 'plus', x: sx(SL.plus.x), y: sy(SL.plus.y - 4) }, { kind: 'chainPlus', id: 'chainPlus', x: sx(SL.chainPlus.x), y: sy(SL.chainPlus.y - 4) });
+    if (driveShown()) for (const q of V.items) {
+      out.push({ kind: 'dnode', id: q.id, x: sx(q.x), y: sy(q.y) });
+      const [ox, oy] = V.outPort(q); out.push({ kind: 'out', id: q.id, x: sx(ox), y: sy(oy) });
+      if (!q.use) DE.driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length); out.push({ kind: 'in', id: `${q.id}.${port}`, x: sx(px), y: sy(py) }); });
+    }
+    return { k: gview.k, targets: out };
+  },
+  hitAt: (cx, cy, touch) => {
+    if (!gv) return null;
+    HIT.r = touch ? FINGER / gview.k : 0;
+    const x = (cx - gview.tx) / gview.k, y = (cy - gview.ty) / gview.k, V = gv.P.dv;
+    const op = graphNodeAt(gv.P, x, y), sr = schedRowAt(scheduleLayout(gv.P), x, y), o = driveShown() ? driveOutPortAt(V, x, y) : null;
+    const dn = driveShown() ? driveNodeAt(V, x, y) : null, ip = driveShown() ? driveInPortAt(V, x, y) : null;
+    const ed = op ? null : graphEdgeAt(gv.P, x, y);
+    const r = { op: op ? op.id : null, edge: ed ? `${ed.chain}.${ed.index}` : null, letter: sr && sr.k === 'letter' ? String(sr.q.i) : null, plus: sr && sr.k === 'plus' ? 'plus' : null, chainPlus: sr && sr.k === 'chainPlus' ? 'chainPlus' : null,
+      out: o ? o.id : null, dnode: dn ? dn.id : null, in: ip ? `${ip.node}.${ip.port}` : null };
+    HIT.r = 0;
+    return r;
+  },
+  // the drivers' clock: its state, where its controls are (CSS px; their hit rects as drawn), and a setter
+  clock: (o) => {
+    if (o) setClockState(o);
+    const rects = clockSvg ? [...clockSvg.querySelectorAll('rect.hit')].map((r) => { const b = r.getBoundingClientRect(); return { k: r.dataset.clock, x: b.left, y: b.top, w: b.width, h: b.height }; }) : [];
+    return { t: clockNow(), rate: clock.rate, playing: clock.playing, shown: !!(clockSvg && clockSvg.childElementCount), rects };
+  },
   importFile: (buffer, name) => importFile(buffer, name),
   get jitReady() { return R && R.jitReady; },
   get pipeline() { return R && R.pipelineKind; },

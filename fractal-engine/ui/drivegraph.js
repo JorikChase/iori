@@ -8,6 +8,7 @@
 // layoutDrive(drive, L) → units beside the formula's layout L (ui/graph.js); placeDrive(D, P) → pixels
 // in the placed graph P; drawDrive(V, o) → SVG; hit tests.
 
+import { HIT, reach } from './hit.js';
 import { glyphPath, useGlyph } from './glyphs.js';
 import { frameSvg } from './graph.js';
 import { foldNet } from '../core/netsub.js';
@@ -121,23 +122,34 @@ export function drawDrive(V, o = {}) {
 }
 
 // ---------- hit tests ------------------------------------------------------------------------------
+// (a finger: each target reaches HIT.r, and a node gives way to a port nearer than its centre, a port to a
+// node nearer than it: ui/hit.js)
+const nearestNode = (V, x, y, r) => { let best = null, bd = r; for (const q of V.items) { const d = Math.hypot(x - q.x, y - q.y); if (d < bd) { bd = d; best = q; } } return { best, d: bd }; };
+function nearestOut(V, x, y, r) { let best = null, bd = r; for (const q of V.items) { const [px, py] = V.outPort(q), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = q; } } return { best, d: bd }; }
+function nearestIn(V, x, y, r) {
+  let best = null, bd = r;
+  for (const q of V.items.filter((r2) => !r2.use)) driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
+  return { best, d: bd };
+}
 export function driveNodeAt(V, x, y) {
-  let best = null, bd = 13;
-  for (const q of V.items) { const d = Math.hypot(x - q.x, y - q.y); if (d < bd) { bd = d; best = q; } }
-  return best;
+  const n = nearestNode(V, x, y, reach(13));
+  if (n.best && HIT.r && n.d >= 13 && Math.min(nearestOut(V, x, y, n.d).d, nearestIn(V, x, y, n.d).d) < n.d) return null;
+  return n.best;
 }
 export function driveOutPortAt(V, x, y) {
-  for (const q of V.items) { const [px, py] = V.outPort(q); if (Math.hypot(x - px, y - py) < 7) return q; }
-  return null;
+  const p = nearestOut(V, x, y, HIT.r ? reach(7) : 7);
+  if (!p.best) return null;
+  if (HIT.r && p.d >= 7 && nearestNode(V, x, y, p.d).best) return null;
+  return p.best;
 }
 export function driveInPortAt(V, x, y) {
-  let best = null, bd = 8;
-  for (const q of V.items.filter((r) => !r.use)) driverPorts(q.type).forEach((port, k, all) => { const [px, py] = V.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
-  return best;
+  const p = nearestIn(V, x, y, reach(8));
+  if (p.best && HIT.r && p.d >= 8 && nearestNode(V, x, y, p.d).best) return null;
+  return p.best;
 }
 // a link between drivers ({ to, port }) or a binding's hairline ({ bind: to }) under the point
 export function driveLinkAt(V, x, y, binds = []) {
-  let best = null, bd = 6;
+  let best = null, bd = reach(6);
   const curve = (x1, y1, c1x, c1y, c2x, c2y, x2, y2, hit) => {
     for (let i = 0; i <= 20; i++) {
       const t = i / 20, u = 1 - t;

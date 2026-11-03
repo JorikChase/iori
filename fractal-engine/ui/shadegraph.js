@@ -14,6 +14,7 @@
 //
 // layoutShade(shade) → units; placeShade(L, u, right, top) → pixels; drawShade(P, o) → SVG; hit tests.
 
+import { HIT, reach } from './hit.js';
 import { glyphPath, useGlyph } from './glyphs.js';
 import { frameSvg } from './graph.js';
 import { foldNet } from '../core/netsub.js';
@@ -237,27 +238,36 @@ function hsvToCss(h, sat, v) {
 export { hsvToCss };
 
 // ---------- hit tests ------------------------------------------------------------------------------
+// (a finger: each target reaches HIT.r; a node, a box, gives way to a port nearer than the box's edge and its
+// centre both, a port to a node whose box the finger is in or nearer: ui/hit.js)
+const boxD = (q, x, y) => Math.hypot(Math.max(0, Math.abs(x - q.x) - q.hw), Math.max(0, Math.abs(y - q.y) - q.hh));
+function nearestBox(P, x, y, r) { let best = null, bd = r; for (const q of P.items) { const d = boxD(q, x, y); if (d < bd) { bd = d; best = q; } } return { best, d: bd }; }
+function nearestIn(P, x, y, r) {
+  let best = null, bd = r;
+  for (const q of P.items.filter((r2) => !r2.use)) portsOf(q.type).forEach((port, k, all) => { const [px, py] = P.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
+  for (const o of P.outs) { const d = Math.hypot(x - o.x, y - o.y); if (d < Math.max(bd, 12)) { bd = d; best = { node: 'out', port: o.port }; } }
+  return { best, d: bd };
+}
+function nearestOut(P, x, y, r) { let best = null, bd = r; for (const q of P.items) { const [px, py] = P.outPort(q), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = q; } } return { best, d: bd }; }
 export function shadeNodeAt(P, x, y) {
-  let best = null, bd = 14;
-  for (const q of P.items) {
-    const dx = Math.max(0, Math.abs(x - q.x) - q.hw), dy = Math.max(0, Math.abs(y - q.y) - q.hh), d = Math.hypot(dx, dy);
-    if (d < bd) { bd = d; best = q; }
-  }
-  return best;
+  const n = nearestBox(P, x, y, reach(14));
+  if (n.best && HIT.r && n.d > 0) { const p = Math.min(nearestIn(P, x, y, n.d).d, nearestOut(P, x, y, n.d).d); if (p < n.d) return null; }
+  return n.best;
 }
 // an input port (of a node, or the outputs): { node, port }
 export function shadeInPortAt(P, x, y) {
-  let best = null, bd = 9;
-  for (const q of P.items.filter((r) => !r.use)) portsOf(q.type).forEach((port, k, all) => { const [px, py] = P.inPort(q, k, all.length), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { node: q.id, port }; } });
-  for (const o of P.outs) { const d = Math.hypot(x - o.x, y - o.y); if (d < Math.max(bd, 12)) { bd = d; best = { node: 'out', port: o.port }; } }
-  return best;
+  const p = nearestIn(P, x, y, reach(9));
+  if (p.best && HIT.r && p.d >= 9) { const n = nearestBox(P, x, y, p.d); if (n.best) return null; }
+  return p.best;
 }
 export function shadeOutPortAt(P, x, y) {
-  for (const q of P.items) { const [px, py] = P.outPort(q); if (Math.hypot(x - px, y - py) < 8) return q; }
-  return null;
+  const p = nearestOut(P, x, y, HIT.r ? reach(8) : 8);
+  if (!p.best) return null;
+  if (HIT.r && p.d >= 8 && nearestBox(P, x, y, p.d).best) return null;
+  return p.best;
 }
 export function shadeLinkAt(P, x, y) {
-  let best = null, bd = 7;
+  let best = null, bd = reach(7);
   for (const l of P.links) {
     // the curve, sampled
     const my = (l.y1 + l.y2) / 2;

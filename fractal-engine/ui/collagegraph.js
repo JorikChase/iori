@@ -11,6 +11,7 @@
 //
 // layoutCollage(c) → units; placeCollage(L, u, right, cy) → pixels; drawCollage(PC, o) → SVG; hit tests.
 
+import { reach } from './hit.js';
 import { tree } from '../core/graph.js';
 import { joinEval } from '../core/collage.js';
 import { layout, place, drawGraph } from './graph.js';
@@ -153,11 +154,11 @@ export function drawCollage(PC, o = {}) {
 const inside = (r, x, y, m = 0) => x >= r[0] - m && x <= r[2] + m && y >= r[1] - m && y <= r[3] + m;
 export const pieceAt = (PC, x, y) => { const p = PC.pieces.find((q) => inside(q.zone, x, y, 6)); return p ? p.i : -1; };
 export function joinAt(PC, x, y) {
-  let best = -1, bd = PC.g * 0.75;
+  let best = -1, bd = reach(PC.g * 0.75);
   PC.joins.forEach((q, k) => { const d = Math.hypot(x - q.x, y - q.y); if (d < bd) { bd = d; best = k; } });
   return best;
 }
 export function seamAt(PC, x, y, pxPerUnit) {
-  return PC.joins.findIndex((q) => { const L = seamLine(PC, q, pxPerUnit); return !L.hard && Math.abs(y - L.y) < 7 && x >= Math.min(L.x1, q.x - 10) - 6 && x <= Math.max(L.x2, q.x + 10) + 6; });
+  return PC.joins.findIndex((q) => { const L = seamLine(PC, q, pxPerUnit); return !L.hard && Math.abs(y - L.y) < reach(7) && x >= Math.min(L.x1, q.x - 10) - 6 && x <= Math.max(L.x2, q.x + 10) + 6; });
 }
-export const outAt = (PC, x, y) => Math.hypot(x - PC.out.x, y - PC.out.y) < PC.g * 0.7;
+export const outAt = (PC, x, y) => Math.hypot(x - PC.out.x, y - PC.out.y) < reach(PC.g * 0.7);

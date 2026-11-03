@@ -109,6 +109,8 @@ export const FIGURES = {
   graph: { doc: TISSUE, view: 2.6, open: 'graph' },
   shade: { doc: SHADED, view: 2.4, open: 'shade' },
   drive: { doc: DRIVEN, view: 2.4, open: 'drive' },
+  // 6.5: the clock's row, shown in a figure only when asked (&clock)
+  clock: { doc: withProgram(BULB, { drive: { nodes: [{ id: 'tm', type: 'time', p: { rate: 0.15, wave: 'sine' } }], bind: [{ to: 'A0.n', from: 'tm', lo: 6, hi: 9 }] } }), view: 2.4, clock: true },
   colour: { doc: PAINTED, open: 'graph' },
   // a collage's repetition is in the piece's own units, before its size: polar 6 4 at size .25 is a ring of radius 1
   joins: { doc: collage(`{ ${BULB} } at .55 0 0 ∪ stairs .25 4 { ${BOX} } at -.55 0 0 size .12`), view: 3, yaw: 0, pitch: -0.3, open: 'cgraph' },
@@ -129,6 +131,7 @@ export function figureSrc(id, doc) {
   const F = FIGURES[id];
   const q = new URLSearchParams({ embed: '' });
   for (const k of ['view', 'yaw', 'pitch', 'win', 'open']) if (F[k] != null) q.set(k, F[k]);
+  if (F.clock) q.set('clock', '');
   const text = doc || F.doc;
   const cam = F.cam ? '&c=' + F.cam.join(',') : '';
   const hash = text ? '#' + encodeURIComponent(text) + cam + (F.mode && F.mode !== 'pull' ? '&m=' + F.mode : '') : '';

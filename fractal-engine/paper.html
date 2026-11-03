@@ -387,6 +387,13 @@
         screen reaches. Moving travels it, both parameters change, and the field itself updates live in a round inset;
         letting go closes the lens and the grab carries on from there. On a collage the lens works the same way and offers more:
         a placement's angles and a join's width too (section 7.4).</p>
+      <p>The lens takes driver numbers as well: a band's two ends and a driver's own numbers (a field's frequency, the clock's
+        rate, a remap's range), wherever the metric ranks them, so a noise's frequency can be mapped against the scale it bends.
+        What it cannot vary it says, in a line at the bottom of the map, rather than leaving it out silently: a rotation angle or a
+        plane normal (its record is not linear in it; the lens then maps the nearest number it can and names the one it passed
+        over), the colour (a shading number moves no surface, so the metric, which measures surfaces, cannot rank it), and a
+        driver number that moves nothing here (one that only feeds the colour). When nothing at the held point can be mapped, the
+        grab says so under its reticle.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>Open the lens</td><td><kbd>Shift</kbd> during a grab</td><td>rest a second finger during a grab</td></tr>
@@ -404,7 +411,9 @@
           <i>u</i>/<i>m</i><sub>1</sub>, θ<sub>2</sub><sup>0</sup> + <i>v</i>/<i>m</i><sub>2</sub>), and its value is the
           distance estimate at the held point under that pair. The shader reads every op record through overrides that add
           Δθ · ∂record/∂θ, exact for parameters the record is linear in (all but rotation angles and plane normals, which
-          the lens does not offer on a formula; a collage's own numbers are read another way, section 7.4). It is the held point's own Mandelbrot set.</p>
+          the lens does not offer on a formula; a collage's own numbers are read another way, section 7.4). A driver's number
+          is added to the drive program where it is read, a node's number in the node, a band's end in its binding, so the
+          driven value, and through it the record, follows exactly. It is the held point's own Mandelbrot set.</p>
       </details>
 
       <h3 id="ch4-3">4.3 The Lineage</h3>
@@ -883,6 +892,37 @@
         <p>with <i>x</i> the hit point and <i>n</i> iterations. The output is the mean change of |<i>p</i>| from one iteration
           to the next, or in the other mode the least |<i>p</i>|.</p>
       </details>
+
+      <h3 id="ch6-5">6.5 The Clock</h3>
+      <p>A formula with a time driver animates on its own. While one is on screen a hairline row sits at the top centre:
+        a play and pause glyph, a <i>tape</i> and the speed. The tape is a line with a tick every second (a taller one
+        every five) sliding under a fixed centre mark, with the time beneath it; drag it and the clock follows the hand,
+        held still while you hold it and playing again when you let go, if it was playing. The speed steps through ×¼,
+        ×½, ×1, ×2 and ×4. Paused, the frame converges as a still one does; a scrub restarts it. The row is not there for
+        a formula that does not read the clock.</p>
+      <p>Thumbnails read the clock too: the breed ring's neighbours (the archive's among them), the lineage node under
+        the pointer, a Metasurface site, the graph's preview of the field without an op. Each renders at the time on the
+        clock. While the clock plays, the ring's and the hovered lineage node's are rendered again, one at a time, at most
+        five a second in all, so a ring of eight moves at a slow frame rate of its own and costs no more with more of them;
+        the lineage keeps the picture it stored.</p>
+      <table class="use">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Pause, play</td><td>click the glyph; <kbd>K</kbd></td><td>tap it</td></tr>
+        <tr><td>Scrub</td><td>drag the tape (left is later); <kbd>Shift</kbd> for a tenth as fast</td><td>drag it</td></tr>
+        <tr><td>Speed</td><td>click it for faster, <kbd>Shift</kbd>-click slower; <kbd>[</kbd> <kbd>]</kbd></td><td>tap it for faster; tap with a second finger resting for slower</td></tr>
+      </table>
+      <figure class="engine" data-fig="clock">
+        <div class="fe-frame"></div>
+        <figcaption>A bulb whose power follows a slow sine of the clock, between 6 and 9. Pause it at the top, drag the
+          tape back to a shape you passed, or speed it up fourfold.</figcaption>
+      </figure>
+      <details class="math">
+        <summary>The mathematics</summary>
+        <p>The clock is <i>t</i> = <i>t</i><sub>0</sub> + <i>r</i> (<i>τ</i> − <i>τ</i><sub>0</sub>), with <i>τ</i> the
+          page's own time, <i>r</i> the speed and (<i>t</i><sub>0</sub>, <i>τ</i><sub>0</sub>) set again at every pause,
+          scrub or change of speed, so the time never jumps. Every reader of it (the frame, the sensing pass, the CPU's
+          estimates, a thumbnail) takes the same <i>t</i>.</p>
+      </details>
     </section>
 
     <!-- ================================================================== 7 -->
@@ -1122,6 +1162,11 @@
         <figcaption>The tissue's graph, open. Enter and rest on any node, the count or a field's glyph (or hold a finger
           on it): its name appears beside it.</figcaption>
       </figure>
+      <p><b>Finger-sized targets.</b> The graphs are drawn in hairlines, with ports a few pixels wide. On a touch screen
+        every target in them (an op, an edge, a port, a link, a driver's node and its switches, a dimension line, a band's
+        end, a ramp's stop, the schedule's letters and pluses) answers within 22 points of itself, at whatever zoom the graph
+        is shown, which makes each one at least 44 points across; the drawing is the same. Where two targets sit closer than
+        that, the nearer one wins: a port beside its node is taken from the port's side. A mouse keeps the reach it had.</p>
       <p><b>Not yet on touch.</b> One thing a desktop does has no finger: opening a saved still or splat file, which a desktop
         drops on the engine.</p>
     </section>
@@ -1395,7 +1440,7 @@
       <div class="planned" id="pl-lensmore">
         <span class="planned-tag">planned</span>
         <h4>The Lens, Further</h4>
-        <p>The lens on driver and shading parameters, on a formula's rotation angles and plane normals, and a map that follows an edit made inside it. Today it is computed once, on op parameters (and on a collage, its placements and joins too, section 7.4).</p>
+        <p>A lens on the colour (the shading's numbers, mapped by the colour they give at the held point, since they move no surface), on a formula's rotation angles and plane normals, and a map that follows an edit made inside it. Today it is computed once, on op parameters and driver numbers (and on a collage, its placements and joins too, section 7.4), and names what it leaves out.</p>
         <table class="use">
           <tr><th></th><th>Desktop</th><th>Touch</th></tr>
           <tr><td></td><td></td><td></td></tr>
@@ -1406,16 +1451,6 @@
         <span class="planned-tag">planned</span>
         <h4>Shading Lines</h4>
         <p>A bound shading line's live range, as an op's line shows the orbit's, and param nodes that read shading parameters.</p>
-        <table class="use">
-          <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-          <tr><td></td><td></td><td></td></tr>
-        </table>
-        <div class="fe-slot">figure to come</div>
-      </div>
-      <div class="planned" id="pl-clock">
-        <span class="planned-tag">planned</span>
-        <h4>Clock Controls</h4>
-        <p>Pause and scrub for anything driven by time, and the clock in thumbnails, which read it as zero today.</p>
         <table class="use">
           <tr><th></th><th>Desktop</th><th>Touch</th></tr>
           <tr><td></td><td></td><td></td></tr>
@@ -1572,6 +1607,7 @@
         <tr><td>Undo</td><td><kbd>Esc</kbd></td><td>two-finger tap afterwards</td></tr>
         <tr><td>Pin, unpin</td><td><kbd>F</kbd></td><td>double tap a second finger</td></tr>
         <tr><td>Lens</td><td>hold <kbd>Shift</kbd>; move to travel</td><td>rest a second finger</td></tr>
+        <tr><td>Lens on a driver's number</td><td>the same, its band or number the attention</td><td>the same</td></tr>
       </table>
       <h3>The loop</h3>
       <table class="use ref">
@@ -1639,6 +1675,13 @@
         <tr><td>Colour</td><td>hold a stop: angle, distance; wheel lightness, <kbd>Shift</kbd>-wheel alpha</td><td>hold; a second finger sets lightness and alpha</td></tr>
         <tr><td>Glow's gain</td><td>click the glow output</td><td>tap</td></tr>
       </table>
+      <h3>The clock</h3>
+      <table class="use ref">
+        <tr><th></th><th>Desktop</th><th>Touch</th></tr>
+        <tr><td>Pause, play</td><td><kbd>K</kbd>, the glyph at the top</td><td>tap the glyph</td></tr>
+        <tr><td>Scrub</td><td>drag the tape; <kbd>Shift</kbd> fine</td><td>drag the tape</td></tr>
+        <tr><td>Faster, slower</td><td><kbd>]</kbd> <kbd>[</kbd>; click, <kbd>Shift</kbd>-click the speed</td><td>tap the speed; with a second finger resting, slower</td></tr>
+      </table>
       <h3>The Metasurface</h3>
       <table class="use ref">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
@@ -1683,10 +1726,10 @@
       <ul>
         <li><b>Formulas.</b> Eight op lists (slots) and 64 ops, counting every use of a subgraph. A chimera holds two to seven species, with no chimera inside a chimera.</li>
         <li><b>Grab.</b> Pull only: push has no surface to sense, and in the loop a hold takes the knobs. Moves that would enter the surface are refused.</li>
-        <li><b>Lens.</b> Op parameters, and on a collage its placements (angles too) and join widths. Not a formula's rotation angles or plane normals, not driver or shading parameters. Its map is computed when it opens and does not follow an edit made inside it. On a shared subgraph number, the preview moves the first use.</li>
+        <li><b>Lens.</b> Op parameters and driver numbers (band ends, a driver's own numbers), and on a collage its placements (angles too), join widths and its own drivers. Not a formula's rotation angles or plane normals, and not the shading's numbers, which move no surface for the metric to rank: the map says which it left out. A driver's number is not held to its range while the map is drawn (the value on release is). Its map is computed when it opens and does not follow an edit made inside it. On a shared subgraph number, the preview moves the first use.</li>
         <li><b>Breeding.</b> Parameters only, never structure. The archive restarts after a flight, because its features depend on the view.</li>
-        <li><b>Drivers.</b> 32 nodes and 16 bindings; four rebuilt ops, eight such bindings. Four driven ramp stops. <code>kali</code> can't be driven. A driven formula's shader variant takes a few seconds to compile the first time, and it draws with its own values until then.</li>
-        <li><b>Collages.</b> Eight pieces. No collage inside a collage. No loop. The collage's own driver parameters (its fields, start, time, maths and remap) are not yet in the metric, so the grab, the ring and the archive do not reach them; the pieces' driver parameters are. A repetition reads the nearest copy only, so a piece wider than its cell is overstepped at the wall.</li>
+        <li><b>Drivers.</b> 32 nodes and 16 bindings; four rebuilt ops, eight such bindings. Four driven ramp stops. <code>kali</code> can't be driven. A driven formula's shader variant takes a few seconds to compile the first time, and it draws with its own values until then. The clock runs from 0 when the page opens and is not stored in a link or a state; a video export sets it frame by frame.</li>
+        <li><b>Collages.</b> Eight pieces. No collage inside a collage. No loop. Every driver number is in the metric, the collage's own (its fields, start, time, maths, remap and its bands) and each piece's; a number of the collage read by one of its own param nodes counts its direct effect only. A repetition reads the nearest copy only, so a piece wider than its cell is overstepped at the wall.</li>
         <li><b>Subgraphs.</b> None inside another, none in a species if it holds a chimera, no link across collage pieces, no ramp stops exposed. Eight on the shelf, none removable, and a ninth pushes out the oldest.</li>
         <li><b>The Metasurface.</b> 29 sites, 16 of them the families. At most four species blend across a wall. A chimera's wall is a cut unless it is a constant blend.</li>
         <li><b>Stored here only.</b> The lineage, your sites and the shelf live in this browser. A link carries the formula, camera and mode; a still or a splat file also carries the look, focus and pins.</li>

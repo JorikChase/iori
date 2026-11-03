@@ -2209,3 +2209,78 @@ the paper carry it.
   (`run-touch.mjs` 'surface: a hold on open ground drops a site'). The paper said "not yet" and no longer does; only opening a
   file has no finger.
 - *MAX_SITES* is 29 (Q3.1 says 24): the five new families took it up.
+
+
+## Finishing touches, 2026-11-04
+
+Five pieces the earlier stretches left open (V2's "clock controls, time in thumbnails", V3's "the lens on driver
+parameters", K's "the collage's own drivers' parameters are not in the metric", T's finger sizes). Branch
+`claude/fe-finishing-f18c33` from 383b0ba.
+
+**1. The collage's own drivers in the metric** (core/collage-sense.js). A collage's drive reads no orbit (fields, the
+start, the clock, param nodes, maths, remaps at the world point), so its numbers reach the estimate only through the
+numbers they bind: ∂D/∂θ = Σ_b ∂D/∂(b's number) · ∂v_b/∂θ. `collageDual` already had ∂D/∂(every number), bound ones
+included; ∂v_b/∂θ comes from the drive in float64 at the hit (`collageDriveJac`): a band's ends exactly (∂v/∂lo = 1 − r,
+∂v/∂hi = r), a node's number by a central difference of `evalDrive` (h = 10⁻⁵·max(1, |θ|), no orbit, so cheap). A
+binding clamped at its number's range moves nothing. *Decided:* JavaScript, not WGSL, as the rest of the chain rule
+(the GPU already returns everything needed: the hit and the pieces' duals), so no new shader and `node --test`
+reaches it. Only the numbers upstream of a live binding are measured (`collageDriveParams`): a driver that only feeds
+the collage's shade moves no surface. Metric entries are `{ drive }` with no piece, ids `C:<ref>` (core/collage-breed.js
+`metricId`, `metricValue`, `withMetric`); the CPU reference pass measures them by differences too. `readCollageSense`
+takes `opts.time` (gpu/sense.js passes the renderer's clock). Tests: three cases in test/collage-sense.test.mjs against
+differences of `collageAt` (median < 1e-3), the clamp; parity's sense rows compare the own drivers' speeds separately
+(`ownRelMed`).
+
+**2. The lens on driver numbers, and what it cannot map said in it.** *Decided:* overlay the drive program, not
+records. gpu/wgsl.js `DRV_OV` (a const, false everywhere but the lens: `withDriveOverlay`) adds ovD to a node's number in
+`drvP` (`drvOvNode`, `drvOvSlot`) and to a band's end where the binding is evaluated (`drvBandOv`, in `driveIter` and the
+collage's `clDrive`), in the region `drvOvOn` allows (a formula: always; a collage: `clSelect` sets it from `clOvDrv`, a
+piece or `CL_OWN`). The driven value, and through it the record (rebuilt rotations too), follows exactly. LV gains two
+vec4u (node/slot, band/region) after the formula's four or the collage's six; `lvBuf` is 128 bytes. The formula's driven
+lens is the variant 'lens+dov'; COLLAGE_LENS always carries the overlay (one more compile of it, once). app.js `lensDrv`
+maps a metric entry to its place (paramTangents' kind/index/slot for a formula or a piece; the live binding's index or the
+node's for the collage's own). *Shading numbers:* the metric measures surface motion, and a shading number moves none,
+so it is never ranked and cannot be lensed: the lens says so in a line at the bottom of its map (`lensNotes`: rotations
+and plane normals not linear; the colour's count of numbers, not sensed; driver numbers that move nothing here). When
+the attention parameter is not mappable the lens maps the nearest one it can and names the one it passed over; when
+nothing at the point is mappable the grab shows the note under its reticle instead of silently not opening. Parity: the
+override suite gains a row per driven formula (a band end and a node number against `de` with the values changed;
+driven thresholds as forward's), the collage suite three 'drive overlay' rows (the collage's own band and node, a driven
+piece's).
+
+**3. Clock controls** (ui/clock.js, app.js "the drivers' clock"). `clock = { t, at, rate, playing }`, `clockNow()`;
+every reader of the time takes it (the frame's `setClock`, the CPU's estimates, the sensing pass, thumbnails); a pause,
+scrub or rate change re-anchors (t₀, τ₀) so time never jumps, and restarts the still frame's accumulation. Paused, a
+time-driven formula is not `animated`: it converges like a still. *The row:* top centre, only while the document reads
+the clock (and in a paper figure only with `&clock`): play/pause glyph, the tape (a hairline, a tick a second, taller
+every five, sliding under a fixed centre mark, the time beneath), the speed as text (×¼ … ×4). Same hairline + halo as the
+toggle row. *Gestures:* tap/click play; drag the tape (24 px a second, dragged left is later; Shift a tenth), the clock held
+under the hand and restored after; tap the speed for faster, Shift-click or with a second finger resting for slower (the
+modifier rule); keys K, [ and ]. Hit rects 44 px on touch, 30 with a mouse; the drawing is the same.
+
+**4. Time in thumbnails.** The cause of the frozen frame: `renderThumb` packed the formula afresh, and a pack writes the
+clock word as 0. It now writes `time` (default the live view's clock; app.js passes `clockNow()`) into every head. For
+motion, `liveThumbs`: while the clock plays, the thumbnails on screen whose formula reads the clock are re-rendered one at
+a time, round robin, at most one per LIVE_MS = 200 ms, at 144×96 and 3 samples — the breed ring's eight (its archive
+neighbours among them) and the lineage node under the pointer (the live picture is shown, the stored JPEG kept). So the
+cost is bounded by the rate, not by how many are shown. All app thumbnails go through `thumbOf`, one at a time (they
+share the renderer's formula buffers and thumbnail view: the ring's first pass and a live render could interleave).
+
+**5. Finger-sized graph hits** (ui/hit.js). `HIT.r` is set from each graph pointer event (`viewXY`): 22 CSS px over
+the graph's zoom for a finger, 0 for a mouse; every hit test's reach is `reach(own)` = max(own, HIT.r). So on desktop
+nothing changes by construction. *Overlaps:* where two enlarged targets overlap, the nearer wins — a node gives way to
+its own port when the finger is nearer the port than the node's centre (the shading frame's boxes: nearer than the box),
+a port to its node likewise; an op node past its own reach yields to an insertion edge's middle nearer than it (edges
+run node to node, so their segments always touch the node); the schedule row takes the nearest of its letters and pluses
+(`schedRowAt`); dimension lines the nearest vertically (`lineAt`); ramp stops the nearest (`nearestOf`); a band's ends
+reach a third of the band at most, so a short band keeps a middle for both. Covered: ops, edges, the schedule row and
+count, a run's bracket, driver nodes, their in and out ports, driver and shading links, binding hairlines, shading
+nodes and ports, a selected driver's switches and lines, the ramp editor's toggles and stops, the shading plus, the
+collage graph's joins, seams, output and plus. Rig hooks: `__fe.graphTargets()`, `__fe.hitAt(x, y, touch)`.
+
+**Not yet:** a lens on the colour (it would need a colour metric: the shading's numbers ranked by how far the colour at
+the held point moves, and a map of colours, not distances); a lens on rotation angles of a formula; the lens's driver
+numbers are not clamped to their range in the preview (the release is); the collage's own param nodes count a read number's
+direct effect only (as before); the clock is not stored in the hash or a state; the live thumbnails cover the ring and the
+lineage hover, not Metasurface sites or the graph's no-op preview (those render at the clock when drawn); hover labels
+still use each control's own reach, so a finger's label can name a neighbour of what a press would take; a real-device pass.

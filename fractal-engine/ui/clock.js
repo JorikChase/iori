@@ -4,7 +4,8 @@
 // Drawn as the toggle row is: dim hairlines with a dark halo, brighter while held. Hit areas are their own
 // transparent rects, finger-sized on touch (44 px), the drawing the same on every device.
 
-export const RATES = [0.25, 0.5, 1, 2, 4];
+import { RATES } from '../core/state.js';
+export { RATES };
 export const TAPE_PX_PER_S = 24;   // the tape's scale: a drag of this many pixels moves the clock one second
 
 const f1 = (v) => v.toFixed(1);

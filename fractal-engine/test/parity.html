@@ -11,7 +11,7 @@
 // The WGSL interpreter must compute the same orbit as core/cpu.js. For each formula: N random points,
 // the GPU's distance estimate, iteration count and escape flag, compared with the CPU's.
 // Result in window.__parity: { ok, rows: [{ formula, n, maxRel, iterMismatch, escMismatch }] }.
-import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit, lift, driveRuntime, setDriveParam } from '../core/index.js';
+import { parse, iterate, de, makeRng, normalize, stepForward, slotAt, deGrad, deParam, lyapunovOrbit, lift, driveRuntime, setDriveParam, driveParams } from '../core/index.js';
 import { readingsOf } from '../core/drive.js';
 import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
 import { FAMILIES, FAMILIES_INV, FAMILIES_OV } from './family-cases.js';
@@ -379,12 +379,12 @@ const DRV_OV_SHADER = withDriveOverlay(withDrive(INTERP)) + `
 @group(0) @binding(2) var<storage, read> pts: array<vec4f>;
 @group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
 @group(0) @binding(4) var<storage, read> ov: array<vec4u>;   // [node0, node1, slot0, slot1] [band0, band1, 0, 0]
-@group(0) @binding(5) var<storage, read> ovd: array<vec4f>;  // [d0, d1, 0, 0]
+@group(0) @binding(5) var<storage, read> ovd: array<vec4f>;  // [d0, d1, 0, 0] [lo0, hi0, lo1, hi1]
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let i = gid.x;
   if (i >= arrayLength(&pts)) { return; }
-  drvOvNode = ov[0].xy; drvOvSlot = ov[0].zw; drvOvBand = ov[1].xy;
+  drvOvNode = ov[0].xy; drvOvSlot = ov[0].zw; drvOvBand = ov[1].xy; drvOvLo = ovd[1].xz; drvOvHi = ovd[1].yw;
   ovD = ovd[0].xy;
   outp[i] = vec4f(de(pts[i].xyz), 0.0, 0.0, 0.0);
 }`;
@@ -600,6 +600,8 @@ async function drvOverlayRows(device, compilePipe) {
       sel = pair.map(({ t }) => (t.kind === 3 ? { node: t.index, slot: t.slot, region: piece } : { band: 2 * t.index + (t.kind === 2 ? 1 : 0), region: piece }));
     }
     const u = (k, i) => (sel[i] && sel[i][k] != null ? sel[i][k] : 0xffffffff);
+    const lims = pair.map((p) => driveParams(p.piece == null ? c.drive : c.pieces[p.piece].f.drive).find((q) => q.ref === p.drive) || {});
+    const L = (i, k, d) => ((lims[i] || {})[k] ?? d).toExponential();
     const code = withDriveOverlay((c.pieces.some((q) => drives(q.f)) ? withDrive : (x) => x)(withCollageOverlay(CL_HEAD))) + `
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
@@ -608,6 +610,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   drvOvNode = vec2u(${u('node', 0)}u, ${u('node', 1)}u); drvOvSlot = vec2u(${sel[0] && sel[0].slot != null ? sel[0].slot : 0}u, ${sel[1] && sel[1].slot != null ? sel[1].slot : 0}u);
   drvOvBand = vec2u(${u('band', 0)}u, ${u('band', 1)}u); clOvDrv = vec2u(${u('region', 0)}u, ${u('region', 1)}u);
   drvOvOn = vec2<bool>(false, false);
+  drvOvLo = vec2f(${L(0, 'min', -1e30)}, ${L(1, 'min', -1e30)}); drvOvHi = vec2f(${L(0, 'max', 1e30)}, ${L(1, 'max', 1e30)});
   ovD = pts[2u * i + 1u].xy;
   outp[2u * i] = vec4f(de(pts[2u * i].xyz), 0.0, 0.0, 0.0);
 }`;
@@ -617,9 +620,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       const x = rng.ball().slice(0, 3).map((q) => q * R), d = pair.map((p, k) => rng.ball()[k] * 0.05 * Math.max(1, Math.abs(p.value)));
       let m = c;
       pair.forEach((p, k) => { m = withMetric(m, p, p.value + d[k]); });
-      // (a number held at its range: the CPU's value decides what the GPU is asked)
-      const got = pair.map((p) => { const g = prepare(m), dd = p.piece == null ? g.drive : g.pieces[p.piece].f.drive, [kind, id, key] = p.drive.split('/'); return kind === 'bind' ? dd.bind.find((b) => b.to === id)[key] : dd.nodes.find((q) => q.id === id).p[key]; });
-      pts.set(x, i * 8); pts.set(pair.map((p, k) => got[k] - p.value), i * 8 + 4);
+      // (asked, not the clamped value: the GPU holds a number in its range itself)
+      pts.set(x, i * 8); pts.set(d, i * 8 + 4);
       cpu.push(collageAt(prepare(m), x, { time: CL_T }).d);
     }
     const g = await runCollage(device, pipe, c, pts, CL_OV_N);
@@ -1151,21 +1153,21 @@ async function run() {
       const f = normalize(parse(text)), pair = drvOvPair(f);
       if (!pair.length || !drives(f)) continue;
       mark('override', 'drive · ' + text);
-      const ds = pair.map((t, i) => [0.04, -0.03][i] * Math.max(1, Math.abs(t.value)));
+      // the node's step overshoots its range where it has a floor: the GPU must hold it there as setDriveParam does
+      const lim = pair.map((t) => driveParams(f.drive).find((q) => q.ref === t.drive) || {});
+      const ds = pair.map((t, i) => (i === 1 && lim[1].min != null ? lim[1].min - t.value - 0.5 : [0.04, -0.03][i] * Math.max(1, Math.abs(t.value))));
       const g = JSON.parse(JSON.stringify(f));
       pair.forEach((t, i) => setDriveParam(g.drive, t.drive, t.value + ds[i]));
-      // (a node number held at its range moves less than asked: the CPU's value is the one compared)
-      const got = pair.map((t) => { const [kind, id, key] = t.drive.split('/'); return kind === 'bind' ? g.drive.bind.find((b) => b.to === id)[key] : g.drive.nodes.find((q) => q.id === id).p[key]; });
       const sel = new Uint32Array(8).fill(0xffffffff);
       pair.forEach((t, i) => { if (t.kind === 3) { sel[i] = t.index; sel[2 + i] = t.slot; } else sel[4 + i] = 2 * t.index + (t.kind === 2 ? 1 : 0); });
       if (!pair.some((t) => t.kind === 3)) { sel[2] = 0; sel[3] = 0; }
-      const d4 = new Float32Array([got[0] - pair[0].value, pair[1] ? got[1] - pair[1].value : 0, 0, 0]);
+      const d4 = new Float32Array([ds[0], ds[1] || 0, 0, 0, lim[0].min ?? -1e30, lim[0].max ?? 1e30, (lim[1] || {}).min ?? -1e30, (lim[1] || {}).max ?? 1e30]);
       const pk = pack(f), rng = makeRng(22), pts = new Float32Array(N * 4);
       for (let i = 0; i < N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
       const mk = (size, usage) => device.createBuffer({ size, usage });
       const bufs = [mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), mk(OPS_FLOATS * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST),
         mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST), mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC),
-        mk(32, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST), mk(16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST)];
+        mk(32, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST), mk(32, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST)];
       const rb = mk(pts.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
       [pk.head, pk.ops, pts, null, sel, d4].forEach((d, i) => { if (d) device.queue.writeBuffer(bufs[i], 0, d); });
       const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: bufs.map((b, i) => ({ binding: i, resource: { buffer: b } })) });

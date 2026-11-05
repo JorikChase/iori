@@ -701,6 +701,9 @@ var<private> drvOvNode: vec2u = vec2u(0xffffffffu);
 var<private> drvOvSlot: vec2u = vec2u(0u);
 var<private> drvOvBand: vec2u = vec2u(0xffffffffu);
 var<private> drvOvOn: vec2<bool> = vec2<bool>(true, true);
+// each lens driver number's range: the preview holds it there, as the value applied on release is
+var<private> drvOvLo: vec2f = vec2f(-1e30);
+var<private> drvOvHi: vec2f = vec2f(1e30);
 // what the lens adds to binding b's lo and hi
 fn drvBandOv(b: u32) -> vec2f {
   var o = vec2f(0.0);
@@ -708,13 +711,21 @@ fn drvBandOv(b: u32) -> vec2f {
   if (drvOvOn.y && drvOvBand.y != 0xffffffffu && drvOvBand.y / 2u == b) { if (drvOvBand.y % 2u == 0u) { o.x += ovD.y; } else { o.y += ovD.y; } }
   return o;
 }
+// a band's lo and hi with the lens's overrides, each held in its range
+fn drvBandLH(b: u32, lh: vec2f) -> vec2f {
+  let o = drvBandOv(b);
+  var r = lh + o;
+  if (drvOvOn.x && drvOvBand.x != 0xffffffffu && drvOvBand.x / 2u == b) { let k = drvOvBand.x % 2u; r[k] = clamp(r[k], drvOvLo.x, drvOvHi.x); }
+  if (drvOvOn.y && drvOvBand.y != 0xffffffffu && drvOvBand.y / 2u == b) { let k = drvOvBand.y % 2u; r[k] = clamp(r[k], drvOvLo.y, drvOvHi.y); }
+  return r;
+}
 
 fn drvP(i: u32, k: u32) -> f32 {
   var v = ops[DR_NODES + i * 3u + 1u + k / 4u][k % 4u];
   if (i == drvNudgeNode && k == drvNudgeSlot) { v = v + drvNudge; }
   if (DRV_OV) {
-    if (drvOvOn.x && i == drvOvNode.x && k == drvOvSlot.x) { v = v + ovD.x; }
-    if (drvOvOn.y && i == drvOvNode.y && k == drvOvSlot.y) { v = v + ovD.y; }
+    if (drvOvOn.x && i == drvOvNode.x && k == drvOvSlot.x) { v = clamp(v + ovD.x, drvOvLo.x, drvOvHi.x); }
+    if (drvOvOn.y && i == drvOvNode.y && k == drvOvSlot.y) { v = clamp(v + ovD.y, drvOvLo.y, drvOvHi.y); }
   }
   return v;
 }
@@ -851,7 +862,7 @@ fn driveIter(p: vec4f, dr: f32, i: u32, n: f32) {
     let B = ops[DR_BINDS + b * 10u];
     let C = ops[DR_BINDS + b * 10u + 1u];
     var lh = B.zw;
-    if (DRV_OV) { lh = lh + drvBandOv(b); }
+    if (DRV_OV) { lh = drvBandLH(b, lh); }
     drvV[b] = clamp(lh.x + drvReg[u32(B.y)] * (lh.y - lh.x), C.y, C.z);
   }
   drvRebuild();
@@ -2484,7 +2495,7 @@ fn clDrive(x: vec3f) {
     let B = ops[CL_BINDS + 2u * b];
     let C = ops[CL_BINDS + 2u * b + 1u];
     var lh = B.zw;
-    if (DRV_OV) { lh = lh + drvBandOv(b); }
+    if (DRV_OV) { lh = drvBandLH(b, lh); }
     clV[b] = clamp(lh.x + drvReg[u32(B.y)] * (lh.y - lh.x), C.x, C.y);
   }
   clSelect(0u);

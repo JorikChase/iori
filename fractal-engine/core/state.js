@@ -28,7 +28,23 @@ const toB64 = (bytes) => {
 };
 const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
-// the document for a state: { formula, cam, mode, look, focus, pins, export }
+// ---------- the drivers' clock (app.js "the drivers' clock") -----------------------------------------
+// { t: seconds ≥ 0, playing, rate: one of RATES }, in a state's `clock` (optional: a file without one, and
+// every file written before it, plays from 0 at ×1) and in a link as &t=<t>,<1 playing | 0 paused>,<rate>.
+export const RATES = [0.25, 0.5, 1, 2, 4];
+export function normClock(c) {
+  if (!c || typeof c !== 'object' || !(typeof c.t === 'number' && Number.isFinite(c.t))) return null;
+  return { t: Math.max(0, +c.t.toFixed(3)), playing: c.playing !== false, rate: RATES.includes(c.rate) ? c.rate : 1 };
+}
+export const clockPart = (c) => { const k = normClock(c); return k ? `&t=${k.t},${k.playing ? 1 : 0},${k.rate}` : ''; };
+// the value after &t= (or null for none, or anything malformed)
+export function parseClock(s) {
+  if (typeof s !== 'string' || !s) return null;
+  const [t, p, r] = s.split(',');
+  return normClock({ t: Number(t), playing: p !== '0', rate: r === undefined ? 1 : Number(r) });
+}
+
+// the document for a state: { formula, cam, mode, look, focus, pins, export, clock }
 export function stateDoc(s) {
   const col = isCollage(s.formula), f = col ? normCollage(s.formula) : normalize(s.formula);
   return {
@@ -36,6 +52,7 @@ export function stateDoc(s) {
     cam: { pos: [...s.cam.pos], yaw: s.cam.yaw, pitch: s.cam.pitch }, mode: s.mode || 'pull',
     look: s.look ? { ...s.look } : null, focus: s.focus ?? null, pins: s.pins ? JSON.parse(JSON.stringify(s.pins)) : [],
     export: s.export || null, created: s.created || new Date().toISOString(),
+    ...(normClock(s.clock) ? { clock: normClock(s.clock) } : {}),
   };
 }
 
@@ -64,7 +81,8 @@ function accept(json, sum, length) {
   if ((col ? hashCollage(f) : hash(f)) !== doc.id) throw new Error('state: formula does not match its id');
   const num = (x) => typeof x === 'number' && Number.isFinite(x);
   if (!doc.cam || !Array.isArray(doc.cam.pos) || doc.cam.pos.length !== 3 || !doc.cam.pos.every(num) || !num(doc.cam.yaw) || !num(doc.cam.pitch)) throw new Error('state: bad camera');
-  return { ...doc, formula: f };
+  // (a clock that does not read is dropped, never refused: the rest of the state stands)
+  return { ...doc, formula: f, clock: normClock(doc.clock) };
 }
 
 // the state in a PLY header, or null when the file has none

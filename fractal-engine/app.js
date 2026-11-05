@@ -50,11 +50,11 @@ import { mutate, distancePx, features, createArchive, spread } from './core/bree
 import { gridUVs } from './gpu/sense.js';
 import { project } from './core/vec.js';
 import { surfaceNets, toStl, splatsToPly } from './core/export.js';
-import { stateDoc, plyComments, readPlyState, pngWithState, readPngState } from './core/state.js';
+import { stateDoc, plyComments, readPlyState, pngWithState, readPngState, clockPart, parseClock } from './core/state.js';
 import { evalShade, shadeTarget } from './core/shade.js';
 import { hash, spawnRadius } from './core/formula.js';
 import { paramTangents, collageSlot, DRIVE_SLOTS } from './gpu/pack.js';
-import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths } from './core/drive.js';
+import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths, driveParams } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
 import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveInPortAt, driveLinkAt, inLane, inTop, typeGlyph, driverGlyph } from './ui/drivegraph.js';
 import { createLineage } from './ui/lineage.js';
@@ -2010,7 +2010,11 @@ function setClockState(o) {
   if (R) R.setClock(clockNow(now));
   state.n = 0;
   drawClockNow();
+  // (EMBED and the first frames write nothing: writeHash guards itself)
+  if (typeof writeHash === 'function' && R) writeHash();
 }
+// what a link and a state carry of it (core/state.js normClock)
+const clockState = () => ({ t: clockNow(), playing: clock.playing, rate: clock.rate });
 const clockSvg = document.getElementById('clock');
 let clockShown = false, clockDrawn = 0, clockHot = null, scrub = null;
 // shown while the document reads the clock; in a paper figure only when it asks (&clock)
@@ -3215,6 +3219,14 @@ const ownerOf = (p) => (p.ref ? p.ref.split('.')[0] : p.drive ? `${p.piece ?? 'C
 // where the lens overlays a driver's number (gpu/render.js lens: L.drvs): { node, slot } or { band: 2 · binding
 // + 0 lo / 1 hi }, and on a collage the region holding the drive (a piece, or the collage's own: MAX_PIECES)
 function lensDrv(p) {
+  const at = lensDrvAt(p);
+  if (!at) return null;
+  // its range (core/drive.js driveParams): the preview holds the number there, as the release does
+  const c = state.collage, d = c ? (p.piece == null ? normCollage(c).drive : normalize(c.pieces[p.piece].f).drive) : normalize(state.formula).drive;
+  const q = driveParams(d).find((r) => r.ref === p.drive);
+  return { ...at, lo: q && q.min != null ? q.min : null, hi: q && q.max != null ? q.max : null };
+}
+function lensDrvAt(p) {
   if (!p.drive) return null;
   const c = state.collage;
   if (c && p.piece == null) {
@@ -3904,11 +3916,13 @@ function togglePin() {
 // ---------- URL -------------------------------------------------------------------------------------
 
 function readHash() {
-  const h = decodeURIComponent(location.hash.replace(/^#/, ''));
-  if (!h) return null;
+  const h0 = decodeURIComponent(location.hash.replace(/^#/, ''));
+  if (!h0) return null;
+  // the clock rides last (&t=time,playing,rate); a link from before it has none and plays from 0
+  const [h, tPart] = h0.split('&t=');
   const [rest, modePart] = h.split('&m=');
   const [text, camPart] = rest.split('&c=');
-  const out = { text, mode: MODES.includes(modePart) ? modePart : 'pull' };
+  const out = { text, mode: MODES.includes(modePart) ? modePart : 'pull', clock: parseClock(tPart) };
   if (camPart) {
     const v = camPart.split(',').map(Number);
     if (v.length >= 5 && v.every(Number.isFinite)) out.cam = { pos: v.slice(0, 3), yaw: v[3], pitch: v[4] };
@@ -3923,7 +3937,7 @@ function writeHash() {
   hashTimer = setTimeout(() => {
     const c = state.cam, r = (x) => +x.toFixed(5);
     const h = '#' + encodeURIComponent(state.text) + '&c=' + [...c.pos.map(r), r(c.yaw), r(c.pitch)].join(',')
-      + (state.mode !== 'pull' ? '&m=' + state.mode : '');
+      + (state.mode !== 'pull' ? '&m=' + state.mode : '') + (docTimeDriven() ? clockPart(clockState()) : '');
     history.replaceState(null, '', h);
   }, 600);
 }
@@ -4364,7 +4378,7 @@ function pullView(b, clear, blend = 1, moving = false) {
 // The live view pauses while one runs; the hairline at the bottom of the Tab layer shows how far it is.
 
 // the scene's state, for the file an export writes (core/state.js): drop that file back to return here
-const sceneDoc = (exp) => stateDoc({ formula: doc(), cam: state.cam, mode: state.mode, look: state.look, focus: state.focus, pins: state.pins, export: exp });
+const sceneDoc = (exp) => stateDoc({ formula: doc(), cam: state.cam, mode: state.mode, look: state.look, focus: state.focus, pins: state.pins, export: exp, clock: clockState() });
 
 // a file dropped on the engine: a splat cloud or a still it exported brings back the state that made it
 async function importFile(buffer, name = '') {
@@ -4390,6 +4404,7 @@ function restoreDoc(doc) {
     else if (Array.isArray(v) && v.every((x) => typeof x === 'number' && Number.isFinite(x))) state.look[k] = [...v];
   }
   if (typeof doc.focus === 'number' && doc.focus > 0) state.focus = doc.focus;
+  if (doc.clock) setClockState(doc.clock);
   if (Array.isArray(doc.pins)) state.pins = doc.pins.filter((q) => q && Array.isArray(q.x) && Array.isArray(q.keys)).map((q) => ({ x: q.x.slice(0, 3).map(Number), keys: q.keys.map(String) }));
   state.home = null;
   touched();
@@ -4924,6 +4939,7 @@ async function start() {
   }
   if (fromHash && fromHash.cam) state.cam = fromHash.cam;
   if (fromHash) state.mode = fromHash.mode;
+  if (fromHash && fromHash.clock) setClockState(fromHash.clock);
   if (EMBED && EMBED.has('view')) {
     if (EMBED.has('yaw')) state.cam.yaw = +EMBED.get('yaw');
     if (EMBED.has('pitch')) state.cam.pitch = +EMBED.get('pitch');

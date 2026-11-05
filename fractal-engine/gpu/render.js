@@ -356,6 +356,7 @@ struct LV {
   key: vec4f,    // rgb key colour
   drv: vec4u,    // a driver's number: xy its node, zw its slot (gpu/wgsl.js drvP; none: 0xffffffff)
   band: vec4u,   // a band's end: xy 2 · binding + (0 lo, 1 hi); zw unused here
+  dlim: vec4f,   // the driver numbers' ranges: lo, hi of the first, lo, hi of the second
 };
 @group(1) @binding(0) var<uniform> lv: LV;
 @group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
@@ -366,7 +367,7 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   if (f32(gid.x) >= lv.span.z || f32(gid.y) >= lv.span.w) { return; }
   ov0 = lv.ov.x;
   ov1 = select(0xffffffffu, lv.ov.y, lv.ov.z > 1u);
-  drvOvNode = lv.drv.xy; drvOvSlot = lv.drv.zw; drvOvBand = lv.band.xy;
+  drvOvNode = lv.drv.xy; drvOvSlot = lv.drv.zw; drvOvBand = lv.band.xy; drvOvLo = lv.dlim.xz; drvOvHi = lv.dlim.yw;
   for (var k = 0u; k < 5u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[5u + k]; }
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
   let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
@@ -398,6 +399,7 @@ struct LV {
   lim: vec4f,    // the collage numbers' ranges: lo, hi of the first, lo, hi of the second
   drv: vec4u,    // a driver's number: xy its node, zw its slot (gpu/wgsl.js drvP; none: 0xffffffff)
   band: vec4u,   // a band's end: xy 2 · binding + (0 lo, 1 hi); zw the region holding each (a piece, CL_OWN)
+  dlim: vec4f,   // the driver numbers' ranges: lo, hi of the first, lo, hi of the second
 };
 @group(1) @binding(0) var<uniform> lv: LV;
 @group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
@@ -411,7 +413,7 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   clOvAt = lv.who.zw;
   clOvLo = lv.lim.xz;
   clOvHi = lv.lim.yw;
-  drvOvNode = lv.drv.xy; drvOvSlot = lv.drv.zw; drvOvBand = lv.band.xy; clOvDrv = lv.band.zw;
+  drvOvNode = lv.drv.xy; drvOvSlot = lv.drv.zw; drvOvBand = lv.band.xy; clOvDrv = lv.band.zw; drvOvLo = lv.dlim.xz; drvOvHi = lv.dlim.yw;
   drvOvOn = vec2<bool>(false, false);
   for (var k = 0u; k < 5u; k++) { ovRec0[k] = drecs[k]; ovRec1[k] = drecs[5u + k]; }
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
@@ -585,7 +587,7 @@ export async function createRenderer(canvas) {
     layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, lensLayout] }),
     compute: { module: lensModule, entryPoint: 'lensMap' },
   });
-  const lvBuf = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const lvBuf = device.createBuffer({ size: 144, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const drecBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const mkLensTex = (lw, lh) => device.createTexture({
     size: [lw, lh], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
@@ -640,7 +642,7 @@ export async function createRenderer(canvas) {
     const cpipe = packed && packed.collage ? await variant.ready(...collageLens(packed)) : null;
     if (packed && packed.collage && (!cpipe || !alive())) return;
     if (lensTex.width !== L.size[0] || lensTex.height !== L.size[1]) { lensTex.destroy(); lensTex = mkLensTex(...L.size); makeDispGroups(); }
-    const lvd = new ArrayBuffer(128), f = new Float32Array(lvd), u = new Uint32Array(lvd);
+    const lvd = new ArrayBuffer(144), f = new Float32Array(lvd), u = new Uint32Array(lvd);
     f.set([...L.x, L.foot, L.spans[0], L.spans[1] || 0, L.size[0], L.size[1]]);
     u[8] = L.ops[0]; u[9] = L.ops[1] ?? 0xffffffff; u[10] = L.drecs.length;
     f.set([...L.key, 0], 12);
@@ -651,6 +653,7 @@ export async function createRenderer(canvas) {
       const q = (L.drvs && L.drvs[i]) || null;
       u[da + i] = q && q.node != null ? q.node : NO_SLOT; u[da + 2 + i] = q && q.slot != null ? q.slot : 0;
       u[da + 4 + i] = q && q.band != null ? q.band : NO_SLOT; u[da + 6 + i] = q && q.region != null ? q.region : NO_SLOT;
+      f[da + 8 + 2 * i] = q && q.lo != null ? q.lo : -1e30; f[da + 9 + 2 * i] = q && q.hi != null ? q.hi : 1e30;
     });
     if (cpipe) {
       [0, 1].forEach((i) => {

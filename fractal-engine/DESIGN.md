@@ -2289,11 +2289,81 @@ selects it; a clock-driven ring: 8/8 thumbnails changed in 2 s from 9 renders, n
 another (it broke the open use's line pull: compute the handles once); and a finger's reach on a driver's switch glyph
 covered the line beside it (the nearer wins now, `glyphOrLine`).
 
-**Not yet:** a lens on the colour (it would need a colour metric: the shading's numbers ranked by how far the colour at
-the held point moves, and a map of colours, not distances); a lens on rotation angles of a formula; the lens's driver
-numbers are not clamped to their range in the preview (the release is); the collage's own param nodes count a read number's
-direct effect only (as before); the clock is not stored in the hash or a state; the live thumbnails cover the ring and the
-lineage hover, not Metasurface sites or the graph's no-op preview (those render at the clock when drawn); the hover labels'
-own radii (the schedule row, the pluses, a driver's switches) keep each control's reach, so a finger's label there can name a
-neighbour of what a press would take (the graph's nodes, ports and links answer labels with a finger's reach); a real-device
-pass.
+**Not yet** (as of 2026-11-04; all but the colour lens, the param nodes' direct effect and the device pass done the next
+day, below)**:** a lens on the colour; a lens on rotation angles of a formula; the lens's driver numbers not clamped in
+the preview; the collage's own param nodes count a read number's direct effect only (as before); the clock not stored in
+the hash or a state; the live thumbnails covering the ring and the lineage hover only; the hover labels' own radii keeping
+each control's mouse reach on touch; a real-device pass.
+
+### The open items, 2026-11-05
+
+Asked before the deploy: the 2026-11-04 list, on the same branch from bf88873.
+
+**The clock in the link and the state** (core/state.js `normClock`, `clockPart`, `parseClock`). A link to a document that
+reads the clock ends `&t=<seconds>,<1 playing | 0 paused>,<rate>`; a state document gains an optional `clock: { t,
+playing, rate }`. `STATE_V` stays 1: the field is optional, a file without it (every file before it) loads and plays from 0
+at ×1, and a clock that does not read is dropped, never refused, so the rest of the state stands. A link without `&t=` is
+the same. A rate outside ×¼…×4 reads as ×1. The hash is rewritten on every clock change (pause, scrub, speed) and the
+playing time is the one at the last write: a link copied while playing opens a moment earlier, playing. Tests:
+test/clock-state.test.mjs.
+
+**The lens holds driver numbers in their range** (gpu/wgsl.js `drvOvLo`, `drvOvHi`, `drvBandLH`): `drvP` clamps the
+overridden number, the band end is clamped where it is read; LV gains `dlim` (app.js `lensDrv` passes core/drive.js
+`driveParams`' min and max). Parity's driver rows now overshoot a node's floor by 0.5 and compare against the CPU with the
+value clamped as `setDriveParam` clamps it, the GPU asked the unclamped step.
+
+**The lens on rotation angles and plane normals.** They were in the metric already: `paramTangents` gives every
+continuous op parameter a float64 central difference of its record, so ∂D/∂θ = ∂D/∂record · ∂record/∂θ is the chain rule's
+first order, and the grab, the ring and the archive ranked them; only the lens refused them, since its overlay adds
+Δθ · ∂record/∂θ and these records are not linear in θ. *Decided:* rebuild the record per texel, as a driven rotation is
+rebuilt. gpu/wgsl.js `LENS_NL` (a const, false except in the lens: `withLensNL`) lets `recOv` replace op `lnOp.x`/`lnOp.y`'s
+rows with `lnRec0`/`lnRec1` (the code float kept); `lnBuild(mode, a, b4)` is `drvBuild`'s tail (Givens rows in order,
+a normal normalised), `lnRaw` moves one raw slot. On a collage `clSelect` sets `lnOp` from `clLnOp` in the piece
+`clLnPiece` names. The lens's LV gains `nlOp`, `nlSlot`, the two ops' raw numbers and `nlSame` (both parameters one op's:
+one record with both moved); 224 bytes for a formula, 256 for a collage (`lvBuf` 256). app.js `lensNL(p)` gives the op's
+raw numbers (gpu/pack.js `RAW`, `MODE`, now exported); a driven op is left out (the drive program rebuilds its record,
+and the lens says so: 'driven rotations and plane normals: not in the map'). Tests: test/lens-rebuild.test.mjs (the
+rebuild written out in JavaScript equals the packer's record with the value changed, to 1e-6, for rotate, rotate4 and
+fold.plane; the angles and normals carry record derivatives); parity's override suite five 'rebuilt' rows (rotate,
+rotate4, fold.plane normals and offset against `de` with the values changed, linear thresholds), the collage suite two
+'rebuilt overlay' rows (a fold.plane piece in a three-piece collage); run-touch `--desktop` opens the lens on a rotation's
+angle and edits through it.
+
+**The live refresh covers the Metasurface and the graph's preview** (app.js `liveThumbs`). While the clock plays the
+round robin also takes, when the Metasurface is open, every site whose formula reads the clock (its picture in
+`liveSites`, shown, never saved: the stored thumbnail stays), and the graph's preview of the node under the pointer
+(`gv.thumbF`, the field without that node, rendered again). The same budget: one at a time through `thumbOf`, at most one
+every LIVE_MS = 200 ms over all of them together.
+
+**Hover labels reach as far as a press** (app.js `driveLabelAt`, `shadeLabelAt`, `graphLabelAt`, `cvLabelAt`). The label
+tests are now the presses' own (`nearestOf`, `lineAt`, `schedRowAt`, `glyphOrLine`, `reach()`), so on touch a label
+names what a press there would take, with a mouse every radius is the one it was. `labelAt(x, y, touch)` sets `HIT.r`
+for its own test (a finger's 22 CSS px over the zoom, or 0) and restores it, so a label does not depend on which event
+came last. `onLine` is gone.
+
+**The lens on colour: not built.** A colour lens needs a colour metric: something to rank shading numbers by and to
+size the map so a drag across it reaches a sensible change. Options:
+(a) *ΔE per unit at the sensed hits* — for every shading number, the Oklab distance the hit's colour moves per unit,
+central differences of core/shade.js `evalShade` in float64 over the sensing pass's hits (their orbit summaries read back
+as the shading pass reads them), ranked like pxPerUnit and spanned so the map's width is a fixed ΔE (0.3, say). Sound
+(Oklab is close to perceptually uniform at these sizes) and CPU-only for the metric; the map itself needs a new pass:
+the shading program evaluated per texel at the held point with two numbers overlaid (a `SH_OV` like `DRV_OV`), drawn as
+the colours themselves, not distances. (b) *The same, on the GPU*: duals through the shading program. Faster, but the
+shading has ramps, mixes, hue wraps and per-node bindings to differentiate, and a second parity suite. (c) *No metric*:
+the map spans each number's own range (min…max, or ±1 unit). Cheap but not a metric: the reach would not match the hand,
+which is the lens's whole contract. *Recommendation:* (a), in two steps — the CPU ΔE metric with a unit test against
+differences of rendered colours, then the `SH_OV` map with parity rows against `evalShade` — a stretch of its own (the
+hit's orbit state on the CPU per hit, the map's own shader, a third kind of note), bigger than this one. Left open.
+
+**Still open:** the colour lens (above); the collage's own param nodes count a read number's direct effect only; the
+lens's map is computed when it opens and does not follow an edit made inside it; the iPhone/iPad pass (iori's).
+
+**Verified 2026-11-05** (this Mac, load 3–5, nothing else rendering; the GPU rigs one at a time): `node --test` 156/156;
+`run-parity.mjs` PASS (override 28 rows: the five rebuilt rows median 5e-8–4.3e-5, p99 ≤ 3.7e-4, the driver rows with the
+clamp median ≤ 2.4e-4; collage 116 rows: the two rebuilt overlay rows median 1.9e-7, p99 8.8e-7); `run-touch.mjs` 55/55 and
+`--desktop` 31/31, no page errors (a finger's label 14.5 px off a schedule letter names it, a mouse's names nothing; a
+Metasurface site and the graph's preview refreshed live, 10 renders in 2 s with the ring's budget; the lens on `rotate.y`
+opens with no note and edits); `run-paper.mjs` 58/58 desktop and phone; `run-bench.mjs --ref 383b0ba` ∞ dB on every scene,
+×0.99–1.03 (the loop ×0.91: 1.1 against 1.0 ms wall, its noise); `site.py check` passes. *Traps met:* the Metasurface
+check leaves the site's formula on screen, so the graph check that follows must set the clock's formula again; the field
+without the bulb no longer reads the clock (its binding's target is gone), so the graph check hovers `+c`.

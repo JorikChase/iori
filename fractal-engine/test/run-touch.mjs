@@ -161,6 +161,21 @@ if (DESK) {
     await M.up();
     return { ok: a.grab && a.grab.x === cx + 10 && a.grab.y === cy + 10 && b.lens, note: a.grab ? `grab at (${a.grab.x}, ${a.grab.y}), Shift lens ${b.lens}` : 'no grab' };
   });
+  await check('desktop: the lens on a rotation angle', async () => {
+    await fe(() => window.__fe.setFormula('rotate 25 20 30 · fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×10 bail=100'));
+    await fe(() => window.__fe.setCamera([0, 0, -4.2], 0, 0)); await settle(12);
+    await fe(() => window.__fe.sense()); await sleep(300);
+    await M.move(cx, cy); await M.down(); await sleep(700);
+    const k = await fe(() => window.__fe.grabAttend('rotate', 'y'));
+    await page.keyboard.down('Shift'); await sleep(400);
+    const L = await fe(() => window.__fe.lensOf()), t0 = await fe(() => window.__fe.state.text);
+    await fe(() => window.__fe.lensMove(240, -120)); await sleep(200);
+    const t1 = await fe(() => window.__fe.state.text);
+    await page.keyboard.up('Shift'); await sleep(100); await M.up(); await sleep(100);
+    await sleep(100);
+    const ok = k >= 0 && L && L.params[0] === 'rotate.y' && !L.notes.some((n) => /rotation/.test(n)) && t1 !== t0;
+    return { ok, note: L ? `attention ${k}, lens ${L.params.join(' + ')}, notes [${L.notes.join('; ')}], edited ${t1 !== t0}${t1 !== t0 ? '' : ' ' + t1}` : `attention ${k}, no lens` };
+  });
   await check('desktop: a collage senses on the GPU, its lens opens and edits it', async () => {
     const r = await collageOnGpu();
     const t0 = await fe(() => window.__fe.state.text);
@@ -1189,6 +1204,44 @@ await check(`${DESK ? 'desktop: ' : ''}thumbnails: time in the ring`, async () =
   const changed = b.ring.filter((u, i) => u !== a.ring[i]).length, n = b.renders - a.renders;
   // (LIVE_MS 200: at most ten in two seconds)
   return { ok: changed >= 3 && n <= 11 && d.renders === c.renders, note: `${changed}/${b.ring.length} thumbnails changed, ${n} renders in 2 s, ${d.renders - c.renders} while paused` };
+});
+
+// a finger's label reaches as far as its press: 16 px off a schedule letter it is named on touch, not with a mouse
+await check(`${DESK ? 'desktop: ' : ''}labels: a finger's reach`, async () => {
+  await openGraph('fold.box 1 · fold.sphere .5 1 · scale 2.5 · +c ×9 bail=100');
+  const t = await fe(() => window.__fe.graphTargets()), L = t && t.targets.find((q) => q.kind === 'letter');
+  if (!L) { await fe(() => window.__fe.graph(false)); return { ok: false, note: 'no letter' }; }
+  // halfway between the mouse's reach (7 layout units) and the finger's (22 CSS px)
+  const off = [L.x, L.y + (7 * t.k + 22) / 2];
+  const at = await fe(([x, y]) => window.__fe.labelAt(x, y, false), [L.x, L.y]);
+  const finger = await fe(([x, y]) => window.__fe.labelAt(x, y, true), off), mouse = await fe(([x, y]) => window.__fe.labelAt(x, y, false), off);
+  await fe(() => window.__fe.graph(false));
+  const same = (q) => !!q && !!at && q.text === at.text;
+  return { ok: 7 * t.k >= 22 || (same(finger) && !same(mouse)), note: `at ${at && at.text}; ${off[1] - L.y} px off: finger ${finger && finger.text}, mouse ${mouse && mouse.text}` };
+});
+
+// the same budget covers the Metasurface's sites and the graph's preview of the node under the pointer
+await check(`${DESK ? 'desktop: ' : ''}thumbnails: time on the Metasurface and in the graph's preview`, async () => {
+  await fe(() => window.__fe.clock({ rate: 1, playing: true }));
+  await CLOCK_FORMULA(); await settle(10);
+  await fe(() => window.__fe.surface(true)); await sleep(300);
+  const id = await fe(() => window.__fe.surfaceDrop(0.35, -0.3));
+  await page.waitForFunction((i) => window.__fe.liveThumbs().sites.includes(i), id, { timeout: 20000 }).catch(() => {});
+  const s = await fe(() => window.__fe.liveThumbs());
+  await fe((i) => { const j = window.__fe.surfaceSites().findIndex((q) => q.id === i); if (j >= 0) window.__fe.surfaceRemove(j); window.__fe.surface(false); }, id);
+  // (the Metasurface left its own formula on screen)
+  await CLOCK_FORMULA(); await settle(8);
+  await openGraph();
+  // (+c: the field without it still reads the clock; without the bulb it would not)
+  const q = (await input()).graph.nodes[1];
+  await page.mouse.move(q.x, q.y); await sleep(100); await page.mouse.move(q.x + 1, q.y);
+  await page.waitForFunction(() => !!window.__fe.liveThumbs().graph, null, { timeout: 20000 }).catch(() => {});
+  const g0 = await fe(() => window.__fe.liveThumbs()); await sleep(2000);
+  const g1 = await fe(() => window.__fe.liveThumbs());
+  await page.mouse.move(5, 5);
+  await fe(() => window.__fe.graph(false));
+  const n = g1.renders - g0.renders;
+  return { ok: s.sites.includes(id) && !!g0.graph && g1.graph !== g0.graph && n <= 11, note: `site live ${s.sites.includes(id)}, preview ${g0.graph ? (g1.graph !== g0.graph ? 'changed' : 'still') : 'none'} (reads the clock: ${g1.graphLive && g1.graphLive.timed}), ${n} renders in 2 s` };
 });
 
 console.log(`\n${results.filter((r) => r[1]).length}/${results.length} pass`);

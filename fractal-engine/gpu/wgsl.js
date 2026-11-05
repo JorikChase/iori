@@ -67,6 +67,15 @@ var<private> ovD: vec2f = vec2f(0.0);
 var<private> ovRec0: array<vec4f, 5>;
 var<private> ovRec1: array<vec4f, 5>;
 
+// The lens on a rotation's angles or a plane fold's normal (gpu/render.js LENS, COLLAGE_LENS through
+// withLensNL): their records are not linear in them, so the lens rebuilds the record at every texel (lnRec0,
+// lnRec1: render.js lnBuild) and rec() reads it in place of the packed one, the op's code kept. LENS_NL is
+// false in every other shader.
+const LENS_NL = false;
+var<private> lnOp: vec2u = vec2u(0xffffffffu);
+var<private> lnRec0: array<vec4f, 5>;
+var<private> lnRec1: array<vec4f, 5>;
+
 // The dual numbers' selected parameter (DUAL): its op and d record / dθ. A chimera differentiates its
 // field through the record by central differences, reading it nudged by tanEps · tanRec.
 var<private> tanOi: u32 = 0xffffffffu;
@@ -82,6 +91,10 @@ fn rec(oi: u32, k: u32) -> vec4f {
 // the overrides on a record row r (the JIT's inlined drivers hand it their own driven row)
 fn recOv(oi: u32, k: u32, r0: vec4f) -> vec4f {
   var r = r0;
+  if (LENS_NL) {
+    if (oi == lnOp.x) { let q = lnRec0[k]; r = select(q, vec4f(r.x, q.yzw), k == 0u); }
+    else if (oi == lnOp.y) { let q = lnRec1[k]; r = select(q, vec4f(r.x, q.yzw), k == 0u); }
+  }
   if (oi == ov0) { r = r + ovD.x * ovRec0[k]; }
   if (oi == ov1) { r = r + ovD.y * ovRec1[k]; }
   if (oi == tanOi) { r = r + tanEps * tanRec[k]; }
@@ -914,6 +927,40 @@ fn drvBuild(oi: u32, nudgeB: u32, h: f32) -> array<vec4f, 5> {
     g = drvGivens(r2, r3, b4.y); r2 = g[0]; r3 = g[1];
   }
   return array<vec4f, 5>(vec4f(code, r0.xyz), vec4f(r0.w, r1.xyz), vec4f(r1.w, r2.xyz), vec4f(r2.w, r3.xyz), vec4f(r3.w, 0.0, 0.0, 0.0));
+}
+// a rotation's or a plane fold's record from its raw parameters, as drvBuild rebuilds a driven one
+// (the lens: LENS_NL)
+// (its code left to the packed record: recOv keeps it)
+fn lnBuild(mode: u32, a: vec4f, b4: vec4f) -> array<vec4f, 5> {
+  if (mode == 3u) {
+    var n = a;
+    let l = length(n);
+    if (l > 0.0) { n = n / l; }
+    return array<vec4f, 5>(vec4f(0.0, n.xyz), vec4f(n.w, b4.x, 0.0, 0.0), vec4f(0.0), vec4f(0.0), vec4f(0.0));
+  }
+  var r0 = vec4f(1.0, 0.0, 0.0, 0.0);
+  var r1 = vec4f(0.0, 1.0, 0.0, 0.0);
+  var r2 = vec4f(0.0, 0.0, 1.0, 0.0);
+  var r3 = vec4f(0.0, 0.0, 0.0, 1.0);
+  var g: mat2x4f;
+  if (mode == 1u) {
+    g = drvGivens(r1, r2, a.x); r1 = g[0]; r2 = g[1];
+    g = drvGivens(r0, r2, -a.y); r0 = g[0]; r2 = g[1];
+    g = drvGivens(r0, r1, a.z); r0 = g[0]; r1 = g[1];
+  } else {
+    g = drvGivens(r0, r1, a.x); r0 = g[0]; r1 = g[1];
+    g = drvGivens(r0, r2, a.y); r0 = g[0]; r2 = g[1];
+    g = drvGivens(r0, r3, a.z); r0 = g[0]; r3 = g[1];
+    g = drvGivens(r1, r2, a.w); r1 = g[0]; r2 = g[1];
+    g = drvGivens(r1, r3, b4.x); r1 = g[0]; r3 = g[1];
+    g = drvGivens(r2, r3, b4.y); r2 = g[0]; r3 = g[1];
+  }
+  return array<vec4f, 5>(vec4f(0.0, r0.xyz), vec4f(r0.w, r1.xyz), vec4f(r1.w, r2.xyz), vec4f(r2.w, r3.xyz), vec4f(r3.w, 0.0, 0.0, 0.0));
+}
+// raw slot s moved by d
+fn lnRaw(a: vec4f, b: vec4f, s: u32, d: f32) -> mat2x4f {
+  return mat2x4f(a + select(vec4f(0.0), vec4f(d), vec4<bool>(s == 0u, s == 1u, s == 2u, s == 3u)),
+    b + select(vec4f(0.0), vec4f(d), vec4<bool>(s == 4u, s == 5u, s == 6u, s == 7u)));
 }
 // rows i and j of a matrix after the plane rotation by t degrees in their plane, applied from the left
 fn drvGivens(ri: vec4f, rj: vec4f, t: f32) -> mat2x4f {
@@ -2434,6 +2481,8 @@ var<private> pb: u32 = 0u;   // and its ops region (vec4)`))
 export const withCollageOverlay = (source) => source.replace('const CL_OV = false;', 'const CL_OV = true;');
 // the lens's driver overrides on (gpu/render.js LENS, COLLAGE_LENS)
 export const withDriveOverlay = (source) => source.replace('const DRV_OV = false;', 'const DRV_OV = true;');
+// the lens's rebuilt records on (rotations, plane normals: gpu/render.js LENS, COLLAGE_LENS)
+export const withLensNL = (source) => source.replace('const LENS_NL = false;', 'const LENS_NL = true;');
 
 // After withCollage(source). The collage program (gpu/pack.js packCollage) is read with absolute
 // indices: this code is not rewritten. The includer defines
@@ -2467,6 +2516,9 @@ var<private> clOvLo: vec2f;
 var<private> clOvHi: vec2f;
 // the region whose drive holds each lens parameter that is a driver's number (a piece, CL_OWN, or none)
 var<private> clOvDrv: vec2u = vec2u(CL_NONE);
+// the lens's rebuilt ops (LENS_NL): each one's op and its piece
+var<private> clLnOp: vec2u = vec2u(CL_NONE);
+var<private> clLnPiece: vec2u = vec2u(CL_NONE);
 
 fn clSelect(i: u32) {
   hp = i; pb = i * CL_REGION;
@@ -2475,6 +2527,8 @@ fn clSelect(i: u32) {
     ov1 = select(CL_NONE, clOvOp.y, i == clOvPiece.y);
     // a driver's number in its own region: a piece's drive, or the collage's own (CL_OWN)
     drvOvOn = vec2<bool>(i == clOvDrv.x, i == clOvDrv.y);
+    // a piece's rotation or plane fold rebuilt by the lens: in its piece alone
+    if (LENS_NL) { lnOp = vec2u(select(CL_NONE, clLnOp.x, i == clLnPiece.x), select(CL_NONE, clLnOp.y, i == clLnPiece.y)); }
   }
 }
 fn clGmod(x: f32, y: f32) -> f32 { return x - y * floor(x / y); }

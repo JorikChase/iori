@@ -5,7 +5,7 @@
 // The field is read as a radiance field: the surface is where the density steps (de < pixel cone),
 // near-misses emit (the glow), depth absorbs (the fog). One key light, soft shadows, AO, thin-lens DOF.
 
-import { INTERP, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, withDriveOverlay, collageRewrite } from './wgsl.js';
+import { INTERP, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, withDriveOverlay, withLensNL, collageRewrite } from './wgsl.js';
 import { withJit, structureKey, jitIterate, jitDual } from './jit.js';
 import { canonical } from '../core/formula.js';
 import { MAX_PIECES, isCollage } from '../core/collage.js';
@@ -348,7 +348,7 @@ fn steep(@builtin(global_invocation_id) gid: vec3u) {
 // many on-screen pixels the surface would be from the held point under it — the held point's own
 // "Mandelbrot set" (the Mandelbrot set is this map for the Julia family at z = 0). The span is set by
 // the metric, so the map covers exactly what a drag across the screen would reach.
-export const LENS = INTERP + /* wgsl */ `
+export const LENS = withLensNL(INTERP) + /* wgsl */ `
 struct LV {
   x: vec4f,      // xyz the held point, w world size of one CSS pixel at its depth
   span: vec4f,   // x first parameter across the width, y second across the height, z w, w h (texels)
@@ -357,10 +357,27 @@ struct LV {
   drv: vec4u,    // a driver's number: xy its node, zw its slot (gpu/wgsl.js drvP; none: 0xffffffff)
   band: vec4u,   // a band's end: xy 2 · binding + (0 lo, 1 hi); zw unused here
   dlim: vec4f,   // the driver numbers' ranges: lo, hi of the first, lo, hi of the second
+  nlOp: vec4u,   // a rebuilt op (rotation, plane fold): xy the ops (none: 0xffffffff), zw their pieces (a collage)
+  nlSlot: vec4u, // xy the raw slot each parameter varies, zw each op's mode (1 rotate, 2 rotate4, 3 fold.plane)
+  nlA0: vec4f, nlB0: vec4f, nlA1: vec4f, nlB1: vec4f,   // each op's raw parameters (gpu/pack.js RAW)
+  nlSame: vec4f, // x 1 when both parameters are one op's: one record with both moved
 };
 @group(1) @binding(0) var<uniform> lv: LV;
 @group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
 @group(1) @binding(2) var lensOut: texture_storage_2d<rgba16float, write>;
+
+// this texel's rebuilt records (after ovD is set)
+fn lnSetup() {
+  if (lv.nlOp.x != 0xffffffffu) {
+    var m = lnRaw(lv.nlA0, lv.nlB0, lv.nlSlot.x, ovD.x);
+    if (lv.nlSame.x > 0.5) { m = lnRaw(m[0], m[1], lv.nlSlot.y, ovD.y); }
+    lnRec0 = lnBuild(lv.nlSlot.z, m[0], m[1]);
+  }
+  if (lv.nlOp.y != 0xffffffffu && lv.nlSame.x < 0.5) {
+    let m = lnRaw(lv.nlA1, lv.nlB1, lv.nlSlot.y, ovD.y);
+    lnRec1 = lnBuild(lv.nlSlot.w, m[0], m[1]);
+  }
+}
 
 @compute @workgroup_size(8, 8)
 fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
@@ -372,6 +389,8 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
   let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
   ovD = vec2f(u * lv.span.x, v * lv.span.y);
+  lnOp = vec2u(lv.nlOp.x, select(lv.nlOp.y, 0xffffffffu, lv.nlSame.x > 0.5));
+  lnSetup();
   let x = embed(lv.x.xyz);
   let t = iterate(x, cFor(x));
   var px = deOf(t) / lv.x.w;
@@ -388,7 +407,7 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
 // The lens on a collage: the same map, every texel the collage's own estimate at the held point with two
 // parameters moved. Either may be a piece's op (its record overlaid in that piece alone) or a number of the
 // collage itself (a placement, a repetition, a join: overlaid on the program, so an angle needs no record).
-export const COLLAGE_LENS = withDriveOverlay(withCollage(INTERP)) + withCollageOverlay(COLLAGE) + /* wgsl */ `
+export const COLLAGE_LENS = withLensNL(withDriveOverlay(withCollage(INTERP))) + withCollageOverlay(COLLAGE) + /* wgsl */ `
 fn clFallback(i: u32, col: f32, facing: f32) -> vec4f { return vec4f(1.0); }
 struct LV {
   x: vec4f,      // xyz the held point, w world size of one CSS pixel at its depth
@@ -400,10 +419,27 @@ struct LV {
   drv: vec4u,    // a driver's number: xy its node, zw its slot (gpu/wgsl.js drvP; none: 0xffffffff)
   band: vec4u,   // a band's end: xy 2 · binding + (0 lo, 1 hi); zw the region holding each (a piece, CL_OWN)
   dlim: vec4f,   // the driver numbers' ranges: lo, hi of the first, lo, hi of the second
+  nlOp: vec4u,   // a rebuilt op (rotation, plane fold): xy the ops (none: 0xffffffff), zw their pieces (a collage)
+  nlSlot: vec4u, // xy the raw slot each parameter varies, zw each op's mode (1 rotate, 2 rotate4, 3 fold.plane)
+  nlA0: vec4f, nlB0: vec4f, nlA1: vec4f, nlB1: vec4f,   // each op's raw parameters (gpu/pack.js RAW)
+  nlSame: vec4f, // x 1 when both parameters are one op's: one record with both moved
 };
 @group(1) @binding(0) var<uniform> lv: LV;
 @group(1) @binding(1) var<storage, read> drecs: array<vec4f, 10>;
 @group(1) @binding(2) var lensOut: texture_storage_2d<rgba16float, write>;
+
+// this texel's rebuilt records (after ovD is set)
+fn lnSetup() {
+  if (lv.nlOp.x != 0xffffffffu) {
+    var m = lnRaw(lv.nlA0, lv.nlB0, lv.nlSlot.x, ovD.x);
+    if (lv.nlSame.x > 0.5) { m = lnRaw(m[0], m[1], lv.nlSlot.y, ovD.y); }
+    lnRec0 = lnBuild(lv.nlSlot.z, m[0], m[1]);
+  }
+  if (lv.nlOp.y != 0xffffffffu && lv.nlSame.x < 0.5) {
+    let m = lnRaw(lv.nlA1, lv.nlB1, lv.nlSlot.y, ovD.y);
+    lnRec1 = lnBuild(lv.nlSlot.w, m[0], m[1]);
+  }
+}
 
 @compute @workgroup_size(8, 8)
 fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
@@ -419,6 +455,9 @@ fn lensMap(@builtin(global_invocation_id) gid: vec3u) {
   let u = (f32(gid.x) + 0.5) / lv.span.z - 0.5;
   let v = 0.5 - (f32(gid.y) + 0.5) / lv.span.w;
   ovD = vec2f(u * lv.span.x, v * lv.span.y);
+  clLnOp = vec2u(lv.nlOp.x, select(lv.nlOp.y, 0xffffffffu, lv.nlSame.x > 0.5));
+  clLnPiece = lv.nlOp.zw;
+  lnSetup();
   // (a carved or grown estimate goes below zero: that is the surface too)
   let px = max(de(lv.x.xyz), 0.0) / lv.x.w;
   let near = exp(-px / 3.0);
@@ -587,7 +626,7 @@ export async function createRenderer(canvas) {
     layout: device.createPipelineLayout({ bindGroupLayouts: [formulaLayout, lensLayout] }),
     compute: { module: lensModule, entryPoint: 'lensMap' },
   });
-  const lvBuf = device.createBuffer({ size: 144, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const lvBuf = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const drecBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   const mkLensTex = (lw, lh) => device.createTexture({
     size: [lw, lh], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING,
@@ -642,7 +681,7 @@ export async function createRenderer(canvas) {
     const cpipe = packed && packed.collage ? await variant.ready(...collageLens(packed)) : null;
     if (packed && packed.collage && (!cpipe || !alive())) return;
     if (lensTex.width !== L.size[0] || lensTex.height !== L.size[1]) { lensTex.destroy(); lensTex = mkLensTex(...L.size); makeDispGroups(); }
-    const lvd = new ArrayBuffer(144), f = new Float32Array(lvd), u = new Uint32Array(lvd);
+    const lvd = new ArrayBuffer(256), f = new Float32Array(lvd), u = new Uint32Array(lvd);
     f.set([...L.x, L.foot, L.spans[0], L.spans[1] || 0, L.size[0], L.size[1]]);
     u[8] = L.ops[0]; u[9] = L.ops[1] ?? 0xffffffff; u[10] = L.drecs.length;
     f.set([...L.key, 0], 12);
@@ -655,6 +694,16 @@ export async function createRenderer(canvas) {
       u[da + 4 + i] = q && q.band != null ? q.band : NO_SLOT; u[da + 6 + i] = q && q.region != null ? q.region : NO_SLOT;
       f[da + 8 + 2 * i] = q && q.lo != null ? q.lo : -1e30; f[da + 9 + 2 * i] = q && q.hi != null ? q.hi : 1e30;
     });
+    // rebuilt ops (L.nls[i]: { oi, piece?, slot, mode, raws: 8 numbers } | null): after the ranges
+    const na = da + 12, nls = L.nls || [];
+    const same = !!(nls[0] && nls[1] && nls[0].oi === nls[1].oi && (nls[0].piece ?? null) === (nls[1].piece ?? null));
+    [0, 1].forEach((i) => {
+      const q = nls[i] || null;
+      u[na + i] = q ? q.oi : NO_SLOT; u[na + 2 + i] = q && q.piece != null ? q.piece : NO_SLOT;
+      u[na + 4 + i] = q ? q.slot : 0; u[na + 6 + i] = q ? q.mode : 0;
+      if (q) f.set(q.raws.concat(Array(8).fill(0)).slice(0, 8), na + 8 + 8 * i);
+    });
+    f[na + 24] = same ? 1 : 0;
     if (cpipe) {
       [0, 1].forEach((i) => {
         const at = L.flats && L.flats[i] != null ? L.flats[i] : null;

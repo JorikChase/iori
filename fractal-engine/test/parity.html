@@ -16,8 +16,8 @@ import { readingsOf } from '../core/drive.js';
 import { DRIVEN, DRIVEN_INV } from './driven-cases.js';
 import { FAMILIES, FAMILIES_INV, FAMILIES_OV } from './family-cases.js';
 import { SUBS } from './sub-cases.js';
-import { INTERP, INVERSE, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, withDriveOverlay } from '../gpu/wgsl.js';
-import { pack, drives, paramTangents, packCollage, collageShadeDrives, DRIVE_SLOTS, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS } from '../gpu/pack.js';
+import { INTERP, INVERSE, DUAL, COLLAGE, withDrive, withCollage, withCollageOverlay, withDriveOverlay, withLensNL } from '../gpu/wgsl.js';
+import { pack, drives, paramTangents, packCollage, collageShadeDrives, DRIVE_SLOTS, TAN_FLOATS, MAX_OPS, REC, HEAD_BYTES, OPS_FLOATS, CLOCK_WORD, COLLAGE_HEAD_BYTES, COLLAGE_OPS_FLOATS, RAW as NL_RAW, MODE as NL_MODE } from '../gpu/pack.js';
 import { prepare, collageAt, collageColour, collageGrad, drivenAt, toPiece, fromPiece, repFold, repCopies, MAX_PIECES } from '../core/collage.js';
 import { project } from '../core/vec.js';
 import { push as cpuPush } from '../core/cpu.js';
@@ -388,6 +388,32 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   ovD = ovd[0].xy;
   outp[i] = vec4f(de(pts[i].xyz), 0.0, 0.0, 0.0);
 }`;
+// The lens on rotation angles and plane normals (gpu/wgsl.js LENS_NL): the record rebuilt from the raw
+// parameters with the angle moved, against the CPU's estimate with it really changed. [text, R, [[oi, key], …]]
+const NL_CASES = [
+  ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 ×10 bail=30', 3, [[0, 'y'], [0, 'z']]],
+  ['rotate 10 20 30 · fold.box 1 · scale 2 · + -1 0 .5 · twist 20 ×10 bail=30', 3, [[0, 'x']]],
+  ['rotate4 10 0 25 15 0 30 · abs · sort4 · scale 3 · + -2 -2 0 -1 ×8 bail=50', 2, [[0, 'xw'], [0, 'yz']]],
+  ['fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ×16 bail=16', 2, [[0, 'nx'], [1, 'nz']]],
+  ['fold.plane 1 1 0 · fold.plane 1 0 1 · fold.plane 0 1 1 · scale 2 · + -1 -1 -1 ×16 bail=16', 2, [[2, 'ny'], [2, 'd']]],
+];
+const NL_SHADER = withLensNL(INTERP) + `
+@group(0) @binding(2) var<storage, read> pts: array<vec4f>;
+@group(0) @binding(3) var<storage, read_write> outp: array<vec4f>;
+@group(0) @binding(4) var<storage, read> ov: array<vec4u>;   // [op0, op1, slot0, slot1] [mode0, mode1, same, 0]
+@group(0) @binding(5) var<storage, read> ovd: array<vec4f>;  // [d0, d1, 0, 0] A0 B0 A1 B1 (the raw parameters)
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts)) { return; }
+  let same = ov[1].z == 1u;
+  lnOp = vec2u(ov[0].x, select(ov[0].y, 0xffffffffu, same));
+  var m = lnRaw(ovd[1], ovd[2], ov[0].z, ovd[0].x);
+  if (same) { m = lnRaw(m[0], m[1], ov[0].w, ovd[0].y); }
+  lnRec0 = lnBuild(ov[1].x, m[0], m[1]);
+  if (!same) { let m1 = lnRaw(ovd[3], ovd[4], ov[0].w, ovd[0].y); lnRec1 = lnBuild(ov[1].y, m1[0], m1[1]); }
+  outp[i] = vec4f(de(pts[i].xyz), 0.0, 0.0, 0.0);
+}`;
 // a driven formula's lens pair: its first band end and its first node number (gpu/pack.js paramTangents' rows)
 function drvOvPair(f) {
   const list = paramTangents(f).list.filter((t) => t.drive);
@@ -574,6 +600,46 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     const g = await runCollage(device, pipe, c, pts, CL_OV_N);
     const errs = cpu.map((q, i) => Math.abs(g[i * 8] - q) / Math.max(Math.abs(q), 1e-3));
     rows.push({ kind: 'overlay', formula: `overlay · ${label} · ${ref} ${t.key}`, n: CL_OV_N, median: clPct(errs, 0.5), p99: clPct(errs, 0.99) });
+  }
+  return rows;
+}
+// The collage lens on a piece's plane normals and rotation angles (gpu/wgsl.js LENS_NL, in that piece alone):
+// the records rebuilt per point against collageAt with the values really changed. [label, piece, [[oi, key] ×2]]
+const CL_NL_CASES = [['three: turn, polar, chamfer cut', 1, [[0, 'nx'], [1, 'nz']]], ['three: turn, polar, chamfer cut', 1, [[2, 'ny'], [2, 'd']]]];
+async function nlOverlayRows(device, compilePipe) {
+  const rows = [];
+  for (const [label, piece, params] of CL_NL_CASES) {
+    mark('collage', 'rebuilt overlay ' + label);
+    const [, c0, R] = collageCase(label), c = prepare(c0), flat = normalize(c.pieces[piece].f).slots.flat();
+    const same = params[0][0] === params[1][0];
+    const raws = params.map(([oi]) => NL_RAW[flat[oi].op].map((k) => flat[oi].p[k] ?? 0));
+    const v4 = (a) => `vec4f(${a.map((x) => (+x).toExponential()).join(', ')})`;
+    const ab = (i) => [v4(raws[i].concat(0, 0, 0, 0, 0, 0, 0, 0).slice(0, 4)), v4(raws[i].concat(0, 0, 0, 0, 0, 0, 0, 0).slice(4, 8))];
+    const sl = params.map(([oi, key]) => NL_RAW[flat[oi].op].indexOf(key)), md = params.map(([oi]) => NL_MODE[flat[oi].op]);
+    const pipe = await compilePipe(withLensNL((c.pieces.some((q) => drives(q.f)) ? withDrive : (x) => x)(withCollageOverlay(CL_HEAD))) + `
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&pts) / 2u) { return; }
+  clLnOp = vec2u(${params[0][0]}u, ${same ? 'CL_NONE' : params[1][0] + 'u'}); clLnPiece = vec2u(${piece}u, ${piece}u);
+  ovD = pts[2u * i + 1u].xy;
+  var m = lnRaw(${ab(0).join(', ')}, ${sl[0]}u, ovD.x);
+  ${same ? `m = lnRaw(m[0], m[1], ${sl[1]}u, ovD.y);` : ''}
+  lnRec0 = lnBuild(${md[0]}u, m[0], m[1]);
+  ${same ? '' : `let m1 = lnRaw(${ab(1).join(', ')}, ${sl[1]}u, ovD.y); lnRec1 = lnBuild(${md[1]}u, m1[0], m1[1]);`}
+  outp[2u * i] = vec4f(de(pts[2u * i].xyz), 0.0, 0.0, 0.0);
+}`, 'rebuilt overlay ' + label);
+    const rng = makeRng(84), pts = new Float32Array(CL_OV_N * 8), cpu = [];
+    for (let i = 0; i < CL_OV_N; i++) {
+      const x = rng.ball().slice(0, 3).map((q) => q * R), d = [rng.ball()[0] * 0.2, rng.ball()[1] * 0.2];
+      pts.set(x, i * 8); pts.set(d, i * 8 + 4);
+      let m = c;
+      params.forEach(([oi, key], k) => { m = withMetric(m, { piece, oi, op: flat[oi].op, key }, (flat[oi].p[key] ?? 0) + d[k]); });
+      cpu.push(collageAt(prepare(m), x, { time: CL_T }).d);
+    }
+    const g = await runCollage(device, pipe, c, pts, CL_OV_N);
+    const errs = cpu.map((q, i) => Math.abs(g[i * 8] - q) / Math.max(Math.abs(q), 1e-3));
+    rows.push({ kind: 'overlay', formula: `rebuilt overlay · ${label} · ${params.map((q) => q.join('.')).join(' ')}`, n: CL_OV_N, median: clPct(errs, 0.5), p99: clPct(errs, 0.99) });
   }
   return rows;
 }
@@ -793,7 +859,7 @@ async function collageSuite(device, compilePipe) {
     const errs = cpu.map((r, i) => Math.abs(g[i * 4] / g[i * 4 + 1] - r) / r);
     rows.push({ kind: 'step', formula: 'step · ' + label, n: cpu.length, cpuP90: pct([...cpu], 0.9), gpuP90: pct(cpu.map((_, i) => g[i * 4] / g[i * 4 + 1]), 0.9), median: pct(errs, 0.5), p90: pct(errs, 0.9) });
   }
-  rows.push(...await senseRows(device), ...await overlayRows(device, compilePipe), ...await drvOverlayRows(device, compilePipe));
+  rows.push(...await senseRows(device), ...await overlayRows(device, compilePipe), ...await nlOverlayRows(device, compilePipe), ...await drvOverlayRows(device, compilePipe));
   return rows;
 }
 // the thresholds (repeated in run-parity.mjs SUITES). forward: the estimate as a formula's (a driven
@@ -1182,6 +1248,53 @@ async function run() {
       for (let i = 0; i < N; i++) { const c = de(g, [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]]); rels.push(Math.abs(gd[i * 4] - c) / Math.max(Math.abs(c), 1e-4)); }
       rels.sort((a, b) => a - b);
       ovRows.push({ formula: 'drive · ' + text, drv: true, params: pair.map((t) => t.drive).join(' '), median: rels[N >> 1], p99: rels[Math.floor(N * 0.99)] });
+      [...bufs, rb].forEach((b) => b.destroy());
+    }
+  }
+
+  // the lens on rotations and plane normals: rebuilt records
+  {
+    mark('compile', 'NL_SHADER');
+    const m = device.createShaderModule({ code: NL_SHADER });
+    const e = (await m.getCompilationInfo()).messages.filter((x) => x.type === 'error');
+    if (e.length) throw new Error('NL_SHADER: ' + e.map((x) => `${x.lineNum}: ${x.message}`).join('\n'));
+    const pipe = await device.createComputePipelineAsync({ layout: 'auto', compute: { module: m, entryPoint: 'main' } });
+    for (const [text, R, params] of NL_CASES) {
+      mark('override', 'rebuilt · ' + text);
+      const f = normalize(parse(text)), flat = f.slots.flat();
+      const ds = params.map(([oi, key], i) => (key === 'd' ? 0.05 : flat[oi].op === 'fold.plane' ? [0.3, -0.2][i] : [7, -5][i]));
+      const g = JSON.parse(JSON.stringify(f)), gflat = g.slots.flat();
+      params.forEach(([oi, key], i) => { gflat[oi].p[key] = (gflat[oi].p[key] ?? 0) + ds[i]; });
+      const same = params.length > 1 && params[0][0] === params[1][0];
+      const sel = new Uint32Array(8).fill(0xffffffff), d4 = new Float32Array(20);
+      params.forEach(([oi, key], i) => {
+        const o = flat[oi], keys = NL_RAW[o.op];
+        sel[i] = oi; sel[2 + i] = keys.indexOf(key); sel[4 + i] = NL_MODE[o.op];
+        d4.set(keys.map((k) => o.p[k] ?? 0), 4 + 8 * i);
+      });
+      if (params.length < 2) { sel[3] = 0; sel[5] = 0; }
+      sel[6] = same ? 1 : 0; sel[7] = 0;
+      d4[0] = ds[0]; d4[1] = ds[1] || 0;
+      const pk = pack(f), rng = makeRng(23), pts = new Float32Array(N * 4);
+      for (let i = 0; i < N; i++) pts.set(rng.ball().map((x) => x * R), i * 4);
+      const mk = (size, usage) => device.createBuffer({ size, usage });
+      const bufs = [mk(HEAD_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), mk(OPS_FLOATS * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST),
+        mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST), mk(pts.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC),
+        mk(32, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST), mk(80, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST)];
+      const rb = mk(pts.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+      [pk.head, pk.ops, pts, null, sel, d4].forEach((d, i) => { if (d) device.queue.writeBuffer(bufs[i], 0, d); });
+      const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: bufs.map((b, i) => ({ binding: i, resource: { buffer: b } })) });
+      const enc = device.createCommandEncoder(), cp = enc.beginComputePass();
+      cp.setPipeline(pipe); cp.setBindGroup(0, bg); cp.dispatchWorkgroups(Math.ceil(N / 64)); cp.end();
+      enc.copyBufferToBuffer(bufs[3], 0, rb, 0, pts.byteLength);
+      device.queue.submit([enc.finish()]);
+      await rb.mapAsync(GPUMapMode.READ);
+      const gd = new Float32Array(rb.getMappedRange().slice(0));
+      rb.unmap();
+      const rels = [];
+      for (let i = 0; i < N; i++) { const c = de(g, [pts[i * 4], pts[i * 4 + 1], pts[i * 4 + 2]]); rels.push(Math.abs(gd[i * 4] - c) / Math.max(Math.abs(c), 1e-4)); }
+      rels.sort((a, b) => a - b);
+      ovRows.push({ formula: 'rebuilt · ' + text, nl: true, params: params.map((q) => q.join('.')).join(' '), median: rels[N >> 1], p99: rels[Math.floor(N * 0.99)] });
       [...bufs, rb].forEach((b) => b.destroy());
     }
   }

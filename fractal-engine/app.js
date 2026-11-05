@@ -53,7 +53,7 @@ import { surfaceNets, toStl, splatsToPly } from './core/export.js';
 import { stateDoc, plyComments, readPlyState, pngWithState, readPngState, clockPart, parseClock } from './core/state.js';
 import { evalShade, shadeTarget } from './core/shade.js';
 import { hash, spawnRadius } from './core/formula.js';
-import { paramTangents, collageSlot, DRIVE_SLOTS } from './gpu/pack.js';
+import { paramTangents, collageSlot, DRIVE_SLOTS, RAW as NL_RAW, MODE as NL_MODE, driveBinds } from './gpu/pack.js';
 import { timeDriven, colourDrivers, evalDrive, PARAMS as DRIVE_PARAMS, TYPES as DRIVE_TYPES, getDriveParam, setDriveParam, splitTarget, opPaths, driveParams } from './core/drive.js';
 import * as DE from './core/drive-edit.js';
 import { layoutDrive, placeDrive, drawDrive, driveNodeAt, driveOutPortAt, driveInPortAt, driveLinkAt, inLane, inTop, typeGlyph, driverGlyph } from './ui/drivegraph.js';
@@ -489,7 +489,7 @@ function drawSurfaceNow() {
       const isHeld = held && held.j === j, off = isHeld && held.off;
       if (off) [x, y] = held.scr;
       return {
-        x, y, thumb: s.thumb, glyph: siteGlyph(s), axes: (s.axes || []).map(() => (s.R * F.L) / 2 * 0.85), active: ws.some((e) => e.j === j),
+        x, y, thumb: liveSites.get(s.id) || s.thumb, glyph: siteGlyph(s), axes: (s.axes || []).map(() => (s.R * F.L) / 2 * 0.85), active: ws.some((e) => e.j === j),
         held: isHeld, off, home: off && !s.user ? toScreen(s.home) : null,
       };
     }),
@@ -1533,6 +1533,7 @@ function graphHover(x, y) {
         const href = await thumbOf(without, thumbView(basis(state.cam)), 168, 112, 6, clockNow()).catch(() => null);
         if (!gv || !href) return;
         gv.thumbs.set(key, href);
+        gv.thumbF = { key, f: without };   // the clock's live refresh renders it again (liveThumbs)
         drawGraphNow();
       }, 180);
     }
@@ -2076,8 +2077,9 @@ const docTimeDriven = () => docTimed(state.collage || state.formula);
 // ---------- time in thumbnails ----------------------------------------------------------------------
 // Every thumbnail renders at the clock's time (gpu/render.js renderThumb). While the clock plays, the ones on
 // screen whose formula reads it are rendered again, one at a time, round robin, at most one every LIVE_MS:
-// the breed ring's (its archive neighbours among them) and the lineage node under the pointer. A few small
-// frames a second in all, however many are shown. The lineage's stored JPEG is never rewritten.
+// the breed ring's (its archive neighbours among them), the lineage node under the pointer, the Metasurface's
+// sites while it is open and the graph's preview of the node under the pointer. A few small frames a second
+// in all, however many are shown. Stored thumbnails (the lineage's JPEG, a site's saved one) are never rewritten.
 // one thumbnail at a time: they share the renderer's formula buffers and its thumbnail view
 let thumbChain = Promise.resolve();
 function thumbOf(...args) {
@@ -2088,6 +2090,7 @@ function thumbOf(...args) {
 const LIVE_MS = 200, LIVE_W = 144, LIVE_H = 96, LIVE_SAMPLES = 3;
 let liveAt = 0, liveBusy = false, liveTurn = 0, liveRenders = 0;
 const liveLineage = new Map();   // lineage node id → its thumbnail at the clock (shown on hover, not stored)
+const liveSites = new Map();     // Metasurface site id → its thumbnail at the clock (shown, not saved)
 function liveThumbs(now) {
   if (liveBusy || !R || !clock.playing || now - liveAt < LIVE_MS) return;
   const jobs = [];
@@ -2100,6 +2103,15 @@ function liveThumbs(now) {
       const cam = n.cam && n.cam.pos ? n.cam : state.cam;
       jobs.push({ f, v: () => thumbView(basis(cam), cam.pos), done: (u) => { if (state.hoverNode === id) { liveLineage.set(String(id), u); drawStructureNow(); } } });
     }
+  }
+  if (surf) for (const s of SURF.sites) {
+    if (!s.thumb || !docTimed(s.f)) continue;
+    const cam = s.eye || { yaw: 0.55, pitch: 0.3 }, b = basis(cam), pos = s.eye ? s.eye.pos : b.fwd.map((q) => -q * s.view);
+    jobs.push({ f: s.f, v: () => thumbView(b, pos, s.eye ? 0.3 : s.view * 0.35), done: (u) => { if (surf && SURF.sites.includes(s)) { liveSites.set(s.id, u); drawSurfaceNow(); } } });
+  }
+  if (gv && gv.thumbF && gv.hover && gv.thumbF.key === gv.hover + '|' + state.text && docTimed(gv.thumbF.f)) {
+    const { key, f } = gv.thumbF;
+    jobs.push({ f, v: () => thumbView(basis(state.cam)), done: (u) => { if (gv && gv.thumbs.has(key)) { gv.thumbs.set(key, u); drawGraphNow(); } } });
   }
   if (!jobs.length) return;
   const j = jobs[liveTurn++ % jobs.length];
@@ -2830,7 +2842,8 @@ function labelBusy() {
 const labAt = (text, x, y, r = 8, place) => (text ? { text, x, y, r, place } : null);
 // a dimension line: named above its middle (where its value shows while held)
 const lineLabel = (h, name) => labAt(h.band ? `${name} ${LABELS['graph.band']}` : name, (h.x1 + h.x2) / 2, h.y, 4, 'above');
-const onLine = (h, x, y, m = 7) => x >= h.x1 - 6 && x <= h.x2 + 6 && Math.abs(y - h.y) < m;
+// (the labels use the presses' own tests — nearestOf, lineAt, schedRowAt: a finger's reach on touch, the
+// mouse's radii with a mouse — so a label names what a press there would take)
 
 // the ring of choices under a held press: the item it points at
 function pickerLabel(k, x, y) {
@@ -2846,9 +2859,11 @@ function pickerLabel(k, x, y) {
 // switches and lines, its dots, its nodes, links, the bindings' hairlines
 function driveLabelAt(V, x, y, selId, binds, handlesOf) {
   const dsel = selId && V.byId.get(selId);
-  if (dsel) for (const h of handlesOf(dsel)) {
-    if (h.glyph && Math.hypot(x - h.gx, y - h.y) < 11) return labAt(labelOf(h.glyph) || h.key, h.gx, h.y, 7);
-    if (h.line && onLine(h, x, y)) return lineLabel(h, paramLabel(dsel.type, h.key));
+  if (dsel) {
+    const hs = handlesOf(dsel), g = glyphOrLine(hs, x, y);
+    if (g) return labAt(labelOf(g.glyph) || g.key, g.gx, g.y, 7);
+    const h = lineAt(hs.filter((q) => q.line), x, y);
+    if (h) return lineLabel(h, paramLabel(dsel.type, h.key));
   }
   const from = driveOutPortAt(V, x, y);
   if (from) { const [px, py] = V.outPort(from); return labAt(LABELS['port.out'], px, py, 4); }
@@ -2867,9 +2882,9 @@ function shadeLabelAt(x, y) {
   if (gv.hue && Math.hypot(x - gv.hue.x, y - gv.hue.y) < RING_R + 10) return labAt(LABELS['shade.hue'], gv.hue.x, gv.hue.y, RING_R);
   if (sel && sel.ramp) {
     const E = editorLayout(sel, innerWidth, innerHeight, S.frame);
-    const tg = E.toggles.find((t) => Math.hypot(x - t.x, y - t.y) < 11);
+    const tg = nearestOf(E.toggles, x, y, 11);
     if (tg) return labAt(labelOf(tg.glyph), tg.x, tg.y, 8);
-    const h = shadeLines().find((r) => onLine(r, x, y));
+    const h = lineAt(shadeLines(), x, y);
     if (h) return lineLabel(h, paramLabel('ramp', h.key));
     const st = nearestOf(E.stops.filter((q) => y > E.y + E.h - 2 - HIT.r && y < E.y + E.h + 22 + HIT.r), x, x, 7, (q) => [q.x, x]);
     if (st) return labAt(LABELS['shade.stop'], st.x, st.y + 6, 6);
@@ -2883,7 +2898,7 @@ function shadeLabelAt(x, y) {
   if (!inFrame(S, x, y)) return null;
   if (S.empty) {
     const [fx0, fy0, fx1, fy1] = S.frame, cx = (fx0 + fx1) / 2, cy = (fy0 + fy1) / 2 - 8;
-    return Math.hypot(x - cx, y - cy) < 16 ? labAt(LABELS['shade.start'], cx, cy, 8) : null;
+    return Math.hypot(x - cx, y - cy) < reach(16) ? labAt(LABELS['shade.start'], cx, cy, 8) : null;
   }
   const from = shadeOutPortAt(S, x, y);
   if (from) { const [px, py] = S.outPort(from); return labAt(LABELS['port.out'], px, py, 4); }
@@ -2906,23 +2921,22 @@ function graphLabelAt(x, y) {
   if (dv) return dv;
   if (state.pick === 'C') return null;
   const sel = gv.selected && P.items.find((q) => q.id === gv.selected);
-  if (sel) { const h = paramHandles(sel).find((r) => onLine(r, x, y)); if (h) return lineLabel(h, paramLabel(h.op, h.key)); }
+  if (sel) { const h = lineAt(paramHandles(sel), x, y); if (h) return lineLabel(h, paramLabel(h.op, h.key)); }
   const rb = runBracket(P);
-  if (rb && x > rb.x - 20 && x < rb.x + 10 && y > rb.y0 - 6 && y < rb.y1 + 6) return labAt(LABELS['sub.wrap'], rb.x - 10, (rb.y0 + rb.y1) / 2, 8);
-  const fr = openFrame(P), dot = fr && fr.dots.find((d) => Math.hypot(d.x - x, d.y - y) < 7);
+  if (rb && x > rb.x - reach(20) && x < rb.x + reach(10) && y > rb.y0 - reach(6) && y < rb.y1 + reach(6)) return labAt(LABELS['sub.wrap'], rb.x - 10, (rb.y0 + rb.y1) / 2, 8);
+  const fr = openFrame(P), dot = fr && nearestOf(fr.dots, x, y, 7);
   if (dot) return labAt(`${LABELS['sub.dot']} ${paramLabel(dot.op, dot.key)}`, dot.x, dot.y, 5);
-  const SL = scheduleLayout(P), near = (q, r = 10) => Math.hypot(x - q.x, y - (q.y - 4)) < r;
-  if (near(SL.chainPlus, 12)) return labAt(LABELS['graph.chainPlus'], SL.chainPlus.x, SL.chainPlus.y, 7);
-  if (near(SL.plus)) return labAt(LABELS['graph.letterPlus'], SL.plus.x, SL.plus.y - 4, 6);
-  const letter = SL.letters.find((q) => near(q, 7));
-  if (letter) return labAt(`${LABELS['graph.letter']} ${letter.ch}`, letter.x, letter.y - 4, 6);
-  if (Math.abs(y - (SL.count.y - 4)) < 12 && Math.abs(x - SL.count.x) < 22) return labAt(LABELS['graph.count'], SL.count.x + 8, SL.count.y - 4, 8);
+  const SL = scheduleLayout(P), row = schedRowAt(SL, x, y);
+  if (row && row.k === 'chainPlus') return labAt(LABELS['graph.chainPlus'], SL.chainPlus.x, SL.chainPlus.y, 7);
+  if (row && row.k === 'plus') return labAt(LABELS['graph.letterPlus'], SL.plus.x, SL.plus.y - 4, 6);
+  if (row) return labAt(`${LABELS['graph.letter']} ${row.q.ch}`, row.q.x, row.q.y - 4, 6);
+  if (Math.abs(y - (SL.count.y - 4)) < reach(12) && Math.abs(x - SL.count.x) < reach(22)) return labAt(LABELS['graph.count'], SL.count.x + 8, SL.count.y - 4, 8);
   const g = Math.max(10, Math.min(26, P.u * 0.5));
   const node = graphNodeAt(P, x, y);
   // (clear of a driven op's notch on the glyph's right)
   if (node) return labAt(node.use ? `${LABELS['sub.use']} ${node.use.sub}` : node.n.op, node.x, node.y, g * 0.85);
   // an edge, or the plus drawn beside it
-  const edge = graphEdgeAt(P, x, y) || P.edges.find((e) => Math.hypot((e.x1 + e.x2) / 2 + 14 - x, (e.y1 + e.y2) / 2 - y) < 8);
+  const edge = graphEdgeAt(P, x, y) || nearestOf(P.edges, x, y, 8, (e) => [(e.x1 + e.x2) / 2 + 14, (e.y1 + e.y2) / 2]);
   if (edge) return labAt(LABELS['graph.edge'], (edge.x1 + edge.x2) / 2 + 14, (edge.y1 + edge.y2) / 2, 6);
   const bl = driveShown() && driveLinkAt(P.dv, x, y, gv.binds || []);
   return bl && bl.bind ? labAt(LABELS['graph.binding'], x, y, 6) : null;
@@ -2933,10 +2947,10 @@ function cvLabelAt(x, y) {
   const PC = cv.PC, V = PC.dv, c = state.collage;
   if (cv.picker) return pickerLabel(cv.picker, x, y);
   const pl = cvPlus(PC);
-  if (pl && Math.hypot(x - pl[0], y - pl[1]) < 18) return labAt(LABELS['cl.plus'], pl[0], pl[1], 12);
+  if (pl && Math.hypot(x - pl[0], y - pl[1]) < reach(18)) return labAt(LABELS['cl.plus'], pl[0], pl[1], 12);
   const dv = driveLabelAt(V, x, y, cv.dvSel, cv.binds, cvDriverHandles);
   if (dv) return dv;
-  const h = !cv.dvSel && cvLines().find((r) => onLine(r, x, y));
+  const h = !cv.dvSel && lineAt(cvLines(), x, y);
   if (h) {
     const [path] = h.to.split('.'), pc = path[0] === 'P' ? c.pieces[+path.slice(1)] : null;
     return lineLabel(h, paramLabel(path[0] === 'J' ? 'join' : h.key in pc.place ? 'place' : pc.rep.kind, h.key));
@@ -2984,7 +2998,11 @@ function gizmoLabelAt(x, y, touch) {
 function labelAt(x, y, touch) {
   let L = domLabelAt(x, y);
   if (!L && (gv || cv) && !labelBusy() && !(gv && gv.from)) {
-    const k = gview.k, v = gv ? graphLabelAt((x - gview.tx) / k, (y - gview.ty) / k) : cvLabelAt((x - gview.tx) / k, (y - gview.ty) / k);
+    // (a finger's label reaches as far as its press: HIT.r for this one test, whatever the last event set)
+    const k = gview.k, r0 = HIT.r;
+    HIT.r = touch ? FINGER / k : 0;
+    let v;
+    try { v = gv ? graphLabelAt((x - gview.tx) / k, (y - gview.ty) / k) : cvLabelAt((x - gview.tx) / k, (y - gview.ty) / k); } finally { HIT.r = r0; }
     if (v) L = { ...v, x: v.x * k + gview.tx, y: v.y * k + gview.ty, r: v.r * k };
   }
   if (!L && !gv && !cv && gizmoG && !gz) L = gizmoLabelAt(x, y, touch);
@@ -3197,13 +3215,24 @@ function passAttention(step, x) {
 // ---------- the atlas lens --------------------------------------------------------------------------
 // Two parameters of the attention op (or the next in the ranking) span the view; their ranges are what a
 // drag across the screen reaches at the local metric, so the map and the hand agree. Rotation angles and
-// plane normals are not offered: their records are not linear in them and the lens varies records.
+// plane normals are not linear in their records: the map rebuilds those records texel by texel instead
+// (gpu/render.js lnBuild), unless the op is driven (the drive program rebuilds it then).
 
 // parameters whose packed record is not linear in them (the lens varies records linearly). A chimera's
 // field parameters all enter its record linearly.
 const NONLINEAR = (p) => p.op === 'rotate' || p.op === 'rotate4' || (p.op === 'fold.plane' && p.key !== 'd');
 const INSET_R = 70;
 let lens = null;
+// a rotation's or plane fold's parameter the lens rebuilds (gpu/render.js L.nls): { oi, piece, slot, mode, raws },
+// or null (not such a parameter, or its op is driven)
+function lensNL(p) {
+  if (!NONLINEAR(p) || p.drive || p.ref) return null;
+  const c = state.collage, f = normalize(c ? c.pieces[p.piece].f : state.formula);
+  const o = f.slots.flat()[p.oi];   // (op indices run slot by slot: gpu/pack.js)
+  if (!o || o.op !== p.op || driveBinds(f).some((x) => x.t.o === o)) return null;
+  const keys = NL_RAW[o.op];
+  return { oi: p.oi, piece: c ? p.piece : null, slot: keys.indexOf(p.key), mode: NL_MODE[o.op], raws: keys.map((k) => o.p[k] ?? 0) };
+}
 // a parameter's glyph: a collage number's, a driver's (f: the formula it drives; the collage's own when it has
 // no piece), an op's
 const paramGlyph = (p, f) => (p.ref ? refGlyph(p.ref) : p.drive ? (state.collage && p.piece == null ? collageDriveGlyph(p.drive) : driveGlyphOf(f || (state.collage ? state.collage.pieces[p.piece].f : normalize(state.formula)), p.drive)) : getOp(p.op).glyph);
@@ -3240,11 +3269,11 @@ function lensDrvAt(p) {
   const at = t.kind === 3 ? { node: t.index, slot: t.slot } : { band: 2 * t.index + (t.kind === 2 ? 1 : 0) };
   return c ? { ...at, region: p.piece } : at;
 }
-// what the lens's map cannot show, said in it rather than skipped: rotations (their records are not linear),
-// the colour (a shading number moves no surface, so the metric cannot rank it), drivers that move nothing here
+// what the lens's map cannot show, said in it rather than skipped: driven rotations (the drive program rebuilds
+// their records), the colour (a shading number moves no surface, so the metric cannot rank it), drivers that move nothing here
 function lensNotes(ranked) {
   const notes = [], d = doc();
-  if (ranked.some(NONLINEAR)) notes.push('rotations and plane normals: not linear, not in the map');
+  if (ranked.some((p) => NONLINEAR(p) && !lensNL(p))) notes.push('driven rotations and plane normals: not in the map');
   const shades = isCollage(d) ? [d.shade, ...d.pieces.map((q) => q.f.shade)] : [normalize(d).shade];
   const nums = shades.reduce((a, s) => a + ((s && s.nodes) || []).reduce((b, m) => b + Object.values(m.p || {}).filter((v) => Number.isFinite(v)).length, 0), 0);
   if (nums) notes.push(`colour, ${nums} number${nums > 1 ? 's' : ''}: not sensed (it moves no surface)`);
@@ -3258,7 +3287,8 @@ function openLens() {
   if (!grab || grab.knobs || lens) return false;
   const att = grab.ranked[grab.k];
   // op records vary linearly; a driver's number is overlaid on its program (gpu/wgsl.js DRV_OV)
-  const ok = (p) => !NONLINEAR(p) && (!p.drive || !!lensDrv(p));
+  // rotations and plane normals have their records rebuilt per texel (gpu/render.js lnBuild)
+  const ok = (p) => (NONLINEAR(p) ? !!lensNL(p) : !p.drive || !!lensDrv(p));
   const linear = grab.ranked.filter(ok);
   const p1 = ok(att) ? att : linear[0];
   const notes = lensNotes(grab.ranked);
@@ -3268,7 +3298,7 @@ function openLens() {
   // on a collage: a piece's op varies its record in that piece, a number of the collage's own its place in
   // the program (gpu/render.js COLLAGE_LENS), angles too
   const c = state.collage;
-  const drecOf = (p) => (p.ref || p.drive ? new Float64Array(20) : paramTangents(c ? c.pieces[p.piece].f : state.formula).list.find((t) => t.oi === p.oi && t.key === p.key).drec);
+  const drecOf = (p) => (p.ref || p.drive || NONLINEAR(p) ? new Float64Array(20) : paramTangents(c ? c.pieces[p.piece].f : state.formula).list.find((t) => t.oi === p.oi && t.key === p.key).drec);
   const rangeOf = (p) => { const q = collageTarget(c, p.ref).spec; return [q.min ?? -1e30, q.max ?? 1e30]; };
   const th = Math.tan((state.look.fovDeg * Math.PI) / 360);
   const foot = grab.t * (2 * th) / innerHeight;
@@ -3276,9 +3306,9 @@ function openLens() {
   const params = p2 ? [p1, p2] : [p1];
   R.lens({
     x: grab.hit, foot, spans: [innerWidth / p1.pxPerUnit, p2 ? innerHeight / p2.pxPerUnit : 0],
-    ops: params.map((p) => (p.drive ? 0xffffffff : p.oi ?? 0)), drecs: params.map(drecOf), drvs: params.map(lensDrv),
+    ops: params.map((p) => (p.drive || NONLINEAR(p) ? 0xffffffff : p.oi ?? 0)), drecs: params.map(drecOf), drvs: params.map(lensDrv), nls: params.map(lensNL),
     size: [Math.round(canvas.width / 2), Math.round(canvas.height / 2)], key: state.look.key,
-    ...(c ? { pieces: params.map((p) => (p.drive ? null : p.piece)), flats: params.map((p) => (p.ref ? collageSlot(c, p.ref) : null)), lims: params.map((p) => (p.ref ? rangeOf(p) : null)) } : {}),
+    ...(c ? { pieces: params.map((p) => (p.drive || NONLINEAR(p) ? null : p.piece)), flats: params.map((p) => (p.ref ? collageSlot(c, p.ref) : null)), lims: params.map((p) => (p.ref ? rangeOf(p) : null)) } : {}),
   }, () => !!lens);
   const inset = [innerWidth - INSET_R - 30, innerHeight - INSET_R - 30, INSET_R];
   R.setLens(true, inset.map((v) => v * dpr));
@@ -4717,7 +4747,9 @@ window.__fe = {
   replay: () => replay(),
   export: (kind, where, maxFrames) => exportAs(kind, where, maxFrames),
   // time in thumbnails: how many live renders so far, and the ring's thumbnails (to see them change)
-  liveThumbs: () => ({ renders: liveRenders, ring: ring ? ring.items.map((it) => (it.thumb ? it.thumb.length + ':' + it.thumb.slice(-24) : null)) : null, lineage: [...liveLineage.keys()] }),
+  liveThumbs: () => ({ renders: liveRenders, ring: ring ? ring.items.map((it) => (it.thumb ? it.thumb.length + ':' + it.thumb.slice(-24) : null)) : null, lineage: [...liveLineage.keys()],
+    sites: [...liveSites.keys()], graph: gv && gv.thumbF ? (gv.thumbs.get(gv.thumbF.key) || '').slice(-24) : null,
+    graphLive: gv && gv.thumbF ? { key: gv.thumbF.key, hover: gv.hover, timed: docTimed(gv.thumbF.f) } : null }),
   // the open graph's targets in CSS px (ops, the schedule row, the drivers' nodes and their ports), and what each
   // hit test answers at a point for a finger or a mouse (ui/hit.js: the touch rig probes them a finger away)
   graphTargets: () => {
@@ -4763,6 +4795,9 @@ window.__fe = {
   sense: () => senseNow(),
   // the grab, driven without a pointer (tests, the capture rig)
   grabAt: (x, y) => enterGrab(x, y),
+  // the grab's attention on an op's parameter (its index in the ranking, or -1); the lens's parameters and notes
+  grabAttend: (op, key) => { if (!grab || grab.knobs) return -1; const k = grab.ranked.findIndex((p) => p.op === op && p.key === key); if (k >= 0) { grab.k = k; drawGrabNow(); } return k; },
+  lensOf: () => lens && { params: lens.params.map((p) => (p.op ? `${p.op}.${p.key}` : p.drive || p.ref)), notes: lens.notes },
   // what the hand holds (the touch rig reads it after real touch events)
   get input() {
     return { grab: grab && { x: grab.x, y: grab.y, k: grab.k, knobs: !!grab.knobs, key: grab.knobs ? KNOBS[grab.k][0][0] : (grab.ranked[grab.k].key || grab.ranked[grab.k].drive) }, lens: !!lens, ring: ring && { scale: ring.scale, sel: ring.sel }, mod: !!tmod, pins: state.pins.length, structure: state.structure, mode: state.mode, gz: gz && gz.kind, pointers: pointers.size,

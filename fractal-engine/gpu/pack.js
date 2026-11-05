@@ -149,8 +149,8 @@ export const DRIVE_SLOTS = {
   tissue: ['n', 'size', 'soft', 'seed', 'out'], time: ['rate', 'phase', 'wave'], param: ['value'], math: ['op', 'c'],
   remap: ['lo', 'hi', 'clamp'],
 };
-const RAW = { rotate: ['x', 'y', 'z'], rotate4: ['xy', 'xz', 'xw', 'yz', 'yw', 'zw'], 'fold.plane': ['nx', 'ny', 'nz', 'nw', 'd'] };
-const MODE = { rotate: 1, rotate4: 2, 'fold.plane': 3 };
+export const RAW = { rotate: ['x', 'y', 'z'], rotate4: ['xy', 'xz', 'xw', 'yz', 'yw', 'zw'], 'fold.plane': ['nx', 'ny', 'nz', 'nw', 'd'] };
+export const MODE = { rotate: 1, rotate4: 2, 'fold.plane': 3 };
 // the GPU keeps rebuilt records for four ops and their derivatives for eight bindings (core/drive.js
 // validateDrive refuses more)
 export const MAX_REBUILT_OPS = 4, MAX_REBUILT_BINDS = 8;

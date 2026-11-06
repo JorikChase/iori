@@ -54,5 +54,36 @@
         if (opts.unit) { const Y = Math.max(1e-9, c[0] * LUMA[0] + c[1] * LUMA[1] + c[2] * LUMA[2]); return [c[0] / Y, c[1] / Y, c[2] / Y]; }
         return c;
     }
-    window.IrisMaterials = { GRID, SHAPE, buildLut, get lut() { return LUT || buildLut(); }, index, lin2lab, lab2lin, grade, graded, colourOf, LUMA };
+    // K2.3 (study/16 §3): the knobs as material offsets. A sample's material is a point on the grid; the knobs move that point
+    // in the material's own units — the same modifiers the legacy fields used (index.html uploadFields): melanin and yellow a
+    // gain on the fitted value (an offset when the fit is near zero), the stroma a gain, pheo and mie offsets — and the colour
+    // is read back off the table between grid points (piecewise linear per axis, 32 corners). `k` holds the knob values now
+    // (`cur`) and at the fit (`org`), keyed pigment · stroma · pheo · yellow · mie.
+    const AX = [GRID.Ma, GRID.Ds, GRID.pheo, GRID.yellow, GRID.mie];
+    const at = (ax, x) => { const n = ax.length; if (x <= ax[0]) return [0, 0, 0]; if (x >= ax[n - 1]) return [n - 1, n - 1, 0];
+        let i = 0; while (i < n - 2 && ax[i + 1] <= x) i++; return [i, i + 1, (x - ax[i]) / (ax[i + 1] - ax[i])]; };
+    function knobbed(mat, k, dMa = 0) {                // the material point after the knobs, in physical units; dMa: extra melanin (RING)
+        const c = k.cur, o = k.org, gainOr = (v, cu, og) => og > 0.05 ? v * cu / og : v + (cu - og);
+        return [gainOr(GRID.Ma[mat[0]], c.pigment, o.pigment) + dMa, GRID.Ds[mat[1]] * c.stroma / Math.max(o.stroma, 1e-4),
+            GRID.pheo[mat[2]] + (c.pheo - o.pheo), gainOr(GRID.yellow[mat[3]], c.yellow, o.yellow), GRID.mie[mat[4]] + (c.mie - o.mie)];
+    }
+    function lutAt(p) {                                // linear rgb of a physical material point, multilinear on the grid
+        if (!LUT) buildLut();
+        const s = p.map((x, a) => at(AX[a], x)), out = [0, 0, 0];
+        for (let corner = 0; corner < 32; corner++) {
+            let w = 1; const m = [];
+            for (let a = 0; a < 5; a++) { const hi = (corner >> a) & 1, t = s[a][2]; w *= hi ? t : 1 - t; m.push(hi ? s[a][1] : s[a][0]); }
+            if (w === 0) continue; const i = index(m) * 3; out[0] += w * LUT[i]; out[1] += w * LUT[i + 1]; out[2] += w * LUT[i + 2];
+        }
+        return out;
+    }
+    const knobsAtOrigin = k => !k || ['pigment', 'stroma', 'pheo', 'yellow', 'mie'].every(n => Math.abs(k.cur[n] - k.org[n]) < 1e-6);
+    function colourKnobbed(mat, lum, gr, k, opts = {}) {   // colourOf with the knobs applied; at the origin it IS colourOf
+        if (knobsAtOrigin(k) && !opts.dMa) return colourOf(mat, lum, gr, opts);
+        const l = lutAt(knobbed(mat, k, opts.dMa || 0)), c = graded([l[0] * lum, l[1] * lum, l[2] * lum], gr ? gr.chroma : 1, gr ? (gr.hue || 0) : 0);
+        if (opts.unit) { const Y = Math.max(1e-9, c[0] * LUMA[0] + c[1] * LUMA[1] + c[2] * LUMA[2]); return [c[0] / Y, c[1] / Y, c[2] / Y]; }
+        return c;
+    }
+    window.IrisMaterials = { GRID, SHAPE, buildLut, get lut() { return LUT || buildLut(); }, index, lin2lab, lab2lin, grade, graded, colourOf, LUMA,
+        knobbed, lutAt, knobsAtOrigin, colourKnobbed };
 })();

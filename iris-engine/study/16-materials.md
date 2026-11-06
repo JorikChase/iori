@@ -106,6 +106,62 @@ OpenCV's approximate one. **Decision 5 executed:** `publish.py --drop-rgb` remov
 25 3,159 KB · 35 2,388 KB (26 was 3 543 KB with rgb only, 3 988 with both). The shipped rgb of before remains in
 git history (commit 02b2e45 and earlier) should a cross-check ever be needed.
 
+## 2d. K2.3 built (2026-11-06) — the knobs move each sample's own material
+
+**What changed.** PIGMENT, STROMA, PHEO, YELLOW, MIE and RING no longer tint the layer model through the legacy atlas (K1:
+LUT(legacy fields now) / LUT(legacy fields at the origin), in the photo shader). They move the material of every sample, and the
+bake reads the colour back off the table.
+- `materials.js`: `knobbed(mat, k, dMa)` moves a grid point in physical units. Melanin and yellow take a gain on the fitted
+  value, or an offset when the fit is below 0.05; the stroma takes a gain; pheo and mie take offsets. These are the same
+  modifiers `uploadFields` gives the legacy fields. `lutAt` reads between grid points (piecewise linear per axis, 32 corners).
+  `colourKnobbed` is `colourOf` at the origin.
+- `tissue.js`: a knob view opens at the start of every bake (`knobView`).
+  - A measured sample that carries its material (mat + lum, aligned) is drawn as rgb × colour(knobbed) / colour(mat). That
+    is its own colour after the knobs, to the regen's 4-decimal rounding.
+  - Everything derived from samples carries copied rgb: instances, bridges, braids, layered extensions, painted strokes,
+    edited payloads. It takes the ratio of the nearest measured sample by photo xy. **Generated strands inherit by
+    construction**, through every copy site at once, rather than by threading `mat` through each one.
+  - Cells (sheet, ground) and the rim read their own materials.
+  - At the origin the view is null and the bake reads `rgb` exactly as before.
+- **RING** was a legacy-atlas effect: K2.3 alone killed it, 0.19 against 15.1 ΔY. It is now extra melanin inside the
+  collarette band, by each sample's own tissue v, using the legacy ring's shape (inside ringR, fading over the next 0.06).
+  The legacy ring's pheo blend is not carried.
+- `u_tisK1` is 0 when K2.3 is on: the photo shader does not read the legacy material fields for the layered colour.
+  `T.k2 = false` restores the K1 path for the ablation.
+- The render loop (`engine.js`) calls `T.knobTick()` between frames. It rebakes when the knobs stand somewhere the last bake
+  did not, at most every 150 ms (`T.knobEveryMs`) while the loop eases them. A bake costs 150–300 ms on this Mac; slider
+  drags step rather than glide. The knob origin (`T.origin.knobs`) is captured with K1's origin.
+
+**Gates** (`tools/k23_probe.js`, eyes 26 and 25):
+
+| gate | 26 | 25 |
+|---|---|---|
+| knobs at the origin: K2.3 picture = K1 picture | 0 bytes differ | 0 bytes differ |
+| legacy atlas cleared to zero: pixels that move (> 2 codes) | pupil+ruff 0.14 % · **body 0 %** · limbus 1.04 % | 0.82 % · **0 %** · 0.79 % |
+| generated strand follows its source under a knob (ΔE76 to child × source's change, p95) | pigment 0.30 · stroma 0.23 · yellow 0.25 · ring 0.25 (1,495 samples: 30 instances of 5 grown parents + 58 bridges); no pale samples | — |
+| UI contract (`?start=off`, iters 20) | `[]` | |
+
+The knobs move the iris (mean |ΔY| in the iris mask, 20 % of the slider; K2.3 · K1):
+
+| knob | 26 | 25 |
+|---|---|---|
+| pigment | 27.6 · 53.1 | 31.1 · 46.0 |
+| stroma | 5.8 · 4.9 | 6.0 · 6.4 |
+| pheo | 1.0 · 0.47 | 2.8 · 0.72 |
+| yellow | 1.5 (Δab 7.5) · 0.47 | 1.2 (Δab 7.1) · 0.72 |
+| mie | 0.34 (Δab 3.8) · 0.47 | 0.47 (Δab 2.9) · 0.72 |
+| ring | 8.5 · 15.1 | 8.3 · 14.7 |
+
+K1 left PHEO, YELLOW and MIE nearly dead in the layer model. Each moved it by 0.47 / 0.72, the same floor for all three:
+the ratio of two legacy materials barely reacts to them. Under K2.3 they are live and mostly move hue, which is what yellow
+and mie are. PIGMENT moves half as far as under K1. On a green eye fitted near zero melanin it is an offset of +1 Ma on
+every sample, against K1's ratio of procedural fields.
+
+**Not done here.**
+- The grade is still applied per sample in the regen (Q2: move it to post).
+- The prune of the procedural bake from the layered load path is next after K2b.
+- Eyes 09 and 35 were not probed.
+
 ## 3. What K2 changes
 
 - **Representation.** Per sample: a material (Ma, Ds, pheo, yellow, mie — five u8 indices into a fixed LUT grid) and a

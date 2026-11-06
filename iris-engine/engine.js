@@ -1151,6 +1151,7 @@ function render(time, forceCapture = false) {
     if (state.crypt !== target.crypt) { state.crypt = target.crypt; atlas.dirty = true; }
     if (state.seed !== target.seed && !state.fitting) { state.seed = target.seed; reseedProcedural(Math.round(state.seed)); }
     if (atlas.dirty) { bakeAtlas(); isMoving = true; }
+    if (window.IrisTissue && window.IrisTissue.knobTick && window.IrisTissue.knobTick()) isMoving = true;   // K2.3: the material knobs re-bake the layer model
     if (Math.abs(targetPupil - state.pupil) > 0.0005) { state.pupil = lerp(state.pupil, targetPupil, isPointerDown ? 0.15 : 0.04); isMoving = true; }
     else state.pupil = targetPupil;
     if (!state.paused) document.getElementById('val-pupil').innerText = state.pupil.toFixed(2) + 'mm';

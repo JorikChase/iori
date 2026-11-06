@@ -66,7 +66,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="papers/fractals/paper.css?v=4">
   <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=6">
-  <link rel="stylesheet" href="papers/silviculture/paper.css?v=5">
+  <link rel="stylesheet" href="papers/silviculture/paper.css?v=7">
 </head>
 
 <body>
@@ -82,7 +82,7 @@
       <p class="byline">iori<sup>1</sup></p>
       <p class="affiliation"><sup>1</sup>Jorik Jonathan Chase, <a href="https://3die.fr/">3DIE</a> — Design, Art &amp;
         Technologies Label. Paper 0.3 of <a href="papers/">a series</a>, a companion to
-        <a href="fractals.html">paper 0</a>. In preparation, November 2026.</p>
+        <a href="fractals.html">paper 0</a>. November 2026.</p>
     </header>
 
     <section class="abstract">
@@ -101,7 +101,7 @@
         pits and its channels have no concavity, while paper 0's region drains and sits inside Earth's ranges for
         Hack's exponent and τ on every seed.
         One correction to paper 0 follows: the forest law Makowski checked is the diameter form, not the mass form.</p>
-      <p class="howto">Written so far: chapters 1 to 4; the rest is planned below with its contents. Every figure starts when it scrolls into view; drag in
+      <p class="howto">Every figure starts when it scrolls into view; drag in
         the 3-D ones to orbit, and use pinch or ⌘/Alt with the wheel to zoom.</p>
     </section>
 
@@ -588,7 +588,7 @@
           <tr><td>Leonardo's rule: Σ d<sub>child</sub>² / d<sub>parent</sub>² at forks</td><td class="num">1.00 (built in)</td><td class="num">0.90–1.05</td></tr>
           <tr><td>Stem sizes N(D) ∝ D<sup>−θ</sup>, stems ≥ 5 cm</td><td class="num">2.14–2.50</td><td class="num">1.04–2.13 (all stems)</td></tr>
           <tr><td>Stem sizes, stems ≥ 20 cm (14–22 stems per plot)</td><td class="num">2.16–2.43</td><td class="num">2.42–3.68</td></tr>
-          <tr><td>Canopy-gap size exponent</td><td class="num">not measurable</td><td class="num">1.66–2.50</td></tr>
+          <tr><td>Canopy-gap size exponent: this plot / the stand of 2.6 on 16 ha</td><td class="num">not measurable / 2.64–2.80</td><td class="num">1.66–2.50</td></tr>
         </tbody>
       </table>
       <p>Sources for the right-hand column: allometry and Horton ratios from the tables collected by Eloy and colleagues
@@ -605,8 +605,9 @@
         between orders. Their box dimension is lower, the sparse open-grown crown paper 0 already noted. Leonardo's
         rule is not a test here, because the pipe model writes it into the code: a parent's cross-section is the sum of
         its children's. Stem sizes are near the theory's 2 but rest on a few dozen stems, and the large stems fall off
-        more gently than in real forests. Canopy gaps cannot be measured at all, because the fit counts gaps from
-        20 m² up to a hectare and the plot is a tenth of a hectare.</p>
+        more gently than in real forests. Canopy gaps cannot be measured on this plot, because the fit counts gaps
+        from 20 m² up to a hectare and the plot is a tenth of a hectare; the stand of 2.6 measures them on 16 ha, and
+        finds them steeper than the Amazon's, as a forest without disturbance should be.</p>
       <details class="math">
         <summary>The mathematics</summary>
         <p>Self-thinning: least squares on log<sub>10</sub>, after density N (stems ≥ 5 cm per hectare) first falls below
@@ -624,20 +625,59 @@
     </section>
 
     <!-- ================================================================== 5 -->
-    <section id="ch5" class="planned">
+    <section id="ch5">
       <h2>5. What the Forest Takes Next</h2>
-      <p class="lead">In preparation. The state of the art, ranked by what it would add per unit of work.</p>
-      <ol>
-        <li>A plot of a hectare or more, shaded by light stamps on a 2 m grid as iLand does, so canopy gaps and forest
-          edges can be measured.</li>
-        <li>Leonardo's exponent as a species parameter, so the area ratio becomes a measurement rather than a rule.</li>
-        <li>A microclimate field under the canopy, feeding the decay of logs and where seedlings take root.</li>
-        <li>Root plates grown from a root graph on uprooted trees.</li>
-        <li>Fire moving from ground to ladder to crown fuel.</li>
-        <li>The simulator's own modules drawn at landscape scale, with GPU level of detail.</li>
-        <li>On the ground: the drainage harness run on real Earth tiles and on other generators, the first such
-          scoreboard across families.</li>
-      </ol>
+      <p class="lead">Chapters 2 and 3 ran each method beside the others and measured it. This chapter says where that
+        leaves the field, and ranks what paper 0 should take from it.</p>
+
+      <h3 id="ch5-1">5.1 Where the Field Stands</h3>
+      <p>No model has replaced Synthetic Silviculture. Its authors and their colleagues have extended it sideways
+        instead: climate (2.7), roots (2.9), fire (2.8), and lately the wood itself, strand by strand, its breaking and
+        its rot. Each extension still grows its trees with Makowski's modules or with Rhizomorph's shoot–root
+        simulator. The learned tree generators of 2024 and 2025 are trained on trees from those simulators, so the
+        procedural model remains the ground truth and the learned one a compression of it; 2.10 shows what is lost in
+        the compression when the model is small: the trees stop answering their light. Ecology has run the same
+        forests at far larger scale for decades, by stamps (2.6) rather than branches, and graphics has rarely cited
+        it.</p>
+      <p>On the ground the split is sharper. Physically based terrain papers validate by eye, beside a photograph;
+        learned terrain generators validate by how close their images are to Earth's. Only one paper we found measures
+        whether a generated surface drains <a class="cite" href="#ref-lochner2023">[25]</a>, and none measures whether
+        its rivers obey Hack's or Horton's laws, though those laws are tight and the code to measure them is short. 3.4
+        is that code, and it separates noise from rivers on the first line. What it does not yet have is the measured
+        Earth beside it: the right-hand column of every table in this paper is copied from the literature, measured
+        elsewhere, at other resolutions, with other thresholds.</p>
+
+      <h3 id="ch5-2">5.2 Ranked</h3>
+      <p>By what each would add to paper 0 per unit of work. The third column says where this paper already runs it.</p>
+      <div class="table-wrap">
+        <table class="data adopt">
+          <thead><tr><th>#</th><th>Adopt</th><th>Here</th><th>What it would show</th><th>Work</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>The drainage instrument on real Earth: 10 km tiles of 30 m elevation, matched for relief</td><td>3.4</td><td>A measured Earth column, same code, same thresholds; whether the hypsometric miss is a miss</td><td>days</td></tr>
+            <tr><td>2</td><td>The same instrument on learned terrain: InfiniteDiffusion's tiles (open weights) and Lochner's model</td><td>3.4</td><td>The first drainage scoreboard across families</td><td>days</td></tr>
+            <tr><td>3</td><td>Light stamps in paper 0's plot, grown from 32 m to 4 ha</td><td>2.6</td><td>Canopy gaps measurable; with paper 0's storms, whether the gap exponent falls into Earth's band, as 2.6 predicts it should</td><td>days</td></tr>
+            <tr><td>4</td><td>Fire through ground, ladder and crown, leaving snags, with seed arriving from outside the plot</td><td>2.8</td><td>A disturbance that opens large gaps and brings the pioneer back, which 2.8 could not without outside seed</td><td>days</td></tr>
+            <tr><td>5</td><td>The canopy's cooling, feeding log decay and where seedlings take root</td><td>2.7</td><td>Decay and moss that follow the canopy; edges</td><td>a day</td></tr>
+            <tr><td>6</td><td>Root plates grown by soil for the trees a storm throws</td><td>2.9</td><td>Pits and mounds sized by the root system: deep bowls in sand, wide saucers on rock</td><td>days</td></tr>
+            <tr><td>7</td><td>Leonardo's exponent as a species parameter in the pipe model</td><td>4.2</td><td>The area ratio becomes a measurement instead of an identity</td><td>hours</td></tr>
+            <tr><td>8</td><td>Particle transport at the focus plot, ported to the GPU</td><td>3.3</td><td>Braided reaches, fans and deltas from a law instead of a rule</td><td>a week or two</td></tr>
+            <tr><td>9</td><td>The simulator's own modules drawn across the region, with level of detail on the GPU</td><td></td><td>Individual trees in the region view instead of coloured cells</td><td>weeks</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The first two cost little and change what the paper can claim: not that its numbers sit inside ranges copied
+        from elsewhere, but that every family of generator, and Earth, has been measured by the same code. The next four
+        move methods already running in this paper into paper 0's plot, where they meet one another: stamps make the
+        gaps that fire and storms enlarge, roots set the pits that storms leave, the cooling sets where the next trees
+        start. That coupling is what Synthetic Silviculture's successors each did for one process, and none for all.</p>
+
+      <h3 id="ch5-3">5.3 Left Out, and Why</h3>
+      <p>Wood as strands, with its fibres, junctions, fractures and decay, is the most striking recent work, and the
+        heaviest: worth it for one tree seen close, not for a forest. Glacial erosion forms the valleys paper 0 lacks,
+        at about a third of a second a step on a workstation, out of a page's budget. The learned generators, of trees
+        and of worlds, are left as comparisons: they make likenesses fast and well, and 2.10 and 3.5 show what they do
+        not carry. The useful meeting point is the one the field is circling: a learned prior for what has no law,
+        the uplift, the base level, the look, and laws for what has them, the water, the light and the years.</p>
     </section>
 
     <!-- ================================================================== references -->
@@ -689,7 +729,7 @@
       </ol>
     </section>
     <footer>
-      <p>***in preparation · November 2026***</p>
+      <p>***first published 7 November 2026***</p>
     </footer>
   </main>
   <div></div>
@@ -699,6 +739,6 @@
                    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
   </script>
   <script type="module" src="fractal-engine/paper/paper.js?v=10"></script>
-  <script type="module" src="papers/silviculture/paper.js?v=15"></script>
+  <script type="module" src="papers/silviculture/paper.js?v=16"></script>
 </body>
 </html>

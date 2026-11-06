@@ -102,3 +102,12 @@ large implicit steps stable but wrong transient (3 Myr max 940–1000 vs 1355–
 36–39 %, SPL/region ≤ 1 %; θ noise 0.02–0.14; h noise 0.29–0.49, τ 1.58–1.74; R_B passes for noise too (Kirchner
 1993). Refs 42. Next: P5 (ch 5 ranking, SOTA comparison text, phone pass, deploy); optional: score InfiniteDiffusion
 tiles with measureGround.
+
+**P5 done (2026-11-07).** Chapter 5 written: 5.1 where the field stands (no successor to Makowski; learned trees
+trained on simulators; no generator measures drainage laws), 5.2 ranked adoptions for paper 0 (Earth tiles through
+measureGround; InfiniteDiffusion/Lochner tiles; stamps in a 4 ha plot with storms; fire with outside seed; canopy
+cooling into decay; root plates by soil; Leonardo Δ; GPU particle transport; module LOD), 5.3 left out (strand wood,
+glaciers, learned generators). Ch 4 gap row points at 2.6. Front matter, footer ("first published 7 November 2026"),
+series.py state and fractals.html ch 8 list dated. Every figure (15) starts at phone width, no page overflow. The
+page stays hidden like 0.1 and 0.2. Order matters: series.py rewrites pages without their SEO block, so run
+`python3 site.py all` after it.

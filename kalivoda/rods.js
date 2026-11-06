@@ -64,7 +64,50 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false
 THREE.ColorManagement.enabled = false;
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;   // everything below is display-referred
 renderer.autoClear = false;
-const DPR = Math.min(window.devicePixelRatio || 1, 1.5);   // 2× retina cost 22 ms a frame on an M3 Pro
+
+// ------------------------------------------------------------------ quality: scale to the device
+// One ladder from the richest picture this screen can show to the cheapest one that still reads as
+// the installation. The governor (see govern()) starts on the baseline rung and moves along it
+// by watching whether frames arrive on time. Going down, each rung drops what is least visible per
+// millisecond saved (measured with tools/kalivoda-audit/quality.js + perf.js, 2026-11-06):
+//   spectral samples 12 → 8     ≈ 1.5 ms of 11 at 2160×1350, PSNR 40 dB (the dither hides it)
+//   back-layer MSAA 4 → 2       ≈ 1.5 ms, PSNR 41 dB (edges of the far rows only)
+//   pixel ratio −0.125 a rung   ≈ 1 ms each, but softness shows (1.5 → 1.25: PSNR 27 dB)
+// Going up past the baseline, a strong GPU on a 2× screen gets more pixels than before.
+const DEV_DPR = window.devicePixelRatio || 1;
+const BASE_R = Math.min(DEV_DPR, 1.5);
+const LADDER = (() => {
+  const L = [], top = Math.min(DEV_DPR, num('qmax', 2));
+  for (let r = top; r > BASE_R + 1e-3; r -= 0.25) L.push({ r, ns: 12, ms: 4 });
+  L.push({ r: BASE_R, ns: 12, ms: 4 }, { r: BASE_R, ns: 8, ms: 4 }, { r: BASE_R, ns: 8, ms: 2 });
+  for (let r = BASE_R - 0.125; r > 1.001; r -= 0.125) L.push({ r, ns: 8, ms: 2 });
+  if (BASE_R > 1) L.push({ r: 1, ns: 8, ms: 2 });
+  L.push({ r: Math.min(1, BASE_R), ns: 6, ms: 0 }, { r: Math.min(0.85, BASE_R), ns: 6, ms: 0 }, { r: Math.min(0.75, BASE_R), ns: 6, ms: 0 });
+  return L;
+})();
+const BASE_LEVEL = LADDER.findIndex(l => l.r === BASE_R && l.ns === 12);
+let level = Q.has('q') ? Math.max(0, Math.min(LADDER.length - 1, num('q', 0))) : BASE_LEVEL;   // ?q=<rung> pins it (harness)
+const PINNED = Q.has('q') || Q.has('dpr');
+let DPR = Q.has('dpr') ? Math.min(DEV_DPR, num('dpr', 1.5)) : LADDER[level].r;
+// the back layer keeps HDR in 4 bytes a pixel instead of 8 where the GPU can render it (max diff 5/255)
+// Probed once with raw GL: a GPU that cannot multisample it falls back to half float, never to black.
+const SMALL_HDR = num('fmt', 1) === 1 && (() => {
+  const gl = renderer.getContext();
+  if (!(gl instanceof WebGL2RenderingContext) || !gl.getExtension('EXT_color_buffer_float')) return false;
+  const f = gl.R11F_G11F_B10F, ms = gl.getInternalformatParameter(gl.RENDERBUFFER, f, gl.SAMPLES);
+  if (!ms || Math.max(...ms) < 4) return false;
+  const rb = gl.createRenderbuffer(), tx = gl.createTexture(), fa = gl.createFramebuffer(), fb = gl.createFramebuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 4, f, 4, 4);
+  gl.bindTexture(gl.TEXTURE_2D, tx); gl.texImage2D(gl.TEXTURE_2D, 0, f, 4, 4, 0, gl.RGB, gl.HALF_FLOAT, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fa); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, rb);
+  const okA = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tx, 0);
+  const okB = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.bindRenderbuffer(gl.RENDERBUFFER, null); gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.deleteFramebuffer(fa); gl.deleteFramebuffer(fb); gl.deleteRenderbuffer(rb); gl.deleteTexture(tx);
+  while (gl.getError() !== gl.NO_ERROR);          // leave three a clean error state
+  return okA && okB;
+})();
 
 const camera = new THREE.PerspectiveCamera(P.fov, 1, 0.05, 20);
 const sceneBg = new THREE.Scene();
@@ -89,11 +132,21 @@ const copyMat = new THREE.ShaderMaterial({
 copyScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), copyMat));
 
 let rtBg, rtMid;
+// three r160 allocates render-target textures as RGBA, which R11F_G11F_B10F refuses: give it RGB
+{
+  const gl = renderer.getContext(), st = renderer.state, ti = st.texImage2D;
+  st.texImage2D = function (t, l, ifmt, w, h, b, f, ty, d) {
+    if (ifmt === gl.R11F_G11F_B10F) { f = gl.RGB; ty = gl.HALF_FLOAT; }
+    return ti.call(this, t, l, ifmt, w, h, b, f, ty, d);
+  };
+}
 function makeTargets(w, h) {
   rtBg?.dispose(); rtMid?.dispose();
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true, stencilBuffer: false, samples: 0, type: THREE.HalfFloatType };
   rtBg = new THREE.WebGLRenderTarget(w, h, opts);
-  rtMid = new THREE.WebGLRenderTarget(w, h, { ...opts, samples: 4 });   // the back rods get MSAA too, like the front ones on the canvas
+  // the back rods get MSAA too, like the front ones on the canvas
+  rtMid = new THREE.WebGLRenderTarget(w, h, { ...opts, samples: Q.has('msaa') ? num('msaa', 4) : LADDER[level].ms });
+  if (SMALL_HDR) rtMid.texture.internalFormat = 'R11F_G11F_B10F';
 }
 
 // ------------------------------------------------------------------ the rods (state)
@@ -237,7 +290,7 @@ threads.frustumCulled = false;
 sceneBg.add(threads);
 
 // ------------------------------------------------------------------ glass shader
-const NS = num('ns', 12);   // spectral samples per pixel; the 4×4 dither keeps 12 continuous
+const nsNow = () => (Q.has('ns') ? num('ns', 12) : LADDER[level].ns);   // spectral samples per pixel; the 4×4 dither keeps 12 continuous
 const lightsWorld = [
   { p: new THREE.Vector3(-1.3, 2.0, 1.3), c: new THREE.Color(1.0, 0.86, 0.66).multiplyScalar(1.2), sh: 700 },  // warm key
   { p: new THREE.Vector3(1.6, 0.9, 1.0),  c: new THREE.Color(0.72, 0.82, 1.0).multiplyScalar(0.7), sh: 350 },  // cool fill
@@ -255,6 +308,7 @@ for (let i = 0; i < 512; i++) { const c = spectrumRGB((i + 0.5) / 512); norm[0] 
 
 function glassMaterial() {
   return new THREE.ShaderMaterial({
+    defines: { NS: nsNow() },
     uniforms: {
       tBg: { value: null },
       uRes: { value: new THREE.Vector2(1, 1) },
@@ -288,7 +342,6 @@ function glassMaterial() {
       }`,
     fragmentShader: `
       precision highp float;
-      #define NS ${NS}
       uniform sampler2D tBg; uniform vec2 uRes; uniform float uFocal;
       uniform vec3 uDims; uniform float uThick, uPrism, uIor, uSpread, uHueEnd, uEdge, uBulge, uSpecDisp, uTone;
       uniform vec3 uNorm; uniform vec3 uLp[3]; uniform vec3 uLc[3]; uniform float uLs[3];
@@ -378,8 +431,6 @@ function layout() {
   // hiding while you scroll does not change it and nothing re-fits
   vp.w = canvas.clientWidth || window.innerWidth; vp.h = canvas.clientHeight || window.innerHeight;
   rolled = vp.h > vp.w;
-  renderer.setPixelRatio(DPR);
-  renderer.setSize(vp.w, vp.h, false);
   camera.aspect = vp.w / vp.h; camera.updateProjectionMatrix();
   const th = Math.tan(THREE.MathUtils.degToRad(P.fov / 2));
   const asp = camera.aspect;
@@ -427,6 +478,15 @@ function layout() {
     else { rep.set(1, ia / pa); off.set(0, (1 - ia / pa) * 0.62); }          // image taller: keep the upper part (his face)
   }
 
+  sizeTargets();
+  // lights into view space
+  const vm = camera.matrixWorldInverse;
+  lightsWorld.forEach((l, i) => { const v = l.p.clone().applyMatrix4(vm); matBack.uniforms.uLp.value[i].copy(v); matFront.uniforms.uLp.value[i].copy(v); });
+}
+// pixel ratio, layers and the materials' resolution: on layout and whenever the quality rung changes
+function sizeTargets() {
+  renderer.setPixelRatio(DPR);
+  renderer.setSize(vp.w, vp.h, false);
   const w = Math.round(vp.w * DPR), h = Math.round(vp.h * DPR);
   makeTargets(w, h);
   for (const m of [matBack, matFront]) {
@@ -435,15 +495,20 @@ function layout() {
   }
   matBack.uniforms.tBg.value = rtBg.texture;
   matFront.uniforms.tBg.value = rtMid.texture;
-  // lights into view space
-  const vm = camera.matrixWorldInverse;
-  lightsWorld.forEach((l, i) => { const v = l.p.clone().applyMatrix4(vm); matBack.uniforms.uLp.value[i].copy(v); matFront.uniforms.uLp.value[i].copy(v); });
+}
+function setLevel(i) {
+  i = Math.max(0, Math.min(LADDER.length - 1, i));
+  if (i === level) return;
+  const a = LADDER[level], b = LADDER[i];
+  level = i;
+  if (b.ns !== a.ns && !Q.has('ns')) for (const m of [matBack, matFront]) { m.defines.NS = b.ns; m.needsUpdate = true; }
+  if (b.r !== a.r || b.ms !== a.ms) { if (!Q.has('dpr')) DPR = b.r; sizeTargets(); }
 }
 let fitW = 0, fitH = 0;
 window.addEventListener('resize', () => {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (w === fitW && h === fitH) return;
-  fitW = w; fitH = h; layout();
+  fitW = w; fitH = h; layout(); gov.nextCal = Math.min(gov.nextCal, gov.activeMs + 600);
 });
 layout();
 
@@ -716,12 +781,91 @@ if (stage && 'IntersectionObserver' in window) {
   new IntersectionObserver(es => { active = es[0].intersectionRatio > 0; }, { threshold: [0, 0.001], rootMargin: '-80px 0px 0px 0px' }).observe(stage);   // the strip under the solid header does not count
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) last = performance.now() / 1000; });
+
+// ------------------------------------------------------------------ governor: frame pacing + quality rung
+// Frames are drawn at most ~60 times a second: a 120 Hz screen gets every other frame and the
+// physics keeps its own 120 Hz substeps, so the motion is the same for half the GPU work.
+// The rung is chosen from the GPU's own cost: four of the frames the page draws anyway are timed
+// with a 1-pixel readback (it waits for the GPU on every browser; no extra frames, so no hitch)
+// and the best rung predicted to fit the budget is taken. This runs once the hero has settled,
+// again every 10 s while it is on screen, after a resize, and at once when frames arrive late.
+const CAP_MS = 11;                      // ≥ 11 ms between draws: 60 fps on 60/120 Hz, 72 on 144, 90 on 90
+const BUDGET_MS = num('budget', 12);    // GPU time a frame may take inside the 16.7 ms of a 60 fps frame
+const COST = { '12/4': 1, '8/4': 0.87, '8/2': 0.76, '6/0': 0.5 };   // relative cost per pixel, measured on an M3 Pro
+const rungCost = l => l.r * l.r * COST[l.ns + '/' + l.ms];
+const FIXED_MS = 1;                     // per-frame cost that does not scale with pixels (copies, fences, vertices)
+const predict = (ms, from, to) => FIXED_MS + Math.max(0, ms - FIXED_MS) * rungCost(LADDER[to]) / rungCost(LADDER[from]);
+const gov = {
+  lastDraw: 0, rafLast: 0, rafIv: [], drawIv: [], measured: null, calls: 0,
+  activeMs: 0, nextCal: 2500, history: [], sampling: 0, samples: [], why: '', draws: 0, pending: null, confirm: false,
+};
+const _px = new Uint8Array(4);
+function gpuFence() { const gl = renderer.getContext(); renderer.setRenderTarget(null); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, _px); }
+function measureFrame(n = 3) {
+  gpuFence(); renderFrame(); gpuFence();          // warm: shaders compiled, targets allocated
+  let best = Infinity;
+  for (let i = 0; i < n; i++) { const t = performance.now(); renderFrame(); gpuFence(); best = Math.min(best, performance.now() - t); }
+  return best;                                    // the least disturbed of n frames
+}
+function calibrate(why) {
+  if (PINNED || still || gov.sampling) return;
+  gov.why = why; gov.samples.length = 0; gov.sampling = 6;
+}
+// every draw goes through here; while sampling, the frame is fenced on both sides and timed
+function drawFrame() {
+  // a new rung lands just before a draw: resizing the canvas after one would blank that frame
+  if (gov.pending !== null) { setLevel(gov.pending); gov.pending = null; }
+  if (!gov.sampling) { renderFrame(); return; }
+  gpuFence(); const t = performance.now(); renderFrame(); gpuFence();
+  gov.samples.push(performance.now() - t);
+  if (--gov.sampling === 0) decide(gov.why, Math.min(...gov.samples.slice(1)));   // the first may carry a recompile
+}
+function decide(why, ms) {
+  gov.measured = ms; gov.calls++;
+  let pick = LADDER.length - 1;
+  for (let i = 0; i < LADDER.length; i++) if (predict(ms, level, i) <= BUDGET_MS * (i < level ? 0.9 : 1)) { pick = i; break; }   // up needs headroom
+  // the first check, a late-frame check and every confirmation move freely. Periodic checks move
+  // up one rung at a time and only with clear headroom, and down only when clearly over budget
+  if (why === 'periodic') {
+    if (pick < level) pick = predict(ms, level, level - 1) <= BUDGET_MS * 0.85 ? level - 1 : level;
+    else if (pick > level && ms <= BUDGET_MS * 1.1) pick = level;
+  }
+  // any move is confirmed 2.5 s later, so one disturbed measurement (images decoding early on,
+  // another tab busy) cannot hold the picture down
+  gov.confirm = pick !== level && why !== 'confirm';
+  gov.nextCal = gov.activeMs + (gov.confirm ? 2500 : 10000);
+  gov.history.push({ t: Math.round(performance.now()), why, ms: +ms.toFixed(2), from: level, to: pick });
+  if (gov.history.length > 20) gov.history.shift();
+  gov.pending = pick;
+  gov.drawIv.length = 0;
+}
+function govern(now) {
+  // display refresh: the short end of the rAF intervals
+  const iv = now - gov.rafLast; gov.rafLast = now;
+  if (iv > 0 && iv < 100) { gov.rafIv.push(iv); if (gov.rafIv.length > 120) gov.rafIv.shift(); }
+  if (now - gov.lastDraw < CAP_MS) return false;
+  const dIv = now - gov.lastDraw; gov.lastDraw = now; gov.draws++;
+  if (dIv > 250) return true;                     // back from a pause: not a late frame
+  gov.activeMs += dIv;
+  gov.drawIv.push(dIv); if (gov.drawIv.length > 90) gov.drawIv.shift();
+  if (gov.activeMs >= gov.nextCal) { gov.nextCal = Infinity; calibrate(gov.calls === 0 ? 'start' : gov.confirm ? 'confirm' : 'periodic'); return true; }
+  // late frames: more than 1 in 8 of the last 90 drew at least half a refresh late
+  if (gov.calls > 0 && !gov.sampling && gov.drawIv.length >= 90 && gov.rafIv.length >= 60) {
+    const sorted = [...gov.rafIv].sort((a, b) => a - b), vs = sorted[Math.floor(sorted.length * 0.1)];
+    const expect = vs * Math.max(1, Math.ceil((CAP_MS - 0.5) / vs));
+    const late = gov.drawIv.filter(d => d > expect * 1.5).length / gov.drawIv.length;
+    if (late > 0.125) { gov.nextCal = Infinity; calibrate('late'); }
+  }
+  return true;
+}
 function loop() {
   requestAnimationFrame(loop);
   if (driven) return;
-  if (!active || (still && stillFrames > 3)) { last = performance.now() / 1000; return; }
+  const t = performance.now();
+  if (!active || (still && stillFrames > 3)) { last = t / 1000; gov.rafLast = t; return; }
+  if (!govern(t)) return;
   if (still) stillFrames++;
-  const now = performance.now() / 1000;
+  const now = t / 1000;
   advance(Math.min(now - last, 1 / 20)); last = now;
 }
 let driven = false;
@@ -740,7 +884,7 @@ function advance(dt) {
   if (now - lastScrollT / 1000 > 0.15) scrollWind *= Math.exp(-dt / 0.08);
 
   writeInstances();
-  renderFrame();
+  drawFrame();
 }
 function renderFrame() {
   // 1. background → rtBg
@@ -796,7 +940,7 @@ if (LAB) {
   }
   const fps = document.createElement('div'); lab.appendChild(fps);
   let fc = 0, ft = performance.now();
-  (function tick() { requestAnimationFrame(tick); fc++; const n = performance.now(); if (n - ft > 1000) { fps.textContent = `${fc} fps · ${N} rods · ${pairs.length} pairs · ${puffs.length} puffs`; fc = 0; ft = n; } })();
+  (function tick() { requestAnimationFrame(tick); const n = performance.now(); if (n - ft > 1000) { const l = LADDER[level]; fps.textContent = `${gov.draws - fc} fps · rung ${level}/${LADDER.length - 1} (×${l.r} · ${l.ns} samples · msaa ${l.ms}) · gpu ${gov.measured ? gov.measured.toFixed(1) : '–'} ms · ${pairs.length} pairs · ${puffs.length} puffs`; fc = gov.draws; ft = n; } })();
 }
 
 // expose a little for the harness
@@ -817,4 +961,11 @@ function tipsOnScreen() {
   return n;
 }
 window.__rods = { P, rods, puffs, pointerToWorld, capture, shot, stats, run, tipsOnScreen, get active() { return active; }, blow(v) { scrollWind = v; lastScrollT = performance.now(); }, get rolled() { return rolled; },
+  quality() { return { level, rung: LADDER[level], ladder: LADDER.length, base: BASE_LEVEL, dpr: DPR, smallHdr: SMALL_HDR, measured: gov.measured && +gov.measured.toFixed(2), draws: gov.draws, samples: gov.samples.map(x => +x.toFixed(2)), history: gov.history }; },
+  setLevel, measureFrame,
+  pose(k = 1) {   // deterministic tilt for image comparisons: same pose on every load, then one frame, PNG out
+    rods.forEach((r, i) => { r.tx = 0.05 * k * Math.sin(i * 1.7); r.tz = 0.03 * k * Math.cos(i * 2.3); r.yaw = r.yaw0; const inv = 1 / Math.sqrt(1 + r.tx * r.tx + r.tz * r.tz); r.ux = r.tx * inv; r.uy = -inv; r.uz = r.tz * inv; });
+    writeInstances(); renderFrame(); return canvas.toDataURL('image/png');
+  },
+  passes(n = 10) { return { frame: +measureFrame(n).toFixed(2), px: [rtBg.width, rtBg.height] }; },   // GPU ms of a whole frame (fenced)
   bench(n = 60) { const t0 = performance.now(); for (let i = 0; i < n; i++) { step(SUB, i * SUB); } const t1 = performance.now(); for (let i = 0; i < n; i++) writeInstances(); const t2 = performance.now(); return { stepMs: (t1 - t0) / n, writeMs: (t2 - t1) / n }; } };

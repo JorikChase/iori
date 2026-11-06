@@ -175,3 +175,35 @@ put them back are in `tools/kalivoda-studies/` (README.md). Notes below describe
 - Contact: Instagram `@kalivoda.lukas` (the handle given in Martin Fryč's Lom toku text; the
   account is empty, confirm with Lukáš), gallery email, Galerie Kuzebauch link; links are
   underlined with an arrow. His own email is not public anywhere; ask him for it.
+
+## 2026-11-07 the hero scales to the device (iori: "not performant enough")
+- **Frame pacing:** the hero draws at most ~60 frames a second (`CAP_MS` 11: a 120 Hz screen draws
+  every other frame, 144 Hz → 72, 90 Hz → 90). The physics keeps its 120 Hz substeps, so the motion
+  is the same for half the GPU work on ProMotion Macs and phones.
+- **Back layer in 4 bytes:** `rtMid` (back rods, 4× MSAA) is `R11F_G11F_B10F` instead of RGBA16F
+  where the GPU can multisample it (raw-GL probe at load, else half float). Max diff 5/255,
+  PSNR 51 dB; desktop frame 10.5 → 8.8 ms. three r160 allocates render-target textures as
+  RGBA, which that format refuses, so `renderer.state.texImage2D` is wrapped to pass RGB.
+- **Quality ladder** (`LADDER`, index 0 = richest): pixel ratio up to min(devicePixelRatio, 2),
+  the baseline rung = the old look (ratio min(dpr, 1.5), 12 spectral samples, back MSAA 4),
+  then 8 samples (PSNR 40 dB, invisible at 1:1), back MSAA 2 (PSNR 38), then ratio −0.125 a rung
+  to 1, then 6 samples / no back MSAA down to ratio 0.75. Measured costs at 2160×1350 on the
+  M3 Pro: 14.1 / 11.1 / 8.8 / 7.9 / 6.5 / 5.3 … 3.3 ms.
+- **Governor:** `drawFrame()` fences six of the frames the page draws anyway (1-px readback,
+  works on every browser, no extra frames) and takes the least disturbed. `decide()` predicts
+  each rung's cost (`FIXED_MS` 1 + pixels × `COST` factor) and picks the best one under
+  `BUDGET_MS` 12 (moving up needs 10% headroom). First check after 2.5 s of hero time, every
+  move re-checked 2.5 s later, then every 10 s (up one rung at a time, down only past 1.1×
+  budget), after a resize, and at once when >1 in 8 frames arrive half a refresh late. Frames
+  late for other reasons (a busy main thread) do not lower the picture: the GPU measurement
+  decides. A rung change is applied just before the next draw (resizing after a draw blanks it).
+  Changing the sample count recompiles the glass shader once (three caches both programs).
+- On the M3 Pro the governor stays on the baseline (≈9–10 ms) on a 1440×900 2× page and takes
+  ratio 2 on a phone-sized page; `?budget=5` stands in for a weak GPU and lands on ratio 1–1.125.
+- Harness: `?q=<rung>` pins a rung, `?dpr= ?ns= ?msaa= ?fmt=0 ?qmax= ?budget=` override;
+  `__rods.quality()` reports rung, measurement, draws and decisions; `__rods.pose()` renders a
+  fixed pose to PNG. Tools: `tools/kalivoda-audit/perf.js` (frame ms per variant),
+  `quality.js` (PSNR / diff maps against the default), `governor.js` (what it picks, draws/s).
+  ANGLE-Metal timer queries report the whole command buffer per query, so time with fences.
+- Not verified on a real phone: the governor should keep an iPhone smooth by itself, but the
+  rung it picks there is unknown until someone opens the page on one (`?lab` shows fps).

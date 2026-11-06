@@ -350,7 +350,11 @@
         vec4 slabAt(vec2 uv, float lod) { return u_slabOn > 0.5 ? tissueAt(u_slab, uv, lod) : vec4(0.0); }
         float tissueH(vec2 uv, float lod) {
             if (g_slab > 0.5) { vec4 sl = slabAt(uv, lod); if (sl.a > 0.5) return sl.r * u_tisReliefK; }   // the top where it is defined (to 2 r), not only where the tube covers
-            vec4 a = tisAux(uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
+            vec4 a = tisAux(uv, lod);
+            if (u_tisOuterOn > 0.5) {                     // prune: the layer model's own height only — past the outer edge its last row, in a gap its own value
+                if (a.a < 1.0 && uv.y > u_tisOuterV) { vec4 e = tisAux(vec2(uv.x, u_tisOuterV), lod); if (e.a > a.a) a = e; }
+                return a.a > 0.0 ? a.r * u_tisReliefK : 0.0; }
+            return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
         need('vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            float t = hitIris(pIn, dIn, rp);',
              'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; g_tisOut = 0.0; float t = hitIris(pIn, dIn, rp);');
         need('int nM = int(u_marchSteps + 0.5);', 'int nM = int(u_marchSteps + 0.5); float hpPrev = 1e9, topPrev = -1e9;');
@@ -375,7 +379,13 @@
                         if (sl.b > 0.5 && hq < sl.r * u_tisReliefK && hq > sl.g * u_tisReliefK) pen = max(pen, 0.02);
                     }`);
         need('            return vec4(col, 1.0 - edge);\n        }', '            return vec4(mix(col, BG_COL, g_tisOut), (1.0 - edge) * (1.0 - g_tisOut));\n        }');
+        need('uniform sampler2D u_slab, u_slabAlb;', 'uniform float u_tisOuterOn, u_tisOuterV; uniform sampler2D u_slab, u_slabAlb;');
         need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
+            // prune: past the region's outer edge (the iris runs on under the limbus) the tissue's outermost row continues,
+            // instead of the procedural atlas showing through as a one-pixel ring at the limbus
+            if (u_tisOuterOn > 0.5 && tsA.a < 1.0 && uv.y > u_tisOuterV) { vec4 e = tisAlb(vec2(uv.x, u_tisOuterV), lod); if (e.a > tsA.a) tsA = e; }
+            // and in a gap of the data at the pupil margin, the pupil's own dark (the colour the margin fades into, T1)
+            if (u_tisOuterOn > 0.5 && tsA.a < 1.0 && uv.y < 0.15) tsA = vec4(mix(vec3(0.0015, 0.0012, 0.001), tsA.rgb, tsA.a), 1.0);
             if (g_slab > 0.5) { vec4 sa = tissueAt(u_slabAlb, uv, lod); if (sa.a > 0.5) tsA = vec4(sa.rgb, 1.0); }   // §5.2.3: on the slab, its own albedo
             if (u_edgeOn > 0.5) g_tisOut = smoothstep(u_edgeV0, u_edgeV1, uv.y) * u_edgeFade;   // presentation only: the fit / comparison renders (edgeFade 0) stay opaque to the edge, as the limbus blend does — the photo's cutout is black, a white feather there is not a colour error of the tissue (study/11 §5.6)
             if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722)), hq), cov); if (u_ablDebug > 0.5) tsA.rgb = vec3(0.25) * ablTexture(uv, mmPerPx, 0.25, hq); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
@@ -438,6 +448,10 @@
         return P;
     }
     T.k1 = true;                                  // K1 (§32): the knobs offset the fit. Set false for the v0.8 ablation.
+    // study/16 prune: with materials the layer model reads nothing from the procedural atlas (K2.3 took the colour off it, the
+    // outer clamp below the last ring at the limbus), so the atlas is not baked while it owns the picture. false = bake as before.
+    T.prune = true;
+    T.ownsAtlas = () => !!(T.on && T.prune !== false && T.k2On && T.k2On());
     // K2b: subsurface strength (0 = off, the model as shipped), each channel's reach in mm (R, G, B) and the share of the
     // self-shadow each channel lifts. Changing them changes what the light measures: re-measure (T.proof / __t7.review).
     // Measured 2026-11-06 (study/16 §4b): the per-channel reach costs colour at the fit pose (cellΔab 1.99 → 2.12 on 26), one shared
@@ -451,6 +465,11 @@
     // these values is the one the fit produced; every knob then reads as a move away from here.
     T.setOrigin = function () {
         const pr = programs(), [aw, ah] = E.ATLAS, S = E.state, g = E.genome.globals;
+        if (T.ownsAtlas()) {                       // prune: K1's origin textures are never read (K2.3 carries the knobs) — keep only the numbers
+            if (T.o0) { gl.deleteTexture(T.o0); gl.deleteTexture(T.o1); T.o0 = T.o1 = null; }
+            T.origin = { relief: S.relief, blRelief: S.blRelief === undefined ? 1 : S.blRelief, ring: S.ring, ringR: S.ringR, ringPheo: g.ringPheo, stromaMax: g.stroma, atlas: [aw, ah], knobs: knobsNow() };
+            E.resetAccumulation && E.resetAccumulation(); return T.origin;
+        }
         if (E.atlas.dirty) E.bakeAtlas();
         // bind() may reach this in the middle of drawPhotoFrame, between its useProgram and its draw: leave the
         // program, the target and the viewport exactly as they were, or that frame is drawn with this pass's state
@@ -515,6 +534,8 @@
         gl.uniform1f(u('u_oRingStr'), o.ring); gl.uniform1f(u('u_oRingR'), o.ringR);
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
         gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin || T.k2On()) ? 0 : 1);
+        { const own = T.ownsAtlas(), vT = T.size ? 2 / T.size[1] * T.rect[3] : 0, vTop = Math.min(T.rect[1] + T.rect[3], T.dataV1 !== undefined ? T.dataV1 : 1);   // prune: the DATA's outer edge, not the padded region's
+          gl.uniform1f(u('u_tisOuterOn'), own ? 1 : 0); gl.uniform1f(u('u_tisOuterV'), vTop - vT); }
         gl.uniform1f(u('u_ss'), +T.ss || 0); gl.uniform3f(u('u_ssR'), T.ssR[0], T.ssR[1], T.ssR[2]); gl.uniform3f(u('u_ssLeak'), T.ssLeak[0], T.ssLeak[1], T.ssLeak[2]);   // K2b   // K2.3: with materials the knobs are in the bake; the legacy fields are not read
         if (T.marg && T.margin !== false) {                     // T1: the aperture follows the measured margin
             // iori: more circular. But "out of round" and "lumpy" are not the same thing — the low harmonics are the

@@ -270,6 +270,44 @@ without loading the photograph, so the shading pass was skipped and the de-bias 
 unless hippus is off. The breathing pupil is caught at a different size per load. Compare renders within one load, or set
 `state.hippus = false`, as knob_probe does.
 
+## 4c. The prune (2026-11-07) — the layer model no longer reads the procedural atlas
+
+**What still read it, measured.** The test clears the four legacy atlas textures to zero and renders eye 26 again.
+- Before the prune it moved 2,559 pixels: a one-pixel ring at the edge of the iris disc, plus a few specks at the pupil
+  margin. The iris body moved by 0, the work of K2.3.
+- The ring came from two places. Past the eye DATA's outer edge (`T.dataV1`, 0.82 on 26; the padded region runs to
+  0.895), coverage drops, so the colour fell back to the legacy chain. And `tissueH` mixed the atlas's height wherever
+  coverage was under 1.
+- The specks were gaps in the data at the margin.
+
+**The prune.**
+- `T.ownsAtlas()` is true when the tissue is on, K2.3 carries the knobs, and `T.prune` (default true) is set. While it holds:
+  - `bakeAtlas` returns early and leaves `atlas.dirty` raised. The procedural eye bakes again the moment it is drawn, and a
+    legacy slider's easing no longer re-bakes 5–9 ms per frame.
+  - `setOrigin` skips K1's origin textures. The knob origin step went from 29 ms to 2 ms on arrival.
+- In the photo shader, only while the tissue owns the atlas:
+  - Past the data's outer edge, the colour and the height continue the tissue's own outermost row.
+  - `tissueH` reads only the tissue's height.
+  - A gap at the pupil margin takes the pupil's dark (the colour the T1 margin fades into).
+- After the prune, the black test moves **5 pixels, by at most 3 levels**.
+
+**Scores** (review path, prune off → on):
+
+| eye | MATCH2 | cellΔab | strandCorr |
+|---|---|---|---|
+| 26 | 90.56 → 90.56 | 1.96 → 1.96 | 0.516 → 0.517 |
+| 09 | 88.64 → 88.63 | 2.74 → 2.73 | 0.592 → 0.592 |
+| 25 | 91.46 → 91.40 | 2.65 → 2.66 | 0.470 → 0.470 |
+| 35 | 89.37 → 89.30 | 2.13 → 2.14 | 0.487 → 0.485 |
+
+The edge pixels changed, so the four eyes were re-published (fresh page each). The arrival gates pass at max diff 1, and the
+Load-path MATCH2 is 26 90.33, 09 88.60, 25 91.51, 35 88.56. A visitor's arrival on 35 installs the shipped measurements in
+2.8 s with the pane hidden. The UI contract `compare` and `reach` are both `[]`. `T.prune = false` restores the old path.
+
+**Left on the load path.** The arrival's "frame + import + first fit render" still bakes the atlas once, before the tissue
+is on: the legacy fitter's frame, never drawn behind the hold. Taking that off is 1b's remainder, together with the canvas
+owned by `mount` and the controls synced by events.
+
 ## 5. Steps and gates
 
 | # | step | gate |

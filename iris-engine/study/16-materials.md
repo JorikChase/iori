@@ -256,6 +256,16 @@ max diff 1. MATCH2 on that path against the numbers published before (study/15, 
 - The UI contract `compare` and `reach` are both `[]`.
 - `?ss=0` gives the model without subsurface. It does not match the shipped key, so that page measures the light on load.
 
+**Fixed the same day: measuring on arrival had no photograph.** When an arrival's shipped measurements do not apply (a
+dial, the engine version, `?ss=0`), `T.proof` used to measure in place. But the arrival frames the eye from its case
+without loading the photograph, so the shading pass was skipped and the de-bias sat at its 0.4 clamp all over the eye.
+- Now `proof` returns null on that path (`shippedOnly`). `tissue-ui.js` loads the photograph and measures as the Load button
+  does; the timing records the path as `arrival → measured`.
+- Checked on eye 26 with `?ss=0`: the shading pass runs, the de-bias reads 1.01 / 0.996 as on the Load path, and MATCH2 is
+  90.34 against 90.354 published before subsurface.
+- A matching arrival is unchanged: shipped, 2.9 s.
+- The fallback takes a full measured load, 29 s in the hidden test pane.
+
 **Trap found on the way:** two loads of the same page render differently (18 % of bytes, ≈ 490 pixels by more than 100)
 unless hippus is off. The breathing pupil is caught at a different size per load. Compare renders within one load, or set
 `state.hippus = false`, as knob_probe does.

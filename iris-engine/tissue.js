@@ -2280,6 +2280,10 @@
             await stage(2, 'the measured light and shading');
             let ok = false; try { const buf = typeof opts.shipped === 'string' ? await fetch(opts.shipped).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }) : opts.shipped; ok = await T.installMeasurements(buf); } catch (e) { say('shipped measurements unavailable (' + (e && e.message || e) + ') — measuring'); }
             if (ok) { T.on = true; await stage(3, 'baking the tissue'); T.bake(); await stage(4, 'the knob origin'); T.setOrigin(); if (st) st(n, n, 'done'); say('tissue model on (shipped measurements)'); return T.log; }
+            // The arrival frames the eye from its case WITHOUT the photograph. Measuring here would measure against no photo:
+            // no shading pass, the de-bias pinned at its 0.4 clamp (found 2026-11-06 with ?ss=0). The caller loads the photo
+            // and calls proof again without `shipped`.
+            if (opts.shippedOnly) { say('shipped measurements do not apply here: the photograph is needed to measure'); return null; }
         }
         await stage(2, 'measuring the light'); T.calibrate();
         await stage(3, 'baking the tissue'); T.bake();

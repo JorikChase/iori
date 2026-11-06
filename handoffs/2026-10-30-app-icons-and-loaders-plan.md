@@ -152,7 +152,10 @@ the boards into `out/`. Nothing is wired into the site. Run `study.py orb|fracta
   16 px, so it needs Hilbert 3 as its tab mark.
 - **Rejected:** every 3die-as-fractal study. Do not pursue.
 
-### Icon gallery (built 2026-10-30, not deployed)
+### Icon gallery (live since 2026-10-30, da008ca)
+
+Verified live: all 224 icon files, Chrome's Install button, the menu route in all five apps. Not yet tried: an install on a
+real phone from these pages. Existing iPhone installs keep their old icon.
 
 - Add or change an icon: put the source in `tools/icon-forge/sheets/`, list it in `tools/icon-forge/apps.json` (first
   variant = the default), run `forge.py apps` under `uv run --with pillow,numpy --no-project`, then `python3 site.py all`,

@@ -60,31 +60,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
 <style>
-  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#e9e9e9;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#d9d9d9;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
   canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block;}
-  #bar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);
-    display:flex;gap:10px;z-index:2;}
-  #bar button{width:52px;height:52px;border-radius:50%;border:1px solid rgba(0,0,0,.28);
-    background:rgba(255,255,255,.55);color:#1a1a1a;display:flex;align-items:center;justify-content:center;
-    -webkit-tap-highlight-color:transparent;cursor:pointer;padding:0;
-    transition:opacity .6s,transform .6s,background .15s;backdrop-filter:blur(3px);}
-  #bar button.on{background:#141414;color:#fff;border-color:#141414;}
-  #bar button:active{transform:scale(.94);}
-  #bar button.hide{opacity:0;transform:translateY(14px) scale(.8);pointer-events:none;}
+  #bar{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    display:flex;gap:14px;z-index:2;}
+  #bar button{width:54px;height:54px;border-radius:50%;border:1px solid rgba(255,255,255,.7);
+    background:rgba(255,255,255,.38);color:#262626;display:flex;align-items:center;justify-content:center;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation;cursor:pointer;padding:0;
+    box-shadow:0 6px 18px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.8);
+    -webkit-backdrop-filter:blur(10px) saturate(1.4);backdrop-filter:blur(10px) saturate(1.4);
+    transition:transform .18s cubic-bezier(.3,1.6,.5,1),background .2s;}
+  #bar button:active{transform:scale(.9);background:rgba(255,255,255,.6);}
+  #bar button.pulse{animation:pulse 1.2s ease-out;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.9)}100%{box-shadow:0 0 0 18px rgba(255,255,255,0)}}
   #bar svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="bar">
-  <button id="bSpin" class="on" aria-label="Spin silk">
-    <svg viewBox="0 0 24 24"><path d="M13.2 12a1.6 1.6 0 1 0-3.2 0 3.2 3.2 0 0 0 6.4 0 4.8 4.8 0 1 0-9.6 0 6.4 6.4 0 0 0 12.8 0"/></svg>
-  </button>
-  <button id="bHand" class="hide" aria-label="Pull and tear">
-    <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>
-  </button>
-  <button id="bDrop" class="hide" aria-label="Add water">
-    <svg viewBox="0 0 24 24"><path d="M12 3.5c3 4.3 5.6 7.3 5.6 10.2a5.6 5.6 0 0 1-11.2 0C6.4 10.8 9 7.8 12 3.5z"/></svg>
+  <button id="bRain" aria-label="Mist and rain">
+    <svg viewBox="0 0 24 24"><path d="M12 3.5c3 4.3 5.6 7.3 5.6 10.2a5.6 5.6 0 0 1-11.2 0C6.4 10.8 9 7.8 12 3.5z"/><path d="M9.6 14.2a2.6 2.6 0 0 0 2.4 2.4"/></svg>
   </button>
   <button id="bNew" aria-label="Start over">
     <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.2-5.5M18 3.2v3.8h-3.8"/></svg>
@@ -92,589 +89,1039 @@
 </div>
 <script>
 "use strict";
+/* =====================================================================
+   Lili Web
+   silk   : Verlet points + one-sided distance constraints, welded crossings,
+            tear recoil, wind
+   water  : drops fly ballistically; on silk they become beads that slide
+            along the thread graph, pin on shallow slopes, pool in valleys and
+            junctions, merge, drip when heavy, fling off when the web jerks.
+            Mass only enters from taps / pour / mist and leaves off-screen.
+   render : checker backdrop with soft shadows + caustics, silk fibres with
+            anisotropic glints and diffraction sheen, every drop ray-traced as
+            a real water ball lens (two refractions, dispersion, Fresnel).
+   input  : no modes. Start on an edge or a thread and drag = spin.
+            Drag through empty space = cut. Hold a thread = pull it.
+            Tap a thread = pluck. Tap the air = drop. Hold the air = pour.
+   ===================================================================== */
 const cv=document.getElementById('c');
-const gl=cv.getContext('webgl',{antialias:false,alpha:false,depth:false});
+const gl=cv.getContext('webgl',{antialias:false,alpha:false,depth:false,stencil:false,premultipliedAlpha:false});
+const extMax=gl.getExtension('EXT_blend_minmax');
 let W=0,H=0,DPR=1;
-const CELL=4;                 /* css px per liquid cell */
-let GW=0,GH=0,wtr=null,wDisp=null,wTmp=null,wTmp2=null,solid=null,owner=null,wBytes=null;
+const R=Math.random;
 
-/* ================= shaders ================= */
-function prog(vs,fs){
+/* ---------- tunables ---------- */
+const STEP=1/120;          /* physics step (s) */
+const ITER=14;              /* constraint iterations */
+const G=1900;              /* drop gravity px/s^2 */
+const G_SILK=70;          /* silk is light */
+const DAMP=0.9935;
+const WIND=26;
+const SEG=20;              /* silk subdivision px */
+const SLACK=0.985;         /* spun threads are pre-tensioned: webs hang taut */
+const BEADW=0.011;         /* how much bead weight sags silk */
+const PIN=2600;            /* contact-line pinning: bead slides if |g_t|*r > PIN */
+const KIN=0.5*PIN;         /* sliding friction */
+const DRAG=1.6;
+const RDRIP=6.4;           /* bead radius (css px) that necks off and drips */
+const RRES=1.9;           /* bead left behind after a drip */
+const FLING=70000;         /* |a_n|*r above which a bead is thrown off */
+const HD=60;               /* backdrop distance for the lens (css px) */
+const SHX=9,SHY=14;        /* shadow offset (light from upper left) */
+const EDGE=34;             /* edge zone that starts / ends an anchored thread */
+const MAXBEADS=1600,MAXDROPS=900;
+
+/* =====================================================================
+   GL helpers
+   ===================================================================== */
+const COMMON=`
+const float SQ=38.0;const float LO=0.78;const float HI=0.965;
+const float SHA=0.34;const float CAU=0.30;
+float checkerF(vec2 p,float fw){
+  vec2 q=p/SQ;float w=max(fw/SQ,0.002);
+  vec2 i=2.0*(abs(fract((q-0.5*w)*0.5)-0.5)-abs(fract((q+0.5*w)*0.5)-0.5))/w;
+  return mix(LO,HI,0.5-0.5*i.x*i.y);
+}
+float vign(vec2 u){u-=0.5;return 1.0-0.26*dot(u,u);}
+vec3 LDIR(){return normalize(vec3(-0.30,-0.45,0.84));}
+`;
+const VS_PROJ=`uniform vec2 view;vec4 proj(vec2 p){vec2 c=p/view*2.0-1.0;return vec4(c.x,-c.y,0.0,1.0);}`;
+function mk(vs,fs){
   const p=gl.createProgram();
   for(const [t,s] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){
     const sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);
-    if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(sh));
+    if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(sh),s);
     gl.attachShader(p,sh);
   }
-  gl.linkProgram(p);return p;
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(p));
+  return {p,u:{},a:{}};
 }
-const pStrand=prog(
-`attribute vec2 p;attribute float side;attribute float amp;
- uniform vec2 res;varying float vs;varying float va;
- void main(){vs=side;va=amp;vec2 c=p/res*2.0-1.0;gl_Position=vec4(c.x,-c.y,0.,1.);}`,
-`precision mediump float;varying float vs;varying float va;
- void main(){
-   float h=sqrt(max(0.0,1.0-vs*vs))*va;
-   gl_FragColor=vec4(h,0.0,0.0,0.0);
- }`);
-const pBlob=prog(
-`attribute vec2 p;attribute vec2 uv;attribute float w;
- uniform vec2 res;varying vec2 vu;varying float vw;
- void main(){vu=uv;vw=w;vec2 c=p/res*2.0-1.0;gl_Position=vec4(c.x,-c.y,0.,1.);}`,
-`precision mediump float;varying vec2 vu;varying float vw;
- void main(){
-   float k=max(0.0,1.0-dot(vu,vu));
-   gl_FragColor=vec4(k*k*vw,0.0,0.0,0.0);
- }`);
-/* composite: Liquid Glass over checkerboard; silk field + CA water texture */
-const pComp=prog(
-`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`,
+function U(P,n){return n in P.u?P.u[n]:(P.u[n]=gl.getUniformLocation(P.p,n));}
+const MAXATTR=gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
+function use(P,buf,layout){
+  gl.useProgram(P.p);
+  for(let i=0;i<Math.min(8,MAXATTR);i++)gl.disableVertexAttribArray(i);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  let stride=0;for(const l of layout)stride+=l[1];stride*=4;
+  let off=0;
+  for(const [n,sz] of layout){
+    const loc=n in P.a?P.a[n]:(P.a[n]=gl.getAttribLocation(P.p,n));
+    if(loc>=0){gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,sz,gl.FLOAT,false,stride,off);}
+    off+=sz*4;
+  }
+  gl.uniform2f(U(P,'view'),W,H);
+}
+function target(w,h){
+  const tex=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const fb=gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  return {tex,fb,w,h};
+}
+function drop_target(t){if(t){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb);}}
+
+/* ---------- silk fibre: coverage + Kajiya-Kay glint + diffraction sheen ---------- */
+const SILK_VS=`attribute vec2 p;attribute float side;attribute vec2 tg;attribute float al;attribute float gw;
+${VS_PROJ}
+varying float vs;varying vec2 vt;varying float va;varying float vg;
+void main(){vs=side;vt=tg;va=al;vg=gw;gl_Position=proj(p);}`;
+const pSilk=mk(SILK_VS,`precision highp float;
+${COMMON}
+uniform float wdev;uniform float core;
+varying float vs;varying vec2 vt;varying float va;varying float vg;
+void main(){
+  float d=abs(vs)*wdev;
+  float cov=clamp(core+0.5-d,0.0,1.0)*va;
+  if(cov<=0.002)discard;
+  vec3 Hh=normalize(LDIR()+vec3(0.0,0.0,1.0));
+  vec2 t=normalize(vt);
+  float th=dot(t,Hh.xy);
+  float x=abs(th)/length(Hh.xy);          /* 0 = thread square to the light: glint */
+  float spec=exp(-x*x/0.012);
+  float irid=exp(-(x-0.24)*(x-0.24)/0.006)*(1.0-spec);
+  gl_FragColor=vec4(cov,cov*max(spec,vg),cov*irid*(1.0-vg),clamp(th/0.32*0.5+0.5,0.0,1.0));
+}`);
+const pSilkSh=mk(SILK_VS,`precision mediump float;
+varying float vs;varying vec2 vt;varying float va;varying float vg;
+void main(){float a=(1.0-abs(vs))*va*0.13*(1.0-vg);gl_FragColor=vec4(a,0.0,0.0,0.0);}`);
+
+/* ---------- drops: analytic water ball lens ---------- */
+const DROP_VS=`attribute vec2 p;attribute vec2 ctr;attribute vec2 lq;attribute float rad;
+${VS_PROJ}
+varying vec2 vOff;varying vec2 vLq;varying vec2 vC;varying float vR;
+void main(){vOff=p-ctr;vLq=lq;vC=ctr;vR=rad;gl_Position=proj(p);}`;
+const pDrop=mk(DROP_VS,`precision highp float;
+${COMMON}
+uniform vec2 view;uniform float dpr;uniform sampler2D sh;uniform float hd;
+varying vec2 vOff;varying vec2 vLq;varying vec2 vC;varying float vR;
+vec3 bgAt(vec2 P,float fw){
+  vec2 u=vec2(P.x/view.x,1.0-P.y/view.y);
+  vec4 s=texture2D(sh,u);
+  return (vec3(checkerF(P,fw))*(1.0-SHA*s.r)+CAU*s.g)*vign(u);
+}
+float env(vec3 d){
+  float up=clamp(0.5-0.5*d.y,0.0,1.0);
+  float k=0.10+0.74*up*up*up+0.12*clamp(d.z,0.0,1.0);
+  k+=0.30*pow(max(dot(d,LDIR()),0.0),24.0);
+  return k;
+}
+vec3 trace(vec3 N,float n,float fw){
+  vec3 t1=refract(vec3(0.0,0.0,-1.0),N,1.0/n);
+  float s=-2.0*dot(N,t1);
+  vec3 P2=N+s*t1;
+  vec3 t2=refract(t1,-P2,n);
+  if(dot(t2,t2)<1e-6)return vec3(0.2);
+  vec3 E=P2*vR;
+  float tz=(-hd-E.z)/min(t2.z,-0.02);
+  vec2 hit=vC+E.xy+t2.xy*tz;
+  float far=smoothstep(-0.50,-0.14,t2.z);
+  return mix(bgAt(hit,fw),vec3(0.11),far);
+}
+void main(){
+  float d=length(vLq);
+  float aa=1.5/max(vR*dpr,1.0);
+  float cov=1.0-smoothstep(1.0-aa,1.0,d);
+  if(cov<=0.0)discard;
+  float rr=min(d*d,0.997);
+  float nz=sqrt(1.0-rr);
+  vec2 dir=vOff/max(length(vOff),1e-4);
+  vec3 N=vec3(dir*sqrt(rr),nz);
+  float fw=(1.0/dpr)*(hd/(2.0*vR))*(1.0+5.0*rr);
+  vec3 col=vec3(trace(N,1.316,fw).r,trace(N,1.333,fw).g,trace(N,1.356,fw).b);
+  vec3 Rf=reflect(vec3(0.0,0.0,-1.0),N);
+  float F=0.02+0.98*pow(1.0-nz,5.0);
+  col=mix(col,vec3(env(Rf)),F);
+  vec3 L=LDIR();
+  vec2 gc=-normalize(L.xy)*0.60;
+  vec2 q=N.xy-gc;
+  col+=0.42*exp(-dot(q,q)/0.05);
+  float sp=max(dot(Rf,L),0.0);
+  /* the highlight never shrinks below about a device pixel, so tiny dew still sparkles */
+  float rp=vR*dpr;
+  float ex=clamp(1400.0*(rp*rp)/(14.0*14.0),18.0,1400.0);
+  col+=2.6*pow(sp,ex)+0.18*pow(sp,ex*0.065);
+  gl_FragColor=vec4(col*cov,cov);
+}`);
+const pDropSh=mk(DROP_VS,`precision mediump float;
+varying vec2 vOff;varying vec2 vLq;varying vec2 vC;varying float vR;
+void main(){
+  float d=length(vLq);if(d>1.2)discard;
+  float occ=smoothstep(1.15,0.55,d)*0.75*(1.0-0.75*exp(-d*d/0.10));
+  float cau=exp(-d*d/0.045)*1.25;
+  gl_FragColor=vec4(occ,cau,0.0,0.0);
+}`);
+
+/* ---------- full-screen passes ---------- */
+const FS_VS=`attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}`;
+const pBlur=mk(FS_VS,`precision mediump float;
+uniform sampler2D t;uniform vec2 dir;uniform vec2 res;
+void main(){vec2 uv=gl_FragCoord.xy/res;
+  vec4 s=texture2D(t,uv)*0.2270270270;
+  s+=(texture2D(t,uv+dir*1.3846153846)+texture2D(t,uv-dir*1.3846153846))*0.3162162162;
+  s+=(texture2D(t,uv+dir*3.2307692308)+texture2D(t,uv-dir*3.2307692308))*0.0702702703;
+  gl_FragColor=s;}`);
+const pBg=mk(FS_VS,`precision highp float;
+${COMMON}
+uniform vec2 res;uniform float dpr;uniform sampler2D sh;uniform float seed;
+void main(){
+  vec2 fc=gl_FragCoord.xy;vec2 u=fc/res;
+  vec2 P=vec2(fc.x,res.y-fc.y)/dpr;
+  vec4 s=texture2D(sh,u);
+  vec3 col=(vec3(checkerF(P,1.0/dpr))*(1.0-SHA*s.r)+CAU*s.g)*vign(u);
+  float n=fract(sin(dot(fc,vec2(12.9898,78.233))+seed)*43758.5453);
+  col+=(n-0.5)*(1.6/255.0);
+  gl_FragColor=vec4(col,1.0);
+}`);
+const pSilkOv=mk(FS_VS,`precision mediump float;
+uniform sampler2D silk;uniform vec2 res;
+void main(){
+  vec4 s=texture2D(silk,gl_FragCoord.xy/res);
+  float cov=s.r;if(cov<0.004)discard;
+  float spec=clamp(s.g/cov,0.0,1.0);float ir=clamp(s.b/cov,0.0,1.0);
+  vec3 rb=0.5+0.5*cos(6.2832*(s.a*1.5+vec3(0.0,0.33,0.67)));
+  vec3 c=mix(vec3(0.33),vec3(1.0),spec)+rb*ir*0.42;
+  float a=cov*(0.34+0.66*spec+0.10*ir);
+  gl_FragColor=vec4(c*a,a);
+}`);
+const pDot=mk(`attribute vec2 p;attribute vec2 lq;attribute vec4 col;attribute float ring;attribute float rpx;
+${VS_PROJ}
+varying vec2 vLq;varying vec4 vCol;varying float vRing;varying float vRpx;
+void main(){vLq=lq;vCol=col;vRing=ring;vRpx=rpx;gl_Position=proj(p);}`,
 `precision mediump float;
- uniform sampler2D field;uniform sampler2D water;
- uniform vec2 res;uniform float dpr;uniform vec2 wcov;
- float checker(vec2 px){
-   float s=38.0*dpr;
-   float c=mod(floor(px.x/s)+floor(px.y/s),2.0);
-   return mix(0.78,0.965,c);
- }
- float cov(vec2 uv){
-   float f=texture2D(field,uv).r*1.15;
-   vec2 wuv=vec2(uv.x*wcov.x,1.0-uv.y*wcov.y);
-   f+=texture2D(water,wuv).r*1.30;
-   return smoothstep(0.08,0.44,f);
- }
- float cap(float c){
-   float b=min(c*2.6,1.0);
-   return sqrt(1.0-(1.0-b)*(1.0-b));
- }
- void main(){
-   vec2 uv=gl_FragCoord.xy/res;
-   vec2 tx=vec2(1.25,0.0)/res, ty=vec2(0.0,1.25)/res;
-   float c0=cov(uv);
-   float h0=cap(c0);
-   vec2 g=vec2(cap(cov(uv+tx))-cap(cov(uv-tx)),
-               cap(cov(uv+ty))-cap(cov(uv-ty)));
-   float gm=length(g);
-   float bend=clamp(gm*2.2,0.0,1.0);
-   float rim=smoothstep(0.04,0.62,bend);
-   vec2 n=g/max(gm,1e-4);
-   float presence=smoothstep(0.06,0.55,c0);
-   vec2 px=gl_FragCoord.xy;
-   float S=14.0*dpr;
-   vec2 refr=n*rim*S;
-   vec3 col=vec3(
-     checker(px+refr*0.60),
-     checker(px+refr*1.00),
-     checker(px+refr*1.55));
-   float lit=dot(-n,vec2(-0.55,0.83));
-   col+=vec3(1.0)*rim*(0.09+0.46*max(lit,0.0));
-   col+=vec3(1.0)*rim*0.15*max(-lit,0.0);
-   col*=1.0-0.16*rim*max(-lit,0.0);
-   col=col*(1.0+0.05*presence*(1.0-rim))+0.015*presence*(1.0-rim);
-   gl_FragColor=vec4(col,1.0);
- }`);
-const bufStrand=gl.createBuffer(),bufBlob=gl.createBuffer(),bufQuad=gl.createBuffer();
+varying vec2 vLq;varying vec4 vCol;varying float vRing;varying float vRpx;
+void main(){
+  float d=length(vLq);float aa=1.0/max(vRpx,1.0);
+  float a;
+  if(vRing>0.0){float t=vRing;a=clamp((t*0.5-abs(d-(1.0-t*0.5)))/aa+0.5,0.0,1.0);}
+  else a=1.0-smoothstep(1.0-1.5*aa,1.0,d);
+  a*=vCol.a;if(a<=0.0)discard;
+  gl_FragColor=vec4(vCol.rgb*a,a);
+}`);
+
+const bufSilk=gl.createBuffer(),bufDrop=gl.createBuffer(),bufDot=gl.createBuffer(),bufQuad=gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER,bufQuad);
 gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-const aSP=gl.getAttribLocation(pStrand,'p'),aSS=gl.getAttribLocation(pStrand,'side'),
-      aSA=gl.getAttribLocation(pStrand,'amp'),uSR=gl.getUniformLocation(pStrand,'res');
-const aBP=gl.getAttribLocation(pBlob,'p'),aBU=gl.getAttribLocation(pBlob,'uv'),
-      aBW=gl.getAttribLocation(pBlob,'w'),uBR=gl.getUniformLocation(pBlob,'res');
-const aCP=gl.getAttribLocation(pComp,'p'),uCF=gl.getUniformLocation(pComp,'field'),
-      uCW=gl.getUniformLocation(pComp,'water'),uCR=gl.getUniformLocation(pComp,'res'),
-      uCD=gl.getUniformLocation(pComp,'dpr'),uCC=gl.getUniformLocation(pComp,'wcov');
-gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
-let fbo=null,fboTex=null,waterTex=null;
-function makeFBO(){
-  if(fboTex)gl.deleteTexture(fboTex);
-  if(fbo)gl.deleteFramebuffer(fbo);
-  fboTex=gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D,fboTex);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,cv.width,cv.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-  fbo=gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fboTex,0);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-}
-function makeWaterTex(){
-  if(waterTex)gl.deleteTexture(waterTex);
-  waterTex=gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D,waterTex);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,GW,GH,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,null);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-}
+const L_SILK=[['p',2],['side',1],['tg',2],['al',1],['gw',1]];
+const L_DROP=[['p',2],['ctr',2],['lq',2],['rad',1]];
+const L_DOT=[['p',2],['lq',2],['col',4],['ring',1],['rpx',1]];
+let tSilk=null,tShA=null,tShB=null;
+const DBG={noShadow:false,noSilkOv:false,noBg:false};
 
-/* ================= silk physics ================= */
-let pts=[],cons=[],adj=[],adjDirty=true,sparks=[];
-const R=Math.random;
-function addPt(x,y,pin){pts.push({x,y,ox:x,oy:y,pin:!!pin});adjDirty=true;return pts.length-1;}
-function link(a,b,slack){
-  const dx=pts[b].x-pts[a].x,dy=pts[b].y-pts[a].y;
-  cons.push({a,b,rest:Math.sqrt(dx*dx+dy*dy)*(slack||1),lim:2.6+R()*0.9,broken:false});
-  adjDirty=true;
+/* =====================================================================
+   silk
+   ===================================================================== */
+let pts=[],cons=[],adj=[],topoDirty=true,simT=0;
+let beads=[],drops=[];
+let brokenQ=[];
+function addPt(x,y,pin){pts.push({x,y,ox:x,oy:y,pin:!!pin,grab:false,dead:false});topoDirty=true;return pts.length-1;}
+function link(a,b,rest){
+  cons.push({a,b,rest,rest0:rest,lim:1.75+R()*0.4,broken:false,recoil:false});
+  topoDirty=true;return cons.length-1;
 }
-function subdivide(a,b,slack){
-  const dx=pts[b].x-pts[a].x,dy=pts[b].y-pts[a].y;
-  const d=Math.sqrt(dx*dx+dy*dy),n=Math.max(2,Math.round(d/22));
-  let prev=a;
-  for(let i=1;i<n;i++){
-    const t=i/n,id=addPt(pts[a].x+dx*t,pts[a].y+dy*t,false);
-    link(prev,id,slack);prev=id;
-  }
-  link(prev,b,slack);
+function rebuildTopo(){
+  adj=new Array(pts.length);
+  for(let i=0;i<pts.length;i++)adj[i]=[];
+  for(let i=0;i<cons.length;i++){const c=cons[i];if(c.broken)continue;adj[c.a].push(i);adj[c.b].push(i);}
+  topoDirty=false;
 }
-function rebuildAdj(){
-  adj=pts.map(()=>[]);
+function segX(ax,ay,bx,by,cx,cy,dx,dy){
+  const rx=bx-ax,ry=by-ay,sx=dx-cx,sy=dy-cy;
+  const den=rx*sy-ry*sx;if(Math.abs(den)<1e-9)return null;
+  const t=((cx-ax)*sy-(cy-ay)*sx)/den,u=((cx-ax)*ry-(cy-ay)*rx)/den;
+  return(t>=0&&t<=1&&u>=0&&u<=1)?[t,u]:null;
+}
+/* nearest point on live silk within rad: {c,u,d} */
+function nearestSilk(x,y,rad,skipPt){
+  let best=null,bd=rad*rad;
   for(let i=0;i<cons.length;i++){
     const c=cons[i];if(c.broken)continue;
-    adj[c.a].push({n:c.b});adj[c.b].push({n:c.a});
-  }
-  adjDirty=false;
-}
-function genBlank(){
-  pts=[];cons=[];sparks=[];adjDirty=true;
-  if(wtr){wtr.fill(0);wDisp.fill(0);}
-  unlockedDrop=false;unlockedHand=false;
-  bDrop.classList.add('hide');bHand.classList.add('hide');
-  setMode('spin');
-}
-let grab=-1,px=0,py=0,lx=0,ly=0,down=false,spinFrom=-1;
-function physics(steps){
-  const time=performance.now();
-  for(let k=0;k<steps;k++){
-    for(let i=0;i<pts.length;i++){
-      const p=pts[i];if(p.pin)continue;
-      const vx=(p.x-p.ox)*0.985,vy=(p.y-p.oy)*0.985;
-      p.ox=p.x;p.oy=p.y;
-      p.x+=vx+Math.sin(time*0.0006+p.y*0.013)*0.006;
-      p.y+=vy+0.055;
-    }
-    for(let it=0;it<4;it++){
-      for(let ci=0;ci<cons.length;ci++){
-        const c=cons[ci];if(c.broken)continue;
-        const A=pts[c.a],B=pts[c.b];
-        let dx=B.x-A.x,dy=B.y-A.y;
-        const dist=Math.sqrt(dx*dx+dy*dy)||0.0001;
-        if(it===0&&dist>c.rest*c.lim){
-          c.broken=true;adjDirty=true;
-          spark((A.x+B.x)/2,(A.y+B.y)/2);continue;
-        }
-        const diff=(c.rest-dist)/dist*0.5;
-        const kk=dist>c.rest?1:0.08;
-        dx*=diff*kk;dy*=diff*kk;
-        if(!A.pin&&!B.pin){A.x-=dx;A.y-=dy;B.x+=dx;B.y+=dy;}
-        else if(A.pin&&!B.pin){B.x+=dx*2;B.y+=dy*2;}
-        else if(!A.pin&&B.pin){A.x-=dx*2;A.y-=dy*2;}
-      }
-      if(grab>=0){const g=pts[grab];g.x=px;g.y=py;g.ox=px;g.oy=py;}
-    }
-  }
-}
-function spark(x,y){
-  for(let i=0;i<5;i++){
-    const a=R()*Math.PI*2,v=0.6+R()*1.8;
-    sparks.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-0.4,life:1});
-  }
-}
-
-/* ================= liquid cellular automata ================= */
-const MAXW=1.0, CLING=0.38, SEEP=0.72, MINFLOW=0.002;
-let parity=0;
-function rasterizeSolids(){
-  solid.fill(0);owner.fill(-1);
-  for(const c of cons){
-    if(c.broken)continue;
+    if(skipPt!==undefined&&(c.a===skipPt||c.b===skipPt))continue;
     const A=pts[c.a],B=pts[c.b];
-    const dx=B.x-A.x,dy=B.y-A.y;
-    const d=Math.hypot(dx,dy);
-    const n=Math.max(1,Math.ceil(d/(CELL*0.55)));
-    let nnx=Math.round(-dy/d),nny=Math.round(dx/d);
-    if(nny>0||(nny===0&&nnx<0)){nnx=-nnx;nny=-nny;}
-    for(let i=0;i<=n;i++){
-      const t=i/n;
-      const gx=Math.floor((A.x+dx*t)/CELL),gy=Math.floor((A.y+dy*t)/CELL);
-      const own=t<0.5?c.a:c.b;
-      for(let k2=0;k2<2;k2++){
-        const gx2=gx+(k2?nnx:0),gy2=gy+(k2?nny:0);
-        if(gx2<0||gx2>=GW||gy2<0||gy2>=GH)continue;
-        const idx=gy2*GW+gx2;
-        solid[idx]=1;owner[idx]=own;
-      }
-    }
-  }
-  /* water displaced by silk moving into its cell gets pushed up */
-  for(let i=0;i<solid.length;i++){
-    if(solid[i]&&wtr[i]>0){
-      let j=i-GW,hops=0;
-      while(j>=0&&hops<4&&solid[j]){j-=GW;hops++;}
-      if(j>=0&&!solid[j])wtr[j]+=wtr[i];
-      wtr[i]=0;
-    }
-  }
-}
-function caStep(){
-  parity^=1;
-  for(let y=GH-2;y>=0;y--){
-    const row=y*GW;
-    const x0=parity?0:GW-1, x1=parity?GW:-1, dx=parity?1:-1;
-    for(let x=x0;x!==x1;x+=dx){
-      const i=row+x;
-      let w=wtr[i];
-      if(w<=MINFLOW)continue;
-      const bi=i+GW;
-      /* 1. fall */
-      if(!solid[bi]){
-        const free=MAXW-wtr[bi];
-        if(free>0){
-          const f=Math.min(w,free);
-          wtr[bi]+=f;w-=f;
-        }
-      }
-      /* crown splash: hard landing on silk or a full pool kicks water sideways */
-      if(w>0.5&&(solid[bi]||wtr[bi]>0.9)){
-        for(const sd of[-1,1]){
-          if(R()>0.45)continue;
-          const nx2=x+sd;
-          if(nx2<0||nx2>=GW)continue;
-          const li=i+sd;
-          if(solid[li])continue;
-          const free=MAXW-wtr[li];
-          const f=Math.min(w*0.12,free);
-          if(f>MINFLOW){wtr[li]+=f;w-=f;}
-        }
-      }
-      /* silk is thin: heavy beads seep through to hang and drip below */
-      if(w>SEEP&&solid[bi]){
-        let j=bi,hops=0;
-        const total=GW*GH;
-        while(hops<3&&j<total&&solid[j]){j+=GW;hops++;}
-        if(j<total&&!solid[j]){
-          const free=MAXW-wtr[j];
-          const f=Math.min((w-SEEP)*0.22,free);
-          if(f>MINFLOW){wtr[j]+=f;w-=f;}
-        }
-      }
-      if(w>MINFLOW){
-        const touching=solid[bi]||(x>0&&solid[i-1])||(x<GW-1&&solid[i+1]);
-        const held=touching?CLING:0.0;
-        /* 2. diagonal slide: downhill threshold is lower than lateral, so beads run */
-        const heldD=touching?CLING*0.55:0.0;
-        if(w>heldD){
-          for(const s of (parity?[1,-1]:[-1,1])){
-            const nx2=x+s;
-            if(nx2<0||nx2>=GW)continue;
-            const di=bi+s;
-            if(solid[di]||solid[i+s])continue;
-            const free=MAXW-wtr[di];
-            if(free>0.01){
-              const f=Math.min((w-heldD)*0.55,free);
-              if(f>MINFLOW){wtr[di]+=f;w-=f;}
-            }
-          }
-        }
-        /* 3. lateral equalize above cling threshold */
-        if(w>held){
-          for(const s of (parity?[1,-1]:[-1,1])){
-            const nx2=x+s;
-            if(nx2<0||nx2>=GW)continue;
-            const li=i+s;
-            if(solid[li])continue;
-            const diff=w-wtr[li];
-            if(diff>0.02){
-              const rate=touching?0.24:0.36;
-              const f=Math.min(diff*rate,w-held);
-              if(f>MINFLOW){wtr[li]+=f;w-=f;}
-            }
-          }
-        }
-        /* surface tension: sub-bead films on silk condense toward the fatter neighbor */
-        if(touching&&w<CLING){
-          let bestN=-1,bw=w*1.05;
-          for(const sd of[-1,1]){
-            const nx2=x+sd;
-            if(nx2<0||nx2>=GW)continue;
-            const li=i+sd;
-            if(solid[li])continue;
-            if(wtr[li]>bw){bw=wtr[li];bestN=li;}
-          }
-          if(bestN>=0){
-            const f=Math.min(w,0.05);
-            wtr[bestN]+=f;w-=f;
-          }
-        }
-        /* tiny film evaporates only away from silk */
-        if(!touching&&w<0.004)w=0;
-      }
-      wtr[i]=w;
-    }
-  }
-  /* floor drains */
-  const last=(GH-1)*GW;
-  for(let x=0;x<GW;x++)wtr[last+x]=0;
-  /* weight of resting water sags the silk */
-  for(let y=0;y<GH-1;y++){
-    const row=y*GW;
-    for(let x=0;x<GW;x++){
-      const i=row+x;
-      if(wtr[i]>0.03&&solid[i+GW]){
-        const o=owner[i+GW];
-        if(o>=0&&!pts[o].pin)pts[o].y+=Math.min(0.15,wtr[i]*0.018);
-      }
-    }
-  }
-}
-function splash(){
-  for(let b=0;b<5;b++){
-    const cx=2+Math.floor(R()*(GW-4)),cy=1+Math.floor(R()*4),rad=1+Math.floor(R()*2);
-    for(let yy=-rad;yy<=rad;yy++)for(let xx=-rad;xx<=rad;xx++){
-      if(xx*xx+yy*yy>rad*rad)continue;
-      const gx=cx+xx,gy=cy+yy;
-      if(gx<0||gx>=GW||gy<0||gy>=GH)continue;
-      wtr[gy*GW+gx]=Math.min(1.1,wtr[gy*GW+gx]+0.8);
-    }
-  }
-}
-function blurH(src,dst){
-  for(let y=0;y<GH;y++){
-    const r=y*GW;
-    for(let x=0;x<GW;x++){
-      const i=r+x;
-      const a=x>0?src[i-1]:src[i], b=x<GW-1?src[i+1]:src[i];
-      dst[i]=(a+src[i]*2+b)*0.25;
-    }
-  }
-}
-function blurV(src,dst){
-  for(let y=0;y<GH;y++){
-    const r=y*GW;
-    for(let x=0;x<GW;x++){
-      const i=r+x;
-      const a=y>0?src[i-GW]:src[i], b=y<GH-1?src[i+GW]:src[i];
-      dst[i]=(a+src[i]*2+b)*0.25;
-    }
-  }
-}
-function processWater(){
-  /* temporal smoothing hides cell-hops; blur+threshold = SDF-style smooth surface */
-  for(let i=0;i<wtr.length;i++)wDisp[i]+=(wtr[i]-wDisp[i])*0.5;
-  blurH(wDisp,wTmp); blurV(wTmp,wTmp2);
-  for(let i=0;i<wtr.length;i++)wBytes[i]=Math.min(255,wTmp2[i]*255)|0;
-  gl.bindTexture(gl.TEXTURE_2D,waterTex);
-  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,GW,GH,gl.LUMINANCE,gl.UNSIGNED_BYTE,wBytes);
-}
-
-/* ================= interaction & unlock ================= */
-let mode='spin';
-const bHand=document.getElementById('bHand'),bSpin=document.getElementById('bSpin'),
-      bDrop=document.getElementById('bDrop');
-let unlockedDrop=false,unlockedHand=false;
-function setMode(m){mode=m;
-  bHand.classList.toggle('on',m==='hand');
-  bSpin.classList.toggle('on',m==='spin');
-}
-bHand.onclick=()=>setMode('hand');
-bSpin.onclick=()=>setMode('spin');
-document.getElementById('bNew').onclick=()=>genBlank();
-bDrop.onclick=()=>splash();
-function silkLength(){
-  let s=0;for(const c of cons)if(!c.broken)s+=c.rest;return s;
-}
-function checkUnlock(){
-  const s=silkLength();
-  if(!unlockedDrop&&s>Math.min(W,H)*1.6){unlockedDrop=true;bDrop.classList.remove('hide');}
-  if(!unlockedHand&&s>Math.min(W,H)*3.2){unlockedHand=true;bHand.classList.remove('hide');}
-}
-function nearestPt(x,y,rad){
-  if(adjDirty)rebuildAdj();
-  let best=-1,bd=rad*rad;
-  for(let i=0;i<pts.length;i++){
-    if((!adj[i]||adj[i].length===0)&&!pts[i].pin)continue;
-    const dx=pts[i].x-x,dy=pts[i].y-y,dd=dx*dx+dy*dy;
-    if(dd<bd){bd=dd;best=i;}
+    const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy||1e-6;
+    let u=((x-A.x)*dx+(y-A.y)*dy)/l2;u=u<0?0:u>1?1:u;
+    const qx=A.x+dx*u-x,qy=A.y+dy*u-y,d2=qx*qx+qy*qy;
+    if(d2<bd){bd=d2;best={c:i,u,d:Math.sqrt(d2)};}
   }
   return best;
 }
-function segInt(x1,y1,x2,y2,x3,y3,x4,y4){
-  const d=(x2-x1)*(y4-y3)-(y2-y1)*(x4-x3);
-  if(Math.abs(d)<1e-9)return false;
-  const t=((x3-x1)*(y4-y3)-(y3-y1)*(x4-x3))/d;
-  const u=((x3-x1)*(y2-y1)-(y3-y1)*(x2-x1))/d;
-  return t>0&&t<1&&u>0&&u<1;
+function splitCon(ci,u){
+  const c=cons[ci],A=pts[c.a],B=pts[c.b];
+  const j=addPt(A.x+(B.x-A.x)*u,A.y+(B.y-A.y)*u,false);
+  const J=pts[j];J.ox=A.ox+(B.ox-A.ox)*u;J.oy=A.oy+(B.oy-A.oy)*u;
+  const nb=c.b,rest=c.rest,rest0=c.rest0;
+  c.b=j;c.rest=rest*u;c.rest0=rest0*u;
+  const ni=cons.length;
+  cons.push({a:j,b:nb,rest:rest*(1-u),rest0:rest0*(1-u),lim:c.lim,broken:false,recoil:c.recoil});
+  for(const b of beads)if(b.c===ci){if(b.t<u)b.t/=u;else{b.c=ni;b.t=(b.t-u)/(1-u);}}
+  topoDirty=true;return j;
 }
-let activeId=null,spinNew=false;
-cv.addEventListener('pointerdown',e=>{
-  if(activeId!==null)return;
-  activeId=e.pointerId;cv.setPointerCapture(e.pointerId);
-  px=lx=e.clientX;py=ly=e.clientY;down=true;
-  if(mode==='hand'){
-    grab=nearestPt(px,py,30);
-    if(grab>=0&&pts[grab].pin)grab=-1;
-  }else{
-    spinFrom=nearestPt(px,py,40);spinNew=false;
-    if(spinFrom<0&&(px<40||px>W-40||py<40)){spinFrom=addPt(px,py,true);spinNew=true;}
+function pointOn(hit){
+  const c=cons[hit.c],A=pts[c.a],B=pts[c.b];
+  const len=Math.hypot(B.x-A.x,B.y-A.y);
+  if(hit.u*len<4)return c.a;
+  if((1-hit.u)*len<4)return c.b;
+  return splitCon(hit.c,hit.u);
+}
+function subdivide(a,b,slack){
+  const A=pts[a],B=pts[b];
+  const dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy);
+  const n=Math.max(1,Math.round(d/SEG));
+  let prev=a;
+  for(let i=1;i<n;i++){const id=addPt(A.x+dx*i/n,A.y+dy*i/n,false);link(prev,id,d/n*slack);prev=id;}
+  link(prev,b,d/n*slack);
+}
+/* spin a thread a->b, welding into every strand it crosses */
+function spinStrand(ia,ib,slack){
+  const A=pts[ia],B=pts[ib];
+  const L=Math.hypot(B.x-A.x,B.y-A.y);
+  const hits=[];
+  for(let ci=0;ci<cons.length;ci++){
+    const c=cons[ci];if(c.broken||c.a===ia||c.b===ia||c.a===ib||c.b===ib)continue;
+    const P=pts[c.a],Q=pts[c.b];
+    const r=segX(A.x,A.y,B.x,B.y,P.x,P.y,Q.x,Q.y);
+    if(r)hits.push({c:ci,t:r[0],u:r[1]});
   }
-});
-cv.addEventListener('pointermove',e=>{
-  if(e.pointerId!==activeId)return;
-  lx=px;ly=py;px=e.clientX;py=e.clientY;
-  if(mode==='hand'&&down&&grab<0){
-    for(const c of cons){
-      if(c.broken)continue;
+  hits.sort((p,q)=>p.t-q.t);
+  const path=[ia];let lastT=0;
+  for(const h of hits){
+    if((h.t-lastT)*L<10||(1-h.t)*L<10)continue;
+    const j=pointOn(h);
+    if(j===path[path.length-1])continue;
+    path.push(j);lastT=h.t;
+  }
+  path.push(ib);
+  for(let k=0;k<path.length-1;k++)subdivide(path[k],path[k+1],slack);
+}
+function breakCon(ci){
+  const c=cons[ci];if(c.broken)return;
+  c.broken=true;topoDirty=true;brokenQ.push(ci);
+}
+/* after breaks: free fragments fall, fragments hanging from one anchor recoil */
+function processBreaks(){
+  if(!brokenQ.length)return;
+  rebuildTopo();
+  const seen=new Uint8Array(pts.length);
+  for(const ci of brokenQ){
+    const c=cons[ci];
+    for(const s of [c.a,c.b]){
+      if(seen[s])continue;
+      const stack=[s],compP=[],compC=[];let pins=0;seen[s]=1;
+      while(stack.length){
+        const i=stack.pop();compP.push(i);if(pts[i].pin)pins++;
+        for(const k of adj[i]){compC.push(k);const o=cons[k].a===i?cons[k].b:cons[k].a;if(!seen[o]){seen[o]=1;stack.push(o);}}
+      }
+      if(pins===1)for(const k of compC)cons[k].recoil=true;
+    }
+  }
+  brokenQ.length=0;
+}
+
+/* =====================================================================
+   water
+   ===================================================================== */
+function spawnDrop(x,y,vx,vy,m,ign){
+  if(drops.length>=MAXDROPS||m<0.02)return;
+  drops.push({x,y,vx,vy,m,ign:ign===undefined?-1:ign,ignT:ign===undefined?0:10});
+}
+function strandVel(c,t){
+  const A=pts[c.a],B=pts[c.b];
+  return[((A.x-A.ox)*(1-t)+(B.x-B.ox)*t)/STEP,((A.y-A.oy)*(1-t)+(B.y-B.oy)*t)/STEP];
+}
+function addBead(ci,t,m,v){
+  if(beads.length>=MAXBEADS)return false;
+  const sv=strandVel(cons[ci],t);
+  beads.push({c:ci,t,m,v:v||0,pvx:sv[0],pvy:sv[1],age:0});
+  return true;
+}
+function beadContact(b){
+  const c=cons[b.c],A=pts[c.a],B=pts[c.b];
+  return[A.x+(B.x-A.x)*b.t,A.y+(B.y-A.y)*b.t];
+}
+function releaseBead(i,boost){
+  const b=beads[i],c=cons[b.c];
+  const p=beadContact(b),v=strandVel(c,b.t),r=Math.sqrt(b.m);
+  spawnDrop(p[0],p[1]+r*0.6,v[0]*(boost||1),v[1]*(boost||1)+20,b.m,b.c);
+  beads[i]=beads[beads.length-1];beads.pop();
+}
+/* carry a bead across junctions: always onto the most downhill continuation */
+function route(b){
+  for(let hop=0;hop<4;hop++){
+    if(b.t>=0&&b.t<=1)return;
+    const c=cons[b.c];
+    const atB=b.t>1,P=atB?c.b:c.a;
+    const A=pts[c.a],B=pts[c.b];
+    const len=Math.hypot(B.x-A.x,B.y-A.y)||1e-3;
+    const over=(atB?b.t-1:-b.t)*len;
+    const Pp=pts[P];
+    let best=-1,bs=-0.04;
+    for(const k of adj[P]||[]){
+      if(k===b.c||cons[k].broken)continue;
+      const c2=cons[k],O=pts[c2.a===P?c2.b:c2.a];
+      const l2=Math.hypot(O.x-Pp.x,O.y-Pp.y)||1e-3;
+      const sc=(O.y-Pp.y)/l2;
+      if(sc>bs){bs=sc;best=k;}
+    }
+    if(best<0){b.t=atB?1:0;b.v=0;return;}
+    const c2=cons[best],Q=pts[c2.a],S=pts[c2.b];
+    const l2=Math.hypot(S.x-Q.x,S.y-Q.y)||1e-3;
+    const sp=Math.abs(b.v)*0.92;
+    b.c=best;
+    if(c2.a===P){b.t=Math.min(1,over/l2);b.v=sp;}else{b.t=Math.max(0,1-over/l2);b.v=-sp;}
+  }
+  b.t=Math.min(1,Math.max(0,b.t));
+}
+/* hash grid for silk segments and beads */
+const CELLG=24;let gW=1,gH=1,gridC=[],gridB=[],stampC=null,stampId=0;
+function gridSize(){
+  gW=Math.ceil(W/CELLG)+4;gH=Math.ceil(H/CELLG)+4;
+  gridC=[];gridB=[];for(let i=0;i<gW*gH;i++){gridC.push([]);gridB.push([]);}
+}
+function gi(x,y){let gx=Math.floor(x/CELLG)+2,gy=Math.floor(y/CELLG)+2;
+  gx=gx<0?0:gx>=gW?gW-1:gx;gy=gy<0?0:gy>=gH?gH-1:gy;return[gx,gy];}
+function buildGrids(){
+  for(const a of gridC)a.length=0;for(const a of gridB)a.length=0;
+  for(let i=0;i<cons.length;i++){
+    const c=cons[i];if(c.broken)continue;
+    const A=pts[c.a],B=pts[c.b];
+    const p0=gi(Math.min(A.x,B.x)-4,Math.min(A.y,B.y)-4),p1=gi(Math.max(A.x,B.x)+4,Math.max(A.y,B.y)+4);
+    for(let y=p0[1];y<=p1[1];y++)for(let x=p0[0];x<=p1[0];x++)gridC[y*gW+x].push(i);
+  }
+  for(let i=0;i<beads.length;i++){const p=beadContact(beads[i]);const g=gi(p[0],p[1]);gridB[g[1]*gW+g[0]].push(i);}
+  if(!stampC||stampC.length<cons.length)stampC=new Uint32Array(Math.max(1024,cons.length*2));
+}
+function hitSilk(d,nx,ny){
+  stampId++;
+  const p0=gi(Math.min(d.x,nx)-3,Math.min(d.y,ny)-3),p1=gi(Math.max(d.x,nx)+3,Math.max(d.y,ny)+3);
+  let best=null,bt=2;
+  for(let y=p0[1];y<=p1[1];y++)for(let x=p0[0];x<=p1[0];x++){
+    for(const ci of gridC[y*gW+x]){
+      if(stampC[ci]===stampId)continue;stampC[ci]=stampId;
+      const c=cons[ci];if(c.broken||(ci===d.ign&&d.ignT>0))continue;
       const A=pts[c.a],B=pts[c.b];
-      if(segInt(lx,ly,px,py,A.x,A.y,B.x,B.y)){
-        c.broken=true;adjDirty=true;
-        spark((A.x+B.x)/2,(A.y+B.y)/2);
+      const r=segX(d.x,d.y,nx,ny,A.x,A.y,B.x,B.y);
+      if(r&&r[0]<bt){bt=r[0];best={c:ci,u:r[1]};}
+    }
+  }
+  return best;
+}
+function capture(d,ci,u){
+  const c=cons[ci],A=pts[c.a],B=pts[c.b];
+  const dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy)||1e-3,tx=dx/len,ty=dy/len;
+  const sp=Math.hypot(d.vx,d.vy);
+  /* the thread takes some of the drop's momentum: it bounces */
+  const k=Math.min(0.55,d.m*0.03)*STEP;
+  if(!A.pin){A.ox-=d.vx*k*(1-u);A.oy-=d.vy*k*(1-u);}
+  if(!B.pin){B.ox-=d.vx*k*u;B.oy-=d.vy*k*u;}
+  const cap=RDRIP*RDRIP*0.8;
+  const vAlong=(d.vx*tx+d.vy*ty)*0.3;
+  if(d.m<=cap&&sp<1250){addBead(ci,u,d.m,vAlong);return true;}
+  /* heavy / fast: the thread slices the drop, keeps a bead, rest flies on + crown */
+  const mb=Math.min(cap*0.55,d.m*0.4);
+  addBead(ci,u,mb,vAlong);
+  let rem=d.m-mb;
+  for(const s of[-1,1]){
+    const sm=Math.min(rem*0.12,2.5);
+    if(sm>0.08){spawnDrop(d.x,d.y-1,d.vx*0.25+s*(110+R()*220),-90-R()*160,sm,ci);rem-=sm;}
+  }
+  d.m=rem;d.vx*=0.6;d.vy*=0.55;d.ign=ci;d.ignT=10;
+  return false;
+}
+
+/* =====================================================================
+   simulation step
+   ===================================================================== */
+const grabs=new Map();  /* pointerId -> {pt,x,y} */
+function step(){
+  const h=STEP,h2=h*h;simT+=h;
+  if(topoDirty)rebuildTopo();
+  const gust=0.55+0.45*Math.sin(simT*0.37)*Math.sin(simT*0.13+1.3);
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];if(p.pin||p.dead)continue;
+    if(p.grab){p.ox=p.x;p.oy=p.y;continue;}
+    const vx=(p.x-p.ox)*DAMP,vy=(p.y-p.oy)*DAMP;
+    p.ox=p.x;p.oy=p.y;
+    p.x+=vx+WIND*gust*Math.sin(simT*1.3+p.y*0.012+p.x*0.004)*h2;
+    p.y+=vy+G_SILK*h2;
+    if(p.y>H+140){p.dead=true;for(const k of adj[i]||[])if(!cons[k].broken){cons[k].broken=true;topoDirty=true;}}
+  }
+  for(const g of grabs.values()){const p=pts[g.pt];p.x=g.x;p.y=g.y;}
+  /* bead weight sags the thread */
+  for(const b of beads){
+    const c=cons[b.c],w=G*h2*b.m*BEADW,A=pts[c.a],B=pts[c.b];
+    if(!A.pin&&!A.grab)A.y+=w*(1-b.t);
+    if(!B.pin&&!B.grab)B.y+=w*b.t;
+  }
+  for(let ci=0;ci<cons.length;ci++){
+    const c=cons[ci];if(c.broken||!c.recoil)continue;
+    if(c.rest>c.rest0*0.32)c.rest*=0.9955;
+  }
+  for(let it=0;it<ITER;it++){
+    for(let ci=0;ci<cons.length;ci++){
+      const c=cons[ci];if(c.broken)continue;
+      const A=pts[c.a],B=pts[c.b];
+      const wa=(A.pin||A.grab)?0:1,wb=(B.pin||B.grab)?0:1;
+      if(wa+wb===0)continue;
+      const dx=B.x-A.x,dy=B.y-A.y;
+      const dist=Math.sqrt(dx*dx+dy*dy)||1e-4;
+      if(it===0&&!c.recoil&&dist>c.rest*c.lim){breakCon(ci);continue;}
+      const k=dist>c.rest?1:0.06;
+      const f=(dist-c.rest)/dist/(wa+wb)*k;
+      A.x+=dx*f*wa;A.y+=dy*f*wa;B.x-=dx*f*wb;B.y-=dy*f*wb;
+    }
+  }
+  /* dead points / orphan anchors */
+  if(topoDirty)rebuildTopo();
+  for(let i=0;i<pts.length;i++){const p=pts[i];if(!p.dead&&!p.grab&&adj[i].length===0&&!p.keep)p.dead=true;}
+  /* beads */
+  for(let i=beads.length-1;i>=0;i--){
+    const b=beads[i],c=cons[b.c];
+    if(c.broken||pts[c.a].dead||pts[c.b].dead){releaseBead(i);continue;}
+    const A=pts[c.a],B=pts[c.b];
+    const dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy)||1e-3,tx=dx/len,ty=dy/len;
+    const r=Math.sqrt(b.m),gt=G*ty;
+    if(b.v===0){if(Math.abs(gt)*r>PIN)b.v=Math.sign(gt)*4;}
+    else{
+      const s=Math.sign(b.v);
+      b.v+=(gt-s*KIN/r-DRAG*b.v)*h;
+      if(Math.sign(b.v)!==s&&Math.abs(gt)*r<=PIN)b.v=0;
+    }
+    b.t+=b.v*h/len;
+    if(b.t<0||b.t>1)route(b);
+    /* fling: the thread accelerates harder than adhesion can hold */
+    const v=strandVel(cons[b.c],b.t);
+    const ax=(v[0]-b.pvx)/h,ay=(v[1]-b.pvy)/h;
+    b.pvx=v[0];b.pvy=v[1];b.age++;
+    const an=Math.abs(-ax*ty+ay*tx);
+    if(b.age>3&&an*r>FLING){releaseBead(i,1.1);continue;}
+    /* drip: the hanging bead necks off, a small bead stays behind */
+    if(r>RDRIP){
+      const p=beadContact(b),dm=b.m-RRES*RRES;
+      b.m=RRES*RRES;
+      spawnDrop(p[0],p[1]+r*1.1,v[0],v[1]+40,dm,b.c);
+    }
+  }
+  /* falling drops */
+  for(let i=drops.length-1;i>=0;i--){
+    const d=drops[i];
+    d.vy+=G*h;d.vx*=0.9985;d.vy*=0.9992;
+    if(d.ignT>0)d.ignT--;
+    const nx=d.x+d.vx*h,ny=d.y+d.vy*h;
+    const hit=hitSilk(d,nx,ny);
+    if(hit){
+      if(capture(d,hit.c,hit.u)){drops[i]=drops[drops.length-1];drops.pop();continue;}
+    }else{
+      /* run into a bead: merge */
+      const g=gi(nx,ny);let merged=false;
+      const rd=Math.sqrt(d.m);
+      for(let yy=-1;yy<=1&&!merged;yy++)for(let xx=-1;xx<=1&&!merged;xx++){
+        const cx=g[0]+xx,cy=g[1]+yy;if(cx<0||cy<0||cx>=gW||cy>=gH)continue;
+        for(const bi of gridB[cy*gW+cx]){
+          const b=beads[bi];if(!b)continue;
+          const p=beadContact(b),rb=Math.sqrt(b.m);
+          const ex=p[0]-nx,ey=p[1]+rb*0.4-ny;
+          if(ex*ex+ey*ey<(rd+rb)*(rd+rb)*0.8){b.m+=d.m;merged=true;break;}
+        }
+      }
+      if(merged){drops[i]=drops[drops.length-1];drops.pop();continue;}
+    }
+    d.x=nx;d.y=ny;
+    if(d.y>H+40||d.x<-60||d.x>W+60||d.y<-400){drops[i]=drops[drops.length-1];drops.pop();}
+  }
+  processBreaks();
+}
+/* bead coalescence (once per frame) */
+function mergeBeads(){
+  const n=beads.length;if(n<2)return;
+  const dead=new Uint8Array(n);
+  const cell=8,map=new Map();
+  const P=new Float32Array(n*2);
+  for(let i=0;i<n;i++){const p=beadContact(beads[i]);P[i*2]=p[0];P[i*2+1]=p[1];
+    const k=(Math.floor(p[0]/cell)+1000)*4096+Math.floor(p[1]/cell)+1000;
+    let a=map.get(k);if(!a)map.set(k,a=[]);a.push(i);}
+  for(let i=0;i<n;i++){
+    if(dead[i])continue;
+    const cx=Math.floor(P[i*2]/cell)+1000,cy=Math.floor(P[i*2+1]/cell)+1000;
+    for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){
+      const a=map.get((cx+xx)*4096+cy+yy);if(!a)continue;
+      for(const j of a){
+        if(j<=i||dead[j]||dead[i])continue;
+        const bi=beads[i],bj=beads[j];
+        const ri=Math.sqrt(bi.m),rj=Math.sqrt(bj.m);
+        const dx=P[j*2]-P[i*2],dy=P[j*2+1]-P[i*2+1];
+        if(dx*dx+dy*dy<(ri+rj)*(ri+rj)*0.72){
+          const [big,sm,si]=bi.m>=bj.m?[bi,bj,j]:[bj,bi,i];
+          big.v=(big.v*big.m+(big.c===sm.c?sm.v*sm.m:0))/(big.m+sm.m);
+          big.m+=sm.m;dead[si]=1;
+          if(si===i)break;
+        }
       }
     }
   }
-});
-function endPointer(e){
-  if(e.pointerId!==activeId)return;
-  activeId=null;down=false;
-  if(mode==='spin'&&spinFrom>=0){
-    let end=nearestPt(px,py,40);
-    if(end===spinFrom)end=-1;
-    if(end<0&&(px<40||px>W-40||py<40))end=addPt(px,py,true);
-    if(end>=0&&end!==spinFrom){
-      subdivide(spinFrom,end,1.035);
-    }else if(spinNew&&spinFrom===pts.length-1){
-      pts.pop();adjDirty=true;
-    }
-    checkUnlock();
-  }
-  grab=-1;spinFrom=-1;spinNew=false;
+  let w=0;for(let i=0;i<n;i++)if(!dead[i])beads[w++]=beads[i];beads.length=w;
 }
-cv.addEventListener('pointerup',endPointer);
-cv.addEventListener('pointercancel',endPointer);
+/* shrink arrays when lots of silk has died */
+function compact(){
+  let deadN=0;for(const p of pts)if(p.dead)deadN++;
+  if(deadN<1500||gestures.size)return;
+  const map=new Int32Array(pts.length).fill(-1),np=[];
+  for(let i=0;i<pts.length;i++)if(!pts[i].dead){map[i]=np.length;np.push(pts[i]);}
+  const cmap=new Int32Array(cons.length).fill(-1),nc=[];
+  for(let i=0;i<cons.length;i++){const c=cons[i];if(c.broken||map[c.a]<0||map[c.b]<0)continue;
+    cmap[i]=nc.length;c.a=map[c.a];c.b=map[c.b];nc.push(c);}
+  const nb=[];for(const b of beads)if(cmap[b.c]>=0){b.c=cmap[b.c];nb.push(b);}
+  for(const d of drops)d.ign=d.ign>=0?cmap[d.ign]:-1;
+  pts=np;cons=nc;beads=nb;topoDirty=true;brokenQ.length=0;
+}
 
-/* ================= render ================= */
-let sData=new Float32Array(0),bData=new Float32Array(0);
-function pushBlobA(arr,o,x,y,dx,dy,rx,ry,w){
-  const ax=dx*rx,ay=dy*rx,bx=-dy*ry,by=dx*ry;
-  const v=[[x-ax-bx,y-ay-by,-1,-1],[x+ax-bx,y+ay-by,1,-1],[x-ax+bx,y-ay+by,-1,1],
-           [x+ax-bx,y+ay-by,1,-1],[x+ax+bx,y+ay+by,1,1],[x-ax+bx,y-ay+by,-1,1]];
-  for(const q of v){arr[o++]=q[0];arr[o++]=q[1];arr[o++]=q[2];arr[o++]=q[3];arr[o++]=w;}
-  return o;
+/* =====================================================================
+   input: one gesture per finger, no modes
+   ===================================================================== */
+const gestures=new Map();
+const oldTrails=[];
+let idleSince=performance.now(),everWater=false,everSilk=false;
+function nearEdge(x,y){return x<EDGE||x>W-EDGE||y<EDGE||y>H-EDGE;}
+function snapEdge(x,y){
+  const dl=x,dr=W-x,dt=y,db=H-y,m=Math.min(dl,dr,dt,db);
+  if(m===dl)return[0,y];if(m===dr)return[W,y];if(m===dt)return[x,0];return[x,H];
 }
-function render(){
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
-  gl.viewport(0,0,cv.width,cv.height);
-  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-  let live=0;for(const c of cons)if(!c.broken)live++;
-  const prevSegs=(spinFrom>=0)?16:0;
-  const needS=(live+prevSegs)*6*4;
-  if(sData.length<needS)sData=new Float32Array(needS*2);
-  let o=0;
+function hitRad(e){return e.pointerType==='mouse'?14:24;}
+cv.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  idleSince=performance.now();hint.active=false;
+  const x=e.clientX,y=e.clientY;
+  const g={id:e.pointerId,x,y,x0:x,y0:y,lx:x,ly:y,t0:performance.now(),moved:0,rad:hitRad(e),
+    kind:'air',hit:null,anchor:-1,newAnchor:false,pour:false,pourAcc:0,trail:[]};
+  const hit=nearestSilk(x,y,g.rad);
+  if(hit){g.kind='silk';g.hit=hit;}
+  else if(nearEdge(x,y))g.kind='edge';
+  gestures.set(e.pointerId,g);
+});
+function startSpin(g){
+  if(g.kind==='silk'){
+    const h=nearestSilk(g.x0,g.y0,g.rad*1.6)||g.hit;
+    g.anchor=pointOn(h);
+  }else{
+    const s=snapEdge(g.x0,g.y0);
+    g.anchor=addPt(s[0],s[1],true);pts[g.anchor].keep=true;g.newAnchor=true;
+  }
+  g.kind='spin';
+}
+cv.addEventListener('pointermove',e=>{
+  const g=gestures.get(e.pointerId);if(!g)return;
+  idleSince=performance.now();
+  g.lx=g.x;g.ly=g.y;g.x=e.clientX;g.y=e.clientY;
+  g.moved=Math.max(g.moved,Math.hypot(g.x-g.x0,g.y-g.y0));
+  if(g.kind==='pull'){const gr=grabs.get(g.id);if(gr){gr.x=g.x;gr.y=g.y;}return;}
+  if((g.kind==='silk'||g.kind==='edge')&&g.moved>9)startSpin(g);
+  if(g.kind==='air'&&!g.pour&&g.moved>9)g.kind='cut';
+  if(g.kind==='cut'){
+    for(let ci=0;ci<cons.length;ci++){
+      const c=cons[ci];if(c.broken)continue;
+      const A=pts[c.a],B=pts[c.b];
+      if(segX(g.lx,g.ly,g.x,g.y,A.x,A.y,B.x,B.y)){
+        breakCon(ci);
+        /* the snap shoves both ends apart along the thread */
+        const dx=B.x-A.x,dy=B.y-A.y,l=Math.hypot(dx,dy)||1;
+        if(!A.pin){A.ox+=dx/l*1.2;A.oy+=dy/l*1.2;}
+        if(!B.pin){B.ox-=dx/l*1.2;B.oy-=dy/l*1.2;}
+      }
+    }
+    g.trail.push({x:g.x,y:g.y,t:performance.now()});
+  }
+});
+function endGesture(e){
+  const g=gestures.get(e.pointerId);if(!g)return;
+  gestures.delete(e.pointerId);idleSince=performance.now();
+  const quick=performance.now()-g.t0<300&&g.moved<9;
+  if(g.trail.length>1){oldTrails.push(g.trail);if(oldTrails.length>6)oldTrails.shift();}
+  if(g.kind==='pull'){
+    const gr=grabs.get(g.id);if(gr){pts[gr.pt].grab=false;grabs.delete(g.id);}
+  }else if(g.kind==='spin'){
+    const A=pts[g.anchor];
+    const span=Math.hypot(g.x-A.x,g.y-A.y);
+    if(span<16||e.type==='pointercancel'){if(g.newAnchor)A.keep=false;return;}
+    let end=-1,slack=SLACK;
+    const h=nearestSilk(g.x,g.y,g.rad,g.anchor);
+    if(h)end=pointOn(h);
+    else if(nearEdge(g.x,g.y)){const s=snapEdge(g.x,g.y);end=addPt(s[0],s[1],true);}
+    else{end=addPt(g.x,g.y,false);slack=1.0;}   /* released in the air: a hanging dragline */
+    if(end===g.anchor)return;
+    spinStrand(g.anchor,end,slack);
+    A.keep=false;everSilk=true;
+  }else if(g.kind==='silk'&&quick){
+    pluck(g.hit);
+  }else if((g.kind==='air'||g.kind==='edge')&&quick){
+    tapDrop(g.x,g.y);
+  }
+}
+cv.addEventListener('pointerup',endGesture);
+cv.addEventListener('pointercancel',endGesture);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+function tapDrop(x,y){
+  spawnDrop(x,y,(R()-0.5)*20,40,30+R()*18);everWater=true;
+}
+function pluck(hit){
+  const c=cons[hit.c];if(!c||c.broken)return;
+  const A=pts[c.a],B=pts[c.b];
+  const dx=B.x-A.x,dy=B.y-A.y,l=Math.hypot(dx,dy)||1;
+  let nx=-dy/l,ny=dx/l;if(ny<0){nx=-nx;ny=-ny;}
+  const k=5.5;
+  for(const [p,w] of [[A,1-hit.u],[B,hit.u]])if(!p.pin){p.ox-=nx*k*(0.4+w);p.oy-=ny*k*(0.4+w);}
+}
+/* holds resolve over time, not on move */
+function tickGestures(now){
+  for(const g of gestures.values()){
+    const held=now-g.t0;
+    if(g.kind==='silk'&&g.moved<9&&held>260){
+      const h=nearestSilk(g.x,g.y,g.rad*1.6);
+      if(!h){g.kind='none';continue;}
+      const pt=pointOn(h);
+      if(pts[pt].pin){g.kind='none';continue;}
+      pts[pt].grab=true;grabs.set(g.id,{pt,x:g.x,y:g.y});g.kind='pull';
+    }
+    if(g.kind==='air'&&!g.pour&&g.moved<9&&held>280)g.pour=true;
+    if(g.pour){
+      g.pourAcc+=1/60*16;
+      while(g.pourAcc>=1){g.pourAcc--;
+        spawnDrop(g.x+(R()-0.5)*6,g.y+(R()-0.5)*3,(g.x-g.lx)*6+(R()-0.5)*16,60+R()*40,7+R()*10);}
+      everWater=true;g.lx=g.x;g.ly=g.y;
+    }
+  }
+}
+
+/* ---------- buttons ---------- */
+let rainUntil=0,resetAt=0;
+const bRain=document.getElementById('bRain');
+bRain.addEventListener('click',()=>{rainUntil=performance.now()+2600;everWater=true;idleSince=performance.now();});
+document.getElementById('bNew').addEventListener('click',()=>{
+  /* the anchors let go and the whole web falls away */
+  for(const p of pts)p.pin=false;
+  for(const g of grabs.values())pts[g.pt].grab=false;
+  grabs.clear();gestures.clear();
+  resetAt=performance.now()+1500;
+});
+function genBlank(){
+  pts=[];cons=[];beads=[];drops=[];brokenQ=[];adj=[];topoDirty=true;
+  grabs.clear();gestures.clear();resetAt=0;rainUntil=0;
+  everSilk=false;everWater=false;idleSince=performance.now();
+  hint.taps=0;
+}
+function rain(now){
+  if(now>rainUntil)return;
+  const live=[];for(let i=0;i<cons.length;i++)if(!cons[i].broken)live.push(i);
+  /* mist condenses on the threads: many tiny beads that grow and coalesce */
+  if(live.length)for(let k=0;k<5;k++){
+    const ci=live[(R()*live.length)|0];
+    addBead(ci,R(),0.8+R()*1.2,0);
+  }
+  for(let k=0;k<14&&beads.length;k++)beads[(R()*beads.length)|0].m+=0.3;
+  /* and a light drizzle from above */
+  for(let k=0;k<2;k++)if(R()<0.55)spawnDrop(R()*W,-6-R()*30,(R()-0.5)*30,420+R()*360,1.5+R()*6);
+}
+
+/* ---------- ghost hints (no text) ---------- */
+const hint={active:false,taps:0,t0:0};
+function hintFrame(now,dots,silkArr){
+  if(gestures.size){hint.active=false;return silkArr;}
+  let live=false;for(const c of cons)if(!c.broken){live=true;break;}
+  if(!live&&now-idleSince>1400){
+    /* a ghost finger spins a thread from edge to edge */
+    const T=3600,ph=((now-idleSince-1400)%T)/T;
+    const x0=0,y0=H*0.30,x1=W,y1=H*0.36;
+    let a=ph<0.1?ph/0.1:ph<0.72?1:Math.max(0,1-(ph-0.72)/0.12);
+    const m=Math.min(1,Math.max(0,(ph-0.12)/0.5)),e=m*m*(3-2*m);
+    const fx=x0+(x1-x0)*e,fy=y0+(y1-y0)*e;
+    if(e>0.01)silkArr=pushCurve(silkArr,x0,y0,fx,fy,0.55*a,0);
+    pushDot(dots,fx,fy,22,[1,1,1,0.65*a],0.10);
+    pushDot(dots,fx,fy,22,[0.15,0.15,0.15,0.25*a],0.04);
+    return silkArr;
+  }
+  if(live&&!everWater&&hint.taps<3&&now-idleSince>4200){
+    /* a ghost tap above the web lets one real drop fall */
+    if(!hint.active){
+      /* aim at the thread closest to the middle of the screen */
+      const h=nearestSilk(W*0.5,H*0.4,Math.max(W,H));
+      if(!h)return silkArr;
+      const c=cons[h.c],A=pts[c.a],B=pts[c.b];
+      const tx=A.x+(B.x-A.x)*h.u,ty=A.y+(B.y-A.y)*h.u;
+      hint.active=true;hint.t0=now;hint.x=tx;hint.y=Math.max(40,ty-H*0.2);
+    }
+    const ph=(now-hint.t0)/900;
+    if(ph>=1){tapDrop(hint.x,hint.y);everWater=false;hint.taps++;hint.active=false;idleSince=now-1200;return silkArr;}
+    const r=30-14*ph,a=Math.sin(ph*Math.PI);
+    pushDot(dots,hint.x,hint.y,r,[1,1,1,0.7*a],0.10);
+    pushDot(dots,hint.x,hint.y,r,[0.15,0.15,0.15,0.25*a],0.04);
+  }
+  return silkArr;
+}
+
+/* =====================================================================
+   render
+   ===================================================================== */
+let sArr=new Float32Array(1<<16),dArr=new Float32Array(1<<15),oArr=new Float32Array(1<<12);
+let sN=0,dN=0,oN=0;
+function growS(n){if(sN+n>sArr.length){const a=new Float32Array((sN+n)*2);a.set(sArr);sArr=a;}}
+function growD(n){if(dN+n>dArr.length){const a=new Float32Array((dN+n)*2);a.set(dArr);dArr=a;}}
+function growO(n){if(oN+n>oArr.length){const a=new Float32Array((oN+n)*2);a.set(oArr);oArr=a;}}
+let WCSS=1.5;   /* half width of a silk quad in css px */
+function pushSeg(ax,ay,bx,by,al,glow){
+  const dx=bx-ax,dy=by-ay,l=Math.hypot(dx,dy);if(l<1e-3)return;
+  const tx=dx/l,ty=dy/l,nx=-ty*WCSS,ny=tx*WCSS,ex=tx*WCSS*0.6,ey=ty*WCSS*0.6;
+  const x0=ax-ex,y0=ay-ey,x1=bx+ex,y1=by+ey;
+  growS(42);
+  const V=[[x0+nx,y0+ny,1],[x0-nx,y0-ny,-1],[x1+nx,y1+ny,1],[x0-nx,y0-ny,-1],[x1-nx,y1-ny,-1],[x1+nx,y1+ny,1]];
+  for(const v of V){sArr[sN++]=v[0];sArr[sN++]=v[1];sArr[sN++]=v[2];sArr[sN++]=tx;sArr[sN++]=ty;sArr[sN++]=al;sArr[sN++]=glow;}
+}
+function pushCurve(_,ax,ay,bx,by,al,glow){
+  const L=Math.hypot(bx-ax,by-ay),sag=0.035*L+2;
+  let qx=ax,qy=ay;
+  for(let i=1;i<=18;i++){
+    const t=i/18,x=ax+(bx-ax)*t,y=ay+(by-ay)*t+Math.sin(t*Math.PI)*sag;
+    pushSeg(qx,qy,x,y,al,glow);qx=x;qy=y;
+  }
+  return _;
+}
+function pushEllipse(cx,cy,ax,ay,rx,ry,rad,ox,oy){
+  growD(42);
+  const px=-ay,py=ax,K=1.3;
+  const C=[[-K,-K],[K,-K],[-K,K],[K,-K],[K,K],[-K,K]];
+  for(const q of C){
+    const x=cx+ax*q[0]*rx+px*q[1]*ry,y=cy+ay*q[0]*rx+py*q[1]*ry;
+    dArr[dN++]=x+ox;dArr[dN++]=y+oy;dArr[dN++]=cx+ox;dArr[dN++]=cy+oy;dArr[dN++]=q[0];dArr[dN++]=q[1];dArr[dN++]=rad;
+  }
+}
+function pushDot(_,x,y,r,col,ring){
+  growO(60);
+  const K=1.15,C=[[-K,-K],[K,-K],[-K,K],[K,-K],[K,K],[-K,K]];
+  for(const q of C){
+    oArr[oN++]=x+q[0]*r;oArr[oN++]=y+q[1]*r;oArr[oN++]=q[0];oArr[oN++]=q[1];
+    oArr[oN++]=col[0];oArr[oN++]=col[1];oArr[oN++]=col[2];oArr[oN++]=col[3];oArr[oN++]=ring;oArr[oN++]=r*DPR;
+  }
+}
+function buildDrops(ox,oy){
+  dN=0;
+  for(const b of beads){
+    const c=cons[b.c],A=pts[c.a],B=pts[c.b];
+    const x=A.x+(B.x-A.x)*b.t,y=A.y+(B.y-A.y)*b.t;
+    const r=Math.max(0.95,Math.sqrt(b.m)),k=Math.min(1,r/RDRIP);
+    /* pendant bead: hangs under the thread, stretches as it fattens */
+    const ry=r*(1+0.20*k*k),rx=r*(1-0.05*k);
+    pushEllipse(x,y+r*0.30+(ry-r),1,0,rx,ry,r,ox,oy);
+  }
+  for(const d of drops){
+    const r=Math.max(0.95,Math.sqrt(d.m)),sp=Math.hypot(d.vx,d.vy);
+    const st=1+Math.min(0.32,sp/5200);
+    const ax=sp>1?d.vx/sp:0,ay=sp>1?d.vy/sp:1;
+    pushEllipse(d.x,d.y,ax,ay,r*st,r/Math.sqrt(st),r,ox,oy);
+  }
+}
+function buildSilk(now){
+  sN=0;
   for(const c of cons){
     if(c.broken)continue;
     const A=pts[c.a],B=pts[c.b];
-    const dx=B.x-A.x,dy=B.y-A.y;
-    const dist=Math.sqrt(dx*dx+dy*dy)||1;
-    const stretch=dist/c.rest;
-    const wHalf=Math.max(0.9,1.5*Math.min(1.1,1/Math.sqrt(stretch)));
-    const amp=0.45*Math.min(1.2,1/Math.sqrt(stretch));
-    const nx=-dy/dist*wHalf,ny=dx/dist*wHalf;
-    const V=[[A.x+nx,A.y+ny,1],[A.x-nx,A.y-ny,-1],[B.x+nx,B.y+ny,1],
-             [A.x-nx,A.y-ny,-1],[B.x-nx,B.y-ny,-1],[B.x+nx,B.y+ny,1]];
-    for(const q of V){sData[o++]=q[0];sData[o++]=q[1];sData[o++]=q[2];sData[o++]=amp;}
+    const d=Math.hypot(B.x-A.x,B.y-A.y);
+    const st=d/c.rest;
+    const al=Math.max(0.45,Math.min(1,1.25-0.45*st));
+    pushSeg(A.x,A.y,B.x,B.y,al,0);
   }
-  if(spinFrom>=0){
-    const A=pts[spinFrom];
-    const dist=Math.hypot(px-A.x,py-A.y);
-    const sag=Math.min(70,dist*0.18)+6;
-    let qx=A.x,qy=A.y;
-    for(let i=1;i<=prevSegs;i++){
-      const t=i/prevSegs;
-      const x=A.x+(px-A.x)*t;
-      const y=A.y+(py-A.y)*t+Math.sin(t*Math.PI)*sag;
-      const dxx=x-qx,dyy=y-qy,dd=Math.hypot(dxx,dyy)||1;
-      const nx=-dyy/dd*1.2,ny=dxx/dd*1.2,am=0.35;
-      const V=[[qx+nx,qy+ny,1],[qx-nx,qy-ny,-1],[x+nx,y+ny,1],
-               [qx-nx,qy-ny,-1],[x-nx,y-ny,-1],[x+nx,y+ny,1]];
-      for(const q of V){sData[o++]=q[0];sData[o++]=q[1];sData[o++]=q[2];sData[o++]=am;}
-      qx=x;qy=y;
+  for(const g of gestures.values()){
+    if(g.kind==='spin'){
+      const A=pts[g.anchor];
+      pushCurve(null,A.x,A.y,g.x,g.y,0.9,0);
+    }
+    if(g.trail.length){
+      const tr=g.trail;
+      for(let i=1;i<tr.length;i++){const a=1-(now-tr[i].t)/260;if(a>0)pushSeg(tr[i-1].x,tr[i-1].y,tr[i].x,tr[i].y,a*0.8,1);}
+      while(tr.length>2&&now-tr[0].t>300)tr.shift();
     }
   }
-  gl.useProgram(pStrand);
-  gl.uniform2f(uSR,W,H);
-  gl.bindBuffer(gl.ARRAY_BUFFER,bufStrand);
-  gl.bufferData(gl.ARRAY_BUFFER,sData.subarray(0,o),gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(aSP);gl.vertexAttribPointer(aSP,2,gl.FLOAT,false,16,0);
-  gl.enableVertexAttribArray(aSS);gl.vertexAttribPointer(aSS,1,gl.FLOAT,false,16,8);
-  gl.enableVertexAttribArray(aSA);gl.vertexAttribPointer(aSA,1,gl.FLOAT,false,16,12);
-  gl.drawArrays(gl.TRIANGLES,0,o/4);
-  /* anchors + sparks */
-  const nBlobs=sparks.length+pts.reduce((n,p)=>n+(p.pin?1:0),0);
-  const needB=Math.max(30,nBlobs*6*5);
-  if(bData.length<needB)bData=new Float32Array(needB*2);
-  let q=0;
-  for(const p of pts)if(p.pin)q=pushBlobA(bData,q,p.x,p.y,1,0,7.0,7.0,0.62);
-  for(const s of sparks){const sr=Math.max(3,s.life*6);q=pushBlobA(bData,q,s.x,s.y,1,0,sr,sr,0.5*s.life);}
-  if(q>0){
-    gl.useProgram(pBlob);
-    gl.uniform2f(uBR,W,H);
-    gl.bindBuffer(gl.ARRAY_BUFFER,bufBlob);
-    gl.bufferData(gl.ARRAY_BUFFER,bData.subarray(0,q),gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(aBP);gl.vertexAttribPointer(aBP,2,gl.FLOAT,false,20,0);
-    gl.enableVertexAttribArray(aBU);gl.vertexAttribPointer(aBU,2,gl.FLOAT,false,20,8);
-    gl.enableVertexAttribArray(aBW);gl.vertexAttribPointer(aBW,1,gl.FLOAT,false,20,16);
-    gl.drawArrays(gl.TRIANGLES,0,q/5);
+  /* fading trails of finished cuts */
+  for(const t of oldTrails){
+    for(let i=1;i<t.length;i++){const a=1-(now-t[i].t)/260;if(a>0)pushSeg(t[i-1].x,t[i-1].y,t[i].x,t[i].y,a*0.8,1);}
   }
-  /* composite */
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-  gl.viewport(0,0,cv.width,cv.height);
+}
+function buildDots(now){
+  oN=0;
+  if(topoDirty)rebuildTopo();
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];if(!p.pin||p.dead||!adj[i]||!adj[i].length)continue;
+    pushDot(null,p.x,p.y,3.4,[0.1,0.1,0.1,0.22],0);
+    pushDot(null,p.x,p.y,2.3,[0.97,0.97,0.97,1],0);
+  }
+  for(const g of gestures.values()){
+    const held=now-g.t0;
+    if((g.kind==='silk'||g.kind==='air')&&g.moved<9&&held>90){
+      /* a closing ring shows the hold is arming (pull on silk, pour in air) */
+      const ph=Math.min(1,(held-90)/(g.kind==='silk'?170:190));
+      pushDot(null,g.x,g.y,30-12*ph,[1,1,1,0.75*ph],0.08);
+    }
+    if(g.kind==='pull'){const gr=grabs.get(g.id);if(gr){const p=pts[gr.pt];pushDot(null,p.x,p.y,15,[1,1,1,0.85],0.12);}}
+    if(g.pour)pushDot(null,g.x,g.y,17,[1,1,1,0.6],0.10);
+    if(g.kind==='spin'){
+      /* where the thread will attach when released */
+      const h=nearestSilk(g.x,g.y,g.rad,g.anchor);
+      let tx=null,ty=null;
+      if(h){const c=cons[h.c],A=pts[c.a],B=pts[c.b];tx=A.x+(B.x-A.x)*h.u;ty=A.y+(B.y-A.y)*h.u;}
+      else if(nearEdge(g.x,g.y)){const s=snapEdge(g.x,g.y);tx=s[0];ty=s[1];}
+      if(tx!==null)pushDot(null,tx,ty,9,[1,1,1,0.9],0.22);
+    }
+  }
+}
+function render(now){
+  const cw=cv.width,ch=cv.height;
+  /* 1. shadows + caustics at quarter res */
+  gl.bindFramebuffer(gl.FRAMEBUFFER,tShA.fb);
+  gl.viewport(0,0,tShA.w,tShA.h);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND);gl.blendEquation(gl.FUNC_ADD);gl.blendFunc(gl.ONE,gl.ONE);
+  /* silk shadow: same quads, shifted */
+  const saved=WCSS;WCSS=1.8;
+  sN=0;
+  for(const c of cons){if(c.broken)continue;const A=pts[c.a],B=pts[c.b];pushSeg(A.x+SHX,A.y+SHY,B.x+SHX,B.y+SHY,1,0);}
+  WCSS=saved;
+  if(DBG.noShadow){sN=0;}
+  if(sN){use(pSilkSh,bufSilk,L_SILK);gl.bufferData(gl.ARRAY_BUFFER,sArr.subarray(0,sN),gl.DYNAMIC_DRAW);gl.drawArrays(gl.TRIANGLES,0,sN/7);}
+  buildDrops(SHX,SHY);
+  if(dN){use(pDropSh,bufDrop,L_DROP);gl.bufferData(gl.ARRAY_BUFFER,dArr.subarray(0,dN),gl.DYNAMIC_DRAW);gl.drawArrays(gl.TRIANGLES,0,dN/7);}
   gl.disable(gl.BLEND);
-  gl.useProgram(pComp);
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,fboTex);gl.uniform1i(uCF,0);
-  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,waterTex);gl.uniform1i(uCW,1);
-  gl.uniform2f(uCR,cv.width,cv.height);
-  gl.uniform1f(uCD,DPR);
-  gl.uniform2f(uCC,W/(GW*CELL),H/(GH*CELL));
-  gl.bindBuffer(gl.ARRAY_BUFFER,bufQuad);
-  gl.enableVertexAttribArray(aCP);gl.vertexAttribPointer(aCP,2,gl.FLOAT,false,0,0);
+  for(let k=0;k<2;k++){
+    for(const [src,dst,dx,dy] of [[tShA,tShB,1,0],[tShB,tShA,0,1]]){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,dst.fb);gl.viewport(0,0,dst.w,dst.h);
+      use(pBlur,bufQuad,[['p',2]]);
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,src.tex);
+      gl.uniform1i(U(pBlur,'t'),0);gl.uniform2f(U(pBlur,'dir'),dx/src.w,dy/src.h);gl.uniform2f(U(pBlur,'res'),dst.w,dst.h);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
+  }
+  /* 2. silk fibres into their own buffer (max blend: no beads at joints) */
+  buildSilk(now);
+  const dots=null;buildDots(now);
+  hintFrame(now,dots,null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,tSilk.fb);gl.viewport(0,0,cw,ch);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+  if(sN){
+    gl.enable(gl.BLEND);
+    if(extMax){gl.blendEquation(extMax.MAX_EXT);}else{gl.blendEquation(gl.FUNC_ADD);gl.blendFunc(gl.ONE,gl.ONE);}
+    use(pSilk,bufSilk,L_SILK);
+    const core=Math.max(0.55,0.38*DPR);
+    gl.uniform1f(U(pSilk,'core'),core);gl.uniform1f(U(pSilk,'wdev'),WCSS*DPR);
+    gl.bufferData(gl.ARRAY_BUFFER,sArr.subarray(0,sN),gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES,0,sN/7);
+    gl.blendEquation(gl.FUNC_ADD);gl.disable(gl.BLEND);
+  }
+  /* 3. backdrop */
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cw,ch);
+  use(pBg,bufQuad,[['p',2]]);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tShA.tex);
+  gl.uniform1i(U(pBg,'sh'),0);gl.uniform2f(U(pBg,'res'),cw,ch);gl.uniform1f(U(pBg,'dpr'),DPR);
+  gl.uniform1f(U(pBg,'seed'),(now*0.001)%10);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+  /* 4. water */
+  buildDrops(0,0);
+  if(dN){
+    use(pDrop,bufDrop,L_DROP);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tShA.tex);
+    gl.uniform1i(U(pDrop,'sh'),0);gl.uniform1f(U(pDrop,'dpr'),DPR);gl.uniform1f(U(pDrop,'hd'),HD);
+    gl.bufferData(gl.ARRAY_BUFFER,dArr.subarray(0,dN),gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES,0,dN/7);
+  }
+  /* 5. silk over everything (threads run through the beads) */
+  if(!DBG.noSilkOv){
+  use(pSilkOv,bufQuad,[['p',2]]);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tSilk.tex);
+  gl.uniform1i(U(pSilkOv,'silk'),0);gl.uniform2f(U(pSilkOv,'res'),cw,ch);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  }
+  /* 6. anchors + touch feedback */
+  if(oN){
+    use(pDot,bufDot,L_DOT);
+    gl.bufferData(gl.ARRAY_BUFFER,oArr.subarray(0,oN),gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES,0,oN/10);
+  }
+  gl.disable(gl.BLEND);
 }
 
-/* ================= loop ================= */
-function frame(){
-  physics(2);
-  rasterizeSolids();
-  caStep();caStep();caStep();
-  processWater();
-  for(let i=sparks.length-1;i>=0;i--){
-    const s=sparks[i];
-    s.x+=s.vx;s.y+=s.vy;s.vy+=0.05;s.life-=0.04;
-    if(s.life<=0)sparks.splice(i,1);
-  }
-  render();
+/* =====================================================================
+   loop
+   ===================================================================== */
+let last=performance.now(),acc=0;
+const stats={steps:0,ms:0};
+function frame(now){
+  frameBody(now);
   requestAnimationFrame(frame);
 }
+function frameBody(now){
+  let dt=(now-last)/1000;last=now;
+  if(!(dt>0))dt=0;dt=Math.min(dt,0.05);acc+=dt;
+  const t0=performance.now();
+  tickGestures(now);
+  rain(now);
+  buildGrids();
+  let n=0;while(acc>=STEP&&n<6){step();acc-=STEP;n++;}
+  if(n===6)acc=0;
+  mergeBeads();
+  if(resetAt&&now>resetAt)genBlank();
+  if(pts.length>3000)compact();
+  stats.steps=n;stats.ms=performance.now()-t0;
+  render(now);
+}
 function resize(){
-  DPR=Math.min(1.75,window.devicePixelRatio||1);
+  DPR=Math.min(2,window.devicePixelRatio||1);
   W=window.innerWidth;H=window.innerHeight;
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
-  GW=Math.ceil(W/CELL);GH=Math.ceil(H/CELL);
-  wtr=new Float32Array(GW*GH);
-  wDisp=new Float32Array(GW*GH);
-  wTmp=new Float32Array(GW*GH);
-  wTmp2=new Float32Array(GW*GH);
-  solid=new Uint8Array(GW*GH);
-  owner=new Int32Array(GW*GH);
-  wBytes=new Uint8Array(GW*GH);
-  makeFBO();makeWaterTex();
+  drop_target(tSilk);drop_target(tShA);drop_target(tShB);
+  tSilk=target(cv.width,cv.height);
+  const sw=Math.max(1,Math.ceil(cv.width/4)),shh=Math.max(1,Math.ceil(cv.height/4));
+  tShA=target(sw,shh);tShB=target(sw,shh);
+  gridSize();
 }
-window.addEventListener('resize',()=>{resize();genBlank();});
-resize();
-genBlank();
-frame();
+window.addEventListener('resize',resize);
+resize();genBlank();
+requestAnimationFrame(frame);
+
+/* test hooks */
+window.LW={get pts(){return pts},get cons(){return cons},get beads(){return beads},get drops(){return drops},
+  DBG,step,mergeBeads,buildGrids,spinStrand,addPt,pointOn,spawnDrop,tapDrop,pluck,nearestSilk,genBlank,render,
+  get W(){return W},get H(){return H},get DPR(){return DPR},stats,
+  water(){let m=0;for(const b of beads)m+=b.m;for(const d of drops)m+=d.m;return m;},
+  rain(){rainUntil=performance.now()+2600;everWater=true;},
+  rainTick(){rain(performance.now());},
+  sim(n){for(let i=0;i<n;i++){buildGrids();step();step();mergeBeads();}},
+  shot(){render(performance.now());return cv.toDataURL('image/png');},
+  /* test driver: runs the real frame loop for ms even when rAF is paused (hidden pane) */
+  drive(ms){return new Promise(res=>{const mc=new MessageChannel(),end=performance.now()+ms;let lastF=0;
+    mc.port1.onmessage=()=>{const t=performance.now();if(t-lastF>=15){lastF=t;frameBody(t);}if(t<end)mc.port2.postMessage(0);else res();};mc.port2.postMessage(0);});}};
 </script>
 </body>
 </html>

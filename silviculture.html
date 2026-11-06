@@ -66,7 +66,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="papers/fractals/paper.css?v=4">
   <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=6">
-  <link rel="stylesheet" href="papers/silviculture/paper.css?v=1">
+  <link rel="stylesheet" href="papers/silviculture/paper.css?v=2">
 </head>
 
 <body>
@@ -96,9 +96,9 @@
         grows as diameter to the power 3.0, where real trees give 2.89. Its trees branch a little less than real ones,
         and their box dimension sits at the low edge of laser-scanned trees. Its plot is too small to measure canopy gaps.
         One correction to paper 0 follows: the forest law Makowski checked is the diameter form, not the mass form.</p>
-      <p class="howto">This is the first part of the paper: chapter 1 and the scorecard, chapter 4. Chapters 2, 3 and 5
-        are planned below, each with its contents. The figure runs paper 0's simulator, unchanged, when it scrolls into
-        view.</p>
+      <p class="howto">Written so far: chapter 1, the first five steps of the lineage (chapter 2) and the scorecard
+        (chapter 4); the rest is planned below with its contents. Every figure starts when it scrolls into view; drag in
+        the 3-D ones to orbit, and use pinch or ⌘/Alt with the wheel to zoom.</p>
     </section>
 
     <!-- ================================================================== 1 -->
@@ -126,16 +126,118 @@
     </section>
 
     <!-- ================================================================== 2 -->
-    <section id="ch2" class="planned">
+    <section id="ch2">
       <h2>2. The Lineage, Live</h2>
-      <p class="lead">In preparation. One figure per idea, all on the same seed, each adding one rule to the one
-        before.</p>
-      <ol>
-        <li>The L-system: rewriting rules and no environment (Lindenmayer 1968).</li>
-        <li>Space colonisation: branches compete for space (Runions and colleagues 2007).</li>
-        <li>The self-organising tree: buds, the shadow pyramid, Borchert–Honda vigour (Pałubicki and colleagues 2009).</li>
-        <li>Branch modules: paper 0's simulator, one tree (Makowski and colleagues 2019).</li>
-        <li>The ecosystem: shared shadow, seeding, senescence, succession.</li>
+      <p class="lead">Five ways to grow a tree, from 1968 to paper 0, each run below. Every one adds a rule to the one
+        before, and every one grows beside the same wall.</p>
+      <p>The wall is a test. It stands 3 m to one side of the seedling, 10 m tall and 10 m long, lower than a grown tree.
+        A method that knows nothing of the world grows straight into it. A method that knows space keeps out of it. A
+        method that knows light turns away from its shadow before it ever touches it. Under every figure the same
+        instrument runs as the tree grows, the one chapter 4 uses: how many segments, how tall, Horton's branching
+        ratio, the box dimension, the crown's lean (the mean position of its leaves across the wall's axis; negative
+        is away from the wall), and how many segments sit inside the wall, drawn orange. All five start from seed 1;
+        the button gives the next seed, and the wall can be taken away.</p>
+
+      <h3 id="ch2-1">2.1 Rewriting: the L-System</h3>
+      <p>Lindenmayer wrote down how a filament of algae grows as a rule that rewrites every cell at once
+        <a class="cite" href="#ref-lindenmayer1968">[4]</a>. Read the symbols as the moves of a pen in space, a turtle
+        that draws, turns and returns to a saved position, and the same rewriting draws plants
+        <a class="cite" href="#ref-prusinkiewicz1990">[5]</a>. The tree below is the book's monopodial tree, after
+        Honda's model of branching <a class="cite" href="#ref-honda1971">[6]</a>: a trunk that sends side shoots
+        0.6 times its length, each side shoot forking left and right in a plane, all of it rewritten at every step.</p>
+      <figure id="fig-ls" class="lineage" data-method="lsystem">
+        <div class="lin-view"></div>
+        <figcaption>The parametric L-system of <i>The Algorithmic Beauty of Plants</i>, Fig. 2.6, ten rewriting steps.
+          The time slider is the step; the sliders change the rule's angles and ratio and redraw it at once. The seed
+          button does nothing to it: the rule has no chance in it. Branches inside the wall are orange. Drag to orbit.</figcaption>
+      </figure>
+      <p>It is exact and instant, a thousand segments in under a millisecond, and it is the same tree whatever the
+        seed. It is also blind: 65 of its segments grow inside the wall, with or without the wall there, because the
+        rule never reads the world. Its branching is perfectly binary, so Horton's ratio is exactly 2, half the 3.6 to
+        4.8 of real trees, and its widths shrink by 0.707 at every fork so Leonardo's rule holds by construction. Its
+        box dimension is 1.40.</p>
+
+      <h3 id="ch2-2">2.2 Competing for Space: Space Colonisation</h3>
+      <p>Runions, Lane and Prusinkiewicz turned the problem inside out <a class="cite" href="#ref-runions2007">[7]</a>.
+        Scatter points through the volume the crown will fill. Every point pulls the nearest branch tip within reach;
+        every pulled tip grows one step toward the points that chose it; a point a branch reaches is used up. Two
+        branches cannot grow into the same space, because a point serves one branch. The rule knows one thing about the
+        world, which space is free, and that is enough to keep it out of the wall: points are never made inside it, and
+        no branch may grow there.</p>
+      <figure id="fig-sc" class="lineage" data-method="colonise">
+        <div class="lin-view"></div>
+        <figcaption>Space colonisation in an ellipsoid crown, 2,000 points (grey dots, removed as branches reach them),
+          step 0.3 m. Reach is how far a point pulls, kill how close a branch must come to use it up, both in steps.
+          Fewer points give a coarser tree; a short reach gives a crown of many small branches. Drag to orbit.</figcaption>
+      </figure>
+      <p>Without the wall the crown fills the whole ellipsoid and 139 to 158 segments stand where the wall would be.
+        With it, none do (one, on one seed), and the crown leans 0.1 to 0.2 m away. The tree looks right because it
+        fills its envelope: Horton's ratio is 4.2 to 4.5, inside the real range, and the box dimension 1.52 to 1.54,
+        that of a laser-scanned ash. But the envelope is drawn, not grown, and the method knows nothing of light. A
+        branch in the wall's shadow grows as well as one in the sun.</p>
+
+      <h3 id="ch2-3">2.3 Competing for Light: the Self-Organising Tree</h3>
+      <p>Pałubicki and colleagues let light decide <a class="cite" href="#ref-palubicki2009">[3]</a>. Every bud casts a
+        pyramid of shade on the space below it, and reads its own light from the shade cast by everything above. The
+        light of all the buds is summed down to the trunk and handed back up as vigour, split at every fork between the
+        continuing axis and the side branch in proportion to the light each side gathered, weighted by λ, the apical
+        control of Borchert and Honda <a class="cite" href="#ref-borchert1984">[2]</a>. A bud with vigour v grows
+        ⌊v⌋ new internodes toward its default direction, bent toward the light and upward. A side branch that gathers
+        too little light for its size is shed. The wall here is opaque: it casts shade like a crown and nothing is lit
+        inside it.</p>
+      <figure id="fig-so" class="lineage" data-method="selforg">
+        <div class="lin-view"></div>
+        <figcaption>The self-organising tree of Pałubicki et al. 2009 on a 0.25 m shadow grid, 15 years. λ above 0.5
+          gives a trunk, below it a bush. Light C is how much shade a bud can bear; shedding removes branches below that
+          light per internode; ξ is how strongly shoots bend toward the light. <i>Shade</i> shows the shadow grid (blue,
+          every second voxel). Drag to orbit.</figcaption>
+      </figure>
+      <p>The tree now answers the wall without touching it: no segment inside it, and a crown that leans 0.76 to
+        0.89 m away, against 0.19 to 0.60 m with no wall on the same seeds. Nothing tells the tree where the wall is; the
+        branches on that side are shaded, gather less light, get less vigour and are shed. Its numbers are the closest
+        to real trees of the five: Horton's ratio 3.1 to 3.3, box dimension 1.52 to 1.55. Two of its constants are
+        ours, and they matter. With the light constant C at 1, every side bud is shaded to nothing by the buds above it
+        and the tree grows as a bare pole; at 2 it branches. The internodes keep one length here, where the paper lets
+        them stretch to twice that, which doubled the leader's growth.</p>
+
+      <h3 id="ch2-4">2.4 Modules: Paper 0's Tree</h3>
+      <p>Makowski and colleagues kept the light and the vigour and changed the unit
+        <a class="cite" href="#ref-makowski2019">[1]</a>. A tree is built from modules, small pre-shaped groups of
+        branches that grow as one, chosen from nine shapes by how strongly the axis dominates and how vigorous the
+        parent is. Light comes from how much a module's bounding sphere overlaps its neighbours' and from a shadow grid
+        shared by every plant. A tree of a hundred years is a few thousand segments, cheap enough for a forest. This is
+        paper 0's simulator, unchanged; the wall is written into its shadow grid as opaque cells.</p>
+      <figure id="fig-mod" class="lineage" data-method="modules">
+        <div class="lin-view"></div>
+        <figcaption>One tree of paper 0's simulator, 120 years, drawn as paper 0 draws it: the shade-tolerant species
+          (Makowski's Table 4, row i) or the pioneer (row n). The pioneer needs full light and dies as a seedling in the
+          wall's shade; take the wall away to see it grow. <i>Shade</i> shows the cells of the shared shadow grid that
+          pass less than half the light. Drag to orbit.</figcaption>
+      </figure>
+      <p>It grows the tallest tree of the five, 23 to 28 m in 120 years, with Horton's ratio 3.6 to 3.8, just inside the
+        real range. It responds least to the wall: the crown's lean is −0.43 to 0.07 m with the wall and −0.51 to
+        0.24 m without. An open-grown tree of this model is narrow, the sparse crown chapter 4 measured as a low box
+        dimension (1.28 to 1.40), and it mostly grows past the wall's top, where the light is. Modules were made for
+        forests, not for one tree beside a wall.</p>
+
+      <h3 id="ch2-5">2.5 Neighbours That Grow: the Ecosystem</h3>
+      <p>The last rule is that the neighbours are alive. Trees scatter seeds; a seed takes root only where enough light
+        reaches the ground; plants die of age or of starvation. The wall stays, but now it stands in a forest, and it
+        matters less than the trees.</p>
+      <figure id="fig-eco" class="lineage" data-method="ecosystem">
+        <div class="lin-view"></div>
+        <figcaption>Paper 0's forest on its 32 m plot, the wall at its centre, two species: a light-demanding pioneer and
+          a shade-tolerant tree. The tolerant share sets the mix of the first 70 seedlings. The strip compares the mean
+          height of trees within 6 m on the wall's near side with the rest. Drag to orbit.</figcaption>
+      </figure>
+      <p>Here the wall stops mattering. After 200 years on three seeds, the trees within 6 m of the wall's near side
+        average 4.7, 29.7 and 12.5 m with the wall and 5.9, 23.4 and 16.2 m without it; the rest of the plot averages
+        9.9 to 12.7 m either way. What stands beside the wall depends on which trees happened to take root there and
+        what shades them, far more than on the wall. A forest is its own neighbour. This is the scale paper 0 built
+        the model for, and the one chapter 4 scores: about 5 ms a year for 250 to 340 plants.</p>
+
+      <h3 id="ch2-6">2.6 Still to Come</h3>
+      <ol class="planned-list">
         <li>Light stamps: each tree stamps its shading onto a 2 m grid, on a plot large enough for canopy gaps (iLand).</li>
         <li>Microclimate under the canopy (Ecoclimates 2022), reduced.</li>
         <li>Fire through ground, ladder and crown fuel (Fire in Paradise 2021, Scintilla 2024), reduced.</li>
@@ -169,14 +271,14 @@
       <p>Plant a stand densely and leave it. The trees grow, close their canopy and start to starve one another. From then
         on the stand loses stems as it gains wood, along a line that foresters found almost a century ago. It comes in
         two forms. Reineke counted stems per hectare against their quadratic mean diameter and found a slope of −1.605 on
-        a log–log plot <a class="cite" href="#ref-reineke1933">[4]</a>. Yoda and colleagues plotted mean plant mass
-        against density and found −3/2 <a class="cite" href="#ref-yoda1963">[5]</a>. Real stands scatter around both.
+        a log–log plot <a class="cite" href="#ref-reineke1933">[8]</a>. Yoda and colleagues plotted mean plant mass
+        against density and found −3/2 <a class="cite" href="#ref-yoda1963">[9]</a>. Real stands scatter around both.
         In German stands measured since 1870, Reineke's slope runs from −1.42 for oak to −1.79 for beech
-        <a class="cite" href="#ref-pretzsch2005">[6]</a>. Of 63 data sets, 20 differ significantly from −3/2, and the
-        slope follows the species' shade tolerance <a class="cite" href="#ref-weller1987">[7]</a>.</p>
+        <a class="cite" href="#ref-pretzsch2005">[10]</a>. Of 63 data sets, 20 differ significantly from −3/2, and the
+        slope follows the species' shade tolerance <a class="cite" href="#ref-weller1987">[11]</a>.</p>
       <p>Paper 0 said that Makowski's full model reproduces the −3/2 mass law. It does not say that. Makowski's figure
         plots density against trunk diameter, the Reineke form, and calls it the 3/2 law, after Zeide
-        <a class="cite" href="#ref-makowski2019">[1]</a> <a class="cite" href="#ref-zeide1987">[8]</a>. Paper 0 also gave
+        <a class="cite" href="#ref-makowski2019">[1]</a> <a class="cite" href="#ref-zeide1987">[12]</a>. Paper 0 also gave
         −2.3 to −3.1 for its own reduced model, in the mass form. The stands behind that number and its fitting window
         were not recorded, so here it is measured again under one stated rule. The rule: 576 seedlings of one species on
         a jittered grid over the 32 m plot (5,600 per hectare), no new seedlings, trees counted from 5 cm of stem
@@ -201,7 +303,7 @@
         tolerant tree's is steeper than any species Pretzsch and Biber measured: it sheds more stems per centimetre of
         growth than a real stand does. The two forms are tied by how mass grows with diameter. Here stem mass grows as
         diameter to the power 2.96–3.04, against 2.89 (2.71–3.14) measured on real trees
-        <a class="cite" href="#ref-eloy2017">[9]</a>, so a steep diameter slope and a near −3/2 mass slope are the same
+        <a class="cite" href="#ref-eloy2017">[13]</a>, so a steep diameter slope and a near −3/2 mass slope are the same
         fact.</p>
 
       <h3 id="ch4-2">4.2 The Table</h3>
@@ -228,13 +330,13 @@
         </tbody>
       </table>
       <p>Sources for the right-hand column: allometry and Horton ratios from the tables collected by Eloy and colleagues
-        <a class="cite" href="#ref-eloy2017">[9]</a>; the Leonardo ratio from Bentley and colleagues
-        <a class="cite" href="#ref-bentley2013">[10]</a>; box dimensions of laser-scanned ash, maple and beech, with boxes
-        from 30 m down to 10 cm, from Seidel and colleagues <a class="cite" href="#ref-seidel2019">[11]</a>; stem sizes
-        across 14 tropical plots from Muller-Landau and colleagues <a class="cite" href="#ref-mullerlandau2006">[12]</a>;
-        canopy gaps from airborne laser scans of the Amazon <a class="cite" href="#ref-asner2013">[13]</a>
-        <a class="cite" href="#ref-reis2021">[14]</a>. The metabolic theory predicts θ = 2 for stem sizes
-        <a class="cite" href="#ref-enquist2009">[15]</a>; the plots reject it in 13 of 14 forests.</p>
+        <a class="cite" href="#ref-eloy2017">[13]</a>; the Leonardo ratio from Bentley and colleagues
+        <a class="cite" href="#ref-bentley2013">[14]</a>; box dimensions of laser-scanned ash, maple and beech, with boxes
+        from 30 m down to 10 cm, from Seidel and colleagues <a class="cite" href="#ref-seidel2019">[15]</a>; stem sizes
+        across 14 tropical plots from Muller-Landau and colleagues <a class="cite" href="#ref-mullerlandau2006">[16]</a>;
+        canopy gaps from airborne laser scans of the Amazon <a class="cite" href="#ref-asner2013">[17]</a>
+        <a class="cite" href="#ref-reis2021">[18]</a>. The metabolic theory predicts θ = 2 for stem sizes
+        <a class="cite" href="#ref-enquist2009">[19]</a>; the plots reject it in 13 of 14 forests.</p>
       <p>How to read it. Mass against diameter, height against diameter and the mass form of self-thinning land in or next
         to the real ranges. They were not tuned to; they come out of the light and vigour rules. The trees branch a
         little less than real ones: fewer side branches per order (R<sub>n</sub> below 3.6) and slightly thicker steps
@@ -255,7 +357,7 @@
         <p>Box dimension: points every 2 cm along every segment, boxes from 10 cm to half the tree's extent in steps of
           1.4, the slope of log(boxes hit) against −log(box size).</p>
         <p>Stem sizes: the continuous power-law maximum-likelihood estimate θ = 1 + n / Σ ln(D<sub>i</sub>/D<sub>min</sub>),
-          standard error (θ − 1)/√n <a class="cite" href="#ref-clauset2009">[16]</a>.</p>
+          standard error (θ − 1)/√n <a class="cite" href="#ref-clauset2009">[20]</a>.</p>
       </details>
     </section>
 
@@ -283,6 +385,10 @@
         <li id="ref-makowski2019">Makowski, M., Hädrich, T., Scheffczyk, J., Michels, D. L., Pirk, S., Pałubicki, W. Synthetic silviculture: multi-scale modeling of plant ecosystems. <i>ACM Transactions on Graphics</i> 38(4) (2019) 131. <a href="https://doi.org/10.1145/3306346.3323039" target="_blank" rel="noopener">doi:10.1145/3306346.3323039</a></li>
         <li id="ref-borchert1984">Borchert, R., Honda, H. Control of development in the bifurcating branch system of <i>Tabebuia rosea</i>. <i>Botanical Gazette</i> 145(2) (1984) 184–195. <a href="https://doi.org/10.1086/337445" target="_blank" rel="noopener">doi:10.1086/337445</a></li>
         <li id="ref-palubicki2009">Pałubicki, W., Horel, K., Longay, S., Runions, A., Lane, B., Měch, R., Prusinkiewicz, P. Self-organizing tree models for image synthesis. <i>ACM Transactions on Graphics</i> 28(3) (2009) 58. <a href="https://doi.org/10.1145/1531326.1531364" target="_blank" rel="noopener">doi:10.1145/1531326.1531364</a></li>
+        <li id="ref-lindenmayer1968">Lindenmayer, A. Mathematical models for cellular interactions in development, I and II. <i>Journal of Theoretical Biology</i> 18(3) (1968) 280–315.</li>
+        <li id="ref-prusinkiewicz1990">Prusinkiewicz, P., Lindenmayer, A. <i>The Algorithmic Beauty of Plants</i>. Springer, 1990. <a href="http://algorithmicbotany.org/papers/#abop" target="_blank" rel="noopener">algorithmicbotany.org</a></li>
+        <li id="ref-honda1971">Honda, H. Description of the form of trees by the parameters of the tree-like body: effects of the branching angle and the branch length on the shape of the tree-like body. <i>Journal of Theoretical Biology</i> 31(2) (1971) 331–338.</li>
+        <li id="ref-runions2007">Runions, A., Lane, B., Prusinkiewicz, P. Modeling trees with a space colonization algorithm. <i>Eurographics Workshop on Natural Phenomena</i> (2007) 63–70. <a href="http://algorithmicbotany.org/papers/colonization.egwnp2007.html" target="_blank" rel="noopener">algorithmicbotany.org</a></li>
         <li id="ref-reineke1933">Reineke, L. H. Perfecting a stand-density index for even-aged forests. <i>Journal of Agricultural Research</i> 46 (1933) 627–638.</li>
         <li id="ref-yoda1963">Yoda, K., Kira, T., Ogawa, H., Hozumi, K. Self-thinning in overcrowded pure stands under cultivated and natural conditions. <i>Journal of Biology, Osaka City University</i> 14 (1963) 107–129.</li>
         <li id="ref-pretzsch2005">Pretzsch, H., Biber, P. A re-evaluation of Reineke's rule and stand density index. <i>Forest Science</i> 51(4) (2005) 304–320.</li>
@@ -304,7 +410,11 @@
   </main>
   <div></div>
   </div>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+                   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
+  </script>
   <script type="module" src="fractal-engine/paper/paper.js?v=10"></script>
-  <script type="module" src="papers/silviculture/paper.js?v=1"></script>
+  <script type="module" src="papers/silviculture/paper.js?v=7"></script>
 </body>
 </html>

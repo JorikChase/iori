@@ -64,3 +64,10 @@ pane). Numbers from `node tools/silviculture/measure.mjs` (5 seeds, ~25 s, write
 1.22–1.29 (pioneer 45 yr), θ≥5 cm 2.14–2.50, θ≥20 cm 2.16–2.43 (14–22 stems), Leonardo built in, gaps not measurable.
 fractals.html §3.1 corrected (Makowski checked the diameter form; the −2.3…−3.1 sentence replaced with a pointer).
 Preview: launch entry `silviculture` serves a scratchpad mirror (launcher cannot read ~/Desktop).
+
+**P2 done (2026-11-06, uncommitted).** Chapter 2 §2.1–2.5 live: `lineage.js` (one WebGL context drawn into each
+figure's 2-D canvas; same seed, wall, camera, instrument), `skeleton.js` (common skeleton + measure()), `lsystem.js`
+(ABOP Fig. 2.6), `colonise.js` (Runions 2007), `selforg.js` (Pałubicki 2009; C = 2 and fixed internode are our
+constants, swept), `modules.js` (paper 0's Sim + the wall as `sim.extraDep`, a no-op hook added to
+silviculture-core.js lightPass). Numbers: `node tools/silviculture/lineage-measure.mjs` → lineage.json (3 seeds).
+Rig: `__silviculture.make[id](el).advance(n)` in a hidden pane. §2.6 lists the rest of the lineage (phase 3).

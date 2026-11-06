@@ -11,3 +11,22 @@ section.planned { color: var(--muted); }
 section.planned h2 { color: var(--ink-2, var(--ink)); }
 section.planned ol { padding-left: 1.2rem; }
 section.planned li { margin: 0.3rem 0; }
+
+/* chapter 2: the lineage figures (lineage.js), one renderer drawn into each figure's own canvas */
+figure.lineage .lin-view { position: relative; width: 100%; aspect-ratio: 16 / 10; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; touch-action: pan-y; cursor: grab; background: var(--paper); }
+figure.lineage .lin-view canvas { display: block; width: 100%; height: 100%; border: 0; border-radius: 0; }
+figure.lineage .lin-view:active { cursor: grabbing; }
+.lin-controls label .value { font: 0.78rem var(--mono); color: var(--muted); min-width: 4.5em; display: inline-block; }
+.lin-controls .lin-time input { width: 11rem; }
+.lin-controls input[type="range"] { width: 7rem; }
+.lin-metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.2rem 0.6rem; margin: 0.6rem auto 0.4rem; max-width: var(--wide); }
+.lin-metrics div { text-align: center; }
+.lin-metrics dt { font: 0.68rem/1.3 var(--sans); color: var(--muted); }
+.lin-metrics dd { margin: 0; font: 0.9rem/1.4 var(--mono); color: var(--ink); }
+#fig-eco .lin-metrics { grid-template-columns: repeat(4, 1fr); }
+ol.planned-list { color: var(--muted); }
+@media (max-width: 640px) {
+  figure.lineage .lin-view { aspect-ratio: 4 / 5; }
+  .lin-metrics, #fig-eco .lin-metrics { grid-template-columns: repeat(3, 1fr); }
+  .lin-controls .lin-time input { width: 8rem; }
+}

@@ -5,7 +5,7 @@
 // law, Reineke's (stems per hectare against quadratic mean diameter) and Yoda's (mean tree mass against stems per
 // hectare), with the slope fitted live on the thinning phase (density 10 % below its peak), the same rule as
 // tools/silviculture/measure.mjs, which measured the numbers the text quotes.
-import { Sim, PLOT } from '../fractals/silviculture-core.js?v=1';
+import { Sim, PLOT } from '../fractals/silviculture-core.js?v=3';
 
 const HA = PLOT * PLOT / 10000, WOOD = 600, TREE_D = 0.05, G = 24;
 const tok = (n, d) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;

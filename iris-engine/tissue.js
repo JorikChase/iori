@@ -441,9 +441,9 @@
     // K2b: subsurface strength (0 = off, the model as shipped), each channel's reach in mm (R, G, B) and the share of the
     // self-shadow each channel lifts. Changing them changes what the light measures: re-measure (T.proof / __t7.review).
     // Measured 2026-11-06 (study/16 §4b): the per-channel reach costs colour at the fit pose (cellΔab 1.99 → 2.12 on 26), one shared
-    // reach does not; 0.5 at 30 µm raises MATCH2 and strandCorr on all four eyes. The default stays 0 until the shipped measurements
-    // are re-published with it (the dial key carries ss, so ?ss=0.5 makes the page measure on load).
-    T.ss = 0; T.ssR = [0.03, 0.03, 0.03]; T.ssLeak = [0.35, 0.35, 0.35];
+    // reach does not; 0.5 at 30 µm raises MATCH2 and strandCorr on all four eyes. Default 0.5 since the shipped measurements were
+    // re-published with it (2026-11-06); the dial key carries ss, so ?ss=0 (the model without it) makes the page measure on load.
+    T.ss = 0.5; T.ssR = [0.03, 0.03, 0.03]; T.ssLeak = [0.35, 0.35, 0.35];
     { const q = /[?&]ss=([0-9.]+)/.exec(location.search); if (q) T.ss = Math.min(1, Math.max(0, +q[1] || 0)); }
     T.photoProgram = () => programs().photo;
 

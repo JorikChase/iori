@@ -241,8 +241,20 @@ Still open:
 - iori's judgement of the glow. `?ss=0.5` turns it on, and the page then measures the light on load. Off the fit pose the
   difference is subtle at fit resolution: `study/shots/k2b-26-offaxis.png`, light at 126° / 26°.
 
-**The default stays 0** until the shipped measurements are re-published with 0.5. The dial key carries `ss`, so a page with
-0.5 and the old file measures on load (≈ 3 s) instead of installing the file.
+**Re-published 2026-11-06 with `T.ss = 0.5` as the default** (iori: "yes, re-publish"). Each eye was published on a fresh
+page with `__fresh.publish(NN)`: the Load button's measured load, `exportMeasurements`, then the arrival gate. All four pass,
+max diff 1. MATCH2 on that path against the numbers published before (study/15, without subsurface):
+
+| eye | MATCH2 | strandCorr |
+|---|---|---|
+| 26 | 90.354 → 90.33 | 0.508 |
+| 09 | 88.117 → 88.61 | 0.585 |
+| 25 | 91.397 → 91.57 | 0.469 |
+| 35 | 88.316 → 88.67 | 0.461 |
+
+- A visitor's page (`?eye=09`) installs the new measurements ("measured 2026-11-06").
+- The UI contract `compare` and `reach` are both `[]`.
+- `?ss=0` gives the model without subsurface. It does not match the shipped key, so that page measures the light on load.
 
 **Trap found on the way:** two loads of the same page render differently (18 % of bytes, ≈ 490 pixels by more than 100)
 unless hippus is off. The breathing pupil is caught at a different size per load. Compare renders within one load, or set

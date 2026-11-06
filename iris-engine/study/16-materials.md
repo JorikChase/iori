@@ -191,6 +191,63 @@ albedo × E. Implemented in the bake as a separable blur of the measured light g
 strength knob with origin 0. **Gate:** crypt-wall and floor brightness profiles against the photographs by region
 (`tools/crisp` samples five sites per eye), cellΔab not worse, MATCH2 not worse; iori judges the glow in the overlay.
 
+## 4b. K2b built (2026-11-06) — subsurface in the light, measured on four eyes
+
+**Where it lives.** A fixed subsurface factor in the bake cannot work. The albedo is the photo divided by the light the engine
+itself renders (calibrate's k), so any factor baked from that same light cancels exactly at the fit pose. The transport
+therefore sits in the photo shader's key light (tissue variant only, `need()` in tissue.js), and calibration measures the
+light with it.
+- (1) **The cosine through a blurred normal:** per channel, the height gradient is read at the channel's reach (offset × s,
+  lod + log2 s). This is the blurred-normal approximation to diffusion used for skin.
+- (2) **A lifted self-shadow:** a share of the self-shadow is lifted per channel (`T.ssLeak`), for light that walks into a
+  crypt floor under a shadowed wall.
+- `keyE3 = mix(keyE, k3, T.ss)`. At `T.ss = 0` the render is byte-identical to K2.3 (renderFit compared on eye 25).
+- Not done: Ds and depth weighting of the reach. The layered albedo carries no Ds per texel. Next would be a Ds channel in the
+  region texture.
+
+**Measured** (`__t7.review(ref)`, which always re-measures the light; eye 26 first, then the others):
+
+| eye 26 | MATCH2 | cellΔab | strandCorr |
+|---|---|---|---|
+| off | 90.55 | 1.99 | 0.433 |
+| 0.5, per-channel reach 45 / 28 / 16 µm, leak .55 / .35 / .2 | 90.62 | 2.12 | 0.514 |
+| 1.0, the same | 90.03 | 2.47 | 0.543 |
+| 0.5, normals only (no leak) | 90.62 | 2.12 | 0.514 |
+| 0.5, leak only | 90.55 | 1.99 | 0.433 |
+| **0.5, one reach 30 µm for all channels** | **90.56** | **1.96** | **0.516** |
+| 0.75, one reach 40 µm | 90.30 | 1.96 | 0.541 |
+| 1.0, one reach 20 / 30 / 50 / 80 µm | 90.10 / 89.85 / 89.89 / 90.03 | 1.98 / 1.98 / 1.98 / 1.97 | 0.529 / 0.539 / 0.545 / 0.545 |
+
+Read off the table:
+- The leak does nothing at the fit pose: the photographs' light is coaxial and casts no self-shadow. It acts only when the
+  light moves.
+- The per-channel reach costs colour (cellΔab +0.13): the light grid cannot follow chromatic light at that scale. One shared
+  reach does not.
+- Strength trades strandCorr against MATCH2. 0.5 keeps MATCH2 and lifts strandCorr.
+
+Strength 0.5, one reach of 30 µm, on every eye:
+
+| eye | MATCH2 | cellΔab | strandCorr |
+|---|---|---|---|
+| 26 | 90.55 → 90.56 | 1.99 → 1.96 | 0.433 → 0.516 |
+| 09 | 88.31 → 88.64 | 2.75 → 2.74 | 0.505 → 0.592 |
+| 25 | 91.33 → 91.46 | 2.67 → 2.65 | 0.403 → 0.470 |
+| 35 | 89.04 → 89.37 | 2.14 → 2.13 | 0.412 → 0.487 |
+
+**The gate passes on all four eyes:** MATCH2 not worse, cellΔab not worse, and strandCorr up 0.07–0.09.
+
+Still open:
+- The crypt-wall profiles (`tools/crisp`) were not sampled.
+- iori's judgement of the glow. `?ss=0.5` turns it on, and the page then measures the light on load. Off the fit pose the
+  difference is subtle at fit resolution: `study/shots/k2b-26-offaxis.png`, light at 126° / 26°.
+
+**The default stays 0** until the shipped measurements are re-published with 0.5. The dial key carries `ss`, so a page with
+0.5 and the old file measures on load (≈ 3 s) instead of installing the file.
+
+**Trap found on the way:** two loads of the same page render differently (18 % of bytes, ≈ 490 pixels by more than 100)
+unless hippus is off. The breathing pupil is caught at a different size per load. Compare renders within one load, or set
+`state.hippus = false`, as knob_probe does.
+
 ## 5. Steps and gates
 
 | # | step | gate |

@@ -409,10 +409,42 @@
                 tint = clamp((nCol + EPS) / (oCol + EPS), vec3(0.0), vec3(8.0));
             }
             col = mix(col, tsA.rgb * tint, tsA.a);`);
+        // K2b (study/16 §4): lateral subsurface. Light that enters the stroma beside a point leaves at it, so what a point
+        // receives is the key light averaged over a neighbourhood that grows with how far each colour travels in the
+        // tissue (red furthest). Two terms: (1) the cosine with a normal read off a coarser level of the height field
+        // per channel (the blurred-normal approximation to diffusion), (2) a share of the self-shadow lifted per channel
+        // (the light that walks into a crypt floor under the shadowed wall). u_ss = 0 is the model without it, exactly.
+        need('float hitIris(vec3 o, vec3 d, float rp) {', `uniform float u_ss; uniform vec3 u_ssR, u_ssLeak;
+        float hitIris(vec3 o, vec3 d, float rp) {`);
+        need('            float diff = clamp(dot(N, toLight), 0.0, 1.0);', `            float diff = clamp(dot(N, toLight), 0.0, 1.0);
+            vec3 ssDiff = vec3(diff);
+            if (u_ss > 0.0) {
+                for (int c = 0; c < 3; c++) {
+                    float sc = max(1.0, u_ssR[c] / max(texV, 1e-5)), dl = log2(sc);       // the channel's reach, in atlas texels and mip levels
+                    float hRc = tissueH(uv + dv * sc, lod + dl) - tissueH(uv - dv * sc, lod + dl);
+                    float hTc = tissueH(uv + du * sc, lod + dl) - tissueH(uv - du * sc, lod + dl);
+                    vec3 Nc = normalize(Ng + (hRc / (2.0 * texV * sc) * (w * dvdr)) * radial + (hTc / (2.0 * texU * sc)) * tangent);
+                    ssDiff[c] = clamp(dot(Nc, toLight), 0.0, 1.0);
+                }
+            }`);
+        need('            vec3 lit = col * (keyE + ambE);', `            vec3 keyE3 = vec3(keyE);
+            if (u_ss > 0.0) {                                    // K2b: the same key light, through the channel's own normal and a lifted shadow
+                vec3 shC = vec3(1.0) - 0.9 * selfShadow * (vec3(1.0) - u_ssLeak);
+                vec3 k3 = ssDiff * causticGain * (1.0 - Fentry) * limbShadow * shC * lid * (0.55 + 0.45 * occ);
+                keyE3 = mix(vec3(keyE), k3, clamp(u_ss, 0.0, 1.0));
+            }
+            vec3 lit = col * (keyE3 + ambE);`);
         P.photo = program(shaderSrc('vs').trim(), src, 'photo-tissue', { position: 0 });
         return P;
     }
     T.k1 = true;                                  // K1 (§32): the knobs offset the fit. Set false for the v0.8 ablation.
+    // K2b: subsurface strength (0 = off, the model as shipped), each channel's reach in mm (R, G, B) and the share of the
+    // self-shadow each channel lifts. Changing them changes what the light measures: re-measure (T.proof / __t7.review).
+    // Measured 2026-11-06 (study/16 §4b): the per-channel reach costs colour at the fit pose (cellΔab 1.99 → 2.12 on 26), one shared
+    // reach does not; 0.5 at 30 µm raises MATCH2 and strandCorr on all four eyes. The default stays 0 until the shipped measurements
+    // are re-published with it (the dial key carries ss, so ?ss=0.5 makes the page measure on load).
+    T.ss = 0; T.ssR = [0.03, 0.03, 0.03]; T.ssLeak = [0.35, 0.35, 0.35];
+    { const q = /[?&]ss=([0-9.]+)/.exec(location.search); if (q) T.ss = Math.min(1, Math.max(0, +q[1] || 0)); }
     T.photoProgram = () => programs().photo;
 
     // K1: snapshot the fitted eye's material — call it while the sliders stand where the fit left them. The picture at
@@ -482,7 +514,8 @@
         gl.uniform1f(u('u_tisReliefK'), q(S.relief, o.relief) * q(S.blRelief === undefined ? 1 : S.blRelief, o.blRelief));
         gl.uniform1f(u('u_oRingStr'), o.ring); gl.uniform1f(u('u_oRingR'), o.ringR);
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
-        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin || T.k2On()) ? 0 : 1);   // K2.3: with materials the knobs are in the bake; the legacy fields are not read
+        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin || T.k2On()) ? 0 : 1);
+        gl.uniform1f(u('u_ss'), +T.ss || 0); gl.uniform3f(u('u_ssR'), T.ssR[0], T.ssR[1], T.ssR[2]); gl.uniform3f(u('u_ssLeak'), T.ssLeak[0], T.ssLeak[1], T.ssLeak[2]);   // K2b   // K2.3: with materials the knobs are in the bake; the legacy fields are not read
         if (T.marg && T.margin !== false) {                     // T1: the aperture follows the measured margin
             // iori: more circular. But "out of round" and "lumpy" are not the same thing — the low harmonics are the
             // margin's true decentring and ovality, which the photo really has and which damping costs 3.7 MATCH2,
@@ -2172,7 +2205,7 @@
     // and k1 are not in the key — neither reaches a grey bake. A mismatch = measure, as before.
     T.dialKey = () => JSON.stringify({ engine: E.ENGINE_VERSION, eye: T.src && T.src.ref, n: T.src && T.src.fit,
         deckZ: T.deckZ, sheetZ: T.sheetZ, wallZ: T.wallZ === undefined ? 2.5 : T.wallZ, delight: T.delight, margin: T.margin !== false,
-        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0, rimK: T.rimK });   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
+        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0, rimK: T.rimK, ...(T.ss > 0 ? { ss: [T.ss, T.ssR, T.ssLeak] } : {}) });   // K2b: off = the key the shipped measurements carry   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
     const q16 = (v, lo, hi, L = 65535) => Math.max(0, Math.min(L, Math.round((v - lo) / Math.max(hi - lo, 1e-12) * L)));
     const gz = async (bytes, dir) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(dir ? new CompressionStream('gzip') : new DecompressionStream('gzip'))).arrayBuffer());
     // → gzipped bytes: 'IRC1' · u32 header length · header JSON · light (6 planes u16) · shading (u16) · light mask (u8, one

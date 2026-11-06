@@ -1120,6 +1120,15 @@
       "type": "experiment",
       "priority": 0.5
     },
+    "silviculture.html": {
+      "title": "Synthetic Silviculture: Growing a Forest, Forming a World",
+      "description": "Paper 0.3: the forest of paper 0 taken apart rule by rule, set beside the state of the art, and scored live against the laws real forests obey.",
+      "category": "fractals",
+      "domain": "iori.me",
+      "type": "experiment",
+      "hidden": true,
+      "priority": 0.5
+    },
     "slime-mold.html": {
       "title": "Procedural Physarum Simulation",
       "description": "Physarum polycephalum simulated: slime mold networks emerging from simple agents.",

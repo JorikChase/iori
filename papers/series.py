@@ -27,6 +27,10 @@ SERIES = [
     ("0.2", "radiance-fields.html", "Radiance Fields: Elements and Morphs", "October 2026",
      "The Fractal Engine's object taken apart: density, emission, view-dependent colour and the volume integral, "
      "and the representations — distance fields, voxels, Gaussians, networks — with the morphs between them."),
+    ("0.3", "silviculture.html", "Synthetic Silviculture: Growing a Forest, Forming a World", "in preparation",
+     "Paper 0's forest taken apart rule by rule, set beside the methods before it and the ones published since, "
+     "and scored live against the laws real forests obey: self-thinning in both forms, allometry, branching, "
+     "box dimension, stem sizes."),
     ("1", "automata.html", "Cellular Automata as the Computational Basis", "in preparation",
      "Local rules compute a rough world, measured against known answers: Flame Strains, Petri, the Tero "
      "fixture, the think tank."),

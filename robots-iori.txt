@@ -48,6 +48,7 @@ Disallow: /petri/icon/colony/
 Disallow: /petri/icon/three-strains/
 Disallow: /petri/icon/white/
 Disallow: /radiance-fields.html
+Disallow: /silviculture.html
 Disallow: /tensor-landscapes.html
 Disallow: /theatre-mask/
 Disallow: /timeline.html

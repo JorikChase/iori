@@ -1,0 +1,13 @@
+/* Synthetic Silviculture (paper 0.3): paper 0's look (papers/fractals/paper.css) plus its own figures. */
+#fig-thinning canvas { width: 100%; aspect-ratio: 2 / 1; display: block; touch-action: pan-y; }
+@media (max-width: 640px) {
+  #fig-thinning canvas { aspect-ratio: 1 / 1.75; }
+  table.data { font-size: 0.76rem; }
+  table.data th, table.data td { padding: 0.35rem 0.25rem; }
+  table.data th { white-space: normal; }
+}
+/* planned chapters: a quieter block until they are written */
+section.planned { color: var(--muted); }
+section.planned h2 { color: var(--ink-2, var(--ink)); }
+section.planned ol { padding-left: 1.2rem; }
+section.planned li { margin: 0.3rem 0; }

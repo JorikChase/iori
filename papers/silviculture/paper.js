@@ -3,10 +3,12 @@
 import { createThinning } from './thinning.js?v=3';
 import { createLineage } from './lineage.js?v=8';
 import { createStandFig } from './standfig.js?v=2';
+import { createGroundFig } from './groundfig.js?v=6';
 
 const make = { 'fig-thinning': createThinning };
 for (const f of document.querySelectorAll('figure.lineage')) make[f.id] = createLineage;
 for (const f of document.querySelectorAll('figure.standfig')) make[f.id] = createStandFig;
+for (const f of document.querySelectorAll('figure.groundfig')) make[f.id] = createGroundFig;
 const figs = new Map();
 const observer = new IntersectionObserver((entries) => {
   for (const e of entries) {

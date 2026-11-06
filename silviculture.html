@@ -66,7 +66,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="papers/fractals/paper.css?v=4">
   <link rel="stylesheet" href="fractal-engine/paper/paper.css?v=6">
-  <link rel="stylesheet" href="papers/silviculture/paper.css?v=2">
+  <link rel="stylesheet" href="papers/silviculture/paper.css?v=5">
 </head>
 
 <body>
@@ -97,8 +97,11 @@
         and their box dimension sits at the low edge of laser-scanned trees. Its plot is too small to measure canopy gaps; a stand of
         individual trees on 16 ha (2.6) is not, and its gaps fall off as a power law of exponent 2.64 to 2.80, steeper
         than the Amazon's 1.66 to 2.50, as a forest with no storm or fire should.
+        The ground is measured the same way (chapter 3): noise leaves a quarter to two fifths of its surface in closed
+        pits and its channels have no concavity, while paper 0's region drains and sits inside Earth's ranges for
+        Hack's exponent and τ on every seed.
         One correction to paper 0 follows: the forest law Makowski checked is the diameter form, not the mass form.</p>
-      <p class="howto">Written so far: chapter 1, the lineage (chapter 2) and the scorecard (chapter 4); the rest is planned below with its contents. Every figure starts when it scrolls into view; drag in
+      <p class="howto">Written so far: chapters 1 to 4; the rest is planned below with its contents. Every figure starts when it scrolls into view; drag in
         the 3-D ones to orbit, and use pinch or ⌘/Alt with the wheel to zoom.</p>
     </section>
 
@@ -374,17 +377,150 @@
     </section>
 
     <!-- ================================================================== 3 -->
-    <section id="ch3" class="planned">
+    <section id="ch3">
       <h2>3. The Ground, Live</h2>
-      <p class="lead">In preparation. From the stream-power law to paper 0's 10 km region, and what learned world
-        generators do instead.</p>
-      <ol>
-        <li>Uplift against stream power (Cordonnier and colleagues 2016), and its implicit solve.</li>
-        <li>Paper 0's region: rivers, lakes, strata, climate, with its drainage statistics.</li>
-        <li>Stochastic geomorphological transport at plot scale (McDonald and Cordonnier 2026), reduced.</li>
-        <li>Learned terrain and world models (InfiniteDiffusion, Genie 3, Matrix-Game): what they do that a law-based
-          world cannot yet, and what they do not measure.</li>
-      </ol>
+      <p class="lead">The forest of chapter 2 stands on ground that paper 0 formed with rivers. This chapter takes that
+        ground apart the same way: the law alone, then paper 0's region, then a newer method that replaces the law with
+        particles, then one instrument for all of them, and last the learned generators that measure none of this.</p>
+
+      <h3 id="ch3-1">3.1 Uplift Against Stream Power</h3>
+      <p>Rock rises, and rivers cut it down. Geomorphologists write the cutting as stream power: the ground lowers in
+        proportion to its slope and to a power of the area that drains through it, about the square root. Cordonnier and
+        colleagues brought the law to graphics in 2016 <a class="cite" href="#ref-cordonnier2016">[19]</a>; it is what
+        paper 0's region runs on. Here it runs alone: a 10 km square of 257 by 257 cells rising half a millimetre a
+        year everywhere, every edge a coast at sea level, the ground starting as 20 m of fractional Brownian
+        roughness. The law is solved two ways. The explicit way lowers each cell by its current slope times the time
+        step. It is stable only while that lowering is smaller than the height difference it acts on, a Courant
+        condition, and on a big river with steps of 100,000 years it is not. Braun and Willett's implicit way solves
+        each cell from its outlet upstream, using its receiver's new height <a class="cite" href="#ref-braun2013">[20]</a>,
+        and is stable at any step.</p>
+      <figure id="fig-spl" class="groundfig" data-mode="spl">
+        <canvas aria-label="A square of ground rising and being cut by rivers, seen from above, and its height over time"></canvas>
+        <figcaption>Uniform uplift against stream power on a 10 km square, every edge an outlet, hill-shaded from the
+          north-west with channels in blue (drainage area over 0.05 km²). Right: the highest point and the mean height
+          over 15 million years. Switch the solver to <i>explicit</i> and the same time step goes unstable; drop the
+          step to 1 or 2 kyr and it is stable again, a hundred times slower. <i>Hillslopes creep</i> adds soil creep
+          between the channels.</figcaption>
+      </figure>
+      <p>Measured on three seeds, with steps of 100,000 years the implicit solve is stable at a Courant number of
+        47 to 55 on the largest river, and after 15 million years the square stands 910 to 1010 m at its highest. The
+        explicit solve at the same step is not: after 3 million years its highest point is 1570 to 1800 m against the
+        implicit 940 to 1000 m, and cells differ by up to 2.8 km. At 2,000 years a step the Courant number is 1.04 to
+        1.25, still above 1; at 1,000 it is 0.55 to 0.65, and the explicit solve is stable, at 3,000 steps where the
+        implicit one took 30. Stable is not the same as right. After 3 million years with 1,000-year steps the highest
+        point is 1355 to 1448 m, the two solvers within 13 m of each other; with 100,000-year steps the implicit solve gives 940 to 1000 m. Large
+        steps reach the same steady state but take the wrong road to it. The steady state itself obeys the law it was
+        built from: without hillslope creep, the channels' concavity is 0.45, which is m/n, exactly, as it must be
+        <a class="cite" href="#ref-mudd2018">[21]</a>, Hack's exponent is 0.57, inside Earth's range, and τ is 1.46 to
+        1.49, a little above Earth's 1.41 to 1.45. With creep, the small channels are smoothed away: Hack's exponent falls to 0.50 to 0.51, τ to
+        1.27 to 1.29, concavity to 0.36 to 0.41. The bare law already gives river networks of the right shape;
+        smoothing the hillslopes without a channel threshold damages them.</p>
+
+      <h3 id="ch3-2">3.2 Paper 0's Region</h3>
+      <p>Paper 0's region adds what the bare law leaves out. The uplift varies by geological block and some blocks sink;
+        each rock type has beds of different hardness, so cliffs and benches form; slopes steeper than their angle of
+        repose slide; lakes fill to their spill point and trap the sediment arriving in them; a fault moves late and
+        dams valleys; rivers take their width from their water and meander on low slopes; rain falls on the windward
+        side. It is formed coarse to fine, at a quarter, a half and the full resolution, and measured at the end by the
+        drainage statistics of Dodds and Rothman <a class="cite" href="#ref-dodds1999">[22]</a>. Here it is formed in
+        the page, in a worker, with the sea filling its lowest 8 %.</p>
+      <figure id="fig-region" class="groundfig" data-mode="region">
+        <canvas aria-label="Paper 0's 10 km region from above, with rivers and lakes, and its Hack's-law plot"></canvas>
+        <figcaption>Paper 0's region, formed in a worker at the chosen resolution, hill-shaded with rivers, lakes and
+          sea. Right: Hack's law, the longest stream above each point against the area draining through it, the
+          median in each tenth of a decade (orange) and Earth's slopes of 0.57–0.60 (green). The strip gives the
+          region's own statistics, as paper 0 measured them. 513² is paper 0's resolution and takes several seconds.</figcaption>
+      </figure>
+      <p>Formed on three seeds, at 257² in about a second and at paper 0's 513² in about 3 s, the region's rivers keep
+        their shape across resolutions: Hack's exponent is 0.56 to 0.58 at both, inside Earth's 0.57 to 0.60 or at its
+        edge, and τ is 1.42 to 1.44 at 257² and 1.38 to 1.42 at 513², against Earth's 1.43 ± 0.02. Horton's bifurcation
+        ratio is 3.6 to 4.8. Concavity is 0.41 to 0.84: where the rock is soft and the beds alternate, the channels steepen
+        and flatten beyond the bare law's 0.45. Two numbers miss. The hypsometric integral is 0.19 to 0.31, below the
+        mature 0.35, because most of the region is foothills, as paper 0 said; and the coastline's dimension is 0.96 to
+        1.28 at 257² and 1.01 to 1.17 at 513², which at the low end means too few coast cells to measure a dimension at
+        all. Set against 3.1 with creep, τ rises from 1.27 to 1.43 and Hack's exponent from 0.51 to 0.57. Paper 0's
+        region lets hillslopes creep too, but not into a channel: where 0.02 km² or more drains, the river carries the
+        soil away. That threshold is what 3.1 lacks, and it keeps the small channels.</p>
+
+      <h3 id="ch3-3">3.3 Particles Instead of a Law</h3>
+      <p>Stream power says how fast a river cuts; it does not say where the sediment goes. It cannot make a braided
+        river, an alluvial fan or a delta, and paper 0 draws those by rule. McDonald and Cordonnier replaced the law at
+        that scale with many water particles, each carrying sediment, sampled at random, with the momentum of the water
+        averaged into a field that later particles feel; braided rivers, meanders, fans and deltas come out of it
+        <a class="cite" href="#ref-mcdonald2026">[23]</a>. The paper received an honorable mention at SIGGRAPH 2026. Its
+        code is CUDA. What runs here is the reduced form the same first author published before it, as open code
+        <a class="cite" href="#ref-mcdonald2020">[24]</a>: a particle runs downhill, pushed by gravity and by the mean
+        momentum of the particles before it, takes up sediment toward a load that grows with its drop and its
+        discharge, and sets the excess down. The plot is 1.6 km across: an upland along the top whose front falls
+        150 m to a plain sloping 1 % to the bottom edge, the only outlet.</p>
+      <figure id="fig-transport" class="groundfig" data-mode="transport">
+        <canvas aria-label="An upland and a plain from above, with water particles cutting channels and building fans"></canvas>
+        <figcaption>Stochastic transport, reduced: 400 water particles an iteration on 160² cells of 10 m. Blue: where
+          the water runs (its averaged discharge); sand colour: ground built up by deposits. Right: the volume eroded,
+          the volume set down below the mountain front, and the volume carried out at the outlet. Turn
+          <i>Momentum</i> off and the particles forget the water before them.</figcaption>
+      </figure>
+      <p>Run on three seeds for 600 iterations, the budget closes to within a few millionths of a cubic metre: every
+        metre the particles take up is set down again or leaves through the outlet. The two runs differ in where it goes.
+        With momentum, water that has gathered speed in the upland keeps it on the plain; 11 to 13 channel threads
+        cross each row of the plain, braiding and rejoining, and 124 to 136 million m³ leave through the outlet, with
+        5 to 8 million m³ left below the mountain front. Without momentum the water slows where the slope eases, 8
+        threads cross the plain in broad sheets, and 23 to 28 million m³ settle into fans below the front, three to
+        five times as much, with 66 to 75 million m³ exported. The braiding, the fans and their size come out of one
+        rule about how water remembers its speed, which is McDonald and Cordonnier's point. What this reduced form
+        lacks is a time unit, grain sizes and a bed that differs from its banks, so its numbers are proportions, not
+        rates; the paper's own model reports no drainage statistics either, and at 1.6 km the plot has too few channels
+        for any.</p>
+
+      <h3 id="ch3-4">3.4 One Instrument for Every Generator</h3>
+      <p>Terrain papers in graphics show renderings beside photographs; learned terrain generators report how close their
+        images are to real elevation maps, by the Fréchet distance of a network's features. Neither asks whether the
+        water drains. One paper did: Lochner and colleagues measured how much ground must be cut away for every pit to
+        drain, across ten generators, and found ridged noise needing 126 units, erosion 0.45 and their own diffusion
+        model 0.61 <a class="cite" href="#ref-lochner2023">[25]</a>. That says whether water can leave the map, not
+        whether its rivers have the shape of rivers. Paper 0's statistics say that. Here the same code measures four
+        surfaces of the same size: fractional Brownian noise, ridged multifractal noise
+        <a class="cite" href="#ref-musgrave1994">[26]</a>, the stream power of 3.1 after 15 million years, and paper 0's
+        region.</p>
+      <figure id="fig-score" class="groundfig" data-mode="score">
+        <canvas aria-label="Four generated terrains side by side, with their rivers"></canvas>
+        <figcaption>Four generators, one instrument. Each surface is 10 km at 257², its pits filled
+          (Priority-Flood, <a class="cite" href="#ref-barnes2014">[27]</a>), its channels traced from 0.05 km² of
+          drainage area, its statistics computed by paper 0's code. Green: inside Earth's range; black: within the
+          measurement scatter of it; orange: outside. The region is formed here without its sea, so that all four are
+          measured alike. New seed forms all four again.</figcaption>
+      </figure>
+      <p>Measured on three seeds, the four surfaces separate on the first line. Noise does not drain: 23 to 34 % of an
+        fBm surface and 36 to 39 % of a ridged one lies in closed pits, which would hold 9 to 32 m and 64 to 81 m of
+        water on average. Stream power and the region drain everywhere but 1 % of their cells. The river statistics
+        follow. Noise's channels, traced through filled pits, have no concavity (0.02 to 0.14, against Earth's 0.45):
+        their beds are flat lake floors and steep spillways, not profiles. Their Hack exponents are 0.29 to 0.49 and their
+        τ 1.58 to 1.74, both off. Stream power alone gives 0.50 to 0.51 and 1.27 to 1.29 with hillslope creep; paper 0's
+        region gives 0.56 to 0.57 and 1.43 to 1.44, inside Earth's ranges on every seed. Horton's bifurcation ratio does
+        not separate them at all: noise scores 3.3 to 3.9, inside Earth's 3 to 5, as Kirchner showed almost any
+        branching network does <a class="cite" href="#ref-kirchner1993">[28]</a>. A generator that reports Horton's ratio
+        alone, or a picture, has not shown that its rivers are rivers. The pit share, the concavity, Hack's exponent and
+        τ have.</p>
+
+      <h3 id="ch3-5">3.5 Learned Worlds</h3>
+      <p>Two kinds of learned generator now make worlds. The first makes ground. InfiniteDiffusion, at SIGGRAPH 2026, is
+        a diffusion model trained on Earth's elevation at 90 and 30 m; it samples an unbounded terrain lazily, tile by
+        tile, the same for the same seed, the way noise is sampled, with the first tile in 1.7 s on a desktop graphics
+        card and its weights open <a class="cite" href="#ref-goslin2026">[29]</a>. Its images are close to real
+        elevation maps by the Fréchet distance (14.8 for the tiled sampler, against 186.7 for blended Perlin noise),
+        and its authors describe its river basins as visually coherent. They do not measure them. The second kind
+        makes the whole view: Genie 3 generates a world as video at 720p and 24 frames a second, steerable by the
+        viewer, consistent for a few minutes <a class="cite" href="#ref-genie3">[30]</a>; Matrix-Game 3.0 reaches 40
+        frames a second <a class="cite" href="#ref-matrixgame3">[31]</a>. DeepMind lists Genie 3's own limits:
+        short sessions and no geographic accuracy.</p>
+      <p>What they do that a law-based world cannot yet: appearance learned from photographs and elevation maps, every
+        material and every kind of clutter; worlds from a sentence or a picture; unbounded extent at constant cost;
+        agents and weather that respond at interactive rates. What none of them does is say whether its water reaches
+        the sea, or whether its rivers branch as rivers do. The ground has no laws in them, only likenesses, and the
+        forest of chapter 2 has nothing to grow from: no soil, no light budget, no year. The two families are not rivals
+        for the same job. A learned prior could set the uplift and the base level of a region whose drainage is then
+        formed by law, and the instrument of 3.4 could be pointed at InfiniteDiffusion's own tiles, whose weights are
+        open. Chapter 5 ranks both.</p>
     </section>
 
     <!-- ================================================================== 4 -->
@@ -397,14 +533,14 @@
       <p>Plant a stand densely and leave it. The trees grow, close their canopy and start to starve one another. From then
         on the stand loses stems as it gains wood, along a line that foresters found almost a century ago. It comes in
         two forms. Reineke counted stems per hectare against their quadratic mean diameter and found a slope of −1.605 on
-        a log–log plot <a class="cite" href="#ref-reineke1933">[19]</a>. Yoda and colleagues plotted mean plant mass
-        against density and found −3/2 <a class="cite" href="#ref-yoda1963">[20]</a>. Real stands scatter around both.
+        a log–log plot <a class="cite" href="#ref-reineke1933">[32]</a>. Yoda and colleagues plotted mean plant mass
+        against density and found −3/2 <a class="cite" href="#ref-yoda1963">[33]</a>. Real stands scatter around both.
         In German stands measured since 1870, Reineke's slope runs from −1.42 for oak to −1.79 for beech
-        <a class="cite" href="#ref-pretzsch2005">[21]</a>. Of 63 data sets, 20 differ significantly from −3/2, and the
-        slope follows the species' shade tolerance <a class="cite" href="#ref-weller1987">[22]</a>.</p>
+        <a class="cite" href="#ref-pretzsch2005">[34]</a>. Of 63 data sets, 20 differ significantly from −3/2, and the
+        slope follows the species' shade tolerance <a class="cite" href="#ref-weller1987">[35]</a>.</p>
       <p>Paper 0 said that Makowski's full model reproduces the −3/2 mass law. It does not say that. Makowski's figure
         plots density against trunk diameter, the Reineke form, and calls it the 3/2 law, after Zeide
-        <a class="cite" href="#ref-makowski2019">[1]</a> <a class="cite" href="#ref-zeide1987">[23]</a>. Paper 0 also gave
+        <a class="cite" href="#ref-makowski2019">[1]</a> <a class="cite" href="#ref-zeide1987">[36]</a>. Paper 0 also gave
         −2.3 to −3.1 for its own reduced model, in the mass form. The stands behind that number and its fitting window
         were not recorded, so here it is measured again under one stated rule. The rule: 576 seedlings of one species on
         a jittered grid over the 32 m plot (5,600 per hectare), no new seedlings, trees counted from 5 cm of stem
@@ -429,7 +565,7 @@
         tolerant tree's is steeper than any species Pretzsch and Biber measured: it sheds more stems per centimetre of
         growth than a real stand does. The two forms are tied by how mass grows with diameter. Here stem mass grows as
         diameter to the power 2.96–3.04, against 2.89 (2.71–3.14) measured on real trees
-        <a class="cite" href="#ref-eloy2017">[24]</a>, so a steep diameter slope and a near −3/2 mass slope are the same
+        <a class="cite" href="#ref-eloy2017">[37]</a>, so a steep diameter slope and a near −3/2 mass slope are the same
         fact.</p>
 
       <h3 id="ch4-2">4.2 The Table</h3>
@@ -456,13 +592,13 @@
         </tbody>
       </table>
       <p>Sources for the right-hand column: allometry and Horton ratios from the tables collected by Eloy and colleagues
-        <a class="cite" href="#ref-eloy2017">[24]</a>; the Leonardo ratio from Bentley and colleagues
-        <a class="cite" href="#ref-bentley2013">[25]</a>; box dimensions of laser-scanned ash, maple and beech, with boxes
-        from 30 m down to 10 cm, from Seidel and colleagues <a class="cite" href="#ref-seidel2019">[26]</a>; stem sizes
-        across 14 tropical plots from Muller-Landau and colleagues <a class="cite" href="#ref-mullerlandau2006">[27]</a>;
+        <a class="cite" href="#ref-eloy2017">[37]</a>; the Leonardo ratio from Bentley and colleagues
+        <a class="cite" href="#ref-bentley2013">[38]</a>; box dimensions of laser-scanned ash, maple and beech, with boxes
+        from 30 m down to 10 cm, from Seidel and colleagues <a class="cite" href="#ref-seidel2019">[39]</a>; stem sizes
+        across 14 tropical plots from Muller-Landau and colleagues <a class="cite" href="#ref-mullerlandau2006">[40]</a>;
         canopy gaps from airborne laser scans of the Amazon <a class="cite" href="#ref-asner2013">[8]</a>
         <a class="cite" href="#ref-reis2021">[9]</a>. The metabolic theory predicts θ = 2 for stem sizes
-        <a class="cite" href="#ref-enquist2009">[28]</a>; the plots reject it in 13 of 14 forests.</p>
+        <a class="cite" href="#ref-enquist2009">[41]</a>; the plots reject it in 13 of 14 forests.</p>
       <p>How to read it. Mass against diameter, height against diameter and the mass form of self-thinning land in or next
         to the real ranges. They were not tuned to; they come out of the light and vigour rules. The trees branch a
         little less than real ones: fewer side branches per order (R<sub>n</sub> below 3.6) and slightly thicker steps
@@ -483,7 +619,7 @@
         <p>Box dimension: points every 2 cm along every segment, boxes from 10 cm to half the tree's extent in steps of
           1.4, the slope of log(boxes hit) against −log(box size).</p>
         <p>Stem sizes: the continuous power-law maximum-likelihood estimate θ = 1 + n / Σ ln(D<sub>i</sub>/D<sub>min</sub>),
-          standard error (θ − 1)/√n <a class="cite" href="#ref-clauset2009">[29]</a>.</p>
+          standard error (θ − 1)/√n <a class="cite" href="#ref-clauset2009">[42]</a>.</p>
       </details>
     </section>
 
@@ -526,6 +662,19 @@
         <li id="ref-li2023">Li, B., Klein, J., Michels, D. L., Benes, B., Pirk, S., Pałubicki, W. Rhizomorph: the coordinated function of shoots and roots. <i>ACM Transactions on Graphics</i> 42(4) (2023) 59. <a href="https://github.com/edisonlee0212/rhizomorph" target="_blank" rel="noopener">code</a></li>
         <li id="ref-lee2024">Lee, J. J., Li, B., Benes, B. Latent L-systems: transformer-based tree generator. <i>ACM Transactions on Graphics</i> 43(1) (2024) 7.</li>
         <li id="ref-wang2025">Wang, Y., Zhang, B., Klein, J., Michels, D. L., Yan, D.-M., Wonka, P. Autoregressive generation of static and growing trees. <i>SIGGRAPH Asia</i> 2025. <a href="https://arxiv.org/abs/2502.04762" target="_blank" rel="noopener">arXiv:2502.04762</a></li>
+        <li id="ref-cordonnier2016">Cordonnier, G., Braun, J., Cani, M.-P., Beneš, B., Galin, É., Peytavie, A., Guérin, É. Large scale terrain generation from tectonic uplift and fluvial erosion. <i>Computer Graphics Forum</i> 35(2) (2016) 165–175. <a href="https://doi.org/10.1111/cgf.12820" target="_blank" rel="noopener">doi:10.1111/cgf.12820</a></li>
+        <li id="ref-braun2013">Braun, J., Willett, S. D. A very efficient O(n), implicit and parallel method to solve the stream power equation governing fluvial incision and landscape evolution. <i>Geomorphology</i> 180–181 (2013) 170–179. <a href="https://doi.org/10.1016/j.geomorph.2012.10.008" target="_blank" rel="noopener">doi:10.1016/j.geomorph.2012.10.008</a></li>
+        <li id="ref-mudd2018">Mudd, S. M., Clubb, F. J., Gailleton, B., Hurst, M. D. How concave are river channels? <i>Earth Surface Dynamics</i> 6 (2018) 505–523. <a href="https://doi.org/10.5194/esurf-6-505-2018" target="_blank" rel="noopener">doi:10.5194/esurf-6-505-2018</a></li>
+        <li id="ref-dodds1999">Dodds, P. S., Rothman, D. H. Unified view of scaling laws for river networks. <i>Physical Review E</i> 59(5) (1999) 4865–4877. <a href="https://doi.org/10.1103/PhysRevE.59.4865" target="_blank" rel="noopener">doi:10.1103/PhysRevE.59.4865</a></li>
+        <li id="ref-mcdonald2026">McDonald, N., Cordonnier, G. Stochastic geomorphological transport for terrain erosion simulation. <i>ACM Transactions on Graphics</i> 45(4) (2026) 78. <a href="https://doi.org/10.1145/3811336" target="_blank" rel="noopener">doi:10.1145/3811336</a></li>
+        <li id="ref-mcdonald2020">McDonald, N. SimpleHydrology: procedural hydrology with particles. Open-source code and notes (2020–2023). <a href="https://github.com/weigert/SimpleHydrology" target="_blank" rel="noopener">github.com/weigert/SimpleHydrology</a></li>
+        <li id="ref-lochner2023">Lochner, J., Gain, J., Perche, S., Peytavie, A., Galin, É., Guérin, É. Interactive authoring of terrain using diffusion models. <i>Computer Graphics Forum</i> 42(7) (2023) e14941. <a href="https://doi.org/10.1111/cgf.14941" target="_blank" rel="noopener">doi:10.1111/cgf.14941</a></li>
+        <li id="ref-musgrave1994">Musgrave, F. K. Procedural fractal terrains. In Ebert, D. S. et al., <i>Texturing and Modeling: A Procedural Approach</i>. Academic Press (1994).</li>
+        <li id="ref-barnes2014">Barnes, R., Lehman, C., Mulla, D. Priority-flood: an optimal depression-filling and watershed-labeling algorithm for digital elevation models. <i>Computers &amp; Geosciences</i> 62 (2014) 117–127. <a href="https://doi.org/10.1016/j.cageo.2013.04.024" target="_blank" rel="noopener">doi:10.1016/j.cageo.2013.04.024</a></li>
+        <li id="ref-kirchner1993">Kirchner, J. W. Statistical inevitability of Horton's laws and the apparent randomness of stream channel networks. <i>Geology</i> 21(7) (1993) 591–594. <a href="https://doi.org/10.1130/0091-7613(1993)021%3C0591:SIOHSL%3E2.3.CO;2" target="_blank" rel="noopener">doi:10.1130/0091-7613(1993)021&lt;0591:SIOHSL&gt;2.3.CO;2</a></li>
+        <li id="ref-goslin2026">Goslin, A. InfiniteDiffusion: bridging learned fidelity and procedural utility for open-world terrain generation. <i>SIGGRAPH</i> 2026. <a href="https://arxiv.org/abs/2512.08309" target="_blank" rel="noopener">arXiv:2512.08309</a></li>
+        <li id="ref-genie3">Google DeepMind. Genie 3: a new frontier for world models (5 August 2025). <a href="https://deepmind.google/discover/blog/genie-3-a-new-frontier-for-world-models/" target="_blank" rel="noopener">deepmind.google</a></li>
+        <li id="ref-matrixgame3">Skywork AI. Matrix-Game 3.0 (2026). <a href="https://arxiv.org/abs/2604.08995" target="_blank" rel="noopener">arXiv:2604.08995</a></li>
         <li id="ref-reineke1933">Reineke, L. H. Perfecting a stand-density index for even-aged forests. <i>Journal of Agricultural Research</i> 46 (1933) 627–638.</li>
         <li id="ref-yoda1963">Yoda, K., Kira, T., Ogawa, H., Hozumi, K. Self-thinning in overcrowded pure stands under cultivated and natural conditions. <i>Journal of Biology, Osaka City University</i> 14 (1963) 107–129.</li>
         <li id="ref-pretzsch2005">Pretzsch, H., Biber, P. A re-evaluation of Reineke's rule and stand density index. <i>Forest Science</i> 51(4) (2005) 304–320.</li>
@@ -550,6 +699,6 @@
                    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
   </script>
   <script type="module" src="fractal-engine/paper/paper.js?v=10"></script>
-  <script type="module" src="papers/silviculture/paper.js?v=9"></script>
+  <script type="module" src="papers/silviculture/paper.js?v=15"></script>
 </body>
 </html>

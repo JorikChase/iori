@@ -38,3 +38,16 @@ figure.standfig[data-mode="fire"] canvas { cursor: crosshair; }
 /* §2.10: the token stream as the model writes it */
 .lin-tokens { font: 0.72rem/1.5 var(--mono); color: var(--muted); max-width: var(--wide); margin: 0.4rem auto; height: 3em; overflow: hidden; word-break: break-word; text-align: center; }
 .lin-tokens b { color: var(--walk); font-weight: 600; }
+/* chapter 3: the ground from above beside its chart (groundfig.js) */
+figure.groundfig canvas { width: 100%; aspect-ratio: 2 / 1; display: block; touch-action: pan-y; }
+figure.groundfig[data-mode="score"] canvas { aspect-ratio: 4 / 1.08; }
+@media (max-width: 640px) { figure.groundfig canvas { aspect-ratio: 1 / 1.6; } figure.groundfig[data-mode="score"] canvas { aspect-ratio: 1 / 1.1; } }
+.ground-table { max-width: var(--wide); margin: 0.6rem auto; overflow-x: auto; }
+.ground-table table { width: 100%; border-collapse: collapse; font: 0.78rem/1.35 var(--mono); }
+.ground-table th, .ground-table td { padding: 0.28rem 0.35rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+.ground-table thead th { font-weight: 600; color: var(--muted); white-space: normal; vertical-align: bottom; }
+.ground-table tbody th { text-align: left; font-weight: 400; white-space: normal; }
+.ground-table td.in { color: var(--data); font-weight: 600; }
+.ground-table td.near { color: var(--ink); }
+.ground-table td.out { color: var(--walk); }
+.ground-table td.earth { color: var(--muted); }

@@ -86,3 +86,19 @@ wind burns 71–77 %, with ladder 20–21 % crown fire and ~half the trees kille
 runs, no pioneer return (no outside seed); roots: sand 3.8–4.0 m deep, plate r 2.4–2.5; rock 0.7 m, r 3.4–3.6;
 clay 1 m, r 3.3–3.5; pit 6.4–8.4 m³; learned order 6: h 28–46 m vs teachers 15 m, lean either side, 0–251
 segments in the wall. Refs +9 (29 total).
+
+**P4 done (2026-11-06, uncommitted).** Chapter 3 live, four figures drawn by `groundfig.js` (modes spl / region /
+transport / score; hooks advance/state/redraw). `ground.js`: a grid that paper 0's kernels accept (flood, Rho8
+receivers, flats, Braun–Willett stack, accumulate, imported from landscape-terrain.js), stream power in two solvers
+(implicit / explicit), fBm and ridged noise, and `measureGround` = pits + fill + paper 0's computeStats on any 10 km
+257² surface. `transport.js`: SimpleHydrology-style particles with a momentum field (McDonald 2020 → McDonald &
+Cordonnier 2026 reduced), 160² × 10 m plot, mass budget exact. Region = paper 0's generator in its own worker.
+Numbers from `node tools/silviculture/ground-measure.mjs` (3 seeds, ~15 min, writes ground.json): SPL 100 kyr Courant
+47–55, steady 910–1010 m; explicit unstable at 100 kyr and 2 kyr (C 1.04–1.25), stable at 1 kyr (C 0.55–0.65);
+large implicit steps stable but wrong transient (3 Myr max 940–1000 vs 1355–1448 m); no creep: θ 0.45, h 0.57, τ
+1.46–1.49; with creep h 0.50–0.51, τ 1.27–1.29 (paper 0 avoids it with the A_DIFF 0.02 km² channel threshold). Region
+257²/513²: h 0.56–0.58, τ 1.38–1.44, R_B 3.6–4.8, θ 0.41–0.84, HI 0.19–0.31, coast D 0.96–1.28. Transport: momentum
+11–13 threads, 124–136 M m³ exported, fans 5–8 M; none: 8 threads, fans 23–28 M. Score: pits fBm 23–34 %, ridged
+36–39 %, SPL/region ≤ 1 %; θ noise 0.02–0.14; h noise 0.29–0.49, τ 1.58–1.74; R_B passes for noise too (Kirchner
+1993). Refs 42. Next: P5 (ch 5 ranking, SOTA comparison text, phone pass, deploy); optional: score InfiniteDiffusion
+tiles with measureGround.

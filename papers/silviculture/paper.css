@@ -30,3 +30,11 @@ ol.planned-list { color: var(--muted); }
   .lin-metrics, #fig-eco .lin-metrics { grid-template-columns: repeat(3, 1fr); }
   .lin-controls .lin-time input { width: 8rem; }
 }
+
+/* §2.6–2.8: the stand from above beside its chart (standfig.js) */
+figure.standfig canvas { width: 100%; aspect-ratio: 2 / 1; display: block; touch-action: pan-y; }
+figure.standfig[data-mode="fire"] canvas { cursor: crosshair; }
+@media (max-width: 640px) { figure.standfig canvas { aspect-ratio: 1 / 1.6; } }
+/* §2.10: the token stream as the model writes it */
+.lin-tokens { font: 0.72rem/1.5 var(--mono); color: var(--muted); max-width: var(--wide); margin: 0.4rem auto; height: 3em; overflow: hidden; word-break: break-word; text-align: center; }
+.lin-tokens b { color: var(--walk); font-weight: 600; }

@@ -94,10 +94,11 @@
         trees, as paper 0 scored the rivers against Earth's drainage laws. Measured on five seeds, the reduced model thins
         as crowded stands do. Mean tree mass falls with density at −1.65 to −1.92, near the foresters' −3/2. Stem mass
         grows as diameter to the power 3.0, where real trees give 2.89. Its trees branch a little less than real ones,
-        and their box dimension sits at the low edge of laser-scanned trees. Its plot is too small to measure canopy gaps.
+        and their box dimension sits at the low edge of laser-scanned trees. Its plot is too small to measure canopy gaps; a stand of
+        individual trees on 16 ha (2.6) is not, and its gaps fall off as a power law of exponent 2.64 to 2.80, steeper
+        than the Amazon's 1.66 to 2.50, as a forest with no storm or fire should.
         One correction to paper 0 follows: the forest law Makowski checked is the diameter form, not the mass form.</p>
-      <p class="howto">Written so far: chapter 1, the first five steps of the lineage (chapter 2) and the scorecard
-        (chapter 4); the rest is planned below with its contents. Every figure starts when it scrolls into view; drag in
+      <p class="howto">Written so far: chapter 1, the lineage (chapter 2) and the scorecard (chapter 4); the rest is planned below with its contents. Every figure starts when it scrolls into view; drag in
         the 3-D ones to orbit, and use pinch or ⌘/Alt with the wheel to zoom.</p>
     </section>
 
@@ -236,15 +237,140 @@
         what shades them, far more than on the wall. A forest is its own neighbour. This is the scale paper 0 built
         the model for, and the one chapter 4 scores: about 5 ms a year for 250 to 340 plants.</p>
 
-      <h3 id="ch2-6">2.6 Still to Come</h3>
-      <ol class="planned-list">
-        <li>Light stamps: each tree stamps its shading onto a 2 m grid, on a plot large enough for canopy gaps (iLand).</li>
-        <li>Microclimate under the canopy (Ecoclimates 2022), reduced.</li>
-        <li>Fire through ground, ladder and crown fuel (Fire in Paradise 2021, Scintilla 2024), reduced.</li>
-        <li>Roots and the root plate (Rhizomorph 2023), reduced.</li>
-        <li>Learned trees: models that generate branch graphs token by token, trained on procedural trees. Not runnable
-          in a page; the figure shows our tree written as such a sequence.</li>
-      </ol>
+      <h3 id="ch2-6">2.6 A Hectare of Light: Stamps</h3>
+      <p>The last five figures grew one tree, then a forest of 0.1 ha. Forests are measured over hectares, and some of
+        their laws only show there. Canopy gaps follow a power law, but the fit counts gaps from 20 m² to a hectare
+        <a class="cite" href="#ref-asner2013">[8]</a> <a class="cite" href="#ref-reis2021">[9]</a>, and chapter 4 could
+        not measure it on 32 m. iLand, the forest model that runs ten thousand hectares tree by tree, gets there by
+        dropping the branches <a class="cite" href="#ref-seidl2012">[10]</a>. A tree is a stem diameter, a height and a
+        crown; its shade is a stamp, a fixed pattern it presses onto a 2 m grid of light. Here the trees are stamped
+        tallest first: each reads the light left over its crown by every taller tree, then presses its own shade in.
+        One stamp per tree a year, and a hectare costs about a millisecond.</p>
+      <figure id="fig-light" class="standfig" data-mode="light">
+        <canvas aria-label="A forest stand from above as a canopy height model, and the size distribution of its canopy gaps"></canvas>
+        <figcaption>A stand of individual trees, two species, shaded by stamps on a 2 m grid, seen from above as a
+          canopy height model at 1 m, hill-shaded. Layers: the canopy, the light that reaches the ground, and the gaps
+          (holes in the canopy below 10 m; pale ones are under 20 m² and not counted). Right: the share of gaps at
+          least as large as each size, on log–log axes, with the fitted power law (dashed) and the range measured over
+          the Amazon (green). Choose 1, 4 or 16 ha.</figcaption>
+      </figure>
+      <p>The stand settles where real temperate forests stand: about 570 stems of 5 cm or more per hectare, a basal area
+        of 43 m² per hectare, 155 to 169 trees thicker than 30 cm, a canopy 32 m tall with 1.6 to 2.8 % of the ground
+        under a hole. On one hectare there are one to three gaps big enough to count, and no exponent. On sixteen there
+        are 39 to 49, and the exponent is 2.64 to 2.80 (± 0.25 to 0.29) over three seeds. The Amazon's runs from 1.66 to
+        2.50, and above 2 means a forest whose gaps are made by single trees falling, not by storms or fire
+        <a class="cite" href="#ref-reis2021">[9]</a>. This forest has no storms and no fire, and its exponent says so:
+        too many small gaps, too few large ones. The pioneer, which needs a large gap to take root, dies out within a
+        century, as it does in paper 0's plot. The stamp, the growth curves and every rate here are ours, listed in the
+        code; iLand's own stamps come from a model of the sun's path through a crown, ours are a Gaussian under a
+        vertical sun.</p>
+
+      <h3 id="ch2-7">2.7 The Air Under the Canopy</h3>
+      <p>A forest makes its own weather. Pałubicki and colleagues coupled their forests to the water in the soil, the
+        evaporation from leaves, clouds and rain <a class="cite" href="#ref-palubicki2022">[11]</a>. The smallest piece of
+        that is the shade's coolness. Measured at about a hundred sites, the warmest days are about 4 °C cooler under a
+        forest canopy than in the open, and the hotter the day the larger the difference
+        <a class="cite" href="#ref-defrenne2019">[12]</a>. Here the cooling of each 2 m cell is 4 °C times its canopy
+        cover, scaled with the heat of the day, and one consequence follows: the shade-tolerant tree's seedlings only
+        take root where the air stays below 31 °C.</p>
+      <figure id="fig-micro" class="standfig" data-mode="micro">
+        <canvas aria-label="The air temperature under the canopy on the warmest day, and the species over time"></canvas>
+        <figcaption>The stand of 2.6 with the canopy's cooling. The map shows the air on the warmest day under the
+          canopy, blue cool to orange hot. Right: stems per hectare of each species over 600 years, and the share of the
+          plot above 31 °C under the canopy (shaded). Move the warmest day in the open and the next years follow it.</figcaption>
+      </figure>
+      <p>Measured on 4 ha over 300 years and three seeds, the canopy cools the air under it by 3.1 °C on a warmest
+        day of 26 °C and by 4.7 °C on one of 34 °C, the range De Frenne and colleagues report. Up to 34 °C the shade
+        keeps the whole floor below the tolerant tree's limit, and the forest is the one of 2.6: 536 to 600 tolerant
+        stems per hectare and no pioneers. At 38 °C the shade is no longer enough, every cell is above 31 °C, no
+        tolerant seedling takes root, and within 300 years the forest is 659 to 689 pioneers per hectare, every
+        tolerant tree gone. The switch is sudden because our threshold is a single number; a real species' response
+        to heat is a curve, and the forest would pass through a mixture. What the figure shows is the loop that
+        Ecoclimates simulates in full: the canopy makes the climate its own seedlings need, and above some heat it
+        cannot.</p>
+
+      <h3 id="ch2-8">2.8 Fire: Ground, Ladder, Crown</h3>
+      <p>Fire in Paradise burned forests grown by Makowski's simulator, module by module, coupled to the air that the
+        fire heats <a class="cite" href="#ref-hadrich2021">[13]</a>; Scintilla added what burns on the ground, grass,
+        litter and duff, and the move from ground to crown <a class="cite" href="#ref-kokosza2024">[14]</a>. The rule
+        foresters use for that move is old: a surface fire starts a crown fire when it is intense enough to reach the
+        crown's base <a class="cite" href="#ref-vanwagner1977">[15]</a>. Small trees under the canopy are the ladder.
+        Here each 2 m cell holds three fuels: ground fuel (litter under crowns, grass where the ground is lit), ladder
+        fuel (small trees whose crowns reach down near the ground) and crown fuel (the canopy). A ground fire spreads by
+        its fuel and the wind, climbs where the ladder reaches a canopy, and a crown fire runs through the canopy,
+        faster and further downwind.</p>
+      <figure id="fig-fire" class="standfig" data-mode="fire">
+        <canvas aria-label="A forest stand from above with a fire spreading through it"></canvas>
+        <figcaption>The stand of 2.6 at 200 years. Click the map to light a fire there, or Ignite to light it on the
+          upwind edge. Orange burns on the ground, red in the crowns; grey has burnt on the ground, black in the crowns.
+          <i>Clear the ladder fuel</i> removes the small trees under the canopy before the fire, as a forester's thinning
+          does. When the fire is out, Play lets the forest grow back. Right: the burnt share of the plot over the fire's
+          steps.</figcaption>
+      </figure>
+      <p>The fire was lit on the upwind edge of 4 ha at 200 years, three seeds, three winds, with and without the
+        ladder. It is a threshold, as fire on a grid of fuels is: most fires in light or moderate wind went out within a
+        few cells (0 to 12 % of the plot burnt), and most in strong wind burnt 71 to 77 %. With the ladder in place, the
+        two strong-wind fires that ran climbed into the canopy and 20 to 21 % of the plot burnt as crown fire, killing
+        about half the trees (2034 of 4196, 2146 of 4323). With the ladder cleared, not one of the nine fires reached a crown.
+        The ground fire still ran as far, through the grass that grows where the ground is lit, but it killed small
+        trees and left the canopy standing. That is Van Wagner's point and the reason for thinning: the crown fire
+        is cut off by removing what it climbs. What the fire did not do is bring the pioneer back. Sixty years after
+        each fire there were still no pioneers in the plot, because none were left to seed it; paper 0's plot brings
+        seed in from outside, this one does not. The fuels, their loads and every rate are ours. Fire in Paradise
+        and Scintilla solve the heat, the air and the combustion of each branch; this figure keeps only who catches
+        from whom.</p>
+
+      <h3 id="ch2-9">2.9 Roots and the Root Plate</h3>
+      <p>Half a tree is underground. Rhizomorph grew roots with the same vigour logic as shoots, in a soil of water and
+        texture, and found that the familiar root types, a tap root, a heart, a flat plate of laterals, follow from the
+        soil rather than being chosen <a class="cite" href="#ref-li2023">[16]</a>. Here the shoot is the self-organising
+        tree of 2.3 at fifteen years, and the roots grow by space colonisation (2.2) toward points of soil water. The
+        soil decides where the water is: deep in sand, nowhere below 0.7 m on rock, above a water table at 1 m in wet
+        clay. The roots get one segment for every leaf cluster of the shoot, a crude balance between what the tree
+        gathers above and below. Then a storm.</p>
+      <figure id="fig-roots" class="lineage" data-method="roots">
+        <div class="lin-view"></div>
+        <figcaption>The tree of 2.3 with its roots, the ground made transparent; grey dots are soil water not yet
+          reached. Choose the soil, and press Storm: the tree tips over a hinge on the edge of its root plate, the roots
+          in the plate lift with the soil they hold and the rest break. The strip gives the plate and the pit it leaves.
+          Drag to orbit.</figcaption>
+      </figure>
+      <p>The same three trees, grown in each soil, spend the same root length, 125 to 153 m against 383 to 477 m of
+        shoot, because we set the budget; where it goes is the soil's doing. In deep sand the roots go down to 3.8 to
+        4.0 m and the plate is narrow, 2.4 to 2.5 m in radius and 1.1 m deep. On rock they stop at 0.7 m and spread,
+        a plate of 3.4 to 3.6 m and half a metre deep; in wet clay, 1 m and 3.3 to 3.5 m. A tap root and a flat plate
+        come out of the same rule, as Rhizomorph found. The pit the storm leaves holds 6.4 to 8.4 m³ in every soil,
+        a deep bowl in sand and a wide saucer on rock. Paper 0's forest throws trees into pits and mounds of one
+        size; here the root system would choose it. The hinge, the plate's 80 % share and the half-ellipsoid pit are
+        ours.</p>
+
+      <h3 id="ch2-10">2.10 Learned Trees</h3>
+      <p>Since 2024 trees have also been generated the way text is, a token at a time. Lee and colleagues trained a
+        transformer on 155,000 L-system strings <a class="cite" href="#ref-lee2024">[17]</a>; Wang and colleagues wrote
+        a tree as a sequence of branch tokens, depth first, and trained a 79-million-parameter model on trees grown by
+        Rhizomorph's simulator <a class="cite" href="#ref-wang2025">[18]</a>. The second fact matters more than the
+        first: the learned generators learn from procedural ones. Neither model runs in a page. The smallest model of
+        the same kind does: an n-gram, which counts which token followed every run of the last n − 1, and writes by
+        drawing from those counts. Here it learns from eight self-organising trees grown beside the wall, written as
+        tokens the way Wang and colleagues write them.</p>
+      <figure id="fig-learn" class="lineage" data-method="learned">
+        <div class="lin-view"></div>
+        <figcaption>An n-gram trained in the page on eight trees of 2.3 grown beside the wall, writing a new tree
+          token by token, depth first. A token is a segment: its angle from its parent, its turn around the parent, its
+          length; brackets open and close a side branch. The order n is how many tokens it looks back, less one;
+          <i>Show</i> switches to one of its teachers, written in the same tokens. Drag to orbit.</figcaption>
+      </figure>
+      <p>The eight teachers are 15 m tall, with 1049 to 1491 segments, a Horton ratio of 2.60 to 3.22, a box
+        dimension of 1.44 to 1.52, and every one leans away from the wall (−0.31 to −0.99 m) without a segment in it.
+        Samples of order 6, three seeds, are 28 to 46 m tall, with a Horton ratio of 2.8 to 3.4 and a box dimension of
+        1.35 to 1.39; their lean is −2.3 to 3.8 m, either way, and two of the three grow into the wall, 49 and 251
+        segments in it. Order 1 and 3 do worse and order 10 no better: 45 to 125 m tall. The n-gram learns how a
+        branch turns and forks, the local grammar, and none of what holds a tree together: where to stop, how tall to
+        be, which side the light is on. Nothing in a token says where in space the tree is, so the wall cannot be
+        learned from tokens at all. The transformers of Lee and of Wang and colleagues see far more context than ten
+        tokens, and their trees hold together; they are still taught by simulators, and the question this chapter
+        asks of each method, does the tree answer its light, is one a model trained on trees in open ground has no
+        way to answer.</p>
     </section>
 
     <!-- ================================================================== 3 -->
@@ -271,14 +397,14 @@
       <p>Plant a stand densely and leave it. The trees grow, close their canopy and start to starve one another. From then
         on the stand loses stems as it gains wood, along a line that foresters found almost a century ago. It comes in
         two forms. Reineke counted stems per hectare against their quadratic mean diameter and found a slope of −1.605 on
-        a log–log plot <a class="cite" href="#ref-reineke1933">[8]</a>. Yoda and colleagues plotted mean plant mass
-        against density and found −3/2 <a class="cite" href="#ref-yoda1963">[9]</a>. Real stands scatter around both.
+        a log–log plot <a class="cite" href="#ref-reineke1933">[19]</a>. Yoda and colleagues plotted mean plant mass
+        against density and found −3/2 <a class="cite" href="#ref-yoda1963">[20]</a>. Real stands scatter around both.
         In German stands measured since 1870, Reineke's slope runs from −1.42 for oak to −1.79 for beech
-        <a class="cite" href="#ref-pretzsch2005">[10]</a>. Of 63 data sets, 20 differ significantly from −3/2, and the
-        slope follows the species' shade tolerance <a class="cite" href="#ref-weller1987">[11]</a>.</p>
+        <a class="cite" href="#ref-pretzsch2005">[21]</a>. Of 63 data sets, 20 differ significantly from −3/2, and the
+        slope follows the species' shade tolerance <a class="cite" href="#ref-weller1987">[22]</a>.</p>
       <p>Paper 0 said that Makowski's full model reproduces the −3/2 mass law. It does not say that. Makowski's figure
         plots density against trunk diameter, the Reineke form, and calls it the 3/2 law, after Zeide
-        <a class="cite" href="#ref-makowski2019">[1]</a> <a class="cite" href="#ref-zeide1987">[12]</a>. Paper 0 also gave
+        <a class="cite" href="#ref-makowski2019">[1]</a> <a class="cite" href="#ref-zeide1987">[23]</a>. Paper 0 also gave
         −2.3 to −3.1 for its own reduced model, in the mass form. The stands behind that number and its fitting window
         were not recorded, so here it is measured again under one stated rule. The rule: 576 seedlings of one species on
         a jittered grid over the 32 m plot (5,600 per hectare), no new seedlings, trees counted from 5 cm of stem
@@ -303,7 +429,7 @@
         tolerant tree's is steeper than any species Pretzsch and Biber measured: it sheds more stems per centimetre of
         growth than a real stand does. The two forms are tied by how mass grows with diameter. Here stem mass grows as
         diameter to the power 2.96–3.04, against 2.89 (2.71–3.14) measured on real trees
-        <a class="cite" href="#ref-eloy2017">[13]</a>, so a steep diameter slope and a near −3/2 mass slope are the same
+        <a class="cite" href="#ref-eloy2017">[24]</a>, so a steep diameter slope and a near −3/2 mass slope are the same
         fact.</p>
 
       <h3 id="ch4-2">4.2 The Table</h3>
@@ -330,13 +456,13 @@
         </tbody>
       </table>
       <p>Sources for the right-hand column: allometry and Horton ratios from the tables collected by Eloy and colleagues
-        <a class="cite" href="#ref-eloy2017">[13]</a>; the Leonardo ratio from Bentley and colleagues
-        <a class="cite" href="#ref-bentley2013">[14]</a>; box dimensions of laser-scanned ash, maple and beech, with boxes
-        from 30 m down to 10 cm, from Seidel and colleagues <a class="cite" href="#ref-seidel2019">[15]</a>; stem sizes
-        across 14 tropical plots from Muller-Landau and colleagues <a class="cite" href="#ref-mullerlandau2006">[16]</a>;
-        canopy gaps from airborne laser scans of the Amazon <a class="cite" href="#ref-asner2013">[17]</a>
-        <a class="cite" href="#ref-reis2021">[18]</a>. The metabolic theory predicts θ = 2 for stem sizes
-        <a class="cite" href="#ref-enquist2009">[19]</a>; the plots reject it in 13 of 14 forests.</p>
+        <a class="cite" href="#ref-eloy2017">[24]</a>; the Leonardo ratio from Bentley and colleagues
+        <a class="cite" href="#ref-bentley2013">[25]</a>; box dimensions of laser-scanned ash, maple and beech, with boxes
+        from 30 m down to 10 cm, from Seidel and colleagues <a class="cite" href="#ref-seidel2019">[26]</a>; stem sizes
+        across 14 tropical plots from Muller-Landau and colleagues <a class="cite" href="#ref-mullerlandau2006">[27]</a>;
+        canopy gaps from airborne laser scans of the Amazon <a class="cite" href="#ref-asner2013">[8]</a>
+        <a class="cite" href="#ref-reis2021">[9]</a>. The metabolic theory predicts θ = 2 for stem sizes
+        <a class="cite" href="#ref-enquist2009">[28]</a>; the plots reject it in 13 of 14 forests.</p>
       <p>How to read it. Mass against diameter, height against diameter and the mass form of self-thinning land in or next
         to the real ranges. They were not tuned to; they come out of the light and vigour rules. The trees branch a
         little less than real ones: fewer side branches per order (R<sub>n</sub> below 3.6) and slightly thicker steps
@@ -357,7 +483,7 @@
         <p>Box dimension: points every 2 cm along every segment, boxes from 10 cm to half the tree's extent in steps of
           1.4, the slope of log(boxes hit) against −log(box size).</p>
         <p>Stem sizes: the continuous power-law maximum-likelihood estimate θ = 1 + n / Σ ln(D<sub>i</sub>/D<sub>min</sub>),
-          standard error (θ − 1)/√n <a class="cite" href="#ref-clauset2009">[20]</a>.</p>
+          standard error (θ − 1)/√n <a class="cite" href="#ref-clauset2009">[29]</a>.</p>
       </details>
     </section>
 
@@ -389,6 +515,17 @@
         <li id="ref-prusinkiewicz1990">Prusinkiewicz, P., Lindenmayer, A. <i>The Algorithmic Beauty of Plants</i>. Springer, 1990. <a href="http://algorithmicbotany.org/papers/#abop" target="_blank" rel="noopener">algorithmicbotany.org</a></li>
         <li id="ref-honda1971">Honda, H. Description of the form of trees by the parameters of the tree-like body: effects of the branching angle and the branch length on the shape of the tree-like body. <i>Journal of Theoretical Biology</i> 31(2) (1971) 331–338.</li>
         <li id="ref-runions2007">Runions, A., Lane, B., Prusinkiewicz, P. Modeling trees with a space colonization algorithm. <i>Eurographics Workshop on Natural Phenomena</i> (2007) 63–70. <a href="http://algorithmicbotany.org/papers/colonization.egwnp2007.html" target="_blank" rel="noopener">algorithmicbotany.org</a></li>
+        <li id="ref-asner2013">Asner, G. P., Kellner, J. R., Kennedy-Bowdoin, T., Knapp, D. E., Anderson, C., Martin, R. E. Forest canopy gap distributions in the southern Peruvian Amazon. <i>PLoS ONE</i> 8(4) (2013) e60875. <a href="https://doi.org/10.1371/journal.pone.0060875" target="_blank" rel="noopener">doi:10.1371/journal.pone.0060875</a></li>
+        <li id="ref-reis2021">Reis, C. R., Jackson, T. D., Gorgens, E. B., Dalagnol, R., Jucker, T., Nunes, M. H., Ometto, J. P., Aragão, L. E. O. C., Rodriguez, L. C. E., Coomes, D. A. Forest structure and degradation drive canopy gap sizes across the Brazilian Amazon. Preprint, <i>bioRxiv</i> (2021). <a href="https://doi.org/10.1101/2021.05.03.442416" target="_blank" rel="noopener">doi:10.1101/2021.05.03.442416</a></li>
+        <li id="ref-seidl2012">Seidl, R., Rammer, W., Scheller, R. M., Spies, T. A. An individual-based process model to simulate landscape-scale forest ecosystem dynamics. <i>Ecological Modelling</i> 231 (2012) 87–100. <a href="https://iland-model.org/" target="_blank" rel="noopener">iland-model.org</a></li>
+        <li id="ref-palubicki2022">Pałubicki, W., Makowski, M., Gajda, W., Hädrich, T., Michels, D. L., Pirk, S. Ecoclimates: climate-response modeling of vegetation. <i>ACM Transactions on Graphics</i> 41(4) (2022) 155. <a href="https://doi.org/10.1145/3528223.3530146" target="_blank" rel="noopener">doi:10.1145/3528223.3530146</a></li>
+        <li id="ref-defrenne2019">De Frenne, P., Zellweger, F., Rodríguez-Sánchez, F., Scheffers, B. R., Hylander, K., Luoto, M., Vellend, M., Verheyen, K., Lenoir, J. Global buffering of temperatures under forest canopies. <i>Nature Ecology &amp; Evolution</i> 3 (2019) 744–749. <a href="https://doi.org/10.1038/s41559-019-0842-1" target="_blank" rel="noopener">doi:10.1038/s41559-019-0842-1</a></li>
+        <li id="ref-hadrich2021">Hädrich, T., Banuti, D. T., Pałubicki, W., Pirk, S., Michels, D. L. Fire in paradise: mesoscale simulation of wildfires. <i>ACM Transactions on Graphics</i> 40(4) (2021) 163. <a href="https://doi.org/10.1145/3450626.3459954" target="_blank" rel="noopener">doi:10.1145/3450626.3459954</a></li>
+        <li id="ref-kokosza2024">Kokosza, A., Wrede, H., Gonzalez Esparza, D., Makowski, M., Liu, D., Michels, D. L., Pirk, S., Pałubicki, W. Scintilla: simulating combustible vegetation for wildfires. <i>ACM Transactions on Graphics</i> 43(4) (2024).</li>
+        <li id="ref-vanwagner1977">Van Wagner, C. E. Conditions for the start and spread of crown fire. <i>Canadian Journal of Forest Research</i> 7(1) (1977) 23–34.</li>
+        <li id="ref-li2023">Li, B., Klein, J., Michels, D. L., Benes, B., Pirk, S., Pałubicki, W. Rhizomorph: the coordinated function of shoots and roots. <i>ACM Transactions on Graphics</i> 42(4) (2023) 59. <a href="https://github.com/edisonlee0212/rhizomorph" target="_blank" rel="noopener">code</a></li>
+        <li id="ref-lee2024">Lee, J. J., Li, B., Benes, B. Latent L-systems: transformer-based tree generator. <i>ACM Transactions on Graphics</i> 43(1) (2024) 7.</li>
+        <li id="ref-wang2025">Wang, Y., Zhang, B., Klein, J., Michels, D. L., Yan, D.-M., Wonka, P. Autoregressive generation of static and growing trees. <i>SIGGRAPH Asia</i> 2025. <a href="https://arxiv.org/abs/2502.04762" target="_blank" rel="noopener">arXiv:2502.04762</a></li>
         <li id="ref-reineke1933">Reineke, L. H. Perfecting a stand-density index for even-aged forests. <i>Journal of Agricultural Research</i> 46 (1933) 627–638.</li>
         <li id="ref-yoda1963">Yoda, K., Kira, T., Ogawa, H., Hozumi, K. Self-thinning in overcrowded pure stands under cultivated and natural conditions. <i>Journal of Biology, Osaka City University</i> 14 (1963) 107–129.</li>
         <li id="ref-pretzsch2005">Pretzsch, H., Biber, P. A re-evaluation of Reineke's rule and stand density index. <i>Forest Science</i> 51(4) (2005) 304–320.</li>
@@ -398,8 +535,6 @@
         <li id="ref-bentley2013">Bentley, L. P., Stegen, J. C., Savage, V. M., Smith, D. D., von Allmen, E. I., Sperry, J. S., Reich, P. B., Enquist, B. J. An empirical assessment of tree branching networks and implications for plant allometric scaling models. <i>Ecology Letters</i> 16(8) (2013) 1069–1078. <a href="https://pubmed.ncbi.nlm.nih.gov/23800188/" target="_blank" rel="noopener">PubMed 23800188</a></li>
         <li id="ref-seidel2019">Seidel, D., Annighöfer, P., Stiers, M., Zemp, C. D., Burkardt, K., Ehbrecht, M., Willim, K., Kreft, H., Hölscher, D., Ammer, C. How a measure of tree structural complexity relates to architectural benefit-to-cost ratio, light availability, and growth of trees. <i>Ecology and Evolution</i> 9(12) (2019) 7134–7142. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6662337" target="_blank" rel="noopener">PMC6662337</a></li>
         <li id="ref-mullerlandau2006">Muller-Landau, H. C. et al. Comparing tropical forest tree size distributions with the predictions of metabolic ecology and equilibrium models. <i>Ecology Letters</i> 9(5) (2006) 589–602.</li>
-        <li id="ref-asner2013">Asner, G. P., Kellner, J. R., Kennedy-Bowdoin, T., Knapp, D. E., Anderson, C., Martin, R. E. Forest canopy gap distributions in the southern Peruvian Amazon. <i>PLoS ONE</i> 8(4) (2013) e60875. <a href="https://doi.org/10.1371/journal.pone.0060875" target="_blank" rel="noopener">doi:10.1371/journal.pone.0060875</a></li>
-        <li id="ref-reis2021">Reis, C. R., Jackson, T. D., Gorgens, E. B., Dalagnol, R., Jucker, T., Nunes, M. H., Ometto, J. P., Aragão, L. E. O. C., Rodriguez, L. C. E., Coomes, D. A. Forest structure and degradation drive canopy gap sizes across the Brazilian Amazon. Preprint, <i>bioRxiv</i> (2021). <a href="https://doi.org/10.1101/2021.05.03.442416" target="_blank" rel="noopener">doi:10.1101/2021.05.03.442416</a></li>
         <li id="ref-enquist2009">Enquist, B. J., West, G. B., Brown, J. H. Extensions and evaluations of a general quantitative theory of forest structure and dynamics. <i>PNAS</i> 106(17) (2009) 7046–7051. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2678479" target="_blank" rel="noopener">PMC2678479</a></li>
         <li id="ref-clauset2009">Clauset, A., Shalizi, C. R., Newman, M. E. J. Power-law distributions in empirical data. <i>SIAM Review</i> 51(4) (2009) 661–703. <a href="https://arxiv.org/abs/0706.1062" target="_blank" rel="noopener">arXiv:0706.1062</a></li>
       </ol>
@@ -415,6 +550,6 @@
                    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/" } }
   </script>
   <script type="module" src="fractal-engine/paper/paper.js?v=10"></script>
-  <script type="module" src="papers/silviculture/paper.js?v=7"></script>
+  <script type="module" src="papers/silviculture/paper.js?v=9"></script>
 </body>
 </html>

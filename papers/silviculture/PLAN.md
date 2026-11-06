@@ -71,3 +71,18 @@ figure's 2-D canvas; same seed, wall, camera, instrument), `skeleton.js` (common
 constants, swept), `modules.js` (paper 0's Sim + the wall as `sim.extraDep`, a no-op hook added to
 silviculture-core.js lightPass). Numbers: `node tools/silviculture/lineage-measure.mjs` → lineage.json (3 seeds).
 Rig: `__silviculture.make[id](el).advance(n)` in a hidden pane. §2.6 lists the rest of the lineage (phase 3).
+
+**P3 done (2026-11-06, uncommitted).** §2.6–2.10 live. `stand.js` (individual trees, two species, height-ordered
+Gaussian light stamps on a 2 m grid, CHM at 1 m, gaps < 10 m 20 m²–1 ha, discrete power-law MLE; microclimate
+cooling 4 °C × cover scaled by the warmest day, tolerant seedlings need ≤ 31 °C; fire CA over ground/ladder/crown fuels,
+CROWN 0.05) drawn by `standfig.js` (modes light/micro/fire, `#fig-light/#fig-micro/#fig-fire`, hooks advance/ignite/
+state). `roots.js` (shoot = self-org 15 yr, roots by space colonisation toward soil water; sand/rock/clay; plate,
+pit, storm hinge) and `learned.js` (n-gram over depth-first branch tokens, 915-token vocabulary, valid-token
+back-off; teachers = 8 self-org trees beside the wall) as lineage methods `roots` and `learned`. Numbers from
+`node tools/silviculture/stand-measure.mjs` (3 seeds, a few minutes, writes stand.json): 16 ha / 300 yr stems
+536–600, BA 41–44, ≥30 cm 155–169, top 32 m, λ 2.64–2.80 ±0.25–0.29 from 39–49 gaps (1 ha: 1–3 gaps), pioneers
+extinct; micro cooling 3.1 (26 °C)…4.7 (34 °C), switch to pioneers between 34 and 38 °C; fire a threshold: strong
+wind burns 71–77 %, with ladder 20–21 % crown fire and ~half the trees killed, ladder cleared → 0 % crown in all 9
+runs, no pioneer return (no outside seed); roots: sand 3.8–4.0 m deep, plate r 2.4–2.5; rock 0.7 m, r 3.4–3.6;
+clay 1 m, r 3.3–3.5; pit 6.4–8.4 m³; learned order 6: h 28–46 m vs teachers 15 m, lean either side, 0–251
+segments in the wall. Refs +9 (29 total).

@@ -1,10 +1,12 @@
 // Paper 0.3's own figures, started when they scroll into view and stopped when they leave. The reading layer
 // (contents rail, progress) comes from fractal-engine/paper/paper.js, as on papers 0.1 and 0.2.
 import { createThinning } from './thinning.js?v=3';
-import { createLineage } from './lineage.js?v=6';
+import { createLineage } from './lineage.js?v=8';
+import { createStandFig } from './standfig.js?v=2';
 
 const make = { 'fig-thinning': createThinning };
 for (const f of document.querySelectorAll('figure.lineage')) make[f.id] = createLineage;
+for (const f of document.querySelectorAll('figure.standfig')) make[f.id] = createStandFig;
 const figs = new Map();
 const observer = new IntersectionObserver((entries) => {
   for (const e of entries) {

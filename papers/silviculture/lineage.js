@@ -14,6 +14,8 @@ import { createLSystem } from './lsystem.js?v=3';
 import { createColonise } from './colonise.js?v=3';
 import { createSelfOrg } from './selforg.js?v=3';
 import { createModules, createEcosystem } from './modules.js?v=3';
+import { createRoots, SOILS } from './roots.js?v=1';
+import { createLearned, tokenText } from './learned.js?v=1';
 
 const HOT = 0xe0703a; // a branch inside the wall: the rule the method lacks, made visible
 const HOTC = new THREE.Color(HOT), LEAF = new THREE.Color(SPECIES[1].leafHex), LEAF2 = new THREE.Color(SPECIES[0].leafHex);
@@ -67,6 +69,22 @@ const METHODS = {
     params: [['Tolerant share', 0, 100, 5, 30, (v) => `${v} %`, (v) => ({ mix: v / 100 })]],
     plot: true,
   },
+  roots: {
+    make: createRoots, every: 0, label: (g) => `iteration ${g.t}${g.done ? ' · grown' : ''}${g.tilt ? ' · uprooted' : ''}`,
+    params: [['Soil', 0, 2, 1, 1, (v) => SOILS[['sand', 'rock', 'clay'][v]].label, (v) => ({ soil: ['sand', 'rock', 'clay'][v] })]],
+    points: true, noWall: true, below: 4.4, sliderMax: 60, storm: true, wide: true,
+    metrics: (g, f2) => { const s = g.stats(); return [['Rooting depth', `${f2(s.depth, 2)} m`], ['Plate radius', `${f2(s.plateR, 2)} m`], ['Plate depth', `${f2(s.plateD, 2)} m`],
+      ['Pit', `${f2(s.pit, 1)} m³`], ['Root length', `${s.rootLen.toFixed(0)} m`], ['Shoot length', `${s.shootLen.toFixed(0)} m`]]; },
+  },
+  learned: {
+    make: createLearned, every: 30, label: (g) => `token ${g.t.toLocaleString('en')} of ${g.tokens().seq.length.toLocaleString('en')} · ${g.model().contexts.toLocaleString('en')} contexts counted`,
+    params: [
+      ['Order n', 1, 10, 1, 6, (v) => `${v}`, (v) => ({ order: v })],
+      ['Teachers', 1, 20, 1, 8, (v) => `${v} trees`, (v) => ({ trees: v })],
+      ['Show', 0, 1, 1, 0, (v) => (v ? 'a teacher' : 'a sample'), (v) => ({ show: v ? 'training' : 'sample' })],
+    ],
+    tokens: true, tmax: (g) => g.tokens().seq.length,
+  },
 };
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
@@ -96,11 +114,15 @@ export function createLineage(fig) {
   }
   let shadeCb = null;
   if (M.shade) { shadeCb = el('input'); shadeCb.type = 'checkbox'; const l = el('label'); l.append(shadeCb, document.createTextNode(' Shade')); extra.push(l); shadeCb.addEventListener('change', () => { dirty = true; }); }
+  if (M.noWall) { wallCb.checked = false; wlab.hidden = true; }
+  let stormB = null, storm = null;
+  if (M.storm) { stormB = el('button', null, 'Storm'); stormB.type = 'button'; extra.push(stormB); stormB.addEventListener('click', () => { if (!g.done) while (g.step()); setPlaying(false); storm = { t0: performance.now() }; }); }
   bar.append(play, tlab, wlab, seedB);
   const bar2 = el('div', 'controls lin-controls'); bar2.append(...extra);
   const status = el('p', 'status');
   const strip = el('dl', 'lin-metrics');
-  fig.insertBefore(bar, cap); fig.insertBefore(bar2, cap); fig.insertBefore(status, cap); fig.insertBefore(strip, cap);
+  const tokensEl = M.tokens ? el('p', 'lin-tokens') : null;
+  fig.insertBefore(bar, cap); fig.insertBefore(bar2, cap); fig.insertBefore(status, cap); if (tokensEl) fig.insertBefore(tokensEl, cap); fig.insertBefore(strip, cap);
 
   // ---- scene
   const scene = new THREE.Scene();
@@ -110,6 +132,7 @@ export function createLineage(fig) {
   const ground = M.plot ? new THREE.Mesh(new THREE.PlaneGeometry(PLOT, PLOT), new THREE.MeshLambertMaterial({ color: 0xf2f3ef }))
     : new THREE.Mesh(new THREE.CircleGeometry(groundR, 64), new THREE.MeshLambertMaterial({ color: 0xf2f3ef }));
   ground.rotation.x = -Math.PI / 2; scene.add(ground);
+  if (M.below) { ground.material.transparent = true; ground.material.opacity = 0.35; ground.material.depthWrite = false; ground.renderOrder = 4; }
   const wallG = new THREE.BoxGeometry(WALL.x1 - WALL.x0, WALL.y1 - WALL.y0, WALL.z1 - WALL.z0);
   const wall = new THREE.Group();
   wall.add(new THREE.Mesh(wallG, new THREE.MeshLambertMaterial({ color: 0xd9dcd6, transparent: true, opacity: 0.45, depthWrite: false })));
@@ -139,8 +162,9 @@ export function createLineage(fig) {
     let top = 15; // frame the tree as it grows: at least 15 m (the wall and a grown tree), more if it is taller
     if (M.plot || M.sim) { for (const p of g.sim.plants) top = Math.max(top, p.height + 1); }
     else if (m) top = Math.max(top, m.height + 0.5);
-    const pts = M.plot ? boxPoints(-PLOT / 2, PLOT / 2, 0, top, -PLOT / 2, PLOT / 2) : boxPoints(-5, WALL.x1, 0, top, -4.5, 4.5);
-    const target = new THREE.Vector3(M.plot ? 0 : -1.2, M.plot ? top * 0.3 : top * 0.49, 0);
+    const y0 = M.below ? -M.below : 0;
+    const pts = M.plot ? boxPoints(-PLOT / 2, PLOT / 2, 0, top, -PLOT / 2, PLOT / 2) : M.wide ? boxPoints(-6, 6, y0, top, -6, 6) : boxPoints(-5, WALL.x1, 0, top, -4.5, 4.5);
+    const target = new THREE.Vector3(M.plot || M.wide ? 0 : -1.2, M.plot ? top * 0.3 : y0 + (top - y0) * 0.49, 0);
     const d = fitDistance(camera, target, DIR, pts, 0.96);
     camera.position.copy(target).addScaledVector(DIR, d); controls.target.copy(target); camera.lookAt(target);
   }
@@ -152,6 +176,7 @@ export function createLineage(fig) {
     const target = keepT ? g.t : 0;
     g = M.make(); g.reset(seed, { ...opts, wall: wallCb.checked });
     wall.visible = wallCb.checked;
+    if (M.tmax) time.max = M.tmax(g);
     while (g.t < target && g.step());
     after(true);
   }
@@ -251,14 +276,20 @@ export function createLineage(fig) {
   function report() {
     status.textContent = `${M.label(g)} · ${stepMs.toFixed(1)} ms per ${g.unit}`;
     let rows;
-    if (M.plot) {
+    if (M.metrics) rows = M.metrics(g, f2);
+    else if (M.plot) {
       const s = g.stats();
       rows = [['Plants', s.tolerant + s.pioneer], ['Tallest', `${f2(s.height, 1)} m`], ['Mean height ≤ 6 m from wall', `${f2(s.nearH, 1)} m`], ['Further away', `${f2(s.farH, 1)} m`]];
     } else {
       rows = [['Segments', m.segments.toLocaleString('en')], ['Height', `${f2(m.height, 1)} m`], ['Horton R<sub>n</sub>', f2(m.Rn)], ['Box dimension', f2(m.box)],
         ['Crown lean', `${f2(m.lean)} m`], ['In the wall', m.inWall]];
     }
+    if (M.learned || M.tokens) rows.push(['Tokens', g.t.toLocaleString('en')]);
     strip.innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+    if (tokensEl) {
+      const { seq, k } = g.tokens(), a = Math.max(0, k - 40);
+      tokensEl.innerHTML = seq.slice(a, k).map((t, i) => (a + i === k - 1 ? `<b>${tokenText(t)}</b>` : tokenText(t))).join(' ') || '&nbsp;';
+    }
   }
 
   // ---- loop
@@ -275,7 +306,8 @@ export function createLineage(fig) {
     if (!running) return;
     raf = requestAnimationFrame(tick);
     controls.update();
-    if (playing && now - last >= M.every) {
+    if (storm) { const t = Math.min(1, (performance.now() - storm.t0) / 1600), e = t * t * (3 - 2 * t); g.storm(e); after(t >= 1); if (t >= 1) storm = null; }
+    else if (playing && now - last >= M.every) {
       last = now;
       const a = performance.now();
       const grew = (M.playTo && g.t >= M.playTo) ? false : g.step();
@@ -302,6 +334,7 @@ export function createLineage(fig) {
     start() { if (running) return; running = true; raf = requestAnimationFrame(tick); },
     stop() { running = false; cancelAnimationFrame(raf); },
     advance(n) { for (let i = 0; i < n && g.step(); i++); after(true); render(); },
+    storm(t = 1) { if (g.storm) { g.storm(t); after(true); render(); } },
     state: () => ({ t: g.t, m, kind }),
   };
 }

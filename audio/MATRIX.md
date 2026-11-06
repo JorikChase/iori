@@ -67,15 +67,15 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | # | Function | How | Status |
 |---|---|---|---|
 | G1 | Values on 3×5 dot grid; sharp sign square with notches | H | pass metronome, synth, editor (design-y-rows reads the 3×5 cells back: 120, 220 / -12, 1.1); notched sharp seen in tuner-y-rows off-pitch frame |
-| G2 | Value change: dots spring in, old ones shrink, staggered | H | todo (written, design-y-rows; awaiting a quiet run: stagger seen over 3 frames, overshoot not resolved at load 400) |
+| G2 | Value change: dots spring in, old ones shrink, staggered | H | pass (design-y-rows, quiet run 2026-11-06: 7 cells over 4 frames, overshoot 197 px vs rest 182, 6 old dots shrink) |
 | G3 | Panels only rewritten when text changes (no flicker) | H | pass metronome (design-y-rows: cells unchanged 30 of 30 frames, same tempo written mid-way) |
 | G4 | Running state: white stopped, dark running (metro, analyzer, recorder, practice) | H | pass (metronome diag-metro-clock; play-y-rows, rec-y-rows, ana-y-rows) |
 | G5 | E-ink refresh: 70 ms flash, 70 ms hold, 5 dither steps of 56 ms | H | pass (metronome only so far (harness: 70 flash / 70 hold / 5×56 dither measured on the tool's own state)) |
-| G6 | View changes inside a tool use the dithered refresh | H | todo (written, design-y-rows; awaiting a quiet run: analyzer view change takes about 0.5 s, too few frames at load 400 to see the steps) |
+| G6 | View changes inside a tool use the dithered refresh | H | pass (design-y-rows, quiet run 2026-11-06: analyzer view change dithers in 4 steps 0.2→0.8 over 328 ms) |
 | G7 | Editor timeline never white; play/stop only flashes | H | pass (design-y-rows: inverse stays 1 through play and stop, one flash frame) |
 | G8 | SDF shapes merge; pressed dot stretches toward the finger | H+D | pass harness (design-y-rows: practice dot reaches 12 px of ink toward the finger); device todo |
 | G9 | Value adjust: rest, slide up/down; sideways sets the gear | H+D | pass harness (synth-y-setups gene slide; design-y-rows clip gain: 40 px up = +4.0 dB, gear 1/3 sideways); device todo |
-| G10 | Radial actions: hold ~220 ms, up to five buds in free space, release to act | H (T) | todo (written, design-y-rows; awaiting a quiet run: 4 buds on screen 56 px apart at a corner clip pass, the hold read 381 ms at load 400) |
+| G10 | Radial actions: hold ~220 ms, up to five buds in free space, release to act | H (T) | pass (design-y-rows, quiet run 2026-11-06: hold read 237 ms, 4 buds 56 px apart, none off screen at the last lane) |
 | G11 | Undo: two-finger tap | H+D | pass harness (design-y-rows: synth and editor, two-finger tap undoes); device todo |
 | G12 | Timing uses the touch event's timestamp | H | pass synth (design-y-rows: a lift stamped 100 ms handled 400 ms later is a tap, the reverse is not; missed one run of three at load 400, re-check in the quiet run) |
 | G13 | Corners: bottom-left hub only; bottom-right properties; top-right source/setup; top-left tool-specific | H | pass (design-y-rows: bottom-left free in all 8, bottom-right in 6 of 6, top-right in 6 of 6, top-left synth; metronome has no corner dots, editor no top-right) |

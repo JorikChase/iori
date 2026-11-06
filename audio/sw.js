@@ -5,7 +5,7 @@
    VERSION is stamped by build.py from the files' content; a new version
    drops every older cache on activate. Cross-origin requests (analytics)
    pass straight through. */
-var VERSION = "03d2af6e3d44";
+var VERSION = "87e9223a70e3";
 var CACHE = 'audio-' + VERSION;
 var FILES = ["./", "index.html", "manifest.json", "shared.js", "worklet-capture.js", "worklet-player.js", "wheel.js", "docs.html", "project.js", "projects.html", "t/ana.html", "t/bpm.html", "t/edit.html", "t/metro.html", "t/play.html", "t/rec.html", "t/synth.html", "t/tuner.html", "icon/orb/192.png", "icon/orb/512.png"];
 

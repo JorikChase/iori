@@ -88,7 +88,7 @@ Unified 2026-10-30 (hold-times, dial-hold, synth-seed-gesture); synth double-tap
 | T1 | Mic dot bottom-right starts/stops the mic | H | pass (harness audio-tuner, 2026-10-09) |
 | T2 | 440 Hz sine → A4, 0 cents, 440 Hz readouts | H | pass (harness audio-tuner, 2026-10-09) |
 | T3 | D#3 +20 cents → correct note, octave and cents sign | H | pass (harness audio-tuner, 2026-10-09) |
-| T4 | In tune: straight line; off pitch: coloured strips taper, bend into an S | H+D | fail (tuner-y-rows: off pitch passes, strips drawn; in tune it does not: 440.02 Hz at +0.07 c bends the line ±10.2 px on a green screen. tuner.html:218 amplitude is 10·level with no in-tune term. If the moving line is intended the row is stale: owner to say) |
+| T4 | In tune: straight line; off pitch: coloured strips taper, bend into an S | H+D | pass harness (tuner-y-rows 2026-11-06: owner chose straight; the wave now fades with the green lock, 440.02 Hz at +0.07 c draws 0 px of bend; off pitch still bends 12.8 px with colour; the in-tune check now needs a real 440 Hz signal so a closed mic cannot pass); device todo |
 | T5 | Silence: line impossibly thin, not dimmed | H | pass thin (tuner-y-rows: 0.32 px at level 0); "not dimmed" unresolved: the tool caps at DPR 2 and the line sits on a pixel boundary, so full ink and dimmed look alike in pixels; device |
 | T6 | Mic refused → microphone-off state, tap retries (no test signal) | H | pass (tuner-real: refused → microphone-off, no fallback audio; spec changed by owner rule) |
 | T8 | Mic off: thin line, no note, no simulated pitch; tap anywhere starts listening | H | pass (tuner-real) |

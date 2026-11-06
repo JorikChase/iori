@@ -98,7 +98,11 @@ Instagram: pick photos → caption → publish).
 
 ---
 
-## 6. Fix soft-404s (SEO polish)
+## 6. Fix soft-404s (SEO polish) — DONE
+
+**Checked 2026-11-06:** both vhosts already serve a real 404 status with `404.html` through
+`handle_errors` in `server_setup.sh` (commit f4d4a17); a missing URL on iori.me and 3die.fr returns 404.
+The text below is the original note.
 
 **Status:** iori.me's SPA fallback (`try_files {path} {path}/ /web.html`)
 returns 200 + web.html for nonexistent URLs — search engines see soft-404s.

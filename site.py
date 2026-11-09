@@ -260,6 +260,16 @@ def json_ld_for(slug, meta):
             "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
             "author": {"@type": "Organization", "name": "3DIE", "url": "https://3die.fr/"},
         })
+    elif ptype == "experiment" and meta.get("citation"):
+        cit = meta["citation"]
+        blocks.append({
+            "@context": "https://schema.org",
+            "@type": "ScholarlyArticle",
+            "headline": title, "name": title, "description": desc, "url": url,
+            "datePublished": cit["date"],
+            "author": [{"@type": "Person", "name": a, "url": "https://iori.me/"} for a in cit["authors"]],
+            "publisher": {"@type": "Organization", "name": cit.get("publisher", "3DIE"), "url": "https://3die.fr/"},
+        })
     elif ptype == "experiment":
         blocks.append({
             "@context": "https://schema.org",
@@ -354,6 +364,22 @@ def build_seo_block(slug, meta):
         "    </script>",
         "",
     ]
+    # Registry "citation": {"authors": [...], "date": "YYYY-MM-DD"} marks a paper.
+    # Google Scholar reads these Highwire tags (title, author, date are required;
+    # a page missing any of them is treated as untagged).
+    cit = meta.get("citation")
+    if cit:
+        lines.append("    <!-- Google Scholar -->")
+        lines.append(f'    <meta name="author" content="{", ".join(cit["authors"])}">')
+        lines.append(f'    <meta name="citation_title" content="{title}">')
+        for a in cit["authors"]:
+            lines.append(f'    <meta name="citation_author" content="{a}">')
+        lines.append(f'    <meta name="citation_publication_date" content="{cit["date"].replace("-", "/")}">')
+        lines.append(f'    <meta name="citation_publisher" content="{cit.get("publisher", "3DIE")}">')
+        lines.append(f'    <meta name="citation_abstract_html_url" content="{url}">')
+        lines.append(f'    <meta name="citation_fulltext_html_url" content="{url}">')
+        lines.append(f'    <meta name="citation_language" content="{lang}">')
+        lines.append("")
     for block in json_ld_for(slug, meta):
         lines.append('    <script type="application/ld+json">')
         lines.append("      " + json.dumps(block, ensure_ascii=False))

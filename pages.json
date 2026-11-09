@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-07",
+  "generated": "2026-11-09",
   "pages": [
     {
       "slug": "4cube.html",
@@ -326,8 +326,8 @@
       "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
       "category": "fractals",
       "type": "experiment",
-      "domain": "iori.me",
-      "url": "https://iori.me/fractals.html",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/fractals.html",
       "og_image": null,
       "lastmod": "2026-11-07"
     },
@@ -544,6 +544,17 @@
       "order": 2
     },
     {
+      "slug": "metafractal.html",
+      "title": "Metafractal: The Space of Fractals Is Fractal",
+      "description": "Paper 0.1: the Mandelbrot set as the map of the Julia sets and Tan Lei's similarity live, then the Fractal Engine's maps, metric and walks through 3-D fractal space.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/metafractal.html",
+      "og_image": null,
+      "lastmod": "2026-11-03"
+    },
+    {
       "slug": "metyou.html",
       "title": "MetYou.ai — Design Engineering Case Study",
       "description": "How 3DIE designed and engineered MetYou.ai: product design engineering from concept to interface.",
@@ -709,6 +720,17 @@
       "lastmod": "2026-09-27"
     },
     {
+      "slug": "radiance-fields.html",
+      "title": "Radiance Fields: Elements and Morphs",
+      "description": "Paper 0.2: density, emission and the volume integral live, one shape stored four ways and measured, and the morphs between representations and between shapes.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/radiance-fields.html",
+      "og_image": null,
+      "lastmod": "2026-11-03"
+    },
+    {
       "slug": "shop.html",
       "title": "3DIE Shop — 3D Models & Printed Objects",
       "description": "Browse the 3DIE collection of printable 3D models: crystals, flowers, cottages and planets rendered live in your browser.",
@@ -729,6 +751,17 @@
       "url": "https://iori.me/sigmoid-helix.html",
       "og_image": null,
       "lastmod": "2026-09-27"
+    },
+    {
+      "slug": "silviculture.html",
+      "title": "Synthetic Silviculture: Growing a Forest, Forming a World",
+      "description": "Paper 0.3: the forest of paper 0 taken apart rule by rule, set beside the state of the art, and scored live against the laws real forests obey.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/silviculture.html",
+      "og_image": null,
+      "lastmod": "2026-11-07"
     },
     {
       "slug": "slime-mold.html",

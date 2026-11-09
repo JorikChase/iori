@@ -35,6 +35,7 @@ Disallow: /fractal-engine/icon/hilbert/
 Disallow: /fractal-engine/icon/multibrot/
 Disallow: /fractal-engine/icon/seahorse/
 Disallow: /iris-engine/icon/fitted/
+Disallow: /iris-engine/icon/pupil/
 Disallow: /kalivoda/
 Disallow: /lili-web.html
 Disallow: /moshine/icon/block/

@@ -742,6 +742,19 @@
       "manifest": "manifest.json",
       "touch_icon": "180.png"
     },
+    "iris-engine/icon/pupil/index.html": {
+      "title": "Iris Engine icon: Pupil",
+      "description": "Install Iris Engine with the Pupil icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
     "iris-engine/index.html": {
       "title": "Iris Engine — Photoreal Procedural Iris",
       "description": "A photoreal procedural human iris for the browser: anatomy-correct geometry, physically based colour, and a casebook of eyes matched against macro photographs.",

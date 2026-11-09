@@ -857,7 +857,11 @@ def cmd_caddy():
                 name = "x_" + re.sub(r"[^a-z0-9]", "_", path.lower()).strip("_")
                 lines.append(f"@{name} {{")
                 lines.append(f"\tpath /{path}*")
-                lines.append(f"\tnot header Sec-Fetch-Dest {SUBRESOURCE_DESTS}")
+                # one line per value: repeated values of one field are OR'd
+                # (several values on one line read as field/value pairs)
+                lines.append("\tnot {")
+                lines += [f"\t\theader Sec-Fetch-Dest {d}" for d in SUBRESOURCE_DESTS.split()]
+                lines.append("\t}")
                 lines.append("}")
                 lines.append(f"redir @{name} https://{target.split('/')[2]}{{uri}} permanent")
             else:

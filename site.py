@@ -818,6 +818,12 @@ def cmd_manifest():
     return True
 
 
+# Fetch-metadata destinations of sub-resources (everything but a page load):
+# a folder app's cross-domain 301 skips these, see cmd_caddy.
+SUBRESOURCE_DESTS = ("script worker sharedworker serviceworker style image font iframe frame "
+                     "embed object empty audio video track manifest audioworklet paintworklet xslt")
+
+
 def cmd_caddy():
     """Generate per-domain 301 redirect maps (imported by the Caddyfile).
 
@@ -843,8 +849,17 @@ def cmd_caddy():
         for slug, target in foreign:
             path = page_path(slug)
             if path.endswith("/"):
-                # whole app folder: keep the request path on the canonical host
-                lines.append(f"redir /{path}* https://{target.split('/')[2]}{{uri}} permanent")
+                # whole app folder: keep the request path on the canonical host —
+                # but only for pages (navigations and crawlers). A page on this
+                # domain that loads the folder's modules, workers, styles or embeds
+                # it in an iframe must get them here: a cross-origin redirect on a
+                # module script fails CORS and the figure never starts.
+                name = "x_" + re.sub(r"[^a-z0-9]", "_", path.lower()).strip("_")
+                lines.append(f"@{name} {{")
+                lines.append(f"\tpath /{path}*")
+                lines.append(f"\tnot header Sec-Fetch-Dest {SUBRESOURCE_DESTS}")
+                lines.append("}")
+                lines.append(f"redir @{name} https://{target.split('/')[2]}{{uri}} permanent")
             else:
                 lines.append(f"redir /{path} {target} permanent")
         for path, target in sorted(RETIRED_DIRS.items()):

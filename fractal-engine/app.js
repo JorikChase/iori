@@ -2,8 +2,9 @@
 //
 //   drag            look              scroll / pinch    move along the view, speed ∝ distance to surface
 //   WASD QE arrows  fly               shift             faster
-//   space           drift on / off: after a pause the camera glides and every unpinned parameter wanders
-//                   a few pixels about its home value (herding); it resumes on its own otherwise
+//   space           play / pause: the drift (the camera glides and every unpinned parameter wanders a few
+//                   pixels about its home value, herding) and, when the formula reads it, the clock. The
+//                   field opens still (DESIGN.md "A static start"): nothing moves until play
 //   long hold       (still for 1.2 s) the breed ring: eight neighbours around the cursor — four near, four
 //                   from the archive of variety — placed by their feature direction, spoke length their
 //                   visual distance; release on one to walk there at constant visual speed, scroll for
@@ -150,7 +151,7 @@ const state = {
   focus: 0.5,
   n: 0,                 // samples blended since the last change
   dirty: true,
-  drift: true,
+  drift: false,         // a static start: the drift waits for play (Space, the drift key)
   lastInput: -1e9,
   scale: 0.6,           // internal resolution / canvas resolution, set by the governor
   frame: 0,
@@ -295,7 +296,7 @@ function drawStructureNow() {
     attention: grab && !grab.knobs ? grab.ranked[grab.k].oi : null,
     lineage: liveLineage.size ? lineage.layout().map((n) => (liveLineage.has(String(n.id)) ? { ...n, thumb: liveLineage.get(String(n.id)) } : n)) : lineage.layout(), hover: state.hoverNode,
     progress: state.exporting ? state.exporting.progress : null,
-    keys: COARSE || touchSeen > 0 ? [{ k: 'lyap', on: state.look.lyapMix > 0 }, { k: 'replay' }, { k: 'surface', on: !!surf }, { k: 'drift', on: state.drift }] : null,
+    keys: COARSE || touchSeen > 0 ? [{ k: 'lyap', on: state.look.lyapMix > 0 }, { k: 'replay' }, { k: 'surface', on: !!surf }, { k: 'drift', on: isPlaying() }] : null,
     step: state.sensed && state.sensed.step != null ? state.sensed.step : null,
     pins: (() => {
       const C = makeCamera(state.cam, b, Math.tan((state.look.fovDeg * Math.PI) / 360), innerWidth, innerHeight);
@@ -313,7 +314,7 @@ function pressKey(k) {
   if (k === 'lyap') { state.look.lyapMix = state.look.lyapMix > 0 ? 0 : 1; touched(); }
   else if (k === 'replay') replay();
   else if (k === 'surface') { if (surf) closeSurface(); else openSurface(); }
-  else if (k === 'drift') { state.engaged = true; state.drift = !state.drift; touched(); }
+  else if (k === 'drift') togglePlay();
   drawStructureNow();
 }
 
@@ -1999,7 +2000,8 @@ function graphKey(e) {
 // ---------- the drivers' clock (ui/clock.js) ---------------------------------------------------------
 // Seconds since the page opened, at a rate, paused or playing, scrubbed by the tape. Everything that reads
 // the time (the frame, the sensing pass, the CPU's estimates, the thumbnails) reads clockNow().
-const clock = { t: 0, at: performance.now(), rate: 1, playing: true };
+// (paused at the start: a link or a state that carries the clock playing starts it)
+const clock = { t: 0, at: performance.now(), rate: 1, playing: false };
 const clockNow = (now = performance.now()) => (clock.playing ? clock.t + ((now - clock.at) / 1000) * clock.rate : clock.t);
 // o: { t, rate, playing } (any of them); a change restarts the still frame's accumulation
 function setClockState(o) {
@@ -3364,9 +3366,22 @@ function exitGrab(revert = false) {
 let drag = null;
 let clickAt = null;   // a press that may be a click (in a collage: picks the piece under it)
 const pointers = new Map();
-// The drift greets an arrival; the first real input turns it off so the field holds still while it is
-// worked on (Space turns it back on)
+// The field opens still; the first real input after a play stops the drift so the field holds still while
+// it is worked on (Space plays again)
 function engage() { if (!state.engaged) { state.engaged = true; state.drift = false; } }
+// play: what moves on its own — the drift, and the clock when the document reads it. One key (Space, the
+// drift key in the key row, a figure's play glyph); K stays the clock's alone. Playing when either runs.
+const isPlaying = () => state.drift || (docTimeDriven() && clock.playing);
+function togglePlay(on = !isPlaying()) {
+  state.engaged = true;
+  state.drift = on;
+  if (docTimeDriven() && clock.playing !== on) setClockState({ playing: on });
+  // (the drift starts now, not after the pause that follows an input)
+  state.dirty = true; state.n = 0;
+  if (on) state.lastInput = -1e9; else state.lastInput = performance.now();
+  if (EMBED && parent !== window) parent.postMessage({ fe: 'playing', on }, '*');
+  drawStructureNow();
+}
 
 canvas.addEventListener('pointerdown', (e) => {
   engage();
@@ -3831,7 +3846,7 @@ addEventListener('keydown', (e) => {
     if (n) restore(lineage.jump(n.id));
     return;
   }
-  if (e.code === 'Space') { state.engaged = true; state.drift = !state.drift; touched(); e.preventDefault(); return; }
+  if (e.code === 'Space') { togglePlay(); e.preventDefault(); return; }
   if (e.code === 'KeyP' && !e.repeat) { toggleMode(); return; }
   // the clock: K plays or pauses, [ and ] the speed
   if (e.code === 'KeyK' && !e.repeat && docTimeDriven()) { setClockState({ playing: !clock.playing }); return; }
@@ -5009,6 +5024,12 @@ async function start() {
   window.__fe.ready = true;
   requestAnimationFrame(tick);
 }
+
+// A paper figure's play glyph (paper/paper.js) posts { fe: 'play', on }; only from the page framing it.
+if (EMBED) addEventListener('message', (e) => {
+  if (e.source !== parent || !e.data || typeof e.data !== 'object') return;
+  if (e.data.fe === 'play') togglePlay(e.data.on === undefined ? undefined : !!e.data.on);
+});
 
 // what a paper figure opens with (the toggles' own actions, so it looks as if the reader had pressed them)
 function openEmbed(keys) {

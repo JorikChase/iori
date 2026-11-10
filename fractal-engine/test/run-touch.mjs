@@ -123,6 +123,15 @@ async function check(name, fn) {
   results.push([name, ok, note]);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(26)} ${note}`);
 }
+
+// a static start (DESIGN.md "A static start"): nothing moves on arrival, before any input
+for (const pre of ['', 'desktop: ']) await check(`${pre}a static start`, async () => {
+  const get = () => fe(() => ({ cam: [...window.__fe.state.cam.pos, window.__fe.state.cam.yaw, window.__fe.state.cam.pitch], text: window.__fe.state.text, drift: window.__fe.state.drift, clock: window.__fe.clock() }));
+  const a = await get(); await sleep(2500);
+  const b = await get();
+  const held = a.cam.every((v, i) => v === b.cam[i]) && a.text === b.text;
+  return { ok: held && !b.drift && !b.clock.playing, note: `camera and formula ${held ? 'held' : 'moved'} 2.5 s, drift ${b.drift}, clock ${b.clock.playing ? 'playing' : 'paused'}` };
+});
 const cam = () => fe(() => JSON.parse(JSON.stringify(window.__fe.state.cam)));
 const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 
@@ -1116,6 +1125,7 @@ await check(`${DESK ? 'desktop: ' : ''}clock: pause, play, speed, scrub`, async 
   await fe(() => window.__fe.setFormula('bulb 8 · +c ×10 bail=2')); await settle(6);
   const none = await fe(() => window.__fe.clock().shown);
   await CLOCK_FORMULA(); await settle(8);
+  await fe(() => window.__fe.clock({ playing: true }));   // (a static start: it opens paused)
   await page.waitForFunction(() => window.__fe.clock().shown, null, { timeout: 5000 });
   const c0 = await fe(() => window.__fe.clock()), small = Math.min(...c0.rects.map((r) => Math.min(r.w, r.h)));
   await shot(`${DESK ? 'desktop-' : ''}clock`);
@@ -1218,6 +1228,22 @@ await check(`${DESK ? 'desktop: ' : ''}labels: a finger's reach`, async () => {
   await fe(() => window.__fe.graph(false));
   const same = (q) => !!q && !!at && q.text === at.text;
   return { ok: 7 * t.k >= 22 || (same(finger) && !same(mouse)), note: `at ${at && at.text}; ${off[1] - L.y} px off: finger ${finger && finger.text}, mouse ${mouse && mouse.text}` };
+});
+
+// play: Space (desktop) or the key row's play key (touch) starts the drift and the clock together, and stops both
+await check(`${DESK ? 'desktop: ' : ''}play: drift and clock together`, async () => {
+  await fe(() => { window.__fe.graph(false); window.__fe.surface(false); window.__fe.clock({ playing: false }); window.__fe.hold(); });
+  await CLOCK_FORMULA(); await settle(8);
+  const go = async () => { if (DESK) await page.keyboard.press('Space'); else await T.tap([await keyAt('drift')]); await sleep(250); };
+  const st = () => fe(() => ({ drift: window.__fe.state.drift, playing: window.__fe.clock().playing }));
+  const a = await st(); await go(); const b = await st(); await go(); const c = await st();
+  // K stays the clock's alone
+  if (DESK) await page.keyboard.press('KeyK'); await sleep(150);
+  const d = await st();
+  if (DESK) await page.keyboard.press('KeyK');
+  await fe(() => { window.__fe.clock({ playing: true }); window.__fe.hold(); });
+  const ok = !a.drift && !a.playing && b.drift && b.playing && !c.drift && !c.playing && (!DESK || (d.playing && !d.drift));
+  return { ok, note: `before ${JSON.stringify(a)}, play ${JSON.stringify(b)}, again ${JSON.stringify(c)}${DESK ? `, K ${JSON.stringify(d)}` : ''}` };
 });
 
 // the same budget covers the Metasurface's sites and the graph's preview of the node under the pointer

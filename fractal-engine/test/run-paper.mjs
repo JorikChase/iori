@@ -88,7 +88,9 @@ const engine = (id) => page.evaluate((id) => {
   try { fe = F.iframe && F.iframe.contentWindow.__fe; } catch { /* not loaded */ }
   if (!fe || !fe.ready) return null;
   const d = F.iframe.contentDocument, svg = ['grab', 'structure'].map((k) => d.getElementById(k).innerHTML).join('');
-  return { error: fe.error || null, nan: (svg.match(/NaN/g) || []).length, line: F.line.textContent, n: fe.state.n, mode: fe.state.mode };
+  const c = fe.clock();
+  return { error: fe.error || null, nan: (svg.match(/NaN/g) || []).length, line: F.line.textContent, n: fe.state.n, mode: fe.state.mode,
+    text: fe.state.text, cam: [...fe.state.cam.pos, fe.state.cam.yaw, fe.state.cam.pitch], drift: fe.state.drift, t: c.t, playing: c.playing };
 }, id);
 
 await check('nothing runs unseen', async () => { await sleep(1200); const l = await live(); return { ok: l.length === 0, note: `live at the top: ${l.length}` }; });
@@ -124,6 +126,15 @@ for (const id of ids) {
     const l = await live();
     return { ok: l.includes(id) && !e.error && !e.nan && !!e.line, note: `${((Date.now() - t0) / 1000).toFixed(1)} s, live ${l.join(',')}${e.error ? ' error ' + e.error : ''}${e.nan ? ` NaN×${e.nan}` : ''}` };
   });
+  // a static start: nothing moves before play (the camera, the drift, the clock)
+  await check(`still ${id}`, async () => {
+    const a = await engine(id);
+    if (!a) return { note: 'not running' };
+    await sleep(1500);
+    const b = await engine(id);
+    const same = b && a.cam.every((v, i) => Math.abs(v - b.cam[i]) < 1e-9) && a.t === b.t;
+    return { ok: same && !b.drift && !b.playing, note: `camera ${same ? 'held' : 'moved'}, drift ${b && b.drift}, clock ${b && b.playing ? 'playing' : 'paused'} at ${b && b.t.toFixed(2)}` };
+  });
 }
 // a page's own figures (metafractal.html, radiance-fields.html): each draws once in view
 const locals = await page.evaluate(() => [...document.querySelectorAll('figure.local')].map((f) => f.id));
@@ -146,6 +157,30 @@ for (const id of locals) {
     return { ok: r.inked || !!r.status, note: r.status.slice(0, 90) };
   });
 }
+// one canvas per experiment, stacked: no side-by-side pairs; an example and its step full width, the step below
+await check('examples stacked', async () => {
+  const r = await page.evaluate(() => {
+    const box = (id) => { const f = document.querySelector(`figure[data-fig="${id}"] .fe-frame`); return f && f.getBoundingClientRect(); };
+    const pairs = [['exBulb', 'exBulbTissue'], ['exQuat', 'exQuatWalk'], ['tetraPull', 'push']].filter(([a, b]) => box(a) && box(b));
+    return { sideBySide: document.querySelectorAll('.fe-pair').length, frames: [...document.querySelectorAll('figure.engine')].every((f) => f.querySelectorAll('.fe-frame').length === 1),
+      pairs: pairs.map(([a, b]) => { const A = box(a), B = box(b); return { a, below: B.top >= A.bottom, sameWidth: Math.abs(A.width - B.width) < 1, w: Math.round(A.width) }; }) };
+  });
+  return { ok: r.sideBySide === 0 && r.frames && r.pairs.every((q) => q.below && q.sameWidth), note: r.pairs.map((q) => `${q.a} ${q.below ? 'stacked' : 'beside'} ${q.w} px`).join(', ') || 'no example pairs on this page' };
+});
+// play: the corner glyph starts the drift (and a clock the formula reads), and stops it
+const playId = ids.find((id) => id === 'exQuatWalk') || ids.find((id) => !['notation', 'loop', 'surface'].includes(id) && !(ONLY && !id.includes(ONLY)));
+if (playId) await check(`play ${playId}`, async () => {
+  await toFig(playId);
+  for (let i = 0; i < 120 && !(await engine(playId)); i++) await sleep(250);
+  await page.evaluate((id) => document.querySelector(`figure[data-fig="${id}"] .fe-play`).click(), playId);
+  await sleep(1500);
+  const a = await engine(playId), glyph = await page.evaluate((id) => document.querySelector(`figure[data-fig="${id}"] .fe-play`).classList.contains('on'), playId);
+  await page.evaluate((id) => document.querySelector(`figure[data-fig="${id}"] .fe-play`).click(), playId);
+  await sleep(500);
+  const b = await engine(playId);
+  const timed = playId === 'exQuatWalk';
+  return { ok: a && a.drift && (!timed || (a.playing && a.t > 0)) && glyph && b && !b.drift && !b.playing, note: `played: drift ${a && a.drift}, clock ${a && a.playing} at ${a && a.t.toFixed(2)}, glyph ${glyph}; paused: drift ${b && b.drift}, clock ${b && b.playing}` };
+});
 await check('at most two at once', async () => ({ ok: most <= 2, note: `most live: ${most}` }));
 await check('none past the figures', async () => {
   await page.evaluate(() => document.getElementById('references').scrollIntoView({ behavior: 'instant' }));

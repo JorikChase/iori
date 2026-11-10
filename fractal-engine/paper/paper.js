@@ -6,10 +6,14 @@
 // it. At most two run at once, the two nearest the middle of the screen. Each compiles its shaders the
 // first time it runs (Chrome keeps compiled shaders, so a second visit starts faster).
 //
+// One canvas per experiment: an example and its step are two figures, stacked at the column's width, so one
+// sits in view at a time and the loader starts it alone. Every figure opens still (app.js "A static start");
+// its play glyph (by message, so it works from another origin), Space or the drift key start it.
+//
 // A figure is covered until it is entered — a click or a tap — so the wheel and the finger scroll the
 // page, not the engine, until the reader means the engine. A press outside, the pointer leaving or the
 // figure leaving the screen covers it again. Nothing a reader does is stored (app.js EMBED).
-import { FIGURES, figureSrc } from './figures.js?v=10';
+import { FIGURES, figureSrc } from './figures.js?v=11';
 
 const MAX_LIVE = 2, DWELL_MS = 350, LINE_MS = 500, SWAP_PX = 80;
 const COARSE = matchMedia('(pointer: coarse)').matches;
@@ -36,6 +40,9 @@ function start(F) {
   F.frame.insertBefore(f, F.cover);
   F.iframe = f;
   F.el.classList.add('live');
+  F.loaded = false;
+  f.addEventListener('load', () => { F.loaded = true; }, { once: true });
+  showPlaying(F, false);
   cover(F);
 }
 
@@ -45,8 +52,9 @@ function stop(F) {
   F.iframe.remove();
   F.iframe = null;
   F.el.classList.remove('live');
+  showPlaying(F, false);
   cover(F);
-  // a figure turned away while two ran (a pair scrolled in before the last pair left) gets its turn now
+  // a figure turned away while two ran gets its turn now
   setTimeout(fill, 0);
 }
 
@@ -55,7 +63,7 @@ function fill() {
   const waiting = [...figs.values()].filter((G) => G.visible && !G.iframe).sort((a, b) => distance(a) - distance(b));
   for (const G of waiting) start(G);   // start() lets a nearer figure take a farther one's place when both slots are full
 }
-// a sweep once a second, in case the observer missed a change (a phone's stacked pairs, a busy page): a running
+// a sweep once a second, in case the observer missed a change (a busy page): a running
 // figure out of view stops, a waiting one in view starts
 setInterval(() => {
   for (const F of figs.values()) if (F.iframe && !F.visible) stop(F);
@@ -96,6 +104,15 @@ document.querySelectorAll('figure.engine[data-fig]').forEach((el) => {
   frame.after(line);
   const F = { id, el, frame, cover: btn, line, visible: false, timer: 0, iframe: null, doc: null };
   figs.set(id, F);
+  // the corner: play
+  const bar = document.createElement('div');
+  bar.className = 'fe-bar';
+  F.play = document.createElement('button');
+  F.play.type = 'button'; F.play.className = 'fe-play';
+  F.play.addEventListener('click', (e) => { e.stopPropagation(); play(F); });
+  bar.appendChild(F.play);
+  frame.appendChild(bar);
+  showPlaying(F, false);
   btn.addEventListener('click', () => enter(F));
   // a mouse leaving gives the wheel back to the page (a finger leaves by pressing outside)
   frame.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !e.buttons) cover(F); });
@@ -104,6 +121,26 @@ document.querySelectorAll('figure.engine[data-fig]').forEach((el) => {
 addEventListener('pointerdown', (e) => {
   for (const F of figs.values()) if (F.el.classList.contains('entered') && !F.frame.contains(e.target)) cover(F);
 }, true);
+
+// play or pause a figure's engine (starting it if it is not running yet)
+function play(F) {
+  if (!F.iframe) start(F);
+  if (!F.iframe) return;
+  const send = () => F.iframe && F.iframe.contentWindow.postMessage({ fe: 'play', on: !F.playing }, '*');
+  if (F.iframe.contentWindow && F.loaded) send(); else F.iframe.addEventListener('load', () => { F.loaded = true; setTimeout(send, 300); }, { once: true });
+}
+function showPlaying(F, on) {
+  F.playing = on;
+  if (!F.play) return;
+  F.play.classList.toggle('on', on);
+  F.play.innerHTML = on ? '<svg viewBox="0 0 12 12"><path d="M4 2.5v7M8 2.5v7"/></svg>' : '<svg viewBox="0 0 12 12"><path d="M3.5 2.2v7.6L10 6z"/></svg>';
+  F.play.setAttribute('aria-label', on ? 'pause' : 'play');
+}
+// the engines say when they play or stop (Space inside one, its drift key, the glyph here)
+addEventListener('message', (e) => {
+  if (!e.data || e.data.fe !== 'playing') return;
+  for (const F of figs.values()) if (F.iframe && e.source === F.iframe.contentWindow) showPlaying(F, !!e.data.on);
+});
 
 // under every live figure: its document as a line of notation, as the engine has it now (the grab, the
 // graph and the Metasurface all rewrite it), and which shader draws it
@@ -132,7 +169,8 @@ if (form) {
 }
 
 // for tests: which figures run; start one without the dwell (a background tab's timers are throttled)
-window.__paper = { live: () => [...figs.values()].filter((F) => F.iframe).map((F) => F.id), figs, start: (id) => start(figs.get(id)) };
+window.__paper = { live: () => [...figs.values()].filter((F) => F.iframe).map((F) => F.id), figs, start: (id) => start(figs.get(id)),
+  play: (id) => play(figs.get(id)) };
 
 // ---------- the reading layer: contents rail and progress (as paper 0) ----------
 const toc = document.querySelector('nav.toc'), main = document.querySelector('main');

@@ -65,7 +65,7 @@ export const LABELS = {
   'tg.mode.pull': 'pull mode', 'tg.mode.push': 'push mode', 'tg.mode.loop': 'loop mode', 'tg.docs': 'docs',
   // the structure layer: the strip, its key row, the exports
   'st.graph': 'graph',
-  'key.lyap': 'lyapunov', 'key.replay': 'replay', 'key.surface': 'metasurface', 'key.drift': 'drift',
+  'key.lyap': 'lyapunov', 'key.replay': 'replay', 'key.surface': 'metasurface', 'key.drift': 'play',
   'ex.still': '4K still', 'ex.video': 'video', 'ex.splats': 'splats', 'ex.mesh': 'mesh',
 };
 

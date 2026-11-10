@@ -125,6 +125,12 @@ export const FIGURES = {
   touch: {},
 };
 
+// what the figure's hash carries: the document, its camera and mode
+function figureHash(F, doc) {
+  const text = doc || F.doc;
+  const cam = F.cam ? '&c=' + F.cam.join(',') : '';
+  return text ? '#' + encodeURIComponent(text) + cam + (F.mode && F.mode !== 'pull' ? '&m=' + F.mode : '') : '';
+}
 // the engine's URL for a figure, absolute (other papers embed these figures too: metafractal.html); doc
 // overrides the figure's own document (the notation figure's input)
 export function figureSrc(id, doc) {
@@ -132,8 +138,6 @@ export function figureSrc(id, doc) {
   const q = new URLSearchParams({ embed: '' });
   for (const k of ['view', 'yaw', 'pitch', 'win', 'open']) if (F[k] != null) q.set(k, F[k]);
   if (F.clock) q.set('clock', '');
-  const text = doc || F.doc;
-  const cam = F.cam ? '&c=' + F.cam.join(',') : '';
-  const hash = text ? '#' + encodeURIComponent(text) + cam + (F.mode && F.mode !== 'pull' ? '&m=' + F.mode : '') : '';
+  const hash = figureHash(F, doc);
   return new URL('../index.html?' + q.toString().replace('embed=', 'embed') + hash, import.meta.url).href;
 }

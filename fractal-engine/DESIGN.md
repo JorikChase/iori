@@ -2367,3 +2367,41 @@ opens with no note and edits); `run-paper.mjs` 58/58 desktop and phone; `run-ben
 ×0.99–1.03 (the loop ×0.91: 1.1 against 1.0 ms wall, its noise); `site.py check` passes. *Traps met:* the Metasurface
 check leaves the site's formula on screen, so the graph check that follows must set the clock's formula again; the field
 without the bulb no longer reads the clock (its binding's target is gone), so the graph check hovers `+c`.
+
+## A static start, and one canvas per example, 2026-11-10
+
+Two requests of iori's, on `claude/fe-finishing-f18c33` after 8594399 (origin/main e17a623 merged in first: the
+sub-papers 0.1–0.3 are public on 3die.fr and load these figures from there).
+
+**A static start.** *Decided:* the engine opens still, in the app and in every paper figure: `state.drift` starts false
+and the clock paused (at the time a link's `&t=` or a state file saved, else 0; a link or file that says playing still
+plays). Nothing moves until play. *Play* is one gesture: `togglePlay()` starts or stops the drift and, when the document
+reads the clock, the clock with it — Space, the key row's drift key on touch (its label now "play"), a figure's play
+glyph (by message). K stays the clock's alone. Playing means either runs (`isPlaying()`). Starting the drift by play
+skips the usual four-second wait after an input (it would read as a dead key); once playing, the first press still stops
+the drift under a working hand (`engage`), as before. *Why:* a render that distorts the moment it appears reads as a bug,
+and a paper figure should open on its still frame. Rigs: run-touch "a static start" (camera, formula, drift and clock
+held 2.5 s from load, both modes), "play: drift and clock together" (Space or the play key both ways, K the clock alone);
+run-paper "still <figure>" for every figure, "play <figure>".
+
+**One canvas per experiment, stacked.** *Decided by iori* ("we can just move them underneath each other while leaving
+one window for one experiment"), after a first try with one canvas and a switch between the two programs was dropped:
+an example and its step stay two figures, each with its own canvas and caption, but no longer side by side. They stand
+one under the other at the column's width (`.fe-pair` and its phone layout are gone), so one sits in view at a time and
+the loader starts it alone: the ten pairs of the engine paper (ch10's seven, the two family halls, the subgraph's field and
+graph). radiance-fields.html's pull and push were already stacked; neither sub-paper's ch7 has a pair (each experiment
+there is one canvas; metafractal.html's parameter plane beside its Julia set is one figure, two coupled panes). Each
+engine figure has a play glyph in its corner (`{ fe: 'play' }` by `postMessage`, so it works from a 3die.fr page; the
+engine answers `{ fe: 'playing', on }` so the glyph follows Space inside it). The scheduler keeps at most two engines,
+the two nearest the middle; its notes about pairs are gone. Rigs: run-paper "examples stacked" (no side-by-side pair,
+one frame per figure, the step's frame below the original's at the same width).
+
+**Verified 2026-11-10** (the GPU rigs one at a time, waiting out two ffmpeg encodes and a headless Blender of other
+work): `node --test` 156/156; `run-parity.mjs` PASS (all eight suites, override 28, collage 116); `run-touch.mjs` 57/57
+and `--desktop` 33/33, no page errors (a static start held 2.5 s from load; Space and the play key start and stop drift
+and clock together, K the clock alone); `run-paper.mjs` 108/108 desktop and phone (every figure still before play; the
+examples stacked, 640 px and 358 px wide; play on exQuatWalk starts drift and clock, a second press stops both),
+`--page radiance-fields.html` 21/21, `--page metafractal.html` 30/30 (served locally: the rig has no live-origin mode,
+and the live 3die.fr pages run the deployed code, not this branch); `run-bench.mjs --ref 383b0ba` ∞ dB everywhere,
+×0.94–1.02 (loop ×0.91) on a quiet run (a run right after an encode read ×0.59–1.03: the machine, not the code, as the
+renderer did not change); `site.py check` passes.

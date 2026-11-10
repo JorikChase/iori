@@ -65,7 +65,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="../papers/fractals/paper.css?v=5">
-  <link rel="stylesheet" href="paper/paper.css?v=6">
+  <link rel="stylesheet" href="paper/paper.css?v=7">
 </head>
 
 <body>
@@ -138,7 +138,7 @@
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
         <tr><td>See the op list as glyphs</td><td><kbd>Tab</kbd> (the strip, bottom left)</td><td>tap a corner mark</td></tr>
         <tr><td>Fly</td><td>drag to look, wheel to move, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <kbd>Q</kbd><kbd>E</kbd></td><td>one finger looks, pinch moves along the view, two-finger pan slides</td></tr>
-        <tr><td>Drift on or off (it is on until your first press or key)</td><td><kbd>Space</kbd></td><td>the drift glyph in the structure layer</td></tr>
+        <tr><td>Play, pause (the field opens still)</td><td><kbd>Space</kbd></td><td>the play glyph in the structure layer's key row</td></tr>
       </table>
       <figure class="engine" data-fig="notation">
         <div class="fe-frame"></div>
@@ -203,8 +203,9 @@
       </table>
       <figure class="engine" data-fig="pull">
         <div class="fe-frame"></div>
-        <figcaption>Pull: the arrival view, a room inside the scale-2.5 Mandelbox facing a terraced amphitheatre. Until
-          your first press the camera drifts toward the most open direction, four seconds after anything else moved it.</figcaption>
+        <figcaption>Pull: the arrival view, a room inside the scale-2.5 Mandelbox facing a terraced amphitheatre. It opens
+          still; press play (the glyph in the corner, or <kbd>Space</kbd> once entered) and the camera drifts toward the
+          most open direction.</figcaption>
       </figure>
       <details class="math">
         <summary>The mathematics</summary>
@@ -454,10 +455,11 @@
         old <a class="cite" href="#ref-sims1991">[16]</a> <a class="cite" href="#ref-marks1997">[17]</a>; here the
         distances are measured.</p>
       <p>The drift is the same idea without the hand: the camera glides toward the most open way and every unpinned
-        parameter wanders a few pixels about its home value. The engine arrives drifting. Your first press or key turns
-        the drift off for the session, so nothing moves under a working hand; <kbd>Space</kbd>, or the drift glyph on
-        touch, turns it back on, and it then starts four seconds after your last input. It waits while a grab, the graph or
-        the Metasurface is open. <kbd>F</kbd> in a grab pins that region: the parameters that move it stop wandering, the pin
+        parameter wanders a few pixels about its home value. The engine opens still: nothing moves until you press play.
+        <kbd>Space</kbd>, or the play glyph in the key row on touch, is play: it starts the drift, and the clock as well
+        when the formula reads one (section 6.5); pressed again it stops both. Once playing, your first press or key stops
+        the drift, so nothing moves under a working hand, and after that it starts four seconds after your last input. It
+        waits while a grab, the graph or the Metasurface is open. <kbd>F</kbd> in a grab pins that region: the parameters that move it stop wandering, the pin
         shows in the structure layer, and <kbd>F</kbd> on a pin removes it. Pins are how a composition is herded.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
@@ -644,26 +646,22 @@
         <tr><td>Change the lattice</td><td>grab (4.1): cell limits, seed offset, the trace's a and b</td><td>grab</td></tr>
         <tr><td>Fly the halls</td><td>wheel, drag</td><td>pinch, one finger</td></tr>
       </table>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="fmPK">
-          <div class="fe-frame"></div>
-          <figcaption><code>fold.cell · fold.sphere 0 1 · seed.slab</code>: a pseudo-Kleinian hall, the strata ramp on its orbit trap.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="fmPillars">
-          <div class="fe-frame"></div>
-          <figcaption>The same fold with a pillar for its seed, the "thingy" of knighty's shader, in the bone ramp.</figcaption>
-        </figure>
-      </div>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="fmApollonian">
-          <div class="fe-frame"></div>
-          <figcaption>Apollonian: <code>wrap · invert · scale 1.1 · seed.slab</code>, a lattice folded through a sphere, in the engine's own colours.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="fmKleinian">
-          <div class="fe-frame"></div>
-          <figcaption>Kleinian: <code>kleinian 1.95 .02</code>, a limit set on Maskit's slice.</figcaption>
-        </figure>
-      </div>
+      <figure class="engine" data-fig="fmPK">
+        <div class="fe-frame"></div>
+        <figcaption><code>fold.cell · fold.sphere 0 1 · seed.slab</code>: a pseudo-Kleinian hall, the strata ramp on its orbit trap.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="fmPillars">
+        <div class="fe-frame"></div>
+        <figcaption>The same fold with a pillar for its seed, the "thingy" of knighty's shader, in the bone ramp.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="fmApollonian">
+        <div class="fe-frame"></div>
+        <figcaption>Apollonian: <code>wrap · invert · scale 1.1 · seed.slab</code>, a lattice folded through a sphere, in the engine's own colours.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="fmKleinian">
+        <div class="fe-frame"></div>
+        <figcaption>Kleinian: <code>kleinian 1.95 .02</code>, a limit set on Maskit's slice.</figcaption>
+      </figure>
       <p>Two limits. The Apollonian slab's estimate is scaled by .4, which keeps the measured stretch under 1 at the 99th
         percentile, so the march stays safe. The Kleinian estimate jumps at the wrap's seam, where nearby points land on opposite sides of the lattice: the
         measured stretch there reaches 11 to 13 where a true distance has 1. An overstep at that seam is possible; none has
@@ -727,17 +725,15 @@
         <tr><td>Detach use, save to shelf</td><td>hold a use: the ring</td><td>hold</td></tr>
         <tr><td>Remove a use</td><td>click it, <kbd>Delete</kbd></td><td>three-finger tap</td></tr>
       </table>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="sbField">
-          <div class="fe-frame"></div>
-          <figcaption>Subgraph <code>a</code> used twice in one iteration, with a turn between the uses.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="sbGraph">
-          <div class="fe-frame"></div>
-          <figcaption>The same formula's graph: each use is its run's glyphs between brackets. Double click one to open it,
+      <figure class="engine" data-fig="sbField">
+        <div class="fe-frame"></div>
+        <figcaption>Subgraph <code>a</code> used twice in one iteration, with a turn between the uses.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="sbGraph">
+        <div class="fe-frame"></div>
+        <figcaption>The same formula's graph: each use is its run's glyphs between brackets. Double click one to open it,
             or rest on it for its name.</figcaption>
-        </figure>
-      </div>
+      </figure>
       <p>The limits. The engine's eight slots and 64 ops count every use, because each use is real ops: a subgraph saves
         typing, not GPU space, and a chimera subgraph used twice takes its species' slots twice. The lens's preview of a shared
         number moves the first use only; the value applied on release is exact. Ramp stops can't be exposed (a ramp's map lines
@@ -898,7 +894,9 @@
       </details>
 
       <h3 id="ch6-5">6.5 The Clock</h3>
-      <p>A formula with a time driver animates on its own. While one is on screen a hairline row sits at the top centre:
+      <p>A formula with a time driver animates once its clock plays. It opens paused, at the time a link or a file
+        saved, or at 0; <kbd>Space</kbd> (play, which starts the drift too) or the row's own glyph starts it, <kbd>K</kbd>
+        the clock alone. While one is on screen a hairline row sits at the top centre:
         a play and pause glyph, a <i>tape</i> and the speed. The tape is a line with a tick every second (a taller one
         every five) sliding under a fixed centre mark, with the time beneath it; drag it and the clock follows the hand,
         held still while you hold it and playing again when you let go, if it was playing. The speed steps through ×¼,
@@ -915,7 +913,7 @@
         state. Links and files from before it open at 0, playing, at ×1.</p>
       <table class="use">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-        <tr><td>Pause, play</td><td>click the glyph; <kbd>K</kbd></td><td>tap it</td></tr>
+        <tr><td>Pause, play</td><td>click the glyph; <kbd>K</kbd>; <kbd>Space</kbd> plays the drift with it</td><td>tap it</td></tr>
         <tr><td>Scrub</td><td>drag the tape (left is later); <kbd>Shift</kbd> for a tenth as fast</td><td>drag it</td></tr>
         <tr><td>Speed</td><td>click it for faster, <kbd>Shift</kbd>-click slower; <kbd>[</kbd> <kbd>]</kbd></td><td>tap it for faster; tap with a second finger resting for slower</td></tr>
       </table>
@@ -1183,11 +1181,11 @@
     <section id="ch10">
       <h2>10. Examples: As Published, and One Step Further</h2>
       <p class="lead">Seven fractals people know, each drawn as it was published and then taken one step further with
-        a tool from the chapters above. Left, the original; right, the step.</p>
+        a tool from the chapters above. Each is drawn as published, and the step below it, one figure at a time.</p>
       <p>The sources are the forums and programs where 3-D fractals grew up: Fractal Forums, where the Mandelbulb,
         the Mandelbox and the kaleidoscopic folds were posted and argued over; Fragmentarium and Mandelbulber, whose
         open source code holds the formulas exactly <a class="cite" href="#ref-fragmentarium">[35]</a>
-        <a class="cite" href="#ref-mandelbulber">[36]</a>; and the artists who made them a medium. Each pair starts
+        <a class="cite" href="#ref-mandelbulber">[36]</a>; and the artists who made them a medium. Each example starts
         from that formula as published.</p>
 
       <h3 id="ch10-1">10.1 The Mandelbulb</h3>
@@ -1197,116 +1195,102 @@
         its derivative carried alongside (section 3). The step: a tissue in which every cell of space is a bulb of
         its own power, 8 or 5, with soft walls between them (section 5.3). The classic hybrids alternated whole
         formulas from one iteration to the next; here the species are laid out in space.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exBulb">
-          <div class="fe-frame"></div>
-          <figcaption>The power-8 Mandelbulb, as published.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exBulbTissue">
-          <div class="fe-frame"></div>
-          <figcaption>A tissue of bulbs of power 8 and 5: each cell its own species.</figcaption>
-        </figure>
-      </div>
+      <figure class="engine" data-fig="exBulb">
+        <div class="fe-frame"></div>
+        <figcaption>The power-8 Mandelbulb, as published.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exBulbTissue">
+        <div class="fe-frame"></div>
+        <figcaption>A tissue of bulbs of power 8 and 5: each cell its own species.</figcaption>
+      </figure>
 
       <h3 id="ch10-2">10.2 The Mandelbox at −1.5</h3>
       <p>Tom Lowe's Mandelbox, posted as the "amazing fractal" in February 2010: fold into a box, fold through a
         sphere, scale, add the starting point <a class="cite" href="#ref-lowe2010">[1]</a>. At scale −1.5 the faces
         turn into castles. The step is a collage (section 7): six small −1.5 boxes in a polar ring around a seventh,
         joined by smooth unions, a cathedral ring no single formula draws.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exBox">
-          <div class="fe-frame"></div>
-          <figcaption>The Mandelbox at scale −1.5.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exBoxRing">
-          <div class="fe-frame"></div>
-          <figcaption>Seven of them as one collage: a polar ring of six around a seventh, smooth seams.</figcaption>
-        </figure>
-      </div>
+      <figure class="engine" data-fig="exBox">
+        <div class="fe-frame"></div>
+        <figcaption>The Mandelbox at scale −1.5.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exBoxRing">
+        <div class="fe-frame"></div>
+        <figcaption>Seven of them as one collage: a polar ring of six around a seventh, smooth seams.</figcaption>
+      </figure>
 
       <h3 id="ch10-3">10.3 The Kaleidoscopic Folds</h3>
       <p>Knighty's kaleidoscopic iterated function systems of 2010: fold space across mirror planes, then stretch it
         about a corner <a class="cite" href="#ref-knighty2010">[37]</a>. The Menger sponge is abs, sort, scale 3; the
         Sierpiński tetrahedron three plane folds and scale 2. The step: a chimera that runs both inside every
         iteration and averages the point (section 5.2), a species between the sponge and the tetrahedron.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exMenger">
-          <div class="fe-frame"></div>
-          <figcaption>The Menger sponge as a kaleidoscopic fold.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exMengerSier">
-          <div class="fe-frame"></div>
-          <figcaption>Menger and Sierpiński blended half and half inside every iteration.</figcaption>
-        </figure>
-      </div>
+      <figure class="engine" data-fig="exMenger">
+        <div class="fe-frame"></div>
+        <figcaption>The Menger sponge as a kaleidoscopic fold.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exMengerSier">
+        <div class="fe-frame"></div>
+        <figcaption>Menger and Sierpiński blended half and half inside every iteration.</figcaption>
+      </figure>
 
       <h3 id="ch10-4">10.4 The Quaternion Julia Set</h3>
       <p>Alan Norton drew Julia sets of the quaternions in 1982; Hart, Sandin and Kauffman ray traced them with a
         distance estimate in 1989 <a class="cite" href="#ref-norton1982">[20]</a> <a class="cite" href="#ref-hart1989">[5]</a>.
         A three-dimensional slice of a four-dimensional set: q → q² + c. The step: drivers (section 6.2) put the
-        constant c on a slow clock, so the slice drifts through the family of quaternion Julia sets on its own.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exQuat">
-          <div class="fe-frame"></div>
-          <figcaption>A quaternion Julia set, c fixed.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exQuatWalk">
-          <div class="fe-frame"></div>
-          <figcaption>The same with c on a clock: the set changes shape as you watch.</figcaption>
-        </figure>
-      </div>
+        constant c on a slow clock, so, playing, the slice drifts through the family of quaternion Julia sets.</p>
+      <figure class="engine" data-fig="exQuat">
+        <div class="fe-frame"></div>
+        <figcaption>A quaternion Julia set, c fixed.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exQuatWalk">
+        <div class="fe-frame"></div>
+        <figcaption>The same with c on a clock: press play and the set changes shape.</figcaption>
+      </figure>
 
       <h3 id="ch10-5">10.5 Amazing Surf</h3>
       <p>A Mandelbox variant from the Mandelbulber library (credited there to Kali): the box fold on two axes only,
         so the shape runs out into sheets and terraced "lands" <a class="cite" href="#ref-mandelbulber">[36]</a>. It is
         still one of the most used formulas in Mandelbulber galleries, usually with depth of field
         <a class="cite" href="#ref-abalo">[38]</a>. The step: painted in one hue in terraces of the orbit trap (section
-        6.1), with the rotation inside its iteration on a slow clock (section 6.2), so the lands turn as you watch.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exSurf">
-          <div class="fe-frame"></div>
-          <figcaption>Amazing Surf, as the Mandelbulber library has it.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exSurfTurn">
-          <div class="fe-frame"></div>
-          <figcaption>Terraces of one hue, the inner rotation on a clock.</figcaption>
-        </figure>
-      </div>
+        6.1), with the rotation inside its iteration on a slow clock (section 6.2), so the lands turn while it plays.</p>
+      <figure class="engine" data-fig="exSurf">
+        <div class="fe-frame"></div>
+        <figcaption>Amazing Surf, as the Mandelbulber library has it.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exSurfTurn">
+        <div class="fe-frame"></div>
+        <figcaption>Terraces of one hue, the inner rotation on a clock.</figcaption>
+      </figure>
 
       <h3 id="ch10-6">10.6 A Cave in the Manner of Fractal Nature</h3>
       <p>Julius Horsthuis's films (<i>Foreign Nature</i>, <i>Recombination</i>) made fractals into places: enveloping
         halls with natural light, rendered in Mandelbulb3D <a class="cite" href="#ref-horsthuis">[39]</a>. The engine
-        arrives in such a hall. Painted in one hue, in terraces, with the camera's depth of field, it is the left figure.
+        arrives in such a hall. Painted in one hue, in terraces, with the camera's depth of field, it is the first figure.
         The step: the same hall with its scale changing through space, a noise driver moving it between 2.35 and
         2.65 (section 6.2), so the architecture shifts as you fly through it. Enter and fly (the wheel, or a pinch).
         A tissue of two Mandelboxes, the obvious step, measured over half a second a frame here: too heavy for a page.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exCave">
-          <div class="fe-frame"></div>
-          <figcaption>The arrival hall, one hue, terraced.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exCaveNoise">
-          <div class="fe-frame"></div>
-          <figcaption>The hall with its scale driven by noise through space.</figcaption>
-        </figure>
-      </div>
+      <figure class="engine" data-fig="exCave">
+        <div class="fe-frame"></div>
+        <figcaption>The arrival hall, one hue, terraced.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exCaveNoise">
+        <div class="fe-frame"></div>
+        <figcaption>The hall with its scale driven by noise through space.</figcaption>
+      </figure>
 
       <h3 id="ch10-7">10.7 A Fractal as Gaussian Splats</h3>
       <p>3D Gaussian splatting represents a scene as millions of small coloured ellipsoids
         <a class="cite" href="#ref-kerbl2023">[33]</a>, and it is usually fitted to photographs. The engine makes them
         from the formula: push walks a Julia-type bulb backwards and every sample becomes an ellipsoid shaped by its
-        walk (section 2.2), and the structure layer's dots glyph writes them as a file any splat viewer opens. Left,
-        the bulb as a surface; right, the same set as splats.</p>
-      <div class="fe-pair">
-        <figure class="engine" data-fig="exJuliaPull">
-          <div class="fe-frame"></div>
-          <figcaption>A Julia-type Mandelbulb (c fixed), as a surface.</figcaption>
-        </figure>
-        <figure class="engine" data-fig="exJuliaPush">
-          <div class="fe-frame"></div>
-          <figcaption>The same set as Gaussian splats, ready to export.</figcaption>
-        </figure>
-      </div>
+        walk (section 2.2), and the structure layer's dots glyph writes them as a file any splat viewer opens. First,
+        the bulb as a surface; below it, the same set as splats.</p>
+      <figure class="engine" data-fig="exJuliaPull">
+        <div class="fe-frame"></div>
+        <figcaption>A Julia-type Mandelbulb (c fixed), as a surface.</figcaption>
+      </figure>
+      <figure class="engine" data-fig="exJuliaPush">
+        <div class="fe-frame"></div>
+        <figcaption>The same set as Gaussian splats, ready to export.</figcaption>
+      </figure>
     </section>
 
     <!-- ================================================================== 11 -->
@@ -1601,7 +1585,7 @@
         <tr><td>Slide</td><td><kbd>A</kbd> <kbd>D</kbd> or ← →; <kbd>Q</kbd> <kbd>E</kbd> down, up</td><td>two-finger pan</td></tr>
         <tr><td>Faster</td><td>hold <kbd>Shift</kbd></td><td></td></tr>
         <tr><td>Mode: pull, push, loop</td><td><kbd>P</kbd>, double click</td><td>double tap, or the mode glyph</td></tr>
-        <tr><td>Drift on, off</td><td><kbd>Space</kbd></td><td>drift glyph (structure layer)</td></tr>
+        <tr><td>Play, pause: the drift, and the clock when the formula reads it</td><td><kbd>Space</kbd></td><td>play glyph (structure layer's key row)</td></tr>
         <tr><td>Lyapunov</td><td><kbd>L</kbd></td><td>Lyapunov glyph</td></tr>
         <tr><td>Structure layer</td><td><kbd>Tab</kbd></td><td>tap a corner mark</td></tr>
         <tr><td>Docs</td><td>the page glyph; the site menu</td><td>the same</td></tr>
@@ -1687,7 +1671,7 @@
       <h3>The clock</h3>
       <table class="use ref">
         <tr><th></th><th>Desktop</th><th>Touch</th></tr>
-        <tr><td>Pause, play</td><td><kbd>K</kbd>, the glyph at the top</td><td>tap the glyph</td></tr>
+        <tr><td>Pause, play</td><td><kbd>K</kbd> (the clock alone), <kbd>Space</kbd> (with the drift), the glyph at the top</td><td>tap the glyph, or the play glyph in the key row</td></tr>
         <tr><td>Scrub</td><td>drag the tape; <kbd>Shift</kbd> fine</td><td>drag the tape</td></tr>
         <tr><td>Faster, slower</td><td><kbd>]</kbd> <kbd>[</kbd>; click, <kbd>Shift</kbd>-click the speed</td><td>tap the speed; with a second finger resting, slower</td></tr>
       </table>
@@ -1797,7 +1781,7 @@
   </main>
   <div></div>
   </div>
-  <script type="module" src="paper/paper.js?v=10"></script>
+  <script type="module" src="paper/paper.js?v=11"></script>
 <!-- MENU:BEGIN (generated by site.py — do not edit by hand) -->
 <link rel="stylesheet" href="../assets/menu.css">
 <nav id="site-menu" class="site-menu site-menu--tr" aria-label="Site menu">

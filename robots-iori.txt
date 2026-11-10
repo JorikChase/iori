@@ -35,9 +35,9 @@ Disallow: /fractal-engine/icon/hilbert/
 Disallow: /fractal-engine/icon/multibrot/
 Disallow: /fractal-engine/icon/seahorse/
 Disallow: /iris-engine/icon/fitted/
+Disallow: /iris-engine/icon/pupil/
 Disallow: /kalivoda/
 Disallow: /lili-web.html
-Disallow: /metafractal.html
 Disallow: /moshine/icon/block/
 Disallow: /moshine/icon/magenta/
 Disallow: /moshine/icon/pink/
@@ -47,7 +47,6 @@ Disallow: /papers/
 Disallow: /petri/icon/colony/
 Disallow: /petri/icon/three-strains/
 Disallow: /petri/icon/white/
-Disallow: /radiance-fields.html
 Disallow: /tensor-landscapes.html
 Disallow: /theatre-mask/
 Disallow: /timeline.html

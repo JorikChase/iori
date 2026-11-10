@@ -103,3 +103,9 @@ tools/kalivoda-photos/peek/
 tools/kalivoda-photos/picks/
 tools/kalivoda-audit/out/
 fractal-engine/bench-ref/
+
+# heavy local captures and study outputs (regenerable; kept on this Mac only)
+iris-engine/study/shots/
+iris-engine/study/shots-export/
+tools/fractals/shots/
+tools/icon-forge/studies/out/

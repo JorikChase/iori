@@ -17,6 +17,12 @@ class H(http.server.SimpleHTTPRequestHandler):
         if md:
             open(os.path.join(ROOT, 'iris-engine', 'data', md.group(1)), 'wb').write(body)
             self.send_response(200); self.end_headers(); self.wfile.write(b'saved data/' + md.group(1).encode()); return
+        # /save/shots/<name>.png|.jpg → iris-engine/study/shots/ (showcase captures from the page; raw bytes)
+        ms = re.match(r'^/save/shots/([A-Za-z0-9_.-]+\.(?:png|jpg))$', self.path)
+        if ms:
+            d = os.path.join(ROOT, 'iris-engine', 'study', 'shots'); os.makedirs(d, exist_ok=True)
+            open(os.path.join(d, ms.group(1)), 'wb').write(body)
+            self.send_response(200); self.end_headers(); self.wfile.write(b'saved study/shots/' + ms.group(1).encode()); return
         m = re.match(r'^/save/([A-Za-z0-9_.-]+\.json)$', self.path)
         mv = re.match(r'^/save/versions/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+\.json)$', self.path)
         if not m and not mv: self.send_response(404); self.end_headers(); return

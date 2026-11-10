@@ -260,6 +260,16 @@ def json_ld_for(slug, meta):
             "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
             "author": {"@type": "Organization", "name": "3DIE", "url": "https://3die.fr/"},
         })
+    elif ptype == "experiment" and meta.get("citation"):
+        cit = meta["citation"]
+        blocks.append({
+            "@context": "https://schema.org",
+            "@type": "ScholarlyArticle",
+            "headline": title, "name": title, "description": desc, "url": url,
+            "datePublished": cit["date"],
+            "author": [{"@type": "Person", "name": a, "url": "https://iori.me/"} for a in cit["authors"]],
+            "publisher": {"@type": "Organization", "name": cit.get("publisher", "3DIE"), "url": "https://3die.fr/"},
+        })
     elif ptype == "experiment":
         blocks.append({
             "@context": "https://schema.org",
@@ -354,6 +364,22 @@ def build_seo_block(slug, meta):
         "    </script>",
         "",
     ]
+    # Registry "citation": {"authors": [...], "date": "YYYY-MM-DD"} marks a paper.
+    # Google Scholar reads these Highwire tags (title, author, date are required;
+    # a page missing any of them is treated as untagged).
+    cit = meta.get("citation")
+    if cit:
+        lines.append("    <!-- Google Scholar -->")
+        lines.append(f'    <meta name="author" content="{", ".join(cit["authors"])}">')
+        lines.append(f'    <meta name="citation_title" content="{title}">')
+        for a in cit["authors"]:
+            lines.append(f'    <meta name="citation_author" content="{a}">')
+        lines.append(f'    <meta name="citation_publication_date" content="{cit["date"].replace("-", "/")}">')
+        lines.append(f'    <meta name="citation_publisher" content="{cit.get("publisher", "3DIE")}">')
+        lines.append(f'    <meta name="citation_abstract_html_url" content="{url}">')
+        lines.append(f'    <meta name="citation_fulltext_html_url" content="{url}">')
+        lines.append(f'    <meta name="citation_language" content="{lang}">')
+        lines.append("")
     for block in json_ld_for(slug, meta):
         lines.append('    <script type="application/ld+json">')
         lines.append("      " + json.dumps(block, ensure_ascii=False))
@@ -792,6 +818,12 @@ def cmd_manifest():
     return True
 
 
+# Fetch-metadata destinations of sub-resources (everything but a page load):
+# a folder app's cross-domain 301 skips these, see cmd_caddy.
+SUBRESOURCE_DESTS = ("script worker sharedworker serviceworker style image font iframe frame "
+                     "embed object empty audio video track manifest audioworklet paintworklet xslt")
+
+
 def cmd_caddy():
     """Generate per-domain 301 redirect maps (imported by the Caddyfile).
 
@@ -817,8 +849,21 @@ def cmd_caddy():
         for slug, target in foreign:
             path = page_path(slug)
             if path.endswith("/"):
-                # whole app folder: keep the request path on the canonical host
-                lines.append(f"redir /{path}* https://{target.split('/')[2]}{{uri}} permanent")
+                # whole app folder: keep the request path on the canonical host —
+                # but only for pages (navigations and crawlers). A page on this
+                # domain that loads the folder's modules, workers, styles or embeds
+                # it in an iframe must get them here: a cross-origin redirect on a
+                # module script fails CORS and the figure never starts.
+                name = "x_" + re.sub(r"[^a-z0-9]", "_", path.lower()).strip("_")
+                lines.append(f"@{name} {{")
+                lines.append(f"\tpath /{path}*")
+                # one line per value: repeated values of one field are OR'd
+                # (several values on one line read as field/value pairs)
+                lines.append("\tnot {")
+                lines += [f"\t\theader Sec-Fetch-Dest {d}" for d in SUBRESOURCE_DESTS.split()]
+                lines.append("\t}")
+                lines.append("}")
+                lines.append(f"redir @{name} https://{target.split('/')[2]}{{uri}} permanent")
             else:
                 lines.append(f"redir /{path} {target} permanent")
         for path, target in sorted(RETIRED_DIRS.items()):

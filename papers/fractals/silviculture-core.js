@@ -497,6 +497,8 @@ class Sim {
 
     const dep = this.dep, qg = this.qg;
     dep.fill(0);
+    // optional fixed shade (paper 0.3's wall): optical depth per shadow cell, same layout as dep; null = none
+    if (this.extraDep) for (let c = 0; c < dep.length; c++) dep[c] = this.extraDep[c];
     for (let k = 0; k < n; k++) {
       const m = gm[k];
       if (m.nLive === 0) continue;

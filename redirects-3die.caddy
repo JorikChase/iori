@@ -23,14 +23,61 @@ redir /flame-strains.html https://iori.me/flame-strains.html permanent
 redir /flame.html https://iori.me/flame.html permanent
 redir /fluid.html https://iori.me/fluid.html permanent
 redir /fractal-dimension.html https://iori.me/fractal-dimension.html permanent
-redir /fractal-engine/* https://iori.me{uri} permanent
+@x_fractal_engine {
+	path /fractal-engine/*
+	not {
+		header Sec-Fetch-Dest script
+		header Sec-Fetch-Dest worker
+		header Sec-Fetch-Dest sharedworker
+		header Sec-Fetch-Dest serviceworker
+		header Sec-Fetch-Dest style
+		header Sec-Fetch-Dest image
+		header Sec-Fetch-Dest font
+		header Sec-Fetch-Dest iframe
+		header Sec-Fetch-Dest frame
+		header Sec-Fetch-Dest embed
+		header Sec-Fetch-Dest object
+		header Sec-Fetch-Dest empty
+		header Sec-Fetch-Dest audio
+		header Sec-Fetch-Dest video
+		header Sec-Fetch-Dest track
+		header Sec-Fetch-Dest manifest
+		header Sec-Fetch-Dest audioworklet
+		header Sec-Fetch-Dest paintworklet
+		header Sec-Fetch-Dest xslt
+	}
+}
+redir @x_fractal_engine https://iori.me{uri} permanent
 redir /fractal-engine/paper.html https://iori.me/fractal-engine/paper.html permanent
-redir /fractals.html https://iori.me/fractals.html permanent
 redir /fungal-growth.html https://iori.me/fungal-growth.html permanent
 redir /game-of-life.html https://iori.me/game-of-life.html permanent
 redir /iori.html https://iori.me/iori.html permanent
 redir /iori_INDEX.html https://iori.me/ permanent
-redir /iris-engine/* https://iori.me{uri} permanent
+@x_iris_engine {
+	path /iris-engine/*
+	not {
+		header Sec-Fetch-Dest script
+		header Sec-Fetch-Dest worker
+		header Sec-Fetch-Dest sharedworker
+		header Sec-Fetch-Dest serviceworker
+		header Sec-Fetch-Dest style
+		header Sec-Fetch-Dest image
+		header Sec-Fetch-Dest font
+		header Sec-Fetch-Dest iframe
+		header Sec-Fetch-Dest frame
+		header Sec-Fetch-Dest embed
+		header Sec-Fetch-Dest object
+		header Sec-Fetch-Dest empty
+		header Sec-Fetch-Dest audio
+		header Sec-Fetch-Dest video
+		header Sec-Fetch-Dest track
+		header Sec-Fetch-Dest manifest
+		header Sec-Fetch-Dest audioworklet
+		header Sec-Fetch-Dest paintworklet
+		header Sec-Fetch-Dest xslt
+	}
+}
+redir @x_iris_engine https://iori.me{uri} permanent
 redir /iris.html https://iori.me/iris.html permanent
 redir /lambda_cognition.html https://iori.me/lambda_cognition.html permanent
 redir /lighter-flame.html https://iori.me/lighter-flame.html permanent
@@ -41,12 +88,60 @@ redir /maska.html https://iori.me/maska.html permanent
 redir /meta-iris.html https://iori.me/meta-iris.html permanent
 redir /mirrorbrot-16k.html https://iori.me/mirrorbrot-16k.html permanent
 redir /mirrorbrot.html https://iori.me/mirrorbrot.html permanent
-redir /moshine/* https://iori.me{uri} permanent
+@x_moshine {
+	path /moshine/*
+	not {
+		header Sec-Fetch-Dest script
+		header Sec-Fetch-Dest worker
+		header Sec-Fetch-Dest sharedworker
+		header Sec-Fetch-Dest serviceworker
+		header Sec-Fetch-Dest style
+		header Sec-Fetch-Dest image
+		header Sec-Fetch-Dest font
+		header Sec-Fetch-Dest iframe
+		header Sec-Fetch-Dest frame
+		header Sec-Fetch-Dest embed
+		header Sec-Fetch-Dest object
+		header Sec-Fetch-Dest empty
+		header Sec-Fetch-Dest audio
+		header Sec-Fetch-Dest video
+		header Sec-Fetch-Dest track
+		header Sec-Fetch-Dest manifest
+		header Sec-Fetch-Dest audioworklet
+		header Sec-Fetch-Dest paintworklet
+		header Sec-Fetch-Dest xslt
+	}
+}
+redir @x_moshine https://iori.me{uri} permanent
 redir /multiOS.html https://iori.me/multiOS.html permanent
 redir /mycelium.html https://iori.me/mycelium.html permanent
 redir /nasal-wave.html https://iori.me/nasal-wave.html permanent
 redir /orbitals.html https://iori.me/orbitals.html permanent
-redir /petri/* https://iori.me{uri} permanent
+@x_petri {
+	path /petri/*
+	not {
+		header Sec-Fetch-Dest script
+		header Sec-Fetch-Dest worker
+		header Sec-Fetch-Dest sharedworker
+		header Sec-Fetch-Dest serviceworker
+		header Sec-Fetch-Dest style
+		header Sec-Fetch-Dest image
+		header Sec-Fetch-Dest font
+		header Sec-Fetch-Dest iframe
+		header Sec-Fetch-Dest frame
+		header Sec-Fetch-Dest embed
+		header Sec-Fetch-Dest object
+		header Sec-Fetch-Dest empty
+		header Sec-Fetch-Dest audio
+		header Sec-Fetch-Dest video
+		header Sec-Fetch-Dest track
+		header Sec-Fetch-Dest manifest
+		header Sec-Fetch-Dest audioworklet
+		header Sec-Fetch-Dest paintworklet
+		header Sec-Fetch-Dest xslt
+	}
+}
+redir @x_petri https://iori.me{uri} permanent
 redir /portfolio.html https://iori.me/portfolio.html permanent
 redir /procedural-flame.html https://iori.me/procedural-flame.html permanent
 redir /sigmoid-helix.html https://iori.me/sigmoid-helix.html permanent

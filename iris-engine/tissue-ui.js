@@ -146,8 +146,14 @@
                 if (arrival && c1) { F.frameFromCase(photo, c1); mark(`eye ${r}: frame + import + first fit render (no photo)`); }
                 else { await F.renderCaseThumb(photo, cs, document.createElement('canvas')); mark(`eye ${r}: photo + import + first fit render`); }
                 // the cached primitives only when they are this eye's (a dial re-load); another eye fetches its own
-                let st = null; await T.proof(SRC(r), { json: eye ? eye.tissue : (T.json && T.json.ref === photo ? T.json : undefined), shipped: arrival && c1 ? (eye ? eye.measurements : CAL(r)) : undefined, onStage: (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); } });
+                let st = null; const onStage = (i, n, label) => { if (st) mark(st); st = label; prog = [i + 1, n + 1, label]; sync(); };
+                const json = eye ? eye.tissue : (T.json && T.json.ref === photo ? T.json : undefined);
+                const done = await T.proof(SRC(r), { json, shipped: arrival && c1 ? (eye ? eye.measurements : CAL(r)) : undefined, shippedOnly: arrival && c1, onStage });
                 tm.shipped = !!(T.shipped && T.shipped.light);
+                if (done === null) {   // the shipped measurements did not apply (dials, engine, a new setting): photograph, then measure
+                    await F.renderCaseThumb(photo, cs, document.createElement('canvas')); mark(`eye ${r}: photo (the shipped measurements did not apply)`); tm.path = 'arrival → measured';
+                    await T.proof(SRC(r), { json: json || T.json, onStage });
+                }
             });
             eyeAt = E.genome; X.st = 'loaded'; state.hippus = false; E.resetAccumulation(); stats(); if (!X.quietOpen) { frame(); U.say('Layer model on — eye ' + r); }
             // a background tab (or a hidden test pane) delivers no frames: never let that hold the load open

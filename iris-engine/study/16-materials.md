@@ -106,6 +106,62 @@ OpenCV's approximate one. **Decision 5 executed:** `publish.py --drop-rgb` remov
 25 3,159 KB · 35 2,388 KB (26 was 3 543 KB with rgb only, 3 988 with both). The shipped rgb of before remains in
 git history (commit 02b2e45 and earlier) should a cross-check ever be needed.
 
+## 2d. K2.3 built (2026-11-06) — the knobs move each sample's own material
+
+**What changed.** PIGMENT, STROMA, PHEO, YELLOW, MIE and RING no longer tint the layer model through the legacy atlas (K1:
+LUT(legacy fields now) / LUT(legacy fields at the origin), in the photo shader). They move the material of every sample, and the
+bake reads the colour back off the table.
+- `materials.js`: `knobbed(mat, k, dMa)` moves a grid point in physical units. Melanin and yellow take a gain on the fitted
+  value, or an offset when the fit is below 0.05; the stroma takes a gain; pheo and mie take offsets. These are the same
+  modifiers `uploadFields` gives the legacy fields. `lutAt` reads between grid points (piecewise linear per axis, 32 corners).
+  `colourKnobbed` is `colourOf` at the origin.
+- `tissue.js`: a knob view opens at the start of every bake (`knobView`).
+  - A measured sample that carries its material (mat + lum, aligned) is drawn as rgb × colour(knobbed) / colour(mat). That
+    is its own colour after the knobs, to the regen's 4-decimal rounding.
+  - Everything derived from samples carries copied rgb: instances, bridges, braids, layered extensions, painted strokes,
+    edited payloads. It takes the ratio of the nearest measured sample by photo xy. **Generated strands inherit by
+    construction**, through every copy site at once, rather than by threading `mat` through each one.
+  - Cells (sheet, ground) and the rim read their own materials.
+  - At the origin the view is null and the bake reads `rgb` exactly as before.
+- **RING** was a legacy-atlas effect: K2.3 alone killed it, 0.19 against 15.1 ΔY. It is now extra melanin inside the
+  collarette band, by each sample's own tissue v, using the legacy ring's shape (inside ringR, fading over the next 0.06).
+  The legacy ring's pheo blend is not carried.
+- `u_tisK1` is 0 when K2.3 is on: the photo shader does not read the legacy material fields for the layered colour.
+  `T.k2 = false` restores the K1 path for the ablation.
+- The render loop (`engine.js`) calls `T.knobTick()` between frames. It rebakes when the knobs stand somewhere the last bake
+  did not, at most every 150 ms (`T.knobEveryMs`) while the loop eases them. A bake costs 150–300 ms on this Mac; slider
+  drags step rather than glide. The knob origin (`T.origin.knobs`) is captured with K1's origin.
+
+**Gates** (`tools/k23_probe.js`, eyes 26 and 25):
+
+| gate | 26 | 25 |
+|---|---|---|
+| knobs at the origin: K2.3 picture = K1 picture | 0 bytes differ | 0 bytes differ |
+| legacy atlas cleared to zero: pixels that move (> 2 codes) | pupil+ruff 0.14 % · **body 0 %** · limbus 1.04 % | 0.82 % · **0 %** · 0.79 % |
+| generated strand follows its source under a knob (ΔE76 to child × source's change, p95) | pigment 0.30 · stroma 0.23 · yellow 0.25 · ring 0.25 (1,495 samples: 30 instances of 5 grown parents + 58 bridges); no pale samples | — |
+| UI contract (`?start=off`, iters 20) | `[]` | |
+
+The knobs move the iris (mean |ΔY| in the iris mask, 20 % of the slider; K2.3 · K1):
+
+| knob | 26 | 25 |
+|---|---|---|
+| pigment | 27.6 · 53.1 | 31.1 · 46.0 |
+| stroma | 5.8 · 4.9 | 6.0 · 6.4 |
+| pheo | 1.0 · 0.47 | 2.8 · 0.72 |
+| yellow | 1.5 (Δab 7.5) · 0.47 | 1.2 (Δab 7.1) · 0.72 |
+| mie | 0.34 (Δab 3.8) · 0.47 | 0.47 (Δab 2.9) · 0.72 |
+| ring | 8.5 · 15.1 | 8.3 · 14.7 |
+
+K1 left PHEO, YELLOW and MIE nearly dead in the layer model. Each moved it by 0.47 / 0.72, the same floor for all three:
+the ratio of two legacy materials barely reacts to them. Under K2.3 they are live and mostly move hue, which is what yellow
+and mie are. PIGMENT moves half as far as under K1. On a green eye fitted near zero melanin it is an offset of +1 Ma on
+every sample, against K1's ratio of procedural fields.
+
+**Not done here.**
+- The grade is still applied per sample in the regen (Q2: move it to post).
+- The prune of the procedural bake from the layered load path is next after K2b.
+- Eyes 09 and 35 were not probed.
+
 ## 3. What K2 changes
 
 - **Representation.** Per sample: a material (Ma, Ds, pheo, yellow, mie — five u8 indices into a fixed LUT grid) and a
@@ -134,6 +190,123 @@ below the ABL (deck fibres receive more spread light than the sheet); col = albe
 albedo × E. Implemented in the bake as a separable blur of the measured light grid (calibrate's k) per level, mixed by a
 strength knob with origin 0. **Gate:** crypt-wall and floor brightness profiles against the photographs by region
 (`tools/crisp` samples five sites per eye), cellΔab not worse, MATCH2 not worse; iori judges the glow in the overlay.
+
+## 4b. K2b built (2026-11-06) — subsurface in the light, measured on four eyes
+
+**Where it lives.** A fixed subsurface factor in the bake cannot work. The albedo is the photo divided by the light the engine
+itself renders (calibrate's k), so any factor baked from that same light cancels exactly at the fit pose. The transport
+therefore sits in the photo shader's key light (tissue variant only, `need()` in tissue.js), and calibration measures the
+light with it.
+- (1) **The cosine through a blurred normal:** per channel, the height gradient is read at the channel's reach (offset × s,
+  lod + log2 s). This is the blurred-normal approximation to diffusion used for skin.
+- (2) **A lifted self-shadow:** a share of the self-shadow is lifted per channel (`T.ssLeak`), for light that walks into a
+  crypt floor under a shadowed wall.
+- `keyE3 = mix(keyE, k3, T.ss)`. At `T.ss = 0` the render is byte-identical to K2.3 (renderFit compared on eye 25).
+- Not done: Ds and depth weighting of the reach. The layered albedo carries no Ds per texel. Next would be a Ds channel in the
+  region texture.
+
+**Measured** (`__t7.review(ref)`, which always re-measures the light; eye 26 first, then the others):
+
+| eye 26 | MATCH2 | cellΔab | strandCorr |
+|---|---|---|---|
+| off | 90.55 | 1.99 | 0.433 |
+| 0.5, per-channel reach 45 / 28 / 16 µm, leak .55 / .35 / .2 | 90.62 | 2.12 | 0.514 |
+| 1.0, the same | 90.03 | 2.47 | 0.543 |
+| 0.5, normals only (no leak) | 90.62 | 2.12 | 0.514 |
+| 0.5, leak only | 90.55 | 1.99 | 0.433 |
+| **0.5, one reach 30 µm for all channels** | **90.56** | **1.96** | **0.516** |
+| 0.75, one reach 40 µm | 90.30 | 1.96 | 0.541 |
+| 1.0, one reach 20 / 30 / 50 / 80 µm | 90.10 / 89.85 / 89.89 / 90.03 | 1.98 / 1.98 / 1.98 / 1.97 | 0.529 / 0.539 / 0.545 / 0.545 |
+
+Read off the table:
+- The leak does nothing at the fit pose: the photographs' light is coaxial and casts no self-shadow. It acts only when the
+  light moves.
+- The per-channel reach costs colour (cellΔab +0.13): the light grid cannot follow chromatic light at that scale. One shared
+  reach does not.
+- Strength trades strandCorr against MATCH2. 0.5 keeps MATCH2 and lifts strandCorr.
+
+Strength 0.5, one reach of 30 µm, on every eye:
+
+| eye | MATCH2 | cellΔab | strandCorr |
+|---|---|---|---|
+| 26 | 90.55 → 90.56 | 1.99 → 1.96 | 0.433 → 0.516 |
+| 09 | 88.31 → 88.64 | 2.75 → 2.74 | 0.505 → 0.592 |
+| 25 | 91.33 → 91.46 | 2.67 → 2.65 | 0.403 → 0.470 |
+| 35 | 89.04 → 89.37 | 2.14 → 2.13 | 0.412 → 0.487 |
+
+**The gate passes on all four eyes:** MATCH2 not worse, cellΔab not worse, and strandCorr up 0.07–0.09.
+
+Still open:
+- The crypt-wall profiles (`tools/crisp`) were not sampled.
+- iori's judgement of the glow. `?ss=0.5` turns it on, and the page then measures the light on load. Off the fit pose the
+  difference is subtle at fit resolution: `study/shots/k2b-26-offaxis.png`, light at 126° / 26°.
+
+**Re-published 2026-11-06 with `T.ss = 0.5` as the default** (iori: "yes, re-publish"). Each eye was published on a fresh
+page with `__fresh.publish(NN)`: the Load button's measured load, `exportMeasurements`, then the arrival gate. All four pass,
+max diff 1. MATCH2 on that path against the numbers published before (study/15, without subsurface):
+
+| eye | MATCH2 | strandCorr |
+|---|---|---|
+| 26 | 90.354 → 90.33 | 0.508 |
+| 09 | 88.117 → 88.61 | 0.585 |
+| 25 | 91.397 → 91.57 | 0.469 |
+| 35 | 88.316 → 88.67 | 0.461 |
+
+- A visitor's page (`?eye=09`) installs the new measurements ("measured 2026-11-06").
+- The UI contract `compare` and `reach` are both `[]`.
+- `?ss=0` gives the model without subsurface. It does not match the shipped key, so that page measures the light on load.
+
+**Fixed the same day: measuring on arrival had no photograph.** When an arrival's shipped measurements do not apply (a
+dial, the engine version, `?ss=0`), `T.proof` used to measure in place. But the arrival frames the eye from its case
+without loading the photograph, so the shading pass was skipped and the de-bias sat at its 0.4 clamp all over the eye.
+- Now `proof` returns null on that path (`shippedOnly`). `tissue-ui.js` loads the photograph and measures as the Load button
+  does; the timing records the path as `arrival → measured`.
+- Checked on eye 26 with `?ss=0`: the shading pass runs, the de-bias reads 1.01 / 0.996 as on the Load path, and MATCH2 is
+  90.34 against 90.354 published before subsurface.
+- A matching arrival is unchanged: shipped, 2.9 s.
+- The fallback takes a full measured load, 29 s in the hidden test pane.
+
+**Trap found on the way:** two loads of the same page render differently (18 % of bytes, ≈ 490 pixels by more than 100)
+unless hippus is off. The breathing pupil is caught at a different size per load. Compare renders within one load, or set
+`state.hippus = false`, as knob_probe does.
+
+## 4c. The prune (2026-11-07) — the layer model no longer reads the procedural atlas
+
+**What still read it, measured.** The test clears the four legacy atlas textures to zero and renders eye 26 again.
+- Before the prune it moved 2,559 pixels: a one-pixel ring at the edge of the iris disc, plus a few specks at the pupil
+  margin. The iris body moved by 0, the work of K2.3.
+- The ring came from two places. Past the eye DATA's outer edge (`T.dataV1`, 0.82 on 26; the padded region runs to
+  0.895), coverage drops, so the colour fell back to the legacy chain. And `tissueH` mixed the atlas's height wherever
+  coverage was under 1.
+- The specks were gaps in the data at the margin.
+
+**The prune.**
+- `T.ownsAtlas()` is true when the tissue is on, K2.3 carries the knobs, and `T.prune` (default true) is set. While it holds:
+  - `bakeAtlas` returns early and leaves `atlas.dirty` raised. The procedural eye bakes again the moment it is drawn, and a
+    legacy slider's easing no longer re-bakes 5–9 ms per frame.
+  - `setOrigin` skips K1's origin textures. The knob origin step went from 29 ms to 2 ms on arrival.
+- In the photo shader, only while the tissue owns the atlas:
+  - Past the data's outer edge, the colour and the height continue the tissue's own outermost row.
+  - `tissueH` reads only the tissue's height.
+  - A gap at the pupil margin takes the pupil's dark (the colour the T1 margin fades into).
+- After the prune, the black test moves **5 pixels, by at most 3 levels**.
+
+**Scores** (review path, prune off → on):
+
+| eye | MATCH2 | cellΔab | strandCorr |
+|---|---|---|---|
+| 26 | 90.56 → 90.56 | 1.96 → 1.96 | 0.516 → 0.517 |
+| 09 | 88.64 → 88.63 | 2.74 → 2.73 | 0.592 → 0.592 |
+| 25 | 91.46 → 91.40 | 2.65 → 2.66 | 0.470 → 0.470 |
+| 35 | 89.37 → 89.30 | 2.13 → 2.14 | 0.487 → 0.485 |
+
+The edge pixels changed, so the four eyes were re-published (fresh page each). The arrival gates pass at max diff 1, and the
+Load-path MATCH2 is 26 90.33, 09 88.60, 25 91.51, 35 88.56. A visitor's arrival on 35 installs the shipped measurements in
+2.8 s with the pane hidden. The UI contract `compare` and `reach` are both `[]`. `T.prune = false` restores the old path.
+
+**Left on the load path.** The arrival's "frame + import + first fit render" still bakes the atlas once, before the tissue
+is on: the legacy fitter's frame, never drawn behind the hold. Taking that off is 1b's remainder, together with the canvas
+owned by `mount` and the controls synced by events.
 
 ## 5. Steps and gates
 

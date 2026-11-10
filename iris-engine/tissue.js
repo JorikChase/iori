@@ -350,7 +350,11 @@
         vec4 slabAt(vec2 uv, float lod) { return u_slabOn > 0.5 ? tissueAt(u_slab, uv, lod) : vec4(0.0); }
         float tissueH(vec2 uv, float lod) {
             if (g_slab > 0.5) { vec4 sl = slabAt(uv, lod); if (sl.a > 0.5) return sl.r * u_tisReliefK; }   // the top where it is defined (to 2 r), not only where the tube covers
-            vec4 a = tisAux(uv, lod); return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
+            vec4 a = tisAux(uv, lod);
+            if (u_tisOuterOn > 0.5) {                     // prune: the layer model's own height only — past the outer edge its last row, in a gap its own value
+                if (a.a < 1.0 && uv.y > u_tisOuterV) { vec4 e = tisAux(vec2(uv.x, u_tisOuterV), lod); if (e.a > a.a) a = e; }
+                return a.a > 0.0 ? a.r * u_tisReliefK : 0.0; }
+            return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
         need('vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            float t = hitIris(pIn, dIn, rp);',
              'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; g_tisOut = 0.0; float t = hitIris(pIn, dIn, rp);');
         need('int nM = int(u_marchSteps + 0.5);', 'int nM = int(u_marchSteps + 0.5); float hpPrev = 1e9, topPrev = -1e9;');
@@ -375,7 +379,13 @@
                         if (sl.b > 0.5 && hq < sl.r * u_tisReliefK && hq > sl.g * u_tisReliefK) pen = max(pen, 0.02);
                     }`);
         need('            return vec4(col, 1.0 - edge);\n        }', '            return vec4(mix(col, BG_COL, g_tisOut), (1.0 - edge) * (1.0 - g_tisOut));\n        }');
+        need('uniform sampler2D u_slab, u_slabAlb;', 'uniform float u_tisOuterOn, u_tisOuterV; uniform sampler2D u_slab, u_slabAlb;');
         need('float occ = t3.r;', `vec4 tsA = tisAlb(uv, lod);
+            // prune: past the region's outer edge (the iris runs on under the limbus) the tissue's outermost row continues,
+            // instead of the procedural atlas showing through as a one-pixel ring at the limbus
+            if (u_tisOuterOn > 0.5 && tsA.a < 1.0 && uv.y > u_tisOuterV) { vec4 e = tisAlb(vec2(uv.x, u_tisOuterV), lod); if (e.a > tsA.a) tsA = e; }
+            // and in a gap of the data at the pupil margin, the pupil's own dark (the colour the margin fades into, T1)
+            if (u_tisOuterOn > 0.5 && tsA.a < 1.0 && uv.y < 0.15) tsA = vec4(mix(vec3(0.0015, 0.0012, 0.001), tsA.rgb, tsA.a), 1.0);
             if (g_slab > 0.5) { vec4 sa = tissueAt(u_slabAlb, uv, lod); if (sa.a > 0.5) tsA = vec4(sa.rgb, 1.0); }   // §5.2.3: on the slab, its own albedo
             if (u_edgeOn > 0.5) g_tisOut = smoothstep(u_edgeV0, u_edgeV1, uv.y) * u_edgeFade;   // presentation only: the fit / comparison renders (edgeFade 0) stay opaque to the edge, as the limbus blend does — the photo's cutout is black, a white feather there is not a colour error of the tissue (study/11 §5.6)
             if (u_ablOn > 0.5 && tsA.a > 0.0) { float cov = u_ablLayered > 0.5 ? g_slab : tisAux(uv, lod).g;   /* the layered mode's aux .g is the base's height: there the shell is the ABL */ if (cov > 0.001) tsA.rgb *= mix(1.0, ablTexture(uv, mmPerPx, dot(tsA.rgb, vec3(0.2126, 0.7152, 0.0722)), hq), cov); if (u_ablDebug > 0.5) tsA.rgb = vec3(0.25) * ablTexture(uv, mmPerPx, 0.25, hq); }   // §5.5 (a): the sheet (coverZ) carries the ABL's texture
@@ -409,16 +419,57 @@
                 tint = clamp((nCol + EPS) / (oCol + EPS), vec3(0.0), vec3(8.0));
             }
             col = mix(col, tsA.rgb * tint, tsA.a);`);
+        // K2b (study/16 §4): lateral subsurface. Light that enters the stroma beside a point leaves at it, so what a point
+        // receives is the key light averaged over a neighbourhood that grows with how far each colour travels in the
+        // tissue (red furthest). Two terms: (1) the cosine with a normal read off a coarser level of the height field
+        // per channel (the blurred-normal approximation to diffusion), (2) a share of the self-shadow lifted per channel
+        // (the light that walks into a crypt floor under the shadowed wall). u_ss = 0 is the model without it, exactly.
+        need('float hitIris(vec3 o, vec3 d, float rp) {', `uniform float u_ss; uniform vec3 u_ssR, u_ssLeak;
+        float hitIris(vec3 o, vec3 d, float rp) {`);
+        need('            float diff = clamp(dot(N, toLight), 0.0, 1.0);', `            float diff = clamp(dot(N, toLight), 0.0, 1.0);
+            vec3 ssDiff = vec3(diff);
+            if (u_ss > 0.0) {
+                for (int c = 0; c < 3; c++) {
+                    float sc = max(1.0, u_ssR[c] / max(texV, 1e-5)), dl = log2(sc);       // the channel's reach, in atlas texels and mip levels
+                    float hRc = tissueH(uv + dv * sc, lod + dl) - tissueH(uv - dv * sc, lod + dl);
+                    float hTc = tissueH(uv + du * sc, lod + dl) - tissueH(uv - du * sc, lod + dl);
+                    vec3 Nc = normalize(Ng + (hRc / (2.0 * texV * sc) * (w * dvdr)) * radial + (hTc / (2.0 * texU * sc)) * tangent);
+                    ssDiff[c] = clamp(dot(Nc, toLight), 0.0, 1.0);
+                }
+            }`);
+        need('            vec3 lit = col * (keyE + ambE);', `            vec3 keyE3 = vec3(keyE);
+            if (u_ss > 0.0) {                                    // K2b: the same key light, through the channel's own normal and a lifted shadow
+                vec3 shC = vec3(1.0) - 0.9 * selfShadow * (vec3(1.0) - u_ssLeak);
+                vec3 k3 = ssDiff * causticGain * (1.0 - Fentry) * limbShadow * shC * lid * (0.55 + 0.45 * occ);
+                keyE3 = mix(vec3(keyE), k3, clamp(u_ss, 0.0, 1.0));
+            }
+            vec3 lit = col * (keyE3 + ambE);`);
         P.photo = program(shaderSrc('vs').trim(), src, 'photo-tissue', { position: 0 });
         return P;
     }
     T.k1 = true;                                  // K1 (§32): the knobs offset the fit. Set false for the v0.8 ablation.
+    // study/16 prune: with materials the layer model reads nothing from the procedural atlas (K2.3 took the colour off it, the
+    // outer clamp below the last ring at the limbus), so the atlas is not baked while it owns the picture. false = bake as before.
+    T.prune = true;
+    T.ownsAtlas = () => !!(T.on && T.prune !== false && T.k2On && T.k2On());
+    // K2b: subsurface strength (0 = off, the model as shipped), each channel's reach in mm (R, G, B) and the share of the
+    // self-shadow each channel lifts. Changing them changes what the light measures: re-measure (T.proof / __t7.review).
+    // Measured 2026-11-06 (study/16 §4b): the per-channel reach costs colour at the fit pose (cellΔab 1.99 → 2.12 on 26), one shared
+    // reach does not; 0.5 at 30 µm raises MATCH2 and strandCorr on all four eyes. Default 0.5 since the shipped measurements were
+    // re-published with it (2026-11-06); the dial key carries ss, so ?ss=0 (the model without it) makes the page measure on load.
+    T.ss = 0.5; T.ssR = [0.03, 0.03, 0.03]; T.ssLeak = [0.35, 0.35, 0.35];
+    { const q = /[?&]ss=([0-9.]+)/.exec(location.search); if (q) T.ss = Math.min(1, Math.max(0, +q[1] || 0)); }
     T.photoProgram = () => programs().photo;
 
     // K1: snapshot the fitted eye's material — call it while the sliders stand where the fit left them. The picture at
     // these values is the one the fit produced; every knob then reads as a move away from here.
     T.setOrigin = function () {
         const pr = programs(), [aw, ah] = E.ATLAS, S = E.state, g = E.genome.globals;
+        if (T.ownsAtlas()) {                       // prune: K1's origin textures are never read (K2.3 carries the knobs) — keep only the numbers
+            if (T.o0) { gl.deleteTexture(T.o0); gl.deleteTexture(T.o1); T.o0 = T.o1 = null; }
+            T.origin = { relief: S.relief, blRelief: S.blRelief === undefined ? 1 : S.blRelief, ring: S.ring, ringR: S.ringR, ringPheo: g.ringPheo, stromaMax: g.stroma, atlas: [aw, ah], knobs: knobsNow() };
+            E.resetAccumulation && E.resetAccumulation(); return T.origin;
+        }
         if (E.atlas.dirty) E.bakeAtlas();
         // bind() may reach this in the middle of drawPhotoFrame, between its useProgram and its draw: leave the
         // program, the target and the viewport exactly as they were, or that frame is drawn with this pass's state
@@ -438,7 +489,7 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindFramebuffer(gl.FRAMEBUFFER, prevFB); gl.drawBuffers([prevFB ? gl.COLOR_ATTACHMENT0 : gl.BACK]);
         gl.viewport(prevVP[0], prevVP[1], prevVP[2], prevVP[3]); gl.useProgram(prevProg);
-        T.origin = { relief: S.relief, blRelief: S.blRelief === undefined ? 1 : S.blRelief, ring: S.ring, ringR: S.ringR, ringPheo: g.ringPheo, stromaMax: g.stroma, atlas: [aw, ah] };
+        T.origin = { relief: S.relief, blRelief: S.blRelief === undefined ? 1 : S.blRelief, ring: S.ring, ringR: S.ringR, ringPheo: g.ringPheo, stromaMax: g.stroma, atlas: [aw, ah], knobs: knobsNow() };   // knobs: K2.3's origin
         E.resetAccumulation && E.resetAccumulation();
         return T.origin;
     };
@@ -482,7 +533,10 @@
         gl.uniform1f(u('u_tisReliefK'), q(S.relief, o.relief) * q(S.blRelief === undefined ? 1 : S.blRelief, o.blRelief));
         gl.uniform1f(u('u_oRingStr'), o.ring); gl.uniform1f(u('u_oRingR'), o.ringR);
         gl.uniform1f(u('u_oRingPheo'), o.ringPheo); gl.uniform1f(u('u_oStromaMax'), o.stromaMax);
-        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin) ? 0 : 1);
+        gl.uniform1f(u('u_tisK1'), (T.k1 === false || !haveOrigin || T.k2On()) ? 0 : 1);
+        { const own = T.ownsAtlas(), vT = T.size ? 2 / T.size[1] * T.rect[3] : 0, vTop = Math.min(T.rect[1] + T.rect[3], T.dataV1 !== undefined ? T.dataV1 : 1);   // prune: the DATA's outer edge, not the padded region's
+          gl.uniform1f(u('u_tisOuterOn'), own ? 1 : 0); gl.uniform1f(u('u_tisOuterV'), vTop - vT); }
+        gl.uniform1f(u('u_ss'), +T.ss || 0); gl.uniform3f(u('u_ssR'), T.ssR[0], T.ssR[1], T.ssR[2]); gl.uniform3f(u('u_ssLeak'), T.ssLeak[0], T.ssLeak[1], T.ssLeak[2]);   // K2b   // K2.3: with materials the knobs are in the bake; the legacy fields are not read
         if (T.marg && T.margin !== false) {                     // T1: the aperture follows the measured margin
             // iori: more circular. But "out of round" and "lumpy" are not the same thing — the low harmonics are the
             // margin's true decentring and ovality, which the photo really has and which damping costs 3.7 MATCH2,
@@ -641,12 +695,80 @@
         return T;
     };
 
+    // ---------------------------------------------------------------- K2.3 (study/16 §3): the knobs as material offsets
+    // The knobs no longer tint the layer model through the legacy atlas (K1: a ratio of two procedural materials in the photo
+    // shader). They move each sample's OWN material, and the bake reads the colour back off the table (IrisMaterials.colourKnobbed).
+    // A measured sample carries its material (mat + lum, K2.1). Everything derived from samples — generated instances, bridges,
+    // braids, layered extensions, painted strokes, edited payloads — carries copied rgb only, so it inherits the change of the
+    // nearest measured sample: rgb × colour(material after the knobs) / colour(material). For a measured sample that ratio is its
+    // own (its regenerated rgb IS colour(material)), so it lands on the direct colour to the regen's 4-decimal rounding. At the
+    // origin nothing is touched at all: the bake reads c.rgb exactly as before.
+    T.k2 = true;                                  // false = the K1 path (legacy fields, ratio in the photo shader), for the ablation
+    T.k2On = () => !!(T.k2 !== false && T.materialsUsed && window.IrisMaterials);
+    const KNOB_KEYS = ['pigment', 'stroma', 'pheo', 'yellow', 'mie', 'ring'];
+    const knobsNow = () => { const S = E.state, o = {}; for (const k of KNOB_KEYS) o[k] = +S[k]; return o; };
+    const knobSig = k => KNOB_KEYS.map(n => (+k[n]).toFixed(5)).join(',');
+    let kView = null, kRatios = null;             // kView: this bake's per-curve colours; kRatios: per material + lum, kept while the knobs stand
+    function knobView() {                         // called at the start of every bake: null at the origin or when K2.3 is off
+        if (!T.k2On() || !T.origin || !T.origin.knobs) return null;
+        const M = window.IrisMaterials, k = { cur: knobsNow(), org: T.origin.knobs }, dRing = k.cur.ring - (k.org.ring || 0);
+        if (M.knobsAtOrigin(k) && Math.abs(dRing) < 1e-6) return null;
+        const sig = knobSig(k.cur) + '|' + knobSig(k.org), gr = T.src.grade || { chroma: 1, hue: 0 };
+        if (!kRatios || kRatios.sig !== sig) kRatios = { sig, map: new Map() };
+        // RING: the legacy model's collarette band (melanin added inside ringR, fading out over the next 0.06 v) — here extra melanin
+        // on every sample inside the band, by the sample's own tissue v. The ring's pheo blend of the legacy model is not carried.
+        const R = E.state.ringR || 0, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+        const ringW = v => (v === undefined || Math.abs(dRing) < 1e-6) ? 0 : Math.round(20 * (1 - sm(R - 0.08, R + 0.06, v))) / 20;
+        const cache = kRatios.map, ratio = (m, lum, unit, v) => { const w = ringW(v), key = M.index(m) + '|' + lum.toPrecision(4) + (unit ? 'u' : '') + '|' + w; let r = cache.get(key); if (r) return r;
+            const a = M.colourOf(m, lum, gr, { unit }), b = M.colourKnobbed(m, lum, gr, k, { unit, dMa: w * dRing }), e = 2e-4;
+            r = [(b[0] + e) / (a[0] + e), (b[1] + e) / (a[1] + e), (b[2] + e) / (a[2] + e)]; cache.set(key, r); return r; };
+        const setOf = new WeakMap(); for (const s of Object.keys(T.sets || {})) for (const c of T.sets[s]) setOf.set(c, s);
+        return { k, ratio, setOf, curves: new WeakMap(), index: {} };
+    }
+    function kvIndex(set) {                       // the measured samples of a set that carry their material, bucketed by photo xy
+        let ix = kView.index[set]; if (ix) return ix;
+        const cell = 6, grid = new Map();
+        for (const c of (T.sets[set] || [])) { if (c.inst !== undefined || !c.mat || !c.lum) continue; const xy = (c.l0 || c).xy; if (!xy || xy.length !== c.mat.length) continue;
+            xy.forEach((p, i) => { if (!p) return; const key = Math.floor(p[0] / cell) + ',' + Math.floor(p[1] / cell); let b = grid.get(key); if (!b) grid.set(key, b = []); b.push([p[0], p[1], c.mat[i], c.lum[i]]); }); }
+        return kView.index[set] = { cell, grid, n: grid.size };
+    }
+    function kvNearest(ix, x, y) {
+        const cx = Math.floor(x / ix.cell), cy = Math.floor(y / ix.cell); let best = null, bd = 1e18;
+        for (let r = 0; r <= 10 && (!best || r <= 1); r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; const b = ix.grid.get((cx + dx) + ',' + (cy + dy)); if (!b) continue;
+            for (const e of b) { const d = (e[0] - x) ** 2 + (e[1] - y) ** 2; if (d < bd) { bd = d; best = e; } } }
+        return best;
+    }
+    function kvCurve(c) {                         // this curve's colours after the knobs, one array per bake
+        let a = kView.curves.get(c); if (a) return a;
+        const set = kView.setOf.get(c) || 'fibres', unit = set === 'guides';
+        const own = c.inst === undefined && !c.l0 && c.mat && c.lum && c.mat.length === c.rgb.length, ix = own ? null : kvIndex(set);
+        a = c.rgb.map((rgb, i) => { let m, l;
+            if (own) { m = c.mat[i]; l = c.lum[i]; } else { const p = c.xy && c.xy[i], e = p && kvNearest(ix, p[0], p[1]); if (!e) return rgb; m = e[2]; l = e[3]; }
+            const r = kView.ratio(m, l, unit, c.uv && c.uv[i] ? c.uv[i][1] : undefined); return [rgb[0] * r[0], rgb[1] * r[1], rgb[2] * r[2]]; });
+        kView.curves.set(c, a); return a;
+    }
+    const kc = (c, i) => kView ? kvCurve(c)[i] : c.rgb[i];
+    const kcCell = (key, i) => { const v = T.cells[key][i], cl = T.src.cells; if (!kView || !cl) return v;
+        const m = key === 'sheet' ? cl.matS : cl.matG, l = key === 'sheet' ? cl.lumS : cl.lumG; if (!m || !m[i]) return v;
+        const p = T.cells.uv[i], r = kView.ratio(m[i], l[i], false, p ? p[1] : undefined); return [v[0] * r[0], v[1] * r[1], v[2] * r[2]]; };
+    const kcRim = () => { const v = T.src.rimRGB; if (!kView || !T.src.rimMat) return v; const r = kView.ratio(T.src.rimMat, T.src.rimLum, false); return [v[0] * r[0], v[1] * r[1], v[2] * r[2]]; };
+    /** what the bake would draw for curve `c` sample `i` now (the knobs applied), for probes */
+    T.knobColour = (c, i) => kc(c, i);
+    /** K2.3: called by the render loop (engine.js) between frames. Re-bakes when the knobs stand somewhere the last bake did not,
+     *  at most every `T.knobEveryMs` while they move (the loop eases them over many frames). true = it baked. */
+    T.knobTick = function () {
+        if (!T.on || !T.k2On() || !T.origin || !T.origin.knobs) return false;
+        if (knobSig(knobsNow()) === T.knobSig) return false;
+        const now = performance.now(); if (T.knobT && now - T.knobT < (T.knobEveryMs || 150)) return false;
+        T.knobT = now; T.bake(); return true;
+    };
     function cellTexture(key, withAlbedo) {
         // scatter the 0.1 mm material cells into a small grid over the region (bilinear splat, normalised, holes filled from neighbours)
         const mmW = T.rect[2] * 6.2831853 * (2 + 4 * (T.rect[1] + 0.5 * T.rect[3])), mmH = T.rect[3] * 4;
         const gw = Math.max(4, Math.round(mmW / 0.1)), gh = Math.max(4, Math.round(mmH / 0.1)), acc = new Float32Array(gw * gh * 4);
         T.cells.uv.forEach((p, i) => {
-            if (!p) return; const col = withAlbedo ? toAlbedo(T.cells[key][i], T.cells.xy[i][0], T.cells.xy[i][1]) : T.cells[key][i];
+            if (!p) return; const col = withAlbedo ? toAlbedo(kcCell(key, i), T.cells.xy[i][0], T.cells.xy[i][1]) : kcCell(key, i);
             const fx = (p[0] - T.rect[0]) / T.rect[2] * gw - 0.5, fy = (p[1] - T.rect[1]) / T.rect[3] * gh - 0.5, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
             for (let dj = 0; dj <= 1; dj++) for (let di = 0; di <= 1; di++) { let x = ix + di; const y = iy + dj; if (T.full) x = (x + gw) % gw; if (x < 0 || y < 0 || x >= gw || y >= gh) continue; const w = (di ? tx : 1 - tx) * (dj ? ty : 1 - ty), o = (y * gw + x) * 4; acc[o] += w * col[0]; acc[o + 1] += w * col[1]; acc[o + 2] += w * col[2]; acc[o + 3] += w; }
         });
@@ -754,8 +876,9 @@
         T.greyBake = grey;                        // §5.5 (a): the photo shader's per-pixel texture stays off while a calibration renders flat grey
         const [AW0, AH0] = E.ATLAS;
         if (!T.origin || T.origin.atlas[0] !== AW0 || T.origin.atlas[1] !== AH0) T.setOrigin();   // outside any draw, where it is safe
-        const alb = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], c.z ? c.z[i] : 0]; };   // .a = Z1: the tube's centre height above its floor, mm
-        const chroma = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(c.rgb[i].map(q => q * 0.25), c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], rel(c, i)]; };
+        kView = grey ? null : knobView(); T.knobSig = knobSig(knobsNow());   // K2.3: the knobs this bake applies
+        const alb = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(kc(c, i), c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], c.z ? c.z[i] : 0]; };   // .a = Z1: the tube's centre height above its floor, mm
+        const chroma = (c, i) => { const a = grey ? c.rgb[i] : toAlbedo(kc(c, i).map(q => q * 0.25), c.xy[i][0], c.xy[i][1]); return [a[0], a[1], a[2], rel(c, i)]; };
         // a relative payload is converted through the camera: albedo(base × ratio) / albedo(base), in luminance
         const lumA = (Y, c, i) => { const a = toAlbedo([Y, Y, Y], c.xy[i][0], c.xy[i][1]); return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2]; };
         const rel = (c, i) => (grey || !c.base) ? c.val[i] : Math.min(4, Math.max(0.05, lumA(c.base[i] * c.val[i], c, i) / Math.max(1e-4, lumA(c.base[i], c, i))));
@@ -872,7 +995,7 @@
         bindT('u_cellS', T.cellS); bindT('u_cellG', T.cellG); bindT('u_pack', T.pack);
         gl.uniform1f(c.loc('u_slabOn'), slabOn ? 1 : 0);
         gl.uniform4f(c.loc('u_rect'), T.rect[0], T.rect[1], T.rect[2], T.rect[3]); gl.uniform2f(c.loc('u_size'), w, h);
-        const rim = grey ? [grey, grey, grey] : toAlbedo(T.src.rimRGB, T.cells.xy[0][0], T.cells.xy[0][1]); gl.uniform3f(c.loc('u_rimRGB'), rim[0], rim[1], rim[2]);
+        const rim = grey ? [grey, grey, grey] : toAlbedo(kcRim(), T.cells.xy[0][0], T.cells.xy[0][1]); gl.uniform3f(c.loc('u_rimRGB'), rim[0], rim[1], rim[2]);
         gl.uniform1f(c.loc('u_grey'), grey); gl.uniform1f(c.loc('u_wall'), mm.wall); gl.uniform1f(c.loc('u_rimW'), mm.rimW * T.rimK); gl.uniform1f(c.loc('u_rimOff'), mm.rimOff);
         gl.uniform1f(c.loc('u_pit0'), mm.pit[0]); gl.uniform1f(c.loc('u_pit1'), mm.pit[1]); gl.uniform1f(c.loc('u_depth'), opts.depth === undefined ? cryptDepth() : opts.depth);
         const zm = T.src.z || {}, dz = T.deckZ === undefined ? 1 : T.deckZ;
@@ -1222,7 +1345,7 @@
         const rK = (T.src.z || {}).rK || RK_DEFAULT, dz = T.deckZ, fbase = -cryptDepth() - deckThickness() * dz;
         const segs = [];
         for (const c of list) for (let i = 0; i + 1 < c.uv.length; i++) { const a = c.uv[i], b = c.uv[i + 1]; if (!a || !b) continue;
-            const al = toAlbedo(c.rgb[i], c.xy[i][0], c.xy[i][1]);
+            const al = toAlbedo(kc(c, i), c.xy[i][0], c.xy[i][1]);   // K2.3: the knobs, through this bake's view
             segs.push([a[0], a[1], fbase + c.z[i] * dz, rK * c.w[i], a[0] + ((b[0] - a[0]) - Math.round(b[0] - a[0])), b[1], fbase + c.z[i + 1] * dz, rK * c.w[i + 1], al[0], al[1], al[2]]); }
         const rect = [0, T.rect[1], 1, T.rect[3]], cell = 0.04, nU = Math.ceil(6.2831853 * 6 / cell), nV = Math.max(1, Math.ceil(rect[3] * 4 / cell));
         const cells = new Map();
@@ -2103,7 +2226,7 @@
     // and k1 are not in the key — neither reaches a grey bake. A mismatch = measure, as before.
     T.dialKey = () => JSON.stringify({ engine: E.ENGINE_VERSION, eye: T.src && T.src.ref, n: T.src && T.src.fit,
         deckZ: T.deckZ, sheetZ: T.sheetZ, wallZ: T.wallZ === undefined ? 2.5 : T.wallZ, delight: T.delight, margin: T.margin !== false,
-        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0, rimK: T.rimK });   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
+        marginKeep: T.marginKeep, marginRound: T.marginRound, margFade: T.margFade, debias: T.debiasOn ? T.debiasPasses : 0, rimK: T.rimK, ...(T.ss > 0 ? { ss: [T.ss, T.ssR, T.ssLeak] } : {}) });   // K2b: off = the key the shipped measurements carry   // §5.5: a measurement taken without the de-bias must not pass for one taken with it
     const q16 = (v, lo, hi, L = 65535) => Math.max(0, Math.min(L, Math.round((v - lo) / Math.max(hi - lo, 1e-12) * L)));
     const gz = async (bytes, dir) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(dir ? new CompressionStream('gzip') : new DecompressionStream('gzip'))).arrayBuffer());
     // → gzipped bytes: 'IRC1' · u32 header length · header JSON · light (6 planes u16) · shading (u16) · light mask (u8, one
@@ -2178,6 +2301,10 @@
             await stage(2, 'the measured light and shading');
             let ok = false; try { const buf = typeof opts.shipped === 'string' ? await fetch(opts.shipped).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }) : opts.shipped; ok = await T.installMeasurements(buf); } catch (e) { say('shipped measurements unavailable (' + (e && e.message || e) + ') — measuring'); }
             if (ok) { T.on = true; await stage(3, 'baking the tissue'); T.bake(); await stage(4, 'the knob origin'); T.setOrigin(); if (st) st(n, n, 'done'); say('tissue model on (shipped measurements)'); return T.log; }
+            // The arrival frames the eye from its case WITHOUT the photograph. Measuring here would measure against no photo:
+            // no shading pass, the de-bias pinned at its 0.4 clamp (found 2026-11-06 with ?ss=0). The caller loads the photo
+            // and calls proof again without `shipped`.
+            if (opts.shippedOnly) { say('shipped measurements do not apply here: the photograph is needed to measure'); return null; }
         }
         await stage(2, 'measuring the light'); T.calibrate();
         await stage(3, 'baking the tissue'); T.bake();

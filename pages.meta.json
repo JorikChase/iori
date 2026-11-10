@@ -644,9 +644,15 @@
       "title": "Fractal Optimization Through a Procedural Lens",
       "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
       "category": "fractals",
-      "domain": "iori.me",
+      "domain": "3die.fr",
       "type": "experiment",
-      "priority": 0.6
+      "priority": 0.6,
+      "citation": {
+        "authors": [
+          "iori"
+        ],
+        "date": "2025-10-14"
+      }
     },
     "fungal-growth.html": {
       "title": "SDF Jelly Fungus Timelapse",
@@ -726,6 +732,19 @@
     "iris-engine/icon/fitted/index.html": {
       "title": "Iris Engine icon: Four eyes",
       "description": "Install Iris Engine with the Four eyes icon, with the steps for your browser.",
+      "category": "tools",
+      "domain": "iori.me",
+      "type": "app",
+      "priority": 0.1,
+      "hidden": true,
+      "menu": false,
+      "generated": "icons",
+      "manifest": "manifest.json",
+      "touch_icon": "180.png"
+    },
+    "iris-engine/icon/pupil/index.html": {
+      "title": "Iris Engine icon: Pupil",
+      "description": "Install Iris Engine with the Pupil icon, with the steps for your browser.",
       "category": "tools",
       "domain": "iori.me",
       "type": "app",
@@ -851,10 +870,15 @@
       "title": "Metafractal: The Space of Fractals Is Fractal",
       "description": "Paper 0.1: the Mandelbrot set as the map of the Julia sets and Tan Lei's similarity live, then the Fractal Engine's maps, metric and walks through 3-D fractal space.",
       "category": "fractals",
-      "domain": "iori.me",
+      "domain": "3die.fr",
       "type": "experiment",
-      "hidden": true,
-      "priority": 0.5
+      "priority": 0.5,
+      "citation": {
+        "authors": [
+          "iori"
+        ],
+        "date": "2026-10-29"
+      }
     },
     "metyou.html": {
       "title": "MetYou.ai — Design Engineering Case Study",
@@ -1099,10 +1123,15 @@
       "title": "Radiance Fields: Elements and Morphs",
       "description": "Paper 0.2: density, emission and the volume integral live, one shape stored four ways and measured, and the morphs between representations and between shapes.",
       "category": "fractals",
-      "domain": "iori.me",
+      "domain": "3die.fr",
       "type": "experiment",
-      "hidden": true,
-      "priority": 0.5
+      "priority": 0.5,
+      "citation": {
+        "authors": [
+          "iori"
+        ],
+        "date": "2026-10-29"
+      }
     },
     "shop.html": {
       "title": "3DIE Shop — 3D Models & Printed Objects",
@@ -1119,6 +1148,20 @@
       "domain": "iori.me",
       "type": "experiment",
       "priority": 0.5
+    },
+    "silviculture.html": {
+      "title": "Synthetic Silviculture: Growing a Forest, Forming a World",
+      "description": "Paper 0.3: the forest of paper 0 taken apart rule by rule, set beside the state of the art, and scored live against the laws real forests obey.",
+      "category": "fractals",
+      "domain": "3die.fr",
+      "type": "experiment",
+      "priority": 0.5,
+      "citation": {
+        "authors": [
+          "iori"
+        ],
+        "date": "2026-11-07"
+      }
     },
     "slime-mold.html": {
       "title": "Procedural Physarum Simulation",

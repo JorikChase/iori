@@ -173,6 +173,12 @@
         "label": "Four eyes",
         "sheet": "iris-engine-fitted.png",
         "fit": "object"
+      },
+      {
+        "slug": "pupil",
+        "label": "Pupil",
+        "sheet": "iris-engine-bleed.png",
+        "fit": "bleed"
       }
     ]
   },

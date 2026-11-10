@@ -1,13 +1,13 @@
 {
- "generated": "2026-09-26 22:33",
+ "generated": "2026-10-21 13:06",
  "pages": [
   {
    "url": "https://iori.me/",
    "status": 200,
    "final_url": "https://iori.me/",
    "ttfb_s": 0.113,
-   "bytes": 98066,
-   "wire_bytes": 31989,
+   "bytes": 116796,
+   "wire_bytes": 37899,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -24,7 +24,7 @@
    "h1": [
     "iori.me — full index"
    ],
-   "h2_count": 18,
+   "h2_count": 19,
    "lang": "en",
    "viewport": "width=device-width, initial-scale=1, viewport-fit=cover",
    "jsonld_valid": true,
@@ -38,19 +38,19 @@
    ],
    "imgs": 0,
    "imgs_without_alt": 0,
-   "internal_links": 63,
+   "internal_links": 64,
    "iframes": 0,
-   "visible_text_chars": 2741,
+   "visible_text_chars": 2825,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-10-10"
   },
   {
    "url": "https://iori.me/4cube.html",
    "status": 200,
    "final_url": "https://iori.me/4cube.html",
-   "ttfb_s": 0.134,
-   "bytes": 13048,
-   "wire_bytes": 4606,
+   "ttfb_s": 0.125,
+   "bytes": 13356,
+   "wire_bytes": 4645,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -83,17 +83,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 264,
+   "visible_text_chars": 283,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/4cube_volume.html",
    "status": 200,
    "final_url": "https://iori.me/4cube_volume.html",
-   "ttfb_s": 0.13,
-   "bytes": 12870,
-   "wire_bytes": 4472,
+   "ttfb_s": 0.113,
+   "bytes": 13178,
+   "wire_bytes": 4512,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -126,22 +126,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 241,
+   "visible_text_chars": 260,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/aquarium.html",
    "status": 200,
    "final_url": "https://iori.me/aquarium.html",
-   "ttfb_s": 0.12,
-   "bytes": 23582,
-   "wire_bytes": 7394,
+   "ttfb_s": 0.113,
+   "bytes": 23890,
+   "wire_bytes": 7434,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (116 chars)",
+    "thin visible text (135 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Pixel Art SDF Aquarium",
@@ -170,22 +170,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 116,
+   "visible_text_chars": 135,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/bismuth-fluid.html",
    "status": 200,
    "final_url": "https://iori.me/bismuth-fluid.html",
-   "ttfb_s": 0.139,
-   "bytes": 25287,
-   "wire_bytes": 6508,
+   "ttfb_s": 0.122,
+   "bytes": 25595,
+   "wire_bytes": 6547,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (113 chars)",
+    "thin visible text (132 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Bismuth Crystal Fluid",
@@ -214,22 +214,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 113,
+   "visible_text_chars": 132,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/bubbles.html",
    "status": 200,
    "final_url": "https://iori.me/bubbles.html",
-   "ttfb_s": 0.13,
-   "bytes": 18371,
-   "wire_bytes": 5543,
+   "ttfb_s": 0.115,
+   "bytes": 18679,
+   "wire_bytes": 5578,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (141 chars)",
+    "thin visible text (160 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Iridescent Bubbles",
@@ -259,22 +259,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 141,
+   "visible_text_chars": 160,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/civilisation-builder.html",
    "status": 200,
    "final_url": "https://iori.me/civilisation-builder.html",
-   "ttfb_s": 0.129,
-   "bytes": 27650,
-   "wire_bytes": 7073,
+   "ttfb_s": 0.107,
+   "bytes": 27958,
+   "wire_bytes": 7112,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (119 chars)",
+    "thin visible text (138 chars)",
     "3rd-party script hosts: cdnjs.cloudflare.com, www.googletagmanager.com"
    ],
    "title": "Civilisation Builder — Reaction-Diffusion",
@@ -304,22 +304,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 119,
+   "visible_text_chars": 138,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/cracks-aberration.html",
    "status": 200,
    "final_url": "https://iori.me/cracks-aberration.html",
-   "ttfb_s": 0.139,
-   "bytes": 22127,
-   "wire_bytes": 5942,
+   "ttfb_s": 0.1,
+   "bytes": 22435,
+   "wire_bytes": 5978,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (135 chars)",
+    "thin visible text (154 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Shattered LCD — Hyper-Intricate",
@@ -348,22 +348,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 135,
+   "visible_text_chars": 154,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/cracks.html",
    "status": 200,
    "final_url": "https://iori.me/cracks.html",
-   "ttfb_s": 0.163,
-   "bytes": 23233,
-   "wire_bytes": 6266,
+   "ttfb_s": 0.132,
+   "bytes": 23541,
+   "wire_bytes": 6303,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (128 chars)",
+    "thin visible text (147 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Grayscale Shatter Simulator",
@@ -392,17 +392,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 128,
+   "visible_text_chars": 147,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/crystalize.html",
    "status": 200,
    "final_url": "https://iori.me/crystalize.html",
-   "ttfb_s": 0.162,
-   "bytes": 29789,
-   "wire_bytes": 8749,
+   "ttfb_s": 0.125,
+   "bytes": 30097,
+   "wire_bytes": 8788,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -436,22 +436,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 301,
+   "visible_text_chars": 320,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/dandelion-cycle.html",
    "status": 200,
    "final_url": "https://iori.me/dandelion-cycle.html",
-   "ttfb_s": 0.144,
-   "bytes": 39247,
-   "wire_bytes": 10114,
+   "ttfb_s": 0.11,
+   "bytes": 39555,
+   "wire_bytes": 10175,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (166 chars)",
+    "thin visible text (185 chars)",
     "3rd-party script hosts: cdnjs.cloudflare.com, unpkg.com, www.googletagmanager.com"
    ],
    "title": "Organic Dandelion Journey",
@@ -482,17 +482,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 166,
+   "visible_text_chars": 185,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/death.html",
    "status": 200,
    "final_url": "https://iori.me/death.html",
-   "ttfb_s": 0.12,
-   "bytes": 82404,
-   "wire_bytes": 18229,
+   "ttfb_s": 0.105,
+   "bytes": 82712,
+   "wire_bytes": 18292,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -525,22 +525,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 11587,
+   "visible_text_chars": 11606,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/diffusion-fluid.html",
    "status": 200,
    "final_url": "https://iori.me/diffusion-fluid.html",
-   "ttfb_s": 0.141,
-   "bytes": 20556,
-   "wire_bytes": 5558,
+   "ttfb_s": 0.104,
+   "bytes": 20864,
+   "wire_bytes": 5598,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (107 chars)",
+    "thin visible text (126 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Diffusion Fluid",
@@ -569,22 +569,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 107,
+   "visible_text_chars": 126,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/disphere-inverse.html",
    "status": 200,
    "final_url": "https://iori.me/disphere-inverse.html",
-   "ttfb_s": 0.133,
-   "bytes": 10220,
-   "wire_bytes": 3085,
+   "ttfb_s": 0.098,
+   "bytes": 10528,
+   "wire_bytes": 3122,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (91 chars)",
+    "thin visible text (110 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Disphere Inverse",
@@ -614,22 +614,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 91,
+   "visible_text_chars": 110,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/disphere-ray.html",
    "status": 200,
    "final_url": "https://iori.me/disphere-ray.html",
-   "ttfb_s": 0.142,
-   "bytes": 21158,
-   "wire_bytes": 5197,
+   "ttfb_s": 0.089,
+   "bytes": 21466,
+   "wire_bytes": 5232,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (100 chars)",
+    "thin visible text (119 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Disphere Ray",
@@ -659,22 +659,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 100,
+   "visible_text_chars": 119,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/disphere-symmetry.html",
    "status": 200,
    "final_url": "https://iori.me/disphere-symmetry.html",
-   "ttfb_s": 0.144,
-   "bytes": 10004,
-   "wire_bytes": 3171,
+   "ttfb_s": 0.099,
+   "bytes": 10312,
+   "wire_bytes": 3210,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (92 chars)",
+    "thin visible text (111 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Disphere Symmetry",
@@ -704,22 +704,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 92,
+   "visible_text_chars": 111,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/disphere.html",
    "status": 200,
    "final_url": "https://iori.me/disphere.html",
-   "ttfb_s": 0.102,
-   "bytes": 9145,
-   "wire_bytes": 2972,
+   "ttfb_s": 0.113,
+   "bytes": 9453,
+   "wire_bytes": 3011,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (96 chars)",
+    "thin visible text (115 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Disphere",
@@ -749,22 +749,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 96,
+   "visible_text_chars": 115,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/dither-types.html",
    "status": 200,
    "final_url": "https://iori.me/dither-types.html",
-   "ttfb_s": 0.112,
-   "bytes": 18064,
-   "wire_bytes": 5776,
+   "ttfb_s": 0.1,
+   "bytes": 18372,
+   "wire_bytes": 5818,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (136 chars)",
+    "thin visible text (155 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Procedural Dither Comparison Grid",
@@ -793,22 +793,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 136,
+   "visible_text_chars": 155,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/ember-engine.html",
    "status": 200,
    "final_url": "https://iori.me/ember-engine.html",
-   "ttfb_s": 0.124,
-   "bytes": 22765,
-   "wire_bytes": 6930,
+   "ttfb_s": 0.112,
+   "bytes": 23073,
+   "wire_bytes": 6970,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (135 chars)",
+    "thin visible text (154 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Ember Engine — Cellular Automata Fire",
@@ -837,22 +837,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 135,
+   "visible_text_chars": 154,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/flame-simulation.html",
    "status": 200,
    "final_url": "https://iori.me/flame-simulation.html",
-   "ttfb_s": 0.108,
-   "bytes": 32885,
-   "wire_bytes": 8904,
+   "ttfb_s": 0.092,
+   "bytes": 33193,
+   "wire_bytes": 8943,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (107 chars)",
+    "thin visible text (126 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Satisfying Fire Simulator",
@@ -881,17 +881,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 107,
+   "visible_text_chars": 126,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/flame-strains.html",
    "status": 200,
    "final_url": "https://iori.me/flame-strains.html",
-   "ttfb_s": 0.11,
-   "bytes": 182145,
-   "wire_bytes": 51130,
+   "ttfb_s": 0.096,
+   "bytes": 182453,
+   "wire_bytes": 51197,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -925,22 +925,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 720,
+   "visible_text_chars": 739,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/flame.html",
    "status": 200,
    "final_url": "https://iori.me/flame.html",
-   "ttfb_s": 0.126,
-   "bytes": 30427,
-   "wire_bytes": 8721,
+   "ttfb_s": 0.098,
+   "bytes": 30735,
+   "wire_bytes": 8757,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (107 chars)",
+    "thin visible text (126 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "2D Fire Simulator",
@@ -969,22 +969,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 107,
+   "visible_text_chars": 126,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/fluid.html",
    "status": 200,
    "final_url": "https://iori.me/fluid.html",
-   "ttfb_s": 0.112,
-   "bytes": 27345,
-   "wire_bytes": 6929,
+   "ttfb_s": 0.097,
+   "bytes": 27653,
+   "wire_bytes": 6970,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (110 chars)",
+    "thin visible text (129 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Toroidal Fluid Simulation",
@@ -1013,22 +1013,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 110,
+   "visible_text_chars": 129,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/fractal-dimension.html",
    "status": 200,
    "final_url": "https://iori.me/fractal-dimension.html",
-   "ttfb_s": 0.122,
-   "bytes": 27913,
-   "wire_bytes": 7619,
+   "ttfb_s": 0.087,
+   "bytes": 28221,
+   "wire_bytes": 7658,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (157 chars)",
+    "thin visible text (176 chars)",
     "3rd-party script hosts: cdnjs.cloudflare.com, www.googletagmanager.com"
    ],
    "title": "N-Dimensional Viewer",
@@ -1058,17 +1058,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 157,
+   "visible_text_chars": 176,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/fractals.html",
    "status": 200,
    "final_url": "https://iori.me/fractals.html",
-   "ttfb_s": 0.127,
-   "bytes": 66371,
-   "wire_bytes": 18919,
+   "ttfb_s": 0.128,
+   "bytes": 81783,
+   "wire_bytes": 27448,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1076,16 +1076,16 @@
    ],
    "title": "Fractal Optimization Through a Procedural Lens",
    "title_len": 46,
-   "description": "Fractals as a procedural craft: optimization techniques and infinite detail, explored interactively.",
-   "desc_len": 100,
+   "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
+   "desc_len": 157,
    "canonical": "https://iori.me/fractals.html",
    "robots": "index, follow, max-image-preview:large",
    "og_image": "https://iori.me/icon/og.png",
    "twitter_card": "summary_large_image",
    "h1": [
-    "Fractal Optimization Through Procedural Lens"
+    "Fractal Optimization Through a Procedural Lens"
    ],
-   "h2_count": 7,
+   "h2_count": 11,
    "lang": "en",
    "viewport": "width=device-width, initial-scale=1, viewport-fit=cover",
    "jsonld_valid": true,
@@ -1093,26 +1093,26 @@
     "Person",
     "CreativeWork"
    ],
-   "scripts_total": 11,
-   "scripts_inline": 9,
+   "scripts_total": 7,
+   "scripts_inline": 4,
    "external_script_hosts": [
     "www.googletagmanager.com"
    ],
    "imgs": 1,
    "imgs_without_alt": 0,
-   "internal_links": 20,
+   "internal_links": 49,
    "iframes": 0,
-   "visible_text_chars": 9070,
+   "visible_text_chars": 45639,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-10-13"
   },
   {
    "url": "https://iori.me/fungal-growth.html",
    "status": 200,
    "final_url": "https://iori.me/fungal-growth.html",
-   "ttfb_s": 0.134,
-   "bytes": 23293,
-   "wire_bytes": 6891,
+   "ttfb_s": 0.117,
+   "bytes": 23601,
+   "wire_bytes": 6928,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1147,22 +1147,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 204,
+   "visible_text_chars": 223,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/game-of-life.html",
    "status": 200,
    "final_url": "https://iori.me/game-of-life.html",
-   "ttfb_s": 0.13,
-   "bytes": 19356,
-   "wire_bytes": 5514,
+   "ttfb_s": 0.128,
+   "bytes": 19664,
+   "wire_bytes": 5547,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (121 chars)",
+    "thin visible text (140 chars)",
     "3rd-party script hosts: 0x.se, www.googletagmanager.com"
    ],
    "title": "Game of Life — ASCII Edition",
@@ -1192,17 +1192,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 121,
+   "visible_text_chars": 140,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/iori.html",
    "status": 200,
    "final_url": "https://iori.me/iori.html",
-   "ttfb_s": 0.118,
-   "bytes": 16020,
-   "wire_bytes": 4992,
+   "ttfb_s": 0.107,
+   "bytes": 16328,
+   "wire_bytes": 5031,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1236,17 +1236,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 279,
+   "visible_text_chars": 298,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/iris-engine/",
    "status": 200,
    "final_url": "https://iori.me/iris-engine/",
-   "ttfb_s": 0.136,
-   "bytes": 209273,
-   "wire_bytes": 59192,
+   "ttfb_s": 0.11,
+   "bytes": 42199,
+   "wire_bytes": 10171,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1270,8 +1270,8 @@
     "Person",
     "CreativeWork"
    ],
-   "scripts_total": 24,
-   "scripts_inline": 17,
+   "scripts_total": 15,
+   "scripts_inline": 3,
    "external_script_hosts": [
     "www.googletagmanager.com"
    ],
@@ -1279,22 +1279,21 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 748,
+   "visible_text_chars": 775,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-20"
+   "lastmod": "2026-10-11"
   },
   {
    "url": "https://iori.me/iris.html",
    "status": 200,
    "final_url": "https://iori.me/iris.html",
-   "ttfb_s": 0.142,
-   "bytes": 45120,
-   "wire_bytes": 11974,
+   "ttfb_s": 0.097,
+   "bytes": 45428,
+   "wire_bytes": 12036,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (181 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Procedural Iris",
@@ -1323,17 +1322,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 181,
+   "visible_text_chars": 200,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/lambda_cognition.html",
    "status": 200,
    "final_url": "https://iori.me/lambda_cognition.html",
-   "ttfb_s": 0.154,
-   "bytes": 37717,
-   "wire_bytes": 12132,
+   "ttfb_s": 0.08,
+   "bytes": 38025,
+   "wire_bytes": 12199,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1368,17 +1367,17 @@
    "imgs_without_alt": 0,
    "internal_links": 2,
    "iframes": 0,
-   "visible_text_chars": 13809,
+   "visible_text_chars": 13828,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/lighter-flame.html",
    "status": 200,
    "final_url": "https://iori.me/lighter-flame.html",
-   "ttfb_s": 0.153,
-   "bytes": 34006,
-   "wire_bytes": 9300,
+   "ttfb_s": 0.1,
+   "bytes": 34314,
+   "wire_bytes": 9343,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1411,22 +1410,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 297,
+   "visible_text_chars": 316,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/lili.html",
    "status": 200,
    "final_url": "https://iori.me/lili.html",
-   "ttfb_s": 0.138,
-   "bytes": 18748,
-   "wire_bytes": 5709,
+   "ttfb_s": 0.107,
+   "bytes": 19056,
+   "wire_bytes": 5754,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (113 chars)",
+    "thin visible text (132 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "lili — Animated Portrait Study",
@@ -1455,17 +1454,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 113,
+   "visible_text_chars": 132,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/liquid-automata.html",
    "status": 200,
    "final_url": "https://iori.me/liquid-automata.html",
-   "ttfb_s": 0.136,
-   "bytes": 40853,
-   "wire_bytes": 11237,
+   "ttfb_s": 0.108,
+   "bytes": 41161,
+   "wire_bytes": 11299,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1498,22 +1497,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 287,
+   "visible_text_chars": 306,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/mandelbrot-gs.html",
    "status": 200,
    "final_url": "https://iori.me/mandelbrot-gs.html",
-   "ttfb_s": 0.133,
-   "bytes": 33182,
-   "wire_bytes": 9974,
+   "ttfb_s": 0.11,
+   "bytes": 33490,
+   "wire_bytes": 10014,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (147 chars)",
+    "thin visible text (166 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Image-GS Nebulabrot",
@@ -1542,22 +1541,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 147,
+   "visible_text_chars": 166,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/maska.html",
    "status": 200,
    "final_url": "https://iori.me/maska.html",
-   "ttfb_s": 0.134,
-   "bytes": 19635,
-   "wire_bytes": 5624,
+   "ttfb_s": 0.09,
+   "bytes": 19943,
+   "wire_bytes": 5662,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (139 chars)",
+    "thin visible text (158 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Face Landmarker WebGL",
@@ -1586,22 +1585,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 139,
+   "visible_text_chars": 158,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/meta-iris.html",
    "status": 200,
    "final_url": "https://iori.me/meta-iris.html",
-   "ttfb_s": 0.132,
-   "bytes": 49369,
-   "wire_bytes": 12611,
+   "ttfb_s": 0.106,
+   "bytes": 49677,
+   "wire_bytes": 12674,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (163 chars)",
+    "thin visible text (182 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Procedural Iris — Alien",
@@ -1630,17 +1629,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 163,
+   "visible_text_chars": 182,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/mirrorbrot-16k.html",
    "status": 200,
    "final_url": "https://iori.me/mirrorbrot-16k.html",
-   "ttfb_s": 0.14,
-   "bytes": 47663,
-   "wire_bytes": 12626,
+   "ttfb_s": 0.101,
+   "bytes": 47971,
+   "wire_bytes": 12689,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1674,17 +1673,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 1218,
+   "visible_text_chars": 1237,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/mirrorbrot.html",
    "status": 200,
    "final_url": "https://iori.me/mirrorbrot.html",
-   "ttfb_s": 0.142,
-   "bytes": 25103,
-   "wire_bytes": 7096,
+   "ttfb_s": 0.138,
+   "bytes": 25411,
+   "wire_bytes": 7134,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1719,17 +1718,61 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 333,
+   "visible_text_chars": 352,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
+  },
+  {
+   "url": "https://iori.me/moshine/",
+   "status": 200,
+   "final_url": "https://iori.me/moshine/",
+   "ttfb_s": 0.127,
+   "bytes": 5279,
+   "wire_bytes": 1797,
+   "cache_control": "no-cache",
+   "content_encoding": "gzip",
+   "issues": [
+    "no H1",
+    "thin visible text (62 chars)",
+    "3rd-party script hosts: www.googletagmanager.com"
+   ],
+   "title": "MOSHINE — Datamosh Editor",
+   "title_len": 25,
+   "description": "A datamosh editor in the browser: a simulated codec on WebGPU with a timeline, masks, painted motion vectors and audio-reactive looks.",
+   "desc_len": 134,
+   "canonical": "https://iori.me/moshine/",
+   "robots": "index, follow, max-image-preview:large",
+   "og_image": "https://iori.me/icon/og.png",
+   "twitter_card": "summary_large_image",
+   "h1": [],
+   "h2_count": 0,
+   "lang": "en",
+   "viewport": "width=device-width, initial-scale=1, viewport-fit=cover",
+   "jsonld_valid": true,
+   "jsonld_types": [
+    "Person",
+    "CreativeWork"
+   ],
+   "scripts_total": 6,
+   "scripts_inline": 3,
+   "external_script_hosts": [
+    "www.googletagmanager.com"
+   ],
+   "imgs": 0,
+   "imgs_without_alt": 0,
+   "internal_links": 2,
+   "iframes": 0,
+   "visible_text_chars": 62,
+   "sitemap": "https://iori.me/sitemap.xml",
+   "lastmod": "2026-10-10"
   },
   {
    "url": "https://iori.me/multiOS.html",
    "status": 200,
    "final_url": "https://iori.me/multiOS.html",
-   "ttfb_s": 0.14,
-   "bytes": 102693,
-   "wire_bytes": 25732,
+   "ttfb_s": 0.111,
+   "bytes": 103001,
+   "wire_bytes": 25798,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1763,17 +1806,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 1456,
+   "visible_text_chars": 1475,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/mycelium.html",
    "status": 200,
    "final_url": "https://iori.me/mycelium.html",
-   "ttfb_s": 0.135,
-   "bytes": 26318,
-   "wire_bytes": 6908,
+   "ttfb_s": 0.101,
+   "bytes": 26626,
+   "wire_bytes": 6946,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1808,21 +1851,20 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 497,
+   "visible_text_chars": 516,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/nasal-wave.html",
    "status": 200,
    "final_url": "https://iori.me/nasal-wave.html",
-   "ttfb_s": 0.127,
-   "bytes": 43931,
-   "wire_bytes": 12064,
+   "ttfb_s": 0.099,
+   "bytes": 44239,
+   "wire_bytes": 12127,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
-    "thin visible text (190 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Nasal Wave Engine",
@@ -1853,22 +1895,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 190,
+   "visible_text_chars": 209,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/orbitals.html",
    "status": 200,
    "final_url": "https://iori.me/orbitals.html",
-   "ttfb_s": 0.127,
-   "bytes": 19082,
-   "wire_bytes": 6010,
+   "ttfb_s": 0.098,
+   "bytes": 19390,
+   "wire_bytes": 6049,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (131 chars)",
+    "thin visible text (150 chars)",
     "3rd-party script hosts: cdnjs.cloudflare.com, www.googletagmanager.com"
    ],
    "title": "Hydrogen Orbitals — Immersive Edition",
@@ -1898,22 +1940,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 131,
+   "visible_text_chars": 150,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/petri/",
    "status": 200,
    "final_url": "https://iori.me/petri/",
-   "ttfb_s": 0.136,
-   "bytes": 5778,
-   "wire_bytes": 1985,
+   "ttfb_s": 0.098,
+   "bytes": 6086,
+   "wire_bytes": 2020,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (154 chars)",
+    "thin visible text (173 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Petri — Slime Mold and Colony Growth Engine",
@@ -1942,17 +1984,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 154,
+   "visible_text_chars": 173,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-20"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/portfolio.html",
    "status": 200,
    "final_url": "https://iori.me/portfolio.html",
-   "ttfb_s": 0.138,
-   "bytes": 14586,
-   "wire_bytes": 5161,
+   "ttfb_s": 0.099,
+   "bytes": 14678,
+   "wire_bytes": 5167,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -1986,20 +2028,20 @@
    "iframes": 0,
    "visible_text_chars": 211,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/procedural-flame.html",
    "status": 200,
    "final_url": "https://iori.me/procedural-flame.html",
-   "ttfb_s": 0.134,
-   "bytes": 36206,
-   "wire_bytes": 9707,
+   "ttfb_s": 0.093,
+   "bytes": 36514,
+   "wire_bytes": 9744,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (102 chars)",
+    "thin visible text (121 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "WebGL Volumetric Flame",
@@ -2028,22 +2070,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 102,
+   "visible_text_chars": 121,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/sigmoid-helix.html",
    "status": 200,
    "final_url": "https://iori.me/sigmoid-helix.html",
-   "ttfb_s": 0.141,
-   "bytes": 14268,
-   "wire_bytes": 4560,
+   "ttfb_s": 0.097,
+   "bytes": 14576,
+   "wire_bytes": 4599,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (178 chars)",
+    "thin visible text (197 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Kinetic Sigmoid Helix — Terminal Edition",
@@ -2072,22 +2114,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 178,
+   "visible_text_chars": 197,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/slime-mold.html",
    "status": 200,
    "final_url": "https://iori.me/slime-mold.html",
-   "ttfb_s": 0.13,
-   "bytes": 26604,
-   "wire_bytes": 7542,
+   "ttfb_s": 0.109,
+   "bytes": 26912,
+   "wire_bytes": 7583,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (131 chars)",
+    "thin visible text (150 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Procedural Physarum Simulation",
@@ -2117,22 +2159,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 131,
+   "visible_text_chars": 150,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/socci.html",
    "status": 200,
    "final_url": "https://iori.me/socci.html",
-   "ttfb_s": 0.129,
-   "bytes": 13170,
-   "wire_bytes": 3789,
+   "ttfb_s": 0.111,
+   "bytes": 13478,
+   "wire_bytes": 3832,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (115 chars)",
+    "thin visible text (134 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Socci Project — Generative Island",
@@ -2161,22 +2203,21 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 115,
+   "visible_text_chars": 134,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/three-body-shaded.html",
    "status": 200,
    "final_url": "https://iori.me/three-body-shaded.html",
-   "ttfb_s": 0.117,
-   "bytes": 38871,
-   "wire_bytes": 8322,
+   "ttfb_s": 0.104,
+   "bytes": 39179,
+   "wire_bytes": 8386,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (183 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "3-Body Gravity — Phantom Edition",
@@ -2205,22 +2246,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 183,
+   "visible_text_chars": 202,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/three-body.html",
    "status": 200,
    "final_url": "https://iori.me/three-body.html",
-   "ttfb_s": 0.143,
-   "bytes": 28574,
-   "wire_bytes": 6842,
+   "ttfb_s": 0.103,
+   "bytes": 28882,
+   "wire_bytes": 6881,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (126 chars)",
+    "thin visible text (145 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "3-Body Gravity Simulation — Enhanced",
@@ -2249,22 +2290,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 126,
+   "visible_text_chars": 145,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/two-body.html",
    "status": 200,
    "final_url": "https://iori.me/two-body.html",
-   "ttfb_s": 0.131,
-   "bytes": 19404,
-   "wire_bytes": 5635,
+   "ttfb_s": 0.099,
+   "bytes": 19712,
+   "wire_bytes": 5676,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (116 chars)",
+    "thin visible text (135 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "2-Body Gravity Simulation",
@@ -2293,17 +2334,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 116,
+   "visible_text_chars": 135,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/umprum.html",
    "status": 200,
    "final_url": "https://iori.me/umprum.html",
-   "ttfb_s": 0.126,
-   "bytes": 18471,
-   "wire_bytes": 5248,
+   "ttfb_s": 0.099,
+   "bytes": 18779,
+   "wire_bytes": 5289,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2337,17 +2378,17 @@
    "imgs_without_alt": 0,
    "internal_links": 9,
    "iframes": 0,
-   "visible_text_chars": 304,
+   "visible_text_chars": 323,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/universe.html",
    "status": 200,
    "final_url": "https://iori.me/universe.html",
-   "ttfb_s": 0.13,
-   "bytes": 50684,
-   "wire_bytes": 13115,
+   "ttfb_s": 0.109,
+   "bytes": 50992,
+   "wire_bytes": 13178,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2380,22 +2421,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 258,
+   "visible_text_chars": 277,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/voxel-flame.html",
    "status": 200,
    "final_url": "https://iori.me/voxel-flame.html",
-   "ttfb_s": 0.128,
-   "bytes": 33527,
-   "wire_bytes": 11300,
+   "ttfb_s": 0.095,
+   "bytes": 33835,
+   "wire_bytes": 11337,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (126 chars)",
+    "thin visible text (145 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Voxel Flame — Single-Cell Fire Automaton",
@@ -2424,22 +2465,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 126,
+   "visible_text_chars": 145,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/voxel-flames-3d.html",
    "status": 200,
    "final_url": "https://iori.me/voxel-flames-3d.html",
-   "ttfb_s": 0.137,
-   "bytes": 55902,
-   "wire_bytes": 15833,
+   "ttfb_s": 0.118,
+   "bytes": 56210,
+   "wire_bytes": 15895,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (114 chars)",
+    "thin visible text (133 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Voxel Flames 3D — Adaptive Volumetric Fire",
@@ -2468,22 +2509,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 114,
+   "visible_text_chars": 133,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/voxel-flames.html",
    "status": 200,
    "final_url": "https://iori.me/voxel-flames.html",
-   "ttfb_s": 0.119,
-   "bytes": 45388,
-   "wire_bytes": 12674,
+   "ttfb_s": 0.117,
+   "bytes": 45696,
+   "wire_bytes": 12735,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (110 chars)",
+    "thin visible text (129 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Voxel Flames — Two Crossed Slices",
@@ -2512,17 +2553,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 110,
+   "visible_text_chars": 129,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/voxel-sandbox.html",
    "status": 200,
    "final_url": "https://iori.me/voxel-sandbox.html",
-   "ttfb_s": 0.138,
-   "bytes": 50067,
-   "wire_bytes": 12087,
+   "ttfb_s": 0.129,
+   "bytes": 50375,
+   "wire_bytes": 12152,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2555,17 +2596,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 423,
+   "visible_text_chars": 442,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/voxel-scale-less.html",
    "status": 200,
    "final_url": "https://iori.me/voxel-scale-less.html",
-   "ttfb_s": 0.142,
-   "bytes": 66516,
-   "wire_bytes": 15502,
+   "ttfb_s": 0.106,
+   "bytes": 66824,
+   "wire_bytes": 15567,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2598,17 +2639,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 676,
+   "visible_text_chars": 695,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/voxel-terrain.html",
    "status": 200,
    "final_url": "https://iori.me/voxel-terrain.html",
-   "ttfb_s": 0.136,
-   "bytes": 80709,
-   "wire_bytes": 18156,
+   "ttfb_s": 0.18,
+   "bytes": 81017,
+   "wire_bytes": 18221,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2641,22 +2682,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 667,
+   "visible_text_chars": 686,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/watercolor.html",
    "status": 200,
    "final_url": "https://iori.me/watercolor.html",
-   "ttfb_s": 0.16,
-   "bytes": 27566,
-   "wire_bytes": 7363,
+   "ttfb_s": 0.2,
+   "bytes": 27874,
+   "wire_bytes": 7400,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (124 chars)",
+    "thin visible text (143 chars)",
     "3rd-party script hosts: twgljs.org, www.googletagmanager.com"
    ],
    "title": "Realistic Ink Water Engine",
@@ -2686,22 +2727,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 124,
+   "visible_text_chars": 143,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/web.html",
    "status": 200,
    "final_url": "https://iori.me/web.html",
-   "ttfb_s": 0.156,
-   "bytes": 17079,
-   "wire_bytes": 5422,
+   "ttfb_s": 0.141,
+   "bytes": 17387,
+   "wire_bytes": 5463,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (120 chars)",
+    "thin visible text (139 chars)",
     "3rd-party script hosts: d3js.org, www.googletagmanager.com"
    ],
    "title": "iori — Node Web: Interactive Site Map",
@@ -2730,17 +2771,17 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 120,
+   "visible_text_chars": 139,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/web3d.html",
    "status": 200,
    "final_url": "https://iori.me/web3d.html",
-   "ttfb_s": 0.125,
-   "bytes": 13940,
-   "wire_bytes": 5198,
+   "ttfb_s": 0.135,
+   "bytes": 14248,
+   "wire_bytes": 5229,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2772,22 +2813,22 @@
    "imgs_without_alt": 0,
    "internal_links": 7,
    "iframes": 0,
-   "visible_text_chars": 219,
+   "visible_text_chars": 238,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://iori.me/webgl.html",
    "status": 200,
    "final_url": "https://iori.me/webgl.html",
-   "ttfb_s": 0.127,
-   "bytes": 154204,
-   "wire_bytes": 34255,
+   "ttfb_s": 0.101,
+   "bytes": 154512,
+   "wire_bytes": 34304,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (101 chars)",
+    "thin visible text (120 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "WEBGL Sandbox",
@@ -2816,22 +2857,22 @@
    "imgs_without_alt": 0,
    "internal_links": 5,
    "iframes": 0,
-   "visible_text_chars": 101,
+   "visible_text_chars": 120,
    "sitemap": "https://iori.me/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/",
    "status": 200,
    "final_url": "https://3die.fr/",
-   "ttfb_s": 0.158,
-   "bytes": 27713,
-   "wire_bytes": 9749,
+   "ttfb_s": 0.122,
+   "bytes": 27955,
+   "wire_bytes": 9807,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (144 chars)",
+    "thin visible text (154 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "3DIE — Design, Art & Technologies Label",
@@ -2859,17 +2900,62 @@
    "imgs_without_alt": 0,
    "internal_links": 10,
    "iframes": 0,
-   "visible_text_chars": 144,
+   "visible_text_chars": 154,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
+  },
+  {
+   "url": "https://3die.fr/audio/",
+   "status": 200,
+   "final_url": "https://3die.fr/audio/",
+   "ttfb_s": 0.117,
+   "bytes": 66792,
+   "wire_bytes": 16634,
+   "cache_control": "no-cache",
+   "content_encoding": "gzip",
+   "issues": [
+    "description long (168)",
+    "3rd-party script hosts: www.googletagmanager.com"
+   ],
+   "title": "Audio Tools — Eight Instruments for iPhone and iPadAudio Tools",
+   "title_len": 62,
+   "description": "Tuner, BPM detector, metronome, synth, analyzer, practice player, recorder and a multitrack editor in one installable web app, sharing one tempo and one shelf of takes.",
+   "desc_len": 168,
+   "canonical": "https://3die.fr/audio/",
+   "robots": "index, follow, max-image-preview:large",
+   "og_image": "https://3die.fr/icon/og.png",
+   "twitter_card": "summary_large_image",
+   "h1": [
+    "Audio tools: hold the orb and drag toward a tool to open it; in a tool, the bottom-left dot goes home on tap, or switches tools when held and dragged."
+   ],
+   "h2_count": 0,
+   "lang": "en",
+   "viewport": "width=device-width,initial-scale=1,viewport-fit=cover",
+   "jsonld_valid": true,
+   "jsonld_types": [
+    "Organization",
+    "WebApplication"
+   ],
+   "scripts_total": 8,
+   "scripts_inline": 6,
+   "external_script_hosts": [
+    "www.googletagmanager.com"
+   ],
+   "imgs": 0,
+   "imgs_without_alt": 0,
+   "internal_links": 4,
+   "iframes": 2,
+   "visible_text_chars": 243,
+   "sitemap": "https://3die.fr/sitemap.xml",
+   "lastmod": "2026-10-10"
   },
   {
    "url": "https://3die.fr/blackjach/",
    "status": 200,
    "final_url": "https://3die.fr/blackjach/",
-   "ttfb_s": 0.147,
-   "bytes": 24305,
-   "wire_bytes": 5889,
+   "ttfb_s": 0.117,
+   "bytes": 24547,
+   "wire_bytes": 5947,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2903,17 +2989,17 @@
    "imgs_without_alt": 1,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 2168,
+   "visible_text_chars": 2178,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/crow_archduke.html",
    "status": 200,
    "final_url": "https://3die.fr/crow_archduke.html",
-   "ttfb_s": 0.154,
-   "bytes": 71381,
-   "wire_bytes": 24259,
+   "ttfb_s": 0.116,
+   "bytes": 71711,
+   "wire_bytes": 24352,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -2947,22 +3033,22 @@
    "imgs_without_alt": 0,
    "internal_links": 9,
    "iframes": 0,
-   "visible_text_chars": 540,
+   "visible_text_chars": 550,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/darkwood.html",
    "status": 200,
    "final_url": "https://3die.fr/darkwood.html",
-   "ttfb_s": 0.16,
-   "bytes": 24125,
-   "wire_bytes": 6755,
+   "ttfb_s": 0.116,
+   "bytes": 24367,
+   "wire_bytes": 6816,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (133 chars)",
+    "thin visible text (143 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "Unction — Darkwood Game",
@@ -2991,22 +3077,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 133,
+   "visible_text_chars": 143,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/game.html",
    "status": 200,
    "final_url": "https://3die.fr/game.html",
-   "ttfb_s": 0.109,
-   "bytes": 23483,
-   "wire_bytes": 5860,
+   "ttfb_s": 0.107,
+   "bytes": 23725,
+   "wire_bytes": 5919,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (92 chars)",
+    "thin visible text (102 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "RPG Tennis — 3DIE Game",
@@ -3036,22 +3122,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 92,
+   "visible_text_chars": 102,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/game_multiplayer.html",
    "status": 200,
    "final_url": "https://3die.fr/game_multiplayer.html",
-   "ttfb_s": 0.126,
-   "bytes": 51096,
-   "wire_bytes": 10855,
+   "ttfb_s": 0.116,
+   "bytes": 51338,
+   "wire_bytes": 10929,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (102 chars)",
+    "thin visible text (112 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "RPG Tennis Multiplayer — 3DIE Game",
@@ -3081,22 +3167,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 102,
+   "visible_text_chars": 112,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/indent.html",
    "status": 200,
    "final_url": "https://3die.fr/indent.html",
-   "ttfb_s": 0.129,
-   "bytes": 20501,
-   "wire_bytes": 4972,
+   "ttfb_s": 0.113,
+   "bytes": 20743,
+   "wire_bytes": 5034,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (96 chars)",
+    "thin visible text (106 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "3DIE.FR — Alternate Gateway",
@@ -3125,22 +3211,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 96,
+   "visible_text_chars": 106,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/info.html",
    "status": 200,
    "final_url": "https://3die.fr/info.html",
-   "ttfb_s": 0.108,
-   "bytes": 21071,
-   "wire_bytes": 5578,
+   "ttfb_s": 0.129,
+   "bytes": 21313,
+   "wire_bytes": 5637,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (100 chars)",
+    "thin visible text (110 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "About & Contact — 3DIE",
@@ -3169,17 +3255,17 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 100,
+   "visible_text_chars": 110,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/jachym.html",
    "status": 200,
    "final_url": "https://3die.fr/jachym.html",
-   "ttfb_s": 0.149,
-   "bytes": 7459,
-   "wire_bytes": 2633,
+   "ttfb_s": 0.124,
+   "bytes": 7701,
+   "wire_bytes": 2692,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -3213,17 +3299,17 @@
    "imgs_without_alt": 0,
    "internal_links": 9,
    "iframes": 0,
-   "visible_text_chars": 456,
+   "visible_text_chars": 466,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/metyou.html",
    "status": 200,
    "final_url": "https://3die.fr/metyou.html",
-   "ttfb_s": 0.119,
-   "bytes": 42975,
-   "wire_bytes": 11190,
+   "ttfb_s": 0.121,
+   "bytes": 43217,
+   "wire_bytes": 11262,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -3259,22 +3345,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 1465,
+   "visible_text_chars": 1475,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/moises.html",
    "status": 200,
    "final_url": "https://3die.fr/moises.html",
-   "ttfb_s": 0.128,
-   "bytes": 20419,
-   "wire_bytes": 7900,
+   "ttfb_s": 0.126,
+   "bytes": 35450,
+   "wire_bytes": 13213,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (144 chars)",
+    "thin visible text (156 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "moises — Photo Journal",
@@ -3303,17 +3389,17 @@
    "imgs_without_alt": 0,
    "internal_links": 7,
    "iframes": 0,
-   "visible_text_chars": 144,
+   "visible_text_chars": 156,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-10-10"
   },
   {
    "url": "https://3die.fr/music.html",
    "status": 200,
    "final_url": "https://3die.fr/music.html",
-   "ttfb_s": 0.119,
-   "bytes": 6885,
-   "wire_bytes": 2551,
+   "ttfb_s": 0.098,
+   "bytes": 7127,
+   "wire_bytes": 2603,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -3345,17 +3431,17 @@
    "imgs_without_alt": 0,
    "internal_links": 8,
    "iframes": 1,
-   "visible_text_chars": 284,
+   "visible_text_chars": 294,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/pi.html",
    "status": 200,
    "final_url": "https://3die.fr/pi.html",
-   "ttfb_s": 0.113,
-   "bytes": 34717,
-   "wire_bytes": 8822,
+   "ttfb_s": 0.103,
+   "bytes": 34959,
+   "wire_bytes": 8881,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -3391,22 +3477,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 282,
+   "visible_text_chars": 292,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/poster.html",
    "status": 200,
    "final_url": "https://3die.fr/poster.html",
-   "ttfb_s": 0.123,
-   "bytes": 24326,
-   "wire_bytes": 7105,
+   "ttfb_s": 0.09,
+   "bytes": 24568,
+   "wire_bytes": 7164,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (103 chars)",
+    "thin visible text (113 chars)",
     "3rd-party script hosts: cdnjs.cloudflare.com, unpkg.com, www.googletagmanager.com"
    ],
    "title": "Gyro Labyrinth — Optimized",
@@ -3437,22 +3523,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 103,
+   "visible_text_chars": 113,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/shop.html",
    "status": 200,
    "final_url": "https://3die.fr/shop.html",
-   "ttfb_s": 0.114,
-   "bytes": 23357,
-   "wire_bytes": 6438,
+   "ttfb_s": 0.086,
+   "bytes": 23599,
+   "wire_bytes": 6496,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (92 chars)",
+    "thin visible text (102 chars)",
     "3rd-party script hosts: cdn.tailwindcss.com, www.googletagmanager.com"
    ],
    "title": "3DIE Shop — 3D Models & Printed Objects",
@@ -3481,17 +3567,17 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 92,
+   "visible_text_chars": 102,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/start.html",
    "status": 200,
    "final_url": "https://3die.fr/start.html",
-   "ttfb_s": 0.124,
-   "bytes": 40080,
-   "wire_bytes": 8832,
+   "ttfb_s": 0.078,
+   "bytes": 44312,
+   "wire_bytes": 10323,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -3523,24 +3609,24 @@
    ],
    "imgs": 0,
    "imgs_without_alt": 0,
-   "internal_links": 10,
+   "internal_links": 11,
    "iframes": 0,
-   "visible_text_chars": 244,
+   "visible_text_chars": 271,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-10-10"
   },
   {
    "url": "https://3die.fr/sudoku.html",
    "status": 200,
    "final_url": "https://3die.fr/sudoku.html",
-   "ttfb_s": 0.12,
-   "bytes": 34650,
-   "wire_bytes": 8377,
+   "ttfb_s": 0.091,
+   "bytes": 34892,
+   "wire_bytes": 8437,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (180 chars)",
+    "thin visible text (190 chars)",
     "3rd-party script hosts: cdn.tailwindcss.com, www.googletagmanager.com"
    ],
    "title": "SUDOKU Minimal",
@@ -3570,17 +3656,17 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 180,
+   "visible_text_chars": 190,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/tboi2.html",
    "status": 200,
    "final_url": "https://3die.fr/tboi2.html",
-   "ttfb_s": 0.118,
-   "bytes": 50906,
-   "wire_bytes": 14932,
+   "ttfb_s": 0.08,
+   "bytes": 51148,
+   "wire_bytes": 15004,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
@@ -3618,22 +3704,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 325,
+   "visible_text_chars": 335,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/tomasek.html",
    "status": 200,
    "final_url": "https://3die.fr/tomasek.html",
-   "ttfb_s": 0.129,
-   "bytes": 45551,
-   "wire_bytes": 12032,
+   "ttfb_s": 0.089,
+   "bytes": 45793,
+   "wire_bytes": 12102,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (145 chars)",
+    "thin visible text (155 chars)",
     "3rd-party script hosts: cdn.tailwindcss.com, cdnjs.cloudflare.com, www.googletagmanager.com"
    ],
    "title": "3D Gyroscope Dice Roller",
@@ -3664,22 +3750,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 145,
+   "visible_text_chars": 155,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/univerzum.html",
    "status": 200,
    "final_url": "https://3die.fr/univerzum.html",
-   "ttfb_s": 0.11,
-   "bytes": 224789,
-   "wire_bytes": 55190,
+   "ttfb_s": 0.095,
+   "bytes": 225031,
+   "wire_bytes": 55255,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (117 chars)",
+    "thin visible text (127 chars)",
     "3rd-party script hosts: www.googletagmanager.com"
    ],
    "title": "ZŠ Univerzum — School Website by 3DIE",
@@ -3707,22 +3793,22 @@
    "imgs_without_alt": 0,
    "internal_links": 6,
    "iframes": 0,
-   "visible_text_chars": 117,
+   "visible_text_chars": 127,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-15"
+   "lastmod": "2026-09-27"
   },
   {
    "url": "https://3die.fr/websites.html",
    "status": 200,
    "final_url": "https://3die.fr/websites.html",
-   "ttfb_s": 0.133,
-   "bytes": 18806,
-   "wire_bytes": 4200,
+   "ttfb_s": 0.102,
+   "bytes": 19048,
+   "wire_bytes": 4257,
    "cache_control": "no-cache",
    "content_encoding": "gzip",
    "issues": [
     "no H1",
-    "thin visible text (120 chars)",
+    "thin visible text (130 chars)",
     "3rd-party script hosts: unpkg.com, www.googletagmanager.com"
    ],
    "title": "Client Websites — 3DIE",
@@ -3751,21 +3837,21 @@
    "imgs_without_alt": 0,
    "internal_links": 8,
    "iframes": 0,
-   "visible_text_chars": 120,
+   "visible_text_chars": 130,
    "sitemap": "https://3die.fr/sitemap.xml",
-   "lastmod": "2026-09-18"
+   "lastmod": "2026-09-27"
   }
  ],
  "extra": {
   "https://iori.me/robots.txt": {
    "status": 200,
-   "bytes": 171,
+   "bytes": 337,
    "final": "https://iori.me/robots.txt",
    "ct": "text/plain; charset=utf-8"
   },
   "https://3die.fr/robots.txt": {
    "status": 200,
-   "bytes": 171,
+   "bytes": 337,
    "final": "https://3die.fr/robots.txt",
    "ct": "text/plain; charset=utf-8"
   },
@@ -3783,31 +3869,31 @@
   },
   "https://iori.me/index.html": {
    "status": 200,
-   "bytes": 27713,
+   "bytes": 27955,
    "final": "https://3die.fr/",
    "ct": "text/html; charset=utf-8"
   },
   "https://3die.fr/iori_INDEX.html": {
    "status": 200,
-   "bytes": 98066,
+   "bytes": 116796,
    "final": "https://iori.me/",
    "ct": "text/html; charset=utf-8"
   },
   "https://3die.fr/index.html": {
    "status": 200,
-   "bytes": 27713,
+   "bytes": 27955,
    "final": "https://3die.fr/",
    "ct": "text/html; charset=utf-8"
   },
   "https://iori.me/iori_INDEX.html": {
    "status": 200,
-   "bytes": 98066,
+   "bytes": 116796,
    "final": "https://iori.me/",
    "ct": "text/html; charset=utf-8"
   },
   "https://iori.me/pages.json": {
    "status": 200,
-   "bytes": 34250,
+   "bytes": 35218,
    "final": "https://iori.me/pages.json",
    "ct": "application/json"
   },
@@ -3897,7 +3983,7 @@
   },
   "https://dash.3die.fr/": {
    "status": 200,
-   "bytes": 12430,
+   "bytes": 15325,
    "final": "https://dash.3die.fr/",
    "ct": "text/html; charset=utf-8"
   },

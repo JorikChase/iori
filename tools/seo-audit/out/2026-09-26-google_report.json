@@ -1,0 +1,6613 @@
+{
+ "range": [
+  "2026-06-26",
+  "2026-09-23"
+ ],
+ "days": 90,
+ "ga4_properties": {
+  "G-GKKJ5VX340": {
+   "property": "properties/530756051",
+   "name": "3die",
+   "uri": "https://www.iori.me"
+  },
+  "G-ERECDMYSNT": {
+   "property": "properties/530756051",
+   "name": "3die",
+   "uri": "https://www.3die.fr"
+  }
+ },
+ "gsc_sites": {
+  "sc-domain:3die.fr": "siteFullUser",
+  "sc-domain:iori.me": "siteFullUser"
+ },
+ "ga4": {
+  "iori.me": {
+   "totals": {
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "newUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     },
+     {
+      "name": "averageSessionDuration",
+      "type": "TYPE_SECONDS"
+     },
+     {
+      "name": "bounceRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "metricValues": [
+       {
+        "value": "140"
+       },
+       {
+        "value": "78"
+       },
+       {
+        "value": "77"
+       },
+       {
+        "value": "483"
+       },
+       {
+        "value": "0.5"
+       },
+       {
+        "value": "251.52656189285713"
+       },
+       {
+        "value": "0.5"
+       }
+      ]
+     }
+    ],
+    "rowCount": 1,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "pages": {
+    "dimensionHeaders": [
+     {
+      "name": "pagePath"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "147"
+       },
+       {
+        "value": "62"
+       },
+       {
+        "value": "0.46938775510204084"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/portfolio.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "71"
+       },
+       {
+        "value": "17"
+       },
+       {
+        "value": "0.82051282051282048"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/iris-engine/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "26"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "0.8666666666666667"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/umprum.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "17"
+       },
+       {
+        "value": "9"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame-strains.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "14"
+       },
+       {
+        "value": "8"
+       },
+       {
+        "value": "0.76923076923076927"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fractals.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "13"
+       },
+       {
+        "value": "10"
+       },
+       {
+        "value": "0.9"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/meta-iris.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/civilisation-builder.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame-simulation.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "0.7142857142857143"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/death.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/ember-engine.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "7"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/aquarium.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/lambda_cognition.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "0.66666666666666663"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/crystalize.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/slime-mold.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/star.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web3d.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/4cube_volume.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/bismuth-fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/flame.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/mirrorbrot.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/three-body.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/dandelion-cycle.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/diffusion-fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fractal-dimension.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/liquid-automata.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/mandelbrot-gs.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/procedural-flame.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/universe.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/univerzum.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/voxel-flames-3d.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/webgl.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/bubbles.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/cracks-aberration.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/cracks.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/disphere-ray.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/disphere.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fungal-growth.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 65,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "channels": {
+    "dimensionHeaders": [
+     {
+      "name": "sessionDefaultChannelGroup"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Direct"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "82"
+       },
+       {
+        "value": "56"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Referral"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "48"
+       },
+       {
+        "value": "17"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Organic Social"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "8"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Organic Search"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     }
+    ],
+    "rowCount": 4,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "sources": {
+    "dimensionHeaders": [
+     {
+      "name": "sessionSource"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "(direct)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "82"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "3die.fr"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "38"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "ig"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "localhost:8770"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "m.facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "google"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "blog2026.online"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "compfight.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "incogna.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "l.instagram.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "osdzc.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "sunblog.asia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "yummly.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 13,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "countries": {
+    "dimensionHeaders": [
+     {
+      "name": "country"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Czechia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "98"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Germany"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "14"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United States"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "China"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United Kingdom"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "France"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Singapore"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Sweden"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "(not set)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Argentina"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Brazil"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Canada"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Vietnam"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 13,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "devices": {
+    "dimensionHeaders": [
+     {
+      "name": "deviceCategory"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "desktop"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "88"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "mobile"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "54"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "tablet"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       }
+      ]
+     }
+    ],
+    "rowCount": 3,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "daily": {
+    "dimensionHeaders": [
+     {
+      "name": "date"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "20260626"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260627"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260701"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260703"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260713"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260715"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260716"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260720"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260726"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260728"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260729"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260801"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260802"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260804"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260805"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260806"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260808"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260812"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260815"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260820"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260821"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260822"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260824"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260825"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260827"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260828"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "15"
+       },
+       {
+        "value": "15"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260831"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260901"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260902"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260903"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "8"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260904"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260906"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260907"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260908"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       },
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260909"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260910"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260911"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260912"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260914"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260915"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260918"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260919"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260920"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260921"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "10"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260922"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260923"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     }
+    ],
+    "rowCount": 46,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   }
+  },
+  "3die.fr": {
+   "totals": {
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "newUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     },
+     {
+      "name": "averageSessionDuration",
+      "type": "TYPE_SECONDS"
+     },
+     {
+      "name": "bounceRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "metricValues": [
+       {
+        "value": "130"
+       },
+       {
+        "value": "74"
+       },
+       {
+        "value": "72"
+       },
+       {
+        "value": "265"
+       },
+       {
+        "value": "0.45384615384615384"
+       },
+       {
+        "value": "146.18123677692307"
+       },
+       {
+        "value": "0.5461538461538461"
+       }
+      ]
+     }
+    ],
+    "rowCount": 1,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "pages": {
+    "dimensionHeaders": [
+     {
+      "name": "pagePath"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "screenPageViews",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "engagementRate",
+      "type": "TYPE_FLOAT"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "124"
+       },
+       {
+        "value": "55"
+       },
+       {
+        "value": "0.51764705882352946"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/blackjach/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "38"
+       },
+       {
+        "value": "19"
+       },
+       {
+        "value": "0.375"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/start.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "16"
+       },
+       {
+        "value": "3"
+       },
+       {
+        "value": "0.9"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/crow_archduke.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "13"
+       },
+       {
+        "value": "8"
+       },
+       {
+        "value": "0.75"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/shop.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "13"
+       },
+       {
+        "value": "7"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/info.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "12"
+       },
+       {
+        "value": "8"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/jachym.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "11"
+       },
+       {
+        "value": "8"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/moises.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "6"
+       },
+       {
+        "value": "0.8"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/pi.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "8"
+       },
+       {
+        "value": "5"
+       },
+       {
+        "value": "0.5714285714285714"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/portfolio.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/web.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fractals.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/game.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "0.5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/sudoku.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/darkwood.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fluid.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/fr/"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/poster.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/tboi2.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/tomasek.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/umprum.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/webgl.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "/websites.html"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 23,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "channels": {
+    "dimensionHeaders": [
+     {
+      "name": "sessionDefaultChannelGroup"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Direct"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "70"
+       },
+       {
+        "value": "51"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Referral"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "46"
+       },
+       {
+        "value": "15"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Organic Social"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "13"
+       },
+       {
+        "value": "12"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Unassigned"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 4,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "sources": {
+    "dimensionHeaders": [
+     {
+      "name": "sessionSource"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "(direct)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "70"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "iori.me"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "43"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "l.instagram.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "m.facebook.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "ig"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "(not set)"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "blog2026.online"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "instagram.com"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "readlife.net"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "sunblog.asia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 11,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "countries": {
+    "dimensionHeaders": [
+     {
+      "name": "country"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "Czechia"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "95"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United States"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "14"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "United Kingdom"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Germany"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "China"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "France"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Canada"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Montenegro"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Sweden"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "Türkiye"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 10,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "devices": {
+    "dimensionHeaders": [
+     {
+      "name": "deviceCategory"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "desktop"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "84"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "mobile"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "48"
+       }
+      ]
+     }
+    ],
+    "rowCount": 2,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   },
+   "daily": {
+    "dimensionHeaders": [
+     {
+      "name": "date"
+     }
+    ],
+    "metricHeaders": [
+     {
+      "name": "sessions",
+      "type": "TYPE_INTEGER"
+     },
+     {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+     }
+    ],
+    "rows": [
+     {
+      "dimensionValues": [
+       {
+        "value": "20260627"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260701"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260703"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260706"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260708"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260712"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260718"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260722"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260725"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260729"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260730"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260801"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260802"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260806"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260807"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260811"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260812"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260813"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260814"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260815"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260818"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260820"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260821"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260822"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260823"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260824"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260825"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260827"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260828"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260831"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260901"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260902"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "9"
+       },
+       {
+        "value": "7"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260903"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "14"
+       },
+       {
+        "value": "13"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260904"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260908"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260910"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260911"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260912"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260913"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "3"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260914"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "5"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260915"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260918"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "1"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260919"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "3"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260920"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "6"
+       },
+       {
+        "value": "4"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260921"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "4"
+       },
+       {
+        "value": "2"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260922"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     },
+     {
+      "dimensionValues": [
+       {
+        "value": "20260923"
+       }
+      ],
+      "metricValues": [
+       {
+        "value": "2"
+       },
+       {
+        "value": "1"
+       }
+      ]
+     }
+    ],
+    "rowCount": 47,
+    "metadata": {
+     "currencyCode": "CZK",
+     "timeZone": "Europe/Prague"
+    },
+    "kind": "analyticsData#runReport"
+   }
+  }
+ },
+ "gsc": {
+  "sc-domain:iori.me": {
+   "totals": {
+    "rows": [
+     {
+      "clicks": 1,
+      "impressions": 46,
+      "ctr": 0.021739130434782608,
+      "position": 42.04347826086956
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "queries": {
+    "rows": [
+     {
+      "keys": [
+       "cracking simulator"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "flame simulation"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 66
+     },
+     {
+      "keys": [
+       "physarum simulation"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 55.5
+     },
+     {
+      "keys": [
+       "physarum: slime mold simulator"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 62
+     },
+     {
+      "keys": [
+       "volume of a tesseract"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "pages": {
+    "rows": [
+     {
+      "keys": [
+       "https://iori.me/portfolio.html"
+      ],
+      "clicks": 1,
+      "impressions": 3,
+      "ctr": 0.3333333333333333,
+      "position": 4.666666666666666
+     },
+     {
+      "keys": [
+       "https://iori.me/"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "https://iori.me/4cube.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+     },
+     {
+      "keys": [
+       "https://iori.me/4cube_volume.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "https://iori.me/aquarium.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "https://iori.me/bismuth-fluid.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "https://iori.me/cracks.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 22.5
+     },
+     {
+      "keys": [
+       "https://iori.me/disphere-inverse.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "https://iori.me/disphere.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 38.75
+     },
+     {
+      "keys": [
+       "https://iori.me/dither-types.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "https://iori.me/flame-simulation.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "https://iori.me/flame-strains.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+     },
+     {
+      "keys": [
+       "https://iori.me/flame.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 71.33333333333333
+     },
+     {
+      "keys": [
+       "https://iori.me/fluid.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://iori.me/fractal-dimension.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "https://iori.me/fractals.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 76
+     },
+     {
+      "keys": [
+       "https://iori.me/index.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "https://iori.me/info.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "https://iori.me/lambda_cognition.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "https://iori.me/meta-iris.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "https://iori.me/procedural-flame.html"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 39.6
+     },
+     {
+      "keys": [
+       "https://iori.me/slime-mold.html"
+      ],
+      "clicks": 0,
+      "impressions": 11,
+      "ctr": 0,
+      "position": 55.54545454545455
+     },
+     {
+      "keys": [
+       "https://iori.me/start.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://iori.me/three-body.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 64.5
+     },
+     {
+      "keys": [
+       "https://iori.me/universe.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     }
+    ],
+    "responseAggregationType": "byPage"
+   },
+   "countries": {
+    "rows": [
+     {
+      "keys": [
+       "arg"
+      ],
+      "clicks": 1,
+      "impressions": 2,
+      "ctr": 0.5,
+      "position": 6
+     },
+     {
+      "keys": [
+       "bra"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "cze"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "dza"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 68
+     },
+     {
+      "keys": [
+       "gbr"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "idn"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 71
+     },
+     {
+      "keys": [
+       "ind"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 70
+     },
+     {
+      "keys": [
+       "ita"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 21.5
+     },
+     {
+      "keys": [
+       "mar"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 74.5
+     },
+     {
+      "keys": [
+       "mex"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 36.5
+     },
+     {
+      "keys": [
+       "mys"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+     },
+     {
+      "keys": [
+       "phl"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 40
+     },
+     {
+      "keys": [
+       "prt"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "rus"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "tha"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 64
+     },
+     {
+      "keys": [
+       "tur"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 35.5
+     },
+     {
+      "keys": [
+       "ukr"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 63.5
+     },
+     {
+      "keys": [
+       "usa"
+      ],
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 29
+     },
+     {
+      "keys": [
+       "vnm"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 43.25
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "devices": {
+    "rows": [
+     {
+      "keys": [
+       "DESKTOP"
+      ],
+      "clicks": 1,
+      "impressions": 39,
+      "ctr": 0.02564102564102564,
+      "position": 47.666666666666664
+     },
+     {
+      "keys": [
+       "MOBILE"
+      ],
+      "clicks": 0,
+      "impressions": 7,
+      "ctr": 0,
+      "position": 10.714285714285714
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "daily": {
+    "rows": [
+     {
+      "keys": [
+       "2026-06-26"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-27"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-28"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-29"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "2026-06-30"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-01"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-02"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-03"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-07-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-07"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-08"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-09"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-10"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-11"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-12"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-22"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-23"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-24"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-25"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-26"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-27"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-07-28"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-07-29"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-30"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-31"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-01"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-02"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-03"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-07"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-08"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-09"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-10"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 38.5
+     },
+     {
+      "keys": [
+       "2026-08-11"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-12"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-15"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 74
+     },
+     {
+      "keys": [
+       "2026-08-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-19"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 77
+     },
+     {
+      "keys": [
+       "2026-08-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-21"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 36.5
+     },
+     {
+      "keys": [
+       "2026-08-22"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 53
+     },
+     {
+      "keys": [
+       "2026-08-23"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+     },
+     {
+      "keys": [
+       "2026-08-24"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 68.33333333333333
+     },
+     {
+      "keys": [
+       "2026-08-25"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 70.75
+     },
+     {
+      "keys": [
+       "2026-08-26"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 65
+     },
+     {
+      "keys": [
+       "2026-08-27"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 71
+     },
+     {
+      "keys": [
+       "2026-08-28"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-29"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 48.666666666666664
+     },
+     {
+      "keys": [
+       "2026-08-30"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 53.25
+     },
+     {
+      "keys": [
+       "2026-08-31"
+      ],
+      "clicks": 1,
+      "impressions": 7,
+      "ctr": 0.14285714285714285,
+      "position": 42
+     },
+     {
+      "keys": [
+       "2026-09-01"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-02"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-03"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 55
+     },
+     {
+      "keys": [
+       "2026-09-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-07"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "2026-09-08"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-09-09"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-10"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 27
+     },
+     {
+      "keys": [
+       "2026-09-11"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-12"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-09-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-14"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "2026-09-15"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "2026-09-16"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-17"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-09-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-20"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-09-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-22"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-23"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "sitemaps": {
+    "sitemap": [
+     {
+      "path": "https://iori.me/sitemap.xml",
+      "lastSubmitted": "2026-09-14T22:51:56.841Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-09-24T17:50:58.177Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "64",
+        "indexed": "0"
+       }
+      ]
+     },
+     {
+      "path": "https://iori.me/sitemap-iori.xml",
+      "lastSubmitted": "2026-09-14T22:51:56.535Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-09-23T04:55:17.143Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "64",
+        "indexed": "0"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "sc-domain:3die.fr": {
+   "totals": {
+    "rows": [
+     {
+      "clicks": 0,
+      "impressions": 203,
+      "ctr": 0,
+      "position": 22.36945812807882
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "queries": {
+    "rows": [
+     {
+      "keys": [
+       "3 die"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "3 dinge"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 87
+     },
+     {
+      "keys": [
+       "3d diel"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+     },
+     {
+      "keys": [
+       "3ddie"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+     },
+     {
+      "keys": [
+       "3die"
+      ],
+      "clicks": 0,
+      "impressions": 48,
+      "ctr": 0,
+      "position": 6.583333333333333
+     },
+     {
+      "keys": [
+       "3ideco"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "agence die drei"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 71
+     },
+     {
+      "keys": [
+       "did 3d"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+     },
+     {
+      "keys": [
+       "did3d"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 51
+     },
+     {
+      "keys": [
+       "die v3"
+      ],
+      "clicks": 0,
+      "impressions": 20,
+      "ctr": 0,
+      "position": 49.55
+     },
+     {
+      "keys": [
+       "fractal processing"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 61
+     },
+     {
+      "keys": [
+       "petrosian fractal dimension"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 34
+     },
+     {
+      "keys": [
+       "pi trainer"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 19
+     },
+     {
+      "keys": [
+       "thirdie"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 31
+     },
+     {
+      "keys": [
+       "three or die"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 66
+     },
+     {
+      "keys": [
+       "tri d"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 12
+     },
+     {
+      "keys": [
+       "zs universum"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+     },
+     {
+      "keys": [
+       "zš univerzum"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 34.5
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "pages": {
+    "rows": [
+     {
+      "keys": [
+       "https://3die.fr/"
+      ],
+      "clicks": 0,
+      "impressions": 128,
+      "ctr": 0,
+      "position": 16.546875
+     },
+     {
+      "keys": [
+       "https://3die.fr/aquarium.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 16.333333333333336
+     },
+     {
+      "keys": [
+       "https://3die.fr/bismuth-fluid.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "https://3die.fr/burger.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "https://3die.fr/clip.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://3die.fr/crow_archduke.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "https://3die.fr/dither-types.html"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 80.2
+     },
+     {
+      "keys": [
+       "https://3die.fr/fractal-dimension.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 25.666666666666668
+     },
+     {
+      "keys": [
+       "https://3die.fr/fractals.html"
+      ],
+      "clicks": 0,
+      "impressions": 40,
+      "ctr": 0,
+      "position": 24.175
+     },
+     {
+      "keys": [
+       "https://3die.fr/info.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 5.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/lambda_cognition.html"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 7.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/lili.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "https://3die.fr/meta-iris.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "https://3die.fr/metyou.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 6.333333333333333
+     },
+     {
+      "keys": [
+       "https://3die.fr/moises.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "https://3die.fr/orbitals.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+     },
+     {
+      "keys": [
+       "https://3die.fr/pi.html"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 11
+     },
+     {
+      "keys": [
+       "https://3die.fr/portfolio.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 5.666666666666667
+     },
+     {
+      "keys": [
+       "https://3die.fr/shop.html"
+      ],
+      "clicks": 0,
+      "impressions": 14,
+      "ctr": 0,
+      "position": 31.357142857142858
+     },
+     {
+      "keys": [
+       "https://3die.fr/start.html"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 27.333333333333332
+     },
+     {
+      "keys": [
+       "https://3die.fr/two-body.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 54.5
+     },
+     {
+      "keys": [
+       "https://3die.fr/universe.html"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "https://3die.fr/univerzum.html"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 31.25
+     }
+    ],
+    "responseAggregationType": "byPage"
+   },
+   "countries": {
+    "rows": [
+     {
+      "keys": [
+       "arg"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "bel"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "bgd"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 76.5
+     },
+     {
+      "keys": [
+       "bhr"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "bra"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 16
+     },
+     {
+      "keys": [
+       "can"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "cze"
+      ],
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 17
+     },
+     {
+      "keys": [
+       "deu"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 18.666666666666668
+     },
+     {
+      "keys": [
+       "dza"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 25.5
+     },
+     {
+      "keys": [
+       "egy"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "fra"
+      ],
+      "clicks": 0,
+      "impressions": 20,
+      "ctr": 0,
+      "position": 21.65
+     },
+     {
+      "keys": [
+       "gbr"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 14.833333333333334
+     },
+     {
+      "keys": [
+       "gha"
+      ],
+      "clicks": 0,
+      "impressions": 10,
+      "ctr": 0,
+      "position": 7.1
+     },
+     {
+      "keys": [
+       "idn"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 16.5
+     },
+     {
+      "keys": [
+       "ind"
+      ],
+      "clicks": 0,
+      "impressions": 6,
+      "ctr": 0,
+      "position": 44.333333333333336
+     },
+     {
+      "keys": [
+       "irl"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 9
+     },
+     {
+      "keys": [
+       "ita"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 17.666666666666668
+     },
+     {
+      "keys": [
+       "jor"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 36
+     },
+     {
+      "keys": [
+       "jpn"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "ken"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.666666666666667
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "devices": {
+    "rows": [
+     {
+      "keys": [
+       "DESKTOP"
+      ],
+      "clicks": 0,
+      "impressions": 160,
+      "ctr": 0,
+      "position": 26.71875
+     },
+     {
+      "keys": [
+       "MOBILE"
+      ],
+      "clicks": 0,
+      "impressions": 41,
+      "ctr": 0,
+      "position": 6.121951219512195
+     },
+     {
+      "keys": [
+       "TABLET"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 7.5
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "daily": {
+    "rows": [
+     {
+      "keys": [
+       "2026-06-26"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-27"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-06-28"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "2026-06-29"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 36
+     },
+     {
+      "keys": [
+       "2026-06-30"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-07-01"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "2026-07-02"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 3
+     },
+     {
+      "keys": [
+       "2026-07-03"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-05"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-06"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.333333333333333
+     },
+     {
+      "keys": [
+       "2026-07-07"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.333333333333333
+     },
+     {
+      "keys": [
+       "2026-07-08"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 11.5
+     },
+     {
+      "keys": [
+       "2026-07-09"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 58.5
+     },
+     {
+      "keys": [
+       "2026-07-10"
+      ],
+      "clicks": 0,
+      "impressions": 14,
+      "ctr": 0,
+      "position": 30.714285714285715
+     },
+     {
+      "keys": [
+       "2026-07-11"
+      ],
+      "clicks": 0,
+      "impressions": 22,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-07-12"
+      ],
+      "clicks": 0,
+      "impressions": 9,
+      "ctr": 0,
+      "position": 15.777777777777779
+     },
+     {
+      "keys": [
+       "2026-07-13"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-07-14"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 28.333333333333332
+     },
+     {
+      "keys": [
+       "2026-07-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-16"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-07-17"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 30.5
+     },
+     {
+      "keys": [
+       "2026-07-18"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 23.333333333333332
+     },
+     {
+      "keys": [
+       "2026-07-19"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 35.333333333333336
+     },
+     {
+      "keys": [
+       "2026-07-20"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 41.333333333333336
+     },
+     {
+      "keys": [
+       "2026-07-21"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-07-22"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "2026-07-23"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "2026-07-24"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 28
+     },
+     {
+      "keys": [
+       "2026-07-25"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 42
+     },
+     {
+      "keys": [
+       "2026-07-26"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 48
+     },
+     {
+      "keys": [
+       "2026-07-27"
+      ],
+      "clicks": 0,
+      "impressions": 12,
+      "ctr": 0,
+      "position": 26.5
+     },
+     {
+      "keys": [
+       "2026-07-28"
+      ],
+      "clicks": 0,
+      "impressions": 5,
+      "ctr": 0,
+      "position": 18.4
+     },
+     {
+      "keys": [
+       "2026-07-29"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 35.75
+     },
+     {
+      "keys": [
+       "2026-07-30"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 27
+     },
+     {
+      "keys": [
+       "2026-07-31"
+      ],
+      "clicks": 0,
+      "impressions": 8,
+      "ctr": 0,
+      "position": 25.375
+     },
+     {
+      "keys": [
+       "2026-08-01"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7.666666666666667
+     },
+     {
+      "keys": [
+       "2026-08-02"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 43.5
+     },
+     {
+      "keys": [
+       "2026-08-03"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 26.5
+     },
+     {
+      "keys": [
+       "2026-08-04"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-08-05"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 46
+     },
+     {
+      "keys": [
+       "2026-08-06"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-07"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-08"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-09"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 10
+     },
+     {
+      "keys": [
+       "2026-08-10"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 50
+     },
+     {
+      "keys": [
+       "2026-08-11"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 35
+     },
+     {
+      "keys": [
+       "2026-08-12"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 36
+     },
+     {
+      "keys": [
+       "2026-08-13"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 46.666666666666664
+     },
+     {
+      "keys": [
+       "2026-08-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-15"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-16"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 24
+     },
+     {
+      "keys": [
+       "2026-08-17"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-08-18"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-20"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-08-21"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 50.5
+     },
+     {
+      "keys": [
+       "2026-08-22"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 32.66666666666667
+     },
+     {
+      "keys": [
+       "2026-08-23"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 41
+     },
+     {
+      "keys": [
+       "2026-08-24"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "2026-08-25"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 87
+     },
+     {
+      "keys": [
+       "2026-08-26"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 49.5
+     },
+     {
+      "keys": [
+       "2026-08-27"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 2
+     },
+     {
+      "keys": [
+       "2026-08-28"
+      ],
+      "clicks": 0,
+      "impressions": 10,
+      "ctr": 0,
+      "position": 16.4
+     },
+     {
+      "keys": [
+       "2026-08-29"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 54.666666666666664
+     },
+     {
+      "keys": [
+       "2026-08-30"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 30
+     },
+     {
+      "keys": [
+       "2026-08-31"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 18
+     },
+     {
+      "keys": [
+       "2026-09-01"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-09-02"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 25
+     },
+     {
+      "keys": [
+       "2026-09-03"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-09-04"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-05"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 67
+     },
+     {
+      "keys": [
+       "2026-09-06"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 6
+     },
+     {
+      "keys": [
+       "2026-09-07"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 45
+     },
+     {
+      "keys": [
+       "2026-09-08"
+      ],
+      "clicks": 0,
+      "impressions": 4,
+      "ctr": 0,
+      "position": 6.5
+     },
+     {
+      "keys": [
+       "2026-09-09"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-09-10"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 8
+     },
+     {
+      "keys": [
+       "2026-09-11"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 49
+     },
+     {
+      "keys": [
+       "2026-09-12"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 4
+     },
+     {
+      "keys": [
+       "2026-09-13"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-14"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-15"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 79
+     },
+     {
+      "keys": [
+       "2026-09-16"
+      ],
+      "clicks": 0,
+      "impressions": 2,
+      "ctr": 0,
+      "position": 7.5
+     },
+     {
+      "keys": [
+       "2026-09-17"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-18"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 1
+     },
+     {
+      "keys": [
+       "2026-09-19"
+      ],
+      "clicks": 0,
+      "impressions": 0,
+      "ctr": 0,
+      "position": 0
+     },
+     {
+      "keys": [
+       "2026-09-20"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "2026-09-21"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     },
+     {
+      "keys": [
+       "2026-09-22"
+      ],
+      "clicks": 0,
+      "impressions": 3,
+      "ctr": 0,
+      "position": 7
+     },
+     {
+      "keys": [
+       "2026-09-23"
+      ],
+      "clicks": 0,
+      "impressions": 1,
+      "ctr": 0,
+      "position": 5
+     }
+    ],
+    "responseAggregationType": "byProperty"
+   },
+   "sitemaps": {
+    "sitemap": [
+     {
+      "path": "https://3die.fr/sitemap.xml",
+      "lastSubmitted": "2026-09-14T22:51:55.892Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-09-20T20:02:46.053Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "21",
+        "indexed": "0"
+       }
+      ]
+     },
+     {
+      "path": "https://3die.fr/sitemap-3die.xml",
+      "lastSubmitted": "2026-09-14T22:51:55.631Z",
+      "isPending": false,
+      "isSitemapsIndex": false,
+      "type": "sitemap",
+      "lastDownloaded": "2026-09-25T08:25:55.853Z",
+      "warnings": "0",
+      "errors": "0",
+      "contents": [
+       {
+        "type": "web",
+        "submitted": "21",
+        "indexed": "0"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ "ga4_used": {
+  "iori.me": "properties/530756051",
+  "3die.fr": "properties/530756051"
+ },
+ "ga4_shared_property": true,
+ "ga4_hosts": {
+  "dimensionHeaders": [
+   {
+    "name": "hostName"
+   }
+  ],
+  "metricHeaders": [
+   {
+    "name": "sessions",
+    "type": "TYPE_INTEGER"
+   },
+   {
+    "name": "totalUsers",
+    "type": "TYPE_INTEGER"
+   },
+   {
+    "name": "screenPageViews",
+    "type": "TYPE_INTEGER"
+   }
+  ],
+  "rows": [
+   {
+    "dimensionValues": [
+     {
+      "value": "iori.me"
+     }
+    ],
+    "metricValues": [
+     {
+      "value": "140"
+     },
+     {
+      "value": "78"
+     },
+     {
+      "value": "483"
+     }
+    ]
+   },
+   {
+    "dimensionValues": [
+     {
+      "value": "3die.fr"
+     }
+    ],
+    "metricValues": [
+     {
+      "value": "130"
+     },
+     {
+      "value": "74"
+     },
+     {
+      "value": "265"
+     }
+    ]
+   },
+   {
+    "dimensionValues": [
+     {
+      "value": "localhost"
+     }
+    ],
+    "metricValues": [
+     {
+      "value": "41"
+     },
+     {
+      "value": "7"
+     },
+     {
+      "value": "339"
+     }
+    ]
+   }
+  ],
+  "rowCount": 3,
+  "metadata": {
+   "currencyCode": "CZK",
+   "timeZone": "Europe/Prague"
+  },
+  "kind": "analyticsData#runReport"
+ }
+}

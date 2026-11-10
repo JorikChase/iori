@@ -98,7 +98,11 @@ Instagram: pick photos → caption → publish).
 
 ---
 
-## 6. Fix soft-404s (SEO polish)
+## 6. Fix soft-404s (SEO polish) — DONE
+
+**Checked 2026-11-06:** both vhosts already serve a real 404 status with `404.html` through
+`handle_errors` in `server_setup.sh` (commit f4d4a17); a missing URL on iori.me and 3die.fr returns 404.
+The text below is the original note.
 
 **Status:** iori.me's SPA fallback (`try_files {path} {path}/ /web.html`)
 returns 200 + web.html for nonexistent URLs — search engines see soft-404s.
@@ -149,3 +153,39 @@ statistics, exploring regions larger than the paper can hold.
 3. Move the generators out of `papers/fractals/` into `nature/` as modules the paper imports back
    (the paper keeps its panels; the engine owns the logic).
 4. Register `nature/index.html` in `pages.meta.json`, `python3 site.py all`, commit, deploy.
+
+---
+
+## 9. 4D Gaussian splatting (to discuss)
+
+**Status (2026-10-13):** added by iori as a topic to discuss, not yet scoped. Nothing built.
+
+**What it is:** Gaussian splatting extended in time, so a captured scene can move: people, water, foliage in
+wind, a performance. The splats either carry a time dimension or deform over time from a canonical set.
+Starting points to read and verify before the discussion:
+- Wu et al., "4D Gaussian Splatting for Real-Time Dynamic Scene Rendering", CVPR 2024 (canonical splats +
+  a deformation field).
+- Yang et al., "Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D Gaussian
+  Splatting", ICLR 2024 (native 4D Gaussians sliced in time).
+- Luiten et al., "Dynamic 3D Gaussians: Tracking by Persistent Dynamic View Synthesis", 3DV 2024.
+- Li et al., "Spacetime Gaussian Feature Splatting", CVPR 2024.
+- Browser playback and compression of dynamic splats (streaming formats, per-frame deltas): survey needed.
+
+**How it connects to existing work:**
+- Splat app remake (#1) and the splat engine research (own WebGPU core + WebGL2 twin, SPZ in git, Luma
+  captures): a 4D viewer would extend that engine, not replace it.
+- Training: the Windows boxes with RTX 4090/3090 (Postshot, then gsplat/nerfstudio) would also train 4D.
+- Nature engine (#8) and paper 0: procedural growth and erosion could be baked into 4D splats for playback,
+  or 4D captures of real plants in wind could serve as ground truth for the procedural ones.
+- Music / 3DIE: captured performances as moving splat scenes.
+
+**Questions for the discussion:**
+1. What should move: people and performances, nature (plants, water), or the procedural engines' output?
+2. Capture: how many cameras or phones in sync, indoor or outdoor, how long a clip?
+3. Where it plays: iori.me pages, the splat app, a 3DIE release? Phone budget (memory, decode, sort)?
+4. Build or adopt: own 4D extension of the planned WebGPU splat core, or an existing viewer?
+5. Order relative to #1 (splat app remake) and #8 (nature engine).
+
+**Steps when resuming:** run a research pass on the questions above (current methods, browser playback,
+compression, capture rigs), bring a short options brief to the discussion, then scope a first capture and a
+first in-browser playback test.

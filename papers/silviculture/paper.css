@@ -1,0 +1,58 @@
+/* Synthetic Silviculture (paper 0.3): paper 0's look (papers/fractals/paper.css) plus its own figures. */
+#fig-thinning canvas { width: 100%; aspect-ratio: 2 / 1; display: block; touch-action: pan-y; }
+@media (max-width: 640px) {
+  #fig-thinning canvas { aspect-ratio: 1 / 1.75; }
+  table.data { font-size: 0.76rem; }
+  table.data th, table.data td { padding: 0.35rem 0.25rem; }
+  table.data th { white-space: normal; }
+}
+/* planned chapters: a quieter block until they are written */
+section.planned { color: var(--muted); }
+section.planned h2 { color: var(--ink-2, var(--ink)); }
+section.planned ol { padding-left: 1.2rem; }
+section.planned li { margin: 0.3rem 0; }
+
+/* chapter 2: the lineage figures (lineage.js), one renderer drawn into each figure's own canvas */
+figure.lineage .lin-view { position: relative; width: 100%; aspect-ratio: 16 / 10; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; touch-action: pan-y; cursor: grab; background: var(--paper); }
+figure.lineage .lin-view canvas { display: block; width: 100%; height: 100%; border: 0; border-radius: 0; }
+figure.lineage .lin-view:active { cursor: grabbing; }
+.lin-controls label .value { font: 0.78rem var(--mono); color: var(--muted); min-width: 4.5em; display: inline-block; }
+.lin-controls .lin-time input { width: 11rem; }
+.lin-controls input[type="range"] { width: 7rem; }
+.lin-metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.2rem 0.6rem; margin: 0.6rem auto 0.4rem; max-width: var(--wide); }
+.lin-metrics div { text-align: center; }
+.lin-metrics dt { font: 0.68rem/1.3 var(--sans); color: var(--muted); }
+.lin-metrics dd { margin: 0; font: 0.9rem/1.4 var(--mono); color: var(--ink); }
+#fig-eco .lin-metrics { grid-template-columns: repeat(4, 1fr); }
+ol.planned-list { color: var(--muted); }
+@media (max-width: 640px) {
+  figure.lineage .lin-view { aspect-ratio: 4 / 5; }
+  .lin-metrics, #fig-eco .lin-metrics { grid-template-columns: repeat(3, 1fr); }
+  .lin-controls .lin-time input { width: 8rem; }
+}
+
+/* §2.6–2.8: the stand from above beside its chart (standfig.js) */
+figure.standfig canvas { width: 100%; aspect-ratio: 2 / 1; display: block; touch-action: pan-y; }
+figure.standfig[data-mode="fire"] canvas { cursor: crosshair; }
+@media (max-width: 640px) { figure.standfig canvas { aspect-ratio: 1 / 1.6; } }
+/* §2.10: the token stream as the model writes it */
+.lin-tokens { font: 0.72rem/1.5 var(--mono); color: var(--muted); max-width: var(--wide); margin: 0.4rem auto; height: 3em; overflow: hidden; word-break: break-word; text-align: center; }
+.lin-tokens b { color: var(--walk); font-weight: 600; }
+/* chapter 3: the ground from above beside its chart (groundfig.js) */
+figure.groundfig canvas { width: 100%; aspect-ratio: 2 / 1; display: block; touch-action: pan-y; }
+figure.groundfig[data-mode="score"] canvas { aspect-ratio: 4 / 1.08; }
+@media (max-width: 640px) { figure.groundfig canvas { aspect-ratio: 1 / 1.6; } figure.groundfig[data-mode="score"] canvas { aspect-ratio: 1 / 1.1; } }
+.ground-table { max-width: var(--wide); margin: 0.6rem auto; overflow-x: auto; }
+.ground-table table { width: 100%; border-collapse: collapse; font: 0.78rem/1.35 var(--mono); }
+.ground-table th, .ground-table td { padding: 0.28rem 0.35rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+.ground-table thead th { font-weight: 600; color: var(--muted); white-space: normal; vertical-align: bottom; }
+.ground-table tbody th { text-align: left; font-weight: 400; white-space: normal; }
+.ground-table td.in { color: var(--data); font-weight: 600; }
+.ground-table td.near { color: var(--ink); }
+.ground-table td.out { color: var(--walk); }
+.ground-table td.earth { color: var(--muted); }
+/* chapter 5: the ranking */
+.table-wrap { max-width: var(--text); margin: 0 auto; overflow-x: auto; }
+table.adopt { font-size: 0.84rem; }
+table.adopt td:first-child, table.adopt td:nth-child(3), table.adopt td:last-child { white-space: nowrap; color: var(--muted); }
+@media (max-width: 640px) { table.adopt { font-size: 0.76rem; } table.adopt th, table.adopt td { padding: 0.35rem 0.25rem; } }

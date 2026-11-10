@@ -97,8 +97,8 @@
         <script type="importmap">
             {
                 "imports": {
-                    "three": "https://threejs.org/build/three.module.js",
-                    "three/addons/": "https://threejs.org/examples/jsm/"
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+                    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
                 }
             }
         </script>
@@ -306,6 +306,7 @@
                 camera.updateProjectionMatrix();
 
                 renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight); // else black after a rotate or a hidden load
             }
 
             function throwBall() {
@@ -594,8 +595,7 @@
                     teleportPlayerIfOob();
                 }
 
-                renderer.render(scene, camera);
-
+                // The pixelated pass renders the scene itself: one render per frame, not two.
                 requestAnimationFrame(animate);
 
                 composer.render();

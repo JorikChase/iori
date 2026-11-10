@@ -11,7 +11,8 @@ module.exports = async (lib) => {
     await page.context().close(); const xs = rows.map(r => r.x).filter(Boolean), mean = xs.reduce((a, b) => a + b, 0) / (xs.length || 1); return { st, bend: +Math.max(...xs.map(x => Math.abs(x - mean))).toFixed(2), w: +(rows.reduce((a, r) => a + r.w, 0) / rows.length).toFixed(2), peak: +Math.max(...rows.map(r => r.peak)).toFixed(2), color }; };
   const ok = await measure('sine440.wav', 'in-tune'), off = await measure('dsharp3_plus20c.wav', 'off-pitch'), si = await measure(`../out/${name}/silence.wav`, 'silence');
   info.ok = ok; info.off = off; info.si = si;
-  checks.T4_straightInTune = lib.near(ok.st.cents, 0, 2) && ok.bend < 2; checks.T4_offPitchStrips = lib.near(off.st.cents, 20, 3) && off.w > ok.w * 5 && off.color > 40;
+  // in tune needs a real 440 Hz signal: a mic that never opened reads silence, which is also straight
+  checks.T4_straightInTune = lib.near(ok.st.f, 440, 1) && ok.st.level > .1 && lib.near(ok.st.cents, 0, 2) && ok.bend < 2; checks.T4_offPitchStrips = lib.near(off.st.cents, 20, 3) && off.w > ok.w * 5 && off.color > 40;
   checks.T5_thin = si.st.mic && si.st.level === 0 && si.w < .6 && si.w < off.w * .05; info.t5 = 'peak ' + si.peak + ': the tool caps at DPR 2 and the line sits on a pixel boundary, 0.32 px over two pixels, so full ink cannot be told from dimmed here';
   await br.close();
   return lib.result(dir, { pass: Object.values(checks).every(Boolean), checks, info });

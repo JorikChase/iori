@@ -773,8 +773,12 @@ function drawPaint() {
         const posLoc = gl.getAttribLocation(p, 'position'); if (posLoc >= 0) { gl.enableVertexAttribArray(posLoc); gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0); }
     }
 }
+// study/16 prune: while the layer model owns the picture (tissue on, materials carry the knobs), nothing it draws reads the
+// procedural atlas, so the bake is skipped and `atlas.dirty` stays raised for when the procedural eye is drawn again.
+const tissueOwnsAtlas = () => !!(window.IrisTissue && window.IrisTissue.ownsAtlas && window.IrisTissue.ownsAtlas());
 function bakeAtlas() {
     applySlidersToGenome();
+    if (tissueOwnsAtlas()) { atlas.skipped = (atlas.skipped || 0) + 1; return; }
     const g = genome, G = g.globals;
     uploadObjects(g); uploadFields(g); buildBundleGeometry(g); drawBundles();
     // E.strandModelOverride (0 | 1 | null) forces the model whatever the genome says — for A/B benches, where every case
@@ -1150,7 +1154,8 @@ function render(time, forceCapture = false) {
     }
     if (state.crypt !== target.crypt) { state.crypt = target.crypt; atlas.dirty = true; }
     if (state.seed !== target.seed && !state.fitting) { state.seed = target.seed; reseedProcedural(Math.round(state.seed)); }
-    if (atlas.dirty) { bakeAtlas(); isMoving = true; }
+    if (atlas.dirty && !tissueOwnsAtlas()) { bakeAtlas(); isMoving = true; }
+    if (window.IrisTissue && window.IrisTissue.knobTick && window.IrisTissue.knobTick()) isMoving = true;   // K2.3: the material knobs re-bake the layer model
     if (Math.abs(targetPupil - state.pupil) > 0.0005) { state.pupil = lerp(state.pupil, targetPupil, isPointerDown ? 0.15 : 0.04); isMoving = true; }
     else state.pupil = targetPupil;
     if (!state.paused) document.getElementById('val-pupil').innerText = state.pupil.toFixed(2) + 'mm';

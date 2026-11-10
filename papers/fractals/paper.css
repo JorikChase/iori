@@ -56,6 +56,8 @@ section > * { max-width: var(--text); margin-left: auto; margin-right: auto; }
 /* ---- type ---- */
 h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.2; color: var(--ink); }
 h1 { font-size: clamp(2rem, 4.2vw, 2.9rem); margin: 0 auto 1.2rem; letter-spacing: -0.01em; }
+/* the site menu's toggle sits 50–80 px from the right edge: keep the title clear of it where the column reaches it */
+h1 { padding-right: max(0px, calc(96px - (100vw - 40rem) / 2)); }
 h2 { font-size: 1.75rem; margin: 5rem auto 0.5rem; }
 h3 { font-size: 1.22rem; margin: 2.8rem auto 0.6rem; }
 p, li { margin-top: 0; margin-bottom: 1.05rem; }

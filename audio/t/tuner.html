@@ -215,7 +215,7 @@ function frame(now){
  var locked=S.lockT>.35;S.green=lerp(S.green,locked?1:0,1-Math.pow(.01,dt));if(S.green<.002)S.green=0;
  var off=[],amp=[],ke=[],ph=[],sg=S.cS<0?-1:1,fan=sg*Math.pow(Math.min(ac,50)/50,.7)*125*S.pres*(locked?0:1);
  for(var k=0;k<7;k++){S.ph[k]+=dt*(S.cS/50)*(k+1)*6*S.pres;
-  amp.push(10*S.level*S.pres);ke.push(lerp(1,k+1,S.disp));ph.push(lerp(S.ph[0],S.ph[k],S.disp));}
+  amp.push(10*S.level*S.pres*(1-S.green));ke.push(lerp(1,k+1,S.disp));ph.push(lerp(S.ph[0],S.ph[k],S.disp));}
  if(now-S.lastTxt>120){S.lastTxt=now;
   if(S.pres>.5&&S.note>=0){var nm=NOTES[((S.note%12)+12)%12],oc=Math.floor(S.note/12)-1,c=Math.round(S.cS);
    setPanel(0,nm.charAt(0));setSharp(nm.length>1);setPanel(1,String(Math.max(0,Math.min(9,oc))));

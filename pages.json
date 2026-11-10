@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-02",
+  "generated": "2026-11-09",
   "pages": [
     {
       "slug": "4cube.html",
@@ -43,7 +43,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/audio/",
       "og_image": null,
-      "lastmod": "2026-10-31"
+      "lastmod": "2026-11-02"
     },
     {
       "slug": "bismuth-fluid.html",
@@ -76,7 +76,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/bubbles.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "civilisation-builder.html",
@@ -186,7 +186,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere-inverse.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "disphere-ray.html",
@@ -197,7 +197,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere-ray.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "disphere-symmetry.html",
@@ -208,7 +208,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere-symmetry.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "disphere.html",
@@ -219,7 +219,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/disphere.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "dither-types.html",
@@ -307,7 +307,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-engine/",
       "og_image": null,
-      "lastmod": "2026-11-01"
+      "lastmod": "2026-11-04"
     },
     {
       "slug": "fractal-engine/paper.html",
@@ -318,7 +318,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-engine/paper.html",
       "og_image": null,
-      "lastmod": "2026-11-01"
+      "lastmod": "2026-11-04"
     },
     {
       "slug": "fractals.html",
@@ -326,10 +326,10 @@
       "description": "Mandelbrot's Brownian casebook live, and a proof of why image generators draw the big shapes first: the world is rough in the same proportion at every scale.",
       "category": "fractals",
       "type": "experiment",
-      "domain": "iori.me",
-      "url": "https://iori.me/fractals.html",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/fractals.html",
       "og_image": null,
-      "lastmod": "2026-10-31"
+      "lastmod": "2026-11-07"
     },
     {
       "slug": "fungal-growth.html",
@@ -362,7 +362,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/game.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "game_multiplayer.html",
@@ -384,7 +384,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/indent.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "index.html",
@@ -406,7 +406,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/info.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "iori.html",
@@ -542,6 +542,17 @@
       "og_image": null,
       "lastmod": "2026-09-27",
       "order": 2
+    },
+    {
+      "slug": "metafractal.html",
+      "title": "Metafractal: The Space of Fractals Is Fractal",
+      "description": "Paper 0.1: the Mandelbrot set as the map of the Julia sets and Tan Lei's similarity live, then the Fractal Engine's maps, metric and walks through 3-D fractal space.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/metafractal.html",
+      "og_image": null,
+      "lastmod": "2026-11-03"
     },
     {
       "slug": "metyou.html",
@@ -709,6 +720,17 @@
       "lastmod": "2026-09-27"
     },
     {
+      "slug": "radiance-fields.html",
+      "title": "Radiance Fields: Elements and Morphs",
+      "description": "Paper 0.2: density, emission and the volume integral live, one shape stored four ways and measured, and the morphs between representations and between shapes.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/radiance-fields.html",
+      "og_image": null,
+      "lastmod": "2026-11-03"
+    },
+    {
       "slug": "shop.html",
       "title": "3DIE Shop — 3D Models & Printed Objects",
       "description": "Browse the 3DIE collection of printable 3D models: crystals, flowers, cottages and planets rendered live in your browser.",
@@ -729,6 +751,17 @@
       "url": "https://iori.me/sigmoid-helix.html",
       "og_image": null,
       "lastmod": "2026-09-27"
+    },
+    {
+      "slug": "silviculture.html",
+      "title": "Synthetic Silviculture: Growing a Forest, Forming a World",
+      "description": "Paper 0.3: the forest of paper 0 taken apart rule by rule, set beside the state of the art, and scored live against the laws real forests obey.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/silviculture.html",
+      "og_image": null,
+      "lastmod": "2026-11-07"
     },
     {
       "slug": "slime-mold.html",
@@ -761,7 +794,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/start.html",
       "og_image": null,
-      "lastmod": "2026-10-26"
+      "lastmod": "2026-11-06"
     },
     {
       "slug": "sudoku.html",
@@ -981,7 +1014,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/websites.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-06"
     }
   ]
 }

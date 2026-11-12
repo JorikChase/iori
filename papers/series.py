@@ -32,6 +32,10 @@ SERIES = [
      "and scored live against the laws real forests obey: self-thinning in both forms, allometry, branching, "
      "box dimension, stem sizes, canopy gaps; and its ground measured the same way, beside noise, particle "
      "transport and the learned world generators."),
+    ("0.5", "drawing-an-iris.html", "Drawing an Iris: An Automaton for Any Rendering", "November 2026",
+     "Any rendering of the Iris Engine drawn the way an iris grows: strands out of the pupil's edge, the tissue between "
+     "them, the crypts, the colour, the light. A cellular automaton with local rules, steered by the eye file's anatomy, "
+     "proved to end on the rendering exactly and in bounded time, and run live on every fitted eye."),
     ("1", "automata.html", "Cellular Automata as the Computational Basis", "in preparation",
      "Local rules compute a rough world, measured against known answers: Flame Strains, Petri, the Tero "
      "fixture, the think tank."),

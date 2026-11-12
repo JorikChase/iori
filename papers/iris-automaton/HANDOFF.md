@@ -13,8 +13,8 @@ ff01054. Nothing pushed, merged or deployed; no engine file and nothing of paper
 - `papers/iris-automaton/data/<ref>/` — per eye 26, 09, 35, 25: `flat/relief/final.png` (384² crops), `fields.png`
   (θ, crest, crypt), `region.png` (0 page, 255 pupil, 1 + 253ρ iris), `sheet.json`; `data/convergence.json`. ~3.3 MB.
 - `papers/iris-automaton/figures.js`, `paper.css`, `img/` — the paper's live and rendered figures.
-- `drawing-an-iris.html` — the hidden paper draft, **not registered** in pages.meta.json (head has a provisional
-  noindex SEO block). Chapters: pipeline, the automaton, proofs (bounded end, exact end, locality, generality),
+- `drawing-an-iris.html` — paper 0.5 (iori 2026-11-12: its own number), registered hidden in pages.meta.json
+  (category fractals, 3die.fr, citation date 2026-11-12), listed in `papers/series.py`, `site.py all` run (check passes). Chapters: pipeline, the automaton, proofs (bounded end, exact end, locality, generality),
   measurements, related work and limits.
 - `papers/iris-automaton/PIPELINE.md` — the research note: every pass from the eye file to the pixel.
 - `tools/iris-automaton/` — `serve.py 8791` (capture server), `prep.py` (crops + fields; reads the eye file through the
@@ -34,8 +34,8 @@ decoding matches Node exactly (fields once lost bits to canvas premultiplied alp
 4. `node tools/iris-automaton/run.mjs 26 09 35 25`, then rebuild `data/convergence.json` from `out/*.json`.
 
 ## Open
-- **Decision for iori:** own number (0.5, `drawing-an-iris.html`) or a chapter of 0.4. Then register (hidden),
-  `papers/series.py`, `site.py all`, and put the real SEO block in.
+- Stays hidden until iori says otherwise. Merging this branch also carries the fly-down branch it is based on, and
+  the site.py outputs (pages.json, robots, series stubs) will need `site.py all` again after any merge.
 - The hidden Browser pane gives no IntersectionObserver / rAF ticks; the figures were verified by starting them by hand
   (`figures.js` exports). Not yet seen running in a visible pane or on a phone.
 - Other poses: read the anatomy through the engine's debug-14 (u, v) map instead of the start-view similarity.

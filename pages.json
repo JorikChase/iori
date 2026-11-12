@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-09",
+  "generated": "2026-11-12",
   "pages": [
     {
       "slug": "4cube.html",
@@ -233,6 +233,17 @@
       "lastmod": "2026-09-27"
     },
     {
+      "slug": "drawing-an-iris.html",
+      "title": "Drawing an Iris: An Automaton for Any Rendering",
+      "description": "Paper 0.5: a local cellular automaton that draws any Iris Engine rendering over time, strands first, and provably ends on it exactly; live on every fitted eye.",
+      "category": "fractals",
+      "type": "experiment",
+      "domain": "3die.fr",
+      "url": "https://3die.fr/drawing-an-iris.html",
+      "og_image": null,
+      "lastmod": "2026-11-12"
+    },
+    {
       "slug": "ember-engine.html",
       "title": "Ember Engine — Cellular Automata Fire",
       "description": "Cellular automata embers rising and dying out: fire as a rule-based organism.",
@@ -318,7 +329,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/fractal-engine/paper.html",
       "og_image": null,
-      "lastmod": "2026-11-04"
+      "lastmod": "2026-11-10"
     },
     {
       "slug": "fractals.html",
@@ -329,7 +340,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/fractals.html",
       "og_image": null,
-      "lastmod": "2026-11-07"
+      "lastmod": "2026-11-09"
     },
     {
       "slug": "fungal-growth.html",
@@ -395,7 +406,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-09"
     },
     {
       "slug": "info.html",
@@ -428,7 +439,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/",
       "og_image": null,
-      "lastmod": "2026-10-31"
+      "lastmod": "2026-11-09"
     },
     {
       "slug": "iris-engine/index.html",
@@ -518,7 +529,7 @@
       "domain": "iori.me",
       "url": "https://iori.me/mandelbrot-gs.html",
       "og_image": null,
-      "lastmod": "2026-09-27"
+      "lastmod": "2026-11-09"
     },
     {
       "slug": "maska.html",
@@ -552,7 +563,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/metafractal.html",
       "og_image": null,
-      "lastmod": "2026-11-03"
+      "lastmod": "2026-11-10"
     },
     {
       "slug": "metyou.html",
@@ -728,7 +739,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/radiance-fields.html",
       "og_image": null,
-      "lastmod": "2026-11-03"
+      "lastmod": "2026-11-10"
     },
     {
       "slug": "shop.html",
@@ -761,7 +772,7 @@
       "domain": "3die.fr",
       "url": "https://3die.fr/silviculture.html",
       "og_image": null,
-      "lastmod": "2026-11-07"
+      "lastmod": "2026-11-10"
     },
     {
       "slug": "slime-mold.html",

@@ -52,6 +52,7 @@ redir @x_audio https://3die.fr{uri} permanent
 redir @x_blackjach https://3die.fr{uri} permanent
 redir /crow_archduke.html https://3die.fr/crow_archduke.html permanent
 redir /darkwood.html https://3die.fr/darkwood.html permanent
+redir /drawing-an-iris.html https://3die.fr/drawing-an-iris.html permanent
 redir /fractals.html https://3die.fr/fractals.html permanent
 redir /game.html https://3die.fr/game.html permanent
 redir /game_multiplayer.html https://3die.fr/game_multiplayer.html permanent

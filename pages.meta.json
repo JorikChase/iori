@@ -506,6 +506,20 @@
       "priority": 0.3,
       "hidden": true
     },
+    "drawing-an-iris.html": {
+      "title": "Drawing an Iris: An Automaton for Any Rendering",
+      "description": "Paper 0.5: a local cellular automaton that draws any Iris Engine rendering over time, strands first, and provably ends on it exactly; live on every fitted eye.",
+      "category": "fractals",
+      "domain": "3die.fr",
+      "type": "experiment",
+      "priority": 0.5,
+      "citation": {
+        "authors": [
+          "iori"
+        ],
+        "date": "2026-11-12"
+      }
+    },
     "ember-engine.html": {
       "title": "Ember Engine — Cellular Automata Fire",
       "description": "Cellular automata embers rising and dying out: fire as a rule-based organism.",

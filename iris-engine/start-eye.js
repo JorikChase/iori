@@ -9,7 +9,7 @@ window.__irisStartEyes = {"09":{"file":"09-blue-green-isolated.jpg","seed":42,"g
     const E = window.__irisStartEyes, refs = Object.keys(E), q = /[?&]eye=(\d\d)\b/.exec(location.search);
     let ref = q && E[q[1]] ? q[1] : null;
     try { if (!ref) { const k = sessionStorage.getItem('irisStartEye'); if (E[k]) ref = k; } } catch (e) {}
-    if (!ref) ref = refs[Math.floor(Math.random() * refs.length)];
+    if (!ref) ref = E['26'] ? '26' : refs[Math.floor(Math.random() * refs.length)];   // eye 26 by default (iori 2026-11-12: "make the eye 26 view as the default on the live"); ?eye=NN picks another
     try { sessionStorage.setItem('irisStartEye', ref); } catch (e) {}
     window.__irisStartEye = Object.assign({ ref }, E[ref]);
 })();

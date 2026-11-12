@@ -1,0 +1,98 @@
+{
+ "A": {
+  "sheet": {
+   "corr": 0.001,
+   "energy": 1.14,
+   "dir": 0.304,
+   "dirReal": 0.19,
+   "ori": 42.9
+  },
+  "crypt": {
+   "corr": -0.0,
+   "energy": 0.86,
+   "dir": 0.292,
+   "dirReal": 0.191,
+   "ori": 55.3
+  }
+ },
+ "A'": {
+  "sheet": {
+   "corr": 0.062,
+   "energy": 0.98,
+   "dir": 0.336,
+   "dirReal": 0.19,
+   "ori": 42.4
+  },
+  "crypt": {
+   "corr": 0.073,
+   "energy": 0.83,
+   "dir": 0.34,
+   "dirReal": 0.191,
+   "ori": 51.8
+  }
+ },
+ "B": {
+  "sheet": {
+   "corr": -0.007,
+   "energy": 0.91,
+   "dir": 0.15,
+   "dirReal": 0.19,
+   "ori": 35.9
+  },
+  "crypt": {
+   "corr": -0.01,
+   "energy": 0.69,
+   "dir": 0.151,
+   "dirReal": 0.191,
+   "ori": 46.0
+  }
+ },
+ "B'": {
+  "sheet": {
+   "corr": 0.215,
+   "energy": 0.92,
+   "dir": 0.164,
+   "dirReal": 0.19,
+   "ori": 36.9
+  },
+  "crypt": {
+   "corr": 0.257,
+   "energy": 0.99,
+   "dir": 0.188,
+   "dirReal": 0.191,
+   "ori": 30.8
+  }
+ },
+ "C": {
+  "sheet": {
+   "corr": 0.016,
+   "energy": 0.48,
+   "dir": 0.161,
+   "dirReal": 0.19,
+   "ori": 14.5
+  },
+  "crypt": {
+   "corr": 0.011,
+   "energy": 0.47,
+   "dir": 0.169,
+   "dirReal": 0.191,
+   "ori": 12.3
+  }
+ },
+ "N": {
+  "sheet": {
+   "corr": -0.001,
+   "energy": 3.17,
+   "dir": 0.105,
+   "dirReal": 0.19,
+   "ori": 34.4
+  },
+  "crypt": {
+   "corr": 0.001,
+   "energy": 1.94,
+   "dir": 0.097,
+   "dirReal": 0.191,
+   "ori": 21.7
+  }
+ }
+}

@@ -1,0 +1,314 @@
+{
+ "26": {
+  "A1": {
+   "2": {
+    "crypt": {
+     "coh": 0.475,
+     "angleToFit": 18.3
+    },
+    "strand": {
+     "coh": 0.373,
+     "angleToFit": 28.2
+    },
+    "sheet": {
+     "coh": 0.369,
+     "angleToFit": 36.1
+    },
+    "noise": {
+     "coh": 0.297,
+     "angleToFit": 45.0
+    }
+   },
+   "4": {
+    "crypt": {
+     "coh": 0.364,
+     "angleToFit": 10.6
+    },
+    "strand": {
+     "coh": 0.233,
+     "angleToFit": 18.9
+    },
+    "sheet": {
+     "coh": 0.213,
+     "angleToFit": 29.7
+    },
+    "noise": {
+     "coh": 0.161,
+     "angleToFit": 45.0
+    }
+   },
+   "8": {
+    "crypt": {
+     "coh": 0.331,
+     "angleToFit": 6.0
+    },
+    "strand": {
+     "coh": 0.169,
+     "angleToFit": 10.9
+    },
+    "sheet": {
+     "coh": 0.128,
+     "angleToFit": 21.0
+    },
+    "noise": {
+     "coh": 0.085,
+     "angleToFit": 45.0
+    }
+   },
+   "16": {
+    "crypt": {
+     "coh": 0.307,
+     "angleToFit": 4.8
+    },
+    "strand": {
+     "coh": 0.146,
+     "angleToFit": 7.1
+    },
+    "sheet": {
+     "coh": 0.094,
+     "angleToFit": 14.8
+    },
+    "noise": {
+     "coh": 0.047,
+     "angleToFit": 45.0
+    }
+   },
+   "32": {
+    "crypt": {
+     "coh": 0.271,
+     "angleToFit": 5.4
+    },
+    "strand": {
+     "coh": 0.142,
+     "angleToFit": 6.8
+    },
+    "sheet": {
+     "coh": 0.101,
+     "angleToFit": 13.8
+    },
+    "noise": {
+     "coh": 0.024,
+     "angleToFit": 45.0
+    }
+   }
+  },
+  "A2": {
+   "spacingMedianUm": 66.7,
+   "spacingIQRUm": [
+    37.3,
+    105.5
+   ],
+   "reliabilityMedian": 0.237,
+   "disagreeFracReliable": 0.091,
+   "disagreeMedianDeg": 10.4
+  }
+ },
+ "09": {
+  "A1": {
+   "2": {
+    "crypt": {
+     "coh": 0.479,
+     "angleToFit": 18.4
+    },
+    "strand": {
+     "coh": 0.444,
+     "angleToFit": 22.3
+    },
+    "sheet": {
+     "coh": 0.424,
+     "angleToFit": 32.3
+    },
+    "noise": {
+     "coh": 0.297,
+     "angleToFit": 45.0
+    }
+   },
+   "4": {
+    "crypt": {
+     "coh": 0.353,
+     "angleToFit": 10.2
+    },
+    "strand": {
+     "coh": 0.31,
+     "angleToFit": 12.8
+    },
+    "sheet": {
+     "coh": 0.252,
+     "angleToFit": 23.7
+    },
+    "noise": {
+     "coh": 0.161,
+     "angleToFit": 45.0
+    }
+   },
+   "8": {
+    "crypt": {
+     "coh": 0.319,
+     "angleToFit": 5.5
+    },
+    "strand": {
+     "coh": 0.263,
+     "angleToFit": 7.0
+    },
+    "sheet": {
+     "coh": 0.167,
+     "angleToFit": 14.2
+    },
+    "noise": {
+     "coh": 0.085,
+     "angleToFit": 45.0
+    }
+   },
+   "16": {
+    "crypt": {
+     "coh": 0.321,
+     "angleToFit": 4.4
+    },
+    "strand": {
+     "coh": 0.247,
+     "angleToFit": 5.2
+    },
+    "sheet": {
+     "coh": 0.156,
+     "angleToFit": 10.3
+    },
+    "noise": {
+     "coh": 0.047,
+     "angleToFit": 45.0
+    }
+   },
+   "32": {
+    "crypt": {
+     "coh": 0.327,
+     "angleToFit": 5.2
+    },
+    "strand": {
+     "coh": 0.255,
+     "angleToFit": 5.8
+    },
+    "sheet": {
+     "coh": 0.213,
+     "angleToFit": 10.7
+    },
+    "noise": {
+     "coh": 0.024,
+     "angleToFit": 45.0
+    }
+   }
+  },
+  "A2": {
+   "spacingMedianUm": 77.7,
+   "spacingIQRUm": [
+    69.5,
+    109.8
+   ],
+   "reliabilityMedian": 0.256,
+   "disagreeFracReliable": 0.056,
+   "disagreeMedianDeg": 8.2
+  }
+ },
+ "35": {
+  "A1": {
+   "2": {
+    "crypt": {
+     "coh": 0.451,
+     "angleToFit": 19.4
+    },
+    "strand": {
+     "coh": 0.404,
+     "angleToFit": 22.8
+    },
+    "sheet": {
+     "coh": 0.378,
+     "angleToFit": 32.8
+    },
+    "noise": {
+     "coh": 0.297,
+     "angleToFit": 45.0
+    }
+   },
+   "4": {
+    "crypt": {
+     "coh": 0.363,
+     "angleToFit": 12.3
+    },
+    "strand": {
+     "coh": 0.302,
+     "angleToFit": 15.3
+    },
+    "sheet": {
+     "coh": 0.244,
+     "angleToFit": 26.2
+    },
+    "noise": {
+     "coh": 0.161,
+     "angleToFit": 45.0
+    }
+   },
+   "8": {
+    "crypt": {
+     "coh": 0.332,
+     "angleToFit": 8.3
+    },
+    "strand": {
+     "coh": 0.257,
+     "angleToFit": 10.7
+    },
+    "sheet": {
+     "coh": 0.173,
+     "angleToFit": 19.6
+    },
+    "noise": {
+     "coh": 0.085,
+     "angleToFit": 45.0
+    }
+   },
+   "16": {
+    "crypt": {
+     "coh": 0.32,
+     "angleToFit": 8.0
+    },
+    "strand": {
+     "coh": 0.226,
+     "angleToFit": 9.2
+    },
+    "sheet": {
+     "coh": 0.14,
+     "angleToFit": 16.5
+    },
+    "noise": {
+     "coh": 0.047,
+     "angleToFit": 45.0
+    }
+   },
+   "32": {
+    "crypt": {
+     "coh": 0.282,
+     "angleToFit": 9.5
+    },
+    "strand": {
+     "coh": 0.199,
+     "angleToFit": 10.4
+    },
+    "sheet": {
+     "coh": 0.132,
+     "angleToFit": 17.3
+    },
+    "noise": {
+     "coh": 0.024,
+     "angleToFit": 45.0
+    }
+   }
+  },
+  "A2": {
+   "spacingMedianUm": 79.3,
+   "spacingIQRUm": [
+    41.8,
+    125.4
+   ],
+   "reliabilityMedian": 0.256,
+   "disagreeFracReliable": 0.088,
+   "disagreeMedianDeg": 11.2
+  }
+ }
+}

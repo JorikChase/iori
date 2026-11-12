@@ -45,7 +45,9 @@
         } else if (s.tissue) { note = ' — its layer-model eye is not on this site; opened without it'; if (s.id) E.importID(s.id); }
         else if (s.id) E.importID(s.id);
         const c = s.camera || {};
-        if (c.view) state.view = c.view.slice(); if (c.camRot) state.camRot = c.camRot.slice(); state.useRot = !!c.useRot;
+        // the view comes back at its magnification, CENTRED on the eye (iori 2026-11-12: "its off center"): a zoom kept round a point
+        // beside the eye reopened with the eye pushed to the edge, and the opening print grew from an off-centre pupil
+        if (c.view) { const w = Math.min(1, c.view[2]), h = Math.min(1, c.view[3]); state.view = [0.5 - w / 2, 0.5 - h / 2, w, h]; } if (c.camRot) state.camRot = c.camRot.slice(); state.useRot = !!c.useRot;
         if (c.zoomPhoto) state.zoomPhoto = target.zoomPhoto = c.zoomPhoto; if (c.captureZoom) state.captureZoom = c.captureZoom; if (c.specular !== undefined) state.specular = c.specular;
         E.resetAccumulation();
         if (!opts.quiet) U.say('Session opened' + (s.saved ? ' (saved ' + s.saved.slice(0, 16).replace('T', ' ') + ')' : '') + note);
@@ -66,7 +68,10 @@
 
     // the kept copy: written when the hand stops (1.5 s after the last pointer / key / wheel), never mid-fit or mid-load
     let timer = 0, last = '', paused = false;
-    function keep(json) { if (paused) return; try { if (json !== last) { localStorage.setItem(KEY, json); last = json; } } catch (e) {} }
+    let snapAt = 0;
+    function keep(json) { if (paused) return; try { if (json !== last) { localStorage.setItem(KEY, json); last = json; }
+        // the print's instant start: a snapshot of the eye on screen beside the session (print.js), at most every 5 s
+        if (window.IrisPrint && IrisPrint.snapshot && performance.now() - snapAt > 5000) { if (IrisPrint.snapshot()) snapAt = performance.now(); } } catch (e) {} }
     const soon = () => { clearTimeout(timer); timer = setTimeout(() => { if (busy()) return soon(); try { keep(JSON.stringify(S.capture())); } catch (e) {} }, 1500); };
     S.autosave = on => { paused = !on; };
     if (/[?&]start=off\b/.test(location.search)) paused = true;             // tests and benches neither read nor write it

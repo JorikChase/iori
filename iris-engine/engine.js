@@ -287,6 +287,7 @@ function resampleField(data, w0, h0, w1, h1) {
     return out;
 }
 function setQuality(name) {
+    if (window.IrisPrint) window.IrisPrint.change('quality');
     if (!QUALITY[name] || name === qualityName) return;
     const oldGrids = { c: GRIDS.c.slice(), f: GRIDS.f.slice(), p: GRIDS.p.slice() };
     qualityName = name; Q = QUALITY[name]; try { localStorage.setItem('irisQuality', name); } catch (e) {}
@@ -890,6 +891,9 @@ const state = {
 };
 const target = { ...state };
 let isPointerDown = false, autoAnimate = true;
+// the box light stays still while the cursor turns the eye (iori, 2026-11-11). A module variable, not `state`:
+// resetForFreshFit() drops unknown state keys. False restores the camera-attached rig of before.
+let lightStatic = true;
 
 
 function resetAccumulation() { state.frameCount = 0; document.getElementById('accum-bar').style.width = '0%'; }
@@ -1044,10 +1048,11 @@ const SMOOTH_KEYS = ['relief', 'lightAngle', 'lightElev', 'srcSize', 'ambient', 
 // ---- test hook: expose a paraxial magnification check for the harness ----
 // debug: a window of the strand texture (r coverage, g tube, b brightness) as floats, rows bottom-up
 function readStrandTex(x, y, w, h) { const px = new Float32Array(w * h * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, strandFB); gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return px; }
-window.__irisEngine = { setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, get growOverride() { return growOverride; }, set growOverride(o) { growOverride = o || {}; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
+window.__irisEngine = { get lightStatic() { return lightStatic; }, set lightStatic(v) { lightStatic = !!v; resetAccumulation(); }, setStrandModel, readStrandTex, get strands() { return strandCache.strands; }, get strandModelOverride() { return strandModelOverride; }, set strandModelOverride(v) { strandModelOverride = (v === 0 || v === 1) ? v : null; atlas.dirty = true; }, get growOverride() { return growOverride; }, set growOverride(o) { growOverride = o || {}; atlas.dirty = true; }, state, target, programs, gl, canvas, captureTiled, exportID, importID, genomeFromSeed, get genome() { return genome; }, set genome(g) { genome = g; if (!genome.fields) genome.fields = makeFields(); },
     FIELD_DEFS, GRIDS, makeFields, fillField, encodeFields, decodeFields, ENGINE_VERSION, invertLut, linToLab,
     drawPhotoFrame, drawPost, edgeBlendMm, bakeAtlas, atlas, setSlider, resetAccumulation, EYE_PRESETS, loadEyePreset, applySlidersToGenome,
-    setCamFixed, syncCamBtn, makeID, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
+    setCamFixed, syncCamBtn, makeID, sampleClosed, collaretteRidge, uploadObjects, u1f, u2f, loc, collaretteAt, get ATLAS() { return [ATLAS_W, ATLAS_H]; }, get Q() { return Q; }, get quality() { return qualityName; }, QUALITY, setQuality, reseedProcedural, resampleField, loadFittedPreset, get dpr() { return dprCur; }, stepFrame: () => render(performance.now(), false, true), eyeOutline,   // tests: one interactive frame by hand (a hidden pane runs no rAF)
+    get pace() { return pace; }, get lastFrameTex() { return state.frameCount > 0 ? textures[state.frameCount % 2] : null; }, srgbToLinear: c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) };
 
 // draw one frame of the photo shader into `fb` (w×h), accumulating from `readTex` when frame > 0
 // the disc's edge (study/11 §5.6, iori 2026-09-28): the limbus is soft in the photographs while the tissue beside it is sharp,
@@ -1077,6 +1082,7 @@ function drawPhotoFrame(fb, w, h, frame, readTex, opts = {}) {
     u1f(prog, 'u_relief', state.relief);
     u1f(prog, 'u_lightAngle', state.lightAngle);
     u1f(prog, 'u_lightElev', state.lightElev);
+    u1f(prog, 'u_lightStatic', lightStatic ? 1.0 : 0.0);
     u1f(prog, 'u_srcType', state.srcType); u1f(prog, 'u_srcSize', state.srcSize);
     u1f(prog, 'u_ambient', state.ambient); u1f(prog, 'u_lid', state.lid);
     u1f(prog, 'u_debug', opts.debug !== undefined ? opts.debug : state.debug);
@@ -1105,7 +1111,7 @@ function drawPhotoFrame(fb, w, h, frame, readTex, opts = {}) {
     u1f(prog, 'u_useLut', 1.0); u1f(prog, 'u_yellow', state.yellow); u1f(prog, 'u_limbalMilk', genome.globals.limbalMilk === undefined ? 0.6 : genome.globals.limbalMilk);
     if (prog !== programs.photo) window.IrisTissue.bind(prog);
     gl.activeTexture(gl.TEXTURE0);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    drawScreen();
 }
 // post pass from `srcTex` (w×h) into `fb` (null = screen)
 function drawPost(fb, srcTex, w, h, frame, opts = {}) {
@@ -1120,19 +1126,80 @@ function drawPost(fb, srcTex, w, h, frame, opts = {}) {
     // the lateral aberration, MEASURED on the four photographs (red against blue, 2026-09-28): ≤ 0.1 native px, 0.4 µm — the old 1.0 put
     // ≈ 18 µm between red and blue near the limbus, doubled edges at close range. With the layer model: the frame's formula, amount 0
     { const lm = !!(window.IrisTissue && window.IrisTissue.on); u1f(pp, 'u_caFrame', lm ? 1.0 : 0.0); u1f(pp, 'u_ca', lm ? 0.0 : 1.0); } u1f(pp, 'u_bloom', state.bloom); u1f(pp, 'u_ref', opts.ref !== undefined ? opts.ref : state.ref); u1i(pp, 'u_frame', frame);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    drawScreen();
 }
 
 let camBtnState = null;
-function render(time, forceCapture = false) {
+// iori 2026-11-11: "don't rerender the white … why can't just the iris part get rerendered, not the box". The page outside the
+// eye is plain white (BG_COL, alpha 0), so the interactive frame is drawn through a polygon round the eye instead of a
+// full-screen quad: the convex hull of the limbus circle (cornea rim and iris plane) projected through fs-photo's own camera
+// (100 mm lens, 24 mm sensor, the orbit about the 13 mm pivot, the view crop), pushed out a little for the cornea's
+// refraction and the limbal blend. The fragment shader is unchanged, so every pixel it does shade is the same. Fits,
+// captures, the designer and the walk draw the whole frame as before (they never set eyeFan).
+function eyeOutline() {
+    const W = canvas.width, H = canvas.height, v = state.view || [0, 0, 1, 1], aspect = W / H;
+    const rx = state.useRot ? state.camRot[0] : (0.5 - state.mouseY / H) * 0.75, ry = state.useRot ? state.camRot[1] : (state.mouseX / W - 0.5) * 1.0;
+    const rot = (a, b, t) => [a * Math.cos(t) + b * Math.sin(t), -a * Math.sin(t) + b * Math.cos(t)];   // v *= mat2(c, s, -s, c)
+    const lb = state.limb || [5.85, 5.40, 0], R = Math.max(lb[0], lb[1]) * 1.06, zoom = state.zoomPhoto, pts = [];
+    for (let k = 0; k < 48; k++) for (const z of [0.0, 3.2]) {           // the cornea's rim (z 0) and the iris plane
+        const a = k / 48 * 2 * Math.PI; let q = [R * Math.cos(a), R * Math.sin(a), z - 13];
+        [q[0], q[2]] = rot(q[0], q[2], -ry); [q[1], q[2]] = rot(q[1], q[2], -rx);   // world → camera: the inverse of the orbit
+        const d = [q[0], q[1], q[2] + 13 + zoom]; if (d[2] <= 1) return null;
+        pts.push([((d[0] / d[2] * 100) / (24 * aspect) + 0.5 - v[0]) / v[2] * W, ((d[1] / d[2] * 100) / 24 + 0.5 - v[1]) / v[3] * H]);
+    }
+    pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);                      // convex hull (monotone chain)
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], hi = [];
+    for (const p of pts) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    const hull = lo.slice(0, -1).concat(hi.slice(0, -1));
+    const c = hull.reduce((m, p) => [m[0] + p[0] / hull.length, m[1] + p[1] / hull.length], [0, 0]);
+    const size = Math.max(...hull.map(p => Math.hypot(p[0] - c[0], p[1] - c[1]))), pad = 0.05 * size + 10;
+    return { c, hull: hull.map(p => { const dx = p[0] - c[0], dy = p[1] - c[1], l = Math.hypot(dx, dy) || 1; return [p[0] + dx / l * pad, p[1] + dy / l * pad]; }) };
+}
+const pace = (() => {                                                   // device pacing: accumulation samples per screen frame
+    // driven by the frame rate itself (2026-11-12: GPU timer queries overestimated the per-sample cost 5× — their fixed
+    // overhead — and the display may be 60 or 120 Hz): the display's own interval is the fastest frame seen lately; while
+    // frames keep to it, one more sample every 3 frames; a frame 1.4× late drops one, 2× late halves. One while anything moves.
+    const P = { on: true, maxK: 12, k: 1, vsync: null, interval: null, lastT: null, calm: 0, rendering: false };
+    P.frame = t => {
+        if (P.lastT !== null) { const d = t - P.lastT;
+            if (d > 2 && d < 250) { P.vsync = P.vsync === null ? d : Math.min(d, P.vsync * 1.003); P.interval = d;
+                if (P.rendering && P.k > 1 && d > 2.0 * P.vsync) { P.k = Math.max(1, P.k >> 1); P.calm = 0; }
+                else if (P.rendering && P.k > 1 && d > 1.4 * P.vsync) { P.k--; P.calm = 0; }
+                else if (P.rendering && d < 1.2 * P.vsync && ++P.calm >= 3 && P.k < P.maxK) { P.k++; P.calm = 0; } } }
+        P.lastT = t; P.rendering = false;
+    };
+    P.samples = left => { if (!P.on) return 1; P.rendering = true; return Math.max(1, Math.min(P.k, left)); };
+    // samples per second while rendering (the print's length follows it)
+    Object.defineProperty(P, 'sps', { get: () => P.vsync ? P.k * 1000 / Math.max(P.vsync, P.interval || P.vsync) : null });
+    P.begin = () => null; P.end = () => {};
+    return P;
+})();
+let eyeFan = null, eyeFanN = 0;
+const fanBuf = gl.createBuffer();
+function setEyeFan(o) {                                                // clip-space triangle fan: the centre, then the hull, closed
+    if (!o) { eyeFan = null; return; }
+    const W = canvas.width, H = canvas.height, f = [o.c[0] / W * 2 - 1, o.c[1] / H * 2 - 1];
+    for (const p of o.hull.concat([o.hull[0]])) f.push(p[0] / W * 2 - 1, p[1] / H * 2 - 1);
+    eyeFan = new Float32Array(f); eyeFanN = f.length / 2;
+    gl.bindBuffer(gl.ARRAY_BUFFER, fanBuf); gl.bufferData(gl.ARRAY_BUFFER, eyeFan, gl.STREAM_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+}
+function drawScreen() {                                                // the full-screen quad, or only the eye's polygon
+    if (!eyeFan) { gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); return; }
+    const p = gl.getParameter(gl.CURRENT_PROGRAM), l = gl.getAttribLocation(p, 'position'); if (l < 0) { gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); return; }
+    gl.bindBuffer(gl.ARRAY_BUFFER, fanBuf); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, eyeFanN);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0);
+}
+function render(time, forceCapture = false, once = false) {   // once: a frame by hand (stepFrame) — it must not start another loop
     if (camBtnState !== state.useRot) { camBtnState = state.useRot; syncCamBtn(); }
     // while the fitter or a capture drives the engine, the interactive loop must not touch state
-    if ((state.capturing || state.fitting) && !forceCapture) { requestAnimationFrame(render); return; }
+    if ((state.capturing || state.fitting) && !forceCapture) { (once || requestAnimationFrame(render)); return; }
     // study/14 1b (iori, 2026-10-10: "the layer model is the first picture on screen"): while a start eye is on its way,
     // nothing is drawn — the canvas stays clear over the white page instead of showing the procedural stand-in for the
     // seconds the eye file takes to arrive. ui31.js raises the hold before the first frame; tissue-ui.js X.startEye
     // lowers it when the eye is on (or when it failed, and the procedural eye is the fallback).
-    if (state.holdEye && !forceCapture) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(render); return; }
+    if (state.holdEye && !forceCapture) { if (!(window.IrisPrint && window.IrisPrint.owns())) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); } (once || requestAnimationFrame(render)); return; }   // print.js draws the opening print meanwhile
     let t = time * 0.001;
     let isMoving = false;
     let dx = target.mouseX - state.mouseX, dy = target.mouseY - state.mouseY;
@@ -1154,7 +1221,7 @@ function render(time, forceCapture = false) {
     }
     if (state.crypt !== target.crypt) { state.crypt = target.crypt; atlas.dirty = true; }
     if (state.seed !== target.seed && !state.fitting) { state.seed = target.seed; reseedProcedural(Math.round(state.seed)); }
-    if (atlas.dirty && !tissueOwnsAtlas()) { bakeAtlas(); isMoving = true; }
+    if (atlas.dirty && !tissueOwnsAtlas()) { if (window.IrisPrint) window.IrisPrint.change('bake'); bakeAtlas(); isMoving = true; }
     if (window.IrisTissue && window.IrisTissue.knobTick && window.IrisTissue.knobTick()) isMoving = true;   // K2.3: the material knobs re-bake the layer model
     if (Math.abs(targetPupil - state.pupil) > 0.0005) { state.pupil = lerp(state.pupil, targetPupil, isPointerDown ? 0.15 : 0.04); isMoving = true; }
     else state.pupil = targetPupil;
@@ -1162,16 +1229,34 @@ function render(time, forceCapture = false) {
 
     if (isMoving) resetAccumulation();
     const maxFrames = (state.ref || state.painting) ? 1 : Q.frames;
-    if (state.frameCount >= maxFrames && !forceCapture) { requestAnimationFrame(render); return; }
+    if (state.frameCount >= maxFrames && !forceCapture) { (once || requestAnimationFrame(render)); return; }
 
-    const readIdx = state.frameCount % 2, writeIdx = (state.frameCount + 1) % 2;
     const dOpts = state.design ? { time: t, rot: [0, 0], fstop: 64, ref: state.painting ? 1 : undefined } : { time: t };
-    drawPhotoFrame(framebuffers[writeIdx], canvas.width, canvas.height, state.frameCount, textures[readIdx], dOpts);
-    drawPost(null, textures[writeIdx], canvas.width, canvas.height, state.frameCount, state.painting ? { ref: 1 } : {});
+    // device pacing (iori 2026-11-12: "can it be faster how the device handles performance?"): as many accumulation samples per
+    // screen frame as fit the GPU budget — the photo pass timed on the GPU (EXT_disjoint_timer_query), its cost per sample kept
+    // as a running mean. A fast GPU converges in a fraction of the frames; a slow one stays at one sample; while anything moves,
+    // one (the frame is reset anyway). pace.k is what this frame draws.
+    if (!once) pace.frame(time);                                      // the previous frame's interval first (by hand: no rAF timing)
+    const k = (!isMoving && !forceCapture && !state.ref && !state.painting && !state.design) ? pace.samples(maxFrames - state.frameCount) : 1;
+    let writeIdx = (state.frameCount + 1) % 2;
+    const clip = !forceCapture && !state.design && !state.atlasView && !(window.__irisFly && window.__irisFly.walk) && state.clipToEye !== false;
+    const printFB = window.IrisPrint && !forceCapture ? window.IrisPrint.target() : null;   // print.js: while a print runs the frame is composited over the old one
+    if (clip) setEyeFan(eyeOutline());
+    if (eyeFan) { gl.bindFramebuffer(gl.FRAMEBUFFER, printFB); gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); }   // the page: cleared, never shaded
+    const q = pace.begin(k);
+    for (let j = 0; j < k; j++) {
+        if (j > 0) state.frameCount++;
+        const readIdx = state.frameCount % 2; writeIdx = (state.frameCount + 1) % 2;
+        drawPhotoFrame(framebuffers[writeIdx], canvas.width, canvas.height, state.frameCount, textures[readIdx], dOpts);
+    }
+    pace.end(q, k);
+    drawPost(printFB, textures[writeIdx], canvas.width, canvas.height, state.frameCount, state.painting ? { ref: 1 } : {});
+    eyeFan = null;                                                       // only this frame's two passes use it
+    if (printFB) window.IrisPrint.present();
     if (state.atlasView) drawAtlasViewer();
 
     state.frameCount++;
     if (!state.capturing) document.getElementById('accum-bar').style.width = (state.ref ? 0 : Math.min(100, state.frameCount / Q.frames * 100)) + '%';
-    if (!forceCapture) requestAnimationFrame(render);
+    if (!forceCapture) (once || requestAnimationFrame(render));
 }
 requestAnimationFrame(render);

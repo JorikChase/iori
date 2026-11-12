@@ -355,6 +355,9 @@
                 if (a.a < 1.0 && uv.y > u_tisOuterV) { vec4 e = tisAux(vec2(uv.x, u_tisOuterV), lod); if (e.a > a.a) a = e; }
                 return a.a > 0.0 ? a.r * u_tisReliefK : 0.0; }
             return mix(textureLod(u_atlas0, uv, lod).r * u_relief, a.r * u_tisReliefK, a.a); }`);
+        // the coordinate map (debug 14) marks the pupil: z 0.25 there, 0 off the eye — the print (print.js) prints the pupil at once
+        // and the limbal rim last, and could not tell them apart by colour (2026-11-12: the dark rim printed with the pupil)
+        need('if (v < 0.0) return (maskView || mapView || hView) ? vec3(0.0) : vec3(0.0015, 0.0012, 0.001);', 'if (v < 0.0) return mapView ? vec3(0.0, 0.0, 0.25) : (maskView || hView) ? vec3(0.0) : vec3(0.0015, 0.0012, 0.001);');
         need('vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            float t = hitIris(pIn, dIn, rp);',
              'vec3 shadeInterior(vec3 pIn, vec3 dIn, vec3 nFront, vec3 dView, vec3 L, float rp, bool hq) {\n            g_slab = 0.0; g_tisOut = 0.0; float t = hitIris(pIn, dIn, rp);');
         need('int nM = int(u_marchSteps + 0.5);', 'int nM = int(u_marchSteps + 0.5); float hpPrev = 1e9, topPrev = -1e9;');
@@ -445,6 +448,7 @@
             }
             vec3 lit = col * (keyE3 + ambE);`);
         P.photo = program(shaderSrc('vs').trim(), src, 'photo-tissue', { position: 0 });
+        P.photoSrc = src;                         // flydown.js builds its detail variant from this source (study/17 D1/D3); nothing here reads it
         return P;
     }
     T.k1 = true;                                  // K1 (§32): the knobs offset the fit. Set false for the v0.8 ablation.
@@ -460,6 +464,7 @@
     T.ss = 0.5; T.ssR = [0.03, 0.03, 0.03]; T.ssLeak = [0.35, 0.35, 0.35];
     { const q = /[?&]ss=([0-9.]+)/.exec(location.search); if (q) T.ss = Math.min(1, Math.max(0, +q[1] || 0)); }
     T.photoProgram = () => programs().photo;
+    T.photoSource = () => programs().photoSrc;
 
     // K1: snapshot the fitted eye's material — call it while the sliders stand where the fit left them. The picture at
     // these values is the one the fit produced; every knob then reads as a move away from here.
@@ -1904,6 +1909,20 @@
         const buf = new Float32Array(bw * bh * 4); gl.readPixels(x0, y0, bw, bh, gl.RGBA, gl.FLOAT, buf);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         return { buf, x0, y0, bw, bh, at: (u, v) => { const x = px(u) - x0, y = py(v) - y0; if (x < 0 || y < 0 || x >= bw || y >= bh) return null; const o = (y * bw + x) * 4; return { surfaceMm: buf[o], maskA: buf[o + 3] }; } };
+    };
+    /** the layer model's aux under many (u, v): height (mm, before u_tisReliefK), the sheet's coverage, inside the region —
+     *  for the fly-down's section (flydown.js F.sectionFly) */
+    T._auxRead = (u0, v0, u1, v1) => auxRead(u0, v0, u1, v1);   // the whole aux in one read (flydown.js bakes the crypt edges from it)
+    T.auxAtUVs = function (uvs) {
+        if (!T.aux || !uvs.length) return null;
+        const us = uvs.map(q => q[0]), vs = uvs.map(q => q[1]); let u0 = Math.min(...us), u1 = Math.max(...us);
+        if (u1 - u0 > 0.5) { u0 = 0; u1 = 1; }                                // across the seam: read the whole width
+        const [w, h] = T.size, R = T.rect, buf = auxRead(u0, Math.min(...vs), u1, Math.max(...vs));
+        return uvs.map(([u, v]) => { const inside = u > R[0] && u < R[0] + R[2] && v > R[1] && v < R[1] + R[3]; if (!inside) return { inside: false, hMm: 0, cover: 1 };
+            const fx = (u - R[0]) / R[2] * w - 0.5 - buf.x0, fy = (v - R[1]) / R[3] * h - 0.5 - buf.y0, x0 = Math.max(0, Math.min(buf.bw - 1, Math.floor(fx))), y0 = Math.max(0, Math.min(buf.bh - 1, Math.floor(fy)));
+            const x1 = Math.min(buf.bw - 1, x0 + 1), y1 = Math.min(buf.bh - 1, y0 + 1), tx = Math.min(1, Math.max(0, fx - x0)), ty = Math.min(1, Math.max(0, fy - y0));
+            const at = (x, y, c) => buf.buf[(y * buf.bw + x) * 4 + c], bil = c => (at(x0, y0, c) * (1 - tx) + at(x1, y0, c) * tx) * (1 - ty) + (at(x0, y1, c) * (1 - tx) + at(x1, y1, c) * tx) * ty;
+            const m = bil(3); return { inside: m > 0, hMm: bil(0), cover: m > 0 ? Math.min(1, Math.max(0, bil(1))) : 1 }; });
     };
     /** Everything under one point of the fit image. x, y in fit pixels (fit.W × fit.H). */
     T.elevationAt = function (x, y) {

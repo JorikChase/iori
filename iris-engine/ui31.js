@@ -1,5 +1,5 @@
-// ui31.js — the Windows 3.11 Program Manager shell (study/09, phase U2). Loaded instead of ui.js's Win98 shell when
-// the page is opened with ?ui=31 (remembered; ?ui=98 goes back). ui.js document.writes this script so it runs
+// ui31.js — the Windows 3.11 Program Manager shell (study/09, phase U2), the page's only shell:
+// the Win98 fallback was removed 2026-11-11. ui.js document.writes this script so it runs
 // exactly where ui.js would — after fit.js (its handlers are bound by id) and before design.js (which fills the
 // DESIGN pane built here). Like the old shell it MOVES the page's controls, it never rebuilds them, so every
 // element id and every binding in index.html / fit.js / design.js keeps working (tools/ui-contract proves it).
@@ -256,7 +256,7 @@
         for (const [l, items] of MENUS) { const t = h('div', 'w31-mtop', lab(l)); const open = () => { const r = t.getBoundingClientRect(); closeMenus(); t.classList.add('open'); showMenu(items, r.left, r.bottom, 0); };
             t.addEventListener('click', () => t.classList.contains('open') ? closeMenus() : open()); t.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && menus.length && !t.classList.contains('open')) open(); }); t.dataset.acc = acc(l); t._open = open; bar.appendChild(t); }
         const st = h('span'); st.id = 'w31-status'; bar.appendChild(st);
-        $('w31-ctl').onclick = () => { const r = $('w31-ctl').getBoundingClientRect(); showMenu([...(phone ? MENUS.map(([l, items]) => ({ l, sub: items })).concat(['-']) : []), ...siteItems(), '-', { l: '&Windows 98 shell', run: () => { location.search = '?ui=98'; } }], r.left, r.bottom, 0); };
+        $('w31-ctl').onclick = () => { const r = $('w31-ctl').getBoundingClientRect(); showMenu([...(phone ? MENUS.map(([l, items]) => ({ l, sub: items })).concat(['-']) : []), ...siteItems()], r.left, r.bottom, 0); };
         const ic = h('div'); ic.id = 'w31-icons'; ic.dataset.ui = '1'; document.body.appendChild(ic);
         const veil = h('div', '', `<div class="w31 active" id="w31-about"><div class="w31-in"><div class="w31-cap"><button class="w31-ctl" data-close></button><span class="w31-capt">About Iris Engine</span></div><div class="w31-body"><img width="32" height="32" style="image-rendering:pixelated" alt="" src="${icon('eye')}"><div><b>Iris Engine</b> ${E.ENGINE_VERSION || ''}<br>A photoreal, fully procedural human iris.<br>Shell drawn in the Windows 3.11 idiom — own icons, nothing copied.<br>The fitted eyes are measured from four photographs on Wikimedia Commons — <a href="#" data-credits>photo credits</a>.</div><span></span><div style="text-align:right"><button class="w31-b def" data-close style="min-width:70px">OK</button></div></div></div></div>`);
         veil.id = 'w31-veil'; veil.dataset.ui = '1'; document.body.appendChild(veil); veil.addEventListener('click', e => { if (e.target.closest('[data-credits]')) { e.preventDefault(); veil.classList.remove('on'); credits(); return; } if (e.target.closest('[data-close]') || e.target === veil) veil.classList.remove('on'); });
@@ -284,17 +284,47 @@
         opts.forEach(([v, l]) => { const b = h('button', 'w31-b', l); b.dataset.v = v; b.onclick = () => { set(v); sync(); save(); }; row.appendChild(b); }); g.appendChild(row); sync(); return g; };
     const fakeRange = (min, max, step, v) => { const i = document.createElement('input'); i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = v; return i; };
     const gaze = f => { const G = window.__irisGaze; if (G) f(G); };
+    function buildSun(W) {                                  // sun.js: FIXED (the box light) · SUN (time of day, play) · MANUAL (drag the dome)
+        const U = window.__irisSun; if (!U || !W) return;
+        const g = h('div', 'w31-grp', '<b>Light round the eye</b>');
+        const row = h('div', 'w31-brow'), modes = [['fixed', 'Fixed'], ['sun', 'Sun'], ['manual', 'Manual']];
+        modes.forEach(([v, l]) => { const b = h('button', 'w31-b', l); b.dataset.v = v; b.onclick = () => U.setMode(v); row.appendChild(b); });
+        const pl = h('button', 'w31-b', 'Play'); pl.onclick = () => U.play(); row.appendChild(pl); g.appendChild(row);
+        const t = fakeRange(0, 24, 0.05, U.t), tv = h('span');
+        t.addEventListener('input', () => { if (Math.abs(+t.value - U.t) > 1e-6) U.setTime(+t.value); });
+        g.appendChild(scrubber(t, 'TIME', tv));
+        const dm = h('div', 'w31-brow'); dm.style.justifyContent = 'center'; dm.appendChild(U.dome()); g.appendChild(dm);
+        const sync = () => { row.querySelectorAll('.w31-b[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === U.mode)); pl.classList.toggle('on', U.playing); pl.textContent = U.playing ? 'Pause' : 'Play';
+            if (Math.abs(+t.value - U.t) > 0.04) t.value = U.t; const hh = Math.floor(U.t), mm = Math.floor((U.t - hh) * 60); tv.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`; };
+        U.listeners.add(sync); sync(); W.body.appendChild(g); drawScrubs();
+    }
+    function buildFly(W) {                                  // flydown.js: detail on/off, fly down at the centre, leave the walk, live numbers
+        const F = window.__irisFly; if (!F || !W) return;
+        const g = h('div', 'w31-grp', '<b>Fly down to the surface</b>'), row = h('div', 'w31-brow');
+        const on = h('button', 'w31-b', 'Detail'), go = h('button', 'w31-b', 'Fly down'), out = h('button', 'w31-b', 'Leave');
+        on.onclick = () => { F.on = !F.on; E.resetAccumulation(); sync(); }; go.onclick = () => F.flyDown && F.flyDown(); out.onclick = () => F.leaveWalk();
+        row.append(on, go, out); g.appendChild(row);
+        const lv = h('div', 'w31-brow'); const lvB = [2, 4].map(k => { const b = h('button', 'w31-b', `Detail ×${k}`); b.onclick = () => { F.subGain = k; F.resetPages(); E.resetAccumulation(); sync(); }; lv.appendChild(b); return [k, b]; }); g.appendChild(lv);
+        const st = h('div', 'w31-line'); st.style.whiteSpace = 'normal'; g.appendChild(st);
+        F.say = m => { st.textContent = m; };
+        const sync = () => { on.classList.toggle('on', F.on); out.disabled = !F.walk; lvB.forEach(([k, b]) => b.classList.toggle('on', F.subGain === k)); };
+        setInterval(() => { sync(); if (!F.ready) return; const s = F.stats, w = F.walk;
+            st.textContent = `${F.active ? (w ? `walk ${(w.alt * 1000).toFixed(0)} µm up` : `${(F.footprintMm() * 1000).toFixed(2)} µm/px`) : 'far view (detail off)'} · pages ${s.resident} resident, ${F.queue.length} queued`; }, 300);
+        sync(); W.body.appendChild(g);
+    }
     function buildControl(W) {
         const line = h('div', 'w31-line', '<span>FONT</span>'), sel = h('select'); FONTS.forEach(([g, list]) => { const og = h('optgroup'); og.label = g; list.forEach(f => { const o = h('option', '', f[1]); o.value = f[0]; og.appendChild(o); }); sel.appendChild(og); });
         sel.value = S.font; sel.onchange = () => { applyFont(sel.value); save(); }; line.appendChild(sel); W.body.appendChild(line);
         W.body.appendChild(radio('Touch sizing', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], () => S.touch, v => { S.touch = v; relayout(); }));
         W.body.appendChild(radio('Magnetic snap', [['hard', 'Hard'], ['pull', 'Eased pull'], ['window', 'Eased window']], () => S.snapMode, v => { S.snapMode = v; }));
+        W.body.appendChild(radio('Print (the eye laid down cell by cell)', [['inspect', 'Slow · 10 s'], ['normal', 'Normal · 2 s']],
+            () => { try { return window.IrisPrint ? IrisPrint.speed : (localStorage.getItem('irisPrintSpeed') || 'inspect'); } catch (e) { return 'inspect'; } },
+            v => { if (window.IrisPrint) IrisPrint.speed = v; else try { localStorage.setItem('irisPrintSpeed', v); } catch (e) {} }));
         W.body.appendChild(radio('Snap speed', [[10, 'Slow'], [22, 'Medium'], [40, 'Fast']], () => S.snapK, v => { S.snapK = +v; }));
         const g = h('div', 'w31-grp', '<b>Gaze, when the pointer is on a window</b>');
         const a = fakeRange(0, 4, 0.1, S.hold), b = fakeRange(0.5, 10, 0.1, S.ret), av = h('span'), bv = h('span');
         a.addEventListener('input', () => { S.hold = +a.value; av.textContent = S.hold.toFixed(1) + ' s'; gaze(G => G.hold = S.hold); save(); }); b.addEventListener('input', () => { S.ret = +b.value; bv.textContent = S.ret.toFixed(1) + ' s'; gaze(G => G.ret = S.ret); save(); });
         g.appendChild(scrubber(a, 'HOLD', av)); g.appendChild(scrubber(b, 'RETURN', bv)); av.textContent = S.hold.toFixed(1) + ' s'; bv.textContent = S.ret.toFixed(1) + ' s'; W.body.appendChild(g);
-        const back = h('button', 'w31-b', 'Windows 98 shell'); back.onclick = () => { location.search = '?ui=98'; }; const row = h('div', 'w31-brow'); row.appendChild(back); W.body.appendChild(row);
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -421,7 +451,8 @@
         document.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch' || !free(e)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
             if (pts.size === 2) { pinch = { d: Math.max(1, spread()), z: E.target.zoomPhoto || E.state.zoomPhoto }; } if (pinch) e.stopImmediatePropagation(); }, true);
         document.addEventListener('pointermove', e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]); if (!pinch) return; e.stopImmediatePropagation();
-            if (pts.size >= 2) { E.target.zoomPhoto = clamp(pinch.z * pinch.d / Math.max(1, spread()), 20, 400); } }, true);
+            if (pts.size >= 2) { const [a, b] = [...pts.values()], r = pinch.d / Math.max(1, spread());   // the fly-down asks first: past the closest zoom the pinch flies in (flydown.js F.pinch)
+                if (!(window.__irisFly && window.__irisFly.pinch && window.__irisFly.pinch(pinch, r, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2))) E.target.zoomPhoto = clamp(pinch.z * r, 20, 400); } }, true);
         const up = e => { if (!pts.delete(e.pointerId)) return; if (pinch) e.stopImmediatePropagation(); if (pts.size < 2) pinch = null; };
         document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
         for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, e => e.preventDefault(), { passive: false });   // Safari's own pinch-zoom of the page
@@ -496,6 +527,8 @@
         dressDesign(); dressFit(); tissueNotes(); relayout();
         const first = !Object.keys(S.layout).length; WINS.forEach(W => { if (first ? W.key === 'camera' : W.wantOpen) show(W, true, true); }); if (first && !phone) tile(); icons(); layoutScene(); drawScrubs();
         const g = document.createElement('script'); g.src = 'gaze.js'; g.onload = () => gaze(G => { G.hold = S.hold; G.ret = S.ret; }); document.head.appendChild(g);   // study/09 U0: controls never move the eye
+        const sn = document.createElement('script'); sn.src = 'sun.js'; sn.onload = () => buildSun(byKey('camera')); document.head.appendChild(sn);   // a light that moves round the eye (iori, 2026-11-11)
+        if (!/[?&]flydown=0\b/.test(location.search)) { const fd = document.createElement('script'); fd.src = 'flydown.js'; fd.onload = () => buildFly(byKey('camera')); document.head.appendChild(fd); }   // the fly-down: on by default since 2026-11-12 (iori: "make the eye 26 view as the default on the live with these developments"); ?flydown=0 leaves it out
         const o = document.createElement('script'); o.src = 'overlay.js'; o.onload = () => { const tr = document.createElement('script'); tr.src = 'terrain.js'; tr.onload = () => { const ln = document.createElement('script'); ln.src = 'lines.js'; document.head.appendChild(ln); }; document.head.appendChild(tr);   /* study/11 §5.6 P1: the Strands layer of the overlay */ const t = document.createElement('script'); t.src = 'tissue-ui.js'; t.onload = () => { const q = document.createElement('script'); q.src = 'session.js'; document.head.appendChild(q); }; document.head.appendChild(t); }; document.head.appendChild(o);   // study/09 U3: the fit photo lies on the iris; study/10 §7: the Tissue window needs the overlay's API
     });
     window.addEventListener('resize', relayout);

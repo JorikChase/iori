@@ -36,10 +36,10 @@
       <div data-st="loaded" id="w31t-pages">
         <div class="t-pages"><button class="w31-b" data-p="inspect" id="w31t-p-inspect">Inspect</button><button class="w31-b" data-p="probe" id="w31t-p-probe">Probe</button><button class="w31-b" data-p="paint" id="w31t-p-paint">Paint</button><button class="w31-b" data-p="dials" id="w31t-p-dials">Dials</button></div>
         <div class="t-page" data-p="inspect">
-          <div class="w31-brow" style="margin:0"><button class="w31-b" data-tool="point">Point</button><button class="w31-b" data-tool="section">Section</button><button class="w31-b" data-tool="contours">Contours</button></div>
+          <div class="w31-brow" style="margin:0"><button class="w31-b" data-tool="point">Point</button><button class="w31-b" data-tool="section">Section</button><button class="w31-b" data-tool="strand">Strand</button><button class="w31-b" data-tool="contours">Contours</button></div>
           <div class="t-sunk t-read" id="w31t-read"></div>
           <canvas class="t-sunk" id="w31t-sec"></canvas>
-          <div class="t-legend" id="w31t-legend"><span style="--c:#c0c0c0">tissue</span><span style="--c:#fff">fibre</span><span style="--c:#000080">fibre under a fibre</span><span style="--c:#ffff00">here</span></div>
+          <div class="t-legend" id="w31t-legend"><span style="--c:#c0c0c0">tissue</span><span style="--c:#fff">fibre</span><span style="--c:#000080">fibre under a fibre</span><span style="--c:#808000">strand ridge</span><span style="--c:#ffffc0">floating strand</span><span style="--c:#ffff00">here</span><button class="w31-b" id="w31t-exag" style="margin-left:auto">Height 1:1</button><button class="w31-b" id="w31t-band">Band off</button><button class="w31-b" id="w31t-fitcut">Whole cut</button></div>
           <div class="t-hint" id="w31t-hint"></div>
         </div>
         <div class="t-page" data-p="probe">
@@ -226,6 +226,7 @@
     function uvAtClient(cx, cy) { const m = ensureMap(), r = cv.getBoundingClientRect(); const x = Math.floor((cx - r.left) / r.width * m.w), y = Math.floor(m.h - 1 - (cy - r.top) / r.height * m.h);
         if (x < 0 || y < 0 || x >= m.w || y >= m.h) return null; return onIris(m, x, y); }
     X.uvAtClient = (x, y) => uvAtClient(x, y);   // for tests and the console
+    X.cutAt = (a, b) => { cut = [a, b]; sectionFrom(a, b); secDraw(); readout(); marks(); return { fitted: secRes && secRes.samples.length, fly: secFly && secFly.samples.length }; };   // tests: a section between two client points
     function clientOf(uv) {   // the screen point showing (u, v): nearest texel of the map (wrap-aware in u)
         const m = ensureMap(), r = cv.getBoundingClientRect(); let best = 1e9, bx = -1, by = -1;
         for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) { const o = (y * m.w + x) * 4; if (m.px[o + 2] < 0.5) continue; let du = m.px[o] - uv[0]; du -= Math.round(du); const d = du * du * 36 + (m.px[o + 1] - uv[1]) ** 2; if (d < best) { best = d; bx = x; by = y; } }
@@ -237,12 +238,14 @@
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'w31t-ov'; document.body.appendChild(svg);
     const tip = h('div', 't-tip'); tip.id = 'w31t-tip'; document.body.appendChild(tip);
     const cont = h('canvas'); cont.id = 'w31t-contours'; document.body.appendChild(cont);
+    let secFly = null, flyHot = -1, secWin = 0, secC = 0, secExag = 1, secBand = 0, strandPath = null; const secTool = () => X.tool === 'section' || X.tool === 'strand';   // the fly-down's own strands along the cut; the plot's window (µm, 0 = whole cut) and height exaggeration
     let point = null, cut = null, secRes = null, secHot = -1, probeXY = null, probeDir = null;
     const active = () => X.st === 'loaded' && !X.loading && W.open && T.on && !state.design;
     function marks() {
         let s = '';
         const on = active(), P = (x, y) => `${x.toFixed(1)} ${y.toFixed(1)}`;
         if (on && X.page === 'inspect' && X.tool === 'point' && point) { const [x, y] = point.xy; const d = `M${P(x - 12, y)}h8M${P(x + 4, y)}h8M${P(x, y - 12)}v8M${P(x, y + 4)}v8`; s += `<path d="${d}" stroke="#000" stroke-width="3"/><path d="${d}" stroke="#ff0" stroke-width="1.5"/>`; }
+        if (on && X.page === 'inspect' && X.tool === 'strand' && strandPath && strandPath.length > 1) { const d = 'M' + strandPath.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L'); s += `<path d="${d}" fill="none" stroke="#000" stroke-width="4" opacity=".55"/><path d="${d}" fill="none" stroke="#ff0" stroke-width="2"/>`; }
         if (on && X.page === 'inspect' && X.tool === 'section' && cut) { const [a, b] = cut; s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#000" stroke-width="4" opacity=".55"/><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#ff0" stroke-width="2"/>` + [a, b].map(p => `<rect x="${p[0] - 4}" y="${p[1] - 4}" width="8" height="8" fill="#ff0" stroke="#000"/>`).join('');
             if (secRes && secHot >= 0) { const t = secHot / Math.max(1, secRes.samples.length - 1); s += `<circle cx="${a[0] + t * (b[0] - a[0])}" cy="${a[1] + t * (b[1] - a[1])}" r="4" fill="#ff0" stroke="#000"/>`; } }
         if (on && X.page === 'probe' && probeXY) { const [x, y] = probeXY, R = 46, dir = probeDir === null ? -Math.PI / 2 : probeDir, fv = PS.fov * Math.PI / 360;
@@ -279,34 +282,99 @@
     function readout() {
         const el = q('#w31t-read'); if (X.tool === 'contours') { el.innerHTML = `Height lines on the iris every <b>50 µm</b>, every <b>200 µm</b> in yellow — the relief of the whole eye at a glance.${secRes ? `<br>Last cut: deepest ${Math.round(Math.min(...secRes.samples.filter(s => s.surfaceUm !== null && s.surfaceUm !== undefined).map(s => s.surfaceUm)))} µm · floor ${Math.round(secRes.floorUm)} µm.` : ''}`; return; }
         let r = null, head = '';
-        if (X.tool === 'section') { if (!secRes || !secRes.samples.length) { el.innerHTML = 'Drag a line across the iris.'; return; } const s = secRes.samples[Math.max(0, secHot)]; if (s && !s.off) { r = { surfaceUm: s.surfaceUm, floorUm: secRes.floorUm, deckThicknessUm: secRes.deckThicknessUm, tubes: s.tubes }; head = `At ${s.sMm.toFixed(2)} mm along the cut`; } else { el.innerHTML = 'That part of the cut is off the iris.'; return; } }
+        if (secTool()) { if (!secRes || !secRes.samples.length) { el.innerHTML = X.tool === 'strand' ? 'Click a strand on the iris.' : 'Drag a line across the iris.'; return; } const s = secRes.samples[Math.max(0, secHot)]; if (s && !s.off) { r = { surfaceUm: s.surfaceUm, floorUm: secRes.floorUm, deckThicknessUm: secRes.deckThicknessUm, tubes: s.tubes }; head = `At ${s.sMm.toFixed(2)} mm along the cut`; } else { el.innerHTML = 'That part of the cut is off the iris.'; return; } }
         else { if (!point) { el.innerHTML = 'Move over the iris.'; return; } if (!point.r) { el.innerHTML = 'Off the tissue.'; return; } r = point.r; head = 'Under the pointer'; }
         const tubes = (r.tubes || []).slice().sort((a, b) => b.renderedTopUm - a.renderedTopUm);
         el.innerHTML = `<b>${head}</b> · surface <b>${Math.round(r.surfaceUm)} µm</b> · floor ${Math.round(r.floorUm)} µm · deck ${Math.round(r.deckThicknessUm)} µm` +
+            (secTool() && secFly && secFly.samples[flyHot] && secFly.samples[flyHot].inside ? (f => `<br><b>Generated strands</b> (eye's fibres ${Math.round(secFly.ridgeUm * 10) / 10} µm ridges, ≤ ${secFly.tubeUm} µm floating) · ` +
+                (f.tube ? `<b>${f.tube.bridge ? 'bridge strand (the band floats' + (f.layers && f.layers.length ? ', a bundle of ' + (f.layers.length + 1) + ' layers' : '') + ')' : 'floating strand'}</b>: centre ${f.tube.zUm.toFixed(1)} µm, ${(2 * f.tube.rUm).toFixed(1)} µm thick, ${(f.tube.zUm - f.tube.rUm - f.floorUm).toFixed(1)} µm of space under it to the floor at ${f.floorUm.toFixed(1)} µm`
+                        : f.cov > 0.5 ? `<b>on the sheet</b>: ridge top ${f.surfaceUm.toFixed(1)} µm (${(f.surfaceUm - f.floorUm >= 0 ? '+' : '') + (f.surfaceUm - f.floorUm).toFixed(1)} µm on the sheet at ${f.floorUm.toFixed(1)} µm)` : `<b>in a crypt</b>: floor ${f.floorUm.toFixed(1)} µm, no strand here`) +
+                ` · sheet cover ${f.cov.toFixed(2)} · crest ${f.Hn.toFixed(2)}`)(secFly.samples[flyHot]) : '') +
             (tubes.length ? `<table><tr><th>fibre, top down</th><th>top</th><th>centre</th><th>thickness</th></tr>${tubes.map(t => `<tr><td>#${t.fibre}</td><td>${Math.round(t.renderedTopUm)} µm</td><td>${Math.round(t.renderedZUm)} µm</td><td>${Math.round(2 * t.rUm)} µm</td></tr>`).join('')}</table>` : '<br>No fibre under this point.'); }
-    function sectionFrom(a, b) { const n = 240, pts = []; for (let i = 0; i < n; i++) { const t = i / (n - 1), x = a[0] + t * (b[0] - a[0]), y = a[1] + t * (b[1] - a[1]); pts.push({ x, y, uv: uvAtClient(x, y) }); } secRes = T.sectionUV(pts); secHot = Math.floor(n / 2); }
+    function sectionFrom(a, b) { const n = 240, pts = []; for (let i = 0; i < n; i++) { const t = i / (n - 1), x = a[0] + t * (b[0] - a[0]), y = a[1] + t * (b[1] - a[1]); pts.push({ x, y, uv: uvAtClient(x, y) }); } secRes = T.sectionUV(pts); secHot = Math.floor(n / 2);
+        const U = secRes.samples.filter(s => s.uv); secFly = window.__irisFly && window.__irisFly.ready && U.length > 1 ? window.__irisFly.sectionFly(U[0].uv, U[U.length - 1].uv, { stepUm: 0.5, path: U.map(q => q.uv), band: secBand > 0 ? [-4, -3, -2, -1, 0, 1, 2, 3, 4].map(k => k / 8 * secBand) : null }) : null;
+        flyHot = secFly ? Math.floor(secFly.samples.length / 2) : -1; secWin = 0; }
+    function strandAt(cx, cy) {
+        const uv = uvAtClient(cx, cy), F_ = window.__irisFly; if (!uv || !F_ || !F_.ready) return;
+        secFly = F_.sectionStrand(uv); if (!secFly) return;
+        const P = secFly.pathUV, n = 240, pts = []; for (let i = 0; i < n; i++) pts.push({ x: 0, y: 0, uv: P[Math.round(i / (n - 1) * (P.length - 1))] });
+        secRes = T.sectionUV(pts); secHot = Math.floor(n / 2); secWin = 0;
+        let bi = 0, bd = 1e9; P.forEach((q, i) => { let du = q[0] - uv[0]; du -= Math.round(du); const d = du * du * 36 + (q[1] - uv[1]) ** 2; if (d < bd) { bd = d; bi = i; } }); flyHot = bi;
+        strandPath = []; for (let i = 0; i < 48; i++) { const c = clientOf(P[Math.round(i / 47 * (P.length - 1))]); if (c) strandPath.push(c); }
+    }
+    X.strandAt = (cx, cy) => { strandAt(cx, cy); secDraw(); readout(); marks(); return secFly ? { n: secFly.samples.length, lenUm: Math.round(secFly.lenUm) } : null; };   // tests
     function secDraw() {
-        const c0 = q('#w31t-sec'), show = active() && X.page === 'inspect' && X.tool === 'section'; c0.style.display = show ? 'block' : 'none'; q('#w31t-legend').style.display = show ? '' : 'none';
-        q('#w31t-hint').textContent = X.tool === 'point' ? 'The height under the pointer, and every fibre stacked there — also those lying under others.' : X.tool === 'section' ? 'Drag a line across the iris: the cut shows every fibre it passes, also those lying under others. Height ×4 · move over the plot to walk the cut.' : 'Contours are drawn on the iris itself.';
+        const c0 = q('#w31t-sec'), show = active() && X.page === 'inspect' && secTool(); c0.style.display = show ? 'block' : 'none'; q('#w31t-legend').style.display = show ? '' : 'none';
+        q('#w31t-hint').textContent = X.tool === 'point' ? 'The height under the pointer, and every fibre stacked there — also those lying under others.' : X.tool === 'strand' ? 'Click a strand on the iris: it is followed along its own direction and the cut rides its top — where it lies on the sheet, where it lifts over a crypt, the space under it. Wheel over the plot to zoom.' : X.tool === 'section' ? 'Drag a line across the iris: the cut shows every fibre it passes, also those lying under others, and the generated strands — ridges on the sheet, floating strands over the crypts — at their real heights. Wheel over the plot to zoom down to single fibres; move over it to walk the cut.' : 'Contours are drawn on the iris itself.';
         if (!show) return; const w = c0.clientWidth, hh = c0.clientHeight, dpr = devicePixelRatio || 1; if (!w) return; c0.width = Math.round(w * dpr); c0.height = Math.round(hh * dpr); const c = c0.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.fillStyle = '#fff'; c.fillRect(0, 0, w, hh);
         const font = `400 10px ${getComputedStyle(W.el).fontFamily}`; c.font = font; c.fillStyle = '#000';
         if (!secRes || !secRes.samples.length) { c.textAlign = 'center'; c.fillText('drag a line across the iris', w / 2, hh / 2); return; }
-        const S = secRes.samples, mm = Math.max(1e-3, secRes.mm), zTop = Math.max(40, ...S.map(s => s.surfaceUm || -1e9)) + 20, zBot = secRes.floorUm - 20, pad = [36, 8, 16, 16];
-        const X_ = s => pad[0] + s / mm * (w - pad[0] - pad[1]), Y_ = z => pad[2] + (zTop - z) / (zTop - zBot) * (hh - pad[2] - pad[3]);
-        const pxUmX = (w - pad[0] - pad[1]) / (mm * 1000), pxUmY = (hh - pad[2] - pad[3]) / (zTop - zBot);
-        c.fillStyle = '#c0c0c0'; c.beginPath(); c.moveTo(X_(0), Y_(zBot)); S.forEach(s => { if (!s.off && s.surfaceUm !== null) c.lineTo(X_(s.sMm), Y_(s.surfaceUm)); }); c.lineTo(X_(mm), Y_(zBot)); c.closePath(); c.fill();
-        c.fillStyle = '#000'; c.fillRect(X_(0), Y_(secRes.floorUm), X_(mm) - X_(0), 1);
-        const seen = new Set(); S.forEach((s, i) => { if (s.off || !s.tubes || i % 3) return; const ts = s.tubes.slice().sort((a, b) => b.renderedTopUm - a.renderedTopUm); ts.forEach((t, j) => { const key = t.fibre + ':' + Math.round(s.sMm * 25); if (seen.has(key)) return; seen.add(key);
-            c.beginPath(); c.ellipse(X_(s.sMm), Y_(t.renderedZUm), Math.max(1.5, t.rUm * pxUmX), Math.max(1.5, t.rUm * pxUmY), 0, 0, 6.2832); c.fillStyle = j > 0 ? '#000080' : '#fff'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); }); });
-        c.strokeStyle = '#000'; c.lineWidth = 1.5; c.beginPath(); let first = true; S.forEach(s => { if (s.off || s.surfaceUm === null) { first = true; return; } first ? c.moveTo(X_(s.sMm), Y_(s.surfaceUm)) : c.lineTo(X_(s.sMm), Y_(s.surfaceUm)); first = false; }); c.stroke();
-        if (secHot >= 0 && S[secHot]) { const x = X_(S[secHot].sMm); c.fillStyle = '#ff0'; c.fillRect(x - 1, pad[2], 3, hh - pad[2] - pad[3]); c.strokeStyle = '#000'; c.lineWidth = 1; c.strokeRect(x - 1.5, pad[2] - 0.5, 3, hh - pad[2] - pad[3]); }
-        c.fillStyle = '#000'; c.textAlign = 'right'; const step = zTop - zBot > 500 ? 200 : 100; for (let z = Math.ceil(zBot / step) * step; z <= zTop; z += step) { c.fillText(z + ' µm', pad[0] - 3, Y_(z) + 3); c.fillRect(pad[0] - 2, Y_(z), 2, 1); }
-        c.textAlign = 'center'; const ms = mm > 3 ? 1 : 0.5; for (let s = 0; s <= mm + 1e-6; s += ms) { c.fillText(s.toFixed(1), X_(s), hh - 4); c.fillRect(X_(s), hh - pad[3], 1, 3); }
-        c.textAlign = 'left'; c.fillText(`mm along the cut · ${secRes.overlapped} samples with fibres under fibres`, pad[0], 11);
-        c.strokeStyle = '#000'; c.lineWidth = 1; c.strokeRect(pad[0] + 0.5, pad[2] + 0.5, w - pad[0] - pad[1] - 1, hh - pad[2] - pad[3] - 1);
+        // x and y in the same µm (iori 2026-11-12: real heights, 1:1, ×5 on a switch); the wheel narrows the window to single fibres
+        const S = secRes.samples, mm = Math.max(1e-3, secRes.mm), L = secFly ? secFly.lenUm : mm * 1000, fS = L / (mm * 1000), pad = [36, 8, 16, 16];
+        const win = secWin > 0 ? Math.min(secWin, L) : L, cx = secWin > 0 ? Math.min(L - win / 2, Math.max(win / 2, secC)) : L / 2, x0 = cx - win / 2;
+        const pw = w - pad[0] - pad[1], ph = hh - pad[2] - pad[3], kx = pw / win, ky = kx * secExag;
+        const FS = secFly ? secFly.samples : [], inWin = q => q >= x0 - 2 && q <= x0 + win + 2;
+        let zLo = 1e9, zHi = -1e9; FS.forEach(q => { if (!inWin(q.sUm) || !q.inside) return; zLo = Math.min(zLo, q.floorUm); zHi = Math.max(zHi, q.surfaceUm, q.tube ? q.tube.zUm + q.tube.rUm : -1e9); });
+        S.forEach(q => { if (q.off || q.surfaceUm === null || !inWin(q.sMm * 1000 * fS)) return; zLo = Math.min(zLo, q.surfaceUm, secRes.floorUm); zHi = Math.max(zHi, q.surfaceUm); });
+        if (zLo > zHi) { zLo = -50; zHi = 10; }
+        // the whole extent when it fits; else centred on what is under the hover line (its floating strand, or its surface)
+        let zMid = 0.5 * (zLo + zHi);
+        if ((zHi - zLo) * kx * secExag > ph - 8) { const hq = secFly && secFly.samples[flyHot]; if (hq && hq.inside) zMid = hq.tube ? hq.tube.zUm : hq.surfaceUm; }
+        const X_ = um => pad[0] + (um - x0) * kx, Y_ = z => pad[2] + ph / 2 - (z - zMid) * ky, Xm = sMm => X_(sMm * 1000 * fS);
+        c.save(); c.beginPath(); c.rect(pad[0], pad[2], pw, ph); c.clip();
+        // the layer model's tissue (the fitted surface) under the cut
+        c.fillStyle = '#c0c0c0'; c.beginPath(); c.moveTo(X_(x0), hh); S.forEach(q => { if (!q.off && q.surfaceUm !== null) c.lineTo(Xm(q.sMm), Y_(q.surfaceUm)); }); c.lineTo(X_(x0 + win), hh); c.closePath(); c.fill();
+        c.fillStyle = '#000'; c.fillRect(pad[0], Y_(secRes.floorUm), pw, 1);
+        // the fly-down: the sheet's strand ridges (olive) on the renderer's base, and the crypts' floating strands as tubes
+        if (FS.length) {
+            const stride = Math.max(1, Math.floor(FS.length / Math.max(1, (L / win) * pw * 2)));
+            c.fillStyle = '#808000'; c.beginPath(); let open = false;
+            for (let i = 0; i < FS.length; i += stride) { const q = FS[i]; if (!inWin(q.sUm) || !q.inside) { if (open) { c.lineTo(X_(FS[Math.max(0, i - stride)].sUm), hh); c.closePath(); open = false; } continue; }
+                if (!open) { c.moveTo(X_(q.sUm), hh); open = true; } c.lineTo(X_(q.sUm), Y_(Math.max(q.surfaceUm, q.floorUm))); }
+            if (open) { c.lineTo(X_(x0 + win), hh); c.closePath(); } c.fill();
+            c.strokeStyle = '#000'; c.lineWidth = 1; c.beginPath(); open = false;
+            for (let i = 0; i < FS.length; i += stride) { const q = FS[i]; if (!inWin(q.sUm) || !q.inside) { open = false; continue; } open ? c.lineTo(X_(q.sUm), Y_(q.surfaceUm)) : c.moveTo(X_(q.sUm), Y_(q.surfaceUm)); open = true; } c.stroke();
+            // the band (iori: "an area of strands"): the rows beside the cut, farthest first, in grey — every strand within the band
+            // projected onto the cut, so the floating ones stack up as they do in the tissue
+            if (secFly.rows.length > 1 && !secFly.strand) { const mid = Math.floor(secFly.rows.length / 2), order = secFly.rows.map((r, k) => k).filter(k => k !== mid).sort((a, b) => Math.abs(secFly.band[b]) - Math.abs(secFly.band[a]));
+                order.forEach(k => { const R = secFly.rows[k], g = Math.round(150 + 80 * Math.abs(secFly.band[k]) / Math.max(1, secBand / 2)); c.strokeStyle = `rgb(${g},${g},${g - 30})`; c.lineWidth = 1;
+                    c.beginPath(); let op = false; for (let i = 0; i < R.length; i += stride) { const q2 = R[i]; if (!inWin(q2.sUm) || !q2.inside) { op = false; continue; } op ? c.lineTo(X_(q2.sUm), Y_(q2.surfaceUm)) : c.moveTo(X_(q2.sUm), Y_(q2.surfaceUm)); op = true; } c.stroke();
+                    let rn = []; const fl = () => { if (rn.length) { c.beginPath(); rn.forEach((q2, j) => j ? c.lineTo(X_(q2.sUm), Y_(q2.tube.zUm + q2.tube.rUm)) : c.moveTo(X_(q2.sUm), Y_(q2.tube.zUm + q2.tube.rUm))); for (let j = rn.length - 1; j >= 0; j--) c.lineTo(X_(rn[j].sUm), Y_(rn[j].tube.zUm - rn[j].tube.rUm)); c.closePath(); c.fillStyle = `rgba(${g},${g},${g - 40},0.55)`; c.fill(); c.stroke(); } rn = []; };
+                    for (let i = 0; i < R.length; i++) { const q2 = R[i]; if (inWin(q2.sUm) && q2.tube) rn.push(q2); else fl(); } fl(); }); }
+            // floating strands: runs of samples inside a tube, drawn as their true outline (top and bottom), white on the dark gap
+            let run = [];
+            const flush = () => { if (run.length) { c.beginPath(); run.forEach((q, k) => k ? c.lineTo(X_(q.sUm), Y_(q.tube.zUm + q.tube.rUm)) : c.moveTo(X_(q.sUm), Y_(q.tube.zUm + q.tube.rUm)));
+                for (let k = run.length - 1; k >= 0; k--) c.lineTo(X_(run[k].sUm), Y_(run[k].tube.zUm - run[k].tube.rUm)); c.closePath(); c.fillStyle = '#ffffc0'; c.fill(); c.strokeStyle = '#000'; c.stroke(); } run = []; };
+            for (let i = 0; i < FS.length; i++) { const q = FS[i]; if (inWin(q.sUm) && q.tube) run.push(q); else flush(); } flush();
+            // a bundle's lower layers, each its own run of tubes, darker
+            for (let L = 0; L < 2; L++) { let rl = []; const fl2 = () => { if (rl.length) { c.beginPath(); rl.forEach((q, k) => { const t = q.layers[L]; k ? c.lineTo(X_(q.sUm), Y_(t.zUm + t.rUm)) : c.moveTo(X_(q.sUm), Y_(t.zUm + t.rUm)); });
+                    for (let k = rl.length - 1; k >= 0; k--) { const t = rl[k].layers[L]; c.lineTo(X_(rl[k].sUm), Y_(t.zUm - t.rUm)); } c.closePath(); c.fillStyle = L ? '#c8c890' : '#e4e4a8'; c.fill(); c.strokeStyle = '#000'; c.stroke(); } rl = []; };
+                for (let i = 0; i < FS.length; i++) { const q = FS[i]; if (inWin(q.sUm) && q.layers && q.layers[L]) rl.push(q); else fl2(); } fl2(); }
+        }
+        // the fitted tubes (the layer model's primitives), as before
+        const seen = new Set(); S.forEach((s, i) => { if (s.off || !s.tubes || !inWin(s.sMm * 1000 * fS)) return; const ts = s.tubes.slice().sort((a, b) => b.renderedTopUm - a.renderedTopUm); ts.forEach((t, j) => { const key = t.fibre + ':' + Math.round(s.sMm * 1000 * fS / Math.max(2, t.rUm)); if (seen.has(key)) return; seen.add(key);
+            c.beginPath(); c.ellipse(Xm(s.sMm), Y_(t.renderedZUm), Math.max(1.5, t.rUm * kx), Math.max(1.5, t.rUm * ky), 0, 0, 6.2832); c.fillStyle = j > 0 ? '#000080' : '#fff'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); }); });
+        const hx = flyHot >= 0 && FS[flyHot] ? X_(FS[flyHot].sUm) : (secHot >= 0 && S[secHot] ? Xm(S[secHot].sMm) : -1);
+        if (hx >= 0) { c.fillStyle = '#ff0'; c.fillRect(hx - 1, pad[2], 3, ph); c.strokeStyle = '#000'; c.lineWidth = 1; c.strokeRect(hx - 1.5, pad[2] - 0.5, 3, ph); }
+        c.restore();
+        // axes: µm both ways, steps that keep ~6 labels
+        const nice = r => { const e = Math.pow(10, Math.floor(Math.log10(r))), m = r / e; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * e; };
+        c.fillStyle = '#000'; c.textAlign = 'right'; const zr = ph / ky, zs = nice(zr / 5); for (let z = Math.ceil((zMid - zr / 2) / zs) * zs; z <= zMid + zr / 2; z += zs) { c.fillText(Math.round(z) + ' µm', pad[0] - 3, Y_(z) + 3); c.fillRect(pad[0] - 2, Y_(z), 2, 1); }
+        c.textAlign = 'center'; const xs = nice(win / 6); for (let u = Math.ceil(x0 / xs) * xs; u <= x0 + win + 1e-6; u += xs) { c.fillText(u >= 1000 ? (u / 1000).toFixed(xs >= 1000 ? 0 : xs >= 100 ? 1 : 2) + ' mm' : Math.round(u) + ' µm', X_(u), hh - 4); c.fillRect(X_(u), hh - pad[3], 1, 3); }
+        c.textAlign = 'left'; c.fillText(`along the cut · height ${secExag === 1 ? '1:1 (true)' : '×' + secExag} · wheel to zoom · ${secRes.overlapped} samples with fibres under fibres`, pad[0], 11);
+        c.strokeStyle = '#000'; c.lineWidth = 1; c.strokeRect(pad[0] + 0.5, pad[2] + 0.5, pw - 1, ph - 1);
+        c0._um = x => x0 + (x - pad[0]) / kx; c0._fS = fS;
         c0._x = X_; c0._mm = mm; }
+    q('#w31t-exag').addEventListener('click', () => { secExag = secExag === 1 ? 5 : 1; q('#w31t-exag').textContent = 'Height ' + (secExag === 1 ? '1:1' : '×5'); secDraw(); });
+    q('#w31t-fitcut').addEventListener('click', () => { secWin = 0; secDraw(); });
+    q('#w31t-band').addEventListener('click', () => { const B = [0, 25, 50, 100]; secBand = B[(B.indexOf(secBand) + 1) % B.length]; q('#w31t-band').textContent = secBand ? 'Band ' + secBand + ' µm' : 'Band off';
+        if (X.tool === 'section' && cut) { const w0 = secWin, c0_ = secC; sectionFrom(cut[0], cut[1]); secWin = w0; secC = c0_; } secDraw(); readout(); });
+    q('#w31t-sec').addEventListener('wheel', e => { if (!secRes) return; e.preventDefault(); const c0 = q('#w31t-sec'), r = c0.getBoundingClientRect(); if (!c0._um) return; const L = secFly ? secFly.lenUm : secRes.mm * 1000, at = c0._um(e.clientX - r.left), cur = secWin > 0 ? secWin : L;
+        const nw = Math.min(L, Math.max(20, cur * Math.pow(1.25, Math.sign(e.deltaY)))); const x0 = c0._um(36); secC = at - (at - x0) * nw / cur + nw / 2; secWin = nw >= L ? 0 : nw; secDraw(); }, { passive: false });   // the point under the pointer stays put
     q('#w31t-sec').addEventListener('pointermove', e => { if (!secRes || !secRes.samples.length) return; const c0 = q('#w31t-sec'), r = c0.getBoundingClientRect(), X_ = c0._x; if (!X_) return;
-        const s = (e.clientX - r.left - 36) / (r.width - 44) * c0._mm, S = secRes.samples; let bi = 0, bd = 1e9; S.forEach((q2, i) => { const d = Math.abs(q2.sMm - s); if (d < bd) { bd = d; bi = i; } }); if (bi !== secHot) { secHot = bi; secDraw(); readout(); marks(); } });
+        const um = c0._um ? c0._um(e.clientX - r.left) : 0, s = um / 1000 / (c0._fS || 1), S = secRes.samples; let bi = 0, bd = 1e9; S.forEach((q2, i) => { const d = Math.abs(q2.sMm - s); if (d < bd) { bd = d; bi = i; } });
+        const fh = secFly ? Math.max(0, Math.min(secFly.samples.length - 1, Math.round(um / secFly.stepUm))) : -1;
+        if (bi !== secHot || fh !== flyHot) { secHot = bi; flyHot = fh; secDraw(); readout(); marks(); } });
 
     // ---------------------------------------------------------------------------------------------------------
     // Probe: tap the iris to place it; drag the view to look around; the scrubbers
@@ -359,6 +427,7 @@
     document.addEventListener('pointerdown', e => { if (!owns(e) || e.button > 0) return; e.stopPropagation(); lockCamera();
         if (X.page === 'probe') { placeProbe(e.clientX, e.clientY); return; }
         if (X.page === 'paint') { stroke = [[e.clientX, e.clientY]]; try { cv.setPointerCapture(e.pointerId); } catch (err) {} marks(); return; }
+        if (X.tool === 'strand') { strandAt(e.clientX, e.clientY); secDraw(); readout(); marks(); return; }
         if (X.tool === 'section') { drag = { a: [e.clientX, e.clientY] }; cut = [drag.a, drag.a]; secRes = null; try { cv.setPointerCapture(e.pointerId); } catch (err) {} marks(); } }, true);
     document.addEventListener('pointermove', e => {
         if (drag) { e.stopPropagation(); cut = [drag.a, [e.clientX, e.clientY]]; marks(); return; }

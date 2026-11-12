@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Fly-down D0 viewer</title>
+<style>
+  :root { --bg: #0b0b0c; --fg: #e8e6e1; --dim: #8a877f; --line: #2a2a2d; --acc: #7fe0ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.4 ui-monospace, Menlo, monospace; }
+  body { display: grid; grid-template-columns: 1fr 300px; height: 100vh; }
+  #stage { position: relative; overflow: hidden; cursor: crosshair; touch-action: none; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #hud { position: absolute; left: 14px; top: 12px; pointer-events: none; text-shadow: 0 0 4px #000; }
+  #hud .z { font-size: 28px; color: var(--acc); letter-spacing: .02em; }
+  #hud .lbl { position: absolute; top: 46px; white-space: nowrap; }
+  #labR { position: absolute; right: 14px; top: 72px; text-shadow: 0 0 4px #000; pointer-events: none; text-align: right; }
+  #labL { position: absolute; left: 14px; top: 72px; text-shadow: 0 0 4px #000; pointer-events: none; }
+  #scale { position: absolute; left: 14px; bottom: 14px; pointer-events: none; text-shadow: 0 0 4px #000; }
+  #scale i { display: block; height: 2px; background: var(--fg); margin-top: 3px; }
+  aside { border-left: 1px solid var(--line); padding: 14px; overflow: auto; }
+  h1 { font-size: 13px; font-weight: normal; margin: 0 0 10px; color: var(--dim); }
+  h2 { font-size: 11px; font-weight: normal; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin: 16px 0 6px; }
+  button, select { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); padding: 4px 7px; cursor: pointer; }
+  button.on { border-color: var(--acc); color: var(--acc); }
+  .algs { display: grid; grid-template-columns: 1fr 26px 26px; gap: 3px 4px; align-items: center; }
+  .algs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .algs button { padding: 2px 0; }
+  input[type=range] { width: 100%; accent-color: var(--acc); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  p { color: var(--dim); margin: 6px 0; }
+  kbd { border: 1px solid var(--line); padding: 0 4px; }
+  @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="hud"><div class="z" id="zr">×1.0</div><div id="um"></div></div>
+  <div id="labL"></div><div id="labR"></div>
+  <div id="scale"><span id="sl"></span><i id="sb"></i></div>
+</div>
+<aside>
+  <h1>Fly-down D0 · zoom viewer · offline tiles, one spot each</h1>
+  <h2>Spot</h2>
+  <select id="spot"></select>
+  <h2>Algorithm <span style="float:right">L&nbsp;&nbsp;&nbsp;R</span></h2>
+  <div class="algs" id="algs"></div>
+  <p>L fills the view. Pick an R to split the view; drag the seam.</p>
+  <h2>Zoom</h2>
+  <input type="range" id="zs" min="0" max="5" step="0.001" value="0">
+  <div class="row"><button id="fly">fly down</button><button id="up">back to ×1</button><button id="one">no split</button></div>
+  <p>Wheel or pinch zooms. <kbd>1</kbd>–<kbd>7</kbd> pick L, <kbd>space</kbd> holds the photo, <kbd>F</kbd> flies.</p>
+  <h2>Reading it</h2>
+  <p id="oct"></p>
+  <p>Every octave fades in between 4 and 2 view px per wavelength, so ×1 is the photo for every algorithm. The floor is
+    1 µm: below it the view is soft magnification. Today's engine was captured at ×1, 2, 4, 8 and 16 only; between those it
+    is the capture magnified.</p>
+</aside>
+<script>
+(async () => {
+  const idx = await (await fetch('tiles/index.json')).json();
+  const $ = id => document.getElementById(id);
+  const cv = $('c'), cx = cv.getContext('2d');
+  const S = { spot: Object.keys(idx.spots)[0], L: 'proposal', R: 'today', z: 1, seam: 0.5, photoHold: false };
+  const cache = new Map();
+  const img = (spot, alg, i) => {
+    const k = `${spot}/${alg}-${i}`; let im = cache.get(k);
+    if (!im) { im = new Image(); im.src = `tiles/${k}.jpg?v=${idx.v || 0}`; im.onload = draw; cache.set(k, im); }
+    return im.complete && im.naturalWidth ? im : null;
+  };
+  const Z = idx.zooms, zmax = Z[Z.length - 1];
+  for (const [k, v] of Object.entries(idx.spots)) $('spot').add(new Option(v.title, k));
+  $('spot').value = S.spot; $('spot').onchange = e => { S.spot = e.target.value; preload(); draw(); };
+  const names = Object.fromEntries(idx.algs);
+  idx.algs.forEach(([k, t], n) => {
+    const s = document.createElement('span'); s.textContent = `${n + 1} ${t}`; s.title = t;
+    const bl = document.createElement('button'), br = document.createElement('button');
+    bl.textContent = 'L'; br.textContent = 'R'; bl.dataset.k = br.dataset.k = k;
+    bl.onclick = () => { S.L = k; ui(); }; br.onclick = () => { S.R = S.R === k ? null : k; ui(); };
+    bl.className = 'l'; br.className = 'r';
+    $('algs').append(s, bl, br);
+  });
+  $('one').onclick = () => { S.R = null; ui(); };
+  function ui() {
+    document.querySelectorAll('.algs button.l').forEach(b => b.classList.toggle('on', b.dataset.k === S.L));
+    document.querySelectorAll('.algs button.r').forEach(b => b.classList.toggle('on', b.dataset.k === S.R));
+    preload(); draw();
+  }
+  function preload() { for (const a of [S.L, S.R, 'photo']) if (a) Z.forEach((_, i) => img(S.spot, a, i)); }
+
+  // one layer: the level at or below z, scaled up by ≤ √2, with the next level faded in over the top with a soft edge
+  const off = document.createElement('canvas'), ox = off.getContext('2d');
+  function layer(alg, W, H) {
+    const lz = Math.log2(S.z) * 2, i = Math.min(Z.length - 1, Math.floor(lz + 1e-9)), fr = Math.min(1, lz - i);
+    const side = Math.max(W, H);
+    const put = (j, a, ctx) => {
+      const im = img(S.spot, alg, j); if (!im) return false;
+      const s = side * S.z / Z[j]; ctx.globalAlpha = a;
+      ctx.drawImage(im, (W - s) / 2, (H - s) / 2, s, s); ctx.globalAlpha = 1; return true;
+    };
+    const ok = put(i, 1, cx);
+    if (!ok) { for (let j = i - 1; j >= 0; j--) if (put(j, 1, cx)) break; }
+    if (i + 1 < Z.length && fr > 0.02 && img(S.spot, alg, i + 1)) {
+      off.width = W; off.height = H; ox.clearRect(0, 0, W, H); put(i + 1, 1, ox);
+      const s = side * S.z / Z[i + 1];                 // the next level's footprint: feather its edge
+      const g = ox.createRadialGradient(W / 2, H / 2, s * 0.30, W / 2, H / 2, s * 0.5);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ox.globalCompositeOperation = 'destination-in'; ox.fillStyle = g; ox.fillRect(0, 0, W, H); ox.globalCompositeOperation = 'source-over';
+      cx.globalAlpha = fr * fr * (3 - 2 * fr); cx.drawImage(off, 0, 0); cx.globalAlpha = 1;
+    }
+  }
+  function draw() {
+    const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+    const W = Math.round(r.width * d), H = Math.round(r.height * d);
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    cx.imageSmoothingQuality = 'high'; cx.fillStyle = '#000'; cx.fillRect(0, 0, W, H);
+    const L = S.photoHold ? 'photo' : S.L;
+    if (S.R && !S.photoHold) {
+      const xs = Math.round(W * S.seam);
+      cx.save(); cx.beginPath(); cx.rect(0, 0, xs, H); cx.clip(); layer(L, W, H); cx.restore();
+      cx.save(); cx.beginPath(); cx.rect(xs, 0, W - xs, H); cx.clip(); layer(S.R, W, H); cx.restore();
+      cx.fillStyle = 'rgba(255,255,255,.7)'; cx.fillRect(xs - d, 0, 2 * d, H);
+    } else layer(L, W, H);
+    const sp = idx.spots[S.spot], um = sp.um / S.z;            // µm per tile px
+    const umPerCss = um * idx.N / Math.max(r.width, r.height);
+    $('zr').textContent = `×${S.z < 10 ? S.z.toFixed(1) : S.z.toFixed(0)}`;
+    $('um').textContent = `${um.toFixed(2)} µm/px · field ${(umPerCss * r.width / 1000).toFixed(3)} mm`;
+    $('labL').textContent = names[L]; $('labR').textContent = S.R && !S.photoHold ? names[S.R] : '';
+    // scale bar: a round length near 120 css px
+    const want = umPerCss * 120, p = 10 ** Math.floor(Math.log10(want)), len = [1, 2, 5, 10].map(m => m * p).filter(v => v <= want).pop();
+    $('sl').textContent = len >= 1000 ? `${len / 1000} mm` : `${len} µm`; $('sb').style.width = `${len / umPerCss}px`;
+    const res = sp.octaves.map(l => { const f = Math.min(1, Math.max(0, (l / um - 2) / 2)); return `${l.toFixed(1)} µm ${f >= 1 ? '●' : f > 0 ? '◐' : '○'}`; });
+    $('oct').textContent = `octaves (resolved ●, fading ◐): ${res.join(' · ')}${um < 0.5 ? ' · below the floor: soft' : ''}`;
+    $('zs').value = Math.log2(S.z);
+  }
+  const setZ = z => { S.z = Math.min(zmax, Math.max(1, z)); draw(); };
+  $('zs').oninput = e => { fly = null; setZ(2 ** +e.target.value); };
+  $('stage').addEventListener('wheel', e => { e.preventDefault(); fly = null; setZ(S.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); }, { passive: false });
+  // seam drag (split view) / pinch
+  const pts = new Map(); let pinch0 = null;
+  $('stage').addEventListener('pointerdown', e => { $('stage').setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = [Math.hypot(a[0] - b[0], a[1] - b[1]), S.z]; } else seam(e); });
+  $('stage').addEventListener('pointermove', e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 2 && pinch0) { const [a, b] = [...pts.values()]; setZ(pinch0[1] * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch0[0]); } else if (pts.size === 1) seam(e); });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = null; };
+  $('stage').addEventListener('pointerup', up); $('stage').addEventListener('pointercancel', up);
+  function seam(e) { if (!S.R) return; const r = cv.getBoundingClientRect(); S.seam = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); draw(); }
+  // fly down: ×1 → ×32 in 9 s, ease in-out in log zoom
+  let fly = null;
+  $('fly').onclick = () => { fly = { t0: performance.now(), a: Math.log2(S.z) }; requestAnimationFrame(tick); };
+  $('up').onclick = () => { fly = null; setZ(1); };
+  function tick(now) {
+    if (!fly) return; const u = Math.min(1, (now - fly.t0) / 9000), k = u * u * (3 - 2 * u);
+    setZ(2 ** (fly.a + (Math.log2(zmax) - fly.a) * k)); if (u < 1) requestAnimationFrame(tick); else fly = null;
+  }
+  addEventListener('keydown', e => {
+    if (e.key === ' ') { e.preventDefault(); if (!S.photoHold) { S.photoHold = true; draw(); } }
+    else if (e.key >= '1' && e.key <= String(idx.algs.length)) { S.L = idx.algs[+e.key - 1][0]; ui(); }
+    else if (e.key === 'f' || e.key === 'F') $('fly').click();
+  });
+  addEventListener('keyup', e => { if (e.key === ' ') { S.photoHold = false; draw(); } });
+  addEventListener('resize', draw);
+  window.__viewer = { S, draw, setZ };
+  ui();
+})();
+</script>
+</body>
+</html>

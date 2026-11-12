@@ -1,0 +1,302 @@
+{
+ "26-crypt-lip": {
+  "heldout": {
+   "targetDir": 0.0622,
+   "ruleDir": -0.0036,
+   "phiRule": 0.0,
+   "phiOracle": 0.0,
+   "control": -0.34,
+   "noise": 0.004,
+   "fibres": 0.016,
+   "cells": -0.001,
+   "energyPredOverTarget": 0.335,
+   "lambdaHalfPx": 5.66
+  },
+  "view": {
+   "decayPerOctave": 0.2,
+   "lambdaPx": 5.06
+  },
+  "curve": [
+   {
+    "phi": 0.0,
+    "dir": 0.0657,
+    "corr": -0.001
+   },
+   {
+    "phi": 0.1,
+    "dir": 0.0716,
+    "corr": 0.0
+   },
+   {
+    "phi": 0.2,
+    "dir": 0.1062,
+    "corr": 0.002
+   },
+   {
+    "phi": 0.3,
+    "dir": 0.1738,
+    "corr": 0.005
+   },
+   {
+    "phi": 0.4,
+    "dir": 0.2697,
+    "corr": 0.007
+   },
+   {
+    "phi": 0.5,
+    "dir": 0.3785,
+    "corr": 0.01
+   },
+   {
+    "phi": 0.6,
+    "dir": 0.473,
+    "corr": 0.012
+   },
+   {
+    "phi": 0.7,
+    "dir": 0.543,
+    "corr": 0.014
+   },
+   {
+    "phi": 0.8,
+    "dir": 0.5864,
+    "corr": 0.015
+   },
+   {
+    "phi": 0.9,
+    "dir": 0.6084,
+    "corr": 0.015
+   },
+   {
+    "phi": 1.0,
+    "dir": 0.6153,
+    "corr": 0.016
+   }
+  ]
+ },
+ "26-sheet": {
+  "heldout": {
+   "targetDir": 0.0564,
+   "ruleDir": -0.0143,
+   "phiRule": 0.0,
+   "phiOracle": 0.0,
+   "control": -0.349,
+   "noise": -0.004,
+   "fibres": 0.005,
+   "cells": 0.007,
+   "energyPredOverTarget": 0.353,
+   "lambdaHalfPx": 3.14
+  },
+  "view": {
+   "decayPerOctave": 0.2,
+   "lambdaPx": 4.44
+  },
+  "curve": [
+   {
+    "phi": 0.0,
+    "dir": 0.0711,
+    "corr": 0.007
+   },
+   {
+    "phi": 0.1,
+    "dir": 0.078,
+    "corr": 0.008
+   },
+   {
+    "phi": 0.2,
+    "dir": 0.1107,
+    "corr": 0.008
+   },
+   {
+    "phi": 0.3,
+    "dir": 0.1804,
+    "corr": 0.008
+   },
+   {
+    "phi": 0.4,
+    "dir": 0.2873,
+    "corr": 0.009
+   },
+   {
+    "phi": 0.5,
+    "dir": 0.4131,
+    "corr": 0.008
+   },
+   {
+    "phi": 0.6,
+    "dir": 0.5274,
+    "corr": 0.008
+   },
+   {
+    "phi": 0.7,
+    "dir": 0.6103,
+    "corr": 0.007
+   },
+   {
+    "phi": 0.8,
+    "dir": 0.6596,
+    "corr": 0.006
+   },
+   {
+    "phi": 0.9,
+    "dir": 0.6837,
+    "corr": 0.006
+   },
+   {
+    "phi": 1.0,
+    "dir": 0.6906,
+    "corr": 0.005
+   }
+  ]
+ },
+ "35-strands": {
+  "heldout": {
+   "targetDir": 0.0692,
+   "ruleDir": 0.0646,
+   "phiRule": 0.0,
+   "phiOracle": 0.0,
+   "control": 0.189,
+   "noise": -0.0,
+   "fibres": 0.006,
+   "cells": -0.003,
+   "energyPredOverTarget": 0.529,
+   "lambdaHalfPx": 3.14
+  },
+  "view": {
+   "decayPerOctave": 1.0,
+   "lambdaPx": 4.0
+  },
+  "curve": [
+   {
+    "phi": 0.0,
+    "dir": 0.0709,
+    "corr": -0.003
+   },
+   {
+    "phi": 0.1,
+    "dir": 0.0782,
+    "corr": -0.002
+   },
+   {
+    "phi": 0.2,
+    "dir": 0.1112,
+    "corr": -0.001
+   },
+   {
+    "phi": 0.3,
+    "dir": 0.181,
+    "corr": -0.0
+   },
+   {
+    "phi": 0.4,
+    "dir": 0.2876,
+    "corr": 0.001
+   },
+   {
+    "phi": 0.5,
+    "dir": 0.4131,
+    "corr": 0.002
+   },
+   {
+    "phi": 0.6,
+    "dir": 0.5258,
+    "corr": 0.004
+   },
+   {
+    "phi": 0.7,
+    "dir": 0.606,
+    "corr": 0.005
+   },
+   {
+    "phi": 0.8,
+    "dir": 0.6539,
+    "corr": 0.005
+   },
+   {
+    "phi": 0.9,
+    "dir": 0.6776,
+    "corr": 0.006
+   },
+   {
+    "phi": 1.0,
+    "dir": 0.6844,
+    "corr": 0.006
+   }
+  ]
+ },
+ "09-crypts": {
+  "heldout": {
+   "targetDir": 0.0022,
+   "ruleDir": -0.0027,
+   "phiRule": 0.0,
+   "phiOracle": 0.0,
+   "control": 0.016,
+   "noise": -0.0,
+   "fibres": 0.004,
+   "cells": -0.002,
+   "energyPredOverTarget": 0.341,
+   "lambdaHalfPx": 7.16
+  },
+  "view": {
+   "decayPerOctave": 0.2,
+   "lambdaPx": 5.06
+  },
+  "curve": [
+   {
+    "phi": 0.0,
+    "dir": 0.0667,
+    "corr": -0.002
+   },
+   {
+    "phi": 0.1,
+    "dir": 0.0702,
+    "corr": -0.001
+   },
+   {
+    "phi": 0.2,
+    "dir": 0.0808,
+    "corr": -0.0
+   },
+   {
+    "phi": 0.3,
+    "dir": 0.0963,
+    "corr": 0.0
+   },
+   {
+    "phi": 0.4,
+    "dir": 0.1181,
+    "corr": 0.001
+   },
+   {
+    "phi": 0.5,
+    "dir": 0.1499,
+    "corr": 0.002
+   },
+   {
+    "phi": 0.6,
+    "dir": 0.1971,
+    "corr": 0.003
+   },
+   {
+    "phi": 0.7,
+    "dir": 0.2602,
+    "corr": 0.003
+   },
+   {
+    "phi": 0.8,
+    "dir": 0.3269,
+    "corr": 0.004
+   },
+   {
+    "phi": 0.9,
+    "dir": 0.3741,
+    "corr": 0.004
+   },
+   {
+    "phi": 1.0,
+    "dir": 0.3903,
+    "corr": 0.004
+   }
+  ]
+ }
+}

@@ -670,27 +670,29 @@
     let rimT = null, rimBake = null, rimAux = null, rimRetry = 0; F.rimInfo = null;
     const rimKey = () => (T.knobSig || '') + '|' + JSON.stringify(T.primKey || null) + '|' + (T.size || []).join('x');
     const rimFresh = () => rimAux === T.aux && rimBake === rimKey();
-    function edt1(f, n, sc, out, v, z) {                                  // 1-D squared distance transform, sample spacing sc (mm)
-        let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
-        const S_ = (q, p) => ((f[q] + (q * sc) ** 2) - (f[p] + (p * sc) ** 2)) / (2 * sc * (q - p));
-        for (let q = 1; q < n; q++) {
-            let s = S_(q, v[k]); while (s <= z[k]) { k--; s = S_(q, v[k]); }
-            k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+    // THE BAKE IN A WORKER (iori 2026-11-12: "do 2, background bake"): the readback (one readPixels of the whole aux, ~30 ms) stays on the
+    // main thread; everything after it — sheet level, crypt components, islands, the bands, four exact distance transforms (~0.75 s on
+    // eye 26) — is rimCompute, a pure function that runs in a worker built from its own source (no extra file), and the maps are
+    // uploaded when it answers. While it runs the rims and ropes stay off (u_fdRimOk 0): the old bundle draws the bands meanwhile
+    function rimCompute(inp) {
+        const { buf, bw, W, H, R, bridge } = inp;
+        function edt1(f, n, sc, out, v, z) {                                  // 1-D squared distance transform, sample spacing sc (mm)
+            let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+            const S_ = (q, p) => ((f[q] + (q * sc) ** 2) - (f[p] + (p * sc) ** 2)) / (2 * sc * (q - p));
+            for (let q = 1; q < n; q++) {
+                let s = S_(q, v[k]); while (s <= z[k]) { k--; s = S_(q, v[k]); }
+                k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+            }
+            k = 0; for (let q = 0; q < n; q++) { while (z[k + 1] < q * sc) k++; out[q] = (q * sc - v[k] * sc) ** 2 + f[v[k]]; }
         }
-        k = 0; for (let q = 0; q < n; q++) { while (z[k + 1] < q * sc) k++; out[q] = (q * sc - v[k] * sc) ** 2 + f[v[k]]; }
-    }
-    function edt(mask, W, H, su, sv) {                                    // distance (mm) from every texel to the nearest mask texel
-        const INF = 1e20, D = new Float32Array(W * H), n = Math.max(W, H), f = new Float64Array(n), o = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
-        for (let y = 0; y < H; y++) { for (let x = 0; x < W; x++) f[x] = mask[y * W + x] ? 0 : INF; edt1(f, W, su[y], o, v, z); for (let x = 0; x < W; x++) D[y * W + x] = o[x]; }
-        for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) f[y] = D[y * W + x]; edt1(f, H, sv, o, v, z); for (let y = 0; y < H; y++) D[y * W + x] = Math.sqrt(o[y]); }
-        return D;
-    }
-    function bakeRim() {
-        if (!T.size || !T.rect || !T._auxRead || !T.aux || rimFresh() || performance.now() < rimRetry) return; rimBake = rimKey(); rimAux = T.aux;
-        const t0 = performance.now(), R = T.rect, [w0, H] = T.size, W = w0 >> 1;
-        const A = T._auxRead(R[0], R[1], R[0] + R[2], R[1] + R[3]); if (A.bw < w0 || A.bh < H) return;
+        function edt(mask, W, H, su, sv) {                                    // distance (mm) from every texel to the nearest mask texel
+            const INF = 1e20, D = new Float32Array(W * H), n = Math.max(W, H), f = new Float64Array(n), o = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+            for (let y = 0; y < H; y++) { for (let x = 0; x < W; x++) f[x] = mask[y * W + x] ? 0 : INF; edt1(f, W, su[y], o, v, z); for (let x = 0; x < W; x++) D[y * W + x] = o[x]; }
+            for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) f[y] = D[y * W + x]; edt1(f, H, sv, o, v, z); for (let y = 0; y < H; y++) D[y * W + x] = Math.sqrt(o[y]); }
+            return D;
+        }
         const h = new Float32Array(W * H), ok = new Uint8Array(W * H);
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * A.bw + 2 * x) * 4, a = A.buf[o + 3] > 0 && A.buf[o + 7] > 0; ok[y * W + x] = a ? 1 : 0; h[y * W + x] = a ? 0.5 * (A.buf[o] + A.buf[o + 4]) : 0; }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * bw + 2 * x) * 4, a = buf[o + 3] > 0 && buf[o + 7] > 0; ok[y * W + x] = a ? 1 : 0; h[y * W + x] = a ? 0.5 * (buf[o] + buf[o + 4]) : 0; }
         const su = new Float64Array(H), sv = 4 * R[3] / H, wrap = R[2] > 0.999;
         for (let y = 0; y < H; y++) su[y] = 2 * Math.PI * (2 + 4 * (R[1] + (y + 0.5) / H * R[3])) * R[2] / W;
         const RAD = 0.08, rowPass = (src, op) => { const out = new Float32Array(W * H);
@@ -728,7 +730,7 @@
         // the level model's gap: a band where it passes 0.42, mid-way up the renderer's 0.25–0.6 ramp). The crypt map cannot give a band's
         // width: a band lies inside its crypt (its ground is under the sheet level), so there the crypt distance measures to the rim
         const pb = new Float32Array(W * H * 2);
-        if (bridgeCPU) { const B = new Uint8Array(W * H), nB = new Uint8Array(W * H), bw = bridgeCPU.w, bh = bridgeCPU.h, bd = bridgeCPU.d;
+        if (bridge) { const B = new Uint8Array(W * H), nB = new Uint8Array(W * H), bw = bridge.w, bh = bridge.h, bd = bridge.d;
             for (let y = 0; y < H; y++) { const vv = R[1] + (y + 0.5) / H * R[3], by = Math.min(bh - 1, Math.max(0, vv * bh - 0.5)), y0 = Math.floor(by), y1 = Math.min(bh - 1, y0 + 1), fy = by - y0;
                 for (let x = 0; x < W; x++) { const uu = R[0] + (x + 0.5) / W * R[2], bx = ((uu % 1) + 1) % 1 * bw - 0.5, x0 = Math.floor(bx), fx = bx - x0, X0 = (x0 + bw) % bw, X1 = (x0 + 1) % bw;
                     const g = ((bd[(y0 * bw + X0) * 4] * (1 - fx) + bd[(y0 * bw + X1) * 4] * fx) * (1 - fy) + (bd[(y1 * bw + X0) * 4] * (1 - fx) + bd[(y1 * bw + X1) * 4] * fx) * fy) / 255;
@@ -736,18 +738,47 @@
             const bOut = edt(B, W, H, su, sv), bIn = edt(nB, W, H, su, sv);
             for (let i = 0; i < W * H; i++) pb[i * 2] = Math.max(-0.4, Math.min(0.4, B[i] ? bIn[i] : -bOut[i]));
         } else pb.fill(-0.4);
-        ensureGL(); gl.bindTexture(gl.TEXTURE_2D, tableT);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, Math.max(TW, W), TH + 2 * H, 0, gl.RG, gl.FLOAT, null);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, TW, TH, gl.RG, gl.FLOAT, table); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, TH, W, H, gl.RG, gl.FLOAT, px); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, TH + H, W, H, gl.RG, gl.FLOAT, pb);
-        rimT = { W, H, wrap };
-        F._rimAt = (u, v) => { const x = ((u - R[0]) / R[2] * W - 0.5), y = Math.max(0, Math.min(H - 1, (v - R[1]) / R[3] * H - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;   // tests: the map, bilinear
-            const at = (X, Y, k) => px[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2 + k], b = k => (at(x0, y0, k) * (1 - fx) + at(x0 + 1, y0, k) * fx) * (1 - fy) + (at(x0, y0 + 1, k) * (1 - fx) + at(x0 + 1, y0 + 1, k) * fx) * fy;
-            return [b(0), b(1)]; };
-        F._bandAt = (u, v) => { const x = ((u - R[0]) / R[2] * W - 0.5), y = Math.max(0, Math.min(H - 1, (v - R[1]) / R[3] * H - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;   // tests: the band map
-            const at = (X, Y) => pb[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2]; return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy; };
         let nC = 0; for (let i = 0; i < W * H; i++) nC += C[i];
-        if (!keep.some(Boolean)) { rimBake = null; rimRetry = performance.now() + 2000; }   // nothing found: the tissue is not there yet
-        F.rimInfo = { W, H, crypts: keep.filter(Boolean).length, dropped: keep.filter(k => !k).length, cryptShare: +(nC / (W * H)).toFixed(3), ms: Math.round(performance.now() - t0) };
+        return { px, pb, crypts: keep.filter(Boolean).length, dropped: keep.filter(k => !k).length, nC };
+    }
+    let rimWorker = null, rimJob = 0;
+    function rimWorkerGet() {
+        if (rimWorker !== null) return rimWorker;
+        try {
+            const src = 'const rimCompute = ' + rimCompute.toString() + ';\nself.onmessage = e => { const o = rimCompute(e.data); o.job = e.data.job; self.postMessage(o, [o.px.buffer, o.pb.buffer]); };';
+            rimWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+            rimWorker.onerror = e => { console.warn('flydown rim worker', e.message); rimWorker = false; rimBake = null; };   // no worker: bake inline next time
+        } catch (e) { rimWorker = false; }
+        return rimWorker;
+    }
+    let rimPending = false; F._rebakeRim = () => { rimBake = null; };   // tests
+    function bakeRim() {
+        if (rimPending || !T.size || !T.rect || !T._auxRead || !T.aux || rimFresh() || performance.now() < rimRetry) return;
+        const key = rimKey(), aux = T.aux, t0 = performance.now(), R = T.rect.slice(), [w0, H] = T.size, W = w0 >> 1;
+        const A = T._auxRead(R[0], R[1], R[0] + R[2], R[1] + R[3]); if (A.bw < w0 || A.bh < H) return;
+        const bridge = bridgeCPU ? { w: bridgeCPU.w, h: bridgeCPU.h, d: bridgeCPU.d } : null;
+        const done = o => {
+            rimPending = false;
+            if (key !== rimKey() || aux !== T.aux) return;                 // the tissue changed meanwhile: the next tick bakes again
+            rimBake = key; rimAux = aux;
+            const { px, pb } = o, wrap = R[2] > 0.999;
+            ensureGL(); gl.bindTexture(gl.TEXTURE_2D, tableT);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, Math.max(TW, W), TH + 2 * H, 0, gl.RG, gl.FLOAT, null);
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, TW, TH, gl.RG, gl.FLOAT, table); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, TH, W, H, gl.RG, gl.FLOAT, px); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, TH + H, W, H, gl.RG, gl.FLOAT, pb);
+            rimT = { W, H, wrap };
+            F._rimAt = (u, v) => { const x = ((u - R[0]) / R[2] * W - 0.5), y = Math.max(0, Math.min(H - 1, (v - R[1]) / R[3] * H - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;   // tests: the map, bilinear
+                const at = (X, Y, k) => px[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2 + k], b = k => (at(x0, y0, k) * (1 - fx) + at(x0 + 1, y0, k) * fx) * (1 - fy) + (at(x0, y0 + 1, k) * (1 - fx) + at(x0 + 1, y0 + 1, k) * fx) * fy;
+                return [b(0), b(1)]; };
+            F._bandAt = (u, v) => { const x = ((u - R[0]) / R[2] * W - 0.5), y = Math.max(0, Math.min(H - 1, (v - R[1]) / R[3] * H - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;   // tests: the band map
+                const at = (X, Y) => pb[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2]; return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy; };
+                if (!o.crypts) { rimBake = null; rimRetry = performance.now() + 2000; }   // nothing found: the tissue is not there yet
+            F.rimInfo = { W, H, crypts: o.crypts, dropped: o.dropped, cryptShare: +(o.nC / (W * H)).toFixed(3), ms: Math.round(performance.now() - t0), worker: !!o.job };
+        };
+        const inp = { buf: A.buf, bw: A.bw, W, H, R, bridge }, wk = F.rimInline ? false : rimWorkerGet();
+        if (wk) { rimPending = true; const job = ++rimJob; inp.job = job;
+            wk.onmessage = e => { if (e.data.job === rimJob) { try { done(e.data); } catch (err) { console.error('flydown rim upload', err); } } };
+            wk.postMessage(inp, [A.buf.buffer]); }
+        else done(rimCompute(inp));                                       // no worker (or F.rimInline, for tests): on this thread, as before
     }
 
     // ------------------------------------------------------------------ generation

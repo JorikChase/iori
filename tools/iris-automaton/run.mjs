@@ -17,8 +17,8 @@ mkdirSync(OUT, { recursive: true });
 export function loadSheet(ref, o = {}) {
     const meta = JSON.parse(readFileSync(join(DATA, ref, 'sheet.json'), 'utf8'));
     const im = s => readPNG(join(DATA, ref, s + '.png'));
-    const f = im('fields'), images = { flat: im('flat').data, relief: im('relief').data, final: im('final').data };
-    return { meta, sheet: irisSheet({ W: f.W, H: f.H, fields: f.data, images, seed: o.seed ?? 7, speed: o.speed ?? 1 }) };
+    const f = im('fields'), region = im('region').data, images = { flat: im('flat').data, relief: im('relief').data, final: im('final').data };
+    return { meta, sheet: irisSheet({ W: f.W, H: f.H, fields: f.data, region, images, seed: o.seed ?? 7, speed: o.speed ?? 1 }) };
 }
 
 function runOne(ref) {

@@ -25,11 +25,11 @@ function blur1(src, W, H, s) {
     return out;
 }
 
-// fieldsRGBA: Uint8 RGBA (fields.png); images: { flat, relief, final } as Uint8 RGBA (W × H)
-export function decodeFields(f, W, H) {
+// f: RGBA of fields.png (R θ, G crest, B crypt), r: RGBA of region.png (grey); images: { flat, relief, final } as Uint8 RGBA (W × H)
+export function decodeFields(f, r, W, H) {
     const N = W * H, F = { theta: new Float32Array(N), crest: new Float32Array(N), crypt: new Float32Array(N), rho: new Float32Array(N), iris: new Float32Array(N), pupil: new Float32Array(N), region: new Float32Array(N) };
     for (let i = 0; i < N; i++) {
-        const a = f[i * 4 + 3];
+        const a = r[i * 4];
         F.theta[i] = f[i * 4] / 255 * Math.PI; F.crest[i] = f[i * 4 + 1] / 255; F.crypt[i] = f[i * 4 + 2] / 255;
         F.pupil[i] = a === 255 ? 1 : 0; F.iris[i] = a > 0 && a < 255 ? 1 : 0; F.rho[i] = F.iris[i] ? (a - 1) / 253 : (F.pupil[i] ? 0 : 1);
         F.region[i] = a > 0 ? 1 : 0;                       // on the eye (iris or pupil)
@@ -81,7 +81,7 @@ export function irisRules(o = {}) {
     ];
 }
 
-export function irisSheet({ W, H, fields, images, seed = 7, speed = 1 }) {
-    const F = decodeFields(fields, W, H);
+export function irisSheet({ W, H, fields, region, images, seed = 7, speed = 1 }) {
+    const F = decodeFields(fields, region, W, H);
     return { W, H, fields: F, layers: buildLayers(images, F, W, H), rules: irisRules({ speed }), seed, names: STAGES };
 }

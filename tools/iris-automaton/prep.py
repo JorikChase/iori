@@ -5,8 +5,8 @@ study's Eye reader: iris-engine/study/flydown/rig.py; nothing in the engine is t
 
 In:  tools/iris-automaton/captures/<ref>-<stage>.png   (engine canvas grabs, RGBA, alpha 0 = not drawn = the white page)
 Out: papers/iris-automaton/data/<ref>/<stage>.png      N × N RGB (the stages; the page is white and needs no file)
-     papers/iris-automaton/data/<ref>/fields.png       N × N RGBA: R tangent θ/π (mod π), G strand crest, B crypt,
-                                                       A region: 0 off the eye, 255 pupil, else 1 + 253·ρ on the iris
+     papers/iris-automaton/data/<ref>/fields.png       N × N RGB: R tangent θ/π (mod π), G strand crest, B crypt
+     papers/iris-automaton/data/<ref>/region.png       N × N grey: 0 off the eye, 255 pupil, else 1 + 253·ρ on the iris
      papers/iris-automaton/data/<ref>/sheet.json       stage names, crop placement, µm per crop px
 
 The crop and the photo frame are matched as printprep.py does it: the render's iris circle (the smallest circle round
@@ -78,8 +78,10 @@ def build(ref, N, stages):
     d = os.path.join(OUT, ref); os.makedirs(d, exist_ok=True)
     for name, im in zip(stages, crops):
         cv2.imwrite(os.path.join(d, f'{name}.png'), np.clip(im + 0.5, 0, 255).astype(np.uint8)[..., ::-1], [cv2.IMWRITE_PNG_COMPRESSION, 9])
-    fl = np.dstack([np.round(theta / np.pi * 255) % 256, np.round(crest * 255), np.round(np.clip(cr, 0, 1) * 255 * iris), region]).astype(np.uint8)
-    cv2.imwrite(os.path.join(d, 'fields.png'), fl[..., [2, 1, 0, 3]], [cv2.IMWRITE_PNG_COMPRESSION, 9])
+    # no alpha: a browser canvas premultiplies it and would spoil the other channels where it is small
+    fl = np.dstack([np.round(theta / np.pi * 255) % 256, np.round(crest * 255), np.round(np.clip(cr, 0, 1) * 255 * iris)]).astype(np.uint8)
+    cv2.imwrite(os.path.join(d, 'fields.png'), fl[..., ::-1], [cv2.IMWRITE_PNG_COMPRESSION, 9])
+    cv2.imwrite(os.path.join(d, 'region.png'), region, [cv2.IMWRITE_PNG_COMPRESSION, 9])
     meta = {'ref': ref, 'N': N, 'stages': stages, 'canvas': [W, H], 'crop': [float(x0), float(y0), float(2 * half)],
             'um_per_px': float(eye.UM / s / z), 'iris_px': int(iris.sum()), 'pupil_px': int(pupil.sum())}
     json.dump(meta, open(os.path.join(d, 'sheet.json'), 'w'), indent=1)

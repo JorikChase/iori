@@ -28,7 +28,7 @@
     const ROW = []; { let r = 0; for (let l = 0; l < LV; l++) { ROW.push(r); r += cols(l); } ROW.push(r); }
     const TW = 512, TH = ROW[LV];
     const F = {
-        on: true, ready: false, subGain: 4.0, keep12: false, ref: null, meta: null, budget: 8, fade: 0.9, spread: 0.6, hk: 0.5, ridge: 2.5, tube: 4.0, bridge: true, smear: true, slim: true, relPx: 6, tubeB: 9, gap: true, sdf: true, rope: true, ropeR: 28, ropeFork: true, rim: false, rimOv: 35, rimUc: 22, rimT: 18, active: false,   // subGain: iori, 2026-11-11 — ×4 the default (×2 on the Camera window's switch)
+        on: true, ready: false, subGain: 4.0, keep12: false, ref: null, meta: null, budget: 8, fade: 0.9, spread: 0.6, hk: 0.5, ridge: 2.5, tube: 4.0, bridge: true, smear: true, slim: true, relPx: 6, tubeB: 9, gap: true, sdf: true, rope: true, ropeR: 36, ropeFork: true,   /* ropeR 28 -> 36 (iori 2026-11-13: "Yes, thicken them"; rope cores 30 -> 36 µm mid-span on 3 eyes, the reference's rungs 40–60: study/field/survey) */ rim: false, rimOv: 35, rimUc: 22, rimT: 18, active: false,   // subGain: iori, 2026-11-11 — ×4 the default (×2 on the Camera window's switch)
         stats: { gen: 0, genMs: [], frames: 0, resident: 0, requested: 0, lastReq: 0, firstSharp: null },
         walk: null,                                                     // { pos:[x,y,z] mm, heading, pitch, alt, fov, anim }
     };
@@ -182,7 +182,7 @@
         const need = (a, b) => { if (!src.includes(a)) throw new Error('flydown: tissue variant anchor missing: ' + a.slice(0, 50)); src = src.replace(a, b); };
         // the K1 origin textures are never read while the layer model owns the atlas (u_tisK1 0): their two samplers carry the pages
         need('uniform sampler2D u_tisO0, u_tisO1;', `uniform sampler2D u_fdAtlas, u_fdTable;
-        uniform float u_fdRim, u_fdRimOk; uniform vec3 u_fdRope; uniform vec3 u_fdRimP; uniform ivec3 u_fdRimSz; uniform float u_fdSdf, u_fdRidge, u_fdTube, u_fdBridge, u_fdSmear, u_fdSlim, u_fdRelPx, u_fdTubeB, u_fdGapOn; float g_fdRel = 1.0, g_fdRT0 = 0.0, g_fdKind = 0.0, g_fdLip = 0.0; vec2 g_fdLipUv = vec2(0.0); vec2 g_fdOff = vec2(0.0); float g_fdBr = 0.0, g_fdFloorW = 0.0, g_fdFloorT = 0.5; vec2 g_fdUvA = vec2(0.0), g_fdUvB = vec2(0.0);
+        uniform float u_fdRim, u_fdRimOk; uniform vec3 u_fdRope; uniform int u_fdFour; uniform vec3 u_fdRimP; uniform ivec3 u_fdRimSz; uniform float u_fdSdf, u_fdRidge, u_fdTube, u_fdBridge, u_fdSmear, u_fdSlim, u_fdRelPx, u_fdTubeB, u_fdGapOn; float g_fdRel = 1.0, g_fdRT0 = 0.0, g_fdKind = 0.0, g_fdLip = 0.0; vec2 g_fdLipUv = vec2(0.0); vec2 g_fdOff = vec2(0.0); float g_fdBr = 0.0, g_fdFloorW = 0.0, g_fdFloorT = 0.5; vec2 g_fdUvA = vec2(0.0), g_fdUvB = vec2(0.0);
         // one random number per pixel and accumulation sample (the slim path: averages spread over the frames the engine accumulates)
         // stratified over the frames: a per-pixel start, then the golden-ratio sequence — the samples cover the stretch evenly, not at random
         float fdRnd(float salt) { vec3 p3 = fract(vec3(gl_FragCoord.xy, salt) * vec3(.1031, .1030, .0973)); p3 += dot(p3, p3.yxz + 33.33); return fract(fract((p3.x + p3.y) * p3.z) + float(u_frame) * 0.6180339887); } float g_fdCov = 1.0, g_fdSlab = 0.0, g_fdZc = 0.0, g_fdR = 0.0, g_fdHn = 0.0; vec2 g_fdHGrad = vec2(0.0);
@@ -601,8 +601,11 @@
             g_fdSdK = k; return d;
         }
         vec3 fdSdNormal(vec3 Q, float rp, float lod, float pxMm) {
-            const float e = 0.0006; vec2 k = vec2(1.0, -1.0);   // tetrahedral differences, 0.6 µm
-            return normalize(k.xyy * fdSdAt(Q + k.xyy * e, rp, lod, pxMm) + k.yyx * fdSdAt(Q + k.yyx * e, rp, lod, pxMm) + k.yxy * fdSdAt(Q + k.yxy * e, rp, lod, pxMm) + k.xxx * fdSdAt(Q + k.xxx * e, rp, lod, pxMm));
+            const float e = 0.0006; vec3 n = vec3(0.0);   // tetrahedral differences, 0.6 µm
+            // a loop the compiler cannot unroll (its bound is a uniform 4): one copy of the strand field, not four. The four inlined copies
+            // kept the walk variant at the Metal compiler's limit (2026-11-13: a thicker rope with two more map reads crashed it)
+            for (int i = 0; i < u_fdFour; i++) { vec3 d = i == 0 ? vec3(1.0, -1.0, -1.0) : i == 1 ? vec3(-1.0, -1.0, 1.0) : i == 2 ? vec3(-1.0, 1.0, -1.0) : vec3(1.0); n += d * fdSdAt(Q + d * e, rp, lod, pxMm); }
+            return normalize(n);
         }
         vec3 shadeInterior(vec3 pIn`);
         need('if (maskView || mapView) return vec4(iris, 1.0);', 'if (maskView || mapView || u_debug > 15.5) return vec4(iris, 1.0);');
@@ -929,7 +932,7 @@
                 fragColor = vec4(e, fdSheet(uv, lod), fh, g_fdLvGap); return;
             }
             vec4 o;
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < u_fdFour; k++) {
                 float hp = u_pbZ.x + u_pbZ.y * (u_pbZ.z + float(k));
                 float d = fdSdStrands(uv, hp, hh, lod, px);
                 float kk = g_fdSdK; if (u_fdRim > 0.5 && fdRimFrame(uv, hh, lod) > 0.0) { float dl = fdRimLip(hp); if (dl < d) { d = dl; kk = 5.0; } }
@@ -971,7 +974,7 @@
             const NZ = Math.ceil((zl[1] - zl[0]) / step / 4) * 4, sdf = new Float32Array(N * N * NZ);
             for (let k0 = 0; k0 < NZ; k0 += 4) { const b = draw(1, zl[0], step, k0); for (let q = 0; q < 4; q++) for (let k = 0; k < N * N; k++) sdf[(k0 + q) * N * N + k] = b[4 * k + q]; }
             let kind = null; if (o.kind) { kind = new Float32Array(N * N * NZ); for (let k0 = 0; k0 < NZ; k0 += 4) { const b = draw(2, zl[0], step, k0); for (let q = 0; q < 4; q++) for (let k = 0; k < N * N; k++) kind[(k0 + q) * N * N + k] = b[4 * k + q]; } }
-            const col = o.kind ? draw(3, 0, 0, 0) : null;   // per column: band-end distance, sheet coverage, strand height, band value
+            const col = o.kind || o.col ? draw(3, 0, 0, 0) : null;   // per column: band-end distance, sheet coverage, strand height, band value
             const ms = performance.now() - t0;
             gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); gl.deleteTexture(tx); gl.viewport(0, 0, E.canvas.width, E.canvas.height); gl.activeTexture(gl.TEXTURE0);
             const flags = {}; for (const k of ['sdf', 'rope', 'ropeR', 'ropeFork', 'rim', 'rimOv', 'rimUc', 'rimT', 'gap', 'ridge', 'tube', 'tubeB', 'bridge', 'subGain']) flags[k] = F[k];
@@ -1240,7 +1243,7 @@
         gl.uniform1f(p.loc('u_fdRimOk'), rimT && rimFresh() ? 1 : 0); if (rimT) gl.uniform3i(p.loc('u_fdRimSz'), rimT.W, rimT.H, TH);
         gl.activeTexture(gl.TEXTURE0);
         gl.uniform1f(p.loc('u_fdOn'), F.on && F.ready ? 1 : 0); gl.uniform1f(p.loc('u_fdTime'), now());
-        gl.uniform1f(p.loc('u_fdFade'), F.fade); gl.uniform1f(p.loc('u_fdSpread'), F.spread); gl.uniform1f(p.loc('u_fdHK'), F.hk); gl.uniform1f(p.loc('u_fdRidge'), F.ridge); gl.uniform1f(p.loc('u_fdTube'), F.tube); gl.uniform1f(p.loc('u_fdBridge'), F.bridge ? 1 : 0); gl.uniform1f(p.loc('u_fdSmear'), F.smear ? 1 : 0); gl.uniform1f(p.loc('u_fdSlim'), F.slim ? 1 : 0); gl.uniform1f(p.loc('u_fdRelPx'), F.relPx); gl.uniform1f(p.loc('u_fdTubeB'), F.tubeB); gl.uniform1f(p.loc('u_fdGapOn'), F.gap ? 1 : 0); gl.uniform1f(p.loc('u_fdSdf'), F.sdf ? 1 : 0); gl.uniform1f(p.loc('u_fdRim'), F.rim && F.sdf ? 1 : 0); gl.uniform3f(p.loc('u_fdRimP'), F.rimOv, F.rimUc, F.rimT); gl.uniform3f(p.loc('u_fdRope'), F.rope && F.sdf ? 1 : 0, F.ropeR, F.ropeFork ? 1 : 0); gl.uniform1f(p.loc('u_fdPx'), F.pxScale()); gl.uniform1f(p.loc('u_fdForceF'), F.forceF || 0); gl.uniform1f(p.loc('u_fdKeep12'), F.keep12 ? 1 : 0); gl.uniform1f(p.loc('u_fdFibre'), F.meta ? F.meta.fibreLambdaUm || 23 : 23); gl.uniform1f(p.loc('u_fdTisN'), T.size && T.rect ? T.size[0] / T.rect[2] : 0);
+        gl.uniform1f(p.loc('u_fdFade'), F.fade); gl.uniform1f(p.loc('u_fdSpread'), F.spread); gl.uniform1f(p.loc('u_fdHK'), F.hk); gl.uniform1f(p.loc('u_fdRidge'), F.ridge); gl.uniform1f(p.loc('u_fdTube'), F.tube); gl.uniform1f(p.loc('u_fdBridge'), F.bridge ? 1 : 0); gl.uniform1f(p.loc('u_fdSmear'), F.smear ? 1 : 0); gl.uniform1f(p.loc('u_fdSlim'), F.slim ? 1 : 0); gl.uniform1f(p.loc('u_fdRelPx'), F.relPx); gl.uniform1f(p.loc('u_fdTubeB'), F.tubeB); gl.uniform1f(p.loc('u_fdGapOn'), F.gap ? 1 : 0); gl.uniform1f(p.loc('u_fdSdf'), F.sdf ? 1 : 0); gl.uniform1f(p.loc('u_fdRim'), F.rim && F.sdf ? 1 : 0); gl.uniform3f(p.loc('u_fdRimP'), F.rimOv, F.rimUc, F.rimT); gl.uniform3f(p.loc('u_fdRope'), F.rope && F.sdf ? 1 : 0, F.ropeR, F.ropeFork ? 1 : 0); gl.uniform1i(p.loc('u_fdFour'), 4); gl.uniform1f(p.loc('u_fdPx'), F.pxScale()); gl.uniform1f(p.loc('u_fdForceF'), F.forceF || 0); gl.uniform1f(p.loc('u_fdKeep12'), F.keep12 ? 1 : 0); gl.uniform1f(p.loc('u_fdFibre'), F.meta ? F.meta.fibreLambdaUm || 23 : 23); gl.uniform1f(p.loc('u_fdTisN'), T.size && T.rect ? T.size[0] / T.rect[2] : 0);
         gl.uniform1iv(p.loc('u_fdRow'), new Int32Array(ROW));
         const w = F.walk;
         gl.uniform1f(p.loc('u_walk'), w ? 1 : 0);

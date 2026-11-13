@@ -1,0 +1,368 @@
+{
+ "ref": {
+  "rope_mid_um": [
+   40,
+   60
+  ],
+  "rope_end_um": [
+   80,
+   120
+  ],
+  "end_over_mid": [
+   1.6,
+   2.4
+  ],
+  "spacing_um": [
+   150,
+   250
+  ],
+  "crypt_mm2": [
+   0.015,
+   0.3
+  ]
+ },
+ "boxes": [
+  {
+   "box": "s26-0",
+   "eye": "26",
+   "uv": [
+    0.03,
+    0.47
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 26.0,
+   "core_end_um": 58.0,
+   "core_share_mid": 0.25,
+   "rope_mid": {
+    "width": 16.5,
+    "height": 16.0,
+    "n": 1777
+   },
+   "rope_end": {
+    "width": 36.2,
+    "height": 58.0,
+    "n": 388
+   },
+   "ropes": 8,
+   "spacing_um": 178.8,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 16,
+   "wall_mm": 6.74,
+   "fins_per_mm_wall": 8.3
+  },
+  {
+   "box": "s26-1",
+   "eye": "26",
+   "uv": [
+    0.438,
+    0.56
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 30.0,
+   "core_end_um": 58.0,
+   "core_share_mid": 0.34,
+   "rope_mid": {
+    "width": 20.0,
+    "height": 20.0,
+    "n": 1921
+   },
+   "rope_end": {
+    "width": 43.3,
+    "height": 60.0,
+    "n": 351
+   },
+   "ropes": 4,
+   "spacing_um": 197.9,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 13,
+   "wall_mm": 6.78,
+   "fins_per_mm_wall": 8.1
+  },
+  {
+   "box": "s26-2",
+   "eye": "26",
+   "uv": [
+    0.354,
+    0.47
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 30.0,
+   "core_end_um": 56.0,
+   "core_share_mid": 0.36,
+   "rope_mid": {
+    "width": 20.2,
+    "height": 16.0,
+    "n": 1996
+   },
+   "rope_end": {
+    "width": 41.2,
+    "height": 58.0,
+    "n": 167
+   },
+   "ropes": 1,
+   "spacing_um": null,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 15,
+   "wall_mm": 6.93,
+   "fins_per_mm_wall": 5.2
+  },
+  {
+   "box": "s09-0",
+   "eye": "09",
+   "uv": [
+    0.372,
+    0.23
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 28.0,
+   "core_end_um": 40.0,
+   "core_share_mid": 0.31,
+   "rope_mid": {
+    "width": 16.5,
+    "height": 12.0,
+    "n": 4690
+   },
+   "rope_end": {
+    "width": 36.9,
+    "height": 40.0,
+    "n": 932
+   },
+   "ropes": 4,
+   "spacing_um": 323.6,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 9,
+   "wall_mm": 2.13,
+   "fins_per_mm_wall": 11.7
+  },
+  {
+   "box": "s09-1",
+   "eye": "09",
+   "uv": [
+    0.606,
+    0.41
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 32.0,
+   "core_end_um": 54.0,
+   "core_share_mid": 0.42,
+   "rope_mid": {
+    "width": 16.5,
+    "height": 20.0,
+    "n": 4025
+   },
+   "rope_end": {
+    "width": 41.5,
+    "height": 52.0,
+    "n": 166
+   },
+   "ropes": 6,
+   "spacing_um": 191.2,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 10,
+   "wall_mm": 6.56,
+   "fins_per_mm_wall": 4.4
+  },
+  {
+   "box": "s09-2",
+   "eye": "09",
+   "uv": [
+    0.654,
+    0.44
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 28.0,
+   "core_end_um": 48.0,
+   "core_share_mid": 0.26,
+   "rope_mid": {
+    "width": 15.2,
+    "height": 12.0,
+    "n": 2274
+   },
+   "rope_end": {
+    "width": 39.4,
+    "height": 46.0,
+    "n": 1036
+   },
+   "ropes": 5,
+   "spacing_um": 330.2,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 10,
+   "wall_mm": 2.13,
+   "fins_per_mm_wall": 1.9
+  },
+  {
+   "box": "s35-0",
+   "eye": "35",
+   "uv": [
+    0.9,
+    0.17
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 26.0,
+   "core_end_um": 52.0,
+   "core_share_mid": 0.08,
+   "rope_mid": {
+    "width": 11.3,
+    "height": 8.0,
+    "n": 337
+   },
+   "rope_end": {
+    "width": 20.4,
+    "height": 42.0,
+    "n": 499
+   },
+   "ropes": 9,
+   "spacing_um": 114.4,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 7,
+   "wall_mm": 6.79,
+   "fins_per_mm_wall": 8.2
+  },
+  {
+   "box": "s35-1",
+   "eye": "35",
+   "uv": [
+    0.144,
+    0.11
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 22.0,
+   "core_end_um": 54.0,
+   "core_share_mid": 0.04,
+   "rope_mid": {
+    "width": 12.0,
+    "height": 6.0,
+    "n": 202
+   },
+   "rope_end": {
+    "width": 36.2,
+    "height": 46.0,
+    "n": 302
+   },
+   "ropes": 2,
+   "spacing_um": 160.7,
+   "crypts_inside": 2,
+   "crypt_mm2": [
+    0.008,
+    0.003
+   ],
+   "free_flakes_ge1000um3": 2,
+   "wall_mm": 4.18,
+   "fins_per_mm_wall": 2.4
+  },
+  {
+   "box": "s35-2",
+   "eye": "35",
+   "uv": [
+    0,
+    0.14
+   ],
+   "size_mm": 0.8,
+   "core_mid_um": 28.0,
+   "core_end_um": 52.0,
+   "core_share_mid": 0.26,
+   "rope_mid": {
+    "width": 14.4,
+    "height": 12.0,
+    "n": 906
+   },
+   "rope_end": {
+    "width": 36.0,
+    "height": 52.0,
+    "n": 261
+   },
+   "ropes": 4,
+   "spacing_um": 192.8,
+   "crypts_inside": 0,
+   "crypt_mm2": [],
+   "free_flakes_ge1000um3": 17,
+   "wall_mm": 8.23,
+   "fins_per_mm_wall": 5.1
+  }
+ ],
+ "by_eye": {
+  "09": {
+   "boxes": 3,
+   "core_mid": 30.0,
+   "core_end": 46.0,
+   "core_end_over_mid": 1.53,
+   "rope_mid_width": 16.5,
+   "rope_end_width": 37.9,
+   "end_over_mid": 2.3,
+   "rope_mid_height": 14.0,
+   "rope_end_height": 42.0,
+   "spacing_um": 277.7,
+   "crypt_mm2_median": 0.035,
+   "crypts": 117,
+   "crypts_in_ref_range": 77,
+   "crypts_over_0p3": 7,
+   "largest_mm2": 2.08,
+   "free_flakes_ge1000um3_per_box": 9.7,
+   "fins_per_mm_wall": 4.4
+  },
+  "26": {
+   "boxes": 3,
+   "core_mid": 28.0,
+   "core_end": 58.0,
+   "core_end_over_mid": 2.07,
+   "rope_mid_width": 20.0,
+   "rope_end_width": 40.0,
+   "end_over_mid": 2.0,
+   "rope_mid_height": 18.0,
+   "rope_end_height": 58.0,
+   "spacing_um": 178.8,
+   "crypt_mm2_median": 0.079,
+   "crypts": 126,
+   "crypts_in_ref_range": 76,
+   "crypts_over_0p3": 29,
+   "largest_mm2": 3.12,
+   "free_flakes_ge1000um3_per_box": 14.7,
+   "fins_per_mm_wall": 8.1
+  },
+  "35": {
+   "boxes": 3,
+   "core_mid": 28.0,
+   "core_end": 54.0,
+   "core_end_over_mid": 1.93,
+   "rope_mid_width": 12.6,
+   "rope_end_width": 29.1,
+   "end_over_mid": 2.31,
+   "rope_mid_height": 10.0,
+   "rope_end_height": 46.0,
+   "spacing_um": 160.7,
+   "crypt_mm2_median": 0.034,
+   "crypts": 168,
+   "crypts_in_ref_range": 120,
+   "crypts_over_0p3": 9,
+   "largest_mm2": 4.1,
+   "free_flakes_ge1000um3_per_box": 8.7,
+   "fins_per_mm_wall": 5.1
+  }
+ },
+ "all": {
+  "boxes": 9,
+  "core_mid": 30.0,
+  "core_end": 50.0,
+  "core_end_over_mid": 1.67,
+  "rope_mid_width": 16.5,
+  "rope_end_width": 36.2,
+  "end_over_mid": 2.19,
+  "rope_mid_height": 14.0,
+  "rope_end_height": 46.0,
+  "spacing_um": 192.0,
+  "crypt_mm2_median": 0.042,
+  "crypts": 411,
+  "crypts_in_ref_range": 273,
+  "crypts_over_0p3": 45,
+  "largest_mm2": 4.1,
+  "free_flakes_ge1000um3_per_box": 11.0,
+  "fins_per_mm_wall": 5.2
+ }
+}

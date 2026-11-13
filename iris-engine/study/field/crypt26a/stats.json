@@ -1,0 +1,157 @@
+{
+ "name": "crypt26a",
+ "eye": "26",
+ "uv": [
+  0.44,
+  0.59
+ ],
+ "box_mm": [
+  1.0,
+  1.0,
+  0.28800000000000003
+ ],
+ "step_um": 2.0,
+ "level": 2,
+ "flags": {
+  "sdf": true,
+  "rope": true,
+  "ropeR": 28,
+  "ropeFork": true,
+  "rim": false,
+  "rimOv": 35,
+  "rimUc": 22,
+  "rimT": 18,
+  "gap": true,
+  "ridge": 2.5,
+  "tube": 4,
+  "tubeB": 9,
+  "bridge": true,
+  "subGain": 4
+ },
+ "probe_ms": 431,
+ "mesh": {
+  "ground": [
+   1180181,
+   2360358
+  ],
+  "strands": [
+   1034381,
+   2071430
+  ],
+  "all": [
+   1564535,
+   3130114
+  ]
+ },
+ "crypt_tubes": {
+  "footprint_mm2": 0.0585,
+  "width_um": {
+   "p10": 4.0,
+   "median": 8.0,
+   "p90": 8.0,
+   "n": 4352
+  },
+  "height_um": {
+   "p10": 2.0,
+   "median": 6.0,
+   "p90": 8.0,
+   "n": 14620
+  }
+ },
+ "ropes": {
+  "footprint_mm2": 0.2158,
+  "width_um_mid": {
+   "p10": 8.5,
+   "median": 26.8,
+   "p90": 52.9,
+   "n": 66
+  },
+  "width_um_end": {
+   "p10": 8.0,
+   "median": 17.9,
+   "p90": 36.9,
+   "n": 2586
+  },
+  "height_um_mid": {
+   "p10": 8.0,
+   "median": 10.0,
+   "p90": 35.0,
+   "n": 66
+  },
+  "height_um_end": {
+   "p10": 8.0,
+   "median": 20.0,
+   "p90": 36.0,
+   "n": 2586
+  },
+  "note": "width = 2 x distance to the footprint edge on its medial axis; height = floating solid in the column; end: < 30 um from where the band still sits on the sheet (ground dropped < 10 um), geodesic along the footprint; mid: > 80 um",
+  "mid_over_end_width": 1.5
+ },
+ "rope_taper_by_end_distance": {
+  "0-40um": {
+   "n": 484,
+   "width_um": 21.5,
+   "float_height_um": 18.0
+  },
+  "40-90um": {
+   "n": 721,
+   "width_um": 20.0,
+   "float_height_um": 20.0
+  },
+  "90-150um": {
+   "n": 825,
+   "width_um": 23.3,
+   "float_height_um": 22.0
+  },
+  "150-400um": {
+   "n": 1712,
+   "width_um": 23.7,
+   "float_height_um": 22.0
+  }
+ },
+ "flakes": {
+  "components": 185,
+  "main_voxels": 21164706,
+  "others": 184,
+  "others_by_size_um3": {
+   "<1e3": 133,
+   "1e3-1e4": 42,
+   "1e4-1e5": 9,
+   ">=1e5": 0
+  },
+  "largest_others_um3": [
+   36768,
+   23160,
+   19640,
+   16072,
+   15960,
+   14760,
+   13408,
+   11280
+  ],
+  "strand_pieces": 467,
+  "strand_pieces_free": 184
+ },
+ "comb_fins": {
+  "walls": 15,
+  "wall_px": 38202,
+  "roughness_rms_um": 8.12,
+  "roughness_p95_um": 17.14,
+  "fins": {
+   "thinner_than_4um": {
+    "count": 38,
+    "area_share_of_wall_band": 0.0076
+   },
+   "thinner_than_8um": {
+    "count": 86,
+    "area_share_of_wall_band": 0.0227
+   },
+   "thinner_than_12um": {
+    "count": 88,
+    "area_share_of_wall_band": 0.0468
+   }
+  },
+  "contour_tortuosity_median": 1.198,
+  "note": "walls: slope > 1.5, outside bands, >= 30 um tall; fins: what an opening by a disc removes from the mid-wall slice; roughness: h minus h blurred at sigma 8 um, on wall pixels; tortuosity: mid-wall contour length raw / smoothed (sigma 8 um)"
+ }
+}

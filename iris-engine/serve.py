@@ -23,6 +23,12 @@ class H(http.server.SimpleHTTPRequestHandler):
             d = os.path.join(ROOT, 'iris-engine', 'study', 'shots'); os.makedirs(d, exist_ok=True)
             open(os.path.join(d, ms.group(1)), 'wb').write(body)
             self.send_response(200); self.end_headers(); self.wfile.write(b'saved study/shots/' + ms.group(1).encode()); return
+        # /save/field/<name>.f32|.json → iris-engine/study/field/raw/ (the fly-down's field probe: F.probeField, tools/flydown/fieldprobe.js)
+        mf = re.match(r'^/save/field/([A-Za-z0-9_.-]+\.(?:f32|json))$', self.path)
+        if mf:
+            d = os.path.join(ROOT, 'iris-engine', 'study', 'field', 'raw'); os.makedirs(d, exist_ok=True)
+            open(os.path.join(d, mf.group(1)), 'wb').write(body)
+            self.send_response(200); self.end_headers(); self.wfile.write(b'saved study/field/raw/' + mf.group(1).encode()); return
         m = re.match(r'^/save/([A-Za-z0-9_.-]+\.json)$', self.path)
         mv = re.match(r'^/save/versions/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+\.json)$', self.path)
         if not m and not mv: self.send_response(404); self.end_headers(); return

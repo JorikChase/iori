@@ -385,8 +385,11 @@
                 for (int k = 0; k < 3; k++) { float rk = rT * (1.0 - 0.15 * float(k)), zk = hh - rT - 1.9 * rT * float(k);
                     float dk = length(vec2(k == 1 ? d1 : d0, hp - zk)) - rk; if (dk < d) { d = dk; g_fdSdK = 2.0 + float(k); } }
             } else {
-                float cov = fdSheet(uv, lod), R = u_fdTube * 0.001 * (1.0 - smoothstep(0.3, 0.6, cov));
-                if (u_fdBridge > 0.5 && R > 0.0 && -hh > 2.0 * R + 0.004) { d = length(vec2(d0, hp - 0.5 * hh)) - R; g_fdSdK = 1.0; }
+                // a crypt tube runs half-way up the crypt and, where the crypt shallows or the sheet closes over it, SINKS into the
+                // ground before it thins away, so both its ends are rooted (the field probe, 2026-11-13: 145 tubes cut off in mid-air
+                // by the old depth test and the coverage fade; iori: "fix the flakes")
+                float cov = fdSheet(uv, lod), R = u_fdTube * 0.001 * (1.0 - smoothstep(0.45, 0.6, cov)), zt = mix(0.5 * hh, hh - 0.5 * u_fdTube * 0.001, smoothstep(0.3, 0.45, cov));
+                if (u_fdBridge > 0.5 && R > 0.0) { d = length(vec2(d0, hp - min(zt, 0.5 * hh))) - R; g_fdSdK = 1.0; }
             }
             return d;
         }
@@ -438,7 +441,11 @@
             const float dl = 0.25; vec2 cA, cB;   // ±250 µm: wider than the widest band's half (the estimate holds while |x| ≤ δ)
             if (!tisIn(u_tissueRect, uv + ac * dl, cA) || !tisIn(u_tissueRect, uv - ac * dl, cB)) return 1e3;
             float sA = fdMapAt(cA, 1).r, sB = fdMapAt(cB, 1).r, x = 0.5 * (sB - sA), w = max(0.5 * (sA + sB) + dl, 0.006);   // the band map: w − |x| inside
-            float Rv = min(w, u_fdRope.y * 0.001), f = w / Rv, fork = u_fdRope.z * smoothstep(1.3, 2.2, f);
+            // the TAPER (iori 2026-11-13: "fix the taper"; ref: thinnest mid-span, about 2x at the ends, a fillet into the sheet): within
+            // 90 µm of where the band meets the sheet (the band map's G, baked) the rope grows to 1.7 x ropeR and stops forking, so its end
+            // is one wide stadium running into the sheet, not a ladder of thin ropes
+            vec2 cE; float fl = tisIn(u_tissueRect, uv, cE) ? 1.0 - smoothstep(0.0, 0.09, fdMapAt(cE, 1).g) : 0.0;
+            float Rv = min(w, u_fdRope.y * 0.001 * (1.0 + 0.7 * fl)), f = w / Rv, fork = u_fdRope.z * smoothstep(1.3, 2.2, f) * (1.0 - fl);
             float Rs = Rv * (1.0 - 0.25 * fork), a = max(w - Rs, 0.0), tW = mix(2.0 * Rs, 0.3 * Rs, fork), kf = 0.3 * Rs, P = 3.2 * Rv;
             vec2 nz = uv * vec2(40.0, 10.0);                                       // ~0.5 mm cells: each rope's thickness drifts slowly along it
             // the edge rope (its outer side on the band's edge), the nearest upper rope inside, the nearest lower rope (half a pitch over)
@@ -653,7 +660,7 @@
         if (bri) bridgeT = tex2D(bri, { repeatS: true, internal: gl.R8, format: gl.RED }); else { bridgeT = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, bridgeT); gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0])); }
         phasorT = tex2D(phi, {}); gl.bindTexture(gl.TEXTURE_2D, phasorT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);   // read by texelFetch
         { const c = document.createElement('canvas'); c.width = ti.width; c.height = ti.height; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(ti, 0, 0); steerCPU = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data }; }
-        bridgeCPU = null; if (bri) { const c = document.createElement('canvas'); c.width = bri.width; c.height = bri.height; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(bri, 0, 0); bridgeCPU = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data }; rimBake = null; }   // the bands, for the rope's band map (bakeRim)
+        bridgeCPU = null; bridgeGen++; if (bri) { const c = document.createElement('canvas'); c.width = bri.width; c.height = bri.height; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(bri, 0, 0); bridgeCPU = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data }; rimBake = null; }   // the bands, for the rope's band map (bakeRim)
         F.meta = meta; resetPages(); F.ready = true;
         F.say && F.say(`fly-down: eye ${ref} seeded (octaves ${meta.octaves_um.join(', ')} µm)`);
     }
@@ -668,7 +675,8 @@
     // which tissue bake the map belongs to: the aux texture object and the knobs (tissue.js has no bake counter); a map with no crypts
     // (the tissue not baked yet) is retried every 2 s
     let rimT = null, rimBake = null, rimAux = null, rimRetry = 0; F.rimInfo = null;
-    const rimKey = () => (T.knobSig || '') + '|' + JSON.stringify(T.primKey || null) + '|' + (T.size || []).join('x');
+    let bridgeGen = 0;   // bumped when the eye's band image (bridgeCPU) changes: a bake begun before it loaded is stale (it had no bands, and the ropes vanished)
+    const rimKey = () => (T.knobSig || '') + '|' + JSON.stringify(T.primKey || null) + '|' + (T.size || []).join('x') + '|' + bridgeGen;
     const rimFresh = () => rimAux === T.aux && rimBake === rimKey();
     // THE BAKE IN A WORKER (iori 2026-11-12: "do 2, background bake"): the readback (one readPixels of the whole aux, ~30 ms) stays on the
     // main thread; everything after it — sheet level, crypt components, islands, the bands, four exact distance transforms (~0.75 s on
@@ -737,7 +745,10 @@
                     const i = y * W + x; B[i] = g > 0.42 ? 1 : 0; nB[i] = 1 - B[i]; } }
             const bOut = edt(B, W, H, su, sv), bIn = edt(nB, W, H, su, sv);
             for (let i = 0; i < W * H; i++) pb[i * 2] = Math.max(-0.4, Math.min(0.4, B[i] ? bIn[i] : -bOut[i]));
-        } else pb.fill(-0.4);
+            // G: how far a band texel is from the band's END, where it meets the sheet (not crypt, not band): the rope's taper (fdRope)
+            const Sh = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) Sh[i] = ok[i] && !C[i] && !B[i] ? 1 : 0;
+            const dS = edt(Sh, W, H, su, sv); for (let i = 0; i < W * H; i++) pb[i * 2 + 1] = B[i] ? Math.min(0.4, dS[i]) : 0.4;
+        } else for (let i = 0; i < W * H; i++) { pb[i * 2] = -0.4; pb[i * 2 + 1] = 0.4; }
         let nC = 0; for (let i = 0; i < W * H; i++) nC += C[i];
         return { px, pb, crypts: keep.filter(Boolean).length, dropped: keep.filter(k => !k).length, nC };
     }
@@ -770,7 +781,7 @@
                 const at = (X, Y, k) => px[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2 + k], b = k => (at(x0, y0, k) * (1 - fx) + at(x0 + 1, y0, k) * fx) * (1 - fy) + (at(x0, y0 + 1, k) * (1 - fx) + at(x0 + 1, y0 + 1, k) * fx) * fy;
                 return [b(0), b(1)]; };
             F._bandAt = (u, v) => { const x = ((u - R[0]) / R[2] * W - 0.5), y = Math.max(0, Math.min(H - 1, (v - R[1]) / R[3] * H - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;   // tests: the band map
-                const at = (X, Y) => pb[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2]; return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy; };
+                const at = (X, Y) => pb[(Math.min(H - 1, Y) * W + ((X % W) + W) % W) * 2 + (F._bandCh || 0)]; return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy; };
                 if (!o.crypts) { rimBake = null; rimRetry = performance.now() + 2000; }   // nothing found: the tissue is not there yet
             F.rimInfo = { W, H, crypts: o.crypts, dropped: o.dropped, cryptShare: +(o.nC / (W * H)).toFixed(3), ms: Math.round(performance.now() - t0), worker: !!o.job };
         };
@@ -890,6 +901,84 @@
     F.pxScale = () => Math.max(1, E.canvas.width / (E.canvas.getBoundingClientRect().width || E.canvas.width));   // device px per CSS px
     function footprintMm() { return (24 * state.view[3] / E.canvas.height) / 100 * (state.zoomPhoto + 3.5) / 1.1; }
     F._readMap = readMap; F._variantSrc = () => variantSource(T.photoSource());   // tests: the variant's source
+    // ---- the FIELD PROBE (IORI MASTER 2026-11-13, landscape-analysis step 1: "a 3D export of the field the renderer actually draws, so we
+    // stop porting shader rules to Python by hand"). The walk variant's own source with its main swapped for a probe main: the same
+    // tissueH, fdHn, fdGround, fdSdStrands / fdRope, fdRimFrame / fdRimLip and the same uniforms (T.bind), so every flag and setting
+    // is the renderer's. Local frame, mm: x radial (out), y tangential (th up), z = hp, the height above the sheet's level (the march's
+    // hp = irisZ(v) − z: solid where hp < the ground, or where the strands' SDF < 0). Two outputs:
+    //   ground  N×N: the march's ground (rim cut-back, the healed ground under bands, the sheet's ridges), the raw height, band weight, gap
+    //   sdf     N×N×NZ: fdSdStrands (+ the rim's lip) at each layer's hp, four layers per pass
+    // tools/flydown/fieldprobe.js drives it and saves to study/shots; study/flydown/field/mesh.py meshes it (marching cubes)
+    const PROBE_MAIN = `
+        uniform vec2 u_pbC; uniform vec4 u_pbG; uniform vec4 u_pbZ; uniform float u_pbMode;   // centre uv; (N, step mm, pxMm, lod); (z0, dz, layer0, 0)
+        void main() {
+            vec2 ij = floor(gl_FragCoord.xy), xy = (ij - 0.5 * u_pbG.x + 0.5) * u_pbG.y;   // x radial, y tangential, mm
+            float rr = 2.0 + 4.0 * u_pbC.y; vec2 uv = u_pbC + vec2(xy.y / (6.2831853 * rr), xy.x / 4.0);
+            float lod = u_pbG.w, px = u_pbG.z, hh = tissueH(uv, lod);
+            if (u_pbMode < 0.5) {   // the ground, in the march's order (shadeInterior's step loop)
+                float h = hh; g_fdRimW = 0.0;
+                if (u_fdSdf > 0.5 && u_fdRim > 0.5 && fdRimFrame(uv, h, lod) > 0.0) h = mix(h, g_fdRimHU, g_fdRimW);
+                float fh = fdHn(uv, px), gw = u_fdGapOn > 0.5 ? smoothstep(0.25, 0.6, g_fdLvGap) : 0.0, gap = g_fdLvGap;
+                if (gw > 0.0) { vec2 ua, ub; float tab, fnd, gnd = fdGround(uv, h, g_fdLvPhi, lod, ua, ub, tab, fnd); gw *= fnd; h = mix(h, gnd, gw); fh *= 1.0 - gw; }
+                if (fh != 0.0) h += u_fdRidge * 0.001 * fh * fdSheet(uv, lod);
+                fragColor = vec4(h, hh, gw, gap + 2.0 * g_fdRimW);
+                return;
+            }
+            if (u_pbMode > 2.5) {   // mode 3, per column: distance to the band's end (the band map's G), the sheet's coverage, the strand height, the band value
+                vec2 cE; float e = tisIn(u_tissueRect, uv, cE) ? fdMapAt(cE, 1).g : 1.0; float fh = fdHn(uv, px);
+                fragColor = vec4(e, fdSheet(uv, lod), fh, g_fdLvGap); return;
+            }
+            vec4 o;
+            for (int k = 0; k < 4; k++) {
+                float hp = u_pbZ.x + u_pbZ.y * (u_pbZ.z + float(k));
+                float d = fdSdStrands(uv, hp, hh, lod, px);
+                float kk = g_fdSdK; if (u_fdRim > 0.5 && fdRimFrame(uv, hh, lod) > 0.0) { float dl = fdRimLip(hp); if (dl < d) { d = dl; kk = 5.0; } }
+                o[k] = u_pbMode > 1.5 ? kk : d;   // mode 2: which rule made the nearest surface (g_fdSdK: 1 crypt tube, 2–3.5 rope, 5 rim lip)
+            }
+            fragColor = o;
+        }`;
+    let probeProg = null;
+    function ensureProbe() {
+        const src = T.photoSource(); if (probeProg && probeProg.forSrc === src) return probeProg;
+        let v = variantSource(src); const at = v.indexOf('void main() {'); if (at < 0) throw new Error('probe: no main');
+        v = v.slice(0, at) + 'void fdMainUnused() {' + v.slice(at + 'void main() {'.length) + PROBE_MAIN;
+        if (probeProg) gl.deleteProgram(probeProg); probeProg = compile(VS, v, 'flydown-probe'); probeProg.forSrc = src; return probeProg;
+    }
+    // F.probeField({ uv: [u, v], half: 0.5 mm, step: 0.002 mm, level: 2, z: [z0, z1] | null, depth: 0.3, kind: false }) → { meta, ground (N·N·4), sdf (N·N·NZ), kind (N·N·NZ, with o.kind) }
+    // level: the page level the strands are read at (texel 4 / 2^level µm). The pages under the box are grown first and the planner held
+    // (F.hold) until the probe is done, so nothing evicts them; z null: from the ground's range, at most depth mm
+    F.probeField = async (o = {}) => {
+        if (!F.ready || !T.on) throw new Error('probe: fly-down or tissue not ready');
+        ensureGL(); const c = o.uv, half = o.half || 0.5, step = o.step || 0.002, lv = o.level === undefined ? 2 : o.level, N = Math.round(2 * half / step);
+        F.hold = true;
+        try {
+            const pc = P_(c), pu = pageUm(lv), m = half * 1000 * 1.5 + pu, keys = [];   // the pages under the box (+ margin) at the chosen level
+            for (let i = Math.floor((pc[0] - m + EXT) / pu); i <= Math.floor((pc[0] + m + EXT) / pu); i++)
+                for (let j = Math.floor((pc[1] - m + EXT) / pu); j <= Math.floor((pc[1] + m + EXT) / pu); j++) if (i >= 0 && j >= 0 && i < cols(lv) && j < cols(lv)) keys.push([lv, i, j]);
+            wanted = new Set(keys.map(k => pageKey(...k))); queue = [];
+            gl.bindFramebuffer(gl.FRAMEBUFFER, atlasFB); genBind(); let made = 0;
+            for (const [l, i, j] of keys) if (!(table[2 * pageKey(l, i, j)] > 0)) { genPage(l, i, j); made++; }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            if (made) await new Promise(r => setTimeout(r, (F.fade + F.spread + 0.3) * 1000));   // fully grown (the fade-in)
+            const p = ensureProbe(); gl.useProgram(p); T.bind(p);
+            const fb = gl.createFramebuffer(), tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, N, N, 0, gl.RGBA, gl.FLOAT, null);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tx, 0); gl.viewport(0, 0, N, N);
+            const pxMm = o.pxMm || 4 / Math.pow(2, lv) / F.pxScale() / 1000;   // the footprint at which fdHn reads level lv first
+            gl.uniform2f(p.loc('u_pbC'), c[0], c[1]); gl.uniform4f(p.loc('u_pbG'), N, step, pxMm, o.lod || 0);
+            const draw = (mode, z0, dz, k0) => { gl.uniform1f(p.loc('u_pbMode'), mode); gl.uniform4f(p.loc('u_pbZ'), z0, dz, k0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); const b = new Float32Array(N * N * 4); gl.readPixels(0, 0, N, N, gl.RGBA, gl.FLOAT, b); return b; };
+            const t0 = performance.now(), ground = draw(0, 0, 0, 0);
+            let zl = o.z; if (!zl) { let lo = 1e9, hi = -1e9; for (let k = 0; k < N * N; k++) { lo = Math.min(lo, ground[4 * k]); hi = Math.max(hi, ground[4 * k], ground[4 * k + 1]); } zl = [Math.max(lo - 0.01, hi + 0.03 - (o.depth || 0.3)), hi + 0.03]; }
+            const NZ = Math.ceil((zl[1] - zl[0]) / step / 4) * 4, sdf = new Float32Array(N * N * NZ);
+            for (let k0 = 0; k0 < NZ; k0 += 4) { const b = draw(1, zl[0], step, k0); for (let q = 0; q < 4; q++) for (let k = 0; k < N * N; k++) sdf[(k0 + q) * N * N + k] = b[4 * k + q]; }
+            let kind = null; if (o.kind) { kind = new Float32Array(N * N * NZ); for (let k0 = 0; k0 < NZ; k0 += 4) { const b = draw(2, zl[0], step, k0); for (let q = 0; q < 4; q++) for (let k = 0; k < N * N; k++) kind[(k0 + q) * N * N + k] = b[4 * k + q]; } }
+            const col = o.kind ? draw(3, 0, 0, 0) : null;   // per column: band-end distance, sheet coverage, strand height, band value
+            const ms = performance.now() - t0;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); gl.deleteTexture(tx); gl.viewport(0, 0, E.canvas.width, E.canvas.height); gl.activeTexture(gl.TEXTURE0);
+            const flags = {}; for (const k of ['sdf', 'rope', 'ropeR', 'ropeFork', 'rim', 'rimOv', 'rimUc', 'rimT', 'gap', 'ridge', 'tube', 'tubeB', 'bridge', 'subGain']) flags[k] = F[k];
+            return { meta: { eye: F.ref, uv: c, half, step, N, NZ, z0: zl[0], level: lv, pxMm, lod: o.lod || 0, pages: keys.length, grown: made, rimOk: !!(rimT && rimFresh()), ms: Math.round(ms), flags,
+                             frame: 'x radial out (mm), y tangential (mm, th up), z = hp height above the sheet level (mm); ground[(iy*N + ix)*4 + c] = (march ground h, raw h, band weight, gap + 2 rimW); sdf[(iz*N + iy)*N + ix] mm; kind (o.kind) the same layout; col (o.kind) [(iy*N + ix)*4 + c] = (band-end distance mm, sheet coverage, strand height Hn, band value)' }, ground, sdf, kind, col };
+        } finally { F.hold = false; }
+    };
     // ---- the section (iori 2026-11-12: "a depth side view … inspect all height and bridging real height"). The generator
     // itself, run at the cut's points (no atlas, no residency: the strands exactly as they are made, fully grown), and the
     // layer model's floor / sheet / coverage under them; ridges and floating strands by the renderer's own rules (fdTube).
@@ -997,7 +1086,7 @@
         if ((F.rim || F.rope) && F.sdf) { try { bakeRim(); } catch (e) { console.error('flydown rim bake', e); rimBake = rimKey(); rimAux = T.aux; } }
         stepWalk(dt);
         F.active = F.wantsVariant();
-        if (!F.active) return;
+        if (!F.active || F.hold) return;   // F.hold: the field probe owns the pages
         const s = camSig(); if (s !== sig || F.stats.frames - lastPlan > 30) { sig = s; lastPlan = F.stats.frames; plan(); }
         if (queue.length) {
             const tq = performance.now();
@@ -1145,7 +1234,7 @@
     T.photoProgram = () => (F.forceActive || F.active) && F.wantsVariant() ? ensureVariant() : origProgram();
     T.bind = p => {
         origBind(p);
-        if (p !== prog) return;
+        if (p !== prog && p !== probeProg) return;
         gl.activeTexture(gl.TEXTURE21); gl.bindTexture(gl.TEXTURE_2D, atlasT); gl.uniform1i(p.loc('u_fdAtlas'), 21);
         gl.activeTexture(gl.TEXTURE22); gl.bindTexture(gl.TEXTURE_2D, tableT); gl.uniform1i(p.loc('u_fdTable'), 22);
         gl.uniform1f(p.loc('u_fdRimOk'), rimT && rimFresh() ? 1 : 0); if (rimT) gl.uniform3i(p.loc('u_fdRimSz'), rimT.W, rimT.H, TH);

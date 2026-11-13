@@ -1,0 +1,16 @@
+[
+ {
+  "row": 303,
+  "y_um": 107,
+  "thickness_um": 40.0,
+  "verts": 159105,
+  "file": "slab-+107.ply"
+ },
+ {
+  "row": 189,
+  "y_um": -121,
+  "thickness_um": 40.0,
+  "verts": 159205,
+  "file": "slab--121.ply"
+ }
+]
